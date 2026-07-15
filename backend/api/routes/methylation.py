@@ -104,7 +104,6 @@ class RunResponse(BaseModel):
 
     findings_count: int
     pathways_scored: int
-    compound_het_detected: bool = False
 
 
 # ── Helpers ──────────────────────────────────────────────────────────
@@ -347,12 +346,7 @@ def run_methylation(
     gwas_updated = update_annotation_coverage_gwas(result, sample_engine)
     logger.info("Methylation GWAS annotation_coverage updated for %d variants", gwas_updated)
 
-    compound_het_detected = result.compound_het is not None and (
-        result.compound_het.is_compound_het or result.compound_het.is_double_homozygous
-    )
-
     return RunResponse(
         findings_count=count,
         pathways_scored=len(result.pathway_results),
-        compound_het_detected=compound_het_detected,
     )
