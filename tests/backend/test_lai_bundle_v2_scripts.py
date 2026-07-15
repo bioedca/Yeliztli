@@ -1215,7 +1215,7 @@ class TestGnomixTrainingManifestIntegration:
         stub_dir = tmp_path / "bin"
         stub_dir.mkdir()
         called = tmp_path / "training-command-called"
-        for command in ("conda", "bcftools"):
+        for command in ("conda", "bcftools", "flock"):
             stub = stub_dir / command
             stub.write_text("#!/bin/sh\nprintf 'called\\n' > \"$STUB_COMMAND_CALLED\"\nexit 97\n")
             stub.chmod(0o755)
@@ -1419,6 +1419,9 @@ class TestGnomixTrainingManifestIntegration:
         conda_stub = stub_dir / "conda"
         conda_stub.write_text("#!/bin/sh\nprintf 'called\\n' > \"$STUB_CONDA_CALLED\"\nexit 97\n")
         conda_stub.chmod(0o755)
+        flock_stub = stub_dir / "flock"
+        flock_stub.write_text("#!/bin/sh\nexit 0\n")
+        flock_stub.chmod(0o755)
         env = os.environ.copy()
         for variable in (
             "RAW_DIR",
@@ -1534,6 +1537,9 @@ class TestGnomixTrainingManifestIntegration:
             "exit 95\n"
         )
         conda_stub.chmod(0o755)
+        flock_stub = stub_dir / "flock"
+        flock_stub.write_text("#!/bin/sh\nexit 0\n")
+        flock_stub.chmod(0o755)
 
         env = os.environ.copy()
         for variable in (
@@ -1693,6 +1699,9 @@ class TestGnomixTrainingManifestIntegration:
         conda_stub = stub_dir / "conda"
         conda_stub.write_text("#!/bin/sh\nprintf 'called\\n' > \"$STUB_CONDA_CALLED\"\nexit 97\n")
         conda_stub.chmod(0o755)
+        flock_stub = stub_dir / "flock"
+        flock_stub.write_text("#!/bin/sh\nexit 0\n")
+        flock_stub.chmod(0o755)
         env = os.environ.copy()
         for variable in (
             "RAW_DIR",
