@@ -80,6 +80,13 @@ CONFIRMED_RISK_ALLELE_FIXTURES = {
         "third_allele": "G",
         "weight": 0.119,
     },
+    ("prostate_cancer", "rs12621278"): {
+        "effect_allele": "A",
+        "stored_other_allele": "G",
+        "protective_allele": "G",
+        "third_allele": None,
+        "weight": 0.308,
+    },
     ("melanoma", "rs12913832"): {
         "effect_allele": "G",
         "stored_other_allele": None,

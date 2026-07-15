@@ -220,7 +220,8 @@
         {
           "rsid": "rs12621278",
           "effect_allele": "A",
-          "weight": -0.308
+          "other_allele": "G",
+          "weight": 0.308
         },
         {
           "rsid": "rs11568818",
