@@ -125,6 +125,10 @@ class TestGateFlow:
         data = listing.json()
         assert data["computed"] is True
         assert data["outcome"] == "possible_xxy"
+        assert data["x_nonpar_typed"] == 120
+        assert data["x_nonpar_het"] == 60
+        assert data["y_total"] == 60
+        assert data["y_rate"] == 1.0
 
         rerun = client.post("/api/analysis/sex-aneuploidy/run?sample_id=1")
         assert rerun.status_code == 200
