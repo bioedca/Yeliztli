@@ -593,10 +593,13 @@ class TestCrossContextFindings:
         text = actn3_cross.finding_text.lower()
         assert "rx" in text
         assert "alpha-actinin-3 is present" in text
-        assert "does not predict" in text
+        assert "unlike the xx deficiency" in text
+        assert "genotype alone does not predict" in text
+        for caveat in ("ancestry", "sex", "athlete status", "study design"):
+            assert caveat in text
         assert "reduced power" not in text
         assert "slow-twitch" not in text
-        assert "suited to" not in text
+        assert "suited to both endurance and power" not in text
 
     def test_actn3_xx_power_context_still_generated_when_standard(
         self, panel: FitnessPanel

@@ -469,7 +469,7 @@ def _generate_cross_context_findings(
                         f"ACTN3 R577X ({actn3_result.genotype}) — {three_state} genotype. "
                         "Alpha-actinin-3 is present in RX, unlike the XX deficiency, but "
                         "genotype alone does not predict an individual's power or endurance "
-                        "performance; reported associations vary by ancestry, sex, training "
+                        "performance; reported associations vary by ancestry, sex, athlete "
                         "status, and study design."
                     )
                 else:
