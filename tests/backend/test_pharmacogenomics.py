@@ -1082,6 +1082,17 @@ class TestAssessCallConfidence:
         assert conf == CallConfidence.PARTIAL
         assert "rs1142345" in note
 
+    def test_insufficient_just_above_half(self):
+        """Three of five unusable rsids (>50%) → Insufficient."""
+        conf, note = _assess_call_confidence(
+            "CYP2C19",
+            all_defining_rsids={"rs1", "rs2", "rs3", "rs4", "rs5"},
+            missing_rsids={"rs1", "rs2", "rs3"},
+            uncalled_rsids=set(),
+        )
+        assert conf == CallConfidence.INSUFFICIENT
+        assert "3/5" in note
+
     def test_insufficient_majority_missing(self):
         """More than 50% of defining rsids missing → Insufficient."""
         conf, note = _assess_call_confidence(
