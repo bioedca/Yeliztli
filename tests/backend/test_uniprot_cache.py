@@ -28,9 +28,6 @@ from backend.db.tables import (
     uniprot_cache,
 )
 from backend.utils.uniprot import (
-    CANCER_PANEL_GENES,
-    CARDIO_PANEL_GENES,
-    PRIORITY_GENES,
     CacheStats,
     ProteinDomainData,
     ProteinFeatureData,
@@ -449,40 +446,6 @@ class TestPrefetch:
         assert result.cached_already == 1
         assert result.fetched == 1
         assert result.failed == 1
-
-
-# ── Tests: Gene panel constants ─────────────────────────────────────
-
-
-class TestGenePanelConstants:
-    """Tests for pre-fetch gene panel constants."""
-
-    def test_cancer_panel_has_expected_genes(self) -> None:
-        """Cancer panel contains expected gene symbols."""
-        assert "BRCA1" in CANCER_PANEL_GENES
-        assert "BRCA2" in CANCER_PANEL_GENES
-        assert "TP53" in CANCER_PANEL_GENES
-        assert "MLH1" in CANCER_PANEL_GENES
-        assert len(CANCER_PANEL_GENES) >= 20
-
-    def test_cardio_panel_has_expected_genes(self) -> None:
-        """Cardiovascular panel contains expected gene symbols."""
-        assert "LDLR" in CARDIO_PANEL_GENES
-        assert "PCSK9" in CARDIO_PANEL_GENES
-        assert "MYBPC3" in CARDIO_PANEL_GENES
-        assert len(CARDIO_PANEL_GENES) >= 9
-
-    def test_priority_genes_combines_panels(self) -> None:
-        """Priority genes list includes all genes from both panels."""
-        for gene in CANCER_PANEL_GENES:
-            assert gene in PRIORITY_GENES
-        for gene in CARDIO_PANEL_GENES:
-            assert gene in PRIORITY_GENES
-
-    def test_no_duplicates_in_panels(self) -> None:
-        """No duplicate genes within individual panels."""
-        assert len(CANCER_PANEL_GENES) == len(set(CANCER_PANEL_GENES))
-        assert len(CARDIO_PANEL_GENES) == len(set(CARDIO_PANEL_GENES))
 
 
 # ── Tests: API endpoints ────────────────────────────────────────────

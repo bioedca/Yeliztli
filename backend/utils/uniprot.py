@@ -4,7 +4,6 @@ Implements:
   - 30-day TTL cache in reference.db ``uniprot_cache`` table
   - On-demand fetch from UniProt REST API for cache misses
   - Graceful offline fallback (returns stale cache, never crashes)
-  - Background pre-fetch for cancer/cardio gene panels
   - Batch pre-fetch for arbitrary gene lists
 
 Usage::
@@ -121,64 +120,6 @@ class PrefetchResult:
     cached_already: int = 0
     failed: int = 0
     errors: list[str] = field(default_factory=list)
-
-
-# ── Gene panel constants ─────────────────────────────────────────────
-
-# Cancer panel genes (from cancer_panel.json)
-CANCER_PANEL_GENES: list[str] = [
-    "BRCA1",
-    "BRCA2",
-    "TP53",
-    "PALB2",
-    "ATM",
-    "CHEK2",
-    "RAD51C",
-    "RAD51D",
-    "MLH1",
-    "MSH2",
-    "MSH6",
-    "PMS2",
-    "APC",
-    "MUTYH",
-    "VHL",
-    "RET",
-    "PTEN",
-    "STK11",
-    "CDH1",
-    "NF1",
-    "NF2",
-    "MEN1",
-    "SDHA",
-    "SDHB",
-    "SDHC",
-    "SDHD",
-    "BAP1",
-    "CDKN2A",
-]
-
-# Cardiovascular panel genes (from cardiovascular_panel.json)
-CARDIO_PANEL_GENES: list[str] = [
-    "LDLR",
-    "PCSK9",
-    "APOB",
-    "LPA",
-    "ABCG5",
-    "ABCG8",
-    "KCNQ1",
-    "SCN5A",
-    "MYBPC3",
-    "MYH7",
-    "TNNT2",
-    "LMNA",
-    "DSP",
-    "PKP2",
-    "KCNH2",
-    "RYR2",
-]
-
-# Priority genes pre-fetched at setup time
-PRIORITY_GENES: list[str] = CANCER_PANEL_GENES + CARDIO_PANEL_GENES
 
 
 # ── UniProt fetcher ──────────────────────────────────────────────────
