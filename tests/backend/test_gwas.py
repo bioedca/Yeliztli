@@ -19,6 +19,7 @@ from __future__ import annotations
 import csv
 import gzip
 import io
+import json
 import zipfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -1083,6 +1084,42 @@ class TestDownloadAndLoadGwas:
             ).first()
             assert row is not None
             assert row.checksum_sha256 == "fake_sha256"
+
+
+class TestGwasSeedVerifiedRiskAlleles:
+    """Lock the independently verified seed directions from #1848."""
+
+    _ROOT = Path(__file__).resolve().parents[2]
+    _SEED = _ROOT / "tests" / "fixtures" / "seed_csvs" / "gwas_seed.csv"
+    _PANEL = _ROOT / "backend" / "data" / "panels" / "gene_health_panel.json"
+    _EXPECTED = {
+        ("rs13266634", "Type 2 diabetes"): "C",
+        ("rs2476601", "Type 1 diabetes"): "A",
+        ("rs2476601", "Rheumatoid arthritis"): "A",
+        ("rs3135388", "Multiple sclerosis"): "A",
+    }
+
+    def test_seed_rows_use_verified_trait_raising_alleles(self) -> None:
+        with open(self._SEED, encoding="utf-8") as f:
+            rows = [
+                (row["rsid"], row["trait"], row["risk_allele"])
+                for row in csv.DictReader(f)
+                if (row["rsid"], row["trait"]) in self._EXPECTED
+            ]
+
+        expected = [(rsid, trait, allele) for (rsid, trait), allele in self._EXPECTED.items()]
+        assert sorted(rows) == sorted(expected)
+
+    def test_verified_seed_loci_match_gene_health_panel(self) -> None:
+        panel = json.loads(self._PANEL.read_text(encoding="utf-8"))
+        expected = {rsid: allele for (rsid, _trait), allele in self._EXPECTED.items()}
+        actual = {
+            snp["rsid"]: snp["risk_allele"]
+            for pathway in panel["pathways"]
+            for snp in pathway["snps"]
+            if snp["rsid"] in expected
+        }
+        assert actual == expected
 
 
 class TestGwasSeedVitaminDDirection:
