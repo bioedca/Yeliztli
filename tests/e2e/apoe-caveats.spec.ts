@@ -43,7 +43,9 @@ const APOE_FINDINGS_WITH_CAVEATS = {
       diplotype: 'e3/e4',
       pmid_citations: ['21460841'],
       detail_json: {
-        risk_level: 'elevated',
+        relative_risk: 'elevated',
+        approximate_or: 3.2,
+        non_actionable: true,
         array_reliability: {
           caveat:
             'APOE ε-status here is derived from consumer genotyping-array calls at rs429358 and rs7412. These two ε-defining SNPs are a recognised array weak spot.',
@@ -112,6 +114,14 @@ test.describe('APOE caveats (#781)', () => {
   })
 
   test('renders source discrepancy and array reliability after acknowledgement', async ({ page }) => {
+    const detail = APOE_FINDINGS_WITH_CAVEATS.items[0].detail_json
+    expect(detail).toMatchObject({
+      relative_risk: 'elevated',
+      approximate_or: 3.2,
+      non_actionable: true,
+    })
+    expect(detail).not.toHaveProperty('risk_level')
+
     await page.route('**/api/analysis/apoe/gate-status**', (route) =>
       route.fulfill(
         jsonRoute({
@@ -126,6 +136,11 @@ test.describe('APOE caveats (#781)', () => {
 
     await page.goto(`/apoe?sample_id=${SAMPLE_ID}`)
     await waitForReactHydration(page)
+
+    const alzheimers = page.getByTestId('apoe-finding-alzheimers_risk')
+    await expect(alzheimers).toContainText('Non-Actionable')
+    await expect(alzheimers).toContainText('risk context is elevated')
+    await expect(alzheimers).not.toContainText('Risk level:')
 
     await expect(page.getByTestId('apoe-caveats')).toBeVisible()
     await expect(page.getByTestId('apoe-source-discrepancy-rs429358')).toContainText(

@@ -381,17 +381,21 @@ test.describe('P4-26c: WCAG 2.1 AA Audit', () => {
           conditions: "Alzheimer's disease",
           diplotype: 'e3/e4',
           pmid_citations: ['23456789'],
-          detail_json: { risk_level: 'elevated' },
+          detail_json: {
+            relative_risk: 'elevated',
+            approximate_or: 3.2,
+            non_actionable: true,
+          },
         },
         {
           category: 'lipid_dietary',
           evidence_level: 3,
-          finding_text: 'Lipid and dietary response interpretation is typical.',
-          phenotype: 'Typical lipid response',
+          finding_text: 'Lipid and dietary response interpretation is enhanced.',
+          phenotype: 'Dietary fat response (enhanced LDL sensitivity)',
           conditions: 'Lipid metabolism',
           diplotype: 'e3/e4',
           pmid_citations: ['34567890'],
-          detail_json: { risk_level: 'typical' },
+          detail_json: { dietary_response: 'enhanced' },
         },
       ],
       total: 3,
@@ -464,6 +468,16 @@ test.describe('P4-26c: WCAG 2.1 AA Audit', () => {
     })
 
     test('APOE data-rich state passes axe-core in light mode', async ({ page }) => {
+      expect(APOE_FINDINGS.items.map((finding) => finding.detail_json)).toEqual([
+        { risk_level: 'modestly_elevated' },
+        {
+          relative_risk: 'elevated',
+          approximate_or: 3.2,
+          non_actionable: true,
+        },
+        { dietary_response: 'enhanced' },
+      ])
+
       await page.route('**/api/analysis/apoe/disclaimer', (r) => r.fulfill(jsonRoute(APOE_DISCLAIMER)))
       await page.route('**/api/analysis/apoe/gate-status**', (r) => r.fulfill(jsonRoute({
         acknowledged: true,
@@ -476,8 +490,20 @@ test.describe('P4-26c: WCAG 2.1 AA Audit', () => {
       await waitForReactHydration(page)
       const findings = page.getByTestId('apoe-findings-list')
       await expect(findings).toBeVisible()
-      await expect(findings).toContainText('modestly elevated')
-      await expect(findings).not.toContainText('modestly_elevated')
+
+      const cardiovascular = page.getByTestId('apoe-finding-cardiovascular_risk')
+      await expect(cardiovascular).toContainText('Risk level:')
+      await expect(cardiovascular).toContainText('modestly elevated')
+      await expect(cardiovascular).not.toContainText('modestly_elevated')
+
+      const alzheimers = page.getByTestId('apoe-finding-alzheimers_risk')
+      await expect(alzheimers).toContainText('Non-Actionable')
+      await expect(alzheimers).toContainText('risk context is elevated')
+      await expect(alzheimers).not.toContainText('Risk level:')
+
+      const lipidDietary = page.getByTestId('apoe-finding-lipid_dietary')
+      await expect(lipidDietary).toContainText('enhanced LDL sensitivity')
+      await expect(lipidDietary).not.toContainText('Risk level:')
 
       let builder = new AxeBuilder({ page })
         .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])

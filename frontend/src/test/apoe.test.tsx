@@ -3,7 +3,7 @@
 import type { ReactNode } from "react"
 import { describe, it, expect, vi, beforeEach } from "vitest"
 import { render, screen } from "./test-utils"
-import { renderHook, act } from "@testing-library/react"
+import { renderHook, act, within } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import userEvent from "@testing-library/user-event"
 import APOEGate from "@/components/apoe-gate/APOEGate"
@@ -114,7 +114,11 @@ const ALZHEIMERS_FINDING: APOEFinding = {
   conditions: "Alzheimer's disease",
   diplotype: "e3/e4",
   pmid_citations: ["21460841", "17309940"],
-  detail_json: { non_actionable: true, risk_level: "elevated", relative_risk: 3.2 },
+  detail_json: {
+    relative_risk: "elevated",
+    approximate_or: 3.2,
+    non_actionable: true,
+  },
 }
 
 const LIPID_FINDING: APOEFinding = {
@@ -125,7 +129,7 @@ const LIPID_FINDING: APOEFinding = {
   conditions: null,
   diplotype: "e3/e4",
   pmid_citations: ["19124690"],
-  detail_json: { risk_level: "enhanced response" },
+  detail_json: { dietary_response: "enhanced" },
 }
 
 const CAVEAT_FINDING: APOEFinding = {
@@ -385,22 +389,45 @@ describe("APOEGenotypeCard", () => {
 // ── APOEFindingCard tests ─────────────────────────────────────────────
 
 describe("APOEFindingCard", () => {
+  it("uses the category-specific backend detail contracts", () => {
+    expect(CV_FINDING.detail_json).toEqual({ risk_level: "modestly_elevated" })
+    expect(ALZHEIMERS_FINDING.detail_json).toEqual({
+      relative_risk: "elevated",
+      approximate_or: 3.2,
+      non_actionable: true,
+    })
+    expect(LIPID_FINDING.detail_json).toEqual({ dietary_response: "enhanced" })
+  })
+
   it("renders cardiovascular risk finding", () => {
     render(<APOEFindingCard finding={CV_FINDING} />)
-    expect(screen.getByTestId("apoe-finding-cardiovascular_risk")).toBeInTheDocument()
-    expect(screen.getByText("Cardiovascular Risk")).toBeInTheDocument()
+    const card = screen.getByTestId("apoe-finding-cardiovascular_risk")
+    const cardQueries = within(card)
+
+    expect(cardQueries.getByText("Cardiovascular Risk")).toBeInTheDocument()
+    expect(cardQueries.getByText("Risk level:")).toBeInTheDocument()
+    expect(cardQueries.getByText("modestly elevated")).toBeInTheDocument()
   })
 
   it("renders Alzheimer's risk finding", () => {
     render(<APOEFindingCard finding={ALZHEIMERS_FINDING} />)
-    expect(screen.getByTestId("apoe-finding-alzheimers_risk")).toBeInTheDocument()
-    expect(screen.getByText("Alzheimer's Risk")).toBeInTheDocument()
+    const card = screen.getByTestId("apoe-finding-alzheimers_risk")
+    const cardQueries = within(card)
+
+    expect(cardQueries.getByText("Alzheimer's Risk")).toBeInTheDocument()
+    expect(cardQueries.getByText("Non-Actionable")).toBeInTheDocument()
+    expect(cardQueries.getByText(/approximately 3.2× relative risk/)).toBeInTheDocument()
+    expect(cardQueries.queryByText("Risk level:")).not.toBeInTheDocument()
   })
 
   it("renders lipid/dietary finding", () => {
     render(<APOEFindingCard finding={LIPID_FINDING} />)
-    expect(screen.getByTestId("apoe-finding-lipid_dietary")).toBeInTheDocument()
-    expect(screen.getByText("Lipid & Dietary Response")).toBeInTheDocument()
+    const card = screen.getByTestId("apoe-finding-lipid_dietary")
+    const cardQueries = within(card)
+
+    expect(cardQueries.getByText("Lipid & Dietary Response")).toBeInTheDocument()
+    expect(cardQueries.getByText(/enhanced LDL response/)).toBeInTheDocument()
+    expect(cardQueries.queryByText("Risk level:")).not.toBeInTheDocument()
   })
 
   it("renders finding text", () => {
