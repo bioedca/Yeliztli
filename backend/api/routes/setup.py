@@ -48,6 +48,7 @@ from backend.db.connection import get_registry
 from backend.db.database_registry import BUNDLED_DIR, DatabaseInfo, get_all_databases
 from backend.db.db_health import get_database_health
 from backend.db.sqlite_engine import make_sqlite_engine
+from backend.db.vep_version import resolve_effective_vep_bundle_version
 from backend.disclaimers import (
     GLOBAL_DISCLAIMER_ACCEPT_LABEL,
     GLOBAL_DISCLAIMER_TEXT,
@@ -525,10 +526,13 @@ def _coerce_semver(raw: str | None) -> Version | None:
 
 
 def _read_installed_vep_bundle_version() -> str | None:
-    """Return the raw ``database_versions['vep_bundle'].version`` string.
+    """Return the effective VEP version used for restore compatibility.
 
-    Returns ``None`` when the reference DB or row is missing — a fresh
-    install with no recorded bundle is allowed to restore.
+    When the bundle file exists, the shared resolver applies explicit row,
+    embedded metadata, then versionless ``v1.0.0`` precedence. Without an
+    installed file, the legacy registry-only behavior is retained so a fresh
+    install with no recorded bundle can restore. Unreadable registry state
+    remains unknown and fails open as before.
     """
     settings = get_settings()
     ref_path = settings.reference_db_path
@@ -539,6 +543,11 @@ def _read_installed_vep_bundle_version() -> str | None:
 
         engine = make_sqlite_engine(ref_path, wal=False)
         try:
+            if settings.vep_bundle_db_path.is_file():
+                return resolve_effective_vep_bundle_version(
+                    engine,
+                    settings.vep_bundle_db_path,
+                )
             with engine.connect() as conn:
                 row = conn.execute(
                     sa.select(database_versions.c.version).where(
