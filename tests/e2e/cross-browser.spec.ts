@@ -571,22 +571,51 @@ const IGV_MODULE_STUB = `
         on(event, handler) {
           if (event !== 'trackclick') return
 
+          const handleTrackClick = (popoverData) => {
+            const result = handler(
+              { config: { type: 'variant' } },
+              popoverData,
+            )
+            if (result === undefined || result === true) {
+              const popover = document.createElement('div')
+              popover.setAttribute('data-testid', 'mock-igv-default-popover')
+              popover.textContent = 'IGV default popover'
+              root.appendChild(popover)
+            } else if (typeof result === 'string') {
+              const popover = document.createElement('div')
+              popover.setAttribute('data-testid', 'mock-igv-custom-popover')
+              popover.textContent = result
+              root.appendChild(popover)
+            }
+          }
+
           const button = document.createElement('button')
           button.type = 'button'
           button.textContent = 'Select mock IGV variant'
           button.addEventListener('click', () => {
-            handler(
-              { config: { type: 'variant' } },
-              [
-                { name: 'Chr', value: 'chr17' },
-                { name: 'Pos', value: '41,196,312' },
-                { name: 'ID', value: 'rs80357906' },
-                { name: 'Ref', value: 'A' },
-                { name: 'Alt', value: 'G' },
-              ],
-            )
+            handleTrackClick([
+              { name: 'Chr', value: 'chr17' },
+              { name: 'Pos', value: '41,196,312' },
+              { name: 'ID', value: 'rs80357906' },
+              { name: 'Ref', value: 'A' },
+              { name: 'Alt', value: 'G' },
+            ])
           })
           root.appendChild(button)
+
+          const malformedButton = document.createElement('button')
+          malformedButton.type = 'button'
+          malformedButton.textContent = 'Select malformed IGV variant'
+          malformedButton.addEventListener('click', () => {
+            handleTrackClick([
+              { name: 'Chr', value: 'chr17' },
+              { name: 'Pos', value: 'not-a-position' },
+              { name: 'ID', value: 'rs80357906' },
+              { name: 'Ref', value: 'A' },
+              { name: 'Alt', value: 'G' },
+            ])
+          })
+          root.appendChild(malformedButton)
         },
       }
     },
@@ -677,5 +706,27 @@ test.describe('P4-26d: Genome Browser reference-fetch disclosure (#1286)', () =>
       indicator.getByText('chr17:41196312', { exact: true }),
     ).toBeVisible()
     await expect(indicator).toContainText('rs80357906')
+    await expect(page.getByTestId('mock-igv-default-popover')).toHaveCount(0)
+  })
+
+  test("preserves IGV's default popover for malformed positions (#1881)", async ({
+    page,
+  }) => {
+    await mockIgvModule(page)
+
+    await page.goto('/genome-browser')
+    await waitForReactHydration(page)
+
+    await page
+      .getByRole('button', { name: /continue to the genome browser/i })
+      .click()
+    await page
+      .getByRole('button', { name: 'Select malformed IGV variant' })
+      .click()
+
+    await expect(page.getByTestId('variant-click-indicator')).toHaveCount(0)
+    await expect(page.getByTestId('mock-igv-default-popover')).toHaveText(
+      'IGV default popover',
+    )
   })
 })

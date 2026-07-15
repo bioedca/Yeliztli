@@ -6,7 +6,7 @@ import { describe, it, expect, vi, beforeEach, afterEach, afterAll } from "vites
 import { render, screen, waitFor } from "@/test/test-utils"
 import userEvent from "@testing-library/user-event"
 import IgvBrowser, { GENOME_BROWSER_REFERENCE_DISCLOSURE_KEY } from "./IgvBrowser"
-import type { IgvBrowserHandle } from "./IgvBrowser"
+import type { IgvBrowserHandle, IgvVariantClickEvent } from "./IgvBrowser"
 import { __setIgvForTesting } from "./igv-test-utils"
 
 const mockCreateBrowser = vi.fn()
@@ -84,6 +84,20 @@ afterAll(() => {
 })
 
 describe("IgvBrowser", () => {
+  async function renderTrackClickHandler(
+    onVariantClick: (variant: IgvVariantClickEvent) => void,
+  ) {
+    render(<IgvBrowser onVariantClick={onVariantClick} />)
+    await waitFor(() => {
+      expect(mockOn).toHaveBeenCalledWith("trackclick", expect.any(Function))
+    })
+    const trackClickHandler = mockOn.mock.calls.find(
+      (args: unknown[]) => args[0] === "trackclick",
+    )?.[1]
+    expect(trackClickHandler).toEqual(expect.any(Function))
+    return trackClickHandler as (...args: unknown[]) => unknown
+  }
+
   it("renders loading state while IGV initializes", async () => {
     mockCreateBrowser.mockReturnValue(new Promise(() => {}))
     render(<IgvBrowser />)
@@ -195,40 +209,98 @@ describe("IgvBrowser", () => {
     })
   })
 
-  it("parses IGV's comma-grouped position before invoking onVariantClick", async () => {
-    const onVariantClick = vi.fn()
-    render(<IgvBrowser onVariantClick={onVariantClick} />)
-    await waitFor(() => {
-      expect(mockOn).toHaveBeenCalledWith("trackclick", expect.any(Function))
-    })
-    const trackClickHandler = mockOn.mock.calls.find(
-      (args: unknown[]) => args[0] === "trackclick",
-    )?.[1]
-    const result = trackClickHandler(
-      { config: { type: "variant" } },
-      [
-        { name: "Chr", value: "chr17" },
-        { name: "Pos", value: "41,196,312" },
-        { name: "ID", value: "rs123" },
-        { name: "Ref", value: "A" },
-        { name: "Alt", value: "G" },
-      ],
-    )
-    expect(onVariantClick).toHaveBeenCalledWith({
-      chr: "chr17", pos: 41196312, id: "rs123", ref: "A", alt: "G",
-    })
-    expect(result).toBe(false)
-  })
+  it.each([
+    ["plain Position alias", "Position", "1", 1],
+    ["three-digit Pos", "Pos", "999", 999],
+    ["four-digit Pos", "Pos", "1000", 1000],
+    ["small comma-grouped Pos", "Pos", "1,000", 1000],
+    ["large comma-grouped Pos", "Pos", "41,196,312", 41196312],
+    [
+      "maximum safe plain Pos",
+      "Pos",
+      "9007199254740991",
+      Number.MAX_SAFE_INTEGER,
+    ],
+    [
+      "maximum safe grouped Pos",
+      "Pos",
+      "9,007,199,254,740,991",
+      Number.MAX_SAFE_INTEGER,
+    ],
+  ])(
+    "parses IGV's %s field before invoking onVariantClick",
+    async (_description, fieldName, fieldValue, expectedPosition) => {
+      const onVariantClick = vi.fn()
+      const trackClickHandler = await renderTrackClickHandler(onVariantClick)
+      const result = trackClickHandler(
+        { config: { type: "variant" } },
+        [
+          { name: "Chr", value: "chr17" },
+          { name: fieldName, value: fieldValue },
+          { name: "ID", value: "rs123" },
+          { name: "Ref", value: "A" },
+          { name: "Alt", value: "G" },
+        ],
+      )
+      expect(onVariantClick).toHaveBeenCalledWith({
+        chr: "chr17",
+        pos: expectedPosition,
+        id: "rs123",
+        ref: "A",
+        alt: "G",
+      })
+      expect(result).toBe(false)
+    },
+  )
+
+  it.each([
+    ["missing", undefined],
+    ["null", null],
+    ["numeric runtime", 123],
+    ["empty", ""],
+    ["whitespace-only", " "],
+    ["nonnumeric", "not-a-position"],
+    ["leading whitespace", " 123"],
+    ["trailing whitespace", "123 "],
+    ["zero", "0"],
+    ["leading zero", "01"],
+    ["grouped leading zero", "0,001"],
+    ["negative", "-1"],
+    ["positive sign", "+1"],
+    ["decimal", "1.5"],
+    ["exponent", "1e3"],
+    ["suffix", "123bp"],
+    ["short comma group", "1,00"],
+    ["malformed middle comma group", "12,34,567"],
+    ["duplicate comma", "1,,000"],
+    ["leading comma", ",100"],
+    ["trailing comma", "100,"],
+    ["oversized leading comma group", "1234,567"],
+    ["unsafe plain integer", "9007199254740992"],
+    ["unsafe grouped integer", "9,007,199,254,740,992"],
+  ])(
+    "preserves IGV's default handling for a %s position",
+    async (_description, fieldValue) => {
+      const onVariantClick = vi.fn()
+      const trackClickHandler = await renderTrackClickHandler(onVariantClick)
+      const result = trackClickHandler(
+        { config: { type: "variant" } },
+        [
+          { name: "Chr", value: "chr17" },
+          { name: "Pos", value: fieldValue },
+          { name: "ID", value: "rs123" },
+          { name: "Ref", value: "A" },
+          { name: "Alt", value: "G" },
+        ],
+      )
+      expect(onVariantClick).not.toHaveBeenCalled()
+      expect(result).toBeUndefined()
+    },
+  )
 
   it("skips onVariantClick when essential fields are missing", async () => {
     const onVariantClick = vi.fn()
-    render(<IgvBrowser onVariantClick={onVariantClick} />)
-    await waitFor(() => {
-      expect(mockOn).toHaveBeenCalledWith("trackclick", expect.any(Function))
-    })
-    const trackClickHandler = mockOn.mock.calls.find(
-      (args: unknown[]) => args[0] === "trackclick",
-    )?.[1]
+    const trackClickHandler = await renderTrackClickHandler(onVariantClick)
     const result = trackClickHandler(
       { config: { type: "variant" } },
       [{ name: "ID", value: "rs123" }],
