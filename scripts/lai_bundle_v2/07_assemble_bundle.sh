@@ -36,7 +36,26 @@ require conda  # gnomix-model re-export runs in $GNOMIX_ENV (numpy/xgboost/sklea
 require_file "$VALIDATION_DIR/held_out_validation.tsv"
 require_file "$RAW_DIR/genetic_maps_gnomix/provenance.json"
 require_file "$GNOMIX_DIR_INSTALL/gnomix.py"
+require_file "$SCRIPT_DIR/gnomix_launcher.py"
+require_file "$SCRIPT_DIR/07b_reexport_gnomix_models.py"
 require_file "$SCRIPT_DIR/gnomix_provenance.py"
+require_file "$SCRIPT_DIR/gnomix_training_manifests.py"
+require_file "$GNOMIX_TRAINING_INPUT_MANIFEST"
+require_file "$RAW_DIR/gnomad_meta_updated.tsv"
+require_file "$ADMIX_DIR/single_ancestry_samples.tsv"
+require_file "$ADMIX_DIR/sample_map.full.txt"
+require_file "$ADMIX_DIR/sample_map.txt"
+require_file "$LIFTOVER_DIR/array_sites_grch38_regions.tsv"
+require_file "$UNION_CATALOG_TSV"
+
+input_manifest_shared_args=("${GNOMIX_TRAINING_INPUT_SHARED_ARGS[@]}")
+live_chromosome_args=()
+for chr in "${chromosomes[@]}"; do
+  live_chromosome_args+=(
+    --chromosome-file \
+    "chr${chr}=$PANEL_DIR/ref_panel_chr${chr}.vcf.gz,$PANEL_DIR/ref_panel_chr${chr}.vcf.gz.tbi"
+  )
+done
 
 # Hold the assembly lock exclusively until this process exits. Phase 05 takes a
 # shared lock, so no concurrent/manual retrain can replace a model or record
@@ -60,9 +79,22 @@ python "$SCRIPT_DIR/01_convert_gnomix_maps.py" \
   --output-dir "$RAW_DIR/genetic_maps_gnomix" \
   --chromosomes "${chromosomes[@]}"
 
-# Validate the complete model generation before changing the bundle layout.
-# Phase 07 intentionally does not hash its current/default config: each Phase 05
-# task persisted the exact effective config it actually passed to Gnomix.
+# Stage the small canonical manifests and records first, then validate those
+# exact bytes against the live large artifacts. Nothing under BUNDLE_DIR is
+# changed unless the complete chr1-chr22 generation passes this preflight.
+staging_dir=$(mktemp -d "$WORKDIR/.gnomix-training-provenance.XXXXXX")
+trap 'rm -rf "$staging_dir"' EXIT
+staged_input_manifest="$staging_dir/gnomix_training_inputs.json"
+staged_split_manifest="$staging_dir/gnomix_training_splits.json"
+staged_aggregate="$staging_dir/gnomix_training_provenance.json"
+cp -f "$GNOMIX_TRAINING_INPUT_MANIFEST" "$staged_input_manifest"
+
+phase_log "verifying full canonical Gnomix training-input generation"
+python3 "$SCRIPT_DIR/gnomix_training_manifests.py" verify-input \
+  --manifest "$staged_input_manifest" \
+  "${input_manifest_shared_args[@]}" \
+  "${live_chromosome_args[@]}"
+
 provenance_args=()
 for chr in "${chromosomes[@]}"; do
   derived_map="$RAW_DIR/genetic_maps_gnomix/chr${chr}.map"
@@ -70,31 +102,78 @@ for chr in "${chromosomes[@]}"; do
   model_pkl="$model_dir/model_chm_chr${chr}.pkl"
   model_map_sha="$model_dir/genetic_map.sha256"
   model_provenance="$model_dir/training_provenance.json"
+  split_manifest="$model_dir/training_splits.json"
+  config_snapshot="$GNOMIX_DIR/config_snapshots/chr${chr}/effective_config.yaml"
+  split_map_dir="$GNOMIX_DIR/output_chr${chr}/generated_data/sample_maps"
+  staged_record="$staging_dir/gnomix_model_chr${chr}.provenance.json"
+  staged_split="$staging_dir/gnomix_training_splits_chr${chr}.json"
   require_file "$derived_map"
   require_file "$model_pkl"
   require_file "$model_map_sha"
   require_file "$model_provenance"
+  require_file "$split_manifest"
+  require_file "$config_snapshot"
+  require_file "$split_map_dir/train1.map"
+  require_file "$split_map_dir/train2.map"
+  require_file "$split_map_dir/val.map"
+  cp -f "$model_provenance" "$staged_record"
+  cp -f "$split_manifest" "$staged_split"
+  if [ "$chr" = "1" ]; then
+    cp -f "$staged_split" "$staged_split_manifest"
+  fi
   current_map_sha=$(sha256sum "$derived_map" | awk '{print $1}')
   recorded_map_sha=$(awk 'NR == 1 {print $1}' "$model_map_sha")
   if [ "$recorded_map_sha" != "$current_map_sha" ]; then
     phase_log "chr${chr}: trained model does not match current genetic map" >&2
     exit 1
   fi
+  python3 "$SCRIPT_DIR/gnomix_training_manifests.py" verify-splits \
+    --manifest "$staged_split" \
+    --input-manifest "$staged_input_manifest" \
+    --split-file "train1=$split_map_dir/train1.map" \
+    --split-file "train2=$split_map_dir/train2.map" \
+    --split-file "val=$split_map_dir/val.map"
   python3 "$SCRIPT_DIR/gnomix_provenance.py" verify-record \
-    --record "$model_provenance" \
+    --record "$staged_record" \
     --chromosome "chr${chr}" \
     --expected-commit "$GNOMIX_EXPECTED_COMMIT" \
+    --config "$config_snapshot" \
     --genetic-map "$derived_map" \
-    --model "$model_pkl"
-  provenance_args+=(--record "$model_provenance")
+    --model "$model_pkl" \
+    --training-input-manifest "$staged_input_manifest" \
+    --training-split-manifest "$staged_split"
+  provenance_args+=(--record "$staged_record")
 done
 
-aggregate_tmp=$(mktemp "$WORKDIR/.gnomix-training-provenance.XXXXXX")
-trap 'rm -f "$aggregate_tmp"' EXIT
+require_file "$staged_split_manifest"
 python3 "$SCRIPT_DIR/gnomix_provenance.py" aggregate \
   --expected-commit "$GNOMIX_EXPECTED_COMMIT" \
-  --output "$aggregate_tmp" \
+  --output "$staged_aggregate" \
+  --training-input-manifest "$staged_input_manifest" \
+  --training-split-manifest "$staged_split_manifest" \
   "${provenance_args[@]}"
+python3 "$SCRIPT_DIR/gnomix_provenance.py" verify-aggregate \
+  --manifest "$staged_aggregate" \
+  --training-input-manifest "$staged_input_manifest" \
+  --training-split-manifest "$staged_split_manifest" \
+  --require-complete
+
+# Smoke-test the named runtime before touching existing bundle contents. The
+# launcher imports the selected Gnomix entrypoint and its full dependency graph;
+# the staged chr1 export additionally exercises native-pickle compatibility and
+# the exporter's lazy xgboost path. Production Gnomix exits successfully after
+# printing usage when invoked without model args.
+phase_log "preflighting Gnomix runtime and model re-export dependencies"
+PYTHONDONTWRITEBYTECODE=1 conda run -n "$GNOMIX_ENV" --no-capture-output \
+  python "$SCRIPT_DIR/gnomix_launcher.py" \
+  "$GNOMIX_DIR_INSTALL/gnomix.py" >/dev/null
+runtime_preflight_dir="$staging_dir/runtime-preflight/gnomix_models/chr1"
+PYTHONDONTWRITEBYTECODE=1 conda run -n "$GNOMIX_ENV" --no-capture-output \
+  python "$SCRIPT_DIR/07b_reexport_gnomix_models.py" \
+  --model-pkl "$GNOMIX_DIR/output_chr1/models/model_chm_chr1/model_chm_chr1.pkl" \
+  --out-dir "$runtime_preflight_dir" \
+  --gnomix-dir "$GNOMIX_DIR_INSTALL" >/dev/null
+rm -rf -- "$staging_dir/runtime-preflight"
 
 cd "$BUNDLE_DIR"
 
@@ -106,18 +185,26 @@ mkdir -p phasing_panel genetic_maps gnomix_models liftover beagle metadata
 rm -rf gnomix_models/chr*
 rm -f metadata/gnomix_model_chr*.provenance.json \
   metadata/gnomix_model_map_chr*.sha256 \
-  metadata/gnomix_training_provenance.json
+  metadata/gnomix_training_provenance.json \
+  metadata/gnomix_training_inputs.json \
+  metadata/gnomix_training_splits.json
 
 for chr in "${chromosomes[@]}"; do
+  config_snapshot="$GNOMIX_DIR/config_snapshots/chr${chr}/effective_config.yaml"
   model_dir="$GNOMIX_DIR/output_chr${chr}/models/model_chm_chr${chr}"
   cp -f "$model_dir/genetic_map.sha256" \
     "metadata/gnomix_model_map_chr${chr}.sha256"
-  cp -f "$model_dir/training_provenance.json" \
+  cp -f "$staging_dir/gnomix_model_chr${chr}.provenance.json" \
     "metadata/gnomix_model_chr${chr}.provenance.json"
 done
-cp -f "$aggregate_tmp" metadata/gnomix_training_provenance.json
-rm -f "$aggregate_tmp"
-trap - EXIT
+cp -f "$staged_input_manifest" metadata/gnomix_training_inputs.json
+cp -f "$staged_split_manifest" metadata/gnomix_training_splits.json
+cp -f "$staged_aggregate" metadata/gnomix_training_provenance.json
+python3 "$SCRIPT_DIR/gnomix_provenance.py" verify-aggregate \
+  --manifest "$BUNDLE_DIR/metadata/gnomix_training_provenance.json" \
+  --training-input-manifest "$BUNDLE_DIR/metadata/gnomix_training_inputs.json" \
+  --training-split-manifest "$BUNDLE_DIR/metadata/gnomix_training_splits.json" \
+  --require-complete
 
 for chr in "${chromosomes[@]}"; do
   cp -f "$PANEL_DIR/ref_panel_chr${chr}.vcf.gz" phasing_panel/
@@ -137,11 +224,14 @@ for chr in "${chromosomes[@]}"; do
     --gnomix-dir "$GNOMIX_DIR_INSTALL" \
     --expected-commit "$GNOMIX_EXPECTED_COMMIT" >/dev/null
   python3 "$SCRIPT_DIR/gnomix_provenance.py" verify-record \
-    --record "$GNOMIX_DIR/output_chr${chr}/models/model_chm_chr${chr}/training_provenance.json" \
+    --record "$BUNDLE_DIR/metadata/gnomix_model_chr${chr}.provenance.json" \
     --chromosome "chr${chr}" \
     --expected-commit "$GNOMIX_EXPECTED_COMMIT" \
+    --config "$config_snapshot" \
     --genetic-map "$RAW_DIR/genetic_maps_gnomix/chr${chr}.map" \
-    --model "$GNOMIX_DIR/output_chr${chr}/models/model_chm_chr${chr}/model_chm_chr${chr}.pkl"
+    --model "$GNOMIX_DIR/output_chr${chr}/models/model_chm_chr${chr}/model_chm_chr${chr}.pkl" \
+    --training-input-manifest "$BUNDLE_DIR/metadata/gnomix_training_inputs.json" \
+    --training-split-manifest "$BUNDLE_DIR/metadata/gnomix_training_splits.json"
   PYTHONDONTWRITEBYTECODE=1 conda run -n "$GNOMIX_ENV" --no-capture-output \
     python "$SCRIPT_DIR/07b_reexport_gnomix_models.py" \
     --model-pkl "$GNOMIX_DIR/output_chr${chr}/models/model_chm_chr${chr}/model_chm_chr${chr}.pkl" \
@@ -151,11 +241,14 @@ for chr in "${chromosomes[@]}"; do
     --gnomix-dir "$GNOMIX_DIR_INSTALL" \
     --expected-commit "$GNOMIX_EXPECTED_COMMIT" >/dev/null
   python3 "$SCRIPT_DIR/gnomix_provenance.py" verify-record \
-    --record "$GNOMIX_DIR/output_chr${chr}/models/model_chm_chr${chr}/training_provenance.json" \
+    --record "$BUNDLE_DIR/metadata/gnomix_model_chr${chr}.provenance.json" \
     --chromosome "chr${chr}" \
     --expected-commit "$GNOMIX_EXPECTED_COMMIT" \
+    --config "$config_snapshot" \
     --genetic-map "$RAW_DIR/genetic_maps_gnomix/chr${chr}.map" \
-    --model "$GNOMIX_DIR/output_chr${chr}/models/model_chm_chr${chr}/model_chm_chr${chr}.pkl"
+    --model "$GNOMIX_DIR/output_chr${chr}/models/model_chm_chr${chr}/model_chm_chr${chr}.pkl" \
+    --training-input-manifest "$BUNDLE_DIR/metadata/gnomix_training_inputs.json" \
+    --training-split-manifest "$BUNDLE_DIR/metadata/gnomix_training_splits.json"
 done
 
 cp -f "$LIFTOVER_DIR/hg19ToHg38.over.chain.gz" liftover/
@@ -183,6 +276,47 @@ VAL_WORKERS="${VAL_WORKERS:-6}" \
     "$VALIDATION_DIR/held_out_validation.tsv" \
     "$VALIDATION_DIR/heldout_superpop_accuracy_report.json"
 
+# Revalidate after the long copy/re-export/held-out window. Point the input
+# verifier at the copied panel files so metadata/checksums can never attest a
+# partial or corrupted copy, while records remain checked against the locked
+# native models and live Gnomix split maps.
+phase_log "revalidating copied panels and published Gnomix training provenance"
+copied_chromosome_args=()
+for chr in "${chromosomes[@]}"; do
+  copied_chromosome_args+=(
+    --chromosome-file \
+    "chr${chr}=$BUNDLE_DIR/phasing_panel/ref_panel_chr${chr}.vcf.gz,$BUNDLE_DIR/phasing_panel/ref_panel_chr${chr}.vcf.gz.tbi"
+  )
+done
+python3 "$SCRIPT_DIR/gnomix_training_manifests.py" verify-input \
+  --manifest "$BUNDLE_DIR/metadata/gnomix_training_inputs.json" \
+  "${input_manifest_shared_args[@]}" \
+  "${copied_chromosome_args[@]}"
+for chr in "${chromosomes[@]}"; do
+  config_snapshot="$GNOMIX_DIR/config_snapshots/chr${chr}/effective_config.yaml"
+  split_map_dir="$GNOMIX_DIR/output_chr${chr}/generated_data/sample_maps"
+  python3 "$SCRIPT_DIR/gnomix_training_manifests.py" verify-splits \
+    --manifest "$BUNDLE_DIR/metadata/gnomix_training_splits.json" \
+    --input-manifest "$BUNDLE_DIR/metadata/gnomix_training_inputs.json" \
+    --split-file "train1=$split_map_dir/train1.map" \
+    --split-file "train2=$split_map_dir/train2.map" \
+    --split-file "val=$split_map_dir/val.map"
+  python3 "$SCRIPT_DIR/gnomix_provenance.py" verify-record \
+    --record "$BUNDLE_DIR/metadata/gnomix_model_chr${chr}.provenance.json" \
+    --chromosome "chr${chr}" \
+    --expected-commit "$GNOMIX_EXPECTED_COMMIT" \
+    --config "$config_snapshot" \
+    --genetic-map "$RAW_DIR/genetic_maps_gnomix/chr${chr}.map" \
+    --model "$GNOMIX_DIR/output_chr${chr}/models/model_chm_chr${chr}/model_chm_chr${chr}.pkl" \
+    --training-input-manifest "$BUNDLE_DIR/metadata/gnomix_training_inputs.json" \
+    --training-split-manifest "$BUNDLE_DIR/metadata/gnomix_training_splits.json"
+done
+python3 "$SCRIPT_DIR/gnomix_provenance.py" verify-aggregate \
+  --manifest "$BUNDLE_DIR/metadata/gnomix_training_provenance.json" \
+  --training-input-manifest "$BUNDLE_DIR/metadata/gnomix_training_inputs.json" \
+  --training-split-manifest "$BUNDLE_DIR/metadata/gnomix_training_splits.json" \
+  --require-complete
+
 phase_log "writing metadata.json (Plan §6.5)"
 python "$SCRIPT_DIR/07_write_metadata.py" \
   --bundle-dir "$BUNDLE_DIR" \
@@ -202,6 +336,9 @@ phase_log "creating tarball"
 tarball="$WORKDIR/yeliztli_lai_bundle_${LAI_BUNDLE_VERSION}.tar.gz"
 tar -czf "$tarball" -C "$BUNDLE_DIR" .
 sha256sum "$tarball" > "${tarball}.sha256"
+
+rm -rf "$staging_dir"
+trap - EXIT
 
 phase_log "tarball: $(du -sh "$tarball" | awk '{print $1}'); sha256: $(awk '{print $1}' "${tarball}.sha256")"
 phase_log "phase 7 complete"

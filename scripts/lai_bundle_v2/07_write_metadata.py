@@ -10,17 +10,25 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import re
 import subprocess
+import sys
 from datetime import date
 from pathlib import Path
 
 import numpy as np
 
-_COMMIT_RE = re.compile(r"[0-9a-f]{40}")
-_SHA256_RE = re.compile(r"[0-9a-f]{64}")
-_AUTOSOME_RE = re.compile(r"chr(?:[1-9]|1[0-9]|2[0-2])")
-_GNOMIX_REPOSITORY = "https://github.com/AI-sandbox/gnomix"
+_SCRIPT_DIR = Path(__file__).resolve().parent
+if str(_SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPT_DIR))
+
+from gnomix_provenance import (  # noqa: E402
+    TRAINING_INPUT_BUNDLE_PATH,
+    TRAINING_PROVENANCE_BUNDLE_PATH,
+    TRAINING_SPLIT_BUNDLE_PATH,
+    ProvenanceError,
+    verify_aggregate_snapshot,
+    verify_published_model_records,
+)
 
 
 def _sha256(path: Path) -> str:
@@ -39,66 +47,25 @@ def _tool_version(cmd: list[str]) -> str:
         return "unavailable"
 
 
-def _load_gnomix_training_provenance(path: Path) -> dict[str, object]:
-    """Validate the aggregate manifest before copying its summary to metadata."""
+def _load_gnomix_training_provenance(
+    path: Path,
+    *,
+    bundle_dir: Path,
+    training_input_manifest: Path,
+    training_split_manifest: Path,
+) -> tuple[dict[str, object], dict[str, object], str]:
+    """Authenticate one captured aggregate, manifest, and record generation."""
     try:
-        data = json.loads(path.read_text())
-    except (OSError, json.JSONDecodeError) as exc:
+        data, aggregate_sha256, input_payload = verify_aggregate_snapshot(
+            path,
+            training_input_manifest=training_input_manifest,
+            training_split_manifest=training_split_manifest,
+            require_complete=True,
+        )
+        verify_published_model_records(bundle_dir, data)
+    except (OSError, ProvenanceError) as exc:
         raise ValueError(f"invalid Gnomix training provenance manifest {path}: {exc}") from exc
-    expected_keys = {
-        "schema_version",
-        "gnomix_repository",
-        "gnomix_git_commit",
-        "gnomix_checkout_clean",
-        "effective_config_sha256",
-        "models",
-    }
-    if not isinstance(data, dict) or set(data) != expected_keys:
-        raise ValueError("Gnomix training provenance manifest has unexpected fields")
-    if data["schema_version"] != 1:
-        raise ValueError("unsupported Gnomix training provenance schema")
-    if data["gnomix_repository"] != _GNOMIX_REPOSITORY:
-        raise ValueError("unexpected Gnomix repository in training provenance")
-    if data["gnomix_checkout_clean"] is not True:
-        raise ValueError("Gnomix training provenance does not attest a clean checkout")
-    commit = data["gnomix_git_commit"]
-    config_sha = data["effective_config_sha256"]
-    if not isinstance(commit, str) or not _COMMIT_RE.fullmatch(commit):
-        raise ValueError("invalid Gnomix commit in training provenance")
-    if not isinstance(config_sha, str) or not _SHA256_RE.fullmatch(config_sha):
-        raise ValueError("invalid effective Gnomix config SHA-256 in training provenance")
-
-    models = data["models"]
-    if not isinstance(models, list) or not models:
-        raise ValueError("Gnomix training provenance must contain at least one model")
-    seen: set[str] = set()
-    model_keys = {
-        "chromosome",
-        "model_filename",
-        "model_sha256",
-        "genetic_map_sha256",
-        "provenance_file",
-    }
-    for model in models:
-        if not isinstance(model, dict) or set(model) != model_keys:
-            raise ValueError("Gnomix model manifest entry has unexpected fields")
-        chromosome = model["chromosome"]
-        if not isinstance(chromosome, str) or not _AUTOSOME_RE.fullmatch(chromosome):
-            raise ValueError("invalid chromosome in Gnomix training provenance")
-        if chromosome in seen:
-            raise ValueError(f"duplicate {chromosome} in Gnomix training provenance")
-        seen.add(chromosome)
-        expected_filename = f"model_chm_{chromosome}.pkl"
-        if model["model_filename"] != expected_filename:
-            raise ValueError(f"unexpected model filename for {chromosome}")
-        for field in ("model_sha256", "genetic_map_sha256"):
-            value = model[field]
-            if not isinstance(value, str) or not _SHA256_RE.fullmatch(value):
-                raise ValueError(f"invalid {field} for {chromosome}")
-        expected_record = f"metadata/gnomix_model_{chromosome}.provenance.json"
-        if model["provenance_file"] != expected_record:
-            raise ValueError(f"unexpected provenance path for {chromosome}")
-    return data
+    return data, input_payload, aggregate_sha256
 
 
 def main() -> int:
@@ -155,20 +122,34 @@ def main() -> int:
 
     beagle_jar = bundle / "beagle" / "beagle.jar"
     beagle_sha = _sha256(beagle_jar) if beagle_jar.exists() else None
-    expected_gnomix_manifest = bundle / "metadata" / "gnomix_training_provenance.json"
+    expected_gnomix_manifest = bundle / TRAINING_PROVENANCE_BUNDLE_PATH
     if args.gnomix_provenance.resolve() != expected_gnomix_manifest.resolve():
         raise ValueError(
             "--gnomix-provenance must point to "
             "metadata/gnomix_training_provenance.json inside the bundle"
         )
-    gnomix_provenance = _load_gnomix_training_provenance(args.gnomix_provenance)
+    training_input_manifest = bundle / TRAINING_INPUT_BUNDLE_PATH
+    training_split_manifest = bundle / TRAINING_SPLIT_BUNDLE_PATH
+    gnomix_provenance, training_inputs, gnomix_manifest_sha256 = _load_gnomix_training_provenance(
+        args.gnomix_provenance,
+        bundle_dir=bundle,
+        training_input_manifest=training_input_manifest,
+        training_split_manifest=training_split_manifest,
+    )
+    union_sha256 = _sha256(args.union_catalog)
+    marker_sources = training_inputs["source_artifacts"]["marker_selection"]
+    union_sources = [
+        entry["artifact"]["sha256"] for entry in marker_sources if entry["name"] == "union_catalog"
+    ]
+    if union_sources != [union_sha256]:
+        raise ValueError("union catalog does not match the authenticated training-input manifest")
 
     meta = {
         "bundle_version": args.bundle_version,
         "build_date": args.build_date or str(date.today()),
         "build_host": args.build_host,
         "git_commit": args.git_commit,
-        "source_sites_sha256": _sha256(args.union_catalog),
+        "source_sites_sha256": union_sha256,
         "tool_versions": {
             "bcftools": _tool_version(["bcftools", "--version"]),
             "beagle_jar_sha256": beagle_sha,
@@ -179,11 +160,23 @@ def main() -> int:
             "repository": gnomix_provenance["gnomix_repository"],
             "git_commit": gnomix_provenance["gnomix_git_commit"],
             "checkout_clean": gnomix_provenance["gnomix_checkout_clean"],
+            "simulation_run": gnomix_provenance["simulation_run"],
             "effective_config_sha256": gnomix_provenance["effective_config_sha256"],
             "model_count": len(gnomix_provenance["models"]),
-            "manifest": "metadata/gnomix_training_provenance.json",
+            "manifest": TRAINING_PROVENANCE_BUNDLE_PATH,
+            "manifest_sha256": gnomix_manifest_sha256,
+            "training_input_manifest": {
+                "path": TRAINING_INPUT_BUNDLE_PATH,
+                **gnomix_provenance["training_input_manifest"],
+            },
+            "training_split_manifest": {
+                "path": TRAINING_SPLIT_BUNDLE_PATH,
+                **gnomix_provenance["training_split_manifest"],
+            },
         },
-        "reference_panel": "gnomAD HGDP+1KG v3.1.2 (phased SHAPEIT5)",
+        "reference_build": training_inputs["reference_build"],
+        "reference_panel": training_inputs["reference_panel"]["name"],
+        "sample_identifier_policy": training_inputs["sample_identifier_policy"],
         "site_count": site_count,
         "window_count": window_count,
         "accuracy_per_window_mean": accuracy,

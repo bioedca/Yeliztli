@@ -24,6 +24,7 @@
 : "${GNOMIX_DIR:=$WORKDIR/05_gnomix_training}"
 : "${VALIDATION_DIR:=$WORKDIR/06_validation}"
 : "${BUNDLE_DIR:=$WORKDIR/07_final_bundle}"
+: "${GNOMIX_TRAINING_INPUT_MANIFEST:=$ADMIX_DIR/gnomix_training_inputs.json}"
 
 # ─── Inputs that must be supplied by the caller ──────────────────────────
 # Union catalog TSV (rsid, chrom, pos GRCh37). Produced by the VEP rebuild
@@ -54,6 +55,25 @@
 : "${GENETIC_MAPS_URL:=https://bochet.gcc.biostat.washington.edu/beagle/genetic_maps/plink.GRCh38.map.zip}"
 : "${GNOMAD_BUCKET:=gs://gcp-public-data--gnomad/resources/hgdp_1kg/phased_haplotypes_v2}"
 : "${GNOMAD_META_URL:=gs://gcp-public-data--gnomad/release/3.1/secondary_analyses/hgdp_1kg_v2/metadata_and_qc/gnomad_meta_updated.tsv}"
+: "${GNOMIX_REFERENCE_BUILD:=GRCh38}"
+: "${GNOMIX_REFERENCE_PANEL_NAME:=gnomAD HGDP+1KG v3.1.2 (phased SHAPEIT5)}"
+
+# Canonical shared arguments for the Gnomix training-input manifest. Keep this
+# array centralized so Phase 04 creation and Phase 05/07 verification cannot
+# silently describe different source generations.
+GNOMIX_TRAINING_INPUT_SHARED_ARGS=(
+  --reference-build "$GNOMIX_REFERENCE_BUILD"
+  --reference-panel-name "$GNOMIX_REFERENCE_PANEL_NAME"
+  --reference-panel-source "$GNOMAD_BUCKET"
+  --metadata "$RAW_DIR/gnomad_meta_updated.tsv"
+  --metadata-source "$GNOMAD_META_URL"
+  --selected-samples "$ADMIX_DIR/single_ancestry_samples.tsv"
+  --full-sample-map "$ADMIX_DIR/sample_map.full.txt"
+  --training-sample-map "$ADMIX_DIR/sample_map.txt"
+  --heldout-sample-map "$VALIDATION_DIR/held_out_validation.tsv"
+  --marker-source "lifted_regions=$LIFTOVER_DIR/array_sites_grch38_regions.tsv"
+  --marker-source "union_catalog=$UNION_CATALOG_TSV"
+)
 
 # ─── Build parameters ────────────────────────────────────────────────────
 : "${CHROMS:=1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22}"

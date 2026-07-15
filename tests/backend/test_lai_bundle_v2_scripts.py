@@ -17,6 +17,7 @@ the cluster (Plan §6.3 step 1, runbook §4).
 
 from __future__ import annotations
 
+import gzip
 import hashlib
 import importlib.util
 import json
@@ -44,6 +45,178 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS_DIR = REPO_ROOT / "scripts" / "lai_bundle_v2"
 RUNBOOK = REPO_ROOT / "docs" / "lai-bundle-release-runbook.md"
 MAINTAINER_DOC = REPO_ROOT / "docs" / "maintainer" / "lai-bundle.md"
+
+
+def _gnomix_config(*, seed: int | str = 1) -> str:
+    """Return a minimal config satisfying the three-split release contract."""
+    return (
+        f"verbose: true\nseed: {seed}\n"
+        "simulation:\n"
+        "  run: true\n"
+        "  splits:\n"
+        "    ratios:\n"
+        "      train1: 0.8\n"
+        "      train2: 0.15\n"
+        "      val: 0.05\n"
+        "model:\n"
+        "  name: model\n"
+    )
+
+
+def _gnomix_superpopulation(sample_number: int) -> str:
+    superpopulations = ("AFR", "AMR", "CSA", "EAS", "EUR", "MID", "OCE")
+    return superpopulations[min((sample_number - 1) // 11, len(superpopulations) - 1)]
+
+
+def _gnomix_split_map(sample_numbers: list[int]) -> str:
+    return "".join(f"S{number}\t{_gnomix_superpopulation(number)}\n" for number in sample_numbers)
+
+
+_GNOMIX_TRAIN1_SAMPLES = [
+    group_start + offset for group_start in range(1, 78, 11) for offset in range(8)
+]
+_GNOMIX_TRAIN2_SAMPLES = [
+    group_start + offset for group_start in range(1, 78, 11) for offset in (0, 8, 9)
+]
+_GNOMIX_VAL_SAMPLES = [group_start + 10 for group_start in range(1, 78, 11)]
+_GNOMIX_TRAIN1_MAP = _gnomix_split_map(_GNOMIX_TRAIN1_SAMPLES)
+_GNOMIX_TRAIN2_MAP = _gnomix_split_map(_GNOMIX_TRAIN2_SAMPLES)
+_GNOMIX_VAL_MAP = _gnomix_split_map(_GNOMIX_VAL_SAMPLES)
+
+
+def _write_gnomix_training_contract(workdir: Path) -> dict[str, Path]:
+    """Write one tiny, production-shaped immutable training generation."""
+    manifests = _load_module(
+        "gnomix_training_manifests.py",
+        f"gnomix_training_manifest_fixture_{hash(workdir)}",
+    )
+    raw_dir = workdir / "00_raw_downloads"
+    liftover_dir = workdir / "02_liftover"
+    panel_dir = workdir / "03_subsetted_panels"
+    admix_dir = workdir / "04_admixture_filtering"
+    gnomix_dir = workdir / "05_gnomix_training"
+    validation_dir = workdir / "06_validation"
+    for directory in (
+        raw_dir,
+        liftover_dir,
+        panel_dir,
+        admix_dir,
+        gnomix_dir,
+        validation_dir,
+    ):
+        directory.mkdir(parents=True, exist_ok=True)
+
+    metadata = raw_dir / "gnomad_meta_updated.tsv"
+    metadata.write_text(
+        "s\thgdp_tgp_meta.Population\thgdp_tgp_meta.Genetic.region\n"
+        + "".join(
+            f"S{number}\tPop{number}\t{_gnomix_superpopulation(number)}\n"
+            for number in range(1, 79)
+        )
+    )
+    selected = admix_dir / "single_ancestry_samples.tsv"
+    selected.write_text(
+        "IID\tpopulation\tgenetic_region\n"
+        + "".join(
+            f"S{number}\tPop{number}\t{_gnomix_superpopulation(number)}\n"
+            for number in range(1, 79)
+        )
+    )
+    full_map = admix_dir / "sample_map.full.txt"
+    full_map.write_text(_gnomix_split_map(list(range(1, 79))))
+    training_map = admix_dir / "sample_map.txt"
+    training_map.write_text(_gnomix_split_map(list(range(1, 78))))
+    heldout_map = validation_dir / "held_out_validation.tsv"
+    heldout_map.write_text("IID\tgenetic_region\nS78\tOCE\n")
+    union_catalog = workdir / "union_sites.tsv"
+    union_catalog.write_text(
+        "".join(
+            f"rs{number}a\t{number}\t100\nrs{number}b\t{number}\t200\n" for number in range(1, 23)
+        )
+    )
+    lifted_regions = liftover_dir / "array_sites_grch38_regions.tsv"
+    lifted_regions.write_text(
+        "".join(f"chr{number}\t100\t100\nchr{number}\t200\t200\n" for number in range(1, 23))
+    )
+
+    chromosome_files: dict[str, tuple[Path, Path]] = {}
+    for number in range(1, 23):
+        chromosome = f"chr{number}"
+        vcf = panel_dir / f"ref_panel_{chromosome}.vcf.gz"
+        index = panel_dir / f"ref_panel_{chromosome}.vcf.gz.tbi"
+        header = "\t".join(
+            (
+                "#CHROM",
+                "POS",
+                "ID",
+                "REF",
+                "ALT",
+                "QUAL",
+                "FILTER",
+                "INFO",
+                "FORMAT",
+                *(f"S{sample}" for sample in range(1, 79)),
+            )
+        )
+        genotype_cycle = ("0|0", "0|1", "1|0", "1|1")
+        genotype_row = "\t".join(genotype_cycle[(sample - 1) % 4] for sample in range(1, 79))
+        body = (
+            "##fileformat=VCFv4.2\n"
+            f"##contig=<ID={chromosome}>\n"
+            f"{header}\n"
+            f"{chromosome}\t100\trs{number}a\tA\tG\t.\tPASS\t.\tGT\t{genotype_row}\n"
+            f"{chromosome}\t200\trs{number}b\tC\tT\t.\tPASS\t.\tGT\t{genotype_row}\n"
+        )
+        vcf.write_bytes(gzip.compress(body.encode("ascii"), mtime=0))
+        index.write_bytes(f"index-{chromosome}\n".encode())
+        chromosome_files[chromosome] = (vcf, index)
+
+    input_manifest = admix_dir / "gnomix_training_inputs.json"
+    manifests.write_input_manifest(
+        input_manifest,
+        reference_build="GRCh38",
+        reference_panel_name="gnomAD HGDP+1KG v3.1.2 (phased SHAPEIT5)",
+        reference_panel_source=(
+            "gs://gcp-public-data--gnomad/resources/hgdp_1kg/phased_haplotypes_v2"
+        ),
+        metadata_path=metadata,
+        metadata_source=(
+            "gs://gcp-public-data--gnomad/release/3.1/secondary_analyses/"
+            "hgdp_1kg_v2/metadata_and_qc/gnomad_meta_updated.tsv"
+        ),
+        selected_samples_path=selected,
+        full_sample_map_path=full_map,
+        training_sample_map_path=training_map,
+        heldout_sample_map_path=heldout_map,
+        marker_sources={"lifted_regions": lifted_regions, "union_catalog": union_catalog},
+        chromosome_files=chromosome_files,
+    )
+
+    split_dir = gnomix_dir / "output_chr1" / "generated_data" / "sample_maps"
+    split_dir.mkdir(parents=True)
+    train1 = split_dir / "train1.map"
+    train2 = split_dir / "train2.map"
+    val = split_dir / "val.map"
+    train1.write_text(_GNOMIX_TRAIN1_MAP)
+    train2.write_text(_GNOMIX_TRAIN2_MAP)
+    val.write_text(_GNOMIX_VAL_MAP)
+    split_manifest = (
+        gnomix_dir / "output_chr1" / "models" / "model_chm_chr1" / "training_splits.json"
+    )
+    split_manifest.parent.mkdir(parents=True)
+    manifests.write_split_manifest(
+        split_manifest,
+        input_manifest_path=input_manifest,
+        split_files={"train1": train1, "train2": train2, "val": val},
+    )
+    return {
+        "input_manifest": input_manifest,
+        "split_manifest": split_manifest,
+        "union_catalog": union_catalog,
+        "train1": train1,
+        "train2": train2,
+        "val": val,
+    }
 
 
 EXPECTED_PHASE_SCRIPTS = [
@@ -512,7 +685,7 @@ class TestPhase01GnomixMaps:
     def test_phase05_verifies_provenance_before_training(self) -> None:
         text = (SCRIPTS_DIR / "05_train_gnomix.sh").read_text()
         verify_index = text.index("verifying Gnomix genetic maps")
-        training_index = text.index("for chr in")
+        training_index = text.index('cd "$GNOMIX_DIR"')
         assert verify_index < training_index
         assert "01_convert_gnomix_maps.py" in text
         assert "--verify" in text
@@ -522,6 +695,7 @@ class TestPhase01GnomixMaps:
 
     def test_phase05_retrains_model_when_map_generation_changes(self, tmp_path: Path) -> None:
         workdir = tmp_path / "work"
+        contract = _write_gnomix_training_contract(workdir)
         raw_dir = workdir / "00_raw_downloads"
         source_dir = raw_dir / "genetic_maps_grch38" / "chr_in_chrom_field"
         source = source_dir / "plink.chrchr1.GRCh38.map"
@@ -530,19 +704,17 @@ class TestPhase01GnomixMaps:
         conversion = self._run_converter(source_dir, map_dir, "1")
         assert conversion.returncode == 0, conversion.stderr
 
-        admix_dir = workdir / "04_admixture_filtering"
-        panel_dir = workdir / "03_subsetted_panels"
         gnomix_dir = workdir / "05_gnomix_training"
         install_dir = tmp_path / "gnomix-install"
-        self._write_source(admix_dir / "sample_map.txt", "sample\tEUR\n")
-        self._write_source(panel_dir / "ref_panel_chr1.vcf.gz", "panel\n")
         self._write_source(install_dir / "gnomix.py", "# stub\n")
         self._write_source(install_dir / "config.yaml", "seed: 1\n")
         gnomix_commit = self._init_git_checkout(install_dir)
         effective_config = tmp_path / "effective-config.yaml"
-        effective_config.write_text("seed: 1\n")
-        self._write_source(gnomix_dir / "minquery_chr1.vcf.gz", "query\n")
-        self._write_source(gnomix_dir / "minquery_chr1.vcf.gz.tbi", "index\n")
+        effective_config.write_text(_gnomix_config())
+        config_snapshot = gnomix_dir / "config_snapshots" / "chr1" / "effective_config.yaml"
+        self._write_source(config_snapshot, _gnomix_config())
+        self._write_source(gnomix_dir / "minquery_chr1.vcf.gz", "stale cached query\n")
+        self._write_source(gnomix_dir / "minquery_chr1.vcf.gz.tbi", "stale cached index\n")
 
         model_dir = gnomix_dir / "output_chr1" / "models" / "model_chm_chr1"
         model_path = model_dir / "model_chm_chr1.pkl"
@@ -559,6 +731,14 @@ class TestPhase01GnomixMaps:
             config=effective_config,
             genetic_map=map_dir / "chr1.map",
             model=model_path,
+            training_input_manifest=contract["input_manifest"],
+            training_split_manifest=contract["split_manifest"],
+            expected_training_input_sha256=hashlib.sha256(
+                contract["input_manifest"].read_bytes()
+            ).hexdigest(),
+            expected_training_split_sha256=hashlib.sha256(
+                contract["split_manifest"].read_bytes()
+            ).hexdigest(),
         )
 
         stub_dir = tmp_path / "bin"
@@ -567,18 +747,48 @@ class TestPhase01GnomixMaps:
         conda_stub = stub_dir / "conda"
         conda_stub.write_text(
             "#!/bin/sh\n"
+            "training=\n"
+            'for argument in "$@"; do\n'
+            '  if [ "$argument" = None ]; then training=1; fi\n'
+            "done\n"
+            'if [ -z "$training" ]; then\n'
+            '  if [ "$STUB_RUNTIME_PREFLIGHT_FAIL" = 1 ]; then\n'
+            "    echo simulated Gnomix runtime preflight failure >&2\n"
+            "    exit 95\n"
+            "  fi\n"
+            "  exit 0\n"
+            "fi\n"
             "printf 'called\\n' > \"$STUB_CONDA_CALLED\"\n"
             "printf 'new-model\\n' > \"$STUB_MODEL_PATH\"\n"
+            'mkdir -p "$STUB_SPLIT_DIR"\n'
+            'printf \'%s\' "$STUB_TRAIN1_MAP" > "$STUB_SPLIT_DIR/train1.map"\n'
+            'printf \'%s\' "$STUB_TRAIN2_MAP" > "$STUB_SPLIT_DIR/train2.map"\n'
+            'printf \'%s\' "$STUB_VAL_MAP" > "$STUB_SPLIT_DIR/val.map"\n'
             'if [ -n "${STUB_MUTATE_CONFIG:-}" ]; then\n'
-            "  printf 'seed: mutated\\n' > \"$STUB_CONFIG_PATH\"\n"
+            "  printf 'seed: mutated\\nsimulation:\\n  run: true\\n  splits:\\n"
+            "    ratios:\\n      train1: 0.8\\n      train2: 0.15\\n"
+            '      val: 0.05\\nmodel:\\n  name: model\\n\' > "$STUB_CONFIG_PATH"\n'
+            "fi\n"
+            'if [ -n "${STUB_REPLACEMENT_MANIFEST:-}" ]; then\n'
+            '  cp "$STUB_REPLACEMENT_MANIFEST" "$STUB_INPUT_MANIFEST_PATH"\n'
             "fi\n"
         )
         conda_stub.chmod(0o755)
+        bcftools_called = tmp_path / "bcftools-called"
         bcftools_stub = stub_dir / "bcftools"
-        bcftools_stub.write_text("#!/bin/sh\necho unexpected bcftools call >&2\nexit 97\n")
+        bcftools_stub.write_text(
+            "#!/bin/sh\nprintf 'called\\n' > \"$STUB_BCFTOOLS_CALLED\"\nexit 97\n"
+        )
         bcftools_stub.chmod(0o755)
         flock_stub = stub_dir / "flock"
-        flock_stub.write_text("#!/bin/sh\nexit 0\n")
+        flock_stub.write_text(
+            "#!/bin/sh\n"
+            'if [ "$STUB_DELETE_SNAPSHOT_ON_UNLOCK" = 1 ] '
+            '&& [ "$1" = -u ] && [ "$2" = 9 ]; then\n'
+            '  rm -f "$STUB_CONFIG_SNAPSHOT"\n'
+            "fi\n"
+            "exit 0\n"
+        )
         flock_stub.chmod(0o755)
 
         env = os.environ.copy()
@@ -601,10 +811,20 @@ class TestPhase01GnomixMaps:
                 "GNOMIX_DIR_INSTALL": str(install_dir),
                 "GNOMIX_CONFIG": str(effective_config),
                 "GNOMIX_EXPECTED_COMMIT": gnomix_commit,
+                "UNION_CATALOG_TSV": str(contract["union_catalog"]),
                 "PATH": f"{stub_dir}{os.pathsep}{env['PATH']}",
                 "STUB_CONDA_CALLED": str(conda_called),
                 "STUB_CONFIG_PATH": str(effective_config),
                 "STUB_MODEL_PATH": str(model_path),
+                "STUB_SPLIT_DIR": str(contract["train1"].parent),
+                "STUB_TRAIN1_MAP": _GNOMIX_TRAIN1_MAP,
+                "STUB_TRAIN2_MAP": _GNOMIX_TRAIN2_MAP,
+                "STUB_VAL_MAP": _GNOMIX_VAL_MAP,
+                "STUB_INPUT_MANIFEST_PATH": str(contract["input_manifest"]),
+                "STUB_BCFTOOLS_CALLED": str(bcftools_called),
+                "STUB_CONFIG_SNAPSHOT": str(config_snapshot),
+                "STUB_DELETE_SNAPSHOT_ON_UNLOCK": "",
+                "STUB_RUNTIME_PREFLIGHT_FAIL": "",
             }
         )
 
@@ -617,7 +837,106 @@ class TestPhase01GnomixMaps:
         )
         assert matching.returncode == 0, matching.stderr
         assert not conda_called.exists()
+        assert not bcftools_called.exists()
         assert model_path.read_text() == "old-model\n"
+
+        completion_paths = {
+            "model": model_path,
+            "marker": marker_path,
+            "record": provenance_path,
+            "split": contract["split_manifest"],
+            "config_snapshot": config_snapshot,
+        }
+        completion_before = {name: path.read_bytes() for name, path in completion_paths.items()}
+        runtime_preflight_failed = subprocess.run(
+            ["bash", str(SCRIPTS_DIR / "05_train_gnomix.sh")],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env | {"STUB_RUNTIME_PREFLIGHT_FAIL": "1"},
+        )
+        assert runtime_preflight_failed.returncode == 95
+        assert "simulated Gnomix runtime preflight failure" in (runtime_preflight_failed.stderr)
+        assert {
+            name: path.read_bytes() for name, path in completion_paths.items()
+        } == completion_before
+        assert not conda_called.exists()
+
+        config_snapshot.unlink()
+        missing_snapshot = subprocess.run(
+            ["bash", str(SCRIPTS_DIR / "05_train_gnomix.sh")],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
+        )
+        assert missing_snapshot.returncode == 0, missing_snapshot.stderr
+        assert conda_called.is_file()
+        assert config_snapshot.read_text() == _gnomix_config()
+        assert not bcftools_called.exists()
+        conda_called.unlink()
+
+        deleted_before_completeness = subprocess.run(
+            ["bash", str(SCRIPTS_DIR / "05_train_gnomix.sh")],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env | {"STUB_DELETE_SNAPSHOT_ON_UNLOCK": "1"},
+        )
+        assert deleted_before_completeness.returncode == 1
+        assert "MISSING OR STALE" in deleted_before_completeness.stdout
+        assert not config_snapshot.exists()
+        assert not conda_called.exists()
+        config_snapshot.write_text(_gnomix_config())
+
+        contract["train1"].write_text("S1\tAFR\n")
+        split_changed = subprocess.run(
+            ["bash", str(SCRIPTS_DIR / "05_train_gnomix.sh")],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
+        )
+        assert split_changed.returncode == 0, split_changed.stderr
+        assert conda_called.is_file()
+        assert not bcftools_called.exists()
+        assert contract["train1"].read_text() == _GNOMIX_TRAIN1_MAP
+        conda_called.unlink()
+
+        original_input_sha = hashlib.sha256(contract["input_manifest"].read_bytes()).hexdigest()
+        contract["union_catalog"].write_bytes(
+            contract["union_catalog"].read_bytes() + b"rs-extra\t1\t300\n"
+        )
+        input_payload = json.loads(contract["input_manifest"].read_text())
+        union_artifact = next(
+            entry["artifact"]
+            for entry in input_payload["source_artifacts"]["marker_selection"]
+            if entry["name"] == "union_catalog"
+        )
+        union_artifact["sha256"] = hashlib.sha256(
+            contract["union_catalog"].read_bytes()
+        ).hexdigest()
+        union_artifact["size_bytes"] = contract["union_catalog"].stat().st_size
+        contract["input_manifest"].write_text(
+            json.dumps(input_payload, ensure_ascii=True, separators=(",", ":"), sort_keys=True)
+        )
+        replacement_input_sha = hashlib.sha256(contract["input_manifest"].read_bytes()).hexdigest()
+        assert replacement_input_sha != original_input_sha
+
+        input_changed = subprocess.run(
+            ["bash", str(SCRIPTS_DIR / "05_train_gnomix.sh")],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
+        )
+        assert input_changed.returncode == 0, input_changed.stderr
+        assert conda_called.is_file()
+        assert (
+            json.loads(provenance_path.read_text())["training_input_manifest"]["sha256"]
+            == replacement_input_sha
+        )
+        conda_called.unlink()
 
         source.write_text("chr1 . 0 55550\nchr1 . 0.080572 82571\n")
         conversion = self._run_converter(source_dir, map_dir, "1")
@@ -634,7 +953,8 @@ class TestPhase01GnomixMaps:
         )
         assert changed.returncode == 0, changed.stderr
         assert (
-            "source/config/map/model provenance changed or missing; retraining" in changed.stdout
+            "source/input/split/config/map/model provenance changed or missing; retraining"
+            in changed.stdout
         )
         assert conda_called.is_file()
         assert model_path.read_text() == "new-model\n"
@@ -650,7 +970,7 @@ class TestPhase01GnomixMaps:
         assert not Path(f"{model_path}.stale").exists()
 
         conda_called.unlink()
-        effective_config.write_text("seed: 2\n")
+        effective_config.write_text(_gnomix_config(seed=2))
         changed_config = subprocess.run(
             ["bash", str(SCRIPTS_DIR / "05_train_gnomix.sh")],
             capture_output=True,
@@ -667,7 +987,43 @@ class TestPhase01GnomixMaps:
         )
 
         conda_called.unlink()
-        effective_config.write_text("seed: 3\n")
+        stable_input_bytes = contract["input_manifest"].read_bytes()
+        replacement_manifest = tmp_path / "replacement-training-inputs.json"
+        replacement_payload = json.loads(stable_input_bytes)
+        replacement_payload["reference_panel"]["name"] += " replacement"
+        replacement_manifest.write_text(
+            json.dumps(
+                replacement_payload,
+                ensure_ascii=True,
+                separators=(",", ":"),
+                sort_keys=True,
+            )
+        )
+        manifests = _load_module(
+            "gnomix_training_manifests.py",
+            "gnomix_training_manifest_generation_race_test",
+        )
+        manifests.load_input_manifest(replacement_manifest)
+        contract["train1"].write_text("S1\tAFR\n")
+        generation_race_env = env | {"STUB_REPLACEMENT_MANIFEST": str(replacement_manifest)}
+        generation_changed_during_training = subprocess.run(
+            ["bash", str(SCRIPTS_DIR / "05_train_gnomix.sh")],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=generation_race_env,
+        )
+        assert generation_changed_during_training.returncode == 1
+        assert "training-input manifest generation changed during Gnomix training" in (
+            generation_changed_during_training.stderr + generation_changed_during_training.stdout
+        )
+        assert conda_called.is_file()
+        assert not provenance_path.exists()
+        assert not marker_path.exists()
+        contract["input_manifest"].write_bytes(stable_input_bytes)
+
+        conda_called.unlink()
+        effective_config.write_text(_gnomix_config(seed=3))
         mutating_env = env | {"STUB_MUTATE_CONFIG": "1"}
         mutated_during_training = subprocess.run(
             ["bash", str(SCRIPTS_DIR / "05_train_gnomix.sh")],
@@ -767,53 +1123,12 @@ class TestPhase01GnomixMaps:
         assert provenance_path.read_text() == "existing-provenance\n"
         assert not conda_called.exists()
 
-    def test_phase05_missing_bcftools_fails_before_model_state_changes(
-        self, tmp_path: Path
-    ) -> None:
-        workdir = tmp_path / "work"
-        model_dir = workdir / "05_gnomix_training" / "output_chr1" / "models" / "model_chm_chr1"
-        model_path = model_dir / "model_chm_chr1.pkl"
-        marker_path = model_dir / "genetic_map.sha256"
-        self._write_source(model_path, "existing-model\n")
-        marker_path.write_text("sentinel-binding\n")
-
-        stub_dir = tmp_path / "preflight-bin"
-        stub_dir.mkdir()
-        for command in ("date", "dirname", "mkdir", "python3", "sha256sum"):
-            target = shutil.which(command)
-            assert target is not None
-            (stub_dir / command).symlink_to(target)
-        conda_stub = stub_dir / "conda"
-        conda_stub.write_text("#!/bin/sh\nexit 97\n")
-        conda_stub.chmod(0o755)
-
-        env = os.environ.copy()
-        for variable in (
-            "RAW_DIR",
-            "LOG_DIR",
-            "SITES_DIR",
-            "LIFTOVER_DIR",
-            "PANEL_DIR",
-            "ADMIX_DIR",
-            "GNOMIX_DIR",
-            "VALIDATION_DIR",
-            "BUNDLE_DIR",
-        ):
-            env.pop(variable, None)
-        env.update({"WORKDIR": str(workdir), "CHROMS": "1", "PATH": str(stub_dir)})
-
-        result = subprocess.run(
-            ["/bin/bash", str(SCRIPTS_DIR / "05_train_gnomix.sh")],
-            capture_output=True,
-            text=True,
-            check=False,
-            env=env,
-        )
-
-        assert result.returncode == 1
-        assert "missing required command: bcftools" in result.stderr
-        assert model_path.read_text() == "existing-model\n"
-        assert marker_path.read_text() == "sentinel-binding\n"
+    def test_phase05_skips_discarded_post_train_query(self) -> None:
+        text = (SCRIPTS_DIR / "05_train_gnomix.sh").read_text()
+        assert "require bcftools" not in text
+        assert "minquery" not in text
+        launcher_index = text.index('"$GNOMIX_DIR_INSTALL/gnomix.py"')
+        assert text.index("    None \\\n", launcher_index) > launcher_index
 
     def test_phase07_packages_map_provenance(self) -> None:
         text = (SCRIPTS_DIR / "07_assemble_bundle.sh").read_text()
@@ -834,6 +1149,587 @@ class TestPhase01GnomixMaps:
         )
         assert "rm -rf gnomix_models/chr*" in text
         assert "metadata/gnomix_model_map_chr*.sha256" in text
+
+
+class TestGnomixTrainingManifestIntegration:
+    @staticmethod
+    def _phase05_preflight_fixture(
+        tmp_path: Path,
+        *,
+        config_text: str,
+        drift_union_catalog: bool = False,
+        undersize_oce_training_population: bool = False,
+    ) -> tuple[subprocess.CompletedProcess[str], dict[str, bytes], dict[str, Path]]:
+        workdir = tmp_path / "work"
+        contract = _write_gnomix_training_contract(workdir)
+        if undersize_oce_training_population:
+            payload = json.loads(contract["input_manifest"].read_text())
+            oce_training = [
+                member
+                for member in payload["sample_mappings"]["members"]
+                if member["role"] == "training" and member["superpopulation"] == "OCE"
+            ]
+            for member in oce_training[4:]:
+                member["role"] = "heldout_test"
+            training_count = sum(
+                member["role"] == "training" for member in payload["sample_mappings"]["members"]
+            )
+            payload["sample_mappings"]["counts"] = {
+                "full": len(payload["sample_mappings"]["members"]),
+                "heldout_test": len(payload["sample_mappings"]["members"]) - training_count,
+                "training": training_count,
+            }
+            contract["input_manifest"].write_text(
+                json.dumps(payload, ensure_ascii=True, separators=(",", ":"), sort_keys=True)
+            )
+        if drift_union_catalog:
+            contract["union_catalog"].write_bytes(
+                contract["union_catalog"].read_bytes() + b"rs-extra\t1\t300\n"
+            )
+
+        install_dir = tmp_path / "gnomix-install"
+        install_dir.mkdir()
+        (install_dir / "gnomix.py").write_text("# fixture\n")
+        commit = TestPhase01GnomixMaps._init_git_checkout(install_dir)
+        config = tmp_path / "effective-config.yaml"
+        config.write_text(config_text)
+        map_dir = workdir / "00_raw_downloads" / "genetic_maps_gnomix"
+        map_dir.mkdir(parents=True)
+        (map_dir / "provenance.json").write_text("{}\n")
+
+        model_dir = workdir / "05_gnomix_training" / "output_chr1" / "models" / "model_chm_chr1"
+        model = model_dir / "model_chm_chr1.pkl"
+        marker = model_dir / "genetic_map.sha256"
+        record = model_dir / "training_provenance.json"
+        model.write_bytes(b"prior-model\n")
+        marker.write_bytes(b"prior-map-binding\n")
+        record.write_bytes(b"prior-provenance\n")
+        paths = {
+            "model": model,
+            "marker": marker,
+            "record": record,
+            "split": contract["split_manifest"],
+        }
+        before = {name: path.read_bytes() for name, path in paths.items()}
+
+        stub_dir = tmp_path / "bin"
+        stub_dir.mkdir()
+        called = tmp_path / "training-command-called"
+        for command in ("conda", "bcftools"):
+            stub = stub_dir / command
+            stub.write_text("#!/bin/sh\nprintf 'called\\n' > \"$STUB_COMMAND_CALLED\"\nexit 97\n")
+            stub.chmod(0o755)
+
+        env = os.environ.copy()
+        for variable in (
+            "RAW_DIR",
+            "LOG_DIR",
+            "SITES_DIR",
+            "LIFTOVER_DIR",
+            "PANEL_DIR",
+            "ADMIX_DIR",
+            "GNOMIX_DIR",
+            "VALIDATION_DIR",
+            "BUNDLE_DIR",
+        ):
+            env.pop(variable, None)
+        env.update(
+            {
+                "WORKDIR": str(workdir),
+                "CHROMS": "1",
+                "GNOMIX_DIR_INSTALL": str(install_dir),
+                "GNOMIX_CONFIG": str(config),
+                "GNOMIX_EXPECTED_COMMIT": commit,
+                "UNION_CATALOG_TSV": str(contract["union_catalog"]),
+                "PATH": f"{stub_dir}{os.pathsep}{env['PATH']}",
+                "STUB_COMMAND_CALLED": str(called),
+            }
+        )
+        result = subprocess.run(
+            ["bash", str(SCRIPTS_DIR / "05_train_gnomix.sh")],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
+        )
+        assert not called.exists()
+        return result, before, paths
+
+    def test_phase05_rejects_presimulated_config_before_model_mutation(
+        self, tmp_path: Path
+    ) -> None:
+        result, before, paths = self._phase05_preflight_fixture(
+            tmp_path,
+            config_text="seed: 1\nsimulation:\n  run: false\n",
+        )
+
+        assert result.returncode == 1
+        assert "simulation.run=false is unsupported" in result.stderr
+        assert {name: path.read_bytes() for name, path in paths.items()} == before
+
+    @pytest.mark.parametrize(
+        ("config_text", "message"),
+        [
+            (
+                _gnomix_config().replace("val: 0.05", "val: 0"),
+                "ratios.val must be a finite number greater than zero",
+            ),
+            (
+                _gnomix_config().replace("val: 0.05", "val: 0.0005"),
+                "ratios.val must equal the release value 0.05",
+            ),
+            (
+                _gnomix_config().replace(
+                    "      train1: 0.8\n      train2: 0.15\n      val: 0.05\n",
+                    "      val: 0.05\n      train2: 0.15\n      train1: 0.8\n",
+                ),
+                "must be ordered train1, train2, val",
+            ),
+            (
+                _gnomix_config().replace("name: model", "name: custom"),
+                "model.name must be 'model'",
+            ),
+            (
+                _gnomix_config().replace("model:\n  name: model\n", "model: {}\n"),
+                "model.name must be 'model'",
+            ),
+            (
+                _gnomix_config().replace("name: model", "name: model\n  inference: fast"),
+                "model.inference must resolve to 'default'",
+            ),
+            (
+                _gnomix_config().replace("name: model", "name: model\n  calibrate: true"),
+                "model.calibrate must be false or null",
+            ),
+            (
+                _gnomix_config().replace("verbose: true", "verbose: false"),
+                "verbose must be the boolean true",
+            ),
+        ],
+    )
+    def test_phase05_rejects_incompatible_config_before_model_mutation(
+        self,
+        tmp_path: Path,
+        config_text: str,
+        message: str,
+    ) -> None:
+        result, before, paths = self._phase05_preflight_fixture(
+            tmp_path,
+            config_text=config_text,
+        )
+
+        assert result.returncode == 1
+        assert message in result.stderr
+        assert {name: path.read_bytes() for name, path in paths.items()} == before
+
+    def test_phase05_rejects_population_with_empty_validation_rounding_before_mutation(
+        self, tmp_path: Path
+    ) -> None:
+        result, before, paths = self._phase05_preflight_fixture(
+            tmp_path,
+            config_text=_gnomix_config(),
+            undersize_oce_training_population=True,
+        )
+
+        assert result.returncode == 1
+        assert "at least 11 training founders per superpopulation" in result.stderr
+        assert {name: path.read_bytes() for name, path in paths.items()} == before
+
+    def test_phase05_rejects_training_input_drift_before_model_mutation(
+        self, tmp_path: Path
+    ) -> None:
+        result, before, paths = self._phase05_preflight_fixture(
+            tmp_path,
+            config_text=_gnomix_config(),
+            drift_union_catalog=True,
+        )
+
+        assert result.returncode == 1
+        assert "training-input manifest" in result.stderr
+        assert {name: path.read_bytes() for name, path in paths.items()} == before
+
+    def test_phase_scripts_wire_manifest_gates_before_publication(self) -> None:
+        shared_env = (SCRIPTS_DIR / "env.sh").read_text()
+        phase4 = (SCRIPTS_DIR / "04_admixture_filter.sh").read_text()
+        phase5 = (SCRIPTS_DIR / "05_train_gnomix.sh").read_text()
+        phase7 = (SCRIPTS_DIR / "07_assemble_bundle.sh").read_text()
+        build_env_lock = (
+            REPO_ROOT / "docs" / "lai-bundle-release-runbook-env.lock.yaml"
+        ).read_text()
+
+        assert "Phase 04 freezes full autosomal inputs only" in phase4
+        assert phase4.index("06f_select_heldout.py") < phase4.index("create-input")
+        assert "--out-full-backup" in phase4
+        assert "GNOMIX_TRAINING_INPUT_SHARED_ARGS" in shared_env
+        assert "--heldout-sample-map" in shared_env
+        for text in (phase4, phase5, phase7):
+            assert '"${GNOMIX_TRAINING_INPUT_SHARED_ARGS[@]}"' in text
+        assert "  - pyyaml=6.0.3\n" in build_env_lock
+
+        mutation_index = phase5.index('rm -f "$model_provenance"')
+        assert phase5.index("verify-config") < mutation_index
+        assert phase5.index("verify-input") < mutation_index
+        assert phase5.index("create-splits") < phase5.index("write-record")
+        assert "training-input manifest generation changed during Gnomix training" in phase5
+
+        preflight_end = phase7.index('cd "$BUNDLE_DIR"')
+        assert phase7.index("verify-input") < preflight_end
+        assert phase7.index("verify-splits") < preflight_end
+        assert phase7.index("verify-record") < preflight_end
+        assert phase7.index("verify-aggregate") < preflight_end
+        assert phase7.index('python "$SCRIPT_DIR/gnomix_launcher.py"') < preflight_end
+        assert phase7.index('python "$SCRIPT_DIR/07b_reexport_gnomix_models.py"') < preflight_end
+        for path in (
+            "metadata/gnomix_training_inputs.json",
+            "metadata/gnomix_training_splits.json",
+            "metadata/gnomix_training_provenance.json",
+        ):
+            assert path in phase7
+
+    def test_phase07_missing_model_fails_before_bundle_mutation(self, tmp_path: Path) -> None:
+        workdir = tmp_path / "work"
+        contract = _write_gnomix_training_contract(workdir)
+        raw_dir = workdir / "00_raw_downloads"
+        source_dir = raw_dir / "genetic_maps_grch38" / "chr_in_chrom_field"
+        for number in range(1, 23):
+            TestPhase01GnomixMaps._write_source(
+                source_dir / f"plink.chrchr{number}.GRCh38.map",
+                f"chr{number} . 0 100\n",
+            )
+        map_dir = raw_dir / "genetic_maps_gnomix"
+        conversion = TestPhase01GnomixMaps._run_converter(
+            source_dir,
+            map_dir,
+            *(str(number) for number in range(1, 23)),
+        )
+        assert conversion.returncode == 0, conversion.stderr
+
+        install_dir = tmp_path / "gnomix-install"
+        install_dir.mkdir()
+        (install_dir / "gnomix.py").write_text("# fixture\n")
+        commit = TestPhase01GnomixMaps._init_git_checkout(install_dir)
+        bundle_dir = workdir / "07_final_bundle"
+        bundle_dir.mkdir()
+        sentinel = bundle_dir / "prior-generation.txt"
+        sentinel.write_bytes(b"do-not-mutate\n")
+
+        stub_dir = tmp_path / "bin"
+        stub_dir.mkdir()
+        conda_called = tmp_path / "conda-called"
+        conda_stub = stub_dir / "conda"
+        conda_stub.write_text("#!/bin/sh\nprintf 'called\\n' > \"$STUB_CONDA_CALLED\"\nexit 97\n")
+        conda_stub.chmod(0o755)
+        env = os.environ.copy()
+        for variable in (
+            "RAW_DIR",
+            "LOG_DIR",
+            "SITES_DIR",
+            "LIFTOVER_DIR",
+            "PANEL_DIR",
+            "ADMIX_DIR",
+            "GNOMIX_DIR",
+            "VALIDATION_DIR",
+            "BUNDLE_DIR",
+        ):
+            env.pop(variable, None)
+        env.update(
+            {
+                "WORKDIR": str(workdir),
+                "GNOMIX_DIR_INSTALL": str(install_dir),
+                "GNOMIX_EXPECTED_COMMIT": commit,
+                "UNION_CATALOG_TSV": str(contract["union_catalog"]),
+                "PATH": f"{stub_dir}{os.pathsep}{env['PATH']}",
+                "STUB_CONDA_CALLED": str(conda_called),
+            }
+        )
+
+        result = subprocess.run(
+            ["bash", str(SCRIPTS_DIR / "07_assemble_bundle.sh")],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
+        )
+
+        assert result.returncode == 1
+        assert "model_chm_chr1.pkl" in result.stderr
+        assert sentinel.read_bytes() == b"do-not-mutate\n"
+        assert sorted(path.name for path in bundle_dir.iterdir()) == [sentinel.name]
+        assert not conda_called.exists()
+
+    def test_phase07_runtime_preflight_failure_preserves_existing_bundle(
+        self, tmp_path: Path
+    ) -> None:
+        workdir = tmp_path / "work"
+        contract = _write_gnomix_training_contract(workdir)
+        raw_dir = workdir / "00_raw_downloads"
+        map_dir = raw_dir / "genetic_maps_gnomix"
+        TestPhase01GnomixMaps._write_source(map_dir / "provenance.json", "fixture\n")
+
+        install_dir = tmp_path / "gnomix-install"
+        TestPhase01GnomixMaps._write_source(install_dir / "gnomix.py", "# fixture\n")
+        for number in range(1, 23):
+            chromosome = f"chr{number}"
+            derived_map = map_dir / f"{chromosome}.map"
+            TestPhase01GnomixMaps._write_source(derived_map, f"{chromosome}\t100\t0\n")
+            model_dir = (
+                workdir
+                / "05_gnomix_training"
+                / f"output_chr{number}"
+                / "models"
+                / f"model_chm_{chromosome}"
+            )
+            TestPhase01GnomixMaps._write_source(
+                model_dir / f"model_chm_{chromosome}.pkl", "fixture-model\n"
+            )
+            TestPhase01GnomixMaps._write_source(
+                model_dir / "genetic_map.sha256",
+                f"{hashlib.sha256(derived_map.read_bytes()).hexdigest()}  {derived_map.name}\n",
+            )
+            TestPhase01GnomixMaps._write_source(model_dir / "training_provenance.json", "{}\n")
+            (model_dir / "training_splits.json").write_bytes(
+                contract["split_manifest"].read_bytes()
+            )
+            config_snapshot = (
+                workdir
+                / "05_gnomix_training"
+                / "config_snapshots"
+                / chromosome
+                / "effective_config.yaml"
+            )
+            TestPhase01GnomixMaps._write_source(config_snapshot, _gnomix_config())
+            split_dir = (
+                workdir
+                / "05_gnomix_training"
+                / f"output_chr{number}"
+                / "generated_data"
+                / "sample_maps"
+            )
+            for name, content in (
+                ("train1", _GNOMIX_TRAIN1_MAP),
+                ("train2", _GNOMIX_TRAIN2_MAP),
+                ("val", _GNOMIX_VAL_MAP),
+            ):
+                TestPhase01GnomixMaps._write_source(split_dir / f"{name}.map", content)
+
+        bundle_dir = workdir / "07_final_bundle"
+        bundle_dir.mkdir()
+        sentinel = bundle_dir / "prior-generation.txt"
+        sentinel.write_bytes(b"do-not-mutate\n")
+
+        stub_dir = tmp_path / "bin"
+        stub_dir.mkdir()
+        for command in ("python", "python3"):
+            stub = stub_dir / command
+            stub.write_text("#!/bin/sh\nexit 0\n")
+            stub.chmod(0o755)
+        conda_log = tmp_path / "conda.log"
+        conda_stub = stub_dir / "conda"
+        conda_stub.write_text(
+            "#!/bin/sh\n"
+            'printf \'%s\\n\' "$*" >> "$STUB_CONDA_LOG"\n'
+            'calls=$(wc -l < "$STUB_CONDA_LOG")\n'
+            'if [ "$calls" -eq 1 ]; then exit 0; fi\n'
+            "echo simulated Phase 07 runtime preflight failure >&2\n"
+            "exit 95\n"
+        )
+        conda_stub.chmod(0o755)
+
+        env = os.environ.copy()
+        for variable in (
+            "RAW_DIR",
+            "LOG_DIR",
+            "SITES_DIR",
+            "LIFTOVER_DIR",
+            "PANEL_DIR",
+            "ADMIX_DIR",
+            "GNOMIX_DIR",
+            "VALIDATION_DIR",
+            "BUNDLE_DIR",
+        ):
+            env.pop(variable, None)
+        env.update(
+            {
+                "WORKDIR": str(workdir),
+                "GNOMIX_DIR_INSTALL": str(install_dir),
+                "GNOMIX_EXPECTED_COMMIT": "a" * 40,
+                "GNOMIX_ENV": "expected-gnomix",
+                "UNION_CATALOG_TSV": str(contract["union_catalog"]),
+                "PATH": f"{stub_dir}{os.pathsep}{env['PATH']}",
+                "STUB_CONDA_LOG": str(conda_log),
+            }
+        )
+
+        result = subprocess.run(
+            ["bash", str(SCRIPTS_DIR / "07_assemble_bundle.sh")],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
+        )
+
+        assert result.returncode == 95
+        assert "simulated Phase 07 runtime preflight failure" in result.stderr
+        conda_calls = conda_log.read_text().splitlines()
+        assert len(conda_calls) == 2
+        assert all(
+            call.startswith("run -n expected-gnomix --no-capture-output ") for call in conda_calls
+        )
+        assert "gnomix_launcher.py" in conda_calls[0]
+        assert "07b_reexport_gnomix_models.py" in conda_calls[1]
+        assert "model_chm_chr1.pkl" in conda_calls[1]
+        assert "--out-dir" in conda_calls[1]
+        assert str(bundle_dir) not in conda_calls[1]
+        assert sentinel.read_bytes() == b"do-not-mutate\n"
+        assert sorted(path.name for path in bundle_dir.iterdir()) == [sentinel.name]
+
+    def test_phase07_rejects_coherently_forged_config_hashes_before_bundle_mutation(
+        self, tmp_path: Path
+    ) -> None:
+        workdir = tmp_path / "work"
+        contract = _write_gnomix_training_contract(workdir)
+        raw_dir = workdir / "00_raw_downloads"
+        source_dir = raw_dir / "genetic_maps_grch38" / "chr_in_chrom_field"
+        for number in range(1, 23):
+            TestPhase01GnomixMaps._write_source(
+                source_dir / f"plink.chrchr{number}.GRCh38.map",
+                f"chr{number} . 0 100\n",
+            )
+        map_dir = raw_dir / "genetic_maps_gnomix"
+        conversion = TestPhase01GnomixMaps._run_converter(
+            source_dir,
+            map_dir,
+            *(str(number) for number in range(1, 23)),
+        )
+        assert conversion.returncode == 0, conversion.stderr
+
+        install_dir = tmp_path / "gnomix-install"
+        install_dir.mkdir()
+        (install_dir / "gnomix.py").write_text("# fixture\n")
+        commit = TestPhase01GnomixMaps._init_git_checkout(install_dir)
+        provenance = _load_module(
+            "gnomix_provenance.py", "gnomix_phase07_config_authentication_test"
+        )
+        input_sha256 = hashlib.sha256(contract["input_manifest"].read_bytes()).hexdigest()
+        forged_config_sha256 = "f" * 64
+        record_paths: list[Path] = []
+
+        for number in range(1, 23):
+            chromosome = f"chr{number}"
+            split_map_dir = (
+                workdir
+                / "05_gnomix_training"
+                / f"output_chr{number}"
+                / "generated_data"
+                / "sample_maps"
+            )
+            split_map_dir.mkdir(parents=True, exist_ok=True)
+            for split_name, source_key in (
+                ("train1", "train1"),
+                ("train2", "train2"),
+                ("val", "val"),
+            ):
+                target = split_map_dir / f"{split_name}.map"
+                if not target.exists():
+                    target.write_bytes(contract[source_key].read_bytes())
+
+            model_dir = (
+                workdir
+                / "05_gnomix_training"
+                / f"output_chr{number}"
+                / "models"
+                / f"model_chm_{chromosome}"
+            )
+            model_dir.mkdir(parents=True, exist_ok=True)
+            split_manifest = model_dir / "training_splits.json"
+            if not split_manifest.exists():
+                split_manifest.write_bytes(contract["split_manifest"].read_bytes())
+            split_sha256 = hashlib.sha256(split_manifest.read_bytes()).hexdigest()
+
+            model = model_dir / f"model_chm_{chromosome}.pkl"
+            model.write_bytes(f"model-{chromosome}\n".encode())
+            derived_map = map_dir / f"{chromosome}.map"
+            (model_dir / "genetic_map.sha256").write_text(
+                f"{hashlib.sha256(derived_map.read_bytes()).hexdigest()}  {derived_map.name}\n"
+            )
+            config = (
+                workdir
+                / "05_gnomix_training"
+                / "config_snapshots"
+                / chromosome
+                / "effective_config.yaml"
+            )
+            config.parent.mkdir(parents=True, exist_ok=True)
+            config.write_text(_gnomix_config())
+            record = model_dir / "training_provenance.json"
+            provenance.write_model_record(
+                record,
+                chromosome=chromosome,
+                expected_commit=commit,
+                config=config,
+                genetic_map=derived_map,
+                model=model,
+                training_input_manifest=contract["input_manifest"],
+                training_split_manifest=split_manifest,
+                expected_training_input_sha256=input_sha256,
+                expected_training_split_sha256=split_sha256,
+            )
+            payload = json.loads(record.read_text())
+            payload["effective_config_sha256"] = forged_config_sha256
+            record.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+            record_paths.append(record)
+
+        assert {
+            json.loads(record.read_text())["effective_config_sha256"] for record in record_paths
+        } == {forged_config_sha256}
+
+        bundle_dir = workdir / "07_final_bundle"
+        bundle_dir.mkdir()
+        sentinel = bundle_dir / "prior-generation.txt"
+        sentinel.write_bytes(b"do-not-mutate\n")
+        stub_dir = tmp_path / "bin"
+        stub_dir.mkdir()
+        conda_called = tmp_path / "conda-called"
+        conda_stub = stub_dir / "conda"
+        conda_stub.write_text("#!/bin/sh\nprintf 'called\\n' > \"$STUB_CONDA_CALLED\"\nexit 97\n")
+        conda_stub.chmod(0o755)
+        env = os.environ.copy()
+        for variable in (
+            "RAW_DIR",
+            "LOG_DIR",
+            "SITES_DIR",
+            "LIFTOVER_DIR",
+            "PANEL_DIR",
+            "ADMIX_DIR",
+            "GNOMIX_DIR",
+            "VALIDATION_DIR",
+            "BUNDLE_DIR",
+        ):
+            env.pop(variable, None)
+        env.update(
+            {
+                "WORKDIR": str(workdir),
+                "GNOMIX_DIR_INSTALL": str(install_dir),
+                "GNOMIX_EXPECTED_COMMIT": commit,
+                "UNION_CATALOG_TSV": str(contract["union_catalog"]),
+                "PATH": f"{stub_dir}{os.pathsep}{env['PATH']}",
+                "STUB_CONDA_CALLED": str(conda_called),
+            }
+        )
+
+        result = subprocess.run(
+            ["bash", str(SCRIPTS_DIR / "07_assemble_bundle.sh")],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
+        )
+
+        assert result.returncode == 1
+        assert "effective_config_sha256 mismatch" in result.stderr
+        assert sentinel.read_bytes() == b"do-not-mutate\n"
+        assert sorted(path.name for path in bundle_dir.iterdir()) == [sentinel.name]
+        assert not conda_called.exists()
 
 
 class TestGnomixTrainingProvenance:
@@ -858,6 +1754,190 @@ class TestGnomixTrainingProvenance:
         with pytest.raises(provenance.ProvenanceError, match="commit mismatch"):
             provenance.verify_checkout(checkout, "0" * 40)
         assert provenance.verify_checkout(checkout, commit) == commit
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            _gnomix_config(),
+            (
+                "verbose: true\nsimulation:\n"
+                "  run: True # upstream spelling\n"
+                "  splits: {ratios: {train1: 0.8, train2: 0.15, val: 0.05}}\n"
+                "model: {name: model}\n"
+            ),
+            (
+                "verbose: true\nseed: 94305\n"
+                "simulation:\n"
+                "    run: TRUE\n"
+                "    path: simulated\n"
+                "    splits: {ratios: {train1: 0.8, train2: 0.15, val: 0.05}}\n"
+                "model: {name: model}\n"
+            ),
+            (
+                "verbose: true\nsimulation: {run: true, "
+                "splits: {ratios: {train1: 0.8, train2: 0.15, val: 0.05}}}\n"
+                "model: {name: model}\n"
+            ),
+            (
+                "verbose: true\nsimulation:\n"
+                "  run: &enabled true\n"
+                "  splits: {ratios: {train1: 0.8, train2: 0.15, val: 0.05}}\n"
+                "model: {name: model}\n"
+            ),
+            (
+                '"verbose": !!bool true\n"simulation":\n'
+                '  "run": !!bool true\n'
+                '  "splits": {"ratios": {"train1": 0.8, "train2": 0.15, "val": 0.05}}\n'
+                '"model": {"name": "model"}\n'
+            ),
+        ],
+    )
+    def test_config_gate_accepts_only_fresh_simulation(self, tmp_path: Path, value: str) -> None:
+        provenance = self._module()
+        config = tmp_path / "config.yaml"
+        config.write_text(value)
+
+        assert provenance.verify_simulation_config(config) is True
+
+    @pytest.mark.parametrize(
+        ("value", "message"),
+        [
+            ("simulation:\n  run: false\n", "pre-simulated arrays are not inventoried"),
+            ("simulation:\n  run: 'true'\n", "must be the boolean true"),
+            ("simulation:\n\trun: true\n", "invalid Gnomix config YAML"),
+            ("simulation:\n  run: true\n  run: true\n", "duplicate key 'run'"),
+            (
+                'simulation:\n  run: true\n  "run": false\n  path: /tmp/precomputed\n',
+                "duplicate key 'run'",
+            ),
+            (
+                "simulation:\n  run: true\n  !!str run: false\n  path: /tmp/precomputed\n",
+                "duplicate key 'run'",
+            ),
+            (
+                'simulation:\n  run: true\n"simulation":\n  run: false\n',
+                "duplicate key 'simulation'",
+            ),
+            ("simulation: !!python/object:builtins.dict {}\n", "invalid Gnomix config YAML"),
+            ("seed: 94305\n", "simulation must be a mapping"),
+            ("simulation:\n  run: true\n", "simulation.splits must be a mapping"),
+            (
+                "simulation:\n  run: true\n  splits: {}\n",
+                "simulation.splits.ratios must be a mapping",
+            ),
+            (
+                "simulation:\n  run: true\n  splits: {ratios: {train1: 0.8, train2: 0.2}}\n",
+                "must contain exactly train1, train2, and val",
+            ),
+            (
+                "simulation:\n"
+                "  run: true\n"
+                "  splits: {ratios: {train1: 0.8, train2: 0.15, val: 0}}\n",
+                "ratios.val must be a finite number greater than zero",
+            ),
+            (
+                "simulation:\n"
+                "  run: true\n"
+                "  splits: {ratios: {train1: true, train2: 0.15, val: 0.05}}\n",
+                "ratios.train1 must be a finite number greater than zero",
+            ),
+            (
+                "simulation:\n"
+                "  run: true\n"
+                "  splits: {ratios: {train1: 0.8, train2: .nan, val: 0.05}}\n",
+                "ratios.train2 must be a finite number greater than zero",
+            ),
+            (
+                _gnomix_config().replace("val: 0.05", "val: 0.0005"),
+                "ratios.val must equal the release value 0.05",
+            ),
+            (
+                _gnomix_config().replace(
+                    "      train1: 0.8\n      train2: 0.15\n      val: 0.05\n",
+                    "      val: 0.05\n      train2: 0.15\n      train1: 0.8\n",
+                ),
+                "must be ordered train1, train2, val",
+            ),
+            (
+                _gnomix_config().replace("name: model", "name: custom"),
+                "model.name must be 'model'",
+            ),
+            (
+                _gnomix_config().replace("name: model", "name: model\n  inference: best"),
+                "model.inference must resolve to 'default'",
+            ),
+            (
+                _gnomix_config().replace("name: model", "name: model\n  calibrate: true"),
+                "model.calibrate must be false or null",
+            ),
+            (
+                _gnomix_config().replace("name: model", "name: model\n  calibrate: 0"),
+                "model.calibrate must be false or null",
+            ),
+            (
+                _gnomix_config().replace("verbose: true", "verbose: false"),
+                "verbose must be the boolean true",
+            ),
+            (
+                _gnomix_config().replace("model:\n  name: model\n", ""),
+                "config model must be a mapping",
+            ),
+        ],
+    )
+    def test_config_gate_rejects_uninventoried_or_ambiguous_modes(
+        self,
+        tmp_path: Path,
+        value: str,
+        message: str,
+    ) -> None:
+        provenance = self._module()
+        config = tmp_path / "config.yaml"
+        config.write_text(value)
+
+        with pytest.raises(provenance.ProvenanceError, match=message):
+            provenance.verify_simulation_config(config)
+
+    @pytest.mark.parametrize(
+        ("training_limit", "missing_superpopulation", "message"),
+        [
+            (25, None, "more than 25 training founders"),
+            (None, "OCE", "exactly the release superpopulations"),
+        ],
+    )
+    def test_training_input_viability_rejects_upstream_split_edge_cases(
+        self,
+        tmp_path: Path,
+        training_limit: int | None,
+        missing_superpopulation: str | None,
+        message: str,
+    ) -> None:
+        provenance = self._module()
+        contract = _write_gnomix_training_contract(tmp_path / "contract")
+        manifest = contract["input_manifest"]
+        payload = json.loads(manifest.read_text())
+        seen_training = 0
+        for member in payload["sample_mappings"]["members"]:
+            if member["role"] != "training":
+                continue
+            seen_training += 1
+            if member["superpopulation"] == missing_superpopulation or (
+                training_limit is not None and seen_training > training_limit
+            ):
+                member["role"] = "heldout_test"
+        training_count = sum(
+            member["role"] == "training" for member in payload["sample_mappings"]["members"]
+        )
+        payload["sample_mappings"]["counts"] = {
+            "full": len(payload["sample_mappings"]["members"]),
+            "heldout_test": len(payload["sample_mappings"]["members"]) - training_count,
+            "training": training_count,
+        }
+        manifest.write_text(
+            json.dumps(payload, ensure_ascii=True, separators=(",", ":"), sort_keys=True)
+        )
+
+        with pytest.raises(provenance.ProvenanceError, match=message):
+            provenance.verify_training_input_viability(manifest)
 
     def test_checkout_rejects_tracked_and_untracked_changes(self, tmp_path: Path) -> None:
         provenance = self._module()
@@ -930,11 +2010,12 @@ class TestGnomixTrainingProvenance:
 
     def test_model_record_binds_commit_config_map_and_pickle(self, tmp_path: Path) -> None:
         provenance = self._module()
+        contract = _write_gnomix_training_contract(tmp_path / "contract")
         config = tmp_path / "config.yaml"
         genetic_map = tmp_path / "chr1.map"
         model = tmp_path / "model_chm_chr1.pkl"
         record = tmp_path / "training_provenance.json"
-        config.write_text("seed: 1\n")
+        config.write_text(_gnomix_config())
         genetic_map.write_text("chr1\t100\t0\n")
         model.write_bytes(b"model-v1")
         commit = "1" * 40
@@ -946,12 +2027,28 @@ class TestGnomixTrainingProvenance:
             config=config,
             genetic_map=genetic_map,
             model=model,
+            training_input_manifest=contract["input_manifest"],
+            training_split_manifest=contract["split_manifest"],
+            expected_training_input_sha256=hashlib.sha256(
+                contract["input_manifest"].read_bytes()
+            ).hexdigest(),
+            expected_training_split_sha256=hashlib.sha256(
+                contract["split_manifest"].read_bytes()
+            ).hexdigest(),
         )
         assert written["gnomix_git_commit"] == commit
         assert (
             written["effective_config_sha256"] == hashlib.sha256(config.read_bytes()).hexdigest()
         )
         assert written["model_sha256"] == hashlib.sha256(model.read_bytes()).hexdigest()
+        assert (
+            written["training_input_manifest"]["sha256"]
+            == hashlib.sha256(contract["input_manifest"].read_bytes()).hexdigest()
+        )
+        assert (
+            written["training_split_manifest"]["sha256"]
+            == hashlib.sha256(contract["split_manifest"].read_bytes()).hexdigest()
+        )
         provenance.verify_model_record(
             record,
             chromosome="chr1",
@@ -959,6 +2056,8 @@ class TestGnomixTrainingProvenance:
             config=config,
             genetic_map=genetic_map,
             model=model,
+            training_input_manifest=contract["input_manifest"],
+            training_split_manifest=contract["split_manifest"],
         )
 
         model.write_bytes(b"model-v2")
@@ -970,10 +2069,12 @@ class TestGnomixTrainingProvenance:
                 config=config,
                 genetic_map=genetic_map,
                 model=model,
+                training_input_manifest=contract["input_manifest"],
+                training_split_manifest=contract["split_manifest"],
             )
         model.write_bytes(b"model-v1")
 
-        config.write_text("seed: 2\n")
+        config.write_text(_gnomix_config(seed=2))
         with pytest.raises(provenance.ProvenanceError, match="effective_config_sha256 mismatch"):
             provenance.verify_model_record(
                 record,
@@ -982,8 +2083,10 @@ class TestGnomixTrainingProvenance:
                 config=config,
                 genetic_map=genetic_map,
                 model=model,
+                training_input_manifest=contract["input_manifest"],
+                training_split_manifest=contract["split_manifest"],
             )
-        config.write_text("seed: 1\n")
+        config.write_text(_gnomix_config())
 
         genetic_map.write_text("chr1\t200\t0.1\n")
         with pytest.raises(provenance.ProvenanceError, match="genetic_map_sha256 mismatch"):
@@ -994,10 +2097,13 @@ class TestGnomixTrainingProvenance:
                 config=config,
                 genetic_map=genetic_map,
                 model=model,
+                training_input_manifest=contract["input_manifest"],
+                training_split_manifest=contract["split_manifest"],
             )
 
     def test_aggregate_rejects_mixed_effective_configs(self, tmp_path: Path) -> None:
         provenance = self._module()
+        contract = _write_gnomix_training_contract(tmp_path / "contract")
         commit = "2" * 40
         genetic_map = tmp_path / "map"
         genetic_map.write_text("chr1\t100\t0\n")
@@ -1006,7 +2112,7 @@ class TestGnomixTrainingProvenance:
             config = tmp_path / f"{chromosome}.yaml"
             model = tmp_path / f"model_chm_{chromosome}.pkl"
             record = tmp_path / f"{chromosome}.json"
-            config.write_text(f"seed: {seed}\n")
+            config.write_text(_gnomix_config(seed=seed))
             model.write_bytes(chromosome.encode())
             provenance.write_model_record(
                 record,
@@ -1015,6 +2121,14 @@ class TestGnomixTrainingProvenance:
                 config=config,
                 genetic_map=genetic_map,
                 model=model,
+                training_input_manifest=contract["input_manifest"],
+                training_split_manifest=contract["split_manifest"],
+                expected_training_input_sha256=hashlib.sha256(
+                    contract["input_manifest"].read_bytes()
+                ).hexdigest(),
+                expected_training_split_sha256=hashlib.sha256(
+                    contract["split_manifest"].read_bytes()
+                ).hexdigest(),
             )
             records.append(record)
 
@@ -1022,20 +2136,33 @@ class TestGnomixTrainingProvenance:
         second["gnomix_git_commit"] = "9" * 40
         records[1].write_text(json.dumps(second))
         with pytest.raises(provenance.ProvenanceError, match="mixed or unexpected"):
-            provenance.aggregate_records(records, commit, tmp_path / "aggregate.json")
+            provenance.aggregate_records(
+                records,
+                commit,
+                tmp_path / "aggregate.json",
+                training_input_manifest=contract["input_manifest"],
+                training_split_manifest=contract["split_manifest"],
+            )
         second["gnomix_git_commit"] = commit
         records[1].write_text(json.dumps(second))
 
         with pytest.raises(provenance.ProvenanceError, match="mixed effective Gnomix"):
-            provenance.aggregate_records(records, commit, tmp_path / "aggregate.json")
+            provenance.aggregate_records(
+                records,
+                commit,
+                tmp_path / "aggregate.json",
+                training_input_manifest=contract["input_manifest"],
+                training_split_manifest=contract["split_manifest"],
+            )
 
     def test_aggregate_publishes_common_generation_and_per_model_hashes(
         self, tmp_path: Path
     ) -> None:
         provenance = self._module()
+        contract = _write_gnomix_training_contract(tmp_path / "contract")
         commit = "3" * 40
         config = tmp_path / "config.yaml"
-        config.write_text("seed: 7\n")
+        config.write_text(_gnomix_config(seed=7))
         records = []
         expected_hashes = {}
         for chromosome in ("chr1", "chr2"):
@@ -1051,6 +2178,14 @@ class TestGnomixTrainingProvenance:
                 config=config,
                 genetic_map=genetic_map,
                 model=model,
+                training_input_manifest=contract["input_manifest"],
+                training_split_manifest=contract["split_manifest"],
+                expected_training_input_sha256=hashlib.sha256(
+                    contract["input_manifest"].read_bytes()
+                ).hexdigest(),
+                expected_training_split_sha256=hashlib.sha256(
+                    contract["split_manifest"].read_bytes()
+                ).hexdigest(),
             )
             records.append(record)
             expected_hashes[chromosome] = {
@@ -1059,7 +2194,13 @@ class TestGnomixTrainingProvenance:
             }
 
         output = tmp_path / "aggregate.json"
-        manifest = provenance.aggregate_records(records, commit, output)
+        manifest = provenance.aggregate_records(
+            records,
+            commit,
+            output,
+            training_input_manifest=contract["input_manifest"],
+            training_split_manifest=contract["split_manifest"],
+        )
         assert json.loads(output.read_text()) == manifest
         assert manifest["gnomix_git_commit"] == commit
         assert (
@@ -1078,30 +2219,115 @@ class TestGnomixTrainingProvenance:
         assert manifest["models"][0]["provenance_file"] == (
             "metadata/gnomix_model_chr1.provenance.json"
         )
+        with pytest.raises(provenance.ProvenanceError, match="exactly chr1 through chr22"):
+            provenance.load_aggregate_manifest(output, require_complete=True)
+
+    def test_aggregate_rejects_mixed_and_substituted_manifest_generations(
+        self, tmp_path: Path
+    ) -> None:
+        provenance = self._module()
+        contract = _write_gnomix_training_contract(tmp_path / "contract")
+        alternate_input = tmp_path / "alternate-input.json"
+        alternate_payload = json.loads(contract["input_manifest"].read_text())
+        alternate_payload["reference_panel"]["name"] += " alternate"
+        alternate_input.write_text(
+            json.dumps(alternate_payload, ensure_ascii=True, separators=(",", ":"), sort_keys=True)
+        )
+        alternate_input_sha = hashlib.sha256(alternate_input.read_bytes()).hexdigest()
+        alternate_split = tmp_path / "alternate-split.json"
+        alternate_split_payload = json.loads(contract["split_manifest"].read_text())
+        alternate_split_payload["training_input_manifest"]["sha256"] = alternate_input_sha
+        alternate_split.write_text(
+            json.dumps(
+                alternate_split_payload,
+                ensure_ascii=True,
+                separators=(",", ":"),
+                sort_keys=True,
+            )
+        )
+
+        config = tmp_path / "config.yaml"
+        config.write_text(_gnomix_config())
+        genetic_map = tmp_path / "map"
+        genetic_map.write_text("chr1\t100\t0\n")
+        commit = "c" * 40
+        records = []
+        for chromosome, input_manifest, split_manifest in (
+            ("chr1", contract["input_manifest"], contract["split_manifest"]),
+            ("chr2", alternate_input, alternate_split),
+        ):
+            model = tmp_path / f"model_chm_{chromosome}.pkl"
+            record = tmp_path / f"{chromosome}.json"
+            model.write_bytes(chromosome.encode())
+            provenance.write_model_record(
+                record,
+                chromosome=chromosome,
+                expected_commit=commit,
+                config=config,
+                genetic_map=genetic_map,
+                model=model,
+                training_input_manifest=input_manifest,
+                training_split_manifest=split_manifest,
+                expected_training_input_sha256=hashlib.sha256(
+                    input_manifest.read_bytes()
+                ).hexdigest(),
+                expected_training_split_sha256=hashlib.sha256(
+                    split_manifest.read_bytes()
+                ).hexdigest(),
+            )
+            records.append(record)
+
+        with pytest.raises(provenance.ProvenanceError, match="mixed.*training-input"):
+            provenance.aggregate_records(
+                records,
+                commit,
+                tmp_path / "mixed.json",
+                training_input_manifest=contract["input_manifest"],
+                training_split_manifest=contract["split_manifest"],
+            )
+
+        aggregate = tmp_path / "aggregate.json"
+        provenance.aggregate_records(
+            [records[0]],
+            commit,
+            aggregate,
+            training_input_manifest=contract["input_manifest"],
+            training_split_manifest=contract["split_manifest"],
+        )
+        with pytest.raises(provenance.ProvenanceError, match="do not match aggregate"):
+            provenance.verify_aggregate_manifest(
+                aggregate,
+                training_input_manifest=alternate_input,
+                training_split_manifest=alternate_split,
+            )
 
     def test_model_record_rejects_extra_or_malformed_fields(self, tmp_path: Path) -> None:
         provenance = self._module()
         record = tmp_path / "record.json"
         valid = {
-            "schema_version": 1,
+            "schema_version": 2,
             "chromosome": "chr1",
             "gnomix_repository": provenance.GNOMIX_REPOSITORY,
             "gnomix_git_commit": "4" * 40,
             "gnomix_checkout_clean": True,
+            "simulation_run": True,
             "effective_config_sha256": "5" * 64,
             "genetic_map_sha256": "6" * 64,
             "model_filename": "model_chm_chr1.pkl",
             "model_sha256": "7" * 64,
+            "training_input_manifest": {"schema_version": 1, "sha256": "8" * 64},
+            "training_split_manifest": {"schema_version": 1, "sha256": "9" * 64},
         }
         record.write_text(json.dumps(valid | {"unexpected": True}))
         with pytest.raises(provenance.ProvenanceError, match="unexpected.*fields"):
             provenance.load_model_record(record)
 
         invalid_cases = [
-            ({"schema_version": 2}, "unsupported.*schema"),
+            ({"schema_version": 1}, "unsupported.*schema"),
             ({"chromosome": "chr23"}, "invalid autosome"),
             ({"gnomix_git_commit": "short"}, "full 40-character"),
             ({"gnomix_checkout_clean": False}, "does not attest a clean checkout"),
+            ({"simulation_run": False}, "does not attest fresh simulation"),
             ({"effective_config_sha256": "not-a-sha"}, "invalid or missing"),
             ({"model_filename": "../model.pkl"}, "invalid model_filename"),
         ]
@@ -1114,11 +2340,12 @@ class TestGnomixTrainingProvenance:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         provenance = self._module()
+        contract = _write_gnomix_training_contract(tmp_path / "contract")
         config = tmp_path / "config.yaml"
         genetic_map = tmp_path / "chr1.map"
         model = tmp_path / "model_chm_chr1.pkl"
         record = tmp_path / "training_provenance.json"
-        config.write_text("seed: 1\n")
+        config.write_text(_gnomix_config())
         genetic_map.write_text("chr1\t100\t0\n")
         model.write_bytes(b"model")
         record.write_text("prior-generation\n")
@@ -1138,6 +2365,14 @@ class TestGnomixTrainingProvenance:
                 config=config,
                 genetic_map=genetic_map,
                 model=model,
+                training_input_manifest=contract["input_manifest"],
+                training_split_manifest=contract["split_manifest"],
+                expected_training_input_sha256=hashlib.sha256(
+                    contract["input_manifest"].read_bytes()
+                ).hexdigest(),
+                expected_training_split_sha256=hashlib.sha256(
+                    contract["split_manifest"].read_bytes()
+                ).hexdigest(),
             )
         assert record.read_text() == "prior-generation\n"
         assert not list(tmp_path.glob(".training_provenance.json.*.tmp"))
@@ -1152,7 +2387,8 @@ class TestPhase05ModelPathCheck:
 
     def test_skip_and_success_check_use_nested_model_path(self) -> None:
         text = (SCRIPTS_DIR / "05_train_gnomix.sh").read_text()
-        assert "models/model_chm_chr${chr}/model_chm_chr${chr}.pkl" in text
+        assert 'model_dir="$out_dir/models/model_chm_chr${chr}"' in text
+        assert 'model_pkl="$model_dir/model_chm_chr${chr}.pkl"' in text
         # the broken top-level glob must be gone from the guards
         assert '"$out_dir"/*.pkl' not in text
         assert '"output_chr${chr}"/*.pkl' not in text
@@ -1299,6 +2535,12 @@ class TestPhase07Metadata:
         assert "metadata.npz" in text
         assert 'glob("gnomix_models/*/*.pkl")' not in text
 
+    def test_metadata_uses_one_authenticated_provenance_snapshot(self) -> None:
+        text = (SCRIPTS_DIR / "07_write_metadata.py").read_text()
+        assert "verify_aggregate_snapshot" in text
+        assert "verify_published_model_records" in text
+        assert "_sha256(args.gnomix_provenance)" not in text
+
     def test_assemble_cp_is_force(self) -> None:
         # Phase 07 re-run must overwrite the read-only files copied from read-only
         # sources on a prior run; plain cp fails "Permission denied" on re-run.
@@ -1313,6 +2555,7 @@ class TestPhase07Metadata:
 
     def test_metadata_publishes_validated_gnomix_generation(self, tmp_path: Path) -> None:
         provenance = _load_module("gnomix_provenance.py", "gnomix_provenance_metadata_test")
+        contract = _write_gnomix_training_contract(tmp_path / "contract")
         bundle = tmp_path / "bundle"
         validation = tmp_path / "validation"
         metadata_dir = bundle / "metadata"
@@ -1320,51 +2563,73 @@ class TestPhase07Metadata:
         metadata_dir.mkdir()
         validation.mkdir()
         (bundle / "liftover" / "array_site_mapping.tsv").write_text("rs1\t1\t100\n")
-        union_catalog = tmp_path / "union.tsv"
-        union_catalog.write_text("rs1\t1\t100\n")
+        union_catalog = contract["union_catalog"]
 
         config = tmp_path / "config.yaml"
-        genetic_map = tmp_path / "chr1.map"
-        model = tmp_path / "model_chm_chr1.pkl"
-        record = tmp_path / "chr1.provenance.json"
-        config.write_text("seed: 42\n")
-        genetic_map.write_text("chr1\t100\t0\n")
-        model.write_bytes(b"model")
+        config.write_text(_gnomix_config(seed=42))
         commit = "a" * 40
-        provenance.write_model_record(
-            record,
-            chromosome="chr1",
-            expected_commit=commit,
-            config=config,
-            genetic_map=genetic_map,
-            model=model,
-        )
+        input_manifest_path = metadata_dir / "gnomix_training_inputs.json"
+        split_manifest_path = metadata_dir / "gnomix_training_splits.json"
+        shutil.copyfile(contract["input_manifest"], input_manifest_path)
+        shutil.copyfile(contract["split_manifest"], split_manifest_path)
+        records = []
+        for number in range(1, 23):
+            chromosome = f"chr{number}"
+            genetic_map = tmp_path / f"{chromosome}.map"
+            model = tmp_path / f"model_chm_{chromosome}.pkl"
+            record = metadata_dir / f"gnomix_model_{chromosome}.provenance.json"
+            genetic_map.write_text(f"{chromosome}\t100\t0\n")
+            model.write_bytes(f"model-{chromosome}".encode())
+            provenance.write_model_record(
+                record,
+                chromosome=chromosome,
+                expected_commit=commit,
+                config=config,
+                genetic_map=genetic_map,
+                model=model,
+                training_input_manifest=input_manifest_path,
+                training_split_manifest=split_manifest_path,
+                expected_training_input_sha256=hashlib.sha256(
+                    input_manifest_path.read_bytes()
+                ).hexdigest(),
+                expected_training_split_sha256=hashlib.sha256(
+                    split_manifest_path.read_bytes()
+                ).hexdigest(),
+            )
+            records.append(record)
         manifest_path = metadata_dir / "gnomix_training_provenance.json"
-        provenance.aggregate_records([record], commit, manifest_path)
+        provenance.aggregate_records(
+            records,
+            commit,
+            manifest_path,
+            training_input_manifest=input_manifest_path,
+            training_split_manifest=split_manifest_path,
+        )
 
+        command = [
+            sys.executable,
+            str(SCRIPTS_DIR / "07_write_metadata.py"),
+            "--bundle-dir",
+            str(bundle),
+            "--union-catalog",
+            str(union_catalog),
+            "--validation-dir",
+            str(validation),
+            "--git-commit",
+            "b" * 40,
+            "--build-host",
+            "test-host",
+            "--build-date",
+            "2026-07-13",
+            "--bundle-version",
+            "v2.0.0",
+            "--gnomix-provenance",
+            str(manifest_path),
+            "--admixture-seed",
+            "42",
+        ]
         result = subprocess.run(
-            [
-                sys.executable,
-                str(SCRIPTS_DIR / "07_write_metadata.py"),
-                "--bundle-dir",
-                str(bundle),
-                "--union-catalog",
-                str(union_catalog),
-                "--validation-dir",
-                str(validation),
-                "--git-commit",
-                "b" * 40,
-                "--build-host",
-                "test-host",
-                "--build-date",
-                "2026-07-13",
-                "--bundle-version",
-                "v2.0.0",
-                "--gnomix-provenance",
-                str(manifest_path),
-                "--admixture-seed",
-                "42",
-            ],
+            command,
             capture_output=True,
             text=True,
             check=False,
@@ -1376,10 +2641,38 @@ class TestPhase07Metadata:
             "repository": provenance.GNOMIX_REPOSITORY,
             "git_commit": commit,
             "checkout_clean": True,
+            "simulation_run": True,
             "effective_config_sha256": hashlib.sha256(config.read_bytes()).hexdigest(),
-            "model_count": 1,
+            "model_count": 22,
             "manifest": "metadata/gnomix_training_provenance.json",
+            "manifest_sha256": hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
+            "training_input_manifest": {
+                "path": "metadata/gnomix_training_inputs.json",
+                "schema_version": 1,
+                "sha256": hashlib.sha256(input_manifest_path.read_bytes()).hexdigest(),
+            },
+            "training_split_manifest": {
+                "path": "metadata/gnomix_training_splits.json",
+                "schema_version": 1,
+                "sha256": hashlib.sha256(split_manifest_path.read_bytes()).hexdigest(),
+            },
         }
+        assert metadata["reference_build"] == "GRCh38"
+        assert metadata["reference_panel"] == "gnomAD HGDP+1KG v3.1.2 (phased SHAPEIT5)"
+        assert metadata["sample_identifier_policy"] == "public_reference_panel_ids"
+
+        metadata_before = (bundle / "metadata.json").read_bytes()
+        (metadata_dir / "gnomix_model_chr22.provenance.json").unlink()
+        missing_record = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert missing_record.returncode == 1
+        assert "gnomix_model_chr22.provenance.json" in missing_record.stderr
+        assert "missing or empty" in missing_record.stderr
+        assert (bundle / "metadata.json").read_bytes() == metadata_before
 
 
 class TestGnomixPandasAppendShim:
