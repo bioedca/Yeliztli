@@ -73,6 +73,7 @@ EXPECTED_HELPERS = [
     "07_write_metadata.py",
     "gnomix_launcher.py",
     "gnomix_provenance.py",
+    "gnomix_training_manifests.py",
     "07b_reexport_gnomix_models.py",
 ]
 
