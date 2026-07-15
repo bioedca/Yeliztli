@@ -867,6 +867,35 @@ class TestPathwayLevel:
         ]
         assert _determine_pathway_level(results) == STANDARD
 
+    def test_moderate_beats_standard(self) -> None:
+        results = [
+            SNPResult(
+                rsid="rs1",
+                gene="G1",
+                variant_name="V1",
+                genotype="AA",
+                category=STANDARD,
+                effect_summary="",
+                evidence_level=2,
+                pmids=[],
+                recommendation_text="",
+                present_in_sample=True,
+            ),
+            SNPResult(
+                rsid="rs2",
+                gene="G2",
+                variant_name="V2",
+                genotype="AG",
+                category=MODERATE,
+                effect_summary="",
+                evidence_level=2,
+                pmids=[],
+                recommendation_text="",
+                present_in_sample=True,
+            ),
+        ]
+        assert _determine_pathway_level(results) == MODERATE
+
     def test_elevated_wins(self) -> None:
         results = [
             SNPResult(
