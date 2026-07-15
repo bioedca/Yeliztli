@@ -16,6 +16,7 @@ from backend.analysis.sex_aneuploidy import (
     MODULE,
     NO_SIGNAL,
     POSSIBLE_XXY,
+    Y_PRESENT_RATE,
     screen_aneuploidy,
     store_aneuploidy_findings,
 )
@@ -140,6 +141,9 @@ class TestScreen:
         # Exactly 0.30 is not Y-present under the strict cutoff.
         _seed(sample_engine, _x_probes(60, 60) + _y_probes(18, 42))
         r = screen_aneuploidy(sample_engine)
+        assert Y_PRESENT_RATE == 0.30
+        assert r.y_total == 60
+        assert r.y_rate == 0.3
         assert r.outcome == MANUAL_REVIEW
 
     def test_two_x_just_above_y_present_boundary_is_possible_xxy(
@@ -148,6 +152,8 @@ class TestScreen:
         # 19 / 60 ≈ 0.317 is just above the Y-present cutoff.
         _seed(sample_engine, _x_probes(60, 60) + _y_probes(19, 41))
         r = screen_aneuploidy(sample_engine)
+        assert r.y_total == 60
+        assert r.y_rate == 0.3167
         assert r.outcome == POSSIBLE_XXY
 
     def test_dash_y_nocalls_do_not_create_possible_xxy(self, sample_engine: sa.Engine) -> None:
