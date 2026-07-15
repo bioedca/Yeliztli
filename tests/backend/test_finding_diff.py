@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 import sqlalchemy as sa
@@ -23,6 +24,7 @@ from backend.analysis.finding_diff import (
 )
 from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import database_versions, findings, reference_metadata
+from tests.backend.vep_bundle_test_utils import seed_embedded_vep_bundle_version
 
 
 def _record(**overrides) -> dict:
@@ -573,6 +575,69 @@ class TestComputeAndStoreRoundTrip:
         stored = compute_and_store_finding_diff(sample_engine, reference_engine, None)
         assert stored["counts"] == {"changed": 0, "added": 0, "removed": 0}
         assert has_changes(stored) is False
+
+    def test_embedded_vep_path_drives_release_delta(
+        self,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+        tmp_path: Path,
+    ) -> None:
+        _insert_findings(
+            sample_engine,
+            [
+                {
+                    "module": "cancer",
+                    "category": "monogenic_variant",
+                    "gene_symbol": "BRCA1",
+                    "rsid": "rs80357906",
+                    "finding_text": "BRCA1 variant",
+                    "clinvar_significance": "Uncertain_significance",
+                    "evidence_level": 2,
+                }
+            ],
+        )
+        prior = [_record(release_versions={"vep_bundle": "v2.0.0"})]
+        vep_db_path = tmp_path / "vep_bundle.db"
+        seed_embedded_vep_bundle_version(vep_db_path, "v3.0.0")
+
+        stored = compute_and_store_finding_diff(
+            sample_engine,
+            reference_engine,
+            prior,
+            vep_db_path=vep_db_path,
+        )
+
+        assert stored["after_releases"]["vep_bundle"] == "v3.0.0"
+        assert {
+            (delta["db_name"], delta["before"], delta["after"])
+            for delta in stored["release_deltas"]
+        } >= {("vep_bundle", "v2.0.0", "v3.0.0")}
+
+    def test_supplied_snapshot_prevents_release_reread(
+        self,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        snapshot = {
+            "vep_bundle": {
+                "version": "v7.0.0",
+                "genome_build": "GRCh37",
+            }
+        }
+
+        with patch(
+            "backend.analysis.finding_diff.read_release_snapshot",
+            side_effect=AssertionError("snapshot should be reused"),
+        ) as read_snapshot:
+            stored = compute_and_store_finding_diff(
+                sample_engine,
+                reference_engine,
+                None,
+                reference_snapshot=snapshot,
+            )
+
+        read_snapshot.assert_not_called()
+        assert stored["after_releases"] == {"vep_bundle": "v7.0.0"}
 
     def test_dismiss_without_stored_diff_returns_false(self, sample_engine: sa.Engine) -> None:
         assert dismiss_finding_diff(sample_engine) is False

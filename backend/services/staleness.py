@@ -105,14 +105,22 @@ def _parse_reference_versions(value: str | None) -> dict[str, str] | None:
 
 
 def read_recorded_reference_versions(sample_engine: sa.Engine) -> dict[str, str] | None:
-    """Read the sample's recorded reference-version snapshot, if present."""
+    """Read the sample's recorded reference-version snapshot, if present.
+
+    Runs completed before the effective-snapshot fix recorded VEP only in the
+    dedicated ``vep_bundle_version`` state key.  Overlay that same-run value
+    when an otherwise-valid reference snapshot omits VEP so unchanged legacy
+    samples do not receive a synthetic re-annotation prompt.
+    """
     try:
         with sample_engine.connect() as conn:
-            row = conn.execute(
-                sa.select(annotation_state.c.value).where(
-                    annotation_state.c.key == REFERENCE_VERSION_SNAPSHOT_KEY
+            rows = conn.execute(
+                sa.select(annotation_state.c.key, annotation_state.c.value).where(
+                    annotation_state.c.key.in_(
+                        (REFERENCE_VERSION_SNAPSHOT_KEY, "vep_bundle_version")
+                    )
                 )
-            ).fetchone()
+            ).fetchall()
     except sa.exc.OperationalError as exc:
         logger.warning(
             "reference_versions_missing",
@@ -120,7 +128,14 @@ def read_recorded_reference_versions(sample_engine: sa.Engine) -> dict[str, str]
             error=str(exc),
         )
         return None
-    return _parse_reference_versions(row.value if row else None)
+    state = {row.key: row.value for row in rows}
+    versions = _parse_reference_versions(state.get(REFERENCE_VERSION_SNAPSHOT_KEY))
+    if versions is None:
+        return None
+    recorded_vep = state.get("vep_bundle_version")
+    if "vep_bundle" not in versions and recorded_vep:
+        versions["vep_bundle"] = recorded_vep
+    return versions
 
 
 def find_stale_reference_versions(

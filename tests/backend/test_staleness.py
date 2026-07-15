@@ -34,7 +34,12 @@ from backend.db.tables import (
     reference_metadata,
     samples,
 )
-from backend.services.staleness import _parse_reference_versions, is_sample_stale
+from backend.services.staleness import (
+    REFERENCE_VERSION_SNAPSHOT_KEY,
+    _parse_reference_versions,
+    find_stale_reference_versions,
+    is_sample_stale,
+)
 from tests.backend.vep_bundle_test_utils import seed_embedded_vep_bundle_version
 
 # ── Fixtures ──────────────────────────────────────────────────────────
@@ -348,3 +353,87 @@ class TestReferenceVersionSnapshotParsing:
     def test_reference_snapshot_rejects_unsupported_nonempty_shapes(self):
         assert _parse_reference_versions(json.dumps({"gnomad": {"source": "metadata"}})) is None
         assert _parse_reference_versions(json.dumps({"gnomad": 41})) is None
+
+    def test_unreadable_registry_does_not_invent_vep_downgrade(self, staleness_env):
+        settings = staleness_env["settings"]
+        _make_sample_db(settings, seed_version="v3.0.0")
+        sample_engine = sa.create_engine(
+            f"sqlite:///{settings.data_dir / 'samples' / 'sample_1.db'}"
+        )
+        with sample_engine.begin() as conn:
+            conn.execute(
+                annotation_state.insert().values(
+                    key=REFERENCE_VERSION_SNAPSHOT_KEY,
+                    value=json.dumps({"vep_bundle": "v3.0.0"}),
+                )
+            )
+
+        reference_engine = sa.create_engine(f"sqlite:///{settings.reference_db_path}")
+        database_versions.drop(reference_engine)
+        try:
+            with capture_logs() as cap_logs:
+                stale = find_stale_reference_versions(
+                    sample_engine,
+                    reference_engine,
+                    settings.vep_bundle_db_path,
+                )
+        finally:
+            sample_engine.dispose()
+            reference_engine.dispose()
+
+        assert stale == []
+        assert _has_event(cap_logs, "database_versions_unreadable")
+
+    def test_legacy_rowless_snapshot_uses_dedicated_vep_state(self, staleness_env):
+        settings = staleness_env["settings"]
+        _make_sample_db(settings, seed_version="v3.0.0")
+        sample_engine = sa.create_engine(
+            f"sqlite:///{settings.data_dir / 'samples' / 'sample_1.db'}"
+        )
+        with sample_engine.begin() as conn:
+            conn.execute(
+                annotation_state.insert().values(
+                    key=REFERENCE_VERSION_SNAPSHOT_KEY,
+                    value=json.dumps({"gnomad": "r2.1.1"}),
+                )
+            )
+
+        reference_engine = sa.create_engine(f"sqlite:///{settings.reference_db_path}")
+        with reference_engine.begin() as conn:
+            conn.execute(
+                database_versions.insert(),
+                [
+                    {"db_name": "gnomad", "version": "r2.1.1"},
+                    {"db_name": "vep_bundle", "version": "v3.0.0"},
+                ],
+            )
+        try:
+            assert (
+                find_stale_reference_versions(
+                    sample_engine,
+                    reference_engine,
+                    settings.vep_bundle_db_path,
+                )
+                == []
+            )
+
+            with reference_engine.begin() as conn:
+                conn.execute(
+                    database_versions.update()
+                    .where(database_versions.c.db_name == "vep_bundle")
+                    .values(version="v4.0.0")
+                )
+            assert find_stale_reference_versions(
+                sample_engine,
+                reference_engine,
+                settings.vep_bundle_db_path,
+            ) == [
+                {
+                    "db_name": "vep_bundle",
+                    "recorded_version": "v3.0.0",
+                    "current_version": "v4.0.0",
+                }
+            ]
+        finally:
+            sample_engine.dispose()
+            reference_engine.dispose()

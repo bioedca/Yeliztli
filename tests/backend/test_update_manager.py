@@ -65,6 +65,7 @@ from backend.db.update_manager import (
     should_download_now,
 )
 from backend.services.staleness import REFERENCE_VERSION_SNAPSHOT_KEY
+from tests.backend.vep_bundle_test_utils import seed_embedded_vep_bundle_version
 
 
 def _settings_for_test(tmp_path: Path) -> Settings:
@@ -550,6 +551,32 @@ class TestUpdateHistory:
 
 
 class TestReannotationPrompts:
+    @staticmethod
+    def _seed_snapshot_sample(db_registry, *, recorded_vep: str) -> sa.Engine:
+        sample_rel = "samples/sample_1.db"
+        sample_path = db_registry.settings.data_dir / sample_rel
+        sample_path.parent.mkdir(parents=True, exist_ok=True)
+        sample_engine = db_registry.get_sample_engine(sample_path)
+        create_sample_tables(sample_engine)
+        with db_registry.reference_engine.begin() as conn:
+            conn.execute(
+                samples.insert().values(
+                    id=1,
+                    name="test_sample",
+                    db_path=sample_rel,
+                    file_format="23andme_v5",
+                    file_hash="hash",
+                )
+            )
+        with sample_engine.begin() as conn:
+            conn.execute(
+                annotation_state.insert().values(
+                    key=REFERENCE_VERSION_SNAPSHOT_KEY,
+                    value=json.dumps({"vep_bundle": recorded_vep}),
+                )
+            )
+        return sample_engine
+
     def test_create_prompt(self, reference_engine):
         _create_reannotation_prompt(
             reference_engine,
@@ -818,6 +845,97 @@ class TestReannotationPrompts:
 
         assert results == []
         assert get_active_prompts(db_registry.reference_engine) == []
+
+    def test_embedded_vep_version_creates_staleness_prompt(self, db_registry) -> None:
+        self._seed_snapshot_sample(db_registry, recorded_vep="v2.0.0")
+        vep_path = db_registry.settings.vep_bundle_db_path
+        seed_embedded_vep_bundle_version(vep_path, "v3.0.0")
+        bundle_before = vep_path.read_bytes()
+
+        results = run_precheck_all_samples(
+            db_registry,
+            db_name="vep_bundle",
+            db_version="v3.0.0",
+        )
+
+        assert len(results) == 1
+        assert results[0].stale_databases == [
+            {
+                "db_name": "vep_bundle",
+                "recorded_version": "v2.0.0",
+                "current_version": "v3.0.0",
+            }
+        ]
+        assert (
+            get_active_prompts(db_registry.reference_engine)[0]["stale_databases"]
+            == results[0].stale_databases
+        )
+        with db_registry.reference_engine.connect() as conn:
+            assert (
+                conn.execute(
+                    sa.select(database_versions.c.version).where(
+                        database_versions.c.db_name == "vep_bundle"
+                    )
+                ).scalar()
+                is None
+            )
+        assert vep_path.read_bytes() == bundle_before
+
+    def test_explicit_vep_row_precedes_embedded_version_in_precheck(self, db_registry) -> None:
+        self._seed_snapshot_sample(db_registry, recorded_vep="v2.0.0")
+        vep_path = db_registry.settings.vep_bundle_db_path
+        seed_embedded_vep_bundle_version(vep_path, "v9.0.0")
+        bundle_before = vep_path.read_bytes()
+        with db_registry.reference_engine.begin() as conn:
+            conn.execute(
+                database_versions.insert().values(
+                    db_name="vep_bundle",
+                    version="v3.0.0",
+                )
+            )
+
+        results = run_precheck_all_samples(
+            db_registry,
+            db_name="vep_bundle",
+            db_version="v3.0.0",
+        )
+
+        assert len(results) == 1
+        assert results[0].stale_databases == [
+            {
+                "db_name": "vep_bundle",
+                "recorded_version": "v2.0.0",
+                "current_version": "v3.0.0",
+            }
+        ]
+        with db_registry.reference_engine.connect() as conn:
+            assert (
+                conn.execute(
+                    sa.select(database_versions.c.version).where(
+                        database_versions.c.db_name == "vep_bundle"
+                    )
+                ).scalar_one()
+                == "v3.0.0"
+            )
+        assert vep_path.read_bytes() == bundle_before
+
+    def test_unreadable_registry_does_not_create_false_vep_prompt(self, db_registry) -> None:
+        self._seed_snapshot_sample(db_registry, recorded_vep="v3.0.0")
+        vep_path = db_registry.settings.vep_bundle_db_path
+        seed_embedded_vep_bundle_version(vep_path, "v9.0.0")
+        bundle_before = vep_path.read_bytes()
+        database_versions.drop(db_registry.reference_engine)
+
+        results = run_precheck_all_samples(
+            db_registry,
+            db_name="vep_bundle",
+            db_version="v9.0.0",
+        )
+
+        assert results == []
+        assert get_active_prompts(db_registry.reference_engine) == []
+        assert not sa.inspect(db_registry.reference_engine).has_table("database_versions")
+        assert vep_path.read_bytes() == bundle_before
 
 
 # ═══════════════════════════════════════════════════════════════════════

@@ -190,7 +190,7 @@ class TestReadReleaseSnapshot:
 
         assert snap["vep_bundle"]["version"] == "v2.0.0"
 
-    def test_unreadable_registry_uses_baseline_without_reading_bundle_state(
+    def test_unreadable_registry_stays_unknown_without_reading_bundle_state(
         self,
         reference_engine: sa.Engine,
         tmp_path: Path,
@@ -202,13 +202,24 @@ class TestReadReleaseSnapshot:
 
         snap = read_release_snapshot(reference_engine, vep_db_path)
 
-        assert snap == {
-            "vep_bundle": {
-                "version": VERSIONLESS_VEP_BUNDLE_BASELINE,
-                "genome_build": "GRCh37",
-            }
-        }
+        assert snap == {}
         assert vep_db_path.read_bytes() == before
+
+    def test_second_registry_read_failure_preserves_only_known_rows(
+        self,
+        reference_engine: sa.Engine,
+    ) -> None:
+        error = sa.exc.OperationalError("SELECT", {}, RuntimeError("locked after snapshot"))
+
+        with patch(
+            "backend.services.reference_versions.resolve_effective_vep_bundle_version",
+            side_effect=error,
+        ):
+            snap = read_release_snapshot(reference_engine)
+
+        assert "vep_bundle" not in snap
+        assert snap["clinvar"]["version"] == "2026-05-01"
+        assert snap["gnomad"]["version"] == "r2.1.1"
 
 
 class TestBuildFindingProvenance:

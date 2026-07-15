@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 import sqlalchemy as sa
@@ -509,7 +509,7 @@ class TestAnnotationStateGate:
             version,
         )
 
-    def _run_task_with_result(self, sample_id: int, result: object) -> None:
+    def _run_task_with_result(self, sample_id: int, result: object) -> MagicMock:
         with (
             patch("backend.annotation.engine.run_annotation", return_value=result),
             patch("backend.analysis.finding_diff.snapshot_findings", return_value=[]),
@@ -517,13 +517,14 @@ class TestAnnotationStateGate:
             patch(
                 "backend.analysis.finding_diff.compute_and_store_finding_diff",
                 return_value=None,
-            ),
+            ) as compute_diff,
             patch(
                 "backend.analysis.svg_renderer.generate_svgs_for_sample",
                 return_value=0,
             ),
         ):
             run_annotation_task.call_local(sample_id, create_annotation_job(sample_id))
+        return compute_diff
 
     @pytest.mark.slow
     def test_success_path_lifts_gate(self, annotation_env: dict) -> None:
@@ -615,7 +616,7 @@ class TestAnnotationStateGate:
 
         state = self._read_state(annotation_env)
         assert state.get("vep_bundle_version") == "v3.0.0"
-        assert state.get("annotation_bundle_coverage_json") == "{}"
+        assert json.loads(state["annotation_bundle_coverage_json"])["bundle_version"] == "v3.0.0"
 
     def test_unreadable_version_table_uses_task_baseline(
         self,
@@ -635,11 +636,14 @@ class TestAnnotationStateGate:
         database_versions.drop(registry.reference_engine)
 
         with capture_logs() as cap_logs:
-            self._run_task_with_result(sample_id, AnnotationEngineResult(coverage_stats={}))
+            self._run_task_with_result(
+                sample_id,
+                AnnotationEngineResult(coverage_stats={"bundle_version": None}),
+            )
 
         state = self._read_state(annotation_env)
         assert state.get("vep_bundle_version") == "v1.0.0"
-        assert state.get("annotation_bundle_coverage_json") == "{}"
+        assert json.loads(state["annotation_bundle_coverage_json"])["bundle_version"] == "v1.0.0"
         assert json.loads(state["reference_versions_json"]) == {"vep_bundle": "v1.0.0"}
         provenances = self._read_finding_provenance(annotation_env)
         assert len(provenances) == 1
@@ -647,6 +651,34 @@ class TestAnnotationStateGate:
         assert annotation_env["settings"].vep_bundle_db_path.read_bytes() == bundle_before
         assert any(
             entry.get("event") == "vep_bundle_version_resolution_failed" for entry in cap_logs
+        )
+
+    def test_run_resolved_version_precedes_later_readable_registry_state(
+        self,
+        annotation_env: dict,
+    ) -> None:
+        """One run keeps its captured VEP release across every persisted record."""
+        from backend.annotation.engine import AnnotationEngineResult
+
+        self._seed_test_finding(annotation_env, "run_resolved_precedence")
+        self._seed_embedded_bundle_version(annotation_env, "v8.0.0")
+        self._seed_bundle_version(annotation_env, "v9.0.0")
+
+        compute_diff = self._run_task_with_result(
+            annotation_env["sample_id"],
+            AnnotationEngineResult(coverage_stats={"bundle_version": "v2.0.0"}),
+        )
+
+        state = self._read_state(annotation_env)
+        assert state["vep_bundle_version"] == "v2.0.0"
+        assert json.loads(state["annotation_bundle_coverage_json"])["bundle_version"] == "v2.0.0"
+        assert json.loads(state["reference_versions_json"])["vep_bundle"] == "v2.0.0"
+        provenances = self._read_finding_provenance(annotation_env)
+        assert len(provenances) == 1
+        assert provenances[0]["sources"]["vep_bundle"]["version"] == "v2.0.0"
+        assert (
+            compute_diff.call_args.kwargs["reference_snapshot"]["vep_bundle"]["version"]
+            == "v2.0.0"
         )
 
     def test_unreadable_version_table_retains_run_resolved_version(

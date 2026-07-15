@@ -17,10 +17,7 @@ import structlog
 
 from backend.db.database_registry import EXPECTED_GENOME_BUILD
 from backend.db.tables import database_versions
-from backend.db.vep_version import (
-    VERSIONLESS_VEP_BUNDLE_BASELINE,
-    resolve_effective_vep_bundle_version,
-)
+from backend.db.vep_version import resolve_effective_vep_bundle_version
 
 logger = structlog.get_logger(__name__)
 
@@ -59,9 +56,8 @@ def read_current_reference_snapshot(
 
     If the registry table is unreadable, explicit-row precedence cannot be
     established.  A version already resolved by the active annotation run is
-    retained; otherwise match its failure fallback by returning only the
-    documented versionless VEP baseline rather than claiming embedded or
-    remote-manifest state.
+    retained; otherwise the snapshot stays empty so generic staleness readers
+    do not invent a downgrade or claim embedded/remote-manifest state.
     """
     try:
         with reference_engine.connect() as conn:
@@ -78,14 +74,11 @@ def read_current_reference_snapshot(
             reason="table_or_db_unreachable",
             error=str(exc),
         )
-        fallback = (
-            effective_vep_version
-            if effective_vep_version is not None
-            else VERSIONLESS_VEP_BUNDLE_BASELINE
-        )
+        if effective_vep_version is None:
+            return {}
         return {
             "vep_bundle": _vep_release(
-                fallback,
+                effective_vep_version,
                 EXPECTED_GENOME_BUILD["vep_bundle"],
             )
         }
@@ -115,7 +108,12 @@ def read_current_reference_snapshot(
                     reason="table_or_db_unreachable",
                     error=str(exc),
                 )
-                effective_vep_version = VERSIONLESS_VEP_BUNDLE_BASELINE
+                # The initial snapshot query succeeded, so retain those known
+                # row-backed releases.  The resolver re-reads the registry to
+                # enforce explicit-row precedence; if that second read races
+                # with a lock or schema change, VEP is unknown rather than the
+                # versionless baseline.
+                return snapshot
 
     snapshot["vep_bundle"] = _vep_release(
         effective_vep_version,

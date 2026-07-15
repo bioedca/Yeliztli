@@ -331,7 +331,8 @@ def run_annotation_task(sample_id: int, job_id: str) -> None:
             )
             from backend.services.staleness import REFERENCE_VERSION_SNAPSHOT_KEY
 
-            bundle_version = result.coverage_stats.get("bundle_version")
+            coverage_snapshot = dict(result.coverage_stats)
+            bundle_version = coverage_snapshot.get("bundle_version")
             if bundle_version is None:
                 try:
                     bundle_version = resolve_effective_vep_bundle_version(
@@ -349,6 +350,11 @@ def run_annotation_task(sample_id: int, job_id: str) -> None:
                             "error": str(exc),
                         },
                     )
+            # Pin every successful-run record to one resolved value.  Copying
+            # keeps the annotation result immutable for callers while ensuring
+            # telemetry cannot retain ``null`` when state/provenance use the
+            # resolver fallback.
+            coverage_snapshot["bundle_version"] = bundle_version
             reference_snapshot = read_current_reference_snapshot(
                 registry.reference_engine,
                 vep_db_path,
@@ -360,7 +366,7 @@ def run_annotation_task(sample_id: int, job_id: str) -> None:
                 _upsert_annotation_state(
                     conn,
                     "annotation_bundle_coverage_json",
-                    json.dumps(result.coverage_stats),
+                    json.dumps(coverage_snapshot),
                 )
                 _upsert_annotation_state(
                     conn,
