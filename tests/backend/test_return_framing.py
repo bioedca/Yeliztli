@@ -54,6 +54,12 @@ class TestSourcePopulationLabel:
     def test_names_the_population(self) -> None:
         assert "EUR" in prs_source_population_label("EUR")
 
+    def test_states_accuracy_decreases_with_distance_from_source(self) -> None:
+        label = prs_source_population_label("EUR").lower()
+
+        assert "accuracy is reduced the further" in label
+        assert "accuracy is improved the further" not in label
+
     def test_handles_missing_population(self) -> None:
         assert "unspecified" in prs_source_population_label(None)
 
