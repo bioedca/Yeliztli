@@ -336,7 +336,6 @@ class RiskAssessment:
     category: str
     calls: list[RiskCall] = field(default_factory=list)
     dosages: dict[str, int | None] = field(default_factory=dict)
-    #the line here is deleted  
     indeterminate_loci: list[str] = field(default_factory=list)
     indeterminate_reasons: dict[str, str] = field(default_factory=dict)
     # Tag loci whose risk dosage was vetoed to indeterminate by a discordant cis
@@ -1295,7 +1294,6 @@ def classify(
         module=panel.module,
         category=panel.category,
         dosages=dosages,
-        #the line here is also deleted the same as the on the line 339
         sex_used=sex,
         inferred_ancestry=inferred_ancestry,
     )
