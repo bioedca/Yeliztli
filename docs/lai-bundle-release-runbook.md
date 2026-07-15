@@ -61,6 +61,9 @@ Run on the SLURM build host in the chosen `$WORKDIR`:
     `https://github.com/AI-sandbox/gnomix`
   - `fastmixture --version` (or `admixture --version`) + the locked random seed
     (`scripts/lai_bundle_v2/env.sh::ADMIXTURE_SEED` defaults to `42`).
+  - `python -c 'import yaml; print(yaml.__version__)'` reports PyYAML 6.0.3 or
+    newer; Phase 05 uses its safe YAML semantics plus duplicate-key rejection
+    to authenticate the effective Gnomix simulation mode.
 - ~500 GB scratch on `$WORKDIR`.
 - `gh` CLI authenticated against the Yeliztli repo with `repo` scope.
 
@@ -210,29 +213,113 @@ Phases (Plan §6.4):
 | 06    | `06_validate.sh`                | 8–24 h                       |
 | 07    | `07_assemble_bundle.sh`         | ~30 min                      |
 
+### Immutable Gnomix training-generation contract (Phases 04, 05, and 07)
+
+Phase 04 freezes the complete training generation, after removing the outer
+production holdout, in
+`$ADMIX_DIR/gnomix_training_inputs.json`. Its canonical raw SHA-256 is the
+generation identity. The manifest covers the source metadata, selected sample
+labels, full/training/held-out mappings, marker-selection inputs, and every
+chr1–chr22 reference VCF and index. Phase 05 authenticates those exact files
+against the manifest before reuse or training and again before publishing a
+completion record. If any covered byte changes, create a new input generation;
+do not relabel an existing model as though it used the replacement inputs.
+
+For each chromosome, Phase 05 records the actual founder maps emitted by
+Gnomix at
+`generated_data/sample_maps/{train1,train2,val}.map` in
+`models/model_chm_chrN/training_splits.json`. These are Gnomix's internal
+training/validation partitions. They are not the outer production test set:
+`$VALIDATION_DIR/held_out_validation.tsv` is selected before training, is
+excluded from all three internal maps, and remains the distinct held-out set
+used by the Phase 06 production-inference gate. The split manifest binds the
+training-input-manifest SHA-256, and each schema-v2
+`training_provenance.json` record binds both manifest identities in addition
+to the pinned Gnomix commit, effective config, genetic map, and trained model.
+This matters because Gnomix learns data-, split-, and window-specific model
+parameters; the method name or paper DOI does not identify the resulting
+artifact [1].
+
+The effective Gnomix config must contain a direct boolean
+`simulation.run: true`. The `false` mode consumes pre-simulated arrays that
+this manifest schema does not inventory, so it is unsupported and fails before
+training state is invalidated. Schema-v1 model provenance cannot be backfilled:
+it did not record these input and split identities. Treat every schema-v1 or
+missing record as stale and retrain all 22 autosomes against one authenticated
+generation before attempting publication.
+
+Training-input manifest schema v1 may contain sample identifiers only under
+the `public_reference_panel_ids` policy, because the supported gnomAD
+HGDP+1KG identifiers are already public. A private cohort must first receive a
+separate, privacy-reviewed non-sensitive projection schema. Never place raw
+private cohort identifiers into this manifest or reuse the public-ID policy for
+them.
+
+Phase 07 is fail-closed and publication-only. It first copies the canonical
+input manifest, all 22 split manifests, and all 22 schema-v2 model records into
+a temporary staging directory, then authenticates those exact staged bytes
+against the live panel, split maps, models, maps, and commit, and requires one
+common recorded effective-config identity. Missing or mixed generations fail
+before anything under `$BUNDLE_DIR` changes. After the full chr1–chr22 preflight
+succeeds, it publishes and re-verifies these fixed bundle paths:
+
+- `metadata/gnomix_training_inputs.json`
+- `metadata/gnomix_training_splits.json`
+- `metadata/gnomix_model_chr{1..22}.provenance.json`
+- `metadata/gnomix_training_provenance.json`
+
+The final checks authenticate the copied panel and re-exported models before
+`metadata.json`, checksums, and the tarball are written. This contract is not a
+historical-provenance repair path: rebuild and publish a **new immutable bundle
+version** (fresh `LAI_BUNDLE_VERSION`, tag, and asset). Never overwrite an
+existing release or graft reconstructed manifests onto its models.
+
 Phase 01 derives Gnomix's three-column `chrN<TAB>bp<TAB>cM` maps from the
 downloaded GRCh38 PLINK maps. It validates every requested autosome and writes
 source and derived SHA-256 values to
 `00_raw_downloads/genetic_maps_gnomix/provenance.json`; Phase 07 preserves that
 record as `metadata/gnomix_genetic_maps.json` in the bundle. Phase 05 binds each
 trained model to its chromosome map checksum, the selected Gnomix commit, the
-SHA-256 of the exact effective config, and the native model SHA-256. The
-algorithm learns window-specific parameters from configurable training and
-model choices, so the paper DOI or algorithm name alone does not identify a
-trained artifact [1]. Phase 07 verifies and ships the per-model records as
-`metadata/gnomix_model_chrN.provenance.json`, the compatibility map bindings as
-`metadata/gnomix_model_map_chrN.sha256`, and an aggregate record as
-`metadata/gnomix_training_provenance.json`. `metadata.json::gnomix_training`
-publishes the common repository, full commit, effective-config SHA-256, clean
-checkout attestation, model count, and aggregate-manifest path.
+SHA-256 of the exact effective config, the native model SHA-256, and the input-
+and split-manifest identities described above. Phase 07 verifies and ships the
+per-model records as `metadata/gnomix_model_chrN.provenance.json`, the
+compatibility map bindings as `metadata/gnomix_model_map_chrN.sha256`, and the
+aggregate and training manifests at their fixed paths above.
+`metadata.json::gnomix_training` publishes the common repository, full commit,
+effective-config SHA-256, clean-checkout and `simulation_run` attestations,
+model count, aggregate-manifest path and SHA-256, and each training manifest's
+path, schema version, and SHA-256. Top-level metadata also publishes the
+authenticated reference build, reference-panel name, and sample-identifier
+policy.
 
 The effective config is snapshotted separately for every training task before
-Gnomix opens it. Existing models without the JSON record are intentionally
-stale and retrain once. The full bundle cannot assemble if chromosome records
-are missing, if their model/map hashes no longer match, or if their Gnomix
-commits/config hashes are mixed. Because `n_cores` is part of the effective
-SLURM config, changing `GNOMIX_CPUS` also changes its hash and intentionally
-invalidates reuse.
+Gnomix opens it. Existing models without a valid schema-v2 JSON record are
+intentionally stale. The full bundle cannot assemble if chromosome records or
+manifests are missing, if their input/split/model/map hashes no longer match, or
+if their Gnomix commits/config hashes are mixed. Because `n_cores` is part of
+the effective SLURM config, changing `GNOMIX_CPUS` also changes its hash and
+intentionally invalidates reuse.
+
+The authenticated config contract requires `verbose: true`,
+`simulation.run: true`, `model.name: model`, and the ordered, exact release
+split ratios `train1: 0.8`, `train2: 0.15`, and `val: 0.05`. The optional
+`model.inference` setting must be absent, null, blank, or `default`, while
+`model.calibrate` must be absent, null, or the boolean `false`. The authenticated
+training generation must contain exactly the seven release superpopulations
+AFR, AMR, CSA, EAS, EUR, MID, and OCE, more than 25 training founders in total,
+and at least 11 founders in every superpopulation so Gnomix's 0.05 validation
+split cannot round to empty.
+
+Gnomix derives its native model path from `model.name`, and incompatible model
+modes or small/zero split ratios can change or omit required release artifacts.
+Phase 05 therefore rejects those modes before invalidating a prior model
+generation. It passes the literal positional `None` supported by the pinned
+Gnomix commit for the optional post-training query, preserving training mode
+without running a discarded inference. Each training task also imports the
+pinned Gnomix entrypoint in `$GNOMIX_ENV` before state mutation. Phase 07 repeats
+that runtime import and imports the re-export command before changing an
+existing bundle, so missing or broken dependencies fail with the prior
+generation intact.
 
 Phase 07 is publication-only and requires `CHROMS` to be exactly autosomes
 1–22; it refuses subset bundles so a diagnostic rerun cannot retain stale

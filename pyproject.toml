@@ -35,6 +35,7 @@ dependencies = [
     "jinja2>=3.0",
     "playwright>=1.40",
     "pysam>=0.22",
+    "pyyaml>=6.0.3",
     "xgboost>=2.0",
 ]
 
@@ -48,7 +49,6 @@ dev = [
     # intentionally + reformat the tree in the same PR).
     "ruff==0.15.15",
     "mypy",
-    "pyyaml",
     "pandas",
     # Python dead-code detector (#579). ruff (E/F/I/UP) flags unused locals and
     # imports but NOT unused module-level constants/functions/methods; vulture
