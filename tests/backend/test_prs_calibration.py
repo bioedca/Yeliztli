@@ -270,6 +270,22 @@ class TestContinuousReferenceDistribution:
             },
         ]
 
+    def _coverage_inputs(self, *, covered: int, total: int = 10) -> tuple[list[dict], sa.Engine]:
+        rsids = [f"rs{10_000 + index}" for index in range(total)]
+        variants = [
+            {
+                "rsid": rsid,
+                "chrom": "1",
+                "pos": index + 1,
+                "ref": "C",
+                "alt": "T",
+                "gnomad_af_eur": 0.3,
+            }
+            for index, rsid in enumerate(rsids[:covered])
+        ]
+        weights = [{"rsid": rsid, "effect_allele": "T", "weight": 1.0} for rsid in rsids]
+        return weights, _sample_with_ancestry({"EUR": 1.0}, variants)
+
     def test_builds_calibrated_distribution(self) -> None:
         engine = _sample_with_ancestry({"EUR": 1.0}, self._variants())
         weights = [
@@ -309,6 +325,21 @@ class TestContinuousReferenceDistribution:
             {"rsid": "rsY", "effect_allele": "A", "weight": 1.0},
             {"rsid": "rsZ", "effect_allele": "A", "weight": 1.0},
         ]
+        assert continuous_reference_distribution(weights, engine) is None
+
+    def test_emits_at_variant_coverage_floor(self) -> None:
+        # 5/10 = 0.50, exactly the shipped floor.
+        weights, engine = self._coverage_inputs(covered=5)
+
+        dist = continuous_reference_distribution(weights, engine)
+
+        assert dist is not None
+        assert (dist.variants_used, dist.variants_total) == (5, 10)
+
+    def test_withholds_just_below_variant_coverage_floor(self) -> None:
+        # 4/10 = 0.40, the nearest fixture step below the shipped floor.
+        weights, engine = self._coverage_inputs(covered=4)
+
         assert continuous_reference_distribution(weights, engine) is None
 
     def test_none_when_mid_dominates_ancestry_coverage(self) -> None:
