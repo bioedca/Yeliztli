@@ -508,6 +508,7 @@ class TestExtractCarrierVariants:
         assert "typically unaffected" not in row.finding_text
         detail = json.loads(row.detail_json)
         assert detail["finding_type"] == "possible_compound_heterozygote"
+        assert detail["clinvar_review_stars"] == 2
         assert set(detail["variant_ids"]) == {"rs78655421", "i4000299"}
         assert detail["phase_caveat"] == variant.phase_caveat
 
