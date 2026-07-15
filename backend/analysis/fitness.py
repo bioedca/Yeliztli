@@ -467,7 +467,10 @@ def _generate_cross_context_findings(
                 if three_state == "RX":
                     context_text = (
                         f"ACTN3 R577X ({actn3_result.genotype}) — {three_state} genotype. "
-                        "Mixed muscle fiber profile suited to both endurance and power activities."
+                        "Alpha-actinin-3 is present in RX, unlike the XX deficiency, but "
+                        "genotype alone does not predict an individual's power or endurance "
+                        "performance; reported associations vary by ancestry, sex, athlete "
+                        "status, and study design."
                     )
                 else:
                     context_text = (

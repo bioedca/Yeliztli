@@ -559,7 +559,7 @@ class TestPathwayLevel:
 
 class TestCrossContextFindings:
     def test_actn3_power_context_generated(self, panel: FitnessPanel) -> None:
-        """ACTN3 RX/XX generates cross-context finding for Power pathway."""
+        """ACTN3 RX context distinguishes retained protein from XX deficiency."""
         endurance_pr = PathwayResult(
             pathway_id="endurance",
             pathway_name="Endurance",
@@ -590,7 +590,16 @@ class TestCrossContextFindings:
         assert len(cross) >= 1
         actn3_cross = next(c for c in cross if c.rsid == "rs1815739")
         assert actn3_cross.context_pathway == "Power"
-        assert "RX" in actn3_cross.finding_text
+        text = actn3_cross.finding_text.lower()
+        assert "rx" in text
+        assert "alpha-actinin-3 is present" in text
+        assert "unlike the xx deficiency" in text
+        assert "genotype alone does not predict" in text
+        for caveat in ("ancestry", "sex", "athlete status", "study design"):
+            assert caveat in text
+        assert "reduced power" not in text
+        assert "slow-twitch" not in text
+        assert "suited to both endurance and power" not in text
 
     def test_actn3_xx_power_context_still_generated_when_standard(
         self, panel: FitnessPanel
