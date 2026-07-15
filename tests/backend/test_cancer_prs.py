@@ -87,6 +87,13 @@ CONFIRMED_RISK_ALLELE_FIXTURES = {
         "third_allele": None,
         "weight": 0.308,
     },
+    ("colorectal_cancer", "rs4939827"): {
+        "effect_allele": "T",
+        "stored_other_allele": None,
+        "protective_allele": "C",
+        "third_allele": "A",
+        "weight": 0.163,
+    },
     ("melanoma", "rs12913832"): {
         "effect_allele": "G",
         "stored_other_allele": None,
