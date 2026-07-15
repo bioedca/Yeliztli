@@ -20,24 +20,32 @@ SEED_DIR = FIXTURES_DIR / "seed_csvs"
 SCRIPT = Path(__file__).resolve().parent.parent.parent / "scripts" / "regenerate_fixtures.py"
 PANEL_RSID_COORDINATES = FIXTURES_DIR / "panel_rsid_coordinates.json"
 
-THROMBOPHILIA_COORDINATE_RSIDS = ("rs6025", "rs1799963")
+GRCH37_COORDINATE_RSIDS = (
+    "rs6025",
+    "rs1799963",
+    "rs13266634",
+    "rs2476601",
+    "rs3135388",
+)
 
 SEED_COORDINATE_TARGETS = {
-    "clinvar_seed.csv": THROMBOPHILIA_COORDINATE_RSIDS,
-    "vep_seed.csv": THROMBOPHILIA_COORDINATE_RSIDS,
-    "gnomad_seed.csv": THROMBOPHILIA_COORDINATE_RSIDS,
-    "gwas_seed.csv": THROMBOPHILIA_COORDINATE_RSIDS,
-    "dbnsfp_seed.csv": ("rs6025",),
+    "clinvar_seed.csv": GRCH37_COORDINATE_RSIDS,
+    "vep_seed.csv": GRCH37_COORDINATE_RSIDS,
+    "gnomad_seed.csv": GRCH37_COORDINATE_RSIDS,
+    "gwas_seed.csv": GRCH37_COORDINATE_RSIDS,
+    "dbnsfp_seed.csv": ("rs6025", "rs13266634", "rs2476601"),
 }
 
 MINI_DB_COORDINATE_TARGETS = {
     "mini_reference.db": {
-        "clinvar_variants": THROMBOPHILIA_COORDINATE_RSIDS,
-        "gwas_associations": THROMBOPHILIA_COORDINATE_RSIDS,
+        "clinvar_variants": GRCH37_COORDINATE_RSIDS,
+        "gwas_associations": GRCH37_COORDINATE_RSIDS,
     },
-    "mini_vep_bundle.db": {"vep_annotations": THROMBOPHILIA_COORDINATE_RSIDS},
-    "mini_gnomad_af.db": {"gnomad_af": THROMBOPHILIA_COORDINATE_RSIDS},
-    "mini_dbnsfp.db": {"dbnsfp_scores": ("rs6025",)},
+    "mini_vep_bundle.db": {"vep_annotations": GRCH37_COORDINATE_RSIDS},
+    "mini_gnomad_af.db": {"gnomad_af": GRCH37_COORDINATE_RSIDS},
+    "mini_dbnsfp.db": {
+        "dbnsfp_scores": ("rs6025", "rs13266634", "rs2476601"),
+    },
 }
 
 
@@ -46,7 +54,7 @@ def _expected_grch37_coordinates() -> dict[str, tuple[str, int]]:
     variants = payload["rsids"]
     return {
         rsid: (str(variants[rsid]["chrom"]), int(variants[rsid]["start"]))
-        for rsid in THROMBOPHILIA_COORDINATE_RSIDS
+        for rsid in GRCH37_COORDINATE_RSIDS
     }
 
 
@@ -118,17 +126,16 @@ class TestSeedCSVContent:
             assert gene in text, f"cpic_alleles_seed.csv missing {gene}"
 
     @pytest.mark.parametrize(("csv_name", "rsids"), SEED_COORDINATE_TARGETS.items())
-    def test_thrombophilia_seed_coordinates_are_grch37(
-        self, csv_name: str, rsids: tuple[str, ...]
-    ) -> None:
+    def test_seed_coordinates_are_grch37(self, csv_name: str, rsids: tuple[str, ...]) -> None:
         expected = _expected_grch37_coordinates()
         with (SEED_DIR / csv_name).open(newline="", encoding="utf-8") as fh:
-            rows = {row["rsid"]: row for row in csv.DictReader(fh) if row["rsid"] in rsids}
+            rows = [row for row in csv.DictReader(fh) if row["rsid"] in rsids]
 
-        assert set(rows) == set(rsids), f"{csv_name} missing thrombophilia rows"
-        for rsid in rsids:
+        observed_rsids = {row["rsid"] for row in rows}
+        assert observed_rsids == set(rsids), f"{csv_name} missing coordinate-guard rows"
+        for row in rows:
+            rsid = row["rsid"]
             expected_chrom, expected_pos = expected[rsid]
-            row = rows[rsid]
             assert (row["chrom"], int(row["pos"])) == (expected_chrom, expected_pos)
 
 
@@ -301,26 +308,30 @@ class TestRegenerateFixtures:
         assert count >= 30, f"Expected >=30 dbNSFP rows, got {count}"
 
     @pytest.mark.parametrize(("db_name", "tables"), MINI_DB_COORDINATE_TARGETS.items())
-    def test_thrombophilia_mini_db_coordinates_are_grch37(
+    def test_mini_db_coordinates_are_grch37(
         self, tmp_path: Path, db_name: str, tables: dict[str, tuple[str, ...]]
     ) -> None:
         expected = _expected_grch37_coordinates()
         _run_script(tmp_path)
 
-        with sqlite3.connect(str(tmp_path / db_name)) as conn:
-            for table_name, rsids in tables.items():
-                placeholders = ", ".join("?" for _ in rsids)
-                observed = {
-                    rsid: (str(chrom), int(pos))
-                    for rsid, chrom, pos in conn.execute(
-                        f"SELECT rsid, chrom, pos FROM {table_name} "
-                        f"WHERE rsid IN ({placeholders})",
-                        tuple(rsids),
+        for db_path in (tmp_path / db_name, FIXTURES_DIR / db_name):
+            with sqlite3.connect(str(db_path)) as conn:
+                for table_name, rsids in tables.items():
+                    placeholders = ", ".join("?" for _ in rsids)
+                    observed = [
+                        (rsid, str(chrom), int(pos))
+                        for rsid, chrom, pos in conn.execute(
+                            f"SELECT rsid, chrom, pos FROM {table_name} "
+                            f"WHERE rsid IN ({placeholders})",
+                            tuple(rsids),
+                        )
+                    ]
+                    observed_rsids = {rsid for rsid, _chrom, _pos in observed}
+                    assert observed_rsids == set(rsids), (
+                        f"{db_path}:{table_name} missing coordinate-guard rows"
                     )
-                }
-                assert set(observed) == set(rsids), f"{db_name}:{table_name} missing rows"
-                for rsid in rsids:
-                    assert observed[rsid] == expected[rsid]
+                    for rsid, chrom, pos in observed:
+                        assert (chrom, pos) == expected[rsid]
 
     def test_wal_mode_enabled(self, tmp_path: Path) -> None:
         _run_script(tmp_path)

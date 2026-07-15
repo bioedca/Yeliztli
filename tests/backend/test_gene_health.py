@@ -148,7 +148,7 @@ ALL_GENE_HEALTH_VARIANTS = [
     ("rs3764650", "19", 1046520, "TG"),  # ABCA7 het -> Moderate
     ("rs11136000", "8", 27464519, "CT"),  # CLU het -> Moderate
     ("rs356219", "4", 90626111, "AG"),  # SNCA het -> Moderate
-    ("rs3135388", "6", 32408274, "GA"),  # HLA-DRB1*15:01 proxy het -> Elevated
+    ("rs3135388", "6", 32413051, "GA"),  # HLA-DRB1*15:01 proxy het -> Elevated
     ("rs6897932", "5", 35874575, "TC"),  # IL7R T244I het -> Moderate
     ("rs2104286", "10", 6072697, "GA"),  # IL2RA het -> Moderate
     ("rs747302", "11", 637339, "CG"),  # DRD4 VNTR proxy het -> Moderate
@@ -159,7 +159,7 @@ ALL_GENE_HEALTH_VARIANTS = [
     ("rs7903146", "10", 112998590, "CT"),  # TCF7L2 het -> Moderate
     ("rs1801282", "3", 12393125, "CG"),  # PPARG Pro12Ala het (protective Ala12) -> Standard
     ("rs5219", "11", 17409572, "CT"),  # KCNJ11 E23K het -> Moderate
-    ("rs13266634", "8", 117172544, "TC"),  # SLC30A8 R325W het -> Moderate
+    ("rs13266634", "8", 118184783, "TC"),  # SLC30A8 R325W het -> Moderate
     ("rs9939609", "16", 53820527, "TA"),  # FTO het -> Moderate
     ("rs17782313", "18", 60183864, "TC"),  # MC4R het -> Moderate
     ("rs2231142", "4", 88231392, "GT"),  # ABCG2 Q141K het -> Moderate
@@ -1287,7 +1287,7 @@ class TestFullScoring:
         if top_population is not None:
             _seed_ancestry(sample_engine, top_population)
         hla_variants = [
-            ("rs3135388", "6", 32408274, "GA"),
+            ("rs3135388", "6", 32413051, "GA"),
             ("rs6910071", "6", 32574073, "GA"),
         ]
         hla_rsids = {row[0] for row in hla_variants}
@@ -1350,7 +1350,7 @@ class TestFullScoring:
     ) -> None:
         """EUR ancestry keeps the curated HLA proxy call without the ancestry caveat."""
         _seed_ancestry(sample_engine, "EUR")
-        _seed_variants(sample_engine, [("rs3135388", "6", 32408274, "GA")])
+        _seed_variants(sample_engine, [("rs3135388", "6", 32413051, "GA")])
 
         result = score_gene_health_pathways(panel, sample_engine, reference_engine)
         neurological = next(pr for pr in result.pathway_results if pr.pathway_id == "neurological")

@@ -20,6 +20,7 @@ import csv
 import gzip
 import io
 import json
+import sqlite3
 import zipfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -1092,6 +1093,7 @@ class TestGwasSeedVerifiedRiskAlleles:
     _ROOT = Path(__file__).resolve().parents[2]
     _SEED = _ROOT / "tests" / "fixtures" / "seed_csvs" / "gwas_seed.csv"
     _PANEL = _ROOT / "backend" / "data" / "panels" / "gene_health_panel.json"
+    _MINI_REFERENCE = _ROOT / "tests" / "fixtures" / "mini_reference.db"
     _EXPECTED = {
         ("rs13266634", "Type 2 diabetes"): "C",
         ("rs2476601", "Type 1 diabetes"): "A",
@@ -1120,6 +1122,21 @@ class TestGwasSeedVerifiedRiskAlleles:
             if snp["rsid"] in expected
         }
         assert actual == expected
+
+    def test_checked_in_mini_reference_uses_verified_risk_alleles(self) -> None:
+        rsids = sorted({rsid for rsid, _trait in self._EXPECTED})
+        placeholders = ", ".join("?" for _ in rsids)
+        with sqlite3.connect(self._MINI_REFERENCE) as conn:
+            actual = conn.execute(
+                f"SELECT rsid, trait, risk_allele FROM gwas_associations "
+                f"WHERE rsid IN ({placeholders})",
+                rsids,
+            ).fetchall()
+
+        expected = [
+            (rsid, trait, risk_allele) for (rsid, trait), risk_allele in self._EXPECTED.items()
+        ]
+        assert sorted(actual) == sorted(expected)
 
 
 class TestGwasSeedVitaminDDirection:
