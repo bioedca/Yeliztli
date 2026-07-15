@@ -2324,6 +2324,7 @@ class TestGnomixTrainingProvenance:
 
         invalid_cases = [
             ({"schema_version": 1}, "unsupported.*schema"),
+            ({"schema_version": 2.0}, "unsupported.*schema"),
             ({"chromosome": "chr23"}, "invalid autosome"),
             ({"gnomix_git_commit": "short"}, "full 40-character"),
             ({"gnomix_checkout_clean": False}, "does not attest a clean checkout"),
@@ -2335,6 +2336,51 @@ class TestGnomixTrainingProvenance:
             record.write_text(json.dumps(valid | replacement))
             with pytest.raises(provenance.ProvenanceError, match=message):
                 provenance.load_model_record(record)
+
+        duplicate = json.dumps(valid).replace(
+            '"schema_version": 2',
+            '"schema_version": 999, "schema_version": 2',
+            1,
+        )
+        record.write_text(duplicate)
+        with pytest.raises(provenance.ProvenanceError, match="duplicate key 'schema_version'"):
+            provenance.load_model_record(record)
+
+    def test_aggregate_rejects_ambiguous_json_and_float_schema(self, tmp_path: Path) -> None:
+        provenance = self._module()
+        aggregate = tmp_path / "aggregate.json"
+        valid = {
+            "schema_version": 2,
+            "gnomix_repository": provenance.GNOMIX_REPOSITORY,
+            "gnomix_git_commit": "a" * 40,
+            "gnomix_checkout_clean": True,
+            "simulation_run": True,
+            "effective_config_sha256": "b" * 64,
+            "training_input_manifest": {"schema_version": 1, "sha256": "c" * 64},
+            "training_split_manifest": {"schema_version": 1, "sha256": "d" * 64},
+            "models": [
+                {
+                    "chromosome": "chr1",
+                    "model_filename": "model_chm_chr1.pkl",
+                    "model_sha256": "e" * 64,
+                    "genetic_map_sha256": "f" * 64,
+                    "provenance_file": "metadata/gnomix_model_chr1.provenance.json",
+                }
+            ],
+        }
+
+        aggregate.write_text(json.dumps(valid | {"schema_version": 2.0}))
+        with pytest.raises(provenance.ProvenanceError, match="unsupported.*schema"):
+            provenance.load_aggregate_manifest(aggregate)
+
+        duplicate = json.dumps(valid).replace(
+            '"schema_version": 2',
+            '"schema_version": 999, "schema_version": 2',
+            1,
+        )
+        aggregate.write_text(duplicate)
+        with pytest.raises(provenance.ProvenanceError, match="duplicate key 'schema_version'"):
+            provenance.load_aggregate_manifest(aggregate)
 
     def test_record_publication_is_atomic(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

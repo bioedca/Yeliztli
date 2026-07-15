@@ -121,6 +121,34 @@ class _UniqueKeySafeLoader(yaml.SafeLoader):
         return mapping
 
 
+def _unique_json_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    """Construct one JSON object without silently collapsing duplicate keys."""
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ProvenanceError(f"Gnomix provenance JSON contains duplicate key {key!r}")
+        result[key] = value
+    return result
+
+
+def _reject_nonfinite_json(value: str) -> None:
+    raise ProvenanceError(f"Gnomix provenance JSON contains non-finite value {value}")
+
+
+def _load_strict_json(raw: bytes, *, label: str) -> object:
+    """Parse one UTF-8 JSON snapshot with unambiguous object semantics."""
+    try:
+        return json.loads(
+            raw.decode("utf-8"),
+            object_pairs_hook=_unique_json_object,
+            parse_constant=_reject_nonfinite_json,
+        )
+    except ProvenanceError:
+        raise
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ProvenanceError(f"invalid {label} JSON: {exc}") from exc
+
+
 def normalize_commit(value: str) -> str:
     """Return a canonical full Git commit, rejecting symbolic/short refs."""
     if not _COMMIT_RE.fullmatch(value):
@@ -430,17 +458,21 @@ def _validate_manifest_identity(
 
 def load_model_record(path: Path) -> dict[str, Any]:
     """Load and validate the schema-only portion of a model record."""
-    if not path.is_file() or path.stat().st_size == 0:
-        raise ProvenanceError(f"Gnomix model provenance is missing or empty: {path}")
     try:
-        data = json.loads(path.read_text())
-    except json.JSONDecodeError as exc:
-        raise ProvenanceError(f"invalid Gnomix model provenance JSON: {path}: {exc}") from exc
+        raw = path.read_bytes()
+    except FileNotFoundError as exc:
+        raise ProvenanceError(f"Gnomix model provenance is missing or empty: {path}") from exc
+    except OSError as exc:
+        raise ProvenanceError(f"cannot read Gnomix model provenance {path}: {exc}") from exc
+    if not raw:
+        raise ProvenanceError(f"Gnomix model provenance is missing or empty: {path}")
+    data = _load_strict_json(raw, label=f"Gnomix model provenance {path}")
     if not isinstance(data, dict):
         raise ProvenanceError(f"Gnomix model provenance must be a JSON object: {path}")
-    if data.get("schema_version") != MODEL_RECORD_SCHEMA_VERSION:
+    schema_version = data.get("schema_version")
+    if type(schema_version) is not int or schema_version != MODEL_RECORD_SCHEMA_VERSION:
         raise ProvenanceError(
-            f"unsupported Gnomix model provenance schema in {path}: {data.get('schema_version')!r}"
+            f"unsupported Gnomix model provenance schema in {path}: {schema_version!r}"
         )
     if set(data) != _MODEL_RECORD_KEYS:
         missing = sorted(_MODEL_RECORD_KEYS - set(data))
@@ -748,7 +780,10 @@ def _validate_aggregate_payload(
 ) -> dict[str, Any]:
     if not isinstance(data, dict) or set(data) != _AGGREGATE_KEYS:
         raise ProvenanceError("Gnomix aggregate provenance has unexpected fields")
-    if data["schema_version"] != AGGREGATE_SCHEMA_VERSION:
+    if (
+        type(data["schema_version"]) is not int
+        or data["schema_version"] != AGGREGATE_SCHEMA_VERSION
+    ):
         raise ProvenanceError("unsupported Gnomix aggregate provenance schema")
     if data["gnomix_repository"] != GNOMIX_REPOSITORY:
         raise ProvenanceError("unexpected Gnomix repository in aggregate provenance")
@@ -811,10 +846,7 @@ def load_aggregate_manifest_snapshot(
         raise ProvenanceError(f"cannot read Gnomix aggregate provenance {path}: {exc}") from exc
     if not raw:
         raise ProvenanceError(f"Gnomix aggregate provenance is missing or empty: {path}")
-    try:
-        data = json.loads(raw.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise ProvenanceError(f"invalid Gnomix aggregate provenance JSON: {path}: {exc}") from exc
+    data = _load_strict_json(raw, label=f"Gnomix aggregate provenance {path}")
     validated = _validate_aggregate_payload(data, require_complete=require_complete)
     return validated, hashlib.sha256(raw).hexdigest()
 
