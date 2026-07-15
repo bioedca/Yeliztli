@@ -34,6 +34,7 @@ from __future__ import annotations
 import json
 import logging
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 import sqlalchemy as sa
@@ -41,6 +42,7 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from backend.analysis.provenance import read_release_snapshot
 from backend.db.tables import annotation_state, findings
+from backend.services.reference_versions import ReferenceVersionSnapshot
 
 logger = logging.getLogger(__name__)
 
@@ -382,6 +384,9 @@ def compute_and_store_finding_diff(
     sample_engine: sa.Engine,
     reference_engine: sa.Engine,
     prior: list[dict[str, Any]] | None,
+    *,
+    vep_db_path: Path | None = None,
+    reference_snapshot: ReferenceVersionSnapshot | None = None,
 ) -> dict[str, Any]:
     """Compute the diff of the fresh findings against ``prior`` and persist it.
 
@@ -391,7 +396,12 @@ def compute_and_store_finding_diff(
     annotation run or the staleness gate.
     """
     current = snapshot_findings(sample_engine)
-    after_releases = _release_versions(read_release_snapshot(reference_engine))
+    snapshot = (
+        reference_snapshot
+        if reference_snapshot is not None
+        else read_release_snapshot(reference_engine, vep_db_path)
+    )
+    after_releases = _release_versions(snapshot)
     diff = compute_finding_diff(prior, current, after_releases)
     diff["dismissed"] = False
     diff["generated_at"] = datetime.now(UTC).isoformat()

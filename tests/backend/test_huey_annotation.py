@@ -13,8 +13,9 @@ Covers:
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 import sqlalchemy as sa
@@ -28,6 +29,7 @@ from backend.db.tables import (
     annotation_state,
     clinvar_variants,
     database_versions,
+    findings,
     jobs,
     raw_variants,
     reference_metadata,
@@ -455,6 +457,35 @@ class TestAnnotationStateGate:
             ).fetchall()
         return {r.key: r.value for r in rows}
 
+    def _read_finding_provenance(self, annotation_env: dict) -> list[dict]:
+        """Return every non-null provenance block from the sample DB."""
+        from backend.db.connection import get_registry
+
+        registry = get_registry()
+        sample_db = registry.settings.data_dir / "samples" / "sample_1.db"
+        sample_engine = registry.get_sample_engine(sample_db)
+        with sample_engine.connect() as conn:
+            rows = conn.execute(
+                sa.select(findings.c.provenance).where(findings.c.provenance.is_not(None))
+            ).fetchall()
+        return [json.loads(row.provenance) for row in rows]
+
+    def _seed_test_finding(self, annotation_env: dict, category: str) -> None:
+        """Seed one finding so mocked task runs can exercise provenance."""
+        from backend.db.connection import get_registry
+
+        registry = get_registry()
+        sample_db = registry.settings.data_dir / "samples" / "sample_1.db"
+        sample_engine = registry.get_sample_engine(sample_db)
+        with sample_engine.begin() as conn:
+            conn.execute(
+                findings.insert().values(
+                    module="test",
+                    category=category,
+                    finding_text="Retain provenance through registry failure",
+                )
+            )
+
     def _seed_bundle_version(self, annotation_env: dict, version: str) -> None:
         """Seed reference.db so the engine telemetry surfaces a known bundle version."""
         from datetime import UTC, datetime
@@ -478,29 +509,22 @@ class TestAnnotationStateGate:
             version,
         )
 
-    def _run_task_with_result(self, sample_id: int, result: object) -> None:
+    def _run_task_with_result(self, sample_id: int, result: object) -> MagicMock:
         with (
             patch("backend.annotation.engine.run_annotation", return_value=result),
             patch("backend.analysis.finding_diff.snapshot_findings", return_value=[]),
             patch("backend.analysis.run_all.run_all_analyses", return_value={}),
             patch(
-                "backend.services.staleness.read_current_reference_versions",
-                return_value={},
-            ),
-            patch(
-                "backend.analysis.provenance.stamp_findings_provenance",
-                return_value=0,
-            ),
-            patch(
                 "backend.analysis.finding_diff.compute_and_store_finding_diff",
                 return_value=None,
-            ),
+            ) as compute_diff,
             patch(
                 "backend.analysis.svg_renderer.generate_svgs_for_sample",
                 return_value=0,
             ),
         ):
             run_annotation_task.call_local(sample_id, create_annotation_job(sample_id))
+        return compute_diff
 
     @pytest.mark.slow
     def test_success_path_lifts_gate(self, annotation_env: dict) -> None:
@@ -520,6 +544,12 @@ class TestAnnotationStateGate:
 
         coverage = _json.loads(coverage_json)
         assert coverage["bundle_version"] == "v2.0.0"
+        assert _json.loads(state["reference_versions_json"])["vep_bundle"] == "v2.0.0"
+        provenances = self._read_finding_provenance(annotation_env)
+        assert provenances
+        assert {provenance["sources"]["vep_bundle"]["version"] for provenance in provenances} == {
+            "v2.0.0"
+        }
         assert coverage["total_variants"] == len(SEED_RAW_VARIANTS)
         # Plan §5.6 — unmerged sample → single-key by_source with counts that
         # sum to the top-level rollup. Vendor derivation is exercised in
@@ -553,6 +583,12 @@ class TestAnnotationStateGate:
         import json as _json
 
         assert _json.loads(coverage_json)["bundle_version"] == "v3.0.0"
+        assert _json.loads(state["reference_versions_json"])["vep_bundle"] == "v3.0.0"
+        provenances = self._read_finding_provenance(annotation_env)
+        assert provenances
+        assert {provenance["sources"]["vep_bundle"]["version"] for provenance in provenances} == {
+            "v3.0.0"
+        }
 
         from backend.db.connection import get_registry
 
@@ -580,7 +616,7 @@ class TestAnnotationStateGate:
 
         state = self._read_state(annotation_env)
         assert state.get("vep_bundle_version") == "v3.0.0"
-        assert state.get("annotation_bundle_coverage_json") == "{}"
+        assert json.loads(state["annotation_bundle_coverage_json"])["bundle_version"] == "v3.0.0"
 
     def test_unreadable_version_table_uses_task_baseline(
         self,
@@ -593,17 +629,81 @@ class TestAnnotationStateGate:
         from backend.db.connection import get_registry
 
         sample_id = annotation_env["sample_id"]
-        database_versions.drop(get_registry().reference_engine)
+        registry = get_registry()
+        self._seed_test_finding(annotation_env, "unreadable_registry")
+        self._seed_embedded_bundle_version(annotation_env, "v9.0.0")
+        bundle_before = annotation_env["settings"].vep_bundle_db_path.read_bytes()
+        database_versions.drop(registry.reference_engine)
 
         with capture_logs() as cap_logs:
-            self._run_task_with_result(sample_id, AnnotationEngineResult(coverage_stats={}))
+            self._run_task_with_result(
+                sample_id,
+                AnnotationEngineResult(coverage_stats={"bundle_version": None}),
+            )
 
         state = self._read_state(annotation_env)
         assert state.get("vep_bundle_version") == "v1.0.0"
-        assert state.get("annotation_bundle_coverage_json") == "{}"
+        assert json.loads(state["annotation_bundle_coverage_json"])["bundle_version"] == "v1.0.0"
+        assert json.loads(state["reference_versions_json"]) == {"vep_bundle": "v1.0.0"}
+        provenances = self._read_finding_provenance(annotation_env)
+        assert len(provenances) == 1
+        assert provenances[0]["sources"]["vep_bundle"]["version"] == "v1.0.0"
+        assert annotation_env["settings"].vep_bundle_db_path.read_bytes() == bundle_before
         assert any(
             entry.get("event") == "vep_bundle_version_resolution_failed" for entry in cap_logs
         )
+
+    def test_run_resolved_version_precedes_later_readable_registry_state(
+        self,
+        annotation_env: dict,
+    ) -> None:
+        """One run keeps its captured VEP release across every persisted record."""
+        from backend.annotation.engine import AnnotationEngineResult
+
+        self._seed_test_finding(annotation_env, "run_resolved_precedence")
+        self._seed_embedded_bundle_version(annotation_env, "v8.0.0")
+        self._seed_bundle_version(annotation_env, "v9.0.0")
+
+        compute_diff = self._run_task_with_result(
+            annotation_env["sample_id"],
+            AnnotationEngineResult(coverage_stats={"bundle_version": "v2.0.0"}),
+        )
+
+        state = self._read_state(annotation_env)
+        assert state["vep_bundle_version"] == "v2.0.0"
+        assert json.loads(state["annotation_bundle_coverage_json"])["bundle_version"] == "v2.0.0"
+        assert json.loads(state["reference_versions_json"])["vep_bundle"] == "v2.0.0"
+        provenances = self._read_finding_provenance(annotation_env)
+        assert len(provenances) == 1
+        assert provenances[0]["sources"]["vep_bundle"]["version"] == "v2.0.0"
+        assert (
+            compute_diff.call_args.kwargs["reference_snapshot"]["vep_bundle"]["version"]
+            == "v2.0.0"
+        )
+
+    def test_unreadable_version_table_retains_run_resolved_version(
+        self,
+        annotation_env: dict,
+    ) -> None:
+        """A version captured by annotation remains identical in every snapshot."""
+        from backend.annotation.engine import AnnotationEngineResult
+        from backend.db.connection import get_registry
+
+        self._seed_test_finding(annotation_env, "resolved_before_registry_failure")
+        database_versions.drop(get_registry().reference_engine)
+
+        self._run_task_with_result(
+            annotation_env["sample_id"],
+            AnnotationEngineResult(coverage_stats={"bundle_version": "v3.0.0"}),
+        )
+
+        state = self._read_state(annotation_env)
+        assert state["vep_bundle_version"] == "v3.0.0"
+        assert json.loads(state["annotation_bundle_coverage_json"])["bundle_version"] == "v3.0.0"
+        assert json.loads(state["reference_versions_json"])["vep_bundle"] == "v3.0.0"
+        provenances = self._read_finding_provenance(annotation_env)
+        assert len(provenances) == 1
+        assert provenances[0]["sources"]["vep_bundle"]["version"] == "v3.0.0"
 
     @pytest.mark.slow
     def test_missing_bundle_row_falls_back_to_v1(self, annotation_env: dict) -> None:
@@ -620,6 +720,12 @@ class TestAnnotationStateGate:
         import json as _json
 
         assert _json.loads(coverage_json)["bundle_version"] == "v1.0.0"
+        assert _json.loads(state["reference_versions_json"])["vep_bundle"] == "v1.0.0"
+        provenances = self._read_finding_provenance(annotation_env)
+        assert provenances
+        assert {provenance["sources"]["vep_bundle"]["version"] for provenance in provenances} == {
+            "v1.0.0"
+        }
 
     @pytest.mark.slow
     def test_raise_from_run_all_analyses_leaves_gate_up(self, annotation_env: dict) -> None:

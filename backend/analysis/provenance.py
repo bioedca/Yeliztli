@@ -2,10 +2,10 @@
 
 A post-run pass that stamps every finding with the *release snapshot* used to
 produce it: the source-database versions and genome builds (ClinVar / gnomAD /
-dbNSFP / CPIC / VEP, read from ``database_versions`` — F30 supplies the build),
-the variant's variation IDs, its ``annotation_coverage`` bitmask, and the
-pipeline version. This makes each finding self-describing for audit and
-reproducibility, and is the substrate a later "finding changed" diff builds on.
+dbNSFP / CPIC plus the effective VEP release), the variant's variation IDs,
+its ``annotation_coverage`` bitmask, and the pipeline version. This makes each
+finding self-describing for audit and reproducibility, and is the substrate a
+later "finding changed" diff builds on.
 
 Audit metadata only: stamping never reads or changes ``evidence_level`` /
 ``clinvar_significance`` — it writes one new ``findings.provenance`` JSON column.
@@ -18,12 +18,17 @@ from __future__ import annotations
 import json
 import logging
 from importlib.metadata import PackageNotFoundError, version
+from pathlib import Path
 from typing import Any
 
 import sqlalchemy as sa
 
 from backend.db.database_registry import PIPELINE_GENOME_BUILD
-from backend.db.tables import annotated_variants, database_versions, findings
+from backend.db.tables import annotated_variants, findings
+from backend.services.reference_versions import (
+    ReferenceVersionSnapshot,
+    read_current_reference_snapshot,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -62,23 +67,16 @@ def decode_coverage(mask: int | None) -> list[str]:
     return [label for bit, label in _COVERAGE_BITS if mask & bit]
 
 
-def read_release_snapshot(reference_engine: sa.Engine) -> dict[str, dict[str, Any]]:
-    """Snapshot ``database_versions`` → ``{db_name: {version, genome_build}}``.
+def read_release_snapshot(
+    reference_engine: sa.Engine,
+    vep_db_path: Path | None = None,
+) -> ReferenceVersionSnapshot:
+    """Return the shared effective ``{source: {version, build}}`` snapshot.
 
-    One read of the reference DB; the same snapshot is stamped on every finding
-    in a run so they pin an identical set of source releases.
+    VEP is overlaid from its explicit row, embedded bundle metadata, or the
+    versionless baseline without mutating ``database_versions``.
     """
-    with reference_engine.connect() as conn:
-        rows = conn.execute(
-            sa.select(
-                database_versions.c.db_name,
-                database_versions.c.version,
-                database_versions.c.genome_build,
-            )
-        ).fetchall()
-    return {
-        row.db_name: {"version": row.version, "genome_build": row.genome_build} for row in rows
-    }
+    return read_current_reference_snapshot(reference_engine, vep_db_path)
 
 
 def build_finding_provenance(
@@ -104,7 +102,13 @@ def build_finding_provenance(
     }
 
 
-def stamp_findings_provenance(sample_engine: sa.Engine, reference_engine: sa.Engine) -> int:
+def stamp_findings_provenance(
+    sample_engine: sa.Engine,
+    reference_engine: sa.Engine,
+    vep_db_path: Path | None = None,
+    *,
+    reference_snapshot: ReferenceVersionSnapshot | None = None,
+) -> int:
     """Stamp every finding in a sample with its provenance. Returns count stamped.
 
     Reads the release snapshot once, left-joins ``findings`` to
@@ -117,7 +121,11 @@ def stamp_findings_provenance(sample_engine: sa.Engine, reference_engine: sa.Eng
     rows that now exist. Re-running on unchanged rows is therefore idempotent —
     it refreshes them to the current snapshot, which equals what produced them.
     """
-    snapshot = read_release_snapshot(reference_engine)
+    snapshot = (
+        reference_snapshot
+        if reference_snapshot is not None
+        else read_release_snapshot(reference_engine, vep_db_path)
+    )
 
     av = annotated_variants
     join = findings.join(av, findings.c.rsid == av.c.rsid, isouter=True)

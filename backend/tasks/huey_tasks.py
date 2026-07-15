@@ -285,6 +285,12 @@ def run_annotation_task(sample_id: int, job_id: str) -> None:
             message="Analyzing…",
         )
         analysis_ok = False
+        reference_snapshot = None
+        vep_db_path = (
+            registry.settings.vep_bundle_db_path
+            if registry.settings.vep_bundle_db_path.is_file()
+            else None
+        )
         try:
             from backend.analysis.run_all import run_all_analyses
 
@@ -319,18 +325,15 @@ def run_annotation_task(sample_id: int, job_id: str) -> None:
                 VERSIONLESS_VEP_BUNDLE_BASELINE,
                 resolve_effective_vep_bundle_version,
             )
-            from backend.services.staleness import (
-                REFERENCE_VERSION_SNAPSHOT_KEY,
-                read_current_reference_versions,
+            from backend.services.reference_versions import (
+                compact_reference_versions,
+                read_current_reference_snapshot,
             )
+            from backend.services.staleness import REFERENCE_VERSION_SNAPSHOT_KEY
 
-            bundle_version = result.coverage_stats.get("bundle_version")
+            coverage_snapshot = dict(result.coverage_stats)
+            bundle_version = coverage_snapshot.get("bundle_version")
             if bundle_version is None:
-                vep_db_path = (
-                    registry.settings.vep_bundle_db_path
-                    if registry.settings.vep_bundle_db_path.is_file()
-                    else None
-                )
                 try:
                     bundle_version = resolve_effective_vep_bundle_version(
                         registry.reference_engine,
@@ -347,13 +350,23 @@ def run_annotation_task(sample_id: int, job_id: str) -> None:
                             "error": str(exc),
                         },
                     )
-            reference_versions = read_current_reference_versions(registry.reference_engine)
+            # Pin every successful-run record to one resolved value.  Copying
+            # keeps the annotation result immutable for callers while ensuring
+            # telemetry cannot retain ``null`` when state/provenance use the
+            # resolver fallback.
+            coverage_snapshot["bundle_version"] = bundle_version
+            reference_snapshot = read_current_reference_snapshot(
+                registry.reference_engine,
+                vep_db_path,
+                effective_vep_version=bundle_version,
+            )
+            reference_versions = compact_reference_versions(reference_snapshot)
             with sample_engine.begin() as conn:
                 _upsert_annotation_state(conn, "vep_bundle_version", bundle_version)
                 _upsert_annotation_state(
                     conn,
                     "annotation_bundle_coverage_json",
-                    json.dumps(result.coverage_stats),
+                    json.dumps(coverage_snapshot),
                 )
                 _upsert_annotation_state(
                     conn,
@@ -385,7 +398,12 @@ def run_annotation_task(sample_id: int, job_id: str) -> None:
         try:
             from backend.analysis.provenance import stamp_findings_provenance
 
-            stamped = stamp_findings_provenance(sample_engine, registry.reference_engine)
+            stamped = stamp_findings_provenance(
+                sample_engine,
+                registry.reference_engine,
+                vep_db_path,
+                reference_snapshot=reference_snapshot,
+            )
             logger.info(
                 "findings_provenance_stamped",
                 extra={"job_id": job_id, "sample_id": sample_id, "stamped": stamped},
@@ -407,7 +425,11 @@ def run_annotation_task(sample_id: int, job_id: str) -> None:
                 from backend.analysis.finding_diff import compute_and_store_finding_diff
 
                 compute_and_store_finding_diff(
-                    sample_engine, registry.reference_engine, prior_findings
+                    sample_engine,
+                    registry.reference_engine,
+                    prior_findings,
+                    vep_db_path=vep_db_path,
+                    reference_snapshot=reference_snapshot,
                 )
             except Exception:
                 logger.exception(
