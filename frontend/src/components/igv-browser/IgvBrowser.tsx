@@ -125,6 +125,18 @@ const DEFAULT_GRCH37_OPTIONS: BaseIgvBrowserOptions = {
   tracks: [],
 }
 
+const IGV_POSITION_PATTERN =
+  /^(?:[1-9][0-9]*|[1-9][0-9]{0,2}(?:,[0-9]{3})+)$/
+
+function parseIgvPosition(raw: unknown): number | undefined {
+  if (typeof raw !== "string" || !IGV_POSITION_PATTERN.test(raw)) {
+    return undefined
+  }
+
+  const position = Number(raw.replace(/,/g, ""))
+  return Number.isSafeInteger(position) && position > 0 ? position : undefined
+}
+
 interface GenomeBrowserReferenceStatus {
   available: boolean
   mode: "local" | "remote"
@@ -325,16 +337,15 @@ const IgvBrowser = forwardRef<IgvBrowserHandle, IgvBrowserProps>(
                 )?.value
 
               const chr = getName("Chr") ?? getName("Chromosome") ?? ""
-              const pos = parseInt(
-                (getName("Pos") ?? getName("Position") ?? "0").replace(/,/g, ""),
-                10,
+              const pos = parseIgvPosition(
+                getName("Pos") ?? getName("Position"),
               )
               const id = getName("ID") ?? getName("Names") ?? ""
               const refAllele = getName("Ref") ?? ""
               const alt = getName("Alt") ?? ""
 
               // Skip if essential fields are missing
-              if (!chr || pos <= 0) return undefined
+              if (!chr || pos === undefined) return undefined
 
               onVariantClickRef.current({
                 chr,
