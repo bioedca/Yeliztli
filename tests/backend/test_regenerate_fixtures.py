@@ -20,7 +20,7 @@ SEED_DIR = FIXTURES_DIR / "seed_csvs"
 SCRIPT = Path(__file__).resolve().parent.parent.parent / "scripts" / "regenerate_fixtures.py"
 PANEL_RSID_COORDINATES = FIXTURES_DIR / "panel_rsid_coordinates.json"
 
-GRCH37_COORDINATE_RSIDS = (
+COORDINATE_GUARD_RSIDS = (
     "rs6025",
     "rs1799963",
     "rs13266634",
@@ -29,20 +29,20 @@ GRCH37_COORDINATE_RSIDS = (
 )
 
 SEED_COORDINATE_TARGETS = {
-    "clinvar_seed.csv": GRCH37_COORDINATE_RSIDS,
-    "vep_seed.csv": GRCH37_COORDINATE_RSIDS,
-    "gnomad_seed.csv": GRCH37_COORDINATE_RSIDS,
-    "gwas_seed.csv": GRCH37_COORDINATE_RSIDS,
+    "clinvar_seed.csv": COORDINATE_GUARD_RSIDS,
+    "vep_seed.csv": COORDINATE_GUARD_RSIDS,
+    "gnomad_seed.csv": COORDINATE_GUARD_RSIDS,
+    "gwas_seed.csv": COORDINATE_GUARD_RSIDS,
     "dbnsfp_seed.csv": ("rs6025", "rs13266634", "rs2476601"),
 }
 
 MINI_DB_COORDINATE_TARGETS = {
     "mini_reference.db": {
-        "clinvar_variants": GRCH37_COORDINATE_RSIDS,
-        "gwas_associations": GRCH37_COORDINATE_RSIDS,
+        "clinvar_variants": COORDINATE_GUARD_RSIDS,
+        "gwas_associations": COORDINATE_GUARD_RSIDS,
     },
-    "mini_vep_bundle.db": {"vep_annotations": GRCH37_COORDINATE_RSIDS},
-    "mini_gnomad_af.db": {"gnomad_af": GRCH37_COORDINATE_RSIDS},
+    "mini_vep_bundle.db": {"vep_annotations": COORDINATE_GUARD_RSIDS},
+    "mini_gnomad_af.db": {"gnomad_af": COORDINATE_GUARD_RSIDS},
     "mini_dbnsfp.db": {
         "dbnsfp_scores": ("rs6025", "rs13266634", "rs2476601"),
     },
@@ -54,7 +54,7 @@ def _expected_grch37_coordinates() -> dict[str, tuple[str, int]]:
     variants = payload["rsids"]
     return {
         rsid: (str(variants[rsid]["chrom"]), int(variants[rsid]["start"]))
-        for rsid in GRCH37_COORDINATE_RSIDS
+        for rsid in COORDINATE_GUARD_RSIDS
     }
 
 
@@ -126,7 +126,9 @@ class TestSeedCSVContent:
             assert gene in text, f"cpic_alleles_seed.csv missing {gene}"
 
     @pytest.mark.parametrize(("csv_name", "rsids"), SEED_COORDINATE_TARGETS.items())
-    def test_seed_coordinates_are_grch37(self, csv_name: str, rsids: tuple[str, ...]) -> None:
+    def test_guarded_seed_coordinates_are_grch37(
+        self, csv_name: str, rsids: tuple[str, ...]
+    ) -> None:
         expected = _expected_grch37_coordinates()
         with (SEED_DIR / csv_name).open(newline="", encoding="utf-8") as fh:
             rows = [row for row in csv.DictReader(fh) if row["rsid"] in rsids]
@@ -308,7 +310,7 @@ class TestRegenerateFixtures:
         assert count >= 30, f"Expected >=30 dbNSFP rows, got {count}"
 
     @pytest.mark.parametrize(("db_name", "tables"), MINI_DB_COORDINATE_TARGETS.items())
-    def test_mini_db_coordinates_are_grch37(
+    def test_guarded_mini_db_coordinates_are_grch37(
         self, tmp_path: Path, db_name: str, tables: dict[str, tuple[str, ...]]
     ) -> None:
         expected = _expected_grch37_coordinates()
