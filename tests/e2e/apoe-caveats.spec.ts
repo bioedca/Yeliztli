@@ -115,12 +115,21 @@ test.describe('APOE caveats (#781)', () => {
 
   test('renders source discrepancy and array reliability after acknowledgement', async ({ page }) => {
     const detail = APOE_FINDINGS_WITH_CAVEATS.items[0].detail_json
-    expect(detail).toMatchObject({
+    expect(detail).toEqual({
       relative_risk: 'elevated',
       approximate_or: 3.2,
       non_actionable: true,
+      array_reliability: expect.objectContaining({
+        confirm_in_clia_recommended: true,
+        concordance_with_direct_genotyping: '~90% ε genotype / ~93% ε4 status',
+      }),
+      source_discrepancies: [
+        expect.objectContaining({
+          rsid: 'rs429358',
+          affects_e4_status: true,
+        }),
+      ],
     })
-    expect(detail).not.toHaveProperty('risk_level')
 
     await page.route('**/api/analysis/apoe/gate-status**', (route) =>
       route.fulfill(
