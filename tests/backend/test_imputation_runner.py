@@ -19,6 +19,7 @@ import backend.analysis.imputation_runner as ir_mod
 from backend.analysis.imputation_runner import (
     WELL_IMPUTED_DR2,
     ImputationRunner,
+    ImputedVariant,
     _normalize_chrom,
     beagle_jar_path,
     parse_imputed_vcf,
@@ -154,6 +155,22 @@ class TestSummary:
         assert s.n_well_imputed == 1
         assert s.frac_well_imputed == pytest.approx(0.25)
         assert s.mean_imputed_dr2 == pytest.approx((0.95 + 0.70 + 0.30 + 0.50) / 4)
+
+    def test_well_imputed_includes_exact_dr2_cutoff(self) -> None:
+        variant = ImputedVariant(
+            chrom="22",
+            pos=1,
+            ref="A",
+            alt="G",
+            dr2=WELL_IMPUTED_DR2,
+            af=None,
+            imputed=True,
+        )
+
+        summary = summarize_dr2([variant])
+
+        assert summary.n_well_imputed == 1
+        assert summary.frac_well_imputed == 1.0
 
     def test_frac_none_when_no_imputed(self) -> None:
         assert summarize_dr2([]).frac_well_imputed is None
