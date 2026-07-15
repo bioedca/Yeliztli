@@ -43,7 +43,6 @@ from backend.analysis.imputation_runner import (
     DEFAULT_TIMEOUT,
     ImputationChromResult,
     ImputationRunner,
-    ImputationSummary,
     ImputedVariant,
     parse_imputed_vcf,
     summarize_dr2,
@@ -101,7 +100,6 @@ class ImputePersistResult:
     n_imputed: int  # imputed markers parsed across all chromosomes
     n_persisted: int  # firewall-cleared imputed variants written
     firewall: FirewallSummary
-    quality: ImputationSummary
     chrom_results: list[ImputationChromResult] = field(default_factory=list)
 
 
@@ -123,7 +121,8 @@ def impute_and_persist_sample(
     the panel into ``work_dir/imputed``, then persists the firewall-cleared
     imputed variants to the sample DB. Chromosomes/regions whose input produced
     no usable sites, or whose Beagle run failed, are skipped (their failure is
-    recorded in ``chrom_results``). Returns counts plus the DR2/firewall summaries.
+    recorded in ``chrom_results``). Returns counts, the firewall summary, and
+    per-chromosome results.
     Chromosome X requires ``biological_sex`` resolved to ``XX`` or ``XY`` so its
     PAR/non-PAR ploidy can be encoded correctly.
 
@@ -159,7 +158,6 @@ def impute_and_persist_sample(
             all_variants.extend(parse_imputed_vcf(res.output_vcf, panel_af=panel_af))
 
     quality = summarize_dr2(all_variants)
-    quality.chrom_runtimes = {r.chrom: r.runtime_seconds for r in chrom_results if r.return_ok}
     firewall = summarize_firewall(all_variants)
 
     failed_chroms = [r.chrom for r in chrom_results if not r.return_ok]
@@ -188,6 +186,5 @@ def impute_and_persist_sample(
         n_imputed=quality.n_imputed,
         n_persisted=n_persisted,
         firewall=firewall,
-        quality=quality,
         chrom_results=chrom_results,
     )
