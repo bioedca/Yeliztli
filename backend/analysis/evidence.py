@@ -75,14 +75,6 @@ EVIDENCE_STRONG = 3  # ★★★☆
 EVIDENCE_MODERATE = 2  # ★★☆☆
 EVIDENCE_PRELIMINARY = 1  # ★☆☆☆
 
-#: Human-readable labels for each level.
-EVIDENCE_LABELS: dict[int, str] = {
-    EVIDENCE_DEFINITIVE: "Definitive / Pathogenic",
-    EVIDENCE_STRONG: "Strong Evidence",
-    EVIDENCE_MODERATE: "Moderate Evidence",
-    EVIDENCE_PRELIMINARY: "Preliminary / Exploratory",
-}
-
 # ── CPIC classification → star mapping ───────────────────────────────────
 
 _CPIC_STARS: dict[str, int] = {
