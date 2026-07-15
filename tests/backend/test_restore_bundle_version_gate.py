@@ -4,8 +4,8 @@ Locks the contract on ``POST /api/setup/import-backup``:
 
 * Pre-flight inspection reads each archived per-sample DB's recorded
   ``annotation_state.vep_bundle_version`` (or treats a missing table as
-  ``v1.0.0``) and compares against the installed
-  ``database_versions['vep_bundle'].version``.
+  ``v1.0.0``) and compares against the effective installed VEP version:
+  explicit registry row, embedded bundle metadata, then ``v1.0.0``.
 * A major-version mismatch in **either direction** halts the restore
   with HTTP 409 — nothing is written to ``data_dir``.
 * On a successful restore, every per-sample DB receives the three-step
@@ -33,6 +33,7 @@ from backend.db.tables import (
     database_versions,
     reference_metadata,
 )
+from tests.backend.vep_bundle_test_utils import seed_embedded_vep_bundle_version
 
 _PATCHES = (
     "backend.main.get_settings",
@@ -72,6 +73,30 @@ def _seed_reference_db(settings: Settings, vep_version: str | None) -> None:
                 )
     finally:
         engine.dispose()
+
+
+def _read_reference_vep_version(settings: Settings) -> str | None:
+    """Return the explicit VEP registry value without changing it."""
+    engine = sa.create_engine(f"sqlite:///{settings.reference_db_path}")
+    try:
+        with engine.connect() as conn:
+            return conn.execute(
+                sa.select(database_versions.c.version).where(
+                    database_versions.c.db_name == "vep_bundle"
+                )
+            ).scalar_one_or_none()
+    finally:
+        engine.dispose()
+
+
+def _bundle_file_state(bundle_path: Path) -> tuple[bytes, int, bool, bool]:
+    """Snapshot bundle bytes, mtime, and SQLite sidecar presence."""
+    return (
+        bundle_path.read_bytes(),
+        bundle_path.stat().st_mtime_ns,
+        Path(f"{bundle_path}-wal").exists(),
+        Path(f"{bundle_path}-shm").exists(),
+    )
 
 
 def _build_sample_db(
@@ -151,6 +176,159 @@ def restore_env(tmp_data_dir: Path, tmp_path: Path):
 
 
 class TestRestoreBundleVersionGate:
+    def test_embedded_version_without_registry_row_blocks_mismatch(self, restore_env):
+        """A self-described installed bundle participates in the restore gate."""
+        settings = restore_env["settings"]
+        _seed_reference_db(settings, vep_version=None)
+        seed_embedded_vep_bundle_version(settings.vep_bundle_db_path, "v3.0.0")
+        bundle_before = _bundle_file_state(settings.vep_bundle_db_path)
+        sample_db = _build_sample_db(
+            restore_env["src_dir"], "sample_1.db", bundle_version="v2.0.0"
+        )
+        archive = _build_archive([sample_db])
+
+        with _make_client_ctx(settings):
+            reset_registry()
+            from backend.main import create_app
+
+            app = create_app()
+            with TestClient(app) as tc:
+                resp = _post_import(tc, archive)
+            reset_registry()
+
+        assert resp.status_code == 409
+        detail = resp.json()["detail"]
+        assert detail["installed_version"] == "v3.0.0"
+        assert detail["backup_version"] == "v2.0.0"
+        assert detail["direction"] == "backup_below_installed"
+        assert _read_reference_vep_version(settings) is None
+        assert _bundle_file_state(settings.vep_bundle_db_path) == bundle_before
+
+    def test_explicit_version_precedes_embedded_metadata(self, restore_env):
+        """An explicit install stamp wins over conflicting embedded metadata."""
+        settings = restore_env["settings"]
+        _seed_reference_db(settings, vep_version="v2.0.0")
+        seed_embedded_vep_bundle_version(settings.vep_bundle_db_path, "v9.0.0")
+        bundle_before = _bundle_file_state(settings.vep_bundle_db_path)
+        sample_db = _build_sample_db(
+            restore_env["src_dir"], "sample_1.db", bundle_version="v9.0.0"
+        )
+        archive = _build_archive([sample_db])
+
+        with _make_client_ctx(settings):
+            reset_registry()
+            from backend.main import create_app
+
+            app = create_app()
+            with TestClient(app) as tc:
+                resp = _post_import(tc, archive)
+            reset_registry()
+
+        assert resp.status_code == 409
+        detail = resp.json()["detail"]
+        assert detail["installed_version"] == "v2.0.0"
+        assert detail["backup_version"] == "v9.0.0"
+        assert detail["direction"] == "backup_above_installed"
+        assert _read_reference_vep_version(settings) == "v2.0.0"
+        assert _bundle_file_state(settings.vep_bundle_db_path) == bundle_before
+
+    @pytest.mark.parametrize("corrupt", [False, True], ids=["versionless", "corrupt"])
+    def test_existing_bundle_without_readable_metadata_uses_v1_baseline(
+        self, restore_env, *, corrupt: bool
+    ):
+        """Versionless and unreadable installed files retain the shared baseline."""
+        settings = restore_env["settings"]
+        _seed_reference_db(settings, vep_version=None)
+        if corrupt:
+            settings.vep_bundle_db_path.write_bytes(b"not a SQLite database")
+        else:
+            engine = sa.create_engine(f"sqlite:///{settings.vep_bundle_db_path}")
+            try:
+                with engine.begin() as conn:
+                    conn.execute(sa.text("CREATE TABLE _placeholder (id INTEGER)"))
+            finally:
+                engine.dispose()
+        bundle_before = _bundle_file_state(settings.vep_bundle_db_path)
+        sample_db = _build_sample_db(
+            restore_env["src_dir"], "sample_1.db", bundle_version="v2.0.0"
+        )
+        archive = _build_archive([sample_db])
+
+        with _make_client_ctx(settings):
+            reset_registry()
+            from backend.main import create_app
+
+            app = create_app()
+            with TestClient(app) as tc:
+                resp = _post_import(tc, archive)
+            reset_registry()
+
+        assert resp.status_code == 409
+        detail = resp.json()["detail"]
+        assert detail["installed_version"] == "v1.0.0"
+        assert detail["backup_version"] == "v2.0.0"
+        assert detail["direction"] == "backup_above_installed"
+        assert _read_reference_vep_version(settings) is None
+        assert _bundle_file_state(settings.vep_bundle_db_path) == bundle_before
+
+    def test_malformed_explicit_version_preserves_fail_open_behavior(self, restore_env):
+        """Malformed explicit state remains unknown even with valid embedded metadata."""
+        settings = restore_env["settings"]
+        _seed_reference_db(settings, vep_version="not-a-version")
+        seed_embedded_vep_bundle_version(settings.vep_bundle_db_path, "v9.0.0")
+        bundle_before = _bundle_file_state(settings.vep_bundle_db_path)
+        sample_db = _build_sample_db(
+            restore_env["src_dir"], "sample_1.db", bundle_version="v1.0.0"
+        )
+        archive = _build_archive([sample_db])
+
+        with _make_client_ctx(settings):
+            reset_registry()
+            from backend.main import create_app
+
+            app = create_app()
+            with TestClient(app) as tc:
+                resp = _post_import(tc, archive)
+            reset_registry()
+
+        assert resp.status_code == 200
+        assert _read_reference_vep_version(settings) == "not-a-version"
+        assert _bundle_file_state(settings.vep_bundle_db_path) == bundle_before
+
+    def test_unreadable_registry_preserves_fail_open_behavior(self, restore_env):
+        """An unreadable registry keeps the installed version unknown."""
+        settings = restore_env["settings"]
+        _seed_reference_db(settings, vep_version=None)
+        seed_embedded_vep_bundle_version(settings.vep_bundle_db_path, "v3.0.0")
+        bundle_before = _bundle_file_state(settings.vep_bundle_db_path)
+        sample_db = _build_sample_db(
+            restore_env["src_dir"], "sample_1.db", bundle_version="v1.0.0"
+        )
+        archive = _build_archive([sample_db])
+
+        with _make_client_ctx(settings):
+            reset_registry()
+            from backend.main import create_app
+
+            app = create_app()
+            with TestClient(app) as tc:
+                engine = sa.create_engine(f"sqlite:///{settings.reference_db_path}")
+                try:
+                    with engine.begin() as conn:
+                        conn.execute(sa.text("DROP TABLE database_versions"))
+                finally:
+                    engine.dispose()
+                resp = _post_import(tc, archive)
+            reset_registry()
+
+        assert resp.status_code == 200
+        engine = sa.create_engine(f"sqlite:///{settings.reference_db_path}")
+        try:
+            assert "database_versions" not in sa.inspect(engine).get_table_names()
+        finally:
+            engine.dispose()
+        assert _bundle_file_state(settings.vep_bundle_db_path) == bundle_before
+
     def test_explicit_v1_backup_against_installed_v2_blocks(self, restore_env):
         """Backup recorded as v1.0.0, installed v2.0.0 → 409 mismatch."""
         settings = restore_env["settings"]
@@ -314,17 +492,15 @@ class TestRestoreBundleVersionGate:
         assert detail["backup_version"] == "v1.0.0"
         assert detail["direction"] == "backup_below_installed"
 
-    def test_no_installed_bundle_allows_any_backup(self, restore_env):
-        """Fresh install (no ``database_versions['vep_bundle']`` row) skips
-        the comparison — the bundle-download step happens later in the
-        wizard.
-        """
+    def test_no_installed_bundle_file_or_row_allows_any_backup(self, restore_env):
+        """A fresh install skips comparison until a bundle is installed."""
         settings = restore_env["settings"]
         _seed_reference_db(settings, vep_version=None)
         sample_db = _build_sample_db(
-            restore_env["src_dir"], "sample_1.db", bundle_version="v1.0.0"
+            restore_env["src_dir"], "sample_1.db", bundle_version="v2.0.0"
         )
         archive = _build_archive([sample_db])
+        assert not settings.vep_bundle_db_path.exists()
 
         with _make_client_ctx(settings):
             reset_registry()
@@ -337,6 +513,7 @@ class TestRestoreBundleVersionGate:
 
         assert resp.status_code == 200
         assert resp.json()["samples_restored"] == 1
+        assert not settings.vep_bundle_db_path.exists()
 
     def test_idempotent_three_step_upgrade_on_repeat_restore(self, restore_env):
         """Re-running the upgrade on an already-upgraded DB is a no-op."""
