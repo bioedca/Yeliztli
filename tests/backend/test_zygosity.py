@@ -156,6 +156,17 @@ class TestModuleConstants:
 
 
 class TestDominantHomAltPlausibility:
+    def test_midrare_hom_alt_without_observed_homozygotes_is_implausible(self) -> None:
+        row = SimpleNamespace(
+            zygosity=ZYG_HOM_ALT,
+            gnomad_af_popmax=0.005,
+            gnomad_af_global=None,
+            gnomad_homozygous_count=0,
+        )
+
+        # HWE expected hom-alt frequency is q²: 0.005² = 2.5e-5 <= 1e-4.
+        assert is_implausible_dominant_hom_alt(row, "AD") is True
+
     def test_missing_gnomad_af_without_observed_homozygotes_is_implausible(self) -> None:
         row = SimpleNamespace(
             zygosity=ZYG_HOM_ALT,
@@ -178,6 +189,28 @@ class TestDominantHomAltPlausibility:
 
 
 class TestRecessiveAffectedHomAltPlausibility:
+    def test_midrare_hom_alt_without_observed_homozygotes_is_implausible(self) -> None:
+        row = SimpleNamespace(
+            zygosity=ZYG_HOM_ALT,
+            gnomad_af_popmax=0.005,
+            gnomad_af_global=None,
+            gnomad_homozygous_count=0,
+        )
+
+        # A linear AF check would pass this call; q² = 2.5e-5 keeps it guarded.
+        assert is_implausible_recessive_affected_hom_alt(row, "AR") is True
+
+    def test_expected_homozygote_frequency_threshold_is_inclusive(self) -> None:
+        row = SimpleNamespace(
+            zygosity=ZYG_HOM_ALT,
+            gnomad_af_popmax=0.01,
+            gnomad_af_global=None,
+            gnomad_homozygous_count=0,
+        )
+
+        # q² = 0.01² = 1e-4 exactly, so the inclusive threshold applies.
+        assert is_implausible_recessive_affected_hom_alt(row, "AR") is True
+
     def test_rare_ar_hom_alt_without_observed_homozygotes_is_implausible(self) -> None:
         row = SimpleNamespace(
             zygosity=ZYG_HOM_ALT,
