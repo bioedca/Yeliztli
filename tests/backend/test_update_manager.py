@@ -743,6 +743,7 @@ class TestReannotationPrompts:
                             "clinvar": "20260301",
                             "gnomad": "2.1.1",
                             "dbnsfp": "4.5",
+                            "vep_bundle": "v1.0.0",
                         }
                     ),
                 )
@@ -789,7 +790,7 @@ class TestReannotationPrompts:
         sample_engine = db_registry.get_sample_engine(sample_path)
         create_sample_tables(sample_engine)
 
-        current_versions = {"gnomad": "2.1.1"}
+        current_versions = {"gnomad": "2.1.1", "vep_bundle": "v1.0.0"}
         with db_registry.reference_engine.begin() as conn:
             conn.execute(
                 samples.insert().values(

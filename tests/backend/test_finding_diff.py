@@ -552,7 +552,8 @@ class TestComputeAndStoreRoundTrip:
         assert loaded is not None
         assert loaded["counts"]["changed"] == 1
         assert loaded["release_deltas"] == [
-            {"db_name": "clinvar", "before": "2024-01", "after": "2024-06"}
+            {"db_name": "clinvar", "before": "2024-01", "after": "2024-06"},
+            {"db_name": "vep_bundle", "before": None, "after": "v1.0.0"},
         ]
         assert has_changes(loaded) is True
 

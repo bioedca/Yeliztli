@@ -1495,6 +1495,7 @@ def run_precheck_single_sample(
     db_name: str,
     old_significances: dict[str, str | None] | None = None,
     new_significances: dict[str, str | None] | None = None,
+    vep_db_path: Path | None = None,
 ) -> PreCheckResult:
     """Compare a sample's annotations against updated reference data.
 
@@ -1517,7 +1518,11 @@ def run_precheck_single_sample(
             new_significances=new_significances,
         )
 
-    result.stale_databases = find_stale_reference_versions(sample_engine, reference_engine)
+    result.stale_databases = find_stale_reference_versions(
+        sample_engine,
+        reference_engine,
+        vep_db_path,
+    )
     return result
 
 
@@ -1685,6 +1690,7 @@ def run_precheck_all_samples(
                 db_name=db_name,
                 old_significances=old_significances,
                 new_significances=new_significances,
+                vep_db_path=registry.settings.vep_bundle_db_path,
             )
 
             has_reclassifications = pre_check.candidate_count > 0 or pre_check.watched_reclassified

@@ -25,6 +25,8 @@ from backend.analysis.provenance import (
 from backend.db.database_registry import PIPELINE_GENOME_BUILD
 from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import annotated_variants, database_versions, findings, reference_metadata
+from backend.db.vep_version import VERSIONLESS_VEP_BUNDLE_BASELINE
+from tests.backend.vep_bundle_test_utils import seed_embedded_vep_bundle_version
 
 
 @pytest.fixture
@@ -140,7 +142,73 @@ class TestReadReleaseSnapshot:
         snap = read_release_snapshot(reference_engine)
         assert snap["clinvar"] == {"version": "2026-05-01", "genome_build": "GRCh37"}
         assert snap["dbnsfp"]["genome_build"] == "GRCh38"
-        assert set(snap) == {"clinvar", "gnomad", "dbnsfp", "cpic"}
+        assert snap["vep_bundle"] == {
+            "version": VERSIONLESS_VEP_BUNDLE_BASELINE,
+            "genome_build": "GRCh37",
+        }
+        assert set(snap) == {"clinvar", "gnomad", "dbnsfp", "cpic", "vep_bundle"}
+
+    def test_embedded_version_is_overlaid_without_registry_write(
+        self,
+        reference_engine: sa.Engine,
+        tmp_path: Path,
+    ) -> None:
+        vep_db_path = tmp_path / "vep_bundle.db"
+        seed_embedded_vep_bundle_version(vep_db_path, "v3.0.0")
+
+        snap = read_release_snapshot(reference_engine, vep_db_path)
+
+        assert snap["vep_bundle"] == {
+            "version": "v3.0.0",
+            "genome_build": "GRCh37",
+        }
+        with reference_engine.connect() as conn:
+            recorded = conn.execute(
+                sa.select(database_versions.c.version).where(
+                    database_versions.c.db_name == "vep_bundle"
+                )
+            ).scalar()
+        assert recorded is None
+
+    def test_explicit_version_precedes_embedded_metadata(
+        self,
+        reference_engine: sa.Engine,
+        tmp_path: Path,
+    ) -> None:
+        vep_db_path = tmp_path / "vep_bundle.db"
+        seed_embedded_vep_bundle_version(vep_db_path, "v9.0.0")
+        with reference_engine.begin() as conn:
+            conn.execute(
+                database_versions.insert().values(
+                    db_name="vep_bundle",
+                    version="v2.0.0",
+                    genome_build="GRCh37",
+                )
+            )
+
+        snap = read_release_snapshot(reference_engine, vep_db_path)
+
+        assert snap["vep_bundle"]["version"] == "v2.0.0"
+
+    def test_unreadable_registry_uses_baseline_without_reading_bundle_state(
+        self,
+        reference_engine: sa.Engine,
+        tmp_path: Path,
+    ) -> None:
+        vep_db_path = tmp_path / "vep_bundle.db"
+        seed_embedded_vep_bundle_version(vep_db_path, "v9.0.0")
+        before = vep_db_path.read_bytes()
+        database_versions.drop(reference_engine)
+
+        snap = read_release_snapshot(reference_engine, vep_db_path)
+
+        assert snap == {
+            "vep_bundle": {
+                "version": VERSIONLESS_VEP_BUNDLE_BASELINE,
+                "genome_build": "GRCh37",
+            }
+        }
+        assert vep_db_path.read_bytes() == before
 
 
 class TestBuildFindingProvenance:
@@ -191,7 +259,13 @@ class TestStampFindingsProvenance:
         assert prov["annotation_coverage"] is None
         assert prov["annotation_coverage_sources"] == []
         # Snapshot is still pinned even without a variant join.
-        assert set(prov["sources"]) == {"clinvar", "gnomad", "dbnsfp", "cpic"}
+        assert set(prov["sources"]) == {
+            "clinvar",
+            "gnomad",
+            "dbnsfp",
+            "cpic",
+            "vep_bundle",
+        }
 
     def test_finding_without_rsid_has_empty_variation_ids(
         self, sample_engine: sa.Engine, reference_engine: sa.Engine
@@ -203,7 +277,13 @@ class TestStampFindingsProvenance:
         assert prov["annotation_coverage"] is None
         assert prov["annotation_coverage_sources"] == []
         # The full release snapshot is still pinned even with no variant join.
-        assert set(prov["sources"]) == {"clinvar", "gnomad", "dbnsfp", "cpic"}
+        assert set(prov["sources"]) == {
+            "clinvar",
+            "gnomad",
+            "dbnsfp",
+            "cpic",
+            "vep_bundle",
+        }
 
     def test_idempotent(self, sample_engine: sa.Engine, reference_engine: sa.Engine) -> None:
         stamp_findings_provenance(sample_engine, reference_engine)
@@ -221,15 +301,36 @@ class TestStampFindingsProvenance:
     def test_empty_database_versions_still_stamps_valid_structure(
         self, sample_engine: sa.Engine, tmp_path: Path
     ) -> None:
-        # A reference DB with no recorded releases yet (empty database_versions)
-        # must still stamp valid provenance — just with an empty sources snapshot.
+        # A reference DB with no recorded releases still pins the documented
+        # versionless VEP baseline rather than the remote manifest release.
         bare_ref = sa.create_engine(f"sqlite:///{tmp_path / 'bare_ref.db'}")
         reference_metadata.create_all(bare_ref)
         assert stamp_findings_provenance(sample_engine, bare_ref) == 3
         prov = self._provenance_by_rsid(sample_engine)["rs80357906"]
-        assert prov["sources"] == {}
+        assert prov["sources"] == {
+            "vep_bundle": {
+                "version": VERSIONLESS_VEP_BUNDLE_BASELINE,
+                "genome_build": "GRCh37",
+            }
+        }
         assert prov["pipeline_version"]
         assert prov["annotation_coverage_sources"] == ["VEP", "ClinVar", "gnomAD", "dbNSFP"]
+
+    def test_embedded_vep_release_is_stamped_on_every_finding(
+        self,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+        tmp_path: Path,
+    ) -> None:
+        vep_db_path = tmp_path / "vep_bundle.db"
+        seed_embedded_vep_bundle_version(vep_db_path, "v3.0.0")
+
+        assert stamp_findings_provenance(sample_engine, reference_engine, vep_db_path) == 3
+
+        provenances = self._provenance_by_rsid(sample_engine).values()
+        assert {provenance["sources"]["vep_bundle"]["version"] for provenance in provenances} == {
+            "v3.0.0"
+        }
 
     def test_stamps_findings_on_v10_to_v11_migrated_db(
         self, tmp_path: Path, reference_engine: sa.Engine

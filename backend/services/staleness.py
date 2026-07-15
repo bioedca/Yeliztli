@@ -17,16 +17,21 @@ function.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import sqlalchemy as sa
 import structlog
 from packaging.version import InvalidVersion, Version
 
 from backend.db.connection import get_registry
-from backend.db.tables import annotation_state, database_versions, samples
+from backend.db.tables import annotation_state, samples
 from backend.db.vep_version import (
     VERSIONLESS_VEP_BUNDLE_BASELINE,
     resolve_effective_vep_bundle_version,
+)
+from backend.services.reference_versions import (
+    compact_reference_versions,
+    read_current_reference_snapshot,
 )
 
 logger = structlog.get_logger(__name__)
@@ -50,26 +55,21 @@ def _coerce_major(raw: str | None) -> int | None:
         return None
 
 
-def read_current_reference_versions(reference_engine: sa.Engine) -> dict[str, str]:
-    """Return current ``database_versions`` as ``{db_name: version}``.
+def read_current_reference_versions(
+    reference_engine: sa.Engine,
+    vep_db_path: Path | None = None,
+) -> dict[str, str]:
+    """Return current effective releases as ``{db_name: version}``.
 
     The reference DB may be partially initialized in tests or first-run setup.
-    Missing/unreadable version state declines to raise so callers can avoid
-    turning an informational staleness signal into a hard failure.
+    The shared snapshot path overlays VEP's explicit, embedded, or versionless
+    effective release without writing registry state.  Missing/unreadable
+    version state declines to raise so callers can avoid turning an
+    informational staleness signal into a hard failure.
     """
-    try:
-        with reference_engine.connect() as conn:
-            rows = conn.execute(
-                sa.select(database_versions.c.db_name, database_versions.c.version)
-            ).fetchall()
-    except sa.exc.OperationalError as exc:
-        logger.warning(
-            "database_versions_unreadable",
-            reason="table_or_db_unreachable",
-            error=str(exc),
-        )
-        return {}
-    return {row.db_name: row.version for row in rows if row.version}
+    return compact_reference_versions(
+        read_current_reference_snapshot(reference_engine, vep_db_path)
+    )
 
 
 def _parse_reference_versions(value: str | None) -> dict[str, str] | None:
@@ -126,6 +126,7 @@ def read_recorded_reference_versions(sample_engine: sa.Engine) -> dict[str, str]
 def find_stale_reference_versions(
     sample_engine: sa.Engine,
     reference_engine: sa.Engine,
+    vep_db_path: Path | None = None,
 ) -> list[dict[str, str | None]]:
     """Return reference DBs newer/different than the sample annotation snapshot.
 
@@ -137,7 +138,7 @@ def find_stale_reference_versions(
     if recorded is None:
         return []
 
-    current = read_current_reference_versions(reference_engine)
+    current = read_current_reference_versions(reference_engine, vep_db_path)
     stale: list[dict[str, str | None]] = []
     for db_name, current_version in sorted(current.items()):
         recorded_version = recorded.get(db_name)
