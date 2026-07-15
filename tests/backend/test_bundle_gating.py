@@ -23,6 +23,7 @@ from fastapi.testclient import TestClient
 
 from backend.config import Settings
 from backend.db.tables import database_versions, reference_metadata
+from tests.backend.vep_bundle_test_utils import seed_embedded_vep_bundle_version
 
 FIXTURES = Path(__file__).resolve().parent.parent / "fixtures"
 V5_FILE = FIXTURES / "sample_23andme_v5.txt"
@@ -58,7 +59,13 @@ def manifest_env(monkeypatch: pytest.MonkeyPatch) -> None:
     reset_cache()
 
 
-def _make_client(tmp_data_dir: Path, *, vep_bundle_version: str | None) -> TestClient:
+def _make_client(
+    tmp_data_dir: Path,
+    *,
+    vep_bundle_version: str | None,
+    embedded_vep_bundle_version: str | None = None,
+    unreadable_vep_bundle: bool = False,
+) -> TestClient:
     settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
     ref_path = settings.reference_db_path
     engine = sa.create_engine(f"sqlite:///{ref_path}")
@@ -67,6 +74,13 @@ def _make_client(tmp_data_dir: Path, *, vep_bundle_version: str | None) -> TestC
 
     if vep_bundle_version is not None:
         _seed_vep_bundle_version(ref_path, vep_bundle_version)
+    if embedded_vep_bundle_version is not None:
+        seed_embedded_vep_bundle_version(
+            settings.vep_bundle_db_path,
+            embedded_vep_bundle_version,
+        )
+    if unreadable_vep_bundle:
+        settings.vep_bundle_db_path.write_bytes(b"not a SQLite database")
 
     patchers = [
         patch("backend.main.get_settings", return_value=settings),
@@ -88,6 +102,7 @@ def _make_client(tmp_data_dir: Path, *, vep_bundle_version: str | None) -> TestC
 
     app = create_app()
     client = TestClient(app)
+    client.__settings__ = settings
 
     def _close() -> None:
         client.close()
@@ -104,8 +119,18 @@ def _make_client(tmp_data_dir: Path, *, vep_bundle_version: str | None) -> TestC
 def client_factory(tmp_data_dir: Path):
     clients: list[TestClient] = []
 
-    def _factory(vep_bundle_version: str | None) -> TestClient:
-        c = _make_client(tmp_data_dir, vep_bundle_version=vep_bundle_version)
+    def _factory(
+        vep_bundle_version: str | None,
+        *,
+        embedded_vep_bundle_version: str | None = None,
+        unreadable_vep_bundle: bool = False,
+    ) -> TestClient:
+        c = _make_client(
+            tmp_data_dir,
+            vep_bundle_version=vep_bundle_version,
+            embedded_vep_bundle_version=embedded_vep_bundle_version,
+            unreadable_vep_bundle=unreadable_vep_bundle,
+        )
         clients.append(c)
         return c
 
@@ -152,6 +177,89 @@ def test_ancestrydna_with_v2_bundle_returns_202(manifest_env, client_factory) ->
     body = response.json()
     assert body["variant_count"] > 0
     assert body["file_format"] == "ancestrydna_v2.0"
+
+
+def test_ancestrydna_with_embedded_v2_and_no_registry_row_returns_202(
+    manifest_env,
+    client_factory,
+) -> None:
+    client = client_factory(None, embedded_vep_bundle_version="v2.0.0")
+    with open(ANCESTRY_FILE, "rb") as f:
+        response = client.post(
+            "/api/ingest",
+            files={"file": ("ancestry.txt", f, "text/plain")},
+        )
+
+    assert response.status_code == 202, response.text
+    reference_engine = sa.create_engine(f"sqlite:///{client.__settings__.reference_db_path}")
+    try:
+        with reference_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(database_versions.c.version).where(
+                    database_versions.c.db_name == "vep_bundle"
+                )
+            ).fetchone()
+        assert row is None
+    finally:
+        reference_engine.dispose()
+
+
+def test_ancestrydna_with_versionless_bundle_uses_v1_baseline(
+    manifest_env,
+    client_factory,
+) -> None:
+    client = client_factory(None, embedded_vep_bundle_version="")
+    with open(ANCESTRY_FILE, "rb") as f:
+        response = client.post(
+            "/api/ingest",
+            files={"file": ("ancestry.txt", f, "text/plain")},
+        )
+
+    assert response.status_code == 409, response.text
+    assert response.json()["detail"]["installed_version"] == "v1.0.0"
+
+
+def test_explicit_v1_registry_row_precedes_embedded_v2(
+    manifest_env,
+    client_factory,
+) -> None:
+    client = client_factory("v1.0.0", embedded_vep_bundle_version="v2.0.0")
+    with open(ANCESTRY_FILE, "rb") as f:
+        response = client.post(
+            "/api/ingest",
+            files={"file": ("ancestry.txt", f, "text/plain")},
+        )
+
+    assert response.status_code == 409, response.text
+    assert response.json()["detail"]["installed_version"] == "v1.0.0"
+
+
+def test_malformed_embedded_version_fails_safe(manifest_env, client_factory) -> None:
+    client = client_factory(None, embedded_vep_bundle_version="not-a-version")
+    with open(ANCESTRY_FILE, "rb") as f:
+        response = client.post(
+            "/api/ingest",
+            files={"file": ("ancestry.txt", f, "text/plain")},
+        )
+
+    assert response.status_code == 409, response.text
+    assert response.json()["detail"]["installed_version"] == "not-a-version"
+
+
+def test_unreadable_embedded_bundle_fails_safe(
+    manifest_env,
+    client_factory,
+) -> None:
+    client = client_factory(None, unreadable_vep_bundle=True)
+    with open(ANCESTRY_FILE, "rb") as f:
+        response = client.post(
+            "/api/ingest",
+            files={"file": ("ancestry.txt", f, "text/plain")},
+        )
+
+    assert response.status_code == 409, response.text
+    assert response.json()["detail"]["installed_version"] == "v1.0.0"
+    assert client.__settings__.vep_bundle_db_path.read_bytes() == b"not a SQLite database"
 
 
 def test_23andme_with_v1_bundle_returns_202(manifest_env, client_factory) -> None:

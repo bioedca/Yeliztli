@@ -12,7 +12,7 @@ import logging
 import uuid
 import zipfile
 from datetime import UTC, datetime
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 
 import sqlalchemy as sa
 from fastapi import APIRouter, HTTPException, UploadFile
@@ -23,7 +23,8 @@ from backend.db.connection import get_registry
 from backend.db.database_registry import DATABASES
 from backend.db.manifest import get_bundle_info
 from backend.db.sample_schema import create_sample_tables
-from backend.db.tables import database_versions, jobs, raw_variants, sample_metadata_table, samples
+from backend.db.tables import jobs, raw_variants, sample_metadata_table, samples
+from backend.db.vep_version import resolve_effective_vep_bundle_version
 from backend.ingestion.base import ParsedVariant, ParseResult, UnsupportedFormatError
 from backend.ingestion.dispatcher import (
     ParserError,
@@ -185,20 +186,18 @@ def _normalize_upload_bytes(file_bytes: bytes, filename: str) -> tuple[bytes, st
         raise UnsupportedFormatError(_ZIP_INVALID_ERROR) from exc
 
 
-def _vep_bundle_blocks_ancestrydna(reference_engine: sa.Engine) -> tuple[bool, str | None]:
-    """Read the installed vep_bundle semver and decide whether to gate.
+def _vep_bundle_blocks_ancestrydna(
+    reference_engine: sa.Engine,
+    vep_db_path: Path | None,
+) -> tuple[bool, str]:
+    """Resolve the effective vep_bundle semver and decide whether to gate.
 
-    Returns ``(should_block, installed_version_raw)``. Block when the
-    installed version is missing, malformed, or strictly below v2.0.0
-    (per Plan §5.4 — partial-hit annotation is clinically misleading).
+    Returns ``(should_block, installed_version_raw)``. Missing or unreadable
+    embedded metadata resolves to the shared versionless baseline. Block when
+    the resulting version is malformed or strictly below v2.0.0 (per Plan
+    §5.4 — partial-hit annotation is clinically misleading).
     """
-    with reference_engine.connect() as conn:
-        row = conn.execute(
-            sa.select(database_versions.c.version).where(
-                database_versions.c.db_name == "vep_bundle"
-            )
-        ).fetchone()
-    installed_raw = row.version if row else None
+    installed_raw = resolve_effective_vep_bundle_version(reference_engine, vep_db_path)
     installed = _coerce_semver(installed_raw)
     if installed is None:
         return True, installed_raw
@@ -309,7 +308,10 @@ def _ingest_file(file_bytes: bytes, filename: str) -> dict:
     # uploads against a pre-v2.0.0 vep_bundle are rejected with the structured
     # 409 payload before any sample/job rows are written.
     if result.vendor.value == "ancestrydna":
-        should_block, installed_raw = _vep_bundle_blocks_ancestrydna(registry.reference_engine)
+        should_block, installed_raw = _vep_bundle_blocks_ancestrydna(
+            registry.reference_engine,
+            registry.settings.vep_bundle_db_path,
+        )
         if should_block:
             payload = _build_bundle_gate_payload(installed_raw)
             logger.info(
