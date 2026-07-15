@@ -466,6 +466,16 @@ def test_input_manifest_rejects_ambiguous_vcf_samples_and_markers(
         _write_input(module, inputs)
 
 
+def test_input_manifest_normalizes_corrupt_deflate_errors(tmp_path: Path) -> None:
+    module = _load_module()
+    inputs = _make_inputs(tmp_path / "inputs")
+    vcf_path, _index_path = inputs.chromosome_files["chr1"]
+    vcf_path.write_bytes(b"\x1f\x8b\x08\x00\x00\x00\x00\x00\x00\x03not-a-deflate-stream")
+
+    with pytest.raises(module.ManifestError, match="invalid gzip/BGZF stream"):
+        _write_input(module, inputs)
+
+
 def test_input_manifest_loader_rejects_extra_fields_and_noncanonical_json(tmp_path: Path) -> None:
     module = _load_module()
     inputs = _make_inputs(tmp_path / "inputs")

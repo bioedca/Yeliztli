@@ -30,6 +30,7 @@ import re
 import stat
 import tempfile
 import unicodedata
+import zlib
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -740,7 +741,7 @@ def _parse_vcf(
                         marker_keys.add(marker_key)
                         markers.append(marker)
                         previous_position = position
-            except (gzip.BadGzipFile, EOFError, OSError) as exc:
+            except (gzip.BadGzipFile, EOFError, OSError, zlib.error) as exc:
                 raise ManifestError(f"{chromosome} VCF: invalid gzip/BGZF stream: {exc}") from exc
             after = _signature(os.fstat(raw_handle.fileno()))
     except OSError as exc:
