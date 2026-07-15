@@ -202,9 +202,6 @@ _VEP_COLS = (
     "intron_number, mane_select"
 )
 
-# Batch size for VEP IN clause
-_IN_BATCH_SIZE = 500
-
 
 def _get_sample_engine(sample_id: int) -> sa.Engine:
     """Resolve sample_id to a per-sample DB engine."""
