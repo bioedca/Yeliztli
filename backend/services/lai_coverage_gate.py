@@ -84,16 +84,6 @@ def _read_installed_lai_version() -> str | None:
     return row.version if row else None
 
 
-def _read_sample_file_format(sample_id: int) -> str | None:
-    """Read ``samples.file_format`` for ``sample_id`` from the reference DB."""
-    registry = get_registry()
-    with registry.reference_engine.connect() as conn:
-        row = conn.execute(
-            sa.select(samples.c.file_format).where(samples.c.id == sample_id)
-        ).fetchone()
-    return row.file_format if row else None
-
-
 def _source_ids_from_merged_sample(
     registry: object,
     sample_id: int,
