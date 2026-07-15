@@ -6,7 +6,7 @@ import { describe, it, expect, vi, beforeEach, afterEach, afterAll } from "vites
 import { render, screen, waitFor } from "@/test/test-utils"
 import userEvent from "@testing-library/user-event"
 import IgvBrowser, { GENOME_BROWSER_REFERENCE_DISCLOSURE_KEY } from "./IgvBrowser"
-import type { IgvBrowserHandle } from "./IgvBrowser"
+import type { IgvBrowserHandle, IgvVariantClickEvent } from "./IgvBrowser"
 import { __setIgvForTesting } from "./igv-test-utils"
 
 const mockCreateBrowser = vi.fn()
@@ -84,7 +84,9 @@ afterAll(() => {
 })
 
 describe("IgvBrowser", () => {
-  async function renderTrackClickHandler(onVariantClick: ReturnType<typeof vi.fn>) {
+  async function renderTrackClickHandler(
+    onVariantClick: (variant: IgvVariantClickEvent) => void,
+  ) {
     render(<IgvBrowser onVariantClick={onVariantClick} />)
     await waitFor(() => {
       expect(mockOn).toHaveBeenCalledWith("trackclick", expect.any(Function))
