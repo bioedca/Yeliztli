@@ -597,6 +597,19 @@ def test_manifest_output_must_not_alias_an_input_or_be_a_broken_symlink(
     assert broken_output.is_symlink()
 
 
+def test_training_inputs_must_not_be_hard_link_aliases(tmp_path: Path) -> None:
+    module = _load_module()
+    inputs = _make_inputs(tmp_path / "inputs")
+    _chr1_vcf, chr1_index = inputs.chromosome_files["chr1"]
+    chr2_vcf, chr2_index = inputs.chromosome_files["chr2"]
+    chr2_index.unlink()
+    chr2_index.hardlink_to(chr1_index)
+    inputs.chromosome_files["chr2"] = (chr2_vcf, chr2_index)
+
+    with pytest.raises(module.ManifestError, match="inputs alias the same file"):
+        _write_input(module, inputs)
+
+
 def test_source_uris_cannot_embed_credentials_or_signed_queries(tmp_path: Path) -> None:
     module = _load_module()
     inputs = _make_inputs(tmp_path / "inputs")
@@ -834,7 +847,7 @@ def test_split_manifest_requires_three_distinct_exact_split_files(
         split_files["train2"].unlink()
         split_files["train2"].hardlink_to(split_files["train1"])
 
-    with pytest.raises(module.ManifestError, match="exactly|different"):
+    with pytest.raises(module.ManifestError, match="exactly|different|alias"):
         module.write_split_manifest(
             inputs.root / "training-splits.json",
             input_manifest_path=input_manifest,

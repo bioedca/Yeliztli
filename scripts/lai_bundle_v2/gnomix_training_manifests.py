@@ -169,11 +169,17 @@ def _assert_path_signature(
 
 def _capture_signatures(paths: Sequence[Path]) -> list[_CapturedSignature]:
     captured: list[_CapturedSignature] = []
+    identities: dict[tuple[int, int], Path] = {}
     for index, path in enumerate(paths):
         descriptor, absolute, signature = _open_regular(
             Path(path), label=f"manifest input {index + 1}"
         )
         os.close(descriptor)
+        identity = (signature[0], signature[1])
+        previous = identities.get(identity)
+        if previous is not None:
+            raise ManifestError(f"manifest inputs alias the same file: {previous} and {absolute}")
+        identities[identity] = absolute
         captured.append((absolute, signature))
     return captured
 
