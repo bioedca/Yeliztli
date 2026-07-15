@@ -26,7 +26,6 @@ from __future__ import annotations
 
 import csv
 import gzip
-import hashlib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -175,7 +174,6 @@ class LoadStats:
     skipped_multiallelic: int = 0
     multiallelic_sites_split: int = 0
     multiallelic_records_loaded: int = 0
-    sha256: str | None = None
 
 
 @dataclass
@@ -443,18 +441,6 @@ def _warn_site_or_alt_value_count_mismatch(
             alt_count=alt_count,
             value_count=value_count,
         )
-
-
-def _compute_sha256(file_path: Path) -> str:
-    """Compute SHA-256 checksum of a file."""
-    sha = hashlib.sha256()
-    with open(file_path, "rb") as f:
-        while True:
-            chunk = f.read(65536)
-            if not chunk:
-                break
-            sha.update(chunk)
-    return sha.hexdigest()
 
 
 def _wal_checkpoint(engine: sa.Engine) -> None:
