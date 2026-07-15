@@ -1,10 +1,10 @@
 """Runs-of-Homozygosity (ROH) / FROH autozygosity estimate — roadmap #29.
 
-A clean-room sliding-run detector (PLINK ``--homozyg`` equivalent, no GPL code)
-that scans the autosomal genotypes for long stretches of consecutive homozygous
-calls — the signature of autozygosity (a segment inherited identical-by-descent
-from a shared ancestor). The summed ROH length over the autosomal genome gives
-**FROH**, a standard genomic estimate of autozygosity.
+A clean-room, PLINK-inspired sliding-run detector (no GPL code) that scans the
+autosomal genotypes for long stretches of consecutive homozygous calls — the
+signature of autozygosity (a segment inherited identical-by-descent from a
+shared ancestor). The summed ROH length over the autosomal genome gives **FROH**,
+a standard genomic estimate of autozygosity.
 
 What this is *not* (the load-bearing honesty guardrail, §12): FROH is a
 genome-wide *estimate* derived from one array, **not** a diagnosis or a statement
@@ -19,10 +19,11 @@ Method (parameters documented and tuned for a dense ~600–700k-marker array):
     ``"AG"`` het, ``"--"``/haploid/indel → missing); ROH is strand-independent so
     no ref/alt is needed.
   - Per autosome, SNPs are walked in position order. A run extends across
-    consecutive non-missing SNPs while (a) it accumulates at most
-    ``HET_TOLERANCE`` heterozygous calls (genotyping-error slack) and (b) no gap
-    between adjacent typed SNPs exceeds ``MAX_GAP_KB`` (so coverage gaps /
-    centromeres break a run instead of being spanned).
+    consecutive non-missing SNPs while (a) every local ``HET_WINDOW_SNPS``
+    neighborhood contains at most ``HET_WINDOW_TOLERANCE`` heterozygous calls
+    (genotyping-error slack proportional to run length) and (b) no gap between
+    adjacent typed SNPs exceeds ``MAX_GAP_KB`` (so coverage gaps / centromeres
+    break a run instead of being spanned).
   - A run is recorded as an ROH segment when, after trimming to homozygous
     endpoints, it spans ≥ ``MIN_ROH_KB`` and contains ≥ ``MIN_ROH_SNPS``
     homozygous SNPs.
@@ -39,6 +40,7 @@ post-annotation finding set (and its validation golden snapshot) unchanged.
 from __future__ import annotations
 
 import json
+from collections import deque
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -57,7 +59,8 @@ CATEGORY = "autozygosity"
 MIN_ROH_KB = 1500  # minimum segment span to count as an ROH (autozygosity focus)
 MIN_ROH_SNPS = 100  # minimum homozygous SNPs in a segment (guards against sparse spans)
 MAX_GAP_KB = 1000  # a gap > this between adjacent typed SNPs breaks a run
-HET_TOLERANCE = 1  # heterozygous calls allowed within one run (genotyping-error slack)
+HET_WINDOW_SNPS = 50  # typed-SNP neighborhood used for local error tolerance
+HET_WINDOW_TOLERANCE = 1  # heterozygous calls allowed per local neighborhood
 
 # FROH denominator: the autosomal genome length (~2.77 Gb), McQuillan 2008
 # convention, so FROH is comparable across samples rather than array-relative.
@@ -137,21 +140,34 @@ def _read_autosomal_states(sample_engine: sa.Engine) -> dict[str, list[tuple[int
 
 
 def _scan_chromosome(chrom: str, snps: list[tuple[int, str]]) -> list[RohSegment]:
-    """Greedy non-overlapping ROH detection over one chromosome's typed SNPs."""
+    """Detect non-overlapping ROH with a local heterozygote-density guard.
+
+    The window rule is deliberately simpler than PLINK's full overlapping-window
+    hit-rate algorithm: it rejects a candidate as soon as adding a heterozygous
+    call would put more than ``HET_WINDOW_TOLERANCE`` such calls in the trailing
+    ``HET_WINDOW_SNPS`` typed SNPs. Isolated errors can therefore accumulate
+    across a long run, while a locally heterozygous stretch still splits it.
+    """
     segments: list[RohSegment] = []
     n = len(snps)
     i = 0
     while i < n:
-        # Extend a run from i while het tolerance and gap rules hold.
-        hets = 1 if snps[i][1] == _HET else 0
+        # Extend a run from i while local het-density and gap rules hold.
+        window_hets: deque[int] = deque()
+        if snps[i][1] == _HET:
+            window_hets.append(i)
         k = i + 1
         while k < n:
             if snps[k][0] - snps[k - 1][0] > MAX_GAP_KB * 1000:
                 break
-            add_het = 1 if snps[k][1] == _HET else 0
-            if hets + add_het > HET_TOLERANCE:
-                break
-            hets += add_het
+
+            window_start = k - HET_WINDOW_SNPS + 1
+            while window_hets and window_hets[0] < window_start:
+                window_hets.popleft()
+            if snps[k][1] == _HET:
+                if len(window_hets) >= HET_WINDOW_TOLERANCE:
+                    break
+                window_hets.append(k)
             k += 1
         # Run is snps[i .. k-1]; trim to homozygous endpoints.
         lo, hi = i, k - 1
@@ -231,7 +247,8 @@ def store_roh_findings(result: RohResult, sample_engine: sa.Engine) -> int:
             "min_roh_kb": MIN_ROH_KB,
             "min_roh_snps": MIN_ROH_SNPS,
             "max_gap_kb": MAX_GAP_KB,
-            "het_tolerance": HET_TOLERANCE,
+            "het_window_snps": HET_WINDOW_SNPS,
+            "het_window_tolerance": HET_WINDOW_TOLERANCE,
             "froh_denominator_kb": AUTOSOMAL_GENOME_KB,
         },
         "segments": [
