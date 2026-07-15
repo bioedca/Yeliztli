@@ -15,6 +15,7 @@ Covers:
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Generator
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
@@ -627,6 +628,20 @@ class TestClinicalTemplates:
         assert "Modules" in html
         assert "Findings" in html
         assert "High Evidence" in html
+
+    def test_high_evidence_count_value(
+        self, tmp_data_dir: Path, sample_with_findings: tuple
+    ) -> None:
+        """Summary bar counts both three- and four-star findings."""
+        html = _render_html_helper(tmp_data_dir, sample_with_findings)
+        match = re.search(
+            r'<span class="summary-stat-value">(\d+)</span>\s*'
+            r'<span class="summary-stat-label">High Evidence</span>',
+            html,
+        )
+
+        assert match is not None
+        assert int(match.group(1)) == 4
 
     def test_table_of_contents(self, tmp_data_dir: Path, sample_with_findings: tuple) -> None:
         """Template renders table of contents when multiple modules."""
