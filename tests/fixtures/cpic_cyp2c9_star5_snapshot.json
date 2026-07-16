@@ -1,0 +1,46 @@
+{
+  "_provenance": {
+    "source": "CPIC REST API",
+    "accessed": "2026-07-16",
+    "allele_url": "https://api.cpicpgx.org/v1/allele?genesymbol=eq.CYP2C9&select=name,clinicalfunctionalstatus,activityvalue,strength",
+    "diplotype_url": "https://api.cpicpgx.org/v1/diplotype?genesymbol=eq.CYP2C9&select=diplotype,generesult,lookupkey",
+    "paper": "Karnes et al. 2021, doi:10.1002/cpt.2008, PMID:32779747",
+    "note": "Offline reference restricted to the seven CYP2C9*5 diplotypes shipped by Yeliztli; regenerate deliberately and never fetch during tests."
+  },
+  "allele": {
+    "name": "*5",
+    "clinical_function": "Decreased function",
+    "activity_value": 0.5,
+    "strength": "Strong"
+  },
+  "diplotypes": {
+    "*1/*5": {
+      "phenotype": "Intermediate Metabolizer",
+      "activity_score": 1.5
+    },
+    "*2/*5": {
+      "phenotype": "Intermediate Metabolizer",
+      "activity_score": 1.0
+    },
+    "*3/*5": {
+      "phenotype": "Poor Metabolizer",
+      "activity_score": 0.5
+    },
+    "*5/*5": {
+      "phenotype": "Intermediate Metabolizer",
+      "activity_score": 1.0
+    },
+    "*5/*6": {
+      "phenotype": "Poor Metabolizer",
+      "activity_score": 0.5
+    },
+    "*5/*8": {
+      "phenotype": "Intermediate Metabolizer",
+      "activity_score": 1.0
+    },
+    "*5/*11": {
+      "phenotype": "Intermediate Metabolizer",
+      "activity_score": 1.0
+    }
+  }
+}

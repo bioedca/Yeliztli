@@ -13,11 +13,10 @@ carrying e.g. ``*1/*5`` therefore resolved to ``phenotype=None`` and
 guidance — the same "dropped diplotype" defect fixed for TPMT (#5) and DPYD.
 
 Phenotypes follow the CPIC CYP2C9 activity-score scheme (Normal function ``*1``=1,
-decreased ``*2``/``*8``/``*11``=0.5, ``*3``/``*5``/``*6`` contribute 0 to the
-phenotype-determining score): activity score 2 → Normal Metabolizer, 1.0–1.5 →
-Intermediate Metabolizer, 0–0.5 → Poor Metabolizer. The ``activity_score`` CSV
-column uses the same allele-value sum, so ``*3`` contributes 0 in both phenotype
-translation and reported activity scores.
+decreased ``*2``/``*5``/``*8``/``*11``=0.5, and no-function ``*3``/``*6``=0):
+activity score 2 → Normal Metabolizer, 1.0–1.5 → Intermediate Metabolizer,
+0–0.5 → Poor Metabolizer. The ``activity_score`` CSV column uses the same
+allele-value sum.
 
 CYP2C9 ``*6`` caveat — rs9332131 is a single-base deletion. The caller can type
 the allele when raw data represents the site with D/I tokens (``DI`` ->
@@ -33,6 +32,7 @@ load-bearing.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -51,6 +51,11 @@ from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import raw_variants, reference_metadata
 
 _CPIC_DIR = Path(__file__).resolve().parents[2] / "backend" / "data" / "cpic"
+_CPIC_STAR5_SNAPSHOT = json.loads(
+    (
+        Path(__file__).resolve().parents[1] / "fixtures" / "cpic_cyp2c9_star5_snapshot.json"
+    ).read_text(encoding="utf-8")
+)
 
 # CYP2C9 defining variants on the GRCh37 plus strand (chr10q23.33, plus strand,
 # so alt is the base a carrier of the star allele has). rsid -> (chrom, pos, ref,
@@ -59,22 +64,22 @@ _CPIC_DIR = Path(__file__).resolve().parents[2] / "backend" / "data" / "cpic"
 _CYP2C9_SNP = {
     "rs1799853": ("10", 96702047, "C", "T"),  # *2   decreased function
     "rs1057910": ("10", 96741053, "A", "C"),  # *3   loss of function
-    "rs28371686": ("10", 96741058, "C", "G"),  # *5   no function
+    "rs28371686": ("10", 96741058, "C", "G"),  # *5   decreased function
     "rs7900194": ("10", 96702066, "G", "A"),  # *8   decreased function
     "rs28371685": ("10", 96740981, "C", "T"),  # *11  decreased function
 }
 _CYP2C9_INDEL = {"rs9332131": ("10", 96709038, "GA", "G")}  # *6 deletion
 
 # Every diplotype row added for issue #14 -> (expected phenotype, activity_score).
-# activity_score is the CPIC allele-value sum (*1=1, *2/*8/*11=0.5, *3/*5/*6=0).
+# activity_score is the CPIC allele-value sum (*1=1, *2/*5/*8/*11=0.5, *3/*6=0).
 _NEW_DIPLOTYPES = {
-    "*1/*5": ("Intermediate Metabolizer", 1.0),
-    "*2/*5": ("Poor Metabolizer", 0.5),
-    "*3/*5": ("Poor Metabolizer", 0.0),
-    "*5/*5": ("Poor Metabolizer", 0.0),
-    "*5/*6": ("Poor Metabolizer", 0.0),
-    "*5/*8": ("Poor Metabolizer", 0.5),
-    "*5/*11": ("Poor Metabolizer", 0.5),
+    "*1/*5": ("Intermediate Metabolizer", 1.5),
+    "*2/*5": ("Intermediate Metabolizer", 1.0),
+    "*3/*5": ("Poor Metabolizer", 0.5),
+    "*5/*5": ("Intermediate Metabolizer", 1.0),
+    "*5/*6": ("Poor Metabolizer", 0.5),
+    "*5/*8": ("Intermediate Metabolizer", 1.0),
+    "*5/*11": ("Intermediate Metabolizer", 1.0),
     "*1/*6": ("Intermediate Metabolizer", 1.0),
     "*2/*6": ("Poor Metabolizer", 0.5),
     "*3/*6": ("Poor Metabolizer", 0.0),
@@ -184,6 +189,30 @@ def test_new_diplotype_rows_resolve_to_expected_phenotype(
     assert row["phenotype"] == expected_phenotype
     assert row["activity_score"] == expected_activity
     assert row["ehr_notation"] == f"CYP2C9 {expected_phenotype}"
+
+
+def test_star5_allele_matches_offline_cpic_snapshot(reference_engine: sa.Engine) -> None:
+    """The shipped *5 allele keeps CPIC's decreased-function 0.5 assignment."""
+    expected = _CPIC_STAR5_SNAPSHOT["allele"]
+    star5 = next(
+        allele
+        for allele in _fetch_alleles_for_gene("CYP2C9", reference_engine)
+        if allele["allele_name"] == expected["name"]
+    )
+
+    assert star5["function"] == expected["clinical_function"]
+    assert star5["activity_score"] == expected["activity_value"]
+
+
+def test_star5_diplotypes_match_offline_cpic_snapshot(reference_engine: sa.Engine) -> None:
+    """All shipped *5 diplotypes match the deliberately frozen CPIC API subset."""
+    for diplotype, expected in _CPIC_STAR5_SNAPSHOT["diplotypes"].items():
+        row = _fetch_diplotype_phenotype("CYP2C9", diplotype, reference_engine)
+
+        assert row is not None, f"CYP2C9 {diplotype} has no diplotype→phenotype row"
+        assert row["phenotype"] == expected["phenotype"]
+        assert row["activity_score"] == expected["activity_score"]
+        assert row["ehr_notation"] == f"CYP2C9 {expected['phenotype']}"
 
 
 def test_star3_allele_is_no_function(reference_engine: sa.Engine) -> None:
@@ -314,15 +343,15 @@ def test_single_reduced_function_het_is_intermediate(
     assert result.call_confidence != CallConfidence.INSUFFICIENT
 
 
-def test_compound_het_star2_star5_is_poor(reference_engine: sa.Engine) -> None:
-    """Het *2 (rs1799853) + het *5 (rs28371686) -> *2/*5 Poor Metabolizer."""
+def test_compound_het_star2_star5_is_intermediate(reference_engine: sa.Engine) -> None:
+    """Het *2 plus het *5 resolves to CPIC AS 1.0 Intermediate Metabolizer."""
     result = _call_cyp2c9(
         reference_engine,
         _cyp2c9_genotypes(rs1799853="CT", rs28371686="CG", rs9332131="II"),
     )
     assert result.diplotype == "*2/*5"
-    assert result.phenotype == "Poor Metabolizer"
-    assert result.activity_score == 0.5
+    assert result.phenotype == "Intermediate Metabolizer"
+    assert result.activity_score == 1.0
     assert result.call_confidence == CallConfidence.PARTIAL
     assert "unphased" in result.confidence_note
 
@@ -397,13 +426,64 @@ def test_untyped_star2_with_reference_star3_does_not_emit_poor_alert(
 
 
 @pytest.mark.parametrize(
-    ("overrides", "diplotype", "phenotype"),
+    ("overrides", "diplotype", "phenotype", "activity_score", "expected_confidence"),
     [
-        ({"rs28371686": "CG"}, "*1/*5", "Intermediate Metabolizer"),
-        ({"rs9332131": "DI"}, "*1/*6", "Intermediate Metabolizer"),
-        ({"rs7900194": "GA"}, "*1/*8", "Intermediate Metabolizer"),
-        ({"rs28371685": "CT"}, "*1/*11", "Intermediate Metabolizer"),
-        ({"rs1799853": "CT", "rs28371686": "CG"}, "*2/*5", "Poor Metabolizer"),
+        (
+            {"rs28371686": "CG"},
+            "*1/*5",
+            "Intermediate Metabolizer",
+            1.5,
+            CallConfidence.COMPLETE,
+        ),
+        (
+            {"rs9332131": "DI"},
+            "*1/*6",
+            "Intermediate Metabolizer",
+            1.0,
+            CallConfidence.COMPLETE,
+        ),
+        (
+            {"rs7900194": "GA"},
+            "*1/*8",
+            "Intermediate Metabolizer",
+            1.5,
+            CallConfidence.COMPLETE,
+        ),
+        (
+            {"rs28371685": "CT"},
+            "*1/*11",
+            "Intermediate Metabolizer",
+            1.5,
+            CallConfidence.COMPLETE,
+        ),
+        (
+            {"rs1799853": "CT", "rs28371686": "CG"},
+            "*2/*5",
+            "Intermediate Metabolizer",
+            1.0,
+            CallConfidence.PARTIAL,
+        ),
+        (
+            {"rs28371686": "GG"},
+            "*5/*5",
+            "Intermediate Metabolizer",
+            1.0,
+            CallConfidence.COMPLETE,
+        ),
+        (
+            {"rs28371686": "CG", "rs7900194": "GA"},
+            "*5/*8",
+            "Intermediate Metabolizer",
+            1.0,
+            CallConfidence.PARTIAL,
+        ),
+        (
+            {"rs28371686": "CG", "rs28371685": "CT"},
+            "*5/*11",
+            "Intermediate Metabolizer",
+            1.0,
+            CallConfidence.PARTIAL,
+        ),
     ],
 )
 def test_reduced_function_carriers_emit_warfarin_phenytoin_alerts(
@@ -411,6 +491,8 @@ def test_reduced_function_carriers_emit_warfarin_phenytoin_alerts(
     overrides: dict[str, str],
     diplotype: str,
     phenotype: str,
+    activity_score: float,
+    expected_confidence: CallConfidence,
 ) -> None:
     """End-to-end patient-safety guard: CYP2C9 carriers get warfarin + phenytoin
     alerts instead of being silently skipped (the issue-#14 defect)."""
@@ -426,14 +508,61 @@ def test_reduced_function_carriers_emit_warfarin_phenytoin_alerts(
     assert {"warfarin", "phenytoin"} <= drugs
     warfarin = next(a for a in cyp2c9_alerts if a.drug == "warfarin")
     _assert_cyp2c9_warfarin_algorithm_recommendation(warfarin.recommendation, phenotype)
-    expected_confidence = (
-        CallConfidence.PARTIAL if diplotype == "*2/*5" else CallConfidence.COMPLETE
-    )
     for alert in cyp2c9_alerts:
         assert alert.diplotype == diplotype
         assert alert.phenotype == phenotype
+        assert alert.activity_score == activity_score
         assert alert.call_confidence == expected_confidence
         assert "*6" not in alert.indeterminate_alleles
+
+    # These four corrected AS-1.0 calls are the clinical boundary in issue #1981.
+    # CPIC gives AS-1.5 IMs typical maintenance dosing, but the repo still keys
+    # guidance on phenotype alone; that broader lookup defect is isolated in #1989.
+    if diplotype in {"*2/*5", "*5/*5", "*5/*8", "*5/*11"}:
+        phenytoin = next(a for a in cyp2c9_alerts if a.drug == "phenytoin")
+        assert phenytoin.recommendation == "Reduce dose by 25%. Increase monitoring."
+        assert "50%" not in phenytoin.recommendation
+        assert "alternative anticonvulsant" not in phenytoin.recommendation
+
+
+@pytest.mark.parametrize(
+    ("typed_rsid", "typed_genotype", "diplotype"),
+    [
+        ("rs1799853", "CT", "*1/*2"),
+        ("rs7900194", "GA", "*1/*8"),
+        ("rs28371685", "CT", "*1/*11"),
+    ],
+)
+def test_untyped_star5_does_not_create_poor_conservative_alert(
+    reference_engine: sa.Engine,
+    typed_rsid: str,
+    typed_genotype: str,
+    diplotype: str,
+) -> None:
+    """A missing *5 marker must not turn a decreased-function call into a false PM."""
+    genotypes = _cyp2c9_genotypes(
+        **{typed_rsid: typed_genotype},
+        rs9332131="II",
+    )
+    del genotypes["rs28371686"]
+
+    result = _call_cyp2c9(reference_engine, genotypes)
+    assert result.diplotype == diplotype
+    assert result.phenotype == "Intermediate Metabolizer"
+    assert "*5" in result.indeterminate_alleles
+    assert result.conservative_phenotype is None
+
+    sample = _make_sample(genotypes)
+    results = call_all_star_alleles(reference_engine, sample, genes=frozenset({"CYP2C9"}))
+    alerts = generate_prescribing_alerts(results, reference_engine)
+    cyp2c9_alerts = [alert for alert in alerts if alert.gene == "CYP2C9"]
+
+    assert cyp2c9_alerts
+    assert {alert.phenotype for alert in cyp2c9_alerts} == {"Intermediate Metabolizer"}
+    assert not any(alert.conservative_alert for alert in cyp2c9_alerts)
+    phenytoin = next(alert for alert in cyp2c9_alerts if alert.drug == "phenytoin")
+    assert "50%" not in phenytoin.recommendation
+    assert "alternative anticonvulsant" not in phenytoin.recommendation
 
 
 def test_star6_base_coded_indel_is_uncalled_and_indeterminate(
