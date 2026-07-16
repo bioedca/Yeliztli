@@ -34,15 +34,22 @@ SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 source "$SCRIPT_DIR/env.sh"
 
 ALL_PHASES=(01 02 03 04 05 06 07)
-declare -A PHASE_SCRIPT=(
-  [01]="01_download_panel.sh"
-  [02]="02_prepare_sites.sh"
-  [03]="03_subset_panel.sh"
-  [04]="04_admixture_filter.sh"
-  [05]="05_train_gnomix.sh"
-  [06]="06_validate.sh"
-  [07]="07_assemble_bundle.sh"
-)
+
+# GitHub's macOS runners still use Bash 3.2, which predates associative
+# arrays. Keep phase dispatch in a case statement so the direct orchestrator
+# has the same behavior on macOS and on newer Linux Bash versions.
+phase_script_for() {
+  case "$1" in
+    01) printf '%s\n' "01_download_panel.sh" ;;
+    02) printf '%s\n' "02_prepare_sites.sh" ;;
+    03) printf '%s\n' "03_subset_panel.sh" ;;
+    04) printf '%s\n' "04_admixture_filter.sh" ;;
+    05) printf '%s\n' "05_train_gnomix.sh" ;;
+    06) printf '%s\n' "06_validate.sh" ;;
+    07) printf '%s\n' "07_assemble_bundle.sh" ;;
+    *) return 1 ;;
+  esac
+}
 
 if [ "$#" -gt 0 ]; then
   PHASES=("$@")
@@ -68,8 +75,7 @@ log "rebuild start — bundle_version=$LAI_BUNDLE_VERSION workdir=$WORKDIR git=$
 log "phases requested: ${PHASES[*]}"
 
 for phase in "${PHASES[@]}"; do
-  script="${PHASE_SCRIPT[$phase]:-}"
-  if [ -z "$script" ]; then
+  if ! script=$(phase_script_for "$phase"); then
     echo "unknown phase: $phase (valid: ${ALL_PHASES[*]})" >&2
     exit 2
   fi

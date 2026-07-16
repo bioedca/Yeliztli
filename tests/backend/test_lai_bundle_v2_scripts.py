@@ -358,9 +358,12 @@ class TestOrchestratorPhaseOrder:
         text = (SCRIPTS_DIR / "run_rebuild.sh").read_text()
         for phase_script in EXPECTED_PHASE_SCRIPTS:
             phase_num = phase_script.split("_", 1)[0]
-            # PHASE_SCRIPT[NN]="NN_..."
-            pat = rf"\[{re.escape(phase_num)}\]=\"{re.escape(phase_script)}\""
-            assert re.search(pat, text), f"run_rebuild.sh missing dispatch for phase {phase_num}"
+            expected = f"{phase_num}) printf '%s\\n' \"{phase_script}\" ;;"
+            assert expected in text, f"run_rebuild.sh missing dispatch for phase {phase_num}"
+
+    def test_phase_dispatch_is_compatible_with_macos_bash_3(self) -> None:
+        text = (SCRIPTS_DIR / "run_rebuild.sh").read_text()
+        assert "declare -A" not in text
 
     def test_orchestrator_sources_env_sh(self) -> None:
         text = (SCRIPTS_DIR / "run_rebuild.sh").read_text()
@@ -3581,6 +3584,9 @@ class TestSlurmRebuild:
             "printf '%s\\n' \"$job_id\"\n"
         )
         sbatch.chmod(0o755)
+        conda = stub_dir / "conda"
+        conda.write_text("#!/bin/sh\nexit 0\n")
+        conda.chmod(0o755)
 
         env = os.environ.copy()
         for variable in (
@@ -3691,6 +3697,9 @@ class TestSlurmRebuild:
         sbatch = stub_dir / "sbatch"
         sbatch.write_text("#!/bin/sh\nprintf 'called\\n' > \"$STUB_SBATCH_CALLED\"\n")
         sbatch.chmod(0o755)
+        conda = stub_dir / "conda"
+        conda.write_text("#!/bin/sh\nexit 0\n")
+        conda.chmod(0o755)
 
         env = os.environ.copy()
         for variable in (
