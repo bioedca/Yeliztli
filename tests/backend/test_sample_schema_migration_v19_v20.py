@@ -20,10 +20,10 @@ def _finding(*, module: str, category: str, trait: str, text: str) -> dict[str, 
     }
 
 
-def test_v20_migration_quarantines_only_persisted_legacy_breast_prs(
+def test_v20_migration_quarantines_legacy_or_unidentified_cancer_prs(
     sample_engine: sa.Engine,
 ) -> None:
-    """A first DB open removes the invalid output without requiring a rerun."""
+    """Remove unsafe output while preserving identifiable active-model rows."""
     with sample_engine.begin() as conn:
         conn.execute(
             sa.insert(findings),
@@ -38,7 +38,7 @@ def test_v20_migration_quarantines_only_persisted_legacy_breast_prs(
                     module="cancer",
                     category="prs",
                     trait="colorectal_cancer",
-                    text="Colorectal cancer PRS",
+                    text="Pre-fingerprint colorectal cancer PRS",
                 ),
                 _finding(
                     module="traits",
@@ -158,7 +158,10 @@ def test_v20_migration_quarantines_only_persisted_legacy_breast_prs(
 
     assert version == SAMPLE_SCHEMA_VERSION == 20
     assert [(row.module, row.category, row.finding_text) for row in rows] == [
-        ("cancer", "prs", "Colorectal cancer PRS"),
+        # Older valid active-model rows have a trait but no model fingerprint;
+        # they remain surfaceable. Only breast or unidentified PRS rows are
+        # quarantined, because opaque scores can be regenerated safely.
+        ("cancer", "prs", "Pre-fingerprint colorectal cancer PRS"),
         ("traits", "prs", "Unrelated traits-module row"),
         ("cancer", "monogenic_variant", "BRCA1 pathogenic variant"),
     ]
@@ -193,6 +196,50 @@ def test_v20_migration_quarantines_only_persisted_legacy_breast_prs(
 
     # The version gate makes the content migration idempotent.
     assert ensure_sample_schema_current(sample_engine) is False
+
+
+def test_v20_migration_normalizes_malformed_finding_diff_buckets(
+    sample_engine: sa.Engine,
+) -> None:
+    """Malformed buckets become empty lists and contribute zero to counts."""
+    with sample_engine.begin() as conn:
+        conn.execute(
+            sa.insert(annotation_state),
+            {
+                "key": "last_finding_diff_json",
+                "value": json.dumps(
+                    {
+                        "changed": {"unexpected": "mapping"},
+                        "added": [
+                            {
+                                "module": "cancer",
+                                "category": "prs",
+                                "trait": "breast_cancer",
+                            }
+                        ],
+                        "removed": 7,
+                        "counts": {"changed": 99, "added": 1, "removed": 99},
+                    }
+                ),
+            },
+        )
+        conn.execute(sa.text("PRAGMA user_version = 19"))
+
+    assert ensure_sample_schema_current(sample_engine) is True
+
+    with sample_engine.connect() as conn:
+        diff_json = conn.execute(
+            sa.select(annotation_state.c.value).where(
+                annotation_state.c.key == "last_finding_diff_json"
+            )
+        ).scalar_one()
+
+    assert json.loads(diff_json) == {
+        "changed": [],
+        "added": [],
+        "removed": [],
+        "counts": {"changed": 0, "added": 0, "removed": 0},
+    }
 
 
 def test_v20_migration_tolerates_partial_legacy_findings_table() -> None:

@@ -517,10 +517,13 @@ def _add_missing_columns(engine: sa.Engine, from_version: int) -> bool:
                         diff = None
 
                     removed_diff_entries = 0
+                    diff_repaired = False
                     if isinstance(diff, dict):
                         for bucket in ("changed", "added", "removed"):
                             entries = diff.get(bucket)
                             if not isinstance(entries, list):
+                                diff[bucket] = []
+                                diff_repaired = True
                                 continue
                             kept = [
                                 entry
@@ -536,10 +539,15 @@ def _add_missing_columns(engine: sa.Engine, from_version: int) -> bool:
                             ]
                             removed_diff_entries += len(entries) - len(kept)
                             diff[bucket] = kept
+                            diff_repaired = diff_repaired or len(kept) != len(entries)
 
-                        if removed_diff_entries:
+                        if diff_repaired:
                             diff["counts"] = {
-                                bucket: len(diff.get(bucket, []))
+                                bucket: (
+                                    len(diff.get(bucket, []))
+                                    if isinstance(diff.get(bucket), list)
+                                    else 0
+                                )
                                 for bucket in ("changed", "added", "removed")
                             }
                             conn.execute(
