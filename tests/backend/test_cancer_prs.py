@@ -461,7 +461,7 @@ class TestLoadCancerPRSWeights:
         path = tmp_path / "unsafe-enabled-model.json"
         path.write_text(json.dumps(payload), encoding="utf-8")
 
-        with pytest.raises(ValueError, match="39 runtime-blocked row"):
+        with pytest.raises(ValueError, match="41 runtime-blocked row"):
             load_cancer_prs_weights(path)
 
     @pytest.mark.parametrize("field", ["calibrated", "calibration_eligible"])

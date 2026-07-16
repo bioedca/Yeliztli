@@ -8,9 +8,9 @@ quantifies absolute disease risk it is gated behind explicit per-sample consent
 Honest scope. A personalized, polygenic-derived absolute risk requires an exact
 source-verified breast PRS, safe runtime allele harmonization, and a validated
 population calibration. The exact published PRS77 is now bundled, but runtime
-scoring remains blocked at multiallelic loci and it is uncalibrated (#1934), so
-this overlay does **not** fabricate a personal PRS number. Instead, once
-consented, it presents:
+scoring remains blocked at multiallelic and palindromic loci and it is
+uncalibrated (#1934), so this overlay does **not** fabricate a personal PRS
+number. Instead, once consented, it presents:
   * the US population baseline (NCI SEER: ~13.0% lifetime, ~1 in 8 women);
   * for carriers of a high-penetrance monogenic variant, the published
     genotype-class cumulative risk (BRCA1 ~72%, BRCA2 ~69% to age 80;
@@ -197,9 +197,9 @@ CANRISK = {
 
 PRS_NOTE = (
     "The exact source-verified breast-cancer PRS77 is bundled, but its runtime "
-    "multiallelic harmonization is blocked and no validated population calibration "
-    "is available. It is therefore not scored or reported, and a personalized "
-    "polygenic absolute risk is not shown here."
+    "multiallelic harmonization and palindromic effect-allele orientation are blocked, "
+    "and no validated population calibration is available. It is therefore not scored "
+    "or reported, and a personalized polygenic absolute risk is not shown here."
 )
 
 DISCLAIMER = (

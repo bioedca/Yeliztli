@@ -373,7 +373,7 @@ def _build_weights(
                 "source_to_current_orientation": orientation,
                 "orientation_ambiguous_in_current_multiallelic_set": orientation_ambiguous,
                 "allele_mapping_class": group,
-                "runtime_scoring_eligible": not multiallelic,
+                "runtime_scoring_eligible": not multiallelic and not palindromic,
                 "imputation_eligible": not multiallelic and not palindromic,
             }
         )
@@ -442,9 +442,10 @@ def _build_breast_model(
         "calibration_eligible": False,
         "disabled_reason": (
             "The exact published PRS77 is reproducible, but 39 primary GRCh38 loci are "
-            "currently multiallelic. The sample schema does not preserve trusted canonical "
-            "allele-set/full multi-ALT dosage context, so a third allele can be mistaken for "
-            "a strand flip. Scoring remains fail-closed until that runtime blocker is resolved."
+            "currently multiallelic and 2 additional biallelic loci are palindromic without "
+            "trusted effect-allele strand provenance. The sample schema does not preserve "
+            "trusted canonical allele-set/full multi-ALT dosage context, so a third allele "
+            "can be mistaken for a strand flip. Scoring remains fail-closed for all 41 loci."
         ),
         "calibration_note": (
             "No source-validated population reference distribution is bundled for this exact "
@@ -489,10 +490,13 @@ def _build_breast_model(
                 "mapping_policy": "primary chromosome only; alternate scaffolds excluded",
                 "mapping_group_counts": groups,
                 "multiallelic_primary_loci": 39,
+                "biallelic_palindromic_loci": 2,
+                "runtime_blocked_loci": 41,
                 "source_and_complement_present_at_multiallelic_loci": 11,
                 "activation_blockers": [
                     "trusted canonical genotype allele-set context",
                     "complete multi-ALT dosage vectors for imputation",
+                    "trusted effect-allele orientation for palindromic loci",
                 ],
             },
             "reproducibility": {
@@ -571,11 +575,12 @@ def _expected_panel(panel: dict[str, Any]) -> dict[str, Any]:
     result["description"] = (
         "Cancer PRS weight sets for breast, prostate, colorectal, and melanoma. "
         "The exact published breast PRS77 is source-verified but remains non-reporting "
-        "because multiallelic runtime harmonization is unresolved; its prior 25-marker "
-        "quarantine is retained as a nested audit record. Active models carry calibrated "
-        "and calibration_eligible gates: without a validated reference distribution, the "
-        "engine withholds percentile, z-score, and interval outputs. Raw PRS and absolute "
-        "lifetime risk are never displayed."
+        "because multiallelic runtime harmonization and palindromic effect-allele "
+        "orientation are unresolved; its prior 25-marker quarantine is retained as a "
+        "nested audit record. Active models carry calibrated and calibration_eligible "
+        "gates: without a validated reference distribution, the engine withholds "
+        "percentile, z-score, and interval outputs. Raw PRS and absolute lifetime risk "
+        "are never displayed."
     )
     breast_index = breast_indexes[0]
     legacy = _legacy_audit_record(weight_sets[breast_index])

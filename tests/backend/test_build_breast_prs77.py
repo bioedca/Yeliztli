@@ -179,9 +179,18 @@ def test_generated_model_is_exact_but_fail_closed() -> None:
         "multiallelic_forward_palindromic": 5,
     }
     blocked = [weight for weight in breast["weights"] if not weight["runtime_scoring_eligible"]]
-    assert len(blocked) == 39
-    assert all("other_allele" not in weight for weight in blocked)
+    assert len(blocked) == 41
     assert all(weight["imputation_eligible"] is False for weight in blocked)
+    multiallelic = [
+        weight for weight in breast["weights"] if len(weight["grch38_current_alleles"]) > 2
+    ]
+    assert len(multiallelic) == 39
+    assert all("other_allele" not in weight for weight in multiallelic)
+    assert all(weight["runtime_scoring_eligible"] is False for weight in multiallelic)
+    assert {
+        weight["rsid"] for weight in blocked if len(weight["grch38_current_alleles"]) == 2
+    } == {"rs11571833", "rs12422552"}
+    assert breast["model_provenance"]["current_allele_audit"]["runtime_blocked_loci"] == 41
     assert (
         sum(
             weight["orientation_ambiguous_in_current_multiallelic_set"]
@@ -202,12 +211,17 @@ def test_generated_model_is_exact_but_fail_closed() -> None:
         assert emitted["source_or"] == float(source_row["overall_or"])
         assert emitted["chrom"] == harmonized_row["hm_chr"]
         assert emitted["pos"] == int(harmonized_row["hm_pos"])
+        pair = {
+            source_row["source_effect_allele"],
+            source_row["source_other_allele"],
+        }
+        palindromic = pair == {allele.translate(_COMPLEMENT) for allele in pair}
         if len(ensembl[emitted["rsid"]]["alleles"]) > 2:
             assert "other_allele" not in emitted
             assert emitted["runtime_scoring_eligible"] is False
         else:
             assert emitted["other_allele"] == source_row["source_other_allele"]
-            assert emitted["runtime_scoring_eligible"] is True
+            assert emitted["runtime_scoring_eligible"] is (not palindromic)
 
 
 def test_generator_check_and_write_are_idempotent(tmp_path: Path) -> None:

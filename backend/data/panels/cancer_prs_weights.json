@@ -1,7 +1,7 @@
 {
   "module": "cancer",
   "version": "1.2.0",
-  "description": "Cancer PRS weight sets for breast, prostate, colorectal, and melanoma. The exact published breast PRS77 is source-verified but remains non-reporting because multiallelic runtime harmonization is unresolved; its prior 25-marker quarantine is retained as a nested audit record. Active models carry calibrated and calibration_eligible gates: without a validated reference distribution, the engine withholds percentile, z-score, and interval outputs. Raw PRS and absolute lifetime risk are never displayed.",
+  "description": "Cancer PRS weight sets for breast, prostate, colorectal, and melanoma. The exact published breast PRS77 is source-verified but remains non-reporting because multiallelic runtime harmonization and palindromic effect-allele orientation are unresolved; its prior 25-marker quarantine is retained as a nested audit record. Active models carry calibrated and calibration_eligible gates: without a validated reference distribution, the engine withholds percentile, z-score, and interval outputs. Raw PRS and absolute lifetime risk are never displayed.",
   "weight_sets": [
     {
       "name": "Breast cancer (Mavaddat PRS77; runtime blocked)",
@@ -16,7 +16,7 @@
       "model_status": "source_verified_runtime_blocked",
       "scoring_enabled": false,
       "calibration_eligible": false,
-      "disabled_reason": "The exact published PRS77 is reproducible, but 39 primary GRCh38 loci are currently multiallelic. The sample schema does not preserve trusted canonical allele-set/full multi-ALT dosage context, so a third allele can be mistaken for a strand flip. Scoring remains fail-closed until that runtime blocker is resolved.",
+      "disabled_reason": "The exact published PRS77 is reproducible, but 39 primary GRCh38 loci are currently multiallelic and 2 additional biallelic loci are palindromic without trusted effect-allele strand provenance. The sample schema does not preserve trusted canonical allele-set/full multi-ALT dosage context, so a third allele can be mistaken for a strand flip. Scoring remains fail-closed for all 41 loci.",
       "calibration_note": "No source-validated population reference distribution is bundled for this exact implementation. While runtime scoring is blocked, it must not emit a raw score, percentile, z-score, absolute risk, or interval.",
       "pgs_id": "PGS000001",
       "pgs_license": null,
@@ -63,10 +63,13 @@
             "multiallelic_forward_palindromic": 5
           },
           "multiallelic_primary_loci": 39,
+          "biallelic_palindromic_loci": 2,
+          "runtime_blocked_loci": 41,
           "source_and_complement_present_at_multiallelic_loci": 11,
           "activation_blockers": [
             "trusted canonical genotype allele-set context",
-            "complete multi-ALT dosage vectors for imputation"
+            "complete multi-ALT dosage vectors for imputation",
+            "trusted effect-allele orientation for palindromic loci"
           ]
         },
         "reproducibility": {
@@ -2002,7 +2005,7 @@
           "source_to_current_orientation": "forward",
           "orientation_ambiguous_in_current_multiallelic_set": false,
           "allele_mapping_class": "biallelic_forward_palindromic",
-          "runtime_scoring_eligible": true,
+          "runtime_scoring_eligible": false,
           "imputation_eligible": false
         },
         {
@@ -2058,7 +2061,7 @@
           "source_to_current_orientation": "forward",
           "orientation_ambiguous_in_current_multiallelic_set": false,
           "allele_mapping_class": "biallelic_forward_palindromic",
-          "runtime_scoring_eligible": true,
+          "runtime_scoring_eligible": false,
           "imputation_eligible": false
         },
         {
