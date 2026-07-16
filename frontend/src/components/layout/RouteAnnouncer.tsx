@@ -4,25 +4,44 @@
  * page title changes after a client-side navigation.
  */
 
-import { useLocation } from "react-router-dom"
+import { matchPath, useLocation } from "react-router-dom"
 import { navRoutes } from "@/lib/nav-routes"
 
-const routeTitles = new Map<string, string>([
-  ...navRoutes.map(
+const primaryRouteTitles = new Map(
+  navRoutes.map(
     ({ to, label, announcementLabel }) =>
       [to, announcementLabel ?? label] as const,
   ),
+)
+
+function primaryRouteTitle(path: string): string {
+  const title = primaryRouteTitles.get(path)
+  if (!title) throw new Error(`Missing primary route title for ${path}`)
+  return title
+}
+
+/**
+ * Announcement metadata for every declared route shape. Dynamic detail routes
+ * stay outside navRoutes because they are not Sidebar or Command Palette
+ * destinations.
+ */
+const routeTitlePatterns: ReadonlyArray<readonly [string, string]> = [
+  ...primaryRouteTitles,
   ["/setup", "Setup Wizard"],
   ["/login", "Login"],
-])
+  ["/variants/:rsid", primaryRouteTitle("/variants")],
+  ["/settings/*", primaryRouteTitle("/settings")],
+  ["/genes/:symbol", "Gene Detail"],
+  ["/individuals/:id", "Individual Detail"],
+  ["/samples/:id/concordance", "Concordance Report"],
+]
 
 /** Resolve a pathname to a human-readable page title for screen reader announcements. */
 function getPageTitle(pathname: string): string {
-  // Check exact match first, then try parent path for nested routes (e.g. /settings/updates → Settings)
-  const exactTitle = routeTitles.get(pathname)
-  if (exactTitle) return exactTitle
-  const parent = pathname.split("/").slice(0, 2).join("/")
-  return routeTitles.get(parent) ?? "Page"
+  return (
+    routeTitlePatterns.find(([pattern]) => matchPath(pattern, pathname))?.[1] ??
+    "Page"
+  )
 }
 
 export default function RouteAnnouncer() {
