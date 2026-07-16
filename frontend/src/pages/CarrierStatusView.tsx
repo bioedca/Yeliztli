@@ -20,6 +20,7 @@ import { useCarrierVariants, useCarrierDisclaimer } from "@/api/carrier"
 import type { CarrierVariant } from "@/types/carrier"
 import VariantCard from "@/components/carrier/VariantCard"
 import VariantDetailPanel from "@/components/carrier/VariantDetailPanel"
+import DisclaimerBody from "@/components/ui/DisclaimerBody"
 
 export default function CarrierStatusView() {
   const [searchParams] = useSearchParams()
@@ -97,9 +98,10 @@ export default function CarrierStatusView() {
             )}
           </button>
           {disclaimerExpanded && (
-            <p className="text-sm text-amber-700 dark:text-amber-400 mt-3 whitespace-pre-line">
-              {disclaimerQuery.data.text}
-            </p>
+            <DisclaimerBody
+              text={disclaimerQuery.data.text}
+              className="mt-3 text-sm text-amber-700 dark:text-amber-400"
+            />
           )}
         </div>
       )}
