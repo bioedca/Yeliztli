@@ -272,7 +272,7 @@ def gnomad_engine() -> sa.Engine:
                         "af_global": float(row["af_global"]),
                         "af_afr": float(row["af_afr"]),
                         "af_amr": float(row["af_amr"]),
-                        "af_asj": float(row["af_asj"]),
+                        "af_asj": float(row["af_asj"]) if row["af_asj"] else None,
                         "af_eas": float(row["af_eas"]),
                         "af_eur": float(row["af_eur"]),
                         "af_fin": float(row["af_fin"]),
@@ -1548,7 +1548,10 @@ class TestGnomadAnnotationLookupIntegration:
         assert data["gnomad_af_global"] == pytest.approx(0.0781)
         assert data["gnomad_af_afr"] == pytest.approx(0.1130)
         assert data["gnomad_af_amr"] == pytest.approx(0.0560)
-        assert data["gnomad_af_asj"] == pytest.approx(0.0781)
+        # ASJ is a real gnomAD v4.1 value, distinct from af_global (#1964): an
+        # engine mis-wiring of af_asj -> af_global would fail here.
+        assert data["gnomad_af_asj"] == pytest.approx(0.0741546)
+        assert data["gnomad_af_asj"] != pytest.approx(data["gnomad_af_global"])
         assert data["gnomad_af_eas"] == pytest.approx(0.0980)
         assert data["gnomad_af_eur"] == pytest.approx(0.0730)
         assert data["gnomad_af_fin"] == pytest.approx(0.0410)
@@ -1576,10 +1579,12 @@ class TestGnomadAnnotationLookupIntegration:
 
     def test_ultra_rare_threshold_correct(self, gnomad_engine: sa.Engine) -> None:
         """P2-09: ultra_rare_flag uses 0.001 threshold (bug fix from 0.0001)."""
-        # rs80357906 has af_global=0.00004 — ultra-rare
-        result = _lookup_gnomad(["rs80357906"], {}, gnomad_engine)
-        assert result["rs80357906"]["rare_flag"] is True
-        assert result["rs80357906"]["ultra_rare_flag"] is True
+        # rs63750066 is ultra-rare in every population (popmax < 0.001). rs80357906
+        # is no longer a valid ultra-rare example: its real ASJ founder AF (0.00118)
+        # correctly makes it rare-not-ultra (#1964).
+        result = _lookup_gnomad(["rs63750066"], {}, gnomad_engine)
+        assert result["rs63750066"]["rare_flag"] is True
+        assert result["rs63750066"]["ultra_rare_flag"] is True
 
         # Verify threshold constants match PRD
         assert RARE_AF_THRESHOLD == 0.01
@@ -1805,7 +1810,9 @@ class TestGnomadAnnotationLookupIntegration:
         # Per-population AFs (including ASJ from gnomAD r2.1)
         assert row.gnomad_af_afr == pytest.approx(0.1130)
         assert row.gnomad_af_amr == pytest.approx(0.0560)
-        assert row.gnomad_af_asj == pytest.approx(0.0781)
+        # Real gnomAD v4.1 ASJ AF, distinct from af_global (#1964).
+        assert row.gnomad_af_asj == pytest.approx(0.0741546)
+        assert row.gnomad_af_asj != pytest.approx(row.gnomad_af_global)
         assert row.gnomad_af_eas == pytest.approx(0.0980)
         assert row.gnomad_af_eur == pytest.approx(0.0730)
         assert row.gnomad_af_sas == pytest.approx(0.0650)
@@ -1823,7 +1830,12 @@ class TestGnomadAnnotationLookupIntegration:
         sample_with_variants: sa.Engine,
         mock_registry: MagicMock,
     ) -> None:
-        """P2-09: Ultra-rare variant flags flow through full pipeline."""
+        """P2-09: rare-variant flags flow through the full pipeline.
+
+        rs80357906 (BRCA1 5382insC) carries its real gnomAD v4.1 ASJ founder AF
+        (0.00118) end-to-end: rare, but NOT ultra-rare — popmax exceeds the 0.001
+        floor (#1964). The copied af_asj column used to propagate ultra-rare here.
+        """
         run_annotation(sample_with_variants, mock_registry)
 
         with sample_with_variants.connect() as conn:
@@ -1833,8 +1845,9 @@ class TestGnomadAnnotationLookupIntegration:
 
         assert row is not None
         assert row.gnomad_af_global == pytest.approx(0.00004)
+        assert row.gnomad_af_asj == pytest.approx(0.00118275)
         assert row.rare_flag in (True, 1)
-        assert row.ultra_rare_flag in (True, 1)
+        assert row.ultra_rare_flag in (False, 0)
 
     def test_delegates_to_gnomad_module(self, gnomad_engine: sa.Engine) -> None:
         """Engine uses gnomad.py lookup functions (not duplicated SQL)."""

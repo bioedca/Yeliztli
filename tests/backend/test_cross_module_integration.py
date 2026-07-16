@@ -152,7 +152,7 @@ def _create_gnomad_db(db_path: Path) -> None:
                             "af_global": float(row["af_global"]),
                             "af_afr": float(row["af_afr"]),
                             "af_amr": float(row["af_amr"]),
-                            "af_asj": float(row["af_asj"]),
+                            "af_asj": float(row["af_asj"]) if row["af_asj"] else None,
                             "af_eas": float(row["af_eas"]),
                             "af_eur": float(row["af_eur"]),
                             "af_fin": float(row["af_fin"]),

@@ -125,6 +125,28 @@ class TestSeedCSVContent:
         for gene in ["CYP2D6", "CYP2C19"]:
             assert gene in text, f"cpic_alleles_seed.csv missing {gene}"
 
+    def test_gnomad_population_columns_are_not_verbatim_copies(self) -> None:
+        """No gnomAD ``af_*`` column may duplicate another across every row (#1964).
+
+        ``af_asj`` shipped as a byte-identical copy of ``af_global`` on 97/97 rows
+        (PR #1120) — a degenerate oracle where an engine mis-wiring of
+        ``gnomad_af_asj -> af_global`` passed CI undetected. A population column
+        that equals another on *every* row carries no independent information;
+        partial coincidental overlap (e.g. ``af_fin`` on a few rare rows) is fine.
+        Empty cells (SQL NULL / unknown) are compared as-is, so an all-empty
+        column would also trip this guard.
+        """
+        with (SEED_DIR / "gnomad_seed.csv").open(newline="", encoding="utf-8") as fh:
+            rows = list(csv.DictReader(fh))
+        af_cols = [c for c in rows[0] if c.startswith("af_")]
+        for i, a in enumerate(af_cols):
+            for b in af_cols[i + 1 :]:
+                identical = all(r[a] == r[b] for r in rows)
+                assert not identical, (
+                    f"gnomad_seed.csv: '{a}' is a verbatim copy of '{b}' on all "
+                    f"{len(rows)} rows — a degenerate, non-discriminating oracle"
+                )
+
     @pytest.mark.parametrize(("csv_name", "rsids"), SEED_COORDINATE_TARGETS.items())
     def test_guarded_seed_coordinates_are_grch37(
         self, csv_name: str, rsids: tuple[str, ...]

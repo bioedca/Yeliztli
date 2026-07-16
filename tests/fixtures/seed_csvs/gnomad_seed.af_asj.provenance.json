@@ -1,0 +1,382 @@
+{
+  "source": "gnomAD v4.1.0 (GRCh38) via GraphQL API https://gnomad.broadinstitute.org/api",
+  "field": "af_asj",
+  "population": "asj (Ashkenazi Jewish)",
+  "method": "combined exome+genome AC/AN per population; af = asj_ac/asj_an; resolved by rsID (gnomAD native), oriented to the fixture ref/alt allele by identity matching",
+  "accessed": "2026-07-16",
+  "records": {
+    "rs429358": {
+      "af_asj": 0.120287,
+      "asj_ac": 3458,
+      "asj_an": 28748,
+      "gnomad_variant_id": "19-44908684-T-C"
+    },
+    "rs7412": {
+      "af_asj": 0.0741546,
+      "asj_ac": 2114,
+      "asj_an": 28508,
+      "gnomad_variant_id": "19-44908822-C-T"
+    },
+    "rs1801133": {
+      "af_asj": 0.460039,
+      "asj_ac": 13619,
+      "asj_an": 29604,
+      "gnomad_variant_id": "1-11796321-G-A"
+    },
+    "rs4680": {
+      "af_asj": 0.459401,
+      "asj_ac": 13590,
+      "asj_an": 29582,
+      "gnomad_variant_id": "22-19963748-G-A"
+    },
+    "rs80357906": {
+      "af_asj": 0.00118275,
+      "asj_ac": 35,
+      "asj_an": 29592,
+      "gnomad_variant_id": "17-43057062-T-TG"
+    },
+    "rs113993960": {
+      "af_asj": 0.00605057,
+      "asj_ac": 179,
+      "asj_an": 29584,
+      "gnomad_variant_id": "7-117559590-ATCT-A"
+    },
+    "rs12913832": {
+      "af_asj": 0.572005,
+      "asj_ac": 1986,
+      "asj_an": 3472,
+      "gnomad_variant_id": "15-28120472-A-G"
+    },
+    "rs7903146": {
+      "af_asj": 0.287074,
+      "asj_ac": 995,
+      "asj_an": 3466,
+      "gnomad_variant_id": "10-112998590-C-T"
+    },
+    "rs1065852": {
+      "af_asj": 0.244919,
+      "asj_ac": 7231,
+      "asj_an": 29524,
+      "gnomad_variant_id": "22-42130692-G-A"
+    },
+    "rs63750066": {
+      "af_asj": 0.0,
+      "asj_ac": 0,
+      "asj_an": 29602,
+      "gnomad_variant_id": "21-25891796-C-T"
+    },
+    "rs80359550": {
+      "af_asj": 0.00533856,
+      "asj_ac": 158,
+      "asj_an": 29596,
+      "gnomad_variant_id": "13-32340300-GT-G"
+    },
+    "rs12248560": {
+      "af_asj": 0.213379,
+      "asj_ac": 740,
+      "asj_an": 3468,
+      "gnomad_variant_id": "10-94761900-C-T"
+    },
+    "rs1799853": {
+      "af_asj": 0.137485,
+      "asj_ac": 4069,
+      "asj_an": 29596,
+      "gnomad_variant_id": "10-94942290-C-T"
+    },
+    "rs9923231": {
+      "af_asj": 0.499424,
+      "asj_ac": 1734,
+      "asj_an": 3472,
+      "gnomad_variant_id": "16-31096368-C-T"
+    },
+    "rs1142345": {
+      "af_asj": 0.0160974,
+      "asj_ac": 476,
+      "asj_an": 29570,
+      "gnomad_variant_id": "6-18130687-T-C"
+    },
+    "rs4149056": {
+      "af_asj": 0.183629,
+      "asj_ac": 5420,
+      "asj_an": 29516,
+      "gnomad_variant_id": "12-21178615-T-C"
+    },
+    "rs1045642": {
+      "af_asj": 0.648682,
+      "asj_ac": 19201,
+      "asj_an": 29600,
+      "gnomad_variant_id": "7-87509329-A-G"
+    },
+    "rs1801131": {
+      "af_asj": 0.292359,
+      "asj_ac": 8655,
+      "asj_an": 29604,
+      "gnomad_variant_id": "1-11794419-T-G"
+    },
+    "rs1801394": {
+      "af_asj": 0.449297,
+      "asj_ac": 13301,
+      "asj_an": 29604,
+      "gnomad_variant_id": "5-7870860-A-G"
+    },
+    "rs1805008": {
+      "af_asj": 0.0566861,
+      "asj_ac": 1677,
+      "asj_an": 29584,
+      "gnomad_variant_id": "16-89919736-C-T"
+    },
+    "rs1800462": {
+      "af_asj": 0.00192568,
+      "asj_ac": 57,
+      "asj_an": 29600,
+      "gnomad_variant_id": "6-18143724-C-G"
+    },
+    "rs5030655": {
+      "af_asj": 0.0108276,
+      "asj_ac": 320,
+      "asj_an": 29554,
+      "gnomad_variant_id": "22-42129083-CA-C"
+    },
+    "rs72552267": {
+      "af_asj": 0.0,
+      "asj_ac": 0,
+      "asj_an": 29604,
+      "gnomad_variant_id": "10-94775453-G-A"
+    },
+    "rs1800497": {
+      "af_asj": 0.150635,
+      "asj_ac": 4457,
+      "asj_an": 29588,
+      "gnomad_variant_id": "11-113400106-G-A"
+    },
+    "rs6311": {
+      "af_asj": 0.497118,
+      "asj_ac": 1725,
+      "asj_an": 3470,
+      "gnomad_variant_id": "13-46897343-C-T"
+    },
+    "rs6313": {
+      "af_asj": 0.500642,
+      "asj_ac": 14819,
+      "asj_an": 29600,
+      "gnomad_variant_id": "13-46895805-G-A"
+    },
+    "rs4986893": {
+      "af_asj": 0.0,
+      "asj_ac": 0,
+      "asj_an": 29586,
+      "gnomad_variant_id": "10-94780653-G-A"
+    },
+    "rs8099917": {
+      "af_asj": 0.204611,
+      "asj_ac": 710,
+      "asj_an": 3470,
+      "gnomad_variant_id": "19-39252525-T-G"
+    },
+    "rs1800896": {
+      "af_asj": 0.408434,
+      "asj_ac": 1414,
+      "asj_an": 3462,
+      "gnomad_variant_id": "1-206773552-T-C"
+    },
+    "rs1800629": {
+      "af_asj": 0.0811362,
+      "asj_ac": 1194,
+      "asj_an": 14716,
+      "gnomad_variant_id": "6-31575254-G-A"
+    },
+    "rs1143634": {
+      "af_asj": 0.277721,
+      "asj_ac": 8220,
+      "asj_an": 29598,
+      "gnomad_variant_id": "2-112832813-G-A"
+    },
+    "rs121434569": {
+      "af_asj": 0.0,
+      "asj_ac": 0,
+      "asj_an": 29608,
+      "gnomad_variant_id": "7-55181378-C-T"
+    },
+    "rs80358981": {
+      "af_asj": 0.0,
+      "asj_ac": 0,
+      "asj_an": 29604,
+      "gnomad_variant_id": "13-32356550-C-T"
+    },
+    "rs28897727": {
+      "af_asj": 0.00122783,
+      "asj_ac": 36,
+      "asj_an": 29320,
+      "gnomad_variant_id": "13-32338613-G-T"
+    },
+    "rs213950": {
+      "af_asj": 0.282089,
+      "asj_ac": 8325,
+      "asj_an": 29512,
+      "gnomad_variant_id": "7-117559479-G-A"
+    },
+    "rs6025": {
+      "af_asj": 0.0191606,
+      "asj_ac": 567,
+      "asj_an": 29592,
+      "gnomad_variant_id": "1-169549811-C-T"
+    },
+    "rs1799963": {
+      "af_asj": 0.0349853,
+      "asj_ac": 1001,
+      "asj_an": 28612,
+      "gnomad_variant_id": "11-46739505-G-A"
+    },
+    "rs6265": {
+      "af_asj": 0.218604,
+      "asj_ac": 6472,
+      "asj_an": 29606,
+      "gnomad_variant_id": "11-27658369-C-T"
+    },
+    "rs1799971": {
+      "af_asj": 0.188425,
+      "asj_ac": 5577,
+      "asj_an": 29598,
+      "gnomad_variant_id": "6-154039662-A-G"
+    },
+    "rs4988235": {
+      "af_asj": 0.130334,
+      "asj_ac": 452,
+      "asj_an": 3468,
+      "gnomad_variant_id": "2-135851076-G-A"
+    },
+    "rs182549": {
+      "af_asj": 0.129552,
+      "asj_ac": 2398,
+      "asj_an": 18510,
+      "gnomad_variant_id": "2-135859184-C-T"
+    },
+    "rs5882": {
+      "af_asj": 0.411606,
+      "asj_ac": 17420,
+      "asj_an": 29606,
+      "gnomad_variant_id": "16-56982180-G-A"
+    },
+    "rs662": {
+      "af_asj": 0.313378,
+      "asj_ac": 9276,
+      "asj_an": 29600,
+      "gnomad_variant_id": "7-95308134-T-C"
+    },
+    "rs1801282": {
+      "af_asj": 0.0563366,
+      "asj_ac": 1667,
+      "asj_an": 29590,
+      "gnomad_variant_id": "3-12351626-C-G"
+    },
+    "rs1111875": {
+      "af_asj": 0.358708,
+      "asj_ac": 1244,
+      "asj_an": 3468,
+      "gnomad_variant_id": "10-92703125-C-T"
+    },
+    "rs5219": {
+      "af_asj": 0.358591,
+      "asj_ac": 18987,
+      "asj_an": 29602,
+      "gnomad_variant_id": "11-17388025-T-C"
+    },
+    "rs10811661": {
+      "af_asj": 0.160714,
+      "asj_ac": 558,
+      "asj_an": 3472,
+      "gnomad_variant_id": "9-22134095-T-C"
+    },
+    "rs12255372": {
+      "af_asj": 0.314484,
+      "asj_ac": 1090,
+      "asj_an": 3466,
+      "gnomad_variant_id": "10-113049143-G-T"
+    },
+    "rs174547": {
+      "af_asj": 0.279817,
+      "asj_ac": 8052,
+      "asj_an": 28776,
+      "gnomad_variant_id": "11-61803311-T-C"
+    },
+    "rs1535": {
+      "af_asj": 0.284971,
+      "asj_ac": 986,
+      "asj_an": 3460,
+      "gnomad_variant_id": "11-61830500-A-G"
+    },
+    "rs4654748": {
+      "af_asj": 0.489337,
+      "asj_ac": 1698,
+      "asj_an": 3470,
+      "gnomad_variant_id": "1-21459575-C-T"
+    },
+    "rs2282679": {
+      "af_asj": 0.288062,
+      "asj_ac": 999,
+      "asj_an": 3468,
+      "gnomad_variant_id": "4-71742666-T-G"
+    },
+    "rs12794714": {
+      "af_asj": 0.499932,
+      "asj_ac": 14792,
+      "asj_an": 29588,
+      "gnomad_variant_id": "11-14892029-G-A"
+    },
+    "rs10741657": {
+      "af_asj": 0.275216,
+      "asj_ac": 2515,
+      "asj_an": 3470,
+      "gnomad_variant_id": "11-14893332-A-G"
+    }
+  },
+  "withheld_rsids": {
+    "count": 43,
+    "reason": "variant identity/coordinates in this fixture row are unreliable (see #1949) or the rsID is multiallelic/absent in gnomAD r4; a correctly-oriented ASJ AF cannot be placed without first fixing the row's identity \u2014 withheld (NULL) rather than fabricated",
+    "rsids": [
+      "rs104894396",
+      "rs1051266",
+      "rs1057910",
+      "rs121908757",
+      "rs121909224",
+      "rs121912443",
+      "rs121913529",
+      "rs12345",
+      "rs12979860",
+      "rs13266634",
+      "rs16947",
+      "rs1799950",
+      "rs1800012",
+      "rs1800460",
+      "rs1800544",
+      "rs1800795",
+      "rs1805007",
+      "rs1805009",
+      "rs2032582",
+      "rs2060793",
+      "rs2228479",
+      "rs2306283",
+      "rs2476601",
+      "rs25531",
+      "rs28399504",
+      "rs28897696",
+      "rs3135388",
+      "rs334",
+      "rs3892097",
+      "rs3918290",
+      "rs4149015",
+      "rs4244285",
+      "rs4402960",
+      "rs4570625",
+      "rs5030862",
+      "rs7041",
+      "rs708272",
+      "rs75039782",
+      "rs757210",
+      "rs76151636",
+      "rs776746",
+      "rs78655421",
+      "rs854560"
+    ]
+  }
+}
