@@ -145,6 +145,7 @@ for (const moduleCase of MODULES) {
 
     await expect(panel.locator('strong').filter({ hasText: 'Important limitation.' })).toBeVisible()
     await expect(panel).not.toContainText('**')
+    expect(moduleCase.resources).not.toHaveLength(0)
     await expect(panel.getByRole('link')).toHaveCount(moduleCase.resources.length)
 
     for (const resource of moduleCase.resources) {
