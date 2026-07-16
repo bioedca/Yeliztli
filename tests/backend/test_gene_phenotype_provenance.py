@@ -115,6 +115,7 @@ def test_snapshot_is_well_formed() -> None:
     data = json.loads(_SNAPSHOT_PATH.read_text(encoding="utf-8"))
     prov = data["_provenance"]
     assert prov["source"] and prov["accessed"], "snapshot missing provenance"
+    assert data["labels"], "snapshot contains no labels (would pass every check vacuously)"
     for mid, meta in data["labels"].items():
         assert re.fullmatch(r"MONDO:\d+", mid), f"malformed snapshot key {mid!r}"
         assert meta["label"], f"{mid}: empty label"
@@ -197,21 +198,34 @@ def test_no_fabricated_consecutive_id_block() -> None:
 
 
 def test_topic_allowlist_entries_still_apply() -> None:
-    """Every allowlist entry must still match a live (id, name) pair — self-cleaning.
+    """Every allowlist entry must still match a live (id, name) pair AND the canonical
+    label it was verified against — self-cleaning on all three.
 
-    If a row's id or name changes, the exemption must be re-earned by hand, not linger
-    and keep excusing a pairing that no longer exists.
+    If a row's id or name changes, or MONDO relabels the term, the exemption must be
+    re-earned by hand rather than linger and keep excusing a pairing that no longer
+    holds. Every row sharing an allowlisted id is checked, not just the first.
     """
-    by_id = {r["disease_id"]: r for r in _rows()}
+    snap = _snapshot()
+    rows_by_id: dict[str, list[dict[str, str]]] = {}
+    for r in _rows():
+        rows_by_id.setdefault(r["disease_id"], []).append(r)
+
     stale = []
-    for mid, (name, _canon) in _TOPIC_ALLOWLIST.items():
-        row = by_id.get(mid)
-        if row is None:
+    for mid, (name, canon) in _TOPIC_ALLOWLIST.items():
+        rows = rows_by_id.get(mid)
+        if not rows:
             stale.append(f"{mid}: no row cites this id anymore")
-        elif row["disease_name"] != name:
+            continue
+        if mid in snap and str(snap[mid]["label"]) != canon:
             stale.append(
-                f"{mid}: allowlisted name {name!r} but row now says {row['disease_name']!r}"
+                f"{mid}: allowlisted canonical label {canon!r} but snapshot now says "
+                f"{snap[mid]['label']!r}"
             )
+        for row in rows:
+            if row["disease_name"] != name:
+                stale.append(
+                    f"{mid}: allowlisted name {name!r} but a row now says {row['disease_name']!r}"
+                )
     assert not stale, (
         "stale _TOPIC_ALLOWLIST entries (re-verify by hand and update):\n" + "\n".join(stale)
     )

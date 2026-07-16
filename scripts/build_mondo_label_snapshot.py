@@ -35,6 +35,24 @@ _REPO = Path(__file__).resolve().parent.parent
 _SEED = _REPO / "tests" / "fixtures" / "seed_csvs" / "gene_phenotype_seed.csv"
 _SNAPSHOT = _REPO / "tests" / "fixtures" / "mondo_label_snapshot.json"
 _OLS_TERM = "https://www.ebi.ac.uk/ols4/api/ontologies/mondo/terms"
+_OLS_ONTOLOGY = "https://www.ebi.ac.uk/ols4/api/ontologies/mondo"
+
+
+def _iso_date(value: str) -> str:
+    """argparse type: accept only a real ``YYYY-MM-DD`` calendar date."""
+    from datetime import date
+
+    try:
+        return date.fromisoformat(value).isoformat()
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(f"--accessed must be YYYY-MM-DD, got {value!r}") from exc
+
+
+def _mondo_version() -> str:
+    """The MONDO release the snapshot was resolved against (for reproducibility)."""
+    with urllib.request.urlopen(_OLS_ONTOLOGY, timeout=30) as resp:  # noqa: S310 - fixed EBI endpoint
+        cfg = json.load(resp).get("config", {})
+    return str(cfg.get("version") or cfg.get("versionIri") or "unknown")
 
 
 def _cited_ids() -> list[str]:
@@ -58,7 +76,7 @@ def _resolve(mondo_id: str) -> dict[str, object] | None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--accessed", required=True, help="regen date, YYYY-MM-DD")
+    parser.add_argument("--accessed", required=True, type=_iso_date, help="regen date, YYYY-MM-DD")
     opts = parser.parse_args()
 
     ids = _cited_ids()
@@ -87,6 +105,7 @@ def main() -> int:
     snapshot = {
         "_provenance": {
             "source": "EBI OLS4 (ebi.ac.uk/ols4/api, ontology=mondo)",
+            "mondo_version": _mondo_version(),
             "accessed": opts.accessed,
             "id_count": len(labels),
             "generator": "scripts/build_mondo_label_snapshot.py",

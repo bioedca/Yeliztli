@@ -1,6 +1,7 @@
 {
   "_provenance": {
     "source": "EBI OLS4 (ebi.ac.uk/ols4/api, ontology=mondo)",
+    "mondo_version": "2026-07-06",
     "accessed": "2026-07-16",
     "id_count": 33,
     "generator": "scripts/build_mondo_label_snapshot.py",
