@@ -1,0 +1,179 @@
+"""Tests for the v19 → v20 legacy breast-PRS finding quarantine."""
+
+from __future__ import annotations
+
+import json
+
+import sqlalchemy as sa
+
+from backend.db.sample_schema import SAMPLE_SCHEMA_VERSION, ensure_sample_schema_current
+from backend.db.tables import annotation_state, findings
+
+
+def _finding(*, module: str, category: str, trait: str, text: str) -> dict[str, object]:
+    return {
+        "module": module,
+        "category": category,
+        "evidence_level": 1,
+        "finding_text": text,
+        "detail_json": json.dumps({"trait": trait}),
+    }
+
+
+def test_v20_migration_quarantines_only_persisted_legacy_breast_prs(
+    sample_engine: sa.Engine,
+) -> None:
+    """A first DB open removes the invalid output without requiring a rerun."""
+    with sample_engine.begin() as conn:
+        conn.execute(
+            sa.insert(findings),
+            [
+                _finding(
+                    module="cancer",
+                    category="prs",
+                    trait="breast_cancer",
+                    text="Breast cancer (BCAC): stale percentile",
+                ),
+                _finding(
+                    module="cancer",
+                    category="prs",
+                    trait="colorectal_cancer",
+                    text="Colorectal cancer PRS",
+                ),
+                _finding(
+                    module="traits",
+                    category="prs",
+                    trait="breast_cancer",
+                    text="Unrelated traits-module row",
+                ),
+                _finding(
+                    module="cancer",
+                    category="monogenic_variant",
+                    trait="breast_cancer",
+                    text="BRCA1 pathogenic variant",
+                ),
+            ],
+        )
+        conn.execute(
+            sa.insert(annotation_state),
+            {
+                "key": "last_finding_diff_json",
+                "value": json.dumps(
+                    {
+                        "changed": [
+                            {
+                                "module": "cancer",
+                                "category": "prs",
+                                "trait": "breast_cancer",
+                                "finding_text": "Stale breast PRS changed",
+                            },
+                            {
+                                "module": "cancer",
+                                "category": "prs",
+                                "trait": "colorectal_cancer",
+                                "finding_text": "Current colorectal PRS changed",
+                            },
+                        ],
+                        "added": [
+                            {
+                                "module": "cancer",
+                                "category": "prs",
+                                "trait": "breast_cancer",
+                                "finding_text": "Stale breast PRS added",
+                            },
+                            {
+                                "module": "cancer",
+                                "category": "prs",
+                                "trait": "colorectal_cancer",
+                                "finding_text": "Current colorectal PRS added",
+                            },
+                        ],
+                        "removed": [
+                            {
+                                "module": "cancer",
+                                "category": "prs",
+                                "trait": "breast_cancer",
+                                "finding_text": "Stale breast PRS removed",
+                            },
+                            {
+                                "module": "cancer",
+                                "category": "prs",
+                                "trait": "colorectal_cancer",
+                                "finding_text": "Current colorectal PRS removed",
+                            },
+                        ],
+                        "counts": {"changed": 2, "added": 2, "removed": 2},
+                        "dismissed": False,
+                    }
+                ),
+            },
+        )
+        conn.execute(sa.text("PRAGMA user_version = 19"))
+
+    assert ensure_sample_schema_current(sample_engine) is True
+
+    with sample_engine.connect() as conn:
+        rows = conn.execute(
+            sa.select(findings.c.module, findings.c.category, findings.c.finding_text).order_by(
+                findings.c.id
+            )
+        ).fetchall()
+        diff_json = conn.execute(
+            sa.select(annotation_state.c.value).where(
+                annotation_state.c.key == "last_finding_diff_json"
+            )
+        ).scalar_one()
+        version = conn.execute(sa.text("PRAGMA user_version")).scalar_one()
+
+    assert version == SAMPLE_SCHEMA_VERSION == 20
+    assert [(row.module, row.category, row.finding_text) for row in rows] == [
+        ("cancer", "prs", "Colorectal cancer PRS"),
+        ("traits", "prs", "Unrelated traits-module row"),
+        ("cancer", "monogenic_variant", "BRCA1 pathogenic variant"),
+    ]
+    assert json.loads(diff_json) == {
+        "changed": [
+            {
+                "module": "cancer",
+                "category": "prs",
+                "trait": "colorectal_cancer",
+                "finding_text": "Current colorectal PRS changed",
+            }
+        ],
+        "added": [
+            {
+                "module": "cancer",
+                "category": "prs",
+                "trait": "colorectal_cancer",
+                "finding_text": "Current colorectal PRS added",
+            }
+        ],
+        "removed": [
+            {
+                "module": "cancer",
+                "category": "prs",
+                "trait": "colorectal_cancer",
+                "finding_text": "Current colorectal PRS removed",
+            }
+        ],
+        "counts": {"changed": 1, "added": 1, "removed": 1},
+        "dismissed": False,
+    }
+
+    # The version gate makes the content migration idempotent.
+    assert ensure_sample_schema_current(sample_engine) is False
+
+
+def test_v20_migration_tolerates_partial_legacy_findings_table() -> None:
+    """A malformed/partial old table is skipped instead of crashing the DB open."""
+    engine = sa.create_engine("sqlite+pysqlite:///:memory:")
+    with engine.begin() as conn:
+        conn.execute(
+            sa.text("CREATE TABLE findings (id INTEGER PRIMARY KEY, module TEXT, category TEXT)")
+        )
+        conn.execute(sa.text("PRAGMA user_version = 19"))
+
+    assert ensure_sample_schema_current(engine) is True
+
+    with engine.connect() as conn:
+        assert conn.execute(sa.text("PRAGMA user_version")).scalar_one() == 20

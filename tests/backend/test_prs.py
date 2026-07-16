@@ -612,6 +612,59 @@ class TestAncestryMismatch:
 class TestRunPRS:
     """Test the full PRS pipeline convenience function."""
 
+    def test_disabled_model_is_rejected_by_all_scoring_entry_points(
+        self, weight_set: PRSWeightSet, sample_with_prs_variants: sa.Engine
+    ) -> None:
+        weight_set.scoring_enabled = False
+
+        for scorer in (compute_prs, run_prs):
+            with pytest.raises(ValueError, match="disabled and cannot be scored"):
+                scorer(weight_set, sample_with_prs_variants)
+
+    def test_calibration_ineligible_model_cannot_gain_continuous_percentile(
+        self, sample_engine: sa.Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _seed_continuous_calibration_inputs(sample_engine, with_ancestry=True)
+        weight_set = _uncalibrated_continuous_weight_set()
+        weight_set.calibration_eligible = False
+
+        def forbidden_calibration(*_args: object, **_kwargs: object) -> None:
+            raise AssertionError("continuous calibration must not run")
+
+        monkeypatch.setattr(
+            "backend.analysis.prs.continuous_reference_distribution",
+            forbidden_calibration,
+        )
+
+        result = run_prs(
+            weight_set,
+            sample_engine,
+            inferred_ancestry="EUR",
+            n_bootstrap=25,
+            rng_seed=42,
+        )
+
+        assert result.raw_score == pytest.approx(1.5)
+        assert result.calibrated is False
+        assert result.calibration_method is None
+        assert result.percentile is None
+        assert result.z_score is None
+        assert result.has_bootstrap_ci is False
+
+    def test_calibration_ineligible_model_cannot_use_static_reference(
+        self, weight_set: PRSWeightSet, sample_with_prs_variants: sa.Engine
+    ) -> None:
+        weight_set.calibration_eligible = False
+
+        result = run_prs(weight_set, sample_with_prs_variants)
+
+        assert result.raw_score == pytest.approx(0.45)
+        assert result.calibrated is False
+        assert result.calibration_method is None
+        assert result.percentile is None
+        assert result.z_score is None
+        assert result.has_bootstrap_ci is False
+
     def test_full_pipeline(
         self, weight_set: PRSWeightSet, sample_with_prs_variants: sa.Engine
     ) -> None:

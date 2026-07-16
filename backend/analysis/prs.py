@@ -18,21 +18,18 @@ Usage::
 
     from backend.analysis.prs import (
         PRSWeightSet,
-        PRSResult,
-        compute_prs,
-        compute_prs_percentile,
-        store_prs_findings,
+        PRSSNPWeight,
+        run_prs,
     )
-    from backend.analysis.ancestry import get_inferred_ancestry
 
     weight_set = PRSWeightSet(
-        name="Breast cancer (BCAC)",
-        trait="breast_cancer",
-        module="cancer",
+        name="Published example score",
+        trait="example_trait",
+        module="traits",
         source_ancestry="EUR",
-        source_study="Mavaddat et al. 2019",
-        source_pmid="30554720",
-        sample_size=228951,
+        source_study="Example et al. 2026",
+        source_pmid="12345678",
+        sample_size=100000,
         weights=[
             PRSSNPWeight(rsid="rs123", effect_allele="A", weight=0.05),
             ...
@@ -41,8 +38,7 @@ Usage::
         reference_std=1.0,
     )
 
-    result = compute_prs(weight_set, sample_engine)
-    result = compute_prs_percentile(result)
+    result = run_prs(weight_set, sample_engine)
 """
 
 from __future__ import annotations
@@ -166,12 +162,18 @@ class PRSWeightSet:
         calibrated: Whether ``reference_mean``/``reference_std`` are a validated
             reference distribution for *this exact* shipped score (SNP subset,
             harmonization, and target ancestry). When ``False`` the engine
-            refuses to emit a population percentile or z-score,
-            because converting a raw weighted-allele sum through an
-            uncalibrated mean/SD (e.g. the ``0.0``/``1.0`` placeholder) yields a
-            number that looks calibrated but is not (see issue #7). Defaults to
-            ``True`` so programmatically constructed weight sets keep their
-            historical behaviour; data loaders should pass it explicitly.
+            may derive an ancestry-continuous reference distribution only when
+            ``calibration_eligible`` is also true. Defaults to ``True`` so
+            programmatically constructed weight sets keep their historical
+            behaviour; data loaders should pass it explicitly.
+        scoring_enabled: Whether this model is scientifically eligible to run at
+            all. Disabled models are retained only for provenance/audit and are
+            rejected by :func:`compute_prs` before any genotype is scored.
+        calibration_eligible: Whether the model may emit any population
+            calibration, either its declared static distribution or the generic
+            ancestry-continuous distribution. Set this independently from
+            ``calibrated`` so a source-unverified or otherwise ineligible score
+            cannot be turned into a percentile.
     """
 
     name: str
@@ -212,6 +214,10 @@ class PRSWeightSet:
     # set. Defaults preserve historical single-ancestry behaviour.
     multi_ancestry: bool = False
     development_ancestries: list[str] = field(default_factory=list)
+    # Execution controls are appended to preserve the positional constructor
+    # contract of every pre-existing field.
+    scoring_enabled: bool = True
+    calibration_eligible: bool = True
 
     def __post_init__(self) -> None:
         self.higher_is = normalize_prs_higher_is(self.higher_is)
@@ -564,6 +570,9 @@ def compute_prs(
     Returns:
         PRSResult with raw_score and per-SNP contributions.
     """
+    if not weight_set.scoring_enabled:
+        raise ValueError(f"PRS weight set {weight_set.name!r} is disabled and cannot be scored")
+
     # Fetch genotype + gnomAD MAF for all weight set SNPs. The MAF (already
     # annotated on the same row) only gates palindromes during harmonization: a
     # palindrome with no MAF is dropped (missing_freq); its value no longer drives
@@ -1053,7 +1062,7 @@ def run_prs(
         Complete PRSResult.
     """
     result = compute_prs(weight_set, sample_engine)
-    result.calibrated = weight_set.calibrated
+    result.calibrated = weight_set.calibrated and weight_set.calibration_eligible
     result.higher_is = normalize_prs_higher_is(weight_set.higher_is)
     # Carry per-PGS provenance through to the result (SW-B3).
     result.pgs_id = weight_set.pgs_id
@@ -1066,13 +1075,13 @@ def run_prs(
 
     reference_mean: float | None = None
     reference_std: float | None = None
-    if weight_set.calibrated:
+    if result.calibrated:
         reference_mean = weight_set.reference_mean
         reference_std = weight_set.reference_std
         result.calibration_method = "static_reference"
         result.calibration_reference_mean = reference_mean
         result.calibration_reference_std = reference_std
-    else:
+    elif weight_set.calibration_eligible:
         # Standardize the raw score only against a distribution over the SAME
         # variants that contributed to it. compute_prs emits exactly one
         # contribution per weight, in order, so zip pairs each weight with its
@@ -1127,6 +1136,12 @@ def run_prs(
                 variants_used=dist.variants_used,
                 variants_total=dist.variants_total,
             )
+    else:
+        logger.info(
+            "prs_calibration_ineligible",
+            trait=result.trait,
+            weight_set=weight_set.name,
+        )
 
     if reference_mean is not None and reference_std is not None:
         result = compute_prs_percentile(result, reference_mean, reference_std)
