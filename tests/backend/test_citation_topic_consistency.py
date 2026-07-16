@@ -302,7 +302,7 @@ def test_topic_locked_entries_are_covered() -> None:
         locked: set[str] | frozenset[str],
         current: dict[str, list[dict]] | dict[str, dict],
         *,
-        require_pmids: bool,
+        allow_no_pmids: frozenset[str] = frozenset(),
     ) -> None:
         for key in sorted(locked):
             raw_entries = current.get(key)
@@ -313,17 +313,21 @@ def test_topic_locked_entries_are_covered() -> None:
             for entry in entries:
                 pmids = _entry_pmids(entry)
                 if not pmids:
-                    if require_pmids:
+                    if key not in allow_no_pmids:
                         failures.append(f"{key}: locked entry has no PMIDs")
                     continue
                 missing = [pmid for pmid in pmids if pmid not in snapshot]
                 if missing:
                     failures.append(f"{key}: PMIDs absent from snapshot: {missing}")
 
-    check_entries(panel_locks, panel_entries, require_pmids=True)
-    # Indel provenance may use named non-PMID sources (rs1799750); whenever a
-    # lock does carry PMIDs, those IDs are subject to the same snapshot contract.
-    check_entries(set(_INDEL_POLARITY_TOPIC_LOCKED), indel_entries, require_pmids=False)
+    check_entries(panel_locks, panel_entries)
+    # This one indel provenance record uses named non-PMID sources. Every other
+    # audited indel lock must carry PMIDs under the strict snapshot contract.
+    check_entries(
+        set(_INDEL_POLARITY_TOPIC_LOCKED),
+        indel_entries,
+        allow_no_pmids=frozenset({"skin_panel.json::rs1799750"}),
+    )
 
     for key in sorted(_GENE_TOPIC_LOCKED):
         for entry in panel_entries.get(key, []):
