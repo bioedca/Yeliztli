@@ -6,7 +6,12 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from "react"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+} from "@tanstack/react-query"
 import { qcMetricsQueryKey } from "@/api/qc"
 
 // ── Types ──────────────────────────────────────────────────────────────
@@ -76,10 +81,13 @@ export interface ActiveAnnotationJob {
   message: string
 }
 
+export const annotationActiveQueryKey = (sampleId: number | null) =>
+  ["annotation-active", sampleId] as const
+
 /** Check if a sample has an active (pending/running) annotation job. */
 export function useActiveAnnotationJob(sampleId: number | null) {
   return useQuery<ActiveAnnotationJob | null>({
-    queryKey: ["annotation-active", sampleId],
+    queryKey: annotationActiveQueryKey(sampleId),
     queryFn: async () => {
       if (sampleId == null) return null
       const res = await fetch(`/api/annotation/active/${sampleId}`)
@@ -90,7 +98,30 @@ export function useActiveAnnotationJob(sampleId: number | null) {
     enabled: sampleId != null,
     staleTime: 0,
     refetchOnWindowFocus: false,
+    refetchInterval: ({ state: { data } }) => (data ? 1_000 : false),
   })
+}
+
+/** Invalidate data derived from an annotation bundle before stale views remount. */
+export function invalidateAnnotationResultQueries(
+  queryClient: QueryClient,
+  sampleId: number | null = null,
+) {
+  const invalidations = [
+    queryClient.invalidateQueries({ queryKey: ["variants"] }),
+    queryClient.invalidateQueries({ queryKey: ["variants-count"] }),
+    queryClient.invalidateQueries({ queryKey: ["variants-total-count"] }),
+    queryClient.invalidateQueries({ queryKey: ["variants-qc-stats"] }),
+    queryClient.invalidateQueries({ queryKey: ["variants-chromosomes"] }),
+    queryClient.invalidateQueries({ queryKey: ["findings-summary"] }),
+    queryClient.invalidateQueries({ queryKey: ["findings"] }),
+  ]
+  if (sampleId != null) {
+    invalidations.push(
+      queryClient.invalidateQueries({ queryKey: qcMetricsQueryKey(sampleId) }),
+    )
+  }
+  return Promise.all(invalidations)
 }
 
 // ── SSE progress hook ──────────────────────────────────────────────────
@@ -135,18 +166,7 @@ export function useAnnotationProgress(
       if (TERMINAL_STATES.has(data.status)) {
         es.close()
         eventSourceRef.current = null
-        // Invalidate variant queries so tables refresh with new annotations
-        queryClient.invalidateQueries({ queryKey: ["variants"] })
-        queryClient.invalidateQueries({ queryKey: ["variants-count"] })
-        queryClient.invalidateQueries({ queryKey: ["variants-total-count"] })
-        queryClient.invalidateQueries({ queryKey: ["variants-qc-stats"] })
-        if (sampleId != null) {
-          queryClient.invalidateQueries({ queryKey: qcMetricsQueryKey(sampleId) })
-        }
-        queryClient.invalidateQueries({ queryKey: ["variants-chromosomes"] })
-        // Invalidate findings so High-Confidence Findings refreshes
-        queryClient.invalidateQueries({ queryKey: ["findings-summary"] })
-        queryClient.invalidateQueries({ queryKey: ["findings"] })
+        void invalidateAnnotationResultQueries(queryClient, sampleId)
       }
     })
 

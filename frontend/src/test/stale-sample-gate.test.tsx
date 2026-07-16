@@ -1,11 +1,9 @@
 /** Tests for <StaleSampleGate> (Step 14, Plan §7.5).
  *
- * Covers:
- * - 423 response → full-page banner with payload-driven versions + CTA
- * - 2xx response → children render through
- * - No sample_id in URL → children render through without a probe
- * - CTA fires POST to the payload's `reannotate_url`
- * - Re-annotation error surfaces in the banner without removing the gate
+ * Covers the full stale-sample lifecycle: initial gating, payload-driven
+ * re-annotation, active-job reconnect/progress, automatic freshness polling,
+ * conflict recovery, and retry after an active job disappears while the
+ * sample remains stale.
  */
 
 import type { ReactNode } from 'react'
@@ -22,6 +20,14 @@ const STALE_PAYLOAD = {
   reannotate_url: '/api/annotation/42',
 }
 
+const ACTIVE_JOB = {
+  job_id: 'job-123',
+  sample_id: 42,
+  status: 'running',
+  progress_pct: 37.5,
+  message: 'Annotating variants',
+}
+
 const mockFetch = vi.fn()
 
 beforeEach(() => {
@@ -34,7 +40,7 @@ afterEach(() => {
 })
 
 function createWrapper(initialEntries: string[] = ['/?sample_id=42']) {
-  const qc = new QueryClient({
+  const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false, gcTime: 0 },
       mutations: { retry: false },
@@ -42,14 +48,14 @@ function createWrapper(initialEntries: string[] = ['/?sample_id=42']) {
   })
   return function Wrapper({ children }: { children: ReactNode }) {
     return (
-      <QueryClientProvider client={qc}>
+      <QueryClientProvider client={queryClient}>
         <MemoryRouter initialEntries={initialEntries}>{children}</MemoryRouter>
       </QueryClientProvider>
     )
   }
 }
 
-function stalenessMock({ status, body }: { status: number; body: unknown }) {
+function apiResponse(status: number, body: unknown) {
   return Promise.resolve({
     ok: status >= 200 && status < 300,
     status,
@@ -58,13 +64,29 @@ function stalenessMock({ status, body }: { status: number; body: unknown }) {
   })
 }
 
+function requestUrl(input: RequestInfo | URL) {
+  return typeof input === 'string' ? input : input.toString()
+}
+
+function isStalenessRequest(url: string) {
+  return url.startsWith('/api/variants/count')
+}
+
+function isActiveJobRequest(url: string) {
+  return url === '/api/annotation/active/42'
+}
+
 describe('StaleSampleGate', () => {
-  it('renders the banner with payload-driven versions when the API returns 423', async () => {
-    mockFetch.mockImplementation((url: string) => {
-      if (typeof url === 'string' && url.startsWith('/api/variants/count')) {
-        return stalenessMock({ status: 423, body: { detail: STALE_PAYLOAD } })
+  it('renders the labelled banner with payload-driven versions for a stale sample', async () => {
+    mockFetch.mockImplementation((input: RequestInfo | URL) => {
+      const url = requestUrl(input)
+      if (isActiveJobRequest(url)) {
+        return apiResponse(404, { detail: 'No active job' })
       }
-      return stalenessMock({ status: 200, body: { total: 0 } })
+      if (isStalenessRequest(url)) {
+        return apiResponse(423, { detail: STALE_PAYLOAD })
+      }
+      return apiResponse(200, {})
     })
 
     render(
@@ -74,7 +96,9 @@ describe('StaleSampleGate', () => {
       { wrapper: createWrapper() },
     )
 
-    expect(await screen.findByTestId('stale-sample-gate')).toBeInTheDocument()
+    expect(
+      await screen.findByRole('region', { name: /sample requires re-annotation/i }),
+    ).toBeInTheDocument()
     expect(screen.queryByTestId('protected-content')).not.toBeInTheDocument()
     expect(screen.getByTestId('stale-installed-version')).toHaveTextContent('v1.0.0')
     expect(screen.getByTestId('stale-required-version')).toHaveTextContent('v2.0.0')
@@ -85,9 +109,13 @@ describe('StaleSampleGate', () => {
   })
 
   it('renders children when the staleness probe returns 200', async () => {
-    mockFetch.mockImplementation(() =>
-      stalenessMock({ status: 200, body: { total: 12345 } }),
-    )
+    mockFetch.mockImplementation((input: RequestInfo | URL) => {
+      const url = requestUrl(input)
+      if (isActiveJobRequest(url)) {
+        return apiResponse(404, { detail: 'No active job' })
+      }
+      return apiResponse(200, { total: 12345 })
+    })
 
     render(
       <StaleSampleGate>
@@ -98,13 +126,11 @@ describe('StaleSampleGate', () => {
 
     expect(await screen.findByTestId('protected-content')).toBeInTheDocument()
     expect(screen.queryByTestId('stale-sample-gate')).not.toBeInTheDocument()
-    await waitFor(() => {
-      expect(mockFetch).toHaveBeenCalledWith('/api/variants/count?sample_id=42')
-    })
+    expect(mockFetch).toHaveBeenCalledWith('/api/variants/count?sample_id=42')
   })
 
   it('renders children without probing when no sample_id is in the URL', async () => {
-    mockFetch.mockImplementation(() => stalenessMock({ status: 200, body: {} }))
+    mockFetch.mockImplementation(() => apiResponse(200, {}))
 
     render(
       <StaleSampleGate>
@@ -117,56 +143,152 @@ describe('StaleSampleGate', () => {
     expect(mockFetch).not.toHaveBeenCalled()
   })
 
-  it('CTA fires POST to the payload reannotate_url and surfaces success state', async () => {
-    mockFetch.mockImplementation((url: string, init?: RequestInit) => {
-      if (
-        typeof url === 'string' &&
-        url === STALE_PAYLOAD.reannotate_url &&
-        init?.method === 'POST'
-      ) {
-        return stalenessMock({
-          status: 202,
-          body: { job_id: 'job-123', sample_id: 42, status: 'pending' },
+  it('polls 423 to 200 after POST and lifts the gate without a remount', async () => {
+    let started = false
+    let postStartStalenessChecks = 0
+
+    mockFetch.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = requestUrl(input)
+      if (url === STALE_PAYLOAD.reannotate_url && init?.method === 'POST') {
+        started = true
+        return apiResponse(202, {
+          job_id: ACTIVE_JOB.job_id,
+          sample_id: 42,
+          status: 'pending',
         })
       }
-      if (typeof url === 'string' && url.startsWith('/api/variants/count')) {
-        return stalenessMock({ status: 423, body: { detail: STALE_PAYLOAD } })
+      if (isActiveJobRequest(url)) {
+        return started
+          ? apiResponse(200, ACTIVE_JOB)
+          : apiResponse(404, { detail: 'No active job' })
       }
-      return stalenessMock({ status: 200, body: {} })
+      if (isStalenessRequest(url)) {
+        if (!started) return apiResponse(423, { detail: STALE_PAYLOAD })
+        postStartStalenessChecks += 1
+        return postStartStalenessChecks >= 2
+          ? apiResponse(200, { total: 12345 })
+          : apiResponse(423, { detail: STALE_PAYLOAD })
+      }
+      return apiResponse(200, {})
     })
 
     render(
       <StaleSampleGate>
-        <div>hidden</div>
+        <div data-testid="protected-content">fresh annotations</div>
       </StaleSampleGate>,
       { wrapper: createWrapper() },
     )
 
-    const cta = await screen.findByTestId('stale-reannotate-cta')
-    fireEvent.click(cta)
+    fireEvent.click(await screen.findByTestId('stale-reannotate-cta'))
 
+    expect(await screen.findByTestId('stale-annotation-progress')).toBeInTheDocument()
     await waitFor(() => {
-      expect(mockFetch).toHaveBeenCalledWith(
-        STALE_PAYLOAD.reannotate_url,
-        expect.objectContaining({ method: 'POST' }),
-      )
+      expect(screen.getByRole('progressbar', { name: /re-annotation progress/i }))
+        .toHaveAttribute('aria-valuenow', '37.5')
     })
-    expect(await screen.findByTestId('stale-success')).toBeInTheDocument()
+    expect(screen.getByTestId('stale-reannotate-cta')).toBeDisabled()
+
+    expect(
+      await screen.findByTestId('protected-content', {}, { timeout: 2_500 }),
+    ).toBeInTheDocument()
+    expect(postStartStalenessChecks).toBeGreaterThanOrEqual(2)
+    expect(screen.queryByTestId('stale-sample-gate')).not.toBeInTheDocument()
   })
 
-  it('surfaces a re-annotation error and keeps the gate visible', async () => {
-    mockFetch.mockImplementation((url: string, init?: RequestInit) => {
-      if (
-        typeof url === 'string' &&
-        url === STALE_PAYLOAD.reannotate_url &&
-        init?.method === 'POST'
-      ) {
-        return stalenessMock({ status: 500, body: { detail: 'annotator unavailable' } })
+  it('reconnects to an active job on mount and disables duplicate submission', async () => {
+    mockFetch.mockImplementation((input: RequestInfo | URL) => {
+      const url = requestUrl(input)
+      if (isActiveJobRequest(url)) return apiResponse(200, ACTIVE_JOB)
+      if (isStalenessRequest(url)) {
+        return apiResponse(423, { detail: STALE_PAYLOAD })
       }
-      if (typeof url === 'string' && url.startsWith('/api/variants/count')) {
-        return stalenessMock({ status: 423, body: { detail: STALE_PAYLOAD } })
+      return apiResponse(200, {})
+    })
+
+    render(
+      <StaleSampleGate>
+        <div>hidden</div>
+      </StaleSampleGate>,
+      { wrapper: createWrapper() },
+    )
+
+    expect(await screen.findByText('Annotating variants')).toBeInTheDocument()
+    expect(screen.getByText('37.5%')).toBeInTheDocument()
+    expect(screen.getByRole('progressbar', { name: /re-annotation progress/i }))
+      .toHaveAttribute('aria-valuenow', '37.5')
+    expect(screen.getByTestId('stale-reannotate-cta')).toBeDisabled()
+    expect(
+      mockFetch.mock.calls.filter(([, init]) => init?.method === 'POST'),
+    ).toHaveLength(0)
+  })
+
+  it('maps a 409 to friendly copy and reconnects without exposing the job UUID', async () => {
+    const rawJobId = '6d15a253-69f6-41f6-bbe0-297c7196213a'
+    let conflictReceived = false
+    let recoveredActiveChecks = 0
+
+    mockFetch.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = requestUrl(input)
+      if (url === STALE_PAYLOAD.reannotate_url && init?.method === 'POST') {
+        conflictReceived = true
+        return apiResponse(409, {
+          detail: `Annotation already in progress for sample 42 (job ${rawJobId})`,
+        })
       }
-      return stalenessMock({ status: 200, body: {} })
+      if (isActiveJobRequest(url)) {
+        if (!conflictReceived) {
+          return apiResponse(404, { detail: 'No active job' })
+        }
+        recoveredActiveChecks += 1
+        return recoveredActiveChecks === 1
+          ? apiResponse(200, { ...ACTIVE_JOB, job_id: rawJobId })
+          : apiResponse(404, { detail: 'No active job' })
+      }
+      if (isStalenessRequest(url)) {
+        return apiResponse(423, { detail: STALE_PAYLOAD })
+      }
+      return apiResponse(200, {})
+    })
+
+    render(
+      <StaleSampleGate>
+        <div>hidden</div>
+      </StaleSampleGate>,
+      { wrapper: createWrapper() },
+    )
+
+    fireEvent.click(await screen.findByTestId('stale-reannotate-cta'))
+
+    expect(await screen.findByTestId('stale-reconnect-status')).toHaveTextContent(
+      /already running.*tracking progress/i,
+    )
+    expect(await screen.findByText('Annotating variants')).toBeInTheDocument()
+    expect(document.body).not.toHaveTextContent(rawJobId)
+    expect(screen.getByTestId('stale-reannotate-cta')).toBeDisabled()
+
+    await waitFor(
+      () => expect(screen.getByTestId('stale-reannotate-cta')).toBeEnabled(),
+      { timeout: 2_500 },
+    )
+    expect(screen.queryByTestId('stale-reconnect-status')).not.toBeInTheDocument()
+    expect(screen.getByTestId('stale-sample-gate')).toBeInTheDocument()
+  })
+
+  it('re-enables retry when the active job disappears but the sample stays stale', async () => {
+    let activeChecks = 0
+
+    mockFetch.mockImplementation((input: RequestInfo | URL) => {
+      const url = requestUrl(input)
+      if (isActiveJobRequest(url)) {
+        activeChecks += 1
+        return activeChecks === 1
+          ? apiResponse(200, ACTIVE_JOB)
+          : apiResponse(404, { detail: 'No active job' })
+      }
+      if (isStalenessRequest(url)) {
+        return apiResponse(423, { detail: STALE_PAYLOAD })
+      }
+      return apiResponse(200, {})
     })
 
     render(
@@ -177,10 +299,42 @@ describe('StaleSampleGate', () => {
     )
 
     const cta = await screen.findByTestId('stale-reannotate-cta')
-    fireEvent.click(cta)
+    expect(cta).toBeDisabled()
 
-    const errorNode = await screen.findByTestId('stale-error')
-    expect(errorNode).toHaveTextContent(/annotator unavailable/i)
+    await waitFor(() => expect(cta).toBeEnabled(), { timeout: 2_500 })
     expect(screen.getByTestId('stale-sample-gate')).toBeInTheDocument()
+    expect(screen.queryByTestId('stale-annotation-progress')).not.toBeInTheDocument()
+    expect(activeChecks).toBeGreaterThanOrEqual(2)
+  })
+
+  it('surfaces a non-conflict error and keeps the retry control enabled', async () => {
+    mockFetch.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = requestUrl(input)
+      if (url === STALE_PAYLOAD.reannotate_url && init?.method === 'POST') {
+        return apiResponse(500, { detail: 'annotator unavailable' })
+      }
+      if (isActiveJobRequest(url)) {
+        return apiResponse(404, { detail: 'No active job' })
+      }
+      if (isStalenessRequest(url)) {
+        return apiResponse(423, { detail: STALE_PAYLOAD })
+      }
+      return apiResponse(200, {})
+    })
+
+    render(
+      <StaleSampleGate>
+        <div>hidden</div>
+      </StaleSampleGate>,
+      { wrapper: createWrapper() },
+    )
+
+    fireEvent.click(await screen.findByTestId('stale-reannotate-cta'))
+
+    expect(await screen.findByTestId('stale-error')).toHaveTextContent(
+      /annotator unavailable/i,
+    )
+    expect(screen.getByTestId('stale-sample-gate')).toBeInTheDocument()
+    expect(screen.getByTestId('stale-reannotate-cta')).toBeEnabled()
   })
 })
