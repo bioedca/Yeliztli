@@ -34,6 +34,9 @@ Switch between predefined column layouts, or build your own from **Column Settin
 | Frequency | Genotype, Gene, global gnomAD AF, rare flag |
 | Scores | Gene, Consequence, CADD, SIFT score/prediction, PolyPhen-2 score/prediction, REVEL |
 
+See the interpretation reference for the [ensemble pathogenic flag's axes, thresholds, and
+displayed fraction](../modules/interpretation-reference.md#ensemble-pathogenic).
+
 ## Coordinates & assembly (GRCh37 / GRCh38)
 
 The default **Chr** and **Position** columns are **GRCh37 (hg19)** — the app's native assembly,

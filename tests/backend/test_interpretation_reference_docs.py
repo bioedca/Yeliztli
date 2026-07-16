@@ -13,8 +13,21 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from backend.annotation.dbnsfp import ENSEMBLE_MIN_AXES, is_ensemble_pathogenic_from_counts
+from backend.annotation.insilico_axes import (
+    CADD_PHRED_THRESHOLD,
+    METALR_THRESHOLD,
+    POLYPHEN_PROBABLY_DAMAGING_THRESHOLD,
+    REVEL_THRESHOLD,
+    SIFT_THRESHOLD,
+    assess_insilico_axes,
+)
+
 _REPO = Path(__file__).resolve().parents[2]
 _DOC = _REPO / "docs" / "modules" / "interpretation-reference.md"
+_RARE_VARIANTS_DOC = _REPO / "docs" / "modules" / "rare-variants.md"
+_VARIANT_DETAIL_DOC = _REPO / "docs" / "features" / "variant-detail.md"
+_VARIANT_EXPLORER_DOC = _REPO / "docs" / "features" / "variant-explorer.md"
 _SRC = _REPO / "frontend" / "src" / "lib" / "pathwayCoverage.ts"
 _RARE_VARIANT_PANEL = (
     _REPO / "frontend" / "src" / "components" / "rare-variants" / "VariantDetailPanel.tsx"
@@ -29,6 +42,22 @@ _IN_SILICO_TOKENS = ("cadd", "revel", "phred", "deleterious", "pathogenic")
 
 # The Rare Variant panel's CADD/REVEL red-highlight thresholds, mirrored in the doc.
 _UI_SCORE_THRESHOLDS = ("cadd_phred >= 20", "revel >= 0.5")
+
+_ENSEMBLE_THRESHOLD_TOKENS = (
+    f"SIFT < {SIFT_THRESHOLD:g}",
+    f"PolyPhen-2 HVAR > {POLYPHEN_PROBABLY_DAMAGING_THRESHOLD:g}",
+    f"CADD PHRED ≥ {CADD_PHRED_THRESHOLD:g}",
+    f"REVEL ≥ {REVEL_THRESHOLD:g}",
+    "MetaSVM > 0",
+    f"MetaLR > {METALR_THRESHOLD:g}",
+)
+
+_ENSEMBLE_EXAMPLES = (
+    (2, 2, True),
+    (2, 3, True),
+    (2, 4, False),
+    (3, 4, True),
+)
 
 
 def test_coverage_badges_are_documented() -> None:
@@ -82,3 +111,102 @@ def test_documented_score_thresholds_match_the_ui() -> None:
         f"{missing}. Update the UI copy and the CADD/REVEL note in "
         "docs/modules/interpretation-reference.md (#1589)."
     )
+
+
+def test_ensemble_pathogenic_rule_is_documented() -> None:
+    """The badge's project-specific axes and fraction must be readable outside code (#1971)."""
+    doc = _DOC.read_text(encoding="utf-8")
+    missing = [token for token in _ENSEMBLE_THRESHOLD_TOKENS if token not in doc]
+    assert not missing, (
+        "interpretation-reference.md no longer documents the ensemble-pathogenic "
+        f"axis threshold(s): {missing} (#1971)."
+    )
+
+    plain_doc = " ".join(doc.replace("**", "").split())
+    rule_tokens = (
+        f"at least {ENSEMBLE_MIN_AXES} axes have data and a strict majority of those "
+        "assessed axes vote deleterious",
+        "deleterious axes / axes with data",
+        "not a percentage, probability, confidence score",
+        "not a claim that the underlying scores are statistically independent",
+        "other present categorical results vote non-deleterious",
+        "that axis is absent",
+        "their strict majority becomes one axis",
+        "If none has data, META is absent",
+    )
+    missing = [token for token in rule_tokens if token not in plain_doc]
+    assert not missing, (
+        "interpretation-reference.md no longer explains the ensemble-pathogenic "
+        f"denominator or limitations: {missing} (#1971)."
+    )
+
+
+def test_documented_ensemble_operators_match_backend_boundaries() -> None:
+    """Strict/inclusive operators in the threshold table match executable boundaries (#1971)."""
+    epsilon = 0.001
+    cases = (
+        ("SIFT at boundary", {"sift_score": SIFT_THRESHOLD}, False),
+        ("SIFT below boundary", {"sift_score": SIFT_THRESHOLD - epsilon}, True),
+        (
+            "PolyPhen-2 at boundary",
+            {"polyphen2_hsvar_score": POLYPHEN_PROBABLY_DAMAGING_THRESHOLD},
+            False,
+        ),
+        (
+            "PolyPhen-2 above boundary",
+            {"polyphen2_hsvar_score": POLYPHEN_PROBABLY_DAMAGING_THRESHOLD + epsilon},
+            True,
+        ),
+        ("CADD at boundary", {"cadd_phred": CADD_PHRED_THRESHOLD}, True),
+        ("CADD below boundary", {"cadd_phred": CADD_PHRED_THRESHOLD - epsilon}, False),
+        ("REVEL at boundary", {"revel": REVEL_THRESHOLD}, True),
+        ("REVEL below boundary", {"revel": REVEL_THRESHOLD - epsilon}, False),
+        ("MetaSVM at boundary", {"metasvm": 0.0}, False),
+        ("MetaSVM above boundary", {"metasvm": epsilon}, True),
+        ("MetaLR at boundary", {"metalr": METALR_THRESHOLD}, False),
+        ("MetaLR above boundary", {"metalr": METALR_THRESHOLD + epsilon}, True),
+    )
+    for label, variant, expected_deleterious in cases:
+        deleterious, assessed = assess_insilico_axes(variant)
+        assert assessed == 1, label
+        assert bool(deleterious) is expected_deleterious, label
+
+
+def test_documented_categorical_fallbacks_match_backend_denominator() -> None:
+    """Present categorical results assess an axis even when they vote non-deleterious (#1971)."""
+    cases = (
+        ("SIFT deleterious", {"sift_pred": "D"}, True),
+        ("SIFT tolerated", {"sift_pred": "T"}, False),
+        ("PolyPhen-2 probably damaging", {"polyphen2_hsvar_pred": "D"}, True),
+        ("PolyPhen-2 benign", {"polyphen2_hsvar_pred": "B"}, False),
+    )
+    for label, variant, expected_deleterious in cases:
+        deleterious, assessed = assess_insilico_axes(variant)
+        assert assessed == 1, label
+        assert bool(deleterious) is expected_deleterious, label
+
+    assert assess_insilico_axes({}) == (0, 0)
+
+
+def test_documented_ensemble_examples_match_backend_rule() -> None:
+    """The inverse-looking 2/2 versus 3/4 examples stay tied to the shipped rule (#1971)."""
+    doc = _DOC.read_text(encoding="utf-8")
+    for deleterious, assessed, expected in _ENSEMBLE_EXAMPLES:
+        row_prefix = f"| `{deleterious}/{assessed}` | {'Yes' if expected else 'No'} |"
+        assert row_prefix in doc
+        assert is_ensemble_pathogenic_from_counts(deleterious, assessed) is expected
+
+    assert "`2/2` is the minimum firing state" in doc
+    assert "not stronger than `3/4`" in doc
+
+
+def test_ensemble_definition_is_linked_from_variant_docs() -> None:
+    """Every user-facing docs mention points to the canonical definition (#1971)."""
+    anchor = "interpretation-reference.md#ensemble-pathogenic"
+    docs = (_RARE_VARIANTS_DOC, _VARIANT_DETAIL_DOC, _VARIANT_EXPLORER_DOC)
+    missing = [
+        path.relative_to(_REPO).as_posix()
+        for path in docs
+        if anchor not in path.read_text(encoding="utf-8")
+    ]
+    assert not missing, f"Ensemble-pathogenic definition is not linked from: {missing} (#1971)."
