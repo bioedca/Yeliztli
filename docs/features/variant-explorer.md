@@ -30,9 +30,12 @@ Switch between predefined column layouts, or build your own from **Column Settin
 | Preset | Columns shown |
 |--------|---------------|
 | Clinical | Genotype, Gene, Consequence, ClinVar significance, ClinVar review stars |
-| Research | Genotype, Gene, Consequence, ClinVar significance, ClinVar review stars, CADD, SIFT score/prediction, PolyPhen-2 score/prediction, REVEL, [ensemble pathogenic flag](../modules/interpretation-reference.md#ensemble-pathogenic) |
+| Research | Genotype, Gene, Consequence, ClinVar significance, ClinVar review stars, CADD, SIFT score/prediction, PolyPhen-2 score/prediction, REVEL, ensemble pathogenic flag |
 | Frequency | Genotype, Gene, global gnomAD AF, rare flag |
 | Scores | Gene, Consequence, CADD, SIFT score/prediction, PolyPhen-2 score/prediction, REVEL |
+
+See the interpretation reference for the [ensemble pathogenic flag's axes, thresholds, and
+displayed fraction](../modules/interpretation-reference.md#ensemble-pathogenic).
 
 ## Coordinates & assembly (GRCh37 / GRCh38)
 
