@@ -134,22 +134,41 @@ jobs:
         run: cd frontend && npm run knip
 
   # ── Backend tests — Tier 1 (Linux, PR-blocking) ─────────────────────────
+  # Runs the non-slow suite on every declared interpreter (pyproject
+  # requires-python = ">=3.12"), so claimed Python 3.13 support is continuously
+  # verified rather than assumed (#1965). A bounded TestClient startup witness
+  # runs first: a genuine lifespan hang then fails fast with a named step
+  # instead of a 20-minute suite timeout. #1892 proved the earlier "3.13 hang"
+  # was a Codex-sandbox artifact, not the interpreter — GitHub runners are not
+  # sandboxed, so no application workaround is added here.
   test-backend:
-    name: Backend Tests (Linux x86_64)
+    name: Backend Tests (Linux x86_64, py${{ matrix.python-version }})
     needs: changes
     if: needs.changes.outputs.backend == 'true' || github.event_name != 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
     steps:
       - uses: actions/checkout@v6
 
       - uses: actions/setup-python@v6
         with:
-          python-version: "3.12"
+          python-version: ${{ matrix.python-version }}
           cache: pip
           cache-dependency-path: pyproject.toml
 
       - name: Install dependencies
         run: pip install -e ".[dev]"
+
+      # Records interpreter + resolved fastapi/starlette/anyio/httpx/pytest/
+      # pytest-asyncio versions, then exercises FastAPI TestClient lifespan
+      # startup. `timeout` bounds a true C-level hang the script cannot self-
+      # interrupt; on expiry the step fails as "TestClient startup witness".
+      - name: TestClient startup witness (bounded)
+        run: timeout 120 python scripts/ci_startup_witness.py
 
       - name: Run pytest
         run: python -m pytest tests/backend/ -v --tb=short -m "not slow"
