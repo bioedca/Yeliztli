@@ -104,11 +104,19 @@ function mockPromptsResponse(prompts?: unknown[]) {
   }
 }
 
+// Default sample list backing the dismiss-button labels (#1986). Names mirror
+// the issue's real two-sample install so the per-sample labels are legible.
+const DEFAULT_SAMPLES = [
+  { id: 1, name: '23andMe.txt' },
+  { id: 2, name: 'AncestryDNA.txt' },
+]
+
 function setupFetchMocks(options: {
   statuses?: unknown[]
   available?: unknown[]
   history?: unknown[]
   prompts?: unknown[]
+  samples?: unknown[]
   triggerResponse?: unknown
   autoUpdateResponse?: unknown
   appUpdate?: unknown
@@ -161,6 +169,12 @@ function setupFetchMocks(options: {
         return Promise.resolve(mockHistoryResponse(options.history))
       if (url.includes('/api/updates/prompts'))
         return Promise.resolve(mockPromptsResponse(options.prompts))
+      if (url.includes('/api/samples'))
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => options.samples ?? DEFAULT_SAMPLES,
+        })
     }
     return Promise.resolve({ ok: true, status: 200, json: async () => ({}) })
   })
@@ -548,10 +562,58 @@ describe('Re-annotation Banner', () => {
     render(<UpdateManager />, { wrapper: createWrapper() })
 
     expect(await screen.findByText('Reference data updated')).toBeInTheDocument()
-    expect(screen.getByText(/Reference data is newer than 1 analysis/)).toBeInTheDocument()
+    expect(screen.getByText(/Reference data is newer than 1 analysis\b/)).toBeInTheDocument()
     expect(screen.getByText(/gnomad/)).toBeInTheDocument()
     expect(screen.queryByText(/potential reclassification/)).not.toBeInTheDocument()
-    expect(screen.getByText('Dismiss (reference data)')).toBeInTheDocument()
+    // The dismiss button names its sample so it is not confusable with another.
+    expect(await screen.findByText('Dismiss (reference data — 23andMe.txt)')).toBeInTheDocument()
+  })
+
+  it('gives each stale sample a distinct dismiss button and pluralises correctly (#1986)', async () => {
+    // Two stale samples: the banner must say "2 analyses" (not "analysises") and
+    // render two dismiss buttons that name their samples — the single-prompt
+    // fixture hid both defects because `getByText` throws on duplicate matches
+    // and the plural branch never fired.
+    setupFetchMocks({
+      prompts: [
+        {
+          id: 2,
+          sample_id: 1,
+          db_name: 'reference_data',
+          db_version: 'multiple',
+          candidate_count: 0,
+          prompt_type: 'version_staleness',
+          stale_databases: [
+            { db_name: 'gwas_catalog', recorded_version: '1', current_version: '2' },
+          ],
+          created_at: '2026-06-29T03:00:00Z',
+        },
+        {
+          id: 3,
+          sample_id: 2,
+          db_name: 'reference_data',
+          db_version: 'multiple',
+          candidate_count: 0,
+          prompt_type: 'version_staleness',
+          stale_databases: [
+            { db_name: 'gwas_catalog', recorded_version: '1', current_version: '2' },
+          ],
+          created_at: '2026-06-29T03:00:00Z',
+        },
+      ],
+    })
+    render(<UpdateManager />, { wrapper: createWrapper() })
+
+    expect(await screen.findByText('Reference data updated')).toBeInTheDocument()
+    // Correct plural of "analysis" is "analyses" — never "analysises".
+    expect(screen.getByText(/Reference data is newer than 2 analyses\b/)).toBeInTheDocument()
+    expect(screen.queryByText(/analysises/)).not.toBeInTheDocument()
+
+    // Two distinct, sample-named dismiss buttons — not two identical labels.
+    expect(
+      await screen.findByText('Dismiss (reference data — 23andMe.txt)'),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Dismiss (reference data — AncestryDNA.txt)')).toBeInTheDocument()
   })
 
   it('counts distinct samples when summarizing reclassification prompts', async () => {
@@ -597,7 +659,7 @@ describe('Re-annotation Banner', () => {
       ],
     })
     render(<UpdateManager />, { wrapper: createWrapper() })
-    expect(await screen.findByText('Dismiss (clinvar)')).toBeInTheDocument()
+    expect(await screen.findByText('Dismiss (clinvar — 23andMe.txt)')).toBeInTheDocument()
   })
 
   it('calls dismiss endpoint when dismiss clicked', async () => {
@@ -615,7 +677,7 @@ describe('Re-annotation Banner', () => {
     })
     render(<UpdateManager />, { wrapper: createWrapper() })
 
-    const dismissBtn = await screen.findByText('Dismiss (clinvar)')
+    const dismissBtn = await screen.findByText('Dismiss (clinvar — 23andMe.txt)')
     fireEvent.click(dismissBtn)
 
     await waitFor(() => {
