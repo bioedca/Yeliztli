@@ -57,6 +57,12 @@ BUNDLE_PATH = (
     / "panels"
     / "haplogroup_bundle.json"
 )
+MT_HAPLOGROUP_SOURCE_PATH = (
+    Path(__file__).resolve().parent.parent.parent / "scripts" / "mt_haplogroup_source.json"
+)
+PGP_1050_MT_I_LAYOUT_PATH = (
+    Path(__file__).resolve().parent.parent / "fixtures" / "pgp_1050_mt_i_callable_layout.json"
+)
 
 # ── Fixtures ─────────────────────────────────────────────────────────────
 
@@ -220,29 +226,6 @@ _MT_I_GENOTYPES = _MT_N1A_GENOTYPES + [
     {"rsid": "i5015043", "chrom": "MT", "pos": 15043, "genotype": "AA"},
     {"rsid": "i5016129", "chrom": "MT", "pos": 16129, "genotype": "AA"},
 ]
-
-# Aggregate coverage from the SHA-pinned 2014 pgp_1050 export reports a
-# callable row at every position in the I fixture: the 12 emitted path loci
-# plus source-only m.10398 reversion context.  This is a layout capability
-# oracle only: the fixture supplies hypothetical I-derived alleles and does not
-# claim that the public exemplar donor carries haplogroup I.
-_PGP_1050_CALLABLE_MT_I_FIXTURE_POSITIONS = frozenset(
-    {
-        204,
-        1018,
-        1719,
-        8701,
-        9540,
-        10034,
-        10238,
-        10398,
-        10873,
-        12501,
-        13780,
-        15043,
-        16129,
-    }
-)
 
 _MT_B_REVERSAL_GENOTYPES = _MT_R_TRUNK_GENOTYPES + [
     {"rsid": "i5000827", "chrom": "MT", "pos": 827, "genotype": "GG"},
@@ -2314,10 +2297,29 @@ class TestAssignHaplogroups:
         sample_engine: sa.Engine,
         source_table: sa.Table,
     ) -> None:
-        """Synthetic I alleles on the pinned pgp_1050 layout resolve the exact path."""
-        assert {int(row["pos"]) for row in _MT_I_GENOTYPES} == (
-            _PGP_1050_CALLABLE_MT_I_FIXTURE_POSITIONS
+        """Audited pgp_1050 coverage supports a synthetic exact I path."""
+        layout = json.loads(PGP_1050_MT_I_LAYOUT_PATH.read_text(encoding="utf-8"))
+        source = json.loads(MT_HAPLOGROUP_SOURCE_PATH.read_text(encoding="utf-8"))
+        source_export = source["array_exports"][layout["source_export_id"]]
+        assert layout["schema_version"] == 1
+        assert layout["source_export_id"] == "pgp_1050"
+        assert layout["source_sha256"] == source_export["sha256"]
+        assert layout["source_line_count"] == source_export["line_count"]
+
+        layout_rows = layout["positions"]
+        layout_positions = {int(row["position"]) for row in layout_rows}
+        assert len(layout_rows) == len(layout_positions)
+        assert all(
+            row["position_present"] is True
+            and row["callable_snv"] is True
+            and int(row["probe_rows"]) >= 1
+            and int(row["callable_rows"]) == int(row["probe_rows"])
+            for row in layout_rows
         )
+        assert layout_positions == {int(row["pos"]) for row in _MT_I_GENOTYPES}
+
+        # The fixture supplies hypothetical I-derived alleles; it does not claim
+        # that the public exemplar donor carries haplogroup I.
         rows = [
             {**row, "rsid": f"vendor_issue_1899_pgp_1050_layout_{index}"}
             for index, row in enumerate(_MT_I_GENOTYPES)
