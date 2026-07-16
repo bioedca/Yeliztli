@@ -452,9 +452,11 @@ def _add_missing_columns(engine: sa.Engine, from_version: int) -> bool:
         # Issue #1934: the shipped 25-marker breast-cancer model cannot be
         # reproduced from its cited paper. A runtime scoring gate prevents new
         # results, but existing sample DBs can contain findings from older
-        # releases. Delete those rows during the first DB open after upgrade so
-        # every API, report, SVG, and single-card reader is contained without
-        # relying on each surface to duplicate a filter.
+        # releases. Delete those rows, plus unidentified cancer-PRS rows whose
+        # metadata is absent or malformed, during the first DB open after upgrade
+        # so every API, report, SVG, and single-card reader is contained without
+        # relying on each surface to duplicate a filter. Active scores with valid
+        # metadata are preserved; unidentified rows can be regenerated safely.
         inspector = sa.inspect(engine)
         if "findings" in inspector.get_table_names():
             existing_cols = {c["name"] for c in inspector.get_columns("findings")}
@@ -473,9 +475,11 @@ def _add_missing_columns(engine: sa.Engine, from_version: int) -> bool:
                             detail = json.loads(row.detail_json) if row.detail_json else {}
                         except (json.JSONDecodeError, TypeError):
                             detail = {}
+                        trait = detail.get("trait") if isinstance(detail, dict) else None
                         if (
-                            isinstance(detail, dict)
-                            and detail.get("trait") == _QUARANTINED_BREAST_PRS_TRAIT
+                            trait == _QUARANTINED_BREAST_PRS_TRAIT
+                            or not isinstance(trait, str)
+                            or not trait.strip()
                         ):
                             quarantined_ids.append(row.id)
 
@@ -485,7 +489,7 @@ def _add_missing_columns(engine: sa.Engine, from_version: int) -> bool:
 
                 if quarantined_ids:
                     logger.warning(
-                        "breast_prs_findings_quarantined",
+                        "legacy_cancer_prs_findings_quarantined",
                         count=len(quarantined_ids),
                         from_version=from_version,
                     )

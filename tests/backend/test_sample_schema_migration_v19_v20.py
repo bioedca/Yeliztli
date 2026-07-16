@@ -52,6 +52,20 @@ def test_v20_migration_quarantines_only_persisted_legacy_breast_prs(
                     trait="breast_cancer",
                     text="BRCA1 pathogenic variant",
                 ),
+                {
+                    "module": "cancer",
+                    "category": "prs",
+                    "evidence_level": 1,
+                    "finding_text": "Unidentified legacy PRS with no metadata",
+                    "detail_json": None,
+                },
+                {
+                    "module": "cancer",
+                    "category": "prs",
+                    "evidence_level": 1,
+                    "finding_text": "Unidentified legacy PRS with malformed metadata",
+                    "detail_json": "{not-json",
+                },
             ],
         )
         conn.execute(
