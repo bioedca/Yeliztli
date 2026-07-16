@@ -192,6 +192,64 @@ def test_cyp2b6_star9_is_intermediate(reference_engine: sa.Engine) -> None:
     assert result.phenotype == "Intermediate Metabolizer"
 
 
+def test_cyp2b6_star4_homozygous_is_ultrarapid(reference_engine: sa.Engine) -> None:
+    """785A>G hom-alt with 516G>T typed hom-reference is *4/*4 (#1985).
+
+    The gap-exposing combination the prior fixtures never covered: 785 non-ref
+    while 516 is reference. Before the *4 row existed the observed rs2279343 G
+    was consumed by nothing and both slots silently took *1 (*1/*1 Normal,
+    involved_rsids empty, unhedged). *4 is CPIC's only increased-function
+    CYP2B6 allele, so Ultrarapid was structurally unreachable.
+    """
+    result = _call("CYP2B6", _cyp2b6_geno(rs3745274="GG", rs2279343="GG"), reference_engine)
+    assert result.diplotype == "*4/*4"
+    assert result.phenotype == "Ultrarapid Metabolizer"
+    # The observed non-reference allele is consumed, not discarded.
+    assert "rs2279343" in result.involved_rsids
+
+
+def test_cyp2b6_star1_star4_is_rapid(reference_engine: sa.Engine) -> None:
+    """785A>G het with 516G>T typed hom-reference is *1/*4 → Rapid (#1985)."""
+    result = _call("CYP2B6", _cyp2b6_geno(rs3745274="GG", rs2279343="AG"), reference_engine)
+    assert result.diplotype == "*1/*4"
+    assert result.phenotype == "Rapid Metabolizer"
+    assert "rs2279343" in result.involved_rsids
+
+
+def test_cyp2b6_star6_wins_over_star4_when_both_markers_het(
+    reference_engine: sa.Engine,
+) -> None:
+    """516 het + 785 het is *1/*6, not *4/*9 (#1985 ordering lock).
+
+    *6 requires both 516G>T and 785A>G; *4 requires only 785A>G. The
+    most-specific-first assigner must consume both markers as *6 rather than
+    greedily splitting them into *4 + *9 — otherwise adding *4 would mis-call
+    every true *6 carrier.
+    """
+    result = _call("CYP2B6", _cyp2b6_geno(rs3745274="GT", rs2279343="AG"), reference_engine)
+    assert result.diplotype == "*1/*6"
+    assert result.phenotype == "Intermediate Metabolizer"
+
+
+def test_cyp2b6_ultrarapid_efavirenz_alert_is_standard_dosing(
+    reference_engine: sa.Engine,
+) -> None:
+    """A *4/*4 Ultrarapid caller gets the CPIC standard-dosing efavirenz alert.
+
+    Locks the Rapid/Ultrarapid guideline rows end-to-end: CPIC recommends
+    standard 600 mg/day (Strong) for Normal, Rapid, and Ultrarapid alike, so
+    the phenotype is now correct AND still carries a recommendation.
+    """
+    sample = _make_sample(_cyp2b6_geno(rs3745274="GG", rs2279343="GG"))
+    results = call_all_star_alleles(reference_engine, sample, genes=frozenset({"CYP2B6"}))
+    assert results[0].diplotype == "*4/*4"
+    alerts = generate_prescribing_alerts(results, reference_engine)
+    efavirenz = [a for a in alerts if a.gene == "CYP2B6" and a.drug == "efavirenz"]
+    assert efavirenz, "efavirenz alert missing for CYP2B6 Ultrarapid"
+    assert efavirenz[0].phenotype == "Ultrarapid Metabolizer"
+    assert "600 mg/day" in efavirenz[0].recommendation
+
+
 def test_cyp2b6_missing_star18_site_is_indeterminate(reference_engine: sa.Engine) -> None:
     # Older arrays/samples that lack rs28399499 should not present *1/*1 as a
     # complete exclusion of the no-function *18 allele.
@@ -240,7 +298,10 @@ def test_cyp2b6_missing_star6_marker_does_not_double_count_star9_copy(
     result = _call("CYP2B6", genotypes, reference_engine)
     assert result.diplotype == "*1/*9"
     assert result.phenotype == "Intermediate Metabolizer"
-    assert result.indeterminate_alleles == ["*6"]
+    # rs2279343 (785A>G) is un-assayed here, so neither *6 nor *4 can be
+    # excluded — both require that marker (#1985 added *4, which also depends on
+    # rs2279343 alone). The hedge honestly names both.
+    assert result.indeterminate_alleles == ["*4", "*6"]
     assert result.conservative_phenotype is None
 
     sample = _make_sample(genotypes)
