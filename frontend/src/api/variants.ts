@@ -199,7 +199,7 @@ export function useVariantSearch(sampleId: number | null, query: string) {
 
 /**
  * Total variant count for the sample (unfiltered).
- * Used to display count in the unannotated toggle label.
+ * Drives the pre-annotation empty state (total > 0 while annotated count == 0).
  */
 export function useTotalVariantCount(sampleId: number | null) {
   return useQuery({
@@ -208,6 +208,27 @@ export function useTotalVariantCount(sampleId: number | null) {
       if (!sampleId) return 0
       const total = await fetchVariantCount(sampleId)
       return total.total
+    },
+    enabled: sampleId != null,
+    staleTime: Infinity,
+  })
+}
+
+/**
+ * Count of *unannotated* variants for the sample — the whole sample, not just
+ * the loaded pages. Backs the "Show unannotated (N)" toggle label so the badge
+ * reports the real hidden-row count instead of the sample total (#1978).
+ *
+ * `annotation_coverage:null` is the IS-NULL server filter already used (as its
+ * `notnull` sibling) by `buildEffectiveFilter`, so no new endpoint is needed.
+ */
+export function useUnannotatedVariantCount(sampleId: number | null) {
+  return useQuery({
+    queryKey: ["variants-unannotated-count", sampleId],
+    queryFn: async () => {
+      if (!sampleId) return 0
+      const count = await fetchVariantCount(sampleId, "annotation_coverage:null")
+      return count.total
     },
     enabled: sampleId != null,
     staleTime: Infinity,

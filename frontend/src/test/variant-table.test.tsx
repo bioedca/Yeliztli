@@ -1033,3 +1033,87 @@ describe("GRCh38 liftover toggle (P4-20)", () => {
     })
   })
 })
+
+describe("Unannotated count badge (#1978)", () => {
+  // The "/api/variants/count" endpoint is filter-aware: the badge's own hook
+  // asks for `annotation_coverage:null` (unannotated), the visible-rows count
+  // asks for `annotation_coverage:notnull` (annotated), and the unfiltered call
+  // is the sample total. Return a distinct number for each so a badge wired to
+  // the wrong one is caught.
+  function setupCountMock({
+    total,
+    annotated,
+    unannotated,
+  }: {
+    total: number
+    annotated: number
+    unannotated: number
+  }) {
+    mockFetch.mockImplementation(async (url: string) => {
+      if (url.includes("/api/column-presets")) {
+        return { ok: true, json: async () => ({ presets: defaultPresets }) }
+      }
+      if (url.includes("/api/tags")) {
+        return { ok: true, json: async () => defaultTags }
+      }
+      if (url.includes("/api/variants/chromosomes")) {
+        return { ok: true, json: async () => defaultChromCounts }
+      }
+      if (url.includes("/api/variants/count")) {
+        if (url.includes("annotation_coverage%3Anotnull")) {
+          return { ok: true, json: async () => ({ total: annotated, filtered: true }) }
+        }
+        if (url.includes("annotation_coverage%3Anull")) {
+          return { ok: true, json: async () => ({ total: unannotated, filtered: true }) }
+        }
+        return { ok: true, json: async () => ({ total, filtered: false }) }
+      }
+      if (url.includes("/api/variants")) {
+        return { ok: true, json: async () => makeVariantPage(2) }
+      }
+      return { ok: false, status: 404 }
+    })
+  }
+
+  it("shows the unannotated count, not the sample total", async () => {
+    // total 100, of which 7 are unannotated. The badge must read 7 — the bug
+    // was that it read the total (100), so every fully-annotated sample claimed
+    // its entire variant set was unannotated.
+    setupCountMock({ total: 100, annotated: 93, unannotated: 7 })
+
+    render(<VariantTable sampleId={1} />)
+
+    const toggle = await waitFor(() =>
+      screen.getByRole("button", { name: /show unannotated/i }),
+    )
+    await waitFor(() => expect(toggle).toHaveTextContent("Show unannotated (7)"))
+    expect(toggle).not.toHaveTextContent("(100)")
+  })
+
+  it("reads (0) and disables the toggle for a fully-annotated sample", async () => {
+    // The #1978 scenario: 677,436 variants, all annotated. The badge must say 0
+    // and the toggle must be disabled — toggling would reveal nothing.
+    setupCountMock({ total: 677436, annotated: 677436, unannotated: 0 })
+
+    render(<VariantTable sampleId={1} />)
+
+    const toggle = await waitFor(() =>
+      screen.getByRole("button", { name: /show unannotated/i }),
+    )
+    await waitFor(() => expect(toggle).toHaveTextContent("Show unannotated (0)"))
+    expect(toggle).not.toHaveTextContent("(677,436)")
+    expect(toggle).toBeDisabled()
+  })
+
+  it("keeps the toggle enabled when there are unannotated variants", async () => {
+    setupCountMock({ total: 100, annotated: 93, unannotated: 7 })
+
+    render(<VariantTable sampleId={1} />)
+
+    const toggle = await waitFor(() =>
+      screen.getByRole("button", { name: /show unannotated/i }),
+    )
+    await waitFor(() => expect(toggle).toHaveTextContent("(7)"))
+    expect(toggle).toBeEnabled()
+  })
+})
