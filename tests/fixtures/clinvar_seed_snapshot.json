@@ -1,0 +1,942 @@
+{
+  "_provenance": {
+    "source": "NLM Clinical Tables ClinVar variants v4 search",
+    "source_url": "https://clinicaltables.nlm.nih.gov/api/variants/v4/search",
+    "accessed": "2026-07-16",
+    "generator": "scripts/build_clinvar_seed_snapshot.py",
+    "evidence_mode": "saved_exact_rsid_searches",
+    "raw_evidence_dir": "data/science-evidence/2026-07-16-clinvar-seed-1968",
+    "record_count": 71,
+    "synthetic_rows_without_accession": [],
+    "note": "Committed offline accession-to-rsID/gene reference for clinvar_seed.csv (#1968). Regenerate whenever the seed adds or changes a ClinVar accession; the guard fails on uncovered, orphaned, or incoherent records."
+  },
+  "records": {
+    "VCV000000432": {
+      "variation_id": 432,
+      "dbsnp": [
+        "rs3918290"
+      ],
+      "gene_symbols": [
+        "DPYD"
+      ],
+      "name": "NM_000110.4(DPYD):c.1905+1G>A",
+      "clinical_significance": "drug response",
+      "review_status": "reviewed by expert panel",
+      "phenotype_list": "Dihydropyrimidine dehydrogenase deficiency|Fluorouracil response|not provided|Hirschsprung disease, susceptibility to, 1|tegafur response - Toxicity|fluorouracil response - Toxicity|fluorouracil response - Other|capecitabine response - Toxicity|Inborn genetic diseases|DPYD-related disorder|Gastric cancer|Ovarian serous cystadenocarcinoma|Malignant tumor of urinary bladder|Nonpapillary renal cell carcinoma|Cervical cancer|Sarcoma|Lymphoma|Malignant tumor of esophagus|Lung cancer|Thyroid cancer, nonmedullary, 1|Melanoma|Cholangiocarcinoma|Acute myeloid leukemia|Clear cell carcinoma of kidney|Familial pancreatic carcinoma|Colon adenocarcinoma|Colorectal cancer|Familial cancer of breast|Ovarian cancer"
+    },
+    "VCV000000642": {
+      "variation_id": 642,
+      "dbsnp": [
+        "rs6025"
+      ],
+      "gene_symbols": [
+        "F5"
+      ],
+      "name": "NM_000130.4(F5):c.1601G>A (p.Arg534Gln)",
+      "clinical_significance": "drug response",
+      "review_status": "reviewed by expert panel",
+      "phenotype_list": "Ischemic stroke|Budd-Chiari syndrome, susceptibility to|Pregnancy loss, recurrent, susceptibility to, 1|Factor V deficiency|Thrombophilia due to activated protein C resistance|not specified|Factor V deficiency;Thrombophilia due to activated protein C resistance|Susceptibility to severe coronavirus disease (COVID-19) due to an impaired coagulation process|Inborn genetic diseases|not provided|hormonal contraceptives for systemic use response - Toxicity|Congenital factor V deficiency|Pregnancy loss, recurrent, susceptibility to, 1;Thrombophilia due to activated protein C resistance;Congenital factor V deficiency;Budd-Chiari syndrome;Ischemic stroke"
+    },
+    "VCV000001000": {
+      "variation_id": 1000,
+      "dbsnp": [
+        "rs13266634"
+      ],
+      "gene_symbols": [
+        "SLC30A8"
+      ],
+      "name": "NM_173851.3(SLC30A8):c.973C>T (p.Arg325Trp)",
+      "clinical_significance": "Benign; risk factor",
+      "review_status": "no assertion criteria provided",
+      "phenotype_list": "Diabetes mellitus type 2, susceptibility to|SLC30A8-related disorder"
+    },
+    "VCV000002105": {
+      "variation_id": 2105,
+      "dbsnp": [
+        "rs1800497"
+      ],
+      "gene_symbols": [
+        "ANKK1"
+      ],
+      "name": "NM_178510.2(ANKK1):c.2137G>A (p.Glu713Lys)",
+      "clinical_significance": "Benign",
+      "review_status": "criteria provided, multiple submitters, no conflicts",
+      "phenotype_list": "Taq1A POLYMORPHISM|not specified|Schizophrenia|ANKK1-related disorder|not provided"
+    },
+    "VCV000002211": {
+      "variation_id": 2211,
+      "dbsnp": [
+        "rs9923231"
+      ],
+      "gene_symbols": [
+        "VKORC1"
+      ],
+      "name": "NM_024006.4(VKORC1):c.-1639G>A",
+      "clinical_significance": "drug response",
+      "review_status": "reviewed by expert panel",
+      "phenotype_list": "Warfarin response|not provided|not specified|phenprocoumon response - Dosage|warfarin response - Toxicity|phenprocoumon response - Toxicity|Venous thromboembolism|acenocoumarol response - Dosage|warfarin response - Efficacy|warfarin response - Dosage|VKORC1-related disorder|See cases|Thrombus"
+    },
+    "VCV000002435": {
+      "variation_id": 2435,
+      "dbsnp": [
+        "rs4402960"
+      ],
+      "gene_symbols": [
+        "IGF2BP2"
+      ],
+      "name": "NM_006548.6(IGF2BP2):c.239+29254C>A",
+      "clinical_significance": "risk factor",
+      "review_status": "no assertion criteria provided",
+      "phenotype_list": "Diabetes mellitus type 2, susceptibility to"
+    },
+    "VCV000003520": {
+      "variation_id": 3520,
+      "dbsnp": [
+        "rs1801133"
+      ],
+      "gene_symbols": [
+        "MTHFR"
+      ],
+      "name": "NM_005957.5(MTHFR):c.665C>T (p.Ala222Val)",
+      "clinical_significance": "drug response",
+      "review_status": "reviewed by expert panel",
+      "phenotype_list": "MTHFR THERMOLABILE POLYMORPHISM|Gastrointestinal stromal tumor|not provided|Neural tube defects, folate-sensitive|not specified|Homocystinuria due to methylene tetrahydrofolate reductase deficiency|methotrexate response - Toxicity|See cases|Thrombophilia due to thrombin defect|Stroke disorder"
+    },
+    "VCV000003521": {
+      "variation_id": 3521,
+      "dbsnp": [
+        "rs1801131"
+      ],
+      "gene_symbols": [
+        "MTHFR"
+      ],
+      "name": "NM_005957.5(MTHFR):c.1286A>C (p.Glu429Ala)",
+      "clinical_significance": "Benign/Likely benign; other",
+      "review_status": "criteria provided, multiple submitters, no conflicts",
+      "phenotype_list": "Schizophrenia, susceptibility to|MTHFR THERMOLABILE POLYMORPHISM|not provided|Gastrointestinal stromal tumor|Neural tube defects, folate-sensitive|not specified|Homocystinuria due to methylene tetrahydrofolate reductase deficiency|MTHFR-related disorder|Thrombophilia due to thrombin defect;Neural tube defects, folate-sensitive;Schizophrenia;Homocystinuria due to methylene tetrahydrofolate reductase deficiency|Stroke disorder"
+    },
+    "VCV000004745": {
+      "variation_id": 4745,
+      "dbsnp": [
+        "rs12913832"
+      ],
+      "gene_symbols": [
+        "HERC2"
+      ],
+      "name": "NM_004667.6(HERC2):c.13272+874T>C",
+      "clinical_significance": "association",
+      "review_status": "no assertion criteria provided",
+      "phenotype_list": "SKIN/HAIR/EYE PIGMENTATION 1, BLUE/NONBLUE EYES"
+    },
+    "VCV000005066": {
+      "variation_id": 5066,
+      "dbsnp": [
+        "rs776746"
+      ],
+      "gene_symbols": [
+        "CYP3A5"
+      ],
+      "name": "NM_000777.5(CYP3A5):c.219-237A>G",
+      "clinical_significance": "association; drug response; risk factor",
+      "review_status": "no assertion criteria provided",
+      "phenotype_list": "Hypertension, salt-sensitive essential, susceptibility to|refractory myasthenia gravis|Tacrolimus response"
+    },
+    "VCV000007029": {
+      "variation_id": 7029,
+      "dbsnp": [
+        "rs1801394"
+      ],
+      "gene_symbols": [
+        "MTRR"
+      ],
+      "name": "NM_002454.3(MTRR):c.66A>G (p.Ile22Met)",
+      "clinical_significance": "Benign/Likely benign",
+      "review_status": "criteria provided, multiple submitters, no conflicts",
+      "phenotype_list": "Down syndrome, susceptibility to|Neural tube defects, folate-sensitive, susceptibility to|not specified|Gastrointestinal stromal tumor|Disorders of Intracellular Cobalamin Metabolism|Methylcobalamin deficiency type cblE|Methotrexate response|not provided"
+    },
+    "VCV000007105": {
+      "variation_id": 7105,
+      "dbsnp": [
+        "rs113993960"
+      ],
+      "gene_symbols": [
+        "CFTR"
+      ],
+      "name": "NM_000492.3(CFTR):c.1521_1523del (p.Phe508del)",
+      "clinical_significance": "Pathogenic",
+      "review_status": "practice guideline",
+      "phenotype_list": "Cystic fibrosis|Bronchiectasis with or without elevated sweat chloride 1, modifier of|not provided|Hereditary pancreatitis|Duodenal stenosis|Recurrent pancreatitis|Congenital bilateral aplasia of vas deferens from CFTR mutation;Cystic fibrosis|Obstructive azoospermia|ivacaftor / lumacaftor response - Efficacy|CFTR-related disorder|Hereditary pancreatitis;Cystic fibrosis|See cases|ivacaftor / tezacaftor response - Efficacy|Bronchiectasis with or without elevated sweat chloride 1|Congenital bilateral aplasia of vas deferens from CFTR mutation|Congenital bilateral aplasia of vas deferens from CFTR mutation;Hereditary pancreatitis;Cystic fibrosis;Bronchiectasis with or without elevated sweat chloride 1|Cystic fibrosis diagnostic test"
+    },
+    "VCV000007130": {
+      "variation_id": 7130,
+      "dbsnp": [
+        "rs213950"
+      ],
+      "gene_symbols": [
+        "CFTR"
+      ],
+      "name": "NM_000492.4(CFTR):c.1408G>A (p.Val470Met)",
+      "clinical_significance": "Benign/Likely benign",
+      "review_status": "criteria provided, multiple submitters, no conflicts",
+      "phenotype_list": "Cystic fibrosis|not specified|CFTR-related disorder|not provided"
+    },
+    "VCV000007413": {
+      "variation_id": 7413,
+      "dbsnp": [
+        "rs7903146"
+      ],
+      "gene_symbols": [
+        "TCF7L2"
+      ],
+      "name": "NM_001367943.1(TCF7L2):c.450+33966C>T",
+      "clinical_significance": "risk factor",
+      "review_status": "no assertion criteria provided",
+      "phenotype_list": "Diabetes mellitus type 2, susceptibility to"
+    },
+    "VCV000007414": {
+      "variation_id": 7414,
+      "dbsnp": [
+        "rs12255372"
+      ],
+      "gene_symbols": [
+        "TCF7L2"
+      ],
+      "name": "NM_001367943.1(TCF7L2):c.552+9017G>T",
+      "clinical_significance": "risk factor",
+      "review_status": "no assertion criteria provided",
+      "phenotype_list": "Diabetes mellitus type 2, susceptibility to"
+    },
+    "VCV000007685": {
+      "variation_id": 7685,
+      "dbsnp": [
+        "rs4988235"
+      ],
+      "gene_symbols": [
+        "MCM6"
+      ],
+      "name": "NM_002299.2(LCT):c.-13907C>T",
+      "clinical_significance": "association",
+      "review_status": "no assertion criteria provided",
+      "phenotype_list": "LACTASE PERSISTENCE"
+    },
+    "VCV000007686": {
+      "variation_id": 7686,
+      "dbsnp": [
+        "rs182549"
+      ],
+      "gene_symbols": [
+        "MCM6"
+      ],
+      "name": "NM_005915.6(MCM6):c.1362+117G>A",
+      "clinical_significance": "association",
+      "review_status": "no assertion criteria provided",
+      "phenotype_list": "LACTASE PERSISTENCE"
+    },
+    "VCV000008408": {
+      "variation_id": 8408,
+      "dbsnp": [
+        "rs1057910"
+      ],
+      "gene_symbols": [
+        "CYP2C9"
+      ],
+      "name": "CYP2C9*3",
+      "clinical_significance": "drug response; other",
+      "review_status": "criteria provided, multiple submitters, no conflicts",
+      "phenotype_list": "Warfarin response|Phenytoin response|Glipizide response|Tolbutamide response|not provided|Lesinurad response|Flurbiprofen response|Piroxicam response"
+    },
+    "VCV000008409": {
+      "variation_id": 8409,
+      "dbsnp": [
+        "rs1799853"
+      ],
+      "gene_symbols": [
+        "CYP2C9"
+      ],
+      "name": "CYP2C9*2",
+      "clinical_significance": "Likely benign; drug response; other",
+      "review_status": "criteria provided, multiple submitters, no conflicts",
+      "phenotype_list": "Warfarin response|not specified|not provided|Flurbiprofen response|Piroxicam response|Lesinurad response|Phenytoin response"
+    },
+    "VCV000008678": {
+      "variation_id": 8678,
+      "dbsnp": [
+        "rs5219"
+      ],
+      "gene_symbols": [
+        "KCNJ11"
+      ],
+      "name": "NM_000525.4(KCNJ11):c.67A>G (p.Lys23Glu)",
+      "clinical_significance": "Benign/Likely benign",
+      "review_status": "criteria provided, multiple submitters, no conflicts",
+      "phenotype_list": "Diabetes mellitus type 2, susceptibility to|Permanent neonatal diabetes mellitus|not specified|Hyperinsulinemic hypoglycemia, familial, 2|Diabetes mellitus, transient neonatal, 3|Maturity-onset diabetes of the young type 13|not provided|Type 2 diabetes mellitus|KCNJ11-related disorder"
+    },
+    "VCV000008909": {
+      "variation_id": 8909,
+      "dbsnp": [
+        "rs2476601"
+      ],
+      "gene_symbols": [
+        "PTPN22"
+      ],
+      "name": "NM_015967.8(PTPN22):c.1858= (p.Trp620=)",
+      "clinical_significance": "Benign",
+      "review_status": "criteria provided, single submitter",
+      "phenotype_list": "Diabetes mellitus, insulin-dependent, susceptibility to|not provided|chronic fatigue syndrome with infection-triggered onset"
+    },
+    "VCV000009325": {
+      "variation_id": 9325,
+      "dbsnp": [
+        "rs80359550"
+      ],
+      "gene_symbols": [
+        "BRCA2"
+      ],
+      "name": "NM_000059.4(BRCA2):c.5946del (p.Ser1982fs)",
+      "clinical_significance": "Pathogenic",
+      "review_status": "reviewed by expert panel",
+      "phenotype_list": "Pancreatic cancer, susceptibility to, 2|Fanconi anemia complementation group D1|Breast-ovarian cancer, familial, susceptibility to, 2|Hereditary breast ovarian cancer syndrome|Familial cancer of breast|Hereditary cancer-predisposing syndrome|not provided|BRCA2-related disorder|Breast neoplasm|Breast and/or ovarian cancer|Ovarian neoplasm|Hereditary breast ovarian cancer syndrome;Fanconi anemia complementation group D1|Endometrial carcinoma|BRCA2-related cancer predisposition|8 conditions|Inherited breast cancer and ovarian cancer|Inherited ovarian cancer (without breast cancer)"
+    },
+    "VCV000009538": {
+      "variation_id": 9538,
+      "dbsnp": [
+        "rs1799971"
+      ],
+      "gene_symbols": [
+        "OPRM1"
+      ],
+      "name": "NM_000914.5(OPRM1):c.118A>G (p.Asn40Asp)",
+      "clinical_significance": "Uncertain significance; drug response",
+      "review_status": "no assertion criteria provided",
+      "phenotype_list": "Opioid dependence, susceptibility to, 1|Tramadol response"
+    },
+    "VCV000012721": {
+      "variation_id": 12721,
+      "dbsnp": [
+        "rs1800462"
+      ],
+      "gene_symbols": [
+        "TPMT"
+      ],
+      "name": "NM_000367.2(TPMT):c.238G>C (p.Ala80Pro)",
+      "clinical_significance": "drug response",
+      "review_status": "no assertion criteria provided",
+      "phenotype_list": "Thiopurine S-methyltransferase deficiency"
+    },
+    "VCV000012725": {
+      "variation_id": 12725,
+      "dbsnp": [
+        "rs1142345"
+      ],
+      "gene_symbols": [
+        "TPMT"
+      ],
+      "name": "NM_000367.5(TPMT):c.719A>G (p.Tyr240Cys)",
+      "clinical_significance": "Likely benign; other",
+      "review_status": "criteria provided, multiple submitters, no conflicts",
+      "phenotype_list": "Thiopurine S-methyltransferase deficiency|not provided"
+    },
+    "VCV000013310": {
+      "variation_id": 13310,
+      "dbsnp": [
+        "rs1799963"
+      ],
+      "gene_symbols": [
+        "F2"
+      ],
+      "name": "NM_000506.5(F2):c.*97G>A",
+      "clinical_significance": "Pathogenic/Likely pathogenic/Pathogenic, low penetrance/Established risk allele; risk factor",
+      "review_status": "criteria provided, multiple submitters, no conflicts",
+      "phenotype_list": "Ischemic stroke|Pregnancy loss, recurrent, susceptibility to, 2|Congenital prothrombin deficiency|Venous thromboembolism|not provided|Cerebral palsy|Thrombophilia caused by F2 prothrombin deficiency|Thrombophilia due to thrombin defect;Pregnancy loss, recurrent, susceptibility to, 2;Congenital prothrombin deficiency;Ischemic stroke|Thrombophilia due to thrombin defect|Inborn genetic diseases"
+    },
+    "VCV000013735": {
+      "variation_id": 13735,
+      "dbsnp": [
+        "rs662"
+      ],
+      "gene_symbols": [
+        "PON1"
+      ],
+      "name": "NM_000446.7(PON1):c.575A>G (p.Gln192Arg)",
+      "clinical_significance": "Benign",
+      "review_status": "criteria provided, multiple submitters, no conflicts",
+      "phenotype_list": "Enzyme activity finding|not provided|PON1-related disorder"
+    },
+    "VCV000013736": {
+      "variation_id": 13736,
+      "dbsnp": [
+        "rs854560"
+      ],
+      "gene_symbols": [
+        "PON1"
+      ],
+      "name": "NM_000446.7(PON1):c.163T>A (p.Leu55Met)",
+      "clinical_significance": "Benign",
+      "review_status": "criteria provided, multiple submitters, no conflicts",
+      "phenotype_list": "Enzyme activity finding|not provided|PON1-related disorder"
+    },
+    "VCV000014307": {
+      "variation_id": 14307,
+      "dbsnp": [
+        "rs1805009"
+      ],
+      "gene_symbols": [
+        "MC1R"
+      ],
+      "name": "NM_002386.4(MC1R):c.880G>C (p.Asp294His)",
+      "clinical_significance": "Conflicting classifications of pathogenicity; risk factor",
+      "review_status": "criteria provided, conflicting classifications",
+      "phenotype_list": "Skin/hair/eye pigmentation 2, red hair/fair skin|not provided|Tyrosinase-positive oculocutaneous albinism|Skin and Hair Hypopigmentation|Melanoma, cutaneous malignant, susceptibility to, 5|Melanoma|MC1R-related disorder"
+    },
+    "VCV000014308": {
+      "variation_id": 14308,
+      "dbsnp": [
+        "rs2228479"
+      ],
+      "gene_symbols": [
+        "MC1R"
+      ],
+      "name": "NM_002386.4(MC1R):c.274G>A (p.Val92Met)",
+      "clinical_significance": "Benign",
+      "review_status": "criteria provided, multiple submitters, no conflicts",
+      "phenotype_list": "Skin/hair/eye pigmentation 2, red hair/fair skin|Skin/hair/eye pigmentation 2, blond hair/fair skin|not specified|Melanoma, cutaneous malignant, susceptibility to, 5|not provided"
+    },
+    "VCV000014310": {
+      "variation_id": 14310,
+      "dbsnp": [
+        "rs1805008"
+      ],
+      "gene_symbols": [
+        "MC1R",
+        "TUBB3"
+      ],
+      "name": "NM_002386.4(MC1R):c.478C>T (p.Arg160Trp)",
+      "clinical_significance": "Conflicting classifications of pathogenicity",
+      "review_status": "criteria provided, conflicting classifications",
+      "phenotype_list": "Increased analgesia from kappa-opioid receptor agonist, female-specific|Skin/hair/eye pigmentation 2, red hair/fair skin|ALBINISM, OCULOCUTANEOUS, TYPE II, MODIFIER OF|not specified|Melanoma, cutaneous malignant, susceptibility to, 5|not provided|Malignant tumor of breast|SKIN/HAIR/EYE PIGMENTATION, VARIATION IN, 2"
+    },
+    "VCV000014312": {
+      "variation_id": 14312,
+      "dbsnp": [
+        "rs1805007"
+      ],
+      "gene_symbols": [
+        "MC1R"
+      ],
+      "name": "NM_002386.4(MC1R):c.451C>T (p.Arg151Cys)",
+      "clinical_significance": "Conflicting classifications of pathogenicity",
+      "review_status": "criteria provided, conflicting classifications",
+      "phenotype_list": "Skin/hair/eye pigmentation 2, red hair/fair skin|Increased analgesia from kappa-opioid receptor agonist, female-specific|ALBINISM, OCULOCUTANEOUS, TYPE II, MODIFIER OF|not specified|not provided|Melanoma, cutaneous malignant, susceptibility to, 5|SKIN/HAIR/EYE PIGMENTATION, VARIATION IN, 2"
+    },
+    "VCV000014718": {
+      "variation_id": 14718,
+      "dbsnp": [
+        "rs1800795"
+      ],
+      "gene_symbols": [
+        "IL6"
+      ],
+      "name": "NC_000007.14:g.22727026C>G",
+      "clinical_significance": "other; risk factor",
+      "review_status": "no assertion criteria provided",
+      "phenotype_list": "Crohn disease-associated growth failure, susceptibility to||Kaposi sarcoma||Diabetes mellitus type 2, susceptibility to|Diabetes mellitus, type 1, susceptibility to|Cholangiocarcinoma"
+    },
+    "VCV000015333": {
+      "variation_id": 15333,
+      "dbsnp": [
+        "rs334"
+      ],
+      "gene_symbols": [
+        "HBB",
+        "LOC106099062",
+        "LOC107133510"
+      ],
+      "name": "NM_000518.5(HBB):c.20A>T (p.Glu7Val)",
+      "clinical_significance": "Pathogenic",
+      "review_status": "criteria provided, multiple submitters, no conflicts",
+      "phenotype_list": "HEMOGLOBIN S|Hb SS disease|Malaria, resistance to|not provided|6 conditions|beta Thalassemia|Inborn genetic diseases|Fetal hemoglobin quantitative trait locus 1|9 conditions|HBB-related disorder|See cases|Beta-thalassemia HBB/LCRB|Sickle cell-hemoglobin C disease|Malaria, susceptibility to|8 conditions|Hb SS disease;Beta-thalassemia HBB/LCRB;alpha Thalassemia;Heinz body anemia;Dominant beta-thalassemia|Hereditary persistence of fetal hemoglobin"
+    },
+    "VCV000015987": {
+      "variation_id": 15987,
+      "dbsnp": [
+        "rs7041"
+      ],
+      "gene_symbols": [
+        "GC"
+      ],
+      "name": "NM_000583.4(GC):c.1296T>G (p.Asp432Glu)",
+      "clinical_significance": "Benign",
+      "review_status": "criteria provided, single submitter",
+      "phenotype_list": "GC1/GC2 POLYMORPHISM|Periodontitis|not provided"
+    },
+    "VCV000016873": {
+      "variation_id": 16873,
+      "dbsnp": [
+        "rs1800872"
+      ],
+      "gene_symbols": [
+        "IL10"
+      ],
+      "name": "NC_000001.11:g.206773062T>G",
+      "clinical_significance": "Benign",
+      "review_status": "criteria provided, multiple submitters, no conflicts",
+      "phenotype_list": "Susceptibility to HIV infection|Graft-versus-host disease, resistance to|Inflammatory bowel disease|Cholangiocarcinoma|not provided"
+    },
+    "VCV000016889": {
+      "variation_id": 16889,
+      "dbsnp": [
+        "rs3892097"
+      ],
+      "gene_symbols": [
+        "CYP2D6"
+      ],
+      "name": "CYP2D6*4",
+      "clinical_significance": "Likely benign; drug response; other",
+      "review_status": "criteria provided, multiple submitters, no conflicts",
+      "phenotype_list": "Debrisoquine, poor metabolism of|not provided|not specified|Tamoxifen response|Tramadol response|Deutetrabenazine response|Familial cancer of breast|Malignant lymphoma, large B-cell, diffuse|Melanoma|Uveal melanoma|Uterine carcinosarcoma|Acute myeloid leukemia"
+    },
+    "VCV000016891": {
+      "variation_id": 16891,
+      "dbsnp": [
+        "rs5030655"
+      ],
+      "gene_symbols": [
+        "CYP2D6"
+      ],
+      "name": "CYP2D6*6",
+      "clinical_significance": "Benign/Likely benign; drug response; other",
+      "review_status": "criteria provided, multiple submitters, no conflicts",
+      "phenotype_list": "Debrisoquine, poor metabolism of|not provided|Deutetrabenazine response|Tamoxifen response"
+    },
+    "VCV000016893": {
+      "variation_id": 16893,
+      "dbsnp": [
+        "rs1065852"
+      ],
+      "gene_symbols": [
+        "CYP2D6"
+      ],
+      "name": "CYP2D6*10",
+      "clinical_significance": "Likely benign; drug response; other",
+      "review_status": "criteria provided, multiple submitters, no conflicts",
+      "phenotype_list": "Debrisoquine, poor metabolism of|Tramadol response|Deutetrabenazine response|Tamoxifen response|not provided|not specified"
+    },
+    "VCV000016897": {
+      "variation_id": 16897,
+      "dbsnp": [
+        "rs4244285"
+      ],
+      "gene_symbols": [
+        "CYP2C19"
+      ],
+      "name": "NM_000769.4(CYP2C19):c.681G>A (p.Pro227=)",
+      "clinical_significance": "Likely benign; other",
+      "review_status": "criteria provided, multiple submitters, no conflicts",
+      "phenotype_list": "MEPHENYTOIN, POOR METABOLISM OF|PROGUANIL, POOR METABOLISM OF|Clopidogrel response|not provided|not specified"
+    },
+    "VCV000016899": {
+      "variation_id": 16899,
+      "dbsnp": [
+        "rs4986893"
+      ],
+      "gene_symbols": [
+        "CYP2C19"
+      ],
+      "name": "NM_000769.1(CYP2C19):c.636G>A (p.Trp212Ter)",
+      "clinical_significance": "drug response",
+      "review_status": "practice guideline",
+      "phenotype_list": "MEPHENYTOIN, POOR METABOLISM OF|PROGUANIL, POOR METABOLISM OF|not provided|CYP2C19: no function|Acute coronary syndrome|Clopidogrel response"
+    },
+    "VCV000016900": {
+      "variation_id": 16900,
+      "dbsnp": [
+        "rs28399504"
+      ],
+      "gene_symbols": [
+        "CYP2C19"
+      ],
+      "name": "NM_000769.1(CYP2C19):c.1A>G (p.Met1Val)",
+      "clinical_significance": "drug response",
+      "review_status": "practice guideline",
+      "phenotype_list": "MEPHENYTOIN, POOR METABOLISM OF|not provided|CYP2C19: no function"
+    },
+    "VCV000017525": {
+      "variation_id": 17525,
+      "dbsnp": [
+        "rs5882"
+      ],
+      "gene_symbols": [
+        "CETP"
+      ],
+      "name": "NM_000078.3(CETP):c.1264G>A (p.Val422Ile)",
+      "clinical_significance": "Benign",
+      "review_status": "criteria provided, multiple submitters, no conflicts",
+      "phenotype_list": "High density lipoprotein cholesterol level quantitative trait locus 10|Hyperalphalipoproteinemia 1|not provided|not specified|Coronary artery disorder"
+    },
+    "VCV000017591": {
+      "variation_id": 17591,
+      "dbsnp": [
+        "rs4680"
+      ],
+      "gene_symbols": [
+        "COMT"
+      ],
+      "name": "NM_000754.4(COMT):c.472G>A (p.Val158Met)",
+      "clinical_significance": "Benign",
+      "review_status": "criteria provided, multiple submitters, no conflicts",
+      "phenotype_list": "COMT POLYMORPHISM|not specified|Tramadol response|Schizophrenia|not provided"
+    },
+    "VCV000017677": {
+      "variation_id": 17677,
+      "dbsnp": [
+        "rs80357906"
+      ],
+      "gene_symbols": [
+        "BRCA1"
+      ],
+      "name": "NM_007294.4(BRCA1):c.5266dup (p.Gln1756fs)",
+      "clinical_significance": "Pathogenic",
+      "review_status": "reviewed by expert panel",
+      "phenotype_list": "Breast-ovarian cancer, familial, susceptibility to, 1|Pancreatic cancer, susceptibility to|Familial cancer of breast|Hereditary cancer-predisposing syndrome|Hereditary breast ovarian cancer syndrome|not provided|Breast neoplasm|Ovarian neoplasm|Punctate palmoplantar keratoderma type 2|Breast and/or ovarian cancer|Malignant tumor of breast|Endometrial carcinoma|BRCA1-related disorder|Breast-ovarian cancer, familial, susceptibility to, 1;Fanconi anemia, complementation group S;Pancreatic cancer, susceptibility to, 4|BRCA1-related cancer predisposition|Inherited breast cancer and ovarian cancer|Inherited ovarian cancer (without breast cancer)"
+    },
+    "VCV000017697": {
+      "variation_id": 17697,
+      "dbsnp": [
+        "rs6265"
+      ],
+      "gene_symbols": [
+        "BDNF"
+      ],
+      "name": "NM_001709.5(BDNF):c.196G>A (p.Val66Met)",
+      "clinical_significance": "Benign",
+      "review_status": "criteria provided, multiple submitters, no conflicts",
+      "phenotype_list": "Memory impairment, susceptibility to|not specified|not provided"
+    },
+    "VCV000017848": {
+      "variation_id": 17848,
+      "dbsnp": [
+        "rs7412"
+      ],
+      "gene_symbols": [
+        "APOE"
+      ],
+      "name": "NM_000041.2(APOE):c.526C>T (p.Arg176Cys)",
+      "clinical_significance": "drug response",
+      "review_status": "reviewed by expert panel",
+      "phenotype_list": "Familial type 3 hyperlipoproteinemia|atorvastatin response - Efficacy|not provided|Warfarin response|Hypercholesterolemia|not specified"
+    },
+    "VCV000017864": {
+      "variation_id": 17864,
+      "dbsnp": [
+        "rs429358"
+      ],
+      "gene_symbols": [
+        "APOE"
+      ],
+      "name": "NM_000041.4(APOE):c.388T>C (p.Cys130Arg)",
+      "clinical_significance": "Conflicting classifications of pathogenicity; other; risk factor",
+      "review_status": "criteria provided, conflicting classifications",
+      "phenotype_list": "Alzheimer disease 2|not provided|Alzheimer disease|Primary degenerative dementia of the Alzheimer type, presenile onset|Warfarin response|Alzheimer disease 4|Lipoprotein glomerulopathy|not specified|Familial hypercholesterolemia"
+    },
+    "VCV000037126": {
+      "variation_id": 37126,
+      "dbsnp": [
+        "rs1800460"
+      ],
+      "gene_symbols": [
+        "TPMT"
+      ],
+      "name": "NM_000367.5(TPMT):c.460G>A (p.Ala154Thr)",
+      "clinical_significance": "Benign/Likely benign; other",
+      "review_status": "criteria provided, multiple submitters, no conflicts",
+      "phenotype_list": "Thiopurine S-methyltransferase deficiency|not provided|TPMT-related disorder"
+    },
+    "VCV000037346": {
+      "variation_id": 37346,
+      "dbsnp": [
+        "rs4149056"
+      ],
+      "gene_symbols": [
+        "SLCO1B1"
+      ],
+      "name": "NM_006446.5(SLCO1B1):c.521T>C (p.Val174Ala)",
+      "clinical_significance": "drug response",
+      "review_status": "reviewed by expert panel",
+      "phenotype_list": "not provided|Rotor syndrome|simvastatin acid response - Metabolism/PK|Gilbert syndrome|not specified|atorvastatin response - Metabolism/PK|rosuvastatin response - Metabolism/PK|simvastatin response - Toxicity|hmg coa reductase inhibitors response - Toxicity|atorvastatin response - Toxicity|simvastatin response - Metabolism/PK|lovastatin response - Toxicity|pravastatin response - Toxicity|SLCO1B1-related disorder|fluvastatin response - Metabolism/PK|fluvastatin response - Toxicity|lovastatin acid response - Metabolism/PK|lovastatin response - Metabolism/PK|pitavastatin response - Metabolism/PK|rosuvastatin response - Toxicity"
+    },
+    "VCV000039357": {
+      "variation_id": 39357,
+      "dbsnp": [
+        "rs12248560"
+      ],
+      "gene_symbols": [
+        "CYP2C19"
+      ],
+      "name": "NM_000769.1(CYP2C19):c.-806C>T",
+      "clinical_significance": "drug response",
+      "review_status": "practice guideline",
+      "phenotype_list": "not provided|CYP2C19: increased function|Clopidogrel response"
+    },
+    "VCV000039387": {
+      "variation_id": 39387,
+      "dbsnp": [
+        "rs5030862"
+      ],
+      "gene_symbols": [
+        "CYP2D6"
+      ],
+      "name": "NM_000106.5(CYP2D6):c.124G>A (p.Gly42Arg)",
+      "clinical_significance": "Likely benign; other",
+      "review_status": "criteria provided, multiple submitters, no conflicts",
+      "phenotype_list": "not provided"
+    },
+    "VCV000041803": {
+      "variation_id": 41803,
+      "dbsnp": [
+        "rs1799950"
+      ],
+      "gene_symbols": [
+        "BRCA1"
+      ],
+      "name": "NM_007294.4(BRCA1):c.1067A>G (p.Gln356Arg)",
+      "clinical_significance": "Benign",
+      "review_status": "reviewed by expert panel",
+      "phenotype_list": "not provided|Hereditary breast ovarian cancer syndrome|Breast-ovarian cancer, familial, susceptibility to, 1|not specified|Hereditary cancer-predisposing syndrome|Breast ductal adenocarcinoma|Familial cancer of breast|Malignant tumor of breast|Fanconi anemia, complementation group S;Pancreatic cancer, susceptibility to, 4;Breast-ovarian cancer, familial, susceptibility to, 1;Familial cancer of breast"
+    },
+    "VCV000053765": {
+      "variation_id": 53765,
+      "dbsnp": [
+        "rs78655421"
+      ],
+      "gene_symbols": [
+        "CFTR"
+      ],
+      "name": "NM_000492.4(CFTR):c.350G>T (p.Arg117Leu)",
+      "clinical_significance": "Pathogenic/Likely pathogenic",
+      "review_status": "criteria provided, multiple submitters, no conflicts",
+      "phenotype_list": "Cystic fibrosis|not provided|Bronchiectasis with or without elevated sweat chloride 1|Hereditary pancreatitis;Cystic fibrosis;Congenital bilateral aplasia of vas deferens from CFTR mutation|CFTR-related disorder"
+    },
+    "VCV000130019": {
+      "variation_id": 130019,
+      "dbsnp": [
+        "rs1801282"
+      ],
+      "gene_symbols": [
+        "PPARG"
+      ],
+      "name": "NM_138711.6(PPARG):c.-8-28078C>G",
+      "clinical_significance": "Benign/Likely benign",
+      "review_status": "criteria provided, multiple submitters, no conflicts",
+      "phenotype_list": "not specified|INSULIN RESISTANCE, DIGENIC|PPARG-related familial partial lipodystrophy|Obesity|not provided"
+    },
+    "VCV000157588": {
+      "variation_id": 157588,
+      "dbsnp": [
+        "rs1051266"
+      ],
+      "gene_symbols": [
+        "SLC19A1"
+      ],
+      "name": "NM_194255.4(SLC19A1):c.80A>G (p.His27Arg)",
+      "clinical_significance": "drug response",
+      "review_status": "reviewed by expert panel",
+      "phenotype_list": "Gastrointestinal stromal tumor|methotrexate response - Efficacy|not provided|Lung cancer|not specified"
+    },
+    "VCV000225939": {
+      "variation_id": 225939,
+      "dbsnp": [
+        "rs1045642"
+      ],
+      "gene_symbols": [
+        "ABCB1"
+      ],
+      "name": "NM_001348946.2(ABCB1):c.3435T>C (p.Ile1145=)",
+      "clinical_significance": "Benign",
+      "review_status": "criteria provided, multiple submitters, no conflicts",
+      "phenotype_list": "MDR1 POLYMORPHISM|not provided|Tramadol response|ABCB1-related disorder"
+    },
+    "VCV000225949": {
+      "variation_id": 225949,
+      "dbsnp": [
+        "rs12979860"
+      ],
+      "gene_symbols": [
+        "IFNL3",
+        "IFNL4"
+      ],
+      "name": "NC_000019.10:g.39248147C>T",
+      "clinical_significance": "drug response",
+      "review_status": "reviewed by expert panel",
+      "phenotype_list": "peginterferon alfa-2a, peginterferon alfa-2b, ribavirin, and telaprevir response - Efficacy|peginterferon alfa-2a, peginterferon alfa-2b, and ribavirin response - Efficacy|not specified|boceprevir, peginterferon alfa-2a, peginterferon alfa-2b and ribavirin response - Efficacy"
+    },
+    "VCV000225964": {
+      "variation_id": 225964,
+      "dbsnp": [
+        "rs1800629"
+      ],
+      "gene_symbols": [
+        "TNF"
+      ],
+      "name": "NC_000006.12:g.31575254G>A",
+      "clinical_significance": "drug response",
+      "review_status": "reviewed by expert panel",
+      "phenotype_list": "etanercept response - Efficacy||Susceptibility to severe coronavirus disease (COVID-19) due to high plasma levels of TNF, TNFR, and/or TNFR4|Systemic lupus erythematosus, susceptibility to|Inherited susceptibility to asthma|Malaria, cerebral, susceptibility to||Susceptibility to severe coronavirus disease (COVID-19)|Endometriosis|HUMAN IMMUNODEFICIENCY VIRUS DEMENTIA, SUSCEPTIBILITY TO|Psoriatic arthritis, susceptibility to"
+    },
+    "VCV000226027": {
+      "variation_id": 226027,
+      "dbsnp": [
+        "rs8099917"
+      ],
+      "gene_symbols": [
+        "IFNL3"
+      ],
+      "name": "NC_000019.10:g.39252525T>G",
+      "clinical_significance": "drug response",
+      "review_status": "reviewed by expert panel",
+      "phenotype_list": "interferons, peginterferon alfa-2a, peginterferon alfa-2b, and ribavirin response - Efficacy|peginterferon alfa-2a, peginterferon alfa-2b, ribavirin, and telaprevir response - Efficacy|not provided"
+    },
+    "VCV000242771": {
+      "variation_id": 242771,
+      "dbsnp": [
+        "rs16947"
+      ],
+      "gene_symbols": [
+        "CYP2D6"
+      ],
+      "name": "NM_000106.6(CYP2D6):c.886C>T (p.Arg296Cys)",
+      "clinical_significance": "Benign",
+      "review_status": "criteria provided, multiple submitters, no conflicts",
+      "phenotype_list": "not specified|not provided"
+    },
+    "VCV000259983": {
+      "variation_id": 259983,
+      "dbsnp": [
+        "rs2306283"
+      ],
+      "gene_symbols": [
+        "SLCO1B1"
+      ],
+      "name": "NM_006446.5(SLCO1B1):c.388A>G (p.Asn130Asp)",
+      "clinical_significance": "Benign",
+      "review_status": "criteria provided, multiple submitters, no conflicts",
+      "phenotype_list": "not specified|Rotor syndrome|not provided|Gilbert syndrome"
+    },
+    "VCV000511078": {
+      "variation_id": 511078,
+      "dbsnp": [
+        "rs1800544"
+      ],
+      "gene_symbols": [
+        "ADRA2A"
+      ],
+      "name": "NM_000681.3(ADRA2A):c.-1252G>C",
+      "clinical_significance": "Likely benign",
+      "review_status": "criteria provided, single submitter",
+      "phenotype_list": "not specified"
+    },
+    "VCV000511089": {
+      "variation_id": 511089,
+      "dbsnp": [
+        "rs6313"
+      ],
+      "gene_symbols": [
+        "HTR2A"
+      ],
+      "name": "NM_000621.5(HTR2A):c.102C>T (p.Ser34=)",
+      "clinical_significance": "Likely benign",
+      "review_status": "criteria provided, multiple submitters, no conflicts",
+      "phenotype_list": "not specified|not provided"
+    },
+    "VCV000511090": {
+      "variation_id": 511090,
+      "dbsnp": [
+        "rs6311"
+      ],
+      "gene_symbols": [
+        "HTR2A"
+      ],
+      "name": "NM_000621.4(HTR2A):c.-998G>A",
+      "clinical_significance": "Likely benign",
+      "review_status": "criteria provided, single submitter",
+      "phenotype_list": "not specified|Cocaine-Related Disorders|Obsessive-compulsive disorder, susceptibility to"
+    },
+    "VCV000811535": {
+      "variation_id": 811535,
+      "dbsnp": [
+        "rs1800012"
+      ],
+      "gene_symbols": [
+        "COL1A1"
+      ],
+      "name": "NM_000088.4(COL1A1):c.104-441G>T",
+      "clinical_significance": "Benign/Likely benign",
+      "review_status": "criteria provided, multiple submitters, no conflicts",
+      "phenotype_list": "not specified|Osteogenesis imperfecta type I|8 conditions|not provided"
+    },
+    "VCV000869137": {
+      "variation_id": 869137,
+      "dbsnp": [
+        "rs1143634"
+      ],
+      "gene_symbols": [
+        "IL1B"
+      ],
+      "name": "NM_000576.3(IL1B):c.315C>T (p.Phe105=)",
+      "clinical_significance": "Benign; Affects; association; other",
+      "review_status": "no assertion criteria provided",
+      "phenotype_list": "Antisynthetase syndrome|Endometriosis|Cholangiocarcinoma|IL1B-related disorder"
+    },
+    "VCV001165252": {
+      "variation_id": 1165252,
+      "dbsnp": [
+        "rs12794714"
+      ],
+      "gene_symbols": [
+        "CYP2R1"
+      ],
+      "name": "NM_024514.5(CYP2R1):c.177C>T (p.Ser59=)",
+      "clinical_significance": "Benign",
+      "review_status": "criteria provided, multiple submitters, no conflicts",
+      "phenotype_list": "not provided|not specified|Pulmonary disease, chronic obstructive, susceptibility to"
+    },
+    "VCV001239762": {
+      "variation_id": 1239762,
+      "dbsnp": [
+        "rs708272"
+      ],
+      "gene_symbols": [
+        "CETP"
+      ],
+      "name": "NM_000078.3(CETP):c.118+279G>A",
+      "clinical_significance": "Benign",
+      "review_status": "criteria provided, multiple submitters, no conflicts",
+      "phenotype_list": "not provided|Coronary artery disorder"
+    },
+    "VCV001550682": {
+      "variation_id": 1550682,
+      "dbsnp": [
+        "rs75039782"
+      ],
+      "gene_symbols": [
+        "CFTR"
+      ],
+      "name": "NM_000492.4(CFTR):c.3718-2477C>A",
+      "clinical_significance": "Likely benign",
+      "review_status": "criteria provided, single submitter",
+      "phenotype_list": "Cystic fibrosis"
+    },
+    "VCV001710531": {
+      "variation_id": 1710531,
+      "dbsnp": [
+        "rs1800896"
+      ],
+      "gene_symbols": [
+        "IL10"
+      ],
+      "name": "NC_000001.11:g.206773552T>C",
+      "clinical_significance": "Pathogenic",
+      "review_status": "criteria provided, single submitter",
+      "phenotype_list": "Leprosy, susceptibility to, 1|Hepatitis C virus, susceptibility to"
+    }
+  }
+}
