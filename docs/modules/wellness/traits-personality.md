@@ -9,8 +9,8 @@ accordingly.
 ## What it looks at
 
 - **Cognitive ability & educational attainment** — polygenic scores (Okbay 2022, Savage 2018)
-- **Big Five personality** — one SNP each for neuroticism, extraversion, openness,
-  agreeableness, conscientiousness
+- **Big Five personality** — one SNP each for neuroticism, openness, and
+  conscientiousness (extraversion and agreeableness are not currently covered)
 - **Behavioural traits** — *CADM2* (risk tolerance), a *DRD4* proxy (novelty seeking)
 
 ## What you'll see
@@ -31,3 +31,5 @@ calibrated.
   genotyping.
 - The cognitive polygenic scores come from European-ancestry studies; an ancestry-mismatch
   warning is shown when relevant.
+- Only three of the five Big Five dimensions have supported single-SNP rows; extraversion
+  and agreeableness are not currently measured by the curated panel.
