@@ -288,6 +288,10 @@ test.describe('Step 33 — UpdateManager "Update now" for LAI', () => {
       )
     })
 
+    await page.route('**/api/samples', async (route) => {
+      await route.fulfill(jsonRoute([{ id: 101, name: 'LAI test sample' }]))
+    })
+
     await page.route('**/api/updates/status', async (route) => {
       await route.fulfill(
         jsonRoute([
@@ -391,7 +395,9 @@ test.describe('Step 33 — UpdateManager "Update now" for LAI', () => {
     await expect(banner).toContainText('Re-annotate to refresh findings.')
     await expect(banner).not.toContainText('potential reclassification')
 
-    await banner.getByRole('button', { name: 'Dismiss (reference data)' }).click()
+    await banner
+      .getByRole('button', { name: 'Dismiss (reference data — LAI test sample)' })
+      .click()
     expect(dismissedPromptId).toBe(17)
   })
 })
