@@ -150,6 +150,14 @@ def load_cancer_prs_weights(
             scoring_enabled = ws_data.get("scoring_enabled", True)
             if not isinstance(scoring_enabled, bool):
                 raise ValueError(f"Weight set '{ws_data['name']}' has non-boolean scoring_enabled")
+            calibrated = ws_data.get("calibrated", False)
+            if not isinstance(calibrated, bool):
+                raise ValueError(f"Weight set '{ws_data['name']}' has non-boolean calibrated")
+            calibration_eligible = ws_data.get("calibration_eligible", True)
+            if not isinstance(calibration_eligible, bool):
+                raise ValueError(
+                    f"Weight set '{ws_data['name']}' has non-boolean calibration_eligible"
+                )
 
             eligibility_schema_present = any(
                 "runtime_scoring_eligible" in weight for weight in raw_weights
@@ -211,7 +219,7 @@ def load_cancer_prs_weights(
                     # Conservative default: a bundled weight set is treated as
                     # uncalibrated unless it explicitly declares a validated
                     # reference distribution (issue #7).
-                    calibrated=ws_data.get("calibrated", False),
+                    calibrated=calibrated,
                     pgs_id=ws_data.get("pgs_id"),
                     pgs_license=ws_data.get("pgs_license"),
                     development_method=ws_data.get("development_method"),
@@ -222,7 +230,7 @@ def load_cancer_prs_weights(
                     # separate gates. A non-reporting model may remain loadable
                     # for audit without ever reaching the scoring engine (#1934).
                     scoring_enabled=scoring_enabled,
-                    calibration_eligible=ws_data.get("calibration_eligible", True),
+                    calibration_eligible=calibration_eligible,
                     runtime_scoring_blocked=runtime_scoring_blocked,
                     # Monogenic genes assessed separately from this polygenic
                     # score (SW-B3 monogenic exclusion / cross-reference).

@@ -1,13 +1,7 @@
 # Breast-cancer PRS77 source notice
 
 The bundled 77-variant breast-cancer score is derived from Supplementary
-Table 4 of:
-
-> Mavaddat N, et al. Prediction of breast cancer risk based on profiling with
-> common genetic variants. *Journal of the National Cancer Institute*.
-> 2015;107(5):djv036. DOI: [10.1093/jnci/djv036](https://doi.org/10.1093/jnci/djv036).
-> PMID: [25855707](https://pubmed.ncbi.nlm.nih.gov/25855707/); PMCID:
-> [PMC4754625](https://pmc.ncbi.nlm.nih.gov/articles/PMC4754625/).
+Table 4 of Mavaddat et al. 2015 [1].
 
 The article and its supplementary material are distributed under the
 [Creative Commons Attribution 3.0 Unported license](https://creativecommons.org/licenses/by/3.0/).
@@ -16,13 +10,16 @@ allele, and overall odds-ratio values. The runtime weight is the natural
 logarithm of the published overall per-allele odds ratio; in the supplement,
 the odds ratio is for the second listed allele.
 
-PGS Catalog score [PGS000001](https://www.pgscatalog.org/score/PGS000001/)
-was used as an independent exact cross-check of the 77 ordered rsIDs, alleles,
-and weights. The PGS Catalog files are not the redistribution-license basis
-for the bundled transcription. GRCh37 coordinates come from the PGS Catalog
-harmonized snapshot dated 2022-09-23. The checked-in Ensembl snapshot records
-the primary-chromosome GRCh38 allele sets consulted on 2026-07-16; alternate
-scaffold mappings were excluded.
+## Records consulted
+
+- PGS Catalog score [PGS000001](https://www.pgscatalog.org/score/PGS000001/)
+  was used as an independent exact cross-check of the 77 ordered rsIDs,
+  alleles, and weights. The PGS Catalog files are not the
+  redistribution-license basis for the bundled transcription. GRCh37
+  coordinates come from its harmonized snapshot dated 2022-09-23.
+- The checked-in Ensembl Variation snapshot records the primary-chromosome
+  GRCh38 allele sets consulted on 2026-07-16; alternate scaffold mappings were
+  excluded.
 
 ## Reproducibility
 
@@ -49,3 +46,11 @@ Checked source artifacts and their SHA-256 digests:
 The generator also pins compact ordered projections of the source and
 harmonized rows (`db7811c2…`, `d365caed…`, `6e014bab…`, and `9ee7f543…`),
 so reordering or decimal-string drift fails verification.
+
+## References
+
+[1] [Mavaddat N, et al. (2015). Prediction of breast cancer risk based on
+profiling with common genetic variants. *Journal of the National Cancer
+Institute*, 107(5), djv036.](https://doi.org/10.1093/jnci/djv036) PMID:
+[25855707](https://pubmed.ncbi.nlm.nih.gov/25855707/); PMCID:
+[PMC4754625](https://pmc.ncbi.nlm.nih.gov/articles/PMC4754625/).

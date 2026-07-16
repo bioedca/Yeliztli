@@ -464,6 +464,18 @@ class TestLoadCancerPRSWeights:
         with pytest.raises(ValueError, match="39 runtime-blocked row"):
             load_cancer_prs_weights(path)
 
+    @pytest.mark.parametrize("field", ["calibrated", "calibration_eligible"])
+    def test_loader_rejects_non_boolean_calibration_gates(
+        self, tmp_path: Path, field: str
+    ) -> None:
+        payload = json.loads(WEIGHTS_PATH.read_text(encoding="utf-8"))
+        payload["weight_sets"][0][field] = "false"
+        path = tmp_path / f"non-boolean-{field}.json"
+        path.write_text(json.dumps(payload), encoding="utf-8")
+
+        with pytest.raises(ValueError, match=f"non-boolean {field}"):
+            load_cancer_prs_weights(path)
+
     def test_loader_enforces_runtime_blocked_model_status(self, tmp_path: Path) -> None:
         payload = json.loads(WEIGHTS_PATH.read_text(encoding="utf-8"))
         breast = payload["weight_sets"][0]
