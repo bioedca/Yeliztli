@@ -34,6 +34,7 @@ import {
   type DatabaseHealth,
 } from '@/api/db-health'
 import { useUpdateCheckInterval, useSetUpdateCheckInterval } from '@/api/preferences'
+import { useSamples } from '@/api/samples'
 import { cn } from '@/lib/utils'
 import {
   RefreshCw,
@@ -129,6 +130,16 @@ export function isOutsideBandwidthWindow(
 
 function ReannotationBanner({ prompts }: { prompts: ReannotationPrompt[] }) {
   const dismissMutation = useDismissPrompt()
+  const { data: samples } = useSamples()
+
+  // Prompts are per-sample, so each dismiss button must name its sample —
+  // otherwise N stale samples produce N byte-identical labels with no way to
+  // tell which sample a click dismisses (#1986). Falls back to the id while the
+  // sample list is still loading or a sample is not found.
+  const sampleLabel = (sampleId: number): string => {
+    const match = Array.isArray(samples) ? samples.find((s) => s.id === sampleId) : undefined
+    return match?.name ?? `sample ${sampleId}`
+  }
 
   if (prompts.length === 0) return null
 
@@ -185,8 +196,8 @@ function ReannotationBanner({ prompts }: { prompts: ReannotationPrompt[] }) {
             )}
             {versionPrompts.length > 0 && (
               <>
-                Reference data is newer than {versionSampleCount} analysis
-                {versionSampleCount !== 1 ? 'es' : ''}
+                Reference data is newer than {versionSampleCount}{' '}
+                {versionSampleCount === 1 ? 'analysis' : 'analyses'}
                 {staleDbNames.length > 0 ? ` (${staleDbNames.join(' + ')})` : ''}.{' '}
               </>
             )}
@@ -207,7 +218,8 @@ function ReannotationBanner({ prompts }: { prompts: ReannotationPrompt[] }) {
                 )}
               >
                 <XCircle className="h-3 w-3" />
-                Dismiss ({p.prompt_type === 'version_staleness' ? 'reference data' : p.db_name})
+                Dismiss ({p.prompt_type === 'version_staleness' ? 'reference data' : p.db_name} —{' '}
+                {sampleLabel(p.sample_id)})
               </button>
             ))}
           </div>
