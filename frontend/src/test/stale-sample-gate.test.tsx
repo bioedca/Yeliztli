@@ -225,6 +225,7 @@ describe('StaleSampleGate', () => {
   it('maps a 409 to friendly copy and reconnects without exposing the job UUID', async () => {
     const rawJobId = '6d15a253-69f6-41f6-bbe0-297c7196213a'
     let conflictReceived = false
+    let recoveredActiveChecks = 0
 
     mockFetch.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
       const url = requestUrl(input)
@@ -235,7 +236,11 @@ describe('StaleSampleGate', () => {
         })
       }
       if (isActiveJobRequest(url)) {
-        return conflictReceived
+        if (!conflictReceived) {
+          return apiResponse(404, { detail: 'No active job' })
+        }
+        recoveredActiveChecks += 1
+        return recoveredActiveChecks === 1
           ? apiResponse(200, { ...ACTIVE_JOB, job_id: rawJobId })
           : apiResponse(404, { detail: 'No active job' })
       }
@@ -260,6 +265,13 @@ describe('StaleSampleGate', () => {
     expect(await screen.findByText('Annotating variants')).toBeInTheDocument()
     expect(document.body).not.toHaveTextContent(rawJobId)
     expect(screen.getByTestId('stale-reannotate-cta')).toBeDisabled()
+
+    await waitFor(
+      () => expect(screen.getByTestId('stale-reannotate-cta')).toBeEnabled(),
+      { timeout: 2_500 },
+    )
+    expect(screen.queryByTestId('stale-reconnect-status')).not.toBeInTheDocument()
+    expect(screen.getByTestId('stale-sample-gate')).toBeInTheDocument()
   })
 
   it('re-enables retry when the active job disappears but the sample stays stale', async () => {

@@ -138,14 +138,14 @@ export default function StaleSampleGate({ children }: StaleSampleGateProps) {
       ])
     },
   })
+  const resetReannotation = reannotate.reset
 
   useEffect(() => {
-    reannotate.reset()
+    resetReannotation()
     trackedJobRef.current = null
     // Reset the mutation banner state when the active sample changes so
     // a prior success/error toast from a different sample doesn't leak in.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeSampleId])
+  }, [activeSampleId, resetReannotation])
 
   const activeJobId = activeJob?.job_id ?? null
   useEffect(() => {
@@ -166,6 +166,7 @@ export default function StaleSampleGate({ children }: StaleSampleGateProps) {
       !activeJobQuery.isFetching
     ) {
       trackedJobRef.current = null
+      resetReannotation()
       void queryClient.invalidateQueries({
         queryKey: sampleStalenessQueryKey(activeSampleId),
       })
@@ -176,6 +177,7 @@ export default function StaleSampleGate({ children }: StaleSampleGateProps) {
     activeJobQuery.isPending,
     activeSampleId,
     queryClient,
+    resetReannotation,
   ])
 
   // While an active sample's staleness probe is still pending, hold back
