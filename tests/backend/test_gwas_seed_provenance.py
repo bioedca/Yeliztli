@@ -34,14 +34,14 @@ _SNAPSHOT_PATH = _ROOT / "tests" / "fixtures" / "gwas_seed_pmid_snapshot.json"
 # Rows whose fixture label is a customary CONSORTIUM byline: the cited PMID genuinely is
 # the paper the label names, so a first-author surname comparison cannot match. Verified
 # individually against PubMed — do not add to this list without doing the same.
-_CONSORTIUM_LABELS: dict[tuple[str, str], str] = {
+_CONSORTIUM_LABELS: dict[tuple[str, str], tuple[str, str]] = {
     # PMID 18650507 — Link E et al., "SLCO1B1 variants and statin-induced myopathy",
     # N Engl J Med 2008. Authored by the SEARCH Collaborative Group.
-    ("rs4149056", "Simvastatin myopathy"): "18650507",
+    ("rs4149056", "Simvastatin myopathy"): ("18650507", "SEARCH Group 2008"),
     # PMID 25056061 — "Biological insights from 108 schizophrenia-associated genetic
     # loci", Nature 2014. Byline is the Schizophrenia Working Group of the Psychiatric
     # Genomics Consortium; Ripke is the customary attribution.
-    ("rs6311", "Schizophrenia"): "25056061",
+    ("rs6311", "Schizophrenia"): ("25056061", "Ripke et al. 2014"),
 }
 
 # Rows #1948's audit could NOT repair: the intended association could not be pinned down
@@ -99,10 +99,19 @@ def _parse_study(label: str) -> tuple[str, str]:
 
 
 def _label_matches(label: str, meta: dict[str, str]) -> bool:
+    """Compare surnames exactly, not by substring.
+
+    ``sortfirstauthor`` is ``"Surname II"`` (e.g. ``"Kerem B"``), so the surname is its
+    leading token. A substring test would let ``"Li et al."`` match an author ``"Lin AB"``
+    and quietly excuse a wrong citation — the exact defect this guard exists to catch.
+    """
     surname, year = _parse_study(label)
     if not surname or not year:
         return False
-    return surname.lower() in meta["author"].lower() and year == meta["year"]
+    author = re.match(r"([A-Za-z\-']+)", meta["author"])
+    if author is None:
+        return False
+    return surname.casefold() == author.group(1).casefold() and year == meta["year"]
 
 
 def _key(row: dict[str, str]) -> tuple[str, str]:
@@ -187,15 +196,24 @@ def test_quarantined_rows_are_still_mismatched() -> None:
     )
 
 
-def test_consortium_allowlist_pmids_still_match_their_rows() -> None:
-    """An allowlisted row is exempt only for the exact PMID that was hand-verified."""
+def test_consortium_allowlist_still_matches_its_rows() -> None:
+    """An allowlisted row is exempt only for the exact PMID *and* label hand-verified.
+
+    Pinning the PMID alone would let the ``study`` text be rewritten to name any paper
+    at all while keeping the row exempt from ``test_study_label_identifies_the_cited_paper``
+    — an exemption-shaped hole straight through the guard.
+    """
     by_key = {_key(r): r for r in _rows()}
-    for key, pmid in _CONSORTIUM_LABELS.items():
+    for key, (pmid, study) in _CONSORTIUM_LABELS.items():
         row = by_key.get(key)
         assert row is not None, f"{key}: consortium allowlist names a row that does not exist"
         assert row["pubmed_id"] == pmid, (
             f"{key}: allowlisted for PMID {pmid} but now cites {row['pubmed_id']} — "
             f"re-verify the citation by hand before updating the allowlist"
+        )
+        assert row["study"] == study, (
+            f"{key}: allowlisted for study {study!r} but now reads {row['study']!r} — "
+            f"re-verify by hand; the exemption covers only the verified label"
         )
 
 

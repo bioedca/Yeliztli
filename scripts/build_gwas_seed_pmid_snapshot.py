@@ -69,7 +69,15 @@ def main() -> int:
 
     unresolved = sorted(set(pmids) - set(metadata), key=int)
     if unresolved:
-        print(f"WARNING: {len(unresolved)} PMIDs did not resolve: {unresolved}", file=sys.stderr)
+        # Refuse to write rather than emit a snapshot known to be bad. A PMID that does
+        # not resolve cites nothing real, so the seed row is the thing to fix — writing
+        # the file anyway would just hand the guard a fixture that cannot pass.
+        print(
+            f"ERROR: {len(unresolved)} cited PMID(s) did not resolve on PubMed: {unresolved}\n"
+            f"       Fix the citing row(s) in {_SEED.relative_to(_REPO)}; snapshot NOT written.",
+            file=sys.stderr,
+        )
+        return 1
 
     snapshot = {
         "_provenance": {
