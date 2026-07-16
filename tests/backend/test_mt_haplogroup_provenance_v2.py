@@ -36,20 +36,20 @@ BASELINE_V2_REGISTRY_SEMANTIC_SHA256 = (
     "3eaa8bb5a9cc33c1a892bd70a7007b8293c2698d4e541a95566f7547c914c553"
 )
 BASELINE_V2_COVERAGE_SHA256 = "9e9d25bd07652d0637fde59d9292b6a4cba1c593268c2301bba1c910b9bd338b"
-LOCKED_EXACT_NAMES_SHA256 = "17a125062424954f3f68851e42a455402cc1642d5d9a2e5a095e344b0b12d70e"
-LOCKED_EXACT_SEMANTIC_SHA256 = "25a9e95c28313241df35d934f4c2a27eb2c3d4223b666d3b7d146e6bb0de986b"
-LOCKED_EXACT_COVERAGE_SHA256 = "ac87788fbac28f42cc5c2f13868449e03e7e3d845b532508eb545fb0e2ed9706"
+LOCKED_EXACT_NAMES_SHA256 = "67967c21a14b9da71f151188bbf533d8886cd9bcd7706d58e317225eeca55f94"
+LOCKED_EXACT_SEMANTIC_SHA256 = "07cc22c51117a7de16ded7c25e30ca9cd4021564b26600e643d382101ffadbca"
+LOCKED_EXACT_COVERAGE_SHA256 = "1c0391bc33f279945ebdd5570f24d7a81c934e0783c1b691c1ccbbca4cf8c170"
 BASELINE_DIRECT_MOTIF_EXACT_NAMES_SHA256 = (
     "0dc2cc812e511bc89b76fca6ed13614d8ddb75a6ebe6321bde670096c44fba61"
 )
 LOCKED_DIRECT_MOTIF_EXACT_NAMES_SHA256 = (
-    "7ccd7a200f01bc137132fc3740eda11964d09ddf859bcf227ac061d8fb9c126f"
+    "24bcc13b83322b1b1896e62352a4ce680511340da4aaf4aaccd729e524cc557c"
 )
 BASELINE_DIRECT_MOTIF_EXACT_SEMANTIC_SHA256 = (
     "ecc1dbf4c93872031e102ee166eac50e31d6468395e5d0053357af44f8a9785a"
 )
 LOCKED_DIRECT_MOTIF_EXACT_SEMANTIC_SHA256 = (
-    "abdea36f6d2bcb4f203fac75883412c4238377b744cfae7e964037403b607605"
+    "259aed604426db70c6a96a156cd1fce701983e57dc8bd4680978052d59c77812"
 )
 INITIAL_DIRECT_MOTIF_PENDING_NAMES_SHA256 = (
     "7b4848980e34ca1eff9739f964906d68eb4acdbbcd5e93227e17ece79296aefb"
@@ -57,9 +57,9 @@ INITIAL_DIRECT_MOTIF_PENDING_NAMES_SHA256 = (
 INITIAL_PENDING_NAMES_SHA256 = "996c2c96c22d37a2aa7edf1f4639d626ccc5199ecc5eb35984aa84204e05a591"
 ARRAY_MANIFEST_SHA256 = "42de22517a4644884596e36b0499a4fc45f264986c63f6fb239452b88719f977"
 SOURCE_METADATA_SHA256 = "5b3a3578fc208c91f6c3fdcc6d772f5071851b3604762b9e81994cf2632deb3d"
-STATE_PARTITION_SHA256 = "5843b8ad83239a065170d6ab92a502f791afedf2ee19120d9d40fa96ce8c373d"
+STATE_PARTITION_SHA256 = "b1d99a610097543d71819e2d7600f1d081039c6ffaee9d4922425104f32736f0"
 BASELINE_EMITTED_TREE_SHA256 = "02a40be2096dd8c60e6e2934ba68a813f07478117a749e60e94e0608bed21914"
-LOCKED_EMITTED_TREE_SHA256 = "550ec418ac3616c03c6a75fbef64fa923a6c68c53859b9b021a5dc932a31ec2e"
+LOCKED_EMITTED_TREE_SHA256 = "86e8c8c3b62e899ff64349647d4c14f6c186954532599296fcd0a012249dc2c2"
 
 PRIMARY_EXPORTS = ["pgp_4139", "pgp_4162", "pgp_4187", "pgp_huA08F4D"]
 HISTORICAL_EXPORTS = [*PRIMARY_EXPORTS, "pgp_1050"]
@@ -134,6 +134,7 @@ DIRECT_MOTIF_EXACT_NODES = [
     "H13a",
     "H1a",
     "H6a",
+    "I",
     "J1d",
     "K1b",
     "K2",
@@ -956,7 +957,7 @@ def test_production_registry_is_a_complete_dynamic_partition() -> None:
     assert not inventory.duplicates
     assert len(inventory.marker_bearing_names) == 192
     assert len(inventory.markerless_names) == 2
-    assert inventory.marker_count == 463
+    assert inventory.marker_count == 462
     assert inventory.edge_count == 193
     assert set(_MT_SOURCE["nodes"]) | set(_MT_SOURCE["structural_exceptions"]) | set(
         _MT_SOURCE["pending_nodes"]
@@ -1949,6 +1950,148 @@ def test_issue_1899_n1_flattened_motif_owner_is_fail_closed() -> None:
     source["nodes"]["N1"]["emitted_snps"][0]["motif_owner"] = "N1"
 
     text = _issues_text(_validate_mt_source_schema(source))
+    assert "does not match its source mutation direction" in text
+    assert "emitted markers do not match every source emission decision" in text
+
+
+def test_issue_1899_i_record_and_flattened_source_path_are_exact() -> None:
+    """I retains its literal Build 17 path, sparse motif, ownership, and coverage."""
+    record = _MT_SOURCE["nodes"]["I"]
+    assert record["source_node"] == "I"
+    assert record["emitted_parent"] == "N1a"
+    assert record["source_motif_status"] == "exact"
+
+    path = record["source_topology"]["flattened_source_path"]
+    assert record["source_topology"]["status"] == "exact"
+    assert record["source_topology"]["emitted_parent_source_node"] == "N1a"
+    assert record["source_topology"]["source_parent"] == "N1a1b"
+    assert [(step["source_node"], step["source_parent"]) for step in path] == [
+        ("N1a1'2", "N1a"),
+        ("N1a1", "N1a1'2"),
+        ("N1a1b", "N1a1"),
+    ]
+    assert [_motif_decision_projection(step["direct_source_motif"]) for step in path] == [
+        [
+            (
+                "T199C",
+                False,
+                "not part of the retained sparse I motif; emitting it would expand "
+                "classifier behavior beyond this provenance migration",
+            )
+        ],
+        [
+            (
+                "573.XC",
+                False,
+                "non-substitution event is unsupported by the substitution-only caller",
+            ),
+            (
+                "A10398G!",
+                False,
+                "recurrent reversion is not part of the retained sparse I motif; m.15043 "
+                "supplies the selected intermediate evidence without adding non-specific "
+                "m.10398 evidence",
+            ),
+            ("G15043A", True, None),
+        ],
+        [
+            (
+                notation,
+                False,
+                "source-provenance only; not part of the retained sparse I motif",
+            )
+            for notation in ["T250C", "A4529t", "G8251A", "A15924G", "G16391A"]
+        ],
+    ]
+    assert [_MT_SOURCE["omitted_nodes"][step["source_node"]] for step in path] == [
+        {"type": "flattened_source_intermediate", "reason": step["reason"]} for step in path
+    ]
+    assert _motif_decision_projection(record["direct_source_motif"]) == [
+        ("T10034C", True, None),
+        ("G16129A!", True, None),
+    ]
+    assert [
+        (
+            marker["rsid"],
+            marker["pos"],
+            marker["ancestral_allele"],
+            marker["allele"],
+            marker["motif_owner"],
+            marker["array_coverage"],
+        )
+        for marker in record["emitted_snps"]
+    ] == [
+        (
+            "i5010034",
+            10034,
+            "T",
+            "C",
+            "I",
+            {
+                "cohort_id": "primary_four_23andme",
+                "position_present_in": PRIMARY_EXPORTS,
+                "callable_snv_in": PRIMARY_EXPORTS,
+            },
+        ),
+        (
+            "i5015043",
+            15043,
+            "G",
+            "A",
+            "N1a1",
+            {
+                "cohort_id": "primary_four_23andme",
+                "position_present_in": PRIMARY_EXPORTS,
+                "callable_snv_in": PRIMARY_EXPORTS,
+            },
+        ),
+        (
+            "i5016129",
+            16129,
+            "G",
+            "A",
+            "I",
+            {
+                "cohort_id": "primary_four_23andme",
+                "position_present_in": PRIMARY_EXPORTS,
+                "callable_snv_in": ["pgp_4162", "pgp_4187", "pgp_huA08F4D"],
+            },
+        ),
+    ]
+
+    migration = _MT_SOURCE["migration"]
+    assert "I" not in _MT_SOURCE["pending_nodes"]
+    assert "I" in _MT_SOURCE["direct_source_motif_states"]["exact_nodes"]
+    assert "I" in migration["locked_exact_nodes"]
+    assert "I" in migration["locked_direct_motif_exact_nodes"]
+    assert "I" not in migration["baseline_exact_nodes"]
+    assert "I" not in migration["baseline_direct_motif_exact_nodes"]
+    assert "I" in migration["initial_pending_nodes"]
+
+
+def test_issue_1899_old_i_marker_set_fails_the_exact_tree_guard() -> None:
+    """The former duplicated m.1719 marker cannot re-enter I's source-locked node."""
+    tree = build_mt_tree()
+    inventory = _index_mt_tree(tree)
+    inventory.by_name["I"].node["defining_snps"] = [
+        {"rsid": "i5001719", "pos": 1719, "allele": "A"},
+        {"rsid": "i5010034", "pos": 10034, "allele": "C"},
+        {"rsid": "i5015043", "pos": 15043, "allele": "A"},
+        {"rsid": "i5016129", "pos": 16129, "allele": "A"},
+    ]
+
+    text = _issues_text(_validate_mt_registry_against_tree(_MT_SOURCE, inventory))
+    assert "Marker-exact mtDNA node I has markers" in text
+
+
+def test_issue_1899_i_topology_and_flattened_owner_are_fail_closed() -> None:
+    """I cannot bypass N1a or relabel N1a1's selected m.15043 event."""
+    source = deepcopy(_MT_SOURCE)
+    source["nodes"]["I"]["source_topology"]["emitted_parent_source_node"] = "N"
+    source["nodes"]["I"]["emitted_snps"][1]["motif_owner"] = "I"
+
+    text = _issues_text(_validate_mt_source_schema(source))
+    assert "Exact source topology for mtDNA node I breaks adjacency" in text
     assert "does not match its source mutation direction" in text
     assert "emitted markers do not match every source emission decision" in text
 
@@ -3228,9 +3371,9 @@ def test_derived_provenance_metadata_and_bundle_compatibility_are_exact() -> Non
     assert summary["migration_status"] == "in_progress"
     assert summary["emitted_nodes"] == 194
     assert summary["marker_bearing_nodes"] == 192
-    assert summary["marker_exact_nodes"]["count"] == 65
+    assert summary["marker_exact_nodes"]["count"] == 66
     assert summary["direct_source_motif_nodes"] == {
-        "exact": {"count": 53, "names": DIRECT_MOTIF_EXACT_NODES},
+        "exact": {"count": 54, "names": DIRECT_MOTIF_EXACT_NODES},
         "legacy_partial": {
             "count": 12,
             "names": DIRECT_MOTIF_LEGACY_PARTIAL_NODES,
@@ -3244,33 +3387,33 @@ def test_derived_provenance_metadata_and_bundle_compatibility_are_exact() -> Non
         "count": 2,
         "names": ["R0", "mt-MRCA"],
     }
-    assert summary["pending_nodes"]["count"] == 127
+    assert summary["pending_nodes"]["count"] == 126
     assert summary["retired_emitted_nodes"] == {"count": 0, "names": []}
     assert summary["marker_records"] == {
-        "emitted": 463,
-        "marker_exact": 223,
+        "emitted": 462,
+        "marker_exact": 226,
         "marker_exact_by_cohort": {
             "historical_five_23andme_including_2014": 11,
-            "primary_four_23andme": 212,
+            "primary_four_23andme": 215,
         },
     }
     assert summary["source_mutation_decisions"] == {
-        "total": 356,
-        "emitted": 223,
-        "omitted": 133,
-        "direct_motif_exact": 258,
+        "total": 367,
+        "emitted": 226,
+        "omitted": 141,
+        "direct_motif_exact": 260,
         "direct_motif_legacy_partial": 37,
         "recurrent_or_uncertain_events": 2,
-        "reversion_events": 23,
-        "reversion_marks": 23,
+        "reversion_events": 25,
+        "reversion_marks": 25,
     }
     assert summary["emitted_parent_edges"] == {
         "total": 193,
         "validated_declarations": 193,
     }
-    assert summary["source_parent_edges"] == {"validated": 23, "pending": 170}
+    assert summary["source_parent_edges"] == {"validated": 24, "pending": 169}
     assert summary["omitted_source_nodes"] == {
-        "count": 15,
+        "count": 18,
         "names": [
             "CZ",
             "K1c",
@@ -3286,21 +3429,24 @@ def test_derived_provenance_metadata_and_bundle_compatibility_are_exact() -> Non
             "L3'4",
             "L3'4'6",
             "N1'5",
+            "N1a1",
+            "N1a1'2",
+            "N1a1b",
             "W+194",
         ],
         "by_type": {
-            "flattened_source_intermediate": 11,
+            "flattened_source_intermediate": 14,
             "flattened_unreportable_source_intermediate": 3,
             "unreportable_source_node": 1,
         },
     }
     assert summary["arrays"] == {"exports": 6, "cohorts": 2}
     assert summary["locked_exact_frontier"] == {
-        "count": 65,
+        "count": 66,
         "sha256": LOCKED_EXACT_NAMES_SHA256,
     }
     assert summary["locked_direct_motif_frontier"] == {
-        "count": 53,
+        "count": 54,
         "sha256": LOCKED_DIRECT_MOTIF_EXACT_NAMES_SHA256,
     }
     assert summary["digests"]["baseline_emitted_tree_sha256"] == (BASELINE_EMITTED_TREE_SHA256)
@@ -3308,11 +3454,11 @@ def test_derived_provenance_metadata_and_bundle_compatibility_are_exact() -> Non
 
     bundle = build_bundle()
     mt_audit = bundle["sources"]["mt"]["audit"]
-    assert bundle["version"] == "1.1.16"
+    assert bundle["version"] == "1.1.17"
     assert bundle["stats"]["mt_haplogroups"] == 194
-    assert bundle["stats"]["mt_defining_snps"] == 463
+    assert bundle["stats"]["mt_defining_snps"] == 462
     assert bundle["stats"]["mt_unique_snps"] == 371
-    assert bundle["stats"]["total_defining_snps"] == 617
+    assert bundle["stats"]["total_defining_snps"] == 616
     assert bundle["stats"]["total_unique_snps"] == 525
     assert mt_audit["schema_version"] == 3
     assert mt_audit["audited_nodes"] == sorted(_MT_SOURCE["nodes"])

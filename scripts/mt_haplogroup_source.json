@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "audit_scope": "Incremental-to-complete PhyloTree Build 17 audit for issues 1798 and 1899. 65 marker-exact nodes retain emitted-marker and coverage locks; independent raw-row comparison classifies 53 direct motifs as exact and 12 legacy motifs as partial. All other emitted nodes have explicit pending or structural states. Schema v3 distinguishes general flattened source intermediates from caller-unreportable intermediates and separately accounts for retired emitted identities. Completion requires every direct motif and source-topology edge to become exact.",
+  "audit_scope": "Incremental-to-complete PhyloTree Build 17 audit for issues 1798 and 1899. 66 marker-exact nodes retain emitted-marker and coverage locks; independent raw-row comparison classifies 54 direct motifs as exact and 12 legacy motifs as partial. All other emitted nodes have explicit pending or structural states. Schema v3 distinguishes general flattened source intermediates from caller-unreportable intermediates and separately accounts for retired emitted identities. Completion requires every direct motif and source-topology edge to become exact.",
   "source": {
     "name": "PhyloTree",
     "version": "Build 17",
@@ -133,6 +133,7 @@
       "H13a",
       "H1a",
       "H6a",
+      "I",
       "J1d",
       "K1b",
       "K2",
@@ -248,6 +249,18 @@
     "N1'5": {
       "type": "flattened_source_intermediate",
       "reason": "Flattened in issue 1899: Build 17 places N1'5 between N and N1. Its primary-callable G1719A event is emitted on N1 with N1'5 ownership so downstream N1 lineages retain the source-backed state."
+    },
+    "N1a1": {
+      "type": "flattened_source_intermediate",
+      "reason": "Flattened in issue 1899: Build 17 places N1a1 between N1a1'2 and N1a1b on the path from emitted N1a to I. Its primary-callable G15043A event is emitted on I with N1a1 ownership; its unsupported insertion and recurrent m.10398 reversion remain source-only."
+    },
+    "N1a1'2": {
+      "type": "flattened_source_intermediate",
+      "reason": "Flattened in issue 1899: Build 17 places N1a1'2 between emitted N1a and I. Its exact motif is retained as source provenance, but T199C is not part of the retained sparse I classifier and remains non-emitted to avoid expanding caller behavior."
+    },
+    "N1a1b": {
+      "type": "flattened_source_intermediate",
+      "reason": "Flattened in issue 1899: Build 17 places N1a1b between N1a1 and I. Its exact motif is retained as source provenance, but its five events are not part of the retained sparse I classifier and remain non-emitted to avoid broadening caller behavior without separate specificity validation."
     },
     "W+194": {
       "type": "flattened_unreportable_source_intermediate",
@@ -8137,6 +8150,203 @@
         }
       ]
     },
+    "I": {
+      "source_node": "I",
+      "emitted_parent": "N1a",
+      "source_motif_status": "exact",
+      "source_topology": {
+        "status": "exact",
+        "emitted_parent_source_node": "N1a",
+        "source_parent": "N1a1b",
+        "flattened_source_path": [
+          {
+            "source_node": "N1a1'2",
+            "source_parent": "N1a",
+            "reason": "Flattened in issue 1899: Build 17 places N1a1'2 between emitted N1a and I. Its exact motif is retained as source provenance, but T199C is not part of the retained sparse I classifier and remains non-emitted to avoid expanding caller behavior.",
+            "direct_source_motif": [
+              {
+                "notation": "T199C",
+                "mutation_type": "substitution",
+                "pos": 199,
+                "ancestral_allele": "T",
+                "derived_allele": "C",
+                "emitted": false,
+                "omission_reason": "not part of the retained sparse I motif; emitting it would expand classifier behavior beyond this provenance migration"
+              }
+            ]
+          },
+          {
+            "source_node": "N1a1",
+            "source_parent": "N1a1'2",
+            "reason": "Flattened in issue 1899: Build 17 places N1a1 between N1a1'2 and N1a1b on the path from emitted N1a to I. Its primary-callable G15043A event is emitted on I with N1a1 ownership; its unsupported insertion and recurrent m.10398 reversion remain source-only.",
+            "direct_source_motif": [
+              {
+                "notation": "573.XC",
+                "mutation_type": "insertion",
+                "pos": 573,
+                "inserted_sequence": "C",
+                "emitted": false,
+                "omission_reason": "non-substitution event is unsupported by the substitution-only caller"
+              },
+              {
+                "notation": "A10398G!",
+                "mutation_type": "substitution",
+                "pos": 10398,
+                "ancestral_allele": "A",
+                "derived_allele": "G",
+                "emitted": false,
+                "omission_reason": "recurrent reversion is not part of the retained sparse I motif; m.15043 supplies the selected intermediate evidence without adding non-specific m.10398 evidence"
+              },
+              {
+                "notation": "G15043A",
+                "mutation_type": "substitution",
+                "pos": 15043,
+                "ancestral_allele": "G",
+                "derived_allele": "A",
+                "emitted": true
+              }
+            ]
+          },
+          {
+            "source_node": "N1a1b",
+            "source_parent": "N1a1",
+            "reason": "Flattened in issue 1899: Build 17 places N1a1b between N1a1 and I. Its exact motif is retained as source provenance, but its five events are not part of the retained sparse I classifier and remain non-emitted to avoid broadening caller behavior without separate specificity validation.",
+            "direct_source_motif": [
+              {
+                "notation": "T250C",
+                "mutation_type": "substitution",
+                "pos": 250,
+                "ancestral_allele": "T",
+                "derived_allele": "C",
+                "emitted": false,
+                "omission_reason": "source-provenance only; not part of the retained sparse I motif"
+              },
+              {
+                "notation": "A4529t",
+                "mutation_type": "substitution",
+                "pos": 4529,
+                "ancestral_allele": "A",
+                "derived_allele": "T",
+                "emitted": false,
+                "omission_reason": "source-provenance only; not part of the retained sparse I motif"
+              },
+              {
+                "notation": "G8251A",
+                "mutation_type": "substitution",
+                "pos": 8251,
+                "ancestral_allele": "G",
+                "derived_allele": "A",
+                "emitted": false,
+                "omission_reason": "source-provenance only; not part of the retained sparse I motif"
+              },
+              {
+                "notation": "A15924G",
+                "mutation_type": "substitution",
+                "pos": 15924,
+                "ancestral_allele": "A",
+                "derived_allele": "G",
+                "emitted": false,
+                "omission_reason": "source-provenance only; not part of the retained sparse I motif"
+              },
+              {
+                "notation": "G16391A",
+                "mutation_type": "substitution",
+                "pos": 16391,
+                "ancestral_allele": "G",
+                "derived_allele": "A",
+                "emitted": false,
+                "omission_reason": "source-provenance only; not part of the retained sparse I motif"
+              }
+            ]
+          }
+        ]
+      },
+      "direct_source_motif": [
+        {
+          "notation": "T10034C",
+          "mutation_type": "substitution",
+          "pos": 10034,
+          "ancestral_allele": "T",
+          "derived_allele": "C",
+          "emitted": true
+        },
+        {
+          "notation": "G16129A!",
+          "mutation_type": "substitution",
+          "pos": 16129,
+          "ancestral_allele": "G",
+          "derived_allele": "A",
+          "emitted": true
+        }
+      ],
+      "emitted_snps": [
+        {
+          "rsid": "i5010034",
+          "pos": 10034,
+          "ancestral_allele": "T",
+          "allele": "C",
+          "motif_owner": "I",
+          "array_coverage": {
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
+          }
+        },
+        {
+          "rsid": "i5015043",
+          "pos": 15043,
+          "ancestral_allele": "G",
+          "allele": "A",
+          "motif_owner": "N1a1",
+          "array_coverage": {
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
+          }
+        },
+        {
+          "rsid": "i5016129",
+          "pos": 16129,
+          "ancestral_allele": "G",
+          "allele": "A",
+          "motif_owner": "I",
+          "array_coverage": {
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
+          }
+        }
+      ]
+    },
     "N": {
       "source_node": "N",
       "emitted_parent": "L3",
@@ -10582,9 +10792,6 @@
     "HV1": {
       "emitted_parent": "HV"
     },
-    "I": {
-      "emitted_parent": "N"
-    },
     "J": {
       "emitted_parent": "JT"
     },
@@ -10920,6 +11127,7 @@
       "H1a",
       "H6",
       "H6a",
+      "I",
       "J1d",
       "K",
       "K1",
@@ -10974,9 +11182,9 @@
       "Z",
       "Z1"
     ],
-    "locked_exact_nodes_sha256": "17a125062424954f3f68851e42a455402cc1642d5d9a2e5a095e344b0b12d70e",
-    "locked_exact_semantic_sha256": "25a9e95c28313241df35d934f4c2a27eb2c3d4223b666d3b7d146e6bb0de986b",
-    "locked_exact_coverage_membership_sha256": "ac87788fbac28f42cc5c2f13868449e03e7e3d845b532508eb545fb0e2ed9706",
+    "locked_exact_nodes_sha256": "67967c21a14b9da71f151188bbf533d8886cd9bcd7706d58e317225eeca55f94",
+    "locked_exact_semantic_sha256": "07cc22c51117a7de16ded7c25e30ca9cd4021564b26600e643d382101ffadbca",
+    "locked_exact_coverage_membership_sha256": "1c0391bc33f279945ebdd5570f24d7a81c934e0783c1b691c1ccbbca4cf8c170",
     "baseline_direct_motif_exact_nodes": [
       "C",
       "G1",
@@ -11019,6 +11227,7 @@
       "H13a",
       "H1a",
       "H6a",
+      "I",
       "J1d",
       "K1b",
       "K2",
@@ -11063,8 +11272,8 @@
       "Z",
       "Z1"
     ],
-    "locked_direct_motif_exact_nodes_sha256": "7ccd7a200f01bc137132fc3740eda11964d09ddf859bcf227ac061d8fb9c126f",
-    "locked_direct_motif_semantic_sha256": "abdea36f6d2bcb4f203fac75883412c4238377b744cfae7e964037403b607605",
+    "locked_direct_motif_exact_nodes_sha256": "24bcc13b83322b1b1896e62352a4ce680511340da4aaf4aaccd729e524cc557c",
+    "locked_direct_motif_semantic_sha256": "259aed604426db70c6a96a156cd1fce701983e57dc8bd4680978052d59c77812",
     "initial_direct_motif_pending_nodes": [
       "G",
       "H6",
@@ -11238,8 +11447,8 @@
     "initial_pending_nodes_sha256": "996c2c96c22d37a2aa7edf1f4639d626ccc5199ecc5eb35984aa84204e05a591",
     "array_manifest_sha256": "42de22517a4644884596e36b0499a4fc45f264986c63f6fb239452b88719f977",
     "source_metadata_sha256": "5b3a3578fc208c91f6c3fdcc6d772f5071851b3604762b9e81994cf2632deb3d",
-    "state_partition_sha256": "5843b8ad83239a065170d6ab92a502f791afedf2ee19120d9d40fa96ce8c373d",
+    "state_partition_sha256": "b1d99a610097543d71819e2d7600f1d081039c6ffaee9d4922425104f32736f0",
     "baseline_emitted_tree_sha256": "02a40be2096dd8c60e6e2934ba68a813f07478117a749e60e94e0608bed21914",
-    "locked_emitted_tree_sha256": "550ec418ac3616c03c6a75fbef64fa923a6c68c53859b9b021a5dc932a31ec2e"
+    "locked_emitted_tree_sha256": "86e8c8c3b62e899ff64349647d4c14f6c186954532599296fcd0a012249dc2c2"
   }
 }
