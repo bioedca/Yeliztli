@@ -8,19 +8,32 @@ Table definitions live in ``backend.db.tables`` (sample_metadata_obj).
 This module provides the creation function that materialises those tables
 and seeds initial data.
 
-For existing sample databases that were created before new tables were added
-(e.g. ``haplogroup_assignments`` from P3-33), ``ensure_sample_schema_current()``
-adds any missing tables without affecting existing data.
+For existing sample databases, ``ensure_sample_schema_current()`` adds missing
+schema surfaces and applies narrowly scoped content migrations such as deleting
+findings produced by a subsequently quarantined scientific model.
 """
+
+import json
 
 import sqlalchemy as sa
 import structlog
 
-from backend.db.tables import PREDEFINED_TAGS, sample_metadata_obj
+from backend.db.tables import PREDEFINED_TAGS, annotation_state, findings, sample_metadata_obj
 
 logger = structlog.get_logger(__name__)
 
-# Current schema version. Bump when new tables/columns are added to sample_metadata_obj.
+_FINDING_DIFF_STATE_KEY = "last_finding_diff_json"
+_QUARANTINED_BREAST_PRS_TRAIT = "breast_cancer"
+
+
+def _is_quarantined_or_unidentified_cancer_prs_trait(trait: object) -> bool:
+    """Whether a legacy cancer-PRS trait cannot safely remain surfaceable."""
+    return (
+        trait == _QUARANTINED_BREAST_PRS_TRAIT or not isinstance(trait, str) or not trait.strip()
+    )
+
+
+# Current schema version. Bump for per-sample schema or content migrations.
 # v7: Add watched_variants table (P4-21g — VUS tracking)
 # v8: Add provenance columns to raw_variants + merge_provenance table
 #     (AncestryDNA Plan §10.4 — multi-source sample merging)
@@ -46,7 +59,10 @@ logger = structlog.get_logger(__name__)
 #      criteria can verify the supporting dataset has enough observed alleles.
 # v19: Add hla_calls table (Wave D — persisted HIBAG classical-HLA genotype calls;
 #      created on existing sample DBs via create_all(checkfirst=True))
-SAMPLE_SCHEMA_VERSION = 19
+# v20: Quarantine persisted outputs from the source-unverified legacy 25-marker
+#      breast-cancer PRS (issue #1934). The bundled rows remain as an audit record,
+#      but old per-sample findings must not remain surfaceable after deployment.
+SAMPLE_SCHEMA_VERSION = 20
 
 
 # AncestryDNA Plan §10.4(a): merged-sample raw_variants uses (chrom, pos) PK
@@ -116,9 +132,10 @@ def create_sample_tables(engine: sa.Engine, *, is_merged_sample: bool = False) -
 def ensure_sample_schema_current(engine: sa.Engine) -> bool:
     """Ensure an existing sample database has all current tables.
 
-    Uses ``CREATE TABLE IF NOT EXISTS`` (via ``checkfirst=True``) so it is
-    safe to call on every sample DB open. Returns True if any tables were
-    added, False if schema was already current.
+    Uses ``CREATE TABLE IF NOT EXISTS`` (via ``checkfirst=True``) plus
+    version-gated forward migrations, so it is safe to call on every sample DB
+    open. Returns True when tables, columns, or content changed; a version-only
+    stamp preserves the historical False return.
 
     This replaces Alembic for sample databases (P3-33): since each sample
     is an independent SQLite file created at runtime, a lightweight
@@ -163,12 +180,13 @@ def ensure_sample_schema_current(engine: sa.Engine) -> bool:
 
 
 def _add_missing_columns(engine: sa.Engine, from_version: int) -> bool:
-    """Add columns introduced after the initial table creation.
+    """Apply per-sample forward migrations after initial table creation.
 
-    Uses ALTER TABLE ADD COLUMN which is safe on SQLite (no-op if column
-    already exists is handled by checking existing columns first).
+    Most migrations use ``ALTER TABLE ADD COLUMN`` (with an existing-column
+    guard). Content quarantines also live here because the restore workflow
+    invokes this helper directly for older sample databases.
 
-    Returns True if any columns were added.
+    Returns True if columns or content changed.
     """
     added = False
 
@@ -437,6 +455,120 @@ def _add_missing_columns(engine: sa.Engine, from_version: int) -> bool:
                     from_version=from_version,
                 )
                 added = True
+
+    if from_version < 20:
+        # Issue #1934: the shipped 25-marker breast-cancer model cannot be
+        # reproduced from its cited paper. A runtime scoring gate prevents new
+        # results, but existing sample DBs can contain findings from older
+        # releases. Delete those rows, plus unidentified cancer-PRS rows whose
+        # metadata is absent or malformed, during the first DB open after upgrade
+        # so every API, report, SVG, and single-card reader is contained without
+        # relying on each surface to duplicate a filter. Active scores with valid
+        # metadata are preserved; unidentified rows can be regenerated safely.
+        inspector = sa.inspect(engine)
+        if "findings" in inspector.get_table_names():
+            existing_cols = {c["name"] for c in inspector.get_columns("findings")}
+            required_cols = {"id", "module", "category"}
+            quarantined_ids: list[int] = []
+            if required_cols <= existing_cols:
+                with engine.begin() as conn:
+                    predicate = (
+                        findings.c.module == "cancer",
+                        findings.c.category == "prs",
+                    )
+                    if "detail_json" not in existing_cols:
+                        quarantined_ids = list(
+                            conn.execute(sa.select(findings.c.id).where(*predicate)).scalars()
+                        )
+                    else:
+                        candidates = conn.execute(
+                            sa.select(findings.c.id, findings.c.detail_json).where(*predicate)
+                        ).fetchall()
+                        for row in candidates:
+                            try:
+                                detail = json.loads(row.detail_json) if row.detail_json else {}
+                            except (json.JSONDecodeError, TypeError):
+                                detail = {}
+                            trait = detail.get("trait") if isinstance(detail, dict) else None
+                            if _is_quarantined_or_unidentified_cancer_prs_trait(trait):
+                                quarantined_ids.append(row.id)
+
+                    if quarantined_ids:
+                        conn.execute(sa.delete(findings).where(findings.c.id.in_(quarantined_ids)))
+                        added = True
+
+                if quarantined_ids:
+                    logger.warning(
+                        "legacy_cancer_prs_findings_quarantined",
+                        count=len(quarantined_ids),
+                        from_version=from_version,
+                    )
+
+        # Finding-change banners are stored separately from the findings table.
+        # Filter the same quarantined PRS identity from every diff bucket so an
+        # old added/changed/removed entry cannot survive as a historical side
+        # channel after the current result is deleted.
+        inspector = sa.inspect(engine)
+        if "annotation_state" in inspector.get_table_names():
+            with engine.begin() as conn:
+                state_row = conn.execute(
+                    sa.select(annotation_state.c.value).where(
+                        annotation_state.c.key == _FINDING_DIFF_STATE_KEY
+                    )
+                ).fetchone()
+                if state_row is not None:
+                    try:
+                        diff = json.loads(state_row.value)
+                    except (json.JSONDecodeError, TypeError):
+                        diff = None
+
+                    removed_diff_entries = 0
+                    diff_repaired = False
+                    if isinstance(diff, dict):
+                        for bucket in ("changed", "added", "removed"):
+                            entries = diff.get(bucket)
+                            if not isinstance(entries, list):
+                                diff[bucket] = []
+                                diff_repaired = True
+                                continue
+                            kept = [
+                                entry
+                                for entry in entries
+                                if not (
+                                    isinstance(entry, dict)
+                                    and entry.get("module") == "cancer"
+                                    and entry.get("category") == "prs"
+                                    and _is_quarantined_or_unidentified_cancer_prs_trait(
+                                        entry.get("trait")
+                                    )
+                                )
+                            ]
+                            removed_diff_entries += len(entries) - len(kept)
+                            diff[bucket] = kept
+                            diff_repaired = diff_repaired or len(kept) != len(entries)
+
+                        if diff_repaired:
+                            diff["counts"] = {
+                                bucket: (
+                                    len(diff.get(bucket, []))
+                                    if isinstance(diff.get(bucket), list)
+                                    else 0
+                                )
+                                for bucket in ("changed", "added", "removed")
+                            }
+                            conn.execute(
+                                annotation_state.update()
+                                .where(annotation_state.c.key == _FINDING_DIFF_STATE_KEY)
+                                .values(value=json.dumps(diff))
+                            )
+                            added = True
+
+            if state_row is not None and removed_diff_entries:
+                logger.warning(
+                    "breast_prs_finding_diff_entries_quarantined",
+                    count=removed_diff_entries,
+                    from_version=from_version,
+                )
 
     return added
 

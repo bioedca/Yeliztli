@@ -5,10 +5,11 @@ terms of *absolute* risk, layered on the existing cancer module. Because it
 quantifies absolute disease risk it is gated behind explicit per-sample consent
 (stored in ``risk_overlay_consent``; Alembic migration 012).
 
-Honest scope. A personalized, polygenic-derived absolute risk would require a
-calibrated breast PRS percentile, which is withheld on un-imputed array data
-(coverage-limited; see SW-B5). So this overlay does **not** fabricate a personal
-PRS number. Instead, once consented, it presents:
+Honest scope. A personalized, polygenic-derived absolute risk would require an
+exact source-verified breast PRS plus a validated population calibration. The
+legacy bundled breast score is quarantined pending exact replacement (#1934),
+so this overlay does **not** fabricate a personal PRS number. Instead, once
+consented, it presents:
   * the US population baseline (NCI SEER: ~13.0% lifetime, ~1 in 8 women);
   * for carriers of a high-penetrance monogenic variant, the published
     genotype-class cumulative risk (BRCA1 ~72%, BRCA2 ~69% to age 80;
@@ -194,9 +195,9 @@ CANRISK = {
 }
 
 PRS_NOTE = (
-    "A breast-cancer polygenic score would further refine this estimate, but on "
-    "un-imputed genotyping-array data its coverage is too low for a reliable "
-    "percentile, so a personalized polygenic absolute risk is not shown here."
+    "A breast-cancer polygenic score could further refine this estimate, but no "
+    "source-verified, population-calibrated breast score is currently reported, "
+    "so a personalized polygenic absolute risk is not shown here."
 )
 
 DISCLAIMER = (

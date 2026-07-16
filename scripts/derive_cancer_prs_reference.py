@@ -18,6 +18,9 @@ not a validated individual-level cohort distribution.
 Run as a one-off curation/verification tool (network required):
     python scripts/derive_cancer_prs_reference.py            # report only
     python scripts/derive_cancer_prs_reference.py --write     # update JSON
+
+Models marked ``scoring_enabled=false`` are audit-only and are never fetched,
+derived, or mutated by this tool.
 """
 
 from __future__ import annotations
@@ -107,7 +110,14 @@ def _other_allele(rec: dict, effect_allele: str) -> str | None:
 def main() -> None:
     write = "--write" in sys.argv
     data = json.loads(WEIGHTS_PATH.read_text())
-    all_rsids = sorted({w["rsid"] for ws in data["weight_sets"] for w in ws["weights"]})
+    active_weight_sets = [ws for ws in data["weight_sets"] if ws.get("scoring_enabled", True)]
+    disabled_weight_sets = [
+        ws for ws in data["weight_sets"] if not ws.get("scoring_enabled", True)
+    ]
+    for ws in disabled_weight_sets:
+        print(f"Skipping disabled audit-only model: {ws['name']}")
+
+    all_rsids = sorted({w["rsid"] for ws in active_weight_sets for w in ws["weights"]})
     print(f"Fetching {len(all_rsids)} SNPs from Ensembl ({PRIMARY_POP} / {FALLBACK_POP})...")
     recs = fetch_populations(all_rsids)
 
@@ -115,7 +125,7 @@ def main() -> None:
     if missing:
         print(f"WARNING: no Ensembl record for: {missing}")
 
-    for ws in data["weight_sets"]:
+    for ws in active_weight_sets:
         mean = 0.0
         var = 0.0
         flags = []

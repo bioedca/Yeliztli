@@ -1,8 +1,9 @@
 """Tests for cancer PRS integration (P3-15).
 
 Covers:
-  - Weight set loading from JSON (4 cancer types)
-  - PRS computation for breast, prostate, colorectal, melanoma
+  - Weight-set loading from JSON (3 active models + 1 quarantined audit record)
+  - Disabled breast-cancer score containment and provenance auditability
+  - PRS computation for active prostate, colorectal, and melanoma models
   - Unsupported PRS intervals are withheld
   - Ancestry mismatch propagation
   - Findings storage with module='cancer', category='prs'
@@ -13,6 +14,7 @@ Covers:
 
 from __future__ import annotations
 
+import hashlib
 import json
 from dataclasses import replace
 from pathlib import Path
@@ -32,7 +34,7 @@ from backend.analysis.cancer_prs import (
 from backend.analysis.cancer_prs import (
     run_cancer_prs as _run_cancer_prs,
 )
-from backend.analysis.prs import PRSResult, PRSWeightSet
+from backend.analysis.prs import PRSResult, PRSWeightSet, prs_model_fingerprint
 from backend.db.tables import annotated_variants, findings
 
 # ── Fixtures ──────────────────────────────────────────────────────────────
@@ -52,48 +54,11 @@ CANCER_PRS_TRAITS = frozenset(
         "melanoma",
     }
 )
-XX_CANCER_PRS_TRAITS = CANCER_PRS_TRAITS - {"prostate_cancer"}
-XY_CANCER_PRS_TRAITS = CANCER_PRS_TRAITS - {"breast_cancer"}
-UNRESOLVED_CANCER_PRS_TRAITS = CANCER_PRS_TRAITS - {
-    "breast_cancer",
-    "prostate_cancer",
-}
+ACTIVE_CANCER_PRS_TRAITS = CANCER_PRS_TRAITS - {"breast_cancer"}
+XX_CANCER_PRS_TRAITS = ACTIVE_CANCER_PRS_TRAITS - {"prostate_cancer"}
+XY_CANCER_PRS_TRAITS = ACTIVE_CANCER_PRS_TRAITS
+UNRESOLVED_CANCER_PRS_TRAITS = ACTIVE_CANCER_PRS_TRAITS - {"prostate_cancer"}
 CONFIRMED_RISK_ALLELE_FIXTURES = {
-    ("breast_cancer", "rs2981582"): {
-        "effect_allele": "A",
-        "stored_other_allele": "G",
-        "protective_allele": "G",
-        "third_allele": None,
-        "weight": 0.263,
-    },
-    ("breast_cancer", "rs11814448"): {
-        "effect_allele": "C",
-        "stored_other_allele": "A",
-        "protective_allele": "A",
-        "third_allele": None,
-        "weight": 0.279,
-    },
-    ("breast_cancer", "rs6001930"): {
-        "effect_allele": "C",
-        "stored_other_allele": None,
-        "protective_allele": "T",
-        "third_allele": "G",
-        "weight": 0.119,
-    },
-    ("breast_cancer", "rs865686"): {
-        "effect_allele": "T",
-        "stored_other_allele": None,
-        "protective_allele": "G",
-        "third_allele": "A",
-        "weight": 0.097,
-    },
-    ("breast_cancer", "rs10771399"): {
-        "effect_allele": "A",
-        "stored_other_allele": "G",
-        "protective_allele": "G",
-        "third_allele": None,
-        "weight": 0.151,
-    },
     ("prostate_cancer", "rs12621278"): {
         "effect_allele": "A",
         "stored_other_allele": "G",
@@ -125,7 +90,7 @@ def cancer_weight_sets() -> list[PRSWeightSet]:
 
 
 def run_cancer_prs(*args, **kwargs) -> CancerPRSResult:
-    """Test helper: keep legacy assertions in an explicit breast-eligible context."""
+    """Test helper: use a deterministic XX context unless a test overrides it."""
     kwargs.setdefault("inferred_sex", "XX")
     return _run_cancer_prs(*args, **kwargs)
 
@@ -134,8 +99,8 @@ def run_cancer_prs(*args, **kwargs) -> CancerPRSResult:
 def sample_with_prs_snps(sample_engine: sa.Engine) -> sa.Engine:
     """Sample engine with annotated variants matching cancer PRS SNPs.
 
-    Includes SNPs from all four cancer PRS weight sets so coverage
-    is sufficient for testing.
+    Includes SNPs from the three active models plus the quarantined audit rows
+    so active-model coverage is sufficient and legacy rows remain loadable.
     """
     # Load real weight sets to get all rsids
     weight_sets = load_cancer_prs_weights(WEIGHTS_PATH)
@@ -392,12 +357,109 @@ class TestLoadCancerPRSWeights:
 
     def test_breast_cancer_weight_set(self, cancer_weight_sets: list[PRSWeightSet]) -> None:
         breast = [ws for ws in cancer_weight_sets if ws.trait == "breast_cancer"][0]
-        assert breast.name == "Breast cancer (BCAC)"
+        assert breast.name == "Breast cancer (legacy 25-marker audit only)"
         assert breast.source_ancestry == "EUR"
         assert breast.source_pmid == "30554720"
         assert breast.sample_size == 228951
         assert breast.snp_count > 0
         assert breast.module == "cancer"
+        assert breast.scoring_enabled is False
+        assert breast.calibration_eligible is False
+
+    def test_legacy_breast_audit_hashes_recompute(self) -> None:
+        payload = json.loads(WEIGHTS_PATH.read_text(encoding="utf-8"))
+        breast = next(
+            weight_set
+            for weight_set in payload["weight_sets"]
+            if weight_set["trait"] == "breast_cancer"
+        )
+
+        def canonical_json(value: object) -> bytes:
+            return (
+                json.dumps(
+                    value,
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                    sort_keys=True,
+                )
+                + "\n"
+            ).encode("utf-8")
+
+        legacy_object = dict(breast["legacy_canonical_metadata"])
+        legacy_object["weights"] = breast["weights"]
+        ordered_projection = [
+            [
+                weight["rsid"],
+                weight["effect_allele"],
+                weight.get("other_allele"),
+                weight["weight"],
+            ]
+            for weight in breast["weights"]
+        ]
+        representations = {
+            "legacy_canonical_sha256": legacy_object,
+            "legacy_weights_sha256": breast["weights"],
+            "legacy_ordered_projection_sha256": ordered_projection,
+        }
+        expected_hashes = {
+            "legacy_canonical_sha256": (
+                "5c1e91302d638fa30ea325d27e561179e0f66f30ae181c65f3b51a9965e912a0"
+            ),
+            "legacy_weights_sha256": (
+                "8923dc246e4dd702040a891b9b8d9caf1b99c880f39141b3d7730e113ef3ad93"
+            ),
+            "legacy_ordered_projection_sha256": (
+                "58eba9aff9a7bca7a25247d43332507f71d9d7474045312e7da0f82805f4f606"
+            ),
+        }
+
+        for field, representation in representations.items():
+            assert breast[field] == expected_hashes[field]
+            assert hashlib.sha256(canonical_json(representation)).hexdigest() == breast[field]
+
+    def test_weight_set_execution_flags_default_to_enabled(self) -> None:
+        weight_set = PRSWeightSet(
+            name="Test score",
+            trait="test_trait",
+            module="cancer",
+            source_ancestry="EUR",
+            source_study="Test study",
+            source_pmid="1",
+            sample_size=1,
+            weights=[],
+            reference_mean=0.0,
+            reference_std=1.0,
+        )
+
+        assert weight_set.scoring_enabled is True
+        assert weight_set.calibration_eligible is True
+
+    def test_active_weight_sets_remain_enabled(
+        self, cancer_weight_sets: list[PRSWeightSet]
+    ) -> None:
+        active_sets = {
+            ws.trait: ws for ws in cancer_weight_sets if ws.trait in ACTIVE_CANCER_PRS_TRAITS
+        }
+
+        assert set(active_sets) == ACTIVE_CANCER_PRS_TRAITS
+        for weight_set in active_sets.values():
+            assert weight_set.scoring_enabled is True
+            assert weight_set.calibration_eligible is True
+
+    def test_model_fingerprints_are_deterministic_and_model_specific(
+        self, cancer_weight_sets: list[PRSWeightSet]
+    ) -> None:
+        fingerprints = {
+            weight_set.trait: prs_model_fingerprint(weight_set)
+            for weight_set in cancer_weight_sets
+        }
+
+        assert len(set(fingerprints.values())) == len(cancer_weight_sets)
+        assert all(len(fingerprint) == 64 for fingerprint in fingerprints.values())
+        assert fingerprints == {
+            weight_set.trait: prs_model_fingerprint(weight_set)
+            for weight_set in cancer_weight_sets
+        }
 
     def test_prostate_cancer_weight_set(self, cancer_weight_sets: list[PRSWeightSet]) -> None:
         prostate = [ws for ws in cancer_weight_sets if ws.trait == "prostate_cancer"][0]
@@ -529,7 +591,7 @@ class TestRunCancerPRS:
         assert "breast_cancer" not in result.trait_names
         assert set(result.trait_names) == XY_CANCER_PRS_TRAITS
 
-    def test_breast_prs_allowed_for_xx_context(
+    def test_disabled_breast_prs_never_runs_for_xx_context(
         self, cancer_weight_sets: list[PRSWeightSet], sample_with_prs_snps: sa.Engine
     ) -> None:
         result = run_cancer_prs(
@@ -540,9 +602,62 @@ class TestRunCancerPRS:
             rng_seed=42,
         )
 
-        assert "breast_cancer" in result.trait_names
+        assert "breast_cancer" not in result.trait_names
         assert "prostate_cancer" not in result.trait_names
         assert set(result.trait_names) == XX_CANCER_PRS_TRAITS
+
+    def test_disabled_breast_model_never_reaches_run_prs(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        cancer_weight_sets: list[PRSWeightSet],
+        sample_engine: sa.Engine,
+    ) -> None:
+        breast = next(ws for ws in cancer_weight_sets if ws.trait == "breast_cancer")
+        colorectal = next(ws for ws in cancer_weight_sets if ws.trait == "colorectal_cancer")
+        reference_engine = object()
+        calls: list[tuple[PRSWeightSet, sa.Engine, dict[str, object]]] = []
+
+        def fake_run_prs(
+            weight_set: PRSWeightSet,
+            engine: sa.Engine,
+            **kwargs: object,
+        ) -> PRSResult:
+            calls.append((weight_set, engine, kwargs))
+            return PRSResult(
+                weight_set_name=weight_set.name,
+                trait=weight_set.trait,
+                module=weight_set.module,
+                source_ancestry=weight_set.source_ancestry,
+                source_study=weight_set.source_study,
+                source_pmid=weight_set.source_pmid,
+                sample_size=weight_set.sample_size,
+                raw_score=0.0,
+                coverage_fraction=1.0,
+            )
+
+        monkeypatch.setattr(cancer_prs_module, "run_prs", fake_run_prs)
+
+        result = _run_cancer_prs(
+            [breast, colorectal],
+            sample_engine,
+            inferred_ancestry="AFR",
+            top_ancestry_fraction=0.75,
+            inferred_sex="XX",
+            n_bootstrap=17,
+            rng_seed=9,
+            reference_engine=reference_engine,
+        )
+
+        assert result.trait_names == ["colorectal_cancer"]
+        assert len(calls) == 1
+        called_weight_set, called_engine, called_kwargs = calls[0]
+        assert called_weight_set is colorectal
+        assert called_engine is sample_engine
+        assert called_kwargs["inferred_ancestry"] == "AFR"
+        assert called_kwargs["top_ancestry_fraction"] == 0.75
+        assert called_kwargs["n_bootstrap"] == 17
+        assert called_kwargs["rng_seed"] == 9
+        assert called_kwargs["reference_engine"] is reference_engine
 
     @pytest.mark.parametrize(
         ("inferred_sex", "expected_traits"),
@@ -622,7 +737,10 @@ class TestRunCancerPRS:
         self, cancer_weight_sets: list[PRSWeightSet], sample_with_prs_snps: sa.Engine
     ) -> None:
         """A validated reference distribution produces a percentile, not an interval."""
-        ws = replace(cancer_weight_sets[0], calibrated=True, reference_mean=0.5, reference_std=0.5)
+        active_weight_set = next(
+            ws for ws in cancer_weight_sets if ws.trait == "colorectal_cancer"
+        )
+        ws = replace(active_weight_set, calibrated=True, reference_mean=0.5, reference_std=0.5)
         result = run_cancer_prs(
             [ws],
             sample_with_prs_snps,
@@ -827,6 +945,62 @@ class TestStoreCancerPRSFindings:
         count = store_cancer_prs_findings(prs_result, sample_with_prs_snps)
         assert count == prs_result.sufficient_count
         assert count > 0
+        expected_fingerprints = {
+            weight_set.trait: prs_model_fingerprint(weight_set)
+            for weight_set in cancer_weight_sets
+            if weight_set.scoring_enabled
+        }
+        assert all(
+            result.model_fingerprint == expected_fingerprints[result.trait]
+            for result in prs_result.results
+        )
+
+    def test_rejects_disabled_or_wrong_model_fingerprint(self, sample_engine: sa.Engine) -> None:
+        weight_sets = load_cancer_prs_weights(WEIGHTS_PATH)
+        breast_weight_set = next(
+            weight_set for weight_set in weight_sets if weight_set.trait == "breast_cancer"
+        )
+        breast_result = PRSResult(
+            weight_set_name="Synthetic quarantined breast score",
+            trait="breast_cancer",
+            module="cancer",
+            source_ancestry="EUR",
+            source_study="Unverified",
+            source_pmid="30554720",
+            sample_size=228951,
+            raw_score=1.2,
+            z_score=1.0,
+            percentile=84.0,
+            calibrated=True,
+            snps_used=25,
+            snps_total=25,
+            coverage_fraction=1.0,
+            model_fingerprint=prs_model_fingerprint(breast_weight_set),
+        )
+        colorectal_result = replace(
+            breast_result,
+            weight_set_name="Synthetic active colorectal score",
+            trait="colorectal_cancer",
+            source_study="Active test model",
+            source_pmid="30510241",
+            model_fingerprint="0" * 64,
+        )
+
+        count = store_cancer_prs_findings(
+            CancerPRSResult(results=[breast_result, colorectal_result]),
+            sample_engine,
+        )
+
+        with sample_engine.connect() as conn:
+            rows = conn.execute(
+                sa.select(findings.c.detail_json).where(
+                    findings.c.module == "cancer",
+                    findings.c.category == "prs",
+                )
+            ).fetchall()
+
+        assert count == 0
+        assert rows == []
 
     def test_findings_have_prs_category(
         self, cancer_weight_sets: list[PRSWeightSet], sample_with_prs_snps: sa.Engine
@@ -903,10 +1077,16 @@ class TestStoreCancerPRSFindings:
 
         with sample_with_prs_snps.connect() as conn:
             rows = conn.execute(sa.select(findings).where(findings.c.category == "prs")).fetchall()
+        expected_fingerprints = {
+            weight_set.trait: prs_model_fingerprint(weight_set)
+            for weight_set in cancer_weight_sets
+            if weight_set.scoring_enabled
+        }
         for row in rows:
             detail = json.loads(row.detail_json)
             assert "trait" in detail
             assert detail["trait"] in CANCER_PRS_TRAITS
+            assert detail["model_fingerprint"] == expected_fingerprints[detail["trait"]]
 
     def test_xx_rerun_clears_prostate_prs(
         self, cancer_weight_sets: list[PRSWeightSet], sample_with_prs_snps: sa.Engine
@@ -956,17 +1136,22 @@ class TestStoreCancerPRSFindings:
         assert "prostate_cancer" not in stored_traits
         assert stored_traits == expected_traits
 
-    def test_xy_rerun_clears_breast_prs(
+    def test_active_rerun_clears_stale_breast_prs(
         self, cancer_weight_sets: list[PRSWeightSet], sample_with_prs_snps: sa.Engine
     ) -> None:
-        xx_result = run_cancer_prs(
-            cancer_weight_sets,
-            sample_with_prs_snps,
-            inferred_sex="XX",
-            n_bootstrap=100,
-            rng_seed=42,
-        )
-        store_cancer_prs_findings(xx_result, sample_with_prs_snps)
+        with sample_with_prs_snps.begin() as conn:
+            conn.execute(
+                sa.insert(findings),
+                [
+                    {
+                        "module": "cancer",
+                        "category": "prs",
+                        "evidence_level": 1,
+                        "finding_text": "Stale breast cancer PRS",
+                        "detail_json": json.dumps({"trait": "breast_cancer"}),
+                    }
+                ],
+            )
 
         with sample_with_prs_snps.connect() as conn:
             initial_rows = conn.execute(
@@ -977,8 +1162,7 @@ class TestStoreCancerPRSFindings:
             ).fetchall()
 
         initial_traits = {json.loads(row.detail_json)["trait"] for row in initial_rows}
-        assert "breast_cancer" in initial_traits
-        assert "prostate_cancer" not in initial_traits
+        assert initial_traits == {"breast_cancer"}
 
         prs_result = run_cancer_prs(
             cancer_weight_sets,

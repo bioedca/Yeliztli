@@ -2,7 +2,9 @@
 
 ClinVar P/LP extraction results from the 28-gene cancer panel — monogenic
 pathogenic variants with accession, review stars, syndrome, and inheritance.
-Cancer PRS (breast, prostate, colorectal, melanoma) as research-use percentiles.
+Eligible cancer PRS results for research use; percentiles and z-scores are
+returned only for calibrated models. Quarantined models are retained only as
+data-file audit records and never returned.
 Module-specific disclaimer text (P3-17).
 
 GET  /api/analysis/cancer/disclaimer                         — Cancer module disclaimer
@@ -303,8 +305,8 @@ def list_cancer_prs(
 ) -> CancerPRSListResponse:
     """List cancer PRS results for a sample.
 
-    Returns PRS findings (breast, prostate, colorectal, melanoma) with
-    percentile, z-score, and ancestry mismatch status.
+    Returns findings from currently eligible cancer PRS models, including
+    calibration, optional percentile/z-score, and ancestry mismatch status.
     Results are in the "Research Use Only" tier.
 
     Example: ``GET /api/analysis/cancer/prs?sample_id=1``
@@ -384,8 +386,8 @@ def run_cancer_analysis(
     """Run or re-run cancer predisposition extraction + PRS for a sample.
 
     Loads the curated panel, extracts ClinVar P/LP variants from
-    annotated_variants, runs cancer PRS (breast, prostate, colorectal,
-    melanoma), and stores all findings.
+    annotated_variants, runs currently eligible cancer PRS models, and stores
+    all findings.
 
     Example: ``POST /api/analysis/cancer/run?sample_id=1``
     """

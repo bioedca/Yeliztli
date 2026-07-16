@@ -1,7 +1,7 @@
 """Cancer-specific PRS integration (P3-15).
 
-Loads published weight sets for cancer types (breast, prostate, colorectal,
-melanoma) and runs eligible traits through the generic PRS engine (P3-14).
+Loads cancer weight-set records, including quarantined audit-only models, and
+runs only eligible traits through the generic PRS engine (P3-14).
 Results are stored as findings with module='cancer' and category='prs',
 displayed in a separate "Research Use Only" tier.
 
@@ -39,6 +39,7 @@ from backend.analysis.prs import (
     PRSResult,
     PRSSNPWeight,
     PRSWeightSet,
+    prs_model_fingerprint,
     run_prs,
     store_prs_findings,
 )
@@ -98,16 +99,16 @@ def load_cancer_prs_weights(
 ) -> list[PRSWeightSet]:
     """Load cancer PRS weight sets from JSON.
 
-    Each weight set defines SNP weights for a specific cancer type
-    (breast, prostate, colorectal, melanoma) tagged with source GWAS
-    ancestry and sample size.
+    The file contains active weight sets plus any disabled audit-only model,
+    each tagged with source ancestry and study metadata.
 
     Args:
         weights_path: Optional override for the weights JSON path.
             Defaults to ``backend/data/panels/cancer_prs_weights.json``.
 
     Returns:
-        List of PRSWeightSet objects for each cancer type.
+        List of PRSWeightSet objects for each cancer type, including any
+        disabled audit-only model that :func:`run_cancer_prs` must skip.
 
     Raises:
         FileNotFoundError: If the weights JSON does not exist.
@@ -151,6 +152,11 @@ def load_cancer_prs_weights(
                     # uncalibrated unless it explicitly declares a validated
                     # reference distribution (issue #7).
                     calibrated=ws_data.get("calibrated", False),
+                    # Scientific model validity and calibration eligibility are
+                    # separate gates. A quarantined model may remain loadable for
+                    # audit without ever reaching the scoring engine (#1934).
+                    scoring_enabled=ws_data.get("scoring_enabled", True),
+                    calibration_eligible=ws_data.get("calibration_eligible", True),
                     # Monogenic genes assessed separately from this polygenic
                     # score (SW-B3 monogenic exclusion / cross-reference).
                     monogenic_genes=ws_data.get("monogenic_genes", []),
@@ -206,10 +212,10 @@ def run_cancer_prs(
 ) -> CancerPRSResult:
     """Run PRS computation for eligible cancer traits.
 
-    Runs the generic PRS pipeline for each eligible weight set. Sex-specific
-    PRS outputs are emitted only when the caller provides the matching confident
-    sex inference: breast cancer requires ``"XX"`` and prostate cancer requires
-    ``"XY"``. Unknown/manual-review sex contexts suppress those numeric scores.
+    Runs the generic PRS pipeline for each eligible weight set. Outputs are
+    emitted only for active models and, when a trait is sex-specific, only when
+    the caller provides the matching confident sex inference. Unknown or
+    manual-review sex contexts suppress those numeric scores.
     Each result includes raw score, z-score, percentile, and ancestry mismatch
     check.
 
@@ -236,6 +242,15 @@ def run_cancer_prs(
     skipped_traits: list[str] = []
 
     for ws in weight_sets:
+        if not ws.scoring_enabled:
+            skipped_traits.append(ws.trait)
+            logger.warning(
+                "cancer_prs_trait_skipped",
+                trait=ws.trait,
+                reason="scoring_disabled",
+            )
+            continue
+
         required_sex = SEX_SPECIFIC_PRS_TRAITS.get(ws.trait)
         if required_sex is not None and inferred_sex != required_sex:
             skipped_traits.append(ws.trait)
@@ -288,8 +303,11 @@ def store_cancer_prs_findings(
 ) -> int:
     """Store cancer PRS findings in the sample database.
 
-    Delegates to the generic store_prs_findings with module='cancer'.
-    Only stores results with sufficient coverage (≥50%).
+    Delegates to the generic store_prs_findings with module='cancer'. Only
+    results carrying the exact fingerprint of an enabled bundled model can cross
+    this final persistence boundary; this prevents a manually constructed result
+    or same-trait alternate model from bypassing a quarantine. Among eligible
+    results, only those with sufficient coverage (≥50%) are stored.
 
     Args:
         cancer_result: CancerPRSResult from run_cancer_prs.
@@ -298,4 +316,25 @@ def store_cancer_prs_findings(
     Returns:
         Number of findings inserted.
     """
-    return store_prs_findings(cancer_result.results, sample_engine, module="cancer")
+    enabled_model_fingerprints = {
+        weight_set.trait: prs_model_fingerprint(weight_set)
+        for weight_set in load_cancer_prs_weights()
+        if weight_set.scoring_enabled
+    }
+    eligible_results: list[PRSResult] = []
+    for result in cancer_result.results:
+        expected_fingerprint = enabled_model_fingerprints.get(result.trait)
+        if expected_fingerprint is None or result.model_fingerprint != expected_fingerprint:
+            logger.warning(
+                "cancer_prs_result_not_stored",
+                trait=result.trait,
+                reason=(
+                    "no_enabled_bundled_model"
+                    if expected_fingerprint is None
+                    else "model_fingerprint_mismatch"
+                ),
+            )
+            continue
+        eligible_results.append(result)
+
+    return store_prs_findings(eligible_results, sample_engine, module="cancer")
