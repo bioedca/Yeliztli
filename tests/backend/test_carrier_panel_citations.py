@@ -16,9 +16,10 @@ this bug (three correct sickle-cell refs + one WAS ref).
 This is the carrier-panel, **per-PMID** complement: for an opt-in registry of
 audited carrier genes, *every* cited PMID that is present in the committed
 offline snapshot must resolve to a title naming the gene or one of its
-conditions. Un-snapshotted PMIDs are skipped (fleet-safe: a parallel PMID
-change pending re-snapshot cannot redden ``main``), matching the established
-guard. Extend ``_CARRIER_CITATION_TOPICS`` as more carrier genes are audited.
+conditions. Un-snapshotted PMIDs remain intentionally skipped in this separate
+carrier registry; unlike the panel topic-lock registries, it does not participate
+in their strict snapshot-coverage contract. Extend ``_CARRIER_CITATION_TOPICS``
+as more carrier genes are audited.
 """
 
 from __future__ import annotations

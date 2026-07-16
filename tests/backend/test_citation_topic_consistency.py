@@ -19,12 +19,12 @@ Two committed inputs:
   ``_PER_PMID_TOPIC_LOCKED`` registries below — the **opt-in, incremental**
   coverage surface #277/#365 asked for.
 
-**Fleet-robustness (why this can't redden main on someone else's PMID change):**
-a registered entry is *evaluated* only when it still resolves to a panel entry
-**and** all its currently-cited PMIDs are in the snapshot. A parallel PMID change
-swaps in PMIDs not yet snapshotted → that entry is **skipped** (re-snapshot to
-re-cover it), never failed. A removed/renamed entry is skipped too. So the guard
-only fails on a genuine, already-snapshotted transposition — exactly its purpose.
+**Fleet-robustness:** coverage remains explicitly opt-in. Unregistered panel rows
+can change citations without requiring this shared snapshot to change. Registered
+rows are a stronger contract: every lock must still resolve, carry citations, and
+have all of its PMIDs in the snapshot. ``test_topic_locked_entries_are_covered``
+enforces that contract so the defensive skips in the topic assertions cannot
+silently reduce their claimed coverage.
 
 **Extending coverage:** after auditing a panel, add its ``panel::rsid`` keys to
 ``_GENE_TOPIC_LOCKED`` (gene symbol appears in ≥1 cited title) or, when the
@@ -94,7 +94,6 @@ _GENE_TOPIC_LOCKED: frozenset[str] = frozenset(
         "gene_health_panel.json::rs2066844",  # NOD2
         "gene_health_panel.json::rs2157719",  # CDKN2B-AS1
         "gene_health_panel.json::rs2476601",  # PTPN22
-        "gene_health_panel.json::rs34637584",  # LRRK2
         "gene_health_panel.json::rs3746544",  # SNAP25
         "gene_health_panel.json::rs58542926",  # TM6SF2
         "gene_health_panel.json::rs6822844",  # IL2/IL21
@@ -131,7 +130,7 @@ _GENE_TOPIC_LOCKED: frozenset[str] = frozenset(
 # per-panel registration (extend as conditions are audited).
 _CONDITION_TOPIC_LOCKED: dict[str, frozenset[str]] = {
     "allergy_panel.json::rs2187668": frozenset({"celiac"}),  # HLA-DQ2.5 proxy
-    "allergy_panel.json::rs7775228": frozenset({"celiac"}),  # HLA-DQ8 proxy
+    "allergy_panel.json::rs7454108": frozenset({"celiac"}),  # HLA-DQ8 proxy
     "sleep_panel.json::rs2300478": frozenset(  # MEIS1 — restless legs / PLMS GWAS
         {"restless", "limb", "periodic"}
     ),
@@ -152,6 +151,7 @@ _CONDITION_TOPIC_LOCKED: dict[str, frozenset[str]] = {
 # union-based gene/condition locks intentionally tolerate for unaudited rows.
 _PER_PMID_TOPIC_LOCKED: dict[str, frozenset[str]] = {
     "allergy_panel.json::rs8076131": frozenset({"ormdl3", "asthma"}),
+    "parkinsons_panel.json::rs34637584": frozenset({"lrrk2", "parkinson"}),
 }
 
 # Indel-polarity provenance is discovered self-consistently with
@@ -161,6 +161,9 @@ _PER_PMID_TOPIC_LOCKED: dict[str, frozenset[str]] = {
 _INDEL_POLARITY_TOPIC_LOCKED: dict[str, frozenset[str]] = {
     "apol1_panel.json::rs71785313": frozenset({"apol1", "trypanolytic"}),
     "carrier_status.py::rs113993960": frozenset({"cystic", "fibrosis", "cftr"}),
+    "carrier_status.py::rs387906309": frozenset(
+        {"hexa", "hexosaminidase", "insertion", "sachs", "tay"}
+    ),
     "gene_health_panel.json::rs80338939": frozenset({"connexin26", "connexin", "dfnb1"}),
     "methylation_panel.json::rs70991108": frozenset(
         {"dihydrofolate", "reductase", "folic", "folate"}
@@ -260,6 +263,9 @@ def test_snapshot_well_formed() -> None:
     assert prov.get("source"), "snapshot missing provenance.source"
     assert prov.get("accessed"), "snapshot missing provenance.accessed (regen date)"
     pmids = data["pmids"]
+    assert prov.get("pmid_count") == len(pmids), (
+        "snapshot provenance.pmid_count does not match the PMID map"
+    )
     assert len(pmids) >= 100, f"snapshot suspiciously small ({len(pmids)}) — was it truncated?"
     for pmid, meta in pmids.items():
         assert pmid.isdigit(), f"non-numeric snapshot key {pmid!r}"
@@ -284,11 +290,59 @@ def test_locked_registries_are_well_formed() -> None:
     assert not overlap, f"keys in both gene- and condition-locked registries: {sorted(overlap)}"
 
 
+def test_topic_locked_entries_are_covered() -> None:
+    """Every registered entry is current and every locked PMID is snapshotted."""
+    snapshot = _load_snapshot()
+    panel_entries = _panel_entries()
+    indel_entries = _indel_polarity_entries()
+    panel_locks = _GENE_TOPIC_LOCKED | set(_CONDITION_TOPIC_LOCKED) | set(_PER_PMID_TOPIC_LOCKED)
+    failures: list[str] = []
+
+    def check_entries(
+        locked: set[str] | frozenset[str],
+        current: dict[str, list[dict]] | dict[str, dict],
+        *,
+        allow_no_pmids: frozenset[str] = frozenset(),
+    ) -> None:
+        for key in sorted(locked):
+            raw_entries = current.get(key)
+            if raw_entries is None:
+                failures.append(f"{key}: locked entry not found")
+                continue
+            entries = raw_entries if isinstance(raw_entries, list) else [raw_entries]
+            for entry in entries:
+                pmids = _entry_pmids(entry)
+                if not pmids:
+                    if key not in allow_no_pmids:
+                        failures.append(f"{key}: locked entry has no PMIDs")
+                    continue
+                missing = [pmid for pmid in pmids if pmid not in snapshot]
+                if missing:
+                    failures.append(f"{key}: PMIDs absent from snapshot: {missing}")
+
+    check_entries(panel_locks, panel_entries)
+    # This one indel provenance record uses named non-PMID sources. Every other
+    # audited indel lock must carry PMIDs under the strict snapshot contract.
+    check_entries(
+        set(_INDEL_POLARITY_TOPIC_LOCKED),
+        indel_entries,
+        allow_no_pmids=frozenset({"skin_panel.json::rs1799750"}),
+    )
+
+    for key in sorted(_GENE_TOPIC_LOCKED):
+        for entry in panel_entries.get(key, []):
+            gene = next((entry[k] for k in _GENE_KEYS if entry.get(k)), None)
+            if not gene:
+                failures.append(f"{key}: gene-topic lock has no gene symbol")
+
+    assert not failures, "topic-lock coverage failures:\n" + "\n".join(failures)
+
+
 def test_gene_topic_locked_entries_cite_gene_in_title() -> None:
     """Each gene-locked entry must keep ≥1 cited title naming its gene symbol.
 
-    Skips (does not fail) an entry whose PMIDs aren't all in the snapshot yet —
-    that is the fleet-safe path for a parallel PMID change pending re-snapshot.
+    The paired coverage test reports missing entries or metadata; the conditional
+    here keeps this assertion focused on title-topic agreement.
     """
     snapshot = _load_snapshot()
     entries = _panel_entries()
@@ -299,7 +353,7 @@ def test_gene_topic_locked_entries_cite_gene_in_title() -> None:
             gene = next((entry[k] for k in _GENE_KEYS if entry.get(k)), None)
             pmids = _entry_pmids(entry)
             if not gene or not pmids or any(p not in snapshot for p in pmids):
-                continue  # unresolved / not yet snapshotted → skip (re-snapshot to cover)
+                continue  # reported precisely by test_topic_locked_entries_are_covered
             evaluated += 1
             if not (_tokens(gene) & _title_tokens(pmids, snapshot)):
                 titles = "; ".join(snapshot[p]["title"] for p in pmids)
