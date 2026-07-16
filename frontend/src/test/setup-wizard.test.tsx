@@ -1,6 +1,6 @@
 import { act } from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from './test-utils'
+import { render, screen, fireEvent, waitFor, within } from './test-utils'
 import SetupWizard from '@/pages/SetupWizard'
 import CredentialsStep from '@/components/setup/CredentialsStep'
 import DatabasesStep from '@/components/setup/DatabasesStep'
@@ -95,7 +95,12 @@ function mockSetupStatus(overrides: Record<string, unknown> = {}) {
 function mockDisclaimer() {
   return {
     title: 'Important Information About Yeliztli',
-    text: 'Yeliztli is an educational and research tool.\n\nPlease read carefully.\n\n**Not a diagnostic tool.** This is for education only.',
+    text: [
+      'Yeliztli is an educational and research tool.',
+      'Please read and understand the following before proceeding:',
+      '1. **Not a diagnostic tool.** This is for education only.',
+      '2. **Not a substitute for professional medical advice.** Consult a qualified provider.',
+    ].join('\n\n'),
     accept_label: 'I Understand and Accept',
   }
 }
@@ -202,7 +207,7 @@ describe('DisclaimerStep', () => {
     expect(acceptButton).toBeDisabled()
   })
 
-  it('renders markdown bold text correctly', async () => {
+  it('renders the backend disclaimer as an ordered list with formatted clauses', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: () => Promise.resolve(mockDisclaimer()),
@@ -214,9 +219,16 @@ describe('DisclaimerStep', () => {
       expect(screen.getByText('Not a diagnostic tool.')).toBeInTheDocument()
     })
 
-    // The bold text should be in a <strong> element
-    const strongEl = screen.getByText('Not a diagnostic tool.')
-    expect(strongEl.tagName).toBe('STRONG')
+    const region = screen.getByRole('region', { name: 'Disclaimer text' })
+    expect(region).not.toHaveTextContent('**')
+
+    const list = within(region).getByRole('list')
+    expect(list.tagName).toBe('OL')
+    expect(within(list).getAllByRole('listitem')).toHaveLength(2)
+    expect(screen.getByText('Not a diagnostic tool.').tagName).toBe('STRONG')
+    expect(
+      screen.getByText('Not a substitute for professional medical advice.').tagName,
+    ).toBe('STRONG')
   })
 })
 

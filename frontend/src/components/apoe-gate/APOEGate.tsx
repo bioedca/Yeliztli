@@ -7,7 +7,8 @@
  * PRD spec: Gate cannot be dismissed. User must actively choose.
  */
 
-import { ShieldAlert, ExternalLink } from "lucide-react"
+import { ShieldAlert } from "lucide-react"
+import DisclaimerBody from "@/components/ui/DisclaimerBody"
 import type { APOEGateDisclaimerResponse } from "@/types/apoe"
 
 interface APOEGateProps {
@@ -53,53 +54,9 @@ export default function APOEGate({
         {/* Gate text */}
         <div
           id="apoe-gate-text"
-          className="text-sm text-amber-800 dark:text-amber-300 whitespace-pre-line leading-relaxed mb-6 space-y-3"
+          className="text-sm text-amber-800 dark:text-amber-300 leading-relaxed mb-6"
         >
-          {disclaimer.text.split("\n\n").map((paragraph, i) => {
-            // Render resource links as actual links
-            if (paragraph.includes("https://")) {
-              return (
-                <div key={i} className="space-y-1.5">
-                  {paragraph.split("\n").map((line, j) => {
-                    const urlMatch = line.match(/(https?:\/\/[^\s]+)/)
-                    if (urlMatch) {
-                      const label = line.replace(urlMatch[0], "").replace(/^-\s*/, "").replace(/:\s*$/, "").trim()
-                      return (
-                        <a
-                          key={j}
-                          href={urlMatch[0]}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-1.5 text-amber-700 dark:text-amber-300 hover:text-amber-900 dark:hover:text-amber-100 underline underline-offset-2"
-                        >
-                          <ExternalLink className="h-3 w-3 shrink-0" />
-                          {label || urlMatch[0]}
-                        </a>
-                      )
-                    }
-                    return <p key={j}>{line}</p>
-                  })}
-                </div>
-              )
-            }
-
-            // Bold markdown-like text
-            const parts = paragraph.split(/(\*\*[^*]+\*\*)/)
-            return (
-              <p key={i}>
-                {parts.map((part, j) => {
-                  if (part.startsWith("**") && part.endsWith("**")) {
-                    return (
-                      <strong key={j} className="font-semibold">
-                        {part.slice(2, -2)}
-                      </strong>
-                    )
-                  }
-                  return <span key={j}>{part}</span>
-                })}
-              </p>
-            )
-          })}
+          <DisclaimerBody text={disclaimer.text} />
         </div>
 
         {/* Action buttons */}
