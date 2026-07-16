@@ -554,6 +554,8 @@ def _with_active_model_status(model: dict[str, Any]) -> dict[str, Any]:
         _fail(f"panel: active model {model.get('trait')!r} has no calibrated gate")
     updated: dict[str, Any] = {}
     for key, value in model.items():
+        if key == "model_status":
+            continue
         updated[key] = value
         if key == "calibrated":
             updated["model_status"] = "active"

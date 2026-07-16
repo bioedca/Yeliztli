@@ -248,6 +248,29 @@ def test_generator_check_and_write_are_idempotent(tmp_path: Path) -> None:
     assert panel_copy.read_bytes() == first
 
 
+def test_generator_rejects_mutated_active_model_status(tmp_path: Path) -> None:
+    original = _PANEL.read_text(encoding="utf-8")
+    mutated = original.replace(
+        '      "model_status": "active",',
+        '      "model_status": "source_verified_runtime_blocked",',
+        1,
+    )
+    assert mutated != original
+    panel_copy = tmp_path / "mutated-active-status.json"
+    panel_copy.write_text(mutated, encoding="utf-8")
+
+    result = subprocess.run(
+        [sys.executable, str(_GENERATOR), "--check", "--panel", str(panel_copy)],
+        cwd=_REPO,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    assert '"model_status": "active"' in result.stderr
+
+
 def test_generator_rejects_mutated_nested_legacy_record(tmp_path: Path) -> None:
     payload = json.loads(_PANEL.read_text(encoding="utf-8"))
     breast = next(model for model in payload["weight_sets"] if model["trait"] == "breast_cancer")
