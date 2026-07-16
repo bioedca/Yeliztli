@@ -13,6 +13,8 @@ the dispatcher-composed ``file_format`` shape.
 
 from __future__ import annotations
 
+from collections.abc import Generator
+from contextlib import ExitStack, contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import patch
@@ -59,13 +61,14 @@ def manifest_env(monkeypatch: pytest.MonkeyPatch) -> None:
     reset_cache()
 
 
+@contextmanager
 def _make_client(
     tmp_data_dir: Path,
     *,
     vep_bundle_version: str | None,
     embedded_vep_bundle_version: str | None = None,
     unreadable_vep_bundle: bool = False,
-) -> TestClient:
+) -> Generator[TestClient, None, None]:
     settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
     ref_path = settings.reference_db_path
     engine = sa.create_engine(f"sqlite:///{ref_path}")
@@ -82,62 +85,49 @@ def _make_client(
     if unreadable_vep_bundle:
         settings.vep_bundle_db_path.write_bytes(b"not a SQLite database")
 
-    patchers = [
-        patch("backend.main.get_settings", return_value=settings),
-        patch("backend.db.connection.get_settings", return_value=settings),
-        patch("backend.api.routes.ingest.get_registry"),
-        patch("backend.api.routes.samples.get_registry"),
-    ]
-    started = [p.start() for p in patchers]
+    with ExitStack() as stack:
+        stack.enter_context(patch("backend.main.get_settings", return_value=settings))
+        stack.enter_context(patch("backend.db.connection.get_settings", return_value=settings))
+        ingest_registry = stack.enter_context(patch("backend.api.routes.ingest.get_registry"))
+        samples_registry = stack.enter_context(patch("backend.api.routes.samples.get_registry"))
 
-    from backend.db.connection import DBRegistry, reset_registry
+        from backend.db.connection import DBRegistry, reset_registry
 
-    reset_registry()
-    registry = DBRegistry(settings)
-    # Indices 2 and 3 are the get_registry patches.
-    started[2].return_value = registry
-    started[3].return_value = registry
-
-    from backend.main import create_app
-
-    app = create_app()
-    client = TestClient(app)
-    client.__settings__ = settings
-
-    def _close() -> None:
-        client.close()
-        registry.dispose_all()
         reset_registry()
-        for p in patchers:
-            p.stop()
+        stack.callback(reset_registry)
+        registry = DBRegistry(settings)
+        stack.callback(registry.dispose_all)
+        ingest_registry.return_value = registry
+        samples_registry.return_value = registry
 
-    client.__teardown__ = _close
-    return client
+        from backend.main import create_app
+
+        app = create_app()
+        client = stack.enter_context(TestClient(app))
+        client.__settings__ = settings
+        yield client
 
 
 @pytest.fixture
 def client_factory(tmp_data_dir: Path):
-    clients: list[TestClient] = []
+    with ExitStack() as clients:
 
-    def _factory(
-        vep_bundle_version: str | None,
-        *,
-        embedded_vep_bundle_version: str | None = None,
-        unreadable_vep_bundle: bool = False,
-    ) -> TestClient:
-        c = _make_client(
-            tmp_data_dir,
-            vep_bundle_version=vep_bundle_version,
-            embedded_vep_bundle_version=embedded_vep_bundle_version,
-            unreadable_vep_bundle=unreadable_vep_bundle,
-        )
-        clients.append(c)
-        return c
+        def _factory(
+            vep_bundle_version: str | None,
+            *,
+            embedded_vep_bundle_version: str | None = None,
+            unreadable_vep_bundle: bool = False,
+        ) -> TestClient:
+            return clients.enter_context(
+                _make_client(
+                    tmp_data_dir,
+                    vep_bundle_version=vep_bundle_version,
+                    embedded_vep_bundle_version=embedded_vep_bundle_version,
+                    unreadable_vep_bundle=unreadable_vep_bundle,
+                )
+            )
 
-    yield _factory
-
-    for c in clients:
-        c.__teardown__()
+        yield _factory
 
 
 def test_ancestrydna_with_v1_bundle_returns_409(manifest_env, client_factory) -> None:
