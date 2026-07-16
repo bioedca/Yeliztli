@@ -20,7 +20,9 @@ Exit 0 on success; non-zero (or killed by the outer bound) on failure.
 
 from __future__ import annotations
 
+import os
 import sys
+import tempfile
 from importlib.metadata import PackageNotFoundError, version
 
 
@@ -43,13 +45,30 @@ def _log_environment() -> None:
 def main() -> int:
     _log_environment()
 
-    # Imported lazily so the version log above still prints if an import fails.
-    from fastapi.testclient import TestClient
+    # Point the whole data root at a throwaway dir BEFORE importing the app, so
+    # the witness never reads or writes the caller's real ~/.yeliztli. The app's
+    # DEFAULT_DATA_DIR (and the data-dir pointer / config.toml paths) derive from
+    # Path.home(), so overriding HOME isolates all of them. Startup writes a
+    # reference.db, huey.db, and samples/ here — in CI the witness shares its
+    # runner HOME with the pytest step that follows, and a leaked data dir breaks
+    # require_fresh_sample tests (both interpreter legs failed on exactly that,
+    # while the local run passed only because witness and suite used separate
+    # temp HOMEs). ignore_cleanup_errors: a still-open sqlite handle must not turn
+    # a passing witness into a teardown error.
+    with tempfile.TemporaryDirectory(
+        prefix="yeliztli-witness-", ignore_cleanup_errors=True
+    ) as isolated_home:
+        os.environ["HOME"] = isolated_home
 
-    from backend.main import app
+        # Imported lazily (after HOME is set) so the version log still prints if
+        # an import fails, and so DEFAULT_DATA_DIR resolves into the isolated dir.
+        from fastapi.testclient import TestClient
 
-    with TestClient(app) as client:  # __enter__ drives the lifespan startup
-        response = client.get("/api/health")
+        from backend.main import app
+
+        with TestClient(app) as client:  # __enter__ drives the lifespan startup
+            response = client.get("/api/health")
+
     if response.status_code != 200:
         print(f"FAIL: /api/health returned {response.status_code}", file=sys.stderr)
         return 1
