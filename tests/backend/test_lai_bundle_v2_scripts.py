@@ -528,6 +528,7 @@ class TestEnvShDefaults:
             "for name in ('PYTHONPATH', 'PYTHONHOME', 'PYTHONUSERBASE', "
             "'LD_LIBRARY_PATH'):\n"
             "    assert name not in os.environ\n"
+            "assert os.environ['PYTHONNOUSERSITE'] == '1'\n"
             "Path(os.environ['STUB_PROBE_LOG']).write_text('isolated\\n')\n"
         )
 
@@ -544,6 +545,7 @@ class TestEnvShDefaults:
             'export PYTHONPATH="$STUB_REINJECT_PATH"\n'
             'export PYTHONHOME="$STUB_REINJECT_PYTHONHOME"\n'
             'export PYTHONUSERBASE="$STUB_REINJECT_USERBASE"\n'
+            "export PYTHONNOUSERSITE=0\n"
             'export LD_LIBRARY_PATH="$STUB_REINJECT_NATIVE_PATH"\n'
             'exec "$@"\n'
         )

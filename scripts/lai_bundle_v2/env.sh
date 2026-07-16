@@ -131,6 +131,7 @@ _sanitize_gnomix_python_environment() {
   # Conda subprocess or selected-environment Python can start.
   unset PYTHONPATH PYTHONHOME PYTHONSTARTUP PYTHONINSPECT PYTHONUSERBASE \
     PYTHONSAFEPATH LD_PRELOAD LD_LIBRARY_PATH LD_AUDIT
+  export PYTHONNOUSERSITE=1
 }
 verify_gnomix_environment() {
   local lock_path="${1:-$GNOMIX_ENV_LOCK}"
@@ -152,6 +153,6 @@ run_gnomix_python() {
       -u PYTHONPATH -u PYTHONHOME -u PYTHONSTARTUP -u PYTHONINSPECT \
       -u PYTHONUSERBASE -u PYTHONSAFEPATH \
       -u LD_PRELOAD -u LD_LIBRARY_PATH -u LD_AUDIT \
-      python -I -B "$@"
+      PYTHONNOUSERSITE=1 python -I -B "$@"
   )
 }

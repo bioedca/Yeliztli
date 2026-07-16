@@ -107,6 +107,7 @@ def _fake_conda(
         clean_environment = kwargs["env"]
         assert isinstance(clean_environment, dict)
         assert not environment._AMBIENT_INJECTION_VARIABLES & clean_environment.keys()
+        assert clean_environment["PYTHONNOUSERSITE"] == "1"
         calls.append(command)
         if on_call is not None:
             on_call(command)

@@ -311,6 +311,7 @@ def _run_conda(conda_executable: str, arguments: list[str]) -> str:
     clean_environment = {
         key: value for key, value in os.environ.items() if key not in _AMBIENT_INJECTION_VARIABLES
     }
+    clean_environment["PYTHONNOUSERSITE"] = "1"
     try:
         result = subprocess.run(
             [conda_executable, *arguments],
