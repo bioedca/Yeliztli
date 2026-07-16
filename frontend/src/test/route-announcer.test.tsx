@@ -29,12 +29,31 @@ describe("RouteAnnouncer", () => {
     ["/login", "Login"],
     ["/settings/updates", "Settings"],
     ["/variants/rs123", "Variant Explorer"],
+    ["/genes/BRCA1?sample_id=1", "Gene Detail"],
+    ["/individuals/42", "Individual Detail"],
+    ["/samples/42/concordance", "Concordance Report"],
     ["/not-a-real-route", "Page"],
   ])("announces %s as %s", (route, title) => {
     render(<RouteAnnouncer />, { route })
 
     expect(screen.getByTestId("route-announcer")).toHaveTextContent(
       `Navigated to ${title}`,
+    )
+  })
+
+  it.each([
+    "/genes",
+    "/genes/BRCA1/extra",
+    "/individuals/42/edit",
+    "/samples/42",
+    "/samples/42/concordance/extra",
+    "/variants/rs123/extra",
+    "/cancer/extra",
+  ])("does not overmatch undeclared route %s", (route) => {
+    render(<RouteAnnouncer />, { route })
+
+    expect(screen.getByTestId("route-announcer")).toHaveTextContent(
+      "Navigated to Page",
     )
   })
 })

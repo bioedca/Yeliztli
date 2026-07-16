@@ -6,8 +6,8 @@
  *   - the Command Palette (⌘/Ctrl-K quick-jump "Pages" group, `components/CommandPalette.tsx`)
  *   - the screen-reader live region (`components/layout/RouteAnnouncer.tsx`)
  *
- * RouteAnnouncer keeps the standalone `/setup` and `/login` titles alongside
- * this registry because those full-screen routes are not primary navigation.
+ * RouteAnnouncer keeps standalone and dynamic detail-route titles alongside
+ * this registry because those routes are not primary navigation destinations.
  *
  * They used to be two independent hand-maintained arrays that drifted silently —
  * the Command Palette was missing 5 routes the Sidebar had (/findings,
