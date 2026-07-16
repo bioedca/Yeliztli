@@ -202,8 +202,17 @@ _HV0_GENOTYPES = _MT_R_TRUNK_GENOTYPES + [
 ]
 
 _MT_N1_REVERSAL_GENOTYPES = _MT_N_TRUNK_GENOTYPES + [
-    {"rsid": "i5006365", "chrom": "MT", "pos": 6365, "genotype": "CC"},
+    {"rsid": "i5001719", "chrom": "MT", "pos": 1719, "genotype": "AA"},
+    {"rsid": "i5010238", "chrom": "MT", "pos": 10238, "genotype": "CC"},
+    {"rsid": "i5012501", "chrom": "MT", "pos": 12501, "genotype": "AA"},
+    # N omits its source m.10398A event so this downstream reversal remains
+    # reachable without a hard ancestor conflict.
     {"rsid": "i5010398", "chrom": "MT", "pos": 10398, "genotype": "GG"},
+]
+
+_MT_N1A_GENOTYPES = _MT_N1_REVERSAL_GENOTYPES + [
+    {"rsid": "i5000204", "chrom": "MT", "pos": 204, "genotype": "CC"},
+    {"rsid": "i5013780", "chrom": "MT", "pos": 13780, "genotype": "GG"},
 ]
 
 _MT_B_REVERSAL_GENOTYPES = _MT_R_TRUNK_GENOTYPES + [
@@ -445,7 +454,7 @@ class TestLoadHaplogroupBundle:
     """Test haplogroup bundle loading from JSON."""
 
     def test_loads_from_json(self, bundle: HaplogroupBundle) -> None:
-        assert bundle.version == "1.1.15"
+        assert bundle.version == "1.1.16"
         assert bundle.build == "GRCh37"
 
     def test_mt_tree_root(self, bundle: HaplogroupBundle) -> None:
@@ -1027,6 +1036,7 @@ class TestTreeWalk:
         ("rows", "expected_path"),
         [
             (_MT_N1_REVERSAL_GENOTYPES, ["L3", "N", "N1"]),
+            (_MT_N1A_GENOTYPES, ["L3", "N", "N1", "N1a"]),
             (_MT_B_REVERSAL_GENOTYPES, ["L3", "N", "R", "B"]),
             (_MT_J_REVERSAL_GENOTYPES, ["L3", "N", "R", "JT", "J"]),
             (_MT_K1_REVERSAL_GENOTYPES, ["L3", "N", "R", "U", "U8", "K", "K1"]),
