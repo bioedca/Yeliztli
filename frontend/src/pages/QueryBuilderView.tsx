@@ -7,7 +7,7 @@
  * - SQL Console: Monaco SQL editor + results table + schema sidebar
  */
 
-import { useCallback, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useSearchParams } from "react-router-dom"
 import { type RuleGroupType } from "react-querybuilder"
 import { Filter, Play, Loader2, AlertCircle, RotateCcw, Terminal } from "lucide-react"
@@ -39,10 +39,29 @@ export default function QueryBuilderView() {
   const [resultPages, setResultPages] = useState<QueryResultPage[]>([])
   const [hasExecuted, setHasExecuted] = useState(false)
   const [loadMoreError, setLoadMoreError] = useState<string | null>(null)
+  const [includeAllPositions, setIncludeAllPositions] = useState(false)
+  const [isFetchingMore, setIsFetchingMore] = useState(false)
+  const [isRunning, setIsRunning] = useState(false)
+  const [runError, setRunError] = useState<string | null>(null)
+  const resultGenerationRef = useRef(0)
+  const previousSampleIdRef = useRef(sampleId)
 
   const fieldsQuery = useQueryFields()
   const runQuery = useRunQuery()
   const exportQuery = useExportQuery()
+
+  useEffect(() => {
+    if (previousSampleIdRef.current === sampleId) return
+    previousSampleIdRef.current = sampleId
+    resultGenerationRef.current += 1
+    setResultPages([])
+    setHasExecuted(false)
+    setIncludeAllPositions(false)
+    setLoadMoreError(null)
+    setIsFetchingMore(false)
+    setIsRunning(false)
+    setRunError(null)
+  }, [sampleId])
 
   const handleExport = useCallback(
     (format: string) => {
@@ -52,15 +71,22 @@ export default function QueryBuilderView() {
         sampleId,
         filter,
         format: format as QueryExportFormat,
+        includeAllPositions,
       })
     },
-    [sampleId, query, exportQuery],
+    [sampleId, query, exportQuery, includeAllPositions],
   )
 
   const handleLoadSaved = useCallback((saved: SavedQuery) => {
+    resultGenerationRef.current += 1
     setQuery(saved.filter as unknown as RuleGroupType)
     setResultPages([])
     setHasExecuted(false)
+    setIncludeAllPositions(false)
+    setLoadMoreError(null)
+    setIsFetchingMore(false)
+    setIsRunning(false)
+    setRunError(null)
   }, [])
 
   // No sample selected
@@ -73,25 +99,38 @@ export default function QueryBuilderView() {
     )
   }
 
-  const handleRun = () => {
+  const handleRun = async () => {
     if (!sampleId) return
     const filter = query as unknown as RuleGroupModel
-    runQuery.mutate(
-      { sampleId, filter },
-      {
-        onSuccess: (data) => {
-          setResultPages([data])
-          setHasExecuted(true)
-        },
-      },
-    )
+    const resultGeneration = ++resultGenerationRef.current
+    setResultPages([])
+    setHasExecuted(false)
+    setLoadMoreError(null)
+    setIsFetchingMore(false)
+    setIsRunning(true)
+    setRunError(null)
+    try {
+      const data = await runQuery.mutateAsync({ sampleId, filter, includeAllPositions })
+      if (resultGeneration !== resultGenerationRef.current) return
+      setResultPages([data])
+      setHasExecuted(true)
+    } catch (error) {
+      if (resultGeneration !== resultGenerationRef.current) return
+      setRunError(error instanceof Error ? error.message : "An unexpected error occurred.")
+    } finally {
+      if (resultGeneration === resultGenerationRef.current) {
+        setIsRunning(false)
+      }
+    }
   }
 
   const handleLoadMore = () => {
     if (!sampleId || resultPages.length === 0) return
     const lastPage = resultPages[resultPages.length - 1]
     if (!lastPage.has_more || !lastPage.next_cursor_chrom || lastPage.next_cursor_pos == null) return
+    const resultGeneration = resultGenerationRef.current
     setLoadMoreError(null)
+    setIsFetchingMore(true)
 
     const filter = query as unknown as RuleGroupModel
     fetch("/api/query", {
@@ -100,6 +139,7 @@ export default function QueryBuilderView() {
       body: JSON.stringify({
         sample_id: sampleId,
         filter,
+        include_all_positions: includeAllPositions,
         cursor_chrom: lastPage.next_cursor_chrom,
         cursor_pos: lastPage.next_cursor_pos,
         limit: 50,
@@ -110,20 +150,58 @@ export default function QueryBuilderView() {
         return res.json()
       })
       .then((data: QueryResultPage) => {
+        if (resultGeneration !== resultGenerationRef.current) return
         setResultPages((prev) => [...prev, data])
       })
       .catch((err) => {
+        if (resultGeneration !== resultGenerationRef.current) return
         setLoadMoreError(err instanceof Error ? err.message : "Failed to load more results")
+      })
+      .finally(() => {
+        if (resultGeneration === resultGenerationRef.current) {
+          setIsFetchingMore(false)
+        }
       })
   }
 
   const handleClear = () => {
+    resultGenerationRef.current += 1
     setQuery(DEFAULT_QUERY)
     setResultPages([])
     setHasExecuted(false)
+    setIncludeAllPositions(false)
+    setLoadMoreError(null)
+    setIsFetchingMore(false)
+    setIsRunning(false)
+    setRunError(null)
+  }
+
+  const handleQueryChange = (nextQuery: RuleGroupType) => {
+    resultGenerationRef.current += 1
+    setQuery(nextQuery)
+    setResultPages([])
+    setHasExecuted(false)
+    setLoadMoreError(null)
+    setIsFetchingMore(false)
+    setIsRunning(false)
+    setRunError(null)
+  }
+
+  const handleIncludeAllPositionsChange = (checked: boolean) => {
+    resultGenerationRef.current += 1
+    setIncludeAllPositions(checked)
+    // Results and exports must always use the same carriage mode. Clearing the
+    // old pages forces an explicit rerun instead of leaving a stale result set.
+    setResultPages([])
+    setHasExecuted(false)
+    setLoadMoreError(null)
+    setIsFetchingMore(false)
+    setIsRunning(false)
+    setRunError(null)
   }
 
   const hasRules = query.rules.length > 0
+  const resultsMatchSample = previousSampleIdRef.current === sampleId
   const totalMatching = resultPages.length > 0 ? (resultPages[0].total_matching ?? null) : null
   const hasMore = resultPages.length > 0 && resultPages[resultPages.length - 1].has_more
 
@@ -214,21 +292,24 @@ export default function QueryBuilderView() {
                   <QueryBuilderPanel
                     fields={fieldsQuery.data.fields}
                     query={query}
-                    onQueryChange={setQuery}
+                    onQueryChange={handleQueryChange}
                   />
                 </section>
               )}
 
               {/* Action bar */}
-              <div className="flex items-center gap-3">
+              <div
+                className="flex flex-wrap items-center gap-3"
+                data-testid="query-builder-action-bar"
+              >
                 <button
                   type="button"
                   onClick={handleRun}
-                  disabled={!hasRules || runQuery.isPending}
+                  disabled={!hasRules || isRunning}
                   className="inline-flex items-center gap-2 rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   data-testid="run-query-btn"
                 >
-                  {runQuery.isPending ? (
+                  {isRunning ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     <Play className="h-4 w-4" />
@@ -245,17 +326,37 @@ export default function QueryBuilderView() {
                   <RotateCcw className="h-4 w-4" />
                   Clear
                 </button>
+                <div className="inline-flex items-center">
+                  <label
+                    className="inline-flex items-center gap-2 text-sm text-muted-foreground"
+                    title="Also return homozygous-reference and unresolved annotated positions. Their annotations are not shown as carried findings."
+                  >
+                    <input
+                      type="checkbox"
+                      checked={includeAllPositions}
+                      onChange={(event) => handleIncludeAllPositionsChange(event.target.checked)}
+                      aria-describedby="include-all-positions-help"
+                      className="h-4 w-4 rounded border-input accent-primary"
+                      data-testid="include-all-positions"
+                    />
+                    Include all annotated positions
+                  </label>
+                  <span id="include-all-positions-help" className="sr-only">
+                    Includes homozygous-reference and unresolved positions. Their annotations
+                    are shown as locus metadata, not as carried findings.
+                  </span>
+                </div>
               </div>
 
               {/* Error */}
-              {runQuery.isError && (
+              {resultsMatchSample && runError && (
                 <div className="rounded-lg border border-destructive/50 bg-destructive/5 p-4">
                   <div className="flex items-start gap-3">
                     <AlertCircle className="h-5 w-5 text-destructive mt-0.5 shrink-0" />
                     <div>
                       <p className="font-medium text-destructive">Query failed</p>
                       <p className="text-sm text-muted-foreground mt-1">
-                        {runQuery.error instanceof Error ? runQuery.error.message : "An unexpected error occurred."}
+                        {runError}
                       </p>
                     </div>
                   </div>
@@ -263,22 +364,23 @@ export default function QueryBuilderView() {
               )}
 
               {/* Results */}
-              {hasExecuted && resultPages.length > 0 && resultPages[0].items.length > 0 && (
+              {resultsMatchSample && hasExecuted && resultPages.length > 0 && resultPages[0].items.length > 0 && (
                 <section aria-label="Query results">
                   <QueryResultsTable
                     pages={resultPages}
                     totalMatching={totalMatching}
                     hasMore={hasMore}
-                    isFetchingMore={false}
+                    isFetchingMore={isFetchingMore}
                     onLoadMore={handleLoadMore}
                     onExport={handleExport}
                     isExporting={exportQuery.isPending}
+                    includeAllPositions={includeAllPositions}
                   />
                 </section>
               )}
 
               {/* Load more error */}
-              {loadMoreError && (
+              {resultsMatchSample && loadMoreError && (
                 <div className="rounded-lg border border-destructive/50 bg-destructive/5 p-4">
                   <div className="flex items-start gap-3">
                     <AlertCircle className="h-5 w-5 text-destructive mt-0.5 shrink-0" />
@@ -291,7 +393,7 @@ export default function QueryBuilderView() {
               )}
 
               {/* Empty state after executing */}
-              {hasExecuted && resultPages.length > 0 && resultPages[0].items.length === 0 && (
+              {resultsMatchSample && hasExecuted && resultPages.length > 0 && resultPages[0].items.length === 0 && (
                 <div className="rounded-lg border bg-card p-8 text-center">
                   <Filter className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
                   <p className="text-muted-foreground">

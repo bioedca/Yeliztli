@@ -36,6 +36,7 @@ export function useQueryFields() {
 interface ExecuteQueryParams {
   sampleId: number
   filter: RuleGroupModel
+  includeAllPositions?: boolean
 }
 
 const QUERY_PAGE_SIZE = 50
@@ -43,13 +44,18 @@ const QUERY_PAGE_SIZE = 50
 /** One-shot mutation for executing a query (used for the Run button). */
 export function useRunQuery() {
   return useMutation({
-    mutationFn: async ({ sampleId, filter }: ExecuteQueryParams): Promise<QueryResultPage> => {
+    mutationFn: async ({
+      sampleId,
+      filter,
+      includeAllPositions = false,
+    }: ExecuteQueryParams): Promise<QueryResultPage> => {
       const res = await fetch("/api/query", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           sample_id: sampleId,
           filter,
+          include_all_positions: includeAllPositions,
           limit: QUERY_PAGE_SIZE,
         }),
       })
@@ -242,15 +248,22 @@ export function useExportQuery() {
       sampleId,
       filter,
       format,
+      includeAllPositions = false,
     }: {
       sampleId: number
       filter: RuleGroupModel
       format: QueryExportFormat
+      includeAllPositions?: boolean
     }) => {
       const res = await fetch("/api/export/query", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sample_id: sampleId, filter, format }),
+        body: JSON.stringify({
+          sample_id: sampleId,
+          filter,
+          format,
+          include_all_positions: includeAllPositions,
+        }),
       })
       if (!res.ok) {
         const data = await res.json().catch(() => null)

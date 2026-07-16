@@ -27,6 +27,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+from backend.analysis.zygosity import CARRIED_ZYGOSITIES
 from backend.api.dependencies import require_fresh_sample
 from backend.db.connection import get_registry
 from backend.db.tables import annotated_variants, samples
@@ -101,6 +102,7 @@ class ExportQueryRequest(BaseModel):
     sample_id: int
     filter: RuleGroupModel
     format: Literal["vcf", "tsv", "json", "csv"]
+    include_all_positions: bool = False
 
 
 class ExportSqlRequest(BaseModel):
@@ -291,6 +293,15 @@ def export_query(body: ExportQueryRequest) -> StreamingResponse:
         where_clause = translate(filter_tree)
     except TranslationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    # Match the visual builder's safe default: locus annotations are exported
+    # as personal results only when the sample carries the ALT allele. Users
+    # can explicitly opt into the full annotated-position dataset (#1988).
+    if not body.include_all_positions:
+        where_clause = sa.and_(
+            where_clause,
+            annotated_variants.c.zygosity.in_(sorted(CARRIED_ZYGOSITIES)),
+        )
 
     # Build query — NO pagination, fetch all
     query = sa.select(annotated_variants).where(where_clause)

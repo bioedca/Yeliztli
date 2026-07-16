@@ -21,6 +21,7 @@ const variantRow = {
   ref: 'A',
   alt: 'G',
   zygosity: 'het',
+  carriage_status: 'carried',
   gene_symbol: 'BRCA1',
   consequence: 'missense_variant',
   clinvar_significance: 'Uncertain significance',
@@ -153,5 +154,5 @@ test('Query Builder renders common gnomAD AF as a plain fraction (#1776)', async
   await runButton.click()
 
   const resultRow = page.getByTestId('query-result-row')
-  await expect(resultRow.getByRole('cell').nth(8)).toHaveText('0.4200')
+  await expect(resultRow.getByTestId('query-gnomad_af_global-cell')).toHaveText('0.4200')
 })

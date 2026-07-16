@@ -24,6 +24,7 @@ const DISPLAY_COLUMNS: Array<{
   { key: "chrom", label: "Chr" },
   { key: "pos", label: "Position", align: "right", format: (v) => (v != null ? formatNumber(v as number) : "—") },
   { key: "genotype", label: "Genotype" },
+  { key: "carriage_status", label: "Carriage / Zygosity" },
   { key: "gene_symbol", label: "Gene" },
   { key: "consequence", label: "Consequence" },
   { key: "clinvar_significance", label: "ClinVar" },
@@ -60,6 +61,7 @@ interface QueryResultsTableProps {
   onLoadMore: () => void
   onExport?: (format: string) => void
   isExporting?: boolean
+  includeAllPositions?: boolean
 }
 
 export default function QueryResultsTable({
@@ -70,6 +72,7 @@ export default function QueryResultsTable({
   onLoadMore,
   onExport,
   isExporting,
+  includeAllPositions = false,
 }: QueryResultsTableProps) {
   const allItems = pages.flatMap((p) => p.items)
 
@@ -79,7 +82,8 @@ export default function QueryResultsTable({
       <div className="flex items-center justify-between px-3 py-2 bg-muted/50 border border-border rounded-t-lg">
         <p className="text-sm font-medium">
           Showing {formatNumber(allItems.length)}
-          {totalMatching != null && ` of ${formatNumber(totalMatching)}`} matching variants
+          {totalMatching != null && ` of ${formatNumber(totalMatching)}`} matching{" "}
+          {includeAllPositions ? "annotated positions" : "carried variants"}
         </p>
         {onExport && (
           <ExportButton
@@ -120,8 +124,12 @@ export default function QueryResultsTable({
               {allItems.map((row, i) => (
                 <tr
                   key={`${row.rsid}-${row.chrom}-${row.pos}-${i}`}
-                  className="border-b border-border/50 hover:bg-muted/20 transition-colors"
+                  className={cn(
+                    "border-b border-border/50 hover:bg-muted/20 transition-colors",
+                    row.carriage_status !== "carried" && "bg-muted/10 text-muted-foreground",
+                  )}
                   data-testid="query-result-row"
+                  data-carriage-status={row.carriage_status}
                 >
                   {DISPLAY_COLUMNS.map((col) => {
                     const raw = row[col.key]
@@ -136,18 +144,21 @@ export default function QueryResultsTable({
                               ? "text-center"
                               : "text-left"
                         } ${col.key === "rsid" ? "font-mono text-xs" : ""}`}
+                        data-testid={`query-${col.key}-cell`}
                       >
-                        {col.key === "clinvar_significance" && raw ? (
-                          <ClinvarBadge value={String(raw)} />
+                        {col.key === "carriage_status" ? (
+                          <CarriageStatus row={row} />
+                        ) : col.key === "clinvar_significance" && raw ? (
+                          row.carriage_status === "carried" ? (
+                            <ClinvarBadge value={String(raw)} />
+                          ) : (
+                            <MutedAnnotation value={String(raw)} status={row.carriage_status} />
+                          )
                         ) : col.key === "clinvar_review_stars" && raw != null ? (
-                          (() => {
-                            const stars = Math.max(0, Math.min(4, Math.floor(raw as number)))
-                            return (
-                              <span role="img" aria-label={`${stars} stars`}>
-                                {"★".repeat(stars)}{"☆".repeat(4 - stars)}
-                              </span>
-                            )
-                          })()
+                          <ClinvarStars
+                            value={raw as number}
+                            status={row.carriage_status}
+                          />
                         ) : (
                           display
                         )}
@@ -193,6 +204,84 @@ export default function QueryResultsTable({
         </div>
       )}
     </div>
+  )
+}
+
+function CarriageStatus({ row }: { row: QueryVariantRow }) {
+  if (row.carriage_status === "not_carried") {
+    return (
+      <span
+        className="inline-flex rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
+        title="The sample is homozygous for the reference allele at this annotated position."
+      >
+        Not carried · homozygous reference
+      </span>
+    )
+  }
+
+  if (row.carriage_status === "unresolved") {
+    return (
+      <span
+        className="inline-flex rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
+        title="The available genotype could not establish whether the annotated alternate allele is carried."
+      >
+        Unresolved
+      </span>
+    )
+  }
+
+  const label = row.zygosity === "het"
+    ? "Carried · heterozygous"
+    : row.zygosity === "hom_alt"
+      ? "Carried · homozygous alternate"
+      : "Carried"
+
+  return (
+    <span className="inline-flex rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-foreground">
+      {label}
+    </span>
+  )
+}
+
+function nonCarriedContext(status: QueryVariantRow["carriage_status"]) {
+  return status === "not_carried"
+    ? "Variant-level annotation; the sample does not carry this alternate allele."
+    : "Variant-level annotation; alternate-allele carriage is unresolved."
+}
+
+function MutedAnnotation({
+  value,
+  status,
+}: {
+  value: string
+  status: QueryVariantRow["carriage_status"]
+}) {
+  const context = nonCarriedContext(status)
+  return (
+    <span className="text-muted-foreground" title={context} aria-label={`${value}. ${context}`}>
+      {value}
+    </span>
+  )
+}
+
+function ClinvarStars({
+  value,
+  status,
+}: {
+  value: number
+  status: QueryVariantRow["carriage_status"]
+}) {
+  const stars = Math.max(0, Math.min(4, Math.floor(value)))
+  const context = status === "carried" ? "" : ` ${nonCarriedContext(status)}`
+  return (
+    <span
+      role="img"
+      aria-label={`${stars} ClinVar review stars.${context}`}
+      className={status === "carried" ? undefined : "text-muted-foreground"}
+      title={status === "carried" ? undefined : nonCarriedContext(status)}
+    >
+      {"★".repeat(stars)}{"☆".repeat(4 - stars)}
+    </span>
   )
 }
 
