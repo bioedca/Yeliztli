@@ -25,7 +25,7 @@ export default function VariantDetailPanel({
 }: VariantDetailPanelProps) {
   const conditions = formatClinvarConditionsText(variant.clinvar_conditions)
   const panelRef = useRef<HTMLElement>(null)
-  useDialogFocus(panelRef)
+  useDialogFocus(panelRef, onClose)
 
   return (
     <aside

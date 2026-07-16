@@ -5,7 +5,7 @@
  * and PubMed references.
  */
 
-import { useEffect, useRef } from "react"
+import { useRef } from "react"
 import { Link } from "react-router-dom"
 import { cn } from "@/lib/utils"
 import { getModuleMeta } from "@/lib/modules"
@@ -22,7 +22,6 @@ interface PathwayDetailPanelProps {
   sampleId: number
   onClose: () => void
 }
-
 
 function SNPRow({ snp, sampleId }: { snp: SNPDetail; sampleId: number }) {
   const categoryColor = SNP_CATEGORY_COLORS[snp.category] || SNP_CATEGORY_COLORS.Standard
@@ -124,7 +123,7 @@ export default function PathwayDetailPanel({
 }: PathwayDetailPanelProps) {
   const detailQuery = useGeneHealthPathwayDetail(pathwayId, sampleId)
   const panelRef = useRef<HTMLElement>(null)
-  useDialogFocus(panelRef)
+  useDialogFocus(panelRef, onClose)
 
   // Distinguish on-chip no-calls from genuinely off-chip SNPs within the missing
   // set (#900): they have opposite remediations (a no-call may be re-testable; an
@@ -135,14 +134,6 @@ export default function PathwayDetailPanel({
   const offChipSnps = (detailQuery.data?.missing_snps ?? []).filter(
     (rs) => !noCallSnps.includes(rs),
   )
-
-  useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose()
-    }
-    document.addEventListener("keydown", handleEscape)
-    return () => document.removeEventListener("keydown", handleEscape)
-  }, [onClose])
 
   return (
     <aside

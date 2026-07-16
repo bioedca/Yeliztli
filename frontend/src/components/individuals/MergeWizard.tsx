@@ -108,23 +108,13 @@ export function MergeWizard({
 
   const previewMutation = useMergePreview()
   const commitMutation = useMergeCommit()
-  useDialogFocus(dialogRef)
+  useDialogFocus(dialogRef, onClose)
 
   // Bind to the annotation SSE channel once a job id arrives. The hook
   // tolerates null and tears down its EventSource when the id resets.
   const jobId = commitMutation.data?.job_id || null
   const mergedSampleId = commitMutation.data?.merged_sample_id ?? null
   const progress = useAnnotationProgress(jobId, mergedSampleId)
-
-  // Close on Escape — mirrors the project's existing modal idiom
-  // (ColumnPresets.CreatePresetDialog).
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose()
-    }
-    document.addEventListener("keydown", handleKeyDown)
-    return () => document.removeEventListener("keydown", handleKeyDown)
-  }, [onClose])
 
   // Redirect to the new sample's dashboard once annotation reports complete.
   // Append `post_merge=1` + the SSE `job_id` so the Dashboard can open the

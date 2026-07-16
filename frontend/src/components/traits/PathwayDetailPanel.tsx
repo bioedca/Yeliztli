@@ -5,7 +5,7 @@
  * and PubMed literature links.
  */
 
-import { useEffect, useRef } from "react"
+import { useRef } from "react"
 import { useDialogFocus } from "@/hooks/useDialogFocus"
 import { Link } from "react-router-dom"
 import { cn } from "@/lib/utils"
@@ -132,19 +132,11 @@ export default function PathwayDetailPanel({
 }: PathwayDetailPanelProps) {
   const detailQuery = useTraitsPathwayDetail(pathwayId, sampleId)
   const panelRef = useRef<HTMLElement>(null)
-  useDialogFocus(panelRef)
+  useDialogFocus(panelRef, onClose)
   const noCallSnps = detailQuery.data?.no_call_snps ?? []
   const offChipSnps = (detailQuery.data?.missing_snps ?? []).filter(
     (rsid) => !noCallSnps.includes(rsid),
   )
-
-  useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose()
-    }
-    document.addEventListener("keydown", handleEscape)
-    return () => document.removeEventListener("keydown", handleEscape)
-  }, [onClose])
 
   return (
     <aside

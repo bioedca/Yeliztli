@@ -155,7 +155,7 @@ export default function DrugDetailPanel({
   // never blank the drug detail (cf. the #642 query-isolation pattern).
   const { data: pgxData } = usePgxGuidelines(sampleId)
   const panelRef = useRef<HTMLDivElement>(null)
-  useDialogFocus(panelRef)
+  useDialogFocus(panelRef, onClose)
 
   // Index the sample's cross-source evidence by gene, scoped to this drug.
   const drugLabel = (data?.drug ?? drugName).toLowerCase()

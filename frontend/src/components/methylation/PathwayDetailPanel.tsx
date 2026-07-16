@@ -5,7 +5,7 @@
  * Serves as the expandable "Advanced View" referenced in the PRD.
  */
 
-import { useEffect, useRef, useState } from "react"
+import { useRef, useState } from "react"
 import { useDialogFocus } from "@/hooks/useDialogFocus"
 import { cn } from "@/lib/utils"
 import { useMethylationPathwayDetail } from "@/api/methylation"
@@ -114,20 +114,12 @@ export default function PathwayDetailPanel({
 }: PathwayDetailPanelProps) {
   const detailQuery = useMethylationPathwayDetail(pathwayId, sampleId)
   const panelRef = useRef<HTMLElement>(null)
-  useDialogFocus(panelRef)
+  useDialogFocus(panelRef, onClose)
   const [showAdvanced, setShowAdvanced] = useState(false)
   const noCallSnps = detailQuery.data?.no_call_snps ?? []
   const offChipSnps = (detailQuery.data?.missing_snps ?? []).filter(
     (rsid) => !noCallSnps.includes(rsid),
   )
-
-  useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose()
-    }
-    document.addEventListener("keydown", handleEscape)
-    return () => document.removeEventListener("keydown", handleEscape)
-  }, [onClose])
 
   return (
     <aside

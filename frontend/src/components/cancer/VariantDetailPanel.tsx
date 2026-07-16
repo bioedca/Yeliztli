@@ -28,7 +28,7 @@ export default function VariantDetailPanel({
   const conditions = formatClinvarConditionsText(variant.clinvar_conditions)
   const hasCrossLink = variant.cross_links.includes("carrier")
   const panelRef = useRef<HTMLElement>(null)
-  useDialogFocus(panelRef)
+  useDialogFocus(panelRef, onClose)
 
   return (
     <aside

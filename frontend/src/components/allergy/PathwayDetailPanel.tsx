@@ -5,7 +5,7 @@
  * (r-squared, ancestry population), coverage notes, and PubMed links.
  */
 
-import { useEffect, useRef } from "react"
+import { useRef } from "react"
 import { useDialogFocus } from "@/hooks/useDialogFocus"
 import { cn } from "@/lib/utils"
 import { useAllergyPathwayDetail } from "@/api/allergy"
@@ -188,19 +188,11 @@ export default function PathwayDetailPanel({
 }: PathwayDetailPanelProps) {
   const detailQuery = useAllergyPathwayDetail(pathwayId, sampleId)
   const panelRef = useRef<HTMLElement>(null)
-  useDialogFocus(panelRef)
+  useDialogFocus(panelRef, onClose)
   const noCallSnps = detailQuery.data?.no_call_snps ?? []
   const offChipSnps = (detailQuery.data?.missing_snps ?? []).filter(
     (rsid) => !noCallSnps.includes(rsid),
   )
-
-  useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose()
-    }
-    document.addEventListener("keydown", handleEscape)
-    return () => document.removeEventListener("keydown", handleEscape)
-  }, [onClose])
 
   return (
     <aside

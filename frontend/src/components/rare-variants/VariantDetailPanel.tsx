@@ -51,7 +51,7 @@ export default function VariantDetailPanel({ variant, onClose }: VariantDetailPa
 
   const hasAnyFreq = popFreqs.some((p) => p.value != null)
   const panelRef = useRef<HTMLElement>(null)
-  useDialogFocus(panelRef)
+  useDialogFocus(panelRef, onClose)
 
   return (
     <aside
