@@ -43,6 +43,7 @@ class DBRegistry:
 
         # Large reference DBs (opened lazily on first access)
         self._vep_engine: sa.Engine | None = None
+        self._vep_fingerprint: tuple[int, int, int, int] | None = None
         self._gnomad_engine: sa.Engine | None = None
         self._dbnsfp_engine: sa.Engine | None = None
         self._alphamissense_engine: sa.Engine | None = None
@@ -105,14 +106,28 @@ class DBRegistry:
 
     @property
     def vep_engine(self) -> sa.Engine:
-        """Lazy-loaded VEP bundle engine (read-only, ~500 MB)."""
-        if self._vep_engine is None:
+        """Lazy-loaded VEP bundle engine (read-only, ~500 MB).
+
+        Tracks the installed file's fingerprint and disposes/recreates the
+        cached engine when the bundle artifact is replaced (``run_vep_bundle_update``
+        swaps ``vep_bundle.db`` atomically, giving it a new inode). Without this,
+        a warmed pooled connection keeps reading the unlinked old inode after
+        replacement while the registry version already describes the new file, so
+        an annotation could query stale data and stamp it with the new version
+        (#1953). Mirrors :attr:`encode_ccres_engine`.
+        """
+        db_path = self._settings.vep_bundle_db_path
+        fingerprint = self._file_fingerprint(db_path)
+        if self._vep_engine is None or self._vep_fingerprint != fingerprint:
+            if self._vep_engine is not None:
+                self._vep_engine.dispose()
             self._vep_engine = self._create_engine(
-                self._settings.vep_bundle_db_path,
+                db_path,
                 wal=self._settings.wal_mode,
                 synchronous=self._wal_synchronous,
                 read_optimized=True,
             )
+            self._vep_fingerprint = fingerprint
         return self._vep_engine
 
     @property
@@ -233,6 +248,7 @@ class DBRegistry:
         if self._vep_engine is not None:
             self._vep_engine.dispose()
             self._vep_engine = None
+            self._vep_fingerprint = None
         if self._gnomad_engine is not None:
             self._gnomad_engine.dispose()
             self._gnomad_engine = None
