@@ -143,63 +143,96 @@ def warn_if_insecure_network_bind(settings: Settings) -> None:
 # ── Lifespan ──────────────────────────────────────────────────────────
 
 
+def _teardown_lifespan_resources(*, suppress_errors: bool) -> None:
+    """Release process-wide resources, attempting every cleanup step.
+
+    When startup or the application body is already propagating an exception,
+    cleanup failures are logged and suppressed so they cannot replace the
+    triggering error.  On an otherwise normal shutdown, cleanup failures remain
+    visible to the lifespan caller after all cleanup steps have been attempted.
+    """
+    cleanup_errors: list[Exception] = []
+    for resource_name, cleanup in (
+        ("download executor", shutdown_executor),
+        ("database registry", reset_registry),
+    ):
+        try:
+            cleanup()
+        except Exception as exc:
+            cleanup_errors.append(exc)
+            logger.exception("FastAPI lifespan cleanup failed for %s", resource_name)
+
+    if cleanup_errors and not suppress_errors:
+        if len(cleanup_errors) == 1:
+            raise cleanup_errors[0]
+        raise ExceptionGroup("FastAPI lifespan cleanup failed", cleanup_errors)
+
+    if not cleanup_errors:
+        logger.info("DBRegistry disposed - all engines closed")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Startup / shutdown lifecycle for the FastAPI app."""
-    # Startup: ensure data directory exists before DB initialization
-    settings = get_settings()
-    settings.data_dir.mkdir(parents=True, exist_ok=True)
-    (settings.data_dir / "samples").mkdir(exist_ok=True)
-    # Initialize the DB registry (creates reference engine, etc.)
-    registry = get_registry()
-    # Ensure reference tables exist (safe on existing DBs via checkfirst)
-    reference_metadata.create_all(registry.reference_engine, checkfirst=True)
-    # create_all only creates missing *tables*, never adds *columns* to
-    # pre-existing ones. Backfill additive columns (e.g. samples.individual_id)
-    # so DBs that predate a column-adding revision keep working.
-    ensure_reference_schema_current(registry.reference_engine)
-    # Populate the curated HLA-proxy lookup (the allergy module's r²/ancestry
-    # enrichment). migration 003 creates the table empty and documents it as
-    # "Populated from curated JSON at application startup" — this is that step,
-    # which was never wired up, so the enrichment silently returned nothing for
-    # every user (#868). Idempotent (clear-then-insert), so it refreshes on each
-    # boot. Best-effort on the curated data file: a missing/corrupt bundle warns
-    # rather than aborting startup (a DB-layer failure still propagates, as with
-    # create_all / ensure_reference_schema_current above).
+    propagating_exception = False
     try:
-        hla_proxy_rows = load_hla_proxy_data(registry.reference_engine)
-        logger.info("hla_proxy_lookup populated (%d rows)", hla_proxy_rows)
-    except (OSError, ValueError, KeyError):
-        logger.warning(
-            "hla_proxy_lookup population skipped — curated JSON unavailable", exc_info=True
-        )
-    # Cross-source genome-build provenance check (F30): warn — never fail — when
-    # a recorded source's build deviates from its expected assembly (e.g. a
-    # GRCh38 gnomAD bundle where the GRCh37 pipeline expects GRCh37). dbNSFP's
-    # legitimate GRCh38 coordinates are expected and not flagged.
-    build_skew = check_genome_build_consistency(registry.reference_engine)
-    if build_skew:
-        logger.warning(
-            "genome_build_skew_detected",
-            sources=build_skew,
-            pipeline_build=PIPELINE_GENOME_BUILD,
-        )
-    # Configure structured logging with DB persistence
-    configure_logging(engine_getter=lambda: registry.reference_engine)
-    warn_if_insecure_network_bind(settings)
-    # Mark any leftover in-progress download sessions as interrupted/stale
-    cleanup_interrupted_sessions(registry.reference_engine)
-    # Mark any orphaned jobs (worker killed mid-task) as failed
-    recover_orphaned_jobs(registry.reference_engine)
-    # Mark any download checkpoints stuck mid-transfer as failed so the partial
-    # surfaces as honestly resumable instead of a phantom "downloading" forever.
-    recover_orphaned_downloads(registry.reference_engine)
-    logger.info("DBRegistry initialised (reference.db engine ready)")
-    yield
-    # Shutdown: stop download executor and dispose all engines
-    shutdown_executor()
-    reset_registry()
-    logger.info("DBRegistry disposed - all engines closed")
+        # Startup: ensure data directory exists before DB initialization
+        settings = get_settings()
+        settings.data_dir.mkdir(parents=True, exist_ok=True)
+        (settings.data_dir / "samples").mkdir(exist_ok=True)
+        # Initialize the DB registry (creates reference engine, etc.)
+        registry = get_registry()
+        # Ensure reference tables exist (safe on existing DBs via checkfirst)
+        reference_metadata.create_all(registry.reference_engine, checkfirst=True)
+        # create_all only creates missing *tables*, never adds *columns* to
+        # pre-existing ones. Backfill additive columns (e.g. samples.individual_id)
+        # so DBs that predate a column-adding revision keep working.
+        ensure_reference_schema_current(registry.reference_engine)
+        # Populate the curated HLA-proxy lookup (the allergy module's r²/ancestry
+        # enrichment). migration 003 creates the table empty and documents it as
+        # "Populated from curated JSON at application startup" — this is that step,
+        # which was never wired up, so the enrichment silently returned nothing for
+        # every user (#868). Idempotent (clear-then-insert), so it refreshes on each
+        # boot. Best-effort on the curated data file: a missing/corrupt bundle warns
+        # rather than aborting startup (a DB-layer failure still propagates, as with
+        # create_all / ensure_reference_schema_current above).
+        try:
+            hla_proxy_rows = load_hla_proxy_data(registry.reference_engine)
+            logger.info("hla_proxy_lookup populated (%d rows)", hla_proxy_rows)
+        except (OSError, ValueError, KeyError):
+            logger.warning(
+                "hla_proxy_lookup population skipped — curated JSON unavailable", exc_info=True
+            )
+        # Cross-source genome-build provenance check (F30): warn — never fail — when
+        # a recorded source's build deviates from its expected assembly (e.g. a
+        # GRCh38 gnomAD bundle where the GRCh37 pipeline expects GRCh37). dbNSFP's
+        # legitimate GRCh38 coordinates are expected and not flagged.
+        build_skew = check_genome_build_consistency(registry.reference_engine)
+        if build_skew:
+            logger.warning(
+                "genome_build_skew_detected",
+                sources=build_skew,
+                pipeline_build=PIPELINE_GENOME_BUILD,
+            )
+        # Configure structured logging with DB persistence
+        configure_logging(engine_getter=lambda: registry.reference_engine)
+        warn_if_insecure_network_bind(settings)
+        # Mark any leftover in-progress download sessions as interrupted/stale
+        cleanup_interrupted_sessions(registry.reference_engine)
+        # Mark any orphaned jobs (worker killed mid-task) as failed
+        recover_orphaned_jobs(registry.reference_engine)
+        # Mark any download checkpoints stuck mid-transfer as failed so the partial
+        # surfaces as honestly resumable instead of a phantom "downloading" forever.
+        recover_orphaned_downloads(registry.reference_engine)
+        logger.info("DBRegistry initialised (reference.db engine ready)")
+        yield
+    except BaseException:
+        propagating_exception = True
+        raise
+    finally:
+        # Both cleanup functions are safe no-ops before their singleton exists, so
+        # this also releases resources from any partially completed startup.
+        _teardown_lifespan_resources(suppress_errors=propagating_exception)
 
 
 # ── App factory ───────────────────────────────────────────────────────

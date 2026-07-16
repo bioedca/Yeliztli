@@ -1,0 +1,188 @@
+import asyncio
+import logging
+from collections.abc import Iterator
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
+
+import pytest
+from fastapi import FastAPI
+
+from backend.config import Settings
+from backend.main import lifespan
+
+
+class LifespanBodyError(RuntimeError):
+    """Sentinel raised from inside an entered application lifespan."""
+
+
+@pytest.fixture
+def lifespan_dependencies(tmp_path: Path) -> Iterator[SimpleNamespace]:
+    """Replace startup integrations while preserving lifespan control flow."""
+    settings = Settings(data_dir=tmp_path, wal_mode=False)
+    registry = SimpleNamespace(reference_engine=object())
+
+    with (
+        patch("backend.main.get_settings", return_value=settings),
+        patch("backend.main.get_registry", return_value=registry) as get_registry,
+        patch("backend.main.reference_metadata.create_all"),
+        patch("backend.main.ensure_reference_schema_current") as ensure_schema,
+        patch("backend.main.load_hla_proxy_data", return_value=0),
+        patch("backend.main.check_genome_build_consistency", return_value={}),
+        patch("backend.main.configure_logging"),
+        patch("backend.main.warn_if_insecure_network_bind"),
+        patch("backend.main.cleanup_interrupted_sessions"),
+        patch("backend.main.recover_orphaned_jobs"),
+        patch("backend.main.recover_orphaned_downloads"),
+        patch("backend.main.shutdown_executor") as shutdown_executor,
+        patch("backend.main.reset_registry") as reset_registry,
+    ):
+        yield SimpleNamespace(
+            ensure_schema=ensure_schema,
+            get_registry=get_registry,
+            reset_registry=reset_registry,
+            shutdown_executor=shutdown_executor,
+        )
+
+
+@pytest.mark.asyncio
+async def test_lifespan_exception_runs_teardown_and_preserves_original(
+    lifespan_dependencies: SimpleNamespace,
+) -> None:
+    original = LifespanBodyError("request loop failed")
+
+    with pytest.raises(LifespanBodyError) as caught:
+        async with lifespan(FastAPI()):
+            raise original
+
+    assert caught.value is original
+    lifespan_dependencies.shutdown_executor.assert_called_once_with()
+    lifespan_dependencies.reset_registry.assert_called_once_with()
+
+
+@pytest.mark.asyncio
+async def test_lifespan_cancellation_runs_teardown_and_preserves_original(
+    lifespan_dependencies: SimpleNamespace,
+) -> None:
+    original = asyncio.CancelledError("server cancelled")
+    lifespan_dependencies.shutdown_executor.side_effect = RuntimeError("executor stuck")
+
+    with pytest.raises(asyncio.CancelledError) as caught:
+        async with lifespan(FastAPI()):
+            raise original
+
+    assert caught.value is original
+    lifespan_dependencies.shutdown_executor.assert_called_once_with()
+    lifespan_dependencies.reset_registry.assert_called_once_with()
+
+
+@pytest.mark.asyncio
+async def test_lifespan_normal_exit_runs_teardown(
+    lifespan_dependencies: SimpleNamespace,
+) -> None:
+    teardown_order: list[str] = []
+    lifespan_dependencies.shutdown_executor.side_effect = lambda: teardown_order.append(
+        "shutdown_executor"
+    )
+    lifespan_dependencies.reset_registry.side_effect = lambda: teardown_order.append(
+        "reset_registry"
+    )
+
+    async with lifespan(FastAPI()):
+        lifespan_dependencies.shutdown_executor.assert_not_called()
+        lifespan_dependencies.reset_registry.assert_not_called()
+
+    lifespan_dependencies.shutdown_executor.assert_called_once_with()
+    lifespan_dependencies.reset_registry.assert_called_once_with()
+    assert teardown_order == ["shutdown_executor", "reset_registry"]
+
+
+@pytest.mark.asyncio
+async def test_lifespan_registry_startup_failure_runs_safe_teardown(
+    lifespan_dependencies: SimpleNamespace,
+) -> None:
+    original = RuntimeError("registry startup failed")
+    lifespan_dependencies.get_registry.side_effect = original
+
+    with pytest.raises(RuntimeError) as caught:
+        async with lifespan(FastAPI()):
+            pytest.fail("lifespan body must not run after startup failure")
+
+    assert caught.value is original
+    lifespan_dependencies.shutdown_executor.assert_called_once_with()
+    lifespan_dependencies.reset_registry.assert_called_once_with()
+
+
+@pytest.mark.asyncio
+async def test_lifespan_partial_startup_failure_runs_teardown(
+    lifespan_dependencies: SimpleNamespace,
+) -> None:
+    original = RuntimeError("schema migration failed")
+    lifespan_dependencies.ensure_schema.side_effect = original
+
+    with pytest.raises(RuntimeError) as caught:
+        async with lifespan(FastAPI()):
+            pytest.fail("lifespan body must not run after startup failure")
+
+    assert caught.value is original
+    lifespan_dependencies.shutdown_executor.assert_called_once_with()
+    lifespan_dependencies.reset_registry.assert_called_once_with()
+
+
+@pytest.mark.asyncio
+async def test_cleanup_failures_do_not_mask_original_exception(
+    lifespan_dependencies: SimpleNamespace,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    original = LifespanBodyError("request loop failed")
+    lifespan_dependencies.shutdown_executor.side_effect = RuntimeError("executor stuck")
+    lifespan_dependencies.reset_registry.side_effect = RuntimeError("registry stuck")
+
+    with (
+        caplog.at_level(logging.ERROR, logger="backend.main"),
+        pytest.raises(LifespanBodyError) as caught,
+    ):
+        async with lifespan(FastAPI()):
+            raise original
+
+    assert caught.value is original
+    lifespan_dependencies.shutdown_executor.assert_called_once_with()
+    lifespan_dependencies.reset_registry.assert_called_once_with()
+    assert "FastAPI lifespan cleanup failed for download executor" in caplog.text
+    assert "FastAPI lifespan cleanup failed for database registry" in caplog.text
+    assert "executor stuck" in caplog.text
+    assert "registry stuck" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_normal_cleanup_failure_remains_visible(
+    lifespan_dependencies: SimpleNamespace,
+) -> None:
+    cleanup_error = RuntimeError("executor stuck")
+    lifespan_dependencies.shutdown_executor.side_effect = cleanup_error
+
+    with pytest.raises(RuntimeError) as caught:
+        async with lifespan(FastAPI()):
+            pass
+
+    assert caught.value is cleanup_error
+    lifespan_dependencies.shutdown_executor.assert_called_once_with()
+    lifespan_dependencies.reset_registry.assert_called_once_with()
+
+
+@pytest.mark.asyncio
+async def test_normal_dual_cleanup_failures_are_grouped(
+    lifespan_dependencies: SimpleNamespace,
+) -> None:
+    executor_error = RuntimeError("executor stuck")
+    registry_error = ValueError("registry stuck")
+    lifespan_dependencies.shutdown_executor.side_effect = executor_error
+    lifespan_dependencies.reset_registry.side_effect = registry_error
+
+    with pytest.raises(ExceptionGroup) as caught:
+        async with lifespan(FastAPI()):
+            pass
+
+    assert caught.value.exceptions == (executor_error, registry_error)
+    lifespan_dependencies.shutdown_executor.assert_called_once_with()
+    lifespan_dependencies.reset_registry.assert_called_once_with()
