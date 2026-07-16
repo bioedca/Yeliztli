@@ -272,7 +272,6 @@ def run_cancer_prs(
             rng_seed=rng_seed,
             reference_engine=reference_engine,
         )
-        result.model_fingerprint = prs_model_fingerprint(ws)
         results.append(result)
 
         logger.info(

@@ -31,6 +31,7 @@ from backend.analysis.prs import (
     compute_prs,
     compute_prs_bootstrap_ci,
     compute_prs_percentile,
+    prs_model_fingerprint,
     run_prs,
     store_prs_findings,
 )
@@ -280,6 +281,7 @@ class TestComputePRS:
         assert result.source_ancestry == "EUR"
         assert result.source_pmid == "12345678"
         assert result.sample_size == 100000
+        assert result.model_fingerprint == prs_model_fingerprint(weight_set)
 
     def test_evidence_level_is_1(
         self, weight_set: PRSWeightSet, sample_with_prs_variants: sa.Engine

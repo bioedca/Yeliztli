@@ -46,7 +46,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 
 import sqlalchemy as sa
 import structlog
@@ -382,14 +382,30 @@ def prs_model_fingerprint(weight_set: PRSWeightSet) -> str:
     therefore verify the exact currently enabled model instead of trusting a
     trait label alone.
     """
-    canonical = json.dumps(
-        asdict(weight_set),
-        allow_nan=False,
-        ensure_ascii=True,
-        separators=(",", ":"),
-        sort_keys=True,
-    )
-    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+    def canonical_json(value: object) -> bytes:
+        return json.dumps(
+            value,
+            allow_nan=False,
+            ensure_ascii=True,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+
+    # Stream the ordered weights into the digest instead of materialising one
+    # giant JSON object. Genome-wide scores can contain 10^5–10^6 entries.
+    metadata = {
+        model_field.name: getattr(weight_set, model_field.name)
+        for model_field in fields(weight_set)
+        if model_field.name != "weights"
+    }
+    digest = hashlib.sha256(b"yeliztli-prs-model-v1\n")
+    digest.update(canonical_json(metadata))
+    digest.update(b"\n")
+    for weight in weight_set.weights:
+        digest.update(canonical_json(asdict(weight)))
+        digest.update(b"\n")
+    return digest.hexdigest()
 
 
 # ── Dosage computation ───────────────────────────────────────────────────
@@ -737,6 +753,7 @@ def compute_prs(
         snps_strand_flipped=snps_strand_flipped,
         snps_unresolved=snps_unresolved,
         contributions=contributions,
+        model_fingerprint=prs_model_fingerprint(weight_set),
     )
 
 

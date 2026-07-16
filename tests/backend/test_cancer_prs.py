@@ -366,31 +366,56 @@ class TestLoadCancerPRSWeights:
         assert breast.scoring_enabled is False
         assert breast.calibration_eligible is False
 
-    def test_legacy_breast_weights_match_quarantine_hash(self) -> None:
+    def test_legacy_breast_audit_hashes_recompute(self) -> None:
         payload = json.loads(WEIGHTS_PATH.read_text(encoding="utf-8"))
         breast = next(
             weight_set
             for weight_set in payload["weight_sets"]
             if weight_set["trait"] == "breast_cancer"
         )
-        canonical_weights = (
-            json.dumps(breast["weights"], sort_keys=True, separators=(",", ":")) + "\n"
-        )
-        expected_weights_sha256 = (
-            "8923dc246e4dd702040a891b9b8d9caf1b99c880f39141b3d7730e113ef3ad93"
-        )
 
-        assert breast["legacy_weights_sha256"] == expected_weights_sha256
-        assert (
-            hashlib.sha256(canonical_weights.encode("utf-8")).hexdigest()
-            == expected_weights_sha256
-        )
-        assert breast["legacy_canonical_sha256"] == (
-            "5c1e91302d638fa30ea325d27e561179e0f66f30ae181c65f3b51a9965e912a0"
-        )
-        assert breast["legacy_ordered_projection_sha256"] == (
-            "58eba9aff9a7bca7a25247d43332507f71d9d7474045312e7da0f82805f4f606"
-        )
+        def canonical_json(value: object) -> bytes:
+            return (
+                json.dumps(
+                    value,
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                    sort_keys=True,
+                )
+                + "\n"
+            ).encode("utf-8")
+
+        legacy_object = dict(breast["legacy_canonical_metadata"])
+        legacy_object["weights"] = breast["weights"]
+        ordered_projection = [
+            [
+                weight["rsid"],
+                weight["effect_allele"],
+                weight.get("other_allele"),
+                weight["weight"],
+            ]
+            for weight in breast["weights"]
+        ]
+        representations = {
+            "legacy_canonical_sha256": legacy_object,
+            "legacy_weights_sha256": breast["weights"],
+            "legacy_ordered_projection_sha256": ordered_projection,
+        }
+        expected_hashes = {
+            "legacy_canonical_sha256": (
+                "5c1e91302d638fa30ea325d27e561179e0f66f30ae181c65f3b51a9965e912a0"
+            ),
+            "legacy_weights_sha256": (
+                "8923dc246e4dd702040a891b9b8d9caf1b99c880f39141b3d7730e113ef3ad93"
+            ),
+            "legacy_ordered_projection_sha256": (
+                "58eba9aff9a7bca7a25247d43332507f71d9d7474045312e7da0f82805f4f606"
+            ),
+        }
+
+        for field, representation in representations.items():
+            assert breast[field] == expected_hashes[field]
+            assert hashlib.sha256(canonical_json(representation)).hexdigest() == breast[field]
 
     def test_weight_set_execution_flags_default_to_enabled(self) -> None:
         weight_set = PRSWeightSet(
