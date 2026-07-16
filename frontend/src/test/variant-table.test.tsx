@@ -1088,6 +1088,13 @@ describe("Unannotated count badge (#1978)", () => {
     )
     await waitFor(() => expect(toggle).toHaveTextContent("Show unannotated (7)"))
     expect(toggle).not.toHaveTextContent("(100)")
+
+    // The badge count must come from an IS-NULL count query (annotation_coverage:null),
+    // not the unfiltered total — so it stays correct under an active view filter.
+    const nullCountCall = mockFetch.mock.calls
+      .map((c) => c[0] as string)
+      .find((url) => url.includes("/api/variants/count") && url.includes("annotation_coverage%3Anull"))
+    expect(nullCountCall).toBeDefined()
   })
 
   it("reads (0) and disables the toggle for a fully-annotated sample", async () => {

@@ -221,13 +221,24 @@ export function useTotalVariantCount(sampleId: number | null) {
  *
  * `annotation_coverage:null` is the IS-NULL server filter already used (as its
  * `notnull` sibling) by `buildEffectiveFilter`, so no new endpoint is needed.
+ *
+ * Scoped by the same `filter`/`tag` as `useVariants`/`useVariantsCount`: the
+ * toggle reveals unannotated rows *within the current view*, so the badge must
+ * count within it too — otherwise, under an active filter, the badge would again
+ * disagree with what toggling shows.
  */
-export function useUnannotatedVariantCount(sampleId: number | null) {
+export function useUnannotatedVariantCount(
+  sampleId: number | null,
+  filter?: string,
+  tag?: string | null,
+) {
+  const effectiveFilter = [filter, "annotation_coverage:null"].filter(Boolean).join(",")
+
   return useQuery({
-    queryKey: ["variants-unannotated-count", sampleId],
+    queryKey: ["variants-unannotated-count", sampleId, effectiveFilter, tag ?? null],
     queryFn: async () => {
       if (!sampleId) return 0
-      const count = await fetchVariantCount(sampleId, "annotation_coverage:null")
+      const count = await fetchVariantCount(sampleId, effectiveFilter, tag)
       return count.total
     },
     enabled: sampleId != null,

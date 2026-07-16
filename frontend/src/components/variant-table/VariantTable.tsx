@@ -247,7 +247,7 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
   })
 
   const { data: totalVariants } = useTotalVariantCount(sampleId)
-  const { data: unannotatedCount } = useUnannotatedVariantCount(sampleId)
+  const { data: unannotatedCount } = useUnannotatedVariantCount(sampleId, filter, activeTag)
 
   // Derive current chromosome from the first visible row (P1-15b)
   const activeChrom = useMemo(() => {
