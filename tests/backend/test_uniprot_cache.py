@@ -87,13 +87,19 @@ def uniprot_client(
             )
         )
 
-    with patch("backend.db.connection.get_settings", return_value=settings):
+    with (
+        patch("backend.main.get_settings", return_value=settings),
+        patch("backend.db.connection.get_settings", return_value=settings),
+    ):
         reset_registry()
-        from backend.main import create_app
+        try:
+            from backend.main import create_app
 
-        app = create_app()
-        yield TestClient(app)
-        reset_registry()
+            app = create_app()
+            with TestClient(app) as client:
+                yield client
+        finally:
+            reset_registry()
 
 
 def _seed_cache_entry(

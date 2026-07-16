@@ -336,14 +336,3 @@ class TestAppUpdateEndpoint:
         assert data["update_available"] is True
         assert data["current_version"] == "0.1.0"
         assert data["latest_version"] == "1.0.0"
-
-
-@pytest.fixture
-def test_client():
-    """FastAPI test client for the update endpoint."""
-    from fastapi.testclient import TestClient
-
-    from backend.main import create_app
-
-    app = create_app()
-    return TestClient(app)

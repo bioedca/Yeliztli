@@ -426,21 +426,33 @@ class TestAPIRoutes:
     """Test the FastAPI route handlers."""
 
     @pytest.fixture
-    def client(self, loaded_engine: sa.Engine):
+    def client(self, loaded_engine: sa.Engine, test_settings):
         """Create a test client with mocked registry."""
         from unittest.mock import patch
 
         from fastapi.testclient import TestClient
 
+        from backend.db.connection import reset_registry
         from backend.main import create_app
-
-        app = create_app()
 
         class MockRegistry:
             encode_ccres_engine = loaded_engine
 
-        with patch("backend.api.routes.encode_ccres.get_registry", return_value=MockRegistry()):
-            yield TestClient(app)
+        with (
+            patch("backend.main.get_settings", return_value=test_settings),
+            patch("backend.db.connection.get_settings", return_value=test_settings),
+            patch(
+                "backend.api.routes.encode_ccres.get_registry",
+                return_value=MockRegistry(),
+            ),
+        ):
+            reset_registry()
+            try:
+                app = create_app()
+                with TestClient(app) as client:
+                    yield client
+            finally:
+                reset_registry()
 
     def test_region_endpoint(self, client):
         resp = client.get("/api/encode-ccres/region?chrom=1&start=0&end=50000")
