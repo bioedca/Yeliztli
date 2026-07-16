@@ -1,0 +1,143 @@
+{
+  "_provenance": {
+    "source": "EBI OLS4 (ebi.ac.uk/ols4/api, ontology=mondo)",
+    "accessed": "2026-07-16",
+    "id_count": 33,
+    "generator": "scripts/build_mondo_label_snapshot.py",
+    "note": "Committed offline reference for the gene_phenotype provenance guard (#1959). Regenerate whenever gene_phenotype_seed.csv gains or changes a disease_id — the guard FAILS on an uncovered id rather than skipping it."
+  },
+  "labels": {
+    "MONDO:0001516": {
+      "label": "spinal muscular atrophy",
+      "obsolete": false
+    },
+    "MONDO:0002050": {
+      "label": "depressive disorder",
+      "obsolete": false
+    },
+    "MONDO:0004975": {
+      "label": "Alzheimer disease",
+      "obsolete": false
+    },
+    "MONDO:0005148": {
+      "label": "type 2 diabetes mellitus",
+      "obsolete": false
+    },
+    "MONDO:0005371": {
+      "label": "mood disorder",
+      "obsolete": false
+    },
+    "MONDO:0006065": {
+      "label": "lactose intolerance adult type",
+      "obsolete": false
+    },
+    "MONDO:0007179": {
+      "label": "autoimmune disease",
+      "obsolete": false
+    },
+    "MONDO:0007390": {
+      "label": "coumarin resistance",
+      "obsolete": false
+    },
+    "MONDO:0007462": {
+      "label": "multiple sclerosis, susceptibility to",
+      "obsolete": false
+    },
+    "MONDO:0007669": {
+      "label": "renal cysts and diabetes syndrome",
+      "obsolete": false
+    },
+    "MONDO:0007743": {
+      "label": "attention deficit-hyperactivity disorder",
+      "obsolete": false
+    },
+    "MONDO:0007744": {
+      "label": "cholesterol-ester transfer protein deficiency",
+      "obsolete": false
+    },
+    "MONDO:0007964": {
+      "label": "melanoma, cutaneous malignant, susceptibility to, 2",
+      "obsolete": false
+    },
+    "MONDO:0008146": {
+      "label": "osteogenesis imperfecta type 1",
+      "obsolete": false
+    },
+    "MONDO:0008559": {
+      "label": "thrombophilia due to thrombin defect",
+      "obsolete": false
+    },
+    "MONDO:0008560": {
+      "label": "thrombophilia due to activated protein C resistance",
+      "obsolete": false
+    },
+    "MONDO:0009061": {
+      "label": "cystic fibrosis",
+      "obsolete": false
+    },
+    "MONDO:0009353": {
+      "label": "homocystinuria due to methylene tetrahydrofolate reductase deficiency",
+      "obsolete": false
+    },
+    "MONDO:0009354": {
+      "label": "methylcobalamin deficiency type cblE",
+      "obsolete": false
+    },
+    "MONDO:0009379": {
+      "label": "Rotor syndrome",
+      "obsolete": false
+    },
+    "MONDO:0009861": {
+      "label": "phenylketonuria",
+      "obsolete": false
+    },
+    "MONDO:0010100": {
+      "label": "Tay-Sachs disease",
+      "obsolete": false
+    },
+    "MONDO:0010130": {
+      "label": "dihydropyrimidine dehydrogenase deficiency",
+      "obsolete": false
+    },
+    "MONDO:0010810": {
+      "label": "vitamin D hydroxylation-deficient rickets, type 1B",
+      "obsolete": false
+    },
+    "MONDO:0011382": {
+      "label": "sickle cell disease",
+      "obsolete": false
+    },
+    "MONDO:0011450": {
+      "label": "breast-ovarian cancer, familial, susceptibility to, 1",
+      "obsolete": false
+    },
+    "MONDO:0012503": {
+      "label": "thiopurine S-methyltransferase deficiency",
+      "obsolete": false
+    },
+    "MONDO:0012933": {
+      "label": "breast-ovarian cancer, familial, susceptibility to, 2",
+      "obsolete": false
+    },
+    "MONDO:0013517": {
+      "label": "beta-thalassemia HBB/LCRB",
+      "obsolete": false
+    },
+    "MONDO:0016391": {
+      "label": "neonatal diabetes mellitus",
+      "obsolete": false
+    },
+    "MONDO:0016542": {
+      "label": "IL10-related early-onset inflammatory bowel disease",
+      "obsolete": false
+    },
+    "MONDO:0018150": {
+      "label": "Gaucher disease",
+      "obsolete": false
+    },
+    "MONDO:0021166": {
+      "label": "inflammatory disease",
+      "obsolete": false
+    }
+  }
+}
