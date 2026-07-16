@@ -1,60 +1,39 @@
 gene_symbol,disease_name,disease_id,hpo_terms,source,inheritance
 BRCA1,Hereditary breast and ovarian cancer syndrome,MONDO:0011450,"[""HP:0003002"",""HP:0100013""]",mondo_hpo,Autosomal dominant
 CFTR,Cystic fibrosis,MONDO:0009061,"[""HP:0002110"",""HP:0006538""]",mondo_hpo,Autosomal recessive
-MTHFR,Homocysteinemia due to MTHFR deficiency,MONDO:0019226,"[""HP:0003572""]",mondo_hpo,Autosomal recessive
+MTHFR,Homocysteinemia due to MTHFR deficiency,MONDO:0009353,"[""HP:0003572""]",mondo_hpo,Autosomal recessive
 APOE,Alzheimer disease susceptibility,MONDO:0004975,"[""HP:0002145"",""HP:0002354""]",mondo_hpo,
-COMT,Catechol-O-methyltransferase deficiency,MONDO:0012822,"[""HP:0001249""]",mondo_hpo,Autosomal recessive
-BRCA2,Hereditary breast cancer,MONDO:0006517,"[""HP:0003002"",""HP:0100013"",""HP:0006721""]",mondo_hpo,Autosomal dominant
+BRCA2,Hereditary breast cancer,MONDO:0012933,"[""HP:0003002"",""HP:0100013"",""HP:0006721""]",mondo_hpo,Autosomal dominant
 HBB,Sickle cell disease,MONDO:0011382,"[""HP:0001878"",""HP:0001903"",""HP:0012531""]",mondo_hpo,Autosomal recessive
 HBB,Beta-thalassemia,MONDO:0013517,"[""HP:0001878"",""HP:0001903"",""HP:0001744""]",mondo_hpo,Autosomal recessive
-HEXA,Tay-Sachs disease,MONDO:0010148,"[""HP:0001249"",""HP:0001263"",""HP:0002069""]",mondo_hpo,Autosomal recessive
-GBA,Gaucher disease,MONDO:0018940,"[""HP:0001433"",""HP:0001744"",""HP:0003270""]",mondo_hpo,Autosomal recessive
+HEXA,Tay-Sachs disease,MONDO:0010100,"[""HP:0001249"",""HP:0001263"",""HP:0002069""]",mondo_hpo,Autosomal recessive
+GBA,Gaucher disease,MONDO:0018150,"[""HP:0001433"",""HP:0001744"",""HP:0003270""]",mondo_hpo,Autosomal recessive
 PAH,Phenylketonuria,MONDO:0009861,"[""HP:0001249"",""HP:0001252"",""HP:0000980""]",mondo_hpo,Autosomal recessive
-F5,Factor V Leiden thrombophilia,MONDO:0007631,"[""HP:0004420"",""HP:0002625""]",mondo_hpo,Autosomal dominant
-F2,Prothrombin thrombophilia,MONDO:0008592,"[""HP:0004420"",""HP:0002625""]",mondo_hpo,Autosomal dominant
-MC1R,Red hair/fair skin phenotype,MONDO:0013508,"[""HP:0007461"",""HP:0030350""]",mondo_hpo,Autosomal recessive
+F5,Factor V Leiden thrombophilia,MONDO:0008560,"[""HP:0004420"",""HP:0002625""]",mondo_hpo,Autosomal dominant
+F2,Prothrombin thrombophilia,MONDO:0008559,"[""HP:0004420"",""HP:0002625""]",mondo_hpo,Autosomal dominant
 TCF7L2,Type 2 diabetes susceptibility,MONDO:0005148,"[""HP:0000842"",""HP:0003074""]",mondo_hpo,
-HERC2,Eye color determination,MONDO:0013625,"[""HP:0000607""]",mondo_hpo,
-CYP2D6,Debrisoquine metabolism alteration,MONDO:0015613,"[""HP:0020187""]",mondo_hpo,Autosomal dominant
-CYP2C19,Mephenytoin metabolism alteration,MONDO:0015612,"[""HP:0020187""]",mondo_hpo,Autosomal dominant
-CYP2C9,Warfarin sensitivity,MONDO:0015614,"[""HP:0020187""]",mondo_hpo,Autosomal dominant
-CYP3A5,Tacrolimus metabolism alteration,MONDO:0015615,"[""HP:0020187""]",mondo_hpo,Autosomal dominant
-DPYD,Dihydropyrimidine dehydrogenase deficiency,MONDO:0009134,"[""HP:0001249"",""HP:0001252"",""HP:0012758""]",mondo_hpo,Autosomal recessive
-TPMT,Thiopurine S-methyltransferase deficiency,MONDO:0010995,"[""HP:0001878"",""HP:0002488""]",mondo_hpo,Autosomal recessive
-SLCO1B1,Rotor syndrome,MONDO:0008729,"[""HP:0000952"",""HP:0003155""]",mondo_hpo,Autosomal recessive
-VKORC1,Warfarin resistance/sensitivity,MONDO:0015616,"[""HP:0020187""]",mondo_hpo,Autosomal dominant
-COL1A1,Osteogenesis imperfecta type I,MONDO:0008745,"[""HP:0001508"",""HP:0002645"",""HP:0000939""]",mondo_hpo,Autosomal dominant
-BDNF,BDNF-related neuropsychiatric susceptibility,MONDO:0014854,"[""HP:0001249"",""HP:0000716""]",mondo_hpo,
-OPRM1,Opioid response variation,MONDO:0015617,"[""HP:0020187""]",mondo_hpo,
+DPYD,Dihydropyrimidine dehydrogenase deficiency,MONDO:0010130,"[""HP:0001249"",""HP:0001252"",""HP:0012758""]",mondo_hpo,Autosomal recessive
+TPMT,Thiopurine S-methyltransferase deficiency,MONDO:0012503,"[""HP:0001878"",""HP:0002488""]",mondo_hpo,Autosomal recessive
+SLCO1B1,Rotor syndrome,MONDO:0009379,"[""HP:0000952"",""HP:0003155""]",mondo_hpo,Autosomal recessive
+VKORC1,Coumarin (warfarin) resistance,MONDO:0007390,"[""HP:0020187""]",mondo_hpo,Autosomal dominant
+COL1A1,Osteogenesis imperfecta type I,MONDO:0008146,"[""HP:0001508"",""HP:0002645"",""HP:0000939""]",mondo_hpo,Autosomal dominant
 PTPN22,Autoimmune disease susceptibility,MONDO:0007179,"[""HP:0002960"",""HP:0001369""]",mondo_hpo,
-HLA-DRB1,Multiple sclerosis susceptibility,MONDO:0004979,"[""HP:0002315"",""HP:0001251"",""HP:0000613""]",mondo_hpo,
-IL6,Systemic inflammation susceptibility,MONDO:0021166,"[""HP:0012649"",""HP:0011227""]",mondo_hpo,
+HLA-DRB1,Multiple sclerosis susceptibility,MONDO:0007462,"[""HP:0002315"",""HP:0001251"",""HP:0000613""]",mondo_hpo,
 TNF,Inflammatory disease susceptibility,MONDO:0021166,"[""HP:0012649"",""HP:0011227""]",mondo_hpo,
-IL10,Immune dysregulation susceptibility,MONDO:0015625,"[""HP:0002960"",""HP:0012649""]",mondo_hpo,
+IL10,IL10-related early-onset inflammatory bowel disease,MONDO:0016542,"[""HP:0002960"",""HP:0012649""]",mondo_hpo,
 IL1B,Inflammatory response variation,MONDO:0021166,"[""HP:0012649""]",mondo_hpo,
-ANKK1,Reward/addiction susceptibility,MONDO:0015618,"[""HP:0000741"",""HP:0000738""]",mondo_hpo,
-HTR2A,Psychiatric disorder susceptibility,MONDO:0005090,"[""HP:0000716"",""HP:0000738""]",mondo_hpo,
 SLC6A4,Depression susceptibility,MONDO:0002050,"[""HP:0000716"",""HP:0000739""]",mondo_hpo,
-TPH2,Mood disorder susceptibility,MONDO:0005301,"[""HP:0000716"",""HP:0000739""]",mondo_hpo,
+TPH2,Mood disorder susceptibility,MONDO:0005371,"[""HP:0000716"",""HP:0000739""]",mondo_hpo,
 ADRA2A,ADHD susceptibility,MONDO:0007743,"[""HP:0000752"",""HP:0000736""]",mondo_hpo,
-FADS1,Fatty acid desaturase 1 deficiency,MONDO:0015619,"[""HP:0003233"",""HP:0001397""]",mondo_hpo,Autosomal recessive
-FADS2,Fatty acid desaturase 2 deficiency,MONDO:0015620,"[""HP:0003233"",""HP:0001397""]",mondo_hpo,Autosomal recessive
-MCM6,Lactase persistence/non-persistence,MONDO:0005277,"[""HP:0005214"",""HP:0002014""]",mondo_hpo,
-GC,Vitamin D binding protein deficiency,MONDO:0015621,"[""HP:0100512"",""HP:0000939""]",mondo_hpo,Autosomal recessive
-CYP2R1,Vitamin D 25-hydroxylase deficiency,MONDO:0015622,"[""HP:0100512"",""HP:0000939"",""HP:0003165""]",mondo_hpo,Autosomal recessive
-CETP,Hyperalphalipoproteinemia,MONDO:0008682,"[""HP:0003233""]",mondo_hpo,Autosomal dominant
-PON1,Paraoxonase deficiency,MONDO:0015623,"[""HP:0003233"",""HP:0001397""]",mondo_hpo,
+MCM6,Lactase persistence/non-persistence,MONDO:0006065,"[""HP:0005214"",""HP:0002014""]",mondo_hpo,
+CYP2R1,Vitamin D 25-hydroxylase deficiency,MONDO:0010810,"[""HP:0100512"",""HP:0000939"",""HP:0003165""]",mondo_hpo,Autosomal recessive
+CETP,Hyperalphalipoproteinemia,MONDO:0007744,"[""HP:0003233""]",mondo_hpo,Autosomal dominant
 SLC30A8,Type 2 diabetes susceptibility,MONDO:0005148,"[""HP:0000842"",""HP:0003074""]",mondo_hpo,
-KCNJ11,Neonatal diabetes mellitus,MONDO:0011273,"[""HP:0000842"",""HP:0003074""]",mondo_hpo,Autosomal dominant
-HNF1B,MODY type 5,MONDO:0010811,"[""HP:0000842"",""HP:0003074"",""HP:0000083""]",mondo_hpo,Autosomal dominant
+KCNJ11,Neonatal diabetes mellitus,MONDO:0016391,"[""HP:0000842"",""HP:0003074""]",mondo_hpo,Autosomal dominant
+HNF1B,MODY type 5,MONDO:0007669,"[""HP:0000842"",""HP:0003074"",""HP:0000083""]",mondo_hpo,Autosomal dominant
 IGF2BP2,Type 2 diabetes susceptibility,MONDO:0005148,"[""HP:0000842"",""HP:0003074""]",mondo_hpo,
-CDKN2A,Melanoma susceptibility,MONDO:0007455,"[""HP:0002861"",""HP:0012056""]",mondo_hpo,Autosomal dominant
+CDKN2A,Melanoma susceptibility,MONDO:0007964,"[""HP:0002861"",""HP:0012056""]",mondo_hpo,Autosomal dominant
 PPARG,Type 2 diabetes susceptibility,MONDO:0005148,"[""HP:0000842"",""HP:0003074""]",mondo_hpo,
 HHEX,Type 2 diabetes susceptibility,MONDO:0005148,"[""HP:0000842"",""HP:0003074""]",mondo_hpo,
-IFNL4,Hepatitis C treatment response,MONDO:0005263,"[""HP:0200123"",""HP:0001392""]",mondo_hpo,
-IFNL3,Hepatitis C treatment response,MONDO:0005263,"[""HP:0200123"",""HP:0001392""]",mondo_hpo,
-SLC19A1,Methotrexate response variation,MONDO:0015624,"[""HP:0020187""]",mondo_hpo,
-ABCB1,Drug transport variation,MONDO:0015626,"[""HP:0020187""]",mondo_hpo,
-MTRR,Homocysteinemia due to MTRR deficiency,MONDO:0019226,"[""HP:0003572""]",mondo_hpo,Autosomal recessive
-NBPF3,Vitamin B6 metabolism variation,MONDO:0015627,"[""HP:0100508""]",mondo_hpo,
+MTRR,Homocysteinemia due to MTRR deficiency,MONDO:0009354,"[""HP:0003572""]",mondo_hpo,Autosomal recessive
 SMN1,Spinal muscular atrophy,MONDO:0001516,"[""HP:0003202"",""HP:0001284"",""HP:0001319""]",mondo_hpo,Autosomal recessive

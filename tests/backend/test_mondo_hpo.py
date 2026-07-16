@@ -70,7 +70,8 @@ def mondo_tsv_file(tmp_path: Path) -> Path:
     rows = [
         f"HGNC:1100\tBRCA1\t{predicate}\tMONDO:0011450\t"
         "Hereditary breast and ovarian cancer syndrome\t",
-        f"HGNC:1101\tBRCA2\t{predicate}\tMONDO:0006517\tHereditary breast cancer\t",
+        f"HGNC:1101\tBRCA2\t{predicate}\tMONDO:0012933\t"
+        "breast-ovarian cancer, familial, susceptibility to, 2\t",
         f"HGNC:1884\tCFTR\t{predicate}\tMONDO:0009061\tCystic fibrosis\t",
         f"\t\t{predicate}\tMONDO:0000001\tSome disease\t",
         f"HGNC:9999\tFAKE\t{predicate}\t\t\t",
