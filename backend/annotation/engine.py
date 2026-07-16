@@ -1231,6 +1231,7 @@ def _build_coverage_stats(
     vep_rsid_hits: int,
     vep_coord_fallback_hits: int,
     source_counters: dict[str, dict[str, int]] | None = None,
+    bundle_version: str | None = None,
 ) -> dict[str, Any]:
     """Compose the Plan §5.6 coverage telemetry payload.
 
@@ -1253,7 +1254,12 @@ def _build_coverage_stats(
     """
     vep_misses = max(total_variants - vep_rsid_hits - vep_coord_fallback_hits, 0)
 
-    bundle_version = _read_bundle_version(registry)
+    # Prefer the version pinned by the caller at the moment the VEP engine was
+    # resolved, so telemetry reflects the bundle generation actually queried
+    # rather than a possibly-newer one resolved after the run (#1953). Fall back
+    # to a fresh read only when no pinned value was threaded through.
+    if bundle_version is None:
+        bundle_version = _read_bundle_version(registry)
     file_format = _read_sample_file_format(sample_engine)
 
     if file_format == _MERGED_FILE_FORMAT:
@@ -1391,6 +1397,12 @@ def run_annotation(
 
     # 3. Detect available annotation sources
     vep_engine = _check_engine_available(lambda: registry.vep_engine, "vep", result)
+    # Pin the effective VEP bundle version to the generation the engine above
+    # just resolved. Capturing it here — before any lookup runs — rather than
+    # re-resolving after the run means a concurrent bundle replacement cannot
+    # stamp coverage telemetry, annotation_state, and the reference snapshot
+    # with a version newer than the artifact actually queried (#1953).
+    pinned_vep_bundle_version = _read_bundle_version(registry)
     reference_engine = registry.reference_engine  # always available
     gnomad_engine = _check_engine_available(lambda: registry.gnomad_engine, "gnomad", result)
     dbnsfp_engine = _check_engine_available(lambda: registry.dbnsfp_engine, "dbnsfp", result)
@@ -1708,6 +1720,7 @@ def run_annotation(
         vep_rsid_hits=result.vep_matched - result.vep_coord_fallback_matched,
         vep_coord_fallback_hits=result.vep_coord_fallback_matched,
         source_counters=source_counters,
+        bundle_version=pinned_vep_bundle_version,
     )
 
     # 10. WAL checkpoint
