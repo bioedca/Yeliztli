@@ -309,19 +309,43 @@ class TestACTN3ThreeState:
         summary = effect["effect_summary"].lower()
         assert "power" in summary or "fast-twitch" in summary
 
-    def test_actn3_ct_moderate_mixed(self, panel_data: dict) -> None:
-        """RX genotype (CT) → Moderate category (mixed profile)."""
-        actn3 = self._get_actn3(panel_data)
-        effect = actn3["genotype_effects"]["CT"]
-        assert effect["category"] == "Moderate"
-        assert "mixed" in effect["effect_summary"].lower()
+    @pytest.mark.parametrize("genotype", ["CT", "TC"])
+    def test_actn3_rx_moderate_no_aptitude_claim(self, panel_data: dict, genotype: str) -> None:
+        """RX (CT/TC) → Moderate, with no individual power/endurance aptitude claim.
 
-    def test_actn3_tc_moderate_mixed(self, panel_data: dict) -> None:
-        """RX genotype (TC) → Moderate category (mixed profile), same as CT."""
+        ``_score_snp`` copies ``effect_summary`` straight into the production
+        ``SNPResult``, so the deterministic framing removed from the #1828
+        cross-context finding must not survive here either (gh #1932). Each banned
+        string is the exact wording the panel used to ship.
+        """
         actn3 = self._get_actn3(panel_data)
-        effect = actn3["genotype_effects"]["TC"]
+        effect = actn3["genotype_effects"][genotype]
         assert effect["category"] == "Moderate"
-        assert "mixed" in effect["effect_summary"].lower()
+        summary = effect["effect_summary"].lower()
+        for banned in (
+            "suited to both endurance and power",
+            "mixed muscle fiber profile",
+        ):
+            assert banned not in summary
+        assert "genotype alone does not predict" in summary
+
+    def test_actn3_rx_orientations_carry_identical_wording(self, panel_data: dict) -> None:
+        """CT and TC are the same RX call, so they must read identically — a drift
+        between orientations would show two users the same genotype differently."""
+        actn3 = self._get_actn3(panel_data)
+        effects = actn3["genotype_effects"]
+        assert effects["CT"]["effect_summary"] == effects["TC"]["effect_summary"]
+
+    @pytest.mark.parametrize("genotype", ["CT", "TC"])
+    def test_actn3_rx_preserves_protein_distinction_vs_xx(
+        self, panel_data: dict, genotype: str
+    ) -> None:
+        """RX must keep the supported protein-level distinction: one functional copy
+        still expresses alpha-actinin-3, unlike the XX null (PMID 26681802)."""
+        actn3 = self._get_actn3(panel_data)
+        summary = actn3["genotype_effects"][genotype]["effect_summary"].lower()
+        assert "one functional copy" in summary
+        assert "unlike the xx deficiency" in summary
 
     def test_actn3_tt_standard_context_only(self, panel_data: dict) -> None:
         """XX genotype (TT) is context-only (Standard), not an Elevated endurance
@@ -345,6 +369,36 @@ class TestACTN3ThreeState:
         assert "XX" in sc["states"]
         # RX state documents both heterozygous genotype orientations
         assert set(sc["states"]["RX"]["genotypes"]) == {"CT", "TC"}
+
+    @pytest.mark.parametrize("state", ["RR", "RX", "XX"])
+    def test_actn3_special_calling_labels_carry_no_aptitude(
+        self, panel_data: dict, state: str
+    ) -> None:
+        """State labels must name the genotype/protein state, not an aptitude.
+
+        ``RR — Power`` / ``RX — Mixed`` / ``XX — Endurance`` turned group-level
+        athlete-frequency associations into individual aptitude labels (gh #1932).
+        """
+        label = panel_data["special_calling"]["ACTN3_R577X"]["states"][state]["label"].lower()
+        for banned in ("power", "endurance", "mixed"):
+            assert banned not in label
+
+    def test_actn3_special_calling_xx_matches_tt_effect_summary(self, panel_data: dict) -> None:
+        """The XX state must not contradict the TT ``effect_summary`` in this same
+        file, which says a human endurance advantage is not established. The old
+        description claimed the opposite ('elite endurance athlete prevalence')."""
+        actn3 = self._get_actn3(panel_data)
+        desc = panel_data["special_calling"]["ACTN3_R577X"]["states"]["XX"]["description"].lower()
+        assert "elite endurance athlete prevalence" not in desc
+        assert "not established" in desc
+        assert "not established" in actn3["genotype_effects"]["TT"]["effect_summary"].lower()
+
+    def test_actn3_special_calling_rr_enrichment_stays_group_level(self, panel_data: dict) -> None:
+        """RR athlete enrichment is a population-frequency association; the state
+        description must say so rather than implying individual power aptitude."""
+        desc = panel_data["special_calling"]["ACTN3_R577X"]["states"]["RR"]["description"].lower()
+        assert "favors power/sprint activities" not in desc
+        assert "group-level" in desc
 
 
 # ── ACE I/D proxy tests ─────────────────────────────────────────────────
