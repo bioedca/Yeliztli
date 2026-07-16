@@ -215,6 +215,12 @@ _MT_N1A_GENOTYPES = _MT_N1_REVERSAL_GENOTYPES + [
     {"rsid": "i5013780", "chrom": "MT", "pos": 13780, "genotype": "GG"},
 ]
 
+_MT_I_GENOTYPES = _MT_N1A_GENOTYPES + [
+    {"rsid": "i5010034", "chrom": "MT", "pos": 10034, "genotype": "CC"},
+    {"rsid": "i5015043", "chrom": "MT", "pos": 15043, "genotype": "AA"},
+    {"rsid": "i5016129", "chrom": "MT", "pos": 16129, "genotype": "AA"},
+]
+
 _MT_B_REVERSAL_GENOTYPES = _MT_R_TRUNK_GENOTYPES + [
     {"rsid": "i5000827", "chrom": "MT", "pos": 827, "genotype": "GG"},
     {"rsid": "i5008281", "chrom": "MT", "pos": 8281, "genotype": "CC"},
@@ -454,7 +460,7 @@ class TestLoadHaplogroupBundle:
     """Test haplogroup bundle loading from JSON."""
 
     def test_loads_from_json(self, bundle: HaplogroupBundle) -> None:
-        assert bundle.version == "1.1.16"
+        assert bundle.version == "1.1.17"
         assert bundle.build == "GRCh37"
 
     def test_mt_tree_root(self, bundle: HaplogroupBundle) -> None:
@@ -2279,35 +2285,178 @@ class TestAssignHaplogroups:
         ] == [("L0", 7, 8)]
 
     @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
-    @pytest.mark.parametrize(
-        ("allele_16129", "expected", "expected_path"),
-        [
-            pytest.param("A", "I", ["L3", "N", "I"], id="derived-A-calls-I"),
-            pytest.param("C", "N", ["L3", "N"], id="old-C-stops-at-N"),
-        ],
-    )
-    def test_issue_1795_i_back_mutation_uses_a_by_position(
+    def test_issue_1899_i_exact_source_spine_assigns_by_position(
         self,
         bundle: HaplogroupBundle,
         sample_engine: sa.Engine,
         source_table: sa.Table,
-        allele_16129: str,
-        expected: str,
-        expected_path: list[str],
     ) -> None:
-        """Direct T10034C/G16129A! evidence resolves I without untyped path markers."""
-        direct_i_rows = [
-            {"rsid": "vendor_i_10034", "chrom": "MT", "pos": 10034, "genotype": "CC"},
-            {
-                "rsid": "vendor_i_16129",
-                "chrom": "MT",
-                "pos": 16129,
-                "genotype": allele_16129 * 2,
-            },
-        ]
+        """The exact Build 17 N1/N1a spine and sparse I motif resolve together."""
         rows = [
-            {**row, "rsid": f"vendor_issue_1795_{index}"}
-            for index, row in enumerate([*_MT_N_TRUNK_GENOTYPES, *direct_i_rows])
+            {**row, "rsid": f"vendor_issue_1899_exact_{index}"}
+            for index, row in enumerate(_MT_I_GENOTYPES)
+        ]
+        assert not ({str(row["rsid"]) for row in rows} & bundle.mt_snp_rsids)
+
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        assert mt.haplogroup == "I"
+        assert [
+            (step.haplogroup, step.snps_present, step.snps_total) for step in mt.traversal_path
+        ] == [
+            ("L3", 1, 1),
+            ("N", 3, 3),
+            ("N1", 3, 3),
+            ("N1a", 2, 2),
+            ("I", 3, 3),
+        ]
+        assert (mt.defining_snps_present, mt.defining_snps_total) == (12, 12)
+        assert mt.confidence == 1.0
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize(
+        ("case", "genotype_16129"),
+        [
+            pytest.param("missing", None, id="missing-m16129"),
+            pytest.param("no-call", "--", id="no-call-m16129"),
+        ],
+    )
+    def test_issue_1899_i_tolerates_one_untyped_direct_marker(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        case: str,
+        genotype_16129: str | None,
+    ) -> None:
+        """Missing and explicit no-call m.16129 are lack of evidence, not conflict."""
+        rows = [row for row in _MT_I_GENOTYPES if int(row["pos"]) != 16129]
+        if genotype_16129 is not None:
+            rows.append(
+                {
+                    "rsid": "i5016129",
+                    "chrom": "MT",
+                    "pos": 16129,
+                    "genotype": genotype_16129,
+                }
+            )
+        vendor_rows = [
+            {**row, "rsid": f"vendor_issue_1899_{case}_{index}"} for index, row in enumerate(rows)
+        ]
+        assert not ({str(row["rsid"]) for row in vendor_rows} & bundle.mt_snp_rsids)
+
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), vendor_rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        assert mt.haplogroup == "I"
+        assert [
+            (step.haplogroup, step.snps_present, step.snps_total) for step in mt.traversal_path
+        ] == [
+            ("L3", 1, 1),
+            ("N", 3, 3),
+            ("N1", 3, 3),
+            ("N1a", 2, 2),
+            ("I", 2, 3),
+        ]
+        assert (mt.defining_snps_present, mt.defining_snps_total) == (11, 12)
+        assert mt.confidence == 0.9167
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize(
+        ("position", "ancestral_genotype"),
+        [
+            pytest.param(10034, "TT", id="ancestral-m10034"),
+            pytest.param(15043, "GG", id="ancestral-m15043"),
+            pytest.param(16129, "GG", id="ancestral-m16129"),
+        ],
+    )
+    def test_issue_1899_ancestral_i_marker_stops_at_n1a(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        position: int,
+        ancestral_genotype: str,
+    ) -> None:
+        """A typed ancestral I locus is a hard boundary, not partial I support."""
+        rows = [
+            {
+                **row,
+                "rsid": f"vendor_issue_1899_ancestral_i_{index}",
+                "genotype": (
+                    ancestral_genotype if int(row["pos"]) == position else row["genotype"]
+                ),
+            }
+            for index, row in enumerate(_MT_I_GENOTYPES)
+        ]
+        assert not ({str(row["rsid"]) for row in rows} & bundle.mt_snp_rsids)
+
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        assert mt.haplogroup == "N1a"
+        assert [
+            (step.haplogroup, step.snps_present, step.snps_total) for step in mt.traversal_path
+        ] == [("L3", 1, 1), ("N", 3, 3), ("N1", 3, 3), ("N1a", 2, 2)]
+        assert (mt.defining_snps_present, mt.defining_snps_total) == (9, 9)
+        assert mt.confidence == 1.0
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize(
+        ("position", "ancestral_genotype", "expected", "expected_steps"),
+        [
+            pytest.param(
+                1719,
+                "GG",
+                "N",
+                [("L3", 1, 1), ("N", 3, 3)],
+                id="ancestral-n1-m1719",
+            ),
+            pytest.param(
+                204,
+                "TT",
+                "N1",
+                [("L3", 1, 1), ("N", 3, 3), ("N1", 3, 3)],
+                id="ancestral-n1a-m204",
+            ),
+        ],
+    )
+    def test_issue_1899_i_cannot_bypass_ancestral_spine_marker(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        position: int,
+        ancestral_genotype: str,
+        expected: str,
+        expected_steps: list[tuple[str, int, int]],
+    ) -> None:
+        """Downstream I evidence cannot bypass a typed ancestral N1/N1a marker."""
+        rows = [
+            {
+                **row,
+                "rsid": f"vendor_issue_1899_ancestral_spine_{index}",
+                "genotype": (
+                    ancestral_genotype if int(row["pos"]) == position else row["genotype"]
+                ),
+            }
+            for index, row in enumerate(_MT_I_GENOTYPES)
         ]
         assert not ({str(row["rsid"]) for row in rows} & bundle.mt_snp_rsids)
 
@@ -2320,7 +2469,98 @@ class TestAssignHaplogroups:
             if result.tree_type == "mt"
         )
         assert mt.haplogroup == expected
-        assert [step.haplogroup for step in mt.traversal_path] == expected_path
+        assert [
+            (step.haplogroup, step.snps_present, step.snps_total) for step in mt.traversal_path
+        ] == expected_steps
+        assert (mt.defining_snps_present, mt.defining_snps_total) == (
+            sum(step[1] for step in expected_steps),
+            sum(step[2] for step in expected_steps),
+        )
+        assert mt.confidence == 1.0
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize(
+        ("case", "no_call"),
+        [
+            pytest.param("missing", False, id="missing-n1a-motif"),
+            pytest.param("no-call", True, id="no-call-n1a-motif"),
+        ],
+    )
+    def test_issue_1899_untyped_n1a_motif_stops_at_n1(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        case: str,
+        no_call: bool,
+    ) -> None:
+        """I evidence cannot skip N1a when both of its direct markers are untyped."""
+        rows = [
+            {
+                **row,
+                "genotype": (
+                    "--" if no_call and int(row["pos"]) in {204, 13780} else row["genotype"]
+                ),
+            }
+            for row in _MT_I_GENOTYPES
+            if no_call or int(row["pos"]) not in {204, 13780}
+        ]
+        vendor_rows = [
+            {**row, "rsid": f"vendor_issue_1899_{case}_n1a_{index}"}
+            for index, row in enumerate(rows)
+        ]
+        assert not ({str(row["rsid"]) for row in vendor_rows} & bundle.mt_snp_rsids)
+
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), vendor_rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        assert mt.haplogroup == "N1"
+        assert [
+            (step.haplogroup, step.snps_present, step.snps_total) for step in mt.traversal_path
+        ] == [("L3", 1, 1), ("N", 3, 3), ("N1", 3, 3)]
+        assert (mt.defining_snps_present, mt.defining_snps_total) == (7, 7)
+        assert mt.confidence == 1.0
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    def test_issue_1899_old_flattened_i_fixture_stops_at_n(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+    ) -> None:
+        """The former N-child fixture cannot skip the newly explicit N1/N1a spine."""
+        old_flattened_rows = [
+            *_MT_N_TRUNK_GENOTYPES,
+            {"rsid": "i5001719", "chrom": "MT", "pos": 1719, "genotype": "AA"},
+            {"rsid": "i5010034", "chrom": "MT", "pos": 10034, "genotype": "CC"},
+            {"rsid": "i5015043", "chrom": "MT", "pos": 15043, "genotype": "AA"},
+            {"rsid": "i5016129", "chrom": "MT", "pos": 16129, "genotype": "AA"},
+        ]
+        rows = [
+            {**row, "rsid": f"vendor_issue_1899_old_flattened_{index}"}
+            for index, row in enumerate(old_flattened_rows)
+        ]
+        assert not ({str(row["rsid"]) for row in rows} & bundle.mt_snp_rsids)
+
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        assert mt.haplogroup == "N"
+        assert [
+            (step.haplogroup, step.snps_present, step.snps_total) for step in mt.traversal_path
+        ] == [("L3", 1, 1), ("N", 3, 3)]
+        assert (mt.defining_snps_present, mt.defining_snps_total) == (4, 4)
+        assert mt.confidence == 1.0
 
     @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
     @pytest.mark.parametrize(
