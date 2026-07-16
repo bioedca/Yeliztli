@@ -1077,11 +1077,16 @@ class TestStoreCancerPRSFindings:
 
         with sample_with_prs_snps.connect() as conn:
             rows = conn.execute(sa.select(findings).where(findings.c.category == "prs")).fetchall()
+        expected_fingerprints = {
+            weight_set.trait: prs_model_fingerprint(weight_set)
+            for weight_set in cancer_weight_sets
+            if weight_set.scoring_enabled
+        }
         for row in rows:
             detail = json.loads(row.detail_json)
             assert "trait" in detail
             assert detail["trait"] in CANCER_PRS_TRAITS
-            assert len(detail["model_fingerprint"]) == 64
+            assert detail["model_fingerprint"] == expected_fingerprints[detail["trait"]]
 
     def test_xx_rerun_clears_prostate_prs(
         self, cancer_weight_sets: list[PRSWeightSet], sample_with_prs_snps: sa.Engine

@@ -468,24 +468,30 @@ def _add_missing_columns(engine: sa.Engine, from_version: int) -> bool:
         inspector = sa.inspect(engine)
         if "findings" in inspector.get_table_names():
             existing_cols = {c["name"] for c in inspector.get_columns("findings")}
-            required_cols = {"id", "module", "category", "detail_json"}
+            required_cols = {"id", "module", "category"}
             quarantined_ids: list[int] = []
             if required_cols <= existing_cols:
                 with engine.begin() as conn:
-                    candidates = conn.execute(
-                        sa.select(findings.c.id, findings.c.detail_json).where(
-                            findings.c.module == "cancer",
-                            findings.c.category == "prs",
+                    predicate = (
+                        findings.c.module == "cancer",
+                        findings.c.category == "prs",
+                    )
+                    if "detail_json" not in existing_cols:
+                        quarantined_ids = list(
+                            conn.execute(sa.select(findings.c.id).where(*predicate)).scalars()
                         )
-                    ).fetchall()
-                    for row in candidates:
-                        try:
-                            detail = json.loads(row.detail_json) if row.detail_json else {}
-                        except (json.JSONDecodeError, TypeError):
-                            detail = {}
-                        trait = detail.get("trait") if isinstance(detail, dict) else None
-                        if _is_quarantined_or_unidentified_cancer_prs_trait(trait):
-                            quarantined_ids.append(row.id)
+                    else:
+                        candidates = conn.execute(
+                            sa.select(findings.c.id, findings.c.detail_json).where(*predicate)
+                        ).fetchall()
+                        for row in candidates:
+                            try:
+                                detail = json.loads(row.detail_json) if row.detail_json else {}
+                            except (json.JSONDecodeError, TypeError):
+                                detail = {}
+                            trait = detail.get("trait") if isinstance(detail, dict) else None
+                            if _is_quarantined_or_unidentified_cancer_prs_trait(trait):
+                                quarantined_ids.append(row.id)
 
                     if quarantined_ids:
                         conn.execute(sa.delete(findings).where(findings.c.id.in_(quarantined_ids)))

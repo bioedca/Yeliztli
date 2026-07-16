@@ -2,8 +2,9 @@
 
 ClinVar P/LP extraction results from the 28-gene cancer panel — monogenic
 pathogenic variants with accession, review stars, syndrome, and inheritance.
-Eligible cancer PRS models as research-use percentiles; quarantined models are
-retained only as data-file audit records and never returned.
+Eligible cancer PRS results for research use; percentiles and z-scores are
+returned only for calibrated models. Quarantined models are retained only as
+data-file audit records and never returned.
 Module-specific disclaimer text (P3-17).
 
 GET  /api/analysis/cancer/disclaimer                         — Cancer module disclaimer
@@ -304,8 +305,8 @@ def list_cancer_prs(
 ) -> CancerPRSListResponse:
     """List cancer PRS results for a sample.
 
-    Returns findings from currently eligible cancer PRS models with percentile,
-    z-score, and ancestry mismatch status.
+    Returns findings from currently eligible cancer PRS models, including
+    calibration, optional percentile/z-score, and ancestry mismatch status.
     Results are in the "Research Use Only" tier.
 
     Example: ``GET /api/analysis/cancer/prs?sample_id=1``

@@ -249,9 +249,25 @@ def test_v20_migration_tolerates_partial_legacy_findings_table() -> None:
         conn.execute(
             sa.text("CREATE TABLE findings (id INTEGER PRIMARY KEY, module TEXT, category TEXT)")
         )
+        conn.execute(
+            sa.text(
+                "INSERT INTO findings (id, module, category) VALUES "
+                "(1, 'cancer', 'prs'), "
+                "(2, 'cancer', 'monogenic_variant'), "
+                "(3, 'traits', 'prs')"
+            )
+        )
         conn.execute(sa.text("PRAGMA user_version = 19"))
 
     assert ensure_sample_schema_current(engine) is True
 
     with engine.connect() as conn:
         assert conn.execute(sa.text("PRAGMA user_version")).scalar_one() == 20
+        remaining = conn.execute(
+            sa.text("SELECT id, module, category FROM findings ORDER BY id")
+        ).fetchall()
+
+    assert [tuple(row) for row in remaining] == [
+        (2, "cancer", "monogenic_variant"),
+        (3, "traits", "prs"),
+    ]
