@@ -28,6 +28,7 @@ import type { CardiovascularVariant } from "@/types/cardiovascular"
 import VariantCard from "@/components/cardiovascular/VariantCard"
 import FHStatusCard from "@/components/cardiovascular/FHStatusCard"
 import VariantDetailPanel from "@/components/cardiovascular/VariantDetailPanel"
+import DisclaimerBody from "@/components/ui/DisclaimerBody"
 
 export default function CardiovascularView() {
   const [searchParams] = useSearchParams()
@@ -107,9 +108,10 @@ export default function CardiovascularView() {
             )}
           </button>
           {disclaimerExpanded && (
-            <p className="text-sm text-amber-700 dark:text-amber-400 mt-3 whitespace-pre-line">
-              {disclaimerQuery.data.text}
-            </p>
+            <DisclaimerBody
+              text={disclaimerQuery.data.text}
+              className="mt-3 text-sm text-amber-700 dark:text-amber-400"
+            />
           )}
         </div>
       )}

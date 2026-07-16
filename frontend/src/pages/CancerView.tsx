@@ -29,6 +29,7 @@ import VariantDetailPanel from "@/components/cancer/VariantDetailPanel"
 import AbsoluteRiskOverlay from "@/components/cancer/AbsoluteRiskOverlay"
 import TraitArchitectureCard from "@/components/ui/TraitArchitectureCard"
 import ClinicalConfirmationGate from "@/components/ui/ClinicalConfirmationGate"
+import DisclaimerBody from "@/components/ui/DisclaimerBody"
 
 export default function CancerView() {
   const [searchParams] = useSearchParams()
@@ -108,9 +109,10 @@ export default function CancerView() {
             )}
           </button>
           {disclaimerExpanded && (
-            <p className="text-sm text-amber-700 dark:text-amber-400 mt-3 whitespace-pre-line">
-              {disclaimerQuery.data.text}
-            </p>
+            <DisclaimerBody
+              text={disclaimerQuery.data.text}
+              className="mt-3 text-sm text-amber-700 dark:text-amber-400"
+            />
           )}
         </div>
       )}
