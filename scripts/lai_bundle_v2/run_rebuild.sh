@@ -50,6 +50,20 @@ else
   PHASES=("${ALL_PHASES[@]}")
 fi
 
+needs_gnomix_environment=false
+for phase in "${PHASES[@]}"; do
+  case "$phase" in
+    05|07) needs_gnomix_environment=true ;;
+  esac
+done
+if [ "$needs_gnomix_environment" = true ]; then
+  require python3
+  require "$GNOMIX_CONDA_EXECUTABLE"
+  require_file "$GNOMIX_ENV_LOCK"
+  require_file "$GNOMIX_ENV_VERIFIER"
+  verify_gnomix_environment
+fi
+
 log "rebuild start — bundle_version=$LAI_BUNDLE_VERSION workdir=$WORKDIR git=$GIT_COMMIT"
 log "phases requested: ${PHASES[*]}"
 

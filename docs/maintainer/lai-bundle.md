@@ -12,6 +12,15 @@ on a compute cluster.
     [`docs/lai-bundle-release-runbook-env.lock.yaml`](https://github.com/bioedca/Yeliztli/blob/main/docs/lai-bundle-release-runbook-env.lock.yaml).
     This page is an orientation summary.
 
+The Gnomix training runtime has a separate, stronger contract: its reviewed
+[`source specification`](https://github.com/bioedca/Yeliztli/blob/main/scripts/lai_bundle_v2/gnomix-training-environment.yml)
+generates an immutable linux-64
+[`conda-lock artifact`](https://github.com/bioedca/Yeliztli/blob/main/scripts/lai_bundle_v2/gnomix-training-environment.conda-lock.yml).
+Phase 05 records that lock's raw SHA-256 in every chromosome provenance record,
+and Phase 07 publishes the lock in the bundle. Changing any lock byte requires
+a fresh environment name, retraining all 22 chromosomes, and publishing a new
+bundle generation; historical environment-free models are never backfilled.
+
 ## What's in the bundle
 
 A tarball containing the per-chromosome local-ancestry models, the phasing reference panel

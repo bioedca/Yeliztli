@@ -63,6 +63,80 @@ def _gnomix_config(*, seed: int | str = 1) -> str:
     )
 
 
+def _write_gnomix_environment_lock(
+    directory: Path,
+    *,
+    version: str = "3.11.9",
+    build: str = "h955ad1f_0_cpython",
+    package_sha256: str = "1" * 64,
+    filename: str = "gnomix-training-environment.conda-lock.yml",
+) -> dict[str, object]:
+    """Write a tiny valid conda-lock fixture and return provenance arguments."""
+    directory.mkdir(parents=True, exist_ok=True)
+    lock = directory / filename
+    lock.write_text(
+        "version: 1\n"
+        "metadata:\n"
+        "  platforms:\n"
+        "  - linux-64\n"
+        "package:\n"
+        "- name: python\n"
+        f"  version: '{version}'\n"
+        "  manager: conda\n"
+        "  platform: linux-64\n"
+        f"  url: https://conda.anaconda.org/conda-forge/linux-64/python-{version}-{build}.conda\n"
+        "  hash:\n"
+        f"    sha256: '{package_sha256}'\n"
+    )
+    lock_sha256 = hashlib.sha256(lock.read_bytes()).hexdigest()
+    return {
+        "lock": lock,
+        "platform": "linux-64",
+        "sha256": lock_sha256,
+        "identity": {
+            "schema_version": 1,
+            "artifact_kind": "conda-lock",
+            "platform": "linux-64",
+            "lock_sha256": lock_sha256,
+        },
+    }
+
+
+def _gnomix_environment_args(environment: dict[str, object]) -> dict[str, object]:
+    return {
+        "training_environment_lock": environment["lock"],
+        "training_environment_platform": environment["platform"],
+        "expected_training_environment_sha256": environment["sha256"],
+    }
+
+
+def _gnomix_shell_environment(
+    directory: Path,
+    environment: dict[str, object],
+) -> dict[str, str]:
+    """Return shell overrides with a deterministic verifier test double."""
+    directory.mkdir(parents=True, exist_ok=True)
+    verifier = directory / "gnomix_environment_fixture.py"
+    verifier.write_text(
+        "import os\n"
+        "import sys\n"
+        "from pathlib import Path\n"
+        "marker = os.environ.get('STUB_ENVIRONMENT_VERIFIER_CALLED')\n"
+        "if marker:\n"
+        "    Path(marker).write_text('called\\n')\n"
+        "message = os.environ.get('STUB_ENVIRONMENT_VERIFIER_MESSAGE')\n"
+        "if message:\n"
+        "    print(message, file=sys.stderr)\n"
+        "raise SystemExit(int(os.environ.get('STUB_ENVIRONMENT_VERIFIER_RETURN_CODE', '0')))\n"
+    )
+    return {
+        "GNOMIX_ENV_LOCK": str(environment["lock"]),
+        "GNOMIX_ENV_PLATFORM": str(environment["platform"]),
+        "GNOMIX_ENV_LOCK_SHA256": str(environment["sha256"]),
+        "GNOMIX_ENV_VERIFIER": str(verifier),
+    }
+
+
 def _gnomix_superpopulation(sample_number: int) -> str:
     superpopulations = ("AFR", "AMR", "CSA", "EAS", "EUR", "MID", "OCE")
     return superpopulations[min((sample_number - 1) // 11, len(superpopulations) - 1)]
@@ -244,6 +318,7 @@ EXPECTED_HELPERS = [
     "06f_heldout_superpop_accuracy.py",
     "extract_heldout_fixtures.py",
     "07_write_metadata.py",
+    "gnomix_environment.py",
     "gnomix_launcher.py",
     "gnomix_provenance.py",
     "gnomix_training_manifests.py",
@@ -290,6 +365,65 @@ class TestOrchestratorPhaseOrder:
     def test_orchestrator_sources_env_sh(self) -> None:
         text = (SCRIPTS_DIR / "run_rebuild.sh").read_text()
         assert 'source "$SCRIPT_DIR/env.sh"' in text
+
+    def test_orchestrator_verifies_training_environment_before_phase_mutation(self) -> None:
+        text = (SCRIPTS_DIR / "run_rebuild.sh").read_text()
+        assert "05|07) needs_gnomix_environment=true" in text
+        verify = text.index("verify_gnomix_environment")
+        phase_loop = text.index('for phase in "${PHASES[@]}"; do', verify)
+        assert verify < phase_loop
+        assert verify < text.index('log "rebuild start')
+
+    def test_orchestrator_environment_rejection_prevents_phase_dispatch(
+        self, tmp_path: Path
+    ) -> None:
+        workdir = tmp_path / "work"
+        environment = _write_gnomix_environment_lock(tmp_path / "environment")
+        stub_dir = tmp_path / "bin"
+        stub_dir.mkdir()
+        conda = stub_dir / "conda"
+        conda.write_text("#!/bin/sh\nexit 0\n")
+        conda.chmod(0o755)
+        sentinel = workdir / "05_gnomix_training" / "prior-model"
+        sentinel.parent.mkdir(parents=True)
+        sentinel.write_text("do-not-mutate\n")
+        env = os.environ.copy()
+        for variable in (
+            "RAW_DIR",
+            "LOG_DIR",
+            "SITES_DIR",
+            "LIFTOVER_DIR",
+            "PANEL_DIR",
+            "ADMIX_DIR",
+            "GNOMIX_DIR",
+            "VALIDATION_DIR",
+            "BUNDLE_DIR",
+        ):
+            env.pop(variable, None)
+        env.update(
+            {
+                "WORKDIR": str(workdir),
+                "PATH": f"{stub_dir}{os.pathsep}{env['PATH']}",
+                **_gnomix_shell_environment(tmp_path / "environment-verifier", environment),
+                "STUB_ENVIRONMENT_VERIFIER_RETURN_CODE": "84",
+                "STUB_ENVIRONMENT_VERIFIER_MESSAGE": (
+                    "simulated orchestrator immutable environment rejection"
+                ),
+            }
+        )
+
+        result = subprocess.run(
+            ["bash", str(SCRIPTS_DIR / "run_rebuild.sh"), "05"],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
+        )
+
+        assert result.returncode == 84
+        assert "simulated orchestrator immutable environment rejection" in result.stderr
+        assert sentinel.read_text() == "do-not-mutate\n"
+        assert "rebuild start" not in result.stdout
 
 
 class TestEveryPhaseSourcesEnv:
@@ -357,6 +491,96 @@ class TestEnvShDefaults:
         text = (SCRIPTS_DIR / "env.sh").read_text()
         assert "ADMIXTURE_SEED:=42" in text
 
+    def test_gnomix_environment_lock_and_digest_are_pinned(self) -> None:
+        text = (SCRIPTS_DIR / "env.sh").read_text()
+        lock = SCRIPTS_DIR / "gnomix-training-environment.conda-lock.yml"
+        assert lock.is_file()
+        assert "GNOMIX_ENV_LOCK:=" in text
+        assert "GNOMIX_ENV_LOCK_SHA256:=" in text
+        assert "GNOMIX_ENV_VERIFIER:=" in text
+        assert hashlib.sha256(lock.read_bytes()).hexdigest() in text
+
+    def test_gnomix_python_runner_isolates_ambient_import_state(self, tmp_path: Path) -> None:
+        shadow_dir = tmp_path / "shadow"
+        shadow_dir.mkdir()
+        (shadow_dir / "locked_dependency_shadow.py").write_text("SHADOWED = True\n")
+        user_site = (
+            tmp_path
+            / "user-base"
+            / "lib"
+            / f"python{sys.version_info.major}.{sys.version_info.minor}"
+            / "site-packages"
+        )
+        user_site.mkdir(parents=True)
+        (user_site / "user_site_shadow.py").write_text("SHADOWED = True\n")
+
+        probe_log = tmp_path / "probe.log"
+        probe = tmp_path / "probe.py"
+        probe.write_text(
+            "import importlib.util\n"
+            "import os\n"
+            "import sys\n"
+            "from pathlib import Path\n"
+            "assert sys.flags.isolated == 1\n"
+            "assert sys.flags.dont_write_bytecode == 1\n"
+            "assert importlib.util.find_spec('locked_dependency_shadow') is None\n"
+            "assert importlib.util.find_spec('user_site_shadow') is None\n"
+            "for name in ('PYTHONPATH', 'PYTHONHOME', 'PYTHONUSERBASE', "
+            "'LD_LIBRARY_PATH'):\n"
+            "    assert name not in os.environ\n"
+            "assert os.environ['PYTHONNOUSERSITE'] == '1'\n"
+            "Path(os.environ['STUB_PROBE_LOG']).write_text('isolated\\n')\n"
+        )
+
+        conda_stub = tmp_path / "conda"
+        conda_stub.write_text(
+            "#!/usr/bin/env bash\n"
+            "set -euo pipefail\n"
+            'test "$1" = run\n'
+            "shift\n"
+            'test "$1" = -n\n'
+            "shift 2\n"
+            'test "$1" = --no-capture-output\n'
+            "shift\n"
+            'export PYTHONPATH="$STUB_REINJECT_PATH"\n'
+            'export PYTHONHOME="$STUB_REINJECT_PYTHONHOME"\n'
+            'export PYTHONUSERBASE="$STUB_REINJECT_USERBASE"\n'
+            "export PYTHONNOUSERSITE=0\n"
+            'export LD_LIBRARY_PATH="$STUB_REINJECT_NATIVE_PATH"\n'
+            'exec "$@"\n'
+        )
+        conda_stub.chmod(0o755)
+
+        env = os.environ.copy()
+        env.update(
+            {
+                "WORKDIR": str(tmp_path / "work"),
+                "GNOMIX_CONDA_EXECUTABLE": str(conda_stub),
+                "GNOMIX_ENV": "gnomix-test",
+                "PYTHONPATH": str(shadow_dir),
+                "PYTHONHOME": str(tmp_path / "host-python-home"),
+                "PYTHONUSERBASE": str(tmp_path / "user-base"),
+                "LD_LIBRARY_PATH": str(tmp_path / "native-shadow"),
+                "STUB_PROBE_LOG": str(probe_log),
+                "STUB_REINJECT_PATH": str(shadow_dir),
+                "STUB_REINJECT_PYTHONHOME": str(tmp_path / "reintroduced-python-home"),
+                "STUB_REINJECT_USERBASE": str(tmp_path / "user-base"),
+                "STUB_REINJECT_NATIVE_PATH": str(tmp_path / "reintroduced-native-shadow"),
+                "ENV_SH": str(SCRIPTS_DIR / "env.sh"),
+                "PROBE": str(probe),
+            }
+        )
+        result = subprocess.run(
+            ["bash", "-c", 'source "$ENV_SH"; run_gnomix_python "$PROBE"'],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
+        )
+
+        assert result.returncode == 0, result.stderr
+        assert probe_log.read_text() == "isolated\n"
+
 
 class TestShellSyntax:
     """Catch shell parse errors before they hit the cluster."""
@@ -392,6 +616,7 @@ class TestPythonHelpersCompile:
             "06f_heldout_superpop_accuracy.py",
             "extract_heldout_fixtures.py",
             "07_write_metadata.py",
+            "gnomix_environment.py",
             "gnomix_launcher.py",
             "gnomix_provenance.py",
             "07b_reexport_gnomix_models.py",
@@ -687,15 +912,21 @@ class TestPhase01GnomixMaps:
         verify_index = text.index("verifying Gnomix genetic maps")
         training_index = text.index('cd "$GNOMIX_DIR"')
         assert verify_index < training_index
+        environment_index = text.index("verify_gnomix_environment")
+        assert environment_index < training_index
         assert "01_convert_gnomix_maps.py" in text
         assert "--verify" in text
         assert 'require_file "$RAW_DIR/genetic_maps_gnomix/provenance.json"' in text
         assert "genetic_map.sha256" in text
         assert 'recorded_map_sha" = "$current_map_sha' in text
+        assert '--training-environment-lock "$environment_snapshot"' in text
+        assert '--training-environment-platform "$GNOMIX_ENV_PLATFORM"' in text
+        assert '--expected-training-environment-sha256 "$GNOMIX_ENV_LOCK_SHA256"' in text
 
     def test_phase05_retrains_model_when_map_generation_changes(self, tmp_path: Path) -> None:
         workdir = tmp_path / "work"
         contract = _write_gnomix_training_contract(workdir)
+        environment = _write_gnomix_environment_lock(tmp_path / "environment")
         raw_dir = workdir / "00_raw_downloads"
         source_dir = raw_dir / "genetic_maps_grch38" / "chr_in_chrom_field"
         source = source_dir / "plink.chrchr1.GRCh38.map"
@@ -713,6 +944,13 @@ class TestPhase01GnomixMaps:
         effective_config.write_text(_gnomix_config())
         config_snapshot = gnomix_dir / "config_snapshots" / "chr1" / "effective_config.yaml"
         self._write_source(config_snapshot, _gnomix_config())
+        environment_snapshot = (
+            gnomix_dir
+            / "environment_snapshots"
+            / "chr1"
+            / "gnomix-training-environment.conda-lock.yml"
+        )
+        self._write_source(environment_snapshot, environment["lock"].read_text())
         self._write_source(gnomix_dir / "minquery_chr1.vcf.gz", "stale cached query\n")
         self._write_source(gnomix_dir / "minquery_chr1.vcf.gz.tbi", "stale cached index\n")
 
@@ -739,6 +977,7 @@ class TestPhase01GnomixMaps:
             expected_training_split_sha256=hashlib.sha256(
                 contract["split_manifest"].read_bytes()
             ).hexdigest(),
+            **_gnomix_environment_args(environment),
         )
 
         stub_dir = tmp_path / "bin"
@@ -825,6 +1064,7 @@ class TestPhase01GnomixMaps:
                 "STUB_CONFIG_SNAPSHOT": str(config_snapshot),
                 "STUB_DELETE_SNAPSHOT_ON_UNLOCK": "",
                 "STUB_RUNTIME_PREFLIGHT_FAIL": "",
+                **_gnomix_shell_environment(tmp_path / "environment-verifier", environment),
             }
         )
 
@@ -846,6 +1086,7 @@ class TestPhase01GnomixMaps:
             "record": provenance_path,
             "split": contract["split_manifest"],
             "config_snapshot": config_snapshot,
+            "environment_snapshot": environment_snapshot,
         }
         completion_before = {name: path.read_bytes() for name, path in completion_paths.items()}
         runtime_preflight_failed = subprocess.run(
@@ -873,6 +1114,20 @@ class TestPhase01GnomixMaps:
         assert missing_snapshot.returncode == 0, missing_snapshot.stderr
         assert conda_called.is_file()
         assert config_snapshot.read_text() == _gnomix_config()
+        assert not bcftools_called.exists()
+        conda_called.unlink()
+
+        environment_snapshot.unlink()
+        missing_environment_snapshot = subprocess.run(
+            ["bash", str(SCRIPTS_DIR / "05_train_gnomix.sh")],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
+        )
+        assert missing_environment_snapshot.returncode == 0, missing_environment_snapshot.stderr
+        assert conda_called.is_file()
+        assert environment_snapshot.read_bytes() == environment["lock"].read_bytes()
         assert not bcftools_called.exists()
         conda_called.unlink()
 
@@ -1132,6 +1387,9 @@ class TestPhase01GnomixMaps:
 
     def test_phase07_packages_map_provenance(self) -> None:
         text = (SCRIPTS_DIR / "07_assemble_bundle.sh").read_text()
+        environment_verify = text.index("verify_gnomix_environment")
+        bundle_mutation = text.index('cd "$BUNDLE_DIR"')
+        assert environment_verify < bundle_mutation
         assert 'require_file "$RAW_DIR/genetic_maps_gnomix/provenance.json"' in text
         assert (
             'cp -f "$RAW_DIR/genetic_maps_gnomix/provenance.json" '
@@ -1141,6 +1399,11 @@ class TestPhase01GnomixMaps:
         assert '"metadata/gnomix_model_map_chr${chr}.sha256"' in text
         assert '"metadata/gnomix_model_chr${chr}.provenance.json"' in text
         assert "metadata/gnomix_training_provenance.json" in text
+        assert "metadata/gnomix_training_environment.conda-lock.yml" in text
+        assert 'cp -f "$GNOMIX_ENV_LOCK" "$staged_environment_lock"' in text
+        assert (
+            'cp -f "$staged_environment_lock" metadata/gnomix_training_environment.conda-lock.yml'
+        ) in text
         assert 'gnomix_provenance.py" verify-record' in text
         assert text.index('gnomix_provenance.py" verify-record') < text.index('cd "$BUNDLE_DIR"')
         assert "Phase 07 publishes full autosomal bundles only" in text
@@ -1149,6 +1412,17 @@ class TestPhase01GnomixMaps:
         )
         assert "rm -rf gnomix_models/chr*" in text
         assert "metadata/gnomix_model_map_chr*.sha256" in text
+        for command in ("verify-record", "aggregate", "verify-aggregate"):
+            command_index = text.index(f'gnomix_provenance.py" {command}')
+            next_command = text.find('gnomix_provenance.py" ', command_index + 1)
+            command_block = text[command_index : next_command if next_command >= 0 else None]
+            assert "--training-environment-lock" in command_block
+            assert "--training-environment-platform" in command_block
+            assert "--expected-training-environment-sha256" in command_block
+        metadata_index = text.index('07_write_metadata.py"')
+        metadata_block = text[metadata_index : text.index("phase_log", metadata_index)]
+        assert "--training-environment-platform" in metadata_block
+        assert "--expected-training-environment-sha256" in metadata_block
 
 
 class TestGnomixTrainingManifestIntegration:
@@ -1159,9 +1433,11 @@ class TestGnomixTrainingManifestIntegration:
         config_text: str,
         drift_union_catalog: bool = False,
         undersize_oce_training_population: bool = False,
+        environment_verifier_return_code: int = 0,
     ) -> tuple[subprocess.CompletedProcess[str], dict[str, bytes], dict[str, Path]]:
         workdir = tmp_path / "work"
         contract = _write_gnomix_training_contract(workdir)
+        environment = _write_gnomix_environment_lock(tmp_path / "environment")
         if undersize_oce_training_population:
             payload = json.loads(contract["input_manifest"].read_text())
             oce_training = [
@@ -1243,6 +1519,13 @@ class TestGnomixTrainingManifestIntegration:
                 "UNION_CATALOG_TSV": str(contract["union_catalog"]),
                 "PATH": f"{stub_dir}{os.pathsep}{env['PATH']}",
                 "STUB_COMMAND_CALLED": str(called),
+                **_gnomix_shell_environment(tmp_path / "environment-verifier", environment),
+                "STUB_ENVIRONMENT_VERIFIER_RETURN_CODE": str(environment_verifier_return_code),
+                "STUB_ENVIRONMENT_VERIFIER_MESSAGE": (
+                    "simulated immutable environment rejection"
+                    if environment_verifier_return_code
+                    else ""
+                ),
             }
         )
         result = subprocess.run(
@@ -1348,6 +1631,17 @@ class TestGnomixTrainingManifestIntegration:
         assert "training-input manifest" in result.stderr
         assert {name: path.read_bytes() for name, path in paths.items()} == before
 
+    def test_phase05_rejects_environment_before_model_mutation(self, tmp_path: Path) -> None:
+        result, before, paths = self._phase05_preflight_fixture(
+            tmp_path,
+            config_text=_gnomix_config(),
+            environment_verifier_return_code=86,
+        )
+
+        assert result.returncode == 86
+        assert "simulated immutable environment rejection" in result.stderr
+        assert {name: path.read_bytes() for name, path in paths.items()} == before
+
     def test_phase_scripts_wire_manifest_gates_before_publication(self) -> None:
         shared_env = (SCRIPTS_DIR / "env.sh").read_text()
         phase4 = (SCRIPTS_DIR / "04_admixture_filter.sh").read_text()
@@ -1367,6 +1661,7 @@ class TestGnomixTrainingManifestIntegration:
         assert "  - pyyaml=6.0.3\n" in build_env_lock
 
         mutation_index = phase5.index('rm -f "$model_provenance"')
+        assert phase5.index("verify_gnomix_environment") < mutation_index
         assert phase5.index("verify-config") < mutation_index
         assert phase5.index("verify-input") < mutation_index
         assert phase5.index("create-splits") < phase5.index("write-record")
@@ -1389,6 +1684,7 @@ class TestGnomixTrainingManifestIntegration:
     def test_phase07_missing_model_fails_before_bundle_mutation(self, tmp_path: Path) -> None:
         workdir = tmp_path / "work"
         contract = _write_gnomix_training_contract(workdir)
+        environment = _write_gnomix_environment_lock(tmp_path / "environment")
         raw_dir = workdir / "00_raw_downloads"
         source_dir = raw_dir / "genetic_maps_grch38" / "chr_in_chrom_field"
         for number in range(1, 23):
@@ -1443,8 +1739,30 @@ class TestGnomixTrainingManifestIntegration:
                 "UNION_CATALOG_TSV": str(contract["union_catalog"]),
                 "PATH": f"{stub_dir}{os.pathsep}{env['PATH']}",
                 "STUB_CONDA_CALLED": str(conda_called),
+                **_gnomix_shell_environment(tmp_path / "environment-verifier", environment),
             }
         )
+
+        environment_rejection = subprocess.run(
+            ["bash", str(SCRIPTS_DIR / "07_assemble_bundle.sh")],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env
+            | {
+                "STUB_ENVIRONMENT_VERIFIER_RETURN_CODE": "85",
+                "STUB_ENVIRONMENT_VERIFIER_MESSAGE": (
+                    "simulated Phase 07 immutable environment rejection"
+                ),
+            },
+        )
+        assert environment_rejection.returncode == 85
+        assert "simulated Phase 07 immutable environment rejection" in (
+            environment_rejection.stderr
+        )
+        assert sentinel.read_bytes() == b"do-not-mutate\n"
+        assert sorted(path.name for path in bundle_dir.iterdir()) == [sentinel.name]
+        assert not conda_called.exists()
 
         result = subprocess.run(
             ["bash", str(SCRIPTS_DIR / "07_assemble_bundle.sh")],
@@ -1465,6 +1783,7 @@ class TestGnomixTrainingManifestIntegration:
     ) -> None:
         workdir = tmp_path / "work"
         contract = _write_gnomix_training_contract(workdir)
+        environment = _write_gnomix_environment_lock(tmp_path / "environment")
         raw_dir = workdir / "00_raw_downloads"
         map_dir = raw_dir / "genetic_maps_gnomix"
         TestPhase01GnomixMaps._write_source(map_dir / "provenance.json", "fixture\n")
@@ -1563,6 +1882,7 @@ class TestGnomixTrainingManifestIntegration:
                 "UNION_CATALOG_TSV": str(contract["union_catalog"]),
                 "PATH": f"{stub_dir}{os.pathsep}{env['PATH']}",
                 "STUB_CONDA_LOG": str(conda_log),
+                **_gnomix_shell_environment(tmp_path / "environment-verifier", environment),
             }
         )
 
@@ -1594,6 +1914,7 @@ class TestGnomixTrainingManifestIntegration:
     ) -> None:
         workdir = tmp_path / "work"
         contract = _write_gnomix_training_contract(workdir)
+        environment = _write_gnomix_environment_lock(tmp_path / "environment")
         raw_dir = workdir / "00_raw_downloads"
         source_dir = raw_dir / "genetic_maps_grch38" / "chr_in_chrom_field"
         for number in range(1, 23):
@@ -1679,6 +2000,7 @@ class TestGnomixTrainingManifestIntegration:
                 training_split_manifest=split_manifest,
                 expected_training_input_sha256=input_sha256,
                 expected_training_split_sha256=split_sha256,
+                **_gnomix_environment_args(environment),
             )
             payload = json.loads(record.read_text())
             payload["effective_config_sha256"] = forged_config_sha256
@@ -1723,6 +2045,7 @@ class TestGnomixTrainingManifestIntegration:
                 "UNION_CATALOG_TSV": str(contract["union_catalog"]),
                 "PATH": f"{stub_dir}{os.pathsep}{env['PATH']}",
                 "STUB_CONDA_CALLED": str(conda_called),
+                **_gnomix_shell_environment(tmp_path / "environment-verifier", environment),
             }
         )
 
@@ -2020,6 +2343,7 @@ class TestGnomixTrainingProvenance:
     def test_model_record_binds_commit_config_map_and_pickle(self, tmp_path: Path) -> None:
         provenance = self._module()
         contract = _write_gnomix_training_contract(tmp_path / "contract")
+        environment = _write_gnomix_environment_lock(tmp_path / "environment")
         config = tmp_path / "config.yaml"
         genetic_map = tmp_path / "chr1.map"
         model = tmp_path / "model_chm_chr1.pkl"
@@ -2044,6 +2368,7 @@ class TestGnomixTrainingProvenance:
             expected_training_split_sha256=hashlib.sha256(
                 contract["split_manifest"].read_bytes()
             ).hexdigest(),
+            **_gnomix_environment_args(environment),
         )
         assert written["gnomix_git_commit"] == commit
         assert (
@@ -2058,6 +2383,7 @@ class TestGnomixTrainingProvenance:
             written["training_split_manifest"]["sha256"]
             == hashlib.sha256(contract["split_manifest"].read_bytes()).hexdigest()
         )
+        assert written["training_environment"] == environment["identity"]
         provenance.verify_model_record(
             record,
             chromosome="chr1",
@@ -2067,6 +2393,7 @@ class TestGnomixTrainingProvenance:
             model=model,
             training_input_manifest=contract["input_manifest"],
             training_split_manifest=contract["split_manifest"],
+            **_gnomix_environment_args(environment),
         )
 
         model.write_bytes(b"model-v2")
@@ -2080,6 +2407,7 @@ class TestGnomixTrainingProvenance:
                 model=model,
                 training_input_manifest=contract["input_manifest"],
                 training_split_manifest=contract["split_manifest"],
+                **_gnomix_environment_args(environment),
             )
         model.write_bytes(b"model-v1")
 
@@ -2094,6 +2422,7 @@ class TestGnomixTrainingProvenance:
                 model=model,
                 training_input_manifest=contract["input_manifest"],
                 training_split_manifest=contract["split_manifest"],
+                **_gnomix_environment_args(environment),
             )
         config.write_text(_gnomix_config())
 
@@ -2108,11 +2437,141 @@ class TestGnomixTrainingProvenance:
                 model=model,
                 training_input_manifest=contract["input_manifest"],
                 training_split_manifest=contract["split_manifest"],
+                **_gnomix_environment_args(environment),
+            )
+
+    def test_model_record_rejects_substituted_lock_and_expected_digest_drift(
+        self, tmp_path: Path
+    ) -> None:
+        provenance = self._module()
+        contract = _write_gnomix_training_contract(tmp_path / "contract")
+        environment = _write_gnomix_environment_lock(tmp_path / "environment")
+        alternate = _write_gnomix_environment_lock(
+            tmp_path / "alternate-environment",
+            version="3.11.10",
+            build="h1234567_1_cpython",
+            package_sha256="2" * 64,
+        )
+        config = tmp_path / "config.yaml"
+        genetic_map = tmp_path / "chr1.map"
+        model = tmp_path / "model_chm_chr1.pkl"
+        record = tmp_path / "record.json"
+        config.write_text(_gnomix_config())
+        genetic_map.write_text("chr1\t100\t0\n")
+        model.write_bytes(b"model")
+        provenance.write_model_record(
+            record,
+            chromosome="chr1",
+            expected_commit="1" * 40,
+            config=config,
+            genetic_map=genetic_map,
+            model=model,
+            training_input_manifest=contract["input_manifest"],
+            training_split_manifest=contract["split_manifest"],
+            expected_training_input_sha256=hashlib.sha256(
+                contract["input_manifest"].read_bytes()
+            ).hexdigest(),
+            expected_training_split_sha256=hashlib.sha256(
+                contract["split_manifest"].read_bytes()
+            ).hexdigest(),
+            **_gnomix_environment_args(environment),
+        )
+        common = {
+            "chromosome": "chr1",
+            "expected_commit": "1" * 40,
+            "config": config,
+            "genetic_map": genetic_map,
+            "model": model,
+            "training_input_manifest": contract["input_manifest"],
+            "training_split_manifest": contract["split_manifest"],
+        }
+
+        with pytest.raises(provenance.ProvenanceError, match="lock digest drift"):
+            provenance.verify_model_record(
+                record,
+                **common,
+                training_environment_lock=environment["lock"],
+                training_environment_platform=environment["platform"],
+                expected_training_environment_sha256="0" * 64,
+            )
+        with pytest.raises(
+            provenance.ProvenanceError, match="training-environment identity mismatch"
+        ):
+            provenance.verify_model_record(
+                record,
+                **common,
+                **_gnomix_environment_args(alternate),
+            )
+
+    def test_aggregate_rejects_mixed_and_substituted_environment_identities(
+        self, tmp_path: Path
+    ) -> None:
+        provenance = self._module()
+        contract = _write_gnomix_training_contract(tmp_path / "contract")
+        environment = _write_gnomix_environment_lock(tmp_path / "environment")
+        alternate = _write_gnomix_environment_lock(
+            tmp_path / "alternate-environment",
+            version="3.11.10",
+            build="h1234567_1_cpython",
+            package_sha256="2" * 64,
+        )
+        config = tmp_path / "config.yaml"
+        genetic_map = tmp_path / "map"
+        config.write_text(_gnomix_config())
+        genetic_map.write_text("chr1\t100\t0\n")
+        records = []
+        for chromosome, selected_environment in (
+            ("chr1", environment),
+            ("chr2", alternate),
+        ):
+            model = tmp_path / f"model_chm_{chromosome}.pkl"
+            record = tmp_path / f"{chromosome}.json"
+            model.write_bytes(chromosome.encode())
+            provenance.write_model_record(
+                record,
+                chromosome=chromosome,
+                expected_commit="2" * 40,
+                config=config,
+                genetic_map=genetic_map,
+                model=model,
+                training_input_manifest=contract["input_manifest"],
+                training_split_manifest=contract["split_manifest"],
+                expected_training_input_sha256=hashlib.sha256(
+                    contract["input_manifest"].read_bytes()
+                ).hexdigest(),
+                expected_training_split_sha256=hashlib.sha256(
+                    contract["split_manifest"].read_bytes()
+                ).hexdigest(),
+                **_gnomix_environment_args(selected_environment),
+            )
+            records.append(record)
+
+        with pytest.raises(provenance.ProvenanceError, match="mixed Gnomix training-environment"):
+            provenance.aggregate_records(
+                records,
+                "2" * 40,
+                tmp_path / "mixed.json",
+                training_input_manifest=contract["input_manifest"],
+                training_split_manifest=contract["split_manifest"],
+                **_gnomix_environment_args(environment),
+            )
+        with pytest.raises(
+            provenance.ProvenanceError,
+            match="supplied Gnomix training-environment lock does not match",
+        ):
+            provenance.aggregate_records(
+                [records[0]],
+                "2" * 40,
+                tmp_path / "substituted.json",
+                training_input_manifest=contract["input_manifest"],
+                training_split_manifest=contract["split_manifest"],
+                **_gnomix_environment_args(alternate),
             )
 
     def test_aggregate_rejects_mixed_effective_configs(self, tmp_path: Path) -> None:
         provenance = self._module()
         contract = _write_gnomix_training_contract(tmp_path / "contract")
+        environment = _write_gnomix_environment_lock(tmp_path / "environment")
         commit = "2" * 40
         genetic_map = tmp_path / "map"
         genetic_map.write_text("chr1\t100\t0\n")
@@ -2138,6 +2597,7 @@ class TestGnomixTrainingProvenance:
                 expected_training_split_sha256=hashlib.sha256(
                     contract["split_manifest"].read_bytes()
                 ).hexdigest(),
+                **_gnomix_environment_args(environment),
             )
             records.append(record)
 
@@ -2151,6 +2611,7 @@ class TestGnomixTrainingProvenance:
                 tmp_path / "aggregate.json",
                 training_input_manifest=contract["input_manifest"],
                 training_split_manifest=contract["split_manifest"],
+                **_gnomix_environment_args(environment),
             )
         second["gnomix_git_commit"] = commit
         records[1].write_text(json.dumps(second))
@@ -2162,6 +2623,7 @@ class TestGnomixTrainingProvenance:
                 tmp_path / "aggregate.json",
                 training_input_manifest=contract["input_manifest"],
                 training_split_manifest=contract["split_manifest"],
+                **_gnomix_environment_args(environment),
             )
 
     def test_aggregate_publishes_common_generation_and_per_model_hashes(
@@ -2169,6 +2631,7 @@ class TestGnomixTrainingProvenance:
     ) -> None:
         provenance = self._module()
         contract = _write_gnomix_training_contract(tmp_path / "contract")
+        environment = _write_gnomix_environment_lock(tmp_path / "environment")
         commit = "3" * 40
         config = tmp_path / "config.yaml"
         config.write_text(_gnomix_config(seed=7))
@@ -2195,6 +2658,7 @@ class TestGnomixTrainingProvenance:
                 expected_training_split_sha256=hashlib.sha256(
                     contract["split_manifest"].read_bytes()
                 ).hexdigest(),
+                **_gnomix_environment_args(environment),
             )
             records.append(record)
             expected_hashes[chromosome] = {
@@ -2209,9 +2673,12 @@ class TestGnomixTrainingProvenance:
             output,
             training_input_manifest=contract["input_manifest"],
             training_split_manifest=contract["split_manifest"],
+            **_gnomix_environment_args(environment),
         )
         assert json.loads(output.read_text()) == manifest
         assert manifest["gnomix_git_commit"] == commit
+        assert manifest["schema_version"] == 3
+        assert manifest["training_environment"] == environment["identity"]
         assert (
             manifest["effective_config_sha256"] == hashlib.sha256(config.read_bytes()).hexdigest()
         )
@@ -2236,6 +2703,7 @@ class TestGnomixTrainingProvenance:
     ) -> None:
         provenance = self._module()
         contract = _write_gnomix_training_contract(tmp_path / "contract")
+        environment = _write_gnomix_environment_lock(tmp_path / "environment")
         alternate_input = tmp_path / "alternate-input.json"
         alternate_payload = json.loads(contract["input_manifest"].read_text())
         alternate_payload["reference_panel"]["name"] += " alternate"
@@ -2283,6 +2751,7 @@ class TestGnomixTrainingProvenance:
                 expected_training_split_sha256=hashlib.sha256(
                     split_manifest.read_bytes()
                 ).hexdigest(),
+                **_gnomix_environment_args(environment),
             )
             records.append(record)
 
@@ -2293,6 +2762,7 @@ class TestGnomixTrainingProvenance:
                 tmp_path / "mixed.json",
                 training_input_manifest=contract["input_manifest"],
                 training_split_manifest=contract["split_manifest"],
+                **_gnomix_environment_args(environment),
             )
 
         aggregate = tmp_path / "aggregate.json"
@@ -2302,19 +2772,21 @@ class TestGnomixTrainingProvenance:
             aggregate,
             training_input_manifest=contract["input_manifest"],
             training_split_manifest=contract["split_manifest"],
+            **_gnomix_environment_args(environment),
         )
         with pytest.raises(provenance.ProvenanceError, match="do not match aggregate"):
             provenance.verify_aggregate_manifest(
                 aggregate,
                 training_input_manifest=alternate_input,
                 training_split_manifest=alternate_split,
+                **_gnomix_environment_args(environment),
             )
 
     def test_model_record_rejects_extra_or_malformed_fields(self, tmp_path: Path) -> None:
         provenance = self._module()
         record = tmp_path / "record.json"
         valid = {
-            "schema_version": 2,
+            "schema_version": 3,
             "chromosome": "chr1",
             "gnomix_repository": provenance.GNOMIX_REPOSITORY,
             "gnomix_git_commit": "4" * 40,
@@ -2326,6 +2798,12 @@ class TestGnomixTrainingProvenance:
             "model_sha256": "7" * 64,
             "training_input_manifest": {"schema_version": 1, "sha256": "8" * 64},
             "training_split_manifest": {"schema_version": 1, "sha256": "9" * 64},
+            "training_environment": {
+                "schema_version": 1,
+                "artifact_kind": "conda-lock",
+                "platform": "linux-64",
+                "lock_sha256": "a" * 64,
+            },
         }
         record.write_text(json.dumps(valid | {"unexpected": True}))
         with pytest.raises(provenance.ProvenanceError, match="unexpected.*fields"):
@@ -2333,7 +2811,8 @@ class TestGnomixTrainingProvenance:
 
         invalid_cases = [
             ({"schema_version": 1}, "unsupported.*schema"),
-            ({"schema_version": 2.0}, "unsupported.*schema"),
+            ({"schema_version": 2}, "unsupported.*schema"),
+            ({"schema_version": 3.0}, "unsupported.*schema"),
             ({"chromosome": "chr23"}, "invalid autosome"),
             ({"gnomix_git_commit": "short"}, "full 40-character"),
             ({"gnomix_checkout_clean": False}, "does not attest a clean checkout"),
@@ -2346,9 +2825,21 @@ class TestGnomixTrainingProvenance:
             with pytest.raises(provenance.ProvenanceError, match=message):
                 provenance.load_model_record(record)
 
+        for legacy_schema in (1, 2):
+            legacy = (valid | {"schema_version": legacy_schema}).copy()
+            legacy.pop("training_environment")
+            record.write_text(json.dumps(legacy))
+            with pytest.raises(provenance.ProvenanceError, match="unsupported.*schema"):
+                provenance.load_model_record(record)
+        missing_environment = valid.copy()
+        missing_environment.pop("training_environment")
+        record.write_text(json.dumps(missing_environment))
+        with pytest.raises(provenance.ProvenanceError, match="unexpected.*fields"):
+            provenance.load_model_record(record)
+
         duplicate = json.dumps(valid).replace(
-            '"schema_version": 2',
-            '"schema_version": 999, "schema_version": 2',
+            '"schema_version": 3',
+            '"schema_version": 999, "schema_version": 3',
             1,
         )
         record.write_text(duplicate)
@@ -2359,7 +2850,7 @@ class TestGnomixTrainingProvenance:
         provenance = self._module()
         aggregate = tmp_path / "aggregate.json"
         valid = {
-            "schema_version": 2,
+            "schema_version": 3,
             "gnomix_repository": provenance.GNOMIX_REPOSITORY,
             "gnomix_git_commit": "a" * 40,
             "gnomix_checkout_clean": True,
@@ -2367,6 +2858,12 @@ class TestGnomixTrainingProvenance:
             "effective_config_sha256": "b" * 64,
             "training_input_manifest": {"schema_version": 1, "sha256": "c" * 64},
             "training_split_manifest": {"schema_version": 1, "sha256": "d" * 64},
+            "training_environment": {
+                "schema_version": 1,
+                "artifact_kind": "conda-lock",
+                "platform": "linux-64",
+                "lock_sha256": "a" * 64,
+            },
             "models": [
                 {
                     "chromosome": "chr1",
@@ -2378,13 +2875,24 @@ class TestGnomixTrainingProvenance:
             ],
         }
 
-        aggregate.write_text(json.dumps(valid | {"schema_version": 2.0}))
+        for legacy_schema in (1, 2):
+            legacy = (valid | {"schema_version": legacy_schema}).copy()
+            aggregate.write_text(json.dumps(legacy))
+            with pytest.raises(provenance.ProvenanceError, match="unsupported.*schema"):
+                provenance.load_aggregate_manifest(aggregate)
+        missing_environment = valid.copy()
+        missing_environment.pop("training_environment")
+        aggregate.write_text(json.dumps(missing_environment))
+        with pytest.raises(provenance.ProvenanceError, match="unexpected.*fields"):
+            provenance.load_aggregate_manifest(aggregate)
+
+        aggregate.write_text(json.dumps(valid | {"schema_version": 3.0}))
         with pytest.raises(provenance.ProvenanceError, match="unsupported.*schema"):
             provenance.load_aggregate_manifest(aggregate)
 
         duplicate = json.dumps(valid).replace(
-            '"schema_version": 2',
-            '"schema_version": 999, "schema_version": 2',
+            '"schema_version": 3',
+            '"schema_version": 999, "schema_version": 3',
             1,
         )
         aggregate.write_text(duplicate)
@@ -2396,6 +2904,7 @@ class TestGnomixTrainingProvenance:
     ) -> None:
         provenance = self._module()
         contract = _write_gnomix_training_contract(tmp_path / "contract")
+        environment = _write_gnomix_environment_lock(tmp_path / "environment")
         config = tmp_path / "config.yaml"
         genetic_map = tmp_path / "chr1.map"
         model = tmp_path / "model_chm_chr1.pkl"
@@ -2428,6 +2937,7 @@ class TestGnomixTrainingProvenance:
                 expected_training_split_sha256=hashlib.sha256(
                     contract["split_manifest"].read_bytes()
                 ).hexdigest(),
+                **_gnomix_environment_args(environment),
             )
         assert record.read_text() == "prior-generation\n"
         assert not list(tmp_path.glob(".training_provenance.json.*.tmp"))
@@ -2617,6 +3127,10 @@ class TestPhase07Metadata:
         (bundle / "liftover").mkdir(parents=True)
         metadata_dir.mkdir()
         validation.mkdir()
+        environment = _write_gnomix_environment_lock(
+            metadata_dir,
+            filename="gnomix_training_environment.conda-lock.yml",
+        )
         (bundle / "liftover" / "array_site_mapping.tsv").write_text("rs1\t1\t100\n")
         union_catalog = contract["union_catalog"]
 
@@ -2650,6 +3164,7 @@ class TestPhase07Metadata:
                 expected_training_split_sha256=hashlib.sha256(
                     split_manifest_path.read_bytes()
                 ).hexdigest(),
+                **_gnomix_environment_args(environment),
             )
             records.append(record)
         manifest_path = metadata_dir / "gnomix_training_provenance.json"
@@ -2659,6 +3174,7 @@ class TestPhase07Metadata:
             manifest_path,
             training_input_manifest=input_manifest_path,
             training_split_manifest=split_manifest_path,
+            **_gnomix_environment_args(environment),
         )
 
         command = [
@@ -2680,6 +3196,10 @@ class TestPhase07Metadata:
             "v2.0.0",
             "--gnomix-provenance",
             str(manifest_path),
+            "--training-environment-platform",
+            str(environment["platform"]),
+            "--expected-training-environment-sha256",
+            str(environment["sha256"]),
             "--admixture-seed",
             "42",
         ]
@@ -2710,6 +3230,10 @@ class TestPhase07Metadata:
                 "path": "metadata/gnomix_training_splits.json",
                 "schema_version": 1,
                 "sha256": hashlib.sha256(split_manifest_path.read_bytes()).hexdigest(),
+            },
+            "training_environment": {
+                "path": "metadata/gnomix_training_environment.conda-lock.yml",
+                **environment["identity"],
             },
         }
         assert metadata["reference_build"] == "GRCh38"
@@ -3019,6 +3543,11 @@ class TestSlurmRebuild:
             assert f in text
         assert "--dependency=" in text and "afterok" in text  # chained
         assert "--array=" in text  # phase 05 is an array
+        verify = text.index("verify_gnomix_environment")
+        first_submit = text.index("sbatch ", verify)
+        assert verify < first_submit
+        assert 'require_file "$GNOMIX_ENV_LOCK"' in text
+        assert 'require_file "$GNOMIX_ENV_VERIFIER"' in text
 
     def test_phase01_sbatch_runs_phase01_only(self) -> None:
         text = (self.SLURM_DIR / "01_download_panel.sbatch").read_text()
@@ -3033,6 +3562,7 @@ class TestSlurmRebuild:
 
         union_catalog = tmp_path / "union.tsv"
         pedigree = tmp_path / "pedigree.ped"
+        environment = _write_gnomix_environment_lock(tmp_path / "environment")
         union_catalog.write_text("rs1\t1\t100\n")
         pedigree.write_text("fixture\n")
 
@@ -3077,8 +3607,26 @@ class TestSlurmRebuild:
                 "GNOMIX_ARRAY": "1-22",
                 "PATH": f"{stub_dir}{os.pathsep}{env['PATH']}",
                 "STUB_SBATCH_LOG": str(sbatch_log),
+                **_gnomix_shell_environment(tmp_path / "environment-verifier", environment),
             }
         )
+
+        environment_rejection = subprocess.run(
+            ["bash", str(SCRIPTS_DIR / "run_rebuild_slurm.sh")],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env
+            | {
+                "STUB_ENVIRONMENT_VERIFIER_RETURN_CODE": "83",
+                "STUB_ENVIRONMENT_VERIFIER_MESSAGE": (
+                    "simulated SLURM immutable environment rejection"
+                ),
+            },
+        )
+        assert environment_rejection.returncode == 83
+        assert "simulated SLURM immutable environment rejection" in (environment_rejection.stderr)
+        assert not sbatch_log.exists()
 
         result = subprocess.run(
             ["bash", str(SCRIPTS_DIR / "run_rebuild_slurm.sh")],
@@ -3115,7 +3663,10 @@ class TestSlurmRebuild:
 
     def test_phase05_runs_in_gnomix_env(self) -> None:
         text = (SCRIPTS_DIR / "05_train_gnomix.sh").read_text()
-        assert "conda run -n" in text and "GNOMIX_ENV" in text
+        assert "run_gnomix_python" in text
+        env_text = (SCRIPTS_DIR / "env.sh").read_text()
+        assert '"$GNOMIX_CONDA_EXECUTABLE" run -n "$GNOMIX_ENV"' in env_text
+        assert "python -I -B" in env_text
 
     def test_env_defines_gnomix_env_and_config(self) -> None:
         text = (SCRIPTS_DIR / "env.sh").read_text()
@@ -3130,6 +3681,7 @@ class TestSlurmRebuild:
         (install_dir / "gnomix.py").write_text("# fixture\n")
         union_catalog = tmp_path / "union.tsv"
         pedigree = tmp_path / "pedigree.ped"
+        environment = _write_gnomix_environment_lock(tmp_path / "environment")
         union_catalog.write_text("rs1\t1\t100\n")
         pedigree.write_text("fixture\n")
 
@@ -3162,6 +3714,7 @@ class TestSlurmRebuild:
                 "GNOMIX_EXPECTED_COMMIT": "",
                 "PATH": f"{stub_dir}{os.pathsep}{env['PATH']}",
                 "STUB_SBATCH_CALLED": str(sbatch_called),
+                **_gnomix_shell_environment(tmp_path / "environment-verifier", environment),
             }
         )
 

@@ -47,10 +47,15 @@
 # n_cores set so concurrent chromosomes don't oversubscribe the node.
 : "${GNOMIX_CONFIG:=$GNOMIX_DIR_INSTALL/config.yaml}"
 
-# gnomix has its own conda env (it needs sklearn_crfsuite / xgboost, which the
-# lai_bundle env lacks). Phase 05 runs gnomix via `conda run -n $GNOMIX_ENV`, so
-# the rest of the pipeline can stay in lai_bundle.
+# Gnomix has its own immutable conda-lock environment (it needs
+# sklearn_crfsuite/xgboost, which the lai_bundle env lacks). The environment
+# name selects a runtime; the checked lock bytes below are its identity.
 : "${GNOMIX_ENV:=gnomix}"
+: "${GNOMIX_CONDA_EXECUTABLE:=conda}"
+: "${GNOMIX_ENV_PLATFORM:=linux-64}"
+: "${GNOMIX_ENV_LOCK:=$(cd -- "${BASH_SOURCE[0]%/*}" && pwd)/gnomix-training-environment.conda-lock.yml}"
+: "${GNOMIX_ENV_LOCK_SHA256:=20a82182e4e1d53e17596a2bd5f8f2584a588b196c316547e8f1bb974f488ee0}"
+: "${GNOMIX_ENV_VERIFIER:=$(cd -- "${BASH_SOURCE[0]%/*}" && pwd)/gnomix_environment.py}"
 : "${CHAIN_URL:=https://hgdownload.cse.ucsc.edu/goldenpath/hg19/liftOver/hg19ToHg38.over.chain.gz}"
 : "${GENETIC_MAPS_URL:=https://bochet.gcc.biostat.washington.edu/beagle/genetic_maps/plink.GRCh38.map.zip}"
 : "${GNOMAD_BUCKET:=gs://gcp-public-data--gnomad/resources/hgdp_1kg/phased_haplotypes_v2}"
@@ -120,3 +125,34 @@ log() { printf '[%s] %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*" | tee -a "$LOG_
 phase_log() { printf '[%s] %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*" | tee -a "$LOG_DIR/${PHASE_NAME:-phase}.log"; }
 require() { command -v "$1" >/dev/null 2>&1 || { echo "missing required command: $1" >&2; exit 1; }; }
 require_file() { [ -s "$1" ] || { echo "missing required input file: $1" >&2; exit 1; }; }
+_sanitize_gnomix_python_environment() {
+  # Conda validates package metadata, but Python and the dynamic loader also
+  # honor ambient injection paths. Remove them before either the verifier's
+  # Conda subprocess or selected-environment Python can start.
+  unset PYTHONPATH PYTHONHOME PYTHONSTARTUP PYTHONINSPECT PYTHONUSERBASE \
+    PYTHONSAFEPATH LD_PRELOAD LD_LIBRARY_PATH LD_AUDIT
+  export PYTHONNOUSERSITE=1
+}
+verify_gnomix_environment() {
+  local lock_path="${1:-$GNOMIX_ENV_LOCK}"
+  (
+    _sanitize_gnomix_python_environment
+    python3 -I -B "$GNOMIX_ENV_VERIFIER" verify \
+      --lock "$lock_path" \
+      --platform "$GNOMIX_ENV_PLATFORM" \
+      --expected-lock-sha256 "$GNOMIX_ENV_LOCK_SHA256" \
+      --conda-env "$GNOMIX_ENV" \
+      --conda-executable "$GNOMIX_CONDA_EXECUTABLE"
+  )
+}
+run_gnomix_python() {
+  (
+    _sanitize_gnomix_python_environment
+    "$GNOMIX_CONDA_EXECUTABLE" run -n "$GNOMIX_ENV" --no-capture-output \
+      /usr/bin/env \
+      -u PYTHONPATH -u PYTHONHOME -u PYTHONSTARTUP -u PYTHONINSPECT \
+      -u PYTHONUSERBASE -u PYTHONSAFEPATH \
+      -u LD_PRELOAD -u LD_LIBRARY_PATH -u LD_AUDIT \
+      PYTHONNOUSERSITE=1 python -I -B "$@"
+  )
+}
