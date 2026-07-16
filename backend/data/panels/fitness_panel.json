@@ -22,11 +22,11 @@
             },
             "CT": {
               "category": "Moderate",
-              "effect_summary": "RX genotype — one functional copy of alpha-actinin-3. Mixed muscle fiber profile suited to both endurance and power activities."
+              "effect_summary": "RX genotype — one functional copy of alpha-actinin-3, so the protein is present, unlike the XX deficiency; expression is intermediate, consistent with an additive model. Genotype alone does not predict individual power or endurance aptitude: RX does not discriminate between power and endurance athletes, and reported associations vary by ancestry, sex, athlete status, and study design. Context-only."
             },
             "TC": {
               "category": "Moderate",
-              "effect_summary": "RX genotype — one functional copy of alpha-actinin-3. Mixed muscle fiber profile suited to both endurance and power activities."
+              "effect_summary": "RX genotype — one functional copy of alpha-actinin-3, so the protein is present, unlike the XX deficiency; expression is intermediate, consistent with an additive model. Genotype alone does not predict individual power or endurance aptitude: RX does not discriminate between power and endurance athletes, and reported associations vary by ancestry, sex, athlete status, and study design. Context-only."
             },
             "TT": {
               "category": "Standard",
@@ -40,7 +40,7 @@
             "TT": "XX"
           },
           "evidence_level": 2,
-          "pmids": ["12879365", "18043716", "21542061", "29298672", "38760851"],
+          "pmids": ["12879365", "18043716", "21542061", "26681802", "29298672", "38760851"],
           "recommendation_text": "ACTN3 R577X is among the most-studied sport-performance variants, but it is a weak, non-predictive marker. The consistently-replicated signal is reduced sprint/power potential for XX (and a power/sprint tendency for RR); an XX endurance advantage is not established in human studies. Genotype should not guide training choices in place of observed performance and training response."
         },
         {
@@ -273,7 +273,7 @@
   ],
   "additional_genes": {
     "ACTN3_power_context": {
-      "note": "ACTN3 rs1815739 appears under Endurance (XX genotype → endurance shift), but is equally relevant to Power (RR genotype → power advantage). The three-state calling model (RR/RX/XX) provides context for both pathways.",
+      "note": "ACTN3 rs1815739 appears under Endurance (XX genotype — no alpha-actinin-3), but is equally relevant to Power (RR genotype — full expression). Genotype frequencies differ between athlete groups at the population level; neither pathway placement asserts an individual power or endurance advantage. The three-state calling model (RR/RX/XX) provides context for both pathways.",
       "rsids": ["rs1815739"]
     },
     "ACE_endurance_context": {
@@ -288,18 +288,18 @@
       "states": {
         "RR": {
           "genotype": "CC",
-          "label": "RR — Power",
-          "description": "Full alpha-actinin-3 expression. Fast-twitch muscle fiber composition favors power/sprint activities."
+          "label": "RR — two functional copies",
+          "description": "Full alpha-actinin-3 expression in fast-twitch muscle fibers. RR is over-represented among sprint/power athletes, but that is a group-level population-frequency association; genotype alone does not predict individual power aptitude."
         },
         "RX": {
           "genotypes": ["CT", "TC"],
-          "label": "RX — Mixed",
-          "description": "One functional copy. Mixed muscle fiber profile. No strong bias toward endurance or power."
+          "label": "RX — one functional copy",
+          "description": "One functional copy — alpha-actinin-3 is present, unlike the XX deficiency, at intermediate expression consistent with an additive model. Genotype alone does not predict individual power or endurance aptitude."
         },
         "XX": {
           "genotype": "TT",
-          "label": "XX — Endurance",
-          "description": "No alpha-actinin-3 protein. Slow-twitch muscle fiber shift. Associated with elite endurance athlete prevalence."
+          "label": "XX — no functional copies",
+          "description": "No alpha-actinin-3 protein (alpha-actinin-3 deficiency). XX is consistently under-represented among sprint/power athletes at the group level; a human endurance-performance advantage is NOT established. Context-only, not an endurance call."
         }
       }
     },
