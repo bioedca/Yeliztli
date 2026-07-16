@@ -13,8 +13,8 @@ from fastapi import FastAPI
 import backend.main as main
 
 
-@pytest.fixture
-def stub_lifespan_startup(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> SimpleNamespace:
+@pytest.fixture(autouse=True)
+def stub_lifespan_startup(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Replace startup integrations so lifespan control flow is tested in isolation."""
     registry = SimpleNamespace(reference_engine=object())
     settings = SimpleNamespace(data_dir=tmp_path)
@@ -30,12 +30,9 @@ def stub_lifespan_startup(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Si
     monkeypatch.setattr(main, "cleanup_interrupted_sessions", lambda _engine: None)
     monkeypatch.setattr(main, "recover_orphaned_jobs", lambda _engine: None)
     monkeypatch.setattr(main, "recover_orphaned_downloads", lambda _engine: None)
-    return registry
 
 
-async def test_lifespan_normal_exit_runs_teardown(
-    monkeypatch: pytest.MonkeyPatch, stub_lifespan_startup: SimpleNamespace
-) -> None:
+async def test_lifespan_normal_exit_runs_teardown(monkeypatch: pytest.MonkeyPatch) -> None:
     """A successful lifespan still shuts down the executor before the registry."""
     calls: list[str] = []
     monkeypatch.setattr(main, "shutdown_executor", lambda: calls.append("executor"))
@@ -49,7 +46,6 @@ async def test_lifespan_normal_exit_runs_teardown(
 
 async def test_lifespan_exception_preserves_trigger_when_cleanup_also_fails(
     monkeypatch: pytest.MonkeyPatch,
-    stub_lifespan_startup: SimpleNamespace,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Both cleanups run without masking an exception from the entered lifespan."""
@@ -83,9 +79,7 @@ async def test_lifespan_exception_preserves_trigger_when_cleanup_also_fails(
     ]
 
 
-async def test_lifespan_cancellation_runs_teardown(
-    monkeypatch: pytest.MonkeyPatch, stub_lifespan_startup: SimpleNamespace
-) -> None:
+async def test_lifespan_cancellation_runs_teardown(monkeypatch: pytest.MonkeyPatch) -> None:
     """Cancellation is propagated only after both teardown actions run."""
     calls: list[str] = []
     cancellation = asyncio.CancelledError("lifespan cancelled")
@@ -101,7 +95,7 @@ async def test_lifespan_cancellation_runs_teardown(
 
 
 async def test_lifespan_clean_exit_propagates_cleanup_failure_after_both_attempts(
-    monkeypatch: pytest.MonkeyPatch, stub_lifespan_startup: SimpleNamespace
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A teardown error remains visible when there is no earlier exception."""
     calls: list[str] = []
@@ -123,7 +117,7 @@ async def test_lifespan_clean_exit_propagates_cleanup_failure_after_both_attempt
 
 
 async def test_lifespan_partial_startup_failure_runs_teardown_after_registry_acquisition(
-    monkeypatch: pytest.MonkeyPatch, stub_lifespan_startup: SimpleNamespace
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Startup failures are cleaned up once the registry has been acquired."""
     calls: list[str] = []
