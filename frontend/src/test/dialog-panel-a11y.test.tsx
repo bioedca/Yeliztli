@@ -306,6 +306,30 @@ describe("useDialogFocus", () => {
 
     expect(onClose).not.toHaveBeenCalled()
   })
+
+  it("dismisses only the topmost dialog when dialogs are stacked", () => {
+    const onCloseBottom = vi.fn()
+    const onCloseTop = vi.fn()
+    const { rerender } = render(
+      <>
+        <FocusHarness onClose={onCloseBottom} />
+        <FocusHarness onClose={onCloseTop} />
+      </>,
+    )
+
+    fireEvent.keyDown(document.body, { key: "Escape" })
+    expect(onCloseTop).toHaveBeenCalledOnce()
+    expect(onCloseBottom).not.toHaveBeenCalled()
+
+    // Unmount the foreground dialog; Escape now dismisses the one beneath.
+    rerender(
+      <>
+        <FocusHarness onClose={onCloseBottom} />
+      </>,
+    )
+    fireEvent.keyDown(document.body, { key: "Escape" })
+    expect(onCloseBottom).toHaveBeenCalledOnce()
+  })
 })
 
 // ── Panels expose dialog semantics + focus-in ───────────────────────────────

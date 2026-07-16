@@ -174,11 +174,20 @@ export function useDialogFocus(
   useEffect(() => {
     if (!active) return
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose()
+      if (e.key !== "Escape") return
+      // When dialogs stack, only the topmost (most recently opened) dismisses,
+      // so Escape closes the foreground dialog and leaves the one beneath open
+      // (ARIA APG modal pattern). connectedDialogNodes() is insertion-ordered;
+      // fall through to close when this node isn't registered yet (single
+      // dialog whose focus effect hasn't run) so a lone dialog always closes.
+      const stack = connectedDialogNodes()
+      const node = ref.current
+      if (node && stack.includes(node) && stack[stack.length - 1] !== node) return
+      onClose()
     }
     document.addEventListener("keydown", handleEscape)
     return () => document.removeEventListener("keydown", handleEscape)
-  }, [active, onClose])
+  }, [ref, active, onClose])
 
   useEffect(() => {
     if (!active) return
