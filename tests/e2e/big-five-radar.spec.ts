@@ -1,11 +1,10 @@
 /**
- * Issue #650 — the Big Five radar label "Conscientiousness" was centered near
- * the SVG right edge and clipped to "Conscientiousn". Render the real Traits
- * page and compare each SVG text label's browser `getBBox()` to the SVG
- * viewBox so label overflow cannot regress silently.
+ * Big Five radar regressions: keep labels inside the SVG viewport (#650) and
+ * keep unassessed dimensions visually distinct from measured Standard values
+ * (#1980). Both checks render the real Traits page with route-mocked data.
  */
 
-import { test, expect } from '@playwright/test'
+import { test, expect, type Page } from '@playwright/test'
 import { bypassSetup, waitForReactHydration } from './helpers'
 
 test.beforeEach(async ({ page }) => {
@@ -41,48 +40,75 @@ function snpDetail(traitDomain: string, category = 'Moderate') {
   }
 }
 
-test.describe('Big Five radar labels stay within the SVG viewport (#650)', () => {
+async function mockTraitsRadar(
+  page: Page,
+  {
+    snpDetails,
+    calledSnps = snpDetails.length,
+    totalSnps = calledSnps,
+    missingSnps = [],
+  }: {
+    snpDetails: ReturnType<typeof snpDetail>[]
+    calledSnps?: number
+    totalSnps?: number
+    missingSnps?: string[]
+  },
+) {
+  const summary = {
+    pathway_id: 'personality_big_five',
+    pathway_name: 'Big Five Personality',
+    level: 'Moderate',
+    evidence_level: 2,
+    prs_primary: false,
+    called_snps: calledSnps,
+    total_snps: totalSnps,
+    missing_snps: missingSnps,
+    no_call_snps: [],
+    pmids: [],
+  }
+
+  await page.route('**/api/analysis/traits/disclaimer', async (route) => {
+    await route.fulfill(
+      jsonRoute({
+        disclaimer: 'Research use only.',
+        evidence_cap: 2,
+        research_use_only: true,
+      }),
+    )
+  })
+  await page.route('**/api/analysis/traits/prs**', async (route) => {
+    await route.fulfill(jsonRoute({ items: [], total: 0, module_disclaimer: '' }))
+  })
+  await page.route('**/api/analysis/traits/pathways**', async (route) => {
+    await route.fulfill(
+      jsonRoute({
+        items: [summary],
+        total: 1,
+        cross_module: [],
+        module_disclaimer: 'Research use only.',
+      }),
+    )
+  })
+  await page.route(
+    '**/api/analysis/traits/pathway/personality_big_five**',
+    async (route) => {
+      await route.fulfill(jsonRoute({ ...summary, snp_details: snpDetails }))
+    },
+  )
+}
+
+test.describe('Big Five radar chart', () => {
   test('the longest axis label is fully visible in the real Traits page', async ({
     page,
   }) => {
-    await page.route('**/api/analysis/traits/disclaimer', async (route) => {
-      await route.fulfill(
-        jsonRoute({
-          disclaimer: 'Research use only.',
-          evidence_cap: 2,
-          research_use_only: true,
-        }),
-      )
-    })
-    await page.route('**/api/analysis/traits/prs**', async (route) => {
-      await route.fulfill(jsonRoute({ items: [], total: 0, module_disclaimer: '' }))
-    })
-    await page.route('**/api/analysis/traits/pathways**', async (route) => {
-      await route.fulfill(
-        jsonRoute({ items: [], total: 0, cross_module: [], module_disclaimer: '' }),
-      )
-    })
-    await page.route('**/api/analysis/traits/pathway/personality_big_five**', async (route) => {
-      await route.fulfill(
-        jsonRoute({
-          pathway_id: 'personality_big_five',
-          pathway_name: 'Big Five Personality',
-          level: 'Moderate',
-          evidence_level: 2,
-          prs_primary: false,
-          called_snps: 5,
-          total_snps: 5,
-          missing_snps: [],
-          pmids: [],
-          snp_details: [
-            snpDetail('openness'),
-            snpDetail('conscientiousness', 'Elevated'),
-            snpDetail('extraversion'),
-            snpDetail('agreeableness'),
-            snpDetail('neuroticism'),
-          ],
-        }),
-      )
+    await mockTraitsRadar(page, {
+      snpDetails: [
+        snpDetail('openness'),
+        snpDetail('conscientiousness', 'Elevated'),
+        snpDetail('extraversion'),
+        snpDetail('agreeableness'),
+        snpDetail('neuroticism'),
+      ],
     })
 
     await page.goto('/traits?sample_id=1')
@@ -92,6 +118,8 @@ test.describe('Big Five radar labels stay within the SVG viewport (#650)', () =>
       name: /Big Five personality trait associations/,
     })
     await expect(radar).toBeVisible()
+    await expect(radar.locator('polygon[data-big-five-profile]')).toHaveCount(1)
+    await expect(radar.locator('circle[data-big-five-point]')).toHaveCount(5)
 
     expect(BIG_FIVE_LABELS).toHaveLength(5)
     for (const label of BIG_FIVE_LABELS) {
@@ -132,5 +160,50 @@ test.describe('Big Five radar labels stay within the SVG viewport (#650)', () =>
         bounds.viewBottom + 0.5,
       )
     }
+  })
+
+  test('missing dimensions are not plotted as measured Standard values', async ({
+    page,
+  }) => {
+    await mockTraitsRadar(page, {
+      snpDetails: [
+        snpDetail('openness', 'Moderate'),
+        snpDetail('conscientiousness', 'Standard'),
+      ],
+      calledSnps: 2,
+      totalSnps: 3,
+      missingSnps: ['rs242949'],
+    })
+
+    await page.goto('/traits?sample_id=1')
+    await waitForReactHydration(page)
+
+    const radar = page.getByRole('img', {
+      name: /2 of 5 dimensions assessed.*Not assessed: Extraversion, Agreeableness, Neuroticism/i,
+    })
+    await expect(radar).toBeVisible()
+
+    await expect(
+      radar.locator('circle[data-dimension="conscientiousness"]'),
+    ).toBeVisible()
+    await expect(
+      radar.locator('circle[data-dimension="extraversion"]'),
+    ).toHaveCount(0)
+    await expect(radar.locator('polygon[data-big-five-profile]')).toHaveCount(0)
+
+    const missingLabel = radar.locator('text[data-dimension="extraversion"]')
+    await expect(missingLabel).toHaveAttribute(
+      'data-assessment-state',
+      'not-assessed',
+    )
+    await expect(missingLabel).toContainText('Not assessed')
+    await expect(
+      radar.locator(
+        'line[data-big-five-axis][data-dimension="extraversion"]',
+      ),
+    ).toHaveAttribute('stroke-dasharray', '4 4')
+    await expect(page.locator('[data-big-five-coverage]')).toContainText(
+      '2 of 5 dimensions assessed. Not assessed: Extraversion, Agreeableness, Neuroticism.',
+    )
   })
 })

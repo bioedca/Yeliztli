@@ -389,6 +389,69 @@ describe("BigFiveRadarChart", () => {
     expect(screen.getByText("Neuroticism")).toBeInTheDocument()
   })
 
+  it("does not plot missing dimensions as measured Standard values", () => {
+    render(<BigFiveRadarChart snpDetails={BIG_FIVE_SNPS} />)
+    const radar = screen.getByRole("img", {
+      name: /3 of 5 dimensions assessed.*Not assessed: Extraversion, Agreeableness/,
+    })
+
+    const measuredStandard = radar.querySelector(
+      'circle[data-dimension="conscientiousness"]',
+    )
+    expect(measuredStandard).toBeInTheDocument()
+    expect(measuredStandard).toHaveAttribute("data-assessment-state", "assessed")
+
+    expect(
+      radar.querySelector('circle[data-dimension="extraversion"]'),
+    ).not.toBeInTheDocument()
+    expect(
+      radar.querySelector('polygon[data-big-five-profile]'),
+    ).not.toBeInTheDocument()
+
+    const missingLabel = radar.querySelector(
+      'text[data-dimension="extraversion"]',
+    )
+    expect(missingLabel).toHaveAttribute(
+      "data-assessment-state",
+      "not-assessed",
+    )
+    expect(missingLabel).toHaveTextContent("ExtraversionNot assessed")
+    expect(
+      screen.getByText(
+        "3 of 5 dimensions assessed. Not assessed: Extraversion, Agreeableness.",
+      ),
+    ).toBeInTheDocument()
+  })
+
+  it("renders a complete profile only when all five dimensions are assessed", () => {
+    const completeSnps: SNPDetail[] = [
+      ...BIG_FIVE_SNPS,
+      {
+        ...BIG_FIVE_SNPS[0],
+        rsid: "rs-test-extraversion",
+        trait_domain: "extraversion",
+        category: "Standard",
+      },
+      {
+        ...BIG_FIVE_SNPS[0],
+        rsid: "rs-test-agreeableness",
+        trait_domain: "agreeableness",
+        category: "Elevated",
+      },
+    ]
+
+    render(<BigFiveRadarChart snpDetails={completeSnps} />)
+    const radar = screen.getByRole("img", {
+      name: /5 of 5 dimensions assessed/,
+    })
+    expect(
+      radar.querySelector('polygon[data-big-five-profile]'),
+    ).toBeInTheDocument()
+    expect(
+      radar.querySelectorAll('circle[data-big-five-point]'),
+    ).toHaveLength(5)
+  })
+
   it("keeps edge dimension labels inside the SVG viewport", () => {
     render(<BigFiveRadarChart snpDetails={BIG_FIVE_SNPS} />)
 
@@ -408,8 +471,17 @@ describe("BigFiveRadarChart", () => {
     ).toBeInTheDocument()
   })
 
-  it("renders with empty SNP data", () => {
+  it("renders empty SNP data as entirely not assessed", () => {
     render(<BigFiveRadarChart snpDetails={[]} />)
-    expect(screen.getByText("Openness")).toBeInTheDocument()
+    const radar = screen.getByRole("img", {
+      name: /0 of 5 dimensions assessed.*Not assessed: Openness, Conscientiousness, Extraversion, Agreeableness, Neuroticism/,
+    })
+    expect(radar.querySelectorAll('circle[data-big-five-point]')).toHaveLength(0)
+    expect(
+      radar.querySelector('polygon[data-big-five-profile]'),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByText("0 of 5 dimensions assessed.", { exact: false }),
+    ).toBeInTheDocument()
   })
 })
