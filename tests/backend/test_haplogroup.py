@@ -221,6 +221,29 @@ _MT_I_GENOTYPES = _MT_N1A_GENOTYPES + [
     {"rsid": "i5016129", "chrom": "MT", "pos": 16129, "genotype": "AA"},
 ]
 
+# Aggregate coverage from the SHA-pinned 2014 pgp_1050 export reports a
+# callable row at every position in the I fixture: the 12 emitted path loci
+# plus source-only m.10398 reversion context.  This is a layout capability
+# oracle only: the fixture supplies hypothetical I-derived alleles and does not
+# claim that the public exemplar donor carries haplogroup I.
+_PGP_1050_CALLABLE_MT_I_FIXTURE_POSITIONS = frozenset(
+    {
+        204,
+        1018,
+        1719,
+        8701,
+        9540,
+        10034,
+        10238,
+        10398,
+        10873,
+        12501,
+        13780,
+        15043,
+        16129,
+    }
+)
+
 _MT_B_REVERSAL_GENOTYPES = _MT_R_TRUNK_GENOTYPES + [
     {"rsid": "i5000827", "chrom": "MT", "pos": 827, "genotype": "GG"},
     {"rsid": "i5008281", "chrom": "MT", "pos": 8281, "genotype": "CC"},
@@ -2285,15 +2308,18 @@ class TestAssignHaplogroups:
         ] == [("L0", 7, 8)]
 
     @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
-    def test_issue_1899_i_exact_source_spine_assigns_by_position(
+    def test_issue_1899_pgp_1050_callable_layout_assigns_i(
         self,
         bundle: HaplogroupBundle,
         sample_engine: sa.Engine,
         source_table: sa.Table,
     ) -> None:
-        """The exact Build 17 N1/N1a spine and sparse I motif resolve together."""
+        """Synthetic I alleles on the pinned pgp_1050 layout resolve the exact path."""
+        assert {int(row["pos"]) for row in _MT_I_GENOTYPES} == (
+            _PGP_1050_CALLABLE_MT_I_FIXTURE_POSITIONS
+        )
         rows = [
-            {**row, "rsid": f"vendor_issue_1899_exact_{index}"}
+            {**row, "rsid": f"vendor_issue_1899_pgp_1050_layout_{index}"}
             for index, row in enumerate(_MT_I_GENOTYPES)
         ]
         assert not ({str(row["rsid"]) for row in rows} & bundle.mt_snp_rsids)
