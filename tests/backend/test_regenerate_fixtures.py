@@ -28,8 +28,15 @@ COORDINATE_GUARD_RSIDS = (
     "rs3135388",
 )
 
+# rs3135388 remains coordinate-guarded in the VEP, gnomAD, and GWAS fixtures,
+# but #1968 withheld it from the ClinVar seed because it has no matching ClinVar
+# record.  Requiring it in ``clinvar_variants`` would force a fabricated accession.
+CLINVAR_COORDINATE_GUARD_RSIDS = tuple(
+    rsid for rsid in COORDINATE_GUARD_RSIDS if rsid != "rs3135388"
+)
+
 SEED_COORDINATE_TARGETS = {
-    "clinvar_seed.csv": COORDINATE_GUARD_RSIDS,
+    "clinvar_seed.csv": CLINVAR_COORDINATE_GUARD_RSIDS,
     "vep_seed.csv": COORDINATE_GUARD_RSIDS,
     "gnomad_seed.csv": COORDINATE_GUARD_RSIDS,
     "gwas_seed.csv": COORDINATE_GUARD_RSIDS,
@@ -38,7 +45,7 @@ SEED_COORDINATE_TARGETS = {
 
 MINI_DB_COORDINATE_TARGETS = {
     "mini_reference.db": {
-        "clinvar_variants": COORDINATE_GUARD_RSIDS,
+        "clinvar_variants": CLINVAR_COORDINATE_GUARD_RSIDS,
         "gwas_associations": COORDINATE_GUARD_RSIDS,
     },
     "mini_vep_bundle.db": {"vep_annotations": COORDINATE_GUARD_RSIDS},
@@ -374,14 +381,15 @@ class TestRegenerateFixtures:
         _run_script(tmp_path)
         with sqlite3.connect(str(tmp_path / "mini_reference.db")) as conn:
             row = conn.execute(
-                "SELECT chrom, pos, significance, gene_symbol"
+                "SELECT chrom, pos, significance, gene_symbol, accession, variation_id"
                 " FROM clinvar_variants WHERE rsid = 'rs429358'"
             ).fetchone()
         assert row is not None, "rs429358 not found in clinvar_variants"
         assert row[0] == "19"
         assert row[1] == 44908684
-        assert row[2] == "risk_factor"
+        assert row[2] == "Conflicting classifications of pathogenicity|other|risk factor"
         assert row[3] == "APOE"
+        assert row[4:] == ("VCV000017864", 17_864)
 
     def test_idempotent_regeneration(self, tmp_path: Path) -> None:
         """Running the script twice produces identical row counts."""

@@ -79,6 +79,21 @@ REVIEW_STATUS_STARS: dict[str, int] = {
 VALID_CHROMS = {str(i) for i in range(1, 23)} | {"X", "Y", "MT"}
 
 
+def _normalize_clinvar_significance(significance: str | None) -> str | None:
+    """Normalize a ClinVar VCF ``CLNSIG`` value for database storage.
+
+    Ordinary slash compounds keep the historical first-classification behavior.
+    Compounds carrying lower-penetrance or risk-allele terms stay intact so the
+    downstream classifier can route them to their distinct evidence tier.
+    """
+    if not significance:
+        return significance
+    normalized = significance.replace("_", " ").strip()
+    if "/" in normalized and not is_low_penetrance_or_risk_allele(normalized):
+        normalized = normalized.split("/", 1)[0].strip()
+    return normalized
+
+
 class SkipReason:
     """Enum-like constants for why a VCF line was skipped."""
 
@@ -220,16 +235,7 @@ def parse_clinvar_vcf_line(line: str) -> tuple[ClinVarRecord | None, str | None]
         pass
 
     # Clinical significance
-    significance = info.get("CLNSIG")
-    if significance:
-        # Replace underscores with spaces for readability,
-        # but keep the standard ClinVar casing
-        significance = significance.replace("_", " ").strip()
-        # Historically this loader kept the first slash-separated term. Preserve
-        # slash compounds that carry lower-penetrance/risk-allele terms so those
-        # ClinGen modifiers are not erased before classification (#1027).
-        if "/" in significance and not is_low_penetrance_or_risk_allele(significance):
-            significance = significance.split("/")[0].strip()
+    significance = _normalize_clinvar_significance(info.get("CLNSIG"))
 
     # Review stars
     revstat = info.get("CLNREVSTAT", "")
