@@ -11,7 +11,7 @@ import pytest
 from scripts import derive_cancer_prs_reference as derive
 
 
-def test_write_mode_never_fetches_or_mutates_disabled_audit_model(
+def test_write_mode_never_fetches_or_mutates_disabled_nonreporting_model(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -25,7 +25,7 @@ def test_write_mode_never_fetches_or_mutates_disabled_audit_model(
                 "weights": [{"rsid": "rsACTIVE", "effect_allele": "A", "weight": 0.2}],
             },
             {
-                "name": "Disabled audit score",
+                "name": "Disabled non-reporting score",
                 "scoring_enabled": False,
                 "reference_mean": 7.0,
                 "reference_std": 8.0,

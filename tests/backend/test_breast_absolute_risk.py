@@ -110,6 +110,8 @@ class TestOverlayGating:
         )
         assert out["has_monogenic"] is False
         assert out["canrisk"]["url"] == "https://www.canrisk.org"
+        assert "exact source-verified" in out["prs_note"]
+        assert "not scored or reported" in out["prs_note"]
 
     def test_post_consent_brca_carrier_penetrance(self, sample_engine: sa.Engine) -> None:
         _insert_breast_monogenic(sample_engine, "BRCA1")

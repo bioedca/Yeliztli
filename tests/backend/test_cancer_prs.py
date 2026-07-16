@@ -1,7 +1,7 @@
 """Tests for cancer PRS integration (P3-15).
 
 Covers:
-  - Weight-set loading from JSON (3 active models + 1 quarantined audit record)
+  - Weight-set loading from JSON (3 active models + 1 source-verified non-reporting model)
   - Disabled breast-cancer score containment and provenance auditability
   - PRS computation for active prostate, colorectal, and melanoma models
   - Unsupported PRS intervals are withheld
@@ -34,7 +34,7 @@ from backend.analysis.cancer_prs import (
 from backend.analysis.cancer_prs import (
     run_cancer_prs as _run_cancer_prs,
 )
-from backend.analysis.prs import PRSResult, PRSWeightSet, prs_model_fingerprint
+from backend.analysis.prs import PRSResult, PRSWeightSet, compute_prs, prs_model_fingerprint
 from backend.db.tables import annotated_variants, findings
 
 # ── Fixtures ──────────────────────────────────────────────────────────────
@@ -99,8 +99,8 @@ def run_cancer_prs(*args, **kwargs) -> CancerPRSResult:
 def sample_with_prs_snps(sample_engine: sa.Engine) -> sa.Engine:
     """Sample engine with annotated variants matching cancer PRS SNPs.
 
-    Includes SNPs from the three active models plus the quarantined audit rows
-    so active-model coverage is sufficient and legacy rows remain loadable.
+    Includes SNPs from the three active models plus the non-reporting PRS77 rows
+    so active-model coverage is sufficient and disabled rows remain loadable.
     """
     # Load real weight sets to get all rsids
     weight_sets = load_cancer_prs_weights(WEIGHTS_PATH)
@@ -357,14 +357,23 @@ class TestLoadCancerPRSWeights:
 
     def test_breast_cancer_weight_set(self, cancer_weight_sets: list[PRSWeightSet]) -> None:
         breast = [ws for ws in cancer_weight_sets if ws.trait == "breast_cancer"][0]
-        assert breast.name == "Breast cancer (legacy 25-marker audit only)"
+        assert breast.name == "Breast cancer (Mavaddat PRS77; runtime blocked)"
         assert breast.source_ancestry == "EUR"
-        assert breast.source_pmid == "30554720"
-        assert breast.sample_size == 228951
-        assert breast.snp_count > 0
+        assert breast.source_pmid == "25855707"
+        assert breast.sample_size == 67054
+        assert breast.snp_count == 77
         assert breast.module == "cancer"
+        assert breast.pgs_id == "PGS000001"
+        assert breast.pgs_license is None
+        assert breast.genome_build == "GRCh37"
+        assert breast.variants_number == 77
+        assert breast.development_method
+        assert breast.source_url == "https://doi.org/10.1093/jnci/djv036"
+        assert all(weight.chrom and weight.pos for weight in breast.weights)
+        assert breast.calibrated is False
         assert breast.scoring_enabled is False
         assert breast.calibration_eligible is False
+        assert breast.runtime_scoring_blocked is True
 
     def test_legacy_breast_audit_hashes_recompute(self) -> None:
         payload = json.loads(WEIGHTS_PATH.read_text(encoding="utf-8"))
@@ -373,6 +382,7 @@ class TestLoadCancerPRSWeights:
             for weight_set in payload["weight_sets"]
             if weight_set["trait"] == "breast_cancer"
         )
+        legacy = breast["legacy_audit_record"]
 
         def canonical_json(value: object) -> bytes:
             return (
@@ -385,8 +395,8 @@ class TestLoadCancerPRSWeights:
                 + "\n"
             ).encode("utf-8")
 
-        legacy_object = dict(breast["legacy_canonical_metadata"])
-        legacy_object["weights"] = breast["weights"]
+        legacy_object = dict(legacy["legacy_canonical_metadata"])
+        legacy_object["weights"] = legacy["weights"]
         ordered_projection = [
             [
                 weight["rsid"],
@@ -394,11 +404,11 @@ class TestLoadCancerPRSWeights:
                 weight.get("other_allele"),
                 weight["weight"],
             ]
-            for weight in breast["weights"]
+            for weight in legacy["weights"]
         ]
         representations = {
             "legacy_canonical_sha256": legacy_object,
-            "legacy_weights_sha256": breast["weights"],
+            "legacy_weights_sha256": legacy["weights"],
             "legacy_ordered_projection_sha256": ordered_projection,
         }
         expected_hashes = {
@@ -414,8 +424,83 @@ class TestLoadCancerPRSWeights:
         }
 
         for field, representation in representations.items():
-            assert breast[field] == expected_hashes[field]
-            assert hashlib.sha256(canonical_json(representation)).hexdigest() == breast[field]
+            assert legacy[field] == expected_hashes[field]
+            assert hashlib.sha256(canonical_json(representation)).hexdigest() == legacy[field]
+
+    def test_loader_rejects_duplicate_traits(self, tmp_path: Path) -> None:
+        payload = json.loads(WEIGHTS_PATH.read_text(encoding="utf-8"))
+        payload["weight_sets"][1]["trait"] = payload["weight_sets"][0]["trait"]
+        path = tmp_path / "duplicate-trait.json"
+        path.write_text(json.dumps(payload), encoding="utf-8")
+
+        with pytest.raises(ValueError, match="duplicate top-level trait"):
+            load_cancer_prs_weights(path)
+
+    def test_loader_rejects_duplicate_rsids(self, tmp_path: Path) -> None:
+        payload = json.loads(WEIGHTS_PATH.read_text(encoding="utf-8"))
+        breast = payload["weight_sets"][0]
+        breast["weights"][1]["rsid"] = breast["weights"][0]["rsid"]
+        path = tmp_path / "duplicate-rsid.json"
+        path.write_text(json.dumps(payload), encoding="utf-8")
+
+        with pytest.raises(ValueError, match="Duplicate rsID"):
+            load_cancer_prs_weights(path)
+
+    def test_loader_rejects_declared_variant_count_mismatch(self, tmp_path: Path) -> None:
+        payload = json.loads(WEIGHTS_PATH.read_text(encoding="utf-8"))
+        payload["weight_sets"][0]["variants_number"] = 76
+        path = tmp_path / "variant-count.json"
+        path.write_text(json.dumps(payload), encoding="utf-8")
+
+        with pytest.raises(ValueError, match="variants_number=76"):
+            load_cancer_prs_weights(path)
+
+    def test_loader_rejects_enabling_runtime_blocked_rows(self, tmp_path: Path) -> None:
+        payload = json.loads(WEIGHTS_PATH.read_text(encoding="utf-8"))
+        payload["weight_sets"][0]["scoring_enabled"] = True
+        path = tmp_path / "unsafe-enabled-model.json"
+        path.write_text(json.dumps(payload), encoding="utf-8")
+
+        with pytest.raises(ValueError, match="39 runtime-blocked row"):
+            load_cancer_prs_weights(path)
+
+    def test_loader_enforces_runtime_blocked_model_status(self, tmp_path: Path) -> None:
+        payload = json.loads(WEIGHTS_PATH.read_text(encoding="utf-8"))
+        breast = payload["weight_sets"][0]
+        breast["scoring_enabled"] = True
+        for weight in breast["weights"]:
+            weight["runtime_scoring_eligible"] = True
+        path = tmp_path / "blocked-model-status.json"
+        path.write_text(json.dumps(payload), encoding="utf-8")
+
+        with pytest.raises(ValueError, match="enables scoring"):
+            load_cancer_prs_weights(path)
+
+    @pytest.mark.parametrize("tamper", ["missing", "null", "string"])
+    def test_loader_rejects_invalid_runtime_row_markers(self, tmp_path: Path, tamper: str) -> None:
+        payload = json.loads(WEIGHTS_PATH.read_text(encoding="utf-8"))
+        breast = payload["weight_sets"][0]
+        marker_row = breast["weights"][0]
+        if tamper == "missing":
+            marker_row.pop("runtime_scoring_eligible")
+        elif tamper == "null":
+            marker_row["runtime_scoring_eligible"] = None
+        else:
+            marker_row["runtime_scoring_eligible"] = "false"
+        path = tmp_path / f"runtime-marker-{tamper}.json"
+        path.write_text(json.dumps(payload), encoding="utf-8")
+
+        with pytest.raises(ValueError, match="missing or non-boolean"):
+            load_cancer_prs_weights(path)
+
+    def test_runtime_block_survives_scoring_flag_replacement(
+        self, cancer_weight_sets: list[PRSWeightSet], sample_engine: sa.Engine
+    ) -> None:
+        breast = next(ws for ws in cancer_weight_sets if ws.trait == "breast_cancer")
+        tampered = replace(breast, scoring_enabled=True)
+
+        with pytest.raises(ValueError, match="runtime-blocked"):
+            compute_prs(tampered, sample_engine)
 
     def test_weight_set_execution_flags_default_to_enabled(self) -> None:
         weight_set = PRSWeightSet(
@@ -445,6 +530,7 @@ class TestLoadCancerPRSWeights:
         for weight_set in active_sets.values():
             assert weight_set.scoring_enabled is True
             assert weight_set.calibration_eligible is True
+            assert weight_set.runtime_scoring_blocked is False
 
     def test_model_fingerprints_are_deterministic_and_model_specific(
         self, cancer_weight_sets: list[PRSWeightSet]
@@ -961,7 +1047,7 @@ class TestStoreCancerPRSFindings:
             weight_set for weight_set in weight_sets if weight_set.trait == "breast_cancer"
         )
         breast_result = PRSResult(
-            weight_set_name="Synthetic quarantined breast score",
+            weight_set_name="Synthetic non-reporting breast score",
             trait="breast_cancer",
             module="cancer",
             source_ancestry="EUR",

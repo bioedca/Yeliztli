@@ -19,8 +19,8 @@ Run as a one-off curation/verification tool (network required):
     python scripts/derive_cancer_prs_reference.py            # report only
     python scripts/derive_cancer_prs_reference.py --write     # update JSON
 
-Models marked ``scoring_enabled=false`` are audit-only and are never fetched,
-derived, or mutated by this tool.
+Models marked ``scoring_enabled=false`` are non-reporting and are never
+fetched, derived, or mutated by this tool.
 """
 
 from __future__ import annotations
@@ -115,7 +115,7 @@ def main() -> None:
         ws for ws in data["weight_sets"] if not ws.get("scoring_enabled", True)
     ]
     for ws in disabled_weight_sets:
-        print(f"Skipping disabled audit-only model: {ws['name']}")
+        print(f"Skipping disabled non-reporting model: {ws['name']}")
 
     all_rsids = sorted({w["rsid"] for ws in active_weight_sets for w in ws["weights"]})
     print(f"Fetching {len(all_rsids)} SNPs from Ensembl ({PRIMARY_POP} / {FALLBACK_POP})...")

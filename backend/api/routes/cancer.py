@@ -3,8 +3,8 @@
 ClinVar P/LP extraction results from the 28-gene cancer panel — monogenic
 pathogenic variants with accession, review stars, syndrome, and inheritance.
 Eligible cancer PRS results for research use; percentiles and z-scores are
-returned only for calibrated models. Quarantined models are retained only as
-data-file audit records and never returned.
+returned only for calibrated models. Scoring-disabled models are retained as
+non-reporting data-file records and never returned.
 Module-specific disclaimer text (P3-17).
 
 GET  /api/analysis/cancer/disclaimer                         — Cancer module disclaimer
