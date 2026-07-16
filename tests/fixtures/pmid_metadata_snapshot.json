@@ -2,7 +2,7 @@
   "_provenance": {
     "source": "NCBI E-utilities esummary (db=pubmed)",
     "accessed": "2026-06-30",
-    "pmid_count": 366,
+    "pmid_count": 367,
     "generator": "scripts/build_pmid_metadata_snapshot.py",
     "note": "Committed offline reference for the citation topic-consistency guard (#365). Regenerate deliberately; never fetched at test time.",
     "unresolved_pmids": [
@@ -1296,6 +1296,11 @@
       "title": "Genetic associations of periodic limb movements of sleep in the elderly for the MrOS sleep study.",
       "journal": "Sleep Med",
       "year": "2015"
+    },
+    "26681802": {
+      "title": "Analysis of the ACTN3 heterozygous genotype suggests that α-actinin-3 controls sarcomeric composition and muscle function in a dose-dependent fashion.",
+      "journal": "Hum Mol Genet",
+      "year": "2016"
     },
     "26691988": {
       "title": "A large genome-wide association study of age-related macular degeneration highlights contributions of rare and common variants.",

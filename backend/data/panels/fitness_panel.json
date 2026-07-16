@@ -40,7 +40,7 @@
             "TT": "XX"
           },
           "evidence_level": 2,
-          "pmids": ["12879365", "18043716", "21542061", "29298672", "38760851"],
+          "pmids": ["12879365", "18043716", "21542061", "26681802", "29298672", "38760851"],
           "recommendation_text": "ACTN3 R577X is among the most-studied sport-performance variants, but it is a weak, non-predictive marker. The consistently-replicated signal is reduced sprint/power potential for XX (and a power/sprint tendency for RR); an XX endurance advantage is not established in human studies. Genotype should not guide training choices in place of observed performance and training response."
         },
         {
@@ -273,7 +273,7 @@
   ],
   "additional_genes": {
     "ACTN3_power_context": {
-      "note": "ACTN3 rs1815739 appears under Endurance (XX genotype → endurance shift), but is equally relevant to Power (RR genotype → power advantage). The three-state calling model (RR/RX/XX) provides context for both pathways.",
+      "note": "ACTN3 rs1815739 appears under Endurance (XX genotype — no alpha-actinin-3), but is equally relevant to Power (RR genotype — full expression). Genotype frequencies differ between athlete groups at the population level; neither pathway placement asserts an individual power or endurance advantage. The three-state calling model (RR/RX/XX) provides context for both pathways.",
       "rsids": ["rs1815739"]
     },
     "ACE_endurance_context": {

@@ -400,6 +400,26 @@ class TestACTN3ThreeState:
         assert "favors power/sprint activities" not in desc
         assert "group-level" in desc
 
+    def test_actn3_cites_the_expression_source_it_relies_on(self, panel_data: dict) -> None:
+        """The RX rows claim additive/intermediate alpha-actinin-3 expression, and
+        ``store_fitness_findings`` ships this row's ``pmids`` as the finding's
+        ``pmid_citations`` — so the source of that claim has to be in the list, not
+        just in a docstring. The other five are athlete-association papers; PMID
+        26681802 (Hogarth 2016) is the one that measured expression by genotype."""
+        actn3 = self._get_actn3(panel_data)
+        assert "26681802" in actn3["pmids"]
+
+    def test_actn3_power_context_note_asserts_no_individual_advantage(
+        self, panel_data: dict
+    ) -> None:
+        """The additional_genes note is curated alongside its locus (cf. the ACE
+        note softened in #249) and must not re-assert the framing removed from
+        genotype_effects and special_calling — otherwise the panel contradicts
+        itself for rs1815739 within the same file."""
+        note = panel_data["additional_genes"]["ACTN3_power_context"]["note"].lower()
+        for banned in ("endurance shift", "power advantage"):
+            assert banned not in note
+
 
 # ── ACE I/D proxy tests ─────────────────────────────────────────────────
 
