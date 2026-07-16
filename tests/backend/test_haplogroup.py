@@ -2373,15 +2373,15 @@ class TestAssignHaplogroups:
         assert mt.confidence == 0.9167
 
     @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
-    def test_issue_1899_pgp4139_sparse_export_still_assigns_i(
+    def test_issue_1899_two_missing_path_markers_still_assign_i(
         self,
         bundle: HaplogroupBundle,
         sample_engine: sa.Engine,
         source_table: sa.Table,
     ) -> None:
-        """The primary export resolves I without historical m.204 or untyped m.16129."""
+        """One missing marker at N1a and I still leaves sufficient path evidence."""
         rows = [
-            {**row, "rsid": f"vendor_issue_1899_pgp4139_{index}"}
+            {**row, "rsid": f"vendor_issue_1899_sparse_path_{index}"}
             for index, row in enumerate(_MT_I_GENOTYPES)
             if int(row["pos"]) not in {204, 16129}
         ]
