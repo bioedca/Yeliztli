@@ -1,8 +1,11 @@
-/** A11y coverage for the slide-in detail panels (#703/#846):
- *  - the shared `useDialogFocus` hook (focus-in / Tab-trap / focus-restore);
+/** A11y coverage for the slide-in detail panels (#703/#846/#1977):
+ *  - the shared `useDialogFocus` hook (focus-in / Tab-trap / focus-restore /
+ *    Escape-to-close);
  *  - modal hardening (background inert + scroll lock);
  *  - the four previously-bare panels now expose role="dialog" + aria-modal and
- *    move focus into themselves on open.
+ *    move focus into themselves on open;
+ *  - the self-discovering guard requires every aria-modal source to call
+ *    useDialogFocus with an onClose, so Escape can never be omitted per-panel.
  */
 
 import { readdirSync, readFileSync } from "node:fs"
@@ -91,9 +94,10 @@ function escapeRegExp(value: string): string {
 }
 
 function useDialogFocusCallForRef(refName: string): RegExp {
-  return new RegExp(
-    `\\buseDialogFocus\\s*\\(\\s*${escapeRegExp(refName)}(?:\\s*[,\\)])`,
-  )
+  // Require a second argument (the onClose callback) — the hook wires
+  // Escape-to-close from it, so a panel that calls the hook without onClose
+  // would advertise aria-modal yet ignore Escape (#1977).
+  return new RegExp(`\\buseDialogFocus\\s*\\(\\s*${escapeRegExp(refName)}\\s*,`)
 }
 
 function discoverModalDialogSources(): DialogSource[] {
@@ -134,7 +138,9 @@ describe("production modal dialogs wire focus management (#1251)", () => {
         if (!refName) {
           violations.push(`${path}: add a ref={...} to ${tag}`)
         } else if (!useDialogFocusCallForRef(refName).test(source)) {
-          violations.push(`${path}: call useDialogFocus(${refName}, ...) for ${tag}`)
+          violations.push(
+            `${path}: call useDialogFocus(${refName}, onClose, …) — wires focus + Escape (#1977) for ${tag}`,
+          )
         }
         if (!TAB_INDEX_MINUS_ONE_RE.test(tag)) {
           violations.push(`${path}: add tabIndex={-1} to ${tag}`)
@@ -150,9 +156,15 @@ describe("production modal dialogs wire focus management (#1251)", () => {
 
 // ── useDialogFocus ──────────────────────────────────────────────────────────
 
-function FocusHarness() {
+function FocusHarness({
+  onClose = () => {},
+  active,
+}: {
+  onClose?: () => void
+  active?: boolean
+}) {
   const ref = useRef<HTMLDivElement>(null)
-  useDialogFocus(ref)
+  useDialogFocus(ref, onClose, active)
   return (
     <div ref={ref} role="dialog" aria-modal="true" aria-label="harness" tabIndex={-1}>
       <button>first</button>
@@ -261,6 +273,38 @@ describe("useDialogFocus", () => {
       closeDialog?.()
       document.body.style.overflow = ""
     }
+  })
+
+  // Escape-to-close (#1977): centralized in the hook so it can never be omitted
+  // per-panel. The source guard above requires every aria-modal panel to call
+  // useDialogFocus with an onClose, so these three lock the behavior the whole
+  // family now inherits.
+  it("closes on Escape via onClose", () => {
+    const onClose = vi.fn()
+    render(<FocusHarness onClose={onClose} />)
+
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" })
+
+    expect(onClose).toHaveBeenCalledOnce()
+  })
+
+  it("ignores Escape while the panel is inactive", () => {
+    const onClose = vi.fn()
+    render(<FocusHarness onClose={onClose} active={false} />)
+
+    fireEvent.keyDown(document.body, { key: "Escape" })
+
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it("stops listening for Escape after unmount", () => {
+    const onClose = vi.fn()
+    const { unmount } = render(<FocusHarness onClose={onClose} />)
+
+    unmount()
+    fireEvent.keyDown(document.body, { key: "Escape" })
+
+    expect(onClose).not.toHaveBeenCalled()
   })
 })
 

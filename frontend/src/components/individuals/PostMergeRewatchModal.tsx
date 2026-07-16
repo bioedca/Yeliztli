@@ -22,7 +22,7 @@
  *   5. Modal is dismissible; does NOT block dashboard rendering.
  */
 
-import { useEffect, useRef, useState } from "react"
+import { useRef, useState } from "react"
 import { Loader2, X } from "lucide-react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 
@@ -89,7 +89,7 @@ export function PostMergeRewatchModal({
   const queryClient = useQueryClient()
   const dialogRef = useRef<HTMLDivElement>(null)
   const progress = useAnnotationProgress(jobId, mergedSampleId)
-  useDialogFocus(dialogRef)
+  useDialogFocus(dialogRef, onClose)
 
   // Annotation cascade is finished when SSE reports complete OR no jobId
   // was provided AND the user opened the modal manually. Plan §10.6
@@ -106,15 +106,6 @@ export function PostMergeRewatchModal({
   const [perRowStatus, setPerRowStatus] = useState<
     Record<string, RewatchStatus>
   >({})
-
-  // Close on Escape — same idiom as MergeWizard.
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose()
-    }
-    document.addEventListener("keydown", handleKeyDown)
-    return () => document.removeEventListener("keydown", handleKeyDown)
-  }, [onClose])
 
   const rewatchMutation = useMutation({
     mutationFn: async (candidate: MigrateFromSourcesCandidate) => {

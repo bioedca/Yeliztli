@@ -14,11 +14,15 @@
  *    - while open, mark background siblings as `inert` and lock background
  *      scroll containers.
  *
- *  Escape-to-close and the click-backdrop overlay are owned by the panels and
- *  their parent views.
+ *  Escape-to-close is wired here — while the panel is active, Escape calls
+ *  `onClose`, so every panel that adopts the hook gets modal semantics, the Tab
+ *  trap, AND dismissal together and none can drift into advertising
+ *  `aria-modal` while ignoring Escape (#1977). The click-backdrop overlay is
+ *  still owned by the panels and their parent views.
  *
- *  @param ref    Ref to the panel container (the `role="dialog"` element).
- *  @param active Whether the panel is open. Panels that are conditionally
+ *  @param ref     Ref to the panel container (the `role="dialog"` element).
+ *  @param onClose Called when the user presses Escape while the panel is active.
+ *  @param active  Whether the panel is open. Panels that are conditionally
  *                mounted only while open can omit this (defaults to `true`).
  *                A panel that stays mounted and renders `null` when closed must
  *                pass its open flag so focus is (re)entered on every open.
@@ -159,7 +163,23 @@ function applyPageModalState(): void {
   }
 }
 
-export function useDialogFocus(ref: RefObject<HTMLElement | null>, active = true): void {
+export function useDialogFocus(
+  ref: RefObject<HTMLElement | null>,
+  onClose: () => void,
+  active = true,
+): void {
+  // Escape-to-close, centralized so it can never be omitted per-panel (#1977).
+  // Kept in its own effect (deps: active, onClose) so a changing onClose
+  // identity re-binds only this listener and never re-enters focus below.
+  useEffect(() => {
+    if (!active) return
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose()
+    }
+    document.addEventListener("keydown", handleEscape)
+    return () => document.removeEventListener("keydown", handleEscape)
+  }, [active, onClose])
+
   useEffect(() => {
     if (!active) return
     const node = ref.current

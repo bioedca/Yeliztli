@@ -79,7 +79,7 @@ export default function VariantDetailPanel({
       ? "text-blue-800 dark:text-blue-300"
       : "text-teal-800 dark:text-teal-300"
   const panelRef = useRef<HTMLElement>(null)
-  useDialogFocus(panelRef)
+  useDialogFocus(panelRef, onClose)
 
   return (
     <aside

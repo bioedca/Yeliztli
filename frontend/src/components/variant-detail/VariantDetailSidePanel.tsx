@@ -3,7 +3,7 @@
  *  Click behavior: single click on any variant row opens this panel.
  *  The full detail page is only reached via the "Open full detail" link. */
 
-import { useEffect, useRef, useCallback } from "react"
+import { useRef, useCallback } from "react"
 import { Link } from "react-router-dom"
 import {
   X,
@@ -359,21 +359,7 @@ export default function VariantDetailSidePanel({
 
   // Focus-in / trap / restore for the dialog (#703). The component stays mounted
   // and renders null when closed, so the open flag drives focus entry per open.
-  useDialogFocus(panelRef, isOpen)
-
-  // Close on Escape key
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose()
-    },
-    [onClose],
-  )
-
-  useEffect(() => {
-    if (!isOpen) return
-    document.addEventListener("keydown", handleKeyDown)
-    return () => document.removeEventListener("keydown", handleKeyDown)
-  }, [isOpen, handleKeyDown])
+  useDialogFocus(panelRef, onClose, isOpen)
 
   // Close when clicking the overlay
   const handleOverlayClick = useCallback(

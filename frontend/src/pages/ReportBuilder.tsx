@@ -127,7 +127,6 @@ export default function ReportBuilder() {
 
   const previewDialogRef = useRef<HTMLDivElement>(null)
   const iframeRef = useRef<HTMLIFrameElement>(null)
-  useDialogFocus(previewDialogRef, previewHtml !== null)
 
   const summaryQuery = useFindingsSummary(sampleId)
   const generateMutation = useGenerateReport()
@@ -263,15 +262,8 @@ export default function ReportBuilder() {
     setPreviewError(null)
   }, [])
 
-  // Close preview modal on Escape key
-  useEffect(() => {
-    if (!previewHtml) return
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") closePreview()
-    }
-    document.addEventListener("keydown", handleKeyDown)
-    return () => document.removeEventListener("keydown", handleKeyDown)
-  }, [previewHtml, closePreview])
+  // Focus-in / Tab-trap / focus-restore + Escape-to-close for the preview modal.
+  useDialogFocus(previewDialogRef, closePreview, previewHtml !== null)
 
   // No sample selected
   if (sampleId == null) {
