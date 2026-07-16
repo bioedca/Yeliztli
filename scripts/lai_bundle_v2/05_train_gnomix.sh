@@ -36,9 +36,13 @@
 set -euo pipefail
 
 config_snapshot_tmp=""
+environment_snapshot_tmp=""
 cleanup_phase05_temps() {
   if [ -n "$config_snapshot_tmp" ]; then
     rm -f -- "$config_snapshot_tmp"
+  fi
+  if [ -n "$environment_snapshot_tmp" ]; then
+    rm -f -- "$environment_snapshot_tmp"
   fi
 }
 trap cleanup_phase05_temps EXIT
@@ -49,7 +53,7 @@ PHASE_NAME=05_train_gnomix
 source "$SCRIPT_DIR/env.sh"
 read -r -a chromosomes <<< "$CHROMS"
 
-require conda  # gnomix runs in its own env (GNOMIX_ENV) via `conda run`
+require "$GNOMIX_CONDA_EXECUTABLE"
 require python3
 require sha256sum
 require git
@@ -59,6 +63,8 @@ require_file "$GNOMIX_DIR_INSTALL/gnomix.py"
 require_file "$SCRIPT_DIR/gnomix_launcher.py"  # pandas>=2 compat shim wrapper
 require_file "$SCRIPT_DIR/gnomix_provenance.py"
 require_file "$SCRIPT_DIR/gnomix_training_manifests.py"
+require_file "$GNOMIX_ENV_LOCK"
+require_file "$GNOMIX_ENV_VERIFIER"
 require_file "$GNOMIX_CONFIG"
 require_file "$RAW_DIR/genetic_maps_gnomix/provenance.json"
 
@@ -66,6 +72,9 @@ phase_log "verifying pinned, clean Gnomix checkout"
 python3 "$SCRIPT_DIR/gnomix_provenance.py" verify-checkout \
   --gnomix-dir "$GNOMIX_DIR_INSTALL" \
   --expected-commit "$GNOMIX_EXPECTED_COMMIT"
+
+phase_log "verifying immutable Gnomix training environment"
+verify_gnomix_environment
 
 require_file "$GNOMIX_TRAINING_INPUT_MANIFEST"
 
@@ -101,8 +110,7 @@ python3 "$SCRIPT_DIR/01_convert_gnomix_maps.py" \
 # arguments the pinned CLI imports its runtime and exits after printing usage;
 # a missing environment/package therefore fails here, not after a model move.
 phase_log "verifying Gnomix runtime environment"
-PYTHONDONTWRITEBYTECODE=1 conda run -n "$GNOMIX_ENV" --no-capture-output \
-  python "$SCRIPT_DIR/gnomix_launcher.py" \
+run_gnomix_python "$SCRIPT_DIR/gnomix_launcher.py" \
   "$GNOMIX_DIR_INSTALL/gnomix.py" >/dev/null
 
 # Do NOT stage the sample_map into a single shared $GNOMIX_DIR path. Under the
@@ -146,6 +154,7 @@ for chr in "${chromosomes[@]}"; do
   train2_map="$split_map_dir/train2.map"
   val_map="$split_map_dir/val.map"
   config_snapshot="$GNOMIX_DIR/config_snapshots/chr${chr}/effective_config.yaml"
+  environment_snapshot="$GNOMIX_DIR/environment_snapshots/chr${chr}/gnomix-training-environment.conda-lock.yml"
   require_file "$panel_vcf"
   require_file "$genetic_map"
 
@@ -162,6 +171,7 @@ for chr in "${chromosomes[@]}"; do
   python3 "$SCRIPT_DIR/gnomix_provenance.py" verify-checkout \
     --gnomix-dir "$GNOMIX_DIR_INSTALL" \
     --expected-commit "$GNOMIX_EXPECTED_COMMIT" >/dev/null
+  verify_gnomix_environment >/dev/null
   python3 "$SCRIPT_DIR/gnomix_provenance.py" verify-config \
     --config "$GNOMIX_CONFIG" \
     --training-input-manifest "$GNOMIX_TRAINING_INPUT_MANIFEST" >/dev/null
@@ -180,13 +190,19 @@ for chr in "${chromosomes[@]}"; do
   fi
   current_map_sha=$(sha256sum "$genetic_map" | awk '{print $1}')
   current_config_sha=$(sha256sum "$GNOMIX_CONFIG" | awk '{print $1}')
+  current_environment_sha=$(sha256sum "$GNOMIX_ENV_LOCK" | awk '{print $1}')
   persisted_config_sha=$(sha256sum "$config_snapshot" 2>/dev/null | awk '{print $1}' || true)
+  persisted_environment_sha=$(
+    sha256sum "$environment_snapshot" 2>/dev/null | awk '{print $1}' || true
+  )
   recorded_map_sha=$(awk 'NR == 1 {print $1}' "$model_map_sha" 2>/dev/null || true)
 
   if [ -s "$model_pkl" ] \
     && [ "$recorded_map_sha" = "$current_map_sha" ] \
     && [ -s "$config_snapshot" ] \
     && [ "$persisted_config_sha" = "$current_config_sha" ] \
+    && [ -s "$environment_snapshot" ] \
+    && [ "$persisted_environment_sha" = "$current_environment_sha" ] \
     && python3 "$SCRIPT_DIR/gnomix_training_manifests.py" verify-splits \
       --manifest "$split_manifest" \
       --input-manifest "$GNOMIX_TRAINING_INPUT_MANIFEST" \
@@ -201,7 +217,11 @@ for chr in "${chromosomes[@]}"; do
       --genetic-map "$genetic_map" \
       --model "$model_pkl" \
       --training-input-manifest "$GNOMIX_TRAINING_INPUT_MANIFEST" \
-      --training-split-manifest "$split_manifest" >/dev/null 2>&1; then
+      --training-split-manifest "$split_manifest" \
+      --training-environment-lock "$environment_snapshot" \
+      --training-environment-platform "$GNOMIX_ENV_PLATFORM" \
+      --expected-training-environment-sha256 "$GNOMIX_ENV_LOCK_SHA256" \
+      >/dev/null 2>&1; then
     phase_log "chr${chr}: model matches pinned source, inputs, splits, config, and map; skipping"
     flock -u 9
     exec 9>&-
@@ -212,21 +232,31 @@ for chr in "${chromosomes[@]}"; do
   fi
 
   phase_log "chr${chr}: training gnomix"
-  mkdir -p "$model_dir" "${config_snapshot%/*}"
+  mkdir -p "$model_dir" "${config_snapshot%/*}" "${environment_snapshot%/*}"
   # Train from an immutable, chromosome-local snapshot. The source config may
   # be a job-specific SLURM file; hashing it before/after the copy catches a
   # concurrent rewrite. Validate the snapshot before invalidating any prior
   # completion state, then Gnomix only ever opens this stable file.
   config_snapshot_tmp="${config_snapshot}.tmp.$$"
+  environment_snapshot_tmp="${environment_snapshot}.tmp.$$"
   cp -f "$GNOMIX_CONFIG" "$config_snapshot_tmp"
+  cp -f "$GNOMIX_ENV_LOCK" "$environment_snapshot_tmp"
   snapshot_config_sha=$(sha256sum "$config_snapshot_tmp" | awk '{print $1}')
   source_config_sha_after_copy=$(sha256sum "$GNOMIX_CONFIG" | awk '{print $1}')
+  snapshot_environment_sha=$(sha256sum "$environment_snapshot_tmp" | awk '{print $1}')
+  source_environment_sha_after_copy=$(sha256sum "$GNOMIX_ENV_LOCK" | awk '{print $1}')
   if [ "$snapshot_config_sha" != "$current_config_sha" ] \
     || [ "$source_config_sha_after_copy" != "$current_config_sha" ]; then
     rm -f "$config_snapshot_tmp"
     phase_log "chr${chr}: effective Gnomix config changed while it was snapshotted" >&2
     exit 1
   fi
+  if [ "$snapshot_environment_sha" != "$current_environment_sha" ] \
+    || [ "$source_environment_sha_after_copy" != "$current_environment_sha" ]; then
+    phase_log "chr${chr}: Gnomix environment lock changed while it was snapshotted" >&2
+    exit 1
+  fi
+  verify_gnomix_environment "$environment_snapshot_tmp" >/dev/null
   if ! python3 "$SCRIPT_DIR/gnomix_provenance.py" verify-config \
     --config "$config_snapshot_tmp" \
     --training-input-manifest "$GNOMIX_TRAINING_INPUT_MANIFEST"; then
@@ -239,6 +269,8 @@ for chr in "${chromosomes[@]}"; do
   # aside. From this point, any failure must leave the chromosome incomplete.
   mv -f "$config_snapshot_tmp" "$config_snapshot"
   config_snapshot_tmp=""
+  mv -f "$environment_snapshot_tmp" "$environment_snapshot"
+  environment_snapshot_tmp=""
   rm -f "$model_provenance" "$model_map_sha" "$split_manifest" \
     "$train1_map" "$train2_map" "$val_map"
   if [ -s "$model_pkl" ]; then
@@ -271,8 +303,7 @@ for chr in "${chromosomes[@]}"; do
   # which restores DataFrame.append (-> pd.concat) in-process only — no mutation of
   # the shared env or the gnomix checkout. The launcher forwards every arg after the
   # gnomix.py path verbatim, so gnomix still sees the 8 positional args + config.
-  PYTHONDONTWRITEBYTECODE=1 conda run -n "$GNOMIX_ENV" --no-capture-output \
-    python "$SCRIPT_DIR/gnomix_launcher.py" \
+  run_gnomix_python "$SCRIPT_DIR/gnomix_launcher.py" \
     "$GNOMIX_DIR_INSTALL/gnomix.py" \
     None \
     "$out_dir" \
@@ -310,6 +341,15 @@ for chr in "${chromosomes[@]}"; do
   python3 "$SCRIPT_DIR/gnomix_provenance.py" verify-checkout \
     --gnomix-dir "$GNOMIX_DIR_INSTALL" \
     --expected-commit "$GNOMIX_EXPECTED_COMMIT" >/dev/null
+  post_source_environment_sha=$(sha256sum "$GNOMIX_ENV_LOCK" | awk '{print $1}')
+  post_snapshot_environment_sha=$(sha256sum "$environment_snapshot" | awk '{print $1}')
+  if [ "$post_source_environment_sha" != "$current_environment_sha" ] \
+    || [ "$post_snapshot_environment_sha" != "$current_environment_sha" ]; then
+    phase_log "chr${chr}: Gnomix environment lock changed during training" >&2
+    exit 1
+  fi
+  verify_gnomix_environment >/dev/null
+  verify_gnomix_environment "$environment_snapshot" >/dev/null
   post_input_manifest_sha_before_verify=$(
     sha256sum "$GNOMIX_TRAINING_INPUT_MANIFEST" | awk '{print $1}'
   )
@@ -371,7 +411,10 @@ for chr in "${chromosomes[@]}"; do
     --training-input-manifest "$GNOMIX_TRAINING_INPUT_MANIFEST" \
     --training-split-manifest "$split_manifest" \
     --expected-training-input-sha256 "$current_input_manifest_sha" \
-    --expected-training-split-sha256 "$current_split_manifest_sha"
+    --expected-training-split-sha256 "$current_split_manifest_sha" \
+    --training-environment-lock "$environment_snapshot" \
+    --training-environment-platform "$GNOMIX_ENV_PLATFORM" \
+    --expected-training-environment-sha256 "$GNOMIX_ENV_LOCK_SHA256"
   rm -f "${model_pkl}.stale"
   flock -u 9
   exec 9>&-
@@ -380,6 +423,7 @@ done
 python3 "$SCRIPT_DIR/gnomix_provenance.py" verify-checkout \
   --gnomix-dir "$GNOMIX_DIR_INSTALL" \
   --expected-commit "$GNOMIX_EXPECTED_COMMIT" >/dev/null
+verify_gnomix_environment >/dev/null
 missing=0
 for chr in "${chromosomes[@]}"; do
   chr_model_dir="output_chr${chr}/models/model_chm_chr${chr}"
@@ -389,6 +433,7 @@ for chr in "${chromosomes[@]}"; do
   chr_split_manifest="$chr_model_dir/training_splits.json"
   chr_split_dir="output_chr${chr}/generated_data/sample_maps"
   chr_config_snapshot="$GNOMIX_DIR/config_snapshots/chr${chr}/effective_config.yaml"
+  chr_environment_snapshot="$GNOMIX_DIR/environment_snapshots/chr${chr}/gnomix-training-environment.conda-lock.yml"
   chr_map="$RAW_DIR/genetic_maps_gnomix/chr${chr}.map"
   python3 "$SCRIPT_DIR/gnomix_training_manifests.py" verify-input \
     --manifest "$GNOMIX_TRAINING_INPUT_MANIFEST" \
@@ -424,7 +469,11 @@ for chr in "${chromosomes[@]}"; do
       --genetic-map "$chr_map" \
       --model "$chr_model" \
       --training-input-manifest "$GNOMIX_TRAINING_INPUT_MANIFEST" \
-      --training-split-manifest "$chr_split_manifest" >/dev/null 2>&1; then
+      --training-split-manifest "$chr_split_manifest" \
+      --training-environment-lock "$chr_environment_snapshot" \
+      --training-environment-platform "$GNOMIX_ENV_PLATFORM" \
+      --expected-training-environment-sha256 "$GNOMIX_ENV_LOCK_SHA256" \
+      >/dev/null 2>&1; then
     phase_log "chr${chr}: OK ($(du -sh "output_chr${chr}" | awk '{print $1}'))"
   else
     phase_log "chr${chr}: MISSING OR STALE"

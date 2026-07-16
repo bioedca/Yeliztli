@@ -32,7 +32,7 @@ require sha256sum
 require tar
 require git
 require flock
-require conda  # gnomix-model re-export runs in $GNOMIX_ENV (numpy/xgboost/sklearn)
+require "$GNOMIX_CONDA_EXECUTABLE"
 require_file "$VALIDATION_DIR/held_out_validation.tsv"
 require_file "$RAW_DIR/genetic_maps_gnomix/provenance.json"
 require_file "$GNOMIX_DIR_INSTALL/gnomix.py"
@@ -40,6 +40,8 @@ require_file "$SCRIPT_DIR/gnomix_launcher.py"
 require_file "$SCRIPT_DIR/07b_reexport_gnomix_models.py"
 require_file "$SCRIPT_DIR/gnomix_provenance.py"
 require_file "$SCRIPT_DIR/gnomix_training_manifests.py"
+require_file "$GNOMIX_ENV_LOCK"
+require_file "$GNOMIX_ENV_VERIFIER"
 require_file "$GNOMIX_TRAINING_INPUT_MANIFEST"
 require_file "$RAW_DIR/gnomad_meta_updated.tsv"
 require_file "$ADMIX_DIR/single_ancestry_samples.tsv"
@@ -73,6 +75,9 @@ python3 "$SCRIPT_DIR/gnomix_provenance.py" verify-checkout \
   --gnomix-dir "$GNOMIX_DIR_INSTALL" \
   --expected-commit "$GNOMIX_EXPECTED_COMMIT"
 
+phase_log "verifying immutable Gnomix training environment"
+verify_gnomix_environment
+
 phase_log "verifying Gnomix maps and trained-model provenance"
 python "$SCRIPT_DIR/01_convert_gnomix_maps.py" \
   --verify \
@@ -87,7 +92,10 @@ trap 'rm -rf "$staging_dir"' EXIT
 staged_input_manifest="$staging_dir/gnomix_training_inputs.json"
 staged_split_manifest="$staging_dir/gnomix_training_splits.json"
 staged_aggregate="$staging_dir/gnomix_training_provenance.json"
+staged_environment_lock="$staging_dir/gnomix_training_environment.conda-lock.yml"
 cp -f "$GNOMIX_TRAINING_INPUT_MANIFEST" "$staged_input_manifest"
+cp -f "$GNOMIX_ENV_LOCK" "$staged_environment_lock"
+verify_gnomix_environment "$staged_environment_lock"
 
 phase_log "verifying full canonical Gnomix training-input generation"
 python3 "$SCRIPT_DIR/gnomix_training_manifests.py" verify-input \
@@ -141,7 +149,10 @@ for chr in "${chromosomes[@]}"; do
     --genetic-map "$derived_map" \
     --model "$model_pkl" \
     --training-input-manifest "$staged_input_manifest" \
-    --training-split-manifest "$staged_split"
+    --training-split-manifest "$staged_split" \
+    --training-environment-lock "$staged_environment_lock" \
+    --training-environment-platform "$GNOMIX_ENV_PLATFORM" \
+    --expected-training-environment-sha256 "$GNOMIX_ENV_LOCK_SHA256"
   provenance_args+=(--record "$staged_record")
 done
 
@@ -151,11 +162,17 @@ python3 "$SCRIPT_DIR/gnomix_provenance.py" aggregate \
   --output "$staged_aggregate" \
   --training-input-manifest "$staged_input_manifest" \
   --training-split-manifest "$staged_split_manifest" \
+  --training-environment-lock "$staged_environment_lock" \
+  --training-environment-platform "$GNOMIX_ENV_PLATFORM" \
+  --expected-training-environment-sha256 "$GNOMIX_ENV_LOCK_SHA256" \
   "${provenance_args[@]}"
 python3 "$SCRIPT_DIR/gnomix_provenance.py" verify-aggregate \
   --manifest "$staged_aggregate" \
   --training-input-manifest "$staged_input_manifest" \
   --training-split-manifest "$staged_split_manifest" \
+  --training-environment-lock "$staged_environment_lock" \
+  --training-environment-platform "$GNOMIX_ENV_PLATFORM" \
+  --expected-training-environment-sha256 "$GNOMIX_ENV_LOCK_SHA256" \
   --require-complete
 
 # Smoke-test the named runtime before touching existing bundle contents. The
@@ -164,12 +181,11 @@ python3 "$SCRIPT_DIR/gnomix_provenance.py" verify-aggregate \
 # the exporter's lazy xgboost path. Production Gnomix exits successfully after
 # printing usage when invoked without model args.
 phase_log "preflighting Gnomix runtime and model re-export dependencies"
-PYTHONDONTWRITEBYTECODE=1 conda run -n "$GNOMIX_ENV" --no-capture-output \
-  python "$SCRIPT_DIR/gnomix_launcher.py" \
+verify_gnomix_environment "$staged_environment_lock"
+run_gnomix_python "$SCRIPT_DIR/gnomix_launcher.py" \
   "$GNOMIX_DIR_INSTALL/gnomix.py" >/dev/null
 runtime_preflight_dir="$staging_dir/runtime-preflight/gnomix_models/chr1"
-PYTHONDONTWRITEBYTECODE=1 conda run -n "$GNOMIX_ENV" --no-capture-output \
-  python "$SCRIPT_DIR/07b_reexport_gnomix_models.py" \
+run_gnomix_python "$SCRIPT_DIR/07b_reexport_gnomix_models.py" \
   --model-pkl "$GNOMIX_DIR/output_chr1/models/model_chm_chr1/model_chm_chr1.pkl" \
   --out-dir "$runtime_preflight_dir" \
   --gnomix-dir "$GNOMIX_DIR_INSTALL" >/dev/null
@@ -187,7 +203,8 @@ rm -f metadata/gnomix_model_chr*.provenance.json \
   metadata/gnomix_model_map_chr*.sha256 \
   metadata/gnomix_training_provenance.json \
   metadata/gnomix_training_inputs.json \
-  metadata/gnomix_training_splits.json
+  metadata/gnomix_training_splits.json \
+  metadata/gnomix_training_environment.conda-lock.yml
 
 for chr in "${chromosomes[@]}"; do
   config_snapshot="$GNOMIX_DIR/config_snapshots/chr${chr}/effective_config.yaml"
@@ -200,10 +217,14 @@ done
 cp -f "$staged_input_manifest" metadata/gnomix_training_inputs.json
 cp -f "$staged_split_manifest" metadata/gnomix_training_splits.json
 cp -f "$staged_aggregate" metadata/gnomix_training_provenance.json
+cp -f "$staged_environment_lock" metadata/gnomix_training_environment.conda-lock.yml
 python3 "$SCRIPT_DIR/gnomix_provenance.py" verify-aggregate \
   --manifest "$BUNDLE_DIR/metadata/gnomix_training_provenance.json" \
   --training-input-manifest "$BUNDLE_DIR/metadata/gnomix_training_inputs.json" \
   --training-split-manifest "$BUNDLE_DIR/metadata/gnomix_training_splits.json" \
+  --training-environment-lock "$BUNDLE_DIR/metadata/gnomix_training_environment.conda-lock.yml" \
+  --training-environment-platform "$GNOMIX_ENV_PLATFORM" \
+  --expected-training-environment-sha256 "$GNOMIX_ENV_LOCK_SHA256" \
   --require-complete
 
 for chr in "${chromosomes[@]}"; do
@@ -231,9 +252,11 @@ for chr in "${chromosomes[@]}"; do
     --genetic-map "$RAW_DIR/genetic_maps_gnomix/chr${chr}.map" \
     --model "$GNOMIX_DIR/output_chr${chr}/models/model_chm_chr${chr}/model_chm_chr${chr}.pkl" \
     --training-input-manifest "$BUNDLE_DIR/metadata/gnomix_training_inputs.json" \
-    --training-split-manifest "$BUNDLE_DIR/metadata/gnomix_training_splits.json"
-  PYTHONDONTWRITEBYTECODE=1 conda run -n "$GNOMIX_ENV" --no-capture-output \
-    python "$SCRIPT_DIR/07b_reexport_gnomix_models.py" \
+    --training-split-manifest "$BUNDLE_DIR/metadata/gnomix_training_splits.json" \
+    --training-environment-lock "$BUNDLE_DIR/metadata/gnomix_training_environment.conda-lock.yml" \
+    --training-environment-platform "$GNOMIX_ENV_PLATFORM" \
+    --expected-training-environment-sha256 "$GNOMIX_ENV_LOCK_SHA256"
+  run_gnomix_python "$SCRIPT_DIR/07b_reexport_gnomix_models.py" \
     --model-pkl "$GNOMIX_DIR/output_chr${chr}/models/model_chm_chr${chr}/model_chm_chr${chr}.pkl" \
     --out-dir "gnomix_models/chr${chr}" \
     --gnomix-dir "$GNOMIX_DIR_INSTALL"
@@ -248,7 +271,10 @@ for chr in "${chromosomes[@]}"; do
     --genetic-map "$RAW_DIR/genetic_maps_gnomix/chr${chr}.map" \
     --model "$GNOMIX_DIR/output_chr${chr}/models/model_chm_chr${chr}/model_chm_chr${chr}.pkl" \
     --training-input-manifest "$BUNDLE_DIR/metadata/gnomix_training_inputs.json" \
-    --training-split-manifest "$BUNDLE_DIR/metadata/gnomix_training_splits.json"
+    --training-split-manifest "$BUNDLE_DIR/metadata/gnomix_training_splits.json" \
+    --training-environment-lock "$BUNDLE_DIR/metadata/gnomix_training_environment.conda-lock.yml" \
+    --training-environment-platform "$GNOMIX_ENV_PLATFORM" \
+    --expected-training-environment-sha256 "$GNOMIX_ENV_LOCK_SHA256"
 done
 
 cp -f "$LIFTOVER_DIR/hg19ToHg38.over.chain.gz" liftover/
@@ -281,6 +307,8 @@ VAL_WORKERS="${VAL_WORKERS:-6}" \
 # partial or corrupted copy, while records remain checked against the locked
 # native models and live Gnomix split maps.
 phase_log "revalidating copied panels and published Gnomix training provenance"
+verify_gnomix_environment \
+  "$BUNDLE_DIR/metadata/gnomix_training_environment.conda-lock.yml"
 copied_chromosome_args=()
 for chr in "${chromosomes[@]}"; do
   copied_chromosome_args+=(
@@ -309,12 +337,18 @@ for chr in "${chromosomes[@]}"; do
     --genetic-map "$RAW_DIR/genetic_maps_gnomix/chr${chr}.map" \
     --model "$GNOMIX_DIR/output_chr${chr}/models/model_chm_chr${chr}/model_chm_chr${chr}.pkl" \
     --training-input-manifest "$BUNDLE_DIR/metadata/gnomix_training_inputs.json" \
-    --training-split-manifest "$BUNDLE_DIR/metadata/gnomix_training_splits.json"
+    --training-split-manifest "$BUNDLE_DIR/metadata/gnomix_training_splits.json" \
+    --training-environment-lock "$BUNDLE_DIR/metadata/gnomix_training_environment.conda-lock.yml" \
+    --training-environment-platform "$GNOMIX_ENV_PLATFORM" \
+    --expected-training-environment-sha256 "$GNOMIX_ENV_LOCK_SHA256"
 done
 python3 "$SCRIPT_DIR/gnomix_provenance.py" verify-aggregate \
   --manifest "$BUNDLE_DIR/metadata/gnomix_training_provenance.json" \
   --training-input-manifest "$BUNDLE_DIR/metadata/gnomix_training_inputs.json" \
   --training-split-manifest "$BUNDLE_DIR/metadata/gnomix_training_splits.json" \
+  --training-environment-lock "$BUNDLE_DIR/metadata/gnomix_training_environment.conda-lock.yml" \
+  --training-environment-platform "$GNOMIX_ENV_PLATFORM" \
+  --expected-training-environment-sha256 "$GNOMIX_ENV_LOCK_SHA256" \
   --require-complete
 
 phase_log "writing metadata.json (Plan §6.5)"
@@ -327,6 +361,8 @@ python "$SCRIPT_DIR/07_write_metadata.py" \
   --build-date "$BUILD_DATE" \
   --bundle-version "$LAI_BUNDLE_VERSION" \
   --gnomix-provenance "$BUNDLE_DIR/metadata/gnomix_training_provenance.json" \
+  --training-environment-platform "$GNOMIX_ENV_PLATFORM" \
+  --expected-training-environment-sha256 "$GNOMIX_ENV_LOCK_SHA256" \
   --admixture-seed "$ADMIXTURE_SEED"
 
 phase_log "generating CHECKSUMS.md5"

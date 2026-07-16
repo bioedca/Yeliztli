@@ -31,13 +31,17 @@ source "$SCRIPT_DIR/env.sh"
 command -v sbatch >/dev/null 2>&1 || { echo "sbatch not found — not on a SLURM cluster?" >&2; exit 1; }
 require git
 require python3
+require "$GNOMIX_CONDA_EXECUTABLE"
 require_file "$UNION_CATALOG_TSV"
 require_file "$G1K_PED"
 require_file "$GNOMIX_DIR_INSTALL/gnomix.py"
 require_file "$SCRIPT_DIR/gnomix_provenance.py"
+require_file "$GNOMIX_ENV_LOCK"
+require_file "$GNOMIX_ENV_VERIFIER"
 
 # Fail before submitting the rebuild DAG if the requested immutable Gnomix
-# revision is absent, mismatched, or locally modified.
+# revision or training environment is absent, mismatched, or locally modified.
+verify_gnomix_environment
 python3 "$SCRIPT_DIR/gnomix_provenance.py" verify-checkout \
   --gnomix-dir "$GNOMIX_DIR_INSTALL" \
   --expected-commit "$GNOMIX_EXPECTED_COMMIT"

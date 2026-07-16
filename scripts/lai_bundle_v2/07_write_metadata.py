@@ -22,6 +22,8 @@ if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
 from gnomix_provenance import (  # noqa: E402
+    TRAINING_ENVIRONMENT_BUNDLE_PATH,
+    TRAINING_ENVIRONMENT_PLATFORM,
     TRAINING_INPUT_BUNDLE_PATH,
     TRAINING_PROVENANCE_BUNDLE_PATH,
     TRAINING_SPLIT_BUNDLE_PATH,
@@ -53,6 +55,9 @@ def _load_gnomix_training_provenance(
     bundle_dir: Path,
     training_input_manifest: Path,
     training_split_manifest: Path,
+    training_environment_lock: Path,
+    training_environment_platform: str,
+    expected_training_environment_sha256: str,
 ) -> tuple[dict[str, object], dict[str, object], str]:
     """Authenticate one captured aggregate, manifest, and record generation."""
     try:
@@ -60,6 +65,9 @@ def _load_gnomix_training_provenance(
             path,
             training_input_manifest=training_input_manifest,
             training_split_manifest=training_split_manifest,
+            training_environment_lock=training_environment_lock,
+            training_environment_platform=training_environment_platform,
+            expected_training_environment_sha256=expected_training_environment_sha256,
             require_complete=True,
         )
         verify_published_model_records(bundle_dir, data)
@@ -78,6 +86,11 @@ def main() -> int:
     parser.add_argument("--build-date", required=True)
     parser.add_argument("--bundle-version", required=True)
     parser.add_argument("--gnomix-provenance", required=True, type=Path)
+    parser.add_argument(
+        "--training-environment-platform",
+        default=TRAINING_ENVIRONMENT_PLATFORM,
+    )
+    parser.add_argument("--expected-training-environment-sha256", required=True)
     parser.add_argument("--admixture-seed", required=True, type=int)
     args = parser.parse_args()
 
@@ -130,11 +143,15 @@ def main() -> int:
         )
     training_input_manifest = bundle / TRAINING_INPUT_BUNDLE_PATH
     training_split_manifest = bundle / TRAINING_SPLIT_BUNDLE_PATH
+    training_environment_lock = bundle / TRAINING_ENVIRONMENT_BUNDLE_PATH
     gnomix_provenance, training_inputs, gnomix_manifest_sha256 = _load_gnomix_training_provenance(
         args.gnomix_provenance,
         bundle_dir=bundle,
         training_input_manifest=training_input_manifest,
         training_split_manifest=training_split_manifest,
+        training_environment_lock=training_environment_lock,
+        training_environment_platform=args.training_environment_platform,
+        expected_training_environment_sha256=args.expected_training_environment_sha256,
     )
     union_sha256 = _sha256(args.union_catalog)
     marker_sources = training_inputs["source_artifacts"]["marker_selection"]
@@ -172,6 +189,10 @@ def main() -> int:
             "training_split_manifest": {
                 "path": TRAINING_SPLIT_BUNDLE_PATH,
                 **gnomix_provenance["training_split_manifest"],
+            },
+            "training_environment": {
+                "path": TRAINING_ENVIRONMENT_BUNDLE_PATH,
+                **gnomix_provenance["training_environment"],
             },
         },
         "reference_build": training_inputs["reference_build"],

@@ -52,7 +52,9 @@ Run on the SLURM build host in the chosen `$WORKDIR`:
   (`lai_bundle`). Pin it with
   `conda env export --no-builds > docs/lai-bundle-release-runbook-env.lock.yaml`
   and remove the host-specific `prefix:` line before committing the lock — the
-  SHA-256 is referenced from `metadata.json::tool_versions` (Plan §6.3 step 2).
+  file is an operator aid for the non-training phases, not the immutable Gnomix
+  model-generation identity. The separately authenticated Gnomix lock below is
+  published in the bundle metadata.
 - Tool versions pinned (Plan §6.3 step 4):
   - `bcftools --version`
   - Beagle JAR (5.x) SHA-256 recorded
@@ -92,6 +94,82 @@ dirty checkout. They also require the canonical `origin` above and a fetched
 be mislabeled as official Gnomix source. Do not assign the current upstream
 `main` revision to an older model whose training checkout was not recorded;
 rebuild it under this contract.
+
+### Install and authenticate the Gnomix training environment
+
+The human-reviewed source specification is
+`scripts/lai_bundle_v2/gnomix-training-environment.yml`. The immutable release
+artifact is
+`scripts/lai_bundle_v2/gnomix-training-environment.conda-lock.yml`, resolved for
+`linux-64` by conda-lock. Every package is Conda-managed and carries an HTTPS
+artifact URL, exact version/build, and SHA-256. The raw lock bytes hash to the
+`GNOMIX_ENV_LOCK_SHA256` default in `env.sh`; both values must change together
+in one reviewed upgrade.
+
+Install the lock into a fresh, digest-named environment and verify it before a
+local or SLURM run:
+
+```bash
+LOCK=scripts/lai_bundle_v2/gnomix-training-environment.conda-lock.yml
+VERIFIER=scripts/lai_bundle_v2/gnomix_environment.py
+ENV_FILE=scripts/lai_bundle_v2/env.sh
+LOCK_SHA=$(sha256sum "$LOCK" | awk '{print $1}')
+test "$LOCK_SHA" = "$(sed -n 's/.*GNOMIX_ENV_LOCK_SHA256:=\([0-9a-f]*\).*/\1/p' "$ENV_FILE")"
+conda-lock install --name "gnomix-${LOCK_SHA:0:12}" "$LOCK"
+
+export GNOMIX_ENV="gnomix-${LOCK_SHA:0:12}"
+python -I -B "$VERIFIER" verify \
+  --lock "$LOCK" \
+  --platform linux-64 \
+  --expected-lock-sha256 "$LOCK_SHA" \
+  --conda-env "$GNOMIX_ENV"
+```
+
+The snippet above runs from a repository checkout. After the §4 rsync flattens
+the script directory on the cluster, substitute
+`LOCK="$LAI_WORKDIR/scripts/gnomix-training-environment.conda-lock.yml"`,
+`VERIFIER="$LAI_WORKDIR/scripts/gnomix_environment.py"`, and
+`ENV_FILE="$LAI_WORKDIR/scripts/env.sh"`. Export `GNOMIX_ENV_LOCK="$LOCK"`
+before the orchestrator, and install the digest-named environment on shared
+storage visible to login and compute nodes.
+
+`run_rebuild.sh` repeats this check before dispatching Phase 05 or 07. The
+SLURM entrypoint verifies on the login node before submitting any job, exports
+the selected name/path/digest, and every Phase 05 array task verifies again on
+its compute node before deciding whether a chromosome can be reused or
+retrained. The environment must live on storage visible at the same prefix from
+the login and compute nodes. Never mutate the named environment while a rebuild
+is active. Gnomix and re-export Python run with isolated import state (`-I -B`),
+and the wrapper removes ambient `PYTHON*`, `LD_PRELOAD`, `LD_LIBRARY_PATH`, and
+`LD_AUDIT` injection variables both outside and inside `conda run`. This
+neutralizes those named Python/loader channels even if prefix state reintroduces
+them; it does not suppress activation hooks themselves. Hooks must not supply
+runtime dependencies or mutate build inputs. Every runtime dependency must be
+present in the reviewed lock.
+
+An intentional environment upgrade is a new model generation:
+
+1. Edit the source specification and regenerate the lock with the reviewed
+   conda-lock version:
+
+   ```bash
+   conda-lock lock \
+     --file scripts/lai_bundle_v2/gnomix-training-environment.yml \
+     --platform linux-64 --without-cuda \
+     --metadata input_md5 --metadata input_sha \
+     --lockfile scripts/lai_bundle_v2/gnomix-training-environment.conda-lock.yml
+   ```
+2. Review the resolved package/build/hash delta, update
+   `GNOMIX_ENV_LOCK_SHA256` in `env.sh`, and install the lock under a fresh
+   digest-named environment. Do not update an existing shared environment in
+   place.
+3. Choose a fresh `LAI_BUNDLE_VERSION`, retrain all 22 chromosomes, rerun the
+   validation gates, and publish a new immutable bundle. A formatting-only lock
+   change also changes its raw SHA-256 and therefore creates a new generation.
+
+Historical schema-v1/v2 records did not preserve a training environment.
+Never infer or backfill this lock for those models; retraining is the only
+upgrade path.
 
 ---
 
@@ -233,9 +311,10 @@ training/validation partitions. They are not the outer production test set:
 `$VALIDATION_DIR/held_out_validation.tsv` is selected before training, is
 excluded from all three internal maps, and remains the distinct held-out set
 used by the Phase 06 production-inference gate. The split manifest binds the
-training-input-manifest SHA-256, and each schema-v2
-`training_provenance.json` record binds both manifest identities in addition
-to the pinned Gnomix commit, effective config, genetic map, and trained model.
+training-input-manifest SHA-256, and each schema-v3
+`training_provenance.json` record binds both manifest identities and the exact
+Gnomix conda-lock schema/platform/SHA-256 in addition to the pinned Gnomix
+commit, effective config, genetic map, and trained model.
 This matters because Gnomix learns data-, split-, and window-specific model
 parameters; the method name or paper DOI does not identify the resulting
 artifact [1].
@@ -243,10 +322,10 @@ artifact [1].
 The effective Gnomix config must contain a direct boolean
 `simulation.run: true`. The `false` mode consumes pre-simulated arrays that
 this manifest schema does not inventory, so it is unsupported and fails before
-training state is invalidated. Schema-v1 model provenance cannot be backfilled:
-it did not record these input and split identities. Treat every schema-v1 or
-missing record as stale and retrain all 22 autosomes against one authenticated
-generation before attempting publication.
+training state is invalidated. Schema-v1/v2 model provenance cannot be
+backfilled: those records did not preserve the full input/split/environment
+generation. Treat every older or missing record as stale and retrain all 22
+autosomes against one authenticated generation before attempting publication.
 
 Training-input manifest schema v1 may contain sample identifiers only under
 the `public_reference_panel_ids` policy, because the supported gnomAD
@@ -256,15 +335,17 @@ private cohort identifiers into this manifest or reuse the public-ID policy for
 them.
 
 Phase 07 is fail-closed and publication-only. It first copies the canonical
-input manifest, all 22 split manifests, and all 22 schema-v2 model records into
-a temporary staging directory, then authenticates those exact staged bytes
-against the live panel, split maps, models, maps, and commit, and requires one
-common recorded effective-config identity. Missing or mixed generations fail
+input manifest, the immutable environment lock, all 22 split manifests, and all
+22 schema-v3 model records into a temporary staging directory, then
+authenticates those exact staged bytes against the live panel, split maps,
+models, maps, commit, and selected runtime. It requires one common recorded
+effective-config and environment identity. Missing or mixed generations fail
 before anything under `$BUNDLE_DIR` changes. After the full chr1–chr22 preflight
 succeeds, it publishes and re-verifies these fixed bundle paths:
 
 - `metadata/gnomix_training_inputs.json`
 - `metadata/gnomix_training_splits.json`
+- `metadata/gnomix_training_environment.conda-lock.yml`
 - `metadata/gnomix_model_chr{1..22}.provenance.json`
 - `metadata/gnomix_training_provenance.json`
 
@@ -287,16 +368,19 @@ compatibility map bindings as `metadata/gnomix_model_map_chrN.sha256`, and the
 aggregate and training manifests at their fixed paths above.
 `metadata.json::gnomix_training` publishes the common repository, full commit,
 effective-config SHA-256, clean-checkout and `simulation_run` attestations,
-model count, aggregate-manifest path and SHA-256, and each training manifest's
-path, schema version, and SHA-256. Top-level metadata also publishes the
+model count, aggregate-manifest path and SHA-256, each training manifest's
+path/schema/SHA-256, and the environment lock's path/schema/kind/platform/raw
+SHA-256. Top-level metadata also publishes the
 authenticated reference build, reference-panel name, and sample-identifier
 policy.
 
 The effective config is snapshotted separately for every training task before
-Gnomix opens it. Existing models without a valid schema-v2 JSON record are
+Gnomix opens it. The exact environment lock is snapshotted alongside each
+chromosome generation before state mutation. Existing models without a valid
+schema-v3 JSON record are
 intentionally stale. The full bundle cannot assemble if chromosome records or
 manifests are missing, if their input/split/model/map hashes no longer match, or
-if their Gnomix commits/config hashes are mixed. Because `n_cores` is part of
+if their Gnomix commits/config/environment identities are mixed. Because `n_cores` is part of
 the effective SLURM config, changing `GNOMIX_CPUS` also changes its hash and
 intentionally invalidates reuse.
 
@@ -316,9 +400,10 @@ Phase 05 therefore rejects those modes before invalidating a prior model
 generation. It passes the literal positional `None` supported by the pinned
 Gnomix commit for the optional post-training query, preserving training mode
 without running a discarded inference. Each training task also imports the
-pinned Gnomix entrypoint in `$GNOMIX_ENV` before state mutation. Phase 07 repeats
-that runtime import and imports the re-export command before changing an
-existing bundle, so missing or broken dependencies fail with the prior
+pinned Gnomix entrypoint in `$GNOMIX_ENV` before state mutation, after first
+matching that named environment to the authenticated lock. Phase 07 repeats the
+lock verification, runtime import, and re-export import before changing an
+existing bundle, so missing, extra, or drifted dependencies fail with the prior
 generation intact.
 
 Phase 07 is publication-only and requires `CHROMS` to be exactly autosomes
@@ -330,10 +415,10 @@ instead of the 23andMe v5 catalog (~605k). The random seed remains locked at
 `ADMIXTURE_SEED=42` (Plan §6.3 step 4), and Phase 07 adds the derived-map
 provenance record described above to the bundle.
 
-**Phase 05 runs gnomix in its own conda env.** gnomix needs `sklearn_crfsuite`/
-`xgboost`, which the `lai_bundle` env lacks; `05_train_gnomix.sh` invokes it via
-`conda run -n $GNOMIX_ENV` (default `gnomix`), so the rest of the pipeline stays
-in `lai_bundle`. **Phase 06 needs the 1000G pedigree:** place
+**Phase 05 runs Gnomix in its authenticated conda-lock environment.** Gnomix
+needs `sklearn_crfsuite`/`xgboost`, which the `lai_bundle` env lacks;
+`05_train_gnomix.sh` invokes it via `conda run -n $GNOMIX_ENV` only after the
+exact installed package URLs and SHA-256 values match the checked lock. **Phase 06 needs the 1000G pedigree:** place
 `20130606_g1k.ped` at `$WORKDIR/06_validation/` (or set `G1K_PED`).
 
 ### 6a. SLURM submission (parallel — recommended for the full run)
@@ -369,7 +454,10 @@ out-of-band Phase 01 invocation is required.
 Tunables: `SLURM_PARTITION` (cluster partition name; defaults to `gpu` in
 `run_rebuild_slurm.sh`),
 `GNOMIX_CPUS` (cores per chromosome; also caps gnomix `n_cores`), `GNOMIX_ARRAY`
-(e.g. `1-22%11` to throttle concurrency), `CONDA_SH`, `CONDA_ENV`, `GNOMIX_ENV`.
+(e.g. `1-22%11` to throttle concurrency), `CONDA_SH`, `CONDA_ENV`,
+`GNOMIX_ENV`, `GNOMIX_CONDA_EXECUTABLE`, `GNOMIX_ENV_LOCK`, and
+`GNOMIX_ENV_LOCK_SHA256`. Production overrides must still point to the reviewed
+lock/digest pair; an override is not a backfill mechanism.
 The array parallelizes phase 05 from ~4–12 h sequential down to roughly the
 slowest single chromosome (× the number of waves once cores are saturated).
 
@@ -388,9 +476,11 @@ genetic map, ADMIXTURE binary, Gnomix full commit SHA), record in
 
 Where the v1.1 cluster artifacts can be reused, record their SHA-256 and
 skip re-download; document any upstream-updated swap explicitly. The
-runbook lock file (`docs/lai-bundle-release-runbook-env.lock.yaml`) is
-referenced from `metadata.json::tool_versions` so consumers can audit the
-build host environment without untarring the bundle.
+general runbook environment export
+(`docs/lai-bundle-release-runbook-env.lock.yaml`) is an operator aid and is not
+claimed as model provenance. The authenticated Gnomix lock is shipped inside
+the tarball at `metadata/gnomix_training_environment.conda-lock.yml` and its
+identity is published at `metadata.json::gnomix_training.training_environment`.
 
 ---
 

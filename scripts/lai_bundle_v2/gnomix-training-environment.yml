@@ -1,0 +1,22 @@
+name: gnomix-training
+channels:
+  - conda-forge
+dependencies:
+  # Python and pandas are constrained to the release runtime exercised by the
+  # pandas compatibility launcher. The generated conda-lock file pins every
+  # direct and transitive package artifact by URL and SHA-256.
+  - python=3.11
+  - pandas=2.3.3
+  - matplotlib
+  - numpy
+  - pyyaml
+  - scikit-allel
+  - scikit-learn
+  - scipy
+  - seaborn
+  - sklearn-crfsuite
+  - tqdm
+  - uncertainty-calibration
+  # Gnomix trains on CPUs; keep the solver from selecting conda-forge's CUDA
+  # variant and pulling an unrelated GPU toolchain into the immutable lock.
+  - xgboost=*=cpu_*

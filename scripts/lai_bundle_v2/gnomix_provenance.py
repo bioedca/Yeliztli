@@ -24,6 +24,19 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
+from gnomix_environment import (  # noqa: E402
+    ARTIFACT_KIND as TRAINING_ENVIRONMENT_ARTIFACT_KIND,
+)
+from gnomix_environment import (  # noqa: E402
+    DEFAULT_PLATFORM as TRAINING_ENVIRONMENT_PLATFORM,
+)
+from gnomix_environment import (  # noqa: E402
+    ENVIRONMENT_SCHEMA_VERSION as TRAINING_ENVIRONMENT_SCHEMA_VERSION,
+)
+from gnomix_environment import (  # noqa: E402
+    EnvironmentVerificationError,
+    load_lock_identity,
+)
 from gnomix_training_manifests import (  # noqa: E402
     INPUT_SCHEMA_VERSION,
     SPLIT_SCHEMA_VERSION,
@@ -33,8 +46,8 @@ from gnomix_training_manifests import (  # noqa: E402
     load_split_manifest,
 )
 
-MODEL_RECORD_SCHEMA_VERSION = 2
-AGGREGATE_SCHEMA_VERSION = 2
+MODEL_RECORD_SCHEMA_VERSION = 3
+AGGREGATE_SCHEMA_VERSION = 3
 # Backwards-compatible name for callers that treated the model-record schema as
 # the only provenance schema before aggregate schema v2 was introduced.
 SCHEMA_VERSION = MODEL_RECORD_SCHEMA_VERSION
@@ -42,6 +55,7 @@ GNOMIX_REPOSITORY = "https://github.com/AI-sandbox/gnomix"
 TRAINING_INPUT_BUNDLE_PATH = "metadata/gnomix_training_inputs.json"
 TRAINING_SPLIT_BUNDLE_PATH = "metadata/gnomix_training_splits.json"
 TRAINING_PROVENANCE_BUNDLE_PATH = "metadata/gnomix_training_provenance.json"
+TRAINING_ENVIRONMENT_BUNDLE_PATH = "metadata/gnomix_training_environment.conda-lock.yml"
 _COMMIT_RE = re.compile(r"[0-9a-fA-F]{40}")
 _SHA256_RE = re.compile(r"[0-9a-f]{64}")
 _OFFICIAL_REMOTE_RE = re.compile(
@@ -62,6 +76,7 @@ _MODEL_RECORD_KEYS = {
     "model_sha256",
     "training_input_manifest",
     "training_split_manifest",
+    "training_environment",
 }
 _AGGREGATE_KEYS = {
     "schema_version",
@@ -72,6 +87,7 @@ _AGGREGATE_KEYS = {
     "effective_config_sha256",
     "training_input_manifest",
     "training_split_manifest",
+    "training_environment",
     "models",
 }
 _AGGREGATE_MODEL_KEYS = {
@@ -456,6 +472,47 @@ def _validate_manifest_identity(
     return value
 
 
+def _validate_training_environment_identity(value: object) -> dict[str, Any]:
+    expected_fields = {
+        "schema_version",
+        "artifact_kind",
+        "platform",
+        "lock_sha256",
+    }
+    if not isinstance(value, dict) or set(value) != expected_fields:
+        raise ProvenanceError("training-environment identity has unexpected fields")
+    if (
+        type(value["schema_version"]) is not int
+        or value["schema_version"] != TRAINING_ENVIRONMENT_SCHEMA_VERSION
+    ):
+        raise ProvenanceError("training-environment identity uses an unsupported schema")
+    if value["artifact_kind"] != TRAINING_ENVIRONMENT_ARTIFACT_KIND:
+        raise ProvenanceError("training-environment identity has an unsupported artifact kind")
+    if value["platform"] != TRAINING_ENVIRONMENT_PLATFORM:
+        raise ProvenanceError("training-environment identity has an unsupported platform")
+    lock_sha256 = value["lock_sha256"]
+    if not isinstance(lock_sha256, str) or not _SHA256_RE.fullmatch(lock_sha256):
+        raise ProvenanceError("training-environment identity has an invalid lock SHA-256")
+    return value
+
+
+def _training_environment_identity(
+    lock_path: Path,
+    *,
+    platform: str,
+    expected_lock_sha256: str,
+) -> dict[str, Any]:
+    try:
+        identity = load_lock_identity(
+            lock_path,
+            platform=platform,
+            expected_lock_sha256=expected_lock_sha256,
+        )
+    except EnvironmentVerificationError as exc:
+        raise ProvenanceError(f"invalid Gnomix training environment: {exc}") from exc
+    return _validate_training_environment_identity(identity)
+
+
 def load_model_record(path: Path) -> dict[str, Any]:
     """Load and validate the schema-only portion of a model record."""
     try:
@@ -523,6 +580,7 @@ def load_model_record(path: Path) -> dict[str, Any]:
         label="training-split manifest",
         expected_schema=SPLIT_SCHEMA_VERSION,
     )
+    _validate_training_environment_identity(data["training_environment"])
     return data
 
 
@@ -535,6 +593,9 @@ def verify_model_record(
     model: Path,
     training_input_manifest: Path,
     training_split_manifest: Path,
+    training_environment_lock: Path,
+    training_environment_platform: str,
+    expected_training_environment_sha256: str,
     config: Path | None = None,
 ) -> dict[str, Any]:
     """Verify a record against the exact model and available build inputs."""
@@ -572,6 +633,16 @@ def verify_model_record(
             raise ProvenanceError(
                 f"{field} mismatch in {record_path}: expected {data[field]}, found {actual}"
             )
+    environment_identity = _training_environment_identity(
+        training_environment_lock,
+        platform=training_environment_platform,
+        expected_lock_sha256=expected_training_environment_sha256,
+    )
+    if data["training_environment"] != environment_identity:
+        raise ProvenanceError(
+            f"training-environment identity mismatch in {record_path}: "
+            f"expected {data['training_environment']}, found {environment_identity}"
+        )
     return data
 
 
@@ -610,6 +681,9 @@ def write_model_record(
     training_split_manifest: Path,
     expected_training_input_sha256: str,
     expected_training_split_sha256: str,
+    training_environment_lock: Path,
+    training_environment_platform: str,
+    expected_training_environment_sha256: str,
 ) -> dict[str, Any]:
     """Atomically publish the authoritative completion record for one model."""
     verify_simulation_config(config)
@@ -633,6 +707,11 @@ def write_model_record(
         raise ProvenanceError(
             "training-split manifest changed after its post-training verification"
         )
+    environment_identity = _training_environment_identity(
+        training_environment_lock,
+        platform=training_environment_platform,
+        expected_lock_sha256=expected_training_environment_sha256,
+    )
     data: dict[str, Any] = {
         "schema_version": MODEL_RECORD_SCHEMA_VERSION,
         "chromosome": normalize_chromosome(chromosome),
@@ -645,6 +724,7 @@ def write_model_record(
         "model_filename": model.name,
         "model_sha256": sha256_file(model),
         **manifest_fields,
+        "training_environment": environment_identity,
     }
     _write_json_atomic(output, data)
     return data
@@ -657,6 +737,9 @@ def aggregate_records(
     *,
     training_input_manifest: Path,
     training_split_manifest: Path,
+    training_environment_lock: Path,
+    training_environment_platform: str,
+    expected_training_environment_sha256: str,
 ) -> dict[str, Any]:
     """Reject mixed generations and publish one bundle-level manifest."""
     if not record_paths:
@@ -666,6 +749,7 @@ def aggregate_records(
     config_hashes: set[str] = set()
     input_identities: set[tuple[int, str]] = set()
     split_identities: set[tuple[int, str]] = set()
+    environment_identities: set[tuple[int, str, str, str]] = set()
     for path in record_paths:
         record = load_model_record(path)
         chromosome = record["chromosome"]
@@ -690,6 +774,15 @@ def aggregate_records(
                 record["training_split_manifest"]["sha256"],
             )
         )
+        environment = record["training_environment"]
+        environment_identities.add(
+            (
+                environment["schema_version"],
+                environment["artifact_kind"],
+                environment["platform"],
+                environment["lock_sha256"],
+            )
+        )
     if len(config_hashes) != 1:
         raise ProvenanceError(
             "mixed effective Gnomix configuration hashes across chromosome models"
@@ -701,6 +794,10 @@ def aggregate_records(
     if len(split_identities) != 1:
         raise ProvenanceError(
             "mixed Gnomix training-split manifest identities across chromosome models"
+        )
+    if len(environment_identities) != 1:
+        raise ProvenanceError(
+            "mixed Gnomix training-environment identities across chromosome models"
         )
     supplied_identities = _training_manifest_fields(
         training_input_manifest,
@@ -721,6 +818,21 @@ def aggregate_records(
     }:
         raise ProvenanceError(
             "supplied Gnomix training-split manifest does not match model provenance"
+        )
+    supplied_environment = _training_environment_identity(
+        training_environment_lock,
+        platform=training_environment_platform,
+        expected_lock_sha256=expected_training_environment_sha256,
+    )
+    environment_schema, artifact_kind, platform, lock_sha256 = next(iter(environment_identities))
+    if supplied_environment != {
+        "schema_version": environment_schema,
+        "artifact_kind": artifact_kind,
+        "platform": platform,
+        "lock_sha256": lock_sha256,
+    }:
+        raise ProvenanceError(
+            "supplied Gnomix training-environment lock does not match model provenance"
         )
 
     def chromosome_number(label: str) -> int:
@@ -753,6 +865,7 @@ def aggregate_records(
             "schema_version": split_schema,
             "sha256": split_sha256,
         },
+        "training_environment": supplied_environment,
         "models": models,
     }
     _validate_aggregate_payload(manifest, require_complete=False)
@@ -805,6 +918,7 @@ def _validate_aggregate_payload(
         label="training-split manifest",
         expected_schema=SPLIT_SCHEMA_VERSION,
     )
+    _validate_training_environment_identity(data["training_environment"])
 
     models = data["models"]
     if not isinstance(models, list) or not models:
@@ -861,9 +975,12 @@ def verify_aggregate_snapshot(
     *,
     training_input_manifest: Path,
     training_split_manifest: Path,
+    training_environment_lock: Path,
+    training_environment_platform: str,
+    expected_training_environment_sha256: str,
     require_complete: bool = False,
 ) -> tuple[dict[str, Any], str, dict[str, object]]:
-    """Authenticate one captured aggregate/input/split generation."""
+    """Authenticate one captured aggregate/input/split/environment generation."""
     data, aggregate_sha256 = load_aggregate_manifest_snapshot(
         path,
         require_complete=require_complete,
@@ -882,6 +999,15 @@ def verify_aggregate_snapshot(
         raise ProvenanceError(
             "published Gnomix training manifests do not match aggregate provenance"
         )
+    environment_identity = _training_environment_identity(
+        training_environment_lock,
+        platform=training_environment_platform,
+        expected_lock_sha256=expected_training_environment_sha256,
+    )
+    if data["training_environment"] != environment_identity:
+        raise ProvenanceError(
+            "published Gnomix training-environment lock does not match aggregate provenance"
+        )
     return data, aggregate_sha256, input_contract.payload
 
 
@@ -889,7 +1015,7 @@ def verify_published_model_records(
     bundle_dir: Path,
     aggregate: dict[str, Any],
 ) -> list[dict[str, Any]]:
-    """Require every aggregate model entry to match its published schema-v2 record."""
+    """Require every aggregate model entry to match its published schema-v3 record."""
     _validate_aggregate_payload(aggregate, require_complete=True)
     records: list[dict[str, Any]] = []
     common = {
@@ -900,6 +1026,7 @@ def verify_published_model_records(
         "effective_config_sha256": aggregate["effective_config_sha256"],
         "training_input_manifest": aggregate["training_input_manifest"],
         "training_split_manifest": aggregate["training_split_manifest"],
+        "training_environment": aggregate["training_environment"],
     }
     for model in aggregate["models"]:
         record_path = bundle_dir / model["provenance_file"]
@@ -926,6 +1053,9 @@ def verify_aggregate_manifest(
     *,
     training_input_manifest: Path,
     training_split_manifest: Path,
+    training_environment_lock: Path,
+    training_environment_platform: str,
+    expected_training_environment_sha256: str,
     require_complete: bool = False,
 ) -> dict[str, Any]:
     """Authenticate the published manifests against aggregate provenance."""
@@ -933,6 +1063,9 @@ def verify_aggregate_manifest(
         path,
         training_input_manifest=training_input_manifest,
         training_split_manifest=training_split_manifest,
+        training_environment_lock=training_environment_lock,
+        training_environment_platform=training_environment_platform,
+        expected_training_environment_sha256=expected_training_environment_sha256,
         require_complete=require_complete,
     )[0]
 
@@ -940,6 +1073,14 @@ def verify_aggregate_manifest(
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
+
+    def add_training_environment_arguments(command: argparse.ArgumentParser) -> None:
+        command.add_argument("--training-environment-lock", required=True, type=Path)
+        command.add_argument(
+            "--training-environment-platform",
+            default=TRAINING_ENVIRONMENT_PLATFORM,
+        )
+        command.add_argument("--expected-training-environment-sha256", required=True)
 
     checkout = commands.add_parser("verify-checkout")
     checkout.add_argument("--gnomix-dir", required=True, type=Path)
@@ -961,6 +1102,7 @@ def _build_parser() -> argparse.ArgumentParser:
     write.add_argument("--training-split-manifest", required=True, type=Path)
     write.add_argument("--expected-training-input-sha256", required=True)
     write.add_argument("--expected-training-split-sha256", required=True)
+    add_training_environment_arguments(write)
 
     verify = commands.add_parser("verify-record")
     verify.add_argument("--record", required=True, type=Path)
@@ -971,6 +1113,7 @@ def _build_parser() -> argparse.ArgumentParser:
     verify.add_argument("--model", required=True, type=Path)
     verify.add_argument("--training-input-manifest", required=True, type=Path)
     verify.add_argument("--training-split-manifest", required=True, type=Path)
+    add_training_environment_arguments(verify)
 
     aggregate = commands.add_parser("aggregate")
     aggregate.add_argument("--record", action="append", required=True, type=Path)
@@ -978,11 +1121,13 @@ def _build_parser() -> argparse.ArgumentParser:
     aggregate.add_argument("--output", required=True, type=Path)
     aggregate.add_argument("--training-input-manifest", required=True, type=Path)
     aggregate.add_argument("--training-split-manifest", required=True, type=Path)
+    add_training_environment_arguments(aggregate)
 
     verify_aggregate = commands.add_parser("verify-aggregate")
     verify_aggregate.add_argument("--manifest", required=True, type=Path)
     verify_aggregate.add_argument("--training-input-manifest", required=True, type=Path)
     verify_aggregate.add_argument("--training-split-manifest", required=True, type=Path)
+    add_training_environment_arguments(verify_aggregate)
     verify_aggregate.add_argument("--require-complete", action="store_true")
     return parser
 
@@ -1008,6 +1153,9 @@ def main() -> int:
                 training_split_manifest=args.training_split_manifest,
                 expected_training_input_sha256=args.expected_training_input_sha256,
                 expected_training_split_sha256=args.expected_training_split_sha256,
+                training_environment_lock=args.training_environment_lock,
+                training_environment_platform=args.training_environment_platform,
+                expected_training_environment_sha256=(args.expected_training_environment_sha256),
             )
         elif args.command == "verify-record":
             verify_model_record(
@@ -1019,6 +1167,9 @@ def main() -> int:
                 model=args.model,
                 training_input_manifest=args.training_input_manifest,
                 training_split_manifest=args.training_split_manifest,
+                training_environment_lock=args.training_environment_lock,
+                training_environment_platform=args.training_environment_platform,
+                expected_training_environment_sha256=(args.expected_training_environment_sha256),
             )
         elif args.command == "aggregate":
             aggregate_records(
@@ -1027,12 +1178,18 @@ def main() -> int:
                 args.output,
                 training_input_manifest=args.training_input_manifest,
                 training_split_manifest=args.training_split_manifest,
+                training_environment_lock=args.training_environment_lock,
+                training_environment_platform=args.training_environment_platform,
+                expected_training_environment_sha256=(args.expected_training_environment_sha256),
             )
         elif args.command == "verify-aggregate":
             verify_aggregate_manifest(
                 args.manifest,
                 training_input_manifest=args.training_input_manifest,
                 training_split_manifest=args.training_split_manifest,
+                training_environment_lock=args.training_environment_lock,
+                training_environment_platform=args.training_environment_platform,
+                expected_training_environment_sha256=(args.expected_training_environment_sha256),
                 require_complete=args.require_complete,
             )
     except (OSError, ProvenanceError) as exc:
