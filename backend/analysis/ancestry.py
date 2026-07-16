@@ -152,10 +152,23 @@ POPULATION_LABELS: dict[str, str] = {
     "OCE": "Oceanian",
 }
 
+# Classification outcomes, not reference populations. Keep these out of
+# ``POPULATION_LABELS`` so bundle metadata and population charts remain a
+# seven-population contract, while user-facing text never exposes raw sentinels.
+UNCERTAIN = "UNCERTAIN"
+ADMIXED = "ADMIXED"
+_NON_POPULATION_DISPLAY_LABELS: dict[str, str] = {
+    ADMIXED: "No single population (admixed / low-confidence)",
+    UNCERTAIN: "Uncertain (insufficient data)",
+}
+
 
 def population_display_label(population: str) -> str:
-    """Return the user-facing display label for a population code."""
-    return POPULATION_LABELS.get(population, population)
+    """Return the user-facing label for a population or classification code."""
+    return POPULATION_LABELS.get(
+        population,
+        _NON_POPULATION_DISPLAY_LABELS.get(population, population),
+    )
 
 
 # ── Data classes ──────────────────────────────────────────────────────────
@@ -602,11 +615,6 @@ def _classify_nearest_centroid(
             best_pop = pop
 
     return best_pop, distances
-
-
-# Honest non-call outcomes (never one of the 7 super-population codes).
-UNCERTAIN = "UNCERTAIN"
-ADMIXED = "ADMIXED"
 
 
 def _classify_with_confidence(

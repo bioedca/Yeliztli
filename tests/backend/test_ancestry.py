@@ -92,8 +92,13 @@ def test_frontend_population_labels_match_backend_constant() -> None:
     assert _frontend_population_labels() == POPULATION_LABELS
 
 
-def test_population_display_label_falls_back_to_unknown_code() -> None:
+def test_population_display_label_humanizes_populations_and_statuses() -> None:
     assert population_display_label("EUR") == "European"
+    assert population_display_label(ADMIXED) == "No single population (admixed / low-confidence)"
+    assert population_display_label(UNCERTAIN) == "Uncertain (insufficient data)"
+
+
+def test_population_display_label_falls_back_to_unknown_code() -> None:
     assert population_display_label("UNKNOWN") == "UNKNOWN"
 
 
@@ -1118,12 +1123,14 @@ class TestStoreAncestryFindings:
     def test_admixture_finding_text_humanizes_codes_but_keeps_detail_codes(
         self,
         small_bundle: AncestryBundle,
-        eur_sample: sa.Engine,
+        admixed_sample: sa.Engine,
     ) -> None:
-        result = infer_ancestry(small_bundle, eur_sample)
-        store_ancestry_findings(result, eur_sample)
+        result = infer_ancestry(small_bundle, admixed_sample)
+        assert result.top_population == ADMIXED
+        assert result.classification_status == "admixed"
+        store_ancestry_findings(result, admixed_sample)
 
-        with eur_sample.connect() as conn:
+        with admixed_sample.connect() as conn:
             rows = {
                 row.category: row
                 for row in conn.execute(
@@ -1134,6 +1141,7 @@ class TestStoreAncestryFindings:
             }
 
         nnls_text = rows["nnls_admixture"].finding_text
+        assert nnls_text.startswith("Admixed / low-confidence ancestry (no single population):")
         visible_admixture_codes = [
             pop for pop, frac in result.admixture_fractions.items() if frac >= 0.01
         ]
@@ -1149,6 +1157,9 @@ class TestStoreAncestryFindings:
         knn_text = rows["knn_admixture"].finding_text
         assert population_display_label(result.top_population) in knn_text
         assert result.top_population not in knn_text
+
+        knn_detail = json.loads(rows["knn_admixture"].detail_json)
+        assert knn_detail["top_population"] == result.top_population
 
 
 # ── PCA coordinates for visualization (P3-25) ────────────────────────────
