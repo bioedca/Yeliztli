@@ -735,13 +735,19 @@ def test_non_pathogenic_excluded(sample_engine: sa.Engine, reference_engine: sa.
         assert find_imputed_clinvar_findings(sample_engine, reference_engine) == [], significance
 
 
+def test_imputed_evidence_cap_is_pinned() -> None:
+    """The imputed ceiling must stay below the >=3-star headline tier."""
+    assert IMPUTED_EVIDENCE_CAP == 2
+
+
 def test_evidence_level_capped(sample_engine: sa.Engine, reference_engine: sa.Engine) -> None:
     """A 3★ Pathogenic (evidence 4 if typed) is capped at the imputed ceiling."""
     _seed_imputed(sample_engine, [_imp()])
     _seed_clinvar(reference_engine, [_cv(review_stars=3)])
     results = find_imputed_clinvar_findings(sample_engine, reference_engine)
     assert len(results) == 1
-    assert results[0].evidence_level == IMPUTED_EVIDENCE_CAP
+    assert results[0].evidence_level == 2
+    assert results[0].evidence_level < 3
 
 
 # ── Store replace semantics ───────────────────────────────────────────────
