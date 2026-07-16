@@ -42,12 +42,12 @@ function categoryToValue(category: string): number {
 }
 
 /** Compute the Big Five dimension values from SNP details. */
-function computeDimensionValues(snpDetails: SNPDetail[]): number[] {
+function computeDimensionValues(snpDetails: SNPDetail[]): Array<number | null> {
   return BIG_FIVE_DIMENSIONS.map(({ key }) => {
     const domainSnps = snpDetails.filter(
       (s) => s.trait_domain?.toLowerCase() === key,
     )
-    if (domainSnps.length === 0) return 0.3
+    if (domainSnps.length === 0) return null
 
     const avg =
       domainSnps.reduce((sum, s) => sum + categoryToValue(s.category), 0) /
@@ -62,6 +62,22 @@ export default function BigFiveRadarChart({
 }: BigFiveRadarChartProps) {
   const values = computeDimensionValues(snpDetails)
   const n = BIG_FIVE_DIMENSIONS.length
+  const dimensions = BIG_FIVE_DIMENSIONS.map((dimension, index) => ({
+    ...dimension,
+    value: values[index] ?? null,
+  }))
+  const assessedDimensions = dimensions.filter(
+    (dimension) => dimension.value !== null,
+  )
+  const missingDimensions = dimensions.filter(
+    (dimension) => dimension.value === null,
+  )
+  const assessedCount = assessedDimensions.length
+  const coverageSummary = `${assessedCount} of ${n} dimensions assessed.${
+    missingDimensions.length > 0
+      ? ` Not assessed: ${missingDimensions.map(({ label }) => label).join(", ")}.`
+      : ""
+  }`
 
   // SVG dimensions
   const cx = SVG_SIZE / 2
@@ -80,8 +96,18 @@ export default function BigFiveRadarChart({
   // Background rings (3 concentric)
   const rings = [0.33, 0.66, 1.0]
 
-  // Build polygon points for the data
-  const dataPoints = values.map((v, i) => toXY(i, v * maxR))
+  // Missing dimensions have no point at any radius. A complete polygon is only
+  // meaningful when every dimension has an assessed value.
+  const dataPoints = dimensions.flatMap((dimension, index) => {
+    if (dimension.value === null) return []
+    return [
+      {
+        ...toXY(index, dimension.value * maxR),
+        dimension,
+      },
+    ]
+  })
+  const hasCompleteProfile = assessedCount === n
   const dataPath = dataPoints.map((p) => `${p.x},${p.y}`).join(" ")
 
   return (
@@ -90,7 +116,7 @@ export default function BigFiveRadarChart({
         viewBox={`0 0 ${SVG_SIZE} ${SVG_SIZE}`}
         className="w-full"
         role="img"
-        aria-label="Big Five personality trait associations radar chart. Visual representation only — no numeric claims."
+        aria-label={`Big Five personality trait associations radar chart. ${coverageSummary} Visual representation only — no numeric claims and not a personality assessment.`}
       >
         {/* Background rings */}
         {rings.map((scale) => {
@@ -113,36 +139,64 @@ export default function BigFiveRadarChart({
         {/* Axis lines */}
         {Array.from({ length: n }, (_, i) => {
           const p = toXY(i, maxR)
+          const dimension = dimensions[i]
+          const isAssessed = dimension.value !== null
           return (
             <line
               key={i}
+              data-big-five-axis=""
+              data-dimension={dimension.key}
+              data-assessment-state={isAssessed ? "assessed" : "not-assessed"}
               x1={cx}
               y1={cy}
               x2={p.x}
               y2={p.y}
               stroke="currentColor"
               strokeWidth="1"
-              className="text-border"
+              strokeDasharray={isAssessed ? undefined : "4 4"}
+              className={isAssessed ? "text-border" : "text-muted-foreground"}
             />
           )
         })}
 
-        {/* Data polygon */}
-        <polygon
-          points={dataPath}
-          fill="currentColor"
-          fillOpacity={0.15}
-          stroke="currentColor"
-          strokeWidth="2"
-          className="text-primary"
-        />
+        {/* Incomplete data cannot form an honest profile polygon. */}
+        {!hasCompleteProfile &&
+          dataPoints.map(({ x, y, dimension }) => (
+            <line
+              key={dimension.key}
+              data-big-five-measured-spoke=""
+              data-dimension={dimension.key}
+              x1={cx}
+              y1={cy}
+              x2={x}
+              y2={y}
+              stroke="currentColor"
+              strokeWidth="2"
+              className="text-primary"
+            />
+          ))}
+
+        {hasCompleteProfile && (
+          <polygon
+            data-big-five-profile=""
+            points={dataPath}
+            fill="currentColor"
+            fillOpacity={0.15}
+            stroke="currentColor"
+            strokeWidth="2"
+            className="text-primary"
+          />
+        )}
 
         {/* Data points */}
-        {dataPoints.map((p, i) => (
+        {dataPoints.map(({ x, y, dimension }) => (
           <circle
-            key={i}
-            cx={p.x}
-            cy={p.y}
+            key={dimension.key}
+            data-big-five-point=""
+            data-dimension={dimension.key}
+            data-assessment-state="assessed"
+            cx={x}
+            cy={y}
             r="4"
             fill="currentColor"
             className="text-primary"
@@ -151,6 +205,7 @@ export default function BigFiveRadarChart({
 
         {/* Dimension labels */}
         {BIG_FIVE_DIMENSIONS.map((dim, i) => {
+          const isAssessed = dimensions[i].value !== null
           const labelR = maxR + 24
           const p = toXY(i, labelR)
           const isRightEdgeLabel = p.x > cx + maxR * 0.75
@@ -167,20 +222,42 @@ export default function BigFiveRadarChart({
           return (
             <text
               key={dim.key}
+              data-big-five-label=""
+              data-dimension={dim.key}
+              data-assessment-state={isAssessed ? "assessed" : "not-assessed"}
               x={x}
-              y={p.y}
+              y={isAssessed ? p.y : p.y - 5}
               textAnchor={textAnchor}
               dominantBaseline="central"
-              className="fill-foreground text-[11px] font-medium"
+              className={cn(
+                "text-[11px] font-medium",
+                isAssessed ? "fill-foreground" : "fill-muted-foreground",
+              )}
             >
               {dim.label}
+              {!isAssessed && (
+                <tspan
+                  x={x}
+                  dy="12"
+                  className="fill-muted-foreground text-[9px] font-normal"
+                >
+                  Not assessed
+                </tspan>
+              )}
             </text>
           )
         })}
       </svg>
 
-      <p className="text-xs text-muted-foreground text-center mt-2 italic">
-        Visual representation of genetic associations only — not a personality assessment.
+      <p
+        data-big-five-coverage=""
+        className="text-xs text-muted-foreground text-center mt-2"
+      >
+        {coverageSummary}
+      </p>
+      <p className="text-xs text-muted-foreground text-center mt-1 italic">
+        Visual representation of genetic associations only — not a personality
+        assessment.
       </p>
     </div>
   )
