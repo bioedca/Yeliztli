@@ -191,9 +191,9 @@ def test_snapshot_titles_match_live_pubmed() -> None:
           ``_CONDITION_TOPIC_LOCKED`` entry, the gene symbol / expected condition
           term still appears in at least one cited PMID's *live* title.
 
-    Network-gated: a fetch error skips (does not fail). The offline coverage guard
-    separately requires every registered panel PMID to be snapshotted; this live
-    check skips a registered entry only when its current PubMed fetch is incomplete.
+    A whole-request fetch error skips this network-gated test. An incomplete
+    per-PMID response is reported by the drift check, while the topic-term phase
+    skips that entry. Offline snapshot coverage is enforced separately.
     """
     pytest.importorskip("Bio", reason="biopython required for the live PubMed verifier")
 
@@ -249,7 +249,7 @@ def test_snapshot_titles_match_live_pubmed() -> None:
             gene = next((entry[k] for k in _GENE_KEYS if entry.get(k)), None)
             pmids = _entry_pmids(entry)
             if not gene or not pmids or any(p not in live_titles for p in pmids):
-                continue  # incomplete live response; offline coverage is checked separately
+                continue  # topic phase only; drift and offline coverage are checked separately
             if not (_tokens(gene) & _live_title_tokens(pmids)):
                 titles = "; ".join(live_titles[p] for p in pmids)
                 topic_failures.append(
