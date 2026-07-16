@@ -342,6 +342,30 @@ class TestContinuousReferenceDistribution:
 
         assert continuous_reference_distribution(weights, engine) is None
 
+    def test_withholds_at_odd_total_below_variant_coverage_floor(self) -> None:
+        # 2/5 = 0.40 < 0.50. Truncating the required count floored 0.5*5 to 2 and
+        # emitted this below-floor distribution (#1929); the ceiling requires 3.
+        weights, engine = self._coverage_inputs(covered=2, total=5)
+
+        assert continuous_reference_distribution(weights, engine) is None
+
+    def test_emits_at_odd_total_above_variant_coverage_floor(self) -> None:
+        # 3/5 = 0.60, the nearest odd-total step above the shipped floor: the
+        # ceiling must not over-correct into withholding legitimate coverage.
+        weights, engine = self._coverage_inputs(covered=3, total=5)
+
+        dist = continuous_reference_distribution(weights, engine)
+
+        assert dist is not None
+        assert (dist.variants_used, dist.variants_total) == (3, 5)
+
+    def test_withholds_at_smallest_odd_total_below_variant_coverage_floor(self) -> None:
+        # 1/3 = 0.33 < 0.50, where truncation left the largest gap: floor(0.5*3) = 1
+        # admitted a single-variant distribution.
+        weights, engine = self._coverage_inputs(covered=1, total=3)
+
+        assert continuous_reference_distribution(weights, engine) is None
+
     def test_none_when_mid_dominates_ancestry_coverage(self) -> None:
         # MID has no gnomAD AF column. With only 30% represented ancestry, the
         # old renormalization produced the same distribution as a 100% EUR sample.

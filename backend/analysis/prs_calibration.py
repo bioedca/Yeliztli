@@ -472,7 +472,11 @@ def continuous_reference_distribution(
 
     mean, std, n_used = expected_prs_mean_sd(variants, fractions)
     variants_total = len(by_rsid) + len(by_pos)
-    if std <= 0 or n_used < max(1, int(_MIN_VARIANT_COVERAGE * variants_total)):
+    # Ceiling, not truncation: an odd total's half-set count must round *up* or the
+    # emitted distribution rests on less than _MIN_VARIANT_COVERAGE (2/5 = 40% at a
+    # 0.5 floor). Even totals are unaffected (#1929).
+    required_used = max(1, math.ceil(_MIN_VARIANT_COVERAGE * variants_total))
+    if std <= 0 or n_used < required_used:
         return None
     return CalibratedDistribution(
         mean=round(mean, 6),
