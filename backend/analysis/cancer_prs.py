@@ -53,6 +53,9 @@ _WEIGHTS_PATH = (
 
 BREAST_CANCER_TRAIT = "breast_cancer"
 PROSTATE_CANCER_TRAIT = "prostate_cancer"
+_ACTIVE_MODEL_STATUS = "active"
+_RUNTIME_BLOCKED_MODEL_STATUS = "source_verified_runtime_blocked"
+_ALLOWED_MODEL_STATUSES = {_ACTIVE_MODEL_STATUS, _RUNTIME_BLOCKED_MODEL_STATUS}
 
 SEX_SPECIFIC_PRS_TRAITS = {
     BREAST_CANCER_TRAIT: "XX",
@@ -171,10 +174,11 @@ def load_cancer_prs_weights(
                     "runtime_scoring_eligible row marker(s)"
                 )
             model_status = ws_data.get("model_status")
-            if (
-                model_status == "source_verified_runtime_blocked"
-                and not eligibility_schema_present
-            ):
+            if model_status not in _ALLOWED_MODEL_STATUSES:
+                raise ValueError(
+                    f"Weight set '{ws_data['name']}' has missing or unsupported model_status"
+                )
+            if model_status == _RUNTIME_BLOCKED_MODEL_STATUS and not eligibility_schema_present:
                 raise ValueError(
                     f"Weight set '{ws_data['name']}' is runtime-blocked but has no row markers"
                 )
@@ -183,9 +187,7 @@ def load_cancer_prs_weights(
                 for weight, eligible in zip(raw_weights, eligibility_values, strict=True)
                 if eligible is False
             ]
-            runtime_scoring_blocked = model_status == "source_verified_runtime_blocked" or bool(
-                blocked_rows
-            )
+            runtime_scoring_blocked = model_status != _ACTIVE_MODEL_STATUS or bool(blocked_rows)
             if scoring_enabled and runtime_scoring_blocked:
                 raise ValueError(
                     f"Weight set '{ws_data['name']}' enables scoring with "

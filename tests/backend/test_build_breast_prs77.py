@@ -32,11 +32,6 @@ def _compact_projection_sha256(rows: list[list[str]]) -> str:
     return hashlib.sha256(payload.encode()).hexdigest()
 
 
-def _breast_payload() -> dict:
-    panel = json.loads(_PANEL.read_text(encoding="utf-8"))
-    return next(model for model in panel["weight_sets"] if model["trait"] == "breast_cancer")
-
-
 def test_published_rows_and_grch37_projection_are_exact() -> None:
     source = _read_tsv(_SUPPLEMENT)
     harmonized = _read_tsv(_HARMONIZED)
@@ -149,7 +144,8 @@ def test_primary_grch38_audit_exposes_multiallelic_runtime_blocker() -> None:
 
 
 def test_generated_model_is_exact_but_fail_closed() -> None:
-    breast = _breast_payload()
+    panel = json.loads(_PANEL.read_text(encoding="utf-8"))
+    breast = next(model for model in panel["weight_sets"] if model["trait"] == "breast_cancer")
     source = _read_tsv(_SUPPLEMENT)
     harmonized = _read_tsv(_HARMONIZED)
     ensembl = {
@@ -158,6 +154,15 @@ def test_generated_model_is_exact_but_fail_closed() -> None:
     }
 
     assert breast["model_status"] == "source_verified_runtime_blocked"
+    assert {
+        model["trait"]: model["model_status"]
+        for model in panel["weight_sets"]
+        if model["trait"] != "breast_cancer"
+    } == {
+        "prostate_cancer": "active",
+        "colorectal_cancer": "active",
+        "melanoma": "active",
+    }
     assert breast["source_pmid"] == "25855707"
     assert breast["sample_size"] == 67054
     assert breast["pgs_id"] == "PGS000001"

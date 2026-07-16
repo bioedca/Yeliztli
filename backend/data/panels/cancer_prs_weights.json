@@ -2473,6 +2473,7 @@
       "reference_mean": 0.0,
       "reference_std": 1.0,
       "calibrated": false,
+      "model_status": "active",
       "calibration_note": "Placeholder reference distribution (mean=0/std=1) — NOT a validated reference distribution for this exact SNP subset and ancestry. The engine therefore withholds the population percentile / z-score / bootstrap CI for this score (issue #7). Supply a validated or analytically-derived (e.g. HWE from EUR allele frequencies) reference_mean/reference_std and set calibrated=true to re-enable the percentile.",
       "monogenic_genes": [
         "BRCA2",
@@ -2593,6 +2594,7 @@
       "reference_mean": 0.0,
       "reference_std": 1.0,
       "calibrated": false,
+      "model_status": "active",
       "calibration_note": "Placeholder reference distribution (mean=0/std=1) — NOT a validated reference distribution for this exact SNP subset and ancestry. The engine therefore withholds the population percentile / z-score / bootstrap CI for this score (issue #7). Supply a validated or analytically-derived (e.g. HWE from EUR allele frequencies) reference_mean/reference_std and set calibrated=true to re-enable the percentile.",
       "monogenic_genes": [
         "MLH1",
@@ -2715,6 +2717,7 @@
       "reference_mean": 0.0,
       "reference_std": 1.0,
       "calibrated": false,
+      "model_status": "active",
       "calibration_note": "Placeholder reference distribution (mean=0/std=1) — NOT a validated reference distribution for this exact SNP subset and ancestry. The engine therefore withholds the population percentile / z-score / bootstrap CI for this score (issue #7). Supply a validated or analytically-derived (e.g. HWE from EUR allele frequencies) reference_mean/reference_std and set calibrated=true to re-enable the percentile.",
       "monogenic_genes": [
         "CDKN2A",

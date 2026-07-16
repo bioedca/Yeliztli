@@ -355,6 +355,17 @@ class TestLoadCancerPRSWeights:
         traits = {ws.trait for ws in cancer_weight_sets}
         assert traits == CANCER_PRS_TRAITS
 
+    def test_all_models_have_explicit_allowlisted_status(self) -> None:
+        payload = json.loads(WEIGHTS_PATH.read_text(encoding="utf-8"))
+        statuses = {model["trait"]: model["model_status"] for model in payload["weight_sets"]}
+
+        assert statuses == {
+            "breast_cancer": "source_verified_runtime_blocked",
+            "prostate_cancer": "active",
+            "colorectal_cancer": "active",
+            "melanoma": "active",
+        }
+
     def test_breast_cancer_weight_set(self, cancer_weight_sets: list[PRSWeightSet]) -> None:
         breast = [ws for ws in cancer_weight_sets if ws.trait == "breast_cancer"][0]
         assert breast.name == "Breast cancer (Mavaddat PRS77; runtime blocked)"
@@ -486,6 +497,25 @@ class TestLoadCancerPRSWeights:
         path.write_text(json.dumps(payload), encoding="utf-8")
 
         with pytest.raises(ValueError, match="enables scoring"):
+            load_cancer_prs_weights(path)
+
+    @pytest.mark.parametrize("replacement", [None, "unknown"])
+    def test_loader_rejects_missing_or_unknown_model_status(
+        self, tmp_path: Path, replacement: str | None
+    ) -> None:
+        payload = json.loads(WEIGHTS_PATH.read_text(encoding="utf-8"))
+        breast = payload["weight_sets"][0]
+        if replacement is None:
+            breast.pop("model_status")
+        else:
+            breast["model_status"] = replacement
+        for weight in breast["weights"]:
+            weight.pop("runtime_scoring_eligible")
+        breast["scoring_enabled"] = True
+        path = tmp_path / f"model-status-{replacement or 'missing'}.json"
+        path.write_text(json.dumps(payload), encoding="utf-8")
+
+        with pytest.raises(ValueError, match="missing or unsupported model_status"):
             load_cancer_prs_weights(path)
 
     @pytest.mark.parametrize("tamper", ["missing", "null", "string"])

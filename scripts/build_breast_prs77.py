@@ -548,6 +548,18 @@ def _build_breast_model(
     }
 
 
+def _with_active_model_status(model: dict[str, Any]) -> dict[str, Any]:
+    """Return an active model with its fail-closed status beside calibration."""
+    if "calibrated" not in model:
+        _fail(f"panel: active model {model.get('trait')!r} has no calibrated gate")
+    updated: dict[str, Any] = {}
+    for key, value in model.items():
+        updated[key] = value
+        if key == "calibrated":
+            updated["model_status"] = "active"
+    return updated
+
+
 def _expected_panel(panel: dict[str, Any]) -> dict[str, Any]:
     weight_sets = panel.get("weight_sets")
     if not isinstance(weight_sets, list) or not weight_sets:
@@ -584,6 +596,9 @@ def _expected_panel(panel: dict[str, Any]) -> dict[str, Any]:
     )
     breast_index = breast_indexes[0]
     legacy = _legacy_audit_record(weight_sets[breast_index])
+    for index, model in enumerate(result["weight_sets"]):
+        if index != breast_index:
+            result["weight_sets"][index] = _with_active_model_status(model)
     result["weight_sets"][breast_index] = _build_breast_model(weights, groups, legacy)
     return result
 
