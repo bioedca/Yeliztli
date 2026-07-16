@@ -129,6 +129,8 @@ def test_ensemble_pathogenic_rule_is_documented() -> None:
         "deleterious axes / axes with data",
         "not a percentage, probability, confidence score",
         "not a claim that the underlying scores are statistically independent",
+        "other present categorical results vote non-deleterious",
+        "that axis is absent",
         "their strict majority becomes one axis",
         "If none has data, META is absent",
     )
@@ -168,6 +170,22 @@ def test_documented_ensemble_operators_match_backend_boundaries() -> None:
         deleterious, assessed = assess_insilico_axes(variant)
         assert assessed == 1, label
         assert bool(deleterious) is expected_deleterious, label
+
+
+def test_documented_categorical_fallbacks_match_backend_denominator() -> None:
+    """Present categorical results assess an axis even when they vote non-deleterious (#1971)."""
+    cases = (
+        ("SIFT deleterious", {"sift_pred": "D"}, True),
+        ("SIFT tolerated", {"sift_pred": "T"}, False),
+        ("PolyPhen-2 probably damaging", {"polyphen2_hsvar_pred": "D"}, True),
+        ("PolyPhen-2 benign", {"polyphen2_hsvar_pred": "B"}, False),
+    )
+    for label, variant, expected_deleterious in cases:
+        deleterious, assessed = assess_insilico_axes(variant)
+        assert assessed == 1, label
+        assert bool(deleterious) is expected_deleterious, label
+
+    assert assess_insilico_axes({}) == (0, 0)
 
 
 def test_documented_ensemble_examples_match_backend_rule() -> None:

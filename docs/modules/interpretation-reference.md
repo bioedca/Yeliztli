@@ -102,10 +102,12 @@ project-defined axes:
 | CADD | `CADD PHRED ≥ 20` |
 | META | A strict majority of the available meta-predictors: `REVEL ≥ 0.5`, `MetaSVM > 0`, and `MetaLR > 0.5` |
 
-For SIFT and PolyPhen-2, the numeric score takes priority. When it is unavailable, SIFT's
-categorical *Deleterious* prediction can supply the SIFT axis, and PolyPhen-2 HVAR's categorical
-*Probably damaging* prediction can supply the PolyPhen-2 axis. Within META, only meta-predictors
-with data vote, and their strict majority becomes **one** axis. If none has data, META is absent.
+For SIFT and PolyPhen-2, the numeric score takes priority. When it is unavailable, a present
+categorical prediction supplies the axis: SIFT's *Deleterious* and PolyPhen-2 HVAR's *Probably
+damaging* labels vote deleterious, while other present categorical results vote non-deleterious.
+With neither a usable numeric score nor a categorical result, that axis is absent. Within META,
+only meta-predictors with data vote, and their strict majority becomes **one** axis. If none has
+data, META is absent.
 
 "Independent axes" in the badge means separate votes in this project-level anti-double-counting
 model; it is **not** a claim that the underlying scores are statistically independent. REVEL
