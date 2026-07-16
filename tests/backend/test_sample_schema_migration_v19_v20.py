@@ -87,6 +87,11 @@ def test_v20_migration_quarantines_only_persisted_legacy_breast_prs(
                                 "trait": "colorectal_cancer",
                                 "finding_text": "Current colorectal PRS changed",
                             },
+                            {
+                                "module": "cancer",
+                                "category": "prs",
+                                "finding_text": "Unidentified cancer PRS changed",
+                            },
                         ],
                         "added": [
                             {
@@ -100,6 +105,12 @@ def test_v20_migration_quarantines_only_persisted_legacy_breast_prs(
                                 "category": "prs",
                                 "trait": "colorectal_cancer",
                                 "finding_text": "Current colorectal PRS added",
+                            },
+                            {
+                                "module": "cancer",
+                                "category": "prs",
+                                "trait": None,
+                                "finding_text": "Unidentified cancer PRS added",
                             },
                         ],
                         "removed": [
@@ -115,8 +126,14 @@ def test_v20_migration_quarantines_only_persisted_legacy_breast_prs(
                                 "trait": "colorectal_cancer",
                                 "finding_text": "Current colorectal PRS removed",
                             },
+                            {
+                                "module": "cancer",
+                                "category": "prs",
+                                "trait": " ",
+                                "finding_text": "Unidentified cancer PRS removed",
+                            },
                         ],
-                        "counts": {"changed": 2, "added": 2, "removed": 2},
+                        "counts": {"changed": 3, "added": 3, "removed": 3},
                         "dismissed": False,
                     }
                 ),

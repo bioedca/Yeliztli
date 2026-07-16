@@ -39,6 +39,7 @@ from backend.analysis.prs import (
     PRSResult,
     PRSSNPWeight,
     PRSWeightSet,
+    prs_model_fingerprint,
     run_prs,
     store_prs_findings,
 )
@@ -271,6 +272,7 @@ def run_cancer_prs(
             rng_seed=rng_seed,
             reference_engine=reference_engine,
         )
+        result.model_fingerprint = prs_model_fingerprint(ws)
         results.append(result)
 
         logger.info(
@@ -303,10 +305,10 @@ def store_cancer_prs_findings(
     """Store cancer PRS findings in the sample database.
 
     Delegates to the generic store_prs_findings with module='cancer'. Only
-    results whose traits have an enabled bundled model can cross this final
-    persistence boundary; this prevents a manually constructed result from
-    bypassing a model quarantine. Among eligible results, only those with
-    sufficient coverage (≥50%) are stored.
+    results carrying the exact fingerprint of an enabled bundled model can cross
+    this final persistence boundary; this prevents a manually constructed result
+    or same-trait alternate model from bypassing a quarantine. Among eligible
+    results, only those with sufficient coverage (≥50%) are stored.
 
     Args:
         cancer_result: CancerPRSResult from run_cancer_prs.
@@ -315,16 +317,23 @@ def store_cancer_prs_findings(
     Returns:
         Number of findings inserted.
     """
-    enabled_traits = {
-        weight_set.trait for weight_set in load_cancer_prs_weights() if weight_set.scoring_enabled
+    enabled_model_fingerprints = {
+        weight_set.trait: prs_model_fingerprint(weight_set)
+        for weight_set in load_cancer_prs_weights()
+        if weight_set.scoring_enabled
     }
     eligible_results: list[PRSResult] = []
     for result in cancer_result.results:
-        if result.trait not in enabled_traits:
+        expected_fingerprint = enabled_model_fingerprints.get(result.trait)
+        if expected_fingerprint is None or result.model_fingerprint != expected_fingerprint:
             logger.warning(
                 "cancer_prs_result_not_stored",
                 trait=result.trait,
-                reason="no_enabled_bundled_model",
+                reason=(
+                    "no_enabled_bundled_model"
+                    if expected_fingerprint is None
+                    else "model_fingerprint_mismatch"
+                ),
             )
             continue
         eligible_results.append(result)

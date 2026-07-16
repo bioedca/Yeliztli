@@ -34,7 +34,7 @@ from backend.analysis.cancer_prs import (
 from backend.analysis.cancer_prs import (
     run_cancer_prs as _run_cancer_prs,
 )
-from backend.analysis.prs import PRSResult, PRSWeightSet
+from backend.analysis.prs import PRSResult, PRSWeightSet, prs_model_fingerprint
 from backend.db.tables import annotated_variants, findings
 
 # ── Fixtures ──────────────────────────────────────────────────────────────
@@ -420,6 +420,21 @@ class TestLoadCancerPRSWeights:
         for weight_set in active_sets.values():
             assert weight_set.scoring_enabled is True
             assert weight_set.calibration_eligible is True
+
+    def test_model_fingerprints_are_deterministic_and_model_specific(
+        self, cancer_weight_sets: list[PRSWeightSet]
+    ) -> None:
+        fingerprints = {
+            weight_set.trait: prs_model_fingerprint(weight_set)
+            for weight_set in cancer_weight_sets
+        }
+
+        assert len(set(fingerprints.values())) == len(cancer_weight_sets)
+        assert all(len(fingerprint) == 64 for fingerprint in fingerprints.values())
+        assert fingerprints == {
+            weight_set.trait: prs_model_fingerprint(weight_set)
+            for weight_set in cancer_weight_sets
+        }
 
     def test_prostate_cancer_weight_set(self, cancer_weight_sets: list[PRSWeightSet]) -> None:
         prostate = [ws for ws in cancer_weight_sets if ws.trait == "prostate_cancer"][0]
@@ -905,10 +920,21 @@ class TestStoreCancerPRSFindings:
         count = store_cancer_prs_findings(prs_result, sample_with_prs_snps)
         assert count == prs_result.sufficient_count
         assert count > 0
+        expected_fingerprints = {
+            weight_set.trait: prs_model_fingerprint(weight_set)
+            for weight_set in cancer_weight_sets
+            if weight_set.scoring_enabled
+        }
+        assert all(
+            result.model_fingerprint == expected_fingerprints[result.trait]
+            for result in prs_result.results
+        )
 
-    def test_rejects_synthetic_result_without_enabled_bundled_model(
-        self, sample_engine: sa.Engine
-    ) -> None:
+    def test_rejects_disabled_or_wrong_model_fingerprint(self, sample_engine: sa.Engine) -> None:
+        weight_sets = load_cancer_prs_weights(WEIGHTS_PATH)
+        breast_weight_set = next(
+            weight_set for weight_set in weight_sets if weight_set.trait == "breast_cancer"
+        )
         breast_result = PRSResult(
             weight_set_name="Synthetic quarantined breast score",
             trait="breast_cancer",
@@ -924,6 +950,7 @@ class TestStoreCancerPRSFindings:
             snps_used=25,
             snps_total=25,
             coverage_fraction=1.0,
+            model_fingerprint=prs_model_fingerprint(breast_weight_set),
         )
         colorectal_result = replace(
             breast_result,
@@ -931,6 +958,7 @@ class TestStoreCancerPRSFindings:
             trait="colorectal_cancer",
             source_study="Active test model",
             source_pmid="30510241",
+            model_fingerprint="0" * 64,
         )
 
         count = store_cancer_prs_findings(
@@ -946,8 +974,8 @@ class TestStoreCancerPRSFindings:
                 )
             ).fetchall()
 
-        assert count == 1
-        assert [json.loads(row.detail_json)["trait"] for row in rows] == ["colorectal_cancer"]
+        assert count == 0
+        assert rows == []
 
     def test_findings_have_prs_category(
         self, cancer_weight_sets: list[PRSWeightSet], sample_with_prs_snps: sa.Engine
@@ -1028,6 +1056,7 @@ class TestStoreCancerPRSFindings:
             detail = json.loads(row.detail_json)
             assert "trait" in detail
             assert detail["trait"] in CANCER_PRS_TRAITS
+            assert len(detail["model_fingerprint"]) == 64
 
     def test_xx_rerun_clears_prostate_prs(
         self, cancer_weight_sets: list[PRSWeightSet], sample_with_prs_snps: sa.Engine

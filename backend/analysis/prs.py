@@ -43,6 +43,7 @@ Usage::
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 from dataclasses import asdict, dataclass, field
@@ -280,6 +281,8 @@ class PRSResult:
         calibration_variants_total: Number of variants available for calibration.
         calibration_ancestry_fractions: Ancestry fractions used for continuous calibration.
         calibration_pmids: PubMed IDs supporting the calibration method.
+        model_fingerprint: SHA-256 identity of the exact weight-set configuration
+            that produced this result.
     """
 
     weight_set_name: str
@@ -349,6 +352,10 @@ class PRSResult:
     # Human-readable disclosure that the percentile is common-variant-only and
     # is reported independently of any monogenic finding (None until annotated).
     monogenic_note: str | None = None
+    # SHA-256 identity of the exact weight-set configuration that produced this
+    # result. Appended to preserve the positional constructor contract; ``None``
+    # remains valid for legacy/programmatically constructed results.
+    model_fingerprint: str | None = None
 
     def __post_init__(self) -> None:
         self.higher_is = normalize_prs_higher_is(self.higher_is)
@@ -365,6 +372,24 @@ class PRSResult:
     def has_bootstrap_ci(self) -> bool:
         """Whether legacy interval fields are populated."""
         return self.bootstrap_ci_lower is not None and self.bootstrap_ci_upper is not None
+
+
+def prs_model_fingerprint(weight_set: PRSWeightSet) -> str:
+    """Return a deterministic SHA-256 identity for an exact PRS model.
+
+    The canonical payload covers every weight-set field, including the ordered
+    SNP definitions and execution/calibration gates. Persistence boundaries can
+    therefore verify the exact currently enabled model instead of trusting a
+    trait label alone.
+    """
+    canonical = json.dumps(
+        asdict(weight_set),
+        allow_nan=False,
+        ensure_ascii=True,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 # ── Dosage computation ───────────────────────────────────────────────────
@@ -1319,6 +1344,7 @@ def store_prs_findings(
             "monogenic_genes": r.monogenic_genes,
             "monogenic_carrier_genes": r.monogenic_carrier_genes,
             "monogenic_note": r.monogenic_note,
+            "model_fingerprint": r.model_fingerprint,
         }
         detail["return_framing"] = prs_return_framing(detail)
 

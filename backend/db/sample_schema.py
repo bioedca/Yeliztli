@@ -25,6 +25,14 @@ logger = structlog.get_logger(__name__)
 _FINDING_DIFF_STATE_KEY = "last_finding_diff_json"
 _QUARANTINED_BREAST_PRS_TRAIT = "breast_cancer"
 
+
+def _is_quarantined_or_unidentified_cancer_prs_trait(trait: object) -> bool:
+    """Whether a legacy cancer-PRS trait cannot safely remain surfaceable."""
+    return (
+        trait == _QUARANTINED_BREAST_PRS_TRAIT or not isinstance(trait, str) or not trait.strip()
+    )
+
+
 # Current schema version. Bump for per-sample schema or content migrations.
 # v7: Add watched_variants table (P4-21g — VUS tracking)
 # v8: Add provenance columns to raw_variants + merge_provenance table
@@ -476,11 +484,7 @@ def _add_missing_columns(engine: sa.Engine, from_version: int) -> bool:
                         except (json.JSONDecodeError, TypeError):
                             detail = {}
                         trait = detail.get("trait") if isinstance(detail, dict) else None
-                        if (
-                            trait == _QUARANTINED_BREAST_PRS_TRAIT
-                            or not isinstance(trait, str)
-                            or not trait.strip()
-                        ):
+                        if _is_quarantined_or_unidentified_cancer_prs_trait(trait):
                             quarantined_ids.append(row.id)
 
                     if quarantined_ids:
@@ -525,7 +529,9 @@ def _add_missing_columns(engine: sa.Engine, from_version: int) -> bool:
                                     isinstance(entry, dict)
                                     and entry.get("module") == "cancer"
                                     and entry.get("category") == "prs"
-                                    and entry.get("trait") == _QUARANTINED_BREAST_PRS_TRAIT
+                                    and _is_quarantined_or_unidentified_cancer_prs_trait(
+                                        entry.get("trait")
+                                    )
                                 )
                             ]
                             removed_diff_entries += len(entries) - len(kept)
