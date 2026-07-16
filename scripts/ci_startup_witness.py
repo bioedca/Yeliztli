@@ -25,13 +25,19 @@ from importlib.metadata import PackageNotFoundError, version
 
 
 def _log_environment() -> None:
-    """Record the interpreter and the resolved async-stack versions (#1965)."""
-    print(f"python: {sys.version.split()[0]}")
+    """Record the interpreter and the resolved async-stack versions (#1965).
+
+    ``flush=True`` because this must reach the CI log *before* the startup call
+    below — if that call hangs and the outer ``timeout`` SIGKILLs the process,
+    buffered stdout (CI is not a TTY) would otherwise be lost, discarding the
+    version diagnostics for the exact failure this witness exists to catch.
+    """
+    print(f"python: {sys.version.split()[0]}", flush=True)
     for pkg in ("fastapi", "starlette", "anyio", "httpx", "pytest", "pytest-asyncio"):
         try:
-            print(f"{pkg}: {version(pkg)}")
+            print(f"{pkg}: {version(pkg)}", flush=True)
         except PackageNotFoundError:
-            print(f"{pkg}: <not installed>")
+            print(f"{pkg}: <not installed>", flush=True)
 
 
 def main() -> int:
