@@ -475,7 +475,9 @@ def _generate_cross_context_findings(
                 else:
                     context_text = (
                         f"ACTN3 R577X ({actn3_result.genotype}) — {three_state} genotype. "
-                        "Shift toward slow-twitch fibers; reduced power/sprint advantage."
+                        "Alpha-actinin-3 protein is absent in XX. Reported population-level "
+                        "associations do not predict an individual's power, sprint, or "
+                        "endurance capability."
                     )
 
                 cross_findings.append(

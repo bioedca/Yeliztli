@@ -604,9 +604,7 @@ class TestCrossContextFindings:
     def test_actn3_xx_power_context_still_generated_when_standard(
         self, panel: FitnessPanel
     ) -> None:
-        """XX is now Standard in Endurance (gh #182), but its Power-pathway context
-        ('reduced power/sprint advantage') must still surface — keyed off the
-        three-state label, not the endurance category."""
+        """XX stays context-only without becoming an individual aptitude call."""
         endurance_pr = PathwayResult(
             pathway_id="endurance",
             pathway_name="Endurance",
@@ -636,8 +634,13 @@ class TestCrossContextFindings:
         assert len(cross) >= 1
         actn3_cross = next(c for c in cross if c.rsid == "rs1815739")
         assert actn3_cross.context_pathway == "Power"
-        assert "XX" in actn3_cross.finding_text
-        assert "reduced power/sprint" in actn3_cross.finding_text.lower()
+        text = actn3_cross.finding_text.lower()
+        assert "xx genotype" in text
+        assert "alpha-actinin-3 protein is absent in xx" in text
+        assert "reported population-level associations do not predict" in text
+        assert "power, sprint, or endurance capability" in text
+        for stale in ("shift toward slow-twitch", "reduced power/sprint advantage"):
+            assert stale not in text
 
     def test_ace_endurance_context_generated(self, panel: FitnessPanel) -> None:
         """ACE ID/DD generates cross-context finding for Endurance pathway."""
