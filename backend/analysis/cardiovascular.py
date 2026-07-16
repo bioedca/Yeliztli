@@ -99,6 +99,20 @@ LOW_LDL_CONDITION_TERMS = (
     "abetalipoproteinemia",
     "abetalipoproteinaemia",
 )
+# APOB protein-truncating variants are an established loss-of-function
+# mechanism for familial hypobetalipoproteinemia and must not be treated as FH
+# evidence merely because they are predicted loss-of-function.
+# Keep these as exact Sequence Ontology tokens; a compound VEP consequence is
+# split before comparison (Peloso et al. 2019, PMID 30939045; ClinGen FH VCEP,
+# DOI 10.1016/j.atherosclerosis.2025.119569).
+APOB_PROTEIN_TRUNCATING_CONSEQUENCES = frozenset(
+    {
+        "frameshift_variant",
+        "stop_gained",
+        "splice_acceptor_variant",
+        "splice_donor_variant",
+    }
+)
 VARIANT_SCOPED_CONDITION_GENES = frozenset(
     {
         "KCNQ1",
@@ -320,8 +334,28 @@ def _is_low_ldl_condition_only(clinvar_conditions: str | None) -> bool:
     return has_low_ldl and not has_fh
 
 
+def _consequence_terms(consequence: str | None) -> frozenset[str]:
+    """Return normalized exact SO terms from a possibly compound consequence."""
+    if not consequence:
+        return frozenset()
+    return frozenset(
+        part.strip().casefold()
+        for part in consequence.replace(",", "&").replace(";", "&").split("&")
+        if part.strip()
+    )
+
+
+def _is_apob_protein_truncating(gene_info: CardiovascularGene, consequence: str | None) -> bool:
+    """Whether an exact APOB PTV consequence overrides ambiguous condition text."""
+    return gene_info.gene_symbol.upper() == "APOB" and bool(
+        _consequence_terms(consequence) & APOB_PROTEIN_TRUNCATING_CONSEQUENCES
+    )
+
+
 def _variant_condition_scope(
-    gene_info: CardiovascularGene, clinvar_conditions: str | None
+    gene_info: CardiovascularGene,
+    clinvar_conditions: str | None,
+    consequence: str | None = None,
 ) -> tuple[list[str], str]:
     """Return display conditions and cardiovascular category for one variant."""
     variant_conditions = format_clinvar_conditions(clinvar_conditions)
@@ -330,6 +364,20 @@ def _variant_condition_scope(
         if gene_info.gene_symbol.upper() in VARIANT_SCOPED_CONDITION_GENES:
             return variant_conditions, gene_info.cardiovascular_category
         return gene_info.conditions, gene_info.cardiovascular_category
+
+    # ClinVar's aggregate condition list can contain both low- and high-LDL
+    # phenotypes for the same APOB record. A decisive protein-truncating
+    # consequence therefore takes precedence over that ambiguous text; do not
+    # require a low-LDL string that may be missing from the aggregate. Show
+    # only low-LDL condition names in the diagnostic headline; the complete raw
+    # ClinVar aggregate remains stored separately for transparent audit.
+    if _is_apob_protein_truncating(gene_info, consequence):
+        low_ldl_conditions = [
+            condition
+            for condition in variant_conditions
+            if _condition_mentions_any(condition, LOW_LDL_CONDITION_TERMS)
+        ]
+        return low_ldl_conditions, CATEGORY_LIPID
 
     if not _is_low_ldl_condition_only(clinvar_conditions):
         return gene_info.conditions, gene_info.cardiovascular_category
@@ -448,7 +496,7 @@ def extract_cardiovascular_variants(
         )
         lower_penetrance = is_low_penetrance_or_risk_allele(row.clinvar_significance)
         conditions, cardiovascular_category = _variant_condition_scope(
-            gene_info, row.clinvar_conditions
+            gene_info, row.clinvar_conditions, row.consequence
         )
 
         variant = CardiovascularVariantResult(

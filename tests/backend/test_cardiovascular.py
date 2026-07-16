@@ -45,6 +45,7 @@ from backend.analysis.cardiovascular import (
     store_fh_status_finding,
 )
 from backend.analysis.clinvar_significance import LOWER_PENETRANCE_RISK_ALLELE_CATEGORY
+from backend.analysis.fh import detect_fh_monogenic
 from backend.analysis.inheritance import (
     DISEASE_AFFECTED,
     DISEASE_CARRIER,
@@ -62,6 +63,34 @@ PANEL_PATH = (
     / "panels"
     / "cardiovascular_panel.json"
 )
+
+APOB_FHBL_FH_AGGREGATE_CONDITIONS = (
+    "not provided|Familial hypobetalipoproteinemia 1|"
+    "Hypercholesterolemia, autosomal dominant, type B"
+)
+
+
+def _apob_fhbl_witness(
+    consequence: str | None,
+    clinvar_conditions: str | None = APOB_FHBL_FH_AGGREGATE_CONDITIONS,
+) -> dict[str, object]:
+    """Current ClinVar rs1282116285 witness with overridable classifier inputs."""
+    return {
+        "rsid": "rs1282116285",
+        "chrom": "2",
+        "pos": 21228615,
+        "ref": "CA",
+        "alt": "C",
+        "genotype": "CA/C",
+        "zygosity": "het",
+        "gene_symbol": "APOB",
+        "clinvar_significance": "Pathogenic",
+        "clinvar_review_stars": 2,
+        "clinvar_accession": "VCV000925921",
+        "clinvar_conditions": clinvar_conditions,
+        "consequence": consequence,
+        "annotation_coverage": 2,
+    }
 
 
 @pytest.fixture()
@@ -928,6 +957,90 @@ class TestExtractCardiovascularVariants:
         assert apob.cardiovascular_category == CATEGORY_LIPID
         assert apob.conditions == ["Familial hypobetalipoproteinemia"]
 
+    @pytest.mark.parametrize(
+        "consequence",
+        [
+            "frameshift_variant",
+            "stop_gained",
+            "splice_acceptor_variant",
+            "splice_donor_variant",
+            "splice_acceptor_variant&intron_variant",
+            " MISSENSE_VARIANT , FRAMESHIFT_VARIANT ",
+            "intron_variant;splice_donor_variant",
+        ],
+    )
+    def test_apob_truncating_consequence_overrides_aggregate_conditions(
+        self,
+        panel: CardiovascularPanel,
+        sample_engine: sa.Engine,
+        consequence: str,
+    ) -> None:
+        """APOB PTVs remain low-LDL even when ClinVar aggregates both directions."""
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                [_apob_fhbl_witness(consequence)],
+            )
+
+        result = extract_cardiovascular_variants(panel, sample_engine)
+        fh = determine_fh_status(result)
+
+        assert result.fh_variants == []
+        assert [v.rsid for v in result.lipid_variants] == ["rs1282116285"]
+        assert fh.status == FH_STATUS_NEGATIVE
+        assert result.variants[0].conditions == ["Familial hypobetalipoproteinemia 1"]
+
+    @pytest.mark.parametrize(
+        "clinvar_conditions",
+        [None, "", "not provided", "Familial hypercholesterolemia"],
+    )
+    def test_apob_truncating_condition_display_fails_closed(
+        self,
+        panel: CardiovascularPanel,
+        sample_engine: sa.Engine,
+        clinvar_conditions: str | None,
+    ) -> None:
+        """Missing or high-LDL-only aggregates must not restore an FH headline."""
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                [_apob_fhbl_witness("stop_gained", clinvar_conditions)],
+            )
+
+        result = extract_cardiovascular_variants(panel, sample_engine)
+
+        assert result.fh_variants == []
+        assert result.variants[0].cardiovascular_category == CATEGORY_LIPID
+        assert result.variants[0].conditions == []
+
+    @pytest.mark.parametrize(
+        "consequence",
+        [
+            None,
+            "",
+            "missense_variant",
+            "stop_gained_variant",
+            "frameshift_variant_extra",
+            "splice_region_variant",
+        ],
+    )
+    def test_apob_nontruncating_exact_tokens_do_not_trigger_override(
+        self,
+        panel: CardiovascularPanel,
+        sample_engine: sa.Engine,
+        consequence: str | None,
+    ) -> None:
+        """Absent and near-match SO terms retain the existing condition-based scope."""
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                [_apob_fhbl_witness(consequence)],
+            )
+
+        result = extract_cardiovascular_variants(panel, sample_engine)
+
+        assert [v.rsid for v in result.fh_variants] == ["rs1282116285"]
+
     def test_apob_hypercholesterolemia_variant_still_counts_fh(
         self, panel: CardiovascularPanel, sample_engine: sa.Engine
     ) -> None:
@@ -939,16 +1052,17 @@ class TestExtractCardiovascularVariants:
                     {
                         "rsid": "rs5742904",
                         "chrom": "2",
-                        "pos": 21002377,
-                        "ref": "G",
-                        "alt": "A",
-                        "genotype": "AG",
+                        "pos": 21229160,
+                        "ref": "C",
+                        "alt": "T",
+                        "genotype": "CT",
                         "zygosity": "het",
                         "gene_symbol": "APOB",
                         "clinvar_significance": "Pathogenic",
                         "clinvar_review_stars": 2,
-                        "clinvar_accession": "VCV000017876",
-                        "clinvar_conditions": "Familial hypercholesterolemia",
+                        "clinvar_accession": "VCV000017890",
+                        "clinvar_conditions": APOB_FHBL_FH_AGGREGATE_CONDITIONS,
+                        "consequence": "missense_variant",
                         "annotation_coverage": 2,
                     }
                 ],
@@ -960,6 +1074,36 @@ class TestExtractCardiovascularVariants:
         assert [v.rsid for v in result.fh_variants] == ["rs5742904"]
         assert fh.status == FH_STATUS_POSITIVE
         assert fh.affected_genes == ["APOB"]
+
+    def test_ldlr_truncating_variant_remains_fh(
+        self, panel: CardiovascularPanel, sample_engine: sa.Engine
+    ) -> None:
+        """The APOB-specific override must not invert an LDLR null variant."""
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                [
+                    {
+                        "rsid": "rs_ldlr_stop",
+                        "chrom": "19",
+                        "pos": 11200090,
+                        "ref": "C",
+                        "alt": "T",
+                        "genotype": "CT",
+                        "zygosity": "het",
+                        "gene_symbol": "LDLR",
+                        "clinvar_significance": "Pathogenic",
+                        "clinvar_review_stars": 2,
+                        "clinvar_conditions": "Familial hypercholesterolemia",
+                        "consequence": "stop_gained",
+                        "annotation_coverage": 2,
+                    }
+                ],
+            )
+
+        result = extract_cardiovascular_variants(panel, sample_engine)
+
+        assert [v.rsid for v in result.fh_variants] == ["rs_ldlr_stop"]
 
     def test_cardiomyopathy_variants_grouped(
         self, panel: CardiovascularPanel, sample_with_cv_variants: sa.Engine
@@ -2028,6 +2172,67 @@ class TestAPOBConditionScope:
         assert rows[0]["conditions"] == "Familial hypobetalipoproteinemia"
         assert detail["conditions"] == ["Familial hypobetalipoproteinemia"]
         assert detail["cardiovascular_category"] == CATEGORY_LIPID
+
+    def test_apob_truncating_aggregate_is_excluded_from_fh_module(
+        self, panel: CardiovascularPanel, sample_engine: sa.Engine
+    ) -> None:
+        result, rows = _store_and_fetch(
+            panel,
+            sample_engine,
+            [_apob_fhbl_witness("frameshift_variant")],
+        )
+        fh = determine_fh_status(result)
+
+        assert fh.status == FH_STATUS_NEGATIVE
+        assert detect_fh_monogenic(sample_engine) == []
+        assert len(rows) == 1
+
+        text = rows[0]["finding_text"]
+        detail = json.loads(rows[0]["detail_json"])
+        assert "Familial hypobetalipoproteinemia 1" in text
+        assert "Hypercholesterolemia, autosomal dominant, type B" not in text
+        assert "Familial Defective Apolipoprotein B-100" not in text
+        assert rows[0]["conditions"] == APOB_FHBL_FH_AGGREGATE_CONDITIONS
+        assert detail["clinvar_conditions"] == APOB_FHBL_FH_AGGREGATE_CONDITIONS
+        assert detail["conditions"] == ["Familial hypobetalipoproteinemia 1"]
+        assert detail["cardiovascular_category"] == CATEGORY_LIPID
+
+    def test_rerun_replaces_stale_apob_fh_finding_with_lipid_finding(
+        self, panel: CardiovascularPanel, sample_engine: sa.Engine
+    ) -> None:
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(annotated_variants), [_apob_fhbl_witness(None)])
+
+        first = extract_cardiovascular_variants(panel, sample_engine)
+        store_cardiovascular_findings(first, sample_engine)
+        assert [v.gene for v in detect_fh_monogenic(sample_engine)] == ["APOB"]
+
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.update(annotated_variants)
+                .where(annotated_variants.c.rsid == "rs1282116285")
+                .values(consequence="frameshift_variant")
+            )
+
+        second = extract_cardiovascular_variants(panel, sample_engine)
+        store_cardiovascular_findings(second, sample_engine)
+
+        assert second.fh_variants == []
+        assert [v.rsid for v in second.lipid_variants] == ["rs1282116285"]
+        assert detect_fh_monogenic(sample_engine) == []
+        with sample_engine.connect() as conn:
+            stored = (
+                conn.execute(
+                    sa.select(findings).where(
+                        findings.c.module == "cardiovascular",
+                        findings.c.category == "monogenic_variant",
+                    )
+                )
+                .mappings()
+                .all()
+            )
+        assert len(stored) == 1
+        assert json.loads(stored[0]["detail_json"])["cardiovascular_category"] == CATEGORY_LIPID
 
 
 class TestRecessiveInheritanceGating:
