@@ -1,0 +1,101 @@
+{
+  "schema_version": 1,
+  "source_export_id": "pgp_1050",
+  "source_sha256": "30b6e03db180e17b097e06aa94d9352ca195b2948e38bde28ced3285fb8921c7",
+  "source_line_count": 1001437,
+  "audit_generated": "2026-07-14",
+  "audit_method": "Aggregate exact-coordinate coverage; genotype values omitted",
+  "positions": [
+    {
+      "position": 204,
+      "position_present": true,
+      "callable_snv": true,
+      "probe_rows": 1,
+      "callable_rows": 1
+    },
+    {
+      "position": 1018,
+      "position_present": true,
+      "callable_snv": true,
+      "probe_rows": 1,
+      "callable_rows": 1
+    },
+    {
+      "position": 1719,
+      "position_present": true,
+      "callable_snv": true,
+      "probe_rows": 1,
+      "callable_rows": 1
+    },
+    {
+      "position": 8701,
+      "position_present": true,
+      "callable_snv": true,
+      "probe_rows": 1,
+      "callable_rows": 1
+    },
+    {
+      "position": 9540,
+      "position_present": true,
+      "callable_snv": true,
+      "probe_rows": 2,
+      "callable_rows": 2
+    },
+    {
+      "position": 10034,
+      "position_present": true,
+      "callable_snv": true,
+      "probe_rows": 1,
+      "callable_rows": 1
+    },
+    {
+      "position": 10238,
+      "position_present": true,
+      "callable_snv": true,
+      "probe_rows": 1,
+      "callable_rows": 1
+    },
+    {
+      "position": 10398,
+      "position_present": true,
+      "callable_snv": true,
+      "probe_rows": 1,
+      "callable_rows": 1
+    },
+    {
+      "position": 10873,
+      "position_present": true,
+      "callable_snv": true,
+      "probe_rows": 1,
+      "callable_rows": 1
+    },
+    {
+      "position": 12501,
+      "position_present": true,
+      "callable_snv": true,
+      "probe_rows": 1,
+      "callable_rows": 1
+    },
+    {
+      "position": 13780,
+      "position_present": true,
+      "callable_snv": true,
+      "probe_rows": 1,
+      "callable_rows": 1
+    },
+    {
+      "position": 15043,
+      "position_present": true,
+      "callable_snv": true,
+      "probe_rows": 1,
+      "callable_rows": 1
+    },
+    {
+      "position": 16129,
+      "position_present": true,
+      "callable_snv": true,
+      "probe_rows": 1,
+      "callable_rows": 1
+    }
+  ]
+}

@@ -57,6 +57,12 @@ BUNDLE_PATH = (
     / "panels"
     / "haplogroup_bundle.json"
 )
+MT_HAPLOGROUP_SOURCE_PATH = (
+    Path(__file__).resolve().parent.parent.parent / "scripts" / "mt_haplogroup_source.json"
+)
+PGP_1050_MT_I_LAYOUT_PATH = (
+    Path(__file__).resolve().parent.parent / "fixtures" / "pgp_1050_mt_i_callable_layout.json"
+)
 
 # ── Fixtures ─────────────────────────────────────────────────────────────
 
@@ -2285,15 +2291,37 @@ class TestAssignHaplogroups:
         ] == [("L0", 7, 8)]
 
     @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
-    def test_issue_1899_i_exact_source_spine_assigns_by_position(
+    def test_issue_1899_pgp_1050_callable_layout_assigns_i(
         self,
         bundle: HaplogroupBundle,
         sample_engine: sa.Engine,
         source_table: sa.Table,
     ) -> None:
-        """The exact Build 17 N1/N1a spine and sparse I motif resolve together."""
+        """Audited pgp_1050 coverage supports a synthetic exact I path."""
+        layout = json.loads(PGP_1050_MT_I_LAYOUT_PATH.read_text(encoding="utf-8"))
+        source = json.loads(MT_HAPLOGROUP_SOURCE_PATH.read_text(encoding="utf-8"))
+        source_export = source["array_exports"][layout["source_export_id"]]
+        assert layout["schema_version"] == 1
+        assert layout["source_export_id"] == "pgp_1050"
+        assert layout["source_sha256"] == source_export["sha256"]
+        assert layout["source_line_count"] == source_export["line_count"]
+
+        layout_rows = layout["positions"]
+        layout_positions = {int(row["position"]) for row in layout_rows}
+        assert len(layout_rows) == len(layout_positions)
+        assert all(
+            row["position_present"] is True
+            and row["callable_snv"] is True
+            and int(row["probe_rows"]) >= 1
+            and int(row["callable_rows"]) == int(row["probe_rows"])
+            for row in layout_rows
+        )
+        assert layout_positions == {int(row["pos"]) for row in _MT_I_GENOTYPES}
+
+        # The fixture supplies hypothetical I-derived alleles; it does not claim
+        # that the public exemplar donor carries haplogroup I.
         rows = [
-            {**row, "rsid": f"vendor_issue_1899_exact_{index}"}
+            {**row, "rsid": f"vendor_issue_1899_pgp_1050_layout_{index}"}
             for index, row in enumerate(_MT_I_GENOTYPES)
         ]
         assert not ({str(row["rsid"]) for row in rows} & bundle.mt_snp_rsids)
