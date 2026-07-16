@@ -63,6 +63,16 @@ jobs:
               # a PR skipped the backend suite and reddened main, caught only by
               # the nightly (#1061/#1065). Run the backend suite on these too.
               - 'graphify-out/**'
+              # The backend suite (its interpreter matrix, timeouts, the witness
+              # step) is DEFINED here, so a change to this workflow must exercise
+              # it — otherwise a backend-lane edit ships without ever running the
+              # backend lane on its own PR (#1965). The frontend filter already
+              # self-references ci.yml the same way.
+              - '.github/workflows/ci.yml'
+              # scripts/ is backend tooling the suite invokes (fixture
+              # generators, the CI startup witness), so a scripts-only change
+              # must run the suite that depends on it.
+              - 'scripts/**'
             frontend:
               - 'frontend/**'
               - 'tests/frontend/**'
