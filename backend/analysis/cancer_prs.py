@@ -1,7 +1,7 @@
 """Cancer-specific PRS integration (P3-15).
 
-Loads cancer weight-set records, including quarantined audit-only models, and
-runs only eligible traits through the generic PRS engine (P3-14).
+Loads cancer weight-set records, including scoring-disabled non-reporting
+models, and runs only eligible traits through the generic PRS engine (P3-14).
 Results are stored as findings with module='cancer' and category='prs',
 displayed in a separate "Research Use Only" tier.
 
@@ -53,6 +53,9 @@ _WEIGHTS_PATH = (
 
 BREAST_CANCER_TRAIT = "breast_cancer"
 PROSTATE_CANCER_TRAIT = "prostate_cancer"
+_ACTIVE_MODEL_STATUS = "active"
+_RUNTIME_BLOCKED_MODEL_STATUS = "source_verified_runtime_blocked"
+_ALLOWED_MODEL_STATUSES = {_ACTIVE_MODEL_STATUS, _RUNTIME_BLOCKED_MODEL_STATUS}
 
 SEX_SPECIFIC_PRS_TRAITS = {
     BREAST_CANCER_TRAIT: "XX",
@@ -99,8 +102,8 @@ def load_cancer_prs_weights(
 ) -> list[PRSWeightSet]:
     """Load cancer PRS weight sets from JSON.
 
-    The file contains active weight sets plus any disabled audit-only model,
-    each tagged with source ancestry and study metadata.
+    The file contains active weight sets plus any scoring-disabled non-reporting
+    model, each tagged with source ancestry and study metadata.
 
     Args:
         weights_path: Optional override for the weights JSON path.
@@ -108,7 +111,7 @@ def load_cancer_prs_weights(
 
     Returns:
         List of PRSWeightSet objects for each cancer type, including any
-        disabled audit-only model that :func:`run_cancer_prs` must skip.
+        disabled non-reporting model that :func:`run_cancer_prs` must skip.
 
     Raises:
         FileNotFoundError: If the weights JSON does not exist.
@@ -123,17 +126,84 @@ def load_cancer_prs_weights(
     if "weight_sets" not in data:
         raise ValueError(f"Invalid cancer PRS weights file: missing 'weight_sets' key in {path}")
 
+    raw_weight_sets = data["weight_sets"]
+    if not isinstance(raw_weight_sets, list):
+        raise ValueError(
+            f"Invalid cancer PRS weights file: 'weight_sets' must be a list in {path}"
+        )
+    traits = [weight_set.get("trait") for weight_set in raw_weight_sets]
+    if len(set(traits)) != len(traits):
+        raise ValueError(f"Invalid cancer PRS weights file: duplicate top-level trait in {path}")
+
     weight_sets: list[PRSWeightSet] = []
-    for idx, ws_data in enumerate(data["weight_sets"]):
+    for idx, ws_data in enumerate(raw_weight_sets):
         try:
+            raw_weights = ws_data["weights"]
+            rsids = [weight["rsid"] for weight in raw_weights]
+            if len(set(rsids)) != len(rsids):
+                raise ValueError(f"Duplicate rsID in weight set '{ws_data['name']}'")
+
+            variants_number = ws_data.get("variants_number")
+            if variants_number is not None and variants_number != len(raw_weights):
+                raise ValueError(
+                    f"Declared variants_number={variants_number} does not match "
+                    f"{len(raw_weights)} rows in weight set '{ws_data['name']}'"
+                )
+
+            scoring_enabled = ws_data.get("scoring_enabled", True)
+            if not isinstance(scoring_enabled, bool):
+                raise ValueError(f"Weight set '{ws_data['name']}' has non-boolean scoring_enabled")
+            calibrated = ws_data.get("calibrated", False)
+            if not isinstance(calibrated, bool):
+                raise ValueError(f"Weight set '{ws_data['name']}' has non-boolean calibrated")
+            calibration_eligible = ws_data.get("calibration_eligible", True)
+            if not isinstance(calibration_eligible, bool):
+                raise ValueError(
+                    f"Weight set '{ws_data['name']}' has non-boolean calibration_eligible"
+                )
+
+            eligibility_schema_present = any(
+                "runtime_scoring_eligible" in weight for weight in raw_weights
+            )
+            eligibility_values = [weight.get("runtime_scoring_eligible") for weight in raw_weights]
+            if eligibility_schema_present and any(
+                not isinstance(value, bool) for value in eligibility_values
+            ):
+                raise ValueError(
+                    f"Weight set '{ws_data['name']}' has missing or non-boolean "
+                    "runtime_scoring_eligible row marker(s)"
+                )
+            model_status = ws_data.get("model_status")
+            if model_status not in _ALLOWED_MODEL_STATUSES:
+                raise ValueError(
+                    f"Weight set '{ws_data['name']}' has missing or unsupported model_status"
+                )
+            if model_status == _RUNTIME_BLOCKED_MODEL_STATUS and not eligibility_schema_present:
+                raise ValueError(
+                    f"Weight set '{ws_data['name']}' is runtime-blocked but has no row markers"
+                )
+            blocked_rows = [
+                weight
+                for weight, eligible in zip(raw_weights, eligibility_values, strict=True)
+                if eligible is False
+            ]
+            runtime_scoring_blocked = model_status != _ACTIVE_MODEL_STATUS or bool(blocked_rows)
+            if scoring_enabled and runtime_scoring_blocked:
+                raise ValueError(
+                    f"Weight set '{ws_data['name']}' enables scoring with "
+                    f"{len(blocked_rows)} runtime-blocked row(s)"
+                )
+
             weights = [
                 PRSSNPWeight(
                     rsid=w["rsid"],
                     effect_allele=w["effect_allele"],
                     weight=w["weight"],
                     other_allele=w.get("other_allele"),
+                    chrom=w.get("chrom"),
+                    pos=w.get("pos"),
                 )
-                for w in ws_data["weights"]
+                for w in raw_weights
             ]
 
             weight_sets.append(
@@ -151,12 +221,19 @@ def load_cancer_prs_weights(
                     # Conservative default: a bundled weight set is treated as
                     # uncalibrated unless it explicitly declares a validated
                     # reference distribution (issue #7).
-                    calibrated=ws_data.get("calibrated", False),
+                    calibrated=calibrated,
+                    pgs_id=ws_data.get("pgs_id"),
+                    pgs_license=ws_data.get("pgs_license"),
+                    development_method=ws_data.get("development_method"),
+                    genome_build=ws_data.get("genome_build"),
+                    variants_number=variants_number,
+                    source_url=ws_data.get("source_url"),
                     # Scientific model validity and calibration eligibility are
-                    # separate gates. A quarantined model may remain loadable for
-                    # audit without ever reaching the scoring engine (#1934).
-                    scoring_enabled=ws_data.get("scoring_enabled", True),
-                    calibration_eligible=ws_data.get("calibration_eligible", True),
+                    # separate gates. A non-reporting model may remain loadable
+                    # for audit without ever reaching the scoring engine (#1934).
+                    scoring_enabled=scoring_enabled,
+                    calibration_eligible=calibration_eligible,
+                    runtime_scoring_blocked=runtime_scoring_blocked,
                     # Monogenic genes assessed separately from this polygenic
                     # score (SW-B3 monogenic exclusion / cross-reference).
                     monogenic_genes=ws_data.get("monogenic_genes", []),
@@ -242,12 +319,14 @@ def run_cancer_prs(
     skipped_traits: list[str] = []
 
     for ws in weight_sets:
-        if not ws.scoring_enabled:
+        if not ws.scoring_enabled or ws.runtime_scoring_blocked:
             skipped_traits.append(ws.trait)
             logger.warning(
                 "cancer_prs_trait_skipped",
                 trait=ws.trait,
-                reason="scoring_disabled",
+                reason=(
+                    "runtime_scoring_blocked" if ws.runtime_scoring_blocked else "scoring_disabled"
+                ),
             )
             continue
 
@@ -306,8 +385,8 @@ def store_cancer_prs_findings(
     Delegates to the generic store_prs_findings with module='cancer'. Only
     results carrying the exact fingerprint of an enabled bundled model can cross
     this final persistence boundary; this prevents a manually constructed result
-    or same-trait alternate model from bypassing a quarantine. Among eligible
-    results, only those with sufficient coverage (≥50%) are stored.
+    or same-trait alternate model from bypassing a non-reporting gate. Among
+    eligible results, only those with sufficient coverage (≥50%) are stored.
 
     Args:
         cancer_result: CancerPRSResult from run_cancer_prs.
@@ -319,7 +398,7 @@ def store_cancer_prs_findings(
     enabled_model_fingerprints = {
         weight_set.trait: prs_model_fingerprint(weight_set)
         for weight_set in load_cancer_prs_weights()
-        if weight_set.scoring_enabled
+        if weight_set.scoring_enabled and not weight_set.runtime_scoring_blocked
     }
     eligible_results: list[PRSResult] = []
     for result in cancer_result.results:

@@ -2,9 +2,9 @@
   "_provenance": {
     "source": "Ensembl GRCh37 REST /variation/human/{rsid}",
     "assembly": "GRCh37",
-    "accessed": "2026-07-07",
+    "accessed": "2026-07-16",
     "generator": "scripts/build_panel_rsid_coordinates.py",
-    "panel_rsid_count": 472,
+    "panel_rsid_count": 528,
     "excluded_panel_files": {
       "haplogroup_bundle.json": "Haplogroup tree markers mix dbSNP rsIDs, synthetic array probe IDs, and phylogenetic Y/mt marker naming; tree-marker identity is audited separately (see issue #805)."
     },
@@ -120,6 +120,17 @@
       "allele_string": "A/C/G/T",
       "variant_class": "SNP",
       "source": "https://grch37.rest.ensembl.org/variation/human/rs7041"
+    },
+    "rs8170": {
+      "assembly": "GRCh37",
+      "chrom": "19",
+      "start": 17389704,
+      "end": 17389704,
+      "location": "19:17389704",
+      "strand": 1,
+      "allele_string": "G/A",
+      "variant_class": "SNP",
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs8170"
     },
     "rs9001": {
       "assembly": "GRCh37",
@@ -242,6 +253,17 @@
       "variant_class": "SNP",
       "source": "https://grch37.rest.ensembl.org/variation/human/rs202676"
     },
+    "rs204247": {
+      "assembly": "GRCh37",
+      "chrom": "6",
+      "start": 13722523,
+      "end": 13722523,
+      "location": "6:13722523",
+      "strand": 1,
+      "allele_string": "G/A",
+      "variant_class": "SNP",
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs204247"
+    },
     "rs234706": {
       "assembly": "GRCh37",
       "chrom": "21",
@@ -341,6 +363,28 @@
       "variant_class": "SNP",
       "source": "https://grch37.rest.ensembl.org/variation/human/rs421016"
     },
+    "rs527616": {
+      "assembly": "GRCh37",
+      "chrom": "18",
+      "start": 24337424,
+      "end": 24337424,
+      "location": "18:24337424",
+      "strand": 1,
+      "allele_string": "C/G/T",
+      "variant_class": "SNP",
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs527616"
+    },
+    "rs554219": {
+      "assembly": "GRCh37",
+      "chrom": "11",
+      "start": 69331642,
+      "end": 69331642,
+      "location": "11:69331642",
+      "strand": 1,
+      "allele_string": "C/A/G/T",
+      "variant_class": "SNP",
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs554219"
+    },
     "rs585800": {
       "assembly": "GRCh37",
       "chrom": "5",
@@ -374,6 +418,17 @@
       "variant_class": "SNP",
       "source": "https://grch37.rest.ensembl.org/variation/human/rs614367"
     },
+    "rs616488": {
+      "assembly": "GRCh37",
+      "chrom": "1",
+      "start": 10566215,
+      "end": 10566215,
+      "location": "1:10566215",
+      "strand": 1,
+      "allele_string": "A/C/G",
+      "variant_class": "SNP",
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs616488"
+    },
     "rs704010": {
       "assembly": "GRCh37",
       "chrom": "10",
@@ -384,6 +439,17 @@
       "allele_string": "T/A/C",
       "variant_class": "SNP",
       "source": "https://grch37.rest.ensembl.org/variation/human/rs704010"
+    },
+    "rs720475": {
+      "assembly": "GRCh37",
+      "chrom": "7",
+      "start": 144074929,
+      "end": 144074929,
+      "location": "7:144074929",
+      "strand": 1,
+      "allele_string": "G/A",
+      "variant_class": "SNP",
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs720475"
     },
     "rs738409": {
       "assembly": "GRCh37",
@@ -473,6 +539,17 @@
       "variant_class": "SNP",
       "source": "https://grch37.rest.ensembl.org/variation/human/rs910873"
     },
+    "rs941764": {
+      "assembly": "GRCh37",
+      "chrom": "14",
+      "start": 91841069,
+      "end": 91841069,
+      "location": "14:91841069",
+      "strand": 1,
+      "allele_string": "A/G",
+      "variant_class": "SNP",
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs941764"
+    },
     "rs961253": {
       "assembly": "GRCh37",
       "chrom": "20",
@@ -560,6 +637,17 @@
       "allele_string": "T/A/C",
       "variant_class": "SNP",
       "source": "https://grch37.rest.ensembl.org/variation/human/rs1033912"
+    },
+    "rs1045485": {
+      "assembly": "GRCh37",
+      "chrom": "2",
+      "start": 202149589,
+      "end": 202149589,
+      "location": "2:202149589",
+      "strand": 1,
+      "allele_string": "G/A/C/T",
+      "variant_class": "SNP",
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs1045485"
     },
     "rs1049434": {
       "assembly": "GRCh37",
@@ -671,6 +759,17 @@
       "variant_class": "SNP",
       "source": "https://grch37.rest.ensembl.org/variation/human/rs1143679"
     },
+    "rs1292011": {
+      "assembly": "GRCh37",
+      "chrom": "12",
+      "start": 115836522,
+      "end": 115836522,
+      "location": "12:115836522",
+      "strand": 1,
+      "allele_string": "A/G/T",
+      "variant_class": "SNP",
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs1292011"
+    },
     "rs1321311": {
       "assembly": "GRCh37",
       "chrom": "6",
@@ -682,6 +781,17 @@
       "variant_class": "SNP",
       "source": "https://grch37.rest.ensembl.org/variation/human/rs1321311"
     },
+    "rs1353747": {
+      "assembly": "GRCh37",
+      "chrom": "5",
+      "start": 58337481,
+      "end": 58337481,
+      "location": "5:58337481",
+      "strand": 1,
+      "allele_string": "T/A/G",
+      "variant_class": "SNP",
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs1353747"
+    },
     "rs1393350": {
       "assembly": "GRCh37",
       "chrom": "11",
@@ -692,6 +802,28 @@
       "allele_string": "G/A",
       "variant_class": "SNP",
       "source": "https://grch37.rest.ensembl.org/variation/human/rs1393350"
+    },
+    "rs1432679": {
+      "assembly": "GRCh37",
+      "chrom": "5",
+      "start": 158244083,
+      "end": 158244083,
+      "location": "5:158244083",
+      "strand": 1,
+      "allele_string": "C/T",
+      "variant_class": "SNP",
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs1432679"
+    },
+    "rs1436904": {
+      "assembly": "GRCh37",
+      "chrom": "18",
+      "start": 24570667,
+      "end": 24570667,
+      "location": "18:24570667",
+      "strand": 1,
+      "allele_string": "T/G",
+      "variant_class": "SNP",
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs1436904"
     },
     "rs1447295": {
       "assembly": "GRCh37",
@@ -725,6 +857,17 @@
       "allele_string": "C/A/G/T",
       "variant_class": "SNP",
       "source": "https://grch37.rest.ensembl.org/variation/human/rs1544410"
+    },
+    "rs1550623": {
+      "assembly": "GRCh37",
+      "chrom": "2",
+      "start": 174212894,
+      "end": 174212894,
+      "location": "2:174212894",
+      "strand": 1,
+      "allele_string": "G/A/C",
+      "variant_class": "SNP",
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs1550623"
     },
     "rs1562430": {
       "assembly": "GRCh37",
@@ -957,6 +1100,17 @@
       "variant_class": "SNP",
       "source": "https://grch37.rest.ensembl.org/variation/human/rs2004640"
     },
+    "rs2016394": {
+      "assembly": "GRCh37",
+      "chrom": "2",
+      "start": 172972971,
+      "end": 172972971,
+      "location": "2:172972971",
+      "strand": 1,
+      "allele_string": "G/A",
+      "variant_class": "SNP",
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs2016394"
+    },
     "rs2046210": {
       "assembly": "GRCh37",
       "chrom": "6",
@@ -1078,6 +1232,17 @@
       "variant_class": "SNP",
       "source": "https://grch37.rest.ensembl.org/variation/human/rs2231142"
     },
+    "rs2236007": {
+      "assembly": "GRCh37",
+      "chrom": "14",
+      "start": 37132769,
+      "end": 37132769,
+      "location": "14:37132769",
+      "strand": 1,
+      "allele_string": "G/A/C",
+      "variant_class": "SNP",
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs2236007"
+    },
     "rs2236225": {
       "assembly": "GRCh37",
       "chrom": "14",
@@ -1154,6 +1319,28 @@
       "allele_string": "T/G",
       "variant_class": "SNP",
       "source": "https://grch37.rest.ensembl.org/variation/human/rs2300478"
+    },
+    "rs2363956": {
+      "assembly": "GRCh37",
+      "chrom": "19",
+      "start": 17394124,
+      "end": 17394124,
+      "location": "19:17394124",
+      "strand": 1,
+      "allele_string": "T/G",
+      "variant_class": "SNP",
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs2363956"
+    },
+    "rs2380205": {
+      "assembly": "GRCh37",
+      "chrom": "10",
+      "start": 5886734,
+      "end": 5886734,
+      "location": "10:5886734",
+      "strand": 1,
+      "allele_string": "C/T",
+      "variant_class": "SNP",
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs2380205"
     },
     "rs2395029": {
       "assembly": "GRCh37",
@@ -1254,6 +1441,17 @@
       "variant_class": "SNP",
       "source": "https://grch37.rest.ensembl.org/variation/human/rs2576037"
     },
+    "rs2588809": {
+      "assembly": "GRCh37",
+      "chrom": "14",
+      "start": 68660428,
+      "end": 68660428,
+      "location": "14:68660428",
+      "strand": 1,
+      "allele_string": "T/A/C/G",
+      "variant_class": "SNP",
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs2588809"
+    },
     "rs2660753": {
       "assembly": "GRCh37",
       "chrom": "3",
@@ -1275,6 +1473,17 @@
       "allele_string": "A/C/G/T",
       "variant_class": "SNP",
       "source": "https://grch37.rest.ensembl.org/variation/human/rs2735839"
+    },
+    "rs2736108": {
+      "assembly": "GRCh37",
+      "chrom": "5",
+      "start": 1297488,
+      "end": 1297488,
+      "location": "5:1297488",
+      "strand": 1,
+      "allele_string": "C/T",
+      "variant_class": "SNP",
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs2736108"
     },
     "rs2823093": {
       "assembly": "GRCh37",
@@ -1298,6 +1507,17 @@
       "variant_class": "SNP",
       "source": "https://grch37.rest.ensembl.org/variation/human/rs2858884"
     },
+    "rs2943559": {
+      "assembly": "GRCh37",
+      "chrom": "8",
+      "start": 76417937,
+      "end": 76417937,
+      "location": "8:76417937",
+      "strand": 1,
+      "allele_string": "A/C/G",
+      "variant_class": "SNP",
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs2943559"
+    },
     "rs2964197": {
       "assembly": "GRCh37",
       "chrom": "5",
@@ -1308,6 +1528,17 @@
       "allele_string": "C/A/G/T",
       "variant_class": "SNP",
       "source": "https://grch37.rest.ensembl.org/variation/human/rs2964197"
+    },
+    "rs2981579": {
+      "assembly": "GRCh37",
+      "chrom": "10",
+      "start": 123337335,
+      "end": 123337335,
+      "location": "10:123337335",
+      "strand": 1,
+      "allele_string": "A/C/G",
+      "variant_class": "SNP",
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs2981579"
     },
     "rs2981582": {
       "assembly": "GRCh37",
@@ -1375,6 +1606,17 @@
       "variant_class": "SNP",
       "source": "https://grch37.rest.ensembl.org/variation/human/rs3758149"
     },
+    "rs3760982": {
+      "assembly": "GRCh37",
+      "chrom": "19",
+      "start": 44286513,
+      "end": 44286513,
+      "location": "19:44286513",
+      "strand": 1,
+      "allele_string": "A/C/G/T",
+      "variant_class": "SNP",
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs3760982"
+    },
     "rs3764650": {
       "assembly": "GRCh37",
       "chrom": "19",
@@ -1441,6 +1683,17 @@
       "variant_class": "SNP",
       "source": "https://grch37.rest.ensembl.org/variation/human/rs3824999"
     },
+    "rs3903072": {
+      "assembly": "GRCh37",
+      "chrom": "11",
+      "start": 65583066,
+      "end": 65583066,
+      "location": "11:65583066",
+      "strand": 1,
+      "allele_string": "G/T",
+      "variant_class": "SNP",
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs3903072"
+    },
     "rs4236601": {
       "assembly": "GRCh37",
       "chrom": "7",
@@ -1451,6 +1704,17 @@
       "allele_string": "G/A",
       "variant_class": "SNP",
       "source": "https://grch37.rest.ensembl.org/variation/human/rs4236601"
+    },
+    "rs4245739": {
+      "assembly": "GRCh37",
+      "chrom": "1",
+      "start": 204518842,
+      "end": 204518842,
+      "location": "1:204518842",
+      "strand": 1,
+      "allele_string": "C/A/G/T",
+      "variant_class": "SNP",
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs4245739"
     },
     "rs4430796": {
       "assembly": "GRCh37",
@@ -1517,6 +1781,28 @@
       "allele_string": "T/C/G",
       "variant_class": "SNP",
       "source": "https://grch37.rest.ensembl.org/variation/human/rs4779584"
+    },
+    "rs4808801": {
+      "assembly": "GRCh37",
+      "chrom": "19",
+      "start": 18571141,
+      "end": 18571141,
+      "location": "19:18571141",
+      "strand": 1,
+      "allele_string": "A/G",
+      "variant_class": "SNP",
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs4808801"
+    },
+    "rs4849887": {
+      "assembly": "GRCh37",
+      "chrom": "2",
+      "start": 121245122,
+      "end": 121245122,
+      "location": "2:121245122",
+      "strand": 1,
+      "allele_string": "T/A/C/G",
+      "variant_class": "SNP",
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs4849887"
     },
     "rs4851266": {
       "assembly": "GRCh37",
@@ -1639,6 +1925,17 @@
       "variant_class": "SNP",
       "source": "https://grch37.rest.ensembl.org/variation/human/rs6001930"
     },
+    "rs6472903": {
+      "assembly": "GRCh37",
+      "chrom": "8",
+      "start": 76230301,
+      "end": 76230301,
+      "location": "8:76230301",
+      "strand": 1,
+      "allele_string": "G/A/C/T",
+      "variant_class": "SNP",
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs6472903"
+    },
     "rs6495446": {
       "assembly": "GRCh37",
       "chrom": "15",
@@ -1661,6 +1958,17 @@
       "variant_class": "SNP",
       "source": "https://grch37.rest.ensembl.org/variation/human/rs6504950"
     },
+    "rs6678914": {
+      "assembly": "GRCh37",
+      "chrom": "1",
+      "start": 202187176,
+      "end": 202187176,
+      "location": "1:202187176",
+      "strand": 1,
+      "allele_string": "G/A",
+      "variant_class": "SNP",
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs6678914"
+    },
     "rs6691170": {
       "assembly": "GRCh37",
       "chrom": "1",
@@ -1672,6 +1980,17 @@
       "variant_class": "SNP",
       "source": "https://grch37.rest.ensembl.org/variation/human/rs6691170"
     },
+    "rs6762644": {
+      "assembly": "GRCh37",
+      "chrom": "3",
+      "start": 4742276,
+      "end": 4742276,
+      "location": "3:4742276",
+      "strand": 1,
+      "allele_string": "A/G",
+      "variant_class": "SNP",
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs6762644"
+    },
     "rs6822844": {
       "assembly": "GRCh37",
       "chrom": "4",
@@ -1682,6 +2001,17 @@
       "allele_string": "G/C/T",
       "variant_class": "SNP",
       "source": "https://grch37.rest.ensembl.org/variation/human/rs6822844"
+    },
+    "rs6828523": {
+      "assembly": "GRCh37",
+      "chrom": "4",
+      "start": 175846426,
+      "end": 175846426,
+      "location": "4:175846426",
+      "strand": 1,
+      "allele_string": "C/A",
+      "variant_class": "SNP",
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs6828523"
     },
     "rs6897932": {
       "assembly": "GRCh37",
@@ -1726,6 +2056,17 @@
       "allele_string": "A/G",
       "variant_class": "SNP",
       "source": "https://grch37.rest.ensembl.org/variation/human/rs7023329"
+    },
+    "rs7072776": {
+      "assembly": "GRCh37",
+      "chrom": "10",
+      "start": 22032942,
+      "end": 22032942,
+      "location": "10:22032942",
+      "strand": 1,
+      "allele_string": "A/C/G/T",
+      "variant_class": "SNP",
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs7072776"
     },
     "rs7136702": {
       "assembly": "GRCh37",
@@ -1782,6 +2123,17 @@
       "variant_class": "SNP",
       "source": "https://grch37.rest.ensembl.org/variation/human/rs7679673"
     },
+    "rs7726159": {
+      "assembly": "GRCh37",
+      "chrom": "5",
+      "start": 1282319,
+      "end": 1282319,
+      "location": "5:1282319",
+      "strand": 1,
+      "allele_string": "C/A",
+      "variant_class": "SNP",
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs7726159"
+    },
     "rs7903146": {
       "assembly": "GRCh37",
       "chrom": "10",
@@ -1792,6 +2144,17 @@
       "allele_string": "C/G/T",
       "variant_class": "SNP",
       "source": "https://grch37.rest.ensembl.org/variation/human/rs7903146"
+    },
+    "rs7904519": {
+      "assembly": "GRCh37",
+      "chrom": "10",
+      "start": 114773927,
+      "end": 114773927,
+      "location": "10:114773927",
+      "strand": 1,
+      "allele_string": "A/C/G",
+      "variant_class": "SNP",
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs7904519"
     },
     "rs7931342": {
       "assembly": "GRCh37",
@@ -1903,6 +2266,28 @@
       "variant_class": "SNP",
       "source": "https://grch37.rest.ensembl.org/variation/human/rs9536314"
     },
+    "rs9693444": {
+      "assembly": "GRCh37",
+      "chrom": "8",
+      "start": 29509616,
+      "end": 29509616,
+      "location": "8:29509616",
+      "strand": 1,
+      "allele_string": "A/C/T",
+      "variant_class": "SNP",
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs9693444"
+    },
+    "rs9790517": {
+      "assembly": "GRCh37",
+      "chrom": "4",
+      "start": 106084778,
+      "end": 106084778,
+      "location": "4:106084778",
+      "strand": 1,
+      "allele_string": "C/T",
+      "variant_class": "SNP",
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs9790517"
+    },
     "rs9848343": {
       "assembly": "GRCh37",
       "chrom": "3",
@@ -1946,6 +2331,17 @@
       "allele_string": "G/A/T",
       "variant_class": "SNP",
       "source": "https://grch37.rest.ensembl.org/variation/human/rs10061788"
+    },
+    "rs10069690": {
+      "assembly": "GRCh37",
+      "chrom": "5",
+      "start": 1279790,
+      "end": 1279790,
+      "location": "5:1279790",
+      "strand": 1,
+      "allele_string": "C/T",
+      "variant_class": "SNP",
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs10069690"
     },
     "rs10156191": {
       "assembly": "GRCh37",
@@ -1991,6 +2387,17 @@
       "variant_class": "SNP",
       "source": "https://grch37.rest.ensembl.org/variation/human/rs10455872"
     },
+    "rs10472076": {
+      "assembly": "GRCh37",
+      "chrom": "5",
+      "start": 58184061,
+      "end": 58184061,
+      "location": "5:58184061",
+      "strand": 1,
+      "allele_string": "T/A/C",
+      "variant_class": "SNP",
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs10472076"
+    },
     "rs10486567": {
       "assembly": "GRCh37",
       "chrom": "7",
@@ -2023,6 +2430,17 @@
       "allele_string": "A/C/G",
       "variant_class": "SNP",
       "source": "https://grch37.rest.ensembl.org/variation/human/rs10741657"
+    },
+    "rs10759243": {
+      "assembly": "GRCh37",
+      "chrom": "9",
+      "start": 110306115,
+      "end": 110306115,
+      "location": "9:110306115",
+      "strand": 1,
+      "allele_string": "C/A/T",
+      "variant_class": "SNP",
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs10759243"
     },
     "rs10771399": {
       "assembly": "GRCh37",
@@ -2134,6 +2552,17 @@
       "variant_class": "SNP",
       "source": "https://grch37.rest.ensembl.org/variation/human/rs10995190"
     },
+    "rs11075995": {
+      "assembly": "GRCh37",
+      "chrom": "16",
+      "start": 53855291,
+      "end": 53855291,
+      "location": "16:53855291",
+      "strand": 1,
+      "allele_string": "A/C/G/T",
+      "variant_class": "SNP",
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs11075995"
+    },
     "rs11136000": {
       "assembly": "GRCh37",
       "chrom": "8",
@@ -2167,6 +2596,17 @@
       "variant_class": "SNP",
       "source": "https://grch37.rest.ensembl.org/variation/human/rs11191193"
     },
+    "rs11199914": {
+      "assembly": "GRCh37",
+      "chrom": "10",
+      "start": 123093901,
+      "end": 123093901,
+      "location": "10:123093901",
+      "strand": 1,
+      "allele_string": "C/T",
+      "variant_class": "SNP",
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs11199914"
+    },
     "rs11209026": {
       "assembly": "GRCh37",
       "chrom": "1",
@@ -2178,6 +2618,17 @@
       "variant_class": "SNP",
       "source": "https://grch37.rest.ensembl.org/variation/human/rs11209026"
     },
+    "rs11242675": {
+      "assembly": "GRCh37",
+      "chrom": "6",
+      "start": 1318878,
+      "end": 1318878,
+      "location": "6:1318878",
+      "strand": 1,
+      "allele_string": "C/G/T",
+      "variant_class": "SNP",
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs11242675"
+    },
     "rs11249433": {
       "assembly": "GRCh37",
       "chrom": "1",
@@ -2188,6 +2639,17 @@
       "allele_string": "A/C/G",
       "variant_class": "SNP",
       "source": "https://grch37.rest.ensembl.org/variation/human/rs11249433"
+    },
+    "rs11552449": {
+      "assembly": "GRCh37",
+      "chrom": "1",
+      "start": 114448389,
+      "end": 114448389,
+      "location": "1:114448389",
+      "strand": 1,
+      "allele_string": "C/G/T",
+      "variant_class": "SNP",
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs11552449"
     },
     "rs11558538": {
       "assembly": "GRCh37",
@@ -2210,6 +2672,17 @@
       "allele_string": "T/A/C",
       "variant_class": "SNP",
       "source": "https://grch37.rest.ensembl.org/variation/human/rs11568818"
+    },
+    "rs11571833": {
+      "assembly": "GRCh37",
+      "chrom": "13",
+      "start": 32972626,
+      "end": 32972626,
+      "location": "13:32972626",
+      "strand": 1,
+      "allele_string": "A/T",
+      "variant_class": "SNP",
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs11571833"
     },
     "rs11575997": {
       "assembly": "GRCh37",
@@ -2266,6 +2739,17 @@
       "variant_class": "SNP",
       "source": "https://grch37.rest.ensembl.org/variation/human/rs11712056"
     },
+    "rs11780156": {
+      "assembly": "GRCh37",
+      "chrom": "8",
+      "start": 129194641,
+      "end": 129194641,
+      "location": "8:129194641",
+      "strand": 1,
+      "allele_string": "C/T",
+      "variant_class": "SNP",
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs11780156"
+    },
     "rs11814448": {
       "assembly": "GRCh37",
       "chrom": "10",
@@ -2277,6 +2761,17 @@
       "variant_class": "SNP",
       "source": "https://grch37.rest.ensembl.org/variation/human/rs11814448"
     },
+    "rs11820646": {
+      "assembly": "GRCh37",
+      "chrom": "11",
+      "start": 129461171,
+      "end": 129461171,
+      "location": "11:129461171",
+      "strand": 1,
+      "allele_string": "T/C/G",
+      "variant_class": "SNP",
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs11820646"
+    },
     "rs12325817": {
       "assembly": "GRCh37",
       "chrom": "17",
@@ -2287,6 +2782,28 @@
       "allele_string": "C/A/G/T",
       "variant_class": "SNP",
       "source": "https://grch37.rest.ensembl.org/variation/human/rs12325817"
+    },
+    "rs12422552": {
+      "assembly": "GRCh37",
+      "chrom": "12",
+      "start": 14413931,
+      "end": 14413931,
+      "location": "12:14413931",
+      "strand": 1,
+      "allele_string": "G/C",
+      "variant_class": "SNP",
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs12422552"
+    },
+    "rs12493607": {
+      "assembly": "GRCh37",
+      "chrom": "3",
+      "start": 30682939,
+      "end": 30682939,
+      "location": "3:30682939",
+      "strand": 1,
+      "allele_string": "G/A/C/T",
+      "variant_class": "SNP",
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs12493607"
     },
     "rs12498742": {
       "assembly": "GRCh37",
@@ -2320,6 +2837,28 @@
       "allele_string": "C/A/T",
       "variant_class": "SNP",
       "source": "https://grch37.rest.ensembl.org/variation/human/rs12653946"
+    },
+    "rs12662670": {
+      "assembly": "GRCh37",
+      "chrom": "6",
+      "start": 151918856,
+      "end": 151918856,
+      "location": "6:151918856",
+      "strand": 1,
+      "allele_string": "T/C/G",
+      "variant_class": "SNP",
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs12662670"
+    },
+    "rs12710696": {
+      "assembly": "GRCh37",
+      "chrom": "2",
+      "start": 19320803,
+      "end": 19320803,
+      "location": "2:19320803",
+      "strand": 1,
+      "allele_string": "T/A/C/G",
+      "variant_class": "SNP",
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs12710696"
     },
     "rs12794714": {
       "assembly": "GRCh37",
@@ -2420,6 +2959,17 @@
       "variant_class": "SNP",
       "source": "https://grch37.rest.ensembl.org/variation/human/rs13294439"
     },
+    "rs13329835": {
+      "assembly": "GRCh37",
+      "chrom": "16",
+      "start": 80650805,
+      "end": 80650805,
+      "location": "16:80650805",
+      "strand": 1,
+      "allele_string": "A/G",
+      "variant_class": "SNP",
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs13329835"
+    },
     "rs13387042": {
       "assembly": "GRCh37",
       "chrom": "2",
@@ -2430,6 +2980,17 @@
       "allele_string": "A/C/G/T",
       "variant_class": "SNP",
       "source": "https://grch37.rest.ensembl.org/variation/human/rs13387042"
+    },
+    "rs16857609": {
+      "assembly": "GRCh37",
+      "chrom": "2",
+      "start": 218296508,
+      "end": 218296508,
+      "location": "2:218296508",
+      "strand": 1,
+      "allele_string": "C/T",
+      "variant_class": "SNP",
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs16857609"
     },
     "rs16892766": {
       "assembly": "GRCh37",
@@ -2475,6 +3036,17 @@
       "variant_class": "SNP",
       "source": "https://grch37.rest.ensembl.org/variation/human/rs17356907"
     },
+    "rs17529111": {
+      "assembly": "GRCh37",
+      "chrom": "6",
+      "start": 82128386,
+      "end": 82128386,
+      "location": "6:82128386",
+      "strand": 1,
+      "allele_string": "T/C",
+      "variant_class": "SNP",
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs17529111"
+    },
     "rs17602729": {
       "assembly": "GRCh37",
       "chrom": "1",
@@ -2497,6 +3069,17 @@
       "variant_class": "SNP",
       "source": "https://grch37.rest.ensembl.org/variation/human/rs17782313"
     },
+    "rs17817449": {
+      "assembly": "GRCh37",
+      "chrom": "16",
+      "start": 53813367,
+      "end": 53813367,
+      "location": "16:53813367",
+      "strand": 1,
+      "allele_string": "T/A/G",
+      "variant_class": "SNP",
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs17817449"
+    },
     "rs17824247": {
       "assembly": "GRCh37",
       "chrom": "2",
@@ -2507,6 +3090,17 @@
       "allele_string": "T/A/C",
       "variant_class": "SNP",
       "source": "https://grch37.rest.ensembl.org/variation/human/rs17824247"
+    },
+    "rs17879961": {
+      "assembly": "GRCh37",
+      "chrom": "22",
+      "start": 29121087,
+      "end": 29121087,
+      "location": "22:29121087",
+      "strand": 1,
+      "allele_string": "A/C/G/T",
+      "variant_class": "SNP",
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs17879961"
     },
     "rs17883901": {
       "assembly": "GRCh37",
@@ -3102,6 +3696,17 @@
       "variant_class": "SNP",
       "source": "https://grch37.rest.ensembl.org/variation/human/rs75822236"
     },
+    "rs75915166": {
+      "assembly": "GRCh37",
+      "chrom": "11",
+      "start": 69379161,
+      "end": 69379161,
+      "location": "11:69379161",
+      "strand": 1,
+      "allele_string": "C/A",
+      "variant_class": "SNP",
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs75915166"
+    },
     "rs75961395": {
       "assembly": "GRCh37",
       "chrom": "7",
@@ -3244,6 +3849,17 @@
       "allele_string": "G/A/T",
       "variant_class": "SNP",
       "source": "https://grch37.rest.ensembl.org/variation/human/rs77969175"
+    },
+    "rs78540526": {
+      "assembly": "GRCh37",
+      "chrom": "11",
+      "start": 69331418,
+      "end": 69331418,
+      "location": "11:69331418",
+      "strand": 1,
+      "allele_string": "C/T",
+      "variant_class": "SNP",
+      "source": "https://grch37.rest.ensembl.org/variation/human/rs78540526"
     },
     "rs78655421": {
       "assembly": "GRCh37",

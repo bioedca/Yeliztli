@@ -170,6 +170,10 @@ class PRSWeightSet:
         scoring_enabled: Whether this model is scientifically eligible to run at
             all. Disabled models are retained only for provenance/audit and are
             rejected by :func:`compute_prs` before any genotype is scored.
+        runtime_scoring_blocked: Durable fail-closed marker for a model whose
+            exact source is valid but whose runtime representation is unsafe.
+            Unlike ``scoring_enabled``, callers cannot clear this by merely
+            opting a model into execution.
         calibration_eligible: Whether the model may emit any population
             calibration, either its declared static distribution or the generic
             ancestry-continuous distribution. Set this independently from
@@ -219,6 +223,7 @@ class PRSWeightSet:
     # contract of every pre-existing field.
     scoring_enabled: bool = True
     calibration_eligible: bool = True
+    runtime_scoring_blocked: bool = False
 
     def __post_init__(self) -> None:
         self.higher_is = normalize_prs_higher_is(self.higher_is)
@@ -377,10 +382,12 @@ class PRSResult:
 def prs_model_fingerprint(weight_set: PRSWeightSet) -> str:
     """Return a deterministic SHA-256 identity for an exact PRS model.
 
-    The canonical payload covers every weight-set field, including the ordered
-    SNP definitions and execution/calibration gates. Persistence boundaries can
-    therefore verify the exact currently enabled model instead of trusting a
-    trait label alone.
+    The canonical payload covers every material weight-set field, including the
+    ordered SNP definitions and execution/calibration gates. A false value for
+    the backward-compatible ``runtime_scoring_blocked`` sentinel is omitted so
+    adding the default field does not invalidate fingerprints for every existing
+    safe model. Persistence boundaries can therefore verify the exact currently
+    enabled model instead of trusting a trait label alone.
     """
 
     def canonical_json(value: object) -> bytes:
@@ -394,11 +401,14 @@ def prs_model_fingerprint(weight_set: PRSWeightSet) -> str:
 
     # Stream the ordered weights into the digest instead of materialising one
     # giant JSON object. Genome-wide scores can contain 10^5–10^6 entries.
-    metadata = {
-        model_field.name: getattr(weight_set, model_field.name)
-        for model_field in fields(weight_set)
-        if model_field.name != "weights"
-    }
+    metadata: dict[str, object] = {}
+    for model_field in fields(weight_set):
+        if model_field.name == "weights":
+            continue
+        value = getattr(weight_set, model_field.name)
+        if model_field.name == "runtime_scoring_blocked" and value is False:
+            continue
+        metadata[model_field.name] = value
     digest = hashlib.sha256(b"yeliztli-prs-model-v1\n")
     digest.update(canonical_json(metadata))
     digest.update(b"\n")
@@ -611,8 +621,9 @@ def compute_prs(
     Returns:
         PRSResult with raw_score and per-SNP contributions.
     """
-    if not weight_set.scoring_enabled:
-        raise ValueError(f"PRS weight set {weight_set.name!r} is disabled and cannot be scored")
+    if not weight_set.scoring_enabled or weight_set.runtime_scoring_blocked:
+        state = "runtime-blocked" if weight_set.runtime_scoring_blocked else "disabled"
+        raise ValueError(f"PRS weight set {weight_set.name!r} is {state} and cannot be scored")
 
     # Fetch genotype + gnomAD MAF for all weight set SNPs. The MAF (already
     # annotated on the same row) only gates palindromes during harmonization: a
