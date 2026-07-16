@@ -18,7 +18,8 @@ summary, then **Open full detail** for the full page, organised into tabs:
 4. **Clinical** — the ClinVar record (clinical significance, review stars, accession, and
    reported conditions), any evidence-conflict callout, the full in-silico prediction panel
    (CADD, SIFT, PolyPhen-2, REVEL, MutPred2, VEST4, MetaSVM, MetaLR, GERP++, phyloP, MPC,
-   PrimateAI, plus an ensemble-pathogenic flag), GTEx eQTL and SpliceAI context badges, and
+   PrimateAI, plus an [ensemble-pathogenic flag](../modules/interpretation-reference.md#ensemble-pathogenic)),
+   GTEx eQTL and SpliceAI context badges, and
    gene–disease associations (MONDO/HPO, plus OMIM if you've added a key).
 5. **Literature** — *planned; not yet implemented.* A per-variant PubMed literature search
    (keyed by gene and phenotype) is slated for a future release; today this tab shows a

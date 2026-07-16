@@ -82,12 +82,58 @@ label), CADD and REVEL are unlabelled, so their **direction** and **scale** are:
   of 10, 20, or 30 corresponds to the ~top 10%, 1%, or 0.1% most deleterious of all possible
   single-nucleotide variants.[^cadd]
 - **REVEL** (Rare Exome Variant Ensemble Learner) — a **missense-specific** ensemble score on a
-  **0–1** scale: **higher = more likely pathogenic**.[^revel]
+  **0–1** scale: **higher = more likely pathogenic**.[3]
 
 The Rare Variant Finder highlights a score in red above the thresholds it uses for display —
 **CADD ≥ 20** and **REVEL ≥ 0.5**. These are **display heuristics to draw attention, not diagnostic
 cut-offs**: in-silico predictions are *supporting* evidence only, to be weighed alongside ClinVar,
 allele frequency, and inheritance — never read as a diagnosis on their own.
+
+#### Ensemble pathogenic
+
+The red **Ensemble pathogenic** badge is a Yeliztli screening flag, not a ClinVar
+classification or a diagnosis. It groups available in-silico prediction evidence into four
+project-defined axes:
+
+| Axis | When it votes deleterious |
+|------|---------------------------|
+| SIFT | `SIFT < 0.05` |
+| PolyPhen-2 | `PolyPhen-2 HVAR > 0.909` |
+| CADD | `CADD PHRED ≥ 20` |
+| META | A strict majority of the available meta-predictors: `REVEL ≥ 0.5`, `MetaSVM > 0`, and `MetaLR > 0.5` |
+
+For SIFT and PolyPhen-2, the numeric score takes priority. When it is unavailable, SIFT's
+categorical *Deleterious* prediction can supply the SIFT axis, and PolyPhen-2 HVAR's categorical
+*Probably damaging* prediction can supply the PolyPhen-2 axis. Within META, only meta-predictors
+with data vote, and their strict majority becomes **one** axis. If none has data, META is absent.
+
+"Independent axes" in the badge means separate votes in this project-level anti-double-counting
+model; it is **not** a claim that the underlying scores are statistically independent. REVEL
+already combines 13 component tools, including SIFT and PolyPhen-2 [3]. MetaSVM and MetaLR are
+themselves ensemble scores built from nine prediction scores plus allele frequency [4]. ClinGen
+guidance likewise cautions that many missense predictors overlap and do not provide independent
+assessments; for clinical PP3/BP4 use, it recommends preselecting a calibrated tool rather than
+forming an uncalibrated consensus after seeing several outputs [5]. Yeliztli therefore collapses
+REVEL/MetaSVM/MetaLR into one META vote to limit repeated information being counted several
+times. The resulting flag remains a supporting display heuristic, not a ClinGen-calibrated
+PP3/BP4 evidence strength.
+
+The flag appears only when **at least 2 axes have data** and a **strict majority** of those
+assessed axes vote deleterious. When the flag appears, its displayed `(n/m)` is a count —
+**deleterious axes / axes with data** — not a percentage, probability, confidence score, evidence
+grade, or raw-predictor count. The examples below also include `2/4`, where the flag stays absent,
+to make the strict-majority boundary explicit.
+
+| Deleterious / assessed | Flag shown? | How to read it |
+|------------------------|-------------|----------------|
+| `2/2` | Yes | Minimum firing state: two deleterious axes and no other axis with data |
+| `2/3` | Yes | Two of three assessed axes vote deleterious |
+| `2/4` | No | Two votes are not a strict majority of four |
+| `3/4` | Yes | Three deleterious axes; more corroborating axes than `2/2` |
+
+So `2/2` is the minimum firing state, not "100% confidence" and not stronger than `3/4`.
+Fewer assessed axes can make the strict-majority threshold easier to meet: missing data is not
+evidence for pathogenicity, but it changes the denominator over which the majority is computed.
 
 ### Categorical pathway levels
 
@@ -204,6 +250,12 @@ limitations.
 
 [2] Chen Z, Boehnke M, Wen X, Mukherjee B. [Revisiting the genome-wide significance threshold for common variant GWAS](https://doi.org/10.1093/g3journal/jkaa056). *G3: Genes, Genomes, Genetics*. 2021;11(2):jkaa056.
 
+[3] Ioannidis NM, Rothstein JH, Pejaver V, et al. [REVEL: An Ensemble Method for Predicting the Pathogenicity of Rare Missense Variants](https://doi.org/10.1016/j.ajhg.2016.08.016). *American Journal of Human Genetics*. 2016;99(4):877–885. [PMID 27666373](https://pubmed.ncbi.nlm.nih.gov/27666373/); [PMCID PMC5065685](https://pmc.ncbi.nlm.nih.gov/articles/PMC5065685/).
+
+[4] Dong C, Wei P, Jian X, et al. [Comparison and integration of deleteriousness prediction methods for nonsynonymous SNVs in whole exome sequencing studies](https://doi.org/10.1093/hmg/ddu733). *Human Molecular Genetics*. 2015;24(8):2125–2137. [PMID 25552646](https://pubmed.ncbi.nlm.nih.gov/25552646/); [PMCID PMC4375422](https://pmc.ncbi.nlm.nih.gov/articles/PMC4375422/).
+
+[5] Pejaver V, Byrne AB, Feng B-J, et al. [Calibration of computational tools for missense variant pathogenicity classification and ClinGen recommendations for PP3/BP4 criteria](https://doi.org/10.1016/j.ajhg.2022.10.013). *American Journal of Human Genetics*. 2022;109(12):2163–2177. [PMID 36413997](https://pubmed.ncbi.nlm.nih.gov/36413997/); [PMCID PMC9748256](https://pmc.ncbi.nlm.nih.gov/articles/PMC9748256/).
+
 [^1]: [Principles and methods for transferring polygenic risk scores across global populations](https://consensus.app/papers/details/186416618e965ebf97cb3e095a9a217d/) (Kachuri et al., 2023, *Nature Reviews Genetics*).
 [^2]: [Polygenic scoring accuracy varies across the genetic ancestry continuum](https://consensus.app/papers/details/143ee361696e5cbe8836e5bc45a471cd/) (Ding et al., 2023, *Nature*).
 [^3]: [Variable prediction accuracy of polygenic scores within an ancestry group](https://consensus.app/papers/details/dcbc46184d195a21965cf4614828d104/) (Mostafavi et al., 2019, *eLife*).
@@ -212,4 +264,3 @@ limitations.
 [^cpic-terms]: [Standardizing terms for clinical pharmacogenetic test results: consensus terms from the Clinical Pharmacogenetics Implementation Consortium (CPIC)](https://doi.org/10.1038/gim.2016.87) (Caudle et al., 2017, *Genetics in Medicine*) defines consensus pharmacogenetic phenotype terminology for consistent PGx interpretation.
 [^cpic-cyp2d6-as]: [Standardizing CYP2D6 Genotype to Phenotype Translation: Consensus Recommendations from the Clinical Pharmacogenetics Implementation Consortium and Dutch Pharmacogenetics Working Group](https://doi.org/10.1111/cts.12692) (Caudle et al., 2020, *Clinical and Translational Science*; [PMID 31647186](https://pubmed.ncbi.nlm.nih.gov/31647186/); [PMCID PMC6951851](https://pmc.ncbi.nlm.nih.gov/articles/PMC6951851/)) describes the CYP2D6 activity-score system as summed allele activity values and explains that phenotype translation depends on consensus, gene-specific thresholds.
 [^cadd]: [CADD: predicting the deleteriousness of variants throughout the human genome](https://doi.org/10.1093/nar/gky1016) (Rentzsch et al., 2019, *Nucleic Acids Research*; [PMID 30371827](https://pubmed.ncbi.nlm.nih.gov/30371827/)) describes CADD as a phred-scaled, genome-wide measure of variant deleteriousness in which higher scores indicate more deleterious variants.
-[^revel]: [REVEL: An Ensemble Method for Predicting the Pathogenicity of Rare Missense Variants](https://doi.org/10.1016/j.ajhg.2016.08.016) (Ioannidis et al., 2016, *American Journal of Human Genetics*; [PMID 27666373](https://pubmed.ncbi.nlm.nih.gov/27666373/)) presents REVEL as a missense-specific ensemble score from 0 to 1 in which higher scores indicate a greater probability of pathogenicity.

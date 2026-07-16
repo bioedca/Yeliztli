@@ -31,7 +31,9 @@ Findings sorted by clinical relevance, in these categories:
 - **ClinVar pathogenic** — known Pathogenic/Likely-Pathogenic variants.
 - **ClinVar lower-penetrance/risk allele** — ClinVar risk assertions reported separately from
   high-penetrance pathogenic variants.
-- **Ensemble pathogenic** — computationally predicted pathogenic.
+- **[Ensemble pathogenic](interpretation-reference.md#ensemble-pathogenic)** — a supporting
+  computational flag based on a strict majority of the prediction axes with data; the reference
+  explains the axes, thresholds, and displayed fraction.
 - **Novel** — not catalogued in gnomAD, dbSNP, or ClinVar.
 - **Rare** — other variants passing your frequency filter.
 
