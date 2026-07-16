@@ -5,16 +5,25 @@
  * payload (`installed_version`, `required_version`, `update_url`,
  * `reannotate_url` — Plan §7.5) and renders a full-page banner whose single
  * CTA fires `POST` against the payload's `reannotate_url` (the existing
- * `POST /api/annotation/{sample_id}` escape hatch). Any other status — 2xx,
- * 4xx other than 423, network error — lets `children` through; this gate is
- * concerned only with the staleness contract and never blocks on unrelated
- * failures.
+ * `POST /api/annotation/{sample_id}` escape hatch). While re-annotation is
+ * active, the gate reconnects through `/api/annotation/active/{sample_id}`
+ * and polls the staleness probe until the backend authoritatively unlocks it.
+ * Any other status — 2xx, 4xx other than 423, network error — lets `children`
+ * through; this gate is concerned only with the staleness contract and never
+ * blocks on unrelated failures.
  */
 
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle, RefreshCw } from 'lucide-react'
+import {
+  annotationActiveQueryKey,
+  invalidateAnnotationResultQueries,
+  useActiveAnnotationJob,
+  type ActiveAnnotationJob,
+  type AnnotationJobResult,
+} from '@/api/annotation'
 import { parseSampleId } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
@@ -29,6 +38,24 @@ interface StaleSampleGateProps {
   children: ReactNode
 }
 
+interface ReannotationRequest {
+  sampleId: number
+  url: string
+}
+
+class ReannotationRequestError extends Error {
+  readonly status: number
+
+  constructor(status: number, message: string) {
+    super(message)
+    this.name = 'ReannotationRequestError'
+    this.status = status
+  }
+}
+
+const sampleStalenessQueryKey = (sampleId: number | null) =>
+  ['sample-staleness', sampleId] as const
+
 async function probeStaleness(sampleId: number): Promise<StalenessPayload | null> {
   const res = await fetch(`/api/variants/count?sample_id=${sampleId}`)
   if (res.status !== 423) return null
@@ -40,42 +67,124 @@ export default function StaleSampleGate({ children }: StaleSampleGateProps) {
   const [searchParams] = useSearchParams()
   const activeSampleId = parseSampleId(searchParams.get('sample_id'))
   const queryClient = useQueryClient()
+  const activeJobQuery = useActiveAnnotationJob(activeSampleId)
+  const activeJob = activeJobQuery.data ?? null
+  const trackedJobRef = useRef<{ sampleId: number; jobId: string } | null>(null)
 
-  const { data: stale, isPending } = useQuery<StalenessPayload | null>({
-    queryKey: ['sample-staleness', activeSampleId],
-    queryFn: () => probeStaleness(activeSampleId as number),
+  const { data: stale, isPending: isStalenessPending } = useQuery<
+    StalenessPayload | null
+  >({
+    queryKey: sampleStalenessQueryKey(activeSampleId),
+    queryFn: async () => {
+      const sampleId = activeSampleId as number
+      const queryKey = sampleStalenessQueryKey(sampleId)
+      const previous = queryClient.getQueryData<StalenessPayload | null>(queryKey)
+      const next = await probeStaleness(sampleId)
+
+      if (previous && !next) {
+        await invalidateAnnotationResultQueries(queryClient, sampleId)
+      }
+
+      return next
+    },
     enabled: activeSampleId != null,
     staleTime: 0,
     retry: false,
     refetchOnWindowFocus: false,
+    refetchInterval: activeJob ? 1_000 : false,
   })
 
-  const reannotate = useMutation({
-    mutationFn: async (url: string) => {
+  const reannotate = useMutation<
+    AnnotationJobResult,
+    ReannotationRequestError,
+    ReannotationRequest
+  >({
+    mutationFn: async ({ url }) => {
       const res = await fetch(url, { method: 'POST' })
       if (!res.ok) {
         const body = await res.json().catch(() => null)
-        const detail = (body as { detail?: string } | null)?.detail
-        throw new Error(detail ?? `Re-annotation failed: ${res.status}`)
+        const detail = (body as { detail?: unknown } | null)?.detail
+        throw new ReannotationRequestError(
+          res.status,
+          typeof detail === 'string' ? detail : `Re-annotation failed: ${res.status}`,
+        )
       }
-      return res.json() as Promise<{ job_id: string; sample_id: number; status: string }>
+      return res.json() as Promise<AnnotationJobResult>
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['sample-staleness', activeSampleId] })
+    onSuccess: (result) => {
+      const activeResult: ActiveAnnotationJob = {
+        ...result,
+        progress_pct: 0,
+        message: 'Queued for annotation',
+      }
+      trackedJobRef.current = { sampleId: result.sample_id, jobId: result.job_id }
+      queryClient.setQueryData(annotationActiveQueryKey(result.sample_id), activeResult)
+      void queryClient.invalidateQueries({
+        queryKey: annotationActiveQueryKey(result.sample_id),
+      })
+      void queryClient.invalidateQueries({
+        queryKey: sampleStalenessQueryKey(result.sample_id),
+      })
+    },
+    onError: (error, request) => {
+      if (error.status !== 409) return
+      void Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: annotationActiveQueryKey(request.sampleId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: sampleStalenessQueryKey(request.sampleId),
+        }),
+      ])
     },
   })
 
   useEffect(() => {
     reannotate.reset()
+    trackedJobRef.current = null
     // Reset the mutation banner state when the active sample changes so
     // a prior success/error toast from a different sample doesn't leak in.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSampleId])
 
+  const activeJobId = activeJob?.job_id ?? null
+  useEffect(() => {
+    if (activeSampleId == null) {
+      trackedJobRef.current = null
+      return
+    }
+
+    if (activeJobId) {
+      trackedJobRef.current = { sampleId: activeSampleId, jobId: activeJobId }
+      return
+    }
+
+    const trackedJob = trackedJobRef.current
+    if (
+      trackedJob?.sampleId === activeSampleId &&
+      !activeJobQuery.isPending &&
+      !activeJobQuery.isFetching
+    ) {
+      trackedJobRef.current = null
+      void queryClient.invalidateQueries({
+        queryKey: sampleStalenessQueryKey(activeSampleId),
+      })
+    }
+  }, [
+    activeJobId,
+    activeJobQuery.isFetching,
+    activeJobQuery.isPending,
+    activeSampleId,
+    queryClient,
+  ])
+
   // While an active sample's staleness probe is still pending, hold back
-  // children so potentially-stale content never flashes before the gate can
-  // activate. Once the probe resolves to a non-stale value, render children.
-  if (activeSampleId != null && isPending) {
+  // children so potentially-stale content never flashes. Also wait for the
+  // initial active-job check so a reload cannot briefly expose a duplicate CTA.
+  if (
+    activeSampleId != null &&
+    (isStalenessPending || activeJobQuery.isPending)
+  ) {
     return null
   }
 
@@ -83,10 +192,16 @@ export default function StaleSampleGate({ children }: StaleSampleGateProps) {
     return <>{children}</>
   }
 
+  const isConflict =
+    reannotate.isError &&
+    reannotate.error instanceof ReannotationRequestError &&
+    reannotate.error.status === 409
+  const isReconnecting = isConflict && activeJobQuery.isFetching && !activeJob
+  const progressPct = Math.min(100, Math.max(0, activeJob?.progress_pct ?? 0))
+
   const banner = (
     <section
-      role="alert"
-      aria-live="polite"
+      aria-labelledby="stale-sample-gate-title"
       data-testid="stale-sample-gate"
       className="p-6 max-w-3xl mx-auto"
     >
@@ -100,7 +215,9 @@ export default function StaleSampleGate({ children }: StaleSampleGateProps) {
         <div className="flex items-start gap-3">
           <AlertTriangle className="h-6 w-6 shrink-0 mt-0.5" aria-hidden="true" />
           <div className="space-y-1">
-            <h2 className="text-base font-semibold">Sample requires re-annotation</h2>
+            <h2 id="stale-sample-gate-title" className="text-base font-semibold">
+              Sample requires re-annotation
+            </h2>
             <p className="text-sm">
               This sample was annotated against bundle{' '}
               <strong data-testid="stale-installed-version">{stale.installed_version}</strong>;
@@ -111,9 +228,9 @@ export default function StaleSampleGate({ children }: StaleSampleGateProps) {
           </div>
         </div>
 
-        {reannotate.isError ? (
+        {reannotate.isError && !isConflict ? (
           <p
-            role="status"
+            role="alert"
             data-testid="stale-error"
             className="text-sm text-red-700 dark:text-red-300"
           >
@@ -123,22 +240,54 @@ export default function StaleSampleGate({ children }: StaleSampleGateProps) {
           </p>
         ) : null}
 
-        {reannotate.isSuccess ? (
+        {isConflict ? (
           <p
             role="status"
-            data-testid="stale-success"
-            className="text-sm text-emerald-700 dark:text-emerald-300"
+            data-testid="stale-reconnect-status"
+            className="text-sm text-amber-800 dark:text-amber-200"
           >
-            Re-annotation started. The gate will lift once the job completes.
+            Re-annotation is already running — tracking progress…
           </p>
+        ) : null}
+
+        {activeJob ? (
+          <div data-testid="stale-annotation-progress" className="space-y-2">
+            <div
+              role="status"
+              aria-live="polite"
+              className="flex items-center justify-between gap-3 text-sm"
+            >
+              <span>{activeJob.message || 'Re-annotation is in progress…'}</span>
+              <span className="shrink-0 tabular-nums">{progressPct.toFixed(1)}%</span>
+            </div>
+            <div
+              role="progressbar"
+              aria-label="Re-annotation progress"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={progressPct}
+              className="h-2 w-full overflow-hidden rounded-full bg-amber-200 dark:bg-amber-900"
+            >
+              <div
+                className="h-full rounded-full bg-amber-600 transition-[width] duration-300 dark:bg-amber-400"
+                style={{ width: `${progressPct}%` }}
+              />
+            </div>
+          </div>
         ) : null}
 
         <div className="flex flex-wrap items-center gap-3">
           <button
             type="button"
             data-testid="stale-reannotate-cta"
-            disabled={reannotate.isPending || reannotate.isSuccess}
-            onClick={() => reannotate.mutate(stale.reannotate_url)}
+            disabled={reannotate.isPending || Boolean(activeJob) || isReconnecting}
+            onClick={() => {
+              if (activeSampleId == null) return
+              reannotate.mutate({
+                sampleId: activeSampleId,
+                url: stale.reannotate_url,
+              })
+            }}
             className={cn(
               'inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium',
               'bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-60',
@@ -147,10 +296,19 @@ export default function StaleSampleGate({ children }: StaleSampleGateProps) {
             )}
           >
             <RefreshCw
-              className={cn('h-4 w-4', reannotate.isPending && 'animate-spin')}
+              className={cn(
+                'h-4 w-4',
+                (reannotate.isPending || activeJob || isReconnecting) && 'animate-spin',
+              )}
               aria-hidden="true"
             />
-            {reannotate.isPending ? 'Starting re-annotation…' : 'Re-annotate sample'}
+            {reannotate.isPending
+              ? 'Starting re-annotation…'
+              : activeJob
+                ? 'Re-annotation in progress'
+                : isReconnecting
+                  ? 'Reconnecting to re-annotation…'
+                  : 'Re-annotate sample'}
           </button>
           {stale.update_url ? (
             <a
