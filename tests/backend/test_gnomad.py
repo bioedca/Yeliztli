@@ -469,7 +469,8 @@ class TestLoadGnomadFromCsv:
         assert row.pos == 44908822
         assert row.af_global == pytest.approx(0.0781)
         assert row.af_afr == pytest.approx(0.1130)
-        assert row.af_asj == pytest.approx(0.0781)
+        # Real gnomAD v4.1 ASJ AF, distinct from af_global (#1964).
+        assert row.af_asj == pytest.approx(0.0741546)
         assert row.an_global is None
         assert row.homozygous_count == 874
 
@@ -563,7 +564,8 @@ class TestLookupGnomadByRsids:
         assert annot.af_global == pytest.approx(0.0781)
         assert annot.af_afr == pytest.approx(0.1130)
         assert annot.af_amr == pytest.approx(0.0560)
-        assert annot.af_asj == pytest.approx(0.0781)
+        # Real gnomAD v4.1 ASJ AF, distinct from af_global (#1964).
+        assert annot.af_asj == pytest.approx(0.0741546)
         assert annot.af_eas == pytest.approx(0.0980)
         assert annot.af_eur == pytest.approx(0.0730)
         assert annot.af_fin == pytest.approx(0.0410)
@@ -659,13 +661,32 @@ class TestRareVariantFlags:
     """Test rare and ultra-rare variant flagging (T2-10)."""
 
     def test_rare_flag_threshold(self, gnomad_engine_with_data: sa.Engine):
-        """T2-10: Variants with AF < 0.01 get rare_flag=True."""
-        # rs80357906 has af_global=0.00004 (ultra-rare)
+        """T2-10: Variants with popmax AF < 0.01 get rare_flag=True.
+
+        rs80357906 (BRCA1 5382insC) is ultra-rare globally (af_global=0.00004) but
+        is an Ashkenazi founder allele: its real gnomAD v4.1 ASJ AF (0.00118) lifts
+        popmax above the 0.001 ultra-rare floor, so it is rare-but-NOT-ultra-rare
+        (#1964). The copied af_asj column previously left it ultra-rare.
+        """
         results = lookup_gnomad_by_rsids(["rs80357906"], gnomad_engine_with_data)
 
         assert "rs80357906" in results
         annot = results["rs80357906"]
         assert annot.af_global == pytest.approx(0.00004)
+        assert annot.af_asj == pytest.approx(0.00118275)
+        assert annot.rare_flag is True
+        assert annot.ultra_rare_flag is False
+
+    def test_ultra_rare_when_rare_in_every_population(self, gnomad_engine_with_data: sa.Engine):
+        """A variant rare in *every* population (popmax < 0.001) is ultra-rare.
+
+        rs63750066 stays ultra-rare after #1964 (real ASJ AF 0.0, all populations
+        < 0.001), preserving ultra-rare threshold coverage that no longer rests on
+        the mislabeled BRCA1 founder.
+        """
+        results = lookup_gnomad_by_rsids(["rs63750066"], gnomad_engine_with_data)
+
+        annot = results["rs63750066"]
         assert annot.rare_flag is True
         assert annot.ultra_rare_flag is True
 
@@ -787,10 +808,11 @@ class TestRareVariantFlags:
 
     def test_position_lookup_returns_rare_flags(self, gnomad_engine_with_data: sa.Engine):
         """Position-based lookup also computes rare flags correctly."""
-        # rs80357906 at chrom=17, pos=43093449 (BRCA1 ultra-rare)
+        # rs63750066: ultra-rare in every population (popmax < 0.001) post-#1964,
+        # a stable ultra-rare oracle independent of the BRCA1 founder correction.
         with gnomad_engine_with_data.connect() as conn:
             row = conn.execute(
-                sa.text("SELECT chrom, pos, ref, alt FROM gnomad_af WHERE rsid = 'rs80357906'")
+                sa.text("SELECT chrom, pos, ref, alt FROM gnomad_af WHERE rsid = 'rs63750066'")
             ).fetchone()
         assert row is not None
 
@@ -939,6 +961,22 @@ class TestComputeAfPopmax:
             0.0,
             af_asj=0.026884920634920637,
         ) == pytest.approx(0.026884920634920637)
+
+    def test_asj_founder_not_mislabeled_ultra_rare(self):
+        """An ASJ founder allele must not read ultra-rare off its global AF (#1964).
+
+        BRCA1 5382insC (rs80357906) real gnomAD v4.1: global ~6.75e-5 (ultra-rare,
+        < the 0.001 floor) but ASJ ~0.00118 (rare-not-ultra). popmax must take the
+        ASJ value so the founder is not mislabeled ultra-rare — the regression
+        #1092 asked for and the copied af_asj column (#1120) could never exercise,
+        since a copy of global stayed ultra-rare.
+        """
+        af_global, af_asj = 6.754e-05, 0.00118275
+        popmax = compute_af_popmax(af_global, af_asj=af_asj)
+        assert popmax == pytest.approx(af_asj)
+        assert compute_rare_flags(popmax) == (True, False)  # rare, NOT ultra-rare
+        # Global alone would have mislabeled it ultra-rare.
+        assert compute_rare_flags(af_global) == (True, True)
 
     def test_all_none_is_none(self):
         assert compute_af_popmax(None, None, None, None, None, None, None) is None
