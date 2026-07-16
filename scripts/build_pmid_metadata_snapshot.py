@@ -14,7 +14,7 @@ offline check cover exactly the same PMIDs (per #277/#365/#673).
 
 Usage::
 
-    python scripts/build_pmid_metadata_snapshot.py [--accessed YYYY-MM-DD]
+    python scripts/build_pmid_metadata_snapshot.py --accessed YYYY-MM-DD
 
 Source: NCBI E-utilities ``esummary`` (db=pubmed). Be polite: batches of 200,
 brief pauses between requests.
@@ -39,6 +39,10 @@ _BATCH = 200
 
 def _collect_all_pmids() -> set[str]:
     """All panel + HLA-proxy + indel-polarity PMIDs, via shared collectors."""
+    # Direct script execution puts ``scripts/`` (not the repository root) on
+    # sys.path.  The shared collectors import ``backend``, so make both their
+    # package root and their test-module directory explicit.
+    sys.path.insert(0, str(_REPO))
     sys.path.insert(0, str(_TESTS))
     from test_citation_provenance_guard import (
         all_indel_polarity_pmids,
