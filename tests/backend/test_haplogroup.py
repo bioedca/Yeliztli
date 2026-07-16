@@ -2373,6 +2373,42 @@ class TestAssignHaplogroups:
         assert mt.confidence == 0.9167
 
     @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    def test_issue_1899_pgp4139_sparse_export_still_assigns_i(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+    ) -> None:
+        """The primary export resolves I without historical m.204 or untyped m.16129."""
+        rows = [
+            {**row, "rsid": f"vendor_issue_1899_pgp4139_{index}"}
+            for index, row in enumerate(_MT_I_GENOTYPES)
+            if int(row["pos"]) not in {204, 16129}
+        ]
+        assert not ({str(row["rsid"]) for row in rows} & bundle.mt_snp_rsids)
+
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        assert mt.haplogroup == "I"
+        assert [
+            (step.haplogroup, step.snps_present, step.snps_total) for step in mt.traversal_path
+        ] == [
+            ("L3", 1, 1),
+            ("N", 3, 3),
+            ("N1", 3, 3),
+            ("N1a", 1, 2),
+            ("I", 2, 3),
+        ]
+        assert (mt.defining_snps_present, mt.defining_snps_total) == (10, 12)
+        assert mt.confidence == 0.8333
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
     @pytest.mark.parametrize(
         ("position", "ancestral_genotype"),
         [
