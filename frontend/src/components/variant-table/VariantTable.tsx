@@ -14,7 +14,13 @@ import {
 } from "@tanstack/react-table"
 import { Loader2 } from "lucide-react"
 
-import { useVariants, useVariantsCount, useTotalVariantCount, useChromosomeCounts } from "@/api/variants"
+import {
+  useVariants,
+  useVariantsCount,
+  useTotalVariantCount,
+  useUnannotatedVariantCount,
+  useChromosomeCounts,
+} from "@/api/variants"
 import { useColumnPresets } from "@/api/columnPresets"
 import { useMergeProvenance } from "@/api/samples"
 import { useTags } from "@/api/tags"
@@ -241,6 +247,7 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
   })
 
   const { data: totalVariants } = useTotalVariantCount(sampleId)
+  const { data: unannotatedCount } = useUnannotatedVariantCount(sampleId, filter, activeTag)
 
   // Derive current chromosome from the first visible row (P1-15b)
   const activeChrom = useMemo(() => {
@@ -355,7 +362,7 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
         onToggleUnannotated={() => setShowUnannotated((prev) => !prev)}
         showConflictsOnly={showConflictsOnly}
         onToggleConflictsOnly={() => setShowConflictsOnly((prev) => !prev)}
-        unannotatedCount={totalVariants}
+        unannotatedCount={unannotatedCount}
         totalCount={countData?.total}
         totalCountLoading={countLoading}
         isLoading={status === "pending"}

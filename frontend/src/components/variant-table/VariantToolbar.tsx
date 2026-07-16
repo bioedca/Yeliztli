@@ -147,10 +147,19 @@ export default function VariantToolbar({
       </div>
 
       {/* Unannotated toggle */}
+      {/* Disable when the sample has zero unannotated variants (#1978): toggling
+          would reveal nothing, which reads as a second failure. Stay enabled
+          while the count is loading (undefined) or already showing. */}
       <button
         type="button"
         onClick={onToggleUnannotated}
-        className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md border transition-colors ${
+        disabled={!showUnannotated && unannotatedCount === 0}
+        title={
+          !showUnannotated && unannotatedCount === 0
+            ? "No unannotated variants in this sample"
+            : undefined
+        }
+        className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md border transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
           showUnannotated
             ? "border-primary bg-primary/10 text-primary"
             : "border-input bg-background text-muted-foreground hover:text-foreground"
