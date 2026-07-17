@@ -85,6 +85,8 @@ CARRIED_ZYGOSITIES: frozenset[str] = frozenset({ZYG_HET, ZYG_HOM_ALT})
 HOM_ALT_EXPECTED_FREQ_MAX = 1e-4
 DOMINANT_HOM_ALT_EXPECTED_FREQ_MAX = HOM_ALT_EXPECTED_FREQ_MAX
 _RECESSIVE_AFFECTED_HOM_ALT_ZYGOSITIES: frozenset[str] = frozenset({ZYG_HOM_ALT, "hom"})
+_AUTOSOMAL_DOMINANT_INHERITANCE: frozenset[str] = frozenset({"AD", "AUTOSOMAL DOMINANT"})
+_AUTOSOMAL_RECESSIVE_INHERITANCE: frozenset[str] = frozenset({"AR", "AUTOSOMAL RECESSIVE"})
 
 
 def _zygosity_from_alleles(alleles: set[str], ref: str, alt: str) -> str:
@@ -207,8 +209,18 @@ def is_implausible_dominant_hom_alt(
     *,
     expected_freq_max: float = DOMINANT_HOM_ALT_EXPECTED_FREQ_MAX,
 ) -> bool:
-    """Return true for dominant hom-alt calls without population support."""
-    if getattr(row, "zygosity", None) != ZYG_HOM_ALT or (inheritance or "").upper() != "AD":
+    """Return true for dominant hom-alt calls without population support.
+
+    Accepts the abbreviated panel vocabulary (``AD``) and the full-text form
+    written by MONDO/HPO annotation (``Autosomal dominant``), with surrounding
+    whitespace and case normalized. Other inheritance modes remain outside this
+    conservative guard.
+    """
+    normalized_inheritance = (inheritance or "").strip().upper()
+    if (
+        getattr(row, "zygosity", None) != ZYG_HOM_ALT
+        or normalized_inheritance not in _AUTOSOMAL_DOMINANT_INHERITANCE
+    ):
         return False
     return _lacks_hom_alt_population_support(row, expected_freq_max=expected_freq_max)
 
@@ -220,10 +232,16 @@ def is_implausible_recessive_affected_hom_alt(
     zygosity: str | None = None,
     expected_freq_max: float = HOM_ALT_EXPECTED_FREQ_MAX,
 ) -> bool:
-    """Return true for AR affected-status hom-alt calls without population support."""
+    """Return true for AR affected-status hom-alt calls without population support.
+
+    Accepts ``AR`` and the MONDO/HPO full-text form ``Autosomal recessive`` with
+    surrounding whitespace and case normalized. Other inheritance modes remain
+    outside this conservative guard.
+    """
     row_zygosity = zygosity if zygosity is not None else getattr(row, "zygosity", None)
     if row_zygosity not in _RECESSIVE_AFFECTED_HOM_ALT_ZYGOSITIES:
         return False
-    if (inheritance or "").upper() != "AR":
+    normalized_inheritance = (inheritance or "").strip().upper()
+    if normalized_inheritance not in _AUTOSOMAL_RECESSIVE_INHERITANCE:
         return False
     return _lacks_hom_alt_population_support(row, expected_freq_max=expected_freq_max)

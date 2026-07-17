@@ -52,7 +52,11 @@ from backend.analysis.clinvar_significance import (
     pathogenic_significance_filter,
 )
 from backend.analysis.evidence import assign_clinvar_evidence_level
-from backend.analysis.zygosity import CARRIED_ZYGOSITIES
+from backend.analysis.zygosity import (
+    CARRIED_ZYGOSITIES,
+    is_implausible_dominant_hom_alt,
+    is_implausible_recessive_affected_hom_alt,
+)
 from backend.annotation.vep_bundle import CONSEQUENCE_SEVERITY
 from backend.db.tables import annotated_variants, findings
 
@@ -183,6 +187,7 @@ class RareVariantFinderResult:
     variants: list[RareVariantResult] = field(default_factory=list)
     filters_applied: RareVariantFilter | None = None
     total_variants_scanned: int = 0
+    hom_alt_plausibility_suppressed: int = 0
 
     @property
     def count(self) -> int:
@@ -257,6 +262,8 @@ def find_rare_variants(
         av.c.hgvs_coding,
         av.c.hgvs_protein,
         av.c.gnomad_af_global,
+        av.c.gnomad_af_popmax,
+        av.c.gnomad_homozygous_count,
         av.c.gnomad_af_afr,
         av.c.gnomad_af_amr,
         av.c.gnomad_af_asj,
@@ -360,8 +367,21 @@ def find_rare_variants(
         rows = conn.execute(stmt).fetchall()
 
     variants: list[RareVariantResult] = []
+    hom_alt_plausibility_suppressed = 0
     sex_for_labels = filters.biological_sex or filters.inferred_sex
     for row in rows:
+        # A rare, directly typed P/LP homozygous-alt call without population
+        # homozygote support is not surfaced as a confident monogenic finding.
+        # This extends the same conservative policy used by the cancer,
+        # cardiovascular, and carrier modules. Unknown/non-autosomal inheritance
+        # and non-P/LP exploratory rows remain outside the guard.
+        if is_pathogenic_primary(row.clinvar_significance) and (
+            is_implausible_dominant_hom_alt(row, row.inheritance_pattern)
+            or is_implausible_recessive_affected_hom_alt(row, row.inheritance_pattern)
+        ):
+            hom_alt_plausibility_suppressed += 1
+            continue
+
         variant = RareVariantResult(
             rsid=row.rsid,
             chrom=row.chrom,
@@ -420,6 +440,7 @@ def find_rare_variants(
         matching=len(variants),
         novel=sum(1 for v in variants if v.is_novel),
         pathogenic=sum(1 for v in variants if v.is_clinvar_pathogenic),
+        hom_alt_plausibility_suppressed=hom_alt_plausibility_suppressed,
         genes=len({v.gene_symbol for v in variants if v.gene_symbol}),
         af_threshold=filters.af_threshold,
         gene_filter=bool(filters.gene_symbols),
@@ -431,6 +452,7 @@ def find_rare_variants(
         variants=variants,
         filters_applied=filters,
         total_variants_scanned=total_variants,
+        hom_alt_plausibility_suppressed=hom_alt_plausibility_suppressed,
     )
 
 
