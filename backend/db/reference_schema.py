@@ -56,6 +56,83 @@ _LEGACY_CYP2C9_PHENYTOIN_FINGERPRINT = Counter(
     }
 )
 
+_TPMT_THIOPURINE_GUIDELINE_URL = (
+    "https://cpicpgx.org/guidelines/guideline-for-thiopurines-and-tpmt/"
+)
+_TPMT_POOR_METABOLIZER_DRUGS = frozenset({"azathioprine", "mercaptopurine", "thioguanine"})
+_CANONICAL_TPMT_POOR_METABOLIZER_RECOMMENDATIONS = {
+    "azathioprine": "Consider alternative nonthiopurine immunosuppressant therapy.",
+    "mercaptopurine": (
+        "For malignancy: initiate therapy with drastically reduced starting doses. "
+        "Reduce starting dose by 10-fold and reduce frequency to thrice weekly instead "
+        "of daily (e.g. 10 mg/m2/day given 3 days/week). During therapy, adjust "
+        "mercaptopurine doses based on the degree of myelosuppression and disease-specific "
+        "guidelines. It usually takes at least 4-6 weeks of stable dosing to reach steady "
+        "state after each dose adjustment. If myelosuppression occurs, emphasis should be "
+        "on reducing mercaptopurine over other agents. For nonmalignancy: consider "
+        "alternative nonthiopurine immunosuppressant therapy."
+    ),
+    "thioguanine": (
+        "Initiate therapy with drastically reduced starting doses. Reduce starting dose "
+        "by 10-fold and reduce frequency to thrice weekly instead of daily. During therapy, "
+        "adjust thioguanine doses based on degree of myelosuppression and disease-specific "
+        "guidelines. It usually takes at least 4-6 weeks of stable dosing to reach steady "
+        "state after each dose adjustment. If myelosuppression occurs, emphasis should be "
+        "on reducing thioguanine over other agents."
+    ),
+}
+_LEGACY_TPMT_POOR_METABOLIZER_BASE = {
+    (
+        "mercaptopurine",
+        None,
+        "Reduce dose to 10% of standard. Consider alternative agent.",
+        "A",
+        _TPMT_THIOPURINE_GUIDELINE_URL,
+    ): 1,
+    (
+        "azathioprine",
+        None,
+        "Reduce dose to 10% of standard or use alternative agent.",
+        "A",
+        _TPMT_THIOPURINE_GUIDELINE_URL,
+    ): 1,
+}
+_LEGACY_TPMT_POOR_METABOLIZER_FINGERPRINTS = (
+    # Initial releases bundled only azathioprine and mercaptopurine.
+    Counter(_LEGACY_TPMT_POOR_METABOLIZER_BASE),
+    # #224 added thioguanine with an incorrect 50-75% reduction.
+    Counter(
+        {
+            **_LEGACY_TPMT_POOR_METABOLIZER_BASE,
+            (
+                "thioguanine",
+                None,
+                "Start with drastically reduced doses (reduce by 50-75%) and titrate "
+                "based on myelosuppression; for nonmalignant conditions consider an "
+                "alternative agent.",
+                "A",
+                _TPMT_THIOPURINE_GUIDELINE_URL,
+            ): 1,
+        }
+    ),
+    # #1259 corrected the malignancy dose but retained obsolete nonmalignancy text.
+    Counter(
+        {
+            **_LEGACY_TPMT_POOR_METABOLIZER_BASE,
+            (
+                "thioguanine",
+                None,
+                "Start with drastically reduced doses (reduce daily dose by 10-fold and "
+                "dose thrice weekly instead of daily) and titrate based on "
+                "myelosuppression; for nonmalignant conditions consider an alternative "
+                "agent.",
+                "A",
+                _TPMT_THIOPURINE_GUIDELINE_URL,
+            ): 1,
+        }
+    ),
+)
+
 
 def _refresh_legacy_cyp2c9_phenytoin_guidelines(engine: sa.Engine) -> bool:
     """Replace only the exact three-row pre-#1989 phenytoin fingerprint.
@@ -151,6 +228,119 @@ def _refresh_legacy_cyp2c9_phenytoin_guidelines(engine: sa.Engine) -> bool:
         "legacy_cyp2c9_phenytoin_guidelines_refreshed",
         removed_rows=len(rows),
         inserted_rows=len(canonical_rows),
+    )
+    return True
+
+
+def _refresh_legacy_tpmt_poor_metabolizer_guidelines(engine: sa.Engine) -> bool:
+    """Upgrade only a complete, exact historical TPMT poor-metabolizer matrix.
+
+    Three released states are recognized: the original two-drug matrix, the
+    first three-drug matrix with the 50-75% thioguanine reduction, and the
+    post-#1259 matrix whose thioguanine nonmalignancy clause became obsolete.
+    Empty, partial, duplicated, mixed, custom, and future matrices are left
+    untouched. Existing row IDs are retained for the historical drugs.
+    """
+    inspector = sa.inspect(engine)
+    if "cpic_guidelines" not in inspector.get_table_names():
+        return False
+    columns = {column["name"] for column in inspector.get_columns("cpic_guidelines")}
+    required = {
+        "id",
+        "gene",
+        "drug",
+        "phenotype",
+        "activity_score",
+        "recommendation",
+        "classification",
+        "guideline_url",
+    }
+    if not required <= columns:
+        return False
+
+    from backend.db.tables import cpic_guidelines
+
+    target = sa.and_(
+        cpic_guidelines.c.gene == "TPMT",
+        cpic_guidelines.c.phenotype == "Poor Metabolizer",
+    )
+
+    # Lock before reading the whole TPMT poor-metabolizer matrix. Otherwise a
+    # concurrent custom update could land between the fingerprint and writes.
+    with engine.connect() as conn:
+        conn.exec_driver_sql("BEGIN IMMEDIATE")
+        try:
+            rows = conn.execute(
+                sa.select(
+                    cpic_guidelines.c.id,
+                    cpic_guidelines.c.drug,
+                    cpic_guidelines.c.activity_score,
+                    cpic_guidelines.c.recommendation,
+                    cpic_guidelines.c.classification,
+                    cpic_guidelines.c.guideline_url,
+                ).where(target)
+            ).fetchall()
+            observed = Counter(
+                (
+                    row.drug,
+                    row.activity_score,
+                    row.recommendation,
+                    row.classification,
+                    row.guideline_url,
+                )
+                for row in rows
+            )
+            if observed not in _LEGACY_TPMT_POOR_METABOLIZER_FINGERPRINTS:
+                conn.rollback()
+                return False
+
+            from backend.annotation.cpic import CPIC_DATA_DIR, parse_cpic_guidelines_csv
+
+            bundled_rows, _ = parse_cpic_guidelines_csv(CPIC_DATA_DIR / "cpic_guidelines.csv")
+            canonical_rows = [
+                row
+                for row in bundled_rows
+                if row["gene"] == "TPMT" and row["phenotype"] == "Poor Metabolizer"
+            ]
+            canonical_by_drug = {row["drug"]: row for row in canonical_rows}
+            if (
+                len(canonical_rows) != 3
+                or set(canonical_by_drug) != _TPMT_POOR_METABOLIZER_DRUGS
+                or any(
+                    row["activity_score"] is not None
+                    or row["recommendation"]
+                    != _CANONICAL_TPMT_POOR_METABOLIZER_RECOMMENDATIONS[row["drug"]]
+                    or row["classification"] != "A"
+                    or row["guideline_url"] != _TPMT_THIOPURINE_GUIDELINE_URL
+                    for row in canonical_rows
+                )
+            ):
+                raise RuntimeError(
+                    "Bundled TPMT poor-metabolizer guideline matrix is not canonical"
+                )
+
+            existing_ids = {row.drug: row.id for row in rows}
+            inserted_rows = 0
+            for drug in sorted(_TPMT_POOR_METABOLIZER_DRUGS):
+                canonical = canonical_by_drug[drug]
+                if drug in existing_ids:
+                    conn.execute(
+                        sa.update(cpic_guidelines)
+                        .where(cpic_guidelines.c.id == existing_ids[drug])
+                        .values(canonical)
+                    )
+                else:
+                    conn.execute(cpic_guidelines.insert(), canonical)
+                    inserted_rows += 1
+            conn.commit()
+        except BaseException:
+            conn.rollback()
+            raise
+
+    logger.warning(
+        "legacy_tpmt_poor_metabolizer_guidelines_refreshed",
+        updated_rows=len(rows),
+        inserted_rows=inserted_rows,
     )
     return True
 
@@ -289,6 +479,9 @@ def ensure_reference_schema_current(engine: sa.Engine) -> bool:
             )
 
         if _refresh_legacy_cyp2c9_phenytoin_guidelines(engine):
+            changed = True
+
+        if _refresh_legacy_tpmt_poor_metabolizer_guidelines(engine):
             changed = True
 
     # Releases before the sample-deletion prompt cascade could leave central

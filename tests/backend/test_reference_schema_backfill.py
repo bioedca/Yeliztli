@@ -19,6 +19,7 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
+import pytest
 import sqlalchemy as sa
 
 from backend.db.reference_schema import ensure_reference_schema_current
@@ -60,6 +61,53 @@ _LEGACY_PHENYTOIN_ROWS = [
         "guideline_url": _PHENYTOIN_URL,
     },
 ]
+
+_TPMT_URL = "https://cpicpgx.org/guidelines/guideline-for-thiopurines-and-tpmt/"
+_LEGACY_TPMT_POOR_METABOLIZER_BASE = [
+    {
+        "gene": "TPMT",
+        "drug": "mercaptopurine",
+        "phenotype": "Poor Metabolizer",
+        "activity_score": None,
+        "recommendation": "Reduce dose to 10% of standard. Consider alternative agent.",
+        "classification": "A",
+        "guideline_url": _TPMT_URL,
+    },
+    {
+        "gene": "TPMT",
+        "drug": "azathioprine",
+        "phenotype": "Poor Metabolizer",
+        "activity_score": None,
+        "recommendation": "Reduce dose to 10% of standard or use alternative agent.",
+        "classification": "A",
+        "guideline_url": _TPMT_URL,
+    },
+]
+_LEGACY_TPMT_THIOGUANINE_50_75 = {
+    "gene": "TPMT",
+    "drug": "thioguanine",
+    "phenotype": "Poor Metabolizer",
+    "activity_score": None,
+    "recommendation": (
+        "Start with drastically reduced doses (reduce by 50-75%) and titrate based on "
+        "myelosuppression; for nonmalignant conditions consider an alternative agent."
+    ),
+    "classification": "A",
+    "guideline_url": _TPMT_URL,
+}
+_LEGACY_TPMT_THIOGUANINE_POST_1259 = {
+    "gene": "TPMT",
+    "drug": "thioguanine",
+    "phenotype": "Poor Metabolizer",
+    "activity_score": None,
+    "recommendation": (
+        "Start with drastically reduced doses (reduce daily dose by 10-fold and dose "
+        "thrice weekly instead of daily) and titrate based on myelosuppression; for "
+        "nonmalignant conditions consider an alternative agent."
+    ),
+    "classification": "A",
+    "guideline_url": _TPMT_URL,
+}
 
 
 def _columns(engine: sa.Engine, table: str) -> set[str]:
@@ -565,3 +613,313 @@ def test_activity_score_column_and_legacy_phenytoin_content_upgrade_together(
             .all()
         )
     assert scores == [2.0, 1.5, 1.0, 0.5, 0.0]
+
+
+def _bundled_tpmt_poor_metabolizer_rows() -> list[dict]:
+    from backend.annotation.cpic import CPIC_DATA_DIR, parse_cpic_guidelines_csv
+
+    rows, _ = parse_cpic_guidelines_csv(CPIC_DATA_DIR / "cpic_guidelines.csv")
+    return sorted(
+        (row for row in rows if row["gene"] == "TPMT" and row["phenotype"] == "Poor Metabolizer"),
+        key=lambda row: row["drug"],
+    )
+
+
+@pytest.mark.parametrize(
+    "legacy_rows",
+    [
+        pytest.param(_LEGACY_TPMT_POOR_METABOLIZER_BASE, id="pre-thioguanine"),
+        pytest.param(
+            [*_LEGACY_TPMT_POOR_METABOLIZER_BASE, _LEGACY_TPMT_THIOGUANINE_50_75],
+            id="thioguanine-50-75-percent",
+        ),
+        pytest.param(
+            [*_LEGACY_TPMT_POOR_METABOLIZER_BASE, _LEGACY_TPMT_THIOGUANINE_POST_1259],
+            id="post-1259-obsolete-nonmalignancy",
+        ),
+    ],
+)
+def test_refreshes_each_exact_legacy_tpmt_poor_metabolizer_matrix(
+    tmp_path: Path,
+    legacy_rows: list[dict],
+) -> None:
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'ref.db'}")
+    reference_metadata.create_all(engine, checkfirst=True)
+    preserved_row = {
+        "gene": "TPMT",
+        "drug": "mercaptopurine",
+        "phenotype": "Normal Metabolizer",
+        "activity_score": None,
+        "recommendation": "Preserve normal-metabolizer guidance.",
+        "classification": "A",
+        "guideline_url": _TPMT_URL,
+    }
+    with engine.begin() as conn:
+        conn.execute(cpic_guidelines.insert(), [*legacy_rows, preserved_row])
+    with engine.connect() as conn:
+        existing_ids = dict(
+            conn.execute(
+                sa.select(cpic_guidelines.c.drug, cpic_guidelines.c.id).where(
+                    cpic_guidelines.c.gene == "TPMT",
+                    cpic_guidelines.c.phenotype == "Poor Metabolizer",
+                )
+            ).fetchall()
+        )
+
+    assert ensure_reference_schema_current(engine) is True
+
+    with engine.connect() as conn:
+        upgraded = [
+            dict(row)
+            for row in conn.execute(
+                sa.select(
+                    cpic_guidelines.c.gene,
+                    cpic_guidelines.c.drug,
+                    cpic_guidelines.c.phenotype,
+                    cpic_guidelines.c.activity_score,
+                    cpic_guidelines.c.recommendation,
+                    cpic_guidelines.c.classification,
+                    cpic_guidelines.c.guideline_url,
+                )
+                .where(
+                    cpic_guidelines.c.gene == "TPMT",
+                    cpic_guidelines.c.phenotype == "Poor Metabolizer",
+                )
+                .order_by(cpic_guidelines.c.drug)
+            ).mappings()
+        ]
+        upgraded_ids = dict(
+            conn.execute(
+                sa.select(cpic_guidelines.c.drug, cpic_guidelines.c.id).where(
+                    cpic_guidelines.c.gene == "TPMT",
+                    cpic_guidelines.c.phenotype == "Poor Metabolizer",
+                )
+            ).fetchall()
+        )
+        preserved = conn.execute(
+            sa.select(cpic_guidelines.c.recommendation).where(
+                cpic_guidelines.c.gene == "TPMT",
+                cpic_guidelines.c.phenotype == "Normal Metabolizer",
+            )
+        ).scalar_one()
+
+    assert upgraded == _bundled_tpmt_poor_metabolizer_rows()
+    assert {drug: upgraded_ids[drug] for drug in existing_ids} == existing_ids
+    assert preserved == "Preserve normal-metabolizer guidance."
+    assert ensure_reference_schema_current(engine) is False
+
+
+@pytest.mark.parametrize(
+    "near_miss",
+    [
+        pytest.param(_LEGACY_TPMT_POOR_METABOLIZER_BASE[:1], id="partial"),
+        pytest.param(
+            [
+                *_LEGACY_TPMT_POOR_METABOLIZER_BASE,
+                _LEGACY_TPMT_POOR_METABOLIZER_BASE[0],
+            ],
+            id="duplicate",
+        ),
+        pytest.param(
+            [
+                {
+                    **_LEGACY_TPMT_POOR_METABOLIZER_BASE[0],
+                    "recommendation": "Custom mercaptopurine guidance.",
+                },
+                _LEGACY_TPMT_POOR_METABOLIZER_BASE[1],
+            ],
+            id="custom-recommendation",
+        ),
+        pytest.param(
+            [
+                *_LEGACY_TPMT_POOR_METABOLIZER_BASE,
+                {
+                    **_LEGACY_TPMT_THIOGUANINE_POST_1259,
+                    "drug": "custom-thiopurine",
+                    "recommendation": "Future custom guidance.",
+                },
+            ],
+            id="mixed-future-drug",
+        ),
+    ],
+)
+def test_does_not_overwrite_or_load_bundle_for_near_miss_tpmt_matrices(
+    tmp_path: Path,
+    monkeypatch,
+    near_miss: list[dict],
+) -> None:
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'ref.db'}")
+    reference_metadata.create_all(engine, checkfirst=True)
+    with engine.begin() as conn:
+        conn.execute(cpic_guidelines.insert(), near_miss)
+    with engine.connect() as conn:
+        before = [
+            dict(row)
+            for row in conn.execute(
+                sa.select(cpic_guidelines).order_by(cpic_guidelines.c.id)
+            ).mappings()
+        ]
+
+    from backend.annotation import cpic as cpic_module
+
+    def fail_if_parsed(_path):
+        raise AssertionError("nonlegacy TPMT content must not load the migration payload")
+
+    monkeypatch.setattr(cpic_module, "parse_cpic_guidelines_csv", fail_if_parsed)
+
+    assert ensure_reference_schema_current(engine) is False
+    with engine.connect() as conn:
+        after = [
+            dict(row)
+            for row in conn.execute(
+                sa.select(cpic_guidelines).order_by(cpic_guidelines.c.id)
+            ).mappings()
+        ]
+    assert after == before
+
+
+def test_current_tpmt_matrix_is_an_idempotent_noop_without_loading_bundle(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'ref.db'}")
+    reference_metadata.create_all(engine, checkfirst=True)
+    with engine.begin() as conn:
+        conn.execute(cpic_guidelines.insert(), _bundled_tpmt_poor_metabolizer_rows())
+
+    from backend.annotation import cpic as cpic_module
+
+    def fail_if_parsed(_path):
+        raise AssertionError("current TPMT content must not reload the migration payload")
+
+    monkeypatch.setattr(cpic_module, "parse_cpic_guidelines_csv", fail_if_parsed)
+
+    assert ensure_reference_schema_current(engine) is False
+
+
+def test_invalid_bundled_tpmt_matrix_rolls_back_the_legacy_rows(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'ref.db'}")
+    reference_metadata.create_all(engine, checkfirst=True)
+    legacy_rows = [
+        *_LEGACY_TPMT_POOR_METABOLIZER_BASE,
+        _LEGACY_TPMT_THIOGUANINE_POST_1259,
+    ]
+    with engine.begin() as conn:
+        conn.execute(cpic_guidelines.insert(), legacy_rows)
+    with engine.connect() as conn:
+        before = [
+            dict(row)
+            for row in conn.execute(
+                sa.select(cpic_guidelines).order_by(cpic_guidelines.c.id)
+            ).mappings()
+        ]
+
+    from backend.annotation import cpic as cpic_module
+
+    invalid_canonical = _bundled_tpmt_poor_metabolizer_rows()
+    invalid_canonical[0] = {
+        **invalid_canonical[0],
+        "recommendation": "Unreviewed bundled recommendation.",
+    }
+
+    def parse_invalid_bundle(_path):
+        return invalid_canonical, None
+
+    monkeypatch.setattr(cpic_module, "parse_cpic_guidelines_csv", parse_invalid_bundle)
+
+    with pytest.raises(
+        RuntimeError,
+        match="Bundled TPMT poor-metabolizer guideline matrix is not canonical",
+    ):
+        ensure_reference_schema_current(engine)
+
+    with engine.connect() as conn:
+        after = [
+            dict(row)
+            for row in conn.execute(
+                sa.select(cpic_guidelines).order_by(cpic_guidelines.c.id)
+            ).mappings()
+        ]
+    assert after == before
+
+
+def test_tpmt_refresh_rolls_back_if_a_canonical_write_fails(tmp_path: Path) -> None:
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'ref.db'}")
+    reference_metadata.create_all(engine, checkfirst=True)
+    legacy_rows = [
+        *_LEGACY_TPMT_POOR_METABOLIZER_BASE,
+        _LEGACY_TPMT_THIOGUANINE_POST_1259,
+    ]
+    with engine.begin() as conn:
+        conn.execute(cpic_guidelines.insert(), legacy_rows)
+    with engine.connect() as conn:
+        before = [
+            dict(row)
+            for row in conn.execute(
+                sa.select(cpic_guidelines).order_by(cpic_guidelines.c.id)
+            ).mappings()
+        ]
+
+    update_count = 0
+
+    def fail_second_update(_conn, _cursor, statement, _parameters, _context, _executemany):
+        nonlocal update_count
+        if " ".join(statement.split()).upper().startswith("UPDATE CPIC_GUIDELINES"):
+            update_count += 1
+            if update_count == 2:
+                raise RuntimeError("simulated canonical write failure")
+
+    sa.event.listen(engine, "before_cursor_execute", fail_second_update)
+    try:
+        with pytest.raises(RuntimeError, match="simulated canonical write failure"):
+            ensure_reference_schema_current(engine)
+    finally:
+        sa.event.remove(engine, "before_cursor_execute", fail_second_update)
+
+    with engine.connect() as conn:
+        after = [
+            dict(row)
+            for row in conn.execute(
+                sa.select(cpic_guidelines).order_by(cpic_guidelines.c.id)
+            ).mappings()
+        ]
+    assert update_count == 2
+    assert after == before
+
+
+def test_tpmt_refresh_locks_for_write_before_whole_matrix_fingerprint(tmp_path: Path) -> None:
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'ref.db'}")
+    reference_metadata.create_all(engine, checkfirst=True)
+    with engine.begin() as conn:
+        conn.execute(cpic_guidelines.insert(), _LEGACY_TPMT_POOR_METABOLIZER_BASE)
+
+    statements: list[str] = []
+
+    def record_statement(_conn, _cursor, statement, _parameters, _context, _executemany):
+        statements.append(" ".join(statement.split()).upper())
+
+    sa.event.listen(engine, "before_cursor_execute", record_statement)
+    try:
+        assert ensure_reference_schema_current(engine) is True
+    finally:
+        sa.event.remove(engine, "before_cursor_execute", record_statement)
+
+    fingerprint_index = next(
+        index
+        for index, statement in enumerate(statements)
+        if statement.startswith("SELECT CPIC_GUIDELINES.ID, CPIC_GUIDELINES.DRUG")
+    )
+    begin_index = max(
+        index
+        for index, statement in enumerate(statements[:fingerprint_index])
+        if statement == "BEGIN IMMEDIATE"
+    )
+    update_index = next(
+        index
+        for index, statement in enumerate(statements[fingerprint_index:], fingerprint_index)
+        if statement.startswith("UPDATE CPIC_GUIDELINES")
+    )
+    assert begin_index < fingerprint_index < update_index
