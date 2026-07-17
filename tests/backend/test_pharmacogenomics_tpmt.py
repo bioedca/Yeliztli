@@ -335,7 +335,8 @@ def test_poor_metabolizers_emit_thiopurine_alerts(
     tpmt_alerts = [a for a in alerts if a.gene == "TPMT"]
     assert tpmt_alerts, f"expected TPMT alerts for Poor Metabolizer {expected_diplotype}"
     drugs = {a.drug for a in tpmt_alerts}
-    assert {"azathioprine", "mercaptopurine", "thioguanine"} <= drugs
+    assert len(tpmt_alerts) == len(_TPMT_PM_RECOMMENDATIONS)
+    assert drugs == set(_TPMT_PM_RECOMMENDATIONS)
     for alert in tpmt_alerts:
         assert alert.diplotype == expected_diplotype
         assert alert.phenotype == "Poor Metabolizer"
