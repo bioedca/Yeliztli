@@ -74,6 +74,41 @@ Yeliztli also assigns deep-lineage haplogroups from lineage-defining variants:
 - **Y-chromosome (paternal)** haplogroups via the ISOGG tree — only for samples inferred as
   XY (skipped otherwise).
 
+#### How to read the haplogroup "confidence" badge
+
+The current interface labels a **path-marker support fraction** as *confidence*. For the
+assigned tree path, Yeliztli adds the defining-marker counts recorded at every traversed node
+and displays `present / total`, where `total = present + conflicting + missing`:
+
+- **Present** — the marker is typed and its derived allele is observed.
+- **Conflicting** — the marker is typed but its derived allele is absent, which is positive
+  evidence against that clade.
+- **Missing** — the marker is untyped or a no-call, so it supplies no evidence either way. It
+  is nevertheless included in `total`.
+
+This percentage is therefore **not an estimated probability that the haplogroup call is
+correct**. It reports how many of the assigned path's defining-marker entries were observed
+as derived, and it falls when the input file omits those markers. The same person can receive
+different percentages from arrays with different marker coverage, so do not compare the
+badge across vendors or files as though it were a probability. A low or red badge on a sparse
+file can reflect untyped markers rather than evidence that the assignment is wrong.
+
+After the fraction is rounded to a whole percentage, the badge is **green at 80% or above**,
+**amber from 50% through 79%**, and **red below 50%**. The accompanying `N / M defining SNPs
+matched` line shows the same overall numerator and denominator before percentage rounding.
+The traversal path shows each successive tree node on the route to the final assignment; its
+`N/M` label uses that node's full defining-marker set, including inherited markers that may
+also appear at an earlier node. The overall `N / M` sums these per-node entries without
+deduplicating them, so a marker re-listed at multiple nodes can contribute more than once.
+
+!!! note "The display ratio is not the tree-walk decision rule"
+    For a child to count as a directly supported clade, Yeliztli evaluates only the markers
+    that distinguish it from its ancestors. At least one must be observed as derived, at least
+    50% of that clade-specific set must be derived, and no observed clade-specific marker may
+    conflict. Structural or specially audited sparse internal nodes may be traversed only as
+    pass-throughs when a deeper clade supplies independent support. The badge and traversal
+    labels instead summarise the full marker sets recorded along the accepted path.
+
 ---
 
 ## Tier 2 — Local ancestry inference (optional)

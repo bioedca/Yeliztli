@@ -1549,10 +1549,13 @@ class HaplogroupResult:
         tree_type: 'mt' or 'Y'.
         haplogroup: Terminal (deepest matched) haplogroup string.
         confidence: defining_snps_present / defining_snps_total.
-        defining_snps_present: Count of matching defining SNPs.
-        defining_snps_total: Total defining SNPs for terminal haplogroup.
-        traversal_path: List of nodes from root to terminal, each with
-            its own match counts.
+        defining_snps_present: Sum of derived defining-marker entries across
+            the recorded path nodes.
+        defining_snps_total: Sum of all defining-marker entries across the
+            recorded path nodes. Markers re-listed at multiple nodes are not
+            deduplicated.
+        traversal_path: Recorded nodes on the route to the terminal assignment,
+            each with its full defining-marker match counts.
         assignment_time_ms: Wall-clock time for this assignment.
     """
 
@@ -1969,8 +1972,12 @@ def _record_step(
 
 
 def _haplogroup_confidence(present: int, total: int) -> float:
-    """Confidence that a haplogroup call is correct: the fraction of defining
-    SNPs along the assigned path that are present (derived) in the sample.
+    """Return the path-marker support fraction displayed as haplogroup confidence.
+
+    ``present`` counts defining-marker entries observed as derived along the
+    assigned path. ``total`` also includes typed-ancestral (conflicting) and
+    missing/no-call entries, so this is coverage-sensitive marker support, not
+    an estimated probability that the assignment is correct.
 
     ``present / total`` (T3-33), or ``0.0`` when no defining SNP was evaluated
     (``total == 0``, e.g. the root with an empty path) to avoid division by
