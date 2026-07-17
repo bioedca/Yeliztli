@@ -855,7 +855,6 @@ def _add_missing_columns(engine: sa.Engine, from_version: int) -> bool:
             "drug",
             "finding_text",
             "detail_json",
-            "provenance",
         }
         can_repair_findings = required_finding_cols <= findings_cols
         can_repair_diff = {"key", "value"} <= state_cols
@@ -918,6 +917,12 @@ def _add_missing_columns(engine: sa.Engine, from_version: int) -> bool:
                                 continue
 
                             detail["recommendation"] = bundled_recommendation
+                            update_values: dict[str, object] = {
+                                "finding_text": updated_text,
+                                "detail_json": json.dumps(detail),
+                            }
+                            if "provenance" in findings_cols:
+                                update_values["provenance"] = None
                             result = conn.execute(
                                 findings.update()
                                 .where(
@@ -930,11 +935,7 @@ def _add_missing_columns(engine: sa.Engine, from_version: int) -> bool:
                                     findings.c.finding_text == row.finding_text,
                                     findings.c.detail_json == row.detail_json,
                                 )
-                                .values(
-                                    finding_text=updated_text,
-                                    detail_json=json.dumps(detail),
-                                    provenance=None,
-                                )
+                                .values(**update_values)
                             )
                             repaired_findings += max(result.rowcount or 0, 0)
 

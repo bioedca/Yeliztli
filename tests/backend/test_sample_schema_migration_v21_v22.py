@@ -360,6 +360,59 @@ def test_v22_leaves_malformed_diff_json_untouched(sample_engine: sa.Engine) -> N
         assert conn.execute(sa.text("PRAGMA user_version")).scalar_one() == 22
 
 
+def test_v22_repairs_legacy_alert_when_provenance_column_is_absent() -> None:
+    engine = sa.create_engine("sqlite://")
+    legacy = LEGACY_RECOMMENDATIONS["azathioprine"][0]
+    detail = json.dumps(
+        {
+            "recommendation": legacy,
+            "classification": "A",
+            "guideline_url": (
+                "https://cpicpgx.org/guidelines/guideline-for-thiopurines-and-tpmt/"
+            ),
+        }
+    )
+    with engine.begin() as conn:
+        conn.execute(
+            sa.text(
+                "CREATE TABLE findings ("
+                "id INTEGER PRIMARY KEY, module TEXT, category TEXT, gene_symbol TEXT, "
+                "metabolizer_status TEXT, drug TEXT, finding_text TEXT, detail_json TEXT)"
+            )
+        )
+        conn.execute(
+            sa.text(
+                "INSERT INTO findings "
+                "(id, module, category, gene_symbol, metabolizer_status, drug, "
+                "finding_text, detail_json) VALUES "
+                "(1, 'pharmacogenomics', 'prescribing_alert', 'TPMT', "
+                "'Poor Metabolizer', 'azathioprine', :finding_text, :detail_json)"
+            ),
+            {
+                "finding_text": _finding_text("azathioprine", legacy),
+                "detail_json": detail,
+            },
+        )
+        conn.execute(sa.text("PRAGMA user_version = 21"))
+
+    assert ensure_sample_schema_current(engine) is True
+
+    assert "provenance" not in {
+        column["name"] for column in sa.inspect(engine).get_columns("findings")
+    }
+    with engine.connect() as conn:
+        row = conn.execute(
+            sa.text("SELECT finding_text, detail_json FROM findings WHERE id = 1")
+        ).one()
+        version = conn.execute(sa.text("PRAGMA user_version")).scalar_one()
+
+    assert row.finding_text == _finding_text(
+        "azathioprine", CURRENT_RECOMMENDATIONS["azathioprine"]
+    )
+    assert json.loads(row.detail_json)["recommendation"] == CURRENT_RECOMMENDATIONS["azathioprine"]
+    assert version == 22
+
+
 def test_v22_locks_before_reading_or_writing_findings_and_diff(
     sample_engine: sa.Engine,
 ) -> None:
