@@ -26,6 +26,7 @@ import {
 import { useVariantDetail } from "@/api/variant-detail"
 import PageLoading from "@/components/ui/PageLoading"
 import PageError from "@/components/ui/PageError"
+import HpoTermList from "@/components/HpoTermList"
 import type {
   VariantDetail,
   TranscriptAnnotation,
@@ -694,18 +695,11 @@ function DiseaseAssociationList({ phenotypes }: { phenotypes: GenePhenotypeRecor
             {gp.disease_id && <span>· {gp.disease_id}</span>}
             {gp.inheritance && <span>· {gp.inheritance}</span>}
           </div>
-          {gp.hpo_terms && gp.hpo_terms.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-1">
-              {gp.hpo_terms.map((term, j) => (
-                <span
-                  key={j}
-                  className="inline-block px-1.5 py-0.5 text-[10px] rounded bg-muted text-muted-foreground"
-                >
-                  {term}
-                </span>
-              ))}
-            </div>
-          )}
+          <HpoTermList
+            key={`${gp.source}-${gp.disease_id ?? gp.disease_name}`}
+            termIds={gp.hpo_terms}
+            termDetails={gp.hpo_term_details}
+          />
           {gp.omim_link && (
             <a
               href={gp.omim_link}

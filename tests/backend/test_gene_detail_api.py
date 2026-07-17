@@ -73,14 +73,38 @@ def gene_detail_client(
     # Seed gene-phenotype records
     with ref_engine.begin() as conn:
         conn.execute(
-            gene_phenotype.insert().values(
-                gene_symbol="BRCA1",
-                disease_name="Hereditary breast-ovarian cancer syndrome",
-                disease_id="MONDO:0011450",
-                source="mondo_hpo",
-                hpo_terms=json.dumps(["HP:0003002", "HP:0003003"]),
-                inheritance="autosomal dominant",
-            )
+            gene_phenotype.insert(),
+            [
+                {
+                    "gene_symbol": "BRCA1",
+                    "disease_name": "Hereditary breast-ovarian cancer syndrome",
+                    "disease_id": "MONDO:0011450",
+                    "source": "mondo_hpo",
+                    "hpo_terms": json.dumps(
+                        [
+                            {"id": "HP:0003002", "name": "Breast carcinoma"},
+                            {"id": "HP:0003003", "name": None},
+                        ]
+                    ),
+                    "inheritance": "autosomal dominant",
+                },
+                {
+                    "gene_symbol": "BRCA1",
+                    "disease_name": "Legacy BRCA1 phenotype record",
+                    "disease_id": "OMIM:123456",
+                    "source": "omim",
+                    "hpo_terms": json.dumps(["HP:0001250"]),
+                    "inheritance": "autosomal dominant",
+                },
+                {
+                    "gene_symbol": "BRCA1",
+                    "disease_name": "obsolete BRCA1 phenotype record",
+                    "disease_id": "MONDO:9999999",
+                    "source": "mondo_hpo",
+                    "hpo_terms": json.dumps(["HP:0000001"]),
+                    "inheritance": "autosomal dominant",
+                },
+            ],
         )
 
     # Seed annotated variants for BRCA1
@@ -173,9 +197,44 @@ class TestGeneDetailEndpoint:
         assert resp.status_code == 200
         data = resp.json()
         assert data["gene_symbol"] == "BRCA1"
-        assert len(data["phenotypes"]) == 1
-        assert data["phenotypes"][0]["disease_name"] == "Hereditary breast-ovarian cancer syndrome"
-        assert data["phenotypes"][0]["inheritance"] == "autosomal dominant"
+        assert len(data["phenotypes"]) == 2
+        phenotype = next(
+            record for record in data["phenotypes"] if record["disease_id"] == "MONDO:0011450"
+        )
+        assert phenotype["disease_name"] == "Hereditary breast-ovarian cancer syndrome"
+        assert phenotype["inheritance"] == "Autosomal dominant"
+        assert all(
+            not record["disease_name"].lower().startswith("obsolete")
+            for record in data["phenotypes"]
+        )
+
+    def test_gene_detail_decodes_legacy_and_labelled_hpo_storage(
+        self, gene_detail_client: TestClient
+    ) -> None:
+        """Both HPO storage shapes retain the legacy ID list and expose details."""
+        with (
+            patch("backend.api.routes.genes._fetch_uniprot_from_cache", return_value=None),
+            patch("backend.api.routes.genes._fetch_uniprot_from_api", return_value=None),
+            patch("backend.api.routes.genes._get_stale_uniprot", return_value=None),
+            patch("backend.api.routes.genes._fetch_gene_literature", return_value=([], [])),
+        ):
+            resp = gene_detail_client.get("/api/genes/BRCA1?sample_id=1")
+
+        assert resp.status_code == 200
+        phenotypes = resp.json()["phenotypes"]
+
+        labelled = next(p for p in phenotypes if p["disease_id"] == "MONDO:0011450")
+        assert labelled["hpo_terms"] == ["HP:0003002", "HP:0003003"]
+        assert labelled["hpo_term_details"] == [
+            {"id": "HP:0003002", "name": "Breast carcinoma"},
+            {"id": "HP:0003003", "name": None},
+        ]
+
+        legacy = next(p for p in phenotypes if p["disease_id"] == "OMIM:123456")
+        assert legacy["hpo_terms"] == ["HP:0001250"]
+        assert legacy["hpo_term_details"] == [
+            {"id": "HP:0001250", "name": None},
+        ]
 
     def test_gene_detail_returns_variants(self, gene_detail_client: TestClient) -> None:
         """Gene detail includes all sample variants for the gene."""

@@ -25,9 +25,11 @@ from sqlalchemy.pool import StaticPool
 from backend.annotation.mondo_hpo import (
     _INHERITANCE_MAP,
     GenePhenotypeRecord,
+    HpoTerm,
     LoadStats,
     _extract_gene_symbol_from_subject,
     _records_to_rows,
+    decode_hpo_terms,
     load_mondo_hpo_from_csv,
     load_mondo_hpo_rows,
     lookup_gene_phenotypes,
@@ -86,7 +88,7 @@ def mondo_tsv_file(tmp_path: Path) -> Path:
 def hpo_phenotype_file(tmp_path: Path) -> Path:
     """Create a minimal HPO genes_to_phenotype.txt for testing."""
     content = textwrap.dedent("""\
-        #gene_id\tgene_symbol\thpo_id\thpo_name\tfrequency\tdisease_id
+        ncbi_gene_id\tgene_symbol\thpo_id\thpo_name\tfrequency\tdisease_id
         672\tBRCA1\tHP:0003002\tBreast carcinoma\t\tOMIM:604370
         672\tBRCA1\tHP:0100013\tNeoplasm of the breast\t\tOMIM:604370
         672\tBRCA1\tHP:0000006\tAutosomal dominant\t\tOMIM:604370
@@ -213,14 +215,15 @@ class TestHPOParsing:
         assert "BRCA1" in result
         brca1 = result["BRCA1"]
         # Should have HP:0003002 and HP:0100013 but NOT HP:0000006 (inheritance)
-        assert "HP:0003002" in brca1["hpo_terms"]
-        assert "HP:0100013" in brca1["hpo_terms"]
-        assert "HP:0000006" not in brca1["hpo_terms"]
+        assert brca1["hpo_terms"] == [
+            HpoTerm(id="HP:0003002", name="Breast carcinoma"),
+            HpoTerm(id="HP:0100013", name="Neoplasm of the breast"),
+        ]
         assert brca1["inheritance"] == "Autosomal dominant"
 
         assert "CFTR" in result
         cftr = result["CFTR"]
-        assert "HP:0002110" in cftr["hpo_terms"]
+        assert HpoTerm(id="HP:0002110", name="Bronchiectasis") in cftr["hpo_terms"]
         assert cftr["inheritance"] == "Autosomal recessive"
 
     def test_parse_hpo_no_inheritance(self, hpo_phenotype_file: Path) -> None:
@@ -228,7 +231,51 @@ class TestHPOParsing:
         result = parse_hpo_genes_to_phenotype(hpo_phenotype_file)
         assert "MTHFR" in result
         assert result["MTHFR"]["inheritance"] is None
-        assert "HP:0003572" in result["MTHFR"]["hpo_terms"]
+        assert result["MTHFR"]["hpo_terms"] == [
+            HpoTerm(id="HP:0003572", name="Low plasma methionine")
+        ]
+
+    def test_parse_hpo_deduplicates_and_prefers_nonempty_label(self, tmp_path: Path) -> None:
+        """Repeated IDs collapse deterministically without losing a later label."""
+        hpo_path = tmp_path / "genes_to_phenotype.txt"
+        hpo_path.write_text(
+            "ncbi_gene_id\tgene_symbol\thpo_id\thpo_name\tfrequency\tdisease_id\n"
+            "672\tBRCA1\tHP:0003002\t\t\tOMIM:604370\n"
+            "672\tBRCA1\tHP:0003002\tBreast carcinoma\t\tOMIM:604370\n"
+            "672\tBRCA1\tnot-an-hpo-id\tIgnored\t\tOMIM:604370\n",
+            encoding="utf-8",
+        )
+
+        result = parse_hpo_genes_to_phenotype(hpo_path)
+
+        assert result["BRCA1"]["hpo_terms"] == [HpoTerm(id="HP:0003002", name="Breast carcinoma")]
+
+
+class TestHpoTermDecoding:
+    """Compatibility decoding for legacy and labelled reference rows."""
+
+    def test_decodes_legacy_id_array(self) -> None:
+        assert decode_hpo_terms('["HP:0003002"]') == [HpoTerm(id="HP:0003002")]
+
+    def test_decodes_labelled_object_array(self) -> None:
+        raw = '[{"id": "HP:0003002", "name": "Breast carcinoma"}]'
+        assert decode_hpo_terms(raw) == [HpoTerm(id="HP:0003002", name="Breast carcinoma")]
+
+    def test_drops_invalid_items_and_prefers_available_label(self) -> None:
+        raw = json.dumps(
+            [
+                "HP:0003002",
+                {"id": "HP:0003002", "name": "Breast carcinoma"},
+                {"id": "not-an-hpo-id", "name": "Ignored"},
+                {"name": "Missing ID"},
+                42,
+            ]
+        )
+        assert decode_hpo_terms(raw) == [HpoTerm(id="HP:0003002", name="Breast carcinoma")]
+
+    @pytest.mark.parametrize("raw", [None, "", "not-json", "{}"])
+    def test_malformed_or_non_array_input_is_empty(self, raw: str | None) -> None:
+        assert decode_hpo_terms(raw) == []
 
 
 # ── Record merging tests ────────────────────────────────────────────────
@@ -250,7 +297,10 @@ class TestRecordMerging:
         }
         hpo_data = {
             "BRCA1": {
-                "hpo_terms": ["HP:0003002", "HP:0100013"],
+                "hpo_terms": [
+                    HpoTerm(id="HP:0003002", name="Breast carcinoma"),
+                    HpoTerm(id="HP:0100013", name="Neoplasm of the breast"),
+                ],
                 "inheritance": "Autosomal dominant",
             }
         }
@@ -261,7 +311,10 @@ class TestRecordMerging:
         assert row["source"] == "mondo_hpo"
         assert row["inheritance"] == "Autosomal dominant"
         hpo = json.loads(row["hpo_terms"])
-        assert "HP:0003002" in hpo
+        assert hpo == [
+            {"id": "HP:0003002", "name": "Breast carcinoma"},
+            {"id": "HP:0100013", "name": "Neoplasm of the breast"},
+        ]
 
     def test_merge_without_hpo(self) -> None:
         """Records without HPO data get None hpo_terms."""
@@ -301,6 +354,7 @@ class TestLookup:
         assert first.inheritance == "Autosomal dominant"
         assert isinstance(first.hpo_terms, list)
         assert "HP:0003002" in first.hpo_terms
+        assert any(term.id == "HP:0003002" for term in first.hpo_term_details)
 
     def test_lookup_multiple_genes(self, loaded_engine: sa.Engine) -> None:
         """Batch lookup returns results for multiple genes."""
@@ -344,6 +398,21 @@ class TestLookup:
         cftr = results["CFTR"][0]
         assert isinstance(cftr.hpo_terms, list)
         assert all(t.startswith("HP:") for t in cftr.hpo_terms)
+
+    def test_lookup_preserves_labels_from_structured_rows(self, loaded_engine: sa.Engine) -> None:
+        """Labelled reference rows expose details while retaining the ID list."""
+        labelled = json.dumps([{"id": "HP:0002110", "name": "Bronchiectasis"}])
+        with loaded_engine.begin() as conn:
+            conn.execute(
+                gene_phenotype.update()
+                .where(gene_phenotype.c.gene_symbol == "CFTR")
+                .values(hpo_terms=labelled)
+            )
+
+        cftr = lookup_gene_phenotypes(["CFTR"], loaded_engine)["CFTR"][0]
+
+        assert cftr.hpo_terms == ["HP:0002110"]
+        assert cftr.hpo_term_details == [HpoTerm(id="HP:0002110", name="Bronchiectasis")]
 
 
 # ── Version recording tests ─────────────────────────────────────────────

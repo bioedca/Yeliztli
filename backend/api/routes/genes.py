@@ -21,12 +21,12 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
+from backend.annotation.mondo_hpo import lookup_gene_phenotypes
 from backend.api.dependencies import require_fresh_sample
 from backend.config import get_settings
 from backend.db.connection import get_registry
 from backend.db.tables import (
     annotated_variants,
-    gene_phenotype,
     samples,
     uniprot_cache,
 )
@@ -78,6 +78,13 @@ class UniProtData(BaseModel):
     is_cached: bool = False
 
 
+class HpoTermRecord(BaseModel):
+    """HPO identifier with its optional human-readable label."""
+
+    id: str
+    name: str | None = None
+
+
 class GenePhenotypeRecord(BaseModel):
     """Gene-phenotype association from MONDO/HPO or OMIM."""
 
@@ -86,6 +93,7 @@ class GenePhenotypeRecord(BaseModel):
     disease_id: str | None = None
     source: str
     hpo_terms: list[str] | None = None
+    hpo_term_details: list[HpoTermRecord] | None = None
     inheritance: str | None = None
     omim_link: str | None = None
 
@@ -407,35 +415,34 @@ def _get_stale_uniprot(gene_symbol: str) -> UniProtData | None:
 
 
 def _fetch_gene_phenotypes(gene_symbol: str) -> list[GenePhenotypeRecord]:
-    """Fetch gene-phenotype associations from reference.db."""
+    """Fetch gene-phenotype associations through the shared lookup path.
+
+    The shared lookup applies the same reference-data hygiene as annotation and
+    variant detail: obsolete diseases are excluded, curated inheritance
+    overrides are applied, and results have deterministic ordering.
+    """
     registry = get_registry()
-    with registry.reference_engine.connect() as conn:
-        rows = conn.execute(
-            sa.select(gene_phenotype).where(gene_phenotype.c.gene_symbol == gene_symbol)
-        ).fetchall()
+    annots_by_gene = lookup_gene_phenotypes([gene_symbol], registry.reference_engine)
 
-    results = []
-    for row in rows:
-        hpo_list: list[str] | None = None
-        if row.hpo_terms:
-            try:
-                hpo_list = json.loads(row.hpo_terms)
-            except (json.JSONDecodeError, TypeError):
-                hpo_list = None
-
+    results: list[GenePhenotypeRecord] = []
+    for annot in annots_by_gene.get(gene_symbol, []):
         omim_link: str | None = None
-        if row.disease_id and row.disease_id.startswith("OMIM:"):
-            omim_id = row.disease_id.replace("OMIM:", "")
+        if annot.disease_id and annot.disease_id.startswith("OMIM:"):
+            omim_id = annot.disease_id.replace("OMIM:", "")
             omim_link = f"https://omim.org/entry/{omim_id}"
 
         results.append(
             GenePhenotypeRecord(
-                gene_symbol=row.gene_symbol,
-                disease_name=row.disease_name,
-                disease_id=row.disease_id,
-                source=row.source,
-                hpo_terms=hpo_list,
-                inheritance=row.inheritance,
+                gene_symbol=annot.gene_symbol,
+                disease_name=annot.disease_name,
+                disease_id=annot.disease_id,
+                source=annot.source,
+                hpo_terms=annot.hpo_terms or None,
+                hpo_term_details=(
+                    [HpoTermRecord(id=term.id, name=term.name) for term in annot.hpo_term_details]
+                    or None
+                ),
+                inheritance=annot.inheritance,
                 omim_link=omim_link,
             )
         )

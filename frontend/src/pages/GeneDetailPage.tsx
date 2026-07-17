@@ -30,6 +30,7 @@ import { getClinvarSignificanceTextClass } from "@/lib/clinvar-significance"
 import PageLoading from "@/components/ui/PageLoading"
 import PageError from "@/components/ui/PageError"
 import PageEmpty from "@/components/ui/PageEmpty"
+import HpoTermList from "@/components/HpoTermList"
 import { cn } from "@/lib/utils"
 import { NightingaleViewer, PopulationAFChart } from "@/components/gene-detail"
 import type { GeneVariantSummary, PubMedArticle } from "@/types/gene-detail"
@@ -359,18 +360,11 @@ export default function GeneDetailPage() {
                   </a>
                 )}
               </div>
-              {pheno.hpo_terms && pheno.hpo_terms.length > 0 && (
-                <div className="flex flex-wrap gap-1 mt-2">
-                  {pheno.hpo_terms.map((term) => (
-                    <span
-                      key={term}
-                      className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground"
-                    >
-                      {term}
-                    </span>
-                  ))}
-                </div>
-              )}
+              <HpoTermList
+                key={`${pheno.source}-${pheno.disease_id ?? pheno.disease_name}`}
+                termIds={pheno.hpo_terms}
+                termDetails={pheno.hpo_term_details}
+              />
             </div>
           ))}
         </div>

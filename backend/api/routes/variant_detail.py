@@ -68,6 +68,13 @@ class TranscriptAnnotation(BaseModel):
     alt: str | None = None
 
 
+class HpoTermRecord(BaseModel):
+    """HPO identifier with its optional human-readable label."""
+
+    id: str
+    name: str | None = None
+
+
 class GenePhenotypeRecord(BaseModel):
     """Gene-phenotype association from MONDO/HPO or OMIM."""
 
@@ -76,6 +83,7 @@ class GenePhenotypeRecord(BaseModel):
     disease_id: str | None = None
     source: str  # "mondo_hpo" or "omim"
     hpo_terms: list[str] | None = None
+    hpo_term_details: list[HpoTermRecord] | None = None
     inheritance: str | None = None
     omim_link: str | None = None
 
@@ -320,6 +328,10 @@ def _fetch_gene_phenotypes(gene_symbol: str | None) -> list[GenePhenotypeRecord]
                 # lookup_gene_phenotypes always returns a list; normalize the
                 # empty case back to None to match the response contract.
                 hpo_terms=annot.hpo_terms or None,
+                hpo_term_details=(
+                    [HpoTermRecord(id=term.id, name=term.name) for term in annot.hpo_term_details]
+                    or None
+                ),
                 inheritance=annot.inheritance,
                 omim_link=omim_link,
             )

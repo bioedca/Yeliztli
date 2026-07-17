@@ -57,7 +57,7 @@ REFERENCE_SEEDED_TABLES: dict[str, list[tuple[str, str]]] = {
         ("gene_symbol", "TEXT NOT NULL"),
         ("disease_name", "TEXT NOT NULL"),
         ("disease_id", "TEXT"),
-        ("hpo_terms", "TEXT"),  # JSON array stored as TEXT
+        ("hpo_terms", "TEXT"),  # Legacy ID or labelled-object JSON array
         ("source", "TEXT NOT NULL"),
         ("inheritance", "TEXT"),
     ],

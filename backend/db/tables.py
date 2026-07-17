@@ -219,7 +219,11 @@ gene_phenotype = sa.Table(
     sa.Column("gene_symbol", sa.Text, nullable=False, index=True),
     sa.Column("disease_name", sa.Text, nullable=False),
     sa.Column("disease_id", sa.Text, comment="MONDO or OMIM ID"),
-    sa.Column("hpo_terms", sa.Text, comment="JSON array of HPO term IDs"),
+    sa.Column(
+        "hpo_terms",
+        sa.Text,
+        comment="JSON array of legacy HPO IDs or labelled {id, name} objects",
+    ),
     sa.Column(
         "source",
         sa.Text,
