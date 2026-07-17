@@ -10,6 +10,11 @@ body:
         can act on it without a follow-up conversation. Please keep it to **one problem per issue**
         (open a separate issue for each distinct bug), and fill in the reproduction so we can write
         a failing test for it.
+
+        > ⚠️ **Privacy — this is a public issue tracker.** Never paste your raw genotype data or
+        > attach your genome file, and redact any `rsID + genotype` lines from logs or errors.
+        > Yeliztli is privacy-first: your genomic data must stay on your machine. Use a small
+        > synthetic/test input to reproduce where possible.
   - type: textarea
     id: summary
     attributes:
@@ -56,7 +61,7 @@ body:
     id: error-output
     attributes:
       label: Error output / logs
-      description: Paste any error message, stack trace, or relevant log lines. This will be rendered as code — no backticks needed.
+      description: Paste any error message, stack trace, or relevant log lines (redact any rsID + genotype data first). This will be rendered as code — no backticks needed.
       render: shell
     validations:
       required: false
