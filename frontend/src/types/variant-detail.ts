@@ -21,6 +21,7 @@ export interface GenePhenotypeRecord {
   disease_id: string | null
   source: string
   hpo_terms: string[] | null
+  hpo_term_details?: Array<{ id: string; name: string | null }> | null
   inheritance: string | null
   omim_link: string | null
 }

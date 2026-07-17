@@ -109,6 +109,10 @@ const mockVariant: VariantDetail = {
       disease_id: "OMIM:604370",
       source: "omim",
       hpo_terms: ["HP:0003002", "HP:0002894"],
+      hpo_term_details: [
+        { id: "HP:0003002", name: "Breast carcinoma" },
+        { id: "HP:0002894", name: null },
+      ],
       inheritance: "Autosomal dominant",
       omim_link: "https://omim.org/entry/604370",
     },
@@ -501,8 +505,9 @@ describe("VariantDetailPage (P2-21a)", () => {
 
     // Disease association appears in both ClinVar conditions and disease list
     expect(screen.getAllByText("Hereditary breast and ovarian cancer syndrome").length).toBeGreaterThanOrEqual(1)
-    // HPO terms
-    expect(screen.getByText("HP:0003002")).toBeInTheDocument()
+    // HPO labels are shown first; unlabeled legacy terms still show their ID.
+    expect(screen.getByText("Breast carcinoma (HP:0003002)")).toBeInTheDocument()
+    expect(screen.getByText("HP:0002894")).toBeInTheDocument()
   })
 
   it("shows Literature stub tab", async () => {

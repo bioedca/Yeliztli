@@ -177,6 +177,38 @@ function renderGeneDetailPage() {
 // ── GeneDetailPage tests ──────────────────────────────────────────
 
 describe("GeneDetailPage", () => {
+  it("renders phenotype labels with their HPO accessions", () => {
+    mockGeneDetail({
+      gene_symbol: "BRCA1",
+      uniprot: null,
+      uniprot_error: null,
+      phenotypes: [
+        {
+          gene_symbol: "BRCA1",
+          disease_name: "Hereditary breast cancer",
+          disease_id: "MONDO:0005012",
+          source: "mondo_hpo",
+          hpo_terms: ["HP:0003002", "HP:0003003"],
+          hpo_term_details: [
+            { id: "HP:0003002", name: "Breast carcinoma" },
+            { id: "HP:0003003", name: null },
+          ],
+          inheritance: "Autosomal dominant",
+          omim_link: null,
+        },
+      ],
+      literature: [],
+      literature_errors: [],
+      population_af: [],
+      variants: [],
+    })
+
+    renderGeneDetailPage()
+
+    expect(screen.getByText("Breast carcinoma (HP:0003002)")).toBeInTheDocument()
+    expect(screen.getByText("HP:0003003")).toBeInTheDocument()
+  })
+
   it("applies ClinVar severity text colors in the variants table", () => {
     mockGeneDetail({
       gene_symbol: "BRCA1",
