@@ -229,6 +229,7 @@ test('carried-only is safe by default and all-position opt-in is explicit (#1988
   page,
 }) => {
   const requests = await stubQueryBuilder(page)
+  await page.emulateMedia({ reducedMotion: 'reduce' })
   await page.goto('/query-builder?sample_id=1')
   await waitForReactHydration(page)
 
