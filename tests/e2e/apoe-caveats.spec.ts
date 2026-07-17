@@ -107,9 +107,14 @@ test.describe('APOE caveats (#781)', () => {
     await page.goto(`/apoe?sample_id=${SAMPLE_ID}`)
     await waitForReactHydration(page)
 
-    const gate = page.getByTestId('apoe-gate')
+    const disclosure = page.getByRole('region', { name: 'APOE disclosure gate' })
+    const gate = disclosure.getByTestId('apoe-gate')
+    await expect(disclosure).toBeVisible()
     await expect(gate).toBeVisible()
-    await expect(gate).not.toHaveAttribute('aria-describedby')
+    await expect(disclosure.getByRole('alertdialog')).toHaveCount(0)
+    await expect(
+      disclosure.getByRole('heading', { level: 2, name: APOE_DISCLAIMER.title }),
+    ).toBeVisible()
     await expect(gate).not.toContainText('**')
     await expect(
       gate.locator('strong').filter({ hasText: 'Important considerations before viewing:' }),

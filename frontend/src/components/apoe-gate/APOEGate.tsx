@@ -28,8 +28,6 @@ export default function APOEGate({
     <div
       className="max-w-2xl mx-auto"
       data-testid="apoe-gate"
-      role="alertdialog"
-      aria-labelledby="apoe-gate-title"
     >
       <div className="rounded-lg border-2 border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 p-6 shadow-sm">
         {/* Header */}
@@ -38,10 +36,7 @@ export default function APOEGate({
             <ShieldAlert className="h-6 w-6" />
           </div>
           <div>
-            <h2
-              id="apoe-gate-title"
-              className="text-lg font-semibold text-amber-900 dark:text-amber-200"
-            >
+            <h2 className="text-lg font-semibold text-amber-900 dark:text-amber-200">
               {disclaimer.title}
             </h2>
             <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">

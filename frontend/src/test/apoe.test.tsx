@@ -267,7 +267,7 @@ describe("APOEGate", () => {
     expect(screen.getByTestId("apoe-gate-accept")).toHaveTextContent("Processing...")
   })
 
-  it("has accessible role and labelling", () => {
+  it("uses native content semantics instead of an inline alert dialog", () => {
     render(
       <APOEGate
         disclaimer={DISCLAIMER}
@@ -276,9 +276,10 @@ describe("APOEGate", () => {
         isAcknowledging={false}
       />,
     )
-    expect(screen.getByRole("alertdialog")).toBeInTheDocument()
-    expect(screen.getByRole("alertdialog")).toHaveAttribute("aria-labelledby", "apoe-gate-title")
-    expect(screen.getByRole("alertdialog")).not.toHaveAttribute("aria-describedby")
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument()
+    expect(
+      screen.getByRole("heading", { level: 2, name: DISCLAIMER.title }),
+    ).toBeInTheDocument()
   })
 
   it("has test id for gate container", () => {
