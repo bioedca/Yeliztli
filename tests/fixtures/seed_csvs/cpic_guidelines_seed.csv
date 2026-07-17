@@ -1,67 +1,71 @@
-gene,drug,phenotype,recommendation,classification,guideline_url
-CYP2D6,codeine,Normal Metabolizer,Use label-recommended age- or weight-specific dosing.,A,https://cpicpgx.org/guidelines/guideline-for-codeine-and-cyp2d6/
-CYP2D6,codeine,Intermediate Metabolizer,Use label-recommended age- or weight-specific dosing.,A,https://cpicpgx.org/guidelines/guideline-for-codeine-and-cyp2d6/
-CYP2D6,codeine,Poor Metabolizer,Avoid codeine use. Alternative analgesics recommended.,A,https://cpicpgx.org/guidelines/guideline-for-codeine-and-cyp2d6/
-CYP2D6,tramadol,Poor Metabolizer,Avoid tramadol use due to lack of efficacy.,B,https://cpicpgx.org/guidelines/guideline-for-codeine-and-cyp2d6/
-CYP2C19,clopidogrel,Poor Metabolizer,Use alternative antiplatelet therapy.,A,https://cpicpgx.org/guidelines/guideline-for-clopidogrel-and-cyp2c19/
-CYP2D6,codeine,Ultrarapid Metabolizer,Avoid codeine use. Risk of fatal respiratory depression.,A,https://cpicpgx.org/guidelines/guideline-for-codeine-and-cyp2d6/
-CYP2D6,tramadol,Normal Metabolizer,Use label-recommended dosing.,B,https://cpicpgx.org/guidelines/guideline-for-codeine-and-cyp2d6/
-CYP2D6,tramadol,Intermediate Metabolizer,Use label-recommended dosing.,B,https://cpicpgx.org/guidelines/guideline-for-codeine-and-cyp2d6/
-CYP2D6,tramadol,Ultrarapid Metabolizer,Avoid tramadol. Risk of respiratory depression.,B,https://cpicpgx.org/guidelines/guideline-for-codeine-and-cyp2d6/
-CYP2D6,ondansetron,Ultrarapid Metabolizer,Select alternative antiemetic not metabolized by CYP2D6.,B,https://cpicpgx.org/guidelines/guideline-for-ondansetron-and-cyp2d6/
-CYP2D6,ondansetron,Normal Metabolizer,Use label-recommended dosing.,B,https://cpicpgx.org/guidelines/guideline-for-ondansetron-and-cyp2d6/
-CYP2D6,ondansetron,Intermediate Metabolizer,Use label-recommended dosing.,B,https://cpicpgx.org/guidelines/guideline-for-ondansetron-and-cyp2d6/
-CYP2D6,ondansetron,Poor Metabolizer,Use label-recommended dosing.,B,https://cpicpgx.org/guidelines/guideline-for-ondansetron-and-cyp2d6/
-CYP2D6,tamoxifen,Normal Metabolizer,Use label-recommended dosing.,A,https://cpicpgx.org/guidelines/cpic-guideline-for-tamoxifen-based-on-cyp2d6/
-CYP2D6,tamoxifen,Intermediate Metabolizer,Consider higher dose or alternative therapy.,A,https://cpicpgx.org/guidelines/cpic-guideline-for-tamoxifen-based-on-cyp2d6/
-CYP2D6,tamoxifen,Poor Metabolizer,Avoid tamoxifen. Use alternative hormonal therapy such as aromatase inhibitor.,A,https://cpicpgx.org/guidelines/cpic-guideline-for-tamoxifen-based-on-cyp2d6/
-CYP2C19,clopidogrel,Normal Metabolizer,Use label-recommended dosing.,A,https://cpicpgx.org/guidelines/guideline-for-clopidogrel-and-cyp2c19/
-CYP2C19,clopidogrel,Intermediate Metabolizer,Consider alternative antiplatelet therapy.,A,https://cpicpgx.org/guidelines/guideline-for-clopidogrel-and-cyp2c19/
-CYP2C19,clopidogrel,Rapid Metabolizer,Use label-recommended dosing.,A,https://cpicpgx.org/guidelines/guideline-for-clopidogrel-and-cyp2c19/
-CYP2C19,clopidogrel,Ultrarapid Metabolizer,Use label-recommended dosing.,A,https://cpicpgx.org/guidelines/guideline-for-clopidogrel-and-cyp2c19/
-CYP2C19,voriconazole,Normal Metabolizer,Use label-recommended dosing.,A,https://cpicpgx.org/guidelines/guideline-for-voriconazole-and-cyp2c19/
-CYP2C19,voriconazole,Intermediate Metabolizer,Use label-recommended dosing with therapeutic drug monitoring.,A,https://cpicpgx.org/guidelines/guideline-for-voriconazole-and-cyp2c19/
-CYP2C19,voriconazole,Poor Metabolizer,Use alternative antifungal agent.,A,https://cpicpgx.org/guidelines/guideline-for-voriconazole-and-cyp2c19/
-CYP2C19,voriconazole,Rapid Metabolizer,Use alternative antifungal agent or increase dose with TDM.,A,https://cpicpgx.org/guidelines/guideline-for-voriconazole-and-cyp2c19/
-CYP2C19,voriconazole,Ultrarapid Metabolizer,Use alternative antifungal agent or increase dose with TDM.,A,https://cpicpgx.org/guidelines/guideline-for-voriconazole-and-cyp2c19/
-CYP2C9,warfarin,Normal Metabolizer,Use label-recommended dosing algorithm.,A,https://cpicpgx.org/guidelines/guideline-for-warfarin-and-cyp2c9-and-vkorc1/
-CYP2C9,warfarin,Intermediate Metabolizer,Use a validated warfarin pharmacogenetic dosing algorithm with VKORC1 and clinical factors; CYP2C9 status is one input and not a standalone percent dose rule.,A,https://cpicpgx.org/guidelines/guideline-for-warfarin-and-cyp2c9-and-vkorc1/
-CYP2C9,warfarin,Poor Metabolizer,Use a validated warfarin pharmacogenetic dosing algorithm with VKORC1 and clinical factors; CYP2C9 poor-metabolizer status is not a standalone percent dose rule and may support alternative anticoagulant review.,A,https://cpicpgx.org/guidelines/guideline-for-warfarin-and-cyp2c9-and-vkorc1/
-CYP2C9,phenytoin,Normal Metabolizer,Use label-recommended dosing.,A,https://cpicpgx.org/guidelines/guideline-for-phenytoin-and-cyp2c9/
-CYP2C9,phenytoin,Intermediate Metabolizer,Reduce dose by 25%. Increase monitoring.,A,https://cpicpgx.org/guidelines/guideline-for-phenytoin-and-cyp2c9/
-CYP2C9,phenytoin,Poor Metabolizer,Reduce dose by 50%. Consider alternative anticonvulsant.,A,https://cpicpgx.org/guidelines/guideline-for-phenytoin-and-cyp2c9/
-CYP3A5,tacrolimus,Normal Metabolizer,Increase starting dose by 1.5-2x. Monitor trough concentrations.,A,https://cpicpgx.org/guidelines/guideline-for-tacrolimus-and-cyp3a5/
-CYP3A5,tacrolimus,Intermediate Metabolizer,Increase starting dose by 1.5x. Monitor trough concentrations.,A,https://cpicpgx.org/guidelines/guideline-for-tacrolimus-and-cyp3a5/
-CYP3A5,tacrolimus,Poor Metabolizer,Use label-recommended dosing. Monitor trough concentrations.,A,https://cpicpgx.org/guidelines/guideline-for-tacrolimus-and-cyp3a5/
-DPYD,fluorouracil,Normal Metabolizer,Use label-recommended dosing.,A,https://cpicpgx.org/guidelines/guideline-for-fluoropyrimidines-and-dpyd/
-DPYD,fluorouracil,Intermediate Metabolizer,Reduce dose by 50%. Titrate based on toxicity and efficacy.,A,https://cpicpgx.org/guidelines/guideline-for-fluoropyrimidines-and-dpyd/
-DPYD,fluorouracil,Poor Metabolizer,Avoid fluorouracil and capecitabine. Use alternative chemotherapy.,A,https://cpicpgx.org/guidelines/guideline-for-fluoropyrimidines-and-dpyd/
-DPYD,capecitabine,Normal Metabolizer,Use label-recommended dosing.,A,https://cpicpgx.org/guidelines/guideline-for-fluoropyrimidines-and-dpyd/
-DPYD,capecitabine,Intermediate Metabolizer,Reduce dose by 50%. Monitor closely.,A,https://cpicpgx.org/guidelines/guideline-for-fluoropyrimidines-and-dpyd/
-DPYD,capecitabine,Poor Metabolizer,Avoid capecitabine. Use alternative chemotherapy.,A,https://cpicpgx.org/guidelines/guideline-for-fluoropyrimidines-and-dpyd/
-TPMT,mercaptopurine,Normal Metabolizer,Use label-recommended dosing.,A,https://cpicpgx.org/guidelines/guideline-for-thiopurines-and-tpmt/
-TPMT,mercaptopurine,Intermediate Metabolizer,Start at 30-70% of target dose. Titrate based on tolerance.,A,https://cpicpgx.org/guidelines/guideline-for-thiopurines-and-tpmt/
-TPMT,mercaptopurine,Poor Metabolizer,Reduce dose to 10% of standard. Consider alternative agent.,A,https://cpicpgx.org/guidelines/guideline-for-thiopurines-and-tpmt/
-TPMT,azathioprine,Normal Metabolizer,Use label-recommended dosing.,A,https://cpicpgx.org/guidelines/guideline-for-thiopurines-and-tpmt/
-TPMT,azathioprine,Intermediate Metabolizer,Start at 30-70% of target dose. Titrate based on tolerance.,A,https://cpicpgx.org/guidelines/guideline-for-thiopurines-and-tpmt/
-TPMT,azathioprine,Poor Metabolizer,Reduce dose to 10% of standard or use alternative agent.,A,https://cpicpgx.org/guidelines/guideline-for-thiopurines-and-tpmt/
-SLCO1B1,simvastatin,Normal function,Use label-recommended dosing.,A,https://cpicpgx.org/guidelines/guideline-for-simvastatin-and-slco1b1/
-SLCO1B1,simvastatin,Decreased function,Use lower dose or alternative statin. Avoid 80mg dose.,A,https://cpicpgx.org/guidelines/guideline-for-simvastatin-and-slco1b1/
-SLCO1B1,simvastatin,Poor function,Avoid simvastatin. Use alternative statin such as pravastatin or rosuvastatin.,A,https://cpicpgx.org/guidelines/guideline-for-simvastatin-and-slco1b1/
-NUDT15,mercaptopurine,Normal Metabolizer,Use label-recommended dosing.,A,https://cpicpgx.org/guidelines/guideline-for-thiopurines-and-tpmt-and-nudt15/
-NUDT15,mercaptopurine,Intermediate Metabolizer,Start at 30-80% of target dose and titrate based on tolerance.,A,https://cpicpgx.org/guidelines/guideline-for-thiopurines-and-tpmt-and-nudt15/
-NUDT15,mercaptopurine,Poor Metabolizer,Drastically reduce starting dose or select an alternative agent; monitor for myelosuppression.,A,https://cpicpgx.org/guidelines/guideline-for-thiopurines-and-tpmt-and-nudt15/
-NUDT15,azathioprine,Normal Metabolizer,Use label-recommended dosing.,A,https://cpicpgx.org/guidelines/guideline-for-thiopurines-and-tpmt-and-nudt15/
-NUDT15,azathioprine,Intermediate Metabolizer,Start at 30-80% of target dose and titrate based on tolerance.,A,https://cpicpgx.org/guidelines/guideline-for-thiopurines-and-tpmt-and-nudt15/
-NUDT15,azathioprine,Poor Metabolizer,Drastically reduce starting dose or select an alternative agent; monitor for myelosuppression.,A,https://cpicpgx.org/guidelines/guideline-for-thiopurines-and-tpmt-and-nudt15/
-UGT1A1,atazanavir,Normal Metabolizer,Use label-recommended dosing.,A,https://cpicpgx.org/guidelines/guideline-for-atazanavir-and-ugt1a1/
-UGT1A1,atazanavir,Intermediate Metabolizer,Use label-recommended dosing; low likelihood of bilirubin-related discontinuation.,A,https://cpicpgx.org/guidelines/guideline-for-atazanavir-and-ugt1a1/
-UGT1A1,atazanavir,Poor Metabolizer,Consider an alternative agent; risk of jaundice/hyperbilirubinemia may reduce adherence.,A,https://cpicpgx.org/guidelines/guideline-for-atazanavir-and-ugt1a1/
-UGT1A1,irinotecan,Normal Metabolizer,Use label-recommended dosing.,B,https://www.fda.gov/medical-devices/precision-medicine/table-pharmacogenetic-associations
-UGT1A1,irinotecan,Intermediate Metabolizer,Use label-recommended starting dose; consider reduction for high-dose regimens.,B,https://www.fda.gov/medical-devices/precision-medicine/table-pharmacogenetic-associations
-UGT1A1,irinotecan,Poor Metabolizer,"Reduce the irinotecan starting dose (e.g., by ~30%) and monitor for neutropenia/diarrhea.",B,https://www.fda.gov/medical-devices/precision-medicine/table-pharmacogenetic-associations
-CYP2B6,efavirenz,Normal Metabolizer,Use label-recommended dosing (600 mg/day).,A,https://cpicpgx.org/guidelines/cpic-guideline-for-efavirenz-based-on-cyp2b6-genotype/
-CYP2B6,efavirenz,Intermediate Metabolizer,Use label-recommended dosing; consider a reduced dose if CNS side effects occur.,A,https://cpicpgx.org/guidelines/cpic-guideline-for-efavirenz-based-on-cyp2b6-genotype/
-CYP2B6,efavirenz,Poor Metabolizer,"Consider initiating at a decreased dose (e.g., 400 mg/day); higher plasma exposure raises CNS-toxicity risk.",A,https://cpicpgx.org/guidelines/cpic-guideline-for-efavirenz-based-on-cyp2b6-genotype/
-CYP2B6,efavirenz,Rapid Metabolizer,Use label-recommended dosing (600 mg/day).,A,https://cpicpgx.org/guidelines/cpic-guideline-for-efavirenz-based-on-cyp2b6-genotype/
-CYP2B6,efavirenz,Ultrarapid Metabolizer,Use label-recommended dosing (600 mg/day).,A,https://cpicpgx.org/guidelines/cpic-guideline-for-efavirenz-based-on-cyp2b6-genotype/
+gene,drug,phenotype,activity_score,recommendation,classification,guideline_url
+CYP2D6,codeine,Normal Metabolizer,,Use label-recommended age- or weight-specific dosing.,A,https://cpicpgx.org/guidelines/guideline-for-codeine-and-cyp2d6/
+CYP2D6,codeine,Intermediate Metabolizer,,Use label-recommended age- or weight-specific dosing.,A,https://cpicpgx.org/guidelines/guideline-for-codeine-and-cyp2d6/
+CYP2D6,codeine,Poor Metabolizer,,Avoid codeine use. Alternative analgesics recommended.,A,https://cpicpgx.org/guidelines/guideline-for-codeine-and-cyp2d6/
+CYP2D6,tramadol,Poor Metabolizer,,Avoid tramadol use due to lack of efficacy.,B,https://cpicpgx.org/guidelines/guideline-for-codeine-and-cyp2d6/
+CYP2C19,clopidogrel,Poor Metabolizer,,Use alternative antiplatelet therapy.,A,https://cpicpgx.org/guidelines/guideline-for-clopidogrel-and-cyp2c19/
+CYP2D6,codeine,Ultrarapid Metabolizer,,Avoid codeine use. Risk of fatal respiratory depression.,A,https://cpicpgx.org/guidelines/guideline-for-codeine-and-cyp2d6/
+CYP2D6,tramadol,Normal Metabolizer,,Use label-recommended dosing.,B,https://cpicpgx.org/guidelines/guideline-for-codeine-and-cyp2d6/
+CYP2D6,tramadol,Intermediate Metabolizer,,Use label-recommended dosing.,B,https://cpicpgx.org/guidelines/guideline-for-codeine-and-cyp2d6/
+CYP2D6,tramadol,Ultrarapid Metabolizer,,Avoid tramadol. Risk of respiratory depression.,B,https://cpicpgx.org/guidelines/guideline-for-codeine-and-cyp2d6/
+CYP2D6,ondansetron,Ultrarapid Metabolizer,,Select alternative antiemetic not metabolized by CYP2D6.,B,https://cpicpgx.org/guidelines/guideline-for-ondansetron-and-cyp2d6/
+CYP2D6,ondansetron,Normal Metabolizer,,Use label-recommended dosing.,B,https://cpicpgx.org/guidelines/guideline-for-ondansetron-and-cyp2d6/
+CYP2D6,ondansetron,Intermediate Metabolizer,,Use label-recommended dosing.,B,https://cpicpgx.org/guidelines/guideline-for-ondansetron-and-cyp2d6/
+CYP2D6,ondansetron,Poor Metabolizer,,Use label-recommended dosing.,B,https://cpicpgx.org/guidelines/guideline-for-ondansetron-and-cyp2d6/
+CYP2D6,tamoxifen,Normal Metabolizer,,Use label-recommended dosing.,A,https://cpicpgx.org/guidelines/cpic-guideline-for-tamoxifen-based-on-cyp2d6/
+CYP2D6,tamoxifen,Intermediate Metabolizer,,Consider higher dose or alternative therapy.,A,https://cpicpgx.org/guidelines/cpic-guideline-for-tamoxifen-based-on-cyp2d6/
+CYP2D6,tamoxifen,Poor Metabolizer,,Avoid tamoxifen. Use alternative hormonal therapy such as aromatase inhibitor.,A,https://cpicpgx.org/guidelines/cpic-guideline-for-tamoxifen-based-on-cyp2d6/
+CYP2C19,clopidogrel,Normal Metabolizer,,Use label-recommended dosing.,A,https://cpicpgx.org/guidelines/guideline-for-clopidogrel-and-cyp2c19/
+CYP2C19,clopidogrel,Intermediate Metabolizer,,Consider alternative antiplatelet therapy.,A,https://cpicpgx.org/guidelines/guideline-for-clopidogrel-and-cyp2c19/
+CYP2C19,clopidogrel,Rapid Metabolizer,,Use label-recommended dosing.,A,https://cpicpgx.org/guidelines/guideline-for-clopidogrel-and-cyp2c19/
+CYP2C19,clopidogrel,Ultrarapid Metabolizer,,Use label-recommended dosing.,A,https://cpicpgx.org/guidelines/guideline-for-clopidogrel-and-cyp2c19/
+CYP2C19,voriconazole,Normal Metabolizer,,Use label-recommended dosing.,A,https://cpicpgx.org/guidelines/guideline-for-voriconazole-and-cyp2c19/
+CYP2C19,voriconazole,Intermediate Metabolizer,,Use label-recommended dosing with therapeutic drug monitoring.,A,https://cpicpgx.org/guidelines/guideline-for-voriconazole-and-cyp2c19/
+CYP2C19,voriconazole,Poor Metabolizer,,Use alternative antifungal agent.,A,https://cpicpgx.org/guidelines/guideline-for-voriconazole-and-cyp2c19/
+CYP2C19,voriconazole,Rapid Metabolizer,,Use alternative antifungal agent or increase dose with TDM.,A,https://cpicpgx.org/guidelines/guideline-for-voriconazole-and-cyp2c19/
+CYP2C19,voriconazole,Ultrarapid Metabolizer,,Use alternative antifungal agent or increase dose with TDM.,A,https://cpicpgx.org/guidelines/guideline-for-voriconazole-and-cyp2c19/
+CYP2C9,warfarin,Normal Metabolizer,,Use label-recommended dosing algorithm.,A,https://cpicpgx.org/guidelines/guideline-for-warfarin-and-cyp2c9-and-vkorc1/
+CYP2C9,warfarin,Intermediate Metabolizer,,Use a validated warfarin pharmacogenetic dosing algorithm with VKORC1 and clinical factors; CYP2C9 status is one input and not a standalone percent dose rule.,A,https://cpicpgx.org/guidelines/guideline-for-warfarin-and-cyp2c9-and-vkorc1/
+CYP2C9,warfarin,Poor Metabolizer,,Use a validated warfarin pharmacogenetic dosing algorithm with VKORC1 and clinical factors; CYP2C9 poor-metabolizer status is not a standalone percent dose rule and may support alternative anticoagulant review.,A,https://cpicpgx.org/guidelines/guideline-for-warfarin-and-cyp2c9-and-vkorc1/
+CYP2C9,phenytoin,Normal Metabolizer,,Use label-recommended dosing.,A,https://cpicpgx.org/guidelines/guideline-for-phenytoin-and-cyp2c9/
+CYP2C9,phenytoin,Intermediate Metabolizer,,Reduce dose by 25%. Increase monitoring.,A,https://cpicpgx.org/guidelines/guideline-for-phenytoin-and-cyp2c9/
+CYP2C9,phenytoin,Poor Metabolizer,,Reduce dose by 50%. Consider alternative anticonvulsant.,A,https://cpicpgx.org/guidelines/guideline-for-phenytoin-and-cyp2c9/
+CYP3A5,tacrolimus,Normal Metabolizer,,Increase starting dose by 1.5-2x. Monitor trough concentrations.,A,https://cpicpgx.org/guidelines/guideline-for-tacrolimus-and-cyp3a5/
+CYP3A5,tacrolimus,Intermediate Metabolizer,,Increase starting dose by 1.5x. Monitor trough concentrations.,A,https://cpicpgx.org/guidelines/guideline-for-tacrolimus-and-cyp3a5/
+CYP3A5,tacrolimus,Poor Metabolizer,,Use label-recommended dosing. Monitor trough concentrations.,A,https://cpicpgx.org/guidelines/guideline-for-tacrolimus-and-cyp3a5/
+DPYD,fluorouracil,Normal Metabolizer,2.0,Use label-recommended dosing.,A,https://cpicpgx.org/guidelines/guideline-for-fluoropyrimidines-and-dpyd/
+DPYD,fluorouracil,Intermediate Metabolizer,1.5,"Reduce starting dose by 50%, then titrate to toxicity/efficacy (or therapeutic drug monitoring, if available).",A,https://cpicpgx.org/guidelines/guideline-for-fluoropyrimidines-and-dpyd/
+DPYD,fluorouracil,Intermediate Metabolizer,1.0,"Reduce starting dose by 50%, then titrate to toxicity/efficacy. The c.2846A>T/c.2846A>T genotype may require a >50% reduction.",A,https://cpicpgx.org/guidelines/guideline-for-fluoropyrimidines-and-dpyd/
+DPYD,fluorouracil,Poor Metabolizer,0.5,"Avoid fluorouracil and capecitabine. If alternatives are unsuitable, a strongly reduced dose with early therapeutic drug monitoring may be considered.",A,https://cpicpgx.org/guidelines/guideline-for-fluoropyrimidines-and-dpyd/
+DPYD,fluorouracil,Poor Metabolizer,0.0,Avoid fluorouracil and capecitabine. Use alternative chemotherapy.,A,https://cpicpgx.org/guidelines/guideline-for-fluoropyrimidines-and-dpyd/
+DPYD,capecitabine,Normal Metabolizer,2.0,Use label-recommended dosing.,A,https://cpicpgx.org/guidelines/guideline-for-fluoropyrimidines-and-dpyd/
+DPYD,capecitabine,Intermediate Metabolizer,1.5,"Reduce starting dose by 50%, then titrate to toxicity/efficacy (or therapeutic drug monitoring, if available).",A,https://cpicpgx.org/guidelines/guideline-for-fluoropyrimidines-and-dpyd/
+DPYD,capecitabine,Intermediate Metabolizer,1.0,"Reduce starting dose by 50%, then titrate to toxicity/efficacy. The c.2846A>T/c.2846A>T genotype may require a >50% reduction.",A,https://cpicpgx.org/guidelines/guideline-for-fluoropyrimidines-and-dpyd/
+DPYD,capecitabine,Poor Metabolizer,0.5,"Avoid capecitabine. If alternatives are unsuitable, a strongly reduced dose with early therapeutic drug monitoring may be considered.",A,https://cpicpgx.org/guidelines/guideline-for-fluoropyrimidines-and-dpyd/
+DPYD,capecitabine,Poor Metabolizer,0.0,Avoid capecitabine. Use alternative chemotherapy.,A,https://cpicpgx.org/guidelines/guideline-for-fluoropyrimidines-and-dpyd/
+TPMT,mercaptopurine,Normal Metabolizer,,Use label-recommended dosing.,A,https://cpicpgx.org/guidelines/guideline-for-thiopurines-and-tpmt/
+TPMT,mercaptopurine,Intermediate Metabolizer,,Start at 30-70% of target dose. Titrate based on tolerance.,A,https://cpicpgx.org/guidelines/guideline-for-thiopurines-and-tpmt/
+TPMT,mercaptopurine,Poor Metabolizer,,Reduce dose to 10% of standard. Consider alternative agent.,A,https://cpicpgx.org/guidelines/guideline-for-thiopurines-and-tpmt/
+TPMT,azathioprine,Normal Metabolizer,,Use label-recommended dosing.,A,https://cpicpgx.org/guidelines/guideline-for-thiopurines-and-tpmt/
+TPMT,azathioprine,Intermediate Metabolizer,,Start at 30-70% of target dose. Titrate based on tolerance.,A,https://cpicpgx.org/guidelines/guideline-for-thiopurines-and-tpmt/
+TPMT,azathioprine,Poor Metabolizer,,Reduce dose to 10% of standard or use alternative agent.,A,https://cpicpgx.org/guidelines/guideline-for-thiopurines-and-tpmt/
+SLCO1B1,simvastatin,Normal function,,Use label-recommended dosing.,A,https://cpicpgx.org/guidelines/guideline-for-simvastatin-and-slco1b1/
+SLCO1B1,simvastatin,Decreased function,,Use lower dose or alternative statin. Avoid 80mg dose.,A,https://cpicpgx.org/guidelines/guideline-for-simvastatin-and-slco1b1/
+SLCO1B1,simvastatin,Poor function,,Avoid simvastatin. Use alternative statin such as pravastatin or rosuvastatin.,A,https://cpicpgx.org/guidelines/guideline-for-simvastatin-and-slco1b1/
+NUDT15,mercaptopurine,Normal Metabolizer,,Use label-recommended dosing.,A,https://cpicpgx.org/guidelines/guideline-for-thiopurines-and-tpmt-and-nudt15/
+NUDT15,mercaptopurine,Intermediate Metabolizer,,Start at 30-80% of target dose and titrate based on tolerance.,A,https://cpicpgx.org/guidelines/guideline-for-thiopurines-and-tpmt-and-nudt15/
+NUDT15,mercaptopurine,Poor Metabolizer,,Drastically reduce starting dose or select an alternative agent; monitor for myelosuppression.,A,https://cpicpgx.org/guidelines/guideline-for-thiopurines-and-tpmt-and-nudt15/
+NUDT15,azathioprine,Normal Metabolizer,,Use label-recommended dosing.,A,https://cpicpgx.org/guidelines/guideline-for-thiopurines-and-tpmt-and-nudt15/
+NUDT15,azathioprine,Intermediate Metabolizer,,Start at 30-80% of target dose and titrate based on tolerance.,A,https://cpicpgx.org/guidelines/guideline-for-thiopurines-and-tpmt-and-nudt15/
+NUDT15,azathioprine,Poor Metabolizer,,Drastically reduce starting dose or select an alternative agent; monitor for myelosuppression.,A,https://cpicpgx.org/guidelines/guideline-for-thiopurines-and-tpmt-and-nudt15/
+UGT1A1,atazanavir,Normal Metabolizer,,Use label-recommended dosing.,A,https://cpicpgx.org/guidelines/guideline-for-atazanavir-and-ugt1a1/
+UGT1A1,atazanavir,Intermediate Metabolizer,,Use label-recommended dosing; low likelihood of bilirubin-related discontinuation.,A,https://cpicpgx.org/guidelines/guideline-for-atazanavir-and-ugt1a1/
+UGT1A1,atazanavir,Poor Metabolizer,,Consider an alternative agent; risk of jaundice/hyperbilirubinemia may reduce adherence.,A,https://cpicpgx.org/guidelines/guideline-for-atazanavir-and-ugt1a1/
+UGT1A1,irinotecan,Normal Metabolizer,,Use label-recommended dosing.,B,https://www.fda.gov/medical-devices/precision-medicine/table-pharmacogenetic-associations
+UGT1A1,irinotecan,Intermediate Metabolizer,,Use label-recommended starting dose; consider reduction for high-dose regimens.,B,https://www.fda.gov/medical-devices/precision-medicine/table-pharmacogenetic-associations
+UGT1A1,irinotecan,Poor Metabolizer,,"Reduce the irinotecan starting dose (e.g., by ~30%) and monitor for neutropenia/diarrhea.",B,https://www.fda.gov/medical-devices/precision-medicine/table-pharmacogenetic-associations
+CYP2B6,efavirenz,Normal Metabolizer,,Use label-recommended dosing (600 mg/day).,A,https://cpicpgx.org/guidelines/cpic-guideline-for-efavirenz-based-on-cyp2b6-genotype/
+CYP2B6,efavirenz,Intermediate Metabolizer,,Use label-recommended dosing; consider a reduced dose if CNS side effects occur.,A,https://cpicpgx.org/guidelines/cpic-guideline-for-efavirenz-based-on-cyp2b6-genotype/
+CYP2B6,efavirenz,Poor Metabolizer,,"Consider initiating at a decreased dose (e.g., 400 mg/day); higher plasma exposure raises CNS-toxicity risk.",A,https://cpicpgx.org/guidelines/cpic-guideline-for-efavirenz-based-on-cyp2b6-genotype/
+CYP2B6,efavirenz,Rapid Metabolizer,,Use label-recommended dosing (600 mg/day).,A,https://cpicpgx.org/guidelines/cpic-guideline-for-efavirenz-based-on-cyp2b6-genotype/
+CYP2B6,efavirenz,Ultrarapid Metabolizer,,Use label-recommended dosing (600 mg/day).,A,https://cpicpgx.org/guidelines/cpic-guideline-for-efavirenz-based-on-cyp2b6-genotype/

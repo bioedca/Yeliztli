@@ -288,6 +288,12 @@ cpic_guidelines = sa.Table(
     sa.Column("gene", sa.Text, nullable=False),
     sa.Column("drug", sa.Text, nullable=False),
     sa.Column("phenotype", sa.Text, nullable=False),
+    # CPIC keys some recommendations on the gene activity score, not the
+    # phenotype label alone — DPYD splits both Intermediate (AS 1.5 vs 1.0) and
+    # Poor (AS 0.5 vs 0.0) into distinct dosing advice (#1993). NULL for genes
+    # CPIC keys by phenotype; the lookup prefers an AS match, then falls back to
+    # the phenotype for NULL rows.
+    sa.Column("activity_score", sa.Float),
     sa.Column("recommendation", sa.Text),
     sa.Column("classification", sa.Text, comment="e.g. A, B, C, D"),
     sa.Column("guideline_url", sa.Text),

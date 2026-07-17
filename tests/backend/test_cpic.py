@@ -196,6 +196,7 @@ class TestParseGuidelinesCSV:
             "gene",
             "drug",
             "phenotype",
+            "activity_score",
             "recommendation",
             "classification",
             "guideline_url",
@@ -224,9 +225,11 @@ class TestParseGuidelinesCSV:
     def test_parse_seed_file(self):
         rows, stats = parse_cpic_guidelines_csv(SEED_DIR / "cpic_guidelines_seed.csv")
 
-        # E1 (61) + CYP2B6 efavirenz (5): Normal/IM/PM + Rapid/Ultrarapid (#1985)
-        assert len(rows) == 66
-        assert stats.guidelines_loaded == 66
+        # E1 (61) + CYP2B6 efavirenz (5): Normal/IM/PM + Rapid/Ultrarapid (#1985),
+        # then DPYD's 6 phenotype rows re-derived to 10 activity-score rows (#1993:
+        # 5 AS values x 2 drugs) → +4.
+        assert len(rows) == 70
+        assert stats.guidelines_loaded == 70
         assert stats.guidelines_skipped == 0
 
     def test_first_row_structure(self):

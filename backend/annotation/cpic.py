@@ -112,6 +112,7 @@ class CPICGuideline:
     gene: str
     drug: str
     phenotype: str
+    activity_score: float | None = None
     recommendation: str | None = None
     classification: str | None = None
     guideline_url: str | None = None
@@ -155,6 +156,7 @@ def _guideline_to_dict(record: CPICGuideline) -> dict:
         "gene": record.gene,
         "drug": record.drug,
         "phenotype": record.phenotype,
+        "activity_score": record.activity_score,
         "recommendation": record.recommendation,
         "classification": record.classification,
         "guideline_url": record.guideline_url,
@@ -272,7 +274,9 @@ def parse_cpic_guidelines_csv(
 ) -> tuple[list[dict], CPICLoadStats]:
     """Parse a CPIC drug guidelines CSV file.
 
-    Expected columns: gene, drug, phenotype, recommendation, classification, guideline_url
+    Expected columns: gene, drug, phenotype, activity_score, recommendation,
+    classification, guideline_url (activity_score optional/blank for genes CPIC
+    keys by phenotype)
 
     Args:
         csv_path: Path to the guidelines CSV.
@@ -299,6 +303,7 @@ def parse_cpic_guidelines_csv(
                 gene=gene,
                 drug=drug,
                 phenotype=phenotype,
+                activity_score=_parse_float(row.get("activity_score", "")),
                 recommendation=row.get("recommendation", "").strip() or None,
                 classification=row.get("classification", "").strip() or None,
                 guideline_url=row.get("guideline_url", "").strip() or None,
