@@ -166,6 +166,11 @@ async function stubQueryBuilder(
   await page.route(/\/api\/saved-queries(\?|$)/, (route) =>
     route.fulfill(jsonRoute({ queries: [] })),
   )
+  await page.route(/\/api\/preferences\/theme$/, (route) => {
+    if (route.request().method() !== 'PUT') return route.fallback()
+    const { theme } = route.request().postDataJSON() as { theme: string }
+    return route.fulfill(jsonRoute({ theme }))
+  })
   await page.route(/\/api\/query$/, async (route) => {
     if (route.request().method() !== 'POST') return route.fallback()
     const body = route.request().postDataJSON() as QueryBody
@@ -183,6 +188,7 @@ async function stubQueryBuilder(
     return route.fulfill(jsonRoute(reply.payload, reply.status))
   })
   await page.route(/\/api\/export\/query$/, async (route) => {
+    if (route.request().method() !== 'POST') return route.fallback()
     const body = route.request().postDataJSON() as QueryBody
     exportBodies.push(body)
     if (exportResponder) {
@@ -269,7 +275,8 @@ test('carried-only is safe by default and all-position opt-in is explicit (#1988
   await expect(page.getByText('rs_unresolved_pathogenic')).toBeVisible()
   await expect(page.getByText('Not carried · homozygous reference')).toBeVisible()
   await expect(page.getByText('Unresolved', { exact: true })).toBeVisible()
-  await expect(page.getByText(/matching annotated positions/i)).toBeVisible()
+  const resultSummary = page.getByText(/matching annotated positions/i)
+  await expect(resultSummary).toBeVisible()
 
   const nonCarriedRow = page.locator('[data-carriage-status="not_carried"]')
   const nonCarriedClinvar = nonCarriedRow
@@ -291,10 +298,24 @@ test('carried-only is safe by default and all-position opt-in is explicit (#1988
     /alternate-allele carriage is unresolved/i,
   )
 
+  const themeToggle = page.getByTestId('theme-toggle')
+  await expect(themeToggle).toHaveAccessibleName('Theme: system')
   for (const theme of ['light', 'dark'] as const) {
-    await page.evaluate((nextTheme) => {
-      document.documentElement.classList.toggle('dark', nextTheme === 'dark')
-    }, theme)
+    await themeToggle.click()
+    await expect(themeToggle).toHaveAccessibleName(`Theme: ${theme}`)
+    const expectedColors =
+      theme === 'dark'
+        ? { foreground: 'rgb(248, 250, 252)', mutedForeground: 'rgb(148, 163, 184)' }
+        : { foreground: 'rgb(2, 8, 23)', mutedForeground: 'rgb(79, 91, 109)' }
+
+    // Drive the stateful ThemeContext path instead of racing it with a direct
+    // root-class mutation. Wait for both semantic tokens before axe samples
+    // contrast so WebKit cannot observe a mixed-theme frame.
+    await expect(resultSummary).toHaveCSS('color', expectedColors.foreground)
+    await expect(nonCarriedRow.getByTestId('query-rsid-cell')).toHaveCSS(
+      'color',
+      expectedColors.mutedForeground,
+    )
     const accessibility = await new AxeBuilder({ page })
       .include('[data-testid="include-all-positions"]')
       .include('[aria-label="Query results"]')

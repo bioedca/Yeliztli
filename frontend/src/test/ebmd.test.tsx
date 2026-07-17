@@ -86,4 +86,25 @@ describe("EBMDView", () => {
       "Coverage split: 85 typed + 5 imputed SNPs",
     )
   })
+
+  it("renders the stored eBMD score while the run re-runs (#1992)", () => {
+    // The stored score is present; the ~190 s background re-score must not gate
+    // it behind the full-page spinner.
+    mockUseRunEbmd.mockReturnValue(q({ mutate: mockRunMutate, isPending: true }))
+    render(<EBMDView />)
+
+    expect(screen.getByText("Heel eBMD")).toBeInTheDocument()
+    expect(screen.queryByText("Scoring eBMD polygenic risk...")).not.toBeInTheDocument()
+  })
+
+  it("keeps the stored eBMD score when the background run fails (#1992)", () => {
+    mockUseRunEbmd.mockReturnValue(
+      q({ mutate: mockRunMutate, isError: true, error: new Error("eBMD run failed: 500") }),
+    )
+    render(<EBMDView />)
+
+    expect(screen.getByText("Heel eBMD")).toBeInTheDocument()
+    expect(screen.queryByText("eBMD run failed: 500")).not.toBeInTheDocument()
+    expect(screen.queryByText("Failed to load eBMD score.")).not.toBeInTheDocument()
+  })
 })
