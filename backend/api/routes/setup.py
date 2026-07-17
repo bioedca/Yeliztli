@@ -656,9 +656,10 @@ def _upgrade_restored_sample_db(sample_db_path: Path) -> None:
     """Run the three-step idempotent post-restore upgrade on one sample DB.
 
     Per Plan §7.6:
-      1. ``_add_missing_columns(engine, from_version)`` forward-migrates.
-      2. ``sample_metadata_obj.create_all(engine, checkfirst=True)`` adds
+      1. ``sample_metadata_obj.create_all(engine, checkfirst=True)`` adds
          tables that pre-Phase-0 backups never had (e.g. ``annotation_state``).
+      2. ``_add_missing_columns(engine, from_version)`` forward-migrates schema
+         and content now that migration-state tables are available.
       3. Reapplies migration 008 backfill semantics:
          ``INSERT OR IGNORE`` ``vep_bundle_version='v1.0.0'``.
 
@@ -673,8 +674,8 @@ def _upgrade_restored_sample_db(sample_db_path: Path) -> None:
         engine = make_sqlite_engine(sample_db_path, wal=False)
         try:
             from_version = _get_schema_version(engine)
-            _add_missing_columns(engine, from_version)
             sample_metadata_obj.create_all(engine, checkfirst=True)
+            _add_missing_columns(engine, from_version)
             with engine.begin() as conn:
                 conn.execute(
                     sa.text(
@@ -803,10 +804,18 @@ def _sample_id_from_path(db_path: str) -> int | None:
     return int(match.group(1)) if match else None
 
 
-def _default_sample_registry_row(member_name: str) -> dict:
-    """Best-effort registry row for legacy archives with no registry metadata."""
+def _default_sample_registry_row(
+    member_name: str,
+    staged_sample_path: Path | None = None,
+) -> dict:
+    """Best-effort registry row for legacy archives with no registry metadata.
+
+    Prefer the restored sample's own metadata so the central row retains the
+    immutable identity used by reanalysis-prompt publication. Truly partial
+    legacy databases still fall back to the historical filename defaults.
+    """
     db_path = member_name
-    return {
+    row = {
         "id": _sample_id_from_path(db_path),
         "name": Path(member_name).name,
         "db_path": db_path,
@@ -816,6 +825,44 @@ def _default_sample_registry_row(member_name: str) -> dict:
         "created_at": datetime.now(UTC),
         "updated_at": None,
     }
+    if staged_sample_path is None:
+        return row
+
+    from backend.db.tables import sample_metadata_table
+
+    source_engine = make_sqlite_engine(staged_sample_path, wal=False)
+    try:
+        if not sa.inspect(source_engine).has_table(sample_metadata_table.name):
+            return row
+        with source_engine.connect() as conn:
+            metadata_row = conn.execute(
+                sa.select(
+                    sample_metadata_table.c.name,
+                    sample_metadata_table.c.file_format,
+                    sample_metadata_table.c.file_hash,
+                    sample_metadata_table.c.created_at,
+                    sample_metadata_table.c.updated_at,
+                ).where(sample_metadata_table.c.id == 1)
+            ).fetchone()
+        if metadata_row is not None:
+            row.update(
+                {
+                    "name": metadata_row.name,
+                    "file_format": metadata_row.file_format,
+                    "file_hash": metadata_row.file_hash,
+                    "created_at": metadata_row.created_at,
+                    "updated_at": metadata_row.updated_at,
+                }
+            )
+    except sa.exc.SQLAlchemyError as exc:
+        logger.warning(
+            "restore_sample_metadata_fallback_skipped",
+            sample_db=str(staged_sample_path),
+            error=str(exc),
+        )
+    finally:
+        source_engine.dispose()
+    return row
 
 
 def _next_available_sample_id(
@@ -841,6 +888,7 @@ def _plan_registry_rows(
     *,
     source_samples: list[dict],
     staged_sample_members: list[str],
+    staged_sample_paths: dict[str, Path] | None,
     data_dir: Path,
 ) -> tuple[dict[str, str], list[tuple[str, dict, int | None]]]:
     """Plan backed-up sample rows without mutating the registry."""
@@ -852,7 +900,11 @@ def _plan_registry_rows(
         if row.get("db_path") in staged_sample_members
     }
     source_rows = [
-        sample_rows_by_path.get(member_name) or _default_sample_registry_row(member_name)
+        sample_rows_by_path.get(member_name)
+        or _default_sample_registry_row(
+            member_name,
+            (staged_sample_paths or {}).get(member_name),
+        )
         for member_name in staged_sample_members
     ]
 
@@ -922,11 +974,27 @@ def _insert_registry_rows(
     planned_samples: list[tuple[str, dict, int | None]],
 ) -> None:
     """Insert backed-up registry rows in one transaction after sample files move."""
-    from backend.db.tables import individuals, samples
+    from backend.db.tables import individuals, reannotation_prompts, samples
 
     registry = get_registry()
     individual_id_map: dict[int, int] = {}
     with registry.reference_engine.begin() as conn:
+        # A legacy deletion could leave prompt rows behind after its sample row
+        # was removed.  Restores may intentionally reuse that now-vacant numeric
+        # ID, and timestamps cannot prove which sample an unbound prompt belongs
+        # to because backups preserve the sample's original ``created_at``.
+        # Delete every prompt for the IDs this restore is about to assign as the
+        # first write in the same transaction that inserts the replacement rows.
+        # The write lock also prevents a prompt publisher from interleaving
+        # between cleanup and insertion.
+        restored_sample_ids = [values["id"] for _, values, _ in planned_samples]
+        if restored_sample_ids:
+            conn.execute(
+                reannotation_prompts.delete().where(
+                    reannotation_prompts.c.sample_id.in_(restored_sample_ids)
+                )
+            )
+
         for row in source_individuals:
             old_id = row.get("id")
             if old_id is None:
@@ -1099,6 +1167,7 @@ async def import_backup(file: UploadFile) -> ImportBackupResponse:
                     final_sample_paths, planned_sample_rows = _plan_registry_rows(
                         source_samples=source_samples,
                         staged_sample_members=staged_sample_member_names,
+                        staged_sample_paths=dict(staged_samples),
                         data_dir=data_dir,
                     )
                     moved_sample_paths: list[Path] = []

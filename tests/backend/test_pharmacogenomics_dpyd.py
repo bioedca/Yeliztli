@@ -280,10 +280,13 @@ def test_as_0_5_pm_keeps_avoid_headline_and_tdm_fallback(reference_engine: sa.En
         assert as_05[drug] != as_00[drug], f"{drug}: AS 0.5 and AS 0.0 collapsed"
 
 
-def test_no_two_distinct_activity_scores_share_a_recommendation() -> None:
-    """Guard: within one (gene, drug), no two distinct activity scores may map to
-    the same recommendation string — that is the collapse #1993 fixed. Checks
-    both the bundled and seed CPIC guideline CSVs directly."""
+def test_no_two_distinct_dpyd_activity_scores_share_a_recommendation() -> None:
+    """Guard the DPYD collapse fixed by #1993 in both shipped CPIC CSVs.
+
+    This invariant is intentionally DPYD-specific: CPIC legitimately gives
+    CYP2C9/phenytoin AS 2.0/1.5 the same no-adjustment advice and AS 0.5/0.0
+    the same reduced-maintenance advice.
+    """
     import csv
     from collections import defaultdict
 
@@ -295,6 +298,8 @@ def test_no_two_distinct_activity_scores_share_a_recommendation() -> None:
         activity_score_rows = 0
         with open(path, encoding="utf-8") as fh:
             for row in csv.DictReader(fh):
+                if row["gene"] != "DPYD":
+                    continue
                 score = (row.get("activity_score") or "").strip()
                 if not score:  # phenotype-keyed genes are exempt
                     continue

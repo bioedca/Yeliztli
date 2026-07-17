@@ -33,10 +33,14 @@ from fastapi.testclient import TestClient
 
 from backend.config import Settings
 from backend.db.connection import DBRegistry, get_registry, reset_registry
-from backend.db.sample_schema import create_sample_tables
+from backend.db.sample_schema import (
+    CYP2C9_PHENYTOIN_LEGACY_GUIDANCE_VERSION,
+    create_sample_tables,
+)
 from backend.db.tables import (
     merge_provenance,
     raw_variants,
+    reannotation_prompts,
     reference_metadata,
     sample_metadata_table,
     samples,
@@ -292,6 +296,69 @@ class TestDeleteSampleWithCascade:
         assert not s1_db.exists()
         assert not merged_db.exists()
         assert s2_db.exists()
+
+    def test_cascade_removes_prompts_before_sample_ids_can_be_reused(
+        self, cascade_registry: DBRegistry
+    ) -> None:
+        s1 = _make_source_sample(cascade_registry, name="s1.txt")
+        s2 = _make_source_sample(cascade_registry, name="s2.txt")
+        merged = _make_merged_child(cascade_registry, name="m.txt", source_ids=[s1, s2])
+        correction = json.dumps(
+            [
+                {
+                    "db_name": "cpic",
+                    "recorded_version": CYP2C9_PHENYTOIN_LEGACY_GUIDANCE_VERSION,
+                    "current_version": "v1.58.0",
+                }
+            ]
+        )
+        with cascade_registry.reference_engine.begin() as conn:
+            conn.execute(
+                reannotation_prompts.insert(),
+                [
+                    {
+                        "sample_id": sample_id,
+                        "db_name": "reference_data",
+                        "db_version": "multiple",
+                        "prompt_type": "version_staleness",
+                        "stale_databases": correction,
+                        "dismissed": True,
+                    }
+                    for sample_id in (s1, merged, s2)
+                ],
+            )
+
+        delete_sample_with_cascade(cascade_registry, s1)
+
+        with cascade_registry.reference_engine.connect() as conn:
+            prompt_sample_ids = (
+                conn.execute(
+                    sa.select(reannotation_prompts.c.sample_id).order_by(
+                        reannotation_prompts.c.sample_id
+                    )
+                )
+                .scalars()
+                .all()
+            )
+        assert prompt_sample_ids == [s2]
+
+    def test_delete_recovers_when_partial_registry_lacks_prompt_table(
+        self, cascade_registry: DBRegistry
+    ) -> None:
+        sample_id = _make_source_sample(cascade_registry, name="legacy.txt")
+        sample_db_path = _sample_db_path(cascade_registry, sample_id)
+        with cascade_registry.reference_engine.begin() as conn:
+            conn.execute(sa.text("DROP TABLE reannotation_prompts"))
+
+        result = delete_sample_with_cascade(cascade_registry, sample_id)
+
+        assert result is not None
+        assert sample_db_path.exists() is False
+        with cascade_registry.reference_engine.connect() as conn:
+            remaining = conn.execute(
+                sa.select(sa.func.count()).select_from(samples).where(samples.c.id == sample_id)
+            ).scalar_one()
+        assert remaining == 0
 
     def test_returns_none_for_missing_sample(self, cascade_registry: DBRegistry) -> None:
         assert delete_sample_with_cascade(cascade_registry, 99999) is None

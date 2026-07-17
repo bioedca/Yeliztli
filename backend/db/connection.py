@@ -15,12 +15,16 @@ Usage::
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import sqlalchemy as sa
+import structlog
 
 from backend.config import Settings, get_settings
 from backend.db.sqlite_engine import SQLiteSynchronousMode, make_sqlite_engine
+
+logger = structlog.get_logger(__name__)
 
 
 class DBRegistry:
@@ -33,6 +37,7 @@ class DBRegistry:
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
         self._sample_engines: dict[str, sa.Engine] = {}
+        self._sample_prompt_sync_complete: dict[str, sa.Engine] = {}
 
         # Reference DB (shared, long-lived)
         self.reference_engine = self._create_engine(
@@ -103,6 +108,177 @@ class DBRegistry:
         except FileNotFoundError:
             return None
         return (stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns)
+
+    def _sync_cyp2c9_phenytoin_reanalysis_prompt(
+        self,
+        sample_engine: sa.Engine,
+        sample_db_path: str | Path,
+    ) -> bool:
+        """Publish the v21 sample marker as one durable user-facing prompt.
+
+        The marker and unsafe-finding deletion commit atomically in the sample
+        DB. Prompt publication crosses into ``reference.db``, so the marker is
+        retained as ``prompted=false`` until this best-effort synchronizer
+        succeeds; retries upsert the same undismissed prompt.
+
+        Returns ``True`` when no retry is needed and ``False`` when publication
+        was deferred by transient or incomplete reference state.
+        """
+        from backend.db.sample_schema import (
+            CYP2C9_PHENYTOIN_REANALYSIS_REASON,
+            CYP2C9_PHENYTOIN_REANALYSIS_STATE_KEY,
+        )
+        from backend.db.tables import annotation_state, sample_metadata_table, samples
+
+        target_path = Path(sample_db_path).resolve()
+        target_fingerprint = self._file_fingerprint(target_path)
+        if target_fingerprint is None:
+            return False
+        try:
+            with self.reference_engine.connect() as conn:
+                sample_rows = conn.execute(
+                    sa.select(
+                        samples.c.id,
+                        samples.c.db_path,
+                        samples.c.file_format,
+                        samples.c.file_hash,
+                        samples.c.created_at,
+                    )
+                ).fetchall()
+        except sa.exc.OperationalError as exc:
+            logger.warning(
+                "cyp2c9_phenytoin_reanalysis_prompt_deferred",
+                reason="reference_db_unreadable",
+                error=str(exc),
+            )
+            return False
+
+        sample_row = next(
+            (
+                row
+                for row in sample_rows
+                if (
+                    Path(row.db_path)
+                    if Path(row.db_path).is_absolute()
+                    else self._settings.data_dir / row.db_path
+                ).resolve()
+                == target_path
+            ),
+            None,
+        )
+        if sample_row is None:
+            logger.warning(
+                "cyp2c9_phenytoin_reanalysis_prompt_deferred",
+                reason="sample_registry_row_missing",
+                sample_db_path=str(target_path),
+            )
+            return False
+        sample_id = sample_row.id
+
+        # Bind the authoritative marker read to an immutable local identity.
+        # Partial legacy databases can lack the metadata row; in that case the
+        # central identity and path fingerprint captured *before* this read are
+        # revalidated under the publisher's write lock.
+        try:
+            with sample_engine.connect() as conn:
+                local_state = conn.execute(
+                    sa.select(
+                        sa.select(annotation_state.c.value)
+                        .where(annotation_state.c.key == CYP2C9_PHENYTOIN_REANALYSIS_STATE_KEY)
+                        .scalar_subquery()
+                        .label("marker_value"),
+                        sa.select(sample_metadata_table.c.id)
+                        .where(sample_metadata_table.c.id == 1)
+                        .scalar_subquery()
+                        .label("metadata_id"),
+                        sa.select(sample_metadata_table.c.file_format)
+                        .where(sample_metadata_table.c.id == 1)
+                        .scalar_subquery()
+                        .label("file_format"),
+                        sa.select(sample_metadata_table.c.file_hash)
+                        .where(sample_metadata_table.c.id == 1)
+                        .scalar_subquery()
+                        .label("file_hash"),
+                        sa.select(sample_metadata_table.c.created_at)
+                        .where(sample_metadata_table.c.id == 1)
+                        .scalar_subquery()
+                        .label("created_at"),
+                    )
+                ).one()
+        except sa.exc.OperationalError:
+            return False
+        marker_value = local_state.marker_value
+        if marker_value is None:
+            return True
+
+        try:
+            marker = json.loads(marker_value)
+        except (json.JSONDecodeError, TypeError):
+            marker = {}
+        marker_prompted = isinstance(marker, dict) and marker.get("prompted") is True
+        has_local_identity = local_state.metadata_id == 1
+        expected_file_format = (
+            local_state.file_format if has_local_identity else sample_row.file_format
+        )
+        expected_file_hash = local_state.file_hash if has_local_identity else sample_row.file_hash
+        expected_created_at = (
+            local_state.created_at if has_local_identity else sample_row.created_at
+        )
+
+        from backend.db.update_manager import publish_cyp2c9_phenytoin_reanalysis_prompt
+
+        prompted_marker = {
+            "database": "cpic",
+            "prompted": True,
+            "reason": CYP2C9_PHENYTOIN_REANALYSIS_REASON,
+            "sample_schema_version": 21,
+        }
+
+        def mark_prompted() -> bool:
+            try:
+                with sample_engine.begin() as conn:
+                    conn.execute(
+                        annotation_state.update()
+                        .where(annotation_state.c.key == CYP2C9_PHENYTOIN_REANALYSIS_STATE_KEY)
+                        .values(value=json.dumps(prompted_marker))
+                    )
+            except sa.exc.SQLAlchemyError as exc:
+                logger.warning(
+                    "cyp2c9_phenytoin_reanalysis_prompt_deferred",
+                    reason="marker_update_failed",
+                    sample_id=sample_id,
+                    error=str(exc),
+                )
+                return False
+            return True
+
+        try:
+            publication_complete = publish_cyp2c9_phenytoin_reanalysis_prompt(
+                self.reference_engine,
+                sample_id=sample_id,
+                expected_db_path=sample_row.db_path,
+                expected_file_format=expected_file_format,
+                expected_file_hash=expected_file_hash,
+                expected_created_at=expected_created_at,
+                sample_db_path=target_path,
+                expected_file_fingerprint=target_fingerprint,
+            )
+        except sa.exc.SQLAlchemyError as exc:
+            logger.warning(
+                "cyp2c9_phenytoin_reanalysis_prompt_deferred",
+                reason="prompt_publish_failed",
+                sample_id=sample_id,
+                error=str(exc),
+            )
+            return False
+        if not publication_complete:
+            logger.warning(
+                "cyp2c9_phenytoin_reanalysis_prompt_deferred",
+                reason="sample_identity_changed",
+                sample_id=sample_id,
+            )
+            return False
+        return True if marker_prompted else mark_prompted()
 
     @property
     def vep_engine(self) -> sa.Engine:
@@ -227,7 +403,14 @@ class DBRegistry:
 
             ensure_sample_schema_current(engine)
             self._sample_engines[key] = engine
-        return self._sample_engines[key]
+        engine = self._sample_engines[key]
+        if self._sample_prompt_sync_complete.get(key) is not engine:
+            if self._sync_cyp2c9_phenytoin_reanalysis_prompt(engine, sample_db_path):
+                # Store the engine identity, not a bare path bit. If a delete
+                # races this assignment, a replacement engine at the same path
+                # still differs and must synchronize for itself.
+                self._sample_prompt_sync_complete[key] = engine
+        return engine
 
     def dispose_sample_engine(self, sample_db_path: str | Path) -> None:
         """Dispose and remove a cached sample engine.
@@ -238,6 +421,7 @@ class DBRegistry:
         if key in self._sample_engines:
             self._sample_engines[key].dispose()
             del self._sample_engines[key]
+        self._sample_prompt_sync_complete.pop(key, None)
 
     def dispose_all(self) -> None:
         """Dispose all engines. Call on application shutdown."""
@@ -245,6 +429,7 @@ class DBRegistry:
         for engine in self._sample_engines.values():
             engine.dispose()
         self._sample_engines.clear()
+        self._sample_prompt_sync_complete.clear()
         if self._vep_engine is not None:
             self._vep_engine.dispose()
             self._vep_engine = None

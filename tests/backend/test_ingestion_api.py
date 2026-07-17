@@ -30,6 +30,7 @@ from backend.db.tables import (
     database_versions,
     jobs,
     raw_variants,
+    reannotation_prompts,
     reference_metadata,
     samples,
 )
@@ -417,6 +418,58 @@ class TestIngestEndpoint:
             r2 = client.post("/api/ingest", files={"file": ("sample2.txt", f2, "text/plain")})
         assert r1.json()["sample_id"] != r2.json()["sample_id"]
         assert r1.json()["job_id"] != r2.json()["job_id"]
+
+    def test_ingest_clears_prompt_from_reused_auto_id(
+        self, tmp_data_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from backend.api.routes import ingest as ingest_route
+        from backend.db.connection import DBRegistry, reset_registry
+
+        settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
+        reference_engine = sa.create_engine(f"sqlite:///{settings.reference_db_path}")
+        reference_metadata.create_all(reference_engine)
+        reference_engine.dispose()
+        reset_registry()
+        registry = DBRegistry(settings)
+        monkeypatch.setattr(ingest_route, "get_registry", lambda: registry)
+        try:
+            # Initialize the registry before seeding the legacy orphan so the
+            # startup best-effort cleanup cannot hide the allocation behavior.
+            with registry.reference_engine.begin() as conn:
+                conn.execute(
+                    samples.insert(),
+                    {
+                        "id": 1,
+                        "name": "existing.txt",
+                        "db_path": "samples/sample_1.db",
+                    },
+                )
+                conn.execute(
+                    reannotation_prompts.insert(),
+                    {
+                        "sample_id": 2,
+                        "db_name": "clinvar",
+                        "db_version": "20260101",
+                        "prompt_type": "reclassification",
+                        "stale_databases": "[]",
+                        "dismissed": True,
+                    },
+                )
+
+            result = ingest_route._ingest_file(SMALL_23ANDME_V4, "new.txt")
+
+            with registry.reference_engine.connect() as conn:
+                prompt_count = conn.execute(
+                    sa.select(sa.func.count())
+                    .select_from(reannotation_prompts)
+                    .where(reannotation_prompts.c.sample_id == result["sample_id"])
+                ).scalar_one()
+        finally:
+            registry.dispose_all()
+            reset_registry()
+
+        assert result["sample_id"] == 2
+        assert prompt_count == 0
 
 
 # ═══════════════════════════════════════════════════════════════════════

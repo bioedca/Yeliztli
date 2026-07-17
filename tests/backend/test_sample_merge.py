@@ -37,6 +37,7 @@ from backend.db.tables import (
     jobs,
     merge_provenance,
     raw_variants,
+    reannotation_prompts,
     reference_metadata,
     samples,
 )
@@ -633,6 +634,92 @@ class TestHappyPath:
         assert prov.strategy == "flag_only"
         assert json.loads(prov.source_sample_ids) == [s1_id, s2_id]
         assert json.loads(prov.source_file_hashes) == ["hash_s1", "hash_s2"]
+
+    def test_merge_clears_prompt_from_reused_auto_id(
+        self, merged_setup: tuple[DBRegistry, int, int, int]
+    ) -> None:
+        registry, individual_id, s1_id, s2_id = merged_setup
+        expected_id = max(s1_id, s2_id) + 1
+        with registry.reference_engine.begin() as conn:
+            conn.execute(
+                reannotation_prompts.insert(),
+                {
+                    "sample_id": expected_id,
+                    "db_name": "clinvar",
+                    "db_version": "20260101",
+                    "prompt_type": "reclassification",
+                    "stale_databases": "[]",
+                    "dismissed": True,
+                },
+            )
+
+        new_id = merge_samples(
+            registry,
+            source_sample_ids=[s1_id, s2_id],
+            individual_id=individual_id,
+            strategy=MergeStrategy.FLAG_ONLY,
+            display_name="Merged allocation",
+        )
+
+        with registry.reference_engine.connect() as conn:
+            prompt_count = conn.execute(
+                sa.select(sa.func.count())
+                .select_from(reannotation_prompts)
+                .where(reannotation_prompts.c.sample_id == new_id)
+            ).scalar_one()
+        assert new_id == expected_id
+        assert prompt_count == 0
+
+    def test_merge_materialization_rollback_removes_concurrent_prompt(
+        self,
+        merged_setup: tuple[DBRegistry, int, int, int],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        registry, individual_id, s1_id, s2_id = merged_setup
+        expected_id = max(s1_id, s2_id) + 1
+
+        def fail_after_prompt_publish(*_args, **_kwargs) -> None:
+            with registry.reference_engine.begin() as conn:
+                conn.execute(
+                    reannotation_prompts.insert(),
+                    {
+                        "sample_id": expected_id,
+                        "db_name": "clinvar",
+                        "db_version": "20260101",
+                        "prompt_type": "reclassification",
+                        "stale_databases": "[]",
+                        "dismissed": False,
+                    },
+                )
+            raise RuntimeError("simulated materialization failure")
+
+        monkeypatch.setattr(
+            sample_merge_module,
+            "create_sample_tables",
+            fail_after_prompt_publish,
+        )
+
+        with pytest.raises(RuntimeError, match="simulated materialization failure"):
+            merge_samples(
+                registry,
+                source_sample_ids=[s1_id, s2_id],
+                individual_id=individual_id,
+                strategy=MergeStrategy.FLAG_ONLY,
+                display_name="Failed merge",
+            )
+
+        with registry.reference_engine.connect() as conn:
+            sample_count = conn.execute(
+                sa.select(sa.func.count()).select_from(samples).where(samples.c.id == expected_id)
+            ).scalar_one()
+            prompt_count = conn.execute(
+                sa.select(sa.func.count())
+                .select_from(reannotation_prompts)
+                .where(reannotation_prompts.c.sample_id == expected_id)
+            ).scalar_one()
+        assert sample_count == 0
+        assert prompt_count == 0
+        assert not (registry.settings.data_dir / "samples" / f"sample_{expected_id}.db").exists()
 
 
 class TestFileHashRecipe:

@@ -25,11 +25,31 @@ logger = structlog.get_logger(__name__)
 _FINDING_DIFF_STATE_KEY = "last_finding_diff_json"
 _QUARANTINED_BREAST_PRS_TRAIT = "breast_cancer"
 
+# Durable handoff from the per-sample v21 content migration to DBRegistry's
+# reference-DB prompt synchronizer. ``prompted`` is flipped only after the
+# user-visible prompt is persisted; a successful annotation deletes the key.
+CYP2C9_PHENYTOIN_REANALYSIS_STATE_KEY = "cyp2c9_phenytoin_reanalysis_required_json"
+CYP2C9_PHENYTOIN_REANALYSIS_REASON = "cyp2c9_phenytoin_activity_score"
+CYP2C9_PHENYTOIN_LEGACY_GUIDANCE_VERSION = "legacy phenotype-only phenytoin guidance"
+CYP2C9_PHENYTOIN_BUNDLED_GUIDANCE_VERSION = "bundled activity-score guidance"
+
 
 def _is_quarantined_or_unidentified_cancer_prs_trait(trait: object) -> bool:
     """Whether a legacy cancer-PRS trait cannot safely remain surfaceable."""
     return (
         trait == _QUARANTINED_BREAST_PRS_TRAIT or not isinstance(trait, str) or not trait.strip()
+    )
+
+
+def _is_legacy_cyp2c9_phenytoin_diff_entry(entry: object) -> bool:
+    """Whether a finding-diff entry identifies the corrected prescribing alert."""
+    return (
+        isinstance(entry, dict)
+        and entry.get("module") == "pharmacogenomics"
+        and entry.get("category") == "prescribing_alert"
+        and entry.get("gene_symbol") == "CYP2C9"
+        and isinstance(entry.get("drug"), str)
+        and entry["drug"].lower() == "phenytoin"
     )
 
 
@@ -62,7 +82,10 @@ def _is_quarantined_or_unidentified_cancer_prs_trait(trait: object) -> bool:
 # v20: Quarantine persisted outputs from the source-unverified legacy 25-marker
 #      breast-cancer PRS (issue #1934). The bundled rows remain as an audit record,
 #      but old per-sample findings must not remain surfaceable after deployment.
-SAMPLE_SCHEMA_VERSION = 20
+# v21: Quarantine persisted CYP2C9/phenytoin prescribing alerts created from the
+#      pre-#1989 phenotype-only guidance. Fresh analysis regenerates score-keyed
+#      alerts from the corrected CPIC rows.
+SAMPLE_SCHEMA_VERSION = 21
 
 
 # AncestryDNA Plan §10.4(a): merged-sample raw_variants uses (chrom, pos) PK
@@ -566,6 +589,133 @@ def _add_missing_columns(engine: sa.Engine, from_version: int) -> bool:
             if state_row is not None and removed_diff_entries:
                 logger.warning(
                     "breast_prs_finding_diff_entries_quarantined",
+                    count=removed_diff_entries,
+                    from_version=from_version,
+                )
+
+    if from_version < 21:
+        # Issue #1989: phenotype-only CYP2C9/phenytoin rows gave AS-1.5
+        # Intermediate Metabolizers the AS-1.0 dose reduction, conflated loading
+        # with maintenance dosing, and imported an HLA-B alternative-drug steer.
+        # Stored findings have no safe independent reconstruction context, so
+        # quarantine only this structured identity; a fresh analysis regenerates
+        # the canonical score-keyed recommendation. Preserve CYP2C9/warfarin and
+        # every other pharmacogenomics or phenytoin finding.
+        inspector = sa.inspect(engine)
+        table_names = set(inspector.get_table_names())
+        state_cols = (
+            {c["name"] for c in inspector.get_columns("annotation_state")}
+            if "annotation_state" in table_names
+            else set()
+        )
+        can_persist_reanalysis_marker = {"key", "value"} <= state_cols
+        removed_findings = 0
+        if "findings" in table_names:
+            existing_cols = {c["name"] for c in inspector.get_columns("findings")}
+            required_cols = {"module", "category", "gene_symbol", "drug"}
+            if required_cols <= existing_cols:
+                with engine.begin() as conn:
+                    result = conn.execute(
+                        sa.delete(findings).where(
+                            findings.c.module == "pharmacogenomics",
+                            findings.c.category == "prescribing_alert",
+                            findings.c.gene_symbol == "CYP2C9",
+                            sa.func.lower(findings.c.drug) == "phenytoin",
+                        )
+                    )
+                    removed_findings = max(result.rowcount or 0, 0)
+                    if removed_findings and can_persist_reanalysis_marker:
+                        marker = json.dumps(
+                            {
+                                "database": "cpic",
+                                "prompted": False,
+                                "reason": CYP2C9_PHENYTOIN_REANALYSIS_REASON,
+                                "sample_schema_version": 21,
+                            }
+                        )
+                        existing_marker = conn.execute(
+                            sa.select(annotation_state.c.key).where(
+                                annotation_state.c.key == CYP2C9_PHENYTOIN_REANALYSIS_STATE_KEY
+                            )
+                        ).fetchone()
+                        if existing_marker is None:
+                            conn.execute(
+                                annotation_state.insert(),
+                                {
+                                    "key": CYP2C9_PHENYTOIN_REANALYSIS_STATE_KEY,
+                                    "value": marker,
+                                },
+                            )
+                        else:
+                            conn.execute(
+                                annotation_state.update()
+                                .where(
+                                    annotation_state.c.key == CYP2C9_PHENYTOIN_REANALYSIS_STATE_KEY
+                                )
+                                .values(value=marker)
+                            )
+                if removed_findings:
+                    added = True
+                    logger.warning(
+                        "legacy_cyp2c9_phenytoin_findings_quarantined",
+                        count=removed_findings,
+                        reanalysis_marker_persisted=can_persist_reanalysis_marker,
+                        from_version=from_version,
+                    )
+
+        # Finding-change banners are a separate persisted surface. Remove the
+        # same exact identity from every bucket while preserving all release
+        # metadata, unrelated entries, ordering, and other top-level keys.
+        inspector = sa.inspect(engine)
+        if "annotation_state" in inspector.get_table_names():
+            removed_diff_entries = 0
+            state_cols = {c["name"] for c in inspector.get_columns("annotation_state")}
+            if {"key", "value"} <= state_cols:
+                with engine.begin() as conn:
+                    state_row = conn.execute(
+                        sa.select(annotation_state.c.value).where(
+                            annotation_state.c.key == _FINDING_DIFF_STATE_KEY
+                        )
+                    ).fetchone()
+                    if state_row is not None:
+                        try:
+                            diff = json.loads(state_row.value)
+                        except (json.JSONDecodeError, TypeError):
+                            diff = None
+
+                        if isinstance(diff, dict):
+                            for bucket in ("changed", "added", "removed"):
+                                entries = diff.get(bucket)
+                                if not isinstance(entries, list):
+                                    continue
+                                kept = [
+                                    entry
+                                    for entry in entries
+                                    if not _is_legacy_cyp2c9_phenytoin_diff_entry(entry)
+                                ]
+                                removed_diff_entries += len(entries) - len(kept)
+                                if len(kept) != len(entries):
+                                    diff[bucket] = kept
+
+                            if removed_diff_entries:
+                                diff["counts"] = {
+                                    bucket: (
+                                        len(diff.get(bucket, []))
+                                        if isinstance(diff.get(bucket), list)
+                                        else 0
+                                    )
+                                    for bucket in ("changed", "added", "removed")
+                                }
+                                conn.execute(
+                                    annotation_state.update()
+                                    .where(annotation_state.c.key == _FINDING_DIFF_STATE_KEY)
+                                    .values(value=json.dumps(diff))
+                                )
+                                added = True
+
+            if removed_diff_entries:
+                logger.warning(
+                    "cyp2c9_phenytoin_finding_diff_entries_quarantined",
                     count=removed_diff_entries,
                     from_version=from_version,
                 )

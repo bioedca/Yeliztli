@@ -25,7 +25,20 @@ from fastapi.testclient import TestClient
 
 from backend.config import Settings
 from backend.db.connection import reset_registry
-from backend.db.tables import individuals, reference_metadata, samples
+from backend.db.sample_schema import (
+    CYP2C9_PHENYTOIN_LEGACY_GUIDANCE_VERSION,
+    CYP2C9_PHENYTOIN_REANALYSIS_STATE_KEY,
+    create_sample_tables,
+)
+from backend.db.tables import (
+    annotation_state,
+    findings,
+    individuals,
+    reannotation_prompts,
+    reference_metadata,
+    sample_metadata_table,
+    samples,
+)
 
 # ═══════════════════════════════════════════════════════════════════════
 # Helpers
@@ -519,6 +532,108 @@ class TestBackupDownload:
 
 
 class TestBackupRoundTrip:
+    def test_legacy_archive_without_registry_uses_local_identity_for_reanalysis_prompt(
+        self,
+        tmp_data_dir: Path,
+        tmp_path: Path,
+    ) -> None:
+        settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
+        reference_engine = sa.create_engine(f"sqlite:///{settings.reference_db_path}")
+        reference_metadata.create_all(reference_engine)
+        with reference_engine.begin() as conn:
+            conn.execute(
+                reannotation_prompts.insert(),
+                {
+                    "sample_id": 7,
+                    "db_name": "clinvar",
+                    "db_version": "20260101",
+                    "prompt_type": "reclassification",
+                    "stale_databases": "[]",
+                    "dismissed": True,
+                    # Newer than the restored sample below: timestamp-only
+                    # cleanup cannot determine that this belongs to a deleted
+                    # prior occupant of ID 7.
+                    "created_at": datetime(2026, 1, 2, tzinfo=UTC),
+                },
+            )
+        reference_engine.dispose()
+        created_at = datetime(2025, 4, 3, 2, 1, tzinfo=UTC)
+        legacy_db = tmp_path / "sample_7.db"
+        legacy_engine = sa.create_engine(f"sqlite:///{legacy_db}")
+        create_sample_tables(legacy_engine)
+        with legacy_engine.begin() as conn:
+            conn.execute(
+                sample_metadata_table.insert(),
+                {
+                    "id": 1,
+                    "name": "Legacy local sample",
+                    "file_format": "23andme_v5",
+                    "file_hash": "legacy-local-hash",
+                    "created_at": created_at,
+                },
+            )
+            conn.execute(
+                findings.insert(),
+                {
+                    "module": "pharmacogenomics",
+                    "category": "prescribing_alert",
+                    "evidence_level": 4,
+                    "gene_symbol": "CYP2C9",
+                    "drug": "phenytoin",
+                    "finding_text": "Legacy phenotype-only recommendation",
+                },
+            )
+            conn.execute(sa.text("PRAGMA user_version = 20"))
+        legacy_engine.dispose()
+
+        archive_buffer = io.BytesIO()
+        with tarfile.open(fileobj=archive_buffer, mode="w:gz") as tf:
+            tf.add(legacy_db, arcname="samples/sample_7.db")
+
+        with _make_client(settings):
+            reset_registry()
+            from backend.api.routes.setup import import_backup
+            from backend.db.connection import get_registry
+
+            result = asyncio.run(
+                import_backup(
+                    _UploadBytes(
+                        filename="legacy-no-registry.tar.gz",
+                        content=archive_buffer.getvalue(),
+                    )
+                )
+            )
+            registry = get_registry()
+            restored_path = settings.data_dir / "samples" / "sample_7.db"
+            restored_engine = registry.get_sample_engine(restored_path)
+            with restored_engine.connect() as conn:
+                marker = json.loads(
+                    conn.execute(
+                        sa.select(annotation_state.c.value).where(
+                            annotation_state.c.key == CYP2C9_PHENYTOIN_REANALYSIS_STATE_KEY
+                        )
+                    ).scalar_one()
+                )
+            with registry.reference_engine.connect() as conn:
+                registry_row = (
+                    conn.execute(sa.select(samples).where(samples.c.id == 7)).mappings().one()
+                )
+                prompts = conn.execute(sa.select(reannotation_prompts)).mappings().all()
+            reset_registry()
+
+        assert result.samples_restored == 1
+        assert registry_row["name"] == "Legacy local sample"
+        assert registry_row["file_format"] == "23andme_v5"
+        assert registry_row["file_hash"] == "legacy-local-hash"
+        assert marker["prompted"] is True
+        assert len(prompts) == 1
+        prompt = prompts[0]
+        assert prompt["db_name"] == "reference_data"
+        assert prompt["prompt_type"] == "version_staleness"
+        assert json.loads(prompt["stale_databases"])[0]["recorded_version"] == (
+            CYP2C9_PHENYTOIN_LEGACY_GUIDANCE_VERSION
+        )
+
     def test_export_then_import_restores_sample_registry(
         self, tmp_data_dir: Path, tmp_path: Path
     ) -> None:
@@ -637,6 +752,24 @@ class TestBackupRoundTrip:
 
         with _make_client(existing_settings):
             reset_registry()
+            from backend.db.connection import get_registry
+
+            registry = get_registry()
+            with registry.reference_engine.begin() as conn:
+                conn.execute(
+                    reannotation_prompts.insert(),
+                    [
+                        {
+                            "sample_id": sample_id,
+                            "db_name": "clinvar",
+                            "db_version": "20260101",
+                            "prompt_type": "reclassification",
+                            "stale_databases": "[]",
+                            "dismissed": True,
+                        }
+                        for sample_id in (1, 2, 3)
+                    ],
+                )
             from backend.api.routes.setup import import_backup
 
             result = asyncio.run(
@@ -657,6 +790,15 @@ class TestBackupRoundTrip:
                         samples.c.id.asc()
                     )
                 ).fetchall()
+                prompt_sample_ids = (
+                    conn.execute(
+                        sa.select(reannotation_prompts.c.sample_id).order_by(
+                            reannotation_prompts.c.sample_id.asc()
+                        )
+                    )
+                    .scalars()
+                    .all()
+                )
         finally:
             engine.dispose()
 
@@ -665,6 +807,72 @@ class TestBackupRoundTrip:
             (2, "Custom sample one", "samples/sample_2.db"),
             (3, "Custom sample two", "samples/sample_3.db"),
         ]
+        assert prompt_sample_ids == [1]
+
+    def test_registry_insert_rolls_back_prompt_cleanup_on_later_failure(
+        self, tmp_data_dir: Path
+    ) -> None:
+        settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
+        reference_engine = sa.create_engine(f"sqlite:///{settings.reference_db_path}")
+        reference_metadata.create_all(reference_engine)
+        reference_engine.dispose()
+
+        with _make_client(settings):
+            reset_registry()
+            from backend.api.routes.setup import _insert_registry_rows
+            from backend.db.connection import get_registry
+
+            registry = get_registry()
+            with registry.reference_engine.begin() as conn:
+                conn.execute(
+                    reannotation_prompts.insert(),
+                    {
+                        "sample_id": 7,
+                        "db_name": "clinvar",
+                        "db_version": "20260101",
+                        "prompt_type": "reclassification",
+                        "stale_databases": "[]",
+                        "dismissed": True,
+                    },
+                )
+
+            planned_samples = [
+                (
+                    "samples/sample_7.db",
+                    {
+                        "id": 7,
+                        "name": "First restored sample",
+                        "db_path": "samples/colliding.db",
+                    },
+                    None,
+                ),
+                (
+                    "samples/sample_8.db",
+                    {
+                        "id": 8,
+                        "name": "Second restored sample",
+                        "db_path": "samples/colliding.db",
+                    },
+                    None,
+                ),
+            ]
+            with pytest.raises(sa.exc.IntegrityError):
+                _insert_registry_rows(
+                    source_individuals=[],
+                    planned_samples=planned_samples,
+                )
+
+            with registry.reference_engine.connect() as conn:
+                prompt_sample_ids = (
+                    conn.execute(sa.select(reannotation_prompts.c.sample_id)).scalars().all()
+                )
+                restored_count = conn.execute(
+                    sa.select(sa.func.count()).select_from(samples).where(samples.c.id.in_([7, 8]))
+                ).scalar_one()
+            reset_registry()
+
+        assert prompt_sample_ids == [7]
+        assert restored_count == 0
 
     def test_import_cleans_sample_files_when_registry_insert_fails(
         self, tmp_data_dir: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

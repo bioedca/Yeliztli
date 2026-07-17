@@ -310,6 +310,10 @@ def run_annotation_task(sample_id: int, job_id: str) -> None:
                 progress_callback=analysis_progress,
             )
             errors = [k for k, v in analysis_results.items() if v == "error"]
+            pharmacogenomics_ok = isinstance(
+                analysis_results.get("pharmacogenomics"),
+                int,
+            )
             if errors:
                 logger.warning(
                     "some_analysis_modules_failed",
@@ -321,6 +325,8 @@ def run_annotation_task(sample_id: int, job_id: str) -> None:
             # findings are fresh. A raise from run_all_analyses bypasses this
             # block via the except clause below, leaving annotation_state
             # untouched so the gate stays up.
+            from backend.db.sample_schema import CYP2C9_PHENYTOIN_REANALYSIS_STATE_KEY
+            from backend.db.tables import annotation_state
             from backend.db.vep_version import (
                 VERSIONLESS_VEP_BUNDLE_BASELINE,
                 resolve_effective_vep_bundle_version,
@@ -373,6 +379,12 @@ def run_annotation_task(sample_id: int, job_id: str) -> None:
                     REFERENCE_VERSION_SNAPSHOT_KEY,
                     json.dumps(reference_versions),
                 )
+                if pharmacogenomics_ok:
+                    conn.execute(
+                        annotation_state.delete().where(
+                            annotation_state.c.key == CYP2C9_PHENYTOIN_REANALYSIS_STATE_KEY
+                        )
+                    )
             logger.info(
                 "annotation_state_upserted",
                 extra={

@@ -427,7 +427,7 @@ def _fetch_diplotype_phenotype(
 
 @dataclass(frozen=True)
 class _ConservativePhenotype:
-    """Worst plausible phenotype from one untyped allele replacing a reference call."""
+    """Worst plausible lower-activity result from one untyped allele."""
 
     diplotype: str
     phenotype: str
@@ -446,12 +446,43 @@ def _conservative_alert_note(
     conservative: _ConservativePhenotype,
 ) -> str:
     """Explain why prescribing alerts use a conservative phenotype."""
+    conservative_score = (
+        f" (activity score {conservative.activity_score})"
+        if conservative.activity_score is not None
+        else ""
+    )
+    called_score = (
+        f" (activity score {result.activity_score})" if result.activity_score is not None else ""
+    )
     return (
-        f"Conservative prescribing alert uses {conservative.phenotype} because "
+        "Conservative prescribing alert uses "
+        f"{conservative.phenotype}{conservative_score} because "
         f"untyped {result.gene}{conservative.allele} could make "
         f"{conservative.diplotype}; the directly called "
-        f"{result.diplotype} maps to {result.phenotype}."
+        f"{result.diplotype} maps to {result.phenotype}{called_score}."
     )
+
+
+def _has_score_specific_guideline(
+    gene: str,
+    phenotype: str,
+    activity_score: float | None,
+    reference_engine: sa.Engine,
+) -> bool:
+    """Whether any guideline explicitly keys this phenotype on ``activity_score``."""
+    if activity_score is None:
+        return False
+    stmt = (
+        sa.select(cpic_guidelines.c.id)
+        .where(
+            cpic_guidelines.c.gene == gene,
+            cpic_guidelines.c.phenotype == phenotype,
+            cpic_guidelines.c.activity_score == activity_score,
+        )
+        .limit(1)
+    )
+    with reference_engine.connect() as conn:
+        return conn.execute(stmt).first() is not None
 
 
 def _infer_conservative_phenotype(
@@ -464,8 +495,10 @@ def _infer_conservative_phenotype(
     partial call, replacing one such reference-filled chromosome with an
     indeterminate allele models the smallest clinically relevant uncertainty:
     one untyped reduced/no-function allele may be present. If that plausible
-    diplotype has a lower CPIC activity score and a different phenotype, use it
-    for prescribing alerts rather than alerting on the milder direct call.
+    diplotype has a lower CPIC activity score, use it for prescribing alerts
+    rather than alerting on the milder direct call. A same-label candidate is
+    relevant only when a shipped guideline explicitly keys that lower score
+    within the phenotype band (for example CYP2C9/phenytoin).
     """
     if (
         result.gene not in CONSERVATIVE_UNTYPED_PHENOTYPE_GENES
@@ -507,10 +540,13 @@ def _infer_conservative_phenotype(
 
             activity_score = diplo_data["activity_score"]
             phenotype = diplo_data["phenotype"]
-            if (
-                activity_score is None
-                or activity_score >= result.activity_score
-                or phenotype == result.phenotype
+            if activity_score is None or activity_score >= result.activity_score:
+                continue
+            if phenotype == result.phenotype and not _has_score_specific_guideline(
+                result.gene,
+                phenotype,
+                activity_score,
+                reference_engine,
             ):
                 continue
 
@@ -1001,6 +1037,22 @@ _ROUTINE_RECOMMENDATION_MARKERS: tuple[str, ...] = (
     "no dose change",
     "routine",
 )
+# CPIC's phenytoin no-adjustment rows continue with ordinary TDM/response and
+# HLA-B safety guidance, so a generic action-verb scan sees "adjusted" and
+# "monitoring". Only neutralize those exact standard-practice clauses after the
+# published no-adjustment preamble; any other appended text keeps the normal
+# fail-toward-attention scan.
+_ROUTINE_RECOMMENDATION_PREFIXES: tuple[str, ...] = (
+    "no adjustments needed from typical dosing strategies.",
+)
+_ROUTINE_FOLLOW_ON_CLAUSES: tuple[str, ...] = (
+    "subsequent doses should be adjusted according to therapeutic drug monitoring, response, "
+    "and side effects.",
+    "subsequent doses should be adjusted according to therapeutic drug monitoring, response "
+    "and side effects.",
+    "an hla-b*15:02 negative test does not eliminate the risk of phenytoin-induced sjs/ten, "
+    "and patients should be carefully monitored according to standard practice.",
+)
 _ACTIONABLE_RECOMMENDATION_MARKERS: tuple[str, ...] = (
     "avoid",
     "alternative",
@@ -1047,10 +1099,21 @@ def classify_actionability(recommendation: str | None) -> str:
     if not recommendation:
         return ACTIONABILITY_INDETERMINATE
     rec = recommendation.lower()
+    routine_prefix = next(
+        (prefix for prefix in _ROUTINE_RECOMMENDATION_PREFIXES if rec.startswith(prefix)),
+        None,
+    )
+    if routine_prefix is not None:
+        action_scan = rec.removeprefix(routine_prefix)
+        for clause in _ROUTINE_FOLLOW_ON_CLAUSES:
+            action_scan = action_scan.replace(clause, " ")
+        if not action_scan.strip(" \t\r\n.,;"):
+            return ACTIONABILITY_ROUTINE
+    else:
+        action_scan = rec
     # Neutralize negated "no-change" phrases first so their embedded action
     # substrings (e.g. "adjust" inside "no dose adjustment") don't spuriously flag
     # a genuinely routine recommendation as actionable.
-    action_scan = rec
     for marker in _NEGATED_ROUTINE_MARKERS:
         action_scan = action_scan.replace(marker, " ")
     has_action = any(marker in action_scan for marker in _ACTIONABLE_RECOMMENDATION_MARKERS)
@@ -1111,12 +1174,11 @@ def _fetch_guidelines_for_gene_phenotype(
     """Fetch CPIC guideline recommendations for a gene phenotype/activity score.
 
     CPIC keys some recommendations on the gene activity score, not the phenotype
-    label alone: DPYD splits Intermediate (AS 1.5 vs 1.0 — the c.2846A>T
-    homozygote's ">50% reduction" caveat) and Poor (AS 0.5's conditional
-    reduced-dose+TDM fallback vs 0.0's flat avoid). When ``activity_score`` is
-    given and the gene has activity-score-keyed rows, match on it; otherwise fall
-    back to the phenotype (for the majority of genes CPIC keys by label, whose
-    rows carry a NULL activity_score). See #1993.
+    label alone. A NULL score is the generic phenotype fallback. Precedence is
+    resolved per drug: return every exact-score row for a drug when present,
+    otherwise every matching generic row. This lets score-keyed phenytoin coexist
+    with phenotype-keyed warfarin and deliberately preserves duplicate rows at
+    the winning specificity so data regressions remain visible. See #1993/#1989.
 
     Args:
         gene: Gene symbol (e.g. "CYP2D6").
@@ -1129,42 +1191,37 @@ def _fetch_guidelines_for_gene_phenotype(
         guideline_url.
     """
 
-    def _run(where) -> list:
-        with reference_engine.connect() as conn:
-            stmt = (
-                sa.select(
-                    cpic_guidelines.c.drug,
-                    cpic_guidelines.c.recommendation,
-                    cpic_guidelines.c.classification,
-                    cpic_guidelines.c.guideline_url,
-                )
-                .where(where)
-                .order_by(cpic_guidelines.c.drug)
-            )
-            return conn.execute(stmt).fetchall()
-
-    rows: list = []
-    # Prefer an activity-score match; a DPYD alert always carries one and its
-    # rows are AS-keyed, so this selects the AS-specific recommendation.
+    score_predicate = cpic_guidelines.c.activity_score.is_(None)
     if activity_score is not None:
-        rows = _run(
-            sa.and_(
-                cpic_guidelines.c.gene == gene,
-                cpic_guidelines.c.activity_score == activity_score,
-            )
+        score_predicate = sa.or_(
+            score_predicate,
+            cpic_guidelines.c.activity_score == activity_score,
         )
-    # Fall back to the phenotype for the phenotype-keyed genes (NULL activity
-    # score). Requiring IS NULL here keeps an AS-keyed gene from matching the
-    # wrong row when its exact score is (unexpectedly) absent — no guideline is
-    # emitted rather than one for a different score.
-    if not rows:
-        rows = _run(
+
+    stmt = (
+        sa.select(
+            cpic_guidelines.c.drug,
+            cpic_guidelines.c.recommendation,
+            cpic_guidelines.c.classification,
+            cpic_guidelines.c.guideline_url,
+            cpic_guidelines.c.activity_score,
+        )
+        .where(
             sa.and_(
                 cpic_guidelines.c.gene == gene,
                 cpic_guidelines.c.phenotype == phenotype,
-                cpic_guidelines.c.activity_score.is_(None),
+                score_predicate,
             )
         )
+        .order_by(cpic_guidelines.c.drug, cpic_guidelines.c.id)
+    )
+    with reference_engine.connect() as conn:
+        rows = conn.execute(stmt).fetchall()
+
+    exact_drugs = {row.drug for row in rows if row.activity_score is not None}
+    selected_rows = [
+        row for row in rows if row.activity_score is not None or row.drug not in exact_drugs
+    ]
 
     return [
         {
@@ -1173,7 +1230,7 @@ def _fetch_guidelines_for_gene_phenotype(
             "classification": row.classification,
             "guideline_url": row.guideline_url,
         }
-        for row in rows
+        for row in selected_rows
     ]
 
 

@@ -50,6 +50,7 @@ from backend.db.update_manager import (
     _record_version,
     check_all_updates,
     check_clinvar_update,
+    create_version_staleness_prompt,
     dismiss_prompt,
     format_version_display,
     get_active_prompts,
@@ -551,6 +552,21 @@ class TestUpdateHistory:
 
 
 class TestReannotationPrompts:
+    @pytest.fixture(autouse=True)
+    def _seed_prompt_registry_rows(self, reference_engine: sa.Engine) -> None:
+        with reference_engine.begin() as conn:
+            conn.execute(
+                samples.insert(),
+                [
+                    {
+                        "id": sample_id,
+                        "name": f"sample-{sample_id}",
+                        "db_path": f"samples/sample_{sample_id}.db",
+                    }
+                    for sample_id in (1, 2)
+                ],
+            )
+
     @staticmethod
     def _seed_snapshot_sample(db_registry, *, recorded_vep: str) -> sa.Engine:
         sample_rel = "samples/sample_1.db"
@@ -634,6 +650,31 @@ class TestReannotationPrompts:
     def test_dismiss_nonexistent(self, reference_engine):
         ok = dismiss_prompt(reference_engine, 999)
         assert ok is False
+
+    def test_prompt_creation_skips_deleted_sample(self, reference_engine):
+        with reference_engine.begin() as conn:
+            conn.execute(sa.delete(samples).where(samples.c.id == 1))
+
+        _create_reannotation_prompt(
+            reference_engine,
+            sample_id=1,
+            db_name="clinvar",
+            db_version="20260315",
+            candidate_count=3,
+        )
+        create_version_staleness_prompt(
+            reference_engine,
+            sample_id=1,
+            stale_databases=[
+                {
+                    "db_name": "gnomad",
+                    "recorded_version": "r2.1",
+                    "current_version": "r4.1",
+                }
+            ],
+        )
+
+        assert get_active_prompts(reference_engine, sample_id=1) == []
 
     def test_create_prompt_with_watched_data(self, reference_engine):
         """T4-22m: Prompt stores watched variant reclassification details."""

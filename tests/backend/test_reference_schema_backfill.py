@@ -16,12 +16,50 @@ function is idempotent, and that a fresh schema is left untouched.
 
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 
 import sqlalchemy as sa
 
 from backend.db.reference_schema import ensure_reference_schema_current
-from backend.db.tables import reference_metadata
+from backend.db.tables import (
+    cpic_guidelines,
+    database_versions,
+    reannotation_prompts,
+    reference_metadata,
+    samples,
+)
+
+_PHENYTOIN_URL = "https://cpicpgx.org/guidelines/guideline-for-phenytoin-and-cyp2c9/"
+_LEGACY_PHENYTOIN_ROWS = [
+    {
+        "gene": "CYP2C9",
+        "drug": "phenytoin",
+        "phenotype": "Normal Metabolizer",
+        "activity_score": None,
+        "recommendation": "Use label-recommended dosing.",
+        "classification": "A",
+        "guideline_url": _PHENYTOIN_URL,
+    },
+    {
+        "gene": "CYP2C9",
+        "drug": "phenytoin",
+        "phenotype": "Intermediate Metabolizer",
+        "activity_score": None,
+        "recommendation": "Reduce dose by 25%. Increase monitoring.",
+        "classification": "A",
+        "guideline_url": _PHENYTOIN_URL,
+    },
+    {
+        "gene": "CYP2C9",
+        "drug": "phenytoin",
+        "phenotype": "Poor Metabolizer",
+        "activity_score": None,
+        "recommendation": "Reduce dose by 50%. Consider alternative anticonvulsant.",
+        "classification": "A",
+        "guideline_url": _PHENYTOIN_URL,
+    },
+]
 
 
 def _columns(engine: sa.Engine, table: str) -> set[str]:
@@ -103,6 +141,52 @@ def test_noop_on_fresh_create_all_schema(tmp_path: Path) -> None:
     assert "individual_id" in _columns(engine, "samples")
     assert "genome_build" in _columns(engine, "database_versions")
     assert "validator" in _columns(engine, "downloads")
+    assert ensure_reference_schema_current(engine) is False
+
+
+def test_removes_legacy_orphaned_or_misbound_prompts(tmp_path: Path) -> None:
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'ref.db'}")
+    reference_metadata.create_all(engine, checkfirst=True)
+    with engine.begin() as conn:
+        conn.execute(
+            samples.insert(),
+            [
+                {
+                    "id": sample_id,
+                    "name": f"Current sample {sample_id}",
+                    "db_path": f"samples/sample_{sample_id}.db",
+                    "created_at": datetime(2026, 2, 1),
+                }
+                for sample_id in (2, 3, 4)
+            ],
+        )
+        conn.execute(
+            reannotation_prompts.insert(),
+            [
+                {
+                    "sample_id": sample_id,
+                    "db_name": "reference_data",
+                    "db_version": "multiple",
+                    "prompt_type": "version_staleness",
+                    "stale_databases": "[]",
+                    "dismissed": True,
+                    "created_at": created_at,
+                }
+                for sample_id, created_at in (
+                    (1, datetime(2026, 1, 1)),  # no current sample row
+                    (2, datetime(2026, 3, 1)),  # belongs to current sample
+                    (3, datetime(2026, 1, 1)),  # predates reused sample id
+                    (4, None),  # cannot be bound safely
+                )
+            ],
+        )
+
+    assert ensure_reference_schema_current(engine) is True
+    with engine.connect() as conn:
+        prompt_sample_ids = (
+            conn.execute(sa.select(reannotation_prompts.c.sample_id)).scalars().all()
+        )
+    assert prompt_sample_ids == [2]
     assert ensure_reference_schema_current(engine) is False
 
 
@@ -256,3 +340,228 @@ def test_cpic_guidelines_activity_score_backfill_idempotent(tmp_path: Path) -> N
 
     assert ensure_reference_schema_current(engine) is True
     assert ensure_reference_schema_current(engine) is False
+
+
+def test_refreshes_only_exact_legacy_cyp2c9_phenytoin_fingerprint(tmp_path: Path) -> None:
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'ref.db'}")
+    reference_metadata.create_all(engine, checkfirst=True)
+    preserved_rows = [
+        {
+            "gene": "CYP2C9",
+            "drug": "warfarin",
+            "phenotype": "Intermediate Metabolizer",
+            "activity_score": None,
+            "recommendation": "Preserve warfarin guidance.",
+            "classification": "A",
+            "guideline_url": "https://example.test/warfarin",
+        },
+        {
+            "gene": "CYP2D6",
+            "drug": "codeine",
+            "phenotype": "Poor Metabolizer",
+            "activity_score": None,
+            "recommendation": "Preserve unrelated guidance.",
+            "classification": "A",
+            "guideline_url": "https://example.test/codeine",
+        },
+    ]
+    with engine.begin() as conn:
+        conn.execute(cpic_guidelines.insert(), [*_LEGACY_PHENYTOIN_ROWS, *preserved_rows])
+        conn.execute(
+            database_versions.insert(),
+            {
+                "db_name": "cpic",
+                "version": "v1.58.0",
+                "checksum_sha256": "legacy-checksum",
+            },
+        )
+    with engine.connect() as conn:
+        version_before = (
+            conn.execute(sa.select(database_versions).where(database_versions.c.db_name == "cpic"))
+            .mappings()
+            .one()
+        )
+
+    assert ensure_reference_schema_current(engine) is True
+
+    with engine.connect() as conn:
+        phenytoin = conn.execute(
+            sa.select(
+                cpic_guidelines.c.phenotype,
+                cpic_guidelines.c.activity_score,
+                cpic_guidelines.c.recommendation,
+            )
+            .where(
+                cpic_guidelines.c.gene == "CYP2C9",
+                cpic_guidelines.c.drug == "phenytoin",
+            )
+            .order_by(cpic_guidelines.c.activity_score.desc())
+        ).fetchall()
+        preserved = conn.execute(
+            sa.select(
+                cpic_guidelines.c.gene, cpic_guidelines.c.drug, cpic_guidelines.c.recommendation
+            )
+            .where(cpic_guidelines.c.drug.in_(["warfarin", "codeine"]))
+            .order_by(cpic_guidelines.c.drug)
+        ).fetchall()
+        version_after = (
+            conn.execute(sa.select(database_versions).where(database_versions.c.db_name == "cpic"))
+            .mappings()
+            .one()
+        )
+
+    assert [row.activity_score for row in phenytoin] == [2.0, 1.5, 1.0, 0.5, 0.0]
+    assert phenytoin[0].recommendation.startswith("No adjustments needed")
+    assert "approximately 25% less than typical maintenance dose" in phenytoin[2].recommendation
+    assert "approximately 50% less than typical maintenance dose" in phenytoin[3].recommendation
+    assert preserved == [
+        ("CYP2D6", "codeine", "Preserve unrelated guidance."),
+        ("CYP2C9", "warfarin", "Preserve warfarin guidance."),
+    ]
+    assert dict(version_after) == dict(version_before)
+    assert ensure_reference_schema_current(engine) is False
+
+
+def test_does_not_overwrite_mixed_or_future_phenytoin_content(tmp_path: Path) -> None:
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'ref.db'}")
+    reference_metadata.create_all(engine, checkfirst=True)
+    mixed_rows = [
+        *_LEGACY_PHENYTOIN_ROWS,
+        {
+            "gene": "CYP2C9",
+            "drug": "phenytoin",
+            "phenotype": "Intermediate Metabolizer",
+            "activity_score": 1.25,
+            "recommendation": "Future custom recommendation.",
+            "classification": "A",
+            "guideline_url": _PHENYTOIN_URL,
+        },
+    ]
+    with engine.begin() as conn:
+        conn.execute(cpic_guidelines.insert(), mixed_rows)
+
+    assert ensure_reference_schema_current(engine) is False
+    with engine.connect() as conn:
+        rows = conn.execute(
+            sa.select(cpic_guidelines.c.activity_score, cpic_guidelines.c.recommendation).where(
+                cpic_guidelines.c.gene == "CYP2C9",
+                cpic_guidelines.c.drug == "phenytoin",
+            )
+        ).fetchall()
+    assert len(rows) == 4
+    assert (1.25, "Future custom recommendation.") in rows
+
+
+def test_rechecks_legacy_fingerprint_after_loading_bundled_rows(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """A concurrent/custom write before replacement must make the repair a no-op."""
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'ref.db'}")
+    reference_metadata.create_all(engine, checkfirst=True)
+    with engine.begin() as conn:
+        conn.execute(cpic_guidelines.insert(), _LEGACY_PHENYTOIN_ROWS)
+
+    from backend.annotation import cpic as cpic_module
+
+    parse_bundled_rows = cpic_module.parse_cpic_guidelines_csv
+
+    def parse_after_custom_write(path):
+        with engine.begin() as conn:
+            conn.execute(
+                cpic_guidelines.insert(),
+                {
+                    "gene": "CYP2C9",
+                    "drug": "phenytoin",
+                    "phenotype": "Intermediate Metabolizer",
+                    "activity_score": 1.25,
+                    "recommendation": "Concurrent custom recommendation.",
+                    "classification": "A",
+                    "guideline_url": _PHENYTOIN_URL,
+                },
+            )
+        return parse_bundled_rows(path)
+
+    monkeypatch.setattr(cpic_module, "parse_cpic_guidelines_csv", parse_after_custom_write)
+
+    assert ensure_reference_schema_current(engine) is False
+    with engine.connect() as conn:
+        rows = conn.execute(
+            sa.select(cpic_guidelines.c.activity_score, cpic_guidelines.c.recommendation).where(
+                cpic_guidelines.c.gene == "CYP2C9",
+                cpic_guidelines.c.drug == "phenytoin",
+            )
+        ).fetchall()
+
+    assert len(rows) == 4
+    assert (1.25, "Concurrent custom recommendation.") in rows
+
+
+def test_legacy_refresh_locks_for_write_before_fingerprint_select(tmp_path: Path) -> None:
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'ref.db'}")
+    reference_metadata.create_all(engine, checkfirst=True)
+    with engine.begin() as conn:
+        conn.execute(cpic_guidelines.insert(), _LEGACY_PHENYTOIN_ROWS)
+
+    statements: list[str] = []
+
+    def record_statement(_conn, _cursor, statement, _parameters, _context, _executemany):
+        statements.append(" ".join(statement.split()).upper())
+
+    sa.event.listen(engine, "before_cursor_execute", record_statement)
+    try:
+        assert ensure_reference_schema_current(engine) is True
+    finally:
+        sa.event.remove(engine, "before_cursor_execute", record_statement)
+
+    begin_index = statements.index("BEGIN IMMEDIATE")
+    fingerprint_index = next(
+        index
+        for index, statement in enumerate(statements)
+        if statement.startswith("SELECT CPIC_GUIDELINES.PHENOTYPE")
+    )
+    delete_index = next(
+        index
+        for index, statement in enumerate(statements)
+        if statement.startswith("DELETE FROM CPIC_GUIDELINES")
+    )
+    assert begin_index < fingerprint_index < delete_index
+
+
+def test_activity_score_column_and_legacy_phenytoin_content_upgrade_together(
+    tmp_path: Path,
+) -> None:
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'ref.db'}")
+    with engine.begin() as conn:
+        conn.execute(
+            sa.text(
+                "CREATE TABLE cpic_guidelines ("
+                "id INTEGER PRIMARY KEY AUTOINCREMENT, gene TEXT NOT NULL, drug TEXT NOT NULL, "
+                "phenotype TEXT NOT NULL, recommendation TEXT, classification TEXT, "
+                "guideline_url TEXT)"
+            )
+        )
+        conn.execute(
+            sa.text(
+                "INSERT INTO cpic_guidelines "
+                "(gene, drug, phenotype, recommendation, classification, guideline_url) "
+                "VALUES (:gene, :drug, :phenotype, :recommendation, "
+                ":classification, :guideline_url)"
+            ),
+            _LEGACY_PHENYTOIN_ROWS,
+        )
+
+    assert ensure_reference_schema_current(engine) is True
+    assert "activity_score" in _columns(engine, "cpic_guidelines")
+    with engine.connect() as conn:
+        scores = (
+            conn.execute(
+                sa.text(
+                    "SELECT activity_score FROM cpic_guidelines "
+                    "WHERE gene='CYP2C9' AND drug='phenytoin' ORDER BY activity_score DESC"
+                )
+            )
+            .scalars()
+            .all()
+        )
+    assert scores == [2.0, 1.5, 1.0, 0.5, 0.0]

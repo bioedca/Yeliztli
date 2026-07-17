@@ -515,14 +515,75 @@ def test_reduced_function_carriers_emit_warfarin_phenytoin_alerts(
         assert alert.call_confidence == expected_confidence
         assert "*6" not in alert.indeterminate_alleles
 
-    # These four corrected AS-1.0 calls are the clinical boundary in issue #1981.
-    # CPIC gives AS-1.5 IMs typical maintenance dosing, but the repo still keys
-    # guidance on phenotype alone; that broader lookup defect is isolated in #1989.
-    if diplotype in {"*2/*5", "*5/*5", "*5/*8", "*5/*11"}:
-        phenytoin = next(a for a in cyp2c9_alerts if a.drug == "phenytoin")
-        assert phenytoin.recommendation == "Reduce dose by 25%. Increase monitoring."
-        assert "50%" not in phenytoin.recommendation
-        assert "alternative anticonvulsant" not in phenytoin.recommendation
+    phenytoin = next(a for a in cyp2c9_alerts if a.drug == "phenytoin")
+    if activity_score == 1.5:
+        assert phenytoin.recommendation.startswith(
+            "No adjustments needed from typical dosing strategies."
+        )
+        assert "25%" not in phenytoin.recommendation
+    else:
+        assert activity_score == 1.0
+        assert phenytoin.recommendation.startswith(
+            "For first dose, use typical initial or loading dose."
+        )
+        assert "approximately 25% less than typical maintenance dose" in (phenytoin.recommendation)
+    assert "alternative anticonvulsant" not in phenytoin.recommendation.lower()
+
+
+@pytest.mark.parametrize(
+    ("overrides", "diplotype", "phenotype", "activity_score", "dose_fragment"),
+    [
+        ({}, "*1/*1", "Normal Metabolizer", 2.0, None),
+        ({"rs1799853": "CT"}, "*1/*2", "Intermediate Metabolizer", 1.5, None),
+        ({"rs1057910": "AC"}, "*1/*3", "Intermediate Metabolizer", 1.0, "25%"),
+        (
+            {"rs1799853": "CT", "rs1057910": "AC"},
+            "*2/*3",
+            "Poor Metabolizer",
+            0.5,
+            "50%",
+        ),
+        ({"rs1057910": "CC"}, "*3/*3", "Poor Metabolizer", 0.0, "50%"),
+    ],
+)
+def test_phenytoin_guidance_follows_all_five_cpic_activity_scores(
+    reference_engine: sa.Engine,
+    overrides: dict[str, str],
+    diplotype: str,
+    phenotype: str,
+    activity_score: float,
+    dose_fragment: str | None,
+) -> None:
+    genotypes = _cyp2c9_genotypes(**overrides)
+    genotypes["rs9332131"] = "II"
+    sample = _make_sample(genotypes)
+    results = call_all_star_alleles(reference_engine, sample, genes=frozenset({"CYP2C9"}))
+    alerts = [
+        alert
+        for alert in generate_prescribing_alerts(results, reference_engine)
+        if alert.gene == "CYP2C9"
+    ]
+
+    assert [(alert.drug, alert.diplotype) for alert in alerts] == [
+        ("phenytoin", diplotype),
+        ("warfarin", diplotype),
+    ]
+    assert {alert.phenotype for alert in alerts} == {phenotype}
+    assert {alert.activity_score for alert in alerts} == {activity_score}
+
+    phenytoin = next(alert for alert in alerts if alert.drug == "phenytoin")
+    recommendation = phenytoin.recommendation
+    if dose_fragment is None:
+        assert recommendation.startswith("No adjustments needed from typical dosing strategies.")
+        assert "% less than typical maintenance dose" not in recommendation
+    else:
+        assert recommendation.startswith("For first dose, use typical initial or loading dose.")
+        assert (
+            f"approximately {dose_fragment} less than typical maintenance dose" in recommendation
+        )
+    assert "therapeutic drug monitoring" in recommendation
+    assert "HLA-B*15:02 negative test does not eliminate" in recommendation
+    assert "alternative anticonvulsant" not in recommendation.lower()
 
 
 @pytest.mark.parametrize(
@@ -533,13 +594,13 @@ def test_reduced_function_carriers_emit_warfarin_phenytoin_alerts(
         ("rs28371685", "CT", "*1/*11"),
     ],
 )
-def test_untyped_star5_does_not_create_poor_conservative_alert(
+def test_untyped_star5_uses_lower_score_within_intermediate_band(
     reference_engine: sa.Engine,
     typed_rsid: str,
     typed_genotype: str,
     diplotype: str,
 ) -> None:
-    """A missing *5 marker must not turn a decreased-function call into a false PM."""
+    """A plausible AS-1.0 call must select its IM dosing despite the same label."""
     genotypes = _cyp2c9_genotypes(
         **{typed_rsid: typed_genotype},
         rs9332131="II",
@@ -550,7 +611,10 @@ def test_untyped_star5_does_not_create_poor_conservative_alert(
     assert result.diplotype == diplotype
     assert result.phenotype == "Intermediate Metabolizer"
     assert "*5" in result.indeterminate_alleles
-    assert result.conservative_phenotype is None
+    assert result.conservative_phenotype == "Intermediate Metabolizer"
+    assert result.conservative_activity_score == 1.0
+    assert "activity score 1.0" in result.confidence_note
+    assert "activity score 1.5" in result.confidence_note
 
     sample = _make_sample(genotypes)
     results = call_all_star_alleles(reference_engine, sample, genes=frozenset({"CYP2C9"}))
@@ -559,10 +623,12 @@ def test_untyped_star5_does_not_create_poor_conservative_alert(
 
     assert cyp2c9_alerts
     assert {alert.phenotype for alert in cyp2c9_alerts} == {"Intermediate Metabolizer"}
-    assert not any(alert.conservative_alert for alert in cyp2c9_alerts)
+    assert all(alert.conservative_alert for alert in cyp2c9_alerts)
+    assert {alert.activity_score for alert in cyp2c9_alerts} == {1.0}
     phenytoin = next(alert for alert in cyp2c9_alerts if alert.drug == "phenytoin")
+    assert "approximately 25% less than typical maintenance dose" in phenytoin.recommendation
     assert "50%" not in phenytoin.recommendation
-    assert "alternative anticonvulsant" not in phenytoin.recommendation
+    assert "alternative anticonvulsant" not in phenytoin.recommendation.lower()
 
 
 def test_star6_base_coded_indel_is_uncalled_and_indeterminate(

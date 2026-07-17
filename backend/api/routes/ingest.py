@@ -23,7 +23,13 @@ from backend.db.connection import get_registry
 from backend.db.database_registry import DATABASES
 from backend.db.manifest import get_bundle_info
 from backend.db.sample_schema import create_sample_tables
-from backend.db.tables import jobs, raw_variants, sample_metadata_table, samples
+from backend.db.tables import (
+    jobs,
+    raw_variants,
+    reannotation_prompts,
+    sample_metadata_table,
+    samples,
+)
 from backend.db.vep_version import resolve_effective_vep_bundle_version
 from backend.ingestion.base import ParsedVariant, ParseResult, UnsupportedFormatError
 from backend.ingestion.dispatcher import (
@@ -338,6 +344,13 @@ def _ingest_file(file_bytes: bytes, filename: str) -> dict:
             .returning(samples.c.id)
         )
         sample_id = row.scalar_one()
+
+        # SQLite may reuse a vacant integer primary key. Releases before the
+        # sample-deletion cascade could have left a prompt for that old owner;
+        # clear it while this allocation still holds the registry write lock.
+        conn.execute(
+            reannotation_prompts.delete().where(reannotation_prompts.c.sample_id == sample_id)
+        )
 
         # Set db_path now that we have the id
         db_path = f"samples/sample_{sample_id}.db"
