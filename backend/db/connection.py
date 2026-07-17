@@ -483,6 +483,17 @@ class DBRegistry:
                 self._sample_prompt_sync_complete[key] = engine
         return engine
 
+    def reconcile_sample_reanalysis_prompt(self, sample_db_path: str | Path) -> None:
+        """Reconcile central prompt state after the local marker changes."""
+        key = str(sample_db_path)
+        self._sample_prompt_sync_complete.pop(key, None)
+        engine = self._sample_engines.get(key)
+        if engine is not None and self._sync_cyp2c9_phenytoin_reanalysis_prompt(
+            engine,
+            sample_db_path,
+        ):
+            self._sample_prompt_sync_complete[key] = engine
+
     def dispose_sample_engine(self, sample_db_path: str | Path) -> None:
         """Dispose and remove a cached sample engine.
 

@@ -385,6 +385,12 @@ def run_annotation_task(sample_id: int, job_id: str) -> None:
                             annotation_state.c.key == CYP2C9_PHENYTOIN_REANALYSIS_STATE_KEY
                         )
                     )
+            if pharmacogenomics_ok:
+                # The engine may already be cached as synchronized from before
+                # analysis. Reconcile immediately after the authoritative local
+                # marker disappears so its identity-bound correction does not
+                # remain visible until restart.
+                registry.reconcile_sample_reanalysis_prompt(sample_db_full)
             logger.info(
                 "annotation_state_upserted",
                 extra={
