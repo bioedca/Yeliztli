@@ -445,7 +445,16 @@ def pgx_reference_engine() -> sa.Engine:
             "gene": "TPMT",
             "drug": "mercaptopurine",
             "phenotype": "Poor Metabolizer",
-            "recommendation": "Reduce dose to 10% of standard. Consider alternative agent.",
+            "recommendation": (
+                "For malignancy: initiate therapy with drastically reduced starting doses. "
+                "Reduce starting dose by 10-fold and reduce frequency to thrice weekly instead "
+                "of daily (e.g. 10 mg/m2/day given 3 days/week). During therapy, adjust "
+                "mercaptopurine doses based on the degree of myelosuppression and "
+                "disease-specific guidelines. It usually takes at least 4-6 weeks of stable "
+                "dosing to reach steady state after each dose adjustment. If myelosuppression "
+                "occurs, emphasis should be on reducing mercaptopurine over other agents. For "
+                "nonmalignancy: consider alternative nonthiopurine immunosuppressant therapy."
+            ),
             "classification": "A",
             "guideline_url": "https://cpicpgx.org/guidelines/guideline-for-thiopurines-and-tpmt/",
         },

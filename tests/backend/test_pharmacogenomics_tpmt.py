@@ -36,6 +36,28 @@ from backend.db.tables import raw_variants, reference_metadata
 
 _CPIC_DIR = Path(__file__).resolve().parents[2] / "backend" / "data" / "cpic"
 
+_TPMT_PM_RECOMMENDATIONS = {
+    "azathioprine": "Consider alternative nonthiopurine immunosuppressant therapy.",
+    "mercaptopurine": (
+        "For malignancy: initiate therapy with drastically reduced starting doses. "
+        "Reduce starting dose by 10-fold and reduce frequency to thrice weekly instead "
+        "of daily (e.g. 10 mg/m2/day given 3 days/week). During therapy, adjust "
+        "mercaptopurine doses based on the degree of myelosuppression and disease-specific "
+        "guidelines. It usually takes at least 4-6 weeks of stable dosing to reach steady "
+        "state after each dose adjustment. If myelosuppression occurs, emphasis should be "
+        "on reducing mercaptopurine over other agents. For nonmalignancy: consider "
+        "alternative nonthiopurine immunosuppressant therapy."
+    ),
+    "thioguanine": (
+        "Initiate therapy with drastically reduced starting doses. Reduce starting dose "
+        "by 10-fold and reduce frequency to thrice weekly instead of daily. During therapy, "
+        "adjust thioguanine doses based on degree of myelosuppression and disease-specific "
+        "guidelines. It usually takes at least 4-6 weeks of stable dosing to reach steady "
+        "state after each dose adjustment. If myelosuppression occurs, emphasis should be "
+        "on reducing thioguanine over other agents."
+    ),
+}
+
 # TPMT defining variants on the GRCh37 plus strand (matches cpic_alleles.csv and
 # the strand guard in test_cpic_allele_strand.py). rsid -> (chrom, pos, ref, alt);
 # TPMT is minus-strand, so alt is the plus-strand base a carrier of the allele has.
@@ -149,10 +171,7 @@ def test_star1_star3b_emits_thiopurine_alerts(reference_engine: sa.Engine) -> No
             "*3B/*3B",
             {"rs1800460": "TT"},
             "Poor Metabolizer",
-            "Start with drastically reduced doses (reduce daily dose by 10-fold "
-            "and dose thrice weekly instead of daily) and titrate based on "
-            "myelosuppression; for nonmalignant conditions consider an "
-            "alternative agent.",
+            _TPMT_PM_RECOMMENDATIONS["thioguanine"],
         ),
     ],
 )
@@ -165,13 +184,14 @@ def test_actionable_tpmt_emits_thioguanine_alert(
 ) -> None:
     """An actionable TPMT phenotype surfaces a thioguanine alert (issue #224).
 
-    CPIC's thiopurine/TPMT guideline (Relling et al. Clin Pharmacol Ther 2019,
-    PMID 30447069) covers thioguanine alongside azathioprine and mercaptopurine.
+    CPIC's 2025 thiopurine update (Maillard et al. Clin Pharmacol Ther 2026,
+    PMID 41618934) covers thioguanine alongside azathioprine and mercaptopurine.
     Before #224 the shipped cpic_guidelines.csv had no TPMT thioguanine rows, so
     a TPMT-deficient patient prescribed thioguanine got no dose-reduction warning
     at all — the same silent-drop defect this file guards for the other two
     thiopurines. Each phenotype must emit exactly one thioguanine alert carrying
-    its CPIC recommendation verbatim.
+    its bundled recommendation verbatim; the PM expectation tracks the 2025
+    update, while broader Intermediate Metabolizer alignment is tracked in #2007.
     """
     sample = _make_sample(_tpmt_genotypes(**overrides))
     results = call_all_star_alleles(reference_engine, sample, genes=frozenset({"TPMT"}))
@@ -187,6 +207,29 @@ def test_actionable_tpmt_emits_thioguanine_alert(
         assert "10-fold" in alert.recommendation
         assert "thrice weekly" in alert.recommendation
         assert "50-75%" not in alert.recommendation
+
+
+def test_star3b_star3b_emits_current_poor_metabolizer_matrix(
+    reference_engine: sa.Engine,
+) -> None:
+    """The shipped TPMT PM matrix matches CPIC's 2025 thiopurine update (#2000)."""
+    sample = _make_sample(_tpmt_genotypes(rs1800460="TT"))
+    results = call_all_star_alleles(reference_engine, sample, genes=frozenset({"TPMT"}))
+    alerts = [
+        alert
+        for alert in generate_prescribing_alerts(results, reference_engine)
+        if alert.gene == "TPMT"
+    ]
+
+    assert len(alerts) == len(_TPMT_PM_RECOMMENDATIONS)
+    by_drug = {alert.drug: alert for alert in alerts}
+    assert set(by_drug) == set(_TPMT_PM_RECOMMENDATIONS)
+    for drug, recommendation in _TPMT_PM_RECOMMENDATIONS.items():
+        alert = by_drug[drug]
+        assert alert.diplotype == "*3B/*3B"
+        assert alert.phenotype == "Poor Metabolizer"
+        assert alert.recommendation == recommendation
+        assert alert.classification == "A"
 
 
 def test_star3a_double_het_is_phase_ambiguous(reference_engine: sa.Engine) -> None:
@@ -224,8 +267,8 @@ def test_star3a_double_het_alert_carries_phase_caveat(reference_engine: sa.Engin
 # Issue #12: no-function / no-function diplotypes that the greedy star-allele
 # caller can reach but which had no cpic_diplotypes.csv row, so they resolved to
 # phenotype=None and were silently skipped by generate_prescribing_alerts(). Two
-# no-function TPMT alleles = Poor Metabolizer (CPIC thiopurine guideline, Relling
-# et al. Clin Pharmacol Ther 2019, PMID 30447069), the highest-toxicity group.
+# no-function TPMT alleles = Poor Metabolizer (CPIC 2025 thiopurine update,
+# Maillard et al. Clin Pharmacol Ther 2026, PMID 41618934), the highest-toxicity group.
 # Each tuple is (expected diplotype, plus-strand genotype overrides, expected
 # confidence) and was verified to be produced by call_star_alleles_for_gene over
 # the production CSVs.
@@ -280,7 +323,7 @@ def test_poor_metabolizers_emit_thiopurine_alerts(
     overrides: dict[str, str],
     expected_confidence: CallConfidence,
 ) -> None:
-    """A TPMT Poor Metabolizer gets azathioprine + mercaptopurine alerts (issue #12).
+    """A TPMT Poor Metabolizer gets all three thiopurine alerts (issues #12, #2000).
 
     End-to-end patient-safety guard: the missing diplotype rows previously made
     generate_prescribing_alerts() skip the gene for the highest-toxicity group.
@@ -292,7 +335,8 @@ def test_poor_metabolizers_emit_thiopurine_alerts(
     tpmt_alerts = [a for a in alerts if a.gene == "TPMT"]
     assert tpmt_alerts, f"expected TPMT alerts for Poor Metabolizer {expected_diplotype}"
     drugs = {a.drug for a in tpmt_alerts}
-    assert {"azathioprine", "mercaptopurine"} <= drugs
+    assert len(tpmt_alerts) == len(_TPMT_PM_RECOMMENDATIONS)
+    assert drugs == set(_TPMT_PM_RECOMMENDATIONS)
     for alert in tpmt_alerts:
         assert alert.diplotype == expected_diplotype
         assert alert.phenotype == "Poor Metabolizer"

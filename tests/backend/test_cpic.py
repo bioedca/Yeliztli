@@ -13,6 +13,7 @@ Covers:
 from __future__ import annotations
 
 import csv
+import sqlite3
 from pathlib import Path
 
 import pytest
@@ -38,6 +39,40 @@ from backend.db.tables import (
 
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
 SEED_DIR = FIXTURES_DIR / "seed_csvs"
+
+_TPMT_GUIDELINE_URL = "https://cpicpgx.org/guidelines/guideline-for-thiopurines-and-tpmt/"
+_TPMT_POOR_METABOLIZER_GUIDELINES = {
+    ("mercaptopurine", "Poor Metabolizer"): (
+        None,
+        "For malignancy: initiate therapy with drastically reduced starting doses. "
+        "Reduce starting dose by 10-fold and reduce frequency to thrice weekly instead "
+        "of daily (e.g. 10 mg/m2/day given 3 days/week). During therapy, adjust "
+        "mercaptopurine doses based on the degree of myelosuppression and disease-specific "
+        "guidelines. It usually takes at least 4-6 weeks of stable dosing to reach steady "
+        "state after each dose adjustment. If myelosuppression occurs, emphasis should be "
+        "on reducing mercaptopurine over other agents. For nonmalignancy: consider "
+        "alternative nonthiopurine immunosuppressant therapy.",
+        "A",
+        _TPMT_GUIDELINE_URL,
+    ),
+    ("azathioprine", "Poor Metabolizer"): (
+        None,
+        "Consider alternative nonthiopurine immunosuppressant therapy.",
+        "A",
+        _TPMT_GUIDELINE_URL,
+    ),
+    ("thioguanine", "Poor Metabolizer"): (
+        None,
+        "Initiate therapy with drastically reduced starting doses. Reduce starting dose "
+        "by 10-fold and reduce frequency to thrice weekly instead of daily. During therapy, "
+        "adjust thioguanine doses based on degree of myelosuppression and disease-specific "
+        "guidelines. It usually takes at least 4-6 weeks of stable dosing to reach steady "
+        "state after each dose adjustment. If myelosuppression occurs, emphasis should be "
+        "on reducing thioguanine over other agents.",
+        "A",
+        _TPMT_GUIDELINE_URL,
+    ),
+}
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -272,14 +307,55 @@ class TestParseGuidelinesCSV:
             assert "phenytoin-induced SJS/TEN" in recommendation
             assert "alternative anticonvulsant" not in recommendation.lower()
 
+    def test_tpmt_guideline_matrix_matches_production_seed_and_mini_fixture(self) -> None:
+        """Fixtures mirror production; TPMT PM rows match the 2025 CPIC update (#2000)."""
+
+        def csv_matrix(path: Path) -> dict[tuple[str, str], tuple[str | None, str, str, str]]:
+            with path.open(newline="", encoding="utf-8") as fh:
+                rows = [row for row in csv.DictReader(fh) if row["gene"] == "TPMT"]
+            matrix = {
+                (row["drug"], row["phenotype"]): (
+                    row["activity_score"] or None,
+                    row["recommendation"],
+                    row["classification"],
+                    row["guideline_url"],
+                )
+                for row in rows
+            }
+            assert len(rows) == len(matrix) == 9
+            return matrix
+
+        with sqlite3.connect(FIXTURES_DIR / "mini_reference.db") as conn:
+            mini_rows = conn.execute(
+                "SELECT drug, phenotype, activity_score, recommendation, classification, "
+                "guideline_url FROM cpic_guidelines WHERE gene = 'TPMT'"
+            ).fetchall()
+        mini_matrix = {
+            (drug, phenotype): (activity_score, recommendation, classification, guideline_url)
+            for drug, phenotype, activity_score, recommendation, classification, guideline_url in (
+                mini_rows
+            )
+        }
+
+        production_matrix = csv_matrix(CPIC_DATA_DIR / "cpic_guidelines.csv")
+        seed_matrix = csv_matrix(SEED_DIR / "cpic_guidelines_seed.csv")
+        poor_metabolizer_rows = {
+            key: value for key, value in production_matrix.items() if key[1] == "Poor Metabolizer"
+        }
+
+        assert len(mini_rows) == len(mini_matrix) == 9
+        assert production_matrix == seed_matrix == mini_matrix
+        assert poor_metabolizer_rows == _TPMT_POOR_METABOLIZER_GUIDELINES
+
     def test_parse_seed_file(self):
         rows, stats = parse_cpic_guidelines_csv(SEED_DIR / "cpic_guidelines_seed.csv")
 
         # E1 (61) + CYP2B6 efavirenz (5): Normal/IM/PM + Rapid/Ultrarapid (#1985),
         # DPYD's 6 phenotype rows re-derived to 10 AS rows (#1993) → +4, then
-        # CYP2C9/phenytoin's 3 phenotype rows re-derived to 5 AS rows (#1989) → +2.
-        assert len(rows) == 72
-        assert stats.guidelines_loaded == 72
+        # CYP2C9/phenytoin's 3 phenotype rows re-derived to 5 AS rows (#1989) → +2,
+        # then TPMT thioguanine's complete NM/IM/PM set was added (#2000) → +3.
+        assert len(rows) == 75
+        assert stats.guidelines_loaded == 75
         assert stats.guidelines_skipped == 0
 
     def test_first_row_structure(self):
