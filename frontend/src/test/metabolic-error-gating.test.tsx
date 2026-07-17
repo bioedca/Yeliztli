@@ -125,6 +125,7 @@ describe("MetabolicView error gating (#642)", () => {
     render(<MetabolicView />)
 
     expect(screen.getByText("Type 2 Diabetes")).toBeInTheDocument()
+    expect(screen.queryByText("Metabolic run failed: 500")).not.toBeInTheDocument()
     expect(screen.queryByText("Failed to load data")).not.toBeInTheDocument()
   })
 

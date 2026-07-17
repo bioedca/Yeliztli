@@ -104,6 +104,7 @@ describe("EBMDView", () => {
     render(<EBMDView />)
 
     expect(screen.getByText("Heel eBMD")).toBeInTheDocument()
-    expect(screen.queryByText("Failed to load data")).not.toBeInTheDocument()
+    expect(screen.queryByText("eBMD run failed: 500")).not.toBeInTheDocument()
+    expect(screen.queryByText("Failed to load eBMD score.")).not.toBeInTheDocument()
   })
 })
