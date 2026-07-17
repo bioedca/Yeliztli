@@ -73,12 +73,15 @@ export default function MetabolicView() {
     )
   }
 
-  // Gate the page on the PRIMARY work (run + the core T2D/BMI PRS scores) only.
-  // The anchor-SNP query is a secondary, optional feature that degrades to a
-  // localized inline error/spinner in its own section, so an anchors 500 no
-  // longer blanks the successfully-computed PRS results (#642).
-  const isLoading = run.isPending || prsQuery.isLoading
-  const hasError = run.isError || prsQuery.isError
+  // Gate the page on the PRS GET only — the stored results the page renders
+  // (~12 ms) — not on `run`, the ~190 s background re-score (#1992). `run`
+  // invalidates prsQuery on success, so fresh numbers refresh in place; blocking
+  // the whole page on it hid already-stored results behind a 3-minute spinner on
+  // every visit. `run.isError` is likewise excluded: a failed background refresh
+  // must not blank the successfully-loaded results after they render. This is
+  // the same narrowing #642 applied to the anchor-SNP query.
+  const isLoading = prsQuery.isLoading
+  const hasError = prsQuery.isError
 
   return (
     <div className="p-6">
@@ -99,9 +102,11 @@ export default function MetabolicView() {
       {hasError && !isLoading && (
         <PageError
           message={
-            run.error instanceof Error ? run.error.message : "Failed to compute metabolic scores."
+            prsQuery.error instanceof Error
+              ? prsQuery.error.message
+              : "Failed to load metabolic scores."
           }
-          onRetry={() => run.mutate()}
+          onRetry={() => prsQuery.refetch()}
         />
       )}
 

@@ -109,6 +109,26 @@ describe("MetabolicView error gating (#642)", () => {
     expect(screen.queryByText("Scoring metabolic polygenic risk...")).not.toBeInTheDocument()
   })
 
+  it("renders stored PRS results while the run re-score is still pending (#1992)", () => {
+    // The stored results (prsQuery) are already present; the ~190 s background
+    // re-score (run.isPending) must not gate them behind the full-page spinner.
+    mockRun.mockReturnValue(q({ isPending: true }))
+    render(<MetabolicView />)
+
+    expect(screen.getByText("Type 2 Diabetes")).toBeInTheDocument()
+    expect(screen.queryByText("Scoring metabolic polygenic risk...")).not.toBeInTheDocument()
+  })
+
+  it("keeps stored PRS results visible when the background run fails (#1992)", () => {
+    // A failed background refresh must not blank already-rendered results.
+    mockRun.mockReturnValue(q({ isError: true, error: new Error("Metabolic run failed: 500") }))
+    render(<MetabolicView />)
+
+    expect(screen.getByText("Type 2 Diabetes")).toBeInTheDocument()
+    expect(screen.queryByText("Metabolic run failed: 500")).not.toBeInTheDocument()
+    expect(screen.queryByText("Failed to load data")).not.toBeInTheDocument()
+  })
+
   it("shows the imputed coverage split on metabolic PRS cards", () => {
     mockPRS.mockReturnValue(
       q({
