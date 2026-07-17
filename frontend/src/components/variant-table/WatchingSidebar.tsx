@@ -115,7 +115,9 @@ export default function WatchingSidebar({
             <p className="text-xs text-muted-foreground py-2">Loading watched variants...</p>
           ) : !watchedVariants?.length ? (
             <p className="text-xs text-muted-foreground py-2">
-              No watched variants. Click the eye icon on a variant to start watching.
+              {
+                'No watched variants. Select a variant to open its details, then choose the "Watch this variant" button.'
+              }
             </p>
           ) : (
             <>

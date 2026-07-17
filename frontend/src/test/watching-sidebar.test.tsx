@@ -41,11 +41,16 @@ describe("WatchingSidebar", () => {
     expect(container.innerHTML).toBe("")
   })
 
-  it("shows empty state when no variants are watched", () => {
+  it("shows empty state naming the real watch control, not a phantom eye icon", () => {
     mockWatchedVariants.mockReturnValue({ data: [], isLoading: false })
     renderWithProviders(<WatchingSidebar sampleId={1} />)
 
+    // The instruction must name the affordance that actually exists — the
+    // "Watch this variant" button in a variant's detail panel — and must not
+    // point at an eye icon on a row, which the table never renders (#1995).
     expect(screen.getByText(/no watched variants/i)).toBeInTheDocument()
+    expect(screen.getByText(/Watch this variant/)).toBeInTheDocument()
+    expect(screen.queryByText(/eye icon/i)).not.toBeInTheDocument()
   })
 
   it("shows loading state", () => {
