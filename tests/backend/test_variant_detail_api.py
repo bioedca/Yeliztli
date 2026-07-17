@@ -760,6 +760,8 @@ VEP_TRANSCRIPT_ROWS = [
         "mane": 1,
         "chrom": "17",
         "pos": 43094464,
+        "ref": "A",
+        "alt": "G",
     },
     {
         "rsid": "rs80357906",
@@ -774,6 +776,8 @@ VEP_TRANSCRIPT_ROWS = [
         "mane": 0,
         "chrom": "17",
         "pos": 43094464,
+        "ref": "A",
+        "alt": "G",
     },
     {
         "rsid": "rs80357906",
@@ -788,12 +792,17 @@ VEP_TRANSCRIPT_ROWS = [
         "mane": 0,
         "chrom": "17",
         "pos": 43094464,
+        "ref": "A",
+        "alt": "G",
     },
 ]
 
 
-def _setup_vep_client(tmp_data_dir: Path, transcript_rows: list[dict]):
+def _setup_vep_client(
+    tmp_data_dir: Path, transcript_rows: list[dict], sample_variant: dict | None = None
+):
     """Create TestClient with VEP bundle configured."""
+    sample_variant = sample_variant or SAMPLE_VARIANT_BRCA1
     settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
 
     ref_engine = sa.create_engine(f"sqlite:///{settings.reference_db_path}")
@@ -817,7 +826,7 @@ def _setup_vep_client(tmp_data_dir: Path, transcript_rows: list[dict]):
     with sample_engine.begin() as conn:
         conn.execute(
             annotated_variants.insert(),
-            [{k: SAMPLE_VARIANT_BRCA1.get(k) for k in all_cols}],
+            [{k: sample_variant.get(k) for k in all_cols}],
         )
     sample_engine.dispose()
 
@@ -830,7 +839,8 @@ def _setup_vep_client(tmp_data_dir: Path, transcript_rows: list[dict]):
                 "  rsid TEXT, gene_symbol TEXT, transcript_id TEXT,"
                 "  consequence TEXT, hgvs_coding TEXT, hgvs_protein TEXT,"
                 "  strand TEXT, exon_number INTEGER, intron_number INTEGER,"
-                "  mane_select INTEGER, chrom TEXT, pos INTEGER"
+                "  mane_select INTEGER, chrom TEXT, pos INTEGER,"
+                "  ref TEXT, alt TEXT"
                 ")"
             )
         )
@@ -838,7 +848,7 @@ def _setup_vep_client(tmp_data_dir: Path, transcript_rows: list[dict]):
             sa.text(
                 "INSERT INTO vep_annotations VALUES "
                 "(:rsid, :gene, :tid, :csq, :hgvsc, :hgvsp,"
-                " :strand, :exon, :intron, :mane, :chrom, :pos)"
+                " :strand, :exon, :intron, :mane, :chrom, :pos, :ref, :alt)"
             ),
             transcript_rows,
         )
@@ -878,6 +888,77 @@ def vep_client(tmp_data_dir: Path):
     yield from _setup_vep_client(tmp_data_dir, VEP_TRANSCRIPT_ROWS)
 
 
+# A multi-allelic rsID: one transcript, three alternate alleles (TP53 P72,
+# modelled on rs1042522). The sample carries only the alt=C (Pro72Arg) copy.
+_MULTIALLELIC_SAMPLE = {
+    "rsid": "rs1042522",
+    "chrom": "17",
+    "pos": 7579472,
+    "ref": "G",
+    "alt": "C",
+    "genotype": "CC",
+    "zygosity": "hom_alt",
+}
+_MULTIALLELIC_VEP_ROWS = [
+    {
+        "rsid": "rs1042522",
+        "gene": "TP53",
+        "tid": "ENST00000269305",
+        "csq": "missense_variant",
+        "hgvsc": "c.215C>T",
+        "hgvsp": "p.Pro72Leu",
+        "strand": "-",
+        "exon": 4,
+        "intron": None,
+        "mane": 1,
+        "chrom": "17",
+        "pos": 7579472,
+        "ref": "G",
+        "alt": "A",
+    },
+    {
+        "rsid": "rs1042522",
+        "gene": "TP53",
+        "tid": "ENST00000269305",
+        "csq": "missense_variant",
+        "hgvsc": "c.215C>G",
+        "hgvsp": "p.Pro72Arg",
+        "strand": "-",
+        "exon": 4,
+        "intron": None,
+        "mane": 1,
+        "chrom": "17",
+        "pos": 7579472,
+        "ref": "G",
+        "alt": "C",
+    },
+    {
+        "rsid": "rs1042522",
+        "gene": "TP53",
+        "tid": "ENST00000269305",
+        "csq": "missense_variant",
+        "hgvsc": "c.215C>A",
+        "hgvsp": "p.Pro72His",
+        "strand": "-",
+        "exon": 4,
+        "intron": None,
+        "mane": 1,
+        "chrom": "17",
+        "pos": 7579472,
+        "ref": "G",
+        "alt": "T",
+    },
+]
+
+
+@pytest.fixture
+def multiallelic_vep_client(tmp_data_dir: Path):
+    """Client with a multi-allelic rsID (3 alts, one transcript)."""
+    yield from _setup_vep_client(
+        tmp_data_dir, _MULTIALLELIC_VEP_ROWS, sample_variant=_MULTIALLELIC_SAMPLE
+    )
+
+
 class TestTranscripts:
     def test_transcripts_empty_when_vep_unavailable(self, client):
         """When VEP bundle is not available, transcripts list is empty."""
@@ -906,6 +987,23 @@ class TestTranscripts:
         tids = {t["transcript_id"] for t in non_mane}
         assert "NM_007300.4" in tids
         assert "ENST00000357654.9" in tids
+
+    def test_multiallelic_returns_only_carried_allele(self, multiallelic_vep_client):
+        """#2002: at a multi-allelic rsID the "All Transcripts" table listed every
+        alternate allele as if the user carried them all. For a sample homozygous
+        for alt=C (Pro72Arg), only that allele's transcript must be returned — the
+        Pro72Leu (alt=A) and Pro72His (alt=T) rows are other people's alleles."""
+        tc, sample_id = multiallelic_vep_client
+        resp = tc.get(f"/api/variants/rs1042522?sample_id={sample_id}")
+        assert resp.status_code == 200
+        transcripts = resp.json()["transcripts"]
+
+        assert len(transcripts) == 1, transcripts
+        assert transcripts[0]["hgvs_protein"] == "p.Pro72Arg"
+        assert transcripts[0]["alt"] == "C"
+        proteins = {t["hgvs_protein"] for t in transcripts}
+        assert "p.Pro72Leu" not in proteins
+        assert "p.Pro72His" not in proteins
 
     def test_transcripts_contain_expected_fields(self, vep_client):
         """Each transcript entry has the correct fields."""

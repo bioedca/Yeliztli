@@ -10,6 +10,9 @@ export interface TranscriptAnnotation {
   exon_number: number | null
   intron_number: number | null
   mane_select: boolean
+  // The allele this annotation belongs to (#2002 — filtered to the sample's).
+  ref?: string | null
+  alt?: string | null
 }
 
 export interface GenePhenotypeRecord {
