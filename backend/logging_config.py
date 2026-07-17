@@ -119,7 +119,9 @@ def _db_processor_factory(engine_getter: callable) -> callable:
 
             level = method_name.upper()
             db_event_dict = _event_dict_for_db_storage(logger, method_name, event_dict)
-            logger_name = db_event_dict.get("logger", db_event_dict.get("_logger", ""))
+            # NULL (not "") when no name was captured, so a misconfigured processor
+            # chain reads as a visible gap rather than a tidy blank column (#1997).
+            logger_name = db_event_dict.get("logger") or db_event_dict.get("_logger") or None
             message = db_event_dict.get("event", "")
 
             # Collect extra structured data (exclude internal keys)
@@ -140,7 +142,7 @@ def _db_processor_factory(engine_getter: callable) -> callable:
                     sa.insert(log_entries).values(
                         timestamp=datetime.now(UTC),
                         level=level,
-                        logger=str(logger_name),
+                        logger=str(logger_name) if logger_name is not None else None,
                         message=str(message),
                         event_data=extra_json,
                     )
@@ -156,6 +158,25 @@ def _db_processor_factory(engine_getter: callable) -> callable:
     return db_processor
 
 
+class _NamedPrintLoggerFactory(structlog.PrintLoggerFactory):
+    """``PrintLoggerFactory`` that keeps the logger name so it can be recorded.
+
+    The app creates loggers with ``structlog.get_logger(__name__)``, but the plain
+    ``PrintLogger`` drops that name — it has no ``.name`` attribute, so
+    ``structlog.stdlib.add_logger_name`` cannot read it (and in fact raises). This
+    reattaches the ``get_logger()`` name to each PrintLogger so ``add_logger_name``
+    populates the event dict, which is what fills the Log Explorer's Component
+    column and makes its component filter matchable (#1997).
+    """
+
+    def __call__(self, *args: object) -> structlog.types.WrappedLogger:
+        logger = super().__call__(*args)
+        # structlog passes the get_logger() positional args here; the first is the
+        # logger name (empty when get_logger() was called without one).
+        logger.name = str(args[0]) if args else ""
+        return logger
+
+
 def configure_logging(engine_getter: callable | None = None) -> None:
     """Configure structlog with console + optional DB output.
 
@@ -166,6 +187,11 @@ def configure_logging(engine_getter: callable | None = None) -> None:
     processors: list[structlog.types.Processor] = [
         structlog.contextvars.merge_contextvars,
         structlog.stdlib.add_log_level,
+        # Puts the get_logger() name into the event dict as ``logger`` (works
+        # because _NamedPrintLoggerFactory reattaches it to the PrintLogger).
+        # Feeds the DB processor's ``logger`` column — the Log Explorer's
+        # Component column and filter (#1997).
+        structlog.stdlib.add_logger_name,
         structlog.processors.TimeStamper(fmt="iso"),
         structlog.processors.StackInfoRenderer(),
         _redact_sensitive_log_fields,
@@ -180,7 +206,7 @@ def configure_logging(engine_getter: callable | None = None) -> None:
         processors=processors,
         wrapper_class=structlog.stdlib.BoundLogger,
         context_class=dict,
-        logger_factory=structlog.PrintLoggerFactory(),
+        logger_factory=_NamedPrintLoggerFactory(),
         cache_logger_on_first_use=False,
     )
 
