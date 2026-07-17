@@ -48,8 +48,7 @@ Automated review runs first and is not a substitute for human judgement:
 
 1. **CodeRabbit** — the primary automated reviewer on each PR.
 2. **GitHub Copilot code review** — an additional automated reviewer (where
-   enabled), which follows the repository's
-   [`.github/copilot-instructions.md`](.github/copilot-instructions.md).
+   enabled), which follows the repository's `.github/copilot-instructions.md`.
 3. A maintainer reviews and approves. AI tools *draft* review and suggestions; a
    **human owns the decision to merge** and is accountable for what lands.
 
