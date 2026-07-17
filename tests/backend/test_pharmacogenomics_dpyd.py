@@ -235,7 +235,13 @@ def _dpyd_recommendations(
     alerts = [
         a for a in generate_prescribing_alerts(results, reference_engine) if a.gene == "DPYD"
     ]
-    return {a.drug: a.recommendation or "" for a in alerts}
+    recommendations: dict[str, str] = {}
+    for alert in alerts:
+        # A duplicate drug alert would silently overwrite the first — fail loudly
+        # so a two-row AS match (a lookup regression) can't hide behind the dict.
+        assert alert.drug not in recommendations, f"duplicate DPYD alert for {alert.drug}"
+        recommendations[alert.drug] = alert.recommendation or ""
+    return recommendations
 
 
 def test_as_1_0_homozygote_differs_from_as_1_5_het(reference_engine: sa.Engine) -> None:
@@ -286,12 +292,18 @@ def test_no_two_distinct_activity_scores_share_a_recommendation() -> None:
     )
     for path in (_CPIC_DIR / "cpic_guidelines.csv", seed):
         by_pair: dict[tuple[str, str], dict[str, set[str]]] = defaultdict(lambda: defaultdict(set))
+        activity_score_rows = 0
         with open(path, encoding="utf-8") as fh:
             for row in csv.DictReader(fh):
                 score = (row.get("activity_score") or "").strip()
                 if not score:  # phenotype-keyed genes are exempt
                     continue
+                activity_score_rows += 1
                 by_pair[(row["gene"], row["drug"])][row["recommendation"]].add(score)
+        # Guard against the guard silently no-op'ing: if the AS rows ever vanish
+        # (a regression back to phenotype-keying), there are no collisions to find
+        # and this would pass vacuously. Fail instead.
+        assert activity_score_rows, f"{path.name} has no activity-score-keyed rows"
         collisions = [
             f"{path.name}: {gene}/{drug} — scores {sorted(scores)} share one recommendation"
             for (gene, drug), recs in by_pair.items()
