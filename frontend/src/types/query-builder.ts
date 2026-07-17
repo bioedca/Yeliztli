@@ -24,6 +24,7 @@ export interface QueryVariantRow {
   ref: string | null
   alt: string | null
   zygosity: string | null
+  carriage_status: "carried" | "not_carried" | "unresolved"
   gene_symbol: string | null
   transcript_id: string | null
   consequence: string | null

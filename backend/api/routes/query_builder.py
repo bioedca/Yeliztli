@@ -17,12 +17,13 @@ import re
 import sqlite3
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import sqlalchemy as sa
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from backend.analysis.zygosity import CARRIED_ZYGOSITIES, ZYG_HOM_REF
 from backend.api.dependencies import require_fresh_sample
 from backend.db.connection import get_registry
 from backend.db.tables import annotated_variants, samples
@@ -75,6 +76,10 @@ class QueryRequest(BaseModel):
     cursor_chrom: str | None = None
     cursor_pos: int | None = None
     limit: int = Field(default=50, ge=1, le=500)
+    include_all_positions: bool = False
+
+
+CarriageStatus = Literal["carried", "not_carried", "unresolved"]
 
 
 class QueryVariantRow(BaseModel):
@@ -87,6 +92,7 @@ class QueryVariantRow(BaseModel):
     ref: str | None = None
     alt: str | None = None
     zygosity: str | None = None
+    carriage_status: CarriageStatus
     gene_symbol: str | None = None
     transcript_id: str | None = None
     consequence: str | None = None
@@ -208,9 +214,20 @@ def _build_cursor_clause(
     )
 
 
+def _carriage_status(zygosity: str | None) -> CarriageStatus:
+    """Map the canonical zygosity vocabulary to a user-facing carriage state."""
+    if zygosity in CARRIED_ZYGOSITIES:
+        return "carried"
+    if zygosity == ZYG_HOM_REF:
+        return "not_carried"
+    return "unresolved"
+
+
 def _row_to_dict(row: sa.Row) -> dict[str, Any]:
-    """Convert a Row to a dict with all annotated_variants columns."""
-    return {col.name: getattr(row, col.name, None) for col in annotated_variants.columns}
+    """Convert a Row to a response dict with explicit carriage semantics."""
+    data = {col.name: getattr(row, col.name, None) for col in annotated_variants.columns}
+    data["carriage_status"] = _carriage_status(data.get("zygosity"))
+    return data
 
 
 def _field_type_label(col: sa.Column) -> tuple[str, str]:
@@ -278,6 +295,15 @@ def execute_query(body: QueryRequest) -> QueryResultPage:
         where_clause = translate(filter_tree)
     except TranslationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    # Visual queries describe the sample's carried variants by default. The
+    # underlying table also contains homozygous-reference and unresolved loci;
+    # those remain available only through an explicit UI opt-in (#1988).
+    if not body.include_all_positions:
+        where_clause = sa.and_(
+            where_clause,
+            annotated_variants.c.zygosity.in_(sorted(CARRIED_ZYGOSITIES)),
+        )
 
     # ── Build query ───────────────────────────────────────────────
     query = sa.select(annotated_variants).where(where_clause)

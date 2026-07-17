@@ -85,6 +85,53 @@ ANNOTATED_VARIANTS = [
     },
 ]
 
+MIXED_CARRIAGE_VARIANTS = [
+    {
+        "rsid": "rs_carried",
+        "chrom": "17",
+        "pos": 100,
+        "ref": "A",
+        "alt": "G",
+        "genotype": "AG",
+        "zygosity": "het",
+        "gene_symbol": "BRCA1",
+        "clinvar_significance": "Benign",
+    },
+    {
+        "rsid": "rs_hom_ref_pathogenic",
+        "chrom": "17",
+        "pos": 200,
+        "ref": "C",
+        "alt": "T",
+        "genotype": "CC",
+        "zygosity": "hom_ref",
+        "gene_symbol": "BRCA1",
+        "clinvar_significance": "Pathogenic",
+    },
+    {
+        "rsid": "rs_hom_alt",
+        "chrom": "17",
+        "pos": 300,
+        "ref": "A",
+        "alt": "G",
+        "genotype": "GG",
+        "zygosity": "hom_alt",
+        "gene_symbol": "BRCA1",
+        "clinvar_significance": "Pathogenic",
+    },
+    {
+        "rsid": "rs_unresolved_pathogenic",
+        "chrom": "17",
+        "pos": 400,
+        "ref": "A",
+        "alt": "AT",
+        "genotype": "II",
+        "zygosity": None,
+        "gene_symbol": "BRCA1",
+        "clinvar_significance": "Pathogenic",
+    },
+]
+
 _ALL_COLS = [col.name for col in annotated_variants.columns]
 
 
@@ -144,6 +191,11 @@ def client(tmp_data_dir: Path):
 @pytest.fixture
 def empty_client(tmp_data_dir: Path):
     yield from _setup_client(tmp_data_dir, [])
+
+
+@pytest.fixture
+def mixed_carriage_client(tmp_data_dir: Path):
+    yield from _setup_client(tmp_data_dir, MIXED_CARRIAGE_VARIANTS)
 
 
 # #1000: a result set that exceeds the old 10,000-row SQL-export cap, so a
@@ -257,6 +309,124 @@ class TestExportQueryJSON:
         data = json.loads(resp.text)
         assert len(data) == 1
         assert data[0]["gene_symbol"] == "BRCA1"
+
+
+class TestExportQueryCarriageGate:
+    """Visual-query exports use the same safe carriage mode as the table."""
+
+    @staticmethod
+    def _tabular_rows(response, fmt: str) -> list[dict[str, str | None]]:
+        if fmt == "json":
+            return json.loads(response.text)
+        delimiter = "\t" if fmt == "tsv" else ","
+        return list(csv.DictReader(io.StringIO(response.text), delimiter=delimiter))
+
+    @staticmethod
+    def _vcf_genotypes(response) -> dict[str, str]:
+        rows = [
+            line.split("\t") for line in response.text.splitlines() if not line.startswith("#")
+        ]
+        return {row[2]: row[9] for row in rows}
+
+    @pytest.mark.parametrize("fmt", ["csv", "tsv", "json"])
+    def test_default_tabular_export_excludes_non_carried_and_unresolved(
+        self, mixed_carriage_client, fmt: str
+    ) -> None:
+        tc, sid = mixed_carriage_client
+        resp = tc.post(
+            "/api/export/query",
+            json={"sample_id": sid, "filter": ALL_FILTER, "format": fmt},
+        )
+
+        assert resp.status_code == 200
+        rows = self._tabular_rows(resp, fmt)
+        assert [row["rsid"] for row in rows] == ["rs_carried", "rs_hom_alt"]
+        assert {row["zygosity"] for row in rows} == {"het", "hom_alt"}
+
+    @pytest.mark.parametrize("fmt", ["csv", "tsv", "json"])
+    def test_all_positions_tabular_export_requires_explicit_opt_in(
+        self, mixed_carriage_client, fmt: str
+    ) -> None:
+        tc, sid = mixed_carriage_client
+        resp = tc.post(
+            "/api/export/query",
+            json={
+                "sample_id": sid,
+                "filter": ALL_FILTER,
+                "format": fmt,
+                "include_all_positions": True,
+            },
+        )
+
+        assert resp.status_code == 200
+        rows = self._tabular_rows(resp, fmt)
+        assert {row["rsid"] for row in rows} == {
+            "rs_carried",
+            "rs_hom_ref_pathogenic",
+            "rs_hom_alt",
+            "rs_unresolved_pathogenic",
+        }
+        unresolved_value = None if fmt == "json" else ""
+        assert {row["zygosity"] for row in rows} == {
+            "het",
+            "hom_ref",
+            "hom_alt",
+            unresolved_value,
+        }
+
+    def test_default_vcf_export_contains_only_carried_genotypes(
+        self, mixed_carriage_client
+    ) -> None:
+        tc, sid = mixed_carriage_client
+        resp = tc.post(
+            "/api/export/query",
+            json={"sample_id": sid, "filter": ALL_FILTER, "format": "vcf"},
+        )
+
+        assert resp.status_code == 200
+        assert self._vcf_genotypes(resp) == {"rs_carried": "0/1", "rs_hom_alt": "1/1"}
+
+    def test_all_positions_vcf_export_rejects_lossy_unresolved_rows(
+        self, mixed_carriage_client
+    ) -> None:
+        tc, sid = mixed_carriage_client
+        resp = tc.post(
+            "/api/export/query",
+            json={
+                "sample_id": sid,
+                "filter": ALL_FILTER,
+                "format": "vcf",
+                "include_all_positions": True,
+            },
+        )
+
+        assert resp.status_code == 422
+        assert "would omit 1 annotated position with unresolved zygosity" in resp.json()["detail"]
+        assert "CSV, TSV, or JSON" in resp.json()["detail"]
+
+    def test_all_positions_vcf_export_includes_every_resolved_genotype(
+        self, mixed_carriage_client
+    ) -> None:
+        tc, sid = mixed_carriage_client
+        resp = tc.post(
+            "/api/export/query",
+            json={
+                "sample_id": sid,
+                "filter": {
+                    "combinator": "and",
+                    "rules": [{"field": "zygosity", "operator": "notNull"}],
+                },
+                "format": "vcf",
+                "include_all_positions": True,
+            },
+        )
+
+        assert resp.status_code == 200
+        assert self._vcf_genotypes(resp) == {
+            "rs_carried": "0/1",
+            "rs_hom_ref_pathogenic": "0/0",
+            "rs_hom_alt": "1/1",
+        }
 
 
 class TestExportQueryVCF:

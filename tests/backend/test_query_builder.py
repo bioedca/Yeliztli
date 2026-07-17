@@ -759,6 +759,57 @@ ANNOTATED_VARIANTS = [
     },
 ]
 
+MIXED_CARRIAGE_VARIANTS = [
+    {
+        "rsid": "rs_carried",
+        "chrom": "17",
+        "pos": 100,
+        "ref": "A",
+        "alt": "G",
+        "genotype": "AG",
+        "zygosity": "het",
+        "gene_symbol": "BRCA1",
+        "clinvar_significance": "Benign",
+        "clinvar_review_stars": 2,
+    },
+    {
+        "rsid": "rs_hom_ref_pathogenic",
+        "chrom": "17",
+        "pos": 200,
+        "ref": "C",
+        "alt": "T",
+        "genotype": "CC",
+        "zygosity": "hom_ref",
+        "gene_symbol": "BRCA1",
+        "clinvar_significance": "Pathogenic",
+        "clinvar_review_stars": 3,
+    },
+    {
+        "rsid": "rs_hom_alt",
+        "chrom": "17",
+        "pos": 300,
+        "ref": "A",
+        "alt": "G",
+        "genotype": "GG",
+        "zygosity": "hom_alt",
+        "gene_symbol": "BRCA1",
+        "clinvar_significance": "Pathogenic",
+        "clinvar_review_stars": 3,
+    },
+    {
+        "rsid": "rs_unresolved_pathogenic",
+        "chrom": "17",
+        "pos": 400,
+        "ref": "A",
+        "alt": "AT",
+        "genotype": "II",
+        "zygosity": None,
+        "gene_symbol": "BRCA1",
+        "clinvar_significance": "Pathogenic",
+        "clinvar_review_stars": 3,
+    },
+]
+
 # All annotated_variants column names for normalization.
 _ALL_COLS = [col.name for col in annotated_variants.columns]
 
@@ -818,6 +869,11 @@ def empty_client(tmp_data_dir: Path):
     yield from _setup_client(tmp_data_dir, [])
 
 
+@pytest.fixture
+def mixed_carriage_client(tmp_data_dir: Path):
+    yield from _setup_client(tmp_data_dir, MIXED_CARRIAGE_VARIANTS)
+
+
 class TestQueryFields:
     """GET /api/query/fields — metadata endpoint."""
 
@@ -863,6 +919,135 @@ class TestQueryEndpoint:
         assert data["total_matching"] == 2
         assert len(data["items"]) == 2
         assert all(item["clinvar_significance"] == "Pathogenic" for item in data["items"])
+
+    def test_defaults_to_carried_variants(self, mixed_carriage_client) -> None:
+        tc, sid = mixed_carriage_client
+        resp = tc.post(
+            "/api/query",
+            json={
+                "sample_id": sid,
+                "filter": {
+                    "combinator": "and",
+                    "rules": [{"field": "gene_symbol", "operator": "=", "value": "BRCA1"}],
+                },
+            },
+        )
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["total_matching"] == 2
+        assert [item["rsid"] for item in data["items"]] == ["rs_carried", "rs_hom_alt"]
+        assert {item["carriage_status"] for item in data["items"]} == {"carried"}
+
+    def test_all_positions_opt_in_labels_non_carriage(self, mixed_carriage_client) -> None:
+        tc, sid = mixed_carriage_client
+        resp = tc.post(
+            "/api/query",
+            json={
+                "sample_id": sid,
+                "filter": {
+                    "combinator": "and",
+                    "rules": [{"field": "gene_symbol", "operator": "=", "value": "BRCA1"}],
+                },
+                "include_all_positions": True,
+            },
+        )
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["total_matching"] == 4
+        statuses = {item["rsid"]: item["carriage_status"] for item in data["items"]}
+        assert statuses == {
+            "rs_carried": "carried",
+            "rs_hom_ref_pathogenic": "not_carried",
+            "rs_hom_alt": "carried",
+            "rs_unresolved_pathogenic": "unresolved",
+        }
+
+    def test_default_carriage_gate_applies_to_every_cursor_page(
+        self, mixed_carriage_client
+    ) -> None:
+        tc, sid = mixed_carriage_client
+        request = {
+            "sample_id": sid,
+            "filter": {"combinator": "and", "rules": []},
+            "limit": 1,
+        }
+
+        first = tc.post("/api/query", json=request)
+        assert first.status_code == 200
+        first_data = first.json()
+        assert first_data["total_matching"] == 2
+        assert first_data["has_more"] is True
+        assert [item["rsid"] for item in first_data["items"]] == ["rs_carried"]
+        assert first_data["next_cursor_chrom"] == "17"
+        assert first_data["next_cursor_pos"] == 100
+
+        second = tc.post(
+            "/api/query",
+            json={
+                **request,
+                "cursor_chrom": first_data["next_cursor_chrom"],
+                "cursor_pos": first_data["next_cursor_pos"],
+            },
+        )
+        assert second.status_code == 200
+        second_data = second.json()
+        assert second_data["total_matching"] is None
+        assert second_data["has_more"] is False
+        assert [item["rsid"] for item in second_data["items"]] == ["rs_hom_alt"]
+        assert {item["carriage_status"] for item in second_data["items"]} == {"carried"}
+
+    def test_all_positions_opt_in_applies_to_every_cursor_page(
+        self, mixed_carriage_client
+    ) -> None:
+        tc, sid = mixed_carriage_client
+        request = {
+            "sample_id": sid,
+            "filter": {"combinator": "and", "rules": []},
+            "include_all_positions": True,
+            "limit": 2,
+        }
+
+        first = tc.post("/api/query", json=request)
+        assert first.status_code == 200
+        first_data = first.json()
+        assert first_data["total_matching"] == 4
+        assert first_data["has_more"] is True
+        assert [item["rsid"] for item in first_data["items"]] == [
+            "rs_carried",
+            "rs_hom_ref_pathogenic",
+        ]
+
+        second = tc.post(
+            "/api/query",
+            json={
+                **request,
+                "cursor_chrom": first_data["next_cursor_chrom"],
+                "cursor_pos": first_data["next_cursor_pos"],
+            },
+        )
+        assert second.status_code == 200
+        second_data = second.json()
+        assert second_data["total_matching"] is None
+        assert second_data["has_more"] is False
+        assert [item["rsid"] for item in second_data["items"]] == [
+            "rs_hom_alt",
+            "rs_unresolved_pathogenic",
+        ]
+
+        first_ids = {item["rsid"] for item in first_data["items"]}
+        second_ids = {item["rsid"] for item in second_data["items"]}
+        assert first_ids.isdisjoint(second_ids)
+        assert {
+            item["rsid"]: item["carriage_status"]
+            for item in [*first_data["items"], *second_data["items"]]
+        } == {
+            "rs_carried": "carried",
+            "rs_hom_ref_pathogenic": "not_carried",
+            "rs_hom_alt": "carried",
+            "rs_unresolved_pathogenic": "unresolved",
+        }
 
     def test_and_filter(self, client) -> None:
         tc, sid = client

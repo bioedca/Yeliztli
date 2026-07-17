@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
-import { render, screen, waitFor } from "./test-utils"
+import { render, screen, waitFor, within } from "./test-utils"
 import userEvent from "@testing-library/user-event"
 import QueryBuilderView from "@/pages/QueryBuilderView"
 import SavedQueriesPanel from "@/components/query-builder/SavedQueriesPanel"
@@ -51,6 +51,7 @@ const MOCK_RESULT: QueryResultPage = {
       ref: "T",
       alt: "C",
       zygosity: "het",
+      carriage_status: "carried",
       gene_symbol: "APOE",
       transcript_id: null,
       consequence: "missense_variant",
@@ -157,6 +158,78 @@ describe("QueryResultsTable", () => {
     expect(screen.getByTestId("query-result-row")).toBeInTheDocument()
     expect(screen.getByText("rs429358")).toBeInTheDocument()
     expect(screen.getByText("APOE")).toBeInTheDocument()
+    expect(screen.getByRole("columnheader", { name: "Carriage / Zygosity" })).toBeInTheDocument()
+    expect(screen.getByText("Carried · heterozygous")).toBeInTheDocument()
+  })
+
+  it("distinguishes non-carried and unresolved annotations from carried findings", () => {
+    const mixedResult: QueryResultPage = {
+      ...MOCK_RESULT,
+      items: [
+        MOCK_RESULT.items[0],
+        {
+          ...MOCK_RESULT.items[0],
+          rsid: "rs_hom_ref_pathogenic",
+          genotype: "TT",
+          zygosity: "hom_ref",
+          carriage_status: "not_carried",
+          clinvar_significance: "Pathogenic",
+        },
+        {
+          ...MOCK_RESULT.items[0],
+          rsid: "rs_hom_alt",
+          genotype: "CC",
+          zygosity: "hom_alt",
+          carriage_status: "carried",
+          clinvar_significance: "Pathogenic",
+        },
+        {
+          ...MOCK_RESULT.items[0],
+          rsid: "rs_unresolved_pathogenic",
+          genotype: "II",
+          zygosity: null,
+          carriage_status: "unresolved",
+          clinvar_significance: "Pathogenic",
+        },
+      ],
+      total_matching: 4,
+    }
+
+    render(
+      <QueryResultsTable
+        pages={[mixedResult]}
+        totalMatching={4}
+        hasMore={false}
+        isFetchingMore={false}
+        onLoadMore={vi.fn()}
+        includeAllPositions
+      />,
+    )
+
+    expect(screen.getByText("Not carried · homozygous reference")).toBeInTheDocument()
+    expect(screen.getByText("Carried · homozygous alternate")).toBeInTheDocument()
+    expect(screen.getByText("Unresolved")).toBeInTheDocument()
+    expect(screen.getByText(/matching annotated positions/i)).toBeInTheDocument()
+
+    const nonCarriedRow = screen
+      .getAllByTestId("query-result-row")
+      .find((row) => row.getAttribute("data-carriage-status") === "not_carried")
+    expect(nonCarriedRow).toBeDefined()
+    const pathogenic = within(nonCarriedRow!).getByText("Pathogenic")
+    expect(pathogenic).toHaveClass("text-muted-foreground")
+    expect(pathogenic).not.toHaveClass("rounded-full")
+    expect(within(nonCarriedRow!).getByRole("img")).toHaveAccessibleName(
+      /sample does not carry this alternate allele/i,
+    )
+
+    const unresolved = screen
+      .getAllByTestId("query-result-row")
+      .find((row) => row.getAttribute("data-carriage-status") === "unresolved")
+    expect(unresolved).toBeDefined()
+    expect(within(unresolved!).getByText("Pathogenic")).toHaveClass("text-muted-foreground")
+    expect(within(unresolved!).getByRole("img")).toHaveAccessibleName(
+      /alternate-allele carriage is unresolved/i,
+    )
   })
 
   it("uses the shared fraction format for common gnomAD allele frequencies", () => {
