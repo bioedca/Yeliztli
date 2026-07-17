@@ -28,6 +28,7 @@ from backend.annotation.gtex_eqtl import lookup_eqtls_by_rsids
 from backend.annotation.insilico_axes import assess_insilico_axes, deleterious_predictor_names
 from backend.annotation.mondo_hpo import lookup_gene_phenotypes
 from backend.annotation.spliceai import lookup_spliceai_by_variant
+from backend.annotation.vep_bundle import _filter_rows_for_sample_allele
 from backend.api.dependencies import require_fresh_sample
 from backend.db.connection import get_registry
 from backend.db.tables import annotated_variants, samples
@@ -60,6 +61,11 @@ class TranscriptAnnotation(BaseModel):
     exon_number: int | None = None
     intron_number: int | None = None
     mane_select: bool = False
+    # The allele this annotation belongs to. After allele filtering (#2002) these
+    # are the sample's carried allele, but surfacing them lets the UI label the
+    # allele and disambiguate any future multi-allele rendering.
+    ref: str | None = None
+    alt: str | None = None
 
 
 class GenePhenotypeRecord(BaseModel):
@@ -197,7 +203,7 @@ class VariantDetailResponse(BaseModel):
 _TABLE = annotated_variants
 
 _VEP_COLS = (
-    "rsid, gene_symbol, transcript_id, consequence, "
+    "rsid, chrom, pos, ref, alt, gene_symbol, transcript_id, consequence, "
     "hgvs_coding, hgvs_protein, strand, exon_number, "
     "intron_number, mane_select"
 )
@@ -222,10 +228,20 @@ def _get_sample_engine(sample_id: int) -> sa.Engine:
     return registry.get_sample_engine(sample_db_path)
 
 
-def _fetch_all_transcripts(rsid: str) -> list[TranscriptAnnotation]:
-    """Fetch all VEP transcripts for an rsid from the VEP bundle DB.
+def _fetch_all_transcripts(
+    rsid: str,
+    *,
+    allele_identity: tuple[str, int, str, str] | None = None,
+    genotype: str | None = None,
+) -> list[TranscriptAnnotation]:
+    """Fetch the VEP transcripts for the allele the sample actually carries.
 
-    Returns an empty list if the VEP bundle is unavailable.
+    At a multi-allelic rsID the VEP bundle holds one row per alternate allele.
+    Returning them all lists other people's substitutions on the carrier's page
+    (#2002). This filters to the sample's allele with the same helper the
+    annotation pipeline uses (#1411): the exact ref/alt identity when the sample
+    row has one, else genotype carriage; single-allele rsIDs keep the marker
+    annotation. Returns an empty list if the VEP bundle is unavailable.
     """
     registry = get_registry()
     try:
@@ -248,6 +264,10 @@ def _fetch_all_transcripts(rsid: str) -> list[TranscriptAnnotation]:
         logger.debug("VEP bundle query failed for %s: %s", safe_rsid, exc)
         return []
 
+    rows, _ = _filter_rows_for_sample_allele(
+        list(rows), allele_identity=allele_identity, genotype=genotype
+    )
+
     return [
         TranscriptAnnotation(
             transcript_id=row.transcript_id,
@@ -259,6 +279,8 @@ def _fetch_all_transcripts(rsid: str) -> list[TranscriptAnnotation]:
             exon_number=row.exon_number,
             intron_number=row.intron_number,
             mane_select=bool(row.mane_select),
+            ref=row.ref,
+            alt=row.alt,
         )
         for row in rows
     ]
@@ -462,8 +484,23 @@ def get_variant_detail(
         data["ancestry_matched_af"] = getattr(row, af_col, None)
         data["ancestry_matched_population"] = ancestry_population
 
-    # 4. Fetch all VEP transcripts
-    transcripts = _fetch_all_transcripts(rsid)
+    # 4. Fetch the VEP transcripts for the allele the sample carries (#2002).
+    # Use the exact ref/alt identity when the row has one (variant calls), else
+    # fall back to genotype carriage (e.g. a hom-ref call whose ref/alt are NULL).
+    v_chrom, v_pos, v_ref, v_alt = (
+        data.get("chrom"),
+        data.get("pos"),
+        data.get("ref"),
+        data.get("alt"),
+    )
+    allele_identity = (
+        (v_chrom, v_pos, v_ref, v_alt)
+        if v_chrom and v_pos is not None and v_ref and v_alt
+        else None
+    )
+    transcripts = _fetch_all_transcripts(
+        rsid, allele_identity=allele_identity, genotype=data.get("genotype")
+    )
 
     # 5. Fetch gene-phenotype records (including OMIM links)
     gene_phenotypes = _fetch_gene_phenotypes(data.get("gene_symbol"))
