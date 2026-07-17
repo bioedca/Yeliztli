@@ -21,13 +21,12 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
-from backend.annotation.mondo_hpo import decode_hpo_terms
+from backend.annotation.mondo_hpo import lookup_gene_phenotypes
 from backend.api.dependencies import require_fresh_sample
 from backend.config import get_settings
 from backend.db.connection import get_registry
 from backend.db.tables import (
     annotated_variants,
-    gene_phenotype,
     samples,
     uniprot_cache,
 )
@@ -416,35 +415,34 @@ def _get_stale_uniprot(gene_symbol: str) -> UniProtData | None:
 
 
 def _fetch_gene_phenotypes(gene_symbol: str) -> list[GenePhenotypeRecord]:
-    """Fetch gene-phenotype associations from reference.db."""
+    """Fetch gene-phenotype associations through the shared lookup path.
+
+    The shared lookup applies the same reference-data hygiene as annotation and
+    variant detail: obsolete diseases are excluded, curated inheritance
+    overrides are applied, and results have deterministic ordering.
+    """
     registry = get_registry()
-    with registry.reference_engine.connect() as conn:
-        rows = conn.execute(
-            sa.select(gene_phenotype).where(gene_phenotype.c.gene_symbol == gene_symbol)
-        ).fetchall()
+    annots_by_gene = lookup_gene_phenotypes([gene_symbol], registry.reference_engine)
 
-    results = []
-    for row in rows:
-        hpo_term_details = decode_hpo_terms(row.hpo_terms)
-        hpo_list = [term.id for term in hpo_term_details] or None
-
+    results: list[GenePhenotypeRecord] = []
+    for annot in annots_by_gene.get(gene_symbol, []):
         omim_link: str | None = None
-        if row.disease_id and row.disease_id.startswith("OMIM:"):
-            omim_id = row.disease_id.replace("OMIM:", "")
+        if annot.disease_id and annot.disease_id.startswith("OMIM:"):
+            omim_id = annot.disease_id.replace("OMIM:", "")
             omim_link = f"https://omim.org/entry/{omim_id}"
 
         results.append(
             GenePhenotypeRecord(
-                gene_symbol=row.gene_symbol,
-                disease_name=row.disease_name,
-                disease_id=row.disease_id,
-                source=row.source,
-                hpo_terms=hpo_list,
+                gene_symbol=annot.gene_symbol,
+                disease_name=annot.disease_name,
+                disease_id=annot.disease_id,
+                source=annot.source,
+                hpo_terms=annot.hpo_terms or None,
                 hpo_term_details=(
-                    [HpoTermRecord(id=term.id, name=term.name) for term in hpo_term_details]
+                    [HpoTermRecord(id=term.id, name=term.name) for term in annot.hpo_term_details]
                     or None
                 ),
-                inheritance=row.inheritance,
+                inheritance=annot.inheritance,
                 omim_link=omim_link,
             )
         )

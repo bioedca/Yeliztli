@@ -96,6 +96,14 @@ def gene_detail_client(
                     "hpo_terms": json.dumps(["HP:0001250"]),
                     "inheritance": "autosomal dominant",
                 },
+                {
+                    "gene_symbol": "BRCA1",
+                    "disease_name": "obsolete BRCA1 phenotype record",
+                    "disease_id": "MONDO:9999999",
+                    "source": "mondo_hpo",
+                    "hpo_terms": json.dumps(["HP:0000001"]),
+                    "inheritance": "autosomal dominant",
+                },
             ],
         )
 
@@ -194,7 +202,11 @@ class TestGeneDetailEndpoint:
             record for record in data["phenotypes"] if record["disease_id"] == "MONDO:0011450"
         )
         assert phenotype["disease_name"] == "Hereditary breast-ovarian cancer syndrome"
-        assert phenotype["inheritance"] == "autosomal dominant"
+        assert phenotype["inheritance"] == "Autosomal dominant"
+        assert all(
+            not record["disease_name"].lower().startswith("obsolete")
+            for record in data["phenotypes"]
+        )
 
     def test_gene_detail_decodes_legacy_and_labelled_hpo_storage(
         self, gene_detail_client: TestClient

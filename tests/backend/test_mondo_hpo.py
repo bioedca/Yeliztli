@@ -354,7 +354,7 @@ class TestLookup:
         assert first.inheritance == "Autosomal dominant"
         assert isinstance(first.hpo_terms, list)
         assert "HP:0003002" in first.hpo_terms
-        assert HpoTerm(id="HP:0003002") in first.hpo_term_details
+        assert any(term.id == "HP:0003002" for term in first.hpo_term_details)
 
     def test_lookup_multiple_genes(self, loaded_engine: sa.Engine) -> None:
         """Batch lookup returns results for multiple genes."""
