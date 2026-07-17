@@ -37,8 +37,12 @@ export default function EBMDView() {
     )
   }
 
-  const isLoading = run.isPending || query.isLoading
-  const hasError = run.isError || query.isError
+  // Gate on the eBMD GET, not on `run` — the ~190 s background re-score that
+  // invalidates this query on success. Blocking the page on it hid already-stored
+  // results behind a multi-minute spinner on every visit, and a failed background
+  // refresh must not blank the loaded results (#1992).
+  const isLoading = query.isLoading
+  const hasError = query.isError
   const data = query.data
 
   return (
@@ -58,8 +62,8 @@ export default function EBMDView() {
       {isLoading && <PageLoading message="Scoring eBMD polygenic risk..." />}
       {hasError && !isLoading && (
         <PageError
-          message={run.error instanceof Error ? run.error.message : "Failed to score eBMD."}
-          onRetry={() => run.mutate()}
+          message={query.error instanceof Error ? query.error.message : "Failed to load eBMD score."}
+          onRetry={() => query.refetch()}
         />
       )}
 

@@ -107,16 +107,42 @@ describe("FHView — with a sample", () => {
     expect(mockRunMutate).toHaveBeenCalled()
   })
 
-  it("shows a loading state while the run is pending", () => {
-    setRun({ isPending: true })
+  it("shows a loading state while the assessment query is loading", () => {
+    mockUseFhAssessment.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      isError: false,
+      error: null,
+    })
     render(<FHView />)
     expect(screen.getByText("Assessing FH genetics...")).toBeInTheDocument()
   })
 
-  it("shows an error state when the run fails", () => {
+  it("does not block the loaded assessment while the run re-runs (#1992)", () => {
+    // The stored assessment is present; the ~190 s background re-score
+    // (run.isPending) must not gate it behind the full-page spinner.
+    setRun({ isPending: true })
+    render(<FHView />)
+    expect(screen.queryByText("Assessing FH genetics...")).not.toBeInTheDocument()
+    expect(screen.getByTestId("fh-criteria")).toBeInTheDocument()
+  })
+
+  it("shows an error state when the assessment query fails", () => {
+    mockUseFhAssessment.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: true,
+      error: new Error("FH assessment failed: 500"),
+    })
+    render(<FHView />)
+    expect(screen.getByText(/FH assessment failed: 500/)).toBeInTheDocument()
+  })
+
+  it("keeps the loaded assessment when the background run fails (#1992)", () => {
     setRun({ isError: true, error: new Error("FH run failed: 500") })
     render(<FHView />)
-    expect(screen.getByText(/FH run failed: 500/)).toBeInTheDocument()
+    expect(screen.getByTestId("fh-criteria")).toBeInTheDocument()
+    expect(screen.queryByText(/FH run failed: 500/)).not.toBeInTheDocument()
   })
 
   it("renders the Dutch-Lipid / Simon-Broome criteria framing disclaimer", () => {
