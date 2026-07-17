@@ -221,6 +221,32 @@ def test_v22_leaves_malformed_current_custom_and_near_miss_alerts_untouched(
         _alert(
             "azathioprine",
             legacy,
+            row_id=11,
+            detail_json=json.dumps(
+                {
+                    "recommendation": legacy,
+                    "classification": "B",
+                    "guideline_url": (
+                        "https://cpicpgx.org/guidelines/guideline-for-thiopurines-and-tpmt/"
+                    ),
+                }
+            ),
+        ),
+        _alert(
+            "azathioprine",
+            legacy,
+            row_id=12,
+            detail_json=json.dumps(
+                {
+                    "recommendation": legacy,
+                    "classification": "A",
+                    "guideline_url": "https://example.org/local-guidance",
+                }
+            ),
+        ),
+        _alert(
+            "azathioprine",
+            legacy,
             row_id=4,
             finding_text=_finding_text("azathioprine", f"{legacy} "),
         ),

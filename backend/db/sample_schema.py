@@ -88,6 +88,9 @@ _TPMT_POOR_METABOLIZER_RECOMMENDATION_UPDATES = {
         "on reducing thioguanine over other agents.",
     ),
 }
+_TPMT_THIOPURINE_GUIDELINE_URL = (
+    "https://cpicpgx.org/guidelines/guideline-for-thiopurines-and-tpmt/"
+)
 
 
 def _updated_tpmt_poor_metabolizer_finding_text(
@@ -901,6 +904,8 @@ def _add_missing_columns(engine: sa.Engine, from_version: int) -> bool:
                             if (
                                 not isinstance(legacy_recommendation, str)
                                 or legacy_recommendation not in legacy_recommendations
+                                or detail.get("classification") != "A"
+                                or detail.get("guideline_url") != _TPMT_THIOPURINE_GUIDELINE_URL
                             ):
                                 continue
                             updated_text = _updated_tpmt_poor_metabolizer_finding_text(
