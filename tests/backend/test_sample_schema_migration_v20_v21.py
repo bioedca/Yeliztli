@@ -255,6 +255,7 @@ def test_registry_open_publishes_reanalysis_prompt_without_reference_snapshot(
             expected_file_hash: str | None,
             expected_created_at: datetime | None,
             sample_db_path: Path,
+            sample_db_root: Path,
             expected_file_fingerprint: tuple[int, int, int, int],
         ) -> bool:
             nonlocal interleaved
@@ -279,6 +280,7 @@ def test_registry_open_publishes_reanalysis_prompt_without_reference_snapshot(
                 expected_file_hash=expected_file_hash,
                 expected_created_at=expected_created_at,
                 sample_db_path=sample_db_path,
+                sample_db_root=sample_db_root,
                 expected_file_fingerprint=expected_file_fingerprint,
             )
 
@@ -593,6 +595,7 @@ def test_prompt_publication_rejects_sample_deleted_after_registry_lookup(tmp_pat
             expected_file_hash="deleted-hash",
             expected_created_at=created_at,
             sample_db_path=sample_path,
+            sample_db_root=settings.samples_dir,
             expected_file_fingerprint=expected_fingerprint,
         )
         with registry.reference_engine.connect() as conn:
@@ -642,6 +645,7 @@ def test_prompt_publication_rejects_reused_path_with_old_local_identity(tmp_path
             expected_file_hash="deleted-hash",
             expected_created_at=old_created_at,
             sample_db_path=sample_path,
+            sample_db_root=settings.samples_dir,
             # Models a replacement completed after an old cached engine read
             # its marker but before it captured the current path fingerprint.
             expected_file_fingerprint=replacement_fingerprint,
@@ -712,6 +716,7 @@ def test_unbound_dismissal_cannot_acknowledge_reused_sample_id(tmp_path: Path) -
             expected_file_hash="replacement-hash",
             expected_created_at=created_at,
             sample_db_path=sample_path,
+            sample_db_root=settings.samples_dir,
             expected_file_fingerprint=fingerprint,
         )
         with registry.reference_engine.connect() as conn:

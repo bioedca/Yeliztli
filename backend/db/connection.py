@@ -131,6 +131,14 @@ class DBRegistry:
         from backend.db.tables import annotation_state, sample_metadata_table, samples
 
         target_path = Path(sample_db_path).resolve()
+        samples_root = self._settings.samples_dir.resolve()
+        if not target_path.is_relative_to(samples_root):
+            logger.warning(
+                "cyp2c9_phenytoin_reanalysis_prompt_deferred",
+                reason="sample_path_outside_data_dir",
+                sample_db_path=str(target_path),
+            )
+            return False
         target_fingerprint = self._file_fingerprint(target_path)
         if target_fingerprint is None:
             return False
@@ -323,6 +331,7 @@ class DBRegistry:
                 expected_file_hash=expected_file_hash,
                 expected_created_at=expected_created_at,
                 sample_db_path=target_path,
+                sample_db_root=samples_root,
                 expected_file_fingerprint=target_fingerprint,
             )
         except sa.exc.SQLAlchemyError as exc:
