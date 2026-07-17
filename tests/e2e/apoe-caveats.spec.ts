@@ -109,6 +109,7 @@ test.describe('APOE caveats (#781)', () => {
 
     const gate = page.getByTestId('apoe-gate')
     await expect(gate).toBeVisible()
+    await expect(gate).not.toHaveAttribute('aria-describedby')
     await expect(gate).not.toContainText('**')
     await expect(
       gate.locator('strong').filter({ hasText: 'Important considerations before viewing:' }),

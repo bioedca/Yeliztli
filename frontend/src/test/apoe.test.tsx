@@ -278,6 +278,7 @@ describe("APOEGate", () => {
     )
     expect(screen.getByRole("alertdialog")).toBeInTheDocument()
     expect(screen.getByRole("alertdialog")).toHaveAttribute("aria-labelledby", "apoe-gate-title")
+    expect(screen.getByRole("alertdialog")).not.toHaveAttribute("aria-describedby")
   })
 
   it("has test id for gate container", () => {

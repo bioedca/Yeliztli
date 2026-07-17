@@ -30,7 +30,6 @@ export default function APOEGate({
       data-testid="apoe-gate"
       role="alertdialog"
       aria-labelledby="apoe-gate-title"
-      aria-describedby="apoe-gate-text"
     >
       <div className="rounded-lg border-2 border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 p-6 shadow-sm">
         {/* Header */}
