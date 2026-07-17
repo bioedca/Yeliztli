@@ -1251,6 +1251,126 @@ def _fetch_guideline_phenotypes_for_gene(
     return {row.phenotype for row in rows}
 
 
+# CPIC's thiopurine guideline is keyed on the joint (TPMT, NUDT15) phenotype
+# pair, not either gene alone: a patient Intermediate at BOTH genes has a
+# distinct, lower starting-dose band and higher toxicity risk than a single-gene
+# Intermediate Metabolizer (#2007). The per-gene guideline schema emits two
+# independent, conflicting single-gene alerts; these constants let
+# generate_prescribing_alerts collapse the (IM, IM) case into CPIC's one
+# compound-IM recommendation, stored under a synthetic joint "gene" so that
+# single-gene lookups never surface it.
+_THIOPURINE_JOINT_GENES = ("TPMT", "NUDT15")
+_THIOPURINE_JOINT_GENE_LABEL = "TPMT/NUDT15"
+_COMPOUND_IM_PHENOTYPE = "Compound Intermediate Metabolizer"
+_SINGLE_IM_PHENOTYPE = "Intermediate Metabolizer"
+
+
+def _apply_thiopurine_joint_phenotype(
+    alerts: list[PrescribingAlert],
+    reference_engine: sa.Engine,
+) -> list[PrescribingAlert]:
+    """Collapse independent TPMT-IM + NUDT15-IM thiopurine alerts into CPIC's joint call.
+
+    CPIC dosing for thiopurines is keyed on the (TPMT, NUDT15) phenotype pair.
+    A patient Intermediate at both genes is a *compound* intermediate metabolizer
+    with a lower starting-dose band (20-50% of standard) than either single-gene
+    Intermediate Metabolizer (30-80%), reflecting additive toxicity (#2007;
+    CPIC 2025 update, PMID:41618934 / DOI:10.1002/cpt.70209). The per-gene schema
+    emits two independent single-gene alerts whose bands both sit above CPIC's
+    compound cap; when both genes are callable IM this replaces that pair with the
+    single joint recommendation.
+
+    Genes with Insufficient call confidence never produce an alert (they are
+    filtered upstream), so this is inert for array-only inputs where NUDT15 cannot
+    be typed — the current behaviour of a lone TPMT alert is preserved.
+    """
+    im_by_drug: dict[str, dict[str, PrescribingAlert]] = {}
+    for alert in alerts:
+        if alert.gene in _THIOPURINE_JOINT_GENES and alert.phenotype == _SINGLE_IM_PHENOTYPE:
+            im_by_drug.setdefault(alert.drug, {})[alert.gene] = alert
+
+    both_im_drugs = {
+        drug
+        for drug, by_gene in im_by_drug.items()
+        if all(gene in by_gene for gene in _THIOPURINE_JOINT_GENES)
+    }
+    if not both_im_drugs:
+        return alerts
+
+    compound_by_drug = {
+        row["drug"]: row
+        for row in _fetch_guidelines_for_gene_phenotype(
+            _THIOPURINE_JOINT_GENE_LABEL, _COMPOUND_IM_PHENOTYPE, reference_engine
+        )
+    }
+
+    superseded_drugs: set[str] = set()
+    joint_alerts: list[PrescribingAlert] = []
+    for drug in sorted(both_im_drugs):
+        guideline = compound_by_drug.get(drug)
+        if guideline is None:
+            # No compound-IM row for this drug: leave the single-gene alerts in
+            # place rather than dropping guidance we cannot replace.
+            logger.warning(
+                "pgx_thiopurine_compound_im_row_missing",
+                drug=drug,
+                genes=list(_THIOPURINE_JOINT_GENES),
+            )
+            continue
+        by_gene = im_by_drug[drug]
+        tpmt_alert = by_gene["TPMT"]
+        nudt15_alert = by_gene["NUDT15"]
+        superseded_drugs.add(drug)
+
+        partial = CallConfidence.PARTIAL in (
+            tpmt_alert.call_confidence,
+            nudt15_alert.call_confidence,
+        )
+        joint_alerts.append(
+            PrescribingAlert(
+                gene=_THIOPURINE_JOINT_GENE_LABEL,
+                drug=drug,
+                diplotype=f"TPMT {tpmt_alert.diplotype} + NUDT15 {nudt15_alert.diplotype}",
+                phenotype=_COMPOUND_IM_PHENOTYPE,
+                recommendation=guideline["recommendation"],
+                classification=guideline["classification"],
+                guideline_url=guideline["guideline_url"],
+                call_confidence=CallConfidence.PARTIAL if partial else CallConfidence.COMPLETE,
+                confidence_note=(
+                    "Joint TPMT/NUDT15 dosing: Intermediate Metabolizer at both genes "
+                    "(compound intermediate metabolizer)."
+                ),
+                evidence_level=assign_cpic_evidence_level(guideline["classification"]),
+                involved_rsids=sorted(
+                    set(tpmt_alert.involved_rsids) | set(nudt15_alert.involved_rsids)
+                ),
+                coverage_assessed=tpmt_alert.coverage_assessed + nudt15_alert.coverage_assessed,
+                coverage_total=tpmt_alert.coverage_total + nudt15_alert.coverage_total,
+            )
+        )
+        logger.info(
+            "pgx_thiopurine_compound_im_alert",
+            drug=drug,
+            tpmt_diplotype=tpmt_alert.diplotype,
+            nudt15_diplotype=nudt15_alert.diplotype,
+        )
+
+    if not joint_alerts:
+        return alerts
+
+    remaining = [
+        alert
+        for alert in alerts
+        if not (
+            alert.drug in superseded_drugs
+            and alert.gene in _THIOPURINE_JOINT_GENES
+            and alert.phenotype == _SINGLE_IM_PHENOTYPE
+        )
+    ]
+    remaining.extend(joint_alerts)
+    return remaining
+
+
 def generate_prescribing_alerts(
     star_allele_results: list[StarAlleleResult],
     reference_engine: sa.Engine,
@@ -1374,6 +1494,11 @@ def generate_prescribing_alerts(
                 evidence_level=evidence_level,
                 conservative_alert=conservative is not None,
             )
+
+    # Collapse the CPIC-joint thiopurine (TPMT, NUDT15) compound-IM case into one
+    # recommendation before sorting, so a double-Intermediate sample gets CPIC's
+    # single 20-50% band instead of two conflicting single-gene alerts (#2007).
+    alerts = _apply_thiopurine_joint_phenotype(alerts, reference_engine)
 
     # Sort by gene, then drug for deterministic output
     alerts.sort(key=lambda a: (a.gene, a.drug))
