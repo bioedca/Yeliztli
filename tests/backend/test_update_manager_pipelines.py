@@ -24,7 +24,7 @@ from backend.annotation.gwas import check_gwas_update
 from backend.annotation.mondo_hpo import check_mondo_hpo_update
 from backend.db import manifest as manifest_mod
 from backend.db.manifest import reset_cache
-from backend.db.tables import database_versions
+from backend.db.tables import database_versions, gene_phenotype
 from backend.db.update_manager import (
     CHECK_FNS,
     VersionInfo,
@@ -931,6 +931,107 @@ class TestCheckMondoHpoUpdate:
         path = _write_manifest(tmp_path, SAMPLE_MANIFEST)
         monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(path))
         _record_version_row(reference_engine, "mondo_hpo", "20270101")
+
+        mock_client, _ = _mock_head_client(last_modified=MONDO_HPO_LAST_MODIFIED_NEW)
+        with patch("backend.annotation.mondo_hpo.httpx.Client", mock_client):
+            assert check_mondo_hpo_update(reference_engine) is None
+
+    def test_matching_version_with_legacy_terms_offers_label_refresh(
+        self, tmp_path: Path, monkeypatch, reference_engine
+    ):
+        """Same-date ID-only rows receive the one-time labelled-data rebuild."""
+        path = _write_manifest(tmp_path, SAMPLE_MANIFEST)
+        monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(path))
+        _record_version_row(reference_engine, "mondo_hpo", MONDO_HPO_LAST_MODIFIED_NEW_VERSION)
+        with reference_engine.begin() as conn:
+            conn.execute(
+                gene_phenotype.insert().values(
+                    gene_symbol="BRCA1",
+                    disease_name="Hereditary breast cancer",
+                    disease_id="MONDO:0005012",
+                    hpo_terms='["HP:0003002"]',
+                    source="mondo_hpo",
+                )
+            )
+
+        mock_client, _ = _mock_head_client(last_modified=MONDO_HPO_LAST_MODIFIED_NEW)
+        with patch("backend.annotation.mondo_hpo.httpx.Client", mock_client):
+            result = check_mondo_hpo_update(reference_engine)
+
+        assert result is not None
+        assert result.latest_version == MONDO_HPO_LAST_MODIFIED_NEW_VERSION
+
+    def test_matching_version_with_labelled_terms_returns_none(
+        self, tmp_path: Path, monkeypatch, reference_engine
+    ):
+        """The labelled storage shape does not repeatedly offer a rebuild."""
+        path = _write_manifest(tmp_path, SAMPLE_MANIFEST)
+        monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(path))
+        _record_version_row(reference_engine, "mondo_hpo", MONDO_HPO_LAST_MODIFIED_NEW_VERSION)
+        with reference_engine.begin() as conn:
+            conn.execute(
+                gene_phenotype.insert().values(
+                    gene_symbol="BRCA1",
+                    disease_name="Hereditary breast cancer",
+                    disease_id="MONDO:0005012",
+                    hpo_terms=('[{"id": "HP:0003002", "name": "Breast carcinoma"}]'),
+                    source="mondo_hpo",
+                )
+            )
+
+        mock_client, _ = _mock_head_client(last_modified=MONDO_HPO_LAST_MODIFIED_NEW)
+        with patch("backend.annotation.mondo_hpo.httpx.Client", mock_client):
+            assert check_mondo_hpo_update(reference_engine) is None
+
+    def test_matching_version_with_mixed_term_shapes_offers_refresh(
+        self, tmp_path: Path, monkeypatch, reference_engine
+    ):
+        """Any legacy MONDO/HPO payload triggers the one-time rebuild."""
+        path = _write_manifest(tmp_path, SAMPLE_MANIFEST)
+        monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(path))
+        _record_version_row(reference_engine, "mondo_hpo", MONDO_HPO_LAST_MODIFIED_NEW_VERSION)
+        with reference_engine.begin() as conn:
+            conn.execute(
+                gene_phenotype.insert(),
+                [
+                    {
+                        "gene_symbol": "BRCA1",
+                        "disease_name": "Hereditary breast cancer",
+                        "disease_id": "MONDO:0005012",
+                        "hpo_terms": ('[{"id": "HP:0003002", "name": "Breast carcinoma"}]'),
+                        "source": "mondo_hpo",
+                    },
+                    {
+                        "gene_symbol": "CFTR",
+                        "disease_name": "Cystic fibrosis",
+                        "disease_id": "MONDO:0009061",
+                        "hpo_terms": '["HP:0002110"]',
+                        "source": "mondo_hpo",
+                    },
+                ],
+            )
+
+        mock_client, _ = _mock_head_client(last_modified=MONDO_HPO_LAST_MODIFIED_NEW)
+        with patch("backend.annotation.mondo_hpo.httpx.Client", mock_client):
+            assert check_mondo_hpo_update(reference_engine) is not None
+
+    def test_newer_version_with_legacy_terms_never_downgrades(
+        self, tmp_path: Path, monkeypatch, reference_engine
+    ):
+        """A content migration must not replace a newer installed snapshot."""
+        path = _write_manifest(tmp_path, SAMPLE_MANIFEST)
+        monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(path))
+        _record_version_row(reference_engine, "mondo_hpo", "20270101")
+        with reference_engine.begin() as conn:
+            conn.execute(
+                gene_phenotype.insert().values(
+                    gene_symbol="BRCA1",
+                    disease_name="Hereditary breast cancer",
+                    disease_id="MONDO:0005012",
+                    hpo_terms='["HP:0003002"]',
+                    source="mondo_hpo",
+                )
+            )
 
         mock_client, _ = _mock_head_client(last_modified=MONDO_HPO_LAST_MODIFIED_NEW)
         with patch("backend.annotation.mondo_hpo.httpx.Client", mock_client):

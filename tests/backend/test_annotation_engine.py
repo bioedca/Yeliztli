@@ -19,6 +19,7 @@ Covers:
 from __future__ import annotations
 
 import csv
+import json
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, PropertyMock
@@ -74,6 +75,7 @@ from backend.db.tables import (
     clinvar_variants,
     database_versions,
     dbsnp_merges,
+    gene_phenotype,
     raw_variants,
     reference_metadata,
     sample_metadata_table,
@@ -2413,6 +2415,24 @@ class TestGenePhenotypeAnnotation:
         assert "rs2" in result
         assert result["rs2"]["disease_name"] == "Cystic fibrosis"
         assert result["rs2"]["inheritance_pattern"] == "Autosomal recessive"
+
+    def test_lookup_labelled_hpo_storage_keeps_sample_id_array(
+        self, reference_engine: sa.Engine
+    ) -> None:
+        """Structured reference terms remain ID strings in the sample database."""
+        with reference_engine.begin() as conn:
+            conn.execute(
+                gene_phenotype.update()
+                .where(gene_phenotype.c.gene_symbol == "BRCA1")
+                .values(hpo_terms=json.dumps([{"id": "HP:0003002", "name": "Breast carcinoma"}]))
+            )
+
+        result = _lookup_gene_phenotype(
+            {"rs1": {"gene_symbol": "BRCA1", "consequence": "missense_variant"}},
+            reference_engine,
+        )
+
+        assert json.loads(result["rs1"]["hpo_terms"]) == ["HP:0003002"]
 
     def test_lookup_gene_phenotype_no_gene_symbol(self, reference_engine: sa.Engine) -> None:
         """Variants without gene_symbol in VEP data are skipped."""

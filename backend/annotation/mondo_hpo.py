@@ -31,7 +31,7 @@ import json
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypedDict
 
 import httpx
 import sqlalchemy as sa
@@ -92,6 +92,21 @@ BATCH_SIZE = 10_000
 # ── Data classes ─────────────────────────────────────────────────────────
 
 
+@dataclass(frozen=True)
+class HpoTerm:
+    """A Human Phenotype Ontology term retained from the HPO export."""
+
+    id: str
+    name: str | None = None
+
+
+class GeneHpoData(TypedDict):
+    """Gene-level HPO terms and the first reported inheritance pattern."""
+
+    hpo_terms: list[HpoTerm]
+    inheritance: str | None
+
+
 @dataclass
 class GenePhenotypeRecord:
     """A single gene-phenotype association."""
@@ -135,6 +150,57 @@ _INHERITANCE_MAP = {
     "HP:0025352": "Autosomal dominant with reduced penetrance",
     "HP:0032113": "Semidominant",
 }
+
+
+def _is_hpo_id(value: str) -> bool:
+    """Return whether *value* has the canonical ``HP:ddddddd`` shape."""
+    prefix, separator, local_id = value.partition(":")
+    return prefix == "HP" and separator == ":" and len(local_id) == 7 and local_id.isdigit()
+
+
+def decode_hpo_terms(raw: str | None) -> list[HpoTerm]:
+    """Decode legacy HPO ID arrays and current labelled term arrays.
+
+    Older reference databases store ``["HP:0000001"]`` while newly ingested
+    HPO data stores ``[{"id": "HP:0000001", "name": "All"}]``. Invalid
+    entries are ignored so malformed reference data cannot leak arbitrary
+    values into API responses. Input order is retained and duplicate IDs are
+    collapsed, preferring a non-empty label when one is available.
+    """
+    if not raw:
+        return []
+
+    try:
+        payload = json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        return []
+    if not isinstance(payload, list):
+        return []
+
+    terms_by_id: dict[str, HpoTerm] = {}
+    for item in payload:
+        name: str | None = None
+        if isinstance(item, str):
+            hpo_id = item.strip()
+        elif isinstance(item, dict):
+            raw_id = item.get("id")
+            if not isinstance(raw_id, str):
+                continue
+            hpo_id = raw_id.strip()
+            raw_name = item.get("name")
+            if isinstance(raw_name, str):
+                name = raw_name.strip() or None
+        else:
+            continue
+
+        if not _is_hpo_id(hpo_id):
+            continue
+
+        existing = terms_by_id.get(hpo_id)
+        if existing is None or (existing.name is None and name is not None):
+            terms_by_id[hpo_id] = HpoTerm(id=hpo_id, name=name)
+
+    return list(terms_by_id.values())
 
 
 def _extract_gene_symbol_from_subject(subject: str) -> str | None:
@@ -211,18 +277,18 @@ def parse_mondo_gene_disease_tsv(
 
 def parse_hpo_genes_to_phenotype(
     hpo_path: Path,
-) -> dict[str, dict[str, list[str]]]:
+) -> dict[str, GeneHpoData]:
     """Parse the HPO genes_to_phenotype.txt file.
 
     Returns a dict mapping gene_symbol -> {
-        "hpo_terms": [HPO IDs],
+        "hpo_terms": [{"id": HPO ID, "name": HPO label}],
         "inheritance": inheritance pattern or None
     }.
 
     The file format is tab-separated with columns:
     gene_id, gene_symbol, hpo_id, hpo_name, frequency, disease_id
     """
-    gene_hpo: dict[str, set[str]] = {}
+    gene_hpo: dict[str, dict[str, HpoTerm]] = {}
     gene_inheritance: dict[str, str | None] = {}
 
     with open(hpo_path, encoding="utf-8") as fh:
@@ -235,20 +301,27 @@ def parse_hpo_genes_to_phenotype(
 
             gene_symbol = parts[1].strip()
             hpo_id = parts[2].strip()
+            hpo_name = parts[3].strip() or None
 
-            if not gene_symbol or not hpo_id:
+            if not gene_symbol or not _is_hpo_id(hpo_id):
                 continue
 
-            gene_hpo.setdefault(gene_symbol, set()).add(hpo_id)
+            terms_by_id = gene_hpo.setdefault(gene_symbol, {})
+            existing = terms_by_id.get(hpo_id)
+            if existing is None or (existing.name is None and hpo_name is not None):
+                terms_by_id[hpo_id] = HpoTerm(id=hpo_id, name=hpo_name)
 
             # Check if this HPO term is an inheritance pattern
             if hpo_id in _INHERITANCE_MAP and gene_symbol not in gene_inheritance:
                 gene_inheritance[gene_symbol] = _INHERITANCE_MAP[hpo_id]
 
-    result: dict[str, dict[str, list[str]]] = {}
+    result: dict[str, GeneHpoData] = {}
     for gene, terms in gene_hpo.items():
         # Filter out inheritance-pattern HPO terms from the phenotype list
-        phenotype_terms = sorted(t for t in terms if t not in _INHERITANCE_MAP)
+        phenotype_terms = sorted(
+            (term for term in terms.values() if term.id not in _INHERITANCE_MAP),
+            key=lambda term: term.id,
+        )
         result[gene] = {
             "hpo_terms": phenotype_terms,
             "inheritance": gene_inheritance.get(gene),
@@ -424,7 +497,7 @@ def download_file(
 
 def _records_to_rows(
     records_by_gene: dict[str, list[GenePhenotypeRecord]],
-    hpo_data: dict[str, dict[str, list[str]]],
+    hpo_data: dict[str, GeneHpoData],
 ) -> list[dict]:
     """Convert parsed records + HPO data into insert-ready row dicts."""
     rows: list[dict] = []
@@ -432,6 +505,7 @@ def _records_to_rows(
         hpo_info = hpo_data.get(gene, {})
         hpo_terms = hpo_info.get("hpo_terms", [])
         hpo_inheritance = hpo_info.get("inheritance")
+        serialized_hpo_terms = [{"id": term.id, "name": term.name} for term in hpo_terms]
 
         for rec in recs:
             # Use HPO-derived inheritance if the record doesn't have one
@@ -442,7 +516,9 @@ def _records_to_rows(
                     "gene_symbol": rec.gene_symbol,
                     "disease_name": rec.disease_name,
                     "disease_id": rec.disease_id,
-                    "hpo_terms": json.dumps(hpo_terms) if hpo_terms else None,
+                    "hpo_terms": (
+                        json.dumps(serialized_hpo_terms) if serialized_hpo_terms else None
+                    ),
                     "source": "mondo_hpo",
                     "inheritance": inheritance,
                 }
@@ -509,6 +585,46 @@ def record_mondo_hpo_version(
     )
 
 
+def _hpo_labels_need_refresh(reference_engine: sa.Engine) -> bool:
+    """Whether installed MONDO/HPO rows still use the legacy ID-only shape."""
+    stmt = (
+        sa.select(gene_phenotype.c.hpo_terms)
+        .distinct()
+        .where(
+            gene_phenotype.c.source == "mondo_hpo",
+            gene_phenotype.c.hpo_terms.is_not(None),
+            gene_phenotype.c.hpo_terms.notin_(("", "[]")),
+        )
+    )
+    try:
+        with reference_engine.connect() as conn:
+            stored_payloads = conn.execute(stmt).scalars()
+            for raw in stored_payloads:
+                try:
+                    payload = json.loads(raw)
+                except (json.JSONDecodeError, TypeError):
+                    return True
+
+                if not (
+                    isinstance(payload, list)
+                    and bool(payload)
+                    and all(
+                        isinstance(item, dict)
+                        and isinstance(item.get("id"), str)
+                        and _is_hpo_id(item["id"])
+                        and "name" in item
+                        and (item["name"] is None or isinstance(item["name"], str))
+                        for item in payload
+                    )
+                ):
+                    return True
+    except sa.exc.SQLAlchemyError as exc:
+        logger.warning("mondo_hpo_label_shape_check_failed", error=str(exc))
+        return False
+
+    return False
+
+
 def check_mondo_hpo_update(
     reference_engine: sa.Engine,
     settings: object | None = None,
@@ -527,7 +643,10 @@ def check_mondo_hpo_update(
     estimate used by the bandwidth-window check. Returns ``None`` when the
     manifest pin is missing/unreachable, the HEAD call fails,
     ``Last-Modified`` is absent, or the recorded version is the same as or
-    newer than the remote.
+    newer than the remote and stored HPO terms already include labels. A
+    same-version rebuild is offered once for legacy ID-only rows so existing
+    installations receive the labelled storage shape introduced for #2004;
+    a newer installed snapshot is never downgraded for this content migration.
 
     Args:
         reference_engine: Reference DB engine for ``database_versions`` lookup.
@@ -537,7 +656,8 @@ def check_mondo_hpo_update(
 
     Returns:
         ``VersionInfo`` when the remote ``Last-Modified`` date is newer than
-        the recorded version, otherwise ``None``.
+        the recorded version, or when the dates match but legacy ID-only HPO
+        rows need the labelled-data rebuild; otherwise ``None``.
     """
     del settings  # unused; kept for dispatch-signature parity
     from email.utils import parsedate_to_datetime
@@ -572,8 +692,11 @@ def check_mondo_hpo_update(
         return None
 
     current = get_current_version(reference_engine, "mondo_hpo")
-    if current is not None and current >= remote_version:
-        return None
+    if current is not None:
+        if current > remote_version:
+            return None
+        if current == remote_version and not _hpo_labels_need_refresh(reference_engine):
+            return None
 
     download_size = 0
     if content_length:
@@ -683,6 +806,7 @@ class GenePhenotypeAnnotation:
     disease_name: str
     disease_id: str | None
     hpo_terms: list[str]
+    hpo_term_details: list[HpoTerm]
     source: str
     inheritance: str | None
 
@@ -741,12 +865,8 @@ def lookup_gene_phenotypes(
                 if _is_obsolete_disease(row.disease_name):
                     continue
 
-                hpo_terms: list[str] = []
-                if row.hpo_terms:
-                    try:
-                        hpo_terms = json.loads(row.hpo_terms)
-                    except (json.JSONDecodeError, TypeError):
-                        pass
+                hpo_term_details = decode_hpo_terms(row.hpo_terms)
+                hpo_terms = [term.id for term in hpo_term_details]
 
                 # Curated inheritance override for known-mislabelled genes (F14).
                 inheritance = overrides.get((row.gene_symbol or "").upper(), row.inheritance)
@@ -756,6 +876,7 @@ def lookup_gene_phenotypes(
                     disease_name=row.disease_name,
                     disease_id=row.disease_id,
                     hpo_terms=hpo_terms,
+                    hpo_term_details=hpo_term_details,
                     source=row.source,
                     inheritance=inheritance,
                 )

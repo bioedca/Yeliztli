@@ -189,7 +189,12 @@ GENE_PHENOTYPE_DATA = [
         "gene_symbol": "BRCA1",
         "disease_name": "Hereditary breast cancer",
         "disease_id": "MONDO:0005012",
-        "hpo_terms": '["HP:0003002", "HP:0100013"]',
+        "hpo_terms": json.dumps(
+            [
+                {"id": "HP:0003002", "name": "Breast carcinoma"},
+                {"id": "HP:0100013", "name": None},
+            ]
+        ),
         "source": "mondo_hpo",
         "inheritance": "AD",
     },
@@ -617,11 +622,22 @@ class TestGenePhenotypes:
         assert omim[0]["disease_id"] == "OMIM:604370"
         assert omim[0]["omim_link"] == "https://omim.org/entry/604370"
 
-    def test_hpo_terms_parsed_as_list(self, client):
+    def test_hpo_terms_preserve_ids_and_add_optional_labels(self, client):
         tc, sid = client
         data = tc.get(f"/api/variants/rs80357906?sample_id={sid}").json()
+        mondo = [gp for gp in data["gene_phenotypes"] if gp["source"] == "mondo_hpo"][0]
         omim = [gp for gp in data["gene_phenotypes"] if gp["source"] == "omim"][0]
+
+        assert mondo["hpo_terms"] == ["HP:0003002", "HP:0100013"]
+        assert mondo["hpo_term_details"] == [
+            {"id": "HP:0003002", "name": "Breast carcinoma"},
+            {"id": "HP:0100013", "name": None},
+        ]
+
         assert omim["hpo_terms"] == ["HP:0003002"]
+        assert omim["hpo_term_details"] == [
+            {"id": "HP:0003002", "name": None},
+        ]
 
     def test_no_gene_phenotypes_for_variant_without_gene(self, client):
         tc, sid = client

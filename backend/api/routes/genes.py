@@ -21,6 +21,7 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
+from backend.annotation.mondo_hpo import decode_hpo_terms
 from backend.api.dependencies import require_fresh_sample
 from backend.config import get_settings
 from backend.db.connection import get_registry
@@ -78,6 +79,13 @@ class UniProtData(BaseModel):
     is_cached: bool = False
 
 
+class HpoTermRecord(BaseModel):
+    """HPO identifier with its optional human-readable label."""
+
+    id: str
+    name: str | None = None
+
+
 class GenePhenotypeRecord(BaseModel):
     """Gene-phenotype association from MONDO/HPO or OMIM."""
 
@@ -86,6 +94,7 @@ class GenePhenotypeRecord(BaseModel):
     disease_id: str | None = None
     source: str
     hpo_terms: list[str] | None = None
+    hpo_term_details: list[HpoTermRecord] | None = None
     inheritance: str | None = None
     omim_link: str | None = None
 
@@ -416,12 +425,8 @@ def _fetch_gene_phenotypes(gene_symbol: str) -> list[GenePhenotypeRecord]:
 
     results = []
     for row in rows:
-        hpo_list: list[str] | None = None
-        if row.hpo_terms:
-            try:
-                hpo_list = json.loads(row.hpo_terms)
-            except (json.JSONDecodeError, TypeError):
-                hpo_list = None
+        hpo_term_details = decode_hpo_terms(row.hpo_terms)
+        hpo_list = [term.id for term in hpo_term_details] or None
 
         omim_link: str | None = None
         if row.disease_id and row.disease_id.startswith("OMIM:"):
@@ -435,6 +440,10 @@ def _fetch_gene_phenotypes(gene_symbol: str) -> list[GenePhenotypeRecord]:
                 disease_id=row.disease_id,
                 source=row.source,
                 hpo_terms=hpo_list,
+                hpo_term_details=(
+                    [HpoTermRecord(id=term.id, name=term.name) for term in hpo_term_details]
+                    or None
+                ),
                 inheritance=row.inheritance,
                 omim_link=omim_link,
             )
