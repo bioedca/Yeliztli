@@ -107,7 +107,7 @@ deduplicating them, so a marker re-listed at multiple nodes can contribute more 
     50% of that clade-specific set must be derived, and no observed clade-specific marker may
     conflict. Structural or specially audited sparse internal nodes may be traversed only as
     pass-throughs when a deeper clade supplies independent support. The badge and traversal
-    labels instead summarize the full marker sets recorded along the accepted path.
+    labels instead summarise the full marker sets recorded along the accepted path.
 
 ---
 
