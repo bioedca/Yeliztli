@@ -1,0 +1,78 @@
+name: 🐞 Bug report
+description: Report a defect — something the app does that it shouldn't, or fails to do.
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing a bug. A good bug report is **actionable on its own** — a maintainer
+        can act on it without a follow-up conversation. Please keep it to **one problem per issue**
+        (open a separate issue for each distinct bug), and fill in the reproduction so we can write
+        a failing test for it.
+
+        > ⚠️ **Privacy — this is a public issue tracker.** Never paste your raw genotype data or
+        > attach your genome file, and redact any `rsID + genotype` lines from logs or errors.
+        > Yeliztli is privacy-first: your genomic data must stay on your machine. Use a small
+        > synthetic/test input to reproduce where possible.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: One or two sentences — what's broken?
+      placeholder: "The Variant Explorer 'Show unannotated' badge shows 0 even when unannotated variants exist."
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Numbered steps. Include the smallest input/sample that triggers it, so we can write a failing regression test.
+      placeholder: |
+        1. Upload sample_2 (AncestryDNA) and run annotation
+        2. Open Variant Explorer
+        3. Toggle "Show unannotated (N)"
+    validations:
+      required: true
+  - type: textarea
+    id: expected-actual
+    attributes:
+      label: Expected vs. actual
+      description: What you expected to happen, and what actually happened.
+      placeholder: |
+        Expected: the badge shows the real count of unannotated variants.
+        Actual: the badge always reads 0.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: How you're running Yeliztli. Copy the app version from the footer / `pyproject.toml`.
+      value: |
+        - OS: (e.g. Ubuntu 22.04 / macOS 14 / Windows 11 + WSL2)
+        - Install: (native / Docker)
+        - App version:
+        - Data source: (23andMe / AncestryDNA / other)  — genome build (23andMe v5 & AncestryDNA = GRCh37):
+        - Browser (for UI bugs):
+    validations:
+      required: true
+  - type: textarea
+    id: error-output
+    attributes:
+      label: Error output / logs
+      description: Paste any error message, stack trace, or relevant log lines (redact any rsID + genotype data first). This will be rendered as code — no backticks needed.
+      render: shell
+    validations:
+      required: false
+  - type: checkboxes
+    id: hygiene
+    attributes:
+      label: Before submitting
+      options:
+        - label: This issue describes a single problem (one bug per issue).
+          required: true
+        - label: I searched existing issues and this isn't a duplicate.
+          required: true
+        - label: I can reproduce this reliably (or I've said where it's intermittent).
+          required: false
