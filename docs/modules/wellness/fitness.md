@@ -11,10 +11,9 @@ context, not destiny.
 **8 SNPs** across four pathways:
 
 - **Endurance** — *PPARGC1A*, *AMPD1*, and the well-known *ACTN3* R577X
-- **Power** — *ACTN3*, *MCT1*
+- **Power** — *ACE* (an rs4341 I/D proxy — see *Good to know*), *MCT1*
 - **Recovery & injury** — *COL5A1*, *COL1A1* (connective-tissue)
 - **Training response** — *FTO*
-- An **ACE** insertion/deletion proxy (rs4341)
 
 ## What you'll see
 
@@ -25,7 +24,9 @@ caveat.
 ## Good to know
 
 - The *ACE* I/D variant isn't directly on the array — it's inferred from a nearby proxy SNP,
-  and that proxy's accuracy varies by ancestry.
+  and that proxy's accuracy varies by ancestry. A pathway level is the highest category across
+  its called SNPs, so this ACE proxy can on its own set the **Power** level to *Elevated* — read
+  that level with the proxy caveat in mind.
 - Weak (1-star) variants are capped at *Moderate*, and strand-ambiguous palindromic SNPs are
   marked *indeterminate* and left out of the pathway level.
 - Sport-specific genetic associations are heterogeneous; these variants predict very little
