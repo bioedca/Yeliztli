@@ -186,3 +186,57 @@ def test_huey_worker_logging_bootstrap_redacts_without_api_startup(
     finally:
         structlog.reset_defaults()
         get_settings.cache_clear()
+
+
+def test_logger_name_persists_as_component(tmp_path) -> None:
+    """A log line emitted through the configured pipeline persists its logger
+    name — the value the Log Explorer's Component column and filter read (#1997).
+
+    The route + writer were each fine in isolation; only their composition was
+    broken (the processor chain omitted add_logger_name, so every row was written
+    with an empty component). This spans the composition, so it fails on the
+    pre-fix chain where a hand-seeded fixture could not.
+    """
+    structlog.reset_defaults()
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'reference.db'}")
+    reference_metadata.create_all(engine)
+
+    try:
+        configure_logging(engine_getter=lambda: engine)
+        structlog.get_logger("backend.analysis.metabolic").info("prs_findings_stored")
+
+        with engine.connect() as conn:
+            logger_name = conn.execute(
+                sa.select(log_entries.c.logger).where(
+                    log_entries.c.message == "prs_findings_stored"
+                )
+            ).scalar_one()
+
+        # The exact name the writer must record — the substring the component
+        # filter (`logger.contains(...)`) matches against.
+        assert logger_name == "backend.analysis.metabolic"
+    finally:
+        structlog.reset_defaults()
+        engine.dispose()
+
+
+def test_nameless_logger_persists_null_component_not_empty_string(tmp_path) -> None:
+    """A logger created with no name records NULL, not "" — a misconfigured chain
+    reads as a visible gap rather than a tidy blank column (#1997)."""
+    structlog.reset_defaults()
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'reference.db'}")
+    reference_metadata.create_all(engine)
+
+    try:
+        configure_logging(engine_getter=lambda: engine)
+        structlog.get_logger().warning("nameless_event")
+
+        with engine.connect() as conn:
+            logger_name = conn.execute(
+                sa.select(log_entries.c.logger).where(log_entries.c.message == "nameless_event")
+            ).scalar_one()
+
+        assert logger_name is None
+    finally:
+        structlog.reset_defaults()
+        engine.dispose()
