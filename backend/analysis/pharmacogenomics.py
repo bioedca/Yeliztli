@@ -1106,35 +1106,65 @@ def _fetch_guidelines_for_gene_phenotype(
     gene: str,
     phenotype: str,
     reference_engine: sa.Engine,
+    activity_score: float | None = None,
 ) -> list[dict]:
-    """Fetch CPIC guideline recommendations for a gene + phenotype pair.
+    """Fetch CPIC guideline recommendations for a gene phenotype/activity score.
+
+    CPIC keys some recommendations on the gene activity score, not the phenotype
+    label alone: DPYD splits Intermediate (AS 1.5 vs 1.0 — the c.2846A>T
+    homozygote's ">50% reduction" caveat) and Poor (AS 0.5's conditional
+    reduced-dose+TDM fallback vs 0.0's flat avoid). When ``activity_score`` is
+    given and the gene has activity-score-keyed rows, match on it; otherwise fall
+    back to the phenotype (for the majority of genes CPIC keys by label, whose
+    rows carry a NULL activity_score). See #1993.
 
     Args:
         gene: Gene symbol (e.g. "CYP2D6").
         phenotype: Metabolizer phenotype (e.g. "Poor Metabolizer").
         reference_engine: SQLAlchemy engine for reference.db.
+        activity_score: The called gene activity score, if any.
 
     Returns:
         List of dicts with keys: drug, recommendation, classification,
         guideline_url.
     """
-    with reference_engine.connect() as conn:
-        stmt = (
-            sa.select(
-                cpic_guidelines.c.drug,
-                cpic_guidelines.c.recommendation,
-                cpic_guidelines.c.classification,
-                cpic_guidelines.c.guideline_url,
-            )
-            .where(
-                sa.and_(
-                    cpic_guidelines.c.gene == gene,
-                    cpic_guidelines.c.phenotype == phenotype,
+
+    def _run(where) -> list:
+        with reference_engine.connect() as conn:
+            stmt = (
+                sa.select(
+                    cpic_guidelines.c.drug,
+                    cpic_guidelines.c.recommendation,
+                    cpic_guidelines.c.classification,
+                    cpic_guidelines.c.guideline_url,
                 )
+                .where(where)
+                .order_by(cpic_guidelines.c.drug)
             )
-            .order_by(cpic_guidelines.c.drug)
+            return conn.execute(stmt).fetchall()
+
+    rows: list = []
+    # Prefer an activity-score match; a DPYD alert always carries one and its
+    # rows are AS-keyed, so this selects the AS-specific recommendation.
+    if activity_score is not None:
+        rows = _run(
+            sa.and_(
+                cpic_guidelines.c.gene == gene,
+                cpic_guidelines.c.activity_score == activity_score,
+            )
         )
-        rows = conn.execute(stmt).fetchall()
+    # Fall back to the phenotype for the phenotype-keyed genes (NULL activity
+    # score). Requiring IS NULL here keeps an AS-keyed gene from matching the
+    # wrong row when its exact score is (unexpectedly) absent — no guideline is
+    # emitted rather than one for a different score.
+    if not rows:
+        rows = _run(
+            sa.and_(
+                cpic_guidelines.c.gene == gene,
+                cpic_guidelines.c.phenotype == phenotype,
+                cpic_guidelines.c.activity_score.is_(None),
+            )
+        )
 
     return [
         {
@@ -1215,9 +1245,10 @@ def generate_prescribing_alerts(
             if note not in confidence_note:
                 confidence_note = f"{confidence_note} {note}".strip()
 
-        # Look up matching guidelines
+        # Look up matching guidelines (AS-keyed where CPIC splits a phenotype
+        # band by activity score, e.g. DPYD — #1993).
         guidelines = _fetch_guidelines_for_gene_phenotype(
-            result.gene, alert_phenotype, reference_engine
+            result.gene, alert_phenotype, reference_engine, activity_score=alert_activity_score
         )
 
         if not guidelines:

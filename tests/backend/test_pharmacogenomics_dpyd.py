@@ -213,3 +213,103 @@ def test_update_annotation_coverage_runs(reference_engine: sa.Engine) -> None:
     results = call_all_star_alleles(reference_engine, sample, genes=frozenset({"DPYD"}))
     # annotated_variants is empty here, so 0 rows update — must not raise.
     assert update_annotation_coverage_cpic(results, sample) >= 0
+
+
+# ── Activity-score-keyed dosing (#1993) ──────────────────────────────────
+#
+# CPIC keys DPYD fluoropyrimidine dosing on the activity score, splitting BOTH
+# phenotype bands. Before #1993 cpic_guidelines keyed on the phenotype label, so
+# the two Intermediate scores (AS 1.5 / 1.0) and the two Poor scores (AS 0.5 /
+# 0.0) each collapsed to one recommendation — under-reducing the c.2846A>T
+# homozygote and dropping the AS-0.5 conditional fallback. Ground truth:
+# api.cpicpgx.org/v1/recommendation (accessed 2026-07-16); primary guideline
+# Amstutz et al. 2018, PMID:29152729 / DOI:10.1002/cpt.911.
+
+
+def _dpyd_recommendations(
+    reference_engine: sa.Engine, genotypes: dict[str, str]
+) -> dict[str, str]:
+    """gene-drug recommendation strings for a DPYD genotype, via the shipped path."""
+    sample = _make_sample(genotypes)
+    results = call_all_star_alleles(reference_engine, sample, genes=frozenset({"DPYD"}))
+    alerts = [
+        a for a in generate_prescribing_alerts(results, reference_engine) if a.gene == "DPYD"
+    ]
+    recommendations: dict[str, str] = {}
+    for alert in alerts:
+        # A duplicate drug alert would silently overwrite the first — fail loudly
+        # so a two-row AS match (a lookup regression) can't hide behind the dict.
+        assert alert.drug not in recommendations, f"duplicate DPYD alert for {alert.drug}"
+        recommendations[alert.drug] = alert.recommendation or ""
+    return recommendations
+
+
+def test_as_1_0_homozygote_differs_from_as_1_5_het(reference_engine: sa.Engine) -> None:
+    """c.2846A>T/c.2846A>T (AS 1.0) must carry CPIC's ">50% reduction" caveat and
+    differ from the *1/c.2846A>T (AS 1.5) recommendation — the sharpest #1993
+    defect (both were byte-identical "Reduce dose by 50%")."""
+    homozygote = _dpyd_recommendations(reference_engine, _dpyd_genotypes(rs67376798="AA"))
+    het = _dpyd_recommendations(reference_engine, _dpyd_genotypes(rs67376798="TA"))
+
+    assert homozygote and het
+    for drug in ("fluorouracil", "capecitabine"):
+        assert ">50%" in homozygote[drug], f"{drug} AS-1.0 lost the >50% caveat"
+        assert "c.2846A>T/c.2846A>T" in homozygote[drug]
+        assert ">50%" not in het[drug], f"{drug} AS-1.5 wrongly carries the >50% caveat"
+        assert homozygote[drug] != het[drug], f"{drug}: AS 1.0 and AS 1.5 collapsed again"
+
+
+def test_as_0_5_pm_keeps_avoid_headline_and_tdm_fallback(reference_engine: sa.Engine) -> None:
+    """*2A/c.2846A>T (AS 0.5) keeps "Avoid" as the headline but restores CPIC's
+    conditional reduced-dose + early-TDM fallback, and differs from *2A/*2A
+    (AS 0.0)'s flat avoid. AS 0.5 must NOT read as simply "reduced dose"."""
+    as_05 = _dpyd_recommendations(
+        reference_engine, _dpyd_genotypes(rs3918290="CT", rs67376798="TA")
+    )
+    as_00 = _dpyd_recommendations(reference_engine, _dpyd_genotypes(rs3918290="TT"))
+
+    assert as_05 and as_00
+    for drug in ("fluorouracil", "capecitabine"):
+        assert as_05[drug].lower().startswith("avoid"), f"{drug} AS-0.5 lost the avoid headline"
+        assert "therapeutic drug monitoring" in as_05[drug].lower(), (
+            f"{drug} AS-0.5 dropped the conditional TDM fallback"
+        )
+        assert "therapeutic drug monitoring" not in as_00[drug].lower(), (
+            f"{drug} AS-0.0 wrongly carries the TDM fallback"
+        )
+        assert as_05[drug] != as_00[drug], f"{drug}: AS 0.5 and AS 0.0 collapsed"
+
+
+def test_no_two_distinct_activity_scores_share_a_recommendation() -> None:
+    """Guard: within one (gene, drug), no two distinct activity scores may map to
+    the same recommendation string — that is the collapse #1993 fixed. Checks
+    both the bundled and seed CPIC guideline CSVs directly."""
+    import csv
+    from collections import defaultdict
+
+    seed = (
+        Path(__file__).resolve().parents[1] / "fixtures" / "seed_csvs" / "cpic_guidelines_seed.csv"
+    )
+    for path in (_CPIC_DIR / "cpic_guidelines.csv", seed):
+        by_pair: dict[tuple[str, str], dict[str, set[str]]] = defaultdict(lambda: defaultdict(set))
+        activity_score_rows = 0
+        with open(path, encoding="utf-8") as fh:
+            for row in csv.DictReader(fh):
+                score = (row.get("activity_score") or "").strip()
+                if not score:  # phenotype-keyed genes are exempt
+                    continue
+                activity_score_rows += 1
+                by_pair[(row["gene"], row["drug"])][row["recommendation"]].add(score)
+        # Guard against the guard silently no-op'ing: if the AS rows ever vanish
+        # (a regression back to phenotype-keying), there are no collisions to find
+        # and this would pass vacuously. Fail instead.
+        assert activity_score_rows, f"{path.name} has no activity-score-keyed rows"
+        collisions = [
+            f"{path.name}: {gene}/{drug} — scores {sorted(scores)} share one recommendation"
+            for (gene, drug), recs in by_pair.items()
+            for rec, scores in recs.items()
+            if len(scores) > 1
+        ]
+        assert not collisions, "distinct activity scores collapsed to one recommendation:\n  " + (
+            "\n  ".join(collisions)
+        )
