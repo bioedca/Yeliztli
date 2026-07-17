@@ -538,25 +538,6 @@ class TestBackupRoundTrip:
         tmp_path: Path,
     ) -> None:
         settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
-        reference_engine = sa.create_engine(f"sqlite:///{settings.reference_db_path}")
-        reference_metadata.create_all(reference_engine)
-        with reference_engine.begin() as conn:
-            conn.execute(
-                reannotation_prompts.insert(),
-                {
-                    "sample_id": 7,
-                    "db_name": "clinvar",
-                    "db_version": "20260101",
-                    "prompt_type": "reclassification",
-                    "stale_databases": "[]",
-                    "dismissed": True,
-                    # Newer than the restored sample below: timestamp-only
-                    # cleanup cannot determine that this belongs to a deleted
-                    # prior occupant of ID 7.
-                    "created_at": datetime(2026, 1, 2, tzinfo=UTC),
-                },
-            )
-        reference_engine.dispose()
         created_at = datetime(2025, 4, 3, 2, 1, tzinfo=UTC)
         legacy_db = tmp_path / "sample_7.db"
         legacy_engine = sa.create_engine(f"sqlite:///{legacy_db}")
@@ -595,6 +576,24 @@ class TestBackupRoundTrip:
             from backend.api.routes.setup import import_backup
             from backend.db.connection import get_registry
 
+            registry = get_registry()
+            reference_metadata.create_all(registry.reference_engine)
+            with registry.reference_engine.begin() as conn:
+                conn.execute(
+                    reannotation_prompts.insert(),
+                    {
+                        "sample_id": 7,
+                        "db_name": "clinvar",
+                        "db_version": "20260101",
+                        "prompt_type": "reclassification",
+                        "stale_databases": "[]",
+                        "dismissed": True,
+                        # Newer than the restored sample below: timestamp-only
+                        # cleanup cannot determine that this belongs to a deleted
+                        # prior occupant of ID 7.
+                        "created_at": datetime(2026, 1, 2, tzinfo=UTC),
+                    },
+                )
             result = asyncio.run(
                 import_backup(
                     _UploadBytes(
@@ -603,7 +602,6 @@ class TestBackupRoundTrip:
                     )
                 )
             )
-            registry = get_registry()
             restored_path = settings.data_dir / "samples" / "sample_7.db"
             restored_engine = registry.get_sample_engine(restored_path)
             with restored_engine.connect() as conn:

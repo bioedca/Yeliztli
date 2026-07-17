@@ -614,46 +614,60 @@ def _add_missing_columns(engine: sa.Engine, from_version: int) -> bool:
             existing_cols = {c["name"] for c in inspector.get_columns("findings")}
             required_cols = {"module", "category", "gene_symbol", "drug"}
             if required_cols <= existing_cols:
-                with engine.begin() as conn:
-                    result = conn.execute(
-                        sa.delete(findings).where(
-                            findings.c.module == "pharmacogenomics",
-                            findings.c.category == "prescribing_alert",
-                            findings.c.gene_symbol == "CYP2C9",
-                            sa.func.lower(findings.c.drug) == "phenytoin",
+                legacy_finding = sa.and_(
+                    findings.c.module == "pharmacogenomics",
+                    findings.c.category == "prescribing_alert",
+                    findings.c.gene_symbol == "CYP2C9",
+                    sa.func.lower(findings.c.drug) == "phenytoin",
+                )
+                if not can_persist_reanalysis_marker:
+                    with engine.connect() as conn:
+                        has_legacy_finding = conn.execute(
+                            sa.select(sa.literal(True))
+                            .select_from(findings)
+                            .where(legacy_finding)
+                            .limit(1)
+                        ).scalar_one_or_none()
+                    if has_legacy_finding:
+                        raise sa.exc.InvalidRequestError(
+                            "Cannot quarantine legacy CYP2C9/phenytoin findings: "
+                            "annotation_state must contain key and value columns"
                         )
-                    )
-                    removed_findings = max(result.rowcount or 0, 0)
-                    if removed_findings and can_persist_reanalysis_marker:
-                        marker = json.dumps(
-                            {
-                                "database": "cpic",
-                                "prompted": False,
-                                "reason": CYP2C9_PHENYTOIN_REANALYSIS_REASON,
-                                "sample_schema_version": 21,
-                            }
-                        )
-                        existing_marker = conn.execute(
-                            sa.select(annotation_state.c.key).where(
-                                annotation_state.c.key == CYP2C9_PHENYTOIN_REANALYSIS_STATE_KEY
-                            )
-                        ).fetchone()
-                        if existing_marker is None:
-                            conn.execute(
-                                annotation_state.insert(),
+                else:
+                    with engine.begin() as conn:
+                        result = conn.execute(sa.delete(findings).where(legacy_finding))
+                        removed_findings = max(result.rowcount or 0, 0)
+                        if removed_findings:
+                            marker = json.dumps(
                                 {
-                                    "key": CYP2C9_PHENYTOIN_REANALYSIS_STATE_KEY,
-                                    "value": marker,
-                                },
+                                    "database": "cpic",
+                                    "prompted": False,
+                                    "reason": CYP2C9_PHENYTOIN_REANALYSIS_REASON,
+                                    "sample_schema_version": 21,
+                                }
                             )
-                        else:
-                            conn.execute(
-                                annotation_state.update()
-                                .where(
+                            existing_marker = conn.execute(
+                                sa.select(annotation_state.c.key).where(
                                     annotation_state.c.key == CYP2C9_PHENYTOIN_REANALYSIS_STATE_KEY
                                 )
-                                .values(value=marker)
-                            )
+                            ).fetchone()
+                            if existing_marker is None:
+                                conn.execute(
+                                    annotation_state.insert(),
+                                    {
+                                        "key": CYP2C9_PHENYTOIN_REANALYSIS_STATE_KEY,
+                                        "value": marker,
+                                    },
+                                )
+                            else:
+                                conn.execute(
+                                    annotation_state.update()
+                                    .where(
+                                        annotation_state.c.key
+                                        == CYP2C9_PHENYTOIN_REANALYSIS_STATE_KEY
+                                    )
+                                    .values(value=marker)
+                                )
                 if removed_findings:
                     added = True
                     logger.warning(

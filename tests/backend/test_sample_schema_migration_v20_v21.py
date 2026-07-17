@@ -745,7 +745,13 @@ def test_prompt_sync_rejects_sibling_prefix_and_symlink_escape(tmp_path: Path) -
             is False
         )
         assert _sample_file_fingerprint("sample_1.db", settings.samples_dir) is None
-        assert _sample_file_fingerprint("sample_2.db", settings.samples_dir) is not None
+        same_root_stat = same_root_target.stat()
+        assert _sample_file_fingerprint("sample_2.db", settings.samples_dir) == (
+            same_root_stat.st_dev,
+            same_root_stat.st_ino,
+            same_root_stat.st_size,
+            same_root_stat.st_mtime_ns,
+        )
         assert _sample_file_fingerprint("sample_3.db", settings.samples_dir) is None
     finally:
         memory_engine.dispose()
@@ -941,6 +947,33 @@ def test_v21_marker_failure_rolls_back_legacy_finding_deletion(tmp_path: Path) -
         conn.execute(sa.text("PRAGMA user_version = 20"))
 
     with pytest.raises(sa.exc.DatabaseError, match="marker rejected"):
+        ensure_sample_schema_current(engine)
+
+    with engine.connect() as conn:
+        assert conn.execute(sa.select(sa.func.count()).select_from(findings)).scalar_one() == 1
+        assert conn.execute(sa.text("PRAGMA user_version")).scalar_one() == 20
+
+
+@pytest.mark.parametrize(
+    "annotation_state_ddl",
+    [
+        "CREATE TABLE annotation_state (key TEXT PRIMARY KEY)",
+        "CREATE TABLE annotation_state (value TEXT)",
+    ],
+)
+def test_v21_rejects_quarantine_when_marker_table_is_malformed(
+    tmp_path: Path,
+    annotation_state_ddl: str,
+) -> None:
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'malformed-marker-table.db'}")
+    create_sample_tables(engine)
+    with engine.begin() as conn:
+        conn.execute(findings.insert(), _finding())
+        conn.execute(sa.text("DROP TABLE annotation_state"))
+        conn.execute(sa.text(annotation_state_ddl))
+        conn.execute(sa.text("PRAGMA user_version = 20"))
+
+    with pytest.raises(sa.exc.InvalidRequestError, match="annotation_state"):
         ensure_sample_schema_current(engine)
 
     with engine.connect() as conn:
