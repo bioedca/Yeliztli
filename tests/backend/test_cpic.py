@@ -77,8 +77,9 @@ class TestParseAllelesCSV:
     def test_parse_seed_file(self):
         rows, stats = parse_cpic_alleles_csv(SEED_DIR / "cpic_alleles_seed.csv")
 
-        assert len(rows) == 56  # E1 (47) + NAT2 (*4,*5,*6,*7,*14) + CYP2B6 (*1,*6,*9,*18)
-        assert stats.alleles_loaded == 56
+        # E1 (47) + NAT2 (*4,*5,*6,*7,*14) + CYP2B6 (*1,*4,*6,*9,*18); *4 added #1985
+        assert len(rows) == 57
+        assert stats.alleles_loaded == 57
         assert stats.alleles_skipped == 0
         assert "CYP2D6" in stats.genes_found
         assert "CYP2C19" in stats.genes_found
@@ -143,8 +144,9 @@ class TestParseDiplotypesCSV:
     def test_parse_seed_file(self):
         rows, stats = parse_cpic_diplotypes_csv(SEED_DIR / "cpic_diplotypes_seed.csv")
 
-        assert len(rows) == 113  # 109 + 4 CYP2B6*18-containing diplotypes (issue #42)
-        assert stats.diplotypes_loaded == 113
+        # 113 + 5 CYP2B6 *4-containing diplotypes (*1/*4,*4/*4,*4/*6,*4/*9,*4/*18) #1985
+        assert len(rows) == 118
+        assert stats.diplotypes_loaded == 118
         assert stats.diplotypes_skipped == 0
 
     def test_first_row_structure(self):
@@ -222,8 +224,9 @@ class TestParseGuidelinesCSV:
     def test_parse_seed_file(self):
         rows, stats = parse_cpic_guidelines_csv(SEED_DIR / "cpic_guidelines_seed.csv")
 
-        assert len(rows) == 64  # E1 (61) + CYP2B6 efavirenz (3) (SW-E1b)
-        assert stats.guidelines_loaded == 64
+        # E1 (61) + CYP2B6 efavirenz (5): Normal/IM/PM + Rapid/Ultrarapid (#1985)
+        assert len(rows) == 66
+        assert stats.guidelines_loaded == 66
         assert stats.guidelines_skipped == 0
 
     def test_first_row_structure(self):
