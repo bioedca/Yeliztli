@@ -72,6 +72,13 @@ class FindingResponse(BaseModel):
     created_at: str | None = None
 
 
+class FindingEvidenceLevelCount(BaseModel):
+    """True finding count for one normalized evidence level."""
+
+    evidence_level: int
+    count: int
+
+
 class FindingSummaryItem(BaseModel):
     """Per-module finding count and top evidence level."""
 
@@ -79,6 +86,7 @@ class FindingSummaryItem(BaseModel):
     count: int
     max_evidence_level: int | None = None
     top_finding_text: str | None = None
+    evidence_level_counts: list[FindingEvidenceLevelCount]
 
 
 class FindingsSummaryResponse(BaseModel):
@@ -86,6 +94,7 @@ class FindingsSummaryResponse(BaseModel):
 
     total_findings: int
     modules: list[FindingSummaryItem]
+    evidence_level_counts: list[FindingEvidenceLevelCount]
     high_confidence_findings: list[FindingResponse]
 
 
@@ -269,6 +278,28 @@ async def findings_summary(
             agg_stmt = agg_stmt.where(findings.c.module.not_in(hidden_modules))
         agg_rows = conn.execute(agg_stmt).fetchall()
 
+        # True evidence-tier totals for the page headers.  The findings list is
+        # deliberately windowed (#1303), so counting its loaded rows makes the
+        # lowest visible tier look complete and silently changes the number on
+        # every "Load more" click (#1994).  Aggregate here over the same policy
+        # and disclosure-gate scope as the rest of the summary.  NULL evidence
+        # levels normalize to 0 because the frontend renders both as its single
+        # "Unknown Evidence" group.
+        normalized_evidence_level = sa.func.coalesce(findings.c.evidence_level, 0)
+        evidence_agg_stmt = (
+            sa.select(
+                findings.c.module,
+                normalized_evidence_level.label("evidence_level"),
+                sa.func.count().label("cnt"),
+            )
+            .where(policy_qualified_finding_clause(findings.c.category))
+            .group_by(findings.c.module, normalized_evidence_level)
+            .order_by(sa.desc(normalized_evidence_level), findings.c.module)
+        )
+        if hidden_modules:
+            evidence_agg_stmt = evidence_agg_stmt.where(findings.c.module.not_in(hidden_modules))
+        evidence_agg_rows = conn.execute(evidence_agg_stmt).fetchall()
+
         # All findings for top finding per module
         all_stmt = (
             sa.select(findings)
@@ -285,6 +316,17 @@ async def findings_summary(
     # Build per-module summary
     total = 0
     modules: list[FindingSummaryItem] = []
+    evidence_counts: dict[int, int] = {}
+    evidence_counts_by_module: dict[str, list[FindingEvidenceLevelCount]] = {}
+
+    for agg in evidence_agg_rows:
+        level = int(agg.evidence_level)
+        count = int(agg.cnt)
+        evidence_counts[level] = evidence_counts.get(level, 0) + count
+        evidence_counts_by_module.setdefault(agg.module, []).append(
+            FindingEvidenceLevelCount(evidence_level=level, count=count)
+        )
+
     # Index findings by module for top finding lookup
     top_by_module: dict[str, str] = {}
     for r in all_rows:
@@ -299,6 +341,7 @@ async def findings_summary(
                 count=agg.cnt,
                 max_evidence_level=agg.max_ev,
                 top_finding_text=top_by_module.get(agg.module),
+                evidence_level_counts=evidence_counts_by_module.get(agg.module, []),
             )
         )
 
@@ -308,6 +351,10 @@ async def findings_summary(
     return FindingsSummaryResponse(
         total_findings=total,
         modules=modules,
+        evidence_level_counts=[
+            FindingEvidenceLevelCount(evidence_level=level, count=count)
+            for level, count in sorted(evidence_counts.items(), reverse=True)
+        ],
         high_confidence_findings=high_conf,
     )
 

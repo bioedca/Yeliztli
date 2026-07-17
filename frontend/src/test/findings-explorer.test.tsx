@@ -1,7 +1,7 @@
 /** Tests for the Analysis Module Dashboard / Findings Explorer (P3-43). */
 
 import { describe, it, expect, vi, beforeEach } from "vitest"
-import { render as rtlRender, screen, fireEvent, waitFor } from "@testing-library/react"
+import { render as rtlRender, screen, fireEvent, waitFor, within } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter } from "react-router-dom"
 import FindingsExplorer from "@/pages/FindingsExplorer"
@@ -132,10 +132,39 @@ const SAMPLE_FINDINGS: Finding[] = [
 const SAMPLE_SUMMARY: FindingsSummaryResponse = {
   total_findings: 4,
   modules: [
-    { module: "cancer", count: 1, max_evidence_level: 4, top_finding_text: "BRCA1 c.5266dupC — Pathogenic" },
-    { module: "pharmacogenomics", count: 1, max_evidence_level: 4, top_finding_text: "CYP2C19 *2/*2 — Poor Metabolizer" },
-    { module: "nutrigenomics", count: 1, max_evidence_level: 3, top_finding_text: "Folate metabolism — Elevated consideration" },
-    { module: "ancestry", count: 1, max_evidence_level: 2, top_finding_text: "Primary ancestry: European (82%)" },
+    {
+      module: "cancer",
+      count: 1,
+      max_evidence_level: 4,
+      top_finding_text: "BRCA1 c.5266dupC — Pathogenic",
+      evidence_level_counts: [{ evidence_level: 4, count: 1 }],
+    },
+    {
+      module: "pharmacogenomics",
+      count: 1,
+      max_evidence_level: 4,
+      top_finding_text: "CYP2C19 *2/*2 — Poor Metabolizer",
+      evidence_level_counts: [{ evidence_level: 4, count: 1 }],
+    },
+    {
+      module: "nutrigenomics",
+      count: 1,
+      max_evidence_level: 3,
+      top_finding_text: "Folate metabolism — Elevated consideration",
+      evidence_level_counts: [{ evidence_level: 3, count: 1 }],
+    },
+    {
+      module: "ancestry",
+      count: 1,
+      max_evidence_level: 2,
+      top_finding_text: "Primary ancestry: European (82%)",
+      evidence_level_counts: [{ evidence_level: 2, count: 1 }],
+    },
+  ],
+  evidence_level_counts: [
+    { evidence_level: 4, count: 2 },
+    { evidence_level: 3, count: 1 },
+    { evidence_level: 2, count: 1 },
   ],
   high_confidence_findings: SAMPLE_FINDINGS.slice(0, 3),
 }
@@ -220,6 +249,191 @@ describe("FindingsExplorer", () => {
         true,
       )
     })
+  })
+
+  it("keeps the true tier total stable when the loaded window grows (#1994)", async () => {
+    const summary: FindingsSummaryResponse = {
+      total_findings: 1_000,
+      modules: [
+        {
+          module: "rare_variants",
+          count: 1_000,
+          max_evidence_level: 1,
+          top_finding_text: "Finding 1",
+          evidence_level_counts: [{ evidence_level: 1, count: 1_000 }],
+        },
+      ],
+      evidence_level_counts: [{ evidence_level: 1, count: 1_000 }],
+      high_confidence_findings: [],
+    }
+
+    mockFetch.mockImplementation(async (url: string) => {
+      if (url.includes("/api/analysis/findings/summary")) {
+        return { ok: true, json: async () => summary }
+      }
+      const limit = Number(new URL(url, "http://localhost").searchParams.get("limit"))
+      return {
+        ok: true,
+        json: async () =>
+          Array.from({ length: limit }, (_, index) => ({
+            ...SAMPLE_FINDINGS[0],
+            id: index + 1,
+            module: "rare_variants",
+            evidence_level: 1,
+            finding_text: `Finding ${index + 1}`,
+          })),
+      }
+    })
+
+    renderWithRoute(<FindingsExplorer />, ["/?sample_id=1"])
+
+    let preliminary = await screen.findByRole("region", {
+      name: "Preliminary Evidence",
+    })
+    expect(within(preliminary).getByText("(1000)")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: /load more findings/i }))
+    expect(await screen.findByText("Finding 400")).toBeInTheDocument()
+
+    preliminary = screen.getByRole("region", { name: "Preliminary Evidence" })
+    expect(within(preliminary).getByText("(1000)")).toBeInTheDocument()
+    expect(within(preliminary).queryByText("(400)")).not.toBeInTheDocument()
+  })
+
+  it("uses the selected module's tier total instead of the global total (#1994)", async () => {
+    const rareFinding: Finding = {
+      ...SAMPLE_FINDINGS[0],
+      module: "rare_variants",
+      evidence_level: 1,
+      finding_text: "Rare finding",
+    }
+    setupFetchMock([rareFinding], {
+      total_findings: 120,
+      modules: [
+        {
+          module: "rare_variants",
+          count: 80,
+          max_evidence_level: 1,
+          top_finding_text: "Rare finding",
+          evidence_level_counts: [{ evidence_level: 1, count: 80 }],
+        },
+        {
+          module: "cancer",
+          count: 40,
+          max_evidence_level: 1,
+          top_finding_text: "Cancer finding",
+          evidence_level_counts: [{ evidence_level: 1, count: 40 }],
+        },
+      ],
+      evidence_level_counts: [{ evidence_level: 1, count: 120 }],
+      high_confidence_findings: [],
+    })
+    renderWithRoute(<FindingsExplorer />, ["/?sample_id=1"])
+
+    let preliminary = await screen.findByRole("region", {
+      name: "Preliminary Evidence",
+    })
+    expect(within(preliminary).getByText("(120)")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: /Rare Variants/ }))
+    await waitFor(() => {
+      expect(
+        mockFetch.mock.calls.some((call) =>
+          String(call[0]).includes("module=rare_variants"),
+        ),
+      ).toBe(true)
+    })
+
+    preliminary = await screen.findByRole("region", {
+      name: "Preliminary Evidence",
+    })
+    expect(within(preliminary).getByText("(80)")).toBeInTheDocument()
+  })
+
+  it("labels a loaded-window tier count explicitly when cached summary totals are absent (#1994)", async () => {
+    const preliminaryFinding: Finding = {
+      ...SAMPLE_FINDINGS[0],
+      module: "rare_variants",
+      evidence_level: 1,
+      finding_text: "Cached preliminary finding",
+    }
+    setupFetchMock([preliminaryFinding], {
+      total_findings: 99,
+      modules: [
+        {
+          module: "rare_variants",
+          count: 99,
+          max_evidence_level: 1,
+          top_finding_text: preliminaryFinding.finding_text,
+        },
+      ],
+      high_confidence_findings: [],
+    })
+    renderWithRoute(<FindingsExplorer />, ["/?sample_id=1"])
+
+    const preliminary = await screen.findByRole("region", {
+      name: "Preliminary Evidence",
+    })
+    expect(within(preliminary).getByText("(1 shown)")).toBeInTheDocument()
+    expect(within(preliminary).queryByText("(1)")).not.toBeInTheDocument()
+    expect(within(preliminary).queryByText("(99)")).not.toBeInTheDocument()
+  })
+
+  it("keeps exact tier totals when the minimum-evidence filter hides lower tiers (#1994)", async () => {
+    const findings: Finding[] = [
+      { ...SAMPLE_FINDINGS[0], id: 41, evidence_level: 4, finding_text: "Definitive finding" },
+      { ...SAMPLE_FINDINGS[0], id: 42, evidence_level: 3, finding_text: "Strong finding" },
+      { ...SAMPLE_FINDINGS[0], id: 43, evidence_level: 2, finding_text: "Moderate finding" },
+    ]
+    const summary: FindingsSummaryResponse = {
+      total_findings: 102,
+      modules: [],
+      evidence_level_counts: [
+        { evidence_level: 4, count: 12 },
+        { evidence_level: 3, count: 34 },
+        { evidence_level: 2, count: 56 },
+      ],
+      high_confidence_findings: [],
+    }
+    mockFetch.mockImplementation(async (url: string) => {
+      if (url.includes("/api/analysis/findings/summary")) {
+        return { ok: true, json: async () => summary }
+      }
+      const minStars = Number(
+        new URL(url, "http://localhost").searchParams.get("min_stars") ?? 0,
+      )
+      return {
+        ok: true,
+        json: async () => findings.filter((finding) => (finding.evidence_level ?? 0) >= minStars),
+      }
+    })
+    renderWithRoute(<FindingsExplorer />, ["/?sample_id=1"])
+
+    expect(
+      within(await screen.findByRole("region", { name: "Definitive Evidence" })).getByText("(12)"),
+    ).toBeInTheDocument()
+    expect(
+      within(screen.getByRole("region", { name: "Strong Evidence" })).getByText("(34)"),
+    ).toBeInTheDocument()
+    expect(screen.getByRole("region", { name: "Moderate Evidence" })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "3+" }))
+
+    await waitFor(() => {
+      expect(
+        mockFetch.mock.calls.some((call) => String(call[0]).includes("min_stars=3")),
+      ).toBe(true)
+    })
+    const filteredDefinitive = await screen.findByRole("region", {
+      name: "Definitive Evidence",
+    })
+    expect(screen.queryByRole("region", { name: "Moderate Evidence" })).not.toBeInTheDocument()
+    expect(
+      within(filteredDefinitive).getByText("(12)"),
+    ).toBeInTheDocument()
+    expect(
+      within(screen.getByRole("region", { name: "Strong Evidence" })).getByText("(34)"),
+    ).toBeInTheDocument()
   })
 
   it("renders the zygosity label for findings that carry one", async () => {
