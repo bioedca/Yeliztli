@@ -310,6 +310,10 @@ export default function FindingsExplorer() {
 
   const findings = findingsQuery.data ?? []
   const summary = summaryQuery.data
+  const evidenceLevelCounts = selectedModule
+    ? summary?.modules.find((item) => item.module === selectedModule)
+        ?.evidence_level_counts
+    : summary?.evidence_level_counts
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
@@ -411,24 +415,32 @@ export default function FindingsExplorer() {
       )}
 
       {/* Findings grouped by evidence level */}
-      {groupedFindings.map((group) => (
-        <section key={group.level} aria-label={group.label}>
-          <div className="flex items-center gap-2 mb-3">
-            <h2 className="text-sm font-semibold text-foreground">
-              {group.label}
-            </h2>
-            <EvidenceStars level={group.level} />
-            <span className="text-xs text-muted-foreground">
-              ({group.findings.length})
-            </span>
-          </div>
-          <div className="space-y-2">
-            {group.findings.map((finding) => (
-              <FindingRow key={finding.id} finding={finding} />
-            ))}
-          </div>
-        </section>
-      ))}
+      {groupedFindings.map((group) => {
+        const tierTotal = evidenceLevelCounts?.find(
+          (item) => item.evidence_level === group.level,
+        )?.count
+
+        return (
+          <section key={group.level} aria-label={group.label}>
+            <div className="flex items-center gap-2 mb-3">
+              <h2 className="text-sm font-semibold text-foreground">
+                {group.label}
+              </h2>
+              <EvidenceStars level={group.level} />
+              <span className="text-xs text-muted-foreground">
+                {tierTotal == null
+                  ? `(${group.findings.length} shown)`
+                  : `(${tierTotal})`}
+              </span>
+            </div>
+            <div className="space-y-2">
+              {group.findings.map((finding) => (
+                <FindingRow key={finding.id} finding={finding} />
+              ))}
+            </div>
+          </section>
+        )
+      })}
 
       {/* Load more: a full page (length === limit) means more findings remain
           beyond the current bound (#1303). */}

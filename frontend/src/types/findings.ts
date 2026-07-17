@@ -31,10 +31,20 @@ export interface FindingSummaryItem {
   count: number
   max_evidence_level: number | null
   top_finding_text: string | null
+  /** Additive in #1994; optional so cached/older summary payloads stay honest. */
+  evidence_level_counts?: FindingEvidenceLevelCount[]
+}
+
+interface FindingEvidenceLevelCount {
+  /** 1-4 stars; 0 is the normalized unknown/null evidence group. */
+  evidence_level: number
+  count: number
 }
 
 export interface FindingsSummaryResponse {
   total_findings: number
   modules: FindingSummaryItem[]
+  /** True server totals, independent of the bounded findings window. */
+  evidence_level_counts?: FindingEvidenceLevelCount[]
   high_confidence_findings: Finding[]
 }

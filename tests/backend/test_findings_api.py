@@ -413,6 +413,24 @@ class TestFindingsSummary:
         assert cancer_mod["count"] == 1
         assert cancer_mod["max_evidence_level"] == 4
 
+    def test_summary_returns_true_global_and_module_evidence_counts(self, findings_client):
+        """Tier totals come from the full dataset, never a paginated window."""
+        resp = findings_client.get("/api/analysis/findings/summary?sample_id=1")
+        assert resp.status_code == 200
+        data = resp.json()
+
+        assert data["evidence_level_counts"] == [
+            {"evidence_level": 4, "count": 3},
+            {"evidence_level": 3, "count": 3},
+            {"evidence_level": 2, "count": 2},
+        ]
+        assert (
+            sum(item["count"] for item in data["evidence_level_counts"]) == data["total_findings"]
+        )
+
+        cancer_mod = next(m for m in data["modules"] if m["module"] == "cancer")
+        assert cancer_mod["evidence_level_counts"] == [{"evidence_level": 4, "count": 1}]
+
 
 class TestLAIPolicyQuarantine:
     """Pre-policy local ancestry must not leak through generic finding surfaces."""
@@ -475,6 +493,9 @@ class TestLAIPolicyQuarantine:
             summary = await findings_route.findings_summary(sample_id=1)
             assert summary.total_findings == 1
             assert summary.modules[0].top_finding_text == "Qualified Tier 1 ancestry"
+            assert [item.model_dump() for item in summary.evidence_level_counts] == [
+                {"evidence_level": 2, "count": 1}
+            ]
             assert not summary.high_confidence_findings
 
             with pytest.raises(HTTPException) as caught:
@@ -619,6 +640,8 @@ class TestAPOEGateOnGenericFindings:
         data = resp.json()
         modules = {m["module"] for m in data["modules"]}
         assert "apoe" not in modules
+        assert data["total_findings"] == 1
+        assert data["evidence_level_counts"] == [{"evidence_level": 4, "count": 1}]
         # No APOE row leaks via top_finding_text or high_confidence_findings.
         assert "ε3/ε4" not in resp.text
         assert "alzheimer" not in resp.text.lower()
@@ -646,6 +669,11 @@ class TestAPOEGateOnGenericFindings:
         apoe_mod = next((m for m in data["modules"] if m["module"] == "apoe"), None)
         assert apoe_mod is not None
         assert apoe_mod["count"] == 4
+        assert apoe_mod["evidence_level_counts"] == [
+            {"evidence_level": 4, "count": 2},
+            {"evidence_level": 3, "count": 1},
+            {"evidence_level": 0, "count": 1},
+        ]
         # The high-evidence APOE rows re-enter high_confidence_findings post-ack —
         # guards against an over-gating regression that permanently drops them.
         assert any(f["module"] == "apoe" for f in data["high_confidence_findings"])
