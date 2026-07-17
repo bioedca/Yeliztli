@@ -21,7 +21,12 @@ import type {
 
 const DISCLAIMER: APOEGateDisclaimerResponse = {
   title: "APOE Genetic Information Disclosure",
-  text: "You are about to view information about your APOE genotype.\n\n**Important considerations before viewing:**\n\n- Having an APOE e4 allele does NOT mean you will develop Alzheimer's disease.\n\n**Resources:**\n- National Institute on Aging: https://www.nia.nih.gov/health/alzheimers",
+  text: [
+    "You are about to view information about your APOE genotype.",
+    "**Important considerations before viewing:**",
+    "- Having an APOE e4 allele does NOT mean you will develop Alzheimer's disease.\n\n- APOE genotype is only one of many factors that influence disease risk.",
+    "**Resources:**\n- National Institute on Aging: https://www.nia.nih.gov/health/alzheimers\n- Genetic counselor finder: https://example.org/find/",
+  ].join("\n\n"),
   accept_label: "I Understand — Show My APOE Results",
   decline_label: "Not Now — Skip APOE Results",
 }
@@ -262,7 +267,7 @@ describe("APOEGate", () => {
     expect(screen.getByTestId("apoe-gate-accept")).toHaveTextContent("Processing...")
   })
 
-  it("has accessible role and labelling", () => {
+  it("uses native content semantics instead of an inline alert dialog", () => {
     render(
       <APOEGate
         disclaimer={DISCLAIMER}
@@ -271,8 +276,10 @@ describe("APOEGate", () => {
         isAcknowledging={false}
       />,
     )
-    expect(screen.getByRole("alertdialog")).toBeInTheDocument()
-    expect(screen.getByRole("alertdialog")).toHaveAttribute("aria-labelledby", "apoe-gate-title")
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument()
+    expect(
+      screen.getByRole("heading", { level: 2, name: DISCLAIMER.title }),
+    ).toBeInTheDocument()
   })
 
   it("has test id for gate container", () => {
@@ -287,7 +294,7 @@ describe("APOEGate", () => {
     expect(screen.getByTestId("apoe-gate")).toBeInTheDocument()
   })
 
-  it("renders gate text content", () => {
+  it("renders backend Markdown as semantic lists and safe resource links", () => {
     render(
       <APOEGate
         disclaimer={DISCLAIMER}
@@ -296,9 +303,27 @@ describe("APOEGate", () => {
         isAcknowledging={false}
       />,
     )
-    expect(
-      screen.getByText(/APOE genotype/),
-    ).toBeInTheDocument()
+
+    const gate = screen.getByTestId("apoe-gate")
+    expect(gate).not.toHaveTextContent("**")
+    expect(screen.getByText("Important considerations before viewing:").tagName).toBe("STRONG")
+    expect(screen.getByText("Resources:").tagName).toBe("STRONG")
+
+    const lists = within(gate).getAllByRole("list")
+    expect(lists).toHaveLength(2)
+    expect(lists.every((list) => list.tagName === "UL")).toBe(true)
+    expect(within(lists[0]).getAllByRole("listitem")).toHaveLength(2)
+    expect(within(lists[1]).getAllByRole("listitem")).toHaveLength(2)
+
+    const resourceLink = within(gate).getByRole("link", {
+      name: "https://www.nia.nih.gov/health/alzheimers",
+    })
+    expect(resourceLink).toHaveAttribute(
+      "href",
+      "https://www.nia.nih.gov/health/alzheimers",
+    )
+    expect(resourceLink).toHaveAttribute("target", "_blank")
+    expect(resourceLink).toHaveAttribute("rel", "noopener noreferrer")
   })
 })
 

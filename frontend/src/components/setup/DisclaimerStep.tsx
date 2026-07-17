@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useDisclaimer, useAcceptDisclaimer } from '@/api/setup'
+import DisclaimerBody from '@/components/ui/DisclaimerBody'
 import { cn } from '@/lib/utils'
 import { AlertTriangle, CheckCircle2, ScrollText } from 'lucide-react'
 
@@ -76,11 +77,10 @@ export default function DisclaimerStep({ onAccepted }: DisclaimerStepProps) {
           'scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent',
         )}
       >
-        {disclaimer.text.split('\n\n').map((paragraph, i) => (
-          <p key={i} className={cn('mb-4 last:mb-0', i === 0 && 'font-medium')}>
-            {renderMarkdownBold(paragraph)}
-          </p>
-        ))}
+        <DisclaimerBody
+          text={disclaimer.text}
+          className="[&>p:first-child]:font-medium"
+        />
       </div>
 
       {/* Scroll hint */}
@@ -147,13 +147,5 @@ export default function DisclaimerStep({ onAccepted }: DisclaimerStepProps) {
         </p>
       )}
     </div>
-  )
-}
-
-/** Render **bold** markdown syntax to <strong> elements. */
-function renderMarkdownBold(text: string): React.ReactNode[] {
-  const parts = text.split(/\*\*(.*?)\*\*/)
-  return parts.map((part, i) =>
-    i % 2 === 1 ? <strong key={i} className="font-semibold">{part}</strong> : part
   )
 }

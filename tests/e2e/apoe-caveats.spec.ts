@@ -16,7 +16,12 @@ const jsonRoute = (body: unknown) => ({
 
 const APOE_DISCLAIMER = {
   title: 'APOE disclosure',
-  text: 'APOE results can include sensitive health information.',
+  text: [
+    'APOE results can include sensitive health information.',
+    '**Important considerations before viewing:**',
+    '- Having an APOE e4 allele does NOT mean you will develop Alzheimer\'s disease.\n\n- APOE genotype is only one of many factors that influence disease risk.',
+    '**Resources:**\n- National Institute on Aging: https://www.nia.nih.gov/health/alzheimers\n- Genetic counselor finder: https://example.org/find/',
+  ].join('\n\n'),
   accept_label: 'Show Results',
   decline_label: 'Skip',
 }
@@ -94,6 +99,39 @@ test.beforeEach(async ({ page }) => {
 })
 
 test.describe('APOE caveats (#781)', () => {
+  test('renders disclosure Markdown as semantic lists and safe links (#1984)', async ({ page }) => {
+    await page.route('**/api/analysis/apoe/gate-status**', (route) =>
+      route.fulfill(jsonRoute({ acknowledged: false, acknowledged_at: null })),
+    )
+
+    await page.goto(`/apoe?sample_id=${SAMPLE_ID}`)
+    await waitForReactHydration(page)
+
+    const disclosure = page.getByRole('region', { name: 'APOE disclosure gate' })
+    const gate = disclosure.getByTestId('apoe-gate')
+    await expect(disclosure).toBeVisible()
+    await expect(gate).toBeVisible()
+    await expect(disclosure.getByRole('alertdialog')).toHaveCount(0)
+    await expect(
+      disclosure.getByRole('heading', { level: 2, name: APOE_DISCLAIMER.title }),
+    ).toBeVisible()
+    await expect(gate).not.toContainText('**')
+    await expect(
+      gate.locator('strong').filter({ hasText: 'Important considerations before viewing:' }),
+    ).toBeVisible()
+    await expect(gate.locator('strong').filter({ hasText: 'Resources:' })).toBeVisible()
+    await expect(gate.locator('ul')).toHaveCount(2)
+    await expect(gate.locator('li')).toHaveCount(4)
+
+    const resource = gate.getByRole('link', {
+      name: 'https://www.nia.nih.gov/health/alzheimers',
+    })
+    await expect(resource).toHaveAttribute('href', 'https://www.nia.nih.gov/health/alzheimers')
+    await expect(resource).toHaveAttribute('target', '_blank')
+    await expect(resource).toHaveAttribute('rel', /\bnoopener\b/)
+    await expect(resource).toHaveAttribute('rel', /\bnoreferrer\b/)
+  })
+
   test('does not render discrepancy caveats before gate acknowledgement', async ({ page }) => {
     let findingsRequested = false
 
