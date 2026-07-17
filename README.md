@@ -4,6 +4,11 @@
 
 # Yeliztli
 
+[![CI](https://github.com/bioedca/Yeliztli/actions/workflows/ci.yml/badge.svg)](https://github.com/bioedca/Yeliztli/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/github/license/bioedca/Yeliztli)](LICENSE)
+[![Docs](https://img.shields.io/badge/docs-mkdocs-blue)](https://bioedca.github.io/Yeliztli/)
+[![Discussions](https://img.shields.io/github/discussions/bioedca/Yeliztli)](https://github.com/bioedca/Yeliztli/discussions)
+
 **Privacy-first personal-genomics analysis platform — it runs entirely on your own machine.**
 
 Upload the raw data file from a consumer genotyping service (**23andMe** or **AncestryDNA**),
@@ -51,8 +56,23 @@ For native services, Docker, and WSL2, see the **[install guide](docs/install/in
 - At least ~60 GB free disk for full reference setup; ~80 GB recommended for headroom
 - macOS, Linux, or Windows via **WSL2**; **Java 8+** optional for Tier-2 ancestry
 
+## Contributing & community
+
+Contributions are welcome. See **[CONTRIBUTING.md](CONTRIBUTING.md)** for the workflow, the
+**[Code of Conduct](CODE_OF_CONDUCT.md)**, and **[GOVERNANCE.md](GOVERNANCE.md)** for how
+decisions are made.
+
+- 🐞 Bugs & features → **[open an issue](https://github.com/bioedca/Yeliztli/issues/new/choose)**
+- 💬 Usage questions → **[Discussions → Q&A](https://github.com/bioedca/Yeliztli/discussions/categories/q-a)**
+- 🔒 Security → **[SECURITY.md](SECURITY.md)** (report privately)
+- ❓ Getting help → **[SUPPORT.md](SUPPORT.md)**
+
+> Yeliztli is privacy-first — never paste raw genotype data or attach your genome file to a
+> public issue or discussion.
+
 ## License & attribution
 
-Yeliztli's code is released under the **[MIT license](LICENSE)**. It annotates against several
+Yeliztli's code is released under the **[MIT license](LICENSE)**. To cite it, use
+**[CITATION.cff](CITATION.cff)** (GitHub's "Cite this repository"). It annotates against several
 public datasets, each retained under its own license — see **[NOTICE](NOTICE)** and the
 **[attribution page](docs/attribution.md)**.
