@@ -295,6 +295,10 @@ test('carried-only is safe by default and all-position opt-in is explicit (#1988
     await page.evaluate((nextTheme) => {
       document.documentElement.classList.toggle('dark', nextTheme === 'dark')
     }, theme)
+    // WebKit can expose an intermediate frame after the theme class changes,
+    // mixing the previous foreground with the next background. Let both style
+    // recalculation and the reduced-motion color transition finish before axe.
+    await settleReact(page)
     const accessibility = await new AxeBuilder({ page })
       .include('[data-testid="include-all-positions"]')
       .include('[aria-label="Query results"]')
