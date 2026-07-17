@@ -56,6 +56,7 @@ _DEFAULTS = {
     "gnomad_af_fin": None,
     "gnomad_af_sas": None,
     "gnomad_af_popmax": None,
+    "gnomad_homozygous_count": None,
     "gnomad_source_status": None,
     "clinvar_significance": None,
     "clinvar_review_stars": None,
@@ -326,6 +327,125 @@ class TestDefaultFilter:
         rsids = {v.rsid for v in result.variants}
         assert "rs_het_carrier" in rsids
         assert "rs_hom_ref_pathogenic" not in rsids
+
+    def test_suppresses_only_unsupported_autosomal_plp_hom_alt(
+        self, sample_engine: sa.Engine
+    ) -> None:
+        """Full-text AD/AR rows use population support before becoming findings."""
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                [
+                    _v(
+                        rsid="rs_ad_unsupported",
+                        chrom="17",
+                        pos=1001,
+                        genotype="GG",
+                        zygosity="hom_alt",
+                        gene_symbol="NF1",
+                        consequence="stop_gained",
+                        gnomad_af_global=3.98e-6,
+                        gnomad_af_popmax=3.98e-6,
+                        gnomad_homozygous_count=0,
+                        clinvar_significance="Pathogenic",
+                        inheritance_pattern="Autosomal dominant",
+                    ),
+                    _v(
+                        rsid="rs_ar_unsupported",
+                        chrom="9",
+                        pos=1002,
+                        genotype="TT",
+                        zygosity="hom_alt",
+                        gene_symbol="ASS1",
+                        consequence="missense_variant",
+                        gnomad_af_global=None,
+                        gnomad_af_popmax=None,
+                        gnomad_homozygous_count=0,
+                        clinvar_significance="Likely pathogenic",
+                        inheritance_pattern="Autosomal recessive",
+                    ),
+                    _v(
+                        rsid="rs_ad_population_supported",
+                        chrom="3",
+                        pos=1003,
+                        genotype="CC",
+                        zygosity="hom_alt",
+                        gene_symbol="GENE1",
+                        consequence="missense_variant",
+                        gnomad_af_global=3.98e-6,
+                        gnomad_af_popmax=3.98e-6,
+                        gnomad_homozygous_count=1,
+                        clinvar_significance="Pathogenic",
+                        inheritance_pattern="Autosomal dominant",
+                    ),
+                    _v(
+                        rsid="rs_ad_het",
+                        chrom="3",
+                        pos=1004,
+                        genotype="AG",
+                        zygosity="het",
+                        gene_symbol="GENE2",
+                        consequence="missense_variant",
+                        gnomad_af_global=3.98e-6,
+                        gnomad_af_popmax=3.98e-6,
+                        gnomad_homozygous_count=0,
+                        clinvar_significance="Pathogenic",
+                        inheritance_pattern="Autosomal dominant",
+                    ),
+                    _v(
+                        rsid="rs_ad_vus",
+                        chrom="3",
+                        pos=1005,
+                        genotype="GG",
+                        zygosity="hom_alt",
+                        gene_symbol="GENE3",
+                        consequence="missense_variant",
+                        gnomad_af_global=3.98e-6,
+                        gnomad_af_popmax=3.98e-6,
+                        gnomad_homozygous_count=0,
+                        clinvar_significance="Uncertain significance",
+                        inheritance_pattern="Autosomal dominant",
+                    ),
+                    _v(
+                        rsid="rs_unknown_inheritance",
+                        chrom="3",
+                        pos=1006,
+                        genotype="GG",
+                        zygosity="hom_alt",
+                        gene_symbol=None,
+                        consequence="intergenic_variant",
+                        gnomad_af_global=3.98e-6,
+                        gnomad_af_popmax=3.98e-6,
+                        gnomad_homozygous_count=0,
+                        clinvar_significance="Pathogenic",
+                        inheritance_pattern=None,
+                    ),
+                ],
+            )
+
+        result = find_rare_variants(RareVariantFilter(carried_only=True), sample_engine)
+
+        assert {variant.rsid for variant in result.variants} == {
+            "rs_ad_population_supported",
+            "rs_ad_het",
+            "rs_ad_vus",
+            "rs_unknown_inheritance",
+        }
+        assert result.hom_alt_plausibility_suppressed == 2
+
+        assert store_rare_variant_findings(result, sample_engine) == 4
+        with sample_engine.connect() as conn:
+            stored_rsids = set(
+                conn.execute(
+                    sa.select(findings.c.rsid).where(findings.c.module == "rare_variants")
+                ).scalars()
+            )
+        assert stored_rsids == {
+            "rs_ad_population_supported",
+            "rs_ad_het",
+            "rs_ad_vus",
+            "rs_unknown_inheritance",
+        }
 
     def test_excludes_common_variants(self, sample_with_rare_variants: sa.Engine) -> None:
         filters = RareVariantFilter()

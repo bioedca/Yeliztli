@@ -48,6 +48,8 @@ ANNOTATED_VARIANTS_DATA = [
         "hgvs_coding": "c.5123C>T",
         "hgvs_protein": "p.Ala1708Glu",
         "gnomad_af_global": 0.00002,
+        "gnomad_af_popmax": 0.00003,
+        "gnomad_homozygous_count": 0,
         "gnomad_af_afr": 0.00001,
         "gnomad_af_amr": None,
         "gnomad_af_eas": None,
@@ -81,6 +83,8 @@ ANNOTATED_VARIANTS_DATA = [
         "hgvs_coding": "c.1657C>T",
         "hgvs_protein": "p.Arg553Ter",
         "gnomad_af_global": 0.0005,
+        "gnomad_af_popmax": 0.001,
+        "gnomad_homozygous_count": 0,
         "gnomad_af_afr": None,
         "gnomad_af_amr": None,
         "gnomad_af_eas": None,
@@ -114,6 +118,8 @@ ANNOTATED_VARIANTS_DATA = [
         "hgvs_coding": None,
         "hgvs_protein": None,
         "gnomad_af_global": None,
+        "gnomad_af_popmax": None,
+        "gnomad_homozygous_count": None,
         "gnomad_af_afr": None,
         "gnomad_af_amr": None,
         "gnomad_af_eas": None,
@@ -147,6 +153,8 @@ ANNOTATED_VARIANTS_DATA = [
         "hgvs_coding": None,
         "hgvs_protein": None,
         "gnomad_af_global": 0.15,
+        "gnomad_af_popmax": 0.18,
+        "gnomad_homozygous_count": 1000,
         "gnomad_af_afr": 0.12,
         "gnomad_af_amr": None,
         "gnomad_af_eas": None,
@@ -168,11 +176,11 @@ ANNOTATED_VARIANTS_DATA = [
         "annotation_coverage": 31,
     },
     {
-        # Rare + Pathogenic + hom_alt carrier: passes the default rarity /
-        # significance / carriage filters, so ONLY the zygosity filter can
-        # exclude it. Without this row the zygosity-filter test is vacuous —
-        # the sole other non-het variant (rs12345) is common+benign and is
-        # dropped for AF reasons regardless of zygosity.
+        # Rare + Pathogenic + population-supported hom_alt carrier: passes the
+        # default rarity / significance / carriage / plausibility gates, so ONLY
+        # the zygosity filter can exclude it. Without the observed homozygote,
+        # the conservative hom-alt guard would intentionally suppress this row
+        # before the zygosity-filter behavior could be exercised.
         "rsid": "rs_homalt_rare",
         "chrom": "13",
         "pos": 32339000,
@@ -185,6 +193,8 @@ ANNOTATED_VARIANTS_DATA = [
         "hgvs_coding": None,
         "hgvs_protein": None,
         "gnomad_af_global": 0.0003,
+        "gnomad_af_popmax": 0.0004,
+        "gnomad_homozygous_count": 1,
         "gnomad_af_afr": None,
         "gnomad_af_amr": None,
         "gnomad_af_eas": None,

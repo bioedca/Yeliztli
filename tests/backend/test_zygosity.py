@@ -156,6 +156,34 @@ class TestModuleConstants:
 
 
 class TestDominantHomAltPlausibility:
+    @pytest.mark.parametrize(
+        "inheritance",
+        ["AD", "ad", " AD ", "Autosomal dominant", " autosomal dominant "],
+    )
+    def test_recognizes_code_and_full_text_inheritance(self, inheritance: str) -> None:
+        row = SimpleNamespace(
+            zygosity=ZYG_HOM_ALT,
+            gnomad_af_popmax=3.98e-6,
+            gnomad_af_global=None,
+            gnomad_homozygous_count=0,
+        )
+
+        assert is_implausible_dominant_hom_alt(row, inheritance) is True
+
+    @pytest.mark.parametrize(
+        "inheritance",
+        [None, "AR", "AD/AR", "Autosomal dominant with reduced penetrance"],
+    )
+    def test_does_not_widen_to_other_inheritance_modes(self, inheritance: str | None) -> None:
+        row = SimpleNamespace(
+            zygosity=ZYG_HOM_ALT,
+            gnomad_af_popmax=3.98e-6,
+            gnomad_af_global=None,
+            gnomad_homozygous_count=0,
+        )
+
+        assert is_implausible_dominant_hom_alt(row, inheritance) is False
+
     def test_midrare_hom_alt_without_observed_homozygotes_is_implausible(self) -> None:
         row = SimpleNamespace(
             zygosity=ZYG_HOM_ALT,
@@ -189,6 +217,34 @@ class TestDominantHomAltPlausibility:
 
 
 class TestRecessiveAffectedHomAltPlausibility:
+    @pytest.mark.parametrize(
+        "inheritance",
+        ["AR", "ar", " AR ", "Autosomal recessive", " autosomal recessive "],
+    )
+    def test_recognizes_code_and_full_text_inheritance(self, inheritance: str) -> None:
+        row = SimpleNamespace(
+            zygosity=ZYG_HOM_ALT,
+            gnomad_af_popmax=3.98e-6,
+            gnomad_af_global=None,
+            gnomad_homozygous_count=0,
+        )
+
+        assert is_implausible_recessive_affected_hom_alt(row, inheritance) is True
+
+    @pytest.mark.parametrize(
+        "inheritance",
+        [None, "AD", "AD/AR", "Autosomal recessive with digenic inheritance"],
+    )
+    def test_does_not_widen_to_other_inheritance_modes(self, inheritance: str | None) -> None:
+        row = SimpleNamespace(
+            zygosity=ZYG_HOM_ALT,
+            gnomad_af_popmax=3.98e-6,
+            gnomad_af_global=None,
+            gnomad_homozygous_count=0,
+        )
+
+        assert is_implausible_recessive_affected_hom_alt(row, inheritance) is False
+
     def test_midrare_hom_alt_without_observed_homozygotes_is_implausible(self) -> None:
         row = SimpleNamespace(
             zygosity=ZYG_HOM_ALT,
