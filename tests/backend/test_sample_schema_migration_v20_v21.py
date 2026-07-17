@@ -30,6 +30,7 @@ from backend.db.tables import (
     samples,
 )
 from backend.db.update_manager import (
+    _sample_file_fingerprint,
     create_version_staleness_prompt,
     publish_cyp2c9_phenytoin_reanalysis_prompt,
 )
@@ -254,8 +255,7 @@ def test_registry_open_publishes_reanalysis_prompt_without_reference_snapshot(
             expected_file_format: str | None,
             expected_file_hash: str | None,
             expected_created_at: datetime | None,
-            sample_db_path: Path,
-            sample_db_root: Path,
+            samples_root: Path,
             expected_file_fingerprint: tuple[int, int, int, int],
         ) -> bool:
             nonlocal interleaved
@@ -279,8 +279,7 @@ def test_registry_open_publishes_reanalysis_prompt_without_reference_snapshot(
                 expected_file_format=expected_file_format,
                 expected_file_hash=expected_file_hash,
                 expected_created_at=expected_created_at,
-                sample_db_path=sample_db_path,
-                sample_db_root=sample_db_root,
+                samples_root=samples_root,
                 expected_file_fingerprint=expected_file_fingerprint,
             )
 
@@ -594,8 +593,7 @@ def test_prompt_publication_rejects_sample_deleted_after_registry_lookup(tmp_pat
             expected_file_format="23andme_v5",
             expected_file_hash="deleted-hash",
             expected_created_at=created_at,
-            sample_db_path=sample_path,
-            sample_db_root=settings.samples_dir,
+            samples_root=settings.samples_dir,
             expected_file_fingerprint=expected_fingerprint,
         )
         with registry.reference_engine.connect() as conn:
@@ -607,6 +605,67 @@ def test_prompt_publication_rejects_sample_deleted_after_registry_lookup(tmp_pat
 
     assert published is False
     assert prompt_count == 0
+
+
+def test_prompt_sync_rejects_sibling_prefix_and_symlink_escape(tmp_path: Path) -> None:
+    settings = Settings(data_dir=tmp_path / "data", wal_mode=False)
+    settings.samples_dir.mkdir(parents=True)
+    outside_dir = tmp_path / "data" / "samples-archive"
+    outside_dir.mkdir()
+    outside_path = outside_dir / "sample_1.db"
+    outside_path.touch()
+    symlink_path = settings.samples_dir / "sample_1.db"
+    symlink_path.symlink_to(outside_path)
+    same_root_target = settings.samples_dir / "sample_2.db"
+    same_root_target.touch()
+    same_root_symlink = settings.samples_dir / "sample_3.db"
+    same_root_symlink.symlink_to(same_root_target)
+
+    registry = DBRegistry(settings)
+    reference_metadata.create_all(registry.reference_engine)
+    with registry.reference_engine.begin() as conn:
+        conn.execute(
+            samples.insert(),
+            [
+                {
+                    "id": sample_id,
+                    "name": f"Sample {sample_id}",
+                    "db_path": f"samples/sample_{sample_id}.db",
+                    "file_format": "23andme_v5",
+                    "file_hash": f"hash-{sample_id}",
+                }
+                for sample_id in (1, 3)
+            ],
+        )
+    memory_engine = sa.create_engine("sqlite://")
+    try:
+        assert (
+            registry._sync_cyp2c9_phenytoin_reanalysis_prompt(
+                memory_engine,
+                outside_path,
+            )
+            is False
+        )
+        assert (
+            registry._sync_cyp2c9_phenytoin_reanalysis_prompt(
+                memory_engine,
+                symlink_path,
+            )
+            is False
+        )
+        assert (
+            registry._sync_cyp2c9_phenytoin_reanalysis_prompt(
+                memory_engine,
+                same_root_symlink,
+            )
+            is False
+        )
+        assert _sample_file_fingerprint(1, settings.samples_dir) is None
+        assert _sample_file_fingerprint(2, settings.samples_dir) is not None
+        assert _sample_file_fingerprint(3, settings.samples_dir) is None
+    finally:
+        memory_engine.dispose()
+        registry.dispose_all()
 
 
 def test_prompt_publication_rejects_reused_path_with_old_local_identity(tmp_path: Path) -> None:
@@ -644,8 +703,7 @@ def test_prompt_publication_rejects_reused_path_with_old_local_identity(tmp_path
             expected_file_format="23andme_v5",
             expected_file_hash="deleted-hash",
             expected_created_at=old_created_at,
-            sample_db_path=sample_path,
-            sample_db_root=settings.samples_dir,
+            samples_root=settings.samples_dir,
             # Models a replacement completed after an old cached engine read
             # its marker but before it captured the current path fingerprint.
             expected_file_fingerprint=replacement_fingerprint,
@@ -715,8 +773,7 @@ def test_unbound_dismissal_cannot_acknowledge_reused_sample_id(tmp_path: Path) -
             expected_file_format="23andme_v5",
             expected_file_hash="replacement-hash",
             expected_created_at=created_at,
-            sample_db_path=sample_path,
-            sample_db_root=settings.samples_dir,
+            samples_root=settings.samples_dir,
             expected_file_fingerprint=fingerprint,
         )
         with registry.reference_engine.connect() as conn:

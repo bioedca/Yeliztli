@@ -130,19 +130,28 @@ class DBRegistry:
         )
         from backend.db.tables import annotation_state, sample_metadata_table, samples
 
-        target_path = Path(sample_db_path).resolve()
-        samples_root = self._settings.samples_dir.resolve()
-        if not target_path.is_relative_to(samples_root):
+        try:
+            provided_path = Path(sample_db_path)
+        except TypeError:
+            return False
+        filename = provided_path.name
+        id_text = filename.removeprefix("sample_").removesuffix(".db")
+        if (
+            not filename.startswith("sample_")
+            or not filename.endswith(".db")
+            or not id_text.isascii()
+            or not id_text.isdigit()
+            or not 1 <= len(id_text) <= 19
+        ):
             logger.warning(
                 "cyp2c9_phenytoin_reanalysis_prompt_deferred",
-                reason="sample_path_outside_data_dir",
-                sample_db_path=str(target_path),
+                reason="sample_path_not_canonical",
+                sample_db_path=str(provided_path),
             )
             return False
-        target_fingerprint = self._file_fingerprint(target_path)
-        if target_fingerprint is None:
+        candidate_sample_id = int(id_text)
+        if not 1 <= candidate_sample_id <= 2**63 - 1:
             return False
-
         sample_columns = (
             samples.c.id,
             samples.c.db_path,
@@ -150,55 +159,11 @@ class DBRegistry:
             samples.c.file_hash,
             samples.c.created_at,
         )
-        path_candidates = {str(target_path), str(sample_db_path)}
-        try:
-            relative_path = target_path.relative_to(self._settings.data_dir.resolve())
-        except ValueError:
-            pass
-        else:
-            path_candidates.update(
-                {
-                    str(relative_path),
-                    relative_path.as_posix(),
-                    f"./{relative_path.as_posix()}",
-                }
-            )
-
-        def matches_target_path(row) -> bool:
-            registry_path = Path(row.db_path)
-            if not registry_path.is_absolute():
-                registry_path = self._settings.data_dir / registry_path
-            return registry_path.resolve() == target_path
-
         try:
             with self.reference_engine.connect() as conn:
-                sample_rows = conn.execute(
-                    sa.select(*sample_columns).where(
-                        samples.c.db_path.in_(sorted(path_candidates))
-                    )
-                ).fetchall()
-                sample_row = next(
-                    (row for row in sample_rows if matches_target_path(row)),
-                    None,
-                )
-                if sample_row is None:
-                    # Legacy manifests can contain odd relative/absolute path
-                    # spellings. Keep the compatibility fallback bounded by
-                    # filename and row count instead of scanning the registry.
-                    legacy_rows = conn.execute(
-                        sa.select(*sample_columns)
-                        .where(
-                            samples.c.db_path.endswith(
-                                target_path.name,
-                                autoescape=True,
-                            )
-                        )
-                        .limit(128)
-                    ).fetchall()
-                    sample_row = next(
-                        (row for row in legacy_rows if matches_target_path(row)),
-                        None,
-                    )
+                sample_row = conn.execute(
+                    sa.select(*sample_columns).where(samples.c.id == candidate_sample_id)
+                ).fetchone()
         except sa.exc.OperationalError as exc:
             logger.warning(
                 "cyp2c9_phenytoin_reanalysis_prompt_deferred",
@@ -211,10 +176,29 @@ class DBRegistry:
             logger.warning(
                 "cyp2c9_phenytoin_reanalysis_prompt_deferred",
                 reason="sample_registry_row_missing",
-                sample_db_path=str(target_path),
+                sample_db_path=str(provided_path),
             )
             return False
         sample_id = sample_row.id
+        target_path = self._settings.samples_dir / f"sample_{sample_id}.db"
+        if provided_path != target_path or Path(sample_row.db_path).name != target_path.name:
+            logger.warning(
+                "cyp2c9_phenytoin_reanalysis_prompt_deferred",
+                reason="sample_path_not_canonical",
+                sample_id=sample_id,
+            )
+            return False
+
+        from backend.db.update_manager import (
+            _sample_file_fingerprint,
+            publish_cyp2c9_phenytoin_reanalysis_prompt,
+            retract_cyp2c9_phenytoin_reanalysis_prompt,
+        )
+
+        samples_root = self._settings.samples_dir
+        target_fingerprint = _sample_file_fingerprint(sample_id, samples_root)
+        if target_fingerprint is None:
+            return False
 
         # Bind the authoritative marker read to an immutable local identity.
         # Partial legacy databases can lack the metadata row; in that case the
@@ -256,11 +240,6 @@ class DBRegistry:
         expected_file_hash = local_state.file_hash if has_local_identity else sample_row.file_hash
         expected_created_at = (
             local_state.created_at if has_local_identity else sample_row.created_at
-        )
-
-        from backend.db.update_manager import (
-            publish_cyp2c9_phenytoin_reanalysis_prompt,
-            retract_cyp2c9_phenytoin_reanalysis_prompt,
         )
 
         def retract_prompt() -> bool:
@@ -330,8 +309,7 @@ class DBRegistry:
                 expected_file_format=expected_file_format,
                 expected_file_hash=expected_file_hash,
                 expected_created_at=expected_created_at,
-                sample_db_path=target_path,
-                sample_db_root=samples_root,
+                samples_root=samples_root,
                 expected_file_fingerprint=target_fingerprint,
             )
         except sa.exc.SQLAlchemyError as exc:

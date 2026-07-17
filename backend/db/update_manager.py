@@ -1837,18 +1837,21 @@ def _preserve_cyp2c9_phenytoin_correction(
     ] + [correction]
 
 
-def _path_fingerprint(
-    path: Path,
-    allowed_root: Path,
+def _sample_file_fingerprint(
+    sample_id: int,
+    samples_root: Path,
 ) -> tuple[int, int, int, int] | None:
-    """Return the on-disk identity used to reject replaced sample files."""
+    """Return one canonical sample file's identity without accepting a raw path."""
     try:
-        resolved_path = path.resolve()
-        resolved_root = allowed_root.resolve()
-        if not resolved_path.is_relative_to(resolved_root):
+        if not isinstance(sample_id, int) or sample_id < 1:
+            return None
+        resolved_root = samples_root.resolve()
+        canonical_path = resolved_root / f"sample_{sample_id:d}.db"
+        resolved_path = canonical_path.resolve(strict=True)
+        if resolved_path != canonical_path:
             return None
         stat = resolved_path.stat()
-    except (FileNotFoundError, OSError, ValueError):
+    except (FileNotFoundError, OSError, RuntimeError, ValueError):
         return None
     return (stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns)
 
@@ -1899,8 +1902,7 @@ def publish_cyp2c9_phenytoin_reanalysis_prompt(
     expected_file_format: str | None,
     expected_file_hash: str | None,
     expected_created_at: datetime | None,
-    sample_db_path: Path,
-    sample_db_root: Path,
+    samples_root: Path,
     expected_file_fingerprint: tuple[int, int, int, int],
 ) -> bool:
     """Atomically validate sample ownership and publish/acknowledge the v21 prompt."""
@@ -1926,7 +1928,7 @@ def publish_cyp2c9_phenytoin_reanalysis_prompt(
                 or sample_row.file_format != expected_file_format
                 or sample_row.file_hash != expected_file_hash
                 or sample_row.created_at != expected_created_at
-                or _path_fingerprint(sample_db_path, sample_db_root) != expected_file_fingerprint
+                or _sample_file_fingerprint(sample_id, samples_root) != expected_file_fingerprint
             ):
                 conn.rollback()
                 return False
