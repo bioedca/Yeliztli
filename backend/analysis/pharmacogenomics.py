@@ -1284,10 +1284,14 @@ def _apply_thiopurine_joint_phenotype(
     filtered upstream), so this is inert for array-only inputs where NUDT15 cannot
     be typed — the current behaviour of a lone TPMT alert is preserved.
     """
-    im_by_drug: dict[str, dict[str, PrescribingAlert]] = {}
+    # Group single-gene IM alerts by drug then gene as lists: _fetch_guidelines_
+    # for_gene_phenotype deliberately preserves duplicate winning-specificity rows
+    # so a data regression stays visible (#1993/#1989), and collapsing them into a
+    # dict here would silently hide that. One alert per source row is kept.
+    im_by_drug: dict[str, dict[str, list[PrescribingAlert]]] = {}
     for alert in alerts:
         if alert.gene in _THIOPURINE_JOINT_GENES and alert.phenotype == _SINGLE_IM_PHENOTYPE:
-            im_by_drug.setdefault(alert.drug, {})[alert.gene] = alert
+            im_by_drug.setdefault(alert.drug, {}).setdefault(alert.gene, []).append(alert)
 
     both_im_drugs = {
         drug
@@ -1297,18 +1301,17 @@ def _apply_thiopurine_joint_phenotype(
     if not both_im_drugs:
         return alerts
 
-    compound_by_drug = {
-        row["drug"]: row
-        for row in _fetch_guidelines_for_gene_phenotype(
-            _THIOPURINE_JOINT_GENE_LABEL, _COMPOUND_IM_PHENOTYPE, reference_engine
-        )
-    }
+    compound_rows_by_drug: dict[str, list[dict]] = {}
+    for row in _fetch_guidelines_for_gene_phenotype(
+        _THIOPURINE_JOINT_GENE_LABEL, _COMPOUND_IM_PHENOTYPE, reference_engine
+    ):
+        compound_rows_by_drug.setdefault(row["drug"], []).append(row)
 
     superseded_drugs: set[str] = set()
     joint_alerts: list[PrescribingAlert] = []
     for drug in sorted(both_im_drugs):
-        guideline = compound_by_drug.get(drug)
-        if guideline is None:
+        guideline_rows = compound_rows_by_drug.get(drug, [])
+        if not guideline_rows:
             # No compound-IM row for this drug: leave the single-gene alerts in
             # place rather than dropping guidance we cannot replace.
             logger.warning(
@@ -1317,42 +1320,62 @@ def _apply_thiopurine_joint_phenotype(
                 genes=list(_THIOPURINE_JOINT_GENES),
             )
             continue
-        by_gene = im_by_drug[drug]
-        tpmt_alert = by_gene["TPMT"]
-        nudt15_alert = by_gene["NUDT15"]
         superseded_drugs.add(drug)
 
-        partial = CallConfidence.PARTIAL in (
-            tpmt_alert.call_confidence,
-            nudt15_alert.call_confidence,
-        )
-        joint_alerts.append(
-            PrescribingAlert(
-                gene=_THIOPURINE_JOINT_GENE_LABEL,
-                drug=drug,
-                diplotype=f"TPMT {tpmt_alert.diplotype} + NUDT15 {nudt15_alert.diplotype}",
-                phenotype=_COMPOUND_IM_PHENOTYPE,
-                recommendation=guideline["recommendation"],
-                classification=guideline["classification"],
-                guideline_url=guideline["guideline_url"],
-                call_confidence=CallConfidence.PARTIAL if partial else CallConfidence.COMPLETE,
-                confidence_note=(
-                    "Joint TPMT/NUDT15 dosing: Intermediate Metabolizer at both genes "
-                    "(compound intermediate metabolizer)."
-                ),
-                evidence_level=assign_cpic_evidence_level(guideline["classification"]),
-                involved_rsids=sorted(
-                    set(tpmt_alert.involved_rsids) | set(nudt15_alert.involved_rsids)
-                ),
-                coverage_assessed=tpmt_alert.coverage_assessed + nudt15_alert.coverage_assessed,
-                coverage_total=tpmt_alert.coverage_total + nudt15_alert.coverage_total,
+        # Merge provenance across every superseded component alert so a partial or
+        # conservative joint call keeps the reasons and loci behind its uncertainty.
+        components = im_by_drug[drug]["TPMT"] + im_by_drug[drug]["NUDT15"]
+        partial = any(c.call_confidence == CallConfidence.PARTIAL for c in components)
+        conservative = any(c.conservative_alert for c in components)
+        involved_rsids = sorted({rsid for c in components for rsid in c.involved_rsids})
+        indeterminate_alleles = sorted({a for c in components for a in c.indeterminate_alleles})
+        indeterminate_allele_rsids: dict[str, list[str]] = {}
+        for component in components:
+            for allele, rsids in component.indeterminate_allele_rsids.items():
+                indeterminate_allele_rsids.setdefault(allele, []).extend(rsids)
+        indeterminate_allele_rsids = {
+            allele: sorted(set(rsids)) for allele, rsids in indeterminate_allele_rsids.items()
+        }
+        component_notes = dict.fromkeys(c.confidence_note for c in components if c.confidence_note)
+        confidence_note = " ".join(
+            [
+                "Joint TPMT/NUDT15 dosing: Intermediate Metabolizer at both genes "
+                "(compound intermediate metabolizer).",
+                *component_notes,
+            ]
+        ).strip()
+        tpmt_rep = im_by_drug[drug]["TPMT"][0]
+        nudt15_rep = im_by_drug[drug]["NUDT15"][0]
+        diplotype = f"TPMT {tpmt_rep.diplotype} + NUDT15 {nudt15_rep.diplotype}"
+
+        # One joint alert per compound guideline row, so a duplicate row surfaces
+        # as a duplicate alert rather than being silently consolidated away.
+        for guideline in guideline_rows:
+            joint_alerts.append(
+                PrescribingAlert(
+                    gene=_THIOPURINE_JOINT_GENE_LABEL,
+                    drug=drug,
+                    diplotype=diplotype,
+                    phenotype=_COMPOUND_IM_PHENOTYPE,
+                    recommendation=guideline["recommendation"],
+                    classification=guideline["classification"],
+                    guideline_url=guideline["guideline_url"],
+                    call_confidence=CallConfidence.PARTIAL if partial else CallConfidence.COMPLETE,
+                    confidence_note=confidence_note,
+                    evidence_level=assign_cpic_evidence_level(guideline["classification"]),
+                    involved_rsids=involved_rsids,
+                    coverage_assessed=tpmt_rep.coverage_assessed + nudt15_rep.coverage_assessed,
+                    coverage_total=tpmt_rep.coverage_total + nudt15_rep.coverage_total,
+                    indeterminate_alleles=indeterminate_alleles,
+                    indeterminate_allele_rsids=indeterminate_allele_rsids,
+                    conservative_alert=conservative,
+                )
             )
-        )
         logger.info(
             "pgx_thiopurine_compound_im_alert",
             drug=drug,
-            tpmt_diplotype=tpmt_alert.diplotype,
-            nudt15_diplotype=nudt15_alert.diplotype,
+            tpmt_diplotype=tpmt_rep.diplotype,
+            nudt15_diplotype=nudt15_rep.diplotype,
         )
 
     if not joint_alerts:

@@ -130,10 +130,39 @@ class TestJointResolution:
         # Exactly one joint compound-IM alert per thiopurine, all at 20-50%.
         compound = [a for a in alerts if a.gene == _JOINT_GENE]
         assert {a.drug for a in compound} == set(_THIOPURINES)
+        assert len(compound) == len(_THIOPURINES)
         for alert in compound:
             assert alert.phenotype == _COMPOUND_IM
             assert "20-50%" in alert.recommendation
             assert "TPMT *1/*3A + NUDT15 *1/*3" == alert.diplotype
+
+    def test_partial_component_provenance_merged_into_joint_alert(
+        self, reference_engine: sa.Engine
+    ) -> None:
+        """A partial component's uncertainty (confidence note, indeterminate
+        alleles and their loci) must survive into the merged joint alert so the
+        joint recommendation does not lose the reasons behind its uncertainty."""
+        tpmt = _result("TPMT", _SINGLE_IM, "*1/*3A")
+        nudt15 = StarAlleleResult(
+            gene="NUDT15",
+            allele1="*1",
+            allele2="*3",
+            diplotype="*1/*3",
+            phenotype=_SINGLE_IM,
+            call_confidence=CallConfidence.PARTIAL,
+            confidence_note="NUDT15 non-SNV alleles could not be excluded.",
+            indeterminate_alleles=["*6"],
+            indeterminate_allele_rsids={"*6": ["rs746071566"]},
+        )
+        alerts = generate_prescribing_alerts([tpmt, nudt15], reference_engine)
+
+        compound = [a for a in alerts if a.gene == _JOINT_GENE]
+        assert compound
+        for alert in compound:
+            assert alert.call_confidence == CallConfidence.PARTIAL
+            assert "*6" in alert.indeterminate_alleles
+            assert alert.indeterminate_allele_rsids.get("*6") == ["rs746071566"]
+            assert "NUDT15 non-SNV alleles could not be excluded." in alert.confidence_note
 
     def test_single_gene_im_unchanged_when_other_gene_normal(
         self, reference_engine: sa.Engine
