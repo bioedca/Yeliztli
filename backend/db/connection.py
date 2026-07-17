@@ -134,17 +134,63 @@ class DBRegistry:
         target_fingerprint = self._file_fingerprint(target_path)
         if target_fingerprint is None:
             return False
+
+        sample_columns = (
+            samples.c.id,
+            samples.c.db_path,
+            samples.c.file_format,
+            samples.c.file_hash,
+            samples.c.created_at,
+        )
+        path_candidates = {str(target_path), str(sample_db_path)}
+        try:
+            relative_path = target_path.relative_to(self._settings.data_dir.resolve())
+        except ValueError:
+            pass
+        else:
+            path_candidates.update(
+                {
+                    str(relative_path),
+                    relative_path.as_posix(),
+                    f"./{relative_path.as_posix()}",
+                }
+            )
+
+        def matches_target_path(row) -> bool:
+            registry_path = Path(row.db_path)
+            if not registry_path.is_absolute():
+                registry_path = self._settings.data_dir / registry_path
+            return registry_path.resolve() == target_path
+
         try:
             with self.reference_engine.connect() as conn:
                 sample_rows = conn.execute(
-                    sa.select(
-                        samples.c.id,
-                        samples.c.db_path,
-                        samples.c.file_format,
-                        samples.c.file_hash,
-                        samples.c.created_at,
+                    sa.select(*sample_columns).where(
+                        samples.c.db_path.in_(sorted(path_candidates))
                     )
                 ).fetchall()
+                sample_row = next(
+                    (row for row in sample_rows if matches_target_path(row)),
+                    None,
+                )
+                if sample_row is None:
+                    # Legacy manifests can contain odd relative/absolute path
+                    # spellings. Keep the compatibility fallback bounded by
+                    # filename and row count instead of scanning the registry.
+                    legacy_rows = conn.execute(
+                        sa.select(*sample_columns)
+                        .where(
+                            samples.c.db_path.endswith(
+                                target_path.name,
+                                autoescape=True,
+                            )
+                        )
+                        .limit(128)
+                    ).fetchall()
+                    sample_row = next(
+                        (row for row in legacy_rows if matches_target_path(row)),
+                        None,
+                    )
         except sa.exc.OperationalError as exc:
             logger.warning(
                 "cyp2c9_phenytoin_reanalysis_prompt_deferred",
@@ -153,19 +199,6 @@ class DBRegistry:
             )
             return False
 
-        sample_row = next(
-            (
-                row
-                for row in sample_rows
-                if (
-                    Path(row.db_path)
-                    if Path(row.db_path).is_absolute()
-                    else self._settings.data_dir / row.db_path
-                ).resolve()
-                == target_path
-            ),
-            None,
-        )
         if sample_row is None:
             logger.warning(
                 "cyp2c9_phenytoin_reanalysis_prompt_deferred",
@@ -208,14 +241,6 @@ class DBRegistry:
         except sa.exc.OperationalError:
             return False
         marker_value = local_state.marker_value
-        if marker_value is None:
-            return True
-
-        try:
-            marker = json.loads(marker_value)
-        except (json.JSONDecodeError, TypeError):
-            marker = {}
-        marker_prompted = isinstance(marker, dict) and marker.get("prompted") is True
         has_local_identity = local_state.metadata_id == 1
         expected_file_format = (
             local_state.file_format if has_local_identity else sample_row.file_format
@@ -225,7 +250,37 @@ class DBRegistry:
             local_state.created_at if has_local_identity else sample_row.created_at
         )
 
-        from backend.db.update_manager import publish_cyp2c9_phenytoin_reanalysis_prompt
+        from backend.db.update_manager import (
+            publish_cyp2c9_phenytoin_reanalysis_prompt,
+            retract_cyp2c9_phenytoin_reanalysis_prompt,
+        )
+
+        def retract_prompt() -> bool:
+            try:
+                retract_cyp2c9_phenytoin_reanalysis_prompt(
+                    self.reference_engine,
+                    sample_id=sample_id,
+                    expected_db_path=sample_row.db_path,
+                    expected_file_format=expected_file_format,
+                    expected_file_hash=expected_file_hash,
+                    expected_created_at=expected_created_at,
+                )
+            except sa.exc.SQLAlchemyError as exc:
+                logger.warning(
+                    "cyp2c9_phenytoin_reanalysis_prompt_deferred",
+                    reason="prompt_retraction_failed",
+                    sample_id=sample_id,
+                    error=str(exc),
+                )
+                return False
+            return True
+
+        # The sample marker is authoritative. A previous synchronizer may have
+        # published the central correction immediately before a successful
+        # annotation deleted the marker, so reconcile that identity-bound item
+        # before considering this engine synchronized.
+        if marker_value is None:
+            return retract_prompt()
 
         prompted_marker = {
             "database": "cpic",
@@ -237,7 +292,7 @@ class DBRegistry:
         def mark_prompted() -> bool:
             try:
                 with sample_engine.begin() as conn:
-                    conn.execute(
+                    result = conn.execute(
                         annotation_state.update()
                         .where(annotation_state.c.key == CYP2C9_PHENYTOIN_REANALYSIS_STATE_KEY)
                         .values(value=json.dumps(prompted_marker))
@@ -249,6 +304,13 @@ class DBRegistry:
                     sample_id=sample_id,
                     error=str(exc),
                 )
+                return False
+            if result.rowcount != 1:
+                if retract_prompt():
+                    logger.info(
+                        "cyp2c9_phenytoin_reanalysis_prompt_race_retracted",
+                        sample_id=sample_id,
+                    )
                 return False
             return True
 
@@ -278,7 +340,7 @@ class DBRegistry:
                 sample_id=sample_id,
             )
             return False
-        return True if marker_prompted else mark_prompted()
+        return mark_prompted()
 
     @property
     def vep_engine(self) -> sa.Engine:

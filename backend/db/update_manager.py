@@ -2003,6 +2003,76 @@ def publish_cyp2c9_phenytoin_reanalysis_prompt(
             raise
 
 
+def retract_cyp2c9_phenytoin_reanalysis_prompt(
+    engine: Engine,
+    *,
+    sample_id: int,
+    expected_db_path: str,
+    expected_file_format: str | None,
+    expected_file_hash: str | None,
+    expected_created_at: datetime | None,
+) -> None:
+    """Remove only this sample identity's active CYP2C9 correction item.
+
+    The local v21 marker is authoritative. If annotation deletes it while a
+    synchronizer is publishing the central prompt, the opaque identity hash
+    lets cleanup remove the old correction without touching ordinary staleness
+    entries or a replacement sample that later reuses the same numeric ID.
+    """
+    from backend.db.sample_schema import CYP2C9_PHENYTOIN_LEGACY_GUIDANCE_VERSION
+
+    sample_identity_sha256 = _sample_prompt_identity_sha256(
+        db_path=expected_db_path,
+        file_format=expected_file_format,
+        file_hash=expected_file_hash,
+        created_at=expected_created_at,
+    )
+    with engine.connect() as conn:
+        conn.exec_driver_sql("BEGIN IMMEDIATE")
+        try:
+            prompt_rows = conn.execute(
+                sa.select(
+                    reannotation_prompts.c.id,
+                    reannotation_prompts.c.stale_databases,
+                ).where(
+                    reannotation_prompts.c.sample_id == sample_id,
+                    reannotation_prompts.c.prompt_type == "version_staleness",
+                    reannotation_prompts.c.dismissed == sa.false(),
+                )
+            ).fetchall()
+            for prompt_row in prompt_rows:
+                stale_databases = _safe_parse_json_list(prompt_row.stale_databases)
+                retained = [
+                    item
+                    for item in stale_databases
+                    if not (
+                        isinstance(item, dict)
+                        and item.get("db_name") == "cpic"
+                        and item.get("recorded_version")
+                        == CYP2C9_PHENYTOIN_LEGACY_GUIDANCE_VERSION
+                        and item.get("sample_identity_sha256") == sample_identity_sha256
+                    )
+                ]
+                if len(retained) == len(stale_databases):
+                    continue
+                if retained:
+                    conn.execute(
+                        reannotation_prompts.update()
+                        .where(reannotation_prompts.c.id == prompt_row.id)
+                        .values(stale_databases=json.dumps(retained))
+                    )
+                else:
+                    conn.execute(
+                        reannotation_prompts.delete().where(
+                            reannotation_prompts.c.id == prompt_row.id
+                        )
+                    )
+            conn.commit()
+        except BaseException:
+            conn.rollback()
+            raise
+
+
 def create_version_staleness_prompt(
     engine: Engine,
     *,

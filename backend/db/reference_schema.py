@@ -86,17 +86,6 @@ def _refresh_legacy_cyp2c9_phenytoin_guidelines(engine: sa.Engine) -> bool:
         cpic_guidelines.c.gene == "CYP2C9",
         sa.func.lower(cpic_guidelines.c.drug) == "phenytoin",
     )
-    from backend.annotation.cpic import CPIC_DATA_DIR, parse_cpic_guidelines_csv
-
-    bundled_rows, _ = parse_cpic_guidelines_csv(CPIC_DATA_DIR / "cpic_guidelines.csv")
-    canonical_rows = [
-        row
-        for row in bundled_rows
-        if row["gene"] == "CYP2C9" and row["drug"].lower() == "phenytoin"
-    ]
-    canonical_scores = {row["activity_score"] for row in canonical_rows}
-    if len(canonical_rows) != 5 or canonical_scores != {2.0, 1.5, 1.0, 0.5, 0.0}:
-        raise RuntimeError("Bundled CYP2C9/phenytoin guideline matrix is not canonical")
 
     # Python 3.12/3.13's sqlite3 legacy transaction mode does not begin a DB
     # transaction for SELECT, even inside ``engine.begin()``. Acquire SQLite's
@@ -127,6 +116,29 @@ def _refresh_legacy_cyp2c9_phenytoin_guidelines(engine: sa.Engine) -> bool:
             if observed != _LEGACY_CYP2C9_PHENYTOIN_FINGERPRINT:
                 conn.rollback()
                 return False
+
+            # Only legacy installs need the bundled replacement payload.
+            # Keeping this behind the locked fingerprint check lets custom,
+            # future, and already-current databases start independently of an
+            # irrelevant content migration while retaining strict validation
+            # whenever the repair actually applies.
+            from backend.annotation.cpic import CPIC_DATA_DIR, parse_cpic_guidelines_csv
+
+            bundled_rows, _ = parse_cpic_guidelines_csv(CPIC_DATA_DIR / "cpic_guidelines.csv")
+            canonical_rows = [
+                row
+                for row in bundled_rows
+                if row["gene"] == "CYP2C9" and row["drug"].lower() == "phenytoin"
+            ]
+            canonical_scores = {row["activity_score"] for row in canonical_rows}
+            if len(canonical_rows) != 5 or canonical_scores != {
+                2.0,
+                1.5,
+                1.0,
+                0.5,
+                0.0,
+            }:
+                raise RuntimeError("Bundled CYP2C9/phenytoin guideline matrix is not canonical")
 
             conn.execute(sa.delete(cpic_guidelines).where(target))
             conn.execute(cpic_guidelines.insert(), canonical_rows)

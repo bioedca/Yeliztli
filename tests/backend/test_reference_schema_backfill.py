@@ -422,7 +422,10 @@ def test_refreshes_only_exact_legacy_cyp2c9_phenytoin_fingerprint(tmp_path: Path
     assert ensure_reference_schema_current(engine) is False
 
 
-def test_does_not_overwrite_mixed_or_future_phenytoin_content(tmp_path: Path) -> None:
+def test_does_not_overwrite_or_load_bundle_for_mixed_or_future_phenytoin_content(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
     engine = sa.create_engine(f"sqlite:///{tmp_path / 'ref.db'}")
     reference_metadata.create_all(engine, checkfirst=True)
     mixed_rows = [
@@ -440,6 +443,13 @@ def test_does_not_overwrite_mixed_or_future_phenytoin_content(tmp_path: Path) ->
     with engine.begin() as conn:
         conn.execute(cpic_guidelines.insert(), mixed_rows)
 
+    from backend.annotation import cpic as cpic_module
+
+    def fail_if_parsed(_path):
+        raise AssertionError("nonlegacy content must not load the migration payload")
+
+    monkeypatch.setattr(cpic_module, "parse_cpic_guidelines_csv", fail_if_parsed)
+
     assert ensure_reference_schema_current(engine) is False
     with engine.connect() as conn:
         rows = conn.execute(
@@ -452,11 +462,10 @@ def test_does_not_overwrite_mixed_or_future_phenytoin_content(tmp_path: Path) ->
     assert (1.25, "Future custom recommendation.") in rows
 
 
-def test_rechecks_legacy_fingerprint_after_loading_bundled_rows(
+def test_loads_bundled_rows_only_after_locked_legacy_fingerprint(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
-    """A concurrent/custom write before replacement must make the repair a no-op."""
     engine = sa.create_engine(f"sqlite:///{tmp_path / 'ref.db'}")
     reference_metadata.create_all(engine, checkfirst=True)
     with engine.begin() as conn:
@@ -465,36 +474,27 @@ def test_rechecks_legacy_fingerprint_after_loading_bundled_rows(
     from backend.annotation import cpic as cpic_module
 
     parse_bundled_rows = cpic_module.parse_cpic_guidelines_csv
+    events: list[str] = []
 
-    def parse_after_custom_write(path):
-        with engine.begin() as conn:
-            conn.execute(
-                cpic_guidelines.insert(),
-                {
-                    "gene": "CYP2C9",
-                    "drug": "phenytoin",
-                    "phenotype": "Intermediate Metabolizer",
-                    "activity_score": 1.25,
-                    "recommendation": "Concurrent custom recommendation.",
-                    "classification": "A",
-                    "guideline_url": _PHENYTOIN_URL,
-                },
-            )
+    def parse_after_fingerprint(path):
+        events.append("parse")
         return parse_bundled_rows(path)
 
-    monkeypatch.setattr(cpic_module, "parse_cpic_guidelines_csv", parse_after_custom_write)
+    def record_statement(_conn, _cursor, statement, _parameters, _context, _executemany):
+        normalized = " ".join(statement.split()).upper()
+        if normalized == "BEGIN IMMEDIATE":
+            events.append("begin")
+        elif normalized.startswith("SELECT CPIC_GUIDELINES.PHENOTYPE"):
+            events.append("fingerprint")
 
-    assert ensure_reference_schema_current(engine) is False
-    with engine.connect() as conn:
-        rows = conn.execute(
-            sa.select(cpic_guidelines.c.activity_score, cpic_guidelines.c.recommendation).where(
-                cpic_guidelines.c.gene == "CYP2C9",
-                cpic_guidelines.c.drug == "phenytoin",
-            )
-        ).fetchall()
+    monkeypatch.setattr(cpic_module, "parse_cpic_guidelines_csv", parse_after_fingerprint)
+    sa.event.listen(engine, "before_cursor_execute", record_statement)
+    try:
+        assert ensure_reference_schema_current(engine) is True
+    finally:
+        sa.event.remove(engine, "before_cursor_execute", record_statement)
 
-    assert len(rows) == 4
-    assert (1.25, "Concurrent custom recommendation.") in rows
+    assert events[:3] == ["begin", "fingerprint", "parse"]
 
 
 def test_legacy_refresh_locks_for_write_before_fingerprint_select(tmp_path: Path) -> None:

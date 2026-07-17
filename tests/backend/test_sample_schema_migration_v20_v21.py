@@ -229,7 +229,9 @@ def test_registry_open_publishes_reanalysis_prompt_without_reference_snapshot(
                     # A central rename can commit before the best-effort local
                     # metadata mirror; mutable display names are not identity.
                     "name": "Renamed central sample",
-                    "db_path": "samples/sample_1.db",
+                    # Exercise the bounded legacy path fallback rather than an
+                    # exact current-format registry lookup.
+                    "db_path": "legacy/../samples/sample_1.db",
                     "file_format": "23andme_v5",
                     "file_hash": "legacy-hash",
                     "created_at": created_at,
@@ -403,6 +405,121 @@ def test_registry_open_publishes_reanalysis_prompt_without_reference_snapshot(
             "current_version": "v1.58.0",
         },
     ]
+
+
+def test_annotation_marker_delete_race_retracts_only_identity_bound_correction(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = Settings(data_dir=tmp_path, wal_mode=False)
+    sample_path = settings.data_dir / "samples" / "sample_1.db"
+    sample_path.parent.mkdir(parents=True)
+    created_at = datetime.now(UTC)
+    external_sample_engine = sa.create_engine(f"sqlite:///{sample_path}")
+    create_sample_tables(external_sample_engine)
+    with external_sample_engine.begin() as conn:
+        conn.execute(
+            sample_metadata_table.insert(),
+            {
+                "id": 1,
+                "name": "Race sample",
+                "file_format": "23andme_v5",
+                "file_hash": "race-hash",
+                "created_at": created_at,
+            },
+        )
+        conn.execute(
+            annotation_state.insert(),
+            {
+                "key": CYP2C9_PHENYTOIN_REANALYSIS_STATE_KEY,
+                "value": json.dumps(
+                    {
+                        "database": "cpic",
+                        "prompted": False,
+                        "reason": CYP2C9_PHENYTOIN_REANALYSIS_REASON,
+                        "sample_schema_version": 21,
+                    }
+                ),
+            },
+        )
+
+    registry = DBRegistry(settings)
+    reference_metadata.create_all(registry.reference_engine)
+    ordinary_staleness = [
+        {
+            "db_name": "gnomad",
+            "recorded_version": "r2.1",
+            "current_version": "r4.1",
+        }
+    ]
+    with registry.reference_engine.begin() as conn:
+        conn.execute(
+            samples.insert(),
+            {
+                "id": 1,
+                "name": "Race sample",
+                "db_path": "samples/sample_1.db",
+                "file_format": "23andme_v5",
+                "file_hash": "race-hash",
+                "created_at": created_at,
+            },
+        )
+        conn.execute(
+            reannotation_prompts.insert(),
+            {
+                "sample_id": 1,
+                "db_name": "reference_data",
+                "db_version": "multiple",
+                "prompt_type": "version_staleness",
+                "stale_databases": json.dumps(ordinary_staleness),
+                "dismissed": False,
+            },
+        )
+
+    from backend.db import update_manager as update_manager_module
+
+    original_publish = update_manager_module.publish_cyp2c9_phenytoin_reanalysis_prompt
+
+    def publish_then_complete_annotation(*args, **kwargs) -> bool:
+        published = original_publish(*args, **kwargs)
+        with external_sample_engine.begin() as conn:
+            conn.execute(
+                annotation_state.delete().where(
+                    annotation_state.c.key == CYP2C9_PHENYTOIN_REANALYSIS_STATE_KEY
+                )
+            )
+        return published
+
+    monkeypatch.setattr(
+        update_manager_module,
+        "publish_cyp2c9_phenytoin_reanalysis_prompt",
+        publish_then_complete_annotation,
+    )
+
+    key = str(sample_path)
+    try:
+        cached_engine = registry.get_sample_engine(sample_path)
+        with cached_engine.connect() as conn:
+            marker_count = conn.execute(
+                sa.select(sa.func.count())
+                .select_from(annotation_state)
+                .where(annotation_state.c.key == CYP2C9_PHENYTOIN_REANALYSIS_STATE_KEY)
+            ).scalar_one()
+        with registry.reference_engine.connect() as conn:
+            prompts = conn.execute(sa.select(reannotation_prompts)).mappings().all()
+
+        assert marker_count == 0
+        assert len(prompts) == 1
+        assert json.loads(prompts[0]["stale_databases"]) == ordinary_staleness
+        assert key not in registry._sample_prompt_sync_complete
+
+        # The next open observes the authoritative missing marker, confirms no
+        # identity-bound correction remains, and may then cache completion.
+        assert registry.get_sample_engine(sample_path) is cached_engine
+        assert registry._sample_prompt_sync_complete.get(key) is cached_engine
+    finally:
+        registry.dispose_all()
+        external_sample_engine.dispose()
 
 
 def test_v21_tolerates_malformed_finding_diff_json(sample_engine: sa.Engine) -> None:
