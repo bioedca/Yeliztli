@@ -16,6 +16,7 @@ Usage::
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import sqlalchemy as sa
@@ -131,27 +132,11 @@ class DBRegistry:
         from backend.db.tables import annotation_state, sample_metadata_table, samples
 
         try:
-            provided_path = Path(sample_db_path)
+            provided_path = Path(os.path.abspath(os.path.normpath(sample_db_path)))
         except TypeError:
             return False
-        filename = provided_path.name
-        id_text = filename.removeprefix("sample_").removesuffix(".db")
-        if (
-            not filename.startswith("sample_")
-            or not filename.endswith(".db")
-            or not id_text.isascii()
-            or not id_text.isdigit()
-            or not 1 <= len(id_text) <= 19
-        ):
-            logger.warning(
-                "cyp2c9_phenytoin_reanalysis_prompt_deferred",
-                reason="sample_path_not_canonical",
-                sample_db_path=str(provided_path),
-            )
-            return False
-        candidate_sample_id = int(id_text)
-        if not 1 <= candidate_sample_id <= 2**63 - 1:
-            return False
+        data_root = Path(os.path.abspath(os.path.normpath(self._settings.data_dir)))
+        samples_root = Path(os.path.abspath(os.path.normpath(self._settings.samples_dir)))
         sample_columns = (
             samples.c.id,
             samples.c.db_path,
@@ -159,11 +144,52 @@ class DBRegistry:
             samples.c.file_hash,
             samples.c.created_at,
         )
+        path_candidates = {str(provided_path)}
+        try:
+            relative_path = provided_path.relative_to(data_root)
+        except ValueError:
+            pass
+        else:
+            path_candidates.update(
+                {
+                    str(relative_path),
+                    relative_path.as_posix(),
+                    f"./{relative_path.as_posix()}",
+                }
+            )
+
+        def registry_sample_path(row) -> Path:
+            registry_path = Path(row.db_path)
+            if not registry_path.is_absolute():
+                registry_path = data_root / registry_path
+            return Path(os.path.abspath(os.path.normpath(registry_path)))
+
         try:
             with self.reference_engine.connect() as conn:
-                sample_row = conn.execute(
-                    sa.select(*sample_columns).where(samples.c.id == candidate_sample_id)
-                ).fetchone()
+                sample_rows = conn.execute(
+                    sa.select(*sample_columns).where(
+                        samples.c.db_path.in_(sorted(path_candidates))
+                    )
+                ).fetchall()
+                sample_row = next(
+                    (row for row in sample_rows if registry_sample_path(row) == provided_path),
+                    None,
+                )
+                if sample_row is None:
+                    legacy_rows = conn.execute(
+                        sa.select(*sample_columns)
+                        .where(
+                            samples.c.db_path.endswith(
+                                provided_path.name,
+                                autoescape=True,
+                            )
+                        )
+                        .limit(128)
+                    ).fetchall()
+                    sample_row = next(
+                        (row for row in legacy_rows if registry_sample_path(row) == provided_path),
+                        None,
+                    )
         except sa.exc.OperationalError as exc:
             logger.warning(
                 "cyp2c9_phenytoin_reanalysis_prompt_deferred",
@@ -180,14 +206,19 @@ class DBRegistry:
             )
             return False
         sample_id = sample_row.id
-        target_path = self._settings.samples_dir / f"sample_{sample_id}.db"
-        if provided_path != target_path or Path(sample_row.db_path).name != target_path.name:
+        target_path = registry_sample_path(sample_row)
+        if (
+            target_path != provided_path
+            or target_path.parent != samples_root
+            or target_path.suffix != ".db"
+        ):
             logger.warning(
                 "cyp2c9_phenytoin_reanalysis_prompt_deferred",
                 reason="sample_path_not_canonical",
                 sample_id=sample_id,
             )
             return False
+        sample_filename = target_path.name
 
         from backend.db.update_manager import (
             _sample_file_fingerprint,
@@ -195,8 +226,7 @@ class DBRegistry:
             retract_cyp2c9_phenytoin_reanalysis_prompt,
         )
 
-        samples_root = self._settings.samples_dir
-        target_fingerprint = _sample_file_fingerprint(sample_id, samples_root)
+        target_fingerprint = _sample_file_fingerprint(sample_filename, samples_root)
         if target_fingerprint is None:
             return False
 
@@ -309,6 +339,7 @@ class DBRegistry:
                 expected_file_format=expected_file_format,
                 expected_file_hash=expected_file_hash,
                 expected_created_at=expected_created_at,
+                sample_filename=sample_filename,
                 samples_root=samples_root,
                 expected_file_fingerprint=target_fingerprint,
             )

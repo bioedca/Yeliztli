@@ -1838,15 +1838,20 @@ def _preserve_cyp2c9_phenytoin_correction(
 
 
 def _sample_file_fingerprint(
-    sample_id: int,
+    sample_filename: str,
     samples_root: Path,
 ) -> tuple[int, int, int, int] | None:
     """Return one canonical sample file's identity without accepting a raw path."""
     try:
-        if not isinstance(sample_id, int) or sample_id < 1:
+        filename_path = Path(sample_filename)
+        if (
+            filename_path.name != sample_filename
+            or filename_path.suffix != ".db"
+            or sample_filename in {".db", "..db"}
+        ):
             return None
         resolved_root = samples_root.resolve()
-        canonical_path = resolved_root / f"sample_{sample_id:d}.db"
+        canonical_path = resolved_root / sample_filename
         resolved_path = canonical_path.resolve(strict=True)
         if resolved_path != canonical_path:
             return None
@@ -1902,6 +1907,7 @@ def publish_cyp2c9_phenytoin_reanalysis_prompt(
     expected_file_format: str | None,
     expected_file_hash: str | None,
     expected_created_at: datetime | None,
+    sample_filename: str,
     samples_root: Path,
     expected_file_fingerprint: tuple[int, int, int, int],
 ) -> bool:
@@ -1928,7 +1934,9 @@ def publish_cyp2c9_phenytoin_reanalysis_prompt(
                 or sample_row.file_format != expected_file_format
                 or sample_row.file_hash != expected_file_hash
                 or sample_row.created_at != expected_created_at
-                or _sample_file_fingerprint(sample_id, samples_root) != expected_file_fingerprint
+                or Path(expected_db_path).name != sample_filename
+                or _sample_file_fingerprint(sample_filename, samples_root)
+                != expected_file_fingerprint
             ):
                 conn.rollback()
                 return False

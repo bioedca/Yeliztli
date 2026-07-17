@@ -255,6 +255,7 @@ def test_registry_open_publishes_reanalysis_prompt_without_reference_snapshot(
             expected_file_format: str | None,
             expected_file_hash: str | None,
             expected_created_at: datetime | None,
+            sample_filename: str,
             samples_root: Path,
             expected_file_fingerprint: tuple[int, int, int, int],
         ) -> bool:
@@ -279,6 +280,7 @@ def test_registry_open_publishes_reanalysis_prompt_without_reference_snapshot(
                 expected_file_format=expected_file_format,
                 expected_file_hash=expected_file_hash,
                 expected_created_at=expected_created_at,
+                sample_filename=sample_filename,
                 samples_root=samples_root,
                 expected_file_fingerprint=expected_file_fingerprint,
             )
@@ -523,6 +525,87 @@ def test_annotation_marker_delete_race_retracts_only_identity_bound_correction(
         external_sample_engine.dispose()
 
 
+@pytest.mark.parametrize(
+    ("sample_id", "filename"),
+    [
+        (0, "sample_000.db"),
+        (1, "sample_001.db"),
+        (7, "restored-custom.db"),
+    ],
+)
+def test_prompt_sync_supports_preserved_restore_paths(
+    tmp_path: Path,
+    sample_id: int,
+    filename: str,
+) -> None:
+    settings = Settings(data_dir=tmp_path, wal_mode=False)
+    sample_path = settings.samples_dir / filename
+    sample_path.parent.mkdir(parents=True)
+    created_at = datetime.now(UTC)
+    sample_engine = sa.create_engine(f"sqlite:///{sample_path}")
+    create_sample_tables(sample_engine)
+    with sample_engine.begin() as conn:
+        conn.execute(
+            sample_metadata_table.insert(),
+            {
+                "id": 1,
+                "name": "Restored sample",
+                "file_format": "23andme_v5",
+                "file_hash": f"restore-{sample_id}",
+                "created_at": created_at,
+            },
+        )
+        conn.execute(
+            annotation_state.insert(),
+            {
+                "key": CYP2C9_PHENYTOIN_REANALYSIS_STATE_KEY,
+                "value": json.dumps(
+                    {
+                        "database": "cpic",
+                        "prompted": False,
+                        "reason": CYP2C9_PHENYTOIN_REANALYSIS_REASON,
+                        "sample_schema_version": 21,
+                    }
+                ),
+            },
+        )
+        conn.execute(sa.text("PRAGMA user_version = 21"))
+    sample_engine.dispose()
+
+    registry = DBRegistry(settings)
+    reference_metadata.create_all(registry.reference_engine)
+    with registry.reference_engine.begin() as conn:
+        conn.execute(
+            samples.insert(),
+            {
+                "id": sample_id,
+                "name": "Restored sample",
+                "db_path": f"samples/{filename}",
+                "file_format": "23andme_v5",
+                "file_hash": f"restore-{sample_id}",
+                "created_at": created_at,
+            },
+        )
+
+    try:
+        opened_engine = registry.get_sample_engine(sample_path)
+        with opened_engine.connect() as conn:
+            marker = json.loads(
+                conn.execute(
+                    sa.select(annotation_state.c.value).where(
+                        annotation_state.c.key == CYP2C9_PHENYTOIN_REANALYSIS_STATE_KEY
+                    )
+                ).scalar_one()
+            )
+        with registry.reference_engine.connect() as conn:
+            prompt = conn.execute(sa.select(reannotation_prompts)).mappings().one()
+    finally:
+        registry.dispose_all()
+
+    assert marker["prompted"] is True
+    assert prompt["sample_id"] == sample_id
+
+
 def test_v21_tolerates_malformed_finding_diff_json(sample_engine: sa.Engine) -> None:
     with sample_engine.begin() as conn:
         conn.execute(
@@ -593,6 +676,7 @@ def test_prompt_publication_rejects_sample_deleted_after_registry_lookup(tmp_pat
             expected_file_format="23andme_v5",
             expected_file_hash="deleted-hash",
             expected_created_at=created_at,
+            sample_filename=sample_path.name,
             samples_root=settings.samples_dir,
             expected_file_fingerprint=expected_fingerprint,
         )
@@ -660,9 +744,9 @@ def test_prompt_sync_rejects_sibling_prefix_and_symlink_escape(tmp_path: Path) -
             )
             is False
         )
-        assert _sample_file_fingerprint(1, settings.samples_dir) is None
-        assert _sample_file_fingerprint(2, settings.samples_dir) is not None
-        assert _sample_file_fingerprint(3, settings.samples_dir) is None
+        assert _sample_file_fingerprint("sample_1.db", settings.samples_dir) is None
+        assert _sample_file_fingerprint("sample_2.db", settings.samples_dir) is not None
+        assert _sample_file_fingerprint("sample_3.db", settings.samples_dir) is None
     finally:
         memory_engine.dispose()
         registry.dispose_all()
@@ -703,6 +787,7 @@ def test_prompt_publication_rejects_reused_path_with_old_local_identity(tmp_path
             expected_file_format="23andme_v5",
             expected_file_hash="deleted-hash",
             expected_created_at=old_created_at,
+            sample_filename=sample_path.name,
             samples_root=settings.samples_dir,
             # Models a replacement completed after an old cached engine read
             # its marker but before it captured the current path fingerprint.
@@ -773,6 +858,7 @@ def test_unbound_dismissal_cannot_acknowledge_reused_sample_id(tmp_path: Path) -
             expected_file_format="23andme_v5",
             expected_file_hash="replacement-hash",
             expected_created_at=created_at,
+            sample_filename=sample_path.name,
             samples_root=settings.samples_dir,
             expected_file_fingerprint=fingerprint,
         )
