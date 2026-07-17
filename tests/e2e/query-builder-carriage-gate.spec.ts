@@ -93,6 +93,7 @@ const unresolvedRow = {
 
 type QueryBody = {
   sample_id?: number
+  format?: string
   include_all_positions?: boolean
   cursor_chrom?: string
   cursor_pos?: number
@@ -104,6 +105,11 @@ type QueryReply = {
 }
 
 type QueryResponder = (
+  body: QueryBody,
+  requestIndex: number,
+) => QueryReply | Promise<QueryReply>
+
+type ExportResponder = (
   body: QueryBody,
   requestIndex: number,
 ) => QueryReply | Promise<QueryReply>
@@ -141,9 +147,13 @@ async function settleReact(page: Page) {
   )
 }
 
-async function stubQueryBuilder(page: Page, responder?: QueryResponder) {
+async function stubQueryBuilder(
+  page: Page,
+  responder?: QueryResponder,
+  exportResponder?: ExportResponder,
+) {
   const queryBodies: QueryBody[] = []
-  const exportBodies: Array<{ sample_id?: number; include_all_positions?: boolean }> = []
+  const exportBodies: QueryBody[] = []
 
   await page.route(/\/api\/query\/fields$/, (route) =>
     route.fulfill(
@@ -172,9 +182,24 @@ async function stubQueryBuilder(page: Page, responder?: QueryResponder) {
         }
     return route.fulfill(jsonRoute(reply.payload, reply.status))
   })
-  await page.route(/\/api\/export\/query$/, (route) => {
+  await page.route(/\/api\/export\/query$/, async (route) => {
     const body = route.request().postDataJSON() as QueryBody
     exportBodies.push(body)
+    if (exportResponder) {
+      const reply = await exportResponder(body, exportBodies.length - 1)
+      return route.fulfill(jsonRoute(reply.payload, reply.status))
+    }
+    if (body.format === 'vcf' && body.include_all_positions) {
+      return route.fulfill(
+        jsonRoute(
+          {
+            detail:
+              'This VCF export would omit 1 annotated position with unresolved zygosity. Export CSV, TSV, or JSON, or filter to positions with resolved zygosity.',
+          },
+          422,
+        ),
+      )
+    }
     return route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -189,6 +214,11 @@ async function stubQueryBuilder(page: Page, responder?: QueryResponder) {
 async function exportJson(page: Page) {
   await page.getByTestId('export-btn').click()
   await page.getByTestId('export-json').click()
+}
+
+async function exportVcf(page: Page) {
+  await page.getByTestId('export-btn').click()
+  await page.getByTestId('export-vcf').click()
 }
 
 test.beforeEach(async ({ page }) => {
@@ -279,9 +309,67 @@ test('carried-only is safe by default and all-position opt-in is explicit (#1988
     ).toEqual([])
   }
 
-  await exportJson(page)
+  await exportVcf(page)
   await expect.poll(() => requests.exportBodies.length).toBe(2)
-  expect(requests.exportBodies[1].include_all_positions).toBe(true)
+  expect(requests.exportBodies[1]).toMatchObject({
+    format: 'vcf',
+    include_all_positions: true,
+  })
+  const exportError = page.getByRole('alert')
+  await expect(exportError).toContainText('Export failed')
+  await expect(exportError).toContainText(
+    /VCF export would omit 1 annotated position with unresolved zygosity/i,
+  )
+  await expect(exportError).toContainText(/Export CSV, TSV, or JSON/i)
+  const alertAccessibility = await new AxeBuilder({ page })
+    .include('[role="alert"]')
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+    .analyze()
+  expect(
+    alertAccessibility.violations.map(({ id, impact, nodes }) => ({
+      id,
+      impact,
+      nodes: nodes.map(({ target, failureSummary }) => ({ target, failureSummary })),
+    })),
+    'export alert accessibility violations',
+  ).toEqual([])
+
+  await exportJson(page)
+  await expect.poll(() => requests.exportBodies.length).toBe(3)
+  expect(requests.exportBodies[2]).toMatchObject({
+    format: 'json',
+    include_all_positions: true,
+  })
+  await expect(exportError).toHaveCount(0)
+})
+
+test('obsolete export failure cannot cross an all-position mode edit (#1988)', async ({
+  page,
+}) => {
+  const pendingExport = deferred()
+  const requests = await stubQueryBuilder(page, undefined, async () => {
+    await pendingExport.promise
+    return { payload: { detail: 'obsolete export failure' }, status: 422 }
+  })
+
+  await page.goto('/query-builder?sample_id=1')
+  await waitForReactHydration(page)
+  await page.getByRole('button', { name: '+ Rule' }).click()
+  await page.getByTestId('run-query-btn').click()
+  await expect(page.getByText('rs_carried')).toBeVisible()
+
+  await exportVcf(page)
+  await expect.poll(() => requests.exportBodies.length).toBe(1)
+  await page.getByTestId('include-all-positions').check()
+
+  const staleResponse = page.waitForResponse(
+    (response) =>
+      response.url().endsWith('/api/export/query') && response.request().method() === 'POST',
+  )
+  pendingExport.resolve()
+  await staleResponse
+  await settleReact(page)
+  await expect(page.getByRole('alert')).toHaveCount(0)
 })
 
 test('obsolete run success and failure cannot cross a mode or filter edit (#1988)', async ({

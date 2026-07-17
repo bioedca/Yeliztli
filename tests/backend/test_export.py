@@ -386,7 +386,7 @@ class TestExportQueryCarriageGate:
         assert resp.status_code == 200
         assert self._vcf_genotypes(resp) == {"rs_carried": "0/1", "rs_hom_alt": "1/1"}
 
-    def test_all_positions_vcf_export_includes_resolved_non_carriage(
+    def test_all_positions_vcf_export_rejects_lossy_unresolved_rows(
         self, mixed_carriage_client
     ) -> None:
         tc, sid = mixed_carriage_client
@@ -400,14 +400,33 @@ class TestExportQueryCarriageGate:
             },
         )
 
+        assert resp.status_code == 422
+        assert "would omit 1 annotated position with unresolved zygosity" in resp.json()["detail"]
+        assert "CSV, TSV, or JSON" in resp.json()["detail"]
+
+    def test_all_positions_vcf_export_includes_every_resolved_genotype(
+        self, mixed_carriage_client
+    ) -> None:
+        tc, sid = mixed_carriage_client
+        resp = tc.post(
+            "/api/export/query",
+            json={
+                "sample_id": sid,
+                "filter": {
+                    "combinator": "and",
+                    "rules": [{"field": "zygosity", "operator": "notNull"}],
+                },
+                "format": "vcf",
+                "include_all_positions": True,
+            },
+        )
+
         assert resp.status_code == 200
         assert self._vcf_genotypes(resp) == {
             "rs_carried": "0/1",
             "rs_hom_ref_pathogenic": "0/0",
             "rs_hom_alt": "1/1",
         }
-        # The unresolved I/D-coded row is skipped by the existing VCF exporter;
-        # emitting an explicit missing GT is tracked separately in #2033.
 
 
 class TestExportQueryVCF:

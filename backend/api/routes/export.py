@@ -27,7 +27,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from backend.analysis.zygosity import CARRIED_ZYGOSITIES
+from backend.analysis.zygosity import CARRIED_ZYGOSITIES, ZYG_HOM_REF
 from backend.api.dependencies import require_fresh_sample
 from backend.db.connection import get_registry
 from backend.db.tables import annotated_variants, samples
@@ -39,6 +39,8 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/export", tags=["export"])
 
 # ── Constants ────────────────────────────────────────────────────────
+
+_RESOLVED_ZYGOSITIES: frozenset[str] = CARRIED_ZYGOSITIES | {ZYG_HOM_REF}
 
 # Canonical chromosome sort order.
 _CHROM_ORDER: dict[str, int] = {
@@ -317,6 +319,17 @@ def export_query(body: ExportQueryRequest) -> StreamingResponse:
         with sample_engine.connect() as conn:
             rows_raw = conn.execute(query).fetchall()
         rows = [_row_to_dict(r) for r in rows_raw]
+        unresolved_count = sum(row.get("zygosity") not in _RESOLVED_ZYGOSITIES for row in rows)
+        if body.include_all_positions and unresolved_count:
+            position_word = "position" if unresolved_count == 1 else "positions"
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"This VCF export would omit {unresolved_count} annotated "
+                    f"{position_word} with unresolved zygosity. Export CSV, TSV, or "
+                    "JSON, or filter to positions with resolved zygosity."
+                ),
+            )
         # Thread the annotation-resolved ref/alt/zygosity through so the VCF is
         # emitted reference-aligned (GT indexed against the reference allele),
         # not inferred from the raw genotype string — a true hom-alt call must

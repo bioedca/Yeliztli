@@ -43,6 +43,7 @@ export default function QueryBuilderView() {
   const [isFetchingMore, setIsFetchingMore] = useState(false)
   const [isRunning, setIsRunning] = useState(false)
   const [runError, setRunError] = useState<string | null>(null)
+  const [exportError, setExportError] = useState<string | null>(null)
   const resultGenerationRef = useRef(0)
   const previousSampleIdRef = useRef(sampleId)
 
@@ -61,18 +62,29 @@ export default function QueryBuilderView() {
     setIsFetchingMore(false)
     setIsRunning(false)
     setRunError(null)
+    setExportError(null)
   }, [sampleId])
 
   const handleExport = useCallback(
     (format: string) => {
       if (!sampleId) return
       const filter = query as unknown as RuleGroupModel
-      exportQuery.mutate({
-        sampleId,
-        filter,
-        format: format as QueryExportFormat,
-        includeAllPositions,
-      })
+      const resultGeneration = resultGenerationRef.current
+      setExportError(null)
+      exportQuery.mutate(
+        {
+          sampleId,
+          filter,
+          format: format as QueryExportFormat,
+          includeAllPositions,
+        },
+        {
+          onError: (error) => {
+            if (resultGeneration !== resultGenerationRef.current) return
+            setExportError(error instanceof Error ? error.message : "Export failed.")
+          },
+        },
+      )
     },
     [sampleId, query, exportQuery, includeAllPositions],
   )
@@ -87,6 +99,7 @@ export default function QueryBuilderView() {
     setIsFetchingMore(false)
     setIsRunning(false)
     setRunError(null)
+    setExportError(null)
   }, [])
 
   // No sample selected
@@ -109,6 +122,7 @@ export default function QueryBuilderView() {
     setIsFetchingMore(false)
     setIsRunning(true)
     setRunError(null)
+    setExportError(null)
     try {
       const data = await runQuery.mutateAsync({ sampleId, filter, includeAllPositions })
       if (resultGeneration !== resultGenerationRef.current) return
@@ -174,6 +188,7 @@ export default function QueryBuilderView() {
     setIsFetchingMore(false)
     setIsRunning(false)
     setRunError(null)
+    setExportError(null)
   }
 
   const handleQueryChange = (nextQuery: RuleGroupType) => {
@@ -185,6 +200,7 @@ export default function QueryBuilderView() {
     setIsFetchingMore(false)
     setIsRunning(false)
     setRunError(null)
+    setExportError(null)
   }
 
   const handleIncludeAllPositionsChange = (checked: boolean) => {
@@ -198,6 +214,7 @@ export default function QueryBuilderView() {
     setIsFetchingMore(false)
     setIsRunning(false)
     setRunError(null)
+    setExportError(null)
   }
 
   const hasRules = query.rules.length > 0
@@ -358,6 +375,21 @@ export default function QueryBuilderView() {
                       <p className="text-sm text-muted-foreground mt-1">
                         {runError}
                       </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {resultsMatchSample && exportError && (
+                <div
+                  className="rounded-lg border border-destructive/50 bg-destructive/5 p-4"
+                  role="alert"
+                >
+                  <div className="flex items-start gap-3">
+                    <AlertCircle className="h-5 w-5 text-destructive mt-0.5 shrink-0" />
+                    <div>
+                      <p className="font-medium text-destructive">Export failed</p>
+                      <p className="text-sm text-muted-foreground mt-1">{exportError}</p>
                     </div>
                   </div>
                 </div>
