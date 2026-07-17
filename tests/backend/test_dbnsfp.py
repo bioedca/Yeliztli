@@ -45,6 +45,7 @@ from backend.annotation.dbnsfp import (
     download_and_load_dbnsfp,
     download_dbnsfp,
     is_ensemble_pathogenic,
+    is_ensemble_pathogenic_from_counts,
     load_dbnsfp_from_csv,
     load_dbnsfp_from_tsv,
     lookup_dbnsfp_by_positions,
@@ -662,6 +663,31 @@ class TestEnsemblePathogenicity:
         annot = self._make_annot(revel=0.2, metasvm=0.8, metalr=0.1)
         assert annot.deleterious_count == 0
         assert annot.deleterious_total_assessed == 1
+
+    def test_meta_axis_tie_is_not_a_majority(self):
+        """F24: a 1-of-2 meta-predictor split is a tie, not a strict majority (#2006).
+
+        The only cell where the inner rule's ``sum(votes) * 2 > len(votes)`` differs
+        from ``>=`` is exactly two present predictors split 1/1. Every other reachable
+        (len, sum) is an equivalent mutant, and the sibling
+        test_meta_axis_needs_majority_not_a_single_outlier is a 1-of-3 split (both
+        operators return False), so it cannot pin the tie. This is the fixture that
+        makes the conservative tie-break load-bearing.
+        """
+        # REVEL deleterious (>=0.5); MetaSVM tolerated (not >0); MetaLR absent → 1/1.
+        annot = self._make_annot(revel=0.6, metasvm=-0.5)
+        assert annot.deleterious_count == 0
+        assert annot.deleterious_total_assessed == 1
+
+    def test_ensemble_from_counts_tie_is_not_pathogenic(self):
+        """The outer ensemble rule's minimal tie (1 of 2) is not a strict majority (#2006).
+
+        Pins ``is_ensemble_pathogenic_from_counts`` directly at the smallest tie so
+        the outer ``deleterious * 2 > assessed`` majority is constrained explicitly,
+        not just implicitly via a 2-of-4 record test.
+        """
+        assert is_ensemble_pathogenic_from_counts(1, 2) is False
+        assert is_ensemble_pathogenic_from_counts(2, 2) is True  # unambiguous majority
 
     def test_k_of_present_flags_two_of_two(self):
         """F25: 2 of 2 *present* axes deleterious flags, where fixed-3-of-5 never could.
