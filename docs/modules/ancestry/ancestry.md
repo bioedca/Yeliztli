@@ -21,8 +21,13 @@ assigns your maternal and paternal **haplogroups**.
   sparse).
 - **Admixture fractions** per population with confidence intervals, shown as a bar chart, plus
   an interactive **PCA plot** placing you among the reference populations.
-- **Haplogroup assignments** (mitochondrial for everyone; Y-chromosome for samples inferred as
-  XY).
+- **Haplogroup assignment cards** when a lineage is supported beyond the tree root.
+  Mitochondrial analysis runs for every sample; Y-chromosome analysis runs only for samples
+  inferred as XY. Each card shows a percentage currently labelled *confidence*, an overall
+  `N / M defining SNPs matched` count, and a traversal path with an `N/M` count for each tree
+  node. The percentage is path-marker support that is sensitive to array coverage — **not the
+  probability that the assignment is correct**. See [how to read the haplogroup
+  badge](../../ancestry-methods.md#how-to-read-the-haplogroup-confidence-badge).
 
 ## Good to know
 
@@ -31,6 +36,9 @@ assigns your maternal and paternal **haplogroups**.
   one group.
 - Missing markers are filled with panel averages before projection, which can pull sparse
   samples toward the centre and soften the signal.
+- Untyped or no-call haplogroup markers remain in the badge denominator. A low haplogroup
+  percentage can therefore reflect a sparse input file rather than contradictory evidence,
+  and percentages should not be compared across arrays with different marker coverage.
 - For the statistics — PCA projection, NNLS admixture, local ancestry inference, accuracy,
   and limitations (with citations) — see
   **[Ancestry methods & validation](../../ancestry-methods.md)**.
