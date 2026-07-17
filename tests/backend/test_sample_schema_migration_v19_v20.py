@@ -156,7 +156,7 @@ def test_v20_migration_quarantines_legacy_or_unidentified_cancer_prs(
         ).scalar_one()
         version = conn.execute(sa.text("PRAGMA user_version")).scalar_one()
 
-    assert version == SAMPLE_SCHEMA_VERSION == 20
+    assert version == SAMPLE_SCHEMA_VERSION == 21
     assert [(row.module, row.category, row.finding_text) for row in rows] == [
         # Older valid active-model rows have a trait but no model fingerprint;
         # they remain surfaceable. Only breast or unidentified PRS rows are
@@ -262,7 +262,7 @@ def test_v20_migration_tolerates_partial_legacy_findings_table() -> None:
     assert ensure_sample_schema_current(engine) is True
 
     with engine.connect() as conn:
-        assert conn.execute(sa.text("PRAGMA user_version")).scalar_one() == 20
+        assert conn.execute(sa.text("PRAGMA user_version")).scalar_one() == 21
         remaining = conn.execute(
             sa.text("SELECT id, module, category FROM findings ORDER BY id")
         ).fetchall()

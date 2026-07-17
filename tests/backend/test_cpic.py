@@ -222,14 +222,64 @@ class TestParseGuidelinesCSV:
 
         assert not errors, "\n".join(errors)
 
+    @pytest.mark.parametrize(
+        "csv_path",
+        [
+            SEED_DIR / "cpic_guidelines_seed.csv",
+            CPIC_DATA_DIR / "cpic_guidelines.csv",
+        ],
+    )
+    def test_cyp2c9_phenytoin_rows_match_cpic_activity_score_matrix(self, csv_path: Path) -> None:
+        with csv_path.open(newline="", encoding="utf-8") as fh:
+            rows = [
+                row
+                for row in csv.DictReader(fh)
+                if row["gene"] == "CYP2C9" and row["drug"] == "phenytoin"
+            ]
+
+        by_score = {row["activity_score"]: row for row in rows}
+        assert len(rows) == 5
+        assert set(by_score) == {"2.0", "1.5", "1.0", "0.5", "0.0"}
+        assert {score: row["phenotype"] for score, row in by_score.items()} == {
+            "2.0": "Normal Metabolizer",
+            "1.5": "Intermediate Metabolizer",
+            "1.0": "Intermediate Metabolizer",
+            "0.5": "Poor Metabolizer",
+            "0.0": "Poor Metabolizer",
+        }
+        assert {row["classification"] for row in rows} == {"A"}
+
+        for score in ("2.0", "1.5"):
+            recommendation = by_score[score]["recommendation"]
+            assert recommendation.startswith(
+                "No adjustments needed from typical dosing strategies."
+            )
+            assert "% less than typical maintenance dose" not in recommendation
+
+        as_10 = by_score["1.0"]["recommendation"]
+        assert as_10.startswith("For first dose, use typical initial or loading dose.")
+        assert "approximately 25% less than typical maintenance dose" in as_10
+
+        as_05 = by_score["0.5"]["recommendation"]
+        assert as_05 == by_score["0.0"]["recommendation"]
+        assert as_05.startswith("For first dose, use typical initial or loading dose.")
+        assert "approximately 50% less than typical maintenance dose" in as_05
+
+        for row in rows:
+            recommendation = row["recommendation"]
+            assert "therapeutic drug monitoring" in recommendation
+            assert "HLA-B*15:02 negative test does not eliminate" in recommendation
+            assert "phenytoin-induced SJS/TEN" in recommendation
+            assert "alternative anticonvulsant" not in recommendation.lower()
+
     def test_parse_seed_file(self):
         rows, stats = parse_cpic_guidelines_csv(SEED_DIR / "cpic_guidelines_seed.csv")
 
         # E1 (61) + CYP2B6 efavirenz (5): Normal/IM/PM + Rapid/Ultrarapid (#1985),
-        # then DPYD's 6 phenotype rows re-derived to 10 activity-score rows (#1993:
-        # 5 AS values x 2 drugs) → +4.
-        assert len(rows) == 70
-        assert stats.guidelines_loaded == 70
+        # DPYD's 6 phenotype rows re-derived to 10 AS rows (#1993) → +4, then
+        # CYP2C9/phenytoin's 3 phenotype rows re-derived to 5 AS rows (#1989) → +2.
+        assert len(rows) == 72
+        assert stats.guidelines_loaded == 72
         assert stats.guidelines_skipped == 0
 
     def test_first_row_structure(self):

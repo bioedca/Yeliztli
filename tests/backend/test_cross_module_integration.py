@@ -249,6 +249,9 @@ def _load_cpic_data(engine: sa.Engine) -> None:
                     "gene": row["gene"],
                     "drug": row["drug"],
                     "phenotype": row["phenotype"],
+                    "activity_score": (
+                        float(row["activity_score"]) if row["activity_score"] else None
+                    ),
                     "recommendation": row["recommendation"],
                     "classification": row["classification"],
                     "guideline_url": row["guideline_url"],

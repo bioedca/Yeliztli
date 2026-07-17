@@ -62,6 +62,7 @@ from backend.db.tables import (
     jobs,
     merge_provenance,
     raw_variants,
+    reannotation_prompts,
     sample_metadata_table,
     samples,
 )
@@ -766,6 +767,9 @@ def _rollback_orphaned_merge(registry: DBRegistry, sample_id: int, sample_db_pat
             )
     try:
         with registry.reference_engine.begin() as conn:
+            conn.execute(
+                reannotation_prompts.delete().where(reannotation_prompts.c.sample_id == sample_id)
+            )
             conn.execute(samples.delete().where(samples.c.id == sample_id))
     except Exception as exc:  # noqa: BLE001
         logger.warning(
@@ -828,6 +832,11 @@ def merge_samples(
             )
         )
         new_sample_id = int(result.inserted_primary_key[0])
+        # SQLite can reuse a deleted rowid. Remove any prompt left by a legacy
+        # occupant before this allocation transaction commits.
+        conn.execute(
+            reannotation_prompts.delete().where(reannotation_prompts.c.sample_id == new_sample_id)
+        )
         new_db_path = f"samples/sample_{new_sample_id}.db"
         conn.execute(
             samples.update()

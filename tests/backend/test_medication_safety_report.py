@@ -128,6 +128,31 @@ class TestClassifyActionability:
             == ACTIONABILITY_ROUTINE
         )
 
+    def test_cpic_phenytoin_no_adjustment_with_standard_monitoring_is_routine(self):
+        recommendation = (
+            "No adjustments needed from typical dosing strategies. Subsequent doses should be "
+            "adjusted according to therapeutic drug monitoring, response, and side effects. "
+            "An HLA-B*15:02 negative test does not eliminate the risk of phenytoin-induced "
+            "SJS/TEN, and patients should be carefully monitored according to standard practice."
+        )
+        assert classify_actionability(recommendation) == ACTIONABILITY_ROUTINE
+
+    def test_cpic_phenytoin_no_adjustment_preamble_does_not_mask_real_action(self):
+        recommendation = (
+            "No adjustments needed from typical dosing strategies. Subsequent doses should be "
+            "adjusted according to therapeutic drug monitoring, response, and side effects. "
+            "Avoid phenytoin if a new contraindication applies."
+        )
+        assert classify_actionability(recommendation) == ACTIONABILITY_ACTIONABLE
+
+    def test_cpic_phenytoin_reduced_maintenance_is_actionable(self):
+        recommendation = (
+            "For first dose, use typical initial or loading dose. For subsequent doses, use "
+            "approximately 25% less than typical maintenance dose. Subsequent doses should be "
+            "adjusted according to therapeutic drug monitoring, response and side effects."
+        )
+        assert classify_actionability(recommendation) == ACTIONABILITY_ACTIONABLE
+
     def test_negation_plus_real_action_is_actionable(self):
         # A negated no-change phrase AND a genuine action verb elsewhere → actionable.
         assert (

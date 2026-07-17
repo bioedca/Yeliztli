@@ -23,7 +23,10 @@ from fastapi.testclient import TestClient
 
 from backend.config import Settings
 from backend.db.connection import reset_registry
-from backend.db.sample_schema import create_sample_tables
+from backend.db.sample_schema import (
+    CYP2C9_PHENYTOIN_REANALYSIS_STATE_KEY,
+    create_sample_tables,
+)
 from backend.db.tables import (
     annotated_variants,
     annotation_state,
@@ -509,11 +512,22 @@ class TestAnnotationStateGate:
             version,
         )
 
-    def _run_task_with_result(self, sample_id: int, result: object) -> MagicMock:
+    def _run_task_with_result(
+        self,
+        sample_id: int,
+        result: object,
+        *,
+        analysis_results: dict[str, int | str] | None = None,
+    ) -> MagicMock:
+        if analysis_results is None:
+            analysis_results = {"pharmacogenomics": 0}
         with (
             patch("backend.annotation.engine.run_annotation", return_value=result),
             patch("backend.analysis.finding_diff.snapshot_findings", return_value=[]),
-            patch("backend.analysis.run_all.run_all_analyses", return_value={}),
+            patch(
+                "backend.analysis.run_all.run_all_analyses",
+                return_value=analysis_results,
+            ),
             patch(
                 "backend.analysis.finding_diff.compute_and_store_finding_diff",
                 return_value=None,
@@ -529,8 +543,21 @@ class TestAnnotationStateGate:
     @pytest.mark.slow
     def test_success_path_lifts_gate(self, annotation_env: dict) -> None:
         """Happy path: both reserved keys are upserted on the success path."""
+        from backend.db.connection import get_registry
+
         self._seed_embedded_bundle_version(annotation_env, "v9.0.0")
         self._seed_bundle_version(annotation_env, "v2.0.0")
+
+        registry = get_registry()
+        sample_db = registry.settings.data_dir / "samples" / "sample_1.db"
+        with registry.get_sample_engine(sample_db).begin() as conn:
+            conn.execute(
+                annotation_state.insert(),
+                {
+                    "key": CYP2C9_PHENYTOIN_REANALYSIS_STATE_KEY,
+                    "value": json.dumps({"prompted": True}),
+                },
+            )
 
         sample_id = annotation_env["sample_id"]
         job_id = create_annotation_job(sample_id)
@@ -545,6 +572,7 @@ class TestAnnotationStateGate:
         coverage = _json.loads(coverage_json)
         assert coverage["bundle_version"] == "v2.0.0"
         assert _json.loads(state["reference_versions_json"])["vep_bundle"] == "v2.0.0"
+        assert CYP2C9_PHENYTOIN_REANALYSIS_STATE_KEY not in state
         provenances = self._read_finding_provenance(annotation_env)
         assert provenances
         assert {provenance["sources"]["vep_bundle"]["version"] for provenance in provenances} == {
@@ -741,10 +769,14 @@ class TestAnnotationStateGate:
         sample_engine = registry.get_sample_engine(sample_db)
         with sample_engine.begin() as conn:
             conn.execute(
-                annotation_state.insert().values(
-                    key="vep_bundle_version",
-                    value="v1.0.0",
-                )
+                annotation_state.insert(),
+                [
+                    {"key": "vep_bundle_version", "value": "v1.0.0"},
+                    {
+                        "key": CYP2C9_PHENYTOIN_REANALYSIS_STATE_KEY,
+                        "value": json.dumps({"prompted": True}),
+                    },
+                ],
             )
 
         sample_id = annotation_env["sample_id"]
@@ -760,11 +792,39 @@ class TestAnnotationStateGate:
         # Pre-existing row preserved; no fresh upsert fired.
         assert state.get("vep_bundle_version") == "v1.0.0"
         assert "annotation_bundle_coverage_json" not in state
+        assert CYP2C9_PHENYTOIN_REANALYSIS_STATE_KEY in state
 
         # Job itself still marks complete — analysis is best-effort (Plan §7.3).
         with registry.reference_engine.connect() as conn:
             row = conn.execute(sa.select(jobs).where(jobs.c.job_id == job_id)).fetchone()
         assert row.status == "complete"
+
+    def test_pharmacogenomics_module_error_preserves_reanalysis_marker(
+        self,
+        annotation_env: dict,
+    ) -> None:
+        from backend.annotation.engine import AnnotationEngineResult
+        from backend.db.connection import get_registry
+
+        registry = get_registry()
+        sample_db = registry.settings.data_dir / "samples" / "sample_1.db"
+        with registry.get_sample_engine(sample_db).begin() as conn:
+            conn.execute(
+                annotation_state.insert(),
+                {
+                    "key": CYP2C9_PHENYTOIN_REANALYSIS_STATE_KEY,
+                    "value": json.dumps({"prompted": True}),
+                },
+            )
+
+        self._run_task_with_result(
+            annotation_env["sample_id"],
+            AnnotationEngineResult(coverage_stats={"bundle_version": "v1.0.0"}),
+            analysis_results={"pharmacogenomics": "error"},
+        )
+
+        state = self._read_state(annotation_env)
+        assert CYP2C9_PHENYTOIN_REANALYSIS_STATE_KEY in state
 
     @pytest.mark.slow
     def test_two_phase_sse_progress_messages(self, annotation_env: dict) -> None:

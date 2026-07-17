@@ -19,6 +19,7 @@ Scheduler behaviour (§2.20):
 from __future__ import annotations
 
 import gzip
+import hashlib
 import json
 import shutil
 import time
@@ -1707,10 +1708,11 @@ def run_precheck_all_samples(
                     watched_details=pre_check.watched_reclassified,
                 )
             if pre_check.stale_databases:
-                _create_version_staleness_prompt(
+                create_version_staleness_prompt(
                     engine,
                     sample_id=sample_row.id,
                     stale_databases=pre_check.stale_databases,
+                    preserve_active_cyp2c9_phenytoin_correction=True,
                 )
         except Exception as exc:
             logger.warning(
@@ -1742,90 +1744,60 @@ def _create_reannotation_prompt(
     watched-variant callout (P4-21i).
     """
     details_json = json.dumps(watched_details or [])
-    with engine.begin() as conn:
-        # Check for existing undismissed prompt
-        existing = conn.execute(
-            sa.select(reannotation_prompts.c.id).where(
-                reannotation_prompts.c.sample_id == sample_id,
-                reannotation_prompts.c.db_name == db_name,
-                reannotation_prompts.c.prompt_type == "reclassification",
-                reannotation_prompts.c.dismissed == sa.false(),
-            )
-        ).fetchone()
+    with engine.connect() as conn:
+        conn.exec_driver_sql("BEGIN IMMEDIATE")
+        try:
+            if (
+                conn.execute(
+                    sa.select(samples.c.id).where(samples.c.id == sample_id)
+                ).scalar_one_or_none()
+                is None
+            ):
+                conn.rollback()
+                return
 
-        if existing:
-            conn.execute(
-                reannotation_prompts.update()
-                .where(reannotation_prompts.c.id == existing.id)
-                .values(
-                    db_version=db_version,
-                    candidate_count=candidate_count,
-                    watched_count=watched_count,
-                    watched_details=details_json,
-                    prompt_type="reclassification",
-                    stale_databases="[]",
-                    created_at=datetime.now(UTC),
+            # Check for existing undismissed prompt
+            existing = conn.execute(
+                sa.select(reannotation_prompts.c.id).where(
+                    reannotation_prompts.c.sample_id == sample_id,
+                    reannotation_prompts.c.db_name == db_name,
+                    reannotation_prompts.c.prompt_type == "reclassification",
+                    reannotation_prompts.c.dismissed == sa.false(),
                 )
-            )
-        else:
-            conn.execute(
-                reannotation_prompts.insert().values(
-                    sample_id=sample_id,
-                    db_name=db_name,
-                    db_version=db_version,
-                    candidate_count=candidate_count,
-                    watched_count=watched_count,
-                    watched_details=details_json,
-                    prompt_type="reclassification",
-                    stale_databases="[]",
-                    dismissed=False,
+            ).fetchone()
+
+            if existing:
+                conn.execute(
+                    reannotation_prompts.update()
+                    .where(reannotation_prompts.c.id == existing.id)
+                    .values(
+                        db_version=db_version,
+                        candidate_count=candidate_count,
+                        watched_count=watched_count,
+                        watched_details=details_json,
+                        prompt_type="reclassification",
+                        stale_databases="[]",
+                        created_at=datetime.now(UTC),
+                    )
                 )
-            )
-
-
-def _create_version_staleness_prompt(
-    engine: Engine,
-    *,
-    sample_id: int,
-    stale_databases: list[dict],
-) -> None:
-    """Create/update the neutral per-sample reference-version staleness prompt."""
-    if not stale_databases:
-        return
-    details_json = json.dumps(stale_databases)
-    with engine.begin() as conn:
-        existing = conn.execute(
-            sa.select(reannotation_prompts.c.id).where(
-                reannotation_prompts.c.sample_id == sample_id,
-                reannotation_prompts.c.prompt_type == "version_staleness",
-                reannotation_prompts.c.dismissed == sa.false(),
-            )
-        ).fetchone()
-
-        values = {
-            "db_name": "reference_data",
-            "db_version": "multiple",
-            "candidate_count": 0,
-            "watched_count": 0,
-            "watched_details": "[]",
-            "prompt_type": "version_staleness",
-            "stale_databases": details_json,
-            "created_at": datetime.now(UTC),
-        }
-        if existing:
-            conn.execute(
-                reannotation_prompts.update()
-                .where(reannotation_prompts.c.id == existing.id)
-                .values(**values)
-            )
-        else:
-            conn.execute(
-                reannotation_prompts.insert().values(
-                    sample_id=sample_id,
-                    dismissed=False,
-                    **values,
+            else:
+                conn.execute(
+                    reannotation_prompts.insert().values(
+                        sample_id=sample_id,
+                        db_name=db_name,
+                        db_version=db_version,
+                        candidate_count=candidate_count,
+                        watched_count=watched_count,
+                        watched_details=details_json,
+                        prompt_type="reclassification",
+                        stale_databases="[]",
+                        dismissed=False,
+                    )
                 )
-            )
+            conn.commit()
+        except BaseException:
+            conn.rollback()
+            raise
 
 
 def _safe_parse_json_list(value: str | None) -> list:
@@ -1837,6 +1809,366 @@ def _safe_parse_json_list(value: str | None) -> list:
         return result if isinstance(result, list) else []
     except (json.JSONDecodeError, TypeError):
         return []
+
+
+def _preserve_cyp2c9_phenytoin_correction(
+    stale_databases: list[dict],
+    existing_stale_databases_json: str | None,
+) -> list[dict]:
+    """Keep the active v21 correction while replacing ordinary stale versions."""
+    from backend.db.sample_schema import CYP2C9_PHENYTOIN_LEGACY_GUIDANCE_VERSION
+
+    correction = next(
+        (
+            item
+            for item in _safe_parse_json_list(existing_stale_databases_json)
+            if isinstance(item, dict)
+            and item.get("db_name") == "cpic"
+            and item.get("recorded_version") == CYP2C9_PHENYTOIN_LEGACY_GUIDANCE_VERSION
+        ),
+        None,
+    )
+    if correction is None:
+        return stale_databases
+    return [
+        item
+        for item in stale_databases
+        if not (isinstance(item, dict) and item.get("db_name") == "cpic")
+    ] + [correction]
+
+
+def _sample_file_fingerprint(
+    sample_filename: str,
+    samples_root: Path,
+) -> tuple[int, int, int, int] | None:
+    """Return one canonical sample file's identity without accepting a raw path."""
+    try:
+        filename_path = Path(sample_filename)
+        if (
+            filename_path.name != sample_filename
+            or filename_path.suffix != ".db"
+            or sample_filename in {".db", "..db"}
+        ):
+            return None
+        resolved_root = samples_root.resolve()
+        canonical_path = resolved_root / sample_filename
+        resolved_path = canonical_path.resolve(strict=True)
+        if resolved_path != canonical_path:
+            return None
+        stat = resolved_path.stat()
+    except (FileNotFoundError, OSError, RuntimeError, ValueError):
+        return None
+    return (stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns)
+
+
+def _merge_stale_databases_by_name(
+    stale_databases: list[dict],
+    existing_stale_databases_json: str | None,
+) -> list[dict]:
+    """Merge incoming entries into the active list, keyed by database name."""
+    stale_by_database = {
+        item["db_name"]: item
+        for item in _safe_parse_json_list(existing_stale_databases_json)
+        if isinstance(item, dict) and isinstance(item.get("db_name"), str)
+    }
+    stale_by_database.update(
+        {
+            item["db_name"]: item
+            for item in stale_databases
+            if isinstance(item, dict) and isinstance(item.get("db_name"), str)
+        }
+    )
+    return list(stale_by_database.values())
+
+
+def _sample_prompt_identity_sha256(
+    *,
+    db_path: str,
+    file_format: str | None,
+    file_hash: str | None,
+    created_at: datetime | None,
+) -> str:
+    """Build an opaque stable identity for correction-prompt acknowledgments."""
+    payload = {
+        "created_at": created_at.isoformat() if created_at is not None else None,
+        "db_path": db_path,
+        "file_format": file_format,
+        "file_hash": file_hash,
+    }
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def publish_cyp2c9_phenytoin_reanalysis_prompt(
+    engine: Engine,
+    *,
+    sample_id: int,
+    expected_db_path: str,
+    expected_file_format: str | None,
+    expected_file_hash: str | None,
+    expected_created_at: datetime | None,
+    sample_filename: str,
+    samples_root: Path,
+    expected_file_fingerprint: tuple[int, int, int, int],
+) -> bool:
+    """Atomically validate sample ownership and publish/acknowledge the v21 prompt."""
+    from backend.db.sample_schema import (
+        CYP2C9_PHENYTOIN_BUNDLED_GUIDANCE_VERSION,
+        CYP2C9_PHENYTOIN_LEGACY_GUIDANCE_VERSION,
+    )
+
+    with engine.connect() as conn:
+        conn.exec_driver_sql("BEGIN IMMEDIATE")
+        try:
+            sample_row = conn.execute(
+                sa.select(
+                    samples.c.db_path,
+                    samples.c.file_format,
+                    samples.c.file_hash,
+                    samples.c.created_at,
+                ).where(samples.c.id == sample_id)
+            ).fetchone()
+            if (
+                sample_row is None
+                or sample_row.db_path != expected_db_path
+                or sample_row.file_format != expected_file_format
+                or sample_row.file_hash != expected_file_hash
+                or sample_row.created_at != expected_created_at
+                or Path(expected_db_path).name != sample_filename
+                or _sample_file_fingerprint(sample_filename, samples_root)
+                != expected_file_fingerprint
+            ):
+                conn.rollback()
+                return False
+
+            sample_identity_sha256 = _sample_prompt_identity_sha256(
+                db_path=sample_row.db_path,
+                file_format=sample_row.file_format,
+                file_hash=sample_row.file_hash,
+                created_at=sample_row.created_at,
+            )
+            prompt_rows = conn.execute(
+                sa.select(
+                    reannotation_prompts.c.id,
+                    reannotation_prompts.c.stale_databases,
+                    reannotation_prompts.c.dismissed,
+                ).where(
+                    reannotation_prompts.c.sample_id == sample_id,
+                    reannotation_prompts.c.prompt_type == "version_staleness",
+                )
+            ).fetchall()
+            matching_prompt_exists = any(
+                any(
+                    isinstance(item, dict)
+                    and item.get("db_name") == "cpic"
+                    and item.get("recorded_version") == CYP2C9_PHENYTOIN_LEGACY_GUIDANCE_VERSION
+                    and item.get("sample_identity_sha256") == sample_identity_sha256
+                    for item in _safe_parse_json_list(prompt_row.stale_databases)
+                )
+                for prompt_row in prompt_rows
+            )
+            if matching_prompt_exists:
+                conn.commit()
+                return True
+
+            current_cpic_version = conn.execute(
+                sa.select(database_versions.c.version).where(database_versions.c.db_name == "cpic")
+            ).scalar_one_or_none()
+            correction = {
+                "db_name": "cpic",
+                "recorded_version": CYP2C9_PHENYTOIN_LEGACY_GUIDANCE_VERSION,
+                "current_version": (
+                    current_cpic_version or CYP2C9_PHENYTOIN_BUNDLED_GUIDANCE_VERSION
+                ),
+                "sample_identity_sha256": sample_identity_sha256,
+            }
+            active_prompt = next((row for row in prompt_rows if not row.dismissed), None)
+            stale_databases = [correction]
+            if active_prompt is not None:
+                stale_databases = _merge_stale_databases_by_name(
+                    [correction],
+                    active_prompt.stale_databases,
+                )
+
+            values = {
+                "db_name": "reference_data",
+                "db_version": "multiple",
+                "candidate_count": 0,
+                "watched_count": 0,
+                "watched_details": "[]",
+                "prompt_type": "version_staleness",
+                "stale_databases": json.dumps(stale_databases),
+                "created_at": datetime.now(UTC),
+            }
+            if active_prompt is not None:
+                conn.execute(
+                    reannotation_prompts.update()
+                    .where(reannotation_prompts.c.id == active_prompt.id)
+                    .values(**values)
+                )
+            else:
+                conn.execute(
+                    reannotation_prompts.insert().values(
+                        sample_id=sample_id,
+                        dismissed=False,
+                        **values,
+                    )
+                )
+            conn.commit()
+            return True
+        except BaseException:
+            conn.rollback()
+            raise
+
+
+def retract_cyp2c9_phenytoin_reanalysis_prompt(
+    engine: Engine,
+    *,
+    sample_id: int,
+    expected_db_path: str,
+    expected_file_format: str | None,
+    expected_file_hash: str | None,
+    expected_created_at: datetime | None,
+) -> None:
+    """Remove only this sample identity's active CYP2C9 correction item.
+
+    The local v21 marker is authoritative. If annotation deletes it while a
+    synchronizer is publishing the central prompt, the opaque identity hash
+    lets cleanup remove the old correction without touching ordinary staleness
+    entries or a replacement sample that later reuses the same numeric ID.
+    """
+    from backend.db.sample_schema import CYP2C9_PHENYTOIN_LEGACY_GUIDANCE_VERSION
+
+    sample_identity_sha256 = _sample_prompt_identity_sha256(
+        db_path=expected_db_path,
+        file_format=expected_file_format,
+        file_hash=expected_file_hash,
+        created_at=expected_created_at,
+    )
+    with engine.connect() as conn:
+        conn.exec_driver_sql("BEGIN IMMEDIATE")
+        try:
+            prompt_rows = conn.execute(
+                sa.select(
+                    reannotation_prompts.c.id,
+                    reannotation_prompts.c.stale_databases,
+                ).where(
+                    reannotation_prompts.c.sample_id == sample_id,
+                    reannotation_prompts.c.prompt_type == "version_staleness",
+                    reannotation_prompts.c.dismissed == sa.false(),
+                )
+            ).fetchall()
+            for prompt_row in prompt_rows:
+                stale_databases = _safe_parse_json_list(prompt_row.stale_databases)
+                retained = [
+                    item
+                    for item in stale_databases
+                    if not (
+                        isinstance(item, dict)
+                        and item.get("db_name") == "cpic"
+                        and item.get("recorded_version")
+                        == CYP2C9_PHENYTOIN_LEGACY_GUIDANCE_VERSION
+                        and item.get("sample_identity_sha256") == sample_identity_sha256
+                    )
+                ]
+                if len(retained) == len(stale_databases):
+                    continue
+                if retained:
+                    conn.execute(
+                        reannotation_prompts.update()
+                        .where(reannotation_prompts.c.id == prompt_row.id)
+                        .values(stale_databases=json.dumps(retained))
+                    )
+                else:
+                    conn.execute(
+                        reannotation_prompts.delete().where(
+                            reannotation_prompts.c.id == prompt_row.id
+                        )
+                    )
+            conn.commit()
+        except BaseException:
+            conn.rollback()
+            raise
+
+
+def create_version_staleness_prompt(
+    engine: Engine,
+    *,
+    sample_id: int,
+    stale_databases: list[dict],
+    preserve_active_cyp2c9_phenytoin_correction: bool = False,
+) -> None:
+    """Create/update the neutral per-sample reference-version staleness prompt.
+
+    Routine reference prechecks replace their ordinary database-version list,
+    but must retain an active v21 CYP2C9/phenytoin correction until the user
+    acknowledges it. The merge happens in the same transaction as the prompt
+    update so a concurrent precheck cannot overwrite that safety notice.
+    """
+    if not stale_databases:
+        return
+    # sqlite3's legacy transaction mode does not begin a transaction for the
+    # SELECT below. Reserve the write lock first so both merge directions read
+    # the exact active list they subsequently replace.
+    with engine.connect() as conn:
+        conn.exec_driver_sql("BEGIN IMMEDIATE")
+        try:
+            if (
+                conn.execute(
+                    sa.select(samples.c.id).where(samples.c.id == sample_id)
+                ).scalar_one_or_none()
+                is None
+            ):
+                conn.rollback()
+                return
+
+            existing = conn.execute(
+                sa.select(
+                    reannotation_prompts.c.id,
+                    reannotation_prompts.c.stale_databases,
+                ).where(
+                    reannotation_prompts.c.sample_id == sample_id,
+                    reannotation_prompts.c.prompt_type == "version_staleness",
+                    reannotation_prompts.c.dismissed == sa.false(),
+                )
+            ).fetchone()
+
+            prompt_stale_databases = stale_databases
+            if existing and preserve_active_cyp2c9_phenytoin_correction:
+                prompt_stale_databases = _preserve_cyp2c9_phenytoin_correction(
+                    stale_databases,
+                    existing.stale_databases,
+                )
+            details_json = json.dumps(prompt_stale_databases)
+
+            values = {
+                "db_name": "reference_data",
+                "db_version": "multiple",
+                "candidate_count": 0,
+                "watched_count": 0,
+                "watched_details": "[]",
+                "prompt_type": "version_staleness",
+                "stale_databases": details_json,
+                "created_at": datetime.now(UTC),
+            }
+            if existing:
+                conn.execute(
+                    reannotation_prompts.update()
+                    .where(reannotation_prompts.c.id == existing.id)
+                    .values(**values)
+                )
+            else:
+                conn.execute(
+                    reannotation_prompts.insert().values(
+                        sample_id=sample_id,
+                        dismissed=False,
+                        **values,
+                    )
+                )
+            conn.commit()
+        except BaseException:
+            conn.rollback()
+            raise
 
 
 def get_active_prompts(

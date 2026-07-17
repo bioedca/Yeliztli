@@ -29,7 +29,7 @@ from typing import TYPE_CHECKING
 
 import sqlalchemy as sa
 
-from backend.db.tables import merge_provenance, samples
+from backend.db.tables import merge_provenance, reannotation_prompts, samples
 
 if TYPE_CHECKING:
     from backend.db.connection import DBRegistry
@@ -146,6 +146,18 @@ def _delete_sample_files(registry: DBRegistry, db_path: str | None) -> None:
     Path(f"{sample_db_path}-shm").unlink(missing_ok=True)
 
 
+def _delete_sample_reference_rows(conn: sa.Connection, sample_id: int) -> None:
+    """Delete sample-owned central state before its reusable registry ID."""
+    # A partially upgraded registry can predate the prompt table. Absence means
+    # there is no prompt state to orphan; real delete/lock failures still raise
+    # and roll back with the sample-row deletion below.
+    if sa.inspect(conn).has_table(reannotation_prompts.name):
+        conn.execute(
+            reannotation_prompts.delete().where(reannotation_prompts.c.sample_id == sample_id)
+        )
+    conn.execute(samples.delete().where(samples.c.id == sample_id))
+
+
 def delete_sample_with_cascade(registry: DBRegistry, sample_id: int) -> DeleteCascadeResult | None:
     """Delete ``sample_id`` and every merged child that referenced it.
 
@@ -176,11 +188,11 @@ def delete_sample_with_cascade(registry: DBRegistry, sample_id: int) -> DeleteCa
         if child_row is not None:
             _delete_sample_files(registry, child_row.db_path)
         with registry.reference_engine.begin() as conn:
-            conn.execute(samples.delete().where(samples.c.id == child.id))
+            _delete_sample_reference_rows(conn, child.id)
 
     _delete_sample_files(registry, row.db_path)
     with registry.reference_engine.begin() as conn:
-        conn.execute(samples.delete().where(samples.c.id == sample_id))
+        _delete_sample_reference_rows(conn, sample_id)
 
     logger.info(
         "sample_delete_cascade",

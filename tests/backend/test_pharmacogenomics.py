@@ -1292,6 +1292,65 @@ class TestFetchGuidelinesForGenePhenotype:
         assert results[0]["drug"] == "clopidogrel"
         assert results[0]["classification"] == "A"
 
+    def test_activity_score_precedence_is_per_drug_and_preserves_duplicates(
+        self, pgx_reference_engine: sa.Engine
+    ):
+        rows = [
+            {
+                "gene": "TEST",
+                "drug": "exact-drug",
+                "phenotype": "Intermediate Metabolizer",
+                "activity_score": None,
+                "recommendation": "generic exact-drug fallback",
+            },
+            {
+                "gene": "TEST",
+                "drug": "exact-drug",
+                "phenotype": "Intermediate Metabolizer",
+                "activity_score": 1.5,
+                "recommendation": "exact row one",
+            },
+            {
+                "gene": "TEST",
+                "drug": "exact-drug",
+                "phenotype": "Intermediate Metabolizer",
+                "activity_score": 1.5,
+                "recommendation": "exact row two",
+            },
+            {
+                "gene": "TEST",
+                "drug": "generic-drug",
+                "phenotype": "Intermediate Metabolizer",
+                "activity_score": None,
+                "recommendation": "generic other-drug fallback",
+            },
+        ]
+        with pgx_reference_engine.begin() as conn:
+            conn.execute(cpic_guidelines.insert(), rows)
+
+        exact = _fetch_guidelines_for_gene_phenotype(
+            "TEST",
+            "Intermediate Metabolizer",
+            pgx_reference_engine,
+            activity_score=1.5,
+        )
+        assert [(row["drug"], row["recommendation"]) for row in exact] == [
+            ("exact-drug", "exact row one"),
+            ("exact-drug", "exact row two"),
+            ("generic-drug", "generic other-drug fallback"),
+        ]
+
+        fallback = _fetch_guidelines_for_gene_phenotype(
+            "TEST",
+            "Intermediate Metabolizer",
+            pgx_reference_engine,
+            activity_score=1.0,
+        )
+        assert [(row["drug"], row["recommendation"]) for row in fallback] == [
+            ("exact-drug", "generic exact-drug fallback"),
+            ("generic-drug", "generic other-drug fallback"),
+        ]
+
     def test_no_match_returns_empty(self, pgx_reference_engine: sa.Engine):
         results = _fetch_guidelines_for_gene_phenotype(
             "CYP2D6", "Nonexistent Phenotype", pgx_reference_engine
