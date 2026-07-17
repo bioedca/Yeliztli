@@ -1,0 +1,18 @@
+# Issue-template chooser configuration.
+# Rationale (INTERSECT Issue-Tracking): the chooser is a triage gate — it forces every
+# report through a structured form and routes non-actionable traffic (usage questions,
+# ideas, security reports) off the issue tracker so the tracker stays a list of real work.
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 Community Q&A / usage help
+    url: https://github.com/bioedca/Yeliztli/discussions/categories/q-a
+    about: Ask usage and how-to questions here. Keep the issue tracker for actionable bugs and features.
+  - name: 💡 Ideas & design discussion
+    url: https://github.com/bioedca/Yeliztli/discussions/categories/ideas
+    about: Float an idea or design direction that isn't yet a concrete, actionable proposal.
+  - name: 📖 Documentation site
+    url: https://bioedca.github.io/Yeliztli/
+    about: Install, module reference, and developer guides — check here before filing.
+  - name: 🔒 Report a security vulnerability (privately)
+    url: https://github.com/bioedca/Yeliztli/security/advisories/new
+    about: Do NOT open a public issue for vulnerabilities. Report privately here — see SECURITY.md.

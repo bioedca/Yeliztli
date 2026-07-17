@@ -1,0 +1,32 @@
+name: 🧭 Design proposal / discussion
+description: Propose a design or architectural direction that needs a decision before implementation.
+title: "[Design]: "
+labels: ["discussion", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this to settle a design question **before** code is written, so the decision is recorded and
+        doesn't stall or fork. For open-ended brainstorming that isn't yet a concrete proposal, prefer the
+        [Ideas discussion category](https://github.com/bioedca/Yeliztli/discussions/categories/ideas).
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: A clear description of the design question or the proposal.
+    validations:
+      required: true
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation
+      description: Why does this matter? What problem or use case does it address, and what happens if we don't decide?
+    validations:
+      required: true
+  - type: textarea
+    id: options
+    attributes:
+      label: Options considered
+      description: The alternatives on the table, with trade-offs (correctness, complexity, maintainability, technical debt).
+    validations:
+      required: false

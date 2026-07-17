@@ -1,0 +1,49 @@
+name: ✨ Feature request
+description: Suggest a new capability or an enhancement to an existing one.
+title: "[Feature]: "
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A good feature request states **what** you want, **why** it matters, and what **alternatives**
+        you considered. The "why" is what makes it evaluable and prioritizable — please don't skip it.
+  - type: textarea
+    id: what
+    attributes:
+      label: What
+      description: What do you want to be able to do? The user-story form helps — "As a ROLE, I want to GOAL, so that IMPACT."
+      placeholder: "As someone reviewing my PGx results, I want a per-row 'watch' toggle in the Variant Explorer so that I can flag variants to revisit."
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why / motivation
+      description: What problem or use case does this address? Who benefits, and how?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other ways to solve this, and why they fall short. "None yet" is a fine answer.
+    validations:
+      required: false
+  - type: textarea
+    id: non-functional
+    attributes:
+      label: Non-functional needs (optional)
+      description: Any performance, robustness, privacy, or accessibility requirements this must meet.
+      placeholder: "Must not add outbound network calls; the platform runs entirely on localhost with no variant data leaving the machine."
+    validations:
+      required: false
+  - type: checkboxes
+    id: hygiene
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and discussions and this isn't a duplicate.
+          required: true
+        - label: This is one cohesive request (not several features bundled together).
+          required: true

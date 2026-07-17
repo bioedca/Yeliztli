@@ -1,0 +1,33 @@
+name: 📖 Documentation issue
+description: Report something wrong, missing, or unclear in the docs (site, README, or in-app text).
+title: "[Docs]: "
+labels: ["documentation", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Docs issues are welcome — including in-app text that reads as a data error or contradicts what a
+        page says. If the wording states a **scientific fact**, please cite the correct source so the fix
+        carries evidence (or use the 🧬 Scientific validity form instead).
+  - type: input
+    id: where
+    attributes:
+      label: Where
+      description: The page URL, file path, or in-app screen/label.
+      placeholder: "https://bioedca.github.io/Yeliztli/modules/pharmacogenomics/  —  or docs/modules/pharmacogenomics.md"
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What's wrong or missing
+      description: Quote the current text if you can, and say what's incorrect, unclear, or absent.
+    validations:
+      required: true
+  - type: textarea
+    id: correct
+    attributes:
+      label: Suggested correction + source
+      description: What it should say. If it's a factual claim, give the authoritative source / PMID / DOI.
+    validations:
+      required: false

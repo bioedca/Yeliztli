@@ -1,0 +1,148 @@
+name: 🧬 Scientific validity
+description: Report a science/data defect — a wrong allele, strand, effect direction, frequency, threshold, or citation.
+title: "[Sci]: "
+labels: ["scientific-validity", "needs-triage", "evidence-cited"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this for anything whose correctness rests on a **biological, statistical, or clinical fact**
+        (allele definitions, strand, effect direction, population frequencies, metabolizer calls, clinical
+        thresholds, panel/PRS composition, citations).
+
+        This project's rule: a science claim must be **verified against the literature / an authoritative
+        source before it is encoded**, and it must **carry a real citation**. High-stakes claims
+        (allele direction/strand, risk-allele identity, PGx metabolizer call, a shipped clinical threshold)
+        need **≥2 independent, agreeing sources**; on disagreement, we **withhold and flag** rather than pick a side.
+        Please supply that evidence below so the fix is defensible.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary of the defect
+      description: What is scientifically wrong, and what should it be?
+      placeholder: "The bundled DPYD panel omits c.557A>G (rs115232898), a CPIC decreased-function allele, so African-ancestry DPD-deficiency carriers are called Normal Metabolizer."
+    validations:
+      required: true
+  - type: input
+    id: location
+    attributes:
+      label: Location of the defect
+      description: Exact repo path(s) — data file, panel JSON, fixture, or module.
+      placeholder: "backend/data/cpic/cpic_alleles.csv"
+    validations:
+      required: true
+  - type: textarea
+    id: identifiers
+    attributes:
+      label: Variant / entity identifiers
+      description: rsID, gene symbol, HGVS (c./p.), star-allele, trait/drug, and/or PGS/model ID.
+      placeholder: |
+        - rsID: rs115232898
+        - Gene: DPYD
+        - HGVS: c.557A>G (p.Tyr186Cys)
+    validations:
+      required: true
+  - type: textarea
+    id: build-strand
+    attributes:
+      label: Genome build, coordinates & strand
+      description: This repo is **GRCh37**, and defining alleles are recorded on the **plus strand** (alt = defining base). Give build, chr:pos, strand, ref/alt. Flag any build mismatch (a GRCh38 coordinate in a GRCh37 context is a defect).
+      value: |
+        - Build: GRCh37
+        - chr:pos:
+        - Strand: (plus / coding-minus)
+        - ref/alt:
+    validations:
+      required: true
+  - type: textarea
+    id: effect
+    attributes:
+      label: Effect direction & magnitude
+      description: Risk (effect) allele vs. non-effect allele; OR/beta; or CPIC function label + activity value. State the current (wrong) value and the correct one.
+      placeholder: |
+        Current: (allele absent → Normal Metabolizer)
+        Correct: c.557A>G = Decreased function, activity value 0.5 (CPIC)
+    validations:
+      required: true
+  - type: textarea
+    id: population
+    attributes:
+      label: Population / ancestry relevance
+      description: gnomAD or other frequencies, minor allele, and any ancestry-equity impact.
+      placeholder: "Enriched in African ancestry (gnomAD AFR ~0.3–1%); omission systematically under-calls this group."
+    validations:
+      required: false
+  - type: textarea
+    id: sources
+    attributes:
+      label: Authoritative source(s) + accessed date
+      description: The authoritative data source(s) that establish the correct value, each with an accessed date. e.g. CPIC API, GWAS Catalog, Ensembl GRCh37 REST, gnomAD, dbSNP, ClinVar, PharmGKB, PGS Catalog.
+      placeholder: "CPIC API — api.cpicpgx.org/v1/allele?genesymbol=eq.DPYD lists c.557A>G as Decreased function, activity 0.5 (accessed 2026-07-16)"
+    validations:
+      required: true
+  - type: textarea
+    id: literature
+    attributes:
+      label: Primary literature (PMID / DOI)
+      description: The defining paper(s) with PMID and/or DOI, plus sample size where relevant. For high-stakes claims, give ≥2 independent agreeing sources.
+      placeholder: |
+        - PMID:29152729 / DOI:10.1002/cpt.911 — CPIC DPYD guideline
+    validations:
+      required: true
+  - type: textarea
+    id: cross-check
+    attributes:
+      label: Internal cross-check
+      description: Does the repo's own curated data contradict itself (e.g. a panel JSON that disagrees with a fixture)? This is often the most decisive evidence.
+      placeholder: "gene_health_panel.json records risk=C for rs13266634 while the GWAS seed CSV sets risk_allele=T."
+    validations:
+      required: false
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      description: How wrong is the user-facing output today? (Inline-justify in the summary.)
+      options:
+        - "low — cosmetic / provenance only, no wrong call"
+        - "medium — wrong reference biology in shipped data/fixtures, but no wrong user-facing clinical call today (gated/withheld/test-only)"
+        - "high — a wrong user-facing clinical/risk call is emitted"
+        - "critical — wrong high-stakes call shipped to users, must fix before any release"
+    validations:
+      required: true
+  - type: textarea
+    id: must-verify
+    attributes:
+      label: Before implementing — must verify (data-gap rule)
+      description: What a fixer must confirm before encoding — so the fix doesn't introduce a new defect. Do NOT fabricate/stub/placeholder data; source it or withhold.
+      value: |
+        - [ ] Array typability — is the variant directly typed on 23andMe / AncestryDNA arrays (or is it imputation-only)?
+        - [ ] Strand — pin the GRCh37 plus-strand ref/alt against Ensembl/dbSNP.
+        - [ ] Diplotype/expansion impact — which calls change?
+        - [ ] Coverage lock — name the guard/regression test(s) that must be added or updated.
+    validations:
+      required: false
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Suggested acceptance criteria + regression test
+      description: What "done" looks like, and the named test that locks it so it can't silently regress.
+      placeholder: "Accept: c.557A>G present with activity 0.5; add test_dpyd_c557ag_decreased_function to tests/backend/…"
+    validations:
+      required: false
+  - type: textarea
+    id: evidence-artifacts
+    attributes:
+      label: Evidence artifacts & retraction check
+      description: Where raw payloads are saved (gitignored data/science-evidence/<DATE-slug>/), which evidence tools were used (and any quota fallback), and confirmation of a retraction/erratum check.
+      placeholder: "Payloads in data/science-evidence/2026-07-17-dpyd-c557ag/. Consensus + PubMed agree; no retraction found."
+    validations:
+      required: false
+  - type: checkboxes
+    id: hygiene
+    attributes:
+      label: Before submitting
+      options:
+        - label: I verified the correct value against an authoritative source (not memory), and cited it above.
+          required: true
+        - label: For a high-stakes claim, I gave ≥2 independent agreeing sources (or flagged that I couldn't).
+          required: false
