@@ -82,6 +82,7 @@ REFERENCE_SEEDED_TABLES: dict[str, list[tuple[str, str]]] = {
         ("gene", "TEXT NOT NULL"),
         ("drug", "TEXT NOT NULL"),
         ("phenotype", "TEXT NOT NULL"),
+        ("activity_score", "REAL"),
         ("recommendation", "TEXT"),
         ("classification", "TEXT"),
         ("guideline_url", "TEXT"),

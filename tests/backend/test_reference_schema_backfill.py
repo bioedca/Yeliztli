@@ -205,3 +205,54 @@ def test_downloads_validator_backfill_idempotent(tmp_path: Path) -> None:
 
     assert ensure_reference_schema_current(engine) is True
     assert ensure_reference_schema_current(engine) is False
+
+
+def _make_pre_as_cpic_guidelines(engine: sa.Engine) -> None:
+    """Create a ``cpic_guidelines`` table lacking ``activity_score`` (pre-#1993)."""
+    with engine.begin() as conn:
+        conn.execute(
+            sa.text(
+                "CREATE TABLE cpic_guidelines ("
+                "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                "  gene TEXT NOT NULL,"
+                "  drug TEXT NOT NULL,"
+                "  phenotype TEXT NOT NULL,"
+                "  recommendation TEXT,"
+                "  classification TEXT,"
+                "  guideline_url TEXT"
+                ")"
+            )
+        )
+        conn.execute(
+            sa.text(
+                "INSERT INTO cpic_guidelines (gene, drug, phenotype, recommendation) "
+                "VALUES ('DPYD', 'fluorouracil', 'Poor Metabolizer', 'Avoid.')"
+            )
+        )
+
+
+def test_backfills_missing_cpic_guidelines_activity_score(tmp_path: Path) -> None:
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'ref.db'}")
+    _make_pre_as_cpic_guidelines(engine)
+
+    assert "activity_score" not in _columns(engine, "cpic_guidelines")
+
+    changed = ensure_reference_schema_current(engine)
+
+    assert changed is True
+    assert "activity_score" in _columns(engine, "cpic_guidelines")
+    # The existing phenotype-keyed row survives and reads NULL for the new score,
+    # so the AS-aware guideline lookup (#1993) does not crash on a pre-#1993 DB.
+    with engine.connect() as conn:
+        row = conn.execute(
+            sa.text("SELECT phenotype, activity_score FROM cpic_guidelines LIMIT 1")
+        ).fetchone()
+    assert row == ("Poor Metabolizer", None)
+
+
+def test_cpic_guidelines_activity_score_backfill_idempotent(tmp_path: Path) -> None:
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'ref.db'}")
+    _make_pre_as_cpic_guidelines(engine)
+
+    assert ensure_reference_schema_current(engine) is True
+    assert ensure_reference_schema_current(engine) is False

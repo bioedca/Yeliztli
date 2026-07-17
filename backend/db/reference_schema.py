@@ -99,4 +99,22 @@ def ensure_reference_schema_current(engine: sa.Engine) -> bool:
                 column="validator",
             )
 
+    # ── cpic_guidelines.activity_score (#1993 — AS-keyed DPYD dosing)
+    # Nullable REAL so CPIC recommendations that split by gene activity score
+    # (DPYD fluoropyrimidines) can be keyed on the score. Existing rows and
+    # phenotype-keyed genes keep NULL; the guideline lookup falls back to the
+    # phenotype for NULL rows. A pre-#1993 reference.db that is not rebuilt from
+    # the bundled CSV still gets the column so the AS-aware query does not error.
+    if "cpic_guidelines" in table_names:
+        cg_cols = {c["name"] for c in inspector.get_columns("cpic_guidelines")}
+        if "activity_score" not in cg_cols:
+            with engine.begin() as conn:
+                conn.execute(sa.text("ALTER TABLE cpic_guidelines ADD COLUMN activity_score REAL"))
+            changed = True
+            logger.info(
+                "reference_schema_backfilled",
+                table="cpic_guidelines",
+                column="activity_score",
+            )
+
     return changed
