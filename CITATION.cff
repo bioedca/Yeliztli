@@ -1,0 +1,28 @@
+cff-version: 1.2.0
+message: "If you use Yeliztli in your work, please cite it as below."
+title: "Yeliztli: a privacy-first personal-genomics analysis platform"
+abstract: >-
+  Yeliztli is a local-only platform that annotates consumer genotyping-array raw
+  data (23andMe, AncestryDNA) against public clinical and population databases
+  and organises the results into focused analysis modules (pharmacogenomics,
+  ancestry, carrier status, hereditary-risk panels, wellness traits). It runs
+  entirely on the user's machine; genotypes are never uploaded. For research and
+  educational use only — not a clinical-grade test.
+type: software
+authors:
+  - family-names: Campos-Chavez
+    given-names: Eduardo
+    alias: bioedca
+repository-code: "https://github.com/bioedca/Yeliztli"
+url: "https://bioedca.github.io/Yeliztli/"
+license: MIT
+version: "0.2.0"
+keywords:
+  - genomics
+  - bioinformatics
+  - pharmacogenomics
+  - personal genomics
+  - variant annotation
+  - ancestry
+  - polygenic risk score
+  - privacy

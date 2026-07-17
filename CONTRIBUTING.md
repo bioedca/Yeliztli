@@ -1,9 +1,68 @@
 # Contributing
 
-This repository keeps a few conventions that make the test suite honest — a test
-should fail when the behavior it describes breaks. The most load-bearing
-conventions are below; see `docs/test-suite-audit-and-ci-tiering.md` and
-`docs/test-suite-debt-remediation-plan.md` for the history and rationale.
+Thanks for your interest in improving Yeliztli. Contributions of all kinds are
+welcome — code, documentation, triage, reproducing bugs, and scientific review.
+
+By participating you agree to abide by our [Code of Conduct](CODE_OF_CONDUCT.md).
+For help, see [SUPPORT.md](SUPPORT.md); to report a vulnerability, see
+[SECURITY.md](SECURITY.md); for roles and decision-making, see
+[GOVERNANCE.md](GOVERNANCE.md).
+
+## Ways to contribute
+
+- **Report a bug or request a feature** via the [issue templates](https://github.com/bioedca/Yeliztli/issues/new/choose).
+  One issue per problem, with enough detail to act on it without a follow-up.
+- **Ask a usage question** in [Discussions → Q&A](https://github.com/bioedca/Yeliztli/discussions/categories/q-a)
+  (not the issue tracker).
+- **Send a pull request** — see the workflow below. Good first tasks are labelled
+  [`good first issue`](https://github.com/bioedca/Yeliztli/labels/good%20first%20issue).
+
+## Contribution workflow
+
+1. **Set up** — see the [development setup guide](https://bioedca.github.io/Yeliztli/develop/development-setup/)
+   (Python 3.12+, Node 20+; `pip install -e ".[dev]"`, `make dev`).
+2. **Branch** — fork the repo and create a topic branch; never commit to `main`
+   directly. Keep each pull request to **one cohesive change** — if it does more
+   than one thing, split it, so it can be reviewed and reverted independently.
+3. **Open a PR** — the [pull-request template](.github/PULL_REQUEST_TEMPLATE.md)
+   guides you: link the issue (`Closes #123`), say what/how/**why**, and work the
+   Definition-of-Done checklist. Give the PR a specific, imperative title.
+4. **Pass the gates** — a change merges only after it passes the review gate
+   (below) **and all required CI checks are green**. CI's per-PR (Tier-1) gate is
+   the `ci-required` aggregate plus `lint` (Ruff, Vulture, ESLint, Knip),
+   `test-backend` (py3.12 + py3.13), `test-frontend`, `build-frontend`,
+   `smoke-install`, and `docs-build --strict`. Note that the end-to-end
+   (Playwright) and macOS legs are **Tier-2** — they run on merge to `main` and
+   nightly, **not** on your PR — so verify UI changes in a real browser before
+   merging.
+5. **Merge** — pull requests are **squash-merged**; the squashed subject stays
+   imperative and ends with `(#<PR number>)`.
+
+Issues are organised by a labelled taxonomy — see
+[Labels & triage](https://bioedca.github.io/Yeliztli/develop/labels-and-triage/).
+
+## The review gate
+
+Every change is reviewed before it merges — by someone other than the author.
+Automated review runs first and is not a substitute for human judgement:
+
+1. **CodeRabbit** — the primary automated reviewer on each PR.
+2. **GitHub Copilot code review** — an additional automated reviewer (where
+   enabled), which follows the repository's
+   [`.github/copilot-instructions.md`](.github/copilot-instructions.md).
+3. A maintainer reviews and approves. AI tools *draft* review and suggestions; a
+   **human owns the decision to merge** and is accountable for what lands.
+
+Feedback etiquette: criticise the code, not the coder; prefix optional nits with
+`Nit:`; explain the rationale for a suggestion; and let automated formatters
+settle style so review time goes to substance.
+
+## Developer Certificate of Origin
+
+Contributions are accepted under the [Developer Certificate of Origin](https://developercertificate.org/)
+rather than a CLA. By checking the DCO box in the pull-request template, you
+certify that the contribution is yours to submit and may be included under the
+project's [MIT license](LICENSE).
 
 ## Test assertion standards
 
