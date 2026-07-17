@@ -167,6 +167,7 @@ async function stubQueryBuilder(
     route.fulfill(jsonRoute({ queries: [] })),
   )
   await page.route(/\/api\/preferences\/theme$/, (route) => {
+    if (route.request().method() !== 'PUT') return route.fallback()
     const { theme } = route.request().postDataJSON() as { theme: string }
     return route.fulfill(jsonRoute({ theme }))
   })
@@ -187,6 +188,7 @@ async function stubQueryBuilder(
     return route.fulfill(jsonRoute(reply.payload, reply.status))
   })
   await page.route(/\/api\/export\/query$/, async (route) => {
+    if (route.request().method() !== 'POST') return route.fallback()
     const body = route.request().postDataJSON() as QueryBody
     exportBodies.push(body)
     if (exportResponder) {
