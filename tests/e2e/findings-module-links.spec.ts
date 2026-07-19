@@ -115,10 +115,14 @@ test.describe('All Findings module links resolve to the right page (#544)', () =
     await expect(page.getByText('Mt Rnr1', { exact: true })).toHaveCount(0)
     await expect(page.getByText('Apol1', { exact: true })).toHaveCount(0)
 
-    // No finding-row module link silently targets the Dashboard root.
-    const hrefs = await page.getByRole('link').evaluateAll((els) =>
-      els.map((e) => e.getAttribute('href')),
-    )
+    // No finding-row module link silently targets the Dashboard root. Scope the
+    // guard to FindingRow's explicit accessible-name contract so unrelated
+    // global navigation links can legitimately preserve the active sample.
+    const hrefs = await page
+      .getByRole('link', { name: /^View .+ module$/ })
+      .evaluateAll((els) =>
+        els.map((e) => e.getAttribute('href')),
+      )
     expect(hrefs).not.toContain('/?sample_id=1')
   })
 })
