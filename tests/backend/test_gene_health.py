@@ -222,6 +222,21 @@ class TestPanelLoading:
         assert "rs429358" not in rsids
         assert "rs34637584" not in rsids
 
+    def test_issue_1848_verified_trait_raising_alleles(self, panel: GeneHealthPanel) -> None:
+        """Keep the real panel directions after the GWAS test fixture became synthetic."""
+        expected = {
+            "rs13266634": "C",
+            "rs2476601": "A",
+            "rs3135388": "A",
+        }
+        actual = {
+            snp.rsid: snp.risk_allele
+            for pathway in panel.pathways
+            for snp in pathway.snps
+            if snp.rsid in expected
+        }
+        assert actual == expected
+
     def test_gba1_n370s_absent_to_match_parkinsons_suppression(self) -> None:
         """Gene Health must not independently report array-based GBA1 PD risk."""
         gene_health = json.loads(PANEL_PATH.read_text(encoding="utf-8"))

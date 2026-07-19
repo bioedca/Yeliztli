@@ -28,7 +28,7 @@ COORDINATE_GUARD_RSIDS = (
     "rs3135388",
 )
 
-# rs3135388 remains coordinate-guarded in the VEP, gnomAD, and GWAS fixtures,
+# rs3135388 remains coordinate-guarded in the VEP and gnomAD fixtures,
 # but #1968 withheld it from the ClinVar seed because it has no matching ClinVar
 # record.  Requiring it in ``clinvar_variants`` would force a fabricated accession.
 CLINVAR_COORDINATE_GUARD_RSIDS = tuple(
@@ -39,14 +39,14 @@ SEED_COORDINATE_TARGETS = {
     "clinvar_seed.csv": CLINVAR_COORDINATE_GUARD_RSIDS,
     "vep_seed.csv": COORDINATE_GUARD_RSIDS,
     "gnomad_seed.csv": COORDINATE_GUARD_RSIDS,
-    "gwas_seed.csv": COORDINATE_GUARD_RSIDS,
     "dbnsfp_seed.csv": ("rs6025", "rs13266634", "rs2476601"),
 }
+# The GWAS seed is deliberately absent: #1948/#2011 made it synthetic
+# rsID-membership data and require all coordinate/build metadata to stay null.
 
 MINI_DB_COORDINATE_TARGETS = {
     "mini_reference.db": {
         "clinvar_variants": CLINVAR_COORDINATE_GUARD_RSIDS,
-        "gwas_associations": COORDINATE_GUARD_RSIDS,
     },
     "mini_vep_bundle.db": {"vep_annotations": COORDINATE_GUARD_RSIDS},
     "mini_gnomad_af.db": {"gnomad_af": COORDINATE_GUARD_RSIDS},

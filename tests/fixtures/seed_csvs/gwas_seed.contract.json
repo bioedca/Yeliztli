@@ -1,0 +1,36 @@
+{
+  "contract_version": 1,
+  "fixture_model": "synthetic_rsid_membership",
+  "purpose": "Seed representative rsIDs into gwas_associations so integration tests can exercise GWAS presence matching.",
+  "consumer": "backend.annotation.gwas.gwas_matched_rsids",
+  "row_count": 65,
+  "membership_source": "All 65 distinct rsIDs from the legacy 77-row fixture at c40edae; duplicate association-shaped rows were collapsed because membership lookup is distinct by rsID.",
+  "rsid_set_sha256": "7a2d74e0049c4d02e6c04fb61133b94eb0acbade3b1e84410b3c08dea2634a19",
+  "populated_fields": [
+    "rsid",
+    "trait"
+  ],
+  "trait_sentinel": "Synthetic GWAS membership fixture",
+  "fields_must_be_empty": [
+    "chrom",
+    "pos",
+    "p_value",
+    "odds_ratio",
+    "beta",
+    "risk_allele",
+    "pubmed_id",
+    "study",
+    "sample_size"
+  ],
+  "scientific_association_claims": false,
+  "paper_provenance": false,
+  "field_contract": {
+    "rsid": "A real identifier retained only to overlap other integration fixtures; its presence here does not assert an association.",
+    "trait": "A fixed sentinel that makes the synthetic model visible in SQLite and satisfies the table's non-null constraint.",
+    "effect_metadata": "p_value, odds_ratio, beta, and risk_allele are empty. The fixture therefore makes no trait-raising, protective-effect, effect-allele, strand, or genome-build claim.",
+    "paper_metadata": "pubmed_id and study are empty. Synthetic values must never be presented as evidence-backed.",
+    "other_metadata": "chrom, pos, and sample_size are empty because presence matching does not consume them and fabricated values would look authoritative."
+  },
+  "production_data_model": "Real association metadata is loaded from the versioned GWAS Catalog source by backend.annotation.gwas; this fixture does not substitute for that source.",
+  "decision_record": "Issues #1948 and #2011"
+}
