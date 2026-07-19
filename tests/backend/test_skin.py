@@ -126,10 +126,10 @@ ALL_SKIN_VARIANTS = [
     ("rs1805007", "16", 89986117, "CT"),  # MC1R R151C het
     ("rs1805008", "16", 89986144, "CC"),  # MC1R R160W ref
     ("rs1805009", "16", 89986546, "GG"),  # MC1R D294H ref
-    ("rs885479", "16", 89919722, "GA"),  # MC1R R163Q het
+    ("rs885479", "16", 89986154, "GA"),  # MC1R R163Q het
     ("rs61816761", "1", 152285861, "GA"),  # FLG het
-    ("rs1695", "11", 67585218, "AG"),  # GSTP1 het
-    ("rs1799750", "11", 102799717, "DI"),  # MMP1 1G/2G het (23andMe I/D tokens, #610)
+    ("rs1695", "11", 67352689, "AG"),  # GSTP1 het
+    ("rs1799750", "11", 102670496, "DI"),  # MMP1 1G/2G het (23andMe I/D tokens, #610)
     ("rs4880", "6", 160113872, "CT"),  # SOD2 het
     ("rs2228570", "12", 48272895, "GA"),  # VDR FokI het
     ("rs1544410", "12", 48239835, "GA"),  # VDR BsmI het
@@ -295,7 +295,7 @@ class TestMMP1IndelScoring:
         """Scored I/D panel genotypes remain called in pathway coverage."""
         _seed_variants(
             sample_engine,
-            [("rs1799750", "11", 102799717, "DI")],
+            [("rs1799750", "11", 102670496, "DI")],
         )
         result = score_skin_pathways(panel, sample_engine, reference_engine)
 
@@ -430,7 +430,7 @@ class TestMC1RMultiAllele:
                 ("rs1805007", "16", 89986117, "CC"),
                 ("rs1805008", "16", 89986144, "CC"),
                 ("rs1805009", "16", 89986546, "GG"),
-                ("rs885479", "16", 89919722, "GG"),
+                ("rs885479", "16", 89986154, "GG"),
             ],
         )
         result = score_skin_pathways(panel, sample_engine, reference_engine)
@@ -453,7 +453,7 @@ class TestMC1RMultiAllele:
                 ("rs1805007", "16", 89986117, "CT"),  # 1 R allele
                 ("rs1805008", "16", 89986144, "CC"),
                 ("rs1805009", "16", 89986546, "GG"),
-                ("rs885479", "16", 89919722, "GG"),
+                ("rs885479", "16", 89986154, "GG"),
             ],
         )
         result = score_skin_pathways(panel, sample_engine, reference_engine)
@@ -475,7 +475,7 @@ class TestMC1RMultiAllele:
                 ("rs1805007", "16", 89986117, "CT"),  # 1 R allele
                 ("rs1805008", "16", 89986144, "CT"),  # 1 R allele
                 ("rs1805009", "16", 89986546, "GG"),
-                ("rs885479", "16", 89919722, "GG"),
+                ("rs885479", "16", 89986154, "GG"),
             ],
         )
         result = score_skin_pathways(panel, sample_engine, reference_engine)
@@ -497,7 +497,7 @@ class TestMC1RMultiAllele:
                 ("rs1805007", "16", 89986117, "TT"),  # 2 R alleles
                 ("rs1805008", "16", 89986144, "CC"),
                 ("rs1805009", "16", 89986546, "GG"),
-                ("rs885479", "16", 89919722, "GG"),
+                ("rs885479", "16", 89986154, "GG"),
             ],
         )
         result = score_skin_pathways(panel, sample_engine, reference_engine)
@@ -524,7 +524,7 @@ class TestMC1RMultiAllele:
                 ("rs1805007", "16", 89986117, "AG"),  # reverse-strand of CT
                 ("rs1805008", "16", 89986144, "CC"),
                 ("rs1805009", "16", 89986546, "GG"),
-                ("rs885479", "16", 89919722, "GG"),
+                ("rs885479", "16", 89986154, "GG"),
             ],
         )
         result = score_skin_pathways(panel, sample_engine, reference_engine)
@@ -555,7 +555,7 @@ class TestMC1RMultiAllele:
                 ("rs1805007", "16", 89986117, "AA"),  # reverse-strand of TT
                 ("rs1805008", "16", 89986144, "CC"),
                 ("rs1805009", "16", 89986546, "GG"),
-                ("rs885479", "16", 89919722, "GG"),
+                ("rs885479", "16", 89986154, "GG"),
             ],
         )
         result = score_skin_pathways(panel, sample_engine, reference_engine)
@@ -599,7 +599,7 @@ class TestMC1RMultiAllele:
                 ("rs1805007", "16", 89986117, "CC"),
                 ("rs1805008", "16", 89986144, "CC"),
                 ("rs1805009", "16", 89986546, "GG"),
-                ("rs885479", "16", 89919722, r163q_genotype),
+                ("rs885479", "16", 89986154, r163q_genotype),
             ],
         )
         result = score_skin_pathways(panel, sample_engine, reference_engine)
@@ -1132,7 +1132,7 @@ class TestStoreFindingsIntegration:
                 ("rs1805007", "16", 89986117, "CT"),
                 ("rs1805008", "16", 89986144, "CC"),
                 ("rs1805009", "16", 89986546, "GG"),
-                ("rs885479", "16", 89919722, "GG"),
+                ("rs885479", "16", 89986154, "GG"),
             ],
         )
         result = score_skin_pathways(panel, sample_engine, reference_engine)
@@ -1169,7 +1169,7 @@ class TestStoreFindingsIntegration:
                 ("rs1805007", "16", 89986117, "CC"),
                 ("rs1805008", "16", 89986144, "CC"),
                 ("rs1805009", "16", 89986546, "GG"),
-                ("rs885479", "16", 89919722, "GA"),
+                ("rs885479", "16", 89986154, "GA"),
             ],
         )
         result = score_skin_pathways(panel, sample_engine, reference_engine)
@@ -1325,10 +1325,10 @@ class TestStoreFindingsIntegration:
                 ("rs1805007", "16", 89986117, "TT"),  # MC1R R151C hom → Elevated
                 ("rs1805008", "16", 89986144, "CT"),  # MC1R R160W het → Moderate
                 ("rs1805009", "16", 89986546, "GC"),  # MC1R D294H het → Moderate
-                ("rs885479", "16", 89919722, "GA"),  # MC1R R163Q het → Moderate
+                ("rs885479", "16", 89986154, "GA"),  # MC1R R163Q het → Moderate
                 ("rs61816761", "1", 152285861, "GA"),  # FLG het → Moderate
-                ("rs1695", "11", 67585218, "GG"),  # GSTP1 hom → Moderate (capped)
-                ("rs1799750", "11", 102799717, "DI"),  # MMP1 het → Moderate (I/D, #610)
+                ("rs1695", "11", 67352689, "GG"),  # GSTP1 hom → Moderate (capped)
+                ("rs1799750", "11", 102670496, "DI"),  # MMP1 het → Moderate (I/D, #610)
                 ("rs4880", "6", 160113872, "TT"),  # SOD2 hom → Moderate (capped)
                 ("rs2228570", "12", 48272895, "AA"),  # VDR FokI hom → Moderate (capped)
                 ("rs1544410", "12", 48239835, "AA"),  # VDR BsmI hom → Moderate (capped)

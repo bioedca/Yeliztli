@@ -116,13 +116,13 @@ def sample_with_carrier_variants(sample_engine: sa.Engine) -> sa.Engine:
         {
             "rsid": "rs76763715",
             "chrom": "1",
-            "pos": 155240283,
-            "genotype": "AG",
+            "pos": 155205634,
+            "genotype": "TC",
             "zygosity": "het",
             "gene_symbol": "GBA",
             "clinvar_significance": "Likely pathogenic",
             "clinvar_review_stars": 1,
-            "clinvar_accession": "VCV000004288",
+            "clinvar_accession": "VCV000004290",
             "clinvar_conditions": "Gaucher disease",
             "annotation_coverage": 2,
         },
@@ -130,13 +130,13 @@ def sample_with_carrier_variants(sample_engine: sa.Engine) -> sa.Engine:
         {
             "rsid": "rs28934578",
             "chrom": "17",
-            "pos": 7577538,
-            "genotype": "CG",
+            "pos": 7578406,
+            "genotype": "CT",
             "zygosity": "het",
             "gene_symbol": "TP53",
             "clinvar_significance": "Pathogenic",
             "clinvar_review_stars": 2,
-            "clinvar_accession": "VCV000012347",
+            "clinvar_accession": "VCV000012374",
             "clinvar_conditions": "Li-Fraumeni syndrome",
             "annotation_coverage": 2,
         },
@@ -241,6 +241,8 @@ class TestExtractCarrierVariants:
         self, panel: CarrierPanel, sample_engine: sa.Engine
     ) -> None:
         """#1160: rsID plus i-ID rows for one carried allele must not double count."""
+        # rs78655421 is multiallelic; this fixture intentionally selects the
+        # G>T R117L allele (VCV000053765), not the distinct G>A R117H allele.
         with sample_engine.begin() as conn:
             conn.execute(
                 sa.insert(annotated_variants),
@@ -306,13 +308,13 @@ class TestExtractCarrierVariants:
                 {
                     "rsid": "rs75961395",
                     "chrom": "7",
-                    "pos": 117559600,
+                    "pos": 117149177,
                     "genotype": "TT",
                     "zygosity": "hom",
                     "gene_symbol": "CFTR",
                     "clinvar_significance": "Pathogenic",
                     "clinvar_review_stars": 2,
-                    "clinvar_accession": "VCV000007106",
+                    "clinvar_accession": "VCV000053510",
                     "clinvar_conditions": "Cystic fibrosis",
                     "gnomad_homozygous_count": 1,
                     "annotation_coverage": 2,
@@ -1076,7 +1078,8 @@ class TestExtractCarrierVariants:
                     "gene_symbol": "CFTR",
                     "clinvar_significance": "Pathogenic/Established risk allele",
                     "clinvar_review_stars": 4,
-                    "clinvar_accession": "VCV000007105",
+                    # Synthetic behavior-only variant; no ClinVar identity.
+                    "clinvar_accession": None,
                     "clinvar_conditions": "Cystic fibrosis",
                     "annotation_coverage": 2,
                 },
@@ -1459,7 +1462,8 @@ class TestStoreCarrierFindings:
                     "gene_symbol": "CFTR",
                     "clinvar_significance": "Pathogenic/Established risk allele",
                     "clinvar_review_stars": 4,
-                    "clinvar_accession": "VCV000007105",
+                    # Synthetic behavior-only variant; no ClinVar identity.
+                    "clinvar_accession": None,
                     "clinvar_conditions": "Cystic fibrosis",
                     "annotation_coverage": 2,
                 },

@@ -28,10 +28,18 @@ rsID allowlist.
 
 Some useful fixture variants are not application-panel members. Their
 independently verified mappings belong in
-`ADDITIONAL_VERIFIED_GRCH37_COORDINATES` in
+`ADDITIONAL_VERIFIED_GRCH37_MAPPINGS` in
 `tests/backend/test_regenerate_fixtures.py`. For example, rs662 is explicitly
 guarded at `7:94937446` rather than disappearing from coverage merely because it
 is absent from the panel snapshot.
+
+Records consulted: the committed `panel_rsid_coordinates.json` oracle records
+per-record Ensembl GRCh37 Variation REST URLs (accessed 2026-07-16), and
+`../clinvar_seed_snapshot.json` records NLM Clinical Tables ClinVar identities
+(accessed 2026-07-16). The mappings changed for issue #1949 were rechecked
+against Ensembl GRCh37 on 2026-07-19. Ambiguous records are also cross-checked
+against NCBI RefSNP or ClinVar as described below; save those access dates and
+raw responses with the evidence notes.
 
 An rsID can have multiple alleles and can expose primary, patch, alternate, or
 historical mappings. Do not copy the first coordinate returned by an API:

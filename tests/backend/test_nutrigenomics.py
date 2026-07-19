@@ -892,7 +892,7 @@ class TestScorePathways:
         for genotype, expected_category in expected_categories.items():
             engine = sa.create_engine(f"sqlite:///{tmp_path / f'fut2_{genotype}.db'}")
             sample_metadata_obj.create_all(engine)
-            _seed_variants(engine, [("rs602662", "19", 49206653, genotype)])
+            _seed_variants(engine, [("rs602662", "19", 49206985, genotype)])
 
             result = score_nutrigenomics_pathways(panel, engine, reference_engine)
             vitamin_b12 = next(
@@ -1559,7 +1559,7 @@ class TestLactosePersistenceConflict:
             [
                 ("rs4988235", "2", 136608646, "GG"),
                 ("rs182549", "2", 136616754, "CC"),
-                ("rs41380347", "2", 135851222, "CC"),
+                ("rs41380347", "2", 136608651, "CC"),
             ],
         )
         result = score_nutrigenomics_pathways(panel, sample_engine, reference_engine)
@@ -1580,7 +1580,7 @@ class TestLactosePersistenceConflict:
             sample_engine,
             [
                 ("rs4988235", "2", 136608646, "GG"),
-                ("rs41525747", "2", 135851198, "CG"),
+                ("rs41525747", "2", 136608643, "CG"),
             ],
         )
         result = score_nutrigenomics_pathways(panel, sample_engine, reference_engine)
@@ -1595,7 +1595,7 @@ class TestLactosePersistenceConflict:
             sample_engine,
             [
                 ("rs4988235", "2", 136608646, "GG"),
-                ("rs41380347", "2", 135851222, "AA"),
+                ("rs41380347", "2", 136608651, "AA"),
             ],
         )
         result = score_nutrigenomics_pathways(panel, sample_engine, reference_engine)

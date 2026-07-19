@@ -62,6 +62,10 @@ def sample_engine() -> sa.Engine:
 # Seed data kept as module-level constants so tests can import & assert
 # against them without duplicating values.
 
+# The #1949 coordinate/accession repairs below are cross-checked against
+# seed_csvs/clinvar_seed.csv and clinvar_seed_snapshot.json (NLM Clinical Tables,
+# accessed 2026-07-16). Other annotations are behavior-test projections;
+# rs12345 is wholly synthetic.
 SEED_CLINVAR = [
     {
         "rsid": "rs429358",

@@ -483,7 +483,8 @@ class TestExportQueryVCF:
         # rs80357906: a frameshift insertion — emit the annotated GRCh37
         # plus-strand mapping alleles, not bases inferred from the raw call.
         assert rows["rs80357906"][2:] == ("GGG", "GGGG", "0/1")
-        # CHROM/POS round-trip for one variant.
+        assert rows["rs80357906"][:2] == ("17", "41209080")
+        # CHROM/POS round-trip for the SNV control as well.
         assert rows["rs429358"][:2] == ("19", "44908684")
 
 

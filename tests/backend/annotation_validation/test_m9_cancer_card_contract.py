@@ -16,7 +16,10 @@ the PR #316 fixes ship covered:
 The ``panel`` and ``sample_with_cancer_variants`` fixtures are intentionally
 duplicated from ``test_cancer_analysis.py`` so this guard is self-contained and
 survives further refactors of that file. ``sample_engine`` is inherited from
-``tests/backend/conftest.py``.
+``tests/backend/conftest.py``. This is a synthetic contract/presentation
+fixture, not a clinical evidence source. Real identities changed for #1949 are
+cross-checked against the committed coordinate and ClinVar snapshots;
+synthetic-only rows carry no accession.
 """
 
 from __future__ import annotations
@@ -70,26 +73,26 @@ def sample_with_cancer_variants(sample_engine: sa.Engine) -> sa.Engine:
         {
             "rsid": "rs28934578",
             "chrom": "17",
-            "pos": 7577538,
-            "genotype": "CG",
+            "pos": 7578406,
+            "genotype": "CA",
             "zygosity": "het",
             "gene_symbol": "TP53",
             "clinvar_significance": "Likely pathogenic",
             "clinvar_review_stars": 2,
-            "clinvar_accession": "VCV000012347",
+            "clinvar_accession": "VCV000182963",
             "clinvar_conditions": "Li-Fraumeni syndrome",
             "annotation_coverage": 2,
         },
         {
             "rsid": "rs63751710",
             "chrom": "3",
-            "pos": 37053568,
-            "genotype": "AG",
+            "pos": 37048486,
+            "genotype": "AG/GTT",
             "zygosity": "het",
             "gene_symbol": "MLH1",
             "clinvar_significance": "Pathogenic",
             "clinvar_review_stars": 1,
-            "clinvar_accession": "VCV000036555",
+            "clinvar_accession": "VCV000090202",
             "clinvar_conditions": "Lynch syndrome",
             "annotation_coverage": 2,
         },
@@ -155,7 +158,8 @@ def sample_with_cancer_variants(sample_engine: sa.Engine) -> sa.Engine:
             "gene_symbol": "BRCA1",
             "clinvar_significance": "Uncertain_significance",
             "clinvar_review_stars": 1,
-            "clinvar_accession": "VCV000099999",
+            # Synthetic VUS used only to exercise exclusion behavior.
+            "clinvar_accession": None,
             "clinvar_conditions": "not specified",
             "annotation_coverage": 2,
         },

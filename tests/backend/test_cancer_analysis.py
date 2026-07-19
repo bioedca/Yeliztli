@@ -32,6 +32,10 @@ from backend.db.tables import annotated_variants, findings
 
 # ── Fixtures ──────────────────────────────────────────────────────────────
 
+# These fixtures are behavior-test projections, not a clinical evidence source.
+# Real identities changed for #1949 are cross-checked against the committed
+# coordinate and ClinVar snapshots; synthetic-only rows carry no accession.
+
 PANEL_PATH = (
     Path(__file__).resolve().parent.parent.parent
     / "backend"
@@ -69,13 +73,13 @@ def sample_with_cancer_variants(sample_engine: sa.Engine) -> sa.Engine:
         {
             "rsid": "rs28934578",
             "chrom": "17",
-            "pos": 7577538,
-            "genotype": "CG",
+            "pos": 7578406,
+            "genotype": "CA",
             "zygosity": "het",
             "gene_symbol": "TP53",
             "clinvar_significance": "Likely pathogenic",
             "clinvar_review_stars": 2,
-            "clinvar_accession": "VCV000012347",
+            "clinvar_accession": "VCV000182963",
             "clinvar_conditions": "Li-Fraumeni syndrome",
             "annotation_coverage": 2,
         },
@@ -83,13 +87,13 @@ def sample_with_cancer_variants(sample_engine: sa.Engine) -> sa.Engine:
         {
             "rsid": "rs63751710",
             "chrom": "3",
-            "pos": 37053568,
-            "genotype": "AG",
+            "pos": 37048486,
+            "genotype": "AG/GTT",
             "zygosity": "het",
             "gene_symbol": "MLH1",
             "clinvar_significance": "Pathogenic",
             "clinvar_review_stars": 1,
-            "clinvar_accession": "VCV000036555",
+            "clinvar_accession": "VCV000090202",
             "clinvar_conditions": "Lynch syndrome",
             "annotation_coverage": 2,
         },
@@ -491,7 +495,7 @@ class TestExtractCancerVariants:
             conn.execute(
                 sa.insert(annotated_variants),
                 {
-                    "rsid": "rs28934575",
+                    "rsid": "synthetic_sdhd_parent_of_origin",
                     "chrom": "11",
                     "pos": 111959664,
                     "genotype": "CT",
@@ -499,7 +503,7 @@ class TestExtractCancerVariants:
                     "gene_symbol": "SDHD",
                     "clinvar_significance": "Pathogenic",
                     "clinvar_review_stars": 2,
-                    "clinvar_accession": "VCV000013575",
+                    "clinvar_accession": None,
                     "clinvar_conditions": "Paraganglioma-Pheochromocytoma Syndrome",
                     "annotation_coverage": 2,
                 },
@@ -537,7 +541,8 @@ class TestExtractCancerVariants:
                     "gene_symbol": "BRCA1",
                     "clinvar_significance": "Pathogenic/Established risk allele",
                     "clinvar_review_stars": 4,
-                    "clinvar_accession": "VCV000017677",
+                    # Synthetic behavior-only variant; no ClinVar identity.
+                    "clinvar_accession": None,
                     "clinvar_conditions": "Hereditary breast and ovarian cancer syndrome",
                     "annotation_coverage": 2,
                 },
@@ -641,7 +646,7 @@ class TestExtractCancerVariants:
             {
                 "rsid": "rs5030814",
                 "chrom": "3",
-                "pos": 10188243,
+                "pos": 10188322,
                 "genotype": "GG",
                 "zygosity": "hom_alt",
                 "gene_symbol": "VHL",
@@ -773,7 +778,7 @@ class TestExtractCancerVariants:
                     {
                         "rsid": "rs5030814",
                         "chrom": "3",
-                        "pos": 10188246,
+                        "pos": 10188322,
                         "genotype": "GG",
                         "zygosity": "hom_alt",
                         "gene_symbol": "VHL",
@@ -931,7 +936,7 @@ class TestStoreCancerFindings:
             conn.execute(
                 sa.insert(annotated_variants),
                 {
-                    "rsid": "rs28934575",
+                    "rsid": "synthetic_sdhd_parent_of_origin",
                     "chrom": "11",
                     "pos": 111959664,
                     "genotype": "CT",
@@ -939,7 +944,7 @@ class TestStoreCancerFindings:
                     "gene_symbol": "SDHD",
                     "clinvar_significance": "Pathogenic",
                     "clinvar_review_stars": 2,
-                    "clinvar_accession": "VCV000013575",
+                    "clinvar_accession": None,
                     "clinvar_conditions": "Paraganglioma-Pheochromocytoma Syndrome",
                     "annotation_coverage": 2,
                 },
@@ -948,7 +953,9 @@ class TestStoreCancerFindings:
         store_cancer_findings(result, sample_engine)
 
         with sample_engine.connect() as conn:
-            row = conn.execute(sa.select(findings).where(findings.c.rsid == "rs28934575")).one()
+            row = conn.execute(
+                sa.select(findings).where(findings.c.rsid == "synthetic_sdhd_parent_of_origin")
+            ).one()
 
         detail = json.loads(row.detail_json)
         assert "parent-of-origin" in row.finding_text
@@ -972,8 +979,8 @@ class TestStoreCancerFindings:
                     "category": "monogenic_variant",
                     "evidence_level": 4,
                     "gene_symbol": "SDHD",
-                    "rsid": "rs28934575",
-                    "finding_text": "SDHD rs28934575 (CT) — Pathogenic for "
+                    "rsid": "synthetic_sdhd_parent_of_origin",
+                    "finding_text": "SDHD synthetic variant (CT) — Pathogenic for "
                     "Paraganglioma-Pheochromocytoma Syndrome",
                     "conditions": "Paraganglioma-Pheochromocytoma Syndrome",
                     "zygosity": "het",
@@ -982,7 +989,7 @@ class TestStoreCancerFindings:
                     "detail_json": json.dumps(
                         {
                             "genotype": "CT",
-                            "clinvar_accession": "VCV000013575",
+                            "clinvar_accession": None,
                             "clinvar_review_stars": 2,
                             "clinvar_conditions": "Paraganglioma-Pheochromocytoma Syndrome",
                             "syndromes": ["Paraganglioma-Pheochromocytoma Syndrome"],
@@ -1063,7 +1070,8 @@ class TestStoreCancerFindings:
                     "gene_symbol": "BRCA1",
                     "clinvar_significance": "Pathogenic/Established risk allele",
                     "clinvar_review_stars": 4,
-                    "clinvar_accession": "VCV000017677",
+                    # Synthetic behavior-only variant; no ClinVar identity.
+                    "clinvar_accession": None,
                     "clinvar_conditions": "Hereditary breast and ovarian cancer syndrome",
                     "annotation_coverage": 2,
                 },

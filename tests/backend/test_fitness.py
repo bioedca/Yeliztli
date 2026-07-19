@@ -813,11 +813,11 @@ class TestScorePathways:
             sample_engine,
             [
                 ("rs1815739", "11", 66328095, "TT"),  # ACTN3 XX
-                ("rs8192678", "4", 23814519, "GA"),  # PPARGC1A het
-                ("rs17602729", "1", 114677654, "CC"),  # AMPD1 normal
-                ("rs4341", "17", 63488529, "GG"),  # ACE DD proxy
-                ("rs1049434", "1", 113545811, "TT"),  # MCT1 normal
-                ("rs12722", "9", 137048876, "CT"),  # COL5A1 het
+                ("rs8192678", "4", 23815662, "GA"),  # PPARGC1A het
+                ("rs17602729", "1", 115236057, "CC"),  # AMPD1 normal
+                ("rs4341", "17", 61565990, "GG"),  # ACE DD proxy
+                ("rs1049434", "1", 113456546, "TT"),  # MCT1 normal
+                ("rs12722", "9", 137734416, "CT"),  # COL5A1 het
                 ("rs1800012", "17", 48277749, "GG"),  # COL1A1 normal
                 ("rs9939609", "16", 53820527, "AA"),  # FTO hom risk
             ],
@@ -880,7 +880,7 @@ class TestScorePathways:
         strongest tier' guarantee is self-evident rather than incidental."""
         _seed_variants(
             sample_engine,
-            [("rs4341", "17", 63488529, "GG")],  # ACE DD proxy — the only Power SNP seeded
+            [("rs4341", "17", 61565990, "GG")],  # ACE DD proxy — the only Power SNP seeded
         )
 
         result = score_fitness_pathways(panel, sample_engine, reference_engine)
@@ -927,7 +927,7 @@ class TestScorePathways:
         reference_engine: sa.Engine,
     ) -> None:
         """ACE coverage note survives through scoring pipeline."""
-        _seed_variants(sample_engine, [("rs4341", "17", 63488529, "GG")])
+        _seed_variants(sample_engine, [("rs4341", "17", 61565990, "GG")])
         result = score_fitness_pathways(panel, sample_engine, reference_engine)
 
         power = next(pr for pr in result.pathway_results if pr.pathway_id == "power")
@@ -951,7 +951,7 @@ class TestStoreFindingsIntegration:
             sample_engine,
             [
                 ("rs1815739", "11", 66328095, "TT"),
-                ("rs4341", "17", 63488529, "GG"),
+                ("rs4341", "17", 61565990, "GG"),
                 ("rs9939609", "16", 53820527, "AA"),
             ],
         )
@@ -1021,7 +1021,7 @@ class TestStoreFindingsIntegration:
     ) -> None:
         """An unmodeled-allele indeterminate call must not be labeled as strand
         unresolved at the pathway-summary level (#608/#961)."""
-        _seed_variants(sample_engine, [("rs4341", "17", 63488529, "CG")])
+        _seed_variants(sample_engine, [("rs4341", "17", 61565990, "CG")])
         result = score_fitness_pathways(panel, sample_engine, reference_engine)
         power = next(pr for pr in result.pathway_results if pr.pathway_id == "power")
         ace = next(s for s in power.snp_results if s.rsid == "rs4341")
@@ -1063,7 +1063,7 @@ class TestStoreFindingsIntegration:
         # MCT1 rs1049434 TT is the non-palindromic, scoreable Standard call for
         # the power pathway's MCT1 entry; pair with ACE II-proxy → Standard.
         _seed_variants(
-            sample_engine, [("rs4341", "17", 63488529, "AA")]
+            sample_engine, [("rs4341", "17", 61565990, "AA")]
         )  # ACE II proxy → Standard
         result = score_fitness_pathways(panel, sample_engine, reference_engine)
         power = next(pr for pr in result.pathway_results if pr.pathway_id == "power")
@@ -1119,7 +1119,7 @@ class TestStoreFindingsIntegration:
         reference_engine: sa.Engine,
     ) -> None:
         """ACE SNP finding includes coverage_note in detail_json."""
-        _seed_variants(sample_engine, [("rs4341", "17", 63488529, "GG")])
+        _seed_variants(sample_engine, [("rs4341", "17", 61565990, "GG")])
 
         result = score_fitness_pathways(panel, sample_engine, reference_engine)
         store_fitness_findings(result, sample_engine)
@@ -1150,7 +1150,7 @@ class TestStoreFindingsIntegration:
             sample_engine,
             [
                 ("rs1815739", "11", 66328095, "CT"),  # ACTN3 RX → non-Standard
-                ("rs4341", "17", 63488529, "AG"),  # ACE ID → non-Standard
+                ("rs4341", "17", 61565990, "AG"),  # ACE ID → non-Standard
             ],
         )
 
@@ -1229,11 +1229,11 @@ class TestStoreFindingsIntegration:
             sample_engine,
             [
                 ("rs1815739", "11", 66328095, "TT"),  # ACTN3 XX → Standard (context-only, #182)
-                ("rs8192678", "4", 23814519, "AA"),  # PPARGC1A → Moderate (capped)
-                ("rs17602729", "1", 114677654, "TT"),  # AMPD1 → Moderate (capped)
-                ("rs4341", "17", 63488529, "GG"),  # ACE DD → Moderate (#352)
-                ("rs1049434", "1", 113545811, "AA"),  # MCT1 → Moderate (capped)
-                ("rs12722", "9", 137048876, "TT"),  # COL5A1 → Moderate (capped)
+                ("rs8192678", "4", 23815662, "AA"),  # PPARGC1A → Moderate (capped)
+                ("rs17602729", "1", 115236057, "TT"),  # AMPD1 → Moderate (capped)
+                ("rs4341", "17", 61565990, "GG"),  # ACE DD → Moderate (#352)
+                ("rs1049434", "1", 113456546, "AA"),  # MCT1 → Moderate (capped)
+                ("rs12722", "9", 137734416, "TT"),  # COL5A1 → Moderate (capped)
                 ("rs1800012", "17", 48277749, "GT"),  # COL1A1 het → Moderate (soft-tissue caution)
                 ("rs9939609", "16", 53820527, "AA"),  # FTO → Elevated
             ],

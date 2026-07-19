@@ -107,13 +107,13 @@ def sample_with_cv_variants(sample_engine: sa.Engine) -> sa.Engine:
         {
             "rsid": "rs28942078",
             "chrom": "19",
-            "pos": 11200089,
-            "genotype": "CT",
+            "pos": 11224052,
+            "genotype": "GT",
             "zygosity": "het",
             "gene_symbol": "LDLR",
             "clinvar_significance": "Pathogenic",
             "clinvar_review_stars": 3,
-            "clinvar_accession": "VCV000018390",
+            "clinvar_accession": "VCV000251767",
             "clinvar_conditions": "Familial hypercholesterolemia",
             "annotation_coverage": 2,
         },
@@ -145,17 +145,17 @@ def sample_with_cv_variants(sample_engine: sa.Engine) -> sa.Engine:
             "clinvar_conditions": "Long QT syndrome 1",
             "annotation_coverage": 2,
         },
-        # SCN5A Likely pathogenic — 1-star review (channelopathy → evidence 3)
+        # SCN5A Pathogenic — 1-star review (channelopathy → evidence 3)
         {
             "rsid": "rs28937318",
             "chrom": "3",
-            "pos": 38589553,
+            "pos": 38648200,
             "genotype": "CT",
             "zygosity": "het",
             "gene_symbol": "SCN5A",
-            "clinvar_significance": "Likely pathogenic",
+            "clinvar_significance": "Pathogenic",
             "clinvar_review_stars": 1,
-            "clinvar_accession": "VCV000003821",
+            "clinvar_accession": "VCV000009390",
             "clinvar_conditions": "Long QT syndrome 3",
             "annotation_coverage": 2,
         },
@@ -1261,7 +1261,7 @@ class TestStoreCardiovascularFindings:
             ).fetchone()
         assert row is not None
         detail = json.loads(row.detail_json)
-        assert detail["clinvar_accession"] == "VCV000018390"
+        assert detail["clinvar_accession"] == "VCV000251767"
         assert detail["clinvar_review_stars"] == 3
         assert detail["inheritance"] == "AD"
         assert detail["cardiovascular_category"] == CATEGORY_FH
@@ -1282,7 +1282,7 @@ class TestStoreCardiovascularFindings:
             ).fetchone()
         assert row is not None
         detail = json.loads(row.detail_json)
-        assert detail["genotype"] == "CT"
+        assert detail["genotype"] == "GT"
 
     def test_pmid_citations_stored_as_json(
         self, panel: CardiovascularPanel, sample_with_cv_variants: sa.Engine
@@ -2002,7 +2002,7 @@ class TestVariantSpecificCardiovascularConditionScope:
                 {
                     "rsid": "rs28937318",
                     "chrom": "3",
-                    "pos": 38589553,
+                    "pos": 38648200,
                     "genotype": "CT",
                     "zygosity": "het",
                     "gene_symbol": "SCN5A",

@@ -34,6 +34,9 @@ from backend.db.tables import (
 
 # ── Test data ────────────────────────────────────────────────────────
 
+# rs28897696 identity: ClinVar VariationID 55407 / VCV000055407 (NLM Clinical
+# Tables, accessed 2026-07-16); GRCh37 mapping and allele: Ensembl Variation
+# rs28897696 (accessed 2026-07-19). AF and prediction values below are synthetic.
 ANNOTATED_VARIANTS_DATA = [
     {
         "rsid": "rs28897696",

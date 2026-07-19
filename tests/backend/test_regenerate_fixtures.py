@@ -24,6 +24,9 @@ PANEL_RSID_COORDINATES = FIXTURES_DIR / "panel_rsid_coordinates.json"
 GRCh37Mapping = tuple[str, int, frozenset[str]]
 
 ADDITIONAL_VERIFIED_GRCH37_MAPPINGS: dict[str, GRCh37Mapping] = {
+    # Ensembl GRCh37 Variation REST, accessed 2026-07-19. The primary mapping
+    # is 7:94937446 with allele string T/A/C/G; this fixture selects T>C.
+    # https://grch37.rest.ensembl.org/variation/human/rs662
     "rs662": ("7", 94_937_446, frozenset({"T", "C"}))
 }
 
@@ -258,6 +261,10 @@ class TestSeedCSVContent:
             assert risk_allele in expected[rsid][2], (
                 f"gwas_seed.csv occurrence {occurrence} ({rsid}) risk allele "
                 f"{risk_allele} is not in the plus-strand oracle"
+            )
+            assert rsid in represented_pairs, (
+                f"gwas_seed.csv occurrence {occurrence} ({rsid}) has no allele pair "
+                "in gnomad_seed.csv to validate the risk allele against"
             )
             assert risk_allele in represented_pairs[rsid], (
                 f"gwas_seed.csv occurrence {occurrence} ({rsid}) risk allele "

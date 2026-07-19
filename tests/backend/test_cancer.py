@@ -783,7 +783,7 @@ class TestRecessiveInheritanceGating:
             "gene_symbol": "BRCA1",
             "clinvar_significance": "Pathogenic",
             "clinvar_review_stars": 3,
-            "clinvar_accession": "VCV000000002",
+            "clinvar_accession": "VCV000017677",
             "clinvar_conditions": "Hereditary breast and ovarian cancer",
             "annotation_coverage": 2,
         }

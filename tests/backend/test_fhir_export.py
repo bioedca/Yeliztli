@@ -70,6 +70,7 @@ ANNOTATED_VARIANTS = [
         "pos": 41209080,
         "ref": "GGG",
         "alt": "GGGG",
+        # Raw probe call: resolved ref/alt plus zygosity drive FHIR export.
         "genotype": "TC",
         "zygosity": "het",
         "gene_symbol": "BRCA1",
