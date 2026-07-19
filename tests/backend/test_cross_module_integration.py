@@ -34,6 +34,7 @@ from backend.annotation.dbnsfp import (
     load_dbnsfp_from_csv,
 )
 from backend.annotation.gnomad import _create_gnomad_indexes, _create_gnomad_table
+from backend.annotation.gwas import gwas_matched_rsids
 from backend.annotation.mondo_hpo import load_mondo_hpo_from_csv
 from backend.config import Settings
 from backend.db.connection import reset_registry
@@ -271,21 +272,50 @@ def _load_gwas_data(engine: sa.Engine) -> None:
             rows.append(
                 {
                     "rsid": row["rsid"],
-                    "chrom": row["chrom"],
-                    "pos": int(row["pos"]),
+                    "chrom": row["chrom"] or None,
+                    "pos": int(row["pos"]) if row["pos"] else None,
                     "trait": row["trait"],
-                    "p_value": float(row["p_value"]),
+                    "p_value": float(row["p_value"]) if row["p_value"] else None,
                     "odds_ratio": float(row["odds_ratio"]) if row["odds_ratio"] else None,
                     "beta": float(row["beta"]) if row["beta"] else None,
-                    "risk_allele": row["risk_allele"],
-                    "pubmed_id": row["pubmed_id"],
-                    "study": row["study"],
-                    "sample_size": int(row["sample_size"]),
+                    "risk_allele": row["risk_allele"] or None,
+                    "pubmed_id": row["pubmed_id"] or None,
+                    "study": row["study"] or None,
+                    "sample_size": int(row["sample_size"]) if row["sample_size"] else None,
                 }
             )
     if rows:
         with engine.begin() as conn:
             conn.execute(gwas_associations.insert(), rows)
+
+
+def test_gwas_seed_loads_as_synthetic_membership_data() -> None:
+    """The cross-module loader accepts the fixture's intentionally null metadata."""
+    engine = sa.create_engine("sqlite://")
+    reference_metadata.create_all(engine)
+    _load_gwas_data(engine)
+
+    with engine.connect() as connection:
+        rows = connection.execute(sa.select(gwas_associations).order_by(gwas_associations.c.id))
+        loaded = rows.mappings().all()
+
+    assert len(loaded) == 65
+    loaded_rsids = {row["rsid"] for row in loaded}
+    assert len(loaded_rsids) == len(loaded)
+    assert {row["trait"] for row in loaded} == {"Synthetic GWAS membership fixture"}
+    optional_fields = {
+        "chrom",
+        "pos",
+        "p_value",
+        "odds_ratio",
+        "beta",
+        "risk_allele",
+        "pubmed_id",
+        "study",
+        "sample_size",
+    }
+    assert all(row[field] is None for row in loaded for field in optional_fields)
+    assert gwas_matched_rsids([*sorted(loaded_rsids), "rs999999999"], engine) == loaded_rsids
 
 
 # ── Fixtures ───────────────────────────────────────────────────────────
