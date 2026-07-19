@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import sqlalchemy as sa
 import structlog
@@ -34,8 +35,7 @@ from backend.utils.uniprot import (
     UniProtCacheFetcher,
     UniProtFetchError,
     UniProtNoMatchError,
-    build_uniprot_search_url,
-    parse_uniprot_search_entry,
+    fetch_uniprot_search,
 )
 
 logger = structlog.get_logger(__name__)
@@ -263,22 +263,8 @@ def _fetch_uniprot_from_api(gene_symbol: str) -> UniProtData | None:
     non-connectivity failures are raised separately so callers do not label
     them as offline.
     """
-    import httpx
 
-    try:
-        search_url = build_uniprot_search_url(gene_symbol)
-        with httpx.Client(timeout=15.0) as client:
-            resp = client.get(search_url)
-            resp.raise_for_status()
-            data = resp.json()
-
-        try:
-            entry, accession, seq_length = parse_uniprot_search_entry(data)
-        except UniProtNoMatchError:
-            logger.info("uniprot_no_results", gene=gene_symbol)
-            _delete_uniprot_cache(gene_symbol)
-            raise
-
+    def build_result(entry: dict[str, Any], accession: str, sequence_length: int) -> UniProtData:
         # Extract domains and features
         domains: list[ProteinDomain] = []
         features: list[ProteinFeature] = []
@@ -326,7 +312,7 @@ def _fetch_uniprot_from_api(gene_symbol: str) -> UniProtData | None:
                 gene_symbol=gene_symbol,
                 domains=domains,
                 features=features,
-                sequence_length=seq_length,
+                sequence_length=sequence_length,
             )
         except Exception as exc:
             logger.exception(
@@ -346,47 +332,18 @@ def _fetch_uniprot_from_api(gene_symbol: str) -> UniProtData | None:
         return UniProtData(
             accession=accession,
             gene_symbol=gene_symbol,
-            sequence_length=seq_length,
+            sequence_length=sequence_length,
             domains=domains,
             features=features,
             fetched_at=str(datetime.now(UTC)),
             is_cached=False,
         )
 
-    except UniProtNoMatchError:
-        raise
-    except httpx.HTTPStatusError as exc:
-        logger.exception(
-            "uniprot_fetch_failed",
-            gene=gene_symbol,
-            failure_kind="http_status",
-            status_code=exc.response.status_code,
-        )
-        raise UniProtFetchError("UniProt returned an HTTP error") from exc
-    except httpx.RequestError as exc:
-        logger.warning(
-            "uniprot_fetch_failed",
-            gene=gene_symbol,
-            failure_kind="request",
-            error_type=type(exc).__name__,
-        )
-        return None
-    except (AttributeError, KeyError, TypeError, ValueError) as exc:
-        logger.exception(
-            "uniprot_fetch_failed",
-            gene=gene_symbol,
-            failure_kind="invalid_response",
-            error_type=type(exc).__name__,
-        )
-        raise UniProtFetchError("UniProt returned an invalid response") from exc
-    except Exception as exc:
-        logger.exception(
-            "uniprot_fetch_failed",
-            gene=gene_symbol,
-            failure_kind="unexpected",
-            error_type=type(exc).__name__,
-        )
-        raise UniProtFetchError("Unexpected UniProt fetch failure") from exc
+    return fetch_uniprot_search(
+        gene_symbol,
+        on_no_match=_delete_uniprot_cache,
+        build_result=build_result,
+    )
 
 
 def _store_uniprot_cache(
