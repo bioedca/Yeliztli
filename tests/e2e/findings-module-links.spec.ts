@@ -116,9 +116,13 @@ test.describe('All Findings module links resolve to the right page (#544)', () =
     await expect(page.getByText('Apol1', { exact: true })).toHaveCount(0)
 
     // No finding-row module link silently targets the Dashboard root.
-    const hrefs = await page.getByRole('link').evaluateAll((els) =>
+    const moduleLinks = page.getByRole('link', { name: /^View .+ module$/ })
+    await expect(moduleLinks).toHaveCount(Object.keys(expected).length)
+    const hrefs = await moduleLinks.evaluateAll((els) =>
       els.map((e) => e.getAttribute('href')),
     )
+    expect(hrefs).not.toContain(null)
+    expect(hrefs).not.toContain('/')
     expect(hrefs).not.toContain('/?sample_id=1')
   })
 })

@@ -1,8 +1,10 @@
 import { useState } from 'react'
-import { NavLink } from 'react-router-dom'
+import { NavLink, useSearchParams } from 'react-router-dom'
 import { PanelLeftClose, PanelLeft } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { navRoutes } from '@/lib/nav-routes'
+import { parseSampleId } from '@/lib/format'
+import { withActiveSample } from '@/lib/navigation'
 
 type SidebarProps = {
   className?: string
@@ -10,6 +12,8 @@ type SidebarProps = {
 
 export default function Sidebar({ className }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false)
+  const [searchParams] = useSearchParams()
+  const activeSampleId = parseSampleId(searchParams.get('sample_id'))
 
   return (
     <aside
@@ -27,7 +31,7 @@ export default function Sidebar({ className }: SidebarProps) {
           {navRoutes.map(({ to, icon: Icon, label }) => (
             <NavLink
               key={to}
-              to={to}
+              to={withActiveSample(to, activeSampleId)}
               end={to === '/'}
               className={({ isActive }) =>
                 cn(

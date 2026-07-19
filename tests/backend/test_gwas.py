@@ -19,8 +19,6 @@ from __future__ import annotations
 import csv
 import gzip
 import io
-import json
-import sqlite3
 import zipfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -1085,92 +1083,6 @@ class TestDownloadAndLoadGwas:
             ).first()
             assert row is not None
             assert row.checksum_sha256 == "fake_sha256"
-
-
-class TestGwasSeedVerifiedRiskAlleles:
-    """Lock the independently verified seed directions from #1848."""
-
-    _ROOT = Path(__file__).resolve().parents[2]
-    _SEED = _ROOT / "tests" / "fixtures" / "seed_csvs" / "gwas_seed.csv"
-    _PANEL = _ROOT / "backend" / "data" / "panels" / "gene_health_panel.json"
-    _MINI_REFERENCE = _ROOT / "tests" / "fixtures" / "mini_reference.db"
-    _EXPECTED = {
-        ("rs13266634", "Type 2 diabetes"): "C",
-        ("rs2476601", "Type 1 diabetes"): "A",
-        ("rs2476601", "Rheumatoid arthritis"): "A",
-        ("rs3135388", "Multiple sclerosis"): "A",
-    }
-
-    def test_seed_rows_use_verified_trait_raising_alleles(self) -> None:
-        with open(self._SEED, encoding="utf-8") as f:
-            rows = [
-                (row["rsid"], row["trait"], row["risk_allele"])
-                for row in csv.DictReader(f)
-                if (row["rsid"], row["trait"]) in self._EXPECTED
-            ]
-
-        expected = [(rsid, trait, allele) for (rsid, trait), allele in self._EXPECTED.items()]
-        assert sorted(rows) == sorted(expected)
-
-    def test_verified_seed_loci_match_gene_health_panel(self) -> None:
-        panel = json.loads(self._PANEL.read_text(encoding="utf-8"))
-        expected = {rsid: allele for (rsid, _trait), allele in self._EXPECTED.items()}
-        actual = {
-            snp["rsid"]: snp["risk_allele"]
-            for pathway in panel["pathways"]
-            for snp in pathway["snps"]
-            if snp["rsid"] in expected
-        }
-        assert actual == expected
-
-    def test_checked_in_mini_reference_uses_verified_risk_alleles(self) -> None:
-        rsids = sorted({rsid for rsid, _trait in self._EXPECTED})
-        placeholders = ", ".join("?" for _ in rsids)
-        with sqlite3.connect(self._MINI_REFERENCE) as conn:
-            actual = conn.execute(
-                f"SELECT rsid, trait, risk_allele FROM gwas_associations "
-                f"WHERE rsid IN ({placeholders})",
-                rsids,
-            ).fetchall()
-
-        expected = [
-            (rsid, trait, risk_allele) for (rsid, trait), risk_allele in self._EXPECTED.items()
-        ]
-        assert sorted(actual) == sorted(expected)
-
-
-class TestGwasSeedVitaminDDirection:
-    """Guard the CYP2R1 rs10741657 GWAS seed direction (#335 / #340).
-
-    The seed row previously encoded risk_allele=A with beta=-1.05 ("A lowers
-    vitamin D"), the inverse of the corrected #242/#332 direction and of the
-    weight of evidence (Duan 2018, PMID 30120973: risk-allele G lowers 25(OH)D;
-    rs10741657 is A/G non-palindromic). The GWAS Catalog reports the A allele
-    RAISING 'vitamin D amount'. Convention in gwas_seed.csv: beta is the effect of
-    risk_allele on the trait, so for risk_allele=A on a vitamin-D-LEVELS trait the
-    beta must be POSITIVE (A raises 25(OH)D). Lock it so it cannot re-invert.
-    """
-
-    _SEED = Path(__file__).resolve().parent.parent / "fixtures" / "seed_csvs" / "gwas_seed.csv"
-
-    def _row(self, rsid: str) -> dict:
-        with open(self._SEED, encoding="utf-8") as f:
-            for row in csv.DictReader(f):
-                if row["rsid"] == rsid:
-                    return row
-        pytest.fail(f"{rsid} not found in gwas_seed.csv")
-
-    def test_rs10741657_seed_encodes_A_raises_vitamin_d(self) -> None:
-        row = self._row("rs10741657")
-        assert "vitamin d" in row["trait"].lower()
-        assert row["risk_allele"] == "A"
-        beta = float(row["beta"])
-        # A is the higher-25(OH)D allele -> beta must be positive (G is the
-        # lower-vitamin-D / deficiency-risk allele, consistent with the panel).
-        assert beta > 0, (
-            f"rs10741657 seed beta {beta} encodes A-lowers-vitamin-D (inverted); "
-            "G is the lower-25(OH)D allele (#242/#335)"
-        )
 
 
 class TestGwasZeroRowGuard:

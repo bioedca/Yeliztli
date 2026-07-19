@@ -124,7 +124,10 @@ describe("CommandPalette", () => {
     const item = screen.getByRole("option", { name: /Variant Explorer/i })
     await user.click(item)
 
-    expect(mockNavigate).toHaveBeenCalledWith("/variants")
+    const target = mockNavigate.mock.calls.at(-1)?.[0]
+    const url = new URL(target, "http://localhost")
+    expect(url.pathname).toBe("/variants")
+    expect(url.searchParams.get("sample_id")).toBe("1")
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
@@ -180,7 +183,11 @@ describe("CommandPalette", () => {
 
     await user.click(screen.getByTestId("command-palette-igv-item"))
 
-    expect(mockNavigate).toHaveBeenCalledWith("/genome-browser?locus=BRCA1")
+    const target = mockNavigate.mock.calls.at(-1)?.[0]
+    const url = new URL(target, "http://localhost")
+    expect(url.pathname).toBe("/genome-browser")
+    expect(url.searchParams.get("locus")).toBe("BRCA1")
+    expect(url.searchParams.get("sample_id")).toBe("1")
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
@@ -252,7 +259,10 @@ describe("CommandPalette", () => {
     const items = screen.getAllByTestId("command-palette-variant-item")
     await user.click(items[0])
 
-    expect(mockNavigate).toHaveBeenCalledWith(expect.stringContaining("/variants/rs429358"))
+    const target = mockNavigate.mock.calls.at(-1)?.[0]
+    const url = new URL(target, "http://localhost")
+    expect(url.pathname).toBe("/variants/rs429358")
+    expect(url.searchParams.get("sample_id")).toBe("1")
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 

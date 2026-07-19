@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render as baseRender } from '@testing-library/react'
-import { render, screen, fireEvent } from './test-utils'
+import { render, screen, fireEvent, within } from './test-utils'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import Dashboard from '@/pages/Dashboard'
@@ -379,7 +379,7 @@ describe('ModuleCard', () => {
 // ─── ModuleCardsGrid ────────────────────────────────────────
 
 describe('ModuleCardsGrid', () => {
-  it('renders all 10 module cards', () => {
+  it('renders all 12 module cards', () => {
     render(<ModuleCardsGrid sampleId={null} />)
     expect(screen.getByText('Pharmacogenomics')).toBeInTheDocument()
     expect(screen.getByText('Nutrigenomics')).toBeInTheDocument()
@@ -391,6 +391,23 @@ describe('ModuleCardsGrid', () => {
     expect(screen.getByText('Gene Fitness')).toBeInTheDocument()
     expect(screen.getByText('Gene Sleep')).toBeInTheDocument()
     expect(screen.getByText('Gene Allergy')).toBeInTheDocument()
+    expect(screen.getByText('Traits & Personality')).toBeInTheDocument()
+    expect(screen.getByText('Gene Health')).toBeInTheDocument()
+  })
+
+  it('carries the active sample to every module card', () => {
+    setupFetchMocks()
+    render(<ModuleCardsGrid sampleId={7} />)
+
+    const links = within(
+      screen.getByRole('region', { name: /Analysis modules/i }),
+    ).getAllByRole('link')
+
+    expect(links).toHaveLength(12)
+    for (const link of links) {
+      const url = new URL(link.getAttribute('href')!, 'http://localhost')
+      expect(url.searchParams.get('sample_id')).toBe('7')
+    }
   })
 
   it('has an accessible section label', () => {

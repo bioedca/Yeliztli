@@ -24,6 +24,7 @@ import type { LucideIcon } from 'lucide-react'
 import ModuleCard from './ModuleCard'
 import { useFindingsSummary } from '@/api/findings'
 import type { FindingSummaryItem } from '@/types/findings'
+import { withActiveSample } from '@/lib/navigation'
 
 interface ModuleCardConfig {
   to: string
@@ -142,7 +143,7 @@ export default function ModuleCardsGrid({ sampleId }: { sampleId: number | null 
           return (
             <ModuleCard
               key={card.to}
-              to={card.to}
+              to={withActiveSample(card.to, sampleId)}
               label={card.label}
               icon={card.icon}
               description={card.description}

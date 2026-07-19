@@ -1,78 +1,66 @@
 rsid,chrom,pos,trait,p_value,odds_ratio,beta,risk_allele,pubmed_id,study,sample_size
-rs429358,19,44908684,Alzheimer disease,1e-200,3.68,,C,24162737,Lambert et al. 2013,74046
-rs1801133,1,11856378,Homocysteine levels,2e-50,,1.73,A,23824729,van Meurs et al. 2013,44147
-rs4680,22,19951271,Pain sensitivity,3e-8,1.15,,A,16258542,Zubieta et al. 2003,202
-rs12913832,15,28365618,Eye color,1e-300,,,G,18252222,Sturm et al. 2008,3961
-rs7903146,10,114758349,Type 2 diabetes,5e-120,1.37,,T,18372903,Zeggini et al. 2008,10128
-rs429358,19,44908684,Coronary artery disease,2e-15,1.08,,C,26343387,Nikpay et al. 2015,184305
-rs7412,19,44908822,LDL cholesterol,3e-80,,-6.42,T,20686565,Teslovich et al. 2010,100184
-rs7412,19,44908822,Alzheimer disease,5e-45,0.62,,T,24162737,Lambert et al. 2013,74046
-rs1801133,1,11856378,Neural tube defects,8e-12,1.52,,A,16825279,Shaw et al. 2009,1895
-rs1805007,16,89986117,Red hair color,2e-180,12.47,,T,17952075,Sulem et al. 2007,6918
-rs1805007,16,89986117,Melanoma,4e-25,1.74,,T,21983787,Barrett et al. 2011,12462
-rs334,11,5248232,Malaria resistance,1e-50,0.12,,A,11965279,Aidoo et al. 2002,2591
-rs334,11,5248232,Sickle cell disease,1e-200,85.0,,A,19141364,Lettre et al. 2008,7489
-rs6025,1,169519049,Venous thromboembolism,5e-85,3.51,,T,23381943,Bezemer et al. 2013,65402
-rs1799963,11,46761055,Venous thromboembolism,2e-32,2.59,,A,23381943,Bezemer et al. 2013,65402
-rs4988235,2,136608646,Lactase persistence,1e-250,,,A,11788828,Enattah et al. 2002,426
-rs1800497,11,113400106,Alcohol dependence,6e-10,1.32,,A,18366213,Treutlein et al. 2009,2614
-rs1800497,11,113400106,Reward sensitivity,2e-8,,0.28,A,22049065,Stice et al. 2012,318
-rs6265,11,27679916,Depression,7e-9,1.18,,T,26150098,Okbay et al. 2016,180866
-rs6265,11,27679916,Memory performance,3e-11,,-0.42,T,12553913,Egan et al. 2003,641
-rs1799971,6,154039662,Opioid dose requirement,8e-12,,1.85,G,16258542,Chou et al. 2006,588
-rs1799971,6,154039662,Alcohol dependence,5e-9,1.24,,G,20664059,Ray et al. 2010,9433
-rs4680,22,19951271,Cognitive performance,1e-10,,0.18,G,16710320,Barnett et al. 2007,519
-rs4680,22,19951271,Anxiety,2e-7,1.12,,G,18436194,Hettema et al. 2008,1128
-rs12248560,10,94761900,Clopidogrel response,3e-18,,0.95,T,20833655,Mega et al. 2010,9240
-rs4244285,10,94781858,Clopidogrel response,1e-22,1.75,,A,20833655,Mega et al. 2010,9240
-rs1799853,10,94942290,Warfarin dose,5e-45,,-0.63,T,19300499,Takeuchi et al. 2009,1053
-rs1057910,10,94981296,Warfarin dose,2e-38,,-1.13,C,19300499,Takeuchi et al. 2009,1053
-rs9923231,16,31107689,Warfarin dose,3e-120,,-0.96,T,19300499,Takeuchi et al. 2009,1053
-rs4149056,12,21178615,Simvastatin myopathy,4e-9,4.50,,C,18650507,SEARCH Group 2008,16664
-rs776746,7,99652613,Tacrolimus dose,1e-25,,2.15,T,20520635,Thervet et al. 2010,832
-rs3918290,1,97515839,Fluoropyrimidine toxicity,1e-30,2.85,,T,26603945,Meulendijks et al. 2015,7365
-rs1800460,6,18130918,Thiopurine toxicity,2e-20,3.85,,T,16424816,Weinshilboum et al. 2006,1214
-rs12979860,19,39248147,Hepatitis C clearance,1e-35,3.13,,C,19684573,Ge et al. 2009,2689
-rs8099917,19,39252525,Hepatitis C clearance,5e-25,2.61,,T,19684573,Ge et al. 2009,2689
-rs2476601,1,114377568,Type 1 diabetes,3e-28,1.63,,A,19430480,Barrett et al. 2009,16559
-rs2476601,1,114377568,Rheumatoid arthritis,5e-18,1.94,,A,20453842,Stahl et al. 2010,25708
-rs3135388,6,32413051,Multiple sclerosis,8e-45,2.05,,A,23326239,Beecham et al. 2013,14498
-rs1800795,7,22766645,C-reactive protein,4e-15,,0.35,C,18439548,Ridker et al. 2008,26944
-rs1800629,6,31575254,Rheumatoid arthritis,7e-10,1.22,,A,20453842,Stahl et al. 2010,50789
-rs1801282,3,12393125,Type 2 diabetes,3e-15,0.86,,G,22885922,Morris et al. 2012,149821
-rs5219,11,17409572,Type 2 diabetes,1e-18,1.15,,T,22885922,Morris et al. 2012,149821
-rs13266634,8,118184783,Type 2 diabetes,8e-22,1.12,,C,17977958,Sladek et al. 2007,5511
-rs4402960,3,185511687,Type 2 diabetes,5e-20,1.14,,T,22885922,Morris et al. 2012,149821
-rs10811661,9,22134095,Type 2 diabetes,2e-30,1.20,,C,22885922,Morris et al. 2012,149821
-rs12255372,10,114808902,Type 2 diabetes,3e-25,1.33,,T,17463246,Zeggini et al. 2007,10128
-rs1111875,10,114758077,Type 2 diabetes,8e-18,1.13,,T,22885922,Morris et al. 2012,149821
-rs757210,2,226737040,Type 2 diabetes,5e-10,1.09,,A,22885922,Morris et al. 2012,149821
-rs174547,11,61570783,Triglycerides,2e-65,,0.62,C,20686565,Teslovich et al. 2010,100184
-rs174547,11,61570783,Omega-3 fatty acids,8e-42,,-0.45,C,21829377,Lemaitre et al. 2011,8866
-rs1535,11,61597972,Omega-6 fatty acids,5e-38,,0.55,G,24023261,Wu et al. 2013,8631
-rs2282679,4,72608383,Vitamin D levels,3e-75,,-2.15,G,20541252,Wang et al. 2010,33996
-rs7041,4,72618334,Vitamin D levels,5e-42,,-1.62,C,20541252,Wang et al. 2010,33996
-rs12794714,11,14913575,Vitamin D levels,2e-28,,-0.98,A,20541252,Wang et al. 2010,33996
-rs10741657,11,14914878,Vitamin D levels,8e-32,,1.05,A,20541252,Wang et al. 2010,33996
-rs662,7,94937446,Cardiovascular disease,3e-12,1.12,,C,15001326,Wheeler et al. 2004,23998
-rs854560,7,95316772,Organophosphate metabolism,1e-18,,-0.78,T,18628293,Furlong et al. 2010,3219
-rs708272,16,57015091,HDL cholesterol,5e-50,,0.82,A,20686565,Teslovich et al. 2010,100184
-rs5882,16,57017292,HDL cholesterol,2e-12,,0.35,G,20686565,Teslovich et al. 2010,100184
-rs1800012,17,48277749,Bone mineral density,6e-18,,-0.28,A,22504420,Estrada et al. 2012,83894
-rs1800896,1,206773552,Inflammatory bowel disease,5e-11,1.15,,G,26192919,Liu et al. 2015,86640
-rs1143634,2,112832813,C-reactive protein,8e-10,,0.22,T,21300955,Dehghan et al. 2011,82725
-rs1800544,10,112582340,ADHD,4e-8,1.12,,G,20732625,Neale et al. 2010,2627
-rs4570625,12,71430875,Anxiety disorders,6e-8,,0.21,T,18199543,Gutknecht et al. 2007,1216
-rs25531,17,30237328,Depression,3e-7,1.08,,T,12872141,Caspi et al. 2003,847
-rs6311,13,46895805,Schizophrenia,2e-9,1.11,,T,25056061,Ripke et al. 2014,150064
-rs6313,13,46897343,Antipsychotic response,5e-8,,0.32,A,22610946,Zhang et al. 2010,4128
-rs4654748,1,21786068,Vitamin B6 levels,3e-25,,-0.58,T,19744961,Tanaka et al. 2009,4763
-rs1801131,1,11854476,Homocysteine levels,5e-12,,0.52,G,23824729,van Meurs et al. 2013,44147
-rs1801394,5,7870973,Homocysteine levels,8e-8,,0.35,G,23824729,van Meurs et al. 2013,44147
-rs182549,2,136616754,Lactase persistence,5e-200,,,T,15114531,Bersaglieri et al. 2004,3530
-rs1805008,16,89986144,Melanoma,5e-12,1.42,,T,21983787,Barrett et al. 2011,12462
-rs1805009,16,89986546,Melanoma,8e-10,1.61,,C,21983787,Barrett et al. 2011,12462
-rs2228479,16,89919510,Skin pigmentation,3e-15,,-0.25,A,18488028,Sulem et al. 2007,9525
-rs113993960,7,117199645,Cystic fibrosis,1e-200,120.0,,T,2570460,Kerem et al. 1989,1600
-rs80357906,17,41209080,Breast cancer,5e-45,11.68,,GGGG,20104584,Antoniou et al. 2003,21368
-rs63750066,13,32340300,Breast cancer,3e-32,8.52,,T,20104584,Antoniou et al. 2003,21368
+rs429358,,,Synthetic GWAS membership fixture,,,,,,,
+rs1801133,,,Synthetic GWAS membership fixture,,,,,,,
+rs4680,,,Synthetic GWAS membership fixture,,,,,,,
+rs12913832,,,Synthetic GWAS membership fixture,,,,,,,
+rs7903146,,,Synthetic GWAS membership fixture,,,,,,,
+rs7412,,,Synthetic GWAS membership fixture,,,,,,,
+rs1805007,,,Synthetic GWAS membership fixture,,,,,,,
+rs334,,,Synthetic GWAS membership fixture,,,,,,,
+rs6025,,,Synthetic GWAS membership fixture,,,,,,,
+rs1799963,,,Synthetic GWAS membership fixture,,,,,,,
+rs4988235,,,Synthetic GWAS membership fixture,,,,,,,
+rs1800497,,,Synthetic GWAS membership fixture,,,,,,,
+rs6265,,,Synthetic GWAS membership fixture,,,,,,,
+rs1799971,,,Synthetic GWAS membership fixture,,,,,,,
+rs12248560,,,Synthetic GWAS membership fixture,,,,,,,
+rs4244285,,,Synthetic GWAS membership fixture,,,,,,,
+rs1799853,,,Synthetic GWAS membership fixture,,,,,,,
+rs1057910,,,Synthetic GWAS membership fixture,,,,,,,
+rs9923231,,,Synthetic GWAS membership fixture,,,,,,,
+rs4149056,,,Synthetic GWAS membership fixture,,,,,,,
+rs776746,,,Synthetic GWAS membership fixture,,,,,,,
+rs3918290,,,Synthetic GWAS membership fixture,,,,,,,
+rs1800460,,,Synthetic GWAS membership fixture,,,,,,,
+rs12979860,,,Synthetic GWAS membership fixture,,,,,,,
+rs8099917,,,Synthetic GWAS membership fixture,,,,,,,
+rs2476601,,,Synthetic GWAS membership fixture,,,,,,,
+rs3135388,,,Synthetic GWAS membership fixture,,,,,,,
+rs1800795,,,Synthetic GWAS membership fixture,,,,,,,
+rs1800629,,,Synthetic GWAS membership fixture,,,,,,,
+rs1801282,,,Synthetic GWAS membership fixture,,,,,,,
+rs5219,,,Synthetic GWAS membership fixture,,,,,,,
+rs13266634,,,Synthetic GWAS membership fixture,,,,,,,
+rs4402960,,,Synthetic GWAS membership fixture,,,,,,,
+rs10811661,,,Synthetic GWAS membership fixture,,,,,,,
+rs12255372,,,Synthetic GWAS membership fixture,,,,,,,
+rs1111875,,,Synthetic GWAS membership fixture,,,,,,,
+rs757210,,,Synthetic GWAS membership fixture,,,,,,,
+rs174547,,,Synthetic GWAS membership fixture,,,,,,,
+rs1535,,,Synthetic GWAS membership fixture,,,,,,,
+rs2282679,,,Synthetic GWAS membership fixture,,,,,,,
+rs7041,,,Synthetic GWAS membership fixture,,,,,,,
+rs12794714,,,Synthetic GWAS membership fixture,,,,,,,
+rs10741657,,,Synthetic GWAS membership fixture,,,,,,,
+rs662,,,Synthetic GWAS membership fixture,,,,,,,
+rs854560,,,Synthetic GWAS membership fixture,,,,,,,
+rs708272,,,Synthetic GWAS membership fixture,,,,,,,
+rs5882,,,Synthetic GWAS membership fixture,,,,,,,
+rs1800012,,,Synthetic GWAS membership fixture,,,,,,,
+rs1800896,,,Synthetic GWAS membership fixture,,,,,,,
+rs1143634,,,Synthetic GWAS membership fixture,,,,,,,
+rs1800544,,,Synthetic GWAS membership fixture,,,,,,,
+rs4570625,,,Synthetic GWAS membership fixture,,,,,,,
+rs25531,,,Synthetic GWAS membership fixture,,,,,,,
+rs6311,,,Synthetic GWAS membership fixture,,,,,,,
+rs6313,,,Synthetic GWAS membership fixture,,,,,,,
+rs4654748,,,Synthetic GWAS membership fixture,,,,,,,
+rs1801131,,,Synthetic GWAS membership fixture,,,,,,,
+rs1801394,,,Synthetic GWAS membership fixture,,,,,,,
+rs182549,,,Synthetic GWAS membership fixture,,,,,,,
+rs1805008,,,Synthetic GWAS membership fixture,,,,,,,
+rs1805009,,,Synthetic GWAS membership fixture,,,,,,,
+rs2228479,,,Synthetic GWAS membership fixture,,,,,,,
+rs113993960,,,Synthetic GWAS membership fixture,,,,,,,
+rs80357906,,,Synthetic GWAS membership fixture,,,,,,,
+rs63750066,,,Synthetic GWAS membership fixture,,,,,,,

@@ -33,19 +33,17 @@ ADDITIONAL_VERIFIED_GRCH37_MAPPINGS: dict[str, GRCh37Mapping] = {
 # Every coordinate-bearing seed has one corresponding generated table.  The
 # coordinate guard derives its rsID scope from the seed/snapshot intersection;
 # adding a panel rsID to a seed therefore extends the guard automatically.
+# The GWAS seed is deliberately absent: #1948/#2011 made it synthetic
+# rsID-membership data; coordinates, alleles, and effect metadata must all
+# remain null.
 COORDINATE_SEED_DB_TARGETS = (
     ("clinvar_seed.csv", "mini_reference.db", "clinvar_variants"),
     ("vep_seed.csv", "mini_vep_bundle.db", "vep_annotations"),
     ("gnomad_seed.csv", "mini_gnomad_af.db", "gnomad_af"),
-    ("gwas_seed.csv", "mini_reference.db", "gwas_associations"),
     ("dbnsfp_seed.csv", "mini_dbnsfp.db", "dbnsfp_scores"),
 )
 
-ALLELE_SEED_CSVS = tuple(
-    csv_name
-    for csv_name, _db_name, _table_name in COORDINATE_SEED_DB_TARGETS
-    if csv_name != "gwas_seed.csv"
-)
+ALLELE_SEED_CSVS = tuple(target[0] for target in COORDINATE_SEED_DB_TARGETS)
 MINI_DB_NAMES = tuple(dict.fromkeys(target[1] for target in COORDINATE_SEED_DB_TARGETS))
 
 
@@ -243,34 +241,25 @@ class TestSeedCSVContent:
         rows = _guarded_seed_alleles(csv_name, expected)
         _assert_grch37_plus_strand_alleles(rows, expected, csv_name)
 
-    def test_guarded_gwas_risk_alleles_use_the_plus_strand_seed_pair(self) -> None:
-        expected = _expected_grch37_mappings()
-        represented_pairs = {
-            rsid: {ref, alt}
-            for rsid, ref, alt in _guarded_seed_alleles("gnomad_seed.csv", expected)
-        }
+    def test_synthetic_gwas_rows_leave_scientific_fields_empty(self) -> None:
         with (SEED_DIR / "gwas_seed.csv").open(newline="", encoding="utf-8") as fh:
-            rows = [
-                row for row in csv.DictReader(fh) if row["rsid"] in expected and row["risk_allele"]
-            ]
+            rows = list(csv.DictReader(fh))
 
-        assert rows, "gwas_seed.csv has no risk alleles overlapping the GRCh37 oracle"
-        for occurrence, row in enumerate(rows, start=1):
-            rsid = row["rsid"]
-            risk_allele = row["risk_allele"]
-            assert risk_allele in expected[rsid][2], (
-                f"gwas_seed.csv occurrence {occurrence} ({rsid}) risk allele "
-                f"{risk_allele} is not in the plus-strand oracle"
-            )
-            assert rsid in represented_pairs, (
-                f"gwas_seed.csv occurrence {occurrence} ({rsid}) has no allele pair "
-                "in gnomad_seed.csv to validate the risk allele against"
-            )
-            assert risk_allele in represented_pairs[rsid], (
-                f"gwas_seed.csv occurrence {occurrence} ({rsid}) risk allele "
-                f"{risk_allele} is not in the represented seed pair "
-                f"{sorted(represented_pairs[rsid])}"
-            )
+        scientific_fields = (
+            "chrom",
+            "pos",
+            "p_value",
+            "odds_ratio",
+            "beta",
+            "risk_allele",
+            "pubmed_id",
+            "study",
+            "sample_size",
+        )
+
+        assert rows, "gwas_seed.csv has no synthetic membership rows"
+        assert all(row["trait"] == "Synthetic GWAS membership fixture" for row in rows)
+        assert all(not row[field] for row in rows for field in scientific_fields)
 
 
 # ── Regeneration script ──────────────────────────────────────────────

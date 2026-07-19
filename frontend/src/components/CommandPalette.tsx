@@ -21,6 +21,7 @@ import { navRoutes } from "@/lib/nav-routes"
 import { useVariantSearch } from "@/api/variants"
 import { useSamples } from "@/api/samples"
 import { parseSampleId } from "@/lib/format"
+import { withActiveSample } from "@/lib/navigation"
 
 export interface CommandPaletteProps {
   open: boolean
@@ -47,18 +48,19 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
 
   const navigateToLocus = useCallback(
     (locus: string) => {
-      navigate(`/genome-browser?locus=${encodeURIComponent(locus.trim())}`)
+      const params = new URLSearchParams({ locus: locus.trim() })
+      navigate(withActiveSample(`/genome-browser?${params}`, activeSampleId))
       handleOpenChange(false)
     },
-    [navigate, handleOpenChange],
+    [navigate, activeSampleId, handleOpenChange],
   )
 
   const navigateToPage = useCallback(
     (path: string) => {
-      navigate(path)
+      navigate(withActiveSample(path, activeSampleId))
       handleOpenChange(false)
     },
-    [navigate, handleOpenChange],
+    [navigate, activeSampleId, handleOpenChange],
   )
 
   const navigateToVariant = useCallback(
