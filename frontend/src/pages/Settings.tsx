@@ -7,7 +7,7 @@
  *   - /settings/about     (placeholder)
  */
 
-import { NavLink, Routes, Route, Navigate } from 'react-router-dom'
+import { NavLink, Routes, Route, Navigate, useSearchParams } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { Settings2, RefreshCw, Activity, Info, ArrowUpCircle, CheckCircle2, AlertCircle } from 'lucide-react'
 import Logo from '@/components/layout/Logo'
@@ -17,6 +17,8 @@ import NuclearDelete from '@/components/settings/NuclearDelete'
 import SystemHealth from '@/components/settings/SystemHealth'
 import SampleMetadataEditor from '@/components/settings/SampleMetadataEditor'
 import { useAppUpdate } from '@/api/updates'
+import { parseSampleId } from '@/lib/format'
+import { withActiveSample } from '@/lib/navigation'
 
 const NAV_ITEMS = [
   { to: '/settings/general', label: 'General', icon: Settings2 },
@@ -25,13 +27,13 @@ const NAV_ITEMS = [
   { to: '/settings/about', label: 'About', icon: Info },
 ] as const
 
-function SettingsNav() {
+function SettingsNav({ sampleId }: { sampleId: number | null }) {
   return (
     <nav aria-label="Settings sections" className="flex flex-col gap-0.5">
       {NAV_ITEMS.map(({ to, label, icon: Icon }) => (
         <NavLink
           key={to}
-          to={to}
+          to={withActiveSample(to, sampleId)}
           end
           className={({ isActive }) =>
             cn(
@@ -202,19 +204,30 @@ function AboutPage() {
 }
 
 export default function Settings() {
+  const [searchParams] = useSearchParams()
+  const activeSampleId = parseSampleId(searchParams.get('sample_id'))
+
   return (
     <div className="p-6">
       <h1 className="text-2xl font-bold mb-6">Settings</h1>
       <div className="flex gap-6">
         {/* Mini sidebar */}
         <div className="w-48 shrink-0">
-          <SettingsNav />
+          <SettingsNav sampleId={activeSampleId} />
         </div>
 
         {/* Content area */}
         <div className="flex-1 min-w-0">
           <Routes>
-            <Route index element={<Navigate to="updates" replace />} />
+            <Route
+              index
+              element={(
+                <Navigate
+                  to={withActiveSample('updates', activeSampleId)}
+                  replace
+                />
+              )}
+            />
             <Route path="general" element={<GeneralSettings />} />
             <Route path="updates" element={<UpdateManager />} />
             <Route path="health" element={<HealthPage />} />

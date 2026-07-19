@@ -59,6 +59,17 @@ describe("nav route registry (#638)", () => {
     }
   })
 
+  it("Sidebar carries only the active sample to every registry route", () => {
+    render(<Sidebar />, { route: "/?sample_id=7&post_merge=1" })
+    for (const route of navRoutes) {
+      const link = screen.getByRole("link", { name: route.label })
+      const url = new URL(link.getAttribute("href")!, "http://localhost")
+      expect(url.pathname).toBe(route.to)
+      expect(url.searchParams.get("sample_id")).toBe("7")
+      expect(url.searchParams.has("post_merge")).toBe(false)
+    }
+  })
+
   it("Command Palette renders a Pages entry for every registry route (⊇ sidebar)", () => {
     render(<CommandPalette open={true} onOpenChange={vi.fn()} />)
     for (const route of navRoutes) {

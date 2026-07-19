@@ -1,14 +1,18 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { Sun, Moon, Monitor, Search } from 'lucide-react'
 import Logo from './Logo'
 import IndividualSelector from './IndividualSelector'
 import CommandPalette from '@/components/CommandPalette'
 import { useThemeContext } from '@/lib/ThemeContext'
+import { parseSampleId } from '@/lib/format'
+import { withActiveSample } from '@/lib/navigation'
 
 export default function TopNav() {
   const { theme, cycleTheme } = useThemeContext()
   const [paletteOpen, setPaletteOpen] = useState(false)
+  const [searchParams] = useSearchParams()
+  const activeSampleId = parseSampleId(searchParams.get('sample_id'))
 
   // Global Cmd+K / Ctrl+K shortcut
   useEffect(() => {
@@ -28,7 +32,10 @@ export default function TopNav() {
 
   return (
     <header className="h-12 border-b border-border bg-background flex items-center px-4 gap-4 shrink-0">
-      <Link to="/" className="flex items-center gap-2 font-semibold text-foreground">
+      <Link
+        to={withActiveSample('/', activeSampleId)}
+        className="flex items-center gap-2 font-semibold text-foreground"
+      >
         <Logo decorative className="h-5 w-5 text-primary" />
         <span>Yeliztli</span>
       </Link>
