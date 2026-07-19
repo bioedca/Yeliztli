@@ -229,7 +229,7 @@
             }
           },
           "evidence_level": 1,
-          "pmids": ["28206959", "38787354", "12810179"],
+          "pmids": ["28206959", "38787354", "12810179", "39850783"],
           "recommendation_text": "COL1A1 Sp1 (rs1800012) has phenotype-specific, opposite-direction effects. For sports tendon/ligament injury the rare GRCh37 plus-strand AA genotype (reported as TT in transcript-oriented literature) is generally protective while the heterozygous genotype may carry higher soft-tissue injury risk; separately, the plus-strand A allele (literature T) is linked to lower bone mineral density / osteoporotic fracture risk mainly in older/postmenopausal adults. Tendon/ligament conditioning supports soft-tissue resilience, and weight-bearing exercise with adequate calcium/vitamin D supports bone health with age regardless of genotype."
         }
       ]

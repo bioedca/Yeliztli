@@ -341,6 +341,10 @@ class TestCOL1A1Injury:
     the literature T allele (plus-strand A) is a distinct phenotype and must not
     be presented as an athletic stress-fracture risk that makes AA the
     elevated-injury genotype.
+
+    Sports-injury direction: PMID:28206959 and PMID:38787354 (both accessed
+    2026-07-19). Bone-fragility direction: PMID:12810179 and PMID:39850783 (both
+    accessed 2026-07-19).
     """
 
     def _get_col1a1(self, panel: FitnessPanel) -> PanelSNP:
@@ -382,10 +386,10 @@ class TestCOL1A1Injury:
         assert "separate" in aa_text or "distinct" in aa_text
 
     def test_citations_are_soft_tissue_and_bone(self, panel: FitnessPanel) -> None:
-        """Cites the soft-tissue meta-analyses (Wang 2017, Guo 2024) + a BMD source."""
+        """Cite two meta-analyses for each direction (all accessed 2026-07-19)."""
         snp = self._get_col1a1(panel)
-        assert "28206959" in snp.pmids  # Wang 2017 soft-tissue meta-analysis
-        assert "38787354" in snp.pmids  # Guo 2024 soft-tissue meta-analysis
+        assert {"28206959", "38787354"} <= set(snp.pmids)  # sports soft tissue
+        assert {"12810179", "39850783"} <= set(snp.pmids)  # bone fragility
 
 
 # ── COL5A1 rs12722 range-of-motion direction tests (issue #622) ────────────
@@ -848,7 +852,7 @@ class TestScorePathways:
         mct1 = next(s for s in power.snp_results if s.rsid == "rs1049434")
         assert mct1.category == INDETERMINATE
 
-        # Recovery: COL5A1 CT=Moderate (capped from star1), COL1A1 GG=Standard → Moderate
+        # Recovery: COL5A1 CT=Moderate (capped from star1), COL1A1 CC=Standard → Moderate
         recovery = next(pr for pr in result.pathway_results if pr.pathway_id == "recovery_injury")
         assert recovery.level == MODERATE
 
