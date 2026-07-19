@@ -4,7 +4,7 @@ import type { ReactNode } from 'react'
 import { afterEach, describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { MemoryRouter, Routes, Route } from 'react-router-dom'
+import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
 import Settings from '@/pages/Settings'
 import UpdateManager, {
   isOutsideBandwidthWindow,
@@ -196,6 +196,15 @@ function createWrapper(initialEntries: string[] = ['/settings/updates']) {
   )
 }
 
+function LocationProbe() {
+  const location = useLocation()
+  return (
+    <output data-testid="settings-location">
+      {location.pathname}{location.search}
+    </output>
+  )
+}
+
 /** Wrapper that renders Settings inside its parent route context. */
 function createSettingsWrapper(initialEntries: string[] = ['/settings/updates']) {
   const qc = new QueryClient({
@@ -207,6 +216,7 @@ function createSettingsWrapper(initialEntries: string[] = ['/settings/updates'])
   return () => (
     <QueryClientProvider client={qc}>
       <MemoryRouter initialEntries={initialEntries}>
+        <LocationProbe />
         <Routes>
           <Route path="/settings/*" element={<Settings />} />
         </Routes>
@@ -238,6 +248,23 @@ describe('Settings page', () => {
     setupFetchMocks()
     renderSettings()
     expect(screen.getByRole('navigation', { name: /Settings sections/i })).toBeInTheDocument()
+  })
+
+  it('preserves the active sample through its index redirect and section links', async () => {
+    setupFetchMocks()
+    renderSettings(['/settings?sample_id=7'])
+
+    await waitFor(() => {
+      expect(screen.getByTestId('settings-location')).toHaveTextContent(
+        '/settings/updates?sample_id=7',
+      )
+    })
+
+    const nav = screen.getByRole('navigation', { name: /Settings sections/i })
+    for (const link of Array.from(nav.querySelectorAll('a'))) {
+      const url = new URL(link.href)
+      expect(url.searchParams.get('sample_id')).toBe('7')
+    }
   })
 
   it('shows Update Manager content on /settings/updates', async () => {

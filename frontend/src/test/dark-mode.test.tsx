@@ -31,6 +31,14 @@ afterEach(() => {
 })
 
 describe('Dark mode toggle (T4-30)', () => {
+  it('carries the active sample through the logo link', () => {
+    render(<TopNav />, { route: '/cancer?sample_id=7&profile=clinical' })
+    expect(screen.getByRole('link', { name: 'Yeliztli' })).toHaveAttribute(
+      'href',
+      '/?sample_id=7',
+    )
+  })
+
   it('renders theme toggle button', () => {
     render(<TopNav />)
     expect(screen.getByTestId('theme-toggle')).toBeInTheDocument()
