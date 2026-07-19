@@ -826,7 +826,7 @@ class TestScorePathways:
         _seed_variants(
             sample_engine,
             [
-                ("rs4988235", "2", 135851076, "GG"),
+                ("rs4988235", "2", 136608646, "GG"),
             ],
         )
         _seed_gwas(
@@ -848,7 +848,7 @@ class TestScorePathways:
         reference_engine: sa.Engine,
     ) -> None:
         """Runtime scoring must not treat rs174547 CC as normal/standard."""
-        _seed_variants(sample_engine, [("rs174547", "11", 61597212, "CC")])
+        _seed_variants(sample_engine, [("rs174547", "11", 61570783, "CC")])
 
         result = score_nutrigenomics_pathways(panel, sample_engine, reference_engine)
         omega3 = next(pr for pr in result.pathway_results if pr.pathway_id == "omega_3")
@@ -865,7 +865,7 @@ class TestScorePathways:
         reference_engine: sa.Engine,
     ) -> None:
         """Runtime scoring must not elevate rs174547 non-carriers."""
-        _seed_variants(sample_engine, [("rs174547", "11", 61597212, "TT")])
+        _seed_variants(sample_engine, [("rs174547", "11", 61570783, "TT")])
 
         result = score_nutrigenomics_pathways(panel, sample_engine, reference_engine)
         omega3 = next(pr for pr in result.pathway_results if pr.pathway_id == "omega_3")
@@ -919,7 +919,7 @@ class TestStoreFindingsIntegration:
             sample_engine,
             [
                 ("rs1801133", "1", 11856378, "AA"),
-                ("rs4988235", "2", 135851076, "GG"),
+                ("rs4988235", "2", 136608646, "GG"),
             ],
         )
 
@@ -1085,7 +1085,7 @@ class TestStoreFindingsIntegration:
         """#181 end-to-end: AFR ancestry + LCT GG → ancestry_caveated persists to
         both the snp_finding detail and the pathway-summary snp_details."""
         self._seed_ancestry(sample_engine, "AFR")
-        _seed_variants(sample_engine, [("rs4988235", "2", 135851076, "GG")])
+        _seed_variants(sample_engine, [("rs4988235", "2", 136608646, "GG")])
 
         result = score_nutrigenomics_pathways(panel, sample_engine, reference_engine)
         store_nutrigenomics_findings(result, sample_engine)
@@ -1130,7 +1130,7 @@ class TestStoreFindingsIntegration:
     ) -> None:
         """EUR ancestry + LCT GG → the call stands without an ancestry caveat."""
         self._seed_ancestry(sample_engine, "EUR")
-        _seed_variants(sample_engine, [("rs4988235", "2", 135851076, "GG")])
+        _seed_variants(sample_engine, [("rs4988235", "2", 136608646, "GG")])
 
         result = score_nutrigenomics_pathways(panel, sample_engine, reference_engine)
         store_nutrigenomics_findings(result, sample_engine)
@@ -1557,8 +1557,8 @@ class TestLactosePersistenceConflict:
         _seed_variants(
             sample_engine,
             [
-                ("rs4988235", "2", 135851076, "GG"),
-                ("rs182549", "2", 135851234, "CC"),
+                ("rs4988235", "2", 136608646, "GG"),
+                ("rs182549", "2", 136616754, "CC"),
                 ("rs41380347", "2", 135851222, "CC"),
             ],
         )
@@ -1579,7 +1579,7 @@ class TestLactosePersistenceConflict:
         _seed_variants(
             sample_engine,
             [
-                ("rs4988235", "2", 135851076, "GG"),
+                ("rs4988235", "2", 136608646, "GG"),
                 ("rs41525747", "2", 135851198, "CG"),
             ],
         )
@@ -1594,7 +1594,7 @@ class TestLactosePersistenceConflict:
         _seed_variants(
             sample_engine,
             [
-                ("rs4988235", "2", 135851076, "GG"),
+                ("rs4988235", "2", 136608646, "GG"),
                 ("rs41380347", "2", 135851222, "AA"),
             ],
         )

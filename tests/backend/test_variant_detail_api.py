@@ -30,9 +30,9 @@ from backend.db.tables import (
 SAMPLE_VARIANT_BRCA1 = {
     "rsid": "rs80357906",
     "chrom": "17",
-    "pos": 43094464,
-    "ref": "A",
-    "alt": "G",
+    "pos": 41209080,
+    "ref": "GGG",
+    "alt": "GGGG",
     "genotype": "AG",
     "zygosity": "het",
     "gene_symbol": "BRCA1",
@@ -40,12 +40,12 @@ SAMPLE_VARIANT_BRCA1 = {
     "consequence": "frameshift_variant",
     "hgvs_coding": "c.5266dupC",
     "hgvs_protein": "p.Gln1756Profs*74",
-    "strand": "+",
-    "exon_number": 11,
+    "strand": "-",
+    "exon_number": 19,
     "mane_select": True,
     "clinvar_significance": "Pathogenic",
-    "clinvar_review_stars": 2,
-    "clinvar_accession": "VCV000017661",
+    "clinvar_review_stars": 3,
+    "clinvar_accession": "VCV000017677",
     "clinvar_conditions": "Breast-ovarian cancer",
     "gnomad_af_global": 0.000003,
     "gnomad_af_afr": 0.000001,
@@ -453,9 +453,9 @@ class TestGetVariantDetail:
         tc, sid = client
         data = tc.get(f"/api/variants/rs80357906?sample_id={sid}").json()
         assert data["chrom"] == "17"
-        assert data["pos"] == 43094464
-        assert data["ref"] == "A"
-        assert data["alt"] == "G"
+        assert data["pos"] == 41209080
+        assert data["ref"] == "GGG"
+        assert data["alt"] == "GGGG"
         assert data["genotype"] == "AG"
         assert data["zygosity"] == "het"
         assert data["zygosity_label"] == "Heterozygous"
@@ -468,15 +468,15 @@ class TestGetVariantDetail:
         assert data["consequence"] == "frameshift_variant"
         assert data["hgvs_coding"] == "c.5266dupC"
         assert data["hgvs_protein"] == "p.Gln1756Profs*74"
-        assert data["exon_number"] == 11
+        assert data["exon_number"] == 19
         assert data["mane_select"] is True
 
     def test_returns_clinvar_fields(self, client):
         tc, sid = client
         data = tc.get(f"/api/variants/rs80357906?sample_id={sid}").json()
         assert data["clinvar_significance"] == "Pathogenic"
-        assert data["clinvar_review_stars"] == 2
-        assert data["clinvar_accession"] == "VCV000017661"
+        assert data["clinvar_review_stars"] == 3
+        assert data["clinvar_accession"] == "VCV000017677"
         assert data["clinvar_conditions"] == "Breast-ovarian cancer"
 
     def test_returns_gnomad_fields(self, client):
@@ -770,14 +770,14 @@ VEP_TRANSCRIPT_ROWS = [
         "csq": "frameshift_variant",
         "hgvsc": "c.5266dupC",
         "hgvsp": "p.Gln1756Profs*74",
-        "strand": "+",
-        "exon": 11,
+        "strand": "-",
+        "exon": 19,
         "intron": None,
         "mane": 1,
         "chrom": "17",
-        "pos": 43094464,
-        "ref": "A",
-        "alt": "G",
+        "pos": 41209080,
+        "ref": "GGG",
+        "alt": "GGGG",
     },
     {
         "rsid": "rs80357906",
@@ -786,14 +786,14 @@ VEP_TRANSCRIPT_ROWS = [
         "csq": "frameshift_variant",
         "hgvsc": "c.5100dupC",
         "hgvsp": "p.Gln1701Profs*74",
-        "strand": "+",
+        "strand": "-",
         "exon": 10,
         "intron": None,
         "mane": 0,
         "chrom": "17",
-        "pos": 43094464,
-        "ref": "A",
-        "alt": "G",
+        "pos": 41209080,
+        "ref": "GGG",
+        "alt": "GGGG",
     },
     {
         "rsid": "rs80357906",
@@ -802,14 +802,14 @@ VEP_TRANSCRIPT_ROWS = [
         "csq": "frameshift_variant",
         "hgvsc": "c.5266dupC",
         "hgvsp": "p.Gln1756Profs*74",
-        "strand": "+",
-        "exon": 11,
+        "strand": "-",
+        "exon": 19,
         "intron": None,
         "mane": 0,
         "chrom": "17",
-        "pos": 43094464,
-        "ref": "A",
-        "alt": "G",
+        "pos": 41209080,
+        "ref": "GGG",
+        "alt": "GGGG",
     },
 ]
 

@@ -241,6 +241,7 @@ _CFTR_F508DEL_INDEL_POLARITY: dict[str, str | list[str]] = {
     "hgvs": "NM_000492.4:c.1521_1523delCTT (p.Phe508del)",
     "dbsnp": "rs113993960",
     "vcf_form": "ATCT>A",
+    "grch37_mapping_form": "TCTT>T",
     "vendor_id_convention": (
         "23andMe / AncestryDNA encode indel markers with literal I/D tokens where "
         "D = the deletion (shorter) allele and I = the insertion/reference (longer) "
@@ -271,19 +272,24 @@ _HEXA_EXON11_DUP_INDEL_POLARITY: dict[str, str | list[str]] = {
     "accessed": "2026-07-01",
 }
 
+_CFTR_F508DEL_ZYGOSITY = {
+    "AT": "het",
+    "TA": "het",
+    "DI": "het",
+    "ID": "het",
+    "DD": "hom_alt",
+    "II": "hom_ref",
+}
+
 _SUPPORTED_CARRIER_INDEL_ZYGOSITY: dict[tuple[str, str, str, str], dict[str, str]] = {
-    # CFTR F508del / p.Phe508del, represented in ClinVar/VCF form as ATCT>A.
+    # CFTR F508del / p.Phe508del can reach annotation as either the left-anchored
+    # VCF record (7:117199644 ATCT>A) or the Ensembl GRCh37 mapping interval
+    # (7:117199645 TCTT>T). Both describe the same deleted CTT haplotype.
     # Consumer-array exports can represent this marker either as a probe-level
     # A/T carrier call or as literal D/I indel tokens. The D=deletion (variant) /
     # I=reference polarity is documented in _CFTR_F508DEL_INDEL_POLARITY (#256).
-    ("CFTR", "rs113993960", "ATCT", "A"): {
-        "AT": "het",
-        "TA": "het",
-        "DI": "het",
-        "ID": "het",
-        "DD": "hom_alt",
-        "II": "hom_ref",
-    },
+    ("CFTR", "rs113993960", "ATCT", "A"): _CFTR_F508DEL_ZYGOSITY,
+    ("CFTR", "rs113993960", "TCTT", "T"): _CFTR_F508DEL_ZYGOSITY,
     # HEXA Ashkenazi Jewish founder allele c.1274_1277dupTATC, represented by
     # Ensembl GRCh37/dbSNP as GATA>GATAGATA. Unlike CFTR F508del, the variant
     # allele is the insertion/longer allele, so I carries the pathogenic allele.

@@ -266,7 +266,7 @@ def client_with_variants(tmp_data_dir: Path) -> Generator[tuple[TestClient, int]
     """Client with raw variants for run endpoint testing."""
     variants = [
         {"rsid": "rs1801133", "chrom": "1", "pos": 11856378, "genotype": "AA"},
-        {"rsid": "rs4988235", "chrom": "2", "pos": 135851076, "genotype": "GG"},
+        {"rsid": "rs4988235", "chrom": "2", "pos": 136608646, "genotype": "GG"},
     ]
     yield from _setup_client(tmp_data_dir, seed_variants=variants)
 

@@ -47,9 +47,9 @@ ANNOTATED_VARIANTS = [
     {
         "rsid": "rs80357906",
         "chrom": "17",
-        "pos": 43091983,
-        "ref": "CTC",
-        "alt": "C",
+        "pos": 41209080,
+        "ref": "GGG",
+        "alt": "GGGG",
         "genotype": "TC",
         "zygosity": "het",
         "gene_symbol": "BRCA1",

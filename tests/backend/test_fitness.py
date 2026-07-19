@@ -818,7 +818,7 @@ class TestScorePathways:
                 ("rs4341", "17", 63488529, "GG"),  # ACE DD proxy
                 ("rs1049434", "1", 113545811, "TT"),  # MCT1 normal
                 ("rs12722", "9", 137048876, "CT"),  # COL5A1 het
-                ("rs1800012", "17", 50201587, "GG"),  # COL1A1 normal
+                ("rs1800012", "17", 48277749, "GG"),  # COL1A1 normal
                 ("rs9939609", "16", 53820527, "AA"),  # FTO hom risk
             ],
         )
@@ -1234,7 +1234,7 @@ class TestStoreFindingsIntegration:
                 ("rs4341", "17", 63488529, "GG"),  # ACE DD → Moderate (#352)
                 ("rs1049434", "1", 113545811, "AA"),  # MCT1 → Moderate (capped)
                 ("rs12722", "9", 137048876, "TT"),  # COL5A1 → Moderate (capped)
-                ("rs1800012", "17", 50201587, "GT"),  # COL1A1 het → Moderate (soft-tissue caution)
+                ("rs1800012", "17", 48277749, "GT"),  # COL1A1 het → Moderate (soft-tissue caution)
                 ("rs9939609", "16", 53820527, "AA"),  # FTO → Elevated
             ],
         )

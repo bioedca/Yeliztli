@@ -156,34 +156,34 @@ class TestExtractGeneSymbol:
 class TestParseClinvarVcfLine:
     def test_pathogenic_variant(self):
         line = (
-            "17\t43091983\t17661\tCTC\tC\t.\t.\t"
+            "17\t41209079\t17677\tT\tTG\t.\t.\t"
             "RS=80357906;CLNSIG=Pathogenic;"
             "CLNREVSTAT=reviewed_by_expert_panel;"
             "CLNDN=Hereditary_breast_and_ovarian_cancer_syndrome;"
-            "GENEINFO=BRCA1:672;CLNVCID=17661"
+            "GENEINFO=BRCA1:672;CLNVCID=17677"
         )
         rec, skip = parse_clinvar_vcf_line(line)
         assert skip is None
         assert rec is not None
         assert rec.rsid == "rs80357906"
         assert rec.chrom == "17"
-        assert rec.pos == 43091983
-        assert rec.ref == "CTC"
-        assert rec.alt == "C"
+        assert rec.pos == 41209079
+        assert rec.ref == "T"
+        assert rec.alt == "TG"
         assert rec.significance == "Pathogenic"
         assert rec.review_stars == 3
-        assert rec.accession == "VCV000017661"
+        assert rec.accession == "VCV000017677"
         assert rec.conditions == "Hereditary breast and ovarian cancer syndrome"
         assert rec.gene_symbol == "BRCA1"
-        assert rec.variation_id == 17661
+        assert rec.variation_id == 17677
 
     def test_preserves_low_penetrance_risk_allele_slash_compound(self):
         line = (
-            "17\t43091983\t17661\tCTC\tC\t.\t.\t"
+            "17\t41209079\t17677\tT\tTG\t.\t.\t"
             "RS=80357906;CLNSIG=Pathogenic/Established_risk_allele;"
             "CLNREVSTAT=reviewed_by_expert_panel;"
             "CLNDN=Hereditary_breast_and_ovarian_cancer_syndrome;"
-            "GENEINFO=BRCA1:672;CLNVCID=17661"
+            "GENEINFO=BRCA1:672;CLNVCID=17677"
         )
         rec, skip = parse_clinvar_vcf_line(line)
         assert skip is None
@@ -192,10 +192,10 @@ class TestParseClinvarVcfLine:
 
     def test_benign_variant(self):
         line = (
-            "22\t19963748\t16312\tG\tA\t.\t.\t"
+            "22\t19951271\t17591\tG\tA\t.\t.\t"
             "RS=4680;CLNSIG=Benign;"
             "CLNREVSTAT=criteria_provided,_multiple_submitters,_no_conflicts;"
-            "CLNDN=not_specified;GENEINFO=COMT:1312;CLNVCID=16312"
+            "CLNDN=not_specified;GENEINFO=COMT:1312;CLNVCID=17591"
         )
         rec, skip = parse_clinvar_vcf_line(line)
         assert skip is None
@@ -207,7 +207,7 @@ class TestParseClinvarVcfLine:
 
     def test_practice_guideline_4_stars(self):
         line = (
-            "11\t5227002\t15333\tT\tA\t.\t.\t"
+            "11\t5248232\t15333\tT\tA\t.\t.\t"
             "RS=334;CLNSIG=Pathogenic;"
             "CLNREVSTAT=practice_guideline;"
             "CLNDN=Sickle_cell_disease;GENEINFO=HBB:3043;CLNVCID=15333"
@@ -337,13 +337,37 @@ class TestParseClinvarVcf:
         assert stats.file_date == "20260301"
 
     def test_known_variant_present(self):
-        """rs28897696 (HBB Pathogenic) should be in parsed output."""
+        """rs28897696 is the pathogenic BRCA1 p.Ala1708Glu allele."""
         rows, _ = _materialize_clinvar_rows(MINI_CLINVAR_VCF)
-        hbb = [r for r in rows if r["rsid"] == "rs28897696"]
-        assert len(hbb) == 1
-        assert hbb[0]["significance"] == "Pathogenic"
-        assert hbb[0]["gene_symbol"] == "HBB"
-        assert hbb[0]["review_stars"] == 3
+        brca1 = [r for r in rows if r["rsid"] == "rs28897696"]
+        assert len(brca1) == 1
+        assert brca1[0]["significance"] == "Pathogenic"
+        assert brca1[0]["gene_symbol"] == "BRCA1"
+        assert brca1[0]["review_stars"] == 3
+        assert (brca1[0]["chrom"], brca1[0]["pos"], brca1[0]["ref"], brca1[0]["alt"]) == (
+            "17",
+            41215920,
+            "G",
+            "T",
+        )
+
+    def test_indels_use_left_normalized_grch37_vcf_records(self):
+        """VCF indels carry an anchor base while seed CSVs use mapping alleles."""
+        rows, _ = _materialize_clinvar_rows(MINI_CLINVAR_VCF)
+        by_rsid = {row["rsid"]: row for row in rows}
+
+        assert (
+            by_rsid["rs80357906"]["chrom"],
+            by_rsid["rs80357906"]["pos"],
+            by_rsid["rs80357906"]["ref"],
+            by_rsid["rs80357906"]["alt"],
+        ) == ("17", 41209079, "T", "TG")
+        assert (
+            by_rsid["rs113993960"]["chrom"],
+            by_rsid["rs113993960"]["pos"],
+            by_rsid["rs113993960"]["ref"],
+            by_rsid["rs113993960"]["alt"],
+        ) == ("7", 117199644, "ATCT", "A")
 
     def test_sickle_cell_4_stars(self):
         """rs334 (Sickle cell) should have 4 review stars."""
@@ -445,7 +469,7 @@ class TestLoadClinvarFromIter:
         assert count == 12
 
     def test_stream_load_known_variant(self, ref_engine: sa.Engine):
-        """rs28897696 (HBB Pathogenic) is queryable after a stream load (T1-11 spec)."""
+        """rs28897696 (BRCA1 Pathogenic) is queryable after a stream load."""
         load_clinvar_from_iter(iter_clinvar_vcf(MINI_CLINVAR_VCF), ref_engine)
 
         with ref_engine.connect() as conn:
@@ -455,9 +479,9 @@ class TestLoadClinvarFromIter:
         assert row is not None
         assert row.significance == "Pathogenic"
         assert row.review_stars == 3
-        assert row.conditions == "Hemoglobin C disease"
-        assert row.gene_symbol == "HBB"
-        assert row.variation_id == 5128
+        assert row.conditions == "Hereditary breast and ovarian cancer syndrome"
+        assert row.gene_symbol == "BRCA1"
+        assert row.variation_id == 55407
 
     def test_stream_load_chrom_pos_lookup(self, ref_engine: sa.Engine):
         """Lookup by (chrom, pos) works after a stream load."""

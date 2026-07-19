@@ -55,13 +55,13 @@ def sample_with_cancer_variants(sample_engine: sa.Engine) -> sa.Engine:
         {
             "rsid": "rs80357906",
             "chrom": "17",
-            "pos": 43091983,
+            "pos": 41209080,
             "genotype": "CT",
             "zygosity": "het",
             "gene_symbol": "BRCA1",
             "clinvar_significance": "Pathogenic",
             "clinvar_review_stars": 3,
-            "clinvar_accession": "VCV000017661",
+            "clinvar_accession": "VCV000017677",
             "clinvar_conditions": "Hereditary breast and ovarian cancer syndrome",
             "annotation_coverage": 2,
         },
@@ -111,13 +111,13 @@ def sample_with_cancer_variants(sample_engine: sa.Engine) -> sa.Engine:
         {
             "rsid": "rs80359550",
             "chrom": "13",
-            "pos": 32913055,
+            "pos": 32914438,
             "genotype": "AG",
             "zygosity": "het",
             "gene_symbol": "BRCA2",
             "clinvar_significance": "Pathogenic",
             "clinvar_review_stars": 0,
-            "clinvar_accession": "VCV000038060",
+            "clinvar_accession": "VCV000009325",
             "clinvar_conditions": "Hereditary breast and ovarian cancer syndrome",
             "annotation_coverage": 2,
         },
@@ -139,7 +139,7 @@ def sample_with_cancer_variants(sample_engine: sa.Engine) -> sa.Engine:
         {
             "rsid": "rs113993960",
             "chrom": "7",
-            "pos": 117559590,
+            "pos": 117199645,
             "genotype": "CT",
             "zygosity": "het",
             "gene_symbol": "CFTR",
@@ -537,7 +537,7 @@ class TestExtractCancerVariants:
                     "gene_symbol": "BRCA1",
                     "clinvar_significance": "Pathogenic/Established risk allele",
                     "clinvar_review_stars": 4,
-                    "clinvar_accession": "VCV000017661",
+                    "clinvar_accession": "VCV000017677",
                     "clinvar_conditions": "Hereditary breast and ovarian cancer syndrome",
                     "annotation_coverage": 2,
                 },
@@ -849,7 +849,7 @@ class TestStoreCancerFindings:
             ).fetchone()
         assert row is not None
         detail = json.loads(row.detail_json)
-        assert detail["clinvar_accession"] == "VCV000017661"
+        assert detail["clinvar_accession"] == "VCV000017677"
         assert detail["clinvar_review_stars"] == 3
         assert "AD" == detail["inheritance"]
         assert len(detail["syndromes"]) > 0
@@ -1063,7 +1063,7 @@ class TestStoreCancerFindings:
                     "gene_symbol": "BRCA1",
                     "clinvar_significance": "Pathogenic/Established risk allele",
                     "clinvar_review_stars": 4,
-                    "clinvar_accession": "VCV000017661",
+                    "clinvar_accession": "VCV000017677",
                     "clinvar_conditions": "Hereditary breast and ovarian cancer syndrome",
                     "annotation_coverage": 2,
                 },

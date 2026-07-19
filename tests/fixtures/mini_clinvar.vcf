@@ -13,12 +13,12 @@
 19	44908684	17864	T	C	.	.	RS=429358;CLNSIG=risk_factor;CLNREVSTAT=criteria_provided,_multiple_submitters,_no_conflicts;CLNDN=Alzheimer_disease;GENEINFO=APOE:348;CLNVCID=17864
 19	44908822	17865	C	T	.	.	RS=7412;CLNSIG=risk_factor;CLNREVSTAT=criteria_provided,_multiple_submitters,_no_conflicts;CLNDN=Alzheimer_disease;GENEINFO=APOE:348;CLNVCID=17865
 1	11856378	3520	G	A	.	.	RS=1801133;CLNSIG=drug_response;CLNREVSTAT=criteria_provided,_single_submitter;CLNDN=Homocysteinemia;GENEINFO=MTHFR:4524;CLNVCID=3520
-22	19963748	16312	G	A	.	.	RS=4680;CLNSIG=Benign;CLNREVSTAT=criteria_provided,_multiple_submitters,_no_conflicts;CLNDN=not_specified;GENEINFO=COMT:1312;CLNVCID=16312
-17	43091983	17661	CTC	C	.	.	RS=80357906;CLNSIG=Pathogenic;CLNREVSTAT=reviewed_by_expert_panel;CLNDN=Hereditary_breast_and_ovarian_cancer_syndrome;GENEINFO=BRCA1:672;CLNVCID=17661
-7	117559590	7105	ATCT	A	.	.	RS=113993960;CLNSIG=Pathogenic;CLNREVSTAT=reviewed_by_expert_panel;CLNDN=Cystic_fibrosis;GENEINFO=CFTR:1080;CLNVCID=7105
+22	19951271	17591	G	A	.	.	RS=4680;CLNSIG=Benign;CLNREVSTAT=criteria_provided,_multiple_submitters,_no_conflicts;CLNDN=not_specified;GENEINFO=COMT:1312;CLNVCID=17591
+17	41209079	17677	T	TG	.	.	RS=80357906;CLNSIG=Pathogenic;CLNREVSTAT=reviewed_by_expert_panel;CLNDN=Hereditary_breast_and_ovarian_cancer_syndrome;GENEINFO=BRCA1:672;CLNVCID=17677
+7	117199644	7105	ATCT	A	.	.	RS=113993960;CLNSIG=Pathogenic;CLNREVSTAT=reviewed_by_expert_panel;CLNDN=Cystic_fibrosis;GENEINFO=CFTR:1080;CLNVCID=7105
 1	100000	99999	A	G	.	.	RS=12345;CLNSIG=Uncertain_significance;CLNREVSTAT=criteria_provided,_single_submitter;CLNDN=not_provided;GENEINFO=GENE1:12345;CLNVCID=99999
-1	17346045	5128	G	A	.	.	RS=28897696;CLNSIG=Pathogenic;CLNREVSTAT=reviewed_by_expert_panel;CLNDN=Hemoglobin_C_disease;GENEINFO=HBB:3043;CLNVCID=5128
-11	5227002	15333	T	A	.	.	RS=334;CLNSIG=Pathogenic;CLNREVSTAT=practice_guideline;CLNDN=Sickle_cell_disease;GENEINFO=HBB:3043;CLNVCID=15333
+17	41215920	55407	G	T	.	.	RS=28897696;CLNSIG=Pathogenic;CLNREVSTAT=reviewed_by_expert_panel;CLNDN=Hereditary_breast_and_ovarian_cancer_syndrome;GENEINFO=BRCA1:672;CLNVCID=55407
+11	5248232	15333	T	A	.	.	RS=334;CLNSIG=Pathogenic;CLNREVSTAT=practice_guideline;CLNDN=Sickle_cell_disease;GENEINFO=HBB:3043;CLNVCID=15333
 15	28365618	34215	A	G	.	.	RS=12913832;CLNSIG=association;CLNREVSTAT=criteria_provided,_single_submitter;CLNDN=Eye_color_determination;GENEINFO=HERC2:8924;CLNVCID=34215
 10	114758349	24084	C	T	.	.	RS=7903146;CLNSIG=risk_factor;CLNREVSTAT=criteria_provided,_multiple_submitters,_no_conflicts;CLNDN=Type_2_diabetes_mellitus;GENEINFO=TCF7L2:6934;CLNVCID=24084
 3	12345	100001	C	T	.	.	CLNSIG=Pathogenic;CLNREVSTAT=no_assertion_criteria_provided;CLNDN=Some_disease;GENEINFO=FAKEGENE:99

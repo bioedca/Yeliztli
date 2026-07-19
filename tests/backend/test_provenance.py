@@ -57,8 +57,8 @@ def sample_engine(tmp_path: Path) -> sa.Engine:
             annotated_variants.insert().values(
                 rsid="rs80357906",
                 chrom="17",
-                pos=43_000_000,
-                clinvar_accession="VCV000017661",
+                pos=41_209_080,
+                clinvar_accession="VCV000017677",
                 # VEP | ClinVar | gnomAD | dbNSFP
                 annotation_coverage=0b0001111,
             )
@@ -255,7 +255,7 @@ class TestStampFindingsProvenance:
         prov = self._provenance_by_rsid(sample_engine)["rs80357906"]
         assert prov["variation_ids"] == {
             "rsid": "rs80357906",
-            "clinvar_accession": "VCV000017661",
+            "clinvar_accession": "VCV000017677",
         }
         assert prov["annotation_coverage_sources"] == ["VEP", "ClinVar", "gnomAD", "dbNSFP"]
         # Every finding pins the same full release snapshot.

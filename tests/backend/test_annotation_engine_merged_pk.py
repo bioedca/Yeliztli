@@ -77,10 +77,10 @@ _RAW_VARIANTS: tuple[dict, ...] = (
     {"rsid": "rs429358", "chrom": "19", "pos": 44908684, "genotype": "TC"},
     {"rsid": "rs7412", "chrom": "19", "pos": 44908822, "genotype": "CC"},
     {"rsid": "rs1801133", "chrom": "1", "pos": 11856378, "genotype": "AG"},
-    {"rsid": "rs4680", "chrom": "22", "pos": 19963748, "genotype": "AG"},
+    {"rsid": "rs4680", "chrom": "22", "pos": 19951271, "genotype": "AG"},
     {"rsid": "rs12913832", "chrom": "15", "pos": 28365618, "genotype": "GG"},
     {"rsid": "rs7903146", "chrom": "10", "pos": 114758349, "genotype": "CT"},
-    {"rsid": "rs1805007", "chrom": "16", "pos": 89919709, "genotype": "CC"},
+    {"rsid": "rs1805007", "chrom": "16", "pos": 89986117, "genotype": "CC"},
 )
 
 _SEED_CLINVAR = (

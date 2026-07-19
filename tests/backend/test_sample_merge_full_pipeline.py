@@ -164,10 +164,10 @@ S1_VARIANTS: list[dict] = [
 S2_VARIANTS: list[dict] = [
     _v("rs7412", "19", 44908822, "CC"),  # APOE — S2-only
     _v("rs16947", "22", 42522613, "AA"),  # CYP2D6 *2 defining (plus-strand alt=A) — S2-only
-    _v("rs4680", "22", 19963748, "AG"),  # PRS effect-allele coverage — S2
+    _v("rs4680", "22", 19951271, "AG"),  # PRS effect-allele coverage — S2
     _v("rs12913832", "15", 28365618, "GG"),  # PRS effect-allele coverage — S2
     _v("rs113993959", "7", 117587778, "GT"),  # CFTR G542X het Pathogenic SNV — S2-only
-    _v("rs113993960", "7", 117559590, "AT"),  # CFTR F508del indel carrier — S2-only
+    _v("rs113993960", "7", 117199645, "AT"),  # CFTR F508del indel carrier — S2-only
     _v("rs_mtB", "MT", 2706, "GG"),  # synthetic mt rsid
     _v("rs_yC", "Y", 14181030, "CC"),  # synthetic Y rsid — typed
     _v("rs_yD", "Y", 14181040, "GG"),  # synthetic Y rsid — typed
@@ -221,7 +221,7 @@ _VEP_SEED: tuple[dict, ...] = (
     {
         "rsid": "rs4680",
         "chrom": "22",
-        "pos": 19963748,
+        "pos": 19951271,
         "ref": "G",
         "alt": "A",
         "gene_symbol": "COMT",
@@ -248,9 +248,9 @@ _VEP_SEED: tuple[dict, ...] = (
     {
         "rsid": "rs113993960",
         "chrom": "7",
-        "pos": 117559590,
-        "ref": "ATCT",
-        "alt": "A",
+        "pos": 117199645,
+        "ref": "TCTT",
+        "alt": "T",
         "gene_symbol": "CFTR",
         "consequence": "inframe_deletion",
     },
@@ -274,9 +274,9 @@ _SEED_CLINVAR: tuple[dict, ...] = (
     {
         "rsid": "rs113993960",
         "chrom": "7",
-        "pos": 117559590,
-        "ref": "ATCT",
-        "alt": "A",
+        "pos": 117199645,
+        "ref": "TCTT",
+        "alt": "T",
         "significance": "Pathogenic",
         "review_stars": 3,
         "accession": "VCV000007105",
@@ -705,6 +705,7 @@ class TestMergedSampleFullPipeline:
         separate, curated rescue for supported F508del raw calls.
         """
         assert classify_zygosity("AT", "ATCT", "A") is None
+        assert classify_zygosity("AT", "TCTT", "T") is None
 
     def test_prs_percentile_revalidation_withholds_interval(
         self,

@@ -235,17 +235,17 @@ def test_monogenic_cancer_finding_surfaces_for_carrier(build_live_run) -> None:
     run = build_live_run(
         variants=[
             # het carrier of a BRCA1-panel P/LP variant — must surface
-            {"rsid": "rs80357906", "chrom": "17", "pos": 43_094_000, "genotype": "GA"},
+            {"rsid": "rs999803579", "chrom": "17", "pos": 43_094_000, "genotype": "GA"},
             # hom-ref at another BRCA1-panel P/LP variant — must NOT surface
             {"rsid": "rs80357783", "chrom": "17", "pos": 43_095_000, "genotype": "GG"},
         ],
         clinvar=[
-            _clinvar("rs80357906", "17", 43_094_000, "G", "A", "Pathogenic", 3, gene="BRCA1"),
+            _clinvar("rs999803579", "17", 43_094_000, "G", "A", "Pathogenic", 3, gene="BRCA1"),
             _clinvar("rs80357783", "17", 43_095_000, "G", "A", "Pathogenic", 3, gene="BRCA1"),
         ],
         vep=[
             {
-                "rsid": "rs80357906",
+                "rsid": "rs999803579",
                 "chrom": "17",
                 "pos": 43_094_000,
                 "ref": "G",
@@ -265,7 +265,7 @@ def test_monogenic_cancer_finding_surfaces_for_carrier(build_live_run) -> None:
         ],
     )
     cancer_rsids = {f.rsid for f in run.findings_for_module("cancer")}
-    assert "rs80357906" in cancer_rsids, (
+    assert "rs999803579" in cancer_rsids, (
         "het carrier of a cancer-panel P/LP variant was suppressed (F6/F7)"
     )
     assert "rs80357783" not in cancer_rsids, "hom-ref non-carrier leaked into cancer findings"

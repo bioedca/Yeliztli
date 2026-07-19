@@ -777,7 +777,7 @@ class TestRecessiveInheritanceGating:
         row = {
             "rsid": "rs80357906",
             "chrom": "17",
-            "pos": 43000000,
+            "pos": 41209080,
             "genotype": "CT",
             "zygosity": "het",
             "gene_symbol": "BRCA1",

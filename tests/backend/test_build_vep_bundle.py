@@ -213,7 +213,7 @@ class TestParseVepVCF:
                 "|NM_000041.4"
             ),
             (
-                "7\t117559590\trs113993960\tATCT\tA\t.\t.\t"
+                "7\t117199644\trs113993960\tATCT\tA\t.\t.\t"
                 "CSQ=A|inframe_deletion|MODERATE|CFTR|1080"
                 "|Transcript|ENST00000003084|protein_coding"
                 "|11/27||ENST00000003084:c.1521_1523del"
