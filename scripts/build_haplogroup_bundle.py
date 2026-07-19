@@ -46,13 +46,18 @@ from typing import Any
 
 # ── Version & metadata ─────────────────────────────────────────────────
 
-BUNDLE_VERSION = "1.1.18"
+BUNDLE_VERSION = "1.1.19"
 BUILD = "GRCh37"
 MT_SOURCE_PATH = Path(__file__).with_name("mt_haplogroup_source.json")
+MT_BASELINE_SNAPSHOT_PATH = Path(__file__).with_name("mt_haplogroup_baseline_snapshot.json")
 Y_SOURCE_PATH = Path(__file__).with_name("y_haplogroup_source.json")
 
 _MT_SCHEMA_VERSION = 3
+_MT_BASELINE_SNAPSHOT_SCHEMA_VERSION = 1
 _MT_BASELINE_COMMIT = "e463604fc5b4af4d5887c9e9a76c2f54598ef312"
+_MT_BASELINE_NORMALIZATION_COMMIT = "182dfc713cec506bb9d84088a77b54061549e43c"
+# Canonical JSON SHA-256: sorted keys, compact separators, and one trailing newline.
+_MT_BASELINE_SNAPSHOT_SHA256 = "f8aecb8ba02e5c2becbccfc40846bd3c8668d4b8c6de5be1761ab78c0d83a87e"
 _MT_PHYLOTREE_ARCHIVE_SHA256 = "3fe8cf00a15e1ccb09235091016eef1af3a68f44dd9355dd2b7666f8f767b146"
 _MT_RCRS_SHA256 = "fc392cde8e63b4d2e3a870bb97cc0626dea33d46dfb8abdebffada040f42ec92"
 _MT_LEGACY_EXACT_NAMES_SHA256 = "7d968626b02229ba77f7e58a32b337621c71a1a071e4564d5e815d5c3dee4d5d"
@@ -73,12 +78,12 @@ _MT_BASELINE_V2_REGISTRY_SEMANTIC_SHA256 = (
 _MT_BASELINE_V2_COVERAGE_MEMBERSHIP_SHA256 = (
     "9e9d25bd07652d0637fde59d9292b6a4cba1c593268c2301bba1c910b9bd338b"
 )
-_MT_LOCKED_EXACT_NAMES_SHA256 = "96fe0165cece2e46fd2293aed2bdf12ea3862aabb950fa866d8bf598e7a90773"
+_MT_LOCKED_EXACT_NAMES_SHA256 = "2df501afa2899171549f2a4f3fedc5e16e19ce8310fe5bd3f1e63e19d07957ae"
 _MT_LOCKED_EXACT_SEMANTIC_SHA256 = (
-    "e6693245a7f7715c7dcdaab9c1802f6f54c84265d77c78b4a4f8b78a94a60e20"
+    "c2b87f89f3fc4e166bc09c9292236eec0c09099297006906ae308d41fd27db58"
 )
 _MT_LOCKED_EXACT_COVERAGE_MEMBERSHIP_SHA256 = (
-    "cf924f1f6a8a732e1fafe62bb2f69a61195c6c270e8091f5f65fd08fccbf9aac"
+    "3c65e61be08659aa74b243eb302ae84e84bea9ebe40c840123e91637f0e83db2"
 )
 _MT_BASELINE_DIRECT_MOTIF_EXACT_NAMES_SHA256 = (
     "0dc2cc812e511bc89b76fca6ed13614d8ddb75a6ebe6321bde670096c44fba61"
@@ -87,10 +92,10 @@ _MT_BASELINE_DIRECT_MOTIF_SEMANTIC_SHA256 = (
     "ecc1dbf4c93872031e102ee166eac50e31d6468395e5d0053357af44f8a9785a"
 )
 _MT_LOCKED_DIRECT_MOTIF_EXACT_NAMES_SHA256 = (
-    "4af8422ec7fdde93dfea1a418ad9a808ecfe70a7676d629ed650d1ede87c4098"
+    "3a00aa587a5dfc5bf4d9c94587d0f23db3bcca25e17568d4e398748d8ce81442"
 )
 _MT_LOCKED_DIRECT_MOTIF_SEMANTIC_SHA256 = (
-    "37e7b2ea91e8d3d7ed781b303fe52cbf84f3ba0c557bb420fd382e7c2dcd1c8f"
+    "a8187e3ad3e284c95e4f58253f5e7bdd490c6bedce2624b25392e115d96b7938"
 )
 _MT_INITIAL_DIRECT_MOTIF_PENDING_NAMES_SHA256 = (
     "7b4848980e34ca1eff9739f964906d68eb4acdbbcd5e93227e17ece79296aefb"
@@ -100,11 +105,11 @@ _MT_INITIAL_PENDING_NAMES_SHA256 = (
 )
 _MT_ARRAY_MANIFEST_SHA256 = "42de22517a4644884596e36b0499a4fc45f264986c63f6fb239452b88719f977"
 _MT_SOURCE_METADATA_SHA256 = "5b3a3578fc208c91f6c3fdcc6d772f5071851b3604762b9e81994cf2632deb3d"
-_MT_STATE_PARTITION_SHA256 = "1338f2619664dcc1f526360e15376c577ea8bf433ef55163c64765aa835e2075"
+_MT_STATE_PARTITION_SHA256 = "455617bb7d15f029293d1861031239a061738aac6cb32f4047a73124ec9f2bd4"
 _MT_BASELINE_EMITTED_TREE_SHA256 = (
     "02a40be2096dd8c60e6e2934ba68a813f07478117a749e60e94e0608bed21914"
 )
-_MT_LOCKED_EMITTED_TREE_SHA256 = "e136b280dc88d365db13e9af8b0fa1bc48208163f9ead7ff535f45aeb9c9fbf0"
+_MT_LOCKED_EMITTED_TREE_SHA256 = "7d9847e94e3c6a62919de750823af34c410eab98a12e58361bdb558bd9be0f97"
 _MT_SYNTHETIC_ROOT_NAME = "mt-MRCA"
 _MT_FLATTENED_OMISSION_TYPES = frozenset(
     {
@@ -271,6 +276,13 @@ def _load_y_source(path: Path = Y_SOURCE_PATH) -> dict[str, Any]:
 
 def _load_mt_source(path: Path = MT_SOURCE_PATH) -> dict[str, Any]:
     """Load the source-backed registry for explicitly audited mtDNA nodes."""
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _load_mt_baseline_snapshot(
+    path: Path = MT_BASELINE_SNAPSHOT_PATH,
+) -> dict[str, Any]:
+    """Load the immutable schema-v2 projection archive for historical locks."""
     return json.loads(path.read_text(encoding="utf-8"))
 
 
@@ -517,6 +529,7 @@ def _validate_y_source(source: dict[str, Any]) -> list[str]:
 
 # The full output whitelist supersedes the former small hand-maintained table.
 _MT_SOURCE = _load_mt_source()
+_MT_BASELINE_SNAPSHOT = _load_mt_baseline_snapshot()
 _Y_SOURCE = _load_y_source()
 _AUDITED_Y_RSID_REFERENCE = _build_y_marker_reference(_Y_SOURCE)
 
@@ -893,59 +906,77 @@ def build_mt_tree() -> dict[str, Any]:
     l3a = _node(
         "L3a",
         [
-            _mt_snp("i5004386", 4386, "C"),
-            _mt_snp("i5010086", 10086, "G"),
+            _mt_snp("i5012816", 12816, "T"),
+            _mt_snp("i5016254", 16254, "G"),
+            _mt_snp("i5016316", 16316, "G"),
         ],
     )
     l3b1 = _node(
         "L3b1",
         [
-            _mt_snp("i5006221", 6221, "C"),
-            _mt_snp("i5012049", 12049, "A"),
+            _mt_snp("i5010373", 10373, "A"),
         ],
     )
     l3b = _node(
         "L3b",
         [
-            _mt_snp("i5002352", 2352, "C"),
-            _mt_snp("i5010143", 10143, "A"),
+            _mt_snp("i5003450", 3450, "T"),
+            _mt_snp("i5006221", 6221, "C"),
+            _mt_snp("i5009449", 9449, "T"),
+            _mt_snp("i5010086", 10086, "G"),
+            _mt_snp("i5013105", 13105, "G"),
+            _mt_snp("i5013914", 13914, "A"),
+            _mt_snp("i5015311", 15311, "G"),
+            _mt_snp("i5015824", 15824, "G"),
+            _mt_snp("i5016124", 16124, "C"),
+            _mt_snp("i5016362", 16362, "C"),
         ],
         [l3b1],
     )
     l3d = _node(
         "L3d",
         [
-            _mt_snp("i5008618", 8618, "C"),
-            _mt_snp("i5015514", 15514, "C"),
+            # Build 17 places m.13105 on the flattened L3c'd source segment.
+            _mt_snp("i5013105", 13105, "G"),
+            _mt_snp("i5005147", 5147, "A"),
+            _mt_snp("i5007424", 7424, "G"),
+            _mt_snp("i5013886", 13886, "C"),
+            _mt_snp("i5014284", 14284, "T"),
+            _mt_snp("i5016124", 16124, "C"),
         ],
     )
     l3e1 = _node(
         "L3e1",
         [
-            _mt_snp("i5003675", 3675, "A"),
-            _mt_snp("i5009554", 9554, "A"),
+            _mt_snp("i5006221", 6221, "C"),
+            _mt_snp("i5014152", 14152, "G"),
+            _mt_snp("i5015670", 15670, "C"),
+            _mt_snp("i5015942", 15942, "C"),
+            _mt_snp("i5016327", 16327, "T"),
         ],
     )
     l3e2 = _node(
         "L3e2",
         [
-            _mt_snp("i5002352", 2352, "C"),
-            _mt_snp("i5005261", 5261, "A"),
+            # These two defining substitutions are callable only in the pinned
+            # historical 2014 export; the primary-four path stops at L3e.
+            _mt_snp("i5014905", 14905, "A"),
+            _mt_snp("i5016320", 16320, "T"),
         ],
     )
     l3e = _node(
         "L3e",
         [
-            _mt_snp("i5002352", 2352, "C"),
-            _mt_snp("i5014905", 14905, "A"),
+            _mt_snp("i5014212", 14212, "C"),
         ],
         [l3e1, l3e2],
     )
     l3f = _node(
         "L3f",
         [
+            _mt_snp("i5003396", 3396, "C"),
             _mt_snp("i5004218", 4218, "C"),
-            _mt_snp("i5015670", 15670, "C"),
+            _mt_snp("i5015514", 15514, "C"),
         ],
     )
 
@@ -1078,8 +1109,11 @@ def build_mt_tree() -> dict[str, Any]:
     g = _node(
         "G",
         [
+            # Build 17 places m.14569 on the flattened M12'G source segment.
+            _mt_snp("i5014569", 14569, "A"),
             _mt_snp("i5004833", 4833, "G"),
             _mt_snp("i5005108", 5108, "C"),
+            _mt_snp("i5016362", 16362, "C"),
         ],
         [g1, g2],
     )
@@ -1103,6 +1137,8 @@ def build_mt_tree() -> dict[str, Any]:
     m1 = _node(
         "M1",
         [
+            # Build 17 places m.14110 on the flattened M1'20'51 source segment.
+            _mt_snp("i5014110", 14110, "C"),
             _mt_snp("i5006446", 6446, "A"),
             _mt_snp("i5006680", 6680, "C"),
             _mt_snp("i5012950", 12950, "C"),
@@ -1134,7 +1170,8 @@ def build_mt_tree() -> dict[str, Any]:
     m7 = _node(
         "M7",
         [
-            _mt_snp("i5004071", 4071, "T"),
+            # Build 17 also has T9824C here, but the pending M7b child still
+            # carries the opposite legacy allele. Batch 05 repairs that subtree.
             _mt_snp("i5006455", 6455, "T"),
         ],
         [m7a, m7b, m7c],
@@ -1164,8 +1201,7 @@ def build_mt_tree() -> dict[str, Any]:
     m9 = _node(
         "M9",
         [
-            _mt_snp("i5003394", 3394, "C"),
-            _mt_snp("i5014308", 14308, "A"),
+            _mt_snp("i5004491", 4491, "A"),
             _mt_snp("i5016362", 16362, "C"),
         ],
     )
@@ -1173,8 +1209,6 @@ def build_mt_tree() -> dict[str, Any]:
     m_branch = _node(
         "M",
         [
-            _mt_snp("i5000489", 489, "C"),
-            _mt_snp("rs1000361", 10951, "A"),
             _mt_snp("i5014783", 14783, "C"),
             _mt_snp("i5015043", 15043, "A"),
         ],
@@ -3004,7 +3038,158 @@ def _mt_locked_coverage_rows(source: dict[str, Any], names: list[str]) -> list[t
     ]
 
 
-def _validate_mt_source_schema(source: dict[str, Any]) -> list[str]:
+def _validate_mt_baseline_snapshot(
+    snapshot: dict[str, Any], migration: dict[str, Any]
+) -> list[str]:
+    """Validate immutable historical locks against the archived schema-v2 state."""
+    issues: list[str] = []
+    if not isinstance(snapshot, dict):
+        return ["mtDNA baseline snapshot must be an object"]
+
+    expected_fields = {
+        "schema_version",
+        "baseline_commit",
+        "normalization_commit",
+        "array_cohorts",
+        "legacy_locked_exact_nodes",
+        "baseline_exact_nodes",
+        "baseline_direct_motif_exact_nodes",
+        "nodes",
+        "emitted_tree_projection",
+    }
+    if set(snapshot) != expected_fields:
+        issues.append("mtDNA baseline snapshot has unexpected or missing top-level fields")
+
+    snapshot_digest = _canonical_json_sha256(snapshot)
+    if migration.get("baseline_snapshot_sha256") != snapshot_digest:
+        issues.append(
+            "mtDNA migration baseline_snapshot_sha256 does not match the baseline archive"
+        )
+    if snapshot_digest != _MT_BASELINE_SNAPSHOT_SHA256:
+        issues.append("mtDNA baseline snapshot differs from the review-locked archive")
+    if snapshot.get("schema_version") != _MT_BASELINE_SNAPSHOT_SCHEMA_VERSION:
+        issues.append("mtDNA baseline snapshot has an unsupported schema version")
+    if snapshot.get("baseline_commit") != _MT_BASELINE_COMMIT:
+        issues.append("mtDNA baseline snapshot has the wrong baseline commit")
+    if snapshot.get("normalization_commit") != _MT_BASELINE_NORMALIZATION_COMMIT:
+        issues.append("mtDNA baseline snapshot has the wrong normalization commit")
+    if snapshot.get("array_cohorts") != _MT_EXPECTED_ARRAY_COHORTS:
+        issues.append("mtDNA baseline snapshot has the wrong array cohorts")
+
+    archived_legacy = _sorted_unique_string_list(
+        snapshot.get("legacy_locked_exact_nodes"),
+        "legacy_locked_exact_nodes",
+        issues,
+        "mtDNA baseline snapshot",
+    )
+    archived_baseline = _sorted_unique_string_list(
+        snapshot.get("baseline_exact_nodes"),
+        "baseline_exact_nodes",
+        issues,
+        "mtDNA baseline snapshot",
+    )
+    archived_direct = _sorted_unique_string_list(
+        snapshot.get("baseline_direct_motif_exact_nodes"),
+        "baseline_direct_motif_exact_nodes",
+        issues,
+        "mtDNA baseline snapshot",
+    )
+    archived_nodes = snapshot.get("nodes")
+    if not isinstance(archived_nodes, dict):
+        archived_nodes = {}
+        issues.append("mtDNA baseline snapshot has no node archive")
+    if set(archived_nodes) != set(archived_baseline):
+        issues.append("mtDNA baseline snapshot nodes do not equal its baseline frontier")
+    if not set(archived_legacy).issubset(archived_baseline):
+        issues.append("mtDNA baseline snapshot legacy frontier is outside its baseline")
+    if not set(archived_direct).issubset(archived_baseline):
+        issues.append("mtDNA baseline snapshot direct-motif frontier is outside its baseline")
+
+    archive_name_checks = (
+        (
+            "legacy_locked_exact_nodes",
+            archived_legacy,
+            _MT_LEGACY_EXACT_NAMES_SHA256,
+        ),
+        (
+            "baseline_exact_nodes",
+            archived_baseline,
+            _MT_BASELINE_EXACT_NAMES_SHA256,
+        ),
+        (
+            "baseline_direct_motif_exact_nodes",
+            archived_direct,
+            _MT_BASELINE_DIRECT_MOTIF_EXACT_NAMES_SHA256,
+        ),
+    )
+    for field, archived_names, expected_digest in archive_name_checks:
+        if snapshot.get(field) != migration.get(field):
+            issues.append(f"mtDNA baseline snapshot {field} differs from the migration anchor")
+        if _canonical_json_sha256(archived_names) != expected_digest:
+            issues.append(f"mtDNA baseline snapshot {field} differs from its locked digest")
+
+    tree_projection = snapshot.get("emitted_tree_projection")
+    if not isinstance(tree_projection, list):
+        issues.append("mtDNA baseline snapshot has no emitted-tree projection")
+        tree_projection = []
+
+    historical_constants = {
+        "legacy_v1_semantic_sha256": _MT_LEGACY_V1_SEMANTIC_SHA256,
+        "legacy_v1_coverage_sha256": _MT_LEGACY_V1_COVERAGE_SHA256,
+        "baseline_v1_semantic_sha256": _MT_BASELINE_V1_SEMANTIC_SHA256,
+        "baseline_v1_coverage_sha256": _MT_BASELINE_V1_COVERAGE_SHA256,
+        "baseline_v2_registry_semantic_sha256": (_MT_BASELINE_V2_REGISTRY_SEMANTIC_SHA256),
+        "baseline_v2_coverage_membership_sha256": (_MT_BASELINE_V2_COVERAGE_MEMBERSHIP_SHA256),
+        "baseline_direct_motif_semantic_sha256": (_MT_BASELINE_DIRECT_MOTIF_SEMANTIC_SHA256),
+        "baseline_emitted_tree_sha256": _MT_BASELINE_EMITTED_TREE_SHA256,
+    }
+    archive_source = {
+        "array_cohorts": snapshot.get("array_cohorts"),
+        "nodes": archived_nodes,
+    }
+    try:
+        historical_projections = {
+            "legacy_v1_semantic_sha256": _canonical_json_sha256(
+                _mt_v1_semantic_projection(archive_source, archived_legacy)
+            ),
+            "legacy_v1_coverage_sha256": _sorted_tsv_sha256(
+                _mt_v1_coverage_rows(archive_source, archived_legacy)
+            ),
+            "baseline_v1_semantic_sha256": _canonical_json_sha256(
+                _mt_v1_semantic_projection(archive_source, archived_baseline)
+            ),
+            "baseline_v1_coverage_sha256": _sorted_tsv_sha256(
+                _mt_v1_coverage_rows(archive_source, archived_baseline)
+            ),
+            "baseline_v2_registry_semantic_sha256": _canonical_json_sha256(
+                _mt_baseline_v2_registry_projection(archive_source, archived_baseline)
+            ),
+            "baseline_v2_coverage_membership_sha256": _sorted_tsv_sha256(
+                _mt_locked_coverage_rows(archive_source, archived_baseline)
+            ),
+            "baseline_direct_motif_semantic_sha256": _canonical_json_sha256(
+                _mt_direct_motif_semantic_projection(archive_source, archived_direct)
+            ),
+            "baseline_emitted_tree_sha256": _canonical_json_sha256(tree_projection),
+        }
+    except (KeyError, TypeError, ValueError):
+        issues.append("mtDNA historical baseline projections cannot be computed")
+    else:
+        for field, calculated in historical_projections.items():
+            if migration.get(field) != calculated:
+                issues.append(
+                    f"mtDNA migration {field} does not match the baseline archive projection"
+                )
+            if calculated != historical_constants[field]:
+                issues.append(
+                    f"mtDNA baseline snapshot {field} differs from the locked historical value"
+                )
+    return issues
+
+
+def _validate_mt_source_schema(
+    source: dict[str, Any], baseline_snapshot: dict[str, Any] | None = None
+) -> list[str]:
     """Validate schema-v3 mtDNA provenance independently of the emitted tree."""
     issues: list[str] = []
     if not isinstance(source, dict):
@@ -3360,6 +3545,7 @@ def _validate_mt_source_schema(source: dict[str, Any]) -> list[str]:
     expected_migration_fields = {
         "status",
         "baseline_commit",
+        "baseline_snapshot_sha256",
         "legacy_locked_exact_nodes",
         "legacy_locked_exact_nodes_sha256",
         "legacy_v1_semantic_sha256",
@@ -3392,6 +3578,12 @@ def _validate_mt_source_schema(source: dict[str, Any]) -> list[str]:
     }
     if set(migration) != expected_migration_fields:
         issues.append("mtDNA migration has unexpected or missing fields")
+    issues.extend(
+        _validate_mt_baseline_snapshot(
+            _MT_BASELINE_SNAPSHOT if baseline_snapshot is None else baseline_snapshot,
+            migration,
+        )
+    )
     legacy = _sorted_unique_string_list(
         migration.get("legacy_locked_exact_nodes"),
         "legacy_locked_exact_nodes",
@@ -3526,24 +3718,8 @@ def _validate_mt_source_schema(source: dict[str, Any]) -> list[str]:
         if calculated != expected:
             issues.append(f"mtDNA migration {field} differs from the locked baseline")
 
-    stored_constant_checks = (
-        ("legacy_v1_semantic_sha256", _MT_LEGACY_V1_SEMANTIC_SHA256),
-        ("legacy_v1_coverage_sha256", _MT_LEGACY_V1_COVERAGE_SHA256),
-        ("baseline_v1_semantic_sha256", _MT_BASELINE_V1_SEMANTIC_SHA256),
-        ("baseline_v1_coverage_sha256", _MT_BASELINE_V1_COVERAGE_SHA256),
-        (
-            "baseline_v2_registry_semantic_sha256",
-            _MT_BASELINE_V2_REGISTRY_SEMANTIC_SHA256,
-        ),
-        (
-            "baseline_v2_coverage_membership_sha256",
-            _MT_BASELINE_V2_COVERAGE_MEMBERSHIP_SHA256,
-        ),
+    live_constant_checks = (
         ("locked_exact_semantic_sha256", _MT_LOCKED_EXACT_SEMANTIC_SHA256),
-        (
-            "baseline_direct_motif_semantic_sha256",
-            _MT_BASELINE_DIRECT_MOTIF_SEMANTIC_SHA256,
-        ),
         (
             "locked_direct_motif_semantic_sha256",
             _MT_LOCKED_DIRECT_MOTIF_SEMANTIC_SHA256,
@@ -3552,51 +3728,22 @@ def _validate_mt_source_schema(source: dict[str, Any]) -> list[str]:
             "locked_exact_coverage_membership_sha256",
             _MT_LOCKED_EXACT_COVERAGE_MEMBERSHIP_SHA256,
         ),
-        ("baseline_emitted_tree_sha256", _MT_BASELINE_EMITTED_TREE_SHA256),
     )
-    for field, expected in stored_constant_checks:
+    for field, expected in live_constant_checks:
         if migration.get(field) != expected:
-            issues.append(f"mtDNA migration {field} differs from the locked baseline")
+            issues.append(f"mtDNA migration {field} differs from the review-locked live value")
     if migration.get("locked_emitted_tree_sha256") != _MT_LOCKED_EMITTED_TREE_SHA256:
         issues.append(
             "mtDNA migration locked_emitted_tree_sha256 differs from the review-locked live tree"
         )
 
+    # Historical projections are verified against the immutable archive above;
+    # the rolling frontier continues to be derived from the live registry.
     try:
         projection_checks = (
             (
-                "legacy_v1_semantic_sha256",
-                _canonical_json_sha256(_mt_v1_semantic_projection(source, legacy)),
-            ),
-            (
-                "legacy_v1_coverage_sha256",
-                _sorted_tsv_sha256(_mt_v1_coverage_rows(source, legacy)),
-            ),
-            (
-                "baseline_v1_semantic_sha256",
-                _canonical_json_sha256(_mt_v1_semantic_projection(source, baseline)),
-            ),
-            (
-                "baseline_v1_coverage_sha256",
-                _sorted_tsv_sha256(_mt_v1_coverage_rows(source, baseline)),
-            ),
-            (
-                "baseline_v2_registry_semantic_sha256",
-                _canonical_json_sha256(_mt_baseline_v2_registry_projection(source, baseline)),
-            ),
-            (
-                "baseline_v2_coverage_membership_sha256",
-                _sorted_tsv_sha256(_mt_locked_coverage_rows(source, baseline)),
-            ),
-            (
                 "locked_exact_semantic_sha256",
                 _canonical_json_sha256(_mt_locked_semantic_projection(source, locked)),
-            ),
-            (
-                "baseline_direct_motif_semantic_sha256",
-                _canonical_json_sha256(
-                    _mt_direct_motif_semantic_projection(source, baseline_direct_motif_exact)
-                ),
             ),
             (
                 "locked_direct_motif_semantic_sha256",
@@ -4131,6 +4278,7 @@ def _summarize_mt_provenance(source: dict[str, Any], inventory: MtTreeInventory)
             key: source["migration"][key]
             for key in (
                 "array_manifest_sha256",
+                "baseline_snapshot_sha256",
                 "baseline_emitted_tree_sha256",
                 "locked_emitted_tree_sha256",
                 "baseline_exact_nodes_sha256",

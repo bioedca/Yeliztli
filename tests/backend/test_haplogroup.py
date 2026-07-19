@@ -136,8 +136,6 @@ _MT_U_TRUNK_GENOTYPES = _MT_R_TRUNK_GENOTYPES + [
 
 _MT_M_TRUNK_GENOTYPES = [
     *_MT_L3_TRUNK_GENOTYPES,
-    {"rsid": "i5000489", "chrom": "MT", "pos": 489, "genotype": "CC"},
-    {"rsid": "rs1000361", "chrom": "MT", "pos": 10951, "genotype": "AA"},
     {"rsid": "i5014783", "chrom": "MT", "pos": 14783, "genotype": "CC"},
     {"rsid": "i5015043", "chrom": "MT", "pos": 15043, "genotype": "AA"},
 ]
@@ -512,6 +510,67 @@ _ISSUE_1798_BATCH02_FLATTENED_PREFIXES = {
     ),
 }
 
+_ISSUE_1798_BATCH03_EXPECTED_PATHS = {
+    "L3a": ("L3", "L3a"),
+    "L3b": ("L3", "L3b"),
+    "L3b1": ("L3", "L3b", "L3b1"),
+    "L3d": ("L3", "L3d"),
+    "L3e": ("L3", "L3e"),
+    "L3e1": ("L3", "L3e", "L3e1"),
+    "L3e2": ("L3", "L3e", "L3e2"),
+    "L3f": ("L3", "L3f"),
+    "M": ("L3", "M"),
+    "D": ("L3", "M", "D"),
+    "G": ("L3", "M", "G"),
+    "M1": ("L3", "M", "M1"),
+    "M7": ("L3", "M", "M7"),
+    "M8": ("L3", "M", "M8"),
+    "M9": ("L3", "M", "M9"),
+}
+
+_ISSUE_1798_BATCH03_CONFLICTS = {
+    "L3a": (12816, "C"),
+    "L3b": (3450, "C"),
+    "L3b1": (10373, "G"),
+    "L3d": (5147, "G"),
+    "L3e": (14212, "T"),
+    "L3e1": (6221, "T"),
+    "L3e2": (14905, "G"),
+    "L3f": (3396, "T"),
+    "M": (14783, "T"),
+    "D": (16362, "T"),
+    "G": (4833, "A"),
+    "M1": (6446, "G"),
+    "M7": (6455, "C"),
+    "M8": (4715, "A"),
+    "M9": (4491, "G"),
+}
+
+# These eight legacy sets no longer meet their replacement's runtime threshold.
+# G and M9 deliberately remain outside this negative matrix because their old
+# sets retain exactly half of the new valid markers. M7's old set retains its
+# sole safely emitted marker while m.9824 is temporarily omitted for its pending
+# child conflict. All three therefore still satisfy the caller's documented
+# >= 0.5 partial-coverage policy.
+_ISSUE_1798_BATCH03_RUNTIME_OLD_MARKERS = {
+    "L3a": ((4386, "C"), (10086, "G")),
+    "L3b": ((2352, "C"), (10143, "A")),
+    "L3b1": ((6221, "C"), (12049, "A")),
+    "L3d": ((8618, "C"), (15514, "C")),
+    "L3e": ((2352, "C"), (14905, "A")),
+    "L3e1": ((3675, "A"), (9554, "A")),
+    "L3e2": ((2352, "C"), (5261, "A")),
+    "L3f": ((4218, "C"), (15670, "C")),
+}
+
+_ISSUE_1798_BATCH03_FLATTENED_PREFIXES = {
+    "L3c'd": ("L3", ((152, "C"), (13105, "G"))),
+    "L3e'i'k'x": ("L3", ((150, "T"), (10819, "G"))),
+    "M1'20'51": ("M", ((14110, "C"),)),
+    "M12'G": ("M", ((14569, "A"),)),
+    "M80'D": ("M", ((4883, "T"),)),
+}
+
 
 _W_DIRECT_POSITION_GENOTYPES = [
     {"pos": row["pos"], "genotype": row["genotype"]}
@@ -561,7 +620,7 @@ class TestLoadHaplogroupBundle:
     """Test haplogroup bundle loading from JSON."""
 
     def test_loads_from_json(self, bundle: HaplogroupBundle) -> None:
-        assert bundle.version == "1.1.18"
+        assert bundle.version == "1.1.19"
         assert bundle.build == "GRCh37"
 
     def test_mt_tree_root(self, bundle: HaplogroupBundle) -> None:
@@ -2299,6 +2358,280 @@ class TestAssignHaplogroups:
         assert [step.haplogroup for step in mt.traversal_path] == list(expected_path)
 
     @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize("target", list(_ISSUE_1798_BATCH03_EXPECTED_PATHS))
+    def test_issue_1798_batch03_exact_motifs_assign_by_position(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        target: str,
+    ) -> None:
+        """All 15 batch-03 targets resolve through raw and annotated position joins."""
+        rows = [
+            {
+                **row,
+                "rsid": f"vendor_issue_1798_batch03_exact_{target}_{index}",
+                "chrom": "MT",
+            }
+            for index, row in enumerate(_derived_mt_path_genotypes(target))
+        ]
+        assert not ({str(row["rsid"]) for row in rows} & bundle.mt_snp_rsids)
+
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        assert mt.haplogroup == target
+        assert [step.haplogroup for step in mt.traversal_path] == list(
+            _ISSUE_1798_BATCH03_EXPECTED_PATHS[target]
+        )
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    def test_issue_1798_batch03_m_resolves_with_pgp4162_sparse_coverage(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+    ) -> None:
+        """The pgp_4162-like m.15043-only layout still clears M's 1/2 threshold."""
+        rows = [
+            {
+                **row,
+                "rsid": f"vendor_issue_1798_batch03_m_sparse_{index}",
+                "chrom": "MT",
+            }
+            for index, row in enumerate(
+                [
+                    *_derived_mt_path_genotypes("L3"),
+                    {"pos": 15043, "genotype": "AA"},
+                ]
+            )
+        ]
+
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        assert mt.haplogroup == "M"
+        assert [step.haplogroup for step in mt.traversal_path] == ["L3", "M"]
+        assert (mt.traversal_path[-1].snps_present, mt.traversal_path[-1].snps_total) == (
+            1,
+            2,
+        )
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    def test_issue_1798_batch03_d_helper_only_stops_at_m(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+    ) -> None:
+        """Flattened M80'D m.4883 alone is only 1/3 D evidence and cannot overresolve."""
+        rows = [
+            {
+                **row,
+                "rsid": f"vendor_issue_1798_batch03_d_helper_{index}",
+                "chrom": "MT",
+            }
+            for index, row in enumerate(
+                [*_derived_mt_path_genotypes("M"), {"pos": 4883, "genotype": "TT"}]
+            )
+        ]
+
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        assert mt.haplogroup == "M"
+        assert [step.haplogroup for step in mt.traversal_path] == ["L3", "M"]
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize(
+        ("node_rows", "expected", "expected_path"),
+        [
+            pytest.param(
+                [{"pos": 14905, "genotype": "AA"}, {"pos": 16320, "genotype": "TT"}],
+                "L3e2",
+                ["L3", "L3e", "L3e2"],
+                id="historical-2014-callable",
+            ),
+            pytest.param(
+                [],
+                "L3e",
+                ["L3", "L3e"],
+                id="primary-four-untyped",
+            ),
+        ],
+    )
+    def test_issue_1798_batch03_l3e2_respects_historical_only_coverage(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        node_rows: list[dict[str, object]],
+        expected: str,
+        expected_path: list[str],
+    ) -> None:
+        """The 2014 loci resolve L3e2; their primary-four absence stops at L3e."""
+        rows = [
+            {
+                **row,
+                "rsid": f"vendor_issue_1798_batch03_l3e2_{expected}_{index}",
+                "chrom": "MT",
+            }
+            for index, row in enumerate([*_derived_mt_path_genotypes("L3e"), *node_rows])
+        ]
+
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        assert mt.haplogroup == expected
+        assert [step.haplogroup for step in mt.traversal_path] == expected_path
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize("target", list(_ISSUE_1798_BATCH03_EXPECTED_PATHS))
+    def test_issue_1798_batch03_typed_ancestral_marker_blocks_descent(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        target: str,
+    ) -> None:
+        """One typed source-ancestral direct marker stops at the emitted parent."""
+        conflict_position, ancestral_allele = _ISSUE_1798_BATCH03_CONFLICTS[target]
+        rows = [
+            {
+                **row,
+                "rsid": f"vendor_issue_1798_batch03_conflict_{target}_{index}",
+                "chrom": "MT",
+                "genotype": (
+                    ancestral_allele * 2
+                    if int(row["pos"]) == conflict_position
+                    else row["genotype"]
+                ),
+            }
+            for index, row in enumerate(_derived_mt_path_genotypes(target))
+        ]
+        if target == "G":
+            # G and M9 recurrently share derived m.16362. Once G is blocked by
+            # ancestral m.4833, explicitly type M9's unique m.4491 ancestral so
+            # this case isolates the intended G -> M parent gate.
+            rows.append(
+                {
+                    "rsid": "vendor_issue_1798_batch03_conflict_G_M9_guard",
+                    "chrom": "MT",
+                    "pos": 4491,
+                    "genotype": "GG",
+                }
+            )
+        assert sum(int(row["pos"]) == conflict_position for row in rows) == 1
+
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        expected_path = _ISSUE_1798_BATCH03_EXPECTED_PATHS[target][:-1]
+        assert mt.haplogroup == expected_path[-1]
+        assert [step.haplogroup for step in mt.traversal_path] == list(expected_path)
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize("target", list(_ISSUE_1798_BATCH03_RUNTIME_OLD_MARKERS))
+    def test_issue_1798_batch03_replaced_l3_markers_no_longer_overresolve(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        target: str,
+    ) -> None:
+        """Each replaced L3-descendant marker set stops honestly at its parent."""
+        expected_path = _ISSUE_1798_BATCH03_EXPECTED_PATHS[target][:-1]
+        rows = [
+            {
+                **row,
+                "rsid": f"vendor_issue_1798_batch03_old_{target}_{index}",
+                "chrom": "MT",
+            }
+            for index, row in enumerate(
+                [
+                    *_derived_mt_path_genotypes(expected_path[-1]),
+                    *(
+                        {"pos": position, "genotype": allele * 2}
+                        for position, allele in _ISSUE_1798_BATCH03_RUNTIME_OLD_MARKERS[target]
+                    ),
+                ]
+            )
+        ]
+
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        assert mt.haplogroup == expected_path[-1]
+        assert [step.haplogroup for step in mt.traversal_path] == list(expected_path)
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize("source_prefix", list(_ISSUE_1798_BATCH03_FLATTENED_PREFIXES))
+    def test_issue_1798_batch03_flattened_prefixes_stop_at_honest_ancestor(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        source_prefix: str,
+    ) -> None:
+        """A helper motif alone cannot manufacture its nearest emitted child."""
+        ancestor, prefix = _ISSUE_1798_BATCH03_FLATTENED_PREFIXES[source_prefix]
+        expected_path = _ISSUE_1798_BATCH03_EXPECTED_PATHS.get(ancestor, (ancestor,))
+        rows = [
+            {
+                **row,
+                "rsid": f"vendor_issue_1798_batch03_prefix_{source_prefix}_{index}",
+                "chrom": "MT",
+            }
+            for index, row in enumerate(
+                [
+                    *_derived_mt_path_genotypes(ancestor),
+                    *({"pos": position, "genotype": allele * 2} for position, allele in prefix),
+                ]
+            )
+        ]
+
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        assert mt.haplogroup == ancestor
+        assert [step.haplogroup for step in mt.traversal_path] == list(expected_path)
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
     def test_issue_1798_batch02_l2a2_reversion_and_l5a_recurrence_are_routable(
         self,
         bundle: HaplogroupBundle,
@@ -3305,6 +3638,7 @@ class TestAssignHaplogroups:
                 "M1",
                 _derived_mt_path_genotypes("M"),
                 [
+                    {"pos": 14110, "genotype": "CC"},
                     {"pos": 6446, "genotype": "AA"},
                     {"pos": 6680, "genotype": "CC"},
                     {"pos": 12950, "genotype": "CC"},
@@ -3397,6 +3731,7 @@ class TestAssignHaplogroups:
                 "M1",
                 _derived_mt_path_genotypes("M"),
                 [
+                    {"pos": 14110, "genotype": "CC"},
                     {"pos": 6446, "genotype": "GG"},
                     {"pos": 6680, "genotype": "CC"},
                     {"pos": 12950, "genotype": "CC"},
@@ -4001,39 +4336,46 @@ class TestAssignHaplogroups:
         ("selected_positions", "expected", "expected_path", "expected_counts"),
         [
             pytest.param(
-                {6680, 12950, 16129, 16249},
+                {6680, 12950, 14110, 16129, 16249},
                 "M1",
                 ["L3", "M", "M1"],
-                (4, 5),
+                (5, 6),
                 id="missing-6446",
             ),
             pytest.param(
-                {6446, 6680, 12950, 16249},
+                {6446, 6680, 12950, 14110, 16249},
                 "M1",
                 ["L3", "M", "M1"],
-                (4, 5),
+                (5, 6),
                 id="missing-16129",
             ),
             pytest.param(
-                {6446, 6680, 12950, 16129},
+                {6446, 6680, 12950, 14110, 16129},
                 "M1",
                 ["L3", "M", "M1"],
-                (4, 5),
+                (5, 6),
                 id="missing-16249",
             ),
             pytest.param(
-                {6446, 16129, 16249},
+                {6446, 14110, 16129, 16249},
                 "M1",
                 ["L3", "M", "M1"],
-                (3, 5),
-                id="three-of-five",
+                (4, 6),
+                id="four-of-six",
             ),
             pytest.param(
-                {6446, 16129},
+                {6446, 14110, 16129},
+                "M1",
+                ["L3", "M", "M1"],
+                (3, 6),
+                id="three-of-six",
+            ),
+            pytest.param(
+                {6446, 14110},
                 "M",
                 ["L3", "M"],
                 None,
-                id="two-of-five",
+                id="two-of-six",
             ),
         ],
     )
@@ -4052,6 +4394,7 @@ class TestAssignHaplogroups:
             6446: "A",
             6680: "C",
             12950: "C",
+            14110: "C",
             16129: "A",
             16249: "C",
         }
