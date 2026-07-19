@@ -595,10 +595,10 @@ const IGV_MODULE_STUB = `
           button.addEventListener('click', () => {
             handleTrackClick([
               { name: 'Chr', value: 'chr17' },
-              { name: 'Pos', value: '41,196,312' },
+              { name: 'Pos', value: '41,209,080' },
               { name: 'ID', value: 'rs80357906' },
-              { name: 'Ref', value: 'A' },
-              { name: 'Alt', value: 'G' },
+              { name: 'Ref', value: 'GGG' },
+              { name: 'Alt', value: 'GGGG' },
             ])
           })
           root.appendChild(button)
@@ -610,7 +610,7 @@ const IGV_MODULE_STUB = `
             handleTrackClick([
               { name: 'Chr', value: 'chr17' },
               { name: 'Pos', value: 'not-a-position' },
-              { name: 'ID', value: 'rs80357906' },
+              { name: 'ID', value: 'synthetic-malformed-variant' },
               { name: 'Ref', value: 'A' },
               { name: 'Alt', value: 'G' },
             ])
@@ -703,7 +703,7 @@ test.describe('P4-26d: Genome Browser reference-fetch disclosure (#1286)', () =>
     const indicator = page.getByTestId('variant-click-indicator')
     await expect(indicator).toBeVisible()
     await expect(
-      indicator.getByText('chr17:41196312', { exact: true }),
+      indicator.getByText('chr17:41209080', { exact: true }),
     ).toBeVisible()
     await expect(indicator).toContainText('rs80357906')
     await expect(page.getByTestId('mock-igv-default-popover')).toHaveCount(0)

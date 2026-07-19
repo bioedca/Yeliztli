@@ -503,14 +503,14 @@ describe("RareVariantsView", () => {
         Promise.resolve({
           items: [
             {
-              rsid: "rs80357906",
-              gene_symbol: "BRCA1",
+              rsid: "synthetic-low-confidence-variant",
+              gene_symbol: "SYNTH1",
               category: "clinvar_pathogenic_low_confidence",
               evidence_level: 2,
-              finding_text: "Carried 0-star ClinVar P/LP variant",
+              finding_text: "Synthetic carried 0-star ClinVar P/LP variant",
               zygosity: "het",
               clinvar_significance: "Pathogenic",
-              conditions: "Hereditary breast cancer",
+              conditions: "Synthetic test condition",
               detail: {},
             },
           ],

@@ -101,6 +101,12 @@ def _load_reference() -> dict[str, dict]:
 _ALL_SNPS = _load_categorical_snps()
 _REFERENCE = _load_reference()
 
+# #1949 normalized these panel identities to the repository-wide GRCh37
+# plus-strand contract. The generic categorical scorer intentionally accepts a
+# wholly complemented panel (to support legacy chip orientations), so these
+# reviewed rows need a stricter recurrence guard than `_strand_consistent`.
+_PLUS_STRAND_REQUIRED_RSIDS = {"rs1800012"}
+
 # (panel, rsid, real_alleles, snp_entry) for every categorical SNP whose rsid has
 # a verified plus-strand allele reference.
 _REFERENCED_CASES = [
@@ -170,6 +176,26 @@ def test_referenced_cases_nonempty() -> None:
     assert _REFERENCED_CASES, "no referenced categorical-panel loci were collected"
     rsids = {rsid for (_, rsid, _, _) in _REFERENCED_CASES}
     assert "rs4236601" in rsids  # the #538 locus must be under guard
+
+
+def test_reviewed_panel_identities_stay_grch37_plus_strand() -> None:
+    """Reviewed #1949 panel rows must use the oracle's plus-strand genotype keys."""
+    reviewed = [case for case in _REFERENCED_CASES if case[1] in _PLUS_STRAND_REQUIRED_RSIDS]
+    assert {rsid for _, rsid, _, _ in reviewed} == _PLUS_STRAND_REQUIRED_RSIDS
+
+    for panel, rsid, real_alleles, snp in reviewed:
+        assert len(real_alleles) == 2, f"{panel}:{rsid} no longer has a biallelic oracle"
+        ref, alt = real_alleles
+        assert snp.get("ref_allele") == ref, (
+            f"{panel}:{rsid} ref_allele must use GRCh37 plus-strand {ref}"
+        )
+        assert snp.get("risk_allele") == alt, (
+            f"{panel}:{rsid} risk_allele must use GRCh37 plus-strand {alt}"
+        )
+        expected_genotypes = {ref + ref, ref + alt, alt + ref, alt + alt}
+        assert set(snp["genotype_effects"]) == expected_genotypes, (
+            f"{panel}:{rsid} genotype keys must be GRCh37 plus-strand {sorted(expected_genotypes)}"
+        )
 
 
 @pytest.mark.parametrize(

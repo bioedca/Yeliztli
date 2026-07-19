@@ -533,7 +533,11 @@ class TestSchemaMigration:
                     "INSERT INTO watched_variants (rsid, clinvar_significance_at_watch, notes) "
                     "VALUES (:rsid, :sig, :notes)"
                 ),
-                {"rsid": "rs80357906", "sig": "Uncertain significance", "notes": "BRCA2 VUS"},
+                {
+                    "rsid": "synthetic-watched-variant",
+                    "sig": "Uncertain significance",
+                    "notes": "Synthetic VUS",
+                },
             )
 
         with engine.connect() as conn:
@@ -543,9 +547,9 @@ class TestSchemaMigration:
                     "FROM watched_variants"
                 )
             ).fetchone()
-            assert row[0] == "rs80357906"
+            assert row[0] == "synthetic-watched-variant"
             assert row[1] == "Uncertain significance"
-            assert row[2] == "BRCA2 VUS"
+            assert row[2] == "Synthetic VUS"
             assert row[3] is not None, "watched_at should have a default timestamp"
 
     def _create_v10_sample_db(self, db_path: Path) -> sa.Engine:

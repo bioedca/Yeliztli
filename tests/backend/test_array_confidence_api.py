@@ -35,7 +35,9 @@ def tmp_data_dir(tmp_path: Path) -> Path:
 _SEED = {
     "rs1800562": ("HFE", "Pathogenic", 0.05, "high"),  # common — array-reliable
     "rs9999001": ("GENEM", "Likely pathogenic", 5e-4, "moderate"),  # rare
-    "rs80357906": ("BRCA1", "Pathogenic", 1e-6, "low"),  # very rare — Weedon ~16%
+    # Explicitly synthetic: this row exercises the frequency threshold rather
+    # than asserting a real variant's current gnomAD frequency.
+    "synthetic-low-frequency-variant": ("SYNTH1", "Pathogenic", 1e-6, "low"),
     "rs9999002": ("GENEU", "Pathogenic", None, "unknown"),  # no annotation row
     # Common AF (0.15) but a locus-specific array weak spot → locus_low, not high (#636).
     "rs429358": ("APOE", "Pathogenic", 0.15, "locus_low"),
@@ -159,7 +161,7 @@ class TestArrayConfidenceEndpoint:
             for d in ac_client.get("/api/analysis/array-confidence?sample_id=1").json()
         }
         assert by_rsid["rs1800562"]["confirm_in_clia_recommended"] is False
-        assert by_rsid["rs80357906"]["confirm_in_clia_recommended"] is True
+        assert by_rsid["synthetic-low-frequency-variant"]["confirm_in_clia_recommended"] is True
 
     def test_clinvar_pathogenic_is_never_novel(self, ac_client: TestClient) -> None:
         # A ClinVar P/LP variant is, by definition, catalogued — never "novel".

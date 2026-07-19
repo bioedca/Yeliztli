@@ -26,6 +26,8 @@ from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import database_versions, findings, reference_metadata
 from tests.backend.vep_bundle_test_utils import seed_embedded_vep_bundle_version
 
+SYNTHETIC_RECLASSIFICATION_RSID = "synthetic-reclassification-variant"
+
 
 def _record(**overrides) -> dict:
     """A finding snapshot record with sensible defaults (overridable)."""
@@ -33,7 +35,7 @@ def _record(**overrides) -> dict:
         "module": "cancer",
         "category": "monogenic_variant",
         "gene_symbol": "BRCA1",
-        "rsid": "rs80357906",
+        "rsid": SYNTHETIC_RECLASSIFICATION_RSID,
         "drug": None,
         "diplotype": None,
         "pathway": None,
@@ -462,7 +464,7 @@ class TestSnapshotFindings:
                 {
                     "module": "cancer",
                     "finding_text": "BRCA1 Pathogenic",
-                    "rsid": "rs80357906",
+                    "rsid": SYNTHETIC_RECLASSIFICATION_RSID,
                     "clinvar_significance": "Pathogenic",
                     "provenance": provenance,
                 },
@@ -471,8 +473,10 @@ class TestSnapshotFindings:
         )
         records = snapshot_findings(sample_engine)
         by_rsid = {r["rsid"]: r for r in records}
-        assert by_rsid["rs80357906"]["release_versions"] == {"clinvar": "2024-06"}
-        assert by_rsid["rs80357906"]["clinvar_significance"] == "Pathogenic"
+        assert by_rsid[SYNTHETIC_RECLASSIFICATION_RSID]["release_versions"] == {
+            "clinvar": "2024-06"
+        }
+        assert by_rsid[SYNTHETIC_RECLASSIFICATION_RSID]["clinvar_significance"] == ("Pathogenic")
         # No provenance → empty release_versions, not an error.
         assert by_rsid[None]["release_versions"] == {}
 
@@ -528,7 +532,7 @@ class TestComputeAndStoreRoundTrip:
                     "module": "cancer",
                     "category": "monogenic_variant",
                     "gene_symbol": "BRCA1",
-                    "rsid": "rs80357906",
+                    "rsid": SYNTHETIC_RECLASSIFICATION_RSID,
                     "finding_text": "BRCA1 Pathogenic",
                     "clinvar_significance": "Pathogenic",
                     "evidence_level": 4,
@@ -539,7 +543,7 @@ class TestComputeAndStoreRoundTrip:
         prior = [
             _record(
                 gene_symbol="BRCA1",
-                rsid="rs80357906",
+                rsid=SYNTHETIC_RECLASSIFICATION_RSID,
                 clinvar_significance="Uncertain_significance",
                 evidence_level=2,
                 release_versions={"clinvar": "2024-01"},
@@ -589,7 +593,7 @@ class TestComputeAndStoreRoundTrip:
                     "module": "cancer",
                     "category": "monogenic_variant",
                     "gene_symbol": "BRCA1",
-                    "rsid": "rs80357906",
+                    "rsid": SYNTHETIC_RECLASSIFICATION_RSID,
                     "finding_text": "BRCA1 variant",
                     "clinvar_significance": "Uncertain_significance",
                     "evidence_level": 2,

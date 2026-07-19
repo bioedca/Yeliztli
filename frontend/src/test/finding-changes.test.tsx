@@ -38,7 +38,7 @@ const DIFF_WITH_CHANGES = {
       module: 'cancer',
       category: 'monogenic_variant',
       gene_symbol: 'BRCA1',
-      rsid: 'rs80357906',
+      rsid: 'synthetic-reclassification-variant',
       drug: null,
       diplotype: null,
       finding_text: 'BRCA1 Pathogenic',

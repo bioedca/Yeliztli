@@ -40,7 +40,7 @@ const VARIANT: CancerVariant = {
   genotype: "AG",
   zygosity: "heterozygous",
   clinvar_significance: "Pathogenic",
-  clinvar_accession: "VCV000000001",
+  clinvar_accession: "VCV000017677",
   clinvar_review_stars: 3,
   clinvar_conditions: "Hereditary breast and ovarian cancer syndrome",
   syndromes: ["HBOC"],

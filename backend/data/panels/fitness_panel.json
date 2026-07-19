@@ -208,29 +208,29 @@
           "gene": "COL1A1",
           "variant_name": "COL1A1 Sp1 binding site",
           "hgvs_protein": null,
-          "risk_allele": "T",
-          "ref_allele": "G",
+          "risk_allele": "A",
+          "ref_allele": "C",
           "genotype_effects": {
-            "GG": {
+            "CC": {
               "category": "Standard",
-              "effect_summary": "Common genotype at the COL1A1 Sp1 binding site (no T/\"s\" allele). Baseline, population-average soft-tissue (tendon/ligament) injury risk for this marker, and no COL1A1 Sp1 bone-fragility signal."
+              "effect_summary": "GRCh37 plus-strand C/C, the common G/G genotype in transcript-oriented literature (no T/\"s\" allele). Baseline, population-average soft-tissue (tendon/ligament) injury risk for this marker, and no COL1A1 Sp1 bone-fragility signal."
             },
-            "GT": {
+            "CA": {
               "category": "Moderate",
-              "effect_summary": "Heterozygous at the COL1A1 Sp1 binding site. For sports tendon/ligament injury, meta-analyses suggest the heterozygous genotype may carry the highest soft-tissue injury risk under an overdominant model (e.g. ACL injury); the evidence is mixed and strongest in Caucasian cohorts, so treat this as a soft flag, not a verdict. Separately, the T (\"s\") allele is associated with modestly lower bone mineral density / higher osteoporotic-fracture risk — a distinct bone-fragility phenotype seen mainly in older/postmenopausal adults, not an athletic stress-fracture prediction."
+              "effect_summary": "GRCh37 plus-strand C/A, the G/T heterozygote in transcript-oriented literature. For sports tendon/ligament injury, meta-analyses suggest the heterozygous genotype may carry the highest soft-tissue injury risk under an overdominant model (e.g. ACL injury); the evidence is mixed and strongest in Caucasian cohorts, so treat this as a soft flag, not a verdict. Separately, the plus-strand A allele (the T/\"s\" allele in the literature) is associated with modestly lower bone mineral density / higher osteoporotic-fracture risk — a distinct bone-fragility phenotype seen mainly in older/postmenopausal adults, not an athletic stress-fracture prediction."
             },
-            "TG": {
+            "AC": {
               "category": "Moderate",
-              "effect_summary": "Heterozygous at the COL1A1 Sp1 binding site. For sports tendon/ligament injury, meta-analyses suggest the heterozygous genotype may carry the highest soft-tissue injury risk under an overdominant model (e.g. ACL injury); the evidence is mixed and strongest in Caucasian cohorts, so treat this as a soft flag, not a verdict. Separately, the T (\"s\") allele is associated with modestly lower bone mineral density / higher osteoporotic-fracture risk — a distinct bone-fragility phenotype seen mainly in older/postmenopausal adults, not an athletic stress-fracture prediction."
+              "effect_summary": "GRCh37 plus-strand A/C, the T/G heterozygote in transcript-oriented literature. For sports tendon/ligament injury, meta-analyses suggest the heterozygous genotype may carry the highest soft-tissue injury risk under an overdominant model (e.g. ACL injury); the evidence is mixed and strongest in Caucasian cohorts, so treat this as a soft flag, not a verdict. Separately, the plus-strand A allele (the T/\"s\" allele in the literature) is associated with modestly lower bone mineral density / higher osteoporotic-fracture risk — a distinct bone-fragility phenotype seen mainly in older/postmenopausal adults, not an athletic stress-fracture prediction."
             },
-            "TT": {
+            "AA": {
               "category": "Standard",
-              "effect_summary": "Homozygous for the COL1A1 Sp1 T (\"s\") allele (rare). For sports tendon/ligament injury — this pathway's phenotype — meta-analyses report TT is associated with REDUCED (protective) injury risk, including ACL injury, most consistently in Caucasian cohorts; evidence is mixed and protection is not guaranteed. Separately and distinctly, TT carries the strongest COL1A1 Sp1 signal for lower bone mineral density and higher osteoporotic (especially vertebral) fracture risk in older/postmenopausal adults — a bone-fragility phenotype that is not an athletic soft-tissue injury risk and is worth attention to bone health with age."
+              "effect_summary": "Homozygous GRCh37 plus-strand A/A, the rare T/T (\"s/s\") genotype in transcript-oriented literature. For sports tendon/ligament injury — this pathway's phenotype — meta-analyses report this genotype is associated with REDUCED (protective) injury risk, including ACL injury, most consistently in Caucasian cohorts; evidence is mixed and protection is not guaranteed. Separately and distinctly, it carries the strongest COL1A1 Sp1 signal for lower bone mineral density and higher osteoporotic (especially vertebral) fracture risk in older/postmenopausal adults — a bone-fragility phenotype that is not an athletic soft-tissue injury risk and is worth attention to bone health with age."
             }
           },
           "evidence_level": 1,
           "pmids": ["28206959", "38787354", "12810179"],
-          "recommendation_text": "COL1A1 Sp1 (rs1800012) has phenotype-specific, opposite-direction effects. For sports tendon/ligament injury the rare TT genotype is generally protective while the heterozygous genotype may carry higher soft-tissue injury risk; separately, the T allele is linked to lower bone mineral density / osteoporotic fracture risk mainly in older/postmenopausal adults. Tendon/ligament conditioning supports soft-tissue resilience, and weight-bearing exercise with adequate calcium/vitamin D supports bone health with age regardless of genotype."
+          "recommendation_text": "COL1A1 Sp1 (rs1800012) has phenotype-specific, opposite-direction effects. For sports tendon/ligament injury the rare GRCh37 plus-strand AA genotype (reported as TT in transcript-oriented literature) is generally protective while the heterozygous genotype may carry higher soft-tissue injury risk; separately, the plus-strand A allele (literature T) is linked to lower bone mineral density / osteoporotic fracture risk mainly in older/postmenopausal adults. Tendon/ligament conditioning supports soft-tissue resilience, and weight-bearing exercise with adequate calcium/vitamin D supports bone health with age regardless of genotype."
         }
       ]
     },
