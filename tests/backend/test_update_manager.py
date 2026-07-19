@@ -680,7 +680,7 @@ class TestReannotationPrompts:
         """T4-22m: Prompt stores watched variant reclassification details."""
         watched = [
             {
-                "rsid": "rs80357906",
+                "rsid": "rs999803580",
                 "gene_symbol": "BRCA2",
                 "old_significance": "Uncertain_significance",
                 "new_significance": "Likely_pathogenic",
@@ -700,7 +700,7 @@ class TestReannotationPrompts:
         assert len(prompts) == 1
         assert prompts[0]["watched_count"] == 1
         assert len(prompts[0]["watched_details"]) == 1
-        assert prompts[0]["watched_details"][0]["rsid"] == "rs80357906"
+        assert prompts[0]["watched_details"][0]["rsid"] == "rs999803580"
         assert prompts[0]["watched_details"][0]["new_significance"] == "Likely_pathogenic"
 
     def test_prompt_no_watched_data_defaults(self, reference_engine):
@@ -731,7 +731,7 @@ class TestReannotationPrompts:
         )
         watched = [
             {
-                "rsid": "rs80357906",
+                "rsid": "rs999803580",
                 "gene_symbol": "BRCA2",
                 "old_significance": "Uncertain_significance",
                 "new_significance": "Likely_pathogenic",
@@ -751,7 +751,7 @@ class TestReannotationPrompts:
         assert len(prompts) == 1
         assert prompts[0]["candidate_count"] == 5
         assert prompts[0]["watched_count"] == 1
-        assert prompts[0]["watched_details"][0]["rsid"] == "rs80357906"
+        assert prompts[0]["watched_details"][0]["rsid"] == "rs999803580"
 
     def test_filter_by_sample_id(self, reference_engine):
         _create_reannotation_prompt(
@@ -1073,7 +1073,7 @@ class TestPrecheck:
                 annotated_variants.insert(),
                 [
                     {
-                        "rsid": "rs80357906",
+                        "rsid": "rs999803580",
                         "chrom": "17",
                         "pos": 43091983,
                         "clinvar_significance": "Uncertain_significance",
@@ -1086,14 +1086,14 @@ class TestPrecheck:
                 watched_variants.insert(),
                 [
                     {
-                        "rsid": "rs80357906",
+                        "rsid": "rs999803580",
                         "clinvar_significance_at_watch": "Uncertain_significance",
                     },
                 ],
             )
 
-        old_sigs = {"rs80357906": "Uncertain_significance"}
-        new_sigs = {"rs80357906": "Likely_pathogenic"}
+        old_sigs = {"rs999803580": "Uncertain_significance"}
+        new_sigs = {"rs999803580": "Likely_pathogenic"}
 
         result = _precheck_clinvar(
             sample_engine,
@@ -1105,7 +1105,7 @@ class TestPrecheck:
 
         assert result.candidate_count == 1
         assert len(result.watched_reclassified) == 1
-        assert result.watched_reclassified[0]["rsid"] == "rs80357906"
+        assert result.watched_reclassified[0]["rsid"] == "rs999803580"
         assert result.watched_reclassified[0]["new_significance"] == "Likely_pathogenic"
 
     def test_precheck_watched_no_significance_change(self, reference_engine, sample_engine):
@@ -1116,7 +1116,7 @@ class TestPrecheck:
                 annotated_variants.insert(),
                 [
                     {
-                        "rsid": "rs80357906",
+                        "rsid": "rs999803580",
                         "chrom": "17",
                         "pos": 43091983,
                         "clinvar_significance": "Uncertain_significance",
@@ -1129,15 +1129,15 @@ class TestPrecheck:
                 watched_variants.insert(),
                 [
                     {
-                        "rsid": "rs80357906",
+                        "rsid": "rs999803580",
                         "clinvar_significance_at_watch": "Uncertain_significance",
                     },
                 ],
             )
 
         # Significance stays the same
-        old_sigs = {"rs80357906": "Uncertain_significance"}
-        new_sigs = {"rs80357906": "Uncertain_significance"}
+        old_sigs = {"rs999803580": "Uncertain_significance"}
+        new_sigs = {"rs999803580": "Uncertain_significance"}
 
         result = _precheck_clinvar(
             sample_engine,
@@ -1158,7 +1158,7 @@ class TestPrecheck:
                 annotated_variants.insert(),
                 [
                     {
-                        "rsid": "rs80357906",
+                        "rsid": "rs999803580",
                         "chrom": "17",
                         "pos": 43091983,
                         "clinvar_significance": "Uncertain_significance",
@@ -1171,7 +1171,7 @@ class TestPrecheck:
                 watched_variants.insert(),
                 [
                     {
-                        "rsid": "rs80357906",
+                        "rsid": "rs999803580",
                         "clinvar_significance_at_watch": "Uncertain_significance",
                     },
                 ],
@@ -1183,7 +1183,7 @@ class TestPrecheck:
                 clinvar_variants.insert(),
                 [
                     {
-                        "rsid": "rs80357906",
+                        "rsid": "rs999803580",
                         "chrom": "17",
                         "pos": 43091983,
                         "ref": "A",
@@ -1203,7 +1203,7 @@ class TestPrecheck:
 
         assert result.candidate_count == 1
         assert len(result.watched_reclassified) == 1
-        assert result.watched_reclassified[0]["rsid"] == "rs80357906"
+        assert result.watched_reclassified[0]["rsid"] == "rs999803580"
         assert result.watched_reclassified[0]["old_significance"] == "Uncertain_significance"
         assert result.watched_reclassified[0]["new_significance"] == "Likely_pathogenic"
 

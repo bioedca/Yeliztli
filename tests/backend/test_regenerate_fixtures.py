@@ -11,6 +11,7 @@ import json
 import sqlite3
 import subprocess
 import sys
+from collections import Counter
 from pathlib import Path
 
 import pytest
@@ -20,49 +21,119 @@ SEED_DIR = FIXTURES_DIR / "seed_csvs"
 SCRIPT = Path(__file__).resolve().parent.parent.parent / "scripts" / "regenerate_fixtures.py"
 PANEL_RSID_COORDINATES = FIXTURES_DIR / "panel_rsid_coordinates.json"
 
-COORDINATE_GUARD_RSIDS = (
-    "rs6025",
-    "rs1799963",
-    "rs13266634",
-    "rs2476601",
-    "rs3135388",
-)
+GRCh37Mapping = tuple[str, int, frozenset[str]]
 
-# rs3135388 remains coordinate-guarded in the VEP and gnomAD fixtures,
-# but #1968 withheld it from the ClinVar seed because it has no matching ClinVar
-# record.  Requiring it in ``clinvar_variants`` would force a fabricated accession.
-CLINVAR_COORDINATE_GUARD_RSIDS = tuple(
-    rsid for rsid in COORDINATE_GUARD_RSIDS if rsid != "rs3135388"
-)
-
-SEED_COORDINATE_TARGETS = {
-    "clinvar_seed.csv": CLINVAR_COORDINATE_GUARD_RSIDS,
-    "vep_seed.csv": COORDINATE_GUARD_RSIDS,
-    "gnomad_seed.csv": COORDINATE_GUARD_RSIDS,
-    "dbnsfp_seed.csv": ("rs6025", "rs13266634", "rs2476601"),
+ADDITIONAL_VERIFIED_GRCH37_MAPPINGS: dict[str, GRCh37Mapping] = {
+    # Ensembl GRCh37 Variation REST, accessed 2026-07-19. The primary mapping
+    # is 7:94937446 with allele string T/A/C/G; this fixture selects T>C.
+    # https://grch37.rest.ensembl.org/variation/human/rs662
+    "rs662": ("7", 94_937_446, frozenset({"T", "C"}))
 }
+
+# Every coordinate-bearing seed has one corresponding generated table.  The
+# coordinate guard derives its rsID scope from the seed/snapshot intersection;
+# adding a panel rsID to a seed therefore extends the guard automatically.
 # The GWAS seed is deliberately absent: #1948/#2011 made it synthetic
-# rsID-membership data and require all coordinate/build metadata to stay null.
+# rsID-membership data; coordinates, alleles, and effect metadata must all
+# remain null.
+COORDINATE_SEED_DB_TARGETS = (
+    ("clinvar_seed.csv", "mini_reference.db", "clinvar_variants"),
+    ("vep_seed.csv", "mini_vep_bundle.db", "vep_annotations"),
+    ("gnomad_seed.csv", "mini_gnomad_af.db", "gnomad_af"),
+    ("dbnsfp_seed.csv", "mini_dbnsfp.db", "dbnsfp_scores"),
+)
 
-MINI_DB_COORDINATE_TARGETS = {
-    "mini_reference.db": {
-        "clinvar_variants": CLINVAR_COORDINATE_GUARD_RSIDS,
-    },
-    "mini_vep_bundle.db": {"vep_annotations": COORDINATE_GUARD_RSIDS},
-    "mini_gnomad_af.db": {"gnomad_af": COORDINATE_GUARD_RSIDS},
-    "mini_dbnsfp.db": {
-        "dbnsfp_scores": ("rs6025", "rs13266634", "rs2476601"),
-    },
-}
+ALLELE_SEED_CSVS = tuple(target[0] for target in COORDINATE_SEED_DB_TARGETS)
+MINI_DB_NAMES = tuple(dict.fromkeys(target[1] for target in COORDINATE_SEED_DB_TARGETS))
 
 
-def _expected_grch37_coordinates() -> dict[str, tuple[str, int]]:
+def _expected_grch37_mappings() -> dict[str, GRCh37Mapping]:
     payload = json.loads(PANEL_RSID_COORDINATES.read_text())
     variants = payload["rsids"]
-    return {
-        rsid: (str(variants[rsid]["chrom"]), int(variants[rsid]["start"]))
-        for rsid in COORDINATE_GUARD_RSIDS
-    }
+    expected: dict[str, GRCh37Mapping] = {}
+    for rsid, variant in variants.items():
+        assert variant["assembly"] == "GRCh37", f"{rsid} oracle mapping is not GRCh37"
+        assert int(variant["strand"]) == 1, f"{rsid} oracle alleles are not plus-strand"
+        alleles = frozenset(str(variant["allele_string"]).split("/"))
+        assert alleles and "" not in alleles, f"{rsid} oracle has no usable allele set"
+        expected[rsid] = (str(variant["chrom"]), int(variant["start"]), alleles)
+
+    for rsid, mapping in ADDITIONAL_VERIFIED_GRCH37_MAPPINGS.items():
+        assert expected.get(rsid, mapping) == mapping, (
+            f"{rsid} has conflicting panel and non-panel GRCh37 mapping evidence"
+        )
+        expected[rsid] = mapping
+    return expected
+
+
+def _guarded_seed_coordinates(
+    csv_name: str, expected: dict[str, GRCh37Mapping]
+) -> list[tuple[str, str, int]]:
+    with (SEED_DIR / csv_name).open(newline="", encoding="utf-8") as fh:
+        return [
+            (row["rsid"], row["chrom"], int(row["pos"]))
+            for row in csv.DictReader(fh)
+            if row["rsid"] in expected
+        ]
+
+
+def _guarded_db_coordinates(
+    db_path: Path, table_name: str, expected: dict[str, GRCh37Mapping]
+) -> list[tuple[str, str, int]]:
+    uri = f"file:{db_path.resolve()}?mode=ro&immutable=1"
+    with sqlite3.connect(uri, uri=True) as conn:
+        return [
+            (str(rsid), str(chrom), int(pos))
+            for rsid, chrom, pos in conn.execute(
+                f"SELECT rsid, chrom, pos FROM {table_name}"  # noqa: S608 -- fixed table names
+            )
+            if rsid in expected
+        ]
+
+
+def _assert_grch37_coordinates(
+    rows: list[tuple[str, str, int]],
+    expected: dict[str, GRCh37Mapping],
+    source: str,
+) -> None:
+    assert rows, f"{source} has no rows overlapping the GRCh37 coordinate oracle"
+    for occurrence, (rsid, chrom, pos) in enumerate(rows, start=1):
+        assert (chrom, pos) == expected[rsid][:2], (
+            f"{source} occurrence {occurrence} ({rsid}) is at {chrom}:{pos}; "
+            f"expected {expected[rsid][0]}:{expected[rsid][1]}"
+        )
+
+
+def _guarded_seed_alleles(
+    csv_name: str, expected: dict[str, GRCh37Mapping]
+) -> list[tuple[str, str, str]]:
+    with (SEED_DIR / csv_name).open(newline="", encoding="utf-8") as fh:
+        return [
+            (row["rsid"], row["ref"], row["alt"])
+            for row in csv.DictReader(fh)
+            if row["rsid"] in expected
+        ]
+
+
+def _assert_grch37_plus_strand_alleles(
+    rows: list[tuple[str, str, str]],
+    expected: dict[str, GRCh37Mapping],
+    source: str,
+) -> None:
+    assert rows, f"{source} has no rows overlapping the GRCh37 mapping oracle"
+    for occurrence, (rsid, ref, alt) in enumerate(rows, start=1):
+        allowed = expected[rsid][2]
+        assert {ref, alt} <= allowed, (
+            f"{source} occurrence {occurrence} ({rsid}) uses {ref}>{alt}; "
+            f"expected plus-strand alleles from {sorted(allowed)}"
+        )
+
+
+def _semantic_sqlite_dump(db_path: Path) -> tuple[str, ...]:
+    """Return schema and data as SQL, excluding binary-file layout details."""
+    uri = f"file:{db_path.resolve()}?mode=ro&immutable=1"
+    with sqlite3.connect(uri, uri=True) as conn:
+        return tuple(conn.iterdump())
 
 
 def _run_script(tmp_path: Path) -> subprocess.CompletedProcess[str]:
@@ -154,20 +225,41 @@ class TestSeedCSVContent:
                     f"{len(rows)} rows — a degenerate, non-discriminating oracle"
                 )
 
-    @pytest.mark.parametrize(("csv_name", "rsids"), SEED_COORDINATE_TARGETS.items())
-    def test_guarded_seed_coordinates_are_grch37(
-        self, csv_name: str, rsids: tuple[str, ...]
-    ) -> None:
-        expected = _expected_grch37_coordinates()
-        with (SEED_DIR / csv_name).open(newline="", encoding="utf-8") as fh:
-            rows = [row for row in csv.DictReader(fh) if row["rsid"] in rsids]
+    @pytest.mark.parametrize("csv_name", [target[0] for target in COORDINATE_SEED_DB_TARGETS])
+    def test_guarded_seed_coordinates_are_grch37(self, csv_name: str) -> None:
+        expected = _expected_grch37_mappings()
+        rows = _guarded_seed_coordinates(csv_name, expected)
+        observed_rsids = {rsid for rsid, _chrom, _pos in rows}
+        assert ADDITIONAL_VERIFIED_GRCH37_MAPPINGS.keys() <= observed_rsids, (
+            f"{csv_name} is missing a verified non-panel coordinate row"
+        )
+        _assert_grch37_coordinates(rows, expected, csv_name)
 
-        observed_rsids = {row["rsid"] for row in rows}
-        assert observed_rsids == set(rsids), f"{csv_name} missing coordinate-guard rows"
-        for row in rows:
-            rsid = row["rsid"]
-            expected_chrom, expected_pos = expected[rsid]
-            assert (row["chrom"], int(row["pos"])) == (expected_chrom, expected_pos)
+    @pytest.mark.parametrize("csv_name", ALLELE_SEED_CSVS)
+    def test_guarded_seed_alleles_are_grch37_plus_strand(self, csv_name: str) -> None:
+        expected = _expected_grch37_mappings()
+        rows = _guarded_seed_alleles(csv_name, expected)
+        _assert_grch37_plus_strand_alleles(rows, expected, csv_name)
+
+    def test_synthetic_gwas_rows_leave_scientific_fields_empty(self) -> None:
+        with (SEED_DIR / "gwas_seed.csv").open(newline="", encoding="utf-8") as fh:
+            rows = list(csv.DictReader(fh))
+
+        scientific_fields = (
+            "chrom",
+            "pos",
+            "p_value",
+            "odds_ratio",
+            "beta",
+            "risk_allele",
+            "pubmed_id",
+            "study",
+            "sample_size",
+        )
+
+        assert rows, "gwas_seed.csv has no synthetic membership rows"
+        assert all(row["trait"] == "Synthetic GWAS membership fixture" for row in rows)
+        assert all(not row[field] for row in rows for field in scientific_fields)
 
 
 # ── Regeneration script ──────────────────────────────────────────────
@@ -338,31 +430,38 @@ class TestRegenerateFixtures:
             count = conn.execute("SELECT count(*) FROM dbnsfp_scores").fetchone()[0]
         assert count >= 30, f"Expected >=30 dbNSFP rows, got {count}"
 
-    @pytest.mark.parametrize(("db_name", "tables"), MINI_DB_COORDINATE_TARGETS.items())
-    def test_guarded_mini_db_coordinates_are_grch37(
-        self, tmp_path: Path, db_name: str, tables: dict[str, tuple[str, ...]]
+    @pytest.mark.parametrize(("csv_name", "db_name", "table_name"), COORDINATE_SEED_DB_TARGETS)
+    def test_guarded_mini_db_coordinates_match_seed(
+        self,
+        tmp_path: Path,
+        csv_name: str,
+        db_name: str,
+        table_name: str,
     ) -> None:
-        expected = _expected_grch37_coordinates()
+        expected = _expected_grch37_mappings()
+        seed_rows = _guarded_seed_coordinates(csv_name, expected)
+        _assert_grch37_coordinates(seed_rows, expected, csv_name)
         _run_script(tmp_path)
 
         for db_path in (tmp_path / db_name, FIXTURES_DIR / db_name):
-            with sqlite3.connect(str(db_path)) as conn:
-                for table_name, rsids in tables.items():
-                    placeholders = ", ".join("?" for _ in rsids)
-                    observed = [
-                        (rsid, str(chrom), int(pos))
-                        for rsid, chrom, pos in conn.execute(
-                            f"SELECT rsid, chrom, pos FROM {table_name} "
-                            f"WHERE rsid IN ({placeholders})",
-                            tuple(rsids),
-                        )
-                    ]
-                    observed_rsids = {rsid for rsid, _chrom, _pos in observed}
-                    assert observed_rsids == set(rsids), (
-                        f"{db_path}:{table_name} missing coordinate-guard rows"
-                    )
-                    for rsid, chrom, pos in observed:
-                        assert (chrom, pos) == expected[rsid]
+            source = f"{db_path}:{table_name}"
+            db_rows = _guarded_db_coordinates(db_path, table_name, expected)
+            _assert_grch37_coordinates(db_rows, expected, source)
+            assert Counter(db_rows) == Counter(seed_rows), (
+                f"{source} does not preserve every guarded {csv_name} occurrence"
+            )
+
+    def test_checked_in_mini_dbs_match_fresh_regeneration(self, tmp_path: Path) -> None:
+        """Checked-in databases must be the exact semantic output of the seeds."""
+        _run_script(tmp_path)
+
+        for db_name in MINI_DB_NAMES:
+            regenerated_dump = _semantic_sqlite_dump(tmp_path / db_name)
+            checked_in_dump = _semantic_sqlite_dump(FIXTURES_DIR / db_name)
+            assert checked_in_dump == regenerated_dump, (
+                f"{db_name} differs from a fresh regeneration; inspect the SQL dump "
+                "delta and regenerate the checked-in fixture"
+            )
 
     def test_wal_mode_enabled(self, tmp_path: Path) -> None:
         _run_script(tmp_path)

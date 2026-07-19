@@ -357,7 +357,7 @@ const CANCER_VARIANT: CancerVariant = {
   genotype: "C/T",
   zygosity: "het",
   clinvar_significance: "Pathogenic",
-  clinvar_accession: "VCV000017661",
+  clinvar_accession: "VCV000017677",
   clinvar_review_stars: 3,
   clinvar_conditions: "Hereditary breast and ovarian cancer syndrome",
   syndromes: ["Hereditary Breast and Ovarian Cancer"],

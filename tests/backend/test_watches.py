@@ -67,7 +67,7 @@ def watches_client(tmp_data_dir: Path) -> TestClient:
                 {
                     "rsid": "rs80357906",
                     "chrom": "17",
-                    "pos": 43091983,
+                    "pos": 41209080,
                     "clinvar_significance": "Pathogenic",
                 },
                 {

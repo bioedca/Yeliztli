@@ -120,7 +120,8 @@ class TestGJB2Polarity:
 class TestCFTRPolarity:
     """CFTR F508del (rs113993960) — carrier_status indel zygosity map."""
 
-    KEY = ("CFTR", "rs113993960", "ATCT", "A")
+    VCF_KEY = ("CFTR", "rs113993960", "ATCT", "A")
+    MAPPING_KEY = ("CFTR", "rs113993960", "TCTT", "T")
 
     def test_provenance_is_canonical(self) -> None:
         _assert_canonical_polarity(
@@ -129,10 +130,11 @@ class TestCFTRPolarity:
         assert carrier_mod._CFTR_F508DEL_INDEL_POLARITY["dbsnp"] == "rs113993960"
 
     def test_live_map_matches_polarity(self) -> None:
-        m = carrier_mod._SUPPORTED_CARRIER_INDEL_ZYGOSITY[self.KEY]
-        assert m["DD"] == "hom_alt", "CFTR: DD must be hom_alt (F508del/F508del)"
-        assert m["II"] == "hom_ref", "CFTR: II must be hom_ref"
-        assert m["DI"] == m["ID"] == "het", "CFTR: one D = heterozygous carrier"
+        for key in (self.VCF_KEY, self.MAPPING_KEY):
+            m = carrier_mod._SUPPORTED_CARRIER_INDEL_ZYGOSITY[key]
+            assert m["DD"] == "hom_alt", "CFTR: DD must be hom_alt (F508del/F508del)"
+            assert m["II"] == "hom_ref", "CFTR: II must be hom_ref"
+            assert m["DI"] == m["ID"] == "het", "CFTR: one D = heterozygous carrier"
 
 
 class TestHEXAPolarity:

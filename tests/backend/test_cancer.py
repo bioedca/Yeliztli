@@ -777,13 +777,13 @@ class TestRecessiveInheritanceGating:
         row = {
             "rsid": "rs80357906",
             "chrom": "17",
-            "pos": 43000000,
+            "pos": 41209080,
             "genotype": "CT",
             "zygosity": "het",
             "gene_symbol": "BRCA1",
             "clinvar_significance": "Pathogenic",
             "clinvar_review_stars": 3,
-            "clinvar_accession": "VCV000000002",
+            "clinvar_accession": "VCV000017677",
             "clinvar_conditions": "Hereditary breast and ovarian cancer",
             "annotation_coverage": 2,
         }

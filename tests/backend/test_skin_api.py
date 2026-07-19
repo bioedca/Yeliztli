@@ -489,10 +489,10 @@ def client_stored_state_conflict(
 def client_with_variants(tmp_data_dir: Path) -> Generator[tuple[TestClient, int], None, None]:
     """Client with raw variants for run endpoint testing."""
     variants = [
-        {"rsid": "rs1805007", "chrom": "16", "pos": 89919709, "genotype": "CT"},
-        {"rsid": "rs1805008", "chrom": "16", "pos": 89919736, "genotype": "CC"},
-        {"rsid": "rs1805009", "chrom": "16", "pos": 89919746, "genotype": "GG"},
-        {"rsid": "rs1695", "chrom": "11", "pos": 67585218, "genotype": "AG"},
+        {"rsid": "rs1805007", "chrom": "16", "pos": 89986117, "genotype": "CT"},
+        {"rsid": "rs1805008", "chrom": "16", "pos": 89986144, "genotype": "CC"},
+        {"rsid": "rs1805009", "chrom": "16", "pos": 89986546, "genotype": "GG"},
+        {"rsid": "rs1695", "chrom": "11", "pos": 67352689, "genotype": "AG"},
         {"rsid": "rs4880", "chrom": "6", "pos": 160113872, "genotype": "TT"},
     ]
     yield from _setup_client(tmp_data_dir, seed_variants=variants)

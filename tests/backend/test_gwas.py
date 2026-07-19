@@ -152,7 +152,7 @@ _GWAS_ROWS = [
         "DISEASE/TRAIT": "Pain sensitivity",
         "INITIAL SAMPLE SIZE": "202 individuals",
         "CHR_ID": "22",
-        "CHR_POS": "19963748",
+        "CHR_POS": "19951271",
         "STRONGEST SNP-RISK ALLELE": "rs4680-A",
         "SNPS": "rs4680",
         "P-VALUE": "3e-8",
@@ -251,7 +251,7 @@ def seeded_reference_engine(reference_engine: sa.Engine) -> sa.Engine:
         {
             "rsid": "rs4680",
             "chrom": "22",
-            "pos": 19963748,
+            "pos": 19951271,
             "trait": "Pain sensitivity",
             "p_value": 3e-8,
             "odds_ratio": 1.15,

@@ -62,6 +62,10 @@ def sample_engine() -> sa.Engine:
 # Seed data kept as module-level constants so tests can import & assert
 # against them without duplicating values.
 
+# The #1949 coordinate/accession repairs below are cross-checked against
+# seed_csvs/clinvar_seed.csv and clinvar_seed_snapshot.json (NLM Clinical Tables,
+# accessed 2026-07-16). Other annotations are behavior-test projections;
+# rs12345 is wholly synthetic.
 SEED_CLINVAR = [
     {
         "rsid": "rs429358",
@@ -105,35 +109,35 @@ SEED_CLINVAR = [
     {
         "rsid": "rs4680",
         "chrom": "22",
-        "pos": 19963748,
+        "pos": 19951271,
         "ref": "G",
         "alt": "A",
         "significance": "benign",
         "review_stars": 2,
-        "accession": "VCV000016312",
+        "accession": "VCV000017591",
         "conditions": "not specified",
         "gene_symbol": "COMT",
-        "variation_id": 16312,
+        "variation_id": 17591,
     },
     {
         "rsid": "rs80357906",
         "chrom": "17",
-        "pos": 43091983,
-        "ref": "CTC",
-        "alt": "C",
+        "pos": 41209080,
+        "ref": "GGG",
+        "alt": "GGGG",
         "significance": "Pathogenic",
         "review_stars": 3,
-        "accession": "VCV000017661",
+        "accession": "VCV000017677",
         "conditions": "Hereditary breast and ovarian cancer syndrome",
         "gene_symbol": "BRCA1",
-        "variation_id": 17661,
+        "variation_id": 17677,
     },
     {
         "rsid": "rs113993960",
         "chrom": "7",
-        "pos": 117559590,
-        "ref": "ATCT",
-        "alt": "A",
+        "pos": 117199645,
+        "ref": "TCTT",
+        "alt": "T",
         "significance": "Pathogenic",
         "review_stars": 3,
         "accession": "VCV000007105",
@@ -397,7 +401,7 @@ SEED_GWAS = [
     {
         "rsid": "rs4680",
         "chrom": "22",
-        "pos": 19963748,
+        "pos": 19951271,
         "trait": "Pain sensitivity",
         "p_value": 3e-8,
         "odds_ratio": 1.15,
@@ -584,12 +588,12 @@ SEED_RAW_VARIANTS = [
     {"rsid": "rs429358", "chrom": "19", "pos": 44908684, "genotype": "TC"},
     {"rsid": "rs7412", "chrom": "19", "pos": 44908822, "genotype": "CC"},
     {"rsid": "rs1801133", "chrom": "1", "pos": 11856378, "genotype": "AG"},
-    {"rsid": "rs4680", "chrom": "22", "pos": 19963748, "genotype": "AG"},
+    {"rsid": "rs4680", "chrom": "22", "pos": 19951271, "genotype": "AG"},
     {"rsid": "rs16947", "chrom": "22", "pos": 42522613, "genotype": "AG"},
     {"rsid": "rs3892097", "chrom": "22", "pos": 42524947, "genotype": "CC"},
     {"rsid": "rs12913832", "chrom": "15", "pos": 28365618, "genotype": "GG"},
     {"rsid": "rs7903146", "chrom": "10", "pos": 114758349, "genotype": "CT"},
-    {"rsid": "rs1805007", "chrom": "16", "pos": 89919709, "genotype": "CC"},
+    {"rsid": "rs1805007", "chrom": "16", "pos": 89986117, "genotype": "CC"},
     {"rsid": "rs12345", "chrom": "1", "pos": 100000, "genotype": "AA"},
     {"rsid": "rs4244285", "chrom": "10", "pos": 96541616, "genotype": "GA"},
 ]

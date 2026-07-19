@@ -123,13 +123,13 @@ def _seed_gwas(
 
 # All 10 panel SNPs with their chromosome positions
 ALL_SKIN_VARIANTS = [
-    ("rs1805007", "16", 89919736, "CT"),  # MC1R R151C het
-    ("rs1805008", "16", 89919746, "CC"),  # MC1R R160W ref
-    ("rs1805009", "16", 89919709, "GG"),  # MC1R D294H ref
-    ("rs885479", "16", 89919722, "GA"),  # MC1R R163Q het
+    ("rs1805007", "16", 89986117, "CT"),  # MC1R R151C het
+    ("rs1805008", "16", 89986144, "CC"),  # MC1R R160W ref
+    ("rs1805009", "16", 89986546, "GG"),  # MC1R D294H ref
+    ("rs885479", "16", 89986154, "GA"),  # MC1R R163Q het
     ("rs61816761", "1", 152285861, "GA"),  # FLG het
-    ("rs1695", "11", 67585218, "AG"),  # GSTP1 het
-    ("rs1799750", "11", 102799717, "DI"),  # MMP1 1G/2G het (23andMe I/D tokens, #610)
+    ("rs1695", "11", 67352689, "AG"),  # GSTP1 het
+    ("rs1799750", "11", 102670496, "DI"),  # MMP1 1G/2G het (23andMe I/D tokens, #610)
     ("rs4880", "6", 160113872, "CT"),  # SOD2 het
     ("rs2228570", "12", 48272895, "GA"),  # VDR FokI het
     ("rs1544410", "12", 48239835, "GA"),  # VDR BsmI het
@@ -295,7 +295,7 @@ class TestMMP1IndelScoring:
         """Scored I/D panel genotypes remain called in pathway coverage."""
         _seed_variants(
             sample_engine,
-            [("rs1799750", "11", 102799717, "DI")],
+            [("rs1799750", "11", 102670496, "DI")],
         )
         result = score_skin_pathways(panel, sample_engine, reference_engine)
 
@@ -427,10 +427,10 @@ class TestMC1RMultiAllele:
         _seed_variants(
             sample_engine,
             [
-                ("rs1805007", "16", 89919736, "CC"),
-                ("rs1805008", "16", 89919746, "CC"),
-                ("rs1805009", "16", 89919709, "GG"),
-                ("rs885479", "16", 89919722, "GG"),
+                ("rs1805007", "16", 89986117, "CC"),
+                ("rs1805008", "16", 89986144, "CC"),
+                ("rs1805009", "16", 89986546, "GG"),
+                ("rs885479", "16", 89986154, "GG"),
             ],
         )
         result = score_skin_pathways(panel, sample_engine, reference_engine)
@@ -450,10 +450,10 @@ class TestMC1RMultiAllele:
         _seed_variants(
             sample_engine,
             [
-                ("rs1805007", "16", 89919736, "CT"),  # 1 R allele
-                ("rs1805008", "16", 89919746, "CC"),
-                ("rs1805009", "16", 89919709, "GG"),
-                ("rs885479", "16", 89919722, "GG"),
+                ("rs1805007", "16", 89986117, "CT"),  # 1 R allele
+                ("rs1805008", "16", 89986144, "CC"),
+                ("rs1805009", "16", 89986546, "GG"),
+                ("rs885479", "16", 89986154, "GG"),
             ],
         )
         result = score_skin_pathways(panel, sample_engine, reference_engine)
@@ -472,10 +472,10 @@ class TestMC1RMultiAllele:
         _seed_variants(
             sample_engine,
             [
-                ("rs1805007", "16", 89919736, "CT"),  # 1 R allele
-                ("rs1805008", "16", 89919746, "CT"),  # 1 R allele
-                ("rs1805009", "16", 89919709, "GG"),
-                ("rs885479", "16", 89919722, "GG"),
+                ("rs1805007", "16", 89986117, "CT"),  # 1 R allele
+                ("rs1805008", "16", 89986144, "CT"),  # 1 R allele
+                ("rs1805009", "16", 89986546, "GG"),
+                ("rs885479", "16", 89986154, "GG"),
             ],
         )
         result = score_skin_pathways(panel, sample_engine, reference_engine)
@@ -494,10 +494,10 @@ class TestMC1RMultiAllele:
         _seed_variants(
             sample_engine,
             [
-                ("rs1805007", "16", 89919736, "TT"),  # 2 R alleles
-                ("rs1805008", "16", 89919746, "CC"),
-                ("rs1805009", "16", 89919709, "GG"),
-                ("rs885479", "16", 89919722, "GG"),
+                ("rs1805007", "16", 89986117, "TT"),  # 2 R alleles
+                ("rs1805008", "16", 89986144, "CC"),
+                ("rs1805009", "16", 89986546, "GG"),
+                ("rs885479", "16", 89986154, "GG"),
             ],
         )
         result = score_skin_pathways(panel, sample_engine, reference_engine)
@@ -521,10 +521,10 @@ class TestMC1RMultiAllele:
         _seed_variants(
             sample_engine,
             [
-                ("rs1805007", "16", 89919736, "AG"),  # reverse-strand of CT
-                ("rs1805008", "16", 89919746, "CC"),
-                ("rs1805009", "16", 89919709, "GG"),
-                ("rs885479", "16", 89919722, "GG"),
+                ("rs1805007", "16", 89986117, "AG"),  # reverse-strand of CT
+                ("rs1805008", "16", 89986144, "CC"),
+                ("rs1805009", "16", 89986546, "GG"),
+                ("rs885479", "16", 89986154, "GG"),
             ],
         )
         result = score_skin_pathways(panel, sample_engine, reference_engine)
@@ -552,10 +552,10 @@ class TestMC1RMultiAllele:
         _seed_variants(
             sample_engine,
             [
-                ("rs1805007", "16", 89919736, "AA"),  # reverse-strand of TT
-                ("rs1805008", "16", 89919746, "CC"),
-                ("rs1805009", "16", 89919709, "GG"),
-                ("rs885479", "16", 89919722, "GG"),
+                ("rs1805007", "16", 89986117, "AA"),  # reverse-strand of TT
+                ("rs1805008", "16", 89986144, "CC"),
+                ("rs1805009", "16", 89986546, "GG"),
+                ("rs885479", "16", 89986154, "GG"),
             ],
         )
         result = score_skin_pathways(panel, sample_engine, reference_engine)
@@ -596,10 +596,10 @@ class TestMC1RMultiAllele:
         _seed_variants(
             sample_engine,
             [
-                ("rs1805007", "16", 89919736, "CC"),
-                ("rs1805008", "16", 89919746, "CC"),
-                ("rs1805009", "16", 89919709, "GG"),
-                ("rs885479", "16", 89919722, r163q_genotype),
+                ("rs1805007", "16", 89986117, "CC"),
+                ("rs1805008", "16", 89986144, "CC"),
+                ("rs1805009", "16", 89986546, "GG"),
+                ("rs885479", "16", 89986154, r163q_genotype),
             ],
         )
         result = score_skin_pathways(panel, sample_engine, reference_engine)
@@ -656,7 +656,7 @@ class TestFLGInsufficientData:
         """FLG not in sample → flg_insufficient_data is False."""
         _seed_variants(
             sample_engine,
-            [("rs1805007", "16", 89919736, "CT")],
+            [("rs1805007", "16", 89986117, "CT")],
         )
         result = score_skin_pathways(panel, sample_engine, reference_engine)
         assert result.flg_insufficient_data is False
@@ -887,7 +887,7 @@ class TestCrossModuleFindings:
         """MC1R non-Standard → cross-link to Cancer module."""
         _seed_variants(
             sample_engine,
-            [("rs1805007", "16", 89919736, "CT")],
+            [("rs1805007", "16", 89986117, "CT")],
         )
         result = score_skin_pathways(panel, sample_engine, reference_engine)
         mc1r_cross = [c for c in result.cross_module_findings if c.gene == "MC1R"]
@@ -937,7 +937,7 @@ class TestCrossModuleFindings:
         _seed_variants(
             sample_engine,
             [
-                ("rs1805007", "16", 89919736, "CC"),  # ref
+                ("rs1805007", "16", 89986117, "CC"),  # ref
                 ("rs61816761", "1", 152285861, "GG"),  # ref
                 ("rs2228570", "12", 48272895, "GG"),  # ref
             ],
@@ -960,8 +960,8 @@ class TestCrossModuleFindings:
         _seed_variants(
             sample_engine,
             [
-                ("rs1805007", "16", 89919736, "CT"),  # MC1R R151C het
-                ("rs1805008", "16", 89919746, "CT"),  # MC1R R160W het
+                ("rs1805007", "16", 89986117, "CT"),  # MC1R R151C het
+                ("rs1805008", "16", 89986144, "CT"),  # MC1R R160W het
             ],
         )
         result = score_skin_pathways(panel, sample_engine, reference_engine)
@@ -1129,10 +1129,10 @@ class TestStoreFindingsIntegration:
         _seed_variants(
             sample_engine,
             [
-                ("rs1805007", "16", 89919736, "CT"),
-                ("rs1805008", "16", 89919746, "CC"),
-                ("rs1805009", "16", 89919709, "GG"),
-                ("rs885479", "16", 89919722, "GG"),
+                ("rs1805007", "16", 89986117, "CT"),
+                ("rs1805008", "16", 89986144, "CC"),
+                ("rs1805009", "16", 89986546, "GG"),
+                ("rs885479", "16", 89986154, "GG"),
             ],
         )
         result = score_skin_pathways(panel, sample_engine, reference_engine)
@@ -1166,10 +1166,10 @@ class TestStoreFindingsIntegration:
         _seed_variants(
             sample_engine,
             [
-                ("rs1805007", "16", 89919736, "CC"),
-                ("rs1805008", "16", 89919746, "CC"),
-                ("rs1805009", "16", 89919709, "GG"),
-                ("rs885479", "16", 89919722, "GA"),
+                ("rs1805007", "16", 89986117, "CC"),
+                ("rs1805008", "16", 89986144, "CC"),
+                ("rs1805009", "16", 89986546, "GG"),
+                ("rs885479", "16", 89986154, "GA"),
             ],
         )
         result = score_skin_pathways(panel, sample_engine, reference_engine)
@@ -1202,7 +1202,7 @@ class TestStoreFindingsIntegration:
         _seed_variants(
             sample_engine,
             [
-                ("rs1805007", "16", 89919736, "CT"),  # MC1R → cancer
+                ("rs1805007", "16", 89986117, "CT"),  # MC1R → cancer
                 ("rs61816761", "1", 152285861, "GA"),  # FLG → allergy
                 ("rs2228570", "12", 48272895, "AA"),  # VDR → nutrigenomics
             ],
@@ -1235,7 +1235,7 @@ class TestStoreFindingsIntegration:
         """Stored skin pathway detail keeps no-calls separate from off-chip SNPs."""
         _seed_variants(
             sample_engine,
-            [("rs1805007", "16", 89919736, "--")],
+            [("rs1805007", "16", 89986117, "--")],
         )
         result = score_skin_pathways(panel, sample_engine, reference_engine)
 
@@ -1275,7 +1275,7 @@ class TestStoreFindingsIntegration:
         """Re-running store clears previous skin findings."""
         _seed_variants(
             sample_engine,
-            [("rs1805007", "16", 89919736, "CT")],
+            [("rs1805007", "16", 89986117, "CT")],
         )
         result = score_skin_pathways(panel, sample_engine, reference_engine)
         store_skin_findings(result, sample_engine)
@@ -1322,13 +1322,13 @@ class TestStoreFindingsIntegration:
         _seed_variants(
             sample_engine,
             [
-                ("rs1805007", "16", 89919736, "TT"),  # MC1R R151C hom → Elevated
-                ("rs1805008", "16", 89919746, "CT"),  # MC1R R160W het → Moderate
-                ("rs1805009", "16", 89919709, "GC"),  # MC1R D294H het → Moderate
-                ("rs885479", "16", 89919722, "GA"),  # MC1R R163Q het → Moderate
+                ("rs1805007", "16", 89986117, "TT"),  # MC1R R151C hom → Elevated
+                ("rs1805008", "16", 89986144, "CT"),  # MC1R R160W het → Moderate
+                ("rs1805009", "16", 89986546, "GC"),  # MC1R D294H het → Moderate
+                ("rs885479", "16", 89986154, "GA"),  # MC1R R163Q het → Moderate
                 ("rs61816761", "1", 152285861, "GA"),  # FLG het → Moderate
-                ("rs1695", "11", 67585218, "GG"),  # GSTP1 hom → Moderate (capped)
-                ("rs1799750", "11", 102799717, "DI"),  # MMP1 het → Moderate (I/D, #610)
+                ("rs1695", "11", 67352689, "GG"),  # GSTP1 hom → Moderate (capped)
+                ("rs1799750", "11", 102670496, "DI"),  # MMP1 het → Moderate (I/D, #610)
                 ("rs4880", "6", 160113872, "TT"),  # SOD2 hom → Moderate (capped)
                 ("rs2228570", "12", 48272895, "AA"),  # VDR FokI hom → Moderate (capped)
                 ("rs1544410", "12", 48239835, "AA"),  # VDR BsmI hom → Moderate (capped)
@@ -1352,7 +1352,7 @@ class TestStoreFindingsIntegration:
         """Findings include PubMed citations."""
         _seed_variants(
             sample_engine,
-            [("rs1805007", "16", 89919736, "CT")],
+            [("rs1805007", "16", 89986117, "CT")],
         )
         result = score_skin_pathways(panel, sample_engine, reference_engine)
         store_skin_findings(result, sample_engine)
@@ -1416,13 +1416,13 @@ class TestUpdateAnnotationCoverageGwas:
     def test_sets_bit5_on_gwas_matched_variants(self) -> None:
         sample = self._make_sample_with_annotated(
             raw=[
-                {"rsid": "rs1805007", "chrom": "16", "pos": 89919736, "genotype": "CT"},
+                {"rsid": "rs1805007", "chrom": "16", "pos": 89986117, "genotype": "CT"},
             ],
             annotated=[
                 {
                     "rsid": "rs1805007",
                     "chrom": "16",
-                    "pos": 89919736,
+                    "pos": 89986117,
                     "genotype": "CT",
                     "annotation_coverage": 0b001111,
                 },
@@ -1449,13 +1449,13 @@ class TestUpdateAnnotationCoverageGwas:
     def test_null_annotation_coverage_gets_gwas_bit(self) -> None:
         sample = self._make_sample_with_annotated(
             raw=[
-                {"rsid": "rs1805007", "chrom": "16", "pos": 89919736, "genotype": "CT"},
+                {"rsid": "rs1805007", "chrom": "16", "pos": 89986117, "genotype": "CT"},
             ],
             annotated=[
                 {
                     "rsid": "rs1805007",
                     "chrom": "16",
-                    "pos": 89919736,
+                    "pos": 89986117,
                     "genotype": "CT",
                     "annotation_coverage": None,
                 },
@@ -1488,13 +1488,13 @@ class TestUpdateAnnotationCoverageGwas:
     def test_idempotent_double_application(self) -> None:
         sample = self._make_sample_with_annotated(
             raw=[
-                {"rsid": "rs1805007", "chrom": "16", "pos": 89919736, "genotype": "CT"},
+                {"rsid": "rs1805007", "chrom": "16", "pos": 89986117, "genotype": "CT"},
             ],
             annotated=[
                 {
                     "rsid": "rs1805007",
                     "chrom": "16",
-                    "pos": 89919736,
+                    "pos": 89986117,
                     "genotype": "CT",
                     "annotation_coverage": GWAS_BIT,
                 },

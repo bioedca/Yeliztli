@@ -93,7 +93,7 @@ _MERGED_RAW_ROWS: tuple[dict, ...] = (
     {
         "rsid": "rs4680",
         "chrom": "22",
-        "pos": 19963748,
+        "pos": 19951271,
         "genotype": "AG",
         "source": "S1",
         "concordance": "unique",

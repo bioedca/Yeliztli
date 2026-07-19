@@ -34,18 +34,21 @@ from backend.db.tables import (
 
 # ── Test data ────────────────────────────────────────────────────────
 
+# rs28897696 identity: ClinVar VariationID 55407 / VCV000055407 (NLM Clinical
+# Tables, accessed 2026-07-16); GRCh37 mapping and allele: Ensembl Variation
+# rs28897696 (accessed 2026-07-19). AF and prediction values below are synthetic.
 ANNOTATED_VARIANTS_DATA = [
     {
         "rsid": "rs28897696",
         "chrom": "17",
-        "pos": 41245466,
+        "pos": 41215920,
         "ref": "G",
-        "alt": "A",
-        "genotype": "GA",
+        "alt": "T",
+        "genotype": "GT",
         "zygosity": "het",
         "gene_symbol": "BRCA1",
         "consequence": "missense_variant",
-        "hgvs_coding": "c.5123C>T",
+        "hgvs_coding": "c.5123C>A",
         "hgvs_protein": "p.Ala1708Glu",
         "gnomad_af_global": 0.00002,
         "gnomad_af_popmax": 0.00003,
@@ -58,7 +61,7 @@ ANNOTATED_VARIANTS_DATA = [
         "gnomad_af_sas": None,
         "clinvar_significance": "Pathogenic",
         "clinvar_review_stars": 3,
-        "clinvar_accession": "VCV000055399",
+        "clinvar_accession": "VCV000055407",
         "clinvar_conditions": "Breast-ovarian cancer, familial",
         "cadd_phred": 28.5,
         "revel": 0.92,
