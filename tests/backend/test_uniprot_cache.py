@@ -14,10 +14,13 @@ from collections.abc import Generator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+from urllib.parse import parse_qs, urlsplit
 
+import httpx
 import pytest
 import sqlalchemy as sa
 from fastapi.testclient import TestClient
+from structlog.testing import capture_logs
 
 from backend.config import Settings
 from backend.db.connection import reset_registry
@@ -28,11 +31,34 @@ from backend.db.tables import (
     uniprot_cache,
 )
 from backend.utils.uniprot import (
+    UNIPROT_SEARCH_FIELDS,
     CacheStats,
     ProteinDomainData,
     ProteinFeatureData,
     UniProtCacheFetcher,
+    UniProtFetchError,
+    UniProtNoMatchError,
     UniProtResult,
+)
+
+_EXPECTED_UNIPROT_SEARCH_FIELDS = frozenset(
+    {
+        "accession",
+        "gene_names",
+        "sequence",
+        "ft_domain",
+        "ft_region",
+        "ft_repeat",
+        "ft_zn_fing",
+        "ft_motif",
+        "ft_act_site",
+        "ft_binding",
+        "ft_site",
+        "ft_disulfid",
+        "ft_mod_res",
+        "ft_carbohyd",
+        "ft_lipid",
+    }
 )
 
 # ── Fixtures ────────────────────────────────────────────────────────
@@ -203,6 +229,39 @@ class TestUniProtCacheFetcher:
         assert result.is_stale is True
         assert result.accession == "P38398"
 
+    def test_get_service_error_returns_stale(
+        self, ref_engine: sa.Engine, fetcher: UniProtCacheFetcher
+    ) -> None:
+        """A UniProt response failure still uses an existing stale entry."""
+        stale_time = datetime.now(UTC) - timedelta(days=40)
+        _seed_cache_entry(ref_engine, fetched_at=stale_time)
+
+        with patch.object(
+            fetcher,
+            "_fetch_from_api",
+            side_effect=UniProtFetchError("HTTP 400"),
+        ):
+            result = fetcher.get("BRCA1")
+
+        assert result is not None
+        assert result.is_stale is True
+
+    def test_get_no_match_does_not_resurrect_stale_entry(
+        self, ref_engine: sa.Engine, fetcher: UniProtCacheFetcher
+    ) -> None:
+        """An authoritative no-match response does not return obsolete cached data."""
+        stale_time = datetime.now(UTC) - timedelta(days=40)
+        _seed_cache_entry(ref_engine, fetched_at=stale_time)
+
+        with patch.object(
+            fetcher,
+            "_fetch_from_api",
+            side_effect=UniProtNoMatchError("BRCA1"),
+        ):
+            result = fetcher.get("BRCA1")
+
+        assert result is None
+
     def test_get_no_cache_no_api_returns_none(self, fetcher: UniProtCacheFetcher) -> None:
         """When no cache exists and API fails, returns None."""
         with patch.object(fetcher, "_fetch_from_api", return_value=None):
@@ -310,9 +369,7 @@ class TestUniProtCacheFetcher:
         assert result.features == []
 
     def test_fetch_from_api_url_encodes_gene_symbol(self, fetcher: UniProtCacheFetcher) -> None:
-        """A gene symbol carrying URL metacharacters is percent-encoded into the
-        outbound request, so it cannot inject extra query params or alter the
-        request (CodeQL py/partial-ssrf)."""
+        """The URL encodes the symbol and requests the parser's supported fields."""
         captured: dict[str, str] = {}
 
         class _Resp:
@@ -334,13 +391,16 @@ class TestUniProtCacheFetcher:
                 captured["url"] = url
                 return _Resp()
 
-        with patch("httpx.Client", _Client):
-            result = fetcher._fetch_from_api("BRCA1&size=500")
+        with patch("httpx.Client", _Client), pytest.raises(UniProtNoMatchError):
+            fetcher._fetch_from_api("BRCA1&size=500")
 
-        assert result is None
         # The injected `&size=500` must survive only in encoded form.
         assert "BRCA1%26size%3D500" in captured["url"]
         assert "BRCA1&size=500" not in captured["url"]
+        fields = parse_qs(urlsplit(captured["url"]).query)["fields"][0].split(",")
+        assert set(UNIPROT_SEARCH_FIELDS) == _EXPECTED_UNIPROT_SEARCH_FIELDS
+        assert set(fields) == _EXPECTED_UNIPROT_SEARCH_FIELDS
+        assert "features" not in fields
 
 
 # ── Tests: Cache statistics ─────────────────────────────────────────
@@ -431,6 +491,27 @@ class TestPrefetch:
         assert result.failed == 1
         assert "UNKNOWN" in result.errors[0]
 
+    @pytest.mark.parametrize(
+        ("error", "message"),
+        [
+            (UniProtNoMatchError("UNKNOWN"), "No reviewed human UniProt entry"),
+            (UniProtFetchError("HTTP 400"), "UniProt service error"),
+        ],
+    )
+    def test_prefetch_records_typed_failure_and_continues(
+        self,
+        fetcher: UniProtCacheFetcher,
+        error: Exception,
+        message: str,
+    ) -> None:
+        """A typed failure is recorded for one gene without aborting the batch."""
+        with patch.object(fetcher, "_fetch_from_api", side_effect=[error, None]):
+            result = fetcher.prefetch_genes(["BAD", "OFFLINE"], delay_seconds=0)
+
+        assert result.failed == 2
+        assert message in result.errors[0]
+        assert result.errors[1] == "Failed to fetch OFFLINE"
+
     def test_prefetch_mixed_results(
         self, ref_engine: sa.Engine, fetcher: UniProtCacheFetcher
     ) -> None:
@@ -460,6 +541,15 @@ class TestPrefetch:
 class TestRefreshEndpoint:
     """Tests for POST /api/genes/{symbol}/refresh-uniprot."""
 
+    @pytest.fixture(autouse=True)
+    def _clear_refresh_cooldowns(self) -> Generator[None, None, None]:
+        """Keep the process-global per-gene cooldown isolated between tests."""
+        from backend.api.routes import genes as genes_mod
+
+        genes_mod._refresh_cooldowns.clear()
+        yield
+        genes_mod._refresh_cooldowns.clear()
+
     def test_refresh_success(self, uniprot_client: TestClient) -> None:
         """Successful refresh returns updated data."""
         from backend.utils.uniprot import UniProtResult
@@ -487,7 +577,7 @@ class TestRefreshEndpoint:
         assert data["domains_count"] == 1
 
     def test_refresh_failure(self, uniprot_client: TestClient) -> None:
-        """Failed refresh returns error message."""
+        """A transport failure returns a connectivity-specific message."""
         with patch("backend.api.routes.genes._get_fetcher") as mock_get_fetcher:
             mock_fetcher = MagicMock()
             mock_fetcher.refresh.return_value = None
@@ -498,7 +588,42 @@ class TestRefreshEndpoint:
         assert resp.status_code == 200
         data = resp.json()
         assert data["success"] is False
-        assert "Failed" in data["message"]
+        assert "could not be reached" in data["message"]
+
+    def test_refresh_http_error_is_not_reported_as_connectivity(
+        self, uniprot_client: TestClient
+    ) -> None:
+        """A server-rejected request returns sanitized service-error copy."""
+        with patch("backend.api.routes.genes._get_fetcher") as mock_get_fetcher:
+            mock_fetcher = MagicMock()
+            mock_fetcher.refresh.side_effect = UniProtFetchError("HTTP 400")
+            mock_get_fetcher.return_value = mock_fetcher
+
+            resp = uniprot_client.post("/api/genes/BRCA1/refresh-uniprot")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["success"] is False
+        assert data["message"] == (
+            "Protein data is temporarily unavailable due to a UniProt service error."
+        )
+        assert "network" not in data["message"].lower()
+
+    def test_refresh_no_match_is_not_reported_as_connectivity(
+        self, uniprot_client: TestClient
+    ) -> None:
+        """A valid empty result identifies the missing reviewed human entry."""
+        with patch("backend.api.routes.genes._get_fetcher") as mock_get_fetcher:
+            mock_fetcher = MagicMock()
+            mock_fetcher.refresh.side_effect = UniProtNoMatchError("FAKEGENE")
+            mock_get_fetcher.return_value = mock_fetcher
+
+            resp = uniprot_client.post("/api/genes/FAKEGENE/refresh-uniprot")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["success"] is False
+        assert data["message"] == "No reviewed human UniProt entry found for FAKEGENE."
 
     def test_refresh_normalizes_case(self, uniprot_client: TestClient) -> None:
         """Gene symbol is normalized to uppercase."""
@@ -632,6 +757,51 @@ class TestAPIFetchParsing:
         assert features[0].type == "Active site"
         assert features[1].type == "Binding site"
 
+    @pytest.mark.parametrize(
+        ("field", "feature_type", "is_domain"),
+        [
+            ("ft_domain", "Domain", True),
+            ("ft_region", "Region", True),
+            ("ft_repeat", "Repeat", True),
+            ("ft_zn_fing", "Zinc finger", True),
+            ("ft_motif", "Motif", True),
+            ("ft_act_site", "Active site", False),
+            ("ft_binding", "Binding site", False),
+            ("ft_site", "Site", False),
+            ("ft_disulfid", "Disulfide bond", False),
+            ("ft_mod_res", "Modified residue", False),
+            ("ft_carbohyd", "Glycosylation", False),
+            ("ft_lipid", "Lipidation", False),
+        ],
+    )
+    def test_requested_feature_fields_match_parser_types(
+        self,
+        fetcher: UniProtCacheFetcher,
+        field: str,
+        feature_type: str,
+        is_domain: bool,
+    ) -> None:
+        """Every requested ft_* selector has a corresponding parsed response type."""
+        assert field in UNIPROT_SEARCH_FIELDS
+        entry = {
+            "features": [
+                {
+                    "type": feature_type,
+                    "description": "test",
+                    "location": {"start": {"value": 1}, "end": {"value": 2}},
+                }
+            ]
+        }
+
+        domains, features = fetcher._extract_features(entry)
+
+        if is_domain:
+            assert [domain.type for domain in domains] == [feature_type]
+            assert features == []
+        else:
+            assert domains == []
+            assert [feature.type for feature in features] == [feature_type]
+
     def test_extract_features_skips_unknown(self, fetcher: UniProtCacheFetcher) -> None:
         """Unknown feature types are ignored."""
         entry = {
@@ -665,8 +835,6 @@ class TestAPIFetchParsing:
 
     def test_fetch_from_api_success(self, fetcher: UniProtCacheFetcher) -> None:
         """Successful API fetch parses and caches result."""
-        import httpx
-
         mock_response = MagicMock()
         mock_response.json.return_value = {
             "results": [
@@ -698,10 +866,11 @@ class TestAPIFetchParsing:
         assert result.sequence_length == 1863
         assert len(result.domains) == 1
 
-    def test_fetch_from_api_no_results(self, fetcher: UniProtCacheFetcher) -> None:
-        """API returning empty results returns None."""
-        import httpx
-
+    def test_fetch_from_api_no_results_invalidates_cache(
+        self, ref_engine: sa.Engine, fetcher: UniProtCacheFetcher
+    ) -> None:
+        """A successful empty result invalidates cache before a later outage."""
+        _seed_cache_entry(ref_engine, gene_symbol="NONEXIST", accession="OLD000")
         mock_response = MagicMock()
         mock_response.json.return_value = {"results": []}
         mock_response.raise_for_status = MagicMock()
@@ -711,15 +880,18 @@ class TestAPIFetchParsing:
         mock_client.__exit__ = MagicMock(return_value=False)
         mock_client.get.return_value = mock_response
 
-        with patch.object(httpx, "Client", return_value=mock_client):
-            result = fetcher._fetch_from_api("NONEXIST")
+        with (
+            patch.object(httpx, "Client", return_value=mock_client),
+            pytest.raises(UniProtNoMatchError),
+        ):
+            fetcher.refresh("NONEXIST")
 
-        assert result is None
+        assert fetcher._get_from_cache("NONEXIST") is None
+        with patch.object(fetcher, "_fetch_from_api", return_value=None):
+            assert fetcher.get("NONEXIST") is None
 
     def test_fetch_from_api_network_error(self, fetcher: UniProtCacheFetcher) -> None:
         """Network error returns None (graceful failure)."""
-        import httpx
-
         mock_client = MagicMock()
         mock_client.__enter__ = MagicMock(return_value=mock_client)
         mock_client.__exit__ = MagicMock(return_value=False)
@@ -729,3 +901,109 @@ class TestAPIFetchParsing:
             result = fetcher._fetch_from_api("BRCA1")
 
         assert result is None
+
+    def test_fetch_from_api_http_error_is_structured_and_raised(
+        self, fetcher: UniProtCacheFetcher
+    ) -> None:
+        """HTTP 4xx is logged as a status failure and never flattened to offline."""
+        request = httpx.Request("GET", "https://rest.uniprot.org/uniprotkb/search")
+        response = httpx.Response(400, request=request, text="sensitive upstream detail")
+
+        mock_client = MagicMock()
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=False)
+        mock_client.get.return_value = response
+
+        with (
+            patch.object(httpx, "Client", return_value=mock_client),
+            capture_logs() as logs,
+            pytest.raises(UniProtFetchError),
+        ):
+            fetcher._fetch_from_api("BRCA1")
+
+        failure = next(log for log in logs if log.get("event") == "uniprot_fetch_failed")
+        assert failure["failure_kind"] == "http_status"
+        assert failure["status_code"] == 400
+        assert "sensitive upstream detail" not in str(failure)
+
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            {},
+            {"results": {"not": "a list"}},
+            {
+                "results": [
+                    {
+                        "primaryAccession": "",
+                        "sequence": {"length": 0},
+                        "features": [],
+                    }
+                ]
+            },
+            {
+                "results": [
+                    {
+                        "primaryAccession": "P38398",
+                        "sequence": {"length": 1863},
+                    }
+                ]
+            },
+            {
+                "results": [
+                    {
+                        "primaryAccession": "P38398",
+                        "sequence": {"length": 1863},
+                        "features": {"not": "a list"},
+                    }
+                ]
+            },
+        ],
+    )
+    def test_fetch_from_api_invalid_response_is_not_offline(
+        self, fetcher: UniProtCacheFetcher, payload: object
+    ) -> None:
+        """A malformed success response raises a service error."""
+        mock_response = MagicMock()
+        mock_response.raise_for_status = MagicMock()
+        mock_response.json.return_value = payload
+
+        mock_client = MagicMock()
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=False)
+        mock_client.get.return_value = mock_response
+
+        with (
+            patch.object(httpx, "Client", return_value=mock_client),
+            pytest.raises(UniProtFetchError),
+        ):
+            fetcher._fetch_from_api("BRCA1")
+
+    def test_fetch_from_api_cache_failure_still_returns_live_data(
+        self, fetcher: UniProtCacheFetcher
+    ) -> None:
+        """A cache-write failure does not discard a valid live response."""
+        mock_response = MagicMock()
+        mock_response.raise_for_status = MagicMock()
+        mock_response.json.return_value = {
+            "results": [
+                {
+                    "primaryAccession": "P38398",
+                    "sequence": {"length": 1863},
+                    "features": [],
+                }
+            ]
+        }
+
+        mock_client = MagicMock()
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=False)
+        mock_client.get.return_value = mock_response
+
+        with (
+            patch.object(httpx, "Client", return_value=mock_client),
+            patch.object(fetcher, "_store_cache", side_effect=RuntimeError("disk full")),
+        ):
+            result = fetcher._fetch_from_api("BRCA1")
+
+        assert result is not None
+        assert result.accession == "P38398"

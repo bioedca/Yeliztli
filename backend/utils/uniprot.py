@@ -23,6 +23,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
+from typing import Any
 from urllib.parse import quote
 
 import sqlalchemy as sa
@@ -40,6 +41,28 @@ DEFAULT_TTL_DAYS = 30
 
 # UniProt REST API base URL
 _UNIPROT_API_BASE = "https://rest.uniprot.org/uniprotkb"
+
+# UniProt's ``fields`` parameter accepts explicit feature selectors rather
+# than the top-level response key ``features``. Keep this list aligned with
+# ``_DOMAIN_TYPES`` and ``_FEATURE_TYPES`` below so every parsed annotation is
+# requested and both UniProt clients use the same contract.
+UNIPROT_SEARCH_FIELDS = (
+    "accession",
+    "gene_names",
+    "sequence",
+    "ft_domain",
+    "ft_region",
+    "ft_repeat",
+    "ft_zn_fing",
+    "ft_motif",
+    "ft_act_site",
+    "ft_binding",
+    "ft_site",
+    "ft_disulfid",
+    "ft_mod_res",
+    "ft_carbohyd",
+    "ft_lipid",
+)
 
 # Rate limit: delay between consecutive API requests (seconds)
 _API_DELAY_SECONDS = 0.5
@@ -59,6 +82,69 @@ _FEATURE_TYPES = frozenset(
         "Lipidation",
     }
 )
+
+
+# ── Request contract and failures ──────────────────────────────────
+
+
+class UniProtFetchError(RuntimeError):
+    """A non-connectivity failure while fetching or processing UniProt data."""
+
+
+class UniProtNoMatchError(LookupError):
+    """UniProt successfully returned no reviewed human entry for a gene."""
+
+
+def build_uniprot_search_url(gene_symbol: str) -> str:
+    """Build the reviewed-human UniProtKB search URL for ``gene_symbol``."""
+    encoded_symbol = quote(gene_symbol, safe="")
+    fields = ",".join(UNIPROT_SEARCH_FIELDS)
+    return (
+        f"{_UNIPROT_API_BASE}/search"
+        f"?query=gene_exact:{encoded_symbol}+AND+organism_id:9606+AND+reviewed:true"
+        f"&format=json&size=1&fields={fields}"
+    )
+
+
+def parse_uniprot_search_entry(data: object) -> tuple[dict[str, Any], str, int]:
+    """Validate a UniProtKB search response and return its first entry."""
+    if not isinstance(data, dict):
+        raise ValueError("UniProt response must be an object")
+    if "results" not in data:
+        raise ValueError("UniProt response is missing results")
+
+    results = data["results"]
+    if not isinstance(results, list):
+        raise ValueError("UniProt results must be a list")
+    if not results:
+        raise UniProtNoMatchError
+
+    entry = results[0]
+    if not isinstance(entry, dict):
+        raise ValueError("UniProt result must be an object")
+
+    accession = entry.get("primaryAccession")
+    if not isinstance(accession, str) or not accession:
+        raise ValueError("UniProt result is missing primaryAccession")
+
+    sequence = entry.get("sequence")
+    if not isinstance(sequence, dict):
+        raise ValueError("UniProt result is missing sequence")
+    sequence_length = sequence.get("length")
+    if (
+        not isinstance(sequence_length, int)
+        or isinstance(sequence_length, bool)
+        or sequence_length <= 0
+    ):
+        raise ValueError("UniProt result has an invalid sequence length")
+
+    if "features" not in entry:
+        raise ValueError("UniProt result is missing features")
+    features = entry["features"]
+    if not isinstance(features, list):
+        raise ValueError("UniProt result features must be a list")
+
+    return entry, accession, sequence_length
 
 
 # ── Data classes ─────────────────────────────────────────────────────
@@ -152,11 +238,17 @@ class UniProtCacheFetcher:
 
         1. Check cache for a fresh entry (within TTL).
         2. If stale/missing: fetch from UniProt REST API.
-        3. If API fails: return stale cache (offline fallback).
-        4. If no cache at all: return None.
+        3. If the request fails: return stale cache (offline fallback).
+        4. If UniProt returns a service/response error: return stale cache or raise.
+        5. If UniProt authoritatively has no match: return None without stale data.
 
         Returns:
-            UniProtResult or None if unavailable.
+            UniProtResult, or None after a transport failure/no-match with no
+            usable cache.
+
+        Raises:
+            UniProtFetchError: If UniProt or response processing fails and no
+                stale cache entry is available.
         """
         # Try fresh cache
         result = self._get_from_cache(gene_symbol)
@@ -164,7 +256,15 @@ class UniProtCacheFetcher:
             return result
 
         # Cache miss or stale — fetch from API
-        result = self._fetch_from_api(gene_symbol)
+        try:
+            result = self._fetch_from_api(gene_symbol)
+        except UniProtNoMatchError:
+            return None
+        except UniProtFetchError:
+            stale = self._get_stale_fallback(gene_symbol)
+            if stale is not None:
+                return stale
+            raise
         if result is not None:
             return result
 
@@ -175,7 +275,11 @@ class UniProtCacheFetcher:
         """Force refresh from UniProt API, ignoring cache.
 
         Returns:
-            UniProtResult or None if API fetch failed.
+            UniProtResult, or None on a transport failure.
+
+        Raises:
+            UniProtNoMatchError: If no reviewed human entry exists.
+            UniProtFetchError: If UniProt or response processing fails.
         """
         return self._fetch_from_api(gene_symbol)
 
@@ -253,12 +357,20 @@ class UniProtCacheFetcher:
                     continue
 
             # Fetch from API
-            fetched = self._fetch_from_api(gene)
+            failure_message: str | None = None
+            try:
+                fetched = self._fetch_from_api(gene)
+            except UniProtNoMatchError:
+                fetched = None
+                failure_message = f"No reviewed human UniProt entry found for {gene}"
+            except UniProtFetchError:
+                fetched = None
+                failure_message = f"UniProt service error for {gene}"
             if fetched is not None:
                 result.fetched += 1
             else:
                 result.failed += 1
-                result.errors.append(f"Failed to fetch {gene}")
+                result.errors.append(failure_message or f"Failed to fetch {gene}")
 
             if progress_callback is not None:
                 progress_callback(idx, total)
@@ -314,45 +426,48 @@ class UniProtCacheFetcher:
         result.is_stale = True
         return result
 
+    def _delete_cache(self, gene_symbol: str) -> None:
+        """Delete a cached entry after an authoritative UniProt no-match."""
+        with self._engine.begin() as conn:
+            conn.execute(
+                sa.delete(uniprot_cache).where(uniprot_cache.c.gene_symbol == gene_symbol)
+            )
+
     def _fetch_from_api(self, gene_symbol: str) -> UniProtResult | None:
         """Fetch from UniProt REST API and store in cache."""
         import httpx
 
         try:
-            # URL-encode the user-supplied symbol so it cannot inject extra
-            # query params or alter the request (host is a fixed constant —
-            # addresses the CodeQL py/partial-ssrf finding).
-            encoded_symbol = quote(gene_symbol, safe="")
-            search_url = (
-                f"{_UNIPROT_API_BASE}/search"
-                f"?query=gene_exact:{encoded_symbol}+AND+organism_id:9606+AND+reviewed:true"
-                f"&format=json&size=1"
-                f"&fields=accession,gene_names,sequence,features"
-            )
+            search_url = build_uniprot_search_url(gene_symbol)
             with httpx.Client(timeout=15.0) as client:
                 resp = client.get(search_url)
                 resp.raise_for_status()
                 data = resp.json()
 
-            results = data.get("results", [])
-            if not results:
+            try:
+                entry, accession, seq_length = parse_uniprot_search_entry(data)
+            except UniProtNoMatchError:
                 logger.info("uniprot_no_results", gene=gene_symbol)
-                return None
-
-            entry = results[0]
-            accession = entry.get("primaryAccession", "")
-            seq_length = entry.get("sequence", {}).get("length", 0)
+                self._delete_cache(gene_symbol)
+                raise
 
             domains, features = self._extract_features(entry)
 
-            # Store in cache
-            self._store_cache(
-                accession=accession,
-                gene_symbol=gene_symbol,
-                domains=domains,
-                features=features,
-                sequence_length=seq_length,
-            )
+            # A cache write failure must not discard valid live data.
+            try:
+                self._store_cache(
+                    accession=accession,
+                    gene_symbol=gene_symbol,
+                    domains=domains,
+                    features=features,
+                    sequence_length=seq_length,
+                )
+            except Exception as exc:
+                logger.exception(
+                    "uniprot_cache_store_failed",
+                    gene=gene_symbol,
+                    error_type=type(exc).__name__,
+                )
 
             logger.info(
                 "uniprot_fetched",
@@ -372,9 +487,40 @@ class UniProtCacheFetcher:
                 is_cached=False,
             )
 
-        except Exception:
-            logger.exception("uniprot_fetch_failed", gene=gene_symbol)
+        except UniProtNoMatchError:
+            raise
+        except httpx.HTTPStatusError as exc:
+            logger.exception(
+                "uniprot_fetch_failed",
+                gene=gene_symbol,
+                failure_kind="http_status",
+                status_code=exc.response.status_code,
+            )
+            raise UniProtFetchError("UniProt returned an HTTP error") from exc
+        except httpx.RequestError as exc:
+            logger.warning(
+                "uniprot_fetch_failed",
+                gene=gene_symbol,
+                failure_kind="request",
+                error_type=type(exc).__name__,
+            )
             return None
+        except (AttributeError, KeyError, TypeError, ValueError) as exc:
+            logger.exception(
+                "uniprot_fetch_failed",
+                gene=gene_symbol,
+                failure_kind="invalid_response",
+                error_type=type(exc).__name__,
+            )
+            raise UniProtFetchError("UniProt returned an invalid response") from exc
+        except Exception as exc:
+            logger.exception(
+                "uniprot_fetch_failed",
+                gene=gene_symbol,
+                failure_kind="unexpected",
+                error_type=type(exc).__name__,
+            )
+            raise UniProtFetchError("Unexpected UniProt fetch failure") from exc
 
     def _extract_features(
         self, entry: dict

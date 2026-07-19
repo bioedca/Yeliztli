@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime, timedelta
-from urllib.parse import quote
 
 import sqlalchemy as sa
 import structlog
@@ -31,7 +30,13 @@ from backend.db.tables import (
     uniprot_cache,
 )
 from backend.utils.pubmed import PubMedFetcher
-from backend.utils.uniprot import UniProtCacheFetcher
+from backend.utils.uniprot import (
+    UniProtCacheFetcher,
+    UniProtFetchError,
+    UniProtNoMatchError,
+    build_uniprot_search_url,
+    parse_uniprot_search_entry,
+)
 
 logger = structlog.get_logger(__name__)
 
@@ -39,10 +44,6 @@ router = APIRouter(prefix="/genes", tags=["gene-detail"])
 
 # Default TTL for UniProt cache entries
 _UNIPROT_TTL_DAYS = 30
-
-# UniProt REST API base URL
-_UNIPROT_API_BASE = "https://rest.uniprot.org/uniprotkb"
-
 
 # ── Response models ──────────────────────────────────────────────────
 
@@ -248,38 +249,35 @@ def _fetch_uniprot_from_cache(gene_symbol: str) -> UniProtData | None:
     return _parse_uniprot_cache_row(row, gene_symbol)
 
 
+def _delete_uniprot_cache(gene_symbol: str) -> None:
+    """Delete a cached entry after an authoritative UniProt no-match."""
+    registry = get_registry()
+    with registry.reference_engine.begin() as conn:
+        conn.execute(sa.delete(uniprot_cache).where(uniprot_cache.c.gene_symbol == gene_symbol))
+
+
 def _fetch_uniprot_from_api(gene_symbol: str) -> UniProtData | None:
     """Fetch protein data from UniProt REST API and cache it.
 
-    Returns None on network failure (graceful offline fallback).
+    Returns ``None`` only on a transport failure. A valid no-match response and
+    non-connectivity failures are raised separately so callers do not label
+    them as offline.
     """
     import httpx
 
     try:
-        # Search UniProt for the gene symbol (human, reviewed/Swiss-Prot).
-        # URL-encode the user-supplied symbol so it cannot inject extra query
-        # params or otherwise alter the request (the host is a fixed constant,
-        # so this addresses the CodeQL py/partial-ssrf finding).
-        encoded_symbol = quote(gene_symbol, safe="")
-        search_url = (
-            f"{_UNIPROT_API_BASE}/search"
-            f"?query=gene_exact:{encoded_symbol}+AND+organism_id:9606+AND+reviewed:true"
-            f"&format=json&size=1"
-            f"&fields=accession,gene_names,sequence,features"
-        )
+        search_url = build_uniprot_search_url(gene_symbol)
         with httpx.Client(timeout=15.0) as client:
             resp = client.get(search_url)
             resp.raise_for_status()
             data = resp.json()
 
-        results = data.get("results", [])
-        if not results:
+        try:
+            entry, accession, seq_length = parse_uniprot_search_entry(data)
+        except UniProtNoMatchError:
             logger.info("uniprot_no_results", gene=gene_symbol)
-            return None
-
-        entry = results[0]
-        accession = entry.get("primaryAccession", "")
-        seq_length = entry.get("sequence", {}).get("length", 0)
+            _delete_uniprot_cache(gene_symbol)
+            raise
 
         # Extract domains and features
         domains: list[ProteinDomain] = []
@@ -321,14 +319,21 @@ def _fetch_uniprot_from_api(gene_symbol: str) -> UniProtData | None:
                     )
                 )
 
-        # Store in cache
-        _store_uniprot_cache(
-            accession=accession,
-            gene_symbol=gene_symbol,
-            domains=domains,
-            features=features,
-            sequence_length=seq_length,
-        )
+        # A cache write failure must not discard valid live data.
+        try:
+            _store_uniprot_cache(
+                accession=accession,
+                gene_symbol=gene_symbol,
+                domains=domains,
+                features=features,
+                sequence_length=seq_length,
+            )
+        except Exception as exc:
+            logger.exception(
+                "uniprot_cache_store_failed",
+                gene=gene_symbol,
+                error_type=type(exc).__name__,
+            )
 
         logger.info(
             "uniprot_fetched",
@@ -348,9 +353,40 @@ def _fetch_uniprot_from_api(gene_symbol: str) -> UniProtData | None:
             is_cached=False,
         )
 
-    except Exception:
-        logger.exception("uniprot_fetch_failed", gene=gene_symbol)
+    except UniProtNoMatchError:
+        raise
+    except httpx.HTTPStatusError as exc:
+        logger.exception(
+            "uniprot_fetch_failed",
+            gene=gene_symbol,
+            failure_kind="http_status",
+            status_code=exc.response.status_code,
+        )
+        raise UniProtFetchError("UniProt returned an HTTP error") from exc
+    except httpx.RequestError as exc:
+        logger.warning(
+            "uniprot_fetch_failed",
+            gene=gene_symbol,
+            failure_kind="request",
+            error_type=type(exc).__name__,
+        )
         return None
+    except (AttributeError, KeyError, TypeError, ValueError) as exc:
+        logger.exception(
+            "uniprot_fetch_failed",
+            gene=gene_symbol,
+            failure_kind="invalid_response",
+            error_type=type(exc).__name__,
+        )
+        raise UniProtFetchError("UniProt returned an invalid response") from exc
+    except Exception as exc:
+        logger.exception(
+            "uniprot_fetch_failed",
+            gene=gene_symbol,
+            failure_kind="unexpected",
+            error_type=type(exc).__name__,
+        )
+        raise UniProtFetchError("Unexpected UniProt fetch failure") from exc
 
 
 def _store_uniprot_cache(
@@ -600,14 +636,27 @@ def get_gene_detail(
     uniprot_data = _fetch_uniprot_from_cache(gene_symbol)
     if uniprot_data is None:
         # Try live API fetch
-        uniprot_data = _fetch_uniprot_from_api(gene_symbol)
-        if uniprot_data is None:
-            # Offline fallback: return stale cache if available
-            uniprot_data = _get_stale_uniprot(gene_symbol)
+        should_try_stale = False
+        try:
+            uniprot_data = _fetch_uniprot_from_api(gene_symbol)
+        except UniProtNoMatchError:
+            uniprot_error = "Protein data is not available for this gene."
+        except UniProtFetchError:
+            uniprot_error = "Protein data is temporarily unavailable."
+            should_try_stale = True
+        else:
             if uniprot_data is None:
-                uniprot_error = "Protein data unavailable offline."
-            else:
-                uniprot_error = "Protein data may be outdated (offline fallback)."
+                uniprot_error = "UniProt could not be reached. Protein data is unavailable."
+                should_try_stale = True
+
+        if should_try_stale:
+            # Operational failures may use stale data; an authoritative no-match
+            # response must not resurrect an obsolete cached entry.
+            uniprot_data = _get_stale_uniprot(gene_symbol)
+            if uniprot_data is not None:
+                uniprot_error = (
+                    "Showing cached protein data because live data could not be refreshed."
+                )
 
     # 2. Gene-phenotype records
     phenotypes = _fetch_gene_phenotypes(gene_symbol)
@@ -722,13 +771,26 @@ def refresh_uniprot_cache(symbol: str) -> UniProtRefreshResponse:
             )
 
     fetcher = _get_fetcher()
-    result = fetcher.refresh(gene_symbol)
+    try:
+        result = fetcher.refresh(gene_symbol)
+    except UniProtNoMatchError:
+        return UniProtRefreshResponse(
+            gene_symbol=gene_symbol,
+            success=False,
+            message=f"No reviewed human UniProt entry found for {gene_symbol}.",
+        )
+    except UniProtFetchError:
+        return UniProtRefreshResponse(
+            gene_symbol=gene_symbol,
+            success=False,
+            message="Protein data is temporarily unavailable due to a UniProt service error.",
+        )
 
     if result is None:
         return UniProtRefreshResponse(
             gene_symbol=gene_symbol,
             success=False,
-            message="Failed to fetch from UniProt API. Check network connectivity.",
+            message="UniProt could not be reached. Check network connectivity and try again.",
         )
 
     # Record cooldown timestamp

@@ -15,6 +15,7 @@ from collections.abc import Generator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
+from urllib.parse import parse_qs, urlsplit
 
 import pytest
 import sqlalchemy as sa
@@ -30,6 +31,7 @@ from backend.db.tables import (
     samples,
     uniprot_cache,
 )
+from backend.utils.uniprot import UniProtFetchError, UniProtNoMatchError
 
 # ── Fixtures ────────────────────────────────────────────────────────
 
@@ -290,7 +292,10 @@ class TestGeneDetailEndpoint:
         """Unknown gene returns 200 with empty data (not 404)."""
         with (
             patch("backend.api.routes.genes._fetch_uniprot_from_cache", return_value=None),
-            patch("backend.api.routes.genes._fetch_uniprot_from_api", return_value=None),
+            patch(
+                "backend.api.routes.genes._fetch_uniprot_from_api",
+                side_effect=UniProtNoMatchError("FAKEGENE"),
+            ),
             patch("backend.api.routes.genes._get_stale_uniprot", return_value=None),
             patch("backend.api.routes.genes._fetch_gene_literature", return_value=([], [])),
         ):
@@ -302,7 +307,7 @@ class TestGeneDetailEndpoint:
         assert data["variants"] == []
         assert data["phenotypes"] == []
         assert data["uniprot"] is None
-        assert data["uniprot_error"] == "Protein data unavailable offline."
+        assert data["uniprot_error"] == "Protein data is not available for this gene."
 
     def test_gene_detail_invalid_sample(self, gene_detail_client: TestClient) -> None:
         """Invalid sample_id returns 404."""
@@ -433,7 +438,9 @@ class TestUniProtCache:
         assert resp.status_code == 200
         data = resp.json()
         assert data["uniprot"] is not None
-        assert data["uniprot_error"] == "Protein data may be outdated (offline fallback)."
+        assert data["uniprot_error"] == (
+            "Showing cached protein data because live data could not be refreshed."
+        )
 
     def test_uniprot_offline_no_cache(self, gene_detail_client: TestClient) -> None:
         """When API fails and no cache exists, error message returned."""
@@ -448,7 +455,158 @@ class TestUniProtCache:
         assert resp.status_code == 200
         data = resp.json()
         assert data["uniprot"] is None
-        assert data["uniprot_error"] == "Protein data unavailable offline."
+        assert data["uniprot_error"] == (
+            "UniProt could not be reached. Protein data is unavailable."
+        )
+
+    def test_uniprot_http_error_is_not_reported_as_offline(
+        self, gene_detail_client: TestClient
+    ) -> None:
+        """A rejected request keeps the partial response but uses service-error copy."""
+        with (
+            patch("backend.api.routes.genes._fetch_uniprot_from_cache", return_value=None),
+            patch(
+                "backend.api.routes.genes._fetch_uniprot_from_api",
+                side_effect=UniProtFetchError("HTTP 400"),
+            ),
+            patch("backend.api.routes.genes._get_stale_uniprot", return_value=None),
+            patch("backend.api.routes.genes._fetch_gene_literature", return_value=([], [])),
+        ):
+            resp = gene_detail_client.get("/api/genes/BRCA1?sample_id=1")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["uniprot"] is None
+        assert data["uniprot_error"] == "Protein data is temporarily unavailable."
+        assert "offline" not in data["uniprot_error"].lower()
+
+
+class TestUniProtLiveFetch:
+    """Unit coverage for the Gene Detail UniProt request contract."""
+
+    @pytest.mark.parametrize("cache_error", [False, True])
+    def test_fetch_requests_and_parses_every_supported_feature_field(
+        self, cache_error: bool
+    ) -> None:
+        """The request uses valid ft_* selectors for every annotation the parser consumes."""
+        from backend.api.routes.genes import _fetch_uniprot_from_api
+
+        captured: dict[str, str] = {}
+
+        class _Resp:
+            def raise_for_status(self) -> None: ...
+
+            def json(self) -> dict[str, list[dict[str, object]]]:
+                return {
+                    "results": [
+                        {
+                            "primaryAccession": "P04637",
+                            "sequence": {"length": 393},
+                            "features": [
+                                {
+                                    "type": "Region",
+                                    "description": "DNA-binding",
+                                    "location": {
+                                        "start": {"value": 102},
+                                        "end": {"value": 292},
+                                    },
+                                },
+                                {
+                                    "type": "Binding site",
+                                    "description": "Zinc",
+                                    "location": {
+                                        "start": {"value": 176},
+                                        "end": {"value": 176},
+                                    },
+                                },
+                            ],
+                        }
+                    ]
+                }
+
+        class _Client:
+            def __init__(self, *args: object, **kwargs: object) -> None: ...
+
+            def __enter__(self) -> _Client:
+                return self
+
+            def __exit__(self, *args: object) -> bool:
+                return False
+
+            def get(self, url: str) -> _Resp:
+                captured["url"] = url
+                return _Resp()
+
+        with (
+            patch("httpx.Client", _Client),
+            patch("backend.api.routes.genes._store_uniprot_cache") as store_cache,
+        ):
+            if cache_error:
+                store_cache.side_effect = RuntimeError("disk full")
+            result = _fetch_uniprot_from_api("TP53")
+
+        assert result is not None
+        assert result.accession == "P04637"
+        assert [domain.type for domain in result.domains] == ["Region"]
+        assert [feature.type for feature in result.features] == ["Binding site"]
+        store_cache.assert_called_once()
+
+        fields = parse_qs(urlsplit(captured["url"]).query)["fields"][0].split(",")
+        assert {"ft_region", "ft_binding"}.issubset(fields)
+        assert "features" not in fields
+
+    def test_fetch_raises_service_error_for_http_status(self) -> None:
+        """The low-level Gene Detail fetch never flattens an HTTP 400 to offline."""
+        import httpx
+
+        from backend.api.routes.genes import _fetch_uniprot_from_api
+
+        class _Client:
+            def __init__(self, *args: object, **kwargs: object) -> None: ...
+
+            def __enter__(self) -> _Client:
+                return self
+
+            def __exit__(self, *args: object) -> bool:
+                return False
+
+            def get(self, url: str) -> httpx.Response:
+                request = httpx.Request("GET", url)
+                return httpx.Response(400, request=request)
+
+        with patch("httpx.Client", _Client), pytest.raises(UniProtFetchError):
+            _fetch_uniprot_from_api("TP53")
+
+    def test_fetch_no_match_invalidates_route_cache(self) -> None:
+        """An explicit empty response removes stale data before reporting no match."""
+        from backend.api.routes.genes import _fetch_uniprot_from_api
+
+        class _Resp:
+            def raise_for_status(self) -> None: ...
+
+            def json(self) -> dict[str, list]:
+                return {"results": []}
+
+        class _Client:
+            def __init__(self, *args: object, **kwargs: object) -> None: ...
+
+            def __enter__(self) -> _Client:
+                return self
+
+            def __exit__(self, *args: object) -> bool:
+                return False
+
+            def get(self, url: str) -> _Resp:
+                return _Resp()
+
+        with (
+            patch("httpx.Client", _Client),
+            patch("backend.api.routes.genes._delete_uniprot_cache") as delete_cache,
+            pytest.raises(UniProtNoMatchError),
+        ):
+            _fetch_uniprot_from_api("TP53")
+
+        delete_cache.assert_called_once_with("TP53")
 
 
 # ── Tests: UniProt cache storage/retrieval (unit) ────────────────────
