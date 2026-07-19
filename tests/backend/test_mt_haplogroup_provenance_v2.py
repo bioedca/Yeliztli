@@ -3306,6 +3306,8 @@ def _batch03_flattened_occurrences(
 
 def test_issue_1798_batch_03_records_are_exact_covered_and_tree_locked() -> None:
     """Lock all 15 motifs, topology paths, marker decisions, ownership, and coverage."""
+    assert BATCH03_RECORD_SHA256
+    assert BATCH03_TOPOLOGY
     assert set(BATCH03_RECORD_SHA256) == set(BATCH03_TOPOLOGY)
     inventory = _index_mt_tree(build_mt_tree())
 
@@ -3376,6 +3378,7 @@ def test_issue_1798_batch_03_records_are_exact_covered_and_tree_locked() -> None
 
 def test_issue_1798_batch_03_flattened_identities_are_exact_and_source_only() -> None:
     """Lock six omitted helper identities, repeated bytes, and emitted ownership decisions."""
+    assert BATCH03_FLATTENED_STEPS
     for identity, (source_parent, motif, count, omission_type) in BATCH03_FLATTENED_STEPS.items():
         occurrences = _batch03_flattened_occurrences(_MT_SOURCE, identity)
         assert len(occurrences) == count
