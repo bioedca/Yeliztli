@@ -15,7 +15,6 @@ from collections.abc import Generator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
-from urllib.parse import parse_qs, urlsplit
 
 import pytest
 import sqlalchemy as sa
@@ -491,7 +490,8 @@ class TestUniProtLiveFetch:
         """The request uses valid ft_* selectors for every annotation the parser consumes."""
         from backend.api.routes.genes import _fetch_uniprot_from_api
 
-        captured: dict[str, str] = {}
+        captured_urls: list[str] = []
+        captured_params: list[dict[str, str]] = []
 
         class _Resp:
             def raise_for_status(self) -> None: ...
@@ -533,8 +533,9 @@ class TestUniProtLiveFetch:
             def __exit__(self, *args: object) -> bool:
                 return False
 
-            def get(self, url: str) -> _Resp:
-                captured["url"] = url
+            def get(self, url: str, *, params: dict[str, str]) -> _Resp:
+                captured_urls.append(url)
+                captured_params.append(params)
                 return _Resp()
 
         with (
@@ -551,7 +552,8 @@ class TestUniProtLiveFetch:
         assert [feature.type for feature in result.features] == ["Binding site"]
         store_cache.assert_called_once()
 
-        fields = parse_qs(urlsplit(captured["url"]).query)["fields"][0].split(",")
+        assert captured_urls == ["https://rest.uniprot.org/uniprotkb/search"]
+        fields = captured_params[0]["fields"].split(",")
         assert {"ft_region", "ft_binding"}.issubset(fields)
         assert "features" not in fields
 
@@ -570,8 +572,8 @@ class TestUniProtLiveFetch:
             def __exit__(self, *args: object) -> bool:
                 return False
 
-            def get(self, url: str) -> httpx.Response:
-                request = httpx.Request("GET", url)
+            def get(self, url: str, *, params: dict[str, str]) -> httpx.Response:
+                request = httpx.Request("GET", url, params=params)
                 return httpx.Response(400, request=request)
 
         with patch("httpx.Client", _Client), pytest.raises(UniProtFetchError):
@@ -596,7 +598,7 @@ class TestUniProtLiveFetch:
             def __exit__(self, *args: object) -> bool:
                 return False
 
-            def get(self, url: str) -> _Resp:
+            def get(self, url: str, *, params: dict[str, str]) -> _Resp:
                 return _Resp()
 
         with (

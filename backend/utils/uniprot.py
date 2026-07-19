@@ -24,7 +24,6 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
-from urllib.parse import quote
 
 import sqlalchemy as sa
 import structlog
@@ -39,8 +38,9 @@ _ProgressCallback = Callable[[int, int], None]
 # Default TTL for UniProt cache entries
 DEFAULT_TTL_DAYS = 30
 
-# UniProt REST API base URL
-_UNIPROT_API_BASE = "https://rest.uniprot.org/uniprotkb"
+# Fixed UniProt REST API endpoint. User-provided gene symbols are sent only as
+# query parameters so they cannot influence the request host or path.
+_UNIPROT_SEARCH_URL = "https://rest.uniprot.org/uniprotkb/search"
 
 # UniProt's ``fields`` parameter accepts explicit feature selectors rather
 # than the top-level response key ``features``. Keep this list aligned with
@@ -95,15 +95,14 @@ class UniProtNoMatchError(LookupError):
     """UniProt successfully returned no reviewed human entry for a gene."""
 
 
-def build_uniprot_search_url(gene_symbol: str) -> str:
-    """Build the reviewed-human UniProtKB search URL for ``gene_symbol``."""
-    encoded_symbol = quote(gene_symbol, safe="")
-    fields = ",".join(UNIPROT_SEARCH_FIELDS)
-    return (
-        f"{_UNIPROT_API_BASE}/search"
-        f"?query=gene_exact:{encoded_symbol}+AND+organism_id:9606+AND+reviewed:true"
-        f"&format=json&size=1&fields={fields}"
-    )
+def build_uniprot_search_params(gene_symbol: str) -> dict[str, str]:
+    """Build query parameters for a reviewed-human UniProtKB search."""
+    return {
+        "query": f"gene_exact:{gene_symbol} AND organism_id:9606 AND reviewed:true",
+        "format": "json",
+        "size": "1",
+        "fields": ",".join(UNIPROT_SEARCH_FIELDS),
+    }
 
 
 def parse_uniprot_search_entry(data: object) -> tuple[dict[str, Any], str, int]:
@@ -162,9 +161,9 @@ def fetch_uniprot_search[FetchResultT](
     import httpx
 
     try:
-        search_url = build_uniprot_search_url(gene_symbol)
+        search_params = build_uniprot_search_params(gene_symbol)
         with httpx.Client(timeout=15.0) as client:
-            response = client.get(search_url)
+            response = client.get(_UNIPROT_SEARCH_URL, params=search_params)
             response.raise_for_status()
             data = response.json()
 

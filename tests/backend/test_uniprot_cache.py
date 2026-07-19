@@ -14,7 +14,6 @@ from collections.abc import Generator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import MagicMock, patch
-from urllib.parse import parse_qs, urlsplit
 
 import httpx
 import pytest
@@ -368,9 +367,12 @@ class TestUniProtCacheFetcher:
         assert result.domains == []
         assert result.features == []
 
-    def test_fetch_from_api_url_encodes_gene_symbol(self, fetcher: UniProtCacheFetcher) -> None:
-        """The URL encodes the symbol and requests the parser's supported fields."""
-        captured: dict[str, str] = {}
+    def test_fetch_from_api_uses_fixed_endpoint_and_query_params(
+        self, fetcher: UniProtCacheFetcher
+    ) -> None:
+        """The symbol stays in encoded params and every parser field is requested."""
+        captured_urls: list[str] = []
+        captured_params: list[dict[str, str]] = []
 
         class _Resp:
             def raise_for_status(self) -> None: ...
@@ -387,17 +389,23 @@ class TestUniProtCacheFetcher:
             def __exit__(self, *args: object) -> bool:
                 return False
 
-            def get(self, url: str) -> _Resp:
-                captured["url"] = url
+            def get(self, url: str, *, params: dict[str, str]) -> _Resp:
+                captured_urls.append(url)
+                captured_params.append(params)
                 return _Resp()
 
         with patch("httpx.Client", _Client), pytest.raises(UniProtNoMatchError):
             fetcher._fetch_from_api("BRCA1&size=500")
 
-        # The injected `&size=500` must survive only in encoded form.
-        assert "BRCA1%26size%3D500" in captured["url"]
-        assert "BRCA1&size=500" not in captured["url"]
-        fields = parse_qs(urlsplit(captured["url"]).query)["fields"][0].split(",")
+        assert captured_urls == ["https://rest.uniprot.org/uniprotkb/search"]
+        params = captured_params[0]
+        assert params["query"] == (
+            "gene_exact:BRCA1&size=500 AND organism_id:9606 AND reviewed:true"
+        )
+        encoded_url = str(httpx.URL(captured_urls[0], params=params))
+        assert "BRCA1%26size%3D500" in encoded_url
+        assert "BRCA1&size=500" not in encoded_url
+        fields = params["fields"].split(",")
         assert set(UNIPROT_SEARCH_FIELDS) == _EXPECTED_UNIPROT_SEARCH_FIELDS
         assert set(fields) == _EXPECTED_UNIPROT_SEARCH_FIELDS
         assert "features" not in fields
