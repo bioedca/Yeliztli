@@ -37,20 +37,20 @@ BASELINE_V2_REGISTRY_SEMANTIC_SHA256 = (
     "3eaa8bb5a9cc33c1a892bd70a7007b8293c2698d4e541a95566f7547c914c553"
 )
 BASELINE_V2_COVERAGE_SHA256 = "9e9d25bd07652d0637fde59d9292b6a4cba1c593268c2301bba1c910b9bd338b"
-LOCKED_EXACT_NAMES_SHA256 = "e93eda10285e2a54b5dfc63b3bb15593559d7df548eaef27cf6c45cf7e62518e"
-LOCKED_EXACT_SEMANTIC_SHA256 = "c51e189d50192ffb55b911f1fbc3653d72a840a5babe4e63fc19e422f1f3a80b"
-LOCKED_EXACT_COVERAGE_SHA256 = "d7df9cee73c050cac3e889f751ac144ab06300d02061b264ad7ccf71f7e96925"
+LOCKED_EXACT_NAMES_SHA256 = "482a3c1fb07c08d23af0e35375a09300499b694cd0a8b860e8fbc685d612209a"
+LOCKED_EXACT_SEMANTIC_SHA256 = "3ebf6b27efff183913cff61e4ae39cf543ecdc129da1acd09ee4df363a98f6df"
+LOCKED_EXACT_COVERAGE_SHA256 = "e642adcd344e3ec89d56941e8c675662b6c970ef4c5f8b3a74d24371b44bad4d"
 BASELINE_DIRECT_MOTIF_EXACT_NAMES_SHA256 = (
     "0dc2cc812e511bc89b76fca6ed13614d8ddb75a6ebe6321bde670096c44fba61"
 )
 LOCKED_DIRECT_MOTIF_EXACT_NAMES_SHA256 = (
-    "af7e62f6286fb2a256804d58429e92eb85c02fd6eb48afff4c9774b3abde059d"
+    "833034f139f5ce5ff6b1d5de2729948d3b73c44572ba37fb028c7665a59bd24f"
 )
 BASELINE_DIRECT_MOTIF_EXACT_SEMANTIC_SHA256 = (
     "ecc1dbf4c93872031e102ee166eac50e31d6468395e5d0053357af44f8a9785a"
 )
 LOCKED_DIRECT_MOTIF_EXACT_SEMANTIC_SHA256 = (
-    "09deffce17a9c681b9ea68ab92f2d254fa8152230f50e672979917bc6684264b"
+    "02e8cb70c4e12f72dd089a087964967aaab99c31e4c3d0982e9c3d5606a524e6"
 )
 INITIAL_DIRECT_MOTIF_PENDING_NAMES_SHA256 = (
     "7b4848980e34ca1eff9739f964906d68eb4acdbbcd5e93227e17ece79296aefb"
@@ -58,9 +58,9 @@ INITIAL_DIRECT_MOTIF_PENDING_NAMES_SHA256 = (
 INITIAL_PENDING_NAMES_SHA256 = "996c2c96c22d37a2aa7edf1f4639d626ccc5199ecc5eb35984aa84204e05a591"
 ARRAY_MANIFEST_SHA256 = "42de22517a4644884596e36b0499a4fc45f264986c63f6fb239452b88719f977"
 SOURCE_METADATA_SHA256 = "5b3a3578fc208c91f6c3fdcc6d772f5071851b3604762b9e81994cf2632deb3d"
-STATE_PARTITION_SHA256 = "cbd1b56f0f5a4bc8f176d86a95ee5f19ec26af6373f6642ede5035d553192a63"
+STATE_PARTITION_SHA256 = "e5458a3b31e81aee23710f999ae47734910ecb9e47c5edaf2f847975b69487b9"
 BASELINE_EMITTED_TREE_SHA256 = "02a40be2096dd8c60e6e2934ba68a813f07478117a749e60e94e0608bed21914"
-LOCKED_EMITTED_TREE_SHA256 = "812080cefeccce1c93a2d8e4013ee835db4270413e1107c674780aa1d8848789"
+LOCKED_EMITTED_TREE_SHA256 = "9ee68253659ecde4a6bb0f103dbb088c8c90bf8058222405a986cd9ea33f296a"
 
 PRIMARY_EXPORTS = ["pgp_4139", "pgp_4162", "pgp_4187", "pgp_huA08F4D"]
 HISTORICAL_EXPORTS = [*PRIMARY_EXPORTS, "pgp_1050"]
@@ -125,6 +125,9 @@ EXPECTED_COHORTS = {
 }
 
 DIRECT_MOTIF_EXACT_NODES = [
+    "A",
+    "A2",
+    "A5",
     "C",
     "C1",
     "C4",
@@ -208,7 +211,10 @@ DIRECT_MOTIF_EXACT_NODES = [
     "N",
     "N1",
     "N1a",
+    "N1b",
     "N9",
+    "N9a",
+    "N9b",
     "S",
     "S1",
     "S2",
@@ -222,6 +228,9 @@ DIRECT_MOTIF_EXACT_NODES = [
     "W3",
     "X",
     "X2b",
+    "Y1",
+    "Y2",
+    "Y_mt",
     "Z",
     "Z1",
 ]
@@ -234,9 +243,6 @@ DIRECT_MOTIF_LEGACY_PARTIAL_NODES = [
     "U2e",
     "X2",
     "X2a",
-    "Y1",
-    "Y2",
-    "Y_mt",
 ]
 
 ROOT_L0_NODES = [
@@ -788,6 +794,152 @@ BATCH05_OLD_MARKERS = {
     "C1": ((6026, "T"), (11969, "A"), (13263, "G")),
     "C4": ((5979, "T"), (11365, "C")),
     "C5": ((1607, "G"), (9545, "G")),
+}
+
+BATCH06_NAMES = [
+    "N",
+    "A",
+    "A2",
+    "A5",
+    "N1b",
+    "N9",
+    "N9a",
+    "N9b",
+    "Y_mt",
+    "Y1",
+    "Y2",
+]
+
+BATCH06_RECORD_SHA256 = {
+    "N": "9b50219a3f35ddc383df6f8da90c458b92213782b213fd238fb27e88faa85685",
+    "A": "113bcd83f7c9c670ae4711203f4c8b029131aafd8cfcfbf7a16aba77cd558648",
+    "A2": "a1953cfc93cae1aea70a0604b6d05410b20febc368fcf3b19fc61353b383229c",
+    "A5": "20e73dfaa044cc22d6113e002f9ed3e551d7580217c636c70f3dbad7b7c91075",
+    "N1b": "8d2c18acaaff55b193050294fa8bf9df7191e5db55e561b6b2b59fe7b540c62f",
+    "N9": "7ff0699af1782b240753da55778e28f346b71bc62ce2aac5e5d98ded3fe30618",
+    "N9a": "4082f1d49bf56b7ba449064be15dc60c6c029efa125686bdf2bad494cd0ecb1a",
+    "N9b": "49545298ba43e11d9d1df0ce6166b57502531a036714059deec3a2100342a309",
+    "Y_mt": "1dc5db0afa8008ac917e44c2d1dd6b5d0df5f4159f7b4536738e32bc44880452",
+    "Y1": "a18d54cb11966397ffda05dd23faee8fd8a0145b7ddba21d6f21556c220131e8",
+    "Y2": "73ee379da72daeb629b0e2ad8e3058f5dfa403eb67ece7a4aa767b5b7d9255d2",
+}
+
+BATCH06_DIRECT_MOTIFS = {
+    "N": (
+        ("G8701A", False),
+        ("C9540T", True),
+        ("G10398A", False),
+        ("C10873T", False),
+        ("A15301G!", False),
+    ),
+    "A": (
+        ("A235G", True),
+        ("A663G", True),
+        ("A1736G", False),
+        ("T4248C", True),
+        ("A4824G", True),
+        ("C8794T", True),
+        ("C16290T", False),
+        ("G16319A", False),
+    ),
+    "A2": (
+        ("T146C!", True),
+        ("C152T!!", False),
+        ("A153G", False),
+        ("G8027A", True),
+        ("G12007A", True),
+        ("C16111T", True),
+    ),
+    "A5": (("A8563G", True), ("C11536T", True)),
+    "N1b": (
+        ("T152C!", False),
+        ("G1598A", True),
+        ("C2639T", False),
+        ("G5471A", True),
+        ("G8251A", True),
+        ("A8836G", False),
+        ("C16176g", True),
+        ("G16390A", True),
+    ),
+    "N9": (("G5417A", True),),
+    "N9a": (
+        ("C150T", False),
+        ("G5231A", True),
+        ("A12358G", False),
+        ("G12372A", True),
+        ("C16257a", False),
+        ("C16261T", True),
+    ),
+    "N9b": (
+        ("G5147A", True),
+        ("C10607T", True),
+        ("G11016A", True),
+        ("A13183G", True),
+        ("A14893G", True),
+        ("T16189C!", False),
+    ),
+    "Y_mt": (
+        ("G8392A", True),
+        ("A10398G!", True),
+        ("T14178C", True),
+        ("A14693G", True),
+        ("T16126C", True),
+        ("T16223C", True),
+        ("T16231C", True),
+    ),
+    "Y1": (("T146C!", False), ("G3834A", True), ("(C16266T)", False)),
+    "Y2": (
+        ("T482C", True),
+        ("G5147A", True),
+        ("T6941C", True),
+        ("G7859A", True),
+        ("A14914G", True),
+        ("A15244G", True),
+        ("T16311C!", False),
+    ),
+}
+
+BATCH06_TOPOLOGY = {
+    "N": ("N", "L3", "L3", "L3", ()),
+    "A": ("A", "N", "N", "N", ()),
+    "A2": ("A2", "A", "A", "A+152+16362", ("A+152", "A+152+16362")),
+    "A5": ("A5", "A", "A", "A", ()),
+    "N1b": ("N1b", "N1", "N1", "N1", ()),
+    "N9": ("N9", "N", "N", "N", ()),
+    "N9a": ("N9a", "N9", "N9", "N9", ()),
+    "N9b": ("N9b", "N9", "N9", "N9", ()),
+    "Y_mt": ("Y", "N9", "N9", "N9", ()),
+    "Y1": ("Y1", "Y_mt", "Y", "Y", ()),
+    "Y2": ("Y2", "Y_mt", "Y", "Y", ()),
+}
+
+BATCH06_FLATTENED_STEPS = {
+    "A+152": ("A", (("T152C!", False),), "flattened_source_intermediate"),
+    "A+152+16362": (
+        "A+152",
+        (("T16362C", True),),
+        "flattened_source_intermediate",
+    ),
+}
+
+BATCH06_PROMOTIONS = {"A", "A2", "A5", "N1b", "N9a", "N9b"}
+BATCH06_DIRECT_MOTIF_PROMOTIONS = {*BATCH06_PROMOTIONS, "Y_mt", "Y1", "Y2"}
+
+BATCH06_OLD_MARKERS = {
+    "N": ((8701, "A"), (9540, "T"), (10873, "T")),
+    "A": ((235, "G"), (663, "G"), (1736, "G"), (4824, "G")),
+    "A2": ((8027, "A"), (16111, "T")),
+    "A5": ((11884, "G"),),
+    "N1b": ((6261, "A"),),
+    "N9a": ((5231, "A"), (12358, "G")),
+    "N9b": ((1598, "A"), (12549, "G")),
+    "Y_mt": ((8392, "A"), (10398, "G"), (14178, "C")),
+}
+
+BATCH06_PRESERVED_PROVENANCE_SHA256 = {
+    "N1": "3d73c2f3f91093e7d7dfb8a09d92f142ddbc0cfcb60e8b24e60a06e1434216bb",
+    "N1a": "595cfdfe75e0887c08b999e2caedca629cd2e037c2a052f8932eadccf2783d21",
+    "I": "6cd5c0b4983c255032e1913e7bc724dfcf6f1c530f1b59c9be3c8cedb04fc57d",
 }
 
 HISTORICAL_ONLY_REASON = (
@@ -1534,13 +1686,13 @@ def test_production_registry_is_a_complete_dynamic_partition() -> None:
     tree = build_mt_tree()
     inventory = _index_mt_tree(tree)
 
-    assert len(inventory.occurrences) == 194
-    assert len(inventory.by_name) == 194
+    assert len(inventory.occurrences) == 193
+    assert len(inventory.by_name) == 193
     assert not inventory.duplicates
-    assert len(inventory.marker_bearing_names) == 192
+    assert len(inventory.marker_bearing_names) == 191
     assert len(inventory.markerless_names) == 2
-    assert inventory.marker_count == 586
-    assert inventory.edge_count == 193
+    assert inventory.marker_count == 599
+    assert inventory.edge_count == 192
     assert set(_MT_SOURCE["nodes"]) | set(_MT_SOURCE["structural_exceptions"]) | set(
         _MT_SOURCE["pending_nodes"]
     ) == set(inventory.by_name)
@@ -1549,7 +1701,7 @@ def test_production_registry_is_a_complete_dynamic_partition() -> None:
     )
     assert set(_MT_SOURCE["structural_exceptions"]) == set(inventory.markerless_names)
     assert _MT_SOURCE["schema_version"] == 3
-    assert _MT_SOURCE["retired_emitted_nodes"] == {}
+    assert _MT_SOURCE["retired_emitted_nodes"] == {"A4": _a4_retirement_tombstone()}
     assert _MT_SOURCE["direct_source_motif_states"] == {
         "exact_nodes": DIRECT_MOTIF_EXACT_NODES,
         "legacy_partial_nodes": DIRECT_MOTIF_LEGACY_PARTIAL_NODES,
@@ -1575,7 +1727,7 @@ def test_production_registry_is_a_complete_dynamic_partition() -> None:
 @pytest.mark.parametrize(
     ("mutation", "expected"),
     [
-        ("missing", "missing=['A']"),
+        ("missing", "missing=['B']"),
         ("overlap", "marker-exact and pending states overlap: G"),
         ("orphan", "extra=['not-an-emitted-node']"),
     ],
@@ -1585,7 +1737,7 @@ def test_partition_rejects_missing_overlap_and_orphan(mutation: str, expected: s
     inventory = _index_mt_tree(build_mt_tree())
 
     if mutation == "missing":
-        source["pending_nodes"].pop("A")
+        source["pending_nodes"].pop("B")
         issues = _validate_mt_registry_against_tree(source, inventory)
     elif mutation == "overlap":
         source["pending_nodes"]["G"] = {"emitted_parent": "M"}
@@ -2135,7 +2287,7 @@ def test_new_marker_bearing_tree_node_cannot_enter_pending_frontier() -> None:
     ("category", "name", "wrong_parent", "expected"),
     [
         ("nodes", "Z", "M", "Marker-exact mtDNA node Z declares parent 'M'"),
-        ("pending_nodes", "A", "M", "Pending mtDNA node A declares parent 'M'"),
+        ("pending_nodes", "B", "M", "Pending mtDNA node B declares parent 'M'"),
         (
             "structural_exceptions",
             "R0",
@@ -2459,7 +2611,12 @@ def test_issue_1899_n_spine_records_and_frontiers_are_exact() -> None:
         "flattened_source_path": [],
     }
     assert _motif_decision_projection(n["direct_source_motif"]) == [
-        ("G8701A", True, None),
+        (
+            "G8701A",
+            False,
+            "absent or non-callable in the primary four; retained as source provenance "
+            "without enlarging the runtime marker denominator",
+        ),
         ("C9540T", True, None),
         (
             "G10398A",
@@ -2467,7 +2624,12 @@ def test_issue_1899_n_spine_records_and_frontiers_are_exact() -> None:
             "omitted because downstream N lineages model reversions to m.10398G; "
             "emitting m.10398A on N would conflict before descendant traversal",
         ),
-        ("C10873T", True, None),
+        (
+            "C10873T",
+            False,
+            "absent or non-callable in the primary four; retained as source provenance "
+            "without enlarging the runtime marker denominator",
+        ),
         (
             "A15301G!",
             False,
@@ -2480,30 +2642,12 @@ def test_issue_1899_n_spine_records_and_frontiers_are_exact() -> None:
         for marker in n["emitted_snps"]
     ] == [
         (
-            8701,
-            "N",
-            {
-                "cohort_id": "historical_five_23andme_including_2014",
-                "position_present_in": ["pgp_1050"],
-                "callable_snv_in": ["pgp_1050"],
-            },
-        ),
-        (
             9540,
             "N",
             {
                 "cohort_id": "primary_four_23andme",
                 "position_present_in": PRIMARY_EXPORTS,
                 "callable_snv_in": PRIMARY_EXPORTS,
-            },
-        ),
-        (
-            10873,
-            "N",
-            {
-                "cohort_id": "historical_five_23andme_including_2014",
-                "position_present_in": ["pgp_1050"],
-                "callable_snv_in": ["pgp_1050"],
             },
         ),
     ]
@@ -4368,6 +4512,330 @@ def test_issue_1798_batch_05_flattened_path_mutations_fail_closed(
     assert expected in _issues_text(issues)
 
 
+def _batch06_flattened_step(source: dict[str, Any], identity: str) -> dict[str, Any]:
+    """Return one of A2's two reviewed mutation-only Build 17 path steps."""
+    return next(
+        step
+        for step in source["nodes"]["A2"]["source_topology"]["flattened_source_path"]
+        if step["source_node"] == identity
+    )
+
+
+def test_issue_1798_batch_06_records_are_exact_covered_and_tree_locked() -> None:
+    """Lock all 11 Batch 06 records to literal source, topology, and coverage bytes."""
+    assert set(BATCH06_RECORD_SHA256) == set(BATCH06_NAMES)
+    assert set(BATCH06_DIRECT_MOTIFS) == set(BATCH06_NAMES)
+    assert set(BATCH06_TOPOLOGY) == set(BATCH06_NAMES)
+    inventory = _index_mt_tree(build_mt_tree())
+
+    for name in BATCH06_NAMES:
+        record = _MT_SOURCE["nodes"][name]
+        source_node, emitted_parent, parent_source, source_parent, flattened_path = (
+            BATCH06_TOPOLOGY[name]
+        )
+        topology = record["source_topology"]
+
+        assert _canonical_sha256(record) == BATCH06_RECORD_SHA256[name]
+        assert record["source_node"] == source_node
+        assert record["emitted_parent"] == emitted_parent
+        assert record["source_motif_status"] == "exact"
+        assert topology["status"] == "exact"
+        assert topology["emitted_parent_source_node"] == parent_source
+        assert topology["source_parent"] == source_parent
+        assert tuple(step["source_node"] for step in topology["flattened_source_path"]) == (
+            flattened_path
+        )
+        assert (
+            tuple(
+                (mutation["notation"], mutation["emitted"])
+                for mutation in record["direct_source_motif"]
+            )
+            == BATCH06_DIRECT_MOTIFS[name]
+        )
+
+        owned_mutations = [
+            (step["source_node"], mutation)
+            for step in topology["flattened_source_path"]
+            for mutation in step["direct_source_motif"]
+        ] + [(source_node, mutation) for mutation in record["direct_source_motif"]]
+        assert sorted(
+            (
+                mutation["pos"],
+                mutation["ancestral_allele"],
+                mutation["derived_allele"],
+                owner,
+            )
+            for owner, mutation in owned_mutations
+            if mutation["emitted"] is True
+        ) == sorted(
+            (
+                marker["pos"],
+                marker["ancestral_allele"],
+                marker["allele"],
+                marker["motif_owner"],
+            )
+            for marker in record["emitted_snps"]
+        )
+        assert all(
+            mutation.get("omission_reason")
+            for _, mutation in owned_mutations
+            if mutation["emitted"] is False
+        )
+        for marker in record["emitted_snps"]:
+            coverage = marker["array_coverage"]
+            cohort_exports = set(_MT_SOURCE["array_cohorts"][coverage["cohort_id"]]["export_ids"])
+            assert coverage["callable_snv_in"]
+            assert (
+                set(coverage["callable_snv_in"])
+                <= set(coverage["position_present_in"])
+                <= cohort_exports
+            )
+        assert [
+            {key: marker[key] for key in ("rsid", "pos", "allele")}
+            for marker in record["emitted_snps"]
+        ] == inventory.by_name[name].node["defining_snps"]
+
+
+def test_issue_1798_batch_06_a2_mutation_only_path_and_helper_ownership_are_exact() -> None:
+    """Keep historical m.152 source-only and own emitted m.16362 by its exact helper."""
+    record = _MT_SOURCE["nodes"]["A2"]
+    assert len(record["source_topology"]["flattened_source_path"]) == 2
+
+    for identity, (source_parent, motif, omission_type) in BATCH06_FLATTENED_STEPS.items():
+        step = _batch06_flattened_step(_MT_SOURCE, identity)
+        assert step["source_parent"] == source_parent
+        assert (
+            tuple(
+                (mutation["notation"], mutation["emitted"])
+                for mutation in step["direct_source_motif"]
+            )
+            == motif
+        )
+        assert _MT_SOURCE["omitted_nodes"][identity] == {
+            "type": omission_type,
+            "reason": step["reason"],
+        }
+
+    assert not _batch06_flattened_step(_MT_SOURCE, "A+152")["direct_source_motif"][0]["emitted"]
+    helper = _batch06_flattened_step(_MT_SOURCE, "A+152+16362")["direct_source_motif"][0]
+    assert helper["notation"] == "T16362C"
+    assert helper["emitted"] is True
+    helper_markers = [
+        marker for marker in record["emitted_snps"] if marker["motif_owner"] == "A+152+16362"
+    ]
+    assert helper_markers == [
+        {
+            "rsid": "i5016362",
+            "pos": 16362,
+            "ancestral_allele": "T",
+            "allele": "C",
+            "motif_owner": "A+152+16362",
+            "array_coverage": {
+                "cohort_id": "primary_four_23andme",
+                "position_present_in": ["pgp_4139", "pgp_4187", "pgp_huA08F4D"],
+                "callable_snv_in": ["pgp_4139", "pgp_4187", "pgp_huA08F4D"],
+            },
+        }
+    ]
+    assert len(helper_markers) / len(record["emitted_snps"]) == pytest.approx(0.2)
+
+
+def test_issue_1798_batch_06_preserves_reviewed_n1_n1a_i_provenance_bytes() -> None:
+    """Sibling work cannot rewrite prior N1/N1a/I motifs, helpers, or topology records."""
+    assert {
+        name: _canonical_sha256(
+            {
+                key: _MT_SOURCE["nodes"][name][key]
+                for key in ("source_topology", "direct_source_motif", "emitted_snps")
+            }
+        )
+        for name in BATCH06_PRESERVED_PROVENANCE_SHA256
+    } == BATCH06_PRESERVED_PROVENANCE_SHA256
+
+
+def test_issue_1798_batch_06_y_alias_and_n9_gateway_are_exact() -> None:
+    """Map runtime Y_mt to source Y beneath N9 and keep both Y children beneath the alias."""
+    inventory = _index_mt_tree(build_mt_tree())
+    y = _MT_SOURCE["nodes"]["Y_mt"]
+
+    assert y["source_node"] == "Y"
+    assert y["emitted_parent"] == "N9"
+    assert y["source_topology"] == {
+        "status": "exact",
+        "emitted_parent_source_node": "N9",
+        "source_parent": "N9",
+        "flattened_source_path": [],
+    }
+    assert inventory.by_name["Y_mt"].parent == "N9"
+    assert [inventory.by_name[name].parent for name in ("Y1", "Y2")] == ["Y_mt", "Y_mt"]
+    for name in ("Y1", "Y2"):
+        assert _MT_SOURCE["nodes"][name]["source_topology"] == {
+            "status": "exact",
+            "emitted_parent_source_node": "Y",
+            "source_parent": "Y",
+            "flattened_source_path": [],
+        }
+    assert [(marker["pos"], marker["motif_owner"]) for marker in y["emitted_snps"]] == [
+        (8392, "Y"),
+        (10398, "Y"),
+        (14178, "Y"),
+        (14693, "Y"),
+        (16126, "Y"),
+        (16223, "Y"),
+        (16231, "Y"),
+    ]
+    assert [
+        (marker["pos"], marker["motif_owner"])
+        for marker in _MT_SOURCE["nodes"]["Y1"]["emitted_snps"]
+    ] == [(3834, "Y1")]
+
+
+def test_issue_1798_batch_06_advances_only_live_frontiers() -> None:
+    """Promote six pending nodes, close three legacy motifs, and retire only A4."""
+    names = set(BATCH06_NAMES)
+    migration = _MT_SOURCE["migration"]
+
+    assert names.isdisjoint(_MT_SOURCE["pending_nodes"])
+    assert names <= set(_MT_SOURCE["direct_source_motif_states"]["exact_nodes"])
+    assert names <= set(migration["locked_exact_nodes"])
+    assert names <= set(migration["locked_direct_motif_exact_nodes"])
+    assert names & set(migration["baseline_exact_nodes"]) == {"N9", "Y1", "Y2", "Y_mt"}
+    assert names & set(migration["baseline_direct_motif_exact_nodes"]) == {"N9"}
+    assert BATCH06_PROMOTIONS <= set(migration["initial_pending_nodes"])
+    assert BATCH06_PROMOTIONS.isdisjoint(migration["baseline_exact_nodes"])
+    assert {"Y1", "Y2", "Y_mt"} <= set(migration["initial_direct_motif_pending_nodes"])
+    assert BATCH06_DIRECT_MOTIF_PROMOTIONS.isdisjoint(
+        _MT_SOURCE["direct_source_motif_states"]["legacy_partial_nodes"]
+    )
+    assert "A4" not in _MT_SOURCE["nodes"]
+    assert "A4" not in _MT_SOURCE["pending_nodes"]
+    assert set(_MT_SOURCE["retired_emitted_nodes"]) == {"A4"}
+    assert "A4" in migration["initial_pending_nodes"]
+    assert _canonical_sha256(migration["baseline_exact_nodes"]) == BASELINE_EXACT_NAMES_SHA256
+    assert _canonical_sha256(migration["baseline_direct_motif_exact_nodes"]) == (
+        BASELINE_DIRECT_MOTIF_EXACT_NAMES_SHA256
+    )
+    assert _canonical_sha256(migration["initial_pending_nodes"]) == INITIAL_PENDING_NAMES_SHA256
+    assert _canonical_sha256(migration["initial_direct_motif_pending_nodes"]) == (
+        INITIAL_DIRECT_MOTIF_PENDING_NAMES_SHA256
+    )
+
+
+@pytest.mark.parametrize("name", list(BATCH06_OLD_MARKERS))
+def test_issue_1798_batch_06_old_marker_sets_cannot_be_restored(name: str) -> None:
+    """Reject every replaced Batch 06 marker row, including N's historical denominator."""
+    tree = build_mt_tree()
+    _index_mt_tree(tree).by_name[name].node["defining_snps"] = [
+        {"rsid": f"i5{pos:06d}", "pos": pos, "allele": allele}
+        for pos, allele in BATCH06_OLD_MARKERS[name]
+    ]
+
+    text = _issues_text(_validate_mt_registry_against_tree(_MT_SOURCE, _index_mt_tree(tree)))
+    assert f"Marker-exact mtDNA node {name} has markers" in text
+
+
+@pytest.mark.parametrize("name", BATCH06_NAMES)
+def test_issue_1798_batch_06_direct_motif_mutations_fail_closed(name: str) -> None:
+    """Reject one wrong source allele direction in every Batch 06 direct motif."""
+    source = deepcopy(_MT_SOURCE)
+    record = source["nodes"][name]
+    mutation = record["direct_source_motif"][0]
+    mutation["derived_allele"] = "A" if mutation["derived_allele"] != "A" else "C"
+    issues: list[str] = []
+
+    _mt_validate_exact_record(
+        name,
+        record,
+        source["omitted_nodes"],
+        source["array_cohorts"],
+        issues,
+    )
+
+    text = _issues_text(issues)
+    assert f"mtDNA substitution {record['source_node']}:" in text
+    assert "notation disagrees with its declared allele direction" in text
+
+
+@pytest.mark.parametrize("name", BATCH06_NAMES)
+def test_issue_1798_batch_06_topology_mutations_fail_closed(name: str) -> None:
+    """Reject a wrong emitted-parent source declaration for every Batch 06 record."""
+    source = deepcopy(_MT_SOURCE)
+    source["nodes"][name]["source_topology"]["emitted_parent_source_node"] = "wrong-parent"
+
+    text = _issues_text(
+        _validate_mt_registry_against_tree(source, _index_mt_tree(build_mt_tree()))
+    )
+    assert f"Exact source topology for mtDNA node {name} names emitted-parent source" in text
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["N", "A", "A2", "N1b", "N9a", "N9b", "Y1", "Y2"],
+)
+def test_issue_1798_batch_06_omission_reason_drift_fails_live_lock(name: str) -> None:
+    """Reject nonblank policy drift in every Batch 06 record with an omitted event."""
+    source = deepcopy(_MT_SOURCE)
+    mutation = next(
+        item for item in source["nodes"][name]["direct_source_motif"] if not item["emitted"]
+    )
+    mutation["omission_reason"] += " Test-only drift."
+
+    text = _issues_text(_validate_mt_source_schema(source))
+    assert "locked_exact_semantic_sha256 does not match its registry projection" in text
+    assert "locked_direct_motif_semantic_sha256 does not match its registry projection" in text
+
+
+@pytest.mark.parametrize("identity", list(BATCH06_FLATTENED_STEPS))
+@pytest.mark.parametrize("mutation", ["path", "reason", "motif"])
+def test_issue_1798_batch_06_a2_helper_drift_fails_closed(identity: str, mutation: str) -> None:
+    """Reject adjacency, reason, and motif drift in both mutation-only A2 helpers."""
+    source = deepcopy(_MT_SOURCE)
+    step = _batch06_flattened_step(source, identity)
+    if mutation == "path":
+        step["source_parent"] = "wrong-parent"
+        expected = f"breaks adjacency at {identity}"
+    elif mutation == "reason":
+        step["reason"] = "test-only altered source reason"
+        expected = f"source path node {identity} disagrees with its omission reason"
+    else:
+        source_mutation = step["direct_source_motif"][0]
+        source_mutation["derived_allele"] = (
+            "A" if source_mutation["derived_allele"] != "A" else "C"
+        )
+        expected = f"mtDNA substitution {identity}:"
+    issues: list[str] = []
+
+    _mt_validate_exact_record(
+        "A2",
+        source["nodes"]["A2"],
+        source["omitted_nodes"],
+        source["array_cohorts"],
+        issues,
+    )
+
+    assert expected in _issues_text(issues)
+
+
+def test_issue_1798_batch_06_a2_helper_owner_drift_fails_closed() -> None:
+    """The flattened m.16362 event cannot be relabeled as a direct A2 mutation."""
+    source = deepcopy(_MT_SOURCE)
+    marker = next(
+        marker for marker in source["nodes"]["A2"]["emitted_snps"] if marker["pos"] == 16362
+    )
+    marker["motif_owner"] = "A2"
+    issues: list[str] = []
+
+    _mt_validate_exact_record(
+        "A2",
+        source["nodes"]["A2"],
+        source["omitted_nodes"],
+        source["array_cohorts"],
+        issues,
+    )
+
+    assert "emitted markers do not match every source emission decision" in _issues_text(issues)
+
+
 @pytest.mark.parametrize(
     ("members", "expected"),
     [
@@ -4432,43 +4900,29 @@ def test_omissions_require_typed_reasons_and_cannot_overlap_emitted_nodes(
 
 
 def _a4_retirement_tombstone() -> dict[str, Any]:
-    a4 = _find_node(build_mt_tree(), "A4")
     return {
         "type": "retired_unmapped_emitted_node",
         "former_emitted_parent": "A",
         "former_defining_snps": [
-            {key: marker[key] for key in ("rsid", "pos", "allele")}
-            for marker in a4["defining_snps"]
+            {"rsid": "i5009347", "pos": 9347, "allele": "G"},
+            {"rsid": "i5014308", "pos": 14308, "allele": "A"},
         ],
-        "reason": "Test-only retirement after finding no Build 17 source identity.",
+        "reason": (
+            "Retired in issue #1798 batch 06 because emitted A4 has no exact PhyloTree "
+            "Build 17 source identity."
+        ),
     }
-
-
-def _source_with_a4_retired() -> dict[str, Any]:
-    source = deepcopy(_MT_SOURCE)
-    source["pending_nodes"].pop("A4")
-    source["retired_emitted_nodes"]["A4"] = _a4_retirement_tombstone()
-    return source
 
 
 def test_retired_node_accepts_exact_tombstone_with_nonempty_former_markers() -> None:
-    source = _source_with_a4_retired()
-    tombstone = source["retired_emitted_nodes"]["A4"]
+    tombstone = _MT_SOURCE["retired_emitted_nodes"]["A4"]
 
-    assert set(tombstone) == {
-        "type",
-        "former_emitted_parent",
-        "former_defining_snps",
-        "reason",
-    }
+    assert tombstone == _a4_retirement_tombstone()
     assert tombstone["former_defining_snps"]
     assert all(
         set(marker) == {"rsid", "pos", "allele"} for marker in tombstone["former_defining_snps"]
     )
-    assert _validate_mt_source_schema(source) == [
-        "mtDNA migration state_partition_sha256 does not match its registry projection",
-        "mtDNA migration state_partition_sha256 differs from the locked baseline",
-    ]
+    assert _validate_mt_source_schema(_MT_SOURCE) == []
 
 
 @pytest.mark.parametrize(
@@ -4491,7 +4945,7 @@ def test_retired_node_accepts_exact_tombstone_with_nonempty_former_markers() -> 
     ],
 )
 def test_retired_node_rejects_malformed_tombstone(mutation: str, expected: str) -> None:
-    source = _source_with_a4_retired()
+    source = deepcopy(_MT_SOURCE)
     tombstone = source["retired_emitted_nodes"]["A4"]
     markers = tombstone["former_defining_snps"]
     if mutation == "tombstone-fields":
@@ -4542,7 +4996,7 @@ def test_retired_node_rejects_malformed_tombstone(mutation: str, expected: str) 
     ],
 )
 def test_retired_node_must_preserve_locked_historical_record(mutation: str, expected: str) -> None:
-    source = _source_with_a4_retired()
+    source = deepcopy(_MT_SOURCE)
     tombstone = source["retired_emitted_nodes"]["A4"]
     if mutation == "parent":
         tombstone["former_emitted_parent"] = "never-existed"
@@ -4565,7 +5019,6 @@ def test_retired_node_must_preserve_locked_historical_record(mutation: str, expe
 )
 def test_retired_node_requires_named_object_tombstone(name: str, tombstone: Any) -> None:
     source = deepcopy(_MT_SOURCE)
-    source["pending_nodes"].pop("A4")
     source["retired_emitted_nodes"] = {name: tombstone}
 
     assert "has no typed tombstone" in _issues_text(_validate_mt_source_schema(source))
@@ -4573,12 +5026,12 @@ def test_retired_node_requires_named_object_tombstone(name: str, tombstone: Any)
 
 def test_retired_node_cannot_overlap_current_or_omitted_state() -> None:
     current_overlap = deepcopy(_MT_SOURCE)
-    current_overlap["retired_emitted_nodes"]["A4"] = _a4_retirement_tombstone()
+    current_overlap["pending_nodes"]["A4"] = {"emitted_parent": "A"}
     assert "retired-emitted state overlaps current states: A4" in _issues_text(
         _validate_mt_source_schema(current_overlap)
     )
 
-    omitted_overlap = _source_with_a4_retired()
+    omitted_overlap = deepcopy(_MT_SOURCE)
     omitted_overlap["omitted_nodes"]["A4"] = {
         "type": "unreportable_source_node",
         "reason": "Test-only source omission must remain distinct from emitted retirement.",
@@ -4603,7 +5056,7 @@ def test_retired_node_must_come_from_initial_emitted_pending_frontier() -> None:
 
 def test_omitted_source_node_cannot_dispose_of_initial_emitted_frontier() -> None:
     source = deepcopy(_MT_SOURCE)
-    source["pending_nodes"].pop("A4")
+    source["retired_emitted_nodes"].pop("A4")
     source["omitted_nodes"]["A4"] = {
         "type": "unreportable_source_node",
         "reason": "Test-only source omission cannot retire a formerly emitted identity.",
@@ -4615,25 +5068,37 @@ def test_omitted_source_node_cannot_dispose_of_initial_emitted_frontier() -> Non
 
 
 def test_retired_node_is_rejected_while_it_is_still_emitted() -> None:
-    source = _source_with_a4_retired()
-
-    text = _issues_text(
-        _validate_mt_registry_against_tree(source, _index_mt_tree(build_mt_tree()))
+    tree = build_mt_tree()
+    _find_node(tree, "A")["children"].append(
+        {
+            "haplogroup": "A4",
+            "defining_snps": deepcopy(
+                _MT_SOURCE["retired_emitted_nodes"]["A4"]["former_defining_snps"]
+            ),
+            "children": [],
+        }
     )
+
+    text = _issues_text(_validate_mt_registry_against_tree(_MT_SOURCE, _index_mt_tree(tree)))
     assert "Retired mtDNA nodes are still emitted in the tree: A4" in text
     assert "provenance partition differs from the emitted tree; missing=['A4']" in text
 
 
-def test_future_a4_removal_is_covered_by_its_retirement_tombstone() -> None:
-    source = _source_with_a4_retired()
-    future_tree = build_mt_tree()
-    a = _find_node(future_tree, "A")
-    a["children"] = [child for child in a["children"] if child["haplogroup"] != "A4"]
+def test_live_a4_removal_is_covered_by_its_exact_retirement_tombstone() -> None:
+    tree = build_mt_tree()
 
-    assert _validate_mt_registry_against_tree(source, _index_mt_tree(future_tree)) == [
-        "mtDNA emitted tree differs from its live locked fingerprint",
-        "mtDNA emitted tree differs from the review-locked live tree",
-    ]
+    assert "A4" not in _index_mt_tree(tree).by_name
+    assert _MT_SOURCE["retired_emitted_nodes"] == {"A4": _a4_retirement_tombstone()}
+    assert _validate_mt_registry_against_tree(_MT_SOURCE, _index_mt_tree(tree)) == []
+
+
+def test_retired_node_nonblank_reason_drift_fails_the_live_partition_lock() -> None:
+    source = deepcopy(_MT_SOURCE)
+    source["retired_emitted_nodes"]["A4"]["reason"] = "Altered but nonblank reason."
+
+    text = _issues_text(_validate_mt_source_schema(source))
+    assert "state_partition_sha256 does not match its registry projection" in text
+    assert "state_partition_sha256 differs from the locked baseline" in text
 
 
 def test_migration_status_cannot_claim_complete_with_pending_nodes() -> None:
@@ -5057,13 +5522,13 @@ def test_derived_provenance_metadata_and_bundle_compatibility_are_exact() -> Non
     summary = _summarize_mt_provenance(_MT_SOURCE, inventory)
 
     assert summary["migration_status"] == "in_progress"
-    assert summary["emitted_nodes"] == 194
-    assert summary["marker_bearing_nodes"] == 192
-    assert summary["marker_exact_nodes"]["count"] == 110
+    assert summary["emitted_nodes"] == 193
+    assert summary["marker_bearing_nodes"] == 191
+    assert summary["marker_exact_nodes"]["count"] == 116
     assert summary["direct_source_motif_nodes"] == {
-        "exact": {"count": 99, "names": DIRECT_MOTIF_EXACT_NODES},
+        "exact": {"count": 108, "names": DIRECT_MOTIF_EXACT_NODES},
         "legacy_partial": {
-            "count": 11,
+            "count": 8,
             "names": DIRECT_MOTIF_LEGACY_PARTIAL_NODES,
         },
     }
@@ -5075,34 +5540,36 @@ def test_derived_provenance_metadata_and_bundle_compatibility_are_exact() -> Non
         "count": 2,
         "names": ["R0", "mt-MRCA"],
     }
-    assert summary["pending_nodes"]["count"] == 82
-    assert summary["retired_emitted_nodes"] == {"count": 0, "names": []}
+    assert summary["pending_nodes"]["count"] == 75
+    assert summary["retired_emitted_nodes"] == {"count": 1, "names": ["A4"]}
     assert summary["marker_records"] == {
-        "emitted": 586,
-        "marker_exact": 444,
+        "emitted": 599,
+        "marker_exact": 471,
         "marker_exact_by_cohort": {
-            "historical_five_23andme_including_2014": 15,
-            "primary_four_23andme": 429,
+            "historical_five_23andme_including_2014": 13,
+            "primary_four_23andme": 458,
         },
     }
     assert summary["source_mutation_decisions"] == {
-        "total": 713,
-        "emitted": 444,
-        "omitted": 269,
-        "direct_motif_exact": 553,
-        "direct_motif_legacy_partial": 35,
-        "recurrent_or_uncertain_events": 6,
-        "reversion_events": 51,
-        "reversion_marks": 53,
+        "total": 755,
+        "emitted": 471,
+        "omitted": 284,
+        "direct_motif_exact": 606,
+        "direct_motif_legacy_partial": 22,
+        "recurrent_or_uncertain_events": 7,
+        "reversion_events": 57,
+        "reversion_marks": 60,
     }
     assert summary["emitted_parent_edges"] == {
-        "total": 193,
-        "validated_declarations": 193,
+        "total": 192,
+        "validated_declarations": 192,
     }
-    assert summary["source_parent_edges"] == {"validated": 79, "pending": 114}
+    assert summary["source_parent_edges"] == {"validated": 89, "pending": 103}
     assert summary["omitted_source_nodes"] == {
-        "count": 43,
+        "count": 45,
         "names": [
+            "A+152",
+            "A+152+16362",
             "CZ",
             "D+16189",
             "D4b1",
@@ -5148,18 +5615,18 @@ def test_derived_provenance_metadata_and_bundle_compatibility_are_exact() -> Non
             "Z+152",
         ],
         "by_type": {
-            "flattened_source_intermediate": 36,
+            "flattened_source_intermediate": 38,
             "flattened_unreportable_source_intermediate": 6,
             "unreportable_source_node": 1,
         },
     }
     assert summary["arrays"] == {"exports": 6, "cohorts": 2}
     assert summary["locked_exact_frontier"] == {
-        "count": 110,
+        "count": 116,
         "sha256": LOCKED_EXACT_NAMES_SHA256,
     }
     assert summary["locked_direct_motif_frontier"] == {
-        "count": 99,
+        "count": 108,
         "sha256": LOCKED_DIRECT_MOTIF_EXACT_NAMES_SHA256,
     }
     assert summary["digests"]["baseline_snapshot_sha256"] == BASELINE_SNAPSHOT_SHA256
@@ -5168,17 +5635,17 @@ def test_derived_provenance_metadata_and_bundle_compatibility_are_exact() -> Non
 
     bundle = build_bundle()
     mt_audit = bundle["sources"]["mt"]["audit"]
-    assert bundle["version"] == "1.1.21"
-    assert bundle["stats"]["mt_haplogroups"] == 194
-    assert bundle["stats"]["mt_defining_snps"] == 586
-    assert bundle["stats"]["mt_unique_snps"] == 477
-    assert bundle["stats"]["total_defining_snps"] == 740
-    assert bundle["stats"]["total_unique_snps"] == 631
+    assert bundle["version"] == "1.1.22"
+    assert bundle["stats"]["mt_haplogroups"] == 193
+    assert bundle["stats"]["mt_defining_snps"] == 599
+    assert bundle["stats"]["mt_unique_snps"] == 483
+    assert bundle["stats"]["total_defining_snps"] == 753
+    assert bundle["stats"]["total_unique_snps"] == 637
     assert mt_audit["schema_version"] == 3
     assert mt_audit["audited_nodes"] == sorted(_MT_SOURCE["nodes"])
     assert mt_audit["omitted_nodes"] == {
         name: record["reason"] for name, record in sorted(_MT_SOURCE["omitted_nodes"].items())
     }
-    assert mt_audit["retired_emitted_nodes"] == {}
+    assert mt_audit["retired_emitted_nodes"] == _MT_SOURCE["retired_emitted_nodes"]
     assert mt_audit["provenance"] == summary
     assert bundle["trees"]["mt"] == tree
