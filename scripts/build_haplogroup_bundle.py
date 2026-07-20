@@ -46,7 +46,7 @@ from typing import Any
 
 # ── Version & metadata ─────────────────────────────────────────────────
 
-BUNDLE_VERSION = "1.1.23"
+BUNDLE_VERSION = "1.1.24"
 BUILD = "GRCh37"
 MT_SOURCE_PATH = Path(__file__).with_name("mt_haplogroup_source.json")
 MT_BASELINE_SNAPSHOT_PATH = Path(__file__).with_name("mt_haplogroup_baseline_snapshot.json")
@@ -78,12 +78,12 @@ _MT_BASELINE_V2_REGISTRY_SEMANTIC_SHA256 = (
 _MT_BASELINE_V2_COVERAGE_MEMBERSHIP_SHA256 = (
     "9e9d25bd07652d0637fde59d9292b6a4cba1c593268c2301bba1c910b9bd338b"
 )
-_MT_LOCKED_EXACT_NAMES_SHA256 = "9a5e3a61242a7c59f766862d3e6d0e6ed0c270e32ed14b58c8e31202418862b4"
+_MT_LOCKED_EXACT_NAMES_SHA256 = "85fabe4fd44b076d010da910c28c47be4b1e68b0031fa80f411fe2ce516ce264"
 _MT_LOCKED_EXACT_SEMANTIC_SHA256 = (
-    "8c418c6a197b55dc975f09eec5f7d0e555a8ccf67b2cab754f74b10e376c6770"
+    "3cccd9e25fee7fdc40426116c90886eab1020f9c547f92e695d7ecca4bc49942"
 )
 _MT_LOCKED_EXACT_COVERAGE_MEMBERSHIP_SHA256 = (
-    "e85027b4b8cc97499714519cd12d28894ae5f74b8797c4f1af3460b802f93331"
+    "8cb8fc5f7ca660de0a9f8af087b271eaa629b5d881d8d1aec26109b617356273"
 )
 _MT_BASELINE_DIRECT_MOTIF_EXACT_NAMES_SHA256 = (
     "0dc2cc812e511bc89b76fca6ed13614d8ddb75a6ebe6321bde670096c44fba61"
@@ -92,10 +92,10 @@ _MT_BASELINE_DIRECT_MOTIF_SEMANTIC_SHA256 = (
     "ecc1dbf4c93872031e102ee166eac50e31d6468395e5d0053357af44f8a9785a"
 )
 _MT_LOCKED_DIRECT_MOTIF_EXACT_NAMES_SHA256 = (
-    "8a1864b17f6030da543e08fa88a486ffcc04668f02132b5e02332cc9ee123fc1"
+    "5930191a23f69921c151d981ff9bb6e0f9db5c0cac8b4ce5852fa63ecbf4612e"
 )
 _MT_LOCKED_DIRECT_MOTIF_SEMANTIC_SHA256 = (
-    "ae5382af70b9f91aae55b8e516746e0422c46efaaf191f005524afa32fa5e42c"
+    "c69330ad174eb5ddcaf45f325ec947065541cca1fb8741ed456b8331b8f809d5"
 )
 _MT_INITIAL_DIRECT_MOTIF_PENDING_NAMES_SHA256 = (
     "7b4848980e34ca1eff9739f964906d68eb4acdbbcd5e93227e17ece79296aefb"
@@ -105,11 +105,11 @@ _MT_INITIAL_PENDING_NAMES_SHA256 = (
 )
 _MT_ARRAY_MANIFEST_SHA256 = "42de22517a4644884596e36b0499a4fc45f264986c63f6fb239452b88719f977"
 _MT_SOURCE_METADATA_SHA256 = "5b3a3578fc208c91f6c3fdcc6d772f5071851b3604762b9e81994cf2632deb3d"
-_MT_STATE_PARTITION_SHA256 = "4d8846189dbf3d1d2bf41dad0d4b9ec223c66c11fd088520d6403f9ef0cd39e9"
+_MT_STATE_PARTITION_SHA256 = "107faae1d7f4ce19fb9a3f5d0f47737fabce69f1f61e881da0722d55acc52deb"
 _MT_BASELINE_EMITTED_TREE_SHA256 = (
     "02a40be2096dd8c60e6e2934ba68a813f07478117a749e60e94e0608bed21914"
 )
-_MT_LOCKED_EMITTED_TREE_SHA256 = "b99a8653b1efe7024f5a55c8579bb1d30cf56c2b5eb16f91ee25b683497084ce"
+_MT_LOCKED_EMITTED_TREE_SHA256 = "9af5a77c7e89fccd2b2ab7b9002989343c82a7d0dc69f0f60656544d61742d32"
 _MT_SYNTHETIC_ROOT_NAME = "mt-MRCA"
 _MT_FLATTENED_OMISSION_TYPES = frozenset(
     {
@@ -1664,15 +1664,15 @@ def build_mt_tree() -> dict[str, Any]:
         "H5a",
         [
             _mt_snp("i5004336", 4336, "C"),
-            _mt_snp("i5016304", 16304, "C"),
         ],
     )
     h5 = _node(
         "H5",
-        [
-            _mt_snp("i5000456", 456, "T"),
-            _mt_snp("i5016304", 16304, "C"),
-        ],
+        # Build 17 reaches H5 through the shared H5'36 segment (C456T), then
+        # assigns historical-only T16304C directly to H5. Neither event is
+        # terminal-grade H5 evidence in the primary array cohort, so H5 stays
+        # as an exact markerless gateway and H5a retains only its direct 4336C.
+        [],
         [h5a],
     )
     h6a = _node(
@@ -1706,7 +1706,7 @@ def build_mt_tree() -> dict[str, Any]:
         "H11",
         [
             _mt_snp("i5008448", 8448, "C"),
-            _mt_snp("i5013101", 13101, "A"),
+            _mt_snp("i5013759", 13759, "A"),
         ],
     )
     h13a = _node(
@@ -1726,11 +1726,11 @@ def build_mt_tree() -> dict[str, Any]:
     h = _node(
         "H",
         [
-            # H is defined by G2706A: the DERIVED allele is A. rCRS is haplogroup
-            # H2a2a1, so it carries the derived base (Ensembl GRCh37 MT:2706=A);
-            # the prior "G" was the ancestral allele, which scored every true H
-            # carrier (~40-45% of Europeans) as conflicting and blocked H (#1579).
+            # Build 17 defines H by G2706A and T7028C. rCRS is H2a2a1, so it
+            # carries both derived bases; the former ancestral m.2706 direction
+            # scored every true H carrier as conflicting and blocked H (#1579).
             _mt_snp("i5002706", 2706, "A"),
+            _mt_snp("i5007028", 7028, "C"),
             # (removed) rs1000687 @ m.13252 was spurious: rs1000687 is an autosomal
             # chr11:133005679 dbSNP variant, not an mtDNA marker, so it never
             # matched a real MT call and its conflict blocked descent into H (#1579).
@@ -1778,12 +1778,10 @@ def build_mt_tree() -> dict[str, Any]:
 
     hv = _node(
         "HV",
-        [
-            # HV is defined by T14766C: the DERIVED allele is C. rCRS (H2a2a1 ⊂ HV)
-            # carries it (Ensembl GRCh37 MT:14766=C); the prior "T" was ancestral,
-            # blocking every true HV/H carrier as conflicting (#1579).
-            _mt_snp("i5014766", 14766, "C"),
-        ],
+        # Build 17's direct T14766C event is historical-array-only. Emitting it
+        # would make a missing gateway block every H/V descendant, so exact
+        # source provenance records it while runtime descent scores below HV.
+        [],
         [h, hv0, hv1],
     )
 
@@ -2177,16 +2175,10 @@ def build_mt_tree() -> dict[str, Any]:
     # Assemble R branch
     r0 = _node(
         "R0",
-        # m.73 (A73G) is a recurrent control-region site that cannot serve as a
-        # single R0 discriminator. PhyloTree defines R0 by G73A, so the rCRS/H
-        # spine carries 73A (Ensembl GRCh37 MT:73=A) — but the prior bundle stored
-        # R0 as 73G (inverted) AND m.73 recurs on sub-branches, so no single R0
-        # allele works: as "G" it scored a true H carrier (73A) as conflicting and
-        # blocked the whole rCRS spine; as "A" it would block whichever descendants
-        # carry 73G (empirically the bundle's HV0/V branch). Verified by the shipped
-        # classifier: dropping m.73 lets the rCRS genotype reach H while the HV0/V
-        # sibling still resolves. R0 is kept as a structural node (descent is scored
-        # on HV's 14766 and below) rather than mis-polarised (#1579).
+        # Build 17 defines R0 by G73A and A11719G. The zero-conflict walker cannot
+        # safely emit either gateway event: H1a directly reverts m.73, while Build
+        # 17 descendants such as H5a1b and H27 revert m.11719. R0 therefore remains
+        # an exact markerless structural node so downstream evidence stays reachable.
         [],
         [hv],
     )
@@ -4434,10 +4426,13 @@ def _validate_audited_y_rsids(node: dict[str, Any]) -> list[str]:
 
 def _validate_mt_reportability(
     node: dict[str, Any],
+    structural_haplogroups: frozenset[str] | None = None,
     ancestor_rsids: frozenset[str] = frozenset(),
     ancestor_positions: frozenset[int] = frozenset(),
 ) -> list[str]:
     """Require every reportable mtDNA node to add branch-specific evidence."""
+    if structural_haplogroups is None:
+        structural_haplogroups = frozenset(_MT_SOURCE["structural_exceptions"])
     issues: list[str] = []
     snps = [
         snp
@@ -4448,7 +4443,7 @@ def _validate_mt_reportability(
     ]
     current_rsids = frozenset(snp["rsid"] for snp in snps)
     current_positions = frozenset(snp["pos"] for snp in snps)
-    if node["haplogroup"] not in {"mt-MRCA", "R0"} and not any(
+    if node["haplogroup"] not in structural_haplogroups and not any(
         snp["rsid"] not in ancestor_rsids and snp["pos"] not in ancestor_positions for snp in snps
     ):
         issues.append(f"mtDNA node {node['haplogroup']} has no ancestor-distinguishing marker")
@@ -4456,7 +4451,14 @@ def _validate_mt_reportability(
     next_rsids = ancestor_rsids | current_rsids
     next_positions = ancestor_positions | current_positions
     for child in node.get("children", []):
-        issues.extend(_validate_mt_reportability(child, next_rsids, next_positions))
+        issues.extend(
+            _validate_mt_reportability(
+                child,
+                structural_haplogroups,
+                next_rsids,
+                next_positions,
+            )
+        )
     return issues
 
 
@@ -4515,7 +4517,10 @@ def build_bundle() -> dict[str, Any]:
     mt_reference_issues = (
         [] if mt_source_issues else _validate_mt_registry_against_tree(_MT_SOURCE, mt_inventory)
     )
-    mt_reportability_issues = _validate_mt_reportability(mt_tree)
+    mt_reportability_issues = _validate_mt_reportability(
+        mt_tree,
+        frozenset(_MT_SOURCE["structural_exceptions"]),
+    )
     y_issues = _validate_tree(y_tree)
     y_reference_issues = _validate_audited_y_rsids(y_tree)
     y_duplicate_issues = _validate_y_cross_clade_duplicates(y_tree)
