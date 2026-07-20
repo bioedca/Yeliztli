@@ -46,7 +46,7 @@ from typing import Any
 
 # ── Version & metadata ─────────────────────────────────────────────────
 
-BUNDLE_VERSION = "1.1.19"
+BUNDLE_VERSION = "1.1.20"
 BUILD = "GRCh37"
 MT_SOURCE_PATH = Path(__file__).with_name("mt_haplogroup_source.json")
 MT_BASELINE_SNAPSHOT_PATH = Path(__file__).with_name("mt_haplogroup_baseline_snapshot.json")
@@ -78,12 +78,12 @@ _MT_BASELINE_V2_REGISTRY_SEMANTIC_SHA256 = (
 _MT_BASELINE_V2_COVERAGE_MEMBERSHIP_SHA256 = (
     "9e9d25bd07652d0637fde59d9292b6a4cba1c593268c2301bba1c910b9bd338b"
 )
-_MT_LOCKED_EXACT_NAMES_SHA256 = "2df501afa2899171549f2a4f3fedc5e16e19ce8310fe5bd3f1e63e19d07957ae"
+_MT_LOCKED_EXACT_NAMES_SHA256 = "639d66e7a6dd546ea22d325634f8d145100a3d660960307da04f1ffd170b51ab"
 _MT_LOCKED_EXACT_SEMANTIC_SHA256 = (
-    "c2b87f89f3fc4e166bc09c9292236eec0c09099297006906ae308d41fd27db58"
+    "cd606fbe34d01f98ffa57607d911ff99352da5454eb5c3555fd13ed489a343ac"
 )
 _MT_LOCKED_EXACT_COVERAGE_MEMBERSHIP_SHA256 = (
-    "3c65e61be08659aa74b243eb302ae84e84bea9ebe40c840123e91637f0e83db2"
+    "a2b304ab71d0608d6bef05fa704af2486ede36c380d33c71a833a89fbfd0735c"
 )
 _MT_BASELINE_DIRECT_MOTIF_EXACT_NAMES_SHA256 = (
     "0dc2cc812e511bc89b76fca6ed13614d8ddb75a6ebe6321bde670096c44fba61"
@@ -92,10 +92,10 @@ _MT_BASELINE_DIRECT_MOTIF_SEMANTIC_SHA256 = (
     "ecc1dbf4c93872031e102ee166eac50e31d6468395e5d0053357af44f8a9785a"
 )
 _MT_LOCKED_DIRECT_MOTIF_EXACT_NAMES_SHA256 = (
-    "3a00aa587a5dfc5bf4d9c94587d0f23db3bcca25e17568d4e398748d8ce81442"
+    "f6b1e9c729805aa912d763a37632c7a9e19032dfec01750463f35597a2f5d194"
 )
 _MT_LOCKED_DIRECT_MOTIF_SEMANTIC_SHA256 = (
-    "a8187e3ad3e284c95e4f58253f5e7bdd490c6bedce2624b25392e115d96b7938"
+    "57dc1a9989215c6252350eb3460987a7c78185fec776adb8df99e01fafb717ae"
 )
 _MT_INITIAL_DIRECT_MOTIF_PENDING_NAMES_SHA256 = (
     "7b4848980e34ca1eff9739f964906d68eb4acdbbcd5e93227e17ece79296aefb"
@@ -105,11 +105,11 @@ _MT_INITIAL_PENDING_NAMES_SHA256 = (
 )
 _MT_ARRAY_MANIFEST_SHA256 = "42de22517a4644884596e36b0499a4fc45f264986c63f6fb239452b88719f977"
 _MT_SOURCE_METADATA_SHA256 = "5b3a3578fc208c91f6c3fdcc6d772f5071851b3604762b9e81994cf2632deb3d"
-_MT_STATE_PARTITION_SHA256 = "455617bb7d15f029293d1861031239a061738aac6cb32f4047a73124ec9f2bd4"
+_MT_STATE_PARTITION_SHA256 = "75366394e97c1cab9911865bbffdf55af7e4b03470c0c61dff5e037c73ab3aeb"
 _MT_BASELINE_EMITTED_TREE_SHA256 = (
     "02a40be2096dd8c60e6e2934ba68a813f07478117a749e60e94e0608bed21914"
 )
-_MT_LOCKED_EMITTED_TREE_SHA256 = "7d9847e94e3c6a62919de750823af34c410eab98a12e58361bdb558bd9be0f97"
+_MT_LOCKED_EMITTED_TREE_SHA256 = "f824922f37bfabcf8a34181041ee9df86772cc09c10f380647d4e266027be608"
 _MT_SYNTHETIC_ROOT_NAME = "mt-MRCA"
 _MT_FLATTENED_OMISSION_TYPES = frozenset(
     {
@@ -1018,7 +1018,7 @@ def build_mt_tree() -> dict[str, Any]:
     d1 = _node(
         "D1",
         [
-            _mt_snp("i5005178", 5178, "A"),
+            _mt_snp("i5002092", 2092, "T"),
             _mt_snp("i5016325", 16325, "C"),
         ],
     )
@@ -1034,14 +1034,19 @@ def build_mt_tree() -> dict[str, Any]:
     d3 = _node(
         "D3",
         [
-            _mt_snp("i5003394", 3394, "C"),
-            _mt_snp("i5010181", 10181, "T"),
+            _mt_snp("i5000722", 722, "T"),
+            _mt_snp("i5004023", 4023, "C"),
+            _mt_snp("i5006374", 6374, "C"),
+            _mt_snp("i5009785", 9785, "T"),
         ],
     )
     d4a = _node(
         "D4a",
         [
-            _mt_snp("i5012026", 12026, "G"),
+            _mt_snp("i5003206", 3206, "T"),
+            _mt_snp("i5008473", 8473, "C"),
+            _mt_snp("i5014979", 14979, "C"),
+            _mt_snp("i5016129", 16129, "A"),
         ],
     )
     d4b = _node(
@@ -1049,6 +1054,7 @@ def build_mt_tree() -> dict[str, Any]:
         [
             _mt_snp("i5008020", 8020, "A"),
         ],
+        [d3],
     )
     d4 = _node(
         "D4",
@@ -1057,13 +1063,14 @@ def build_mt_tree() -> dict[str, Any]:
             _mt_snp("i5008414", 8414, "T"),
             _mt_snp("i5014668", 14668, "T"),
         ],
-        [d4a, d4b],
+        [d1, d4a, d4b, d2],
     )
     d5 = _node(
         "D5",
         [
-            _mt_snp("i5001048", 1048, "T"),
-            _mt_snp("i5004883", 4883, "T"),
+            _mt_snp("i5001107", 1107, "C"),
+            _mt_snp("i5005301", 5301, "G"),
+            _mt_snp("i5010397", 10397, "G"),
         ],
     )
     d = _node(
@@ -1073,7 +1080,7 @@ def build_mt_tree() -> dict[str, Any]:
             _mt_snp("i5005178", 5178, "A"),
             _mt_snp("i5016362", 16362, "C"),
         ],
-        [d1, d2, d3, d4, d5],
+        [d4, d5],
     )
 
     e = _node(

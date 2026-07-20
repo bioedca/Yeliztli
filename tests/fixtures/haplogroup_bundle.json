@@ -1,6 +1,6 @@
 {
   "module": "haplogroup",
-  "version": "1.1.19",
+  "version": "1.1.20",
   "description": "Source-audited PhyloTree mtDNA + YBrowse Y-chromosome haplogroup defining SNP trees for haplogroup assignment via tree-walk algorithm. SNPs filtered to 23andMe v5-era array coverage. Resolution varies with the markers typed by each array revision.",
   "build": "GRCh37",
   "assignment": {
@@ -74,11 +74,17 @@
       ],
       "audit": {
         "schema_version": 3,
-        "scope": "Incremental-to-complete PhyloTree Build 17 audit for issue 1798. 96 marker-exact nodes retain emitted-marker and coverage locks; independent raw-row comparison classifies 85 direct motifs as exact and 11 legacy motifs as partial. All other emitted nodes have explicit pending or structural states. Schema v3 distinguishes general flattened source intermediates from caller-unreportable intermediates and separately accounts for retired emitted identities. Completion requires every direct motif and source-topology edge to become exact.",
+        "scope": "Incremental-to-complete PhyloTree Build 17 audit for issue 1798. 102 marker-exact nodes retain emitted-marker and coverage locks; independent raw-row comparison classifies 91 direct motifs as exact and 11 legacy motifs as partial. All other emitted nodes have explicit pending or structural states. Schema v3 distinguishes general flattened source intermediates from caller-unreportable intermediates and separately accounts for retired emitted identities. Completion requires every direct motif and source-topology edge to become exact.",
         "audited_nodes": [
           "C",
           "D",
+          "D1",
           "D2",
+          "D3",
+          "D4",
+          "D4a",
+          "D4b",
+          "D5",
           "G",
           "G1",
           "G2",
@@ -175,6 +181,12 @@
         ],
         "omitted_nodes": {
           "CZ": "Flattened in issue 1797: Build 17 defines this structural parent of C and Z only by A249d, whose position is unrepresented in all four modern export exemplars and whose deletion allele is unsupported by the substitution-only caller. C and Z remain children of M8 so they inherit the source-backed lineage without an unscoreable 0/0 path step.",
+          "D+16189": "Flattened mutation-only Build 17 intermediate between D and D5: its sole back-mutation/reversion T16189C! event is absent or non-callable in all five pinned 23andMe exports. D5 remains a direct child of emitted D, not D4.",
+          "D4b1": "Flattened in issue 1798 batch 04: Build 17 places D4b1 between D4b and D3. All four events remain source-only because D3's four direct markers are sufficient and copying shared ancestry evidence would weaken specificity.",
+          "D4b1c": "Flattened in issue 1798 batch 04: Build 17 places D4b1c immediately above D3. All three events remain source-only: D3's four direct markers are sufficient, and a D4b1c lineage that lacks the D3 row must stop at the honest emitted ancestor D4b.",
+          "D4e": "Flattened in issue 1798 batch 04: Build 17 places D4e between D4 and D2. Its callable m.11215 event remains source-only so broad D4e-prefix evidence cannot manufacture a D2 call.",
+          "D4e1": "Flattened in issue 1798 batch 04: Build 17 places D4e1 immediately above D2. Both events remain source-only to preserve issue 1907's literal two-marker D2 contract and prevent source-prefix over-resolution.",
+          "D4e1'3": "Flattened in issue 1798 batch 04: Build 17 places D4e1'3 between D4e and D4e1. Its callable m.9536 event remains source-only to bound D2 source-prefix support below the caller threshold.",
           "K1c": "Pruned from the array-reportable tree in issue 1743: its direct Build-17 motif is limited to recurrent control-region substitutions (m.146/m.152) plus m.498d, while the former emitted m.9716 belongs to K2.",
           "L0a'b'f'g": "Flattened in issue 1798 batch 01: Build 17 defines this shared source intermediate below L0a'b'f'g'k for L0a, L0b, and L0f. Its exact motif is retained as source provenance, but shared mutations are not duplicated onto emitted siblings because that creates non-specific runtime evidence.",
           "L0a'b'f'g'k": "Flattened in issue 1798 batch 01: Build 17 defines this shared source intermediate below L0 for L0a, L0b, L0f, and L0k. Its exact motif is retained as source provenance, but shared mutations are not duplicated onto emitted siblings because that creates non-specific runtime evidence.",
@@ -215,11 +227,17 @@
           "emitted_nodes": 194,
           "marker_bearing_nodes": 192,
           "marker_exact_nodes": {
-            "count": 96,
+            "count": 102,
             "names": [
               "C",
               "D",
+              "D1",
               "D2",
+              "D3",
+              "D4",
+              "D4a",
+              "D4b",
+              "D5",
               "G",
               "G1",
               "G2",
@@ -317,11 +335,17 @@
           },
           "direct_source_motif_nodes": {
             "exact": {
-              "count": 85,
+              "count": 91,
               "names": [
                 "C",
                 "D",
+                "D1",
                 "D2",
+                "D3",
+                "D4",
+                "D4a",
+                "D4b",
+                "D5",
                 "G",
                 "G1",
                 "G2",
@@ -431,7 +455,7 @@
             ]
           },
           "pending_nodes": {
-            "count": 96,
+            "count": 90,
             "names": [
               "A",
               "A2",
@@ -446,12 +470,6 @@
               "C1",
               "C4",
               "C5",
-              "D1",
-              "D3",
-              "D4",
-              "D4a",
-              "D4b",
-              "D5",
               "E",
               "F",
               "F1",
@@ -536,35 +554,41 @@
             "names": []
           },
           "marker_records": {
-            "emitted": 574,
-            "marker_exact": 404,
+            "emitted": 580,
+            "marker_exact": 421,
             "marker_exact_by_cohort": {
               "historical_five_23andme_including_2014": 14,
-              "primary_four_23andme": 390
+              "primary_four_23andme": 407
             }
           },
           "source_mutation_decisions": {
-            "total": 651,
-            "emitted": 404,
-            "omitted": 247,
-            "direct_motif_exact": 507,
+            "total": 682,
+            "emitted": 421,
+            "omitted": 261,
+            "direct_motif_exact": 526,
             "direct_motif_legacy_partial": 35,
-            "recurrent_or_uncertain_events": 4,
-            "reversion_events": 45,
-            "reversion_marks": 47
+            "recurrent_or_uncertain_events": 5,
+            "reversion_events": 48,
+            "reversion_marks": 50
           },
           "emitted_parent_edges": {
             "total": 193,
             "validated_declarations": 193
           },
           "source_parent_edges": {
-            "validated": 58,
-            "pending": 135
+            "validated": 65,
+            "pending": 128
           },
           "omitted_source_nodes": {
-            "count": 34,
+            "count": 40,
             "names": [
               "CZ",
+              "D+16189",
+              "D4b1",
+              "D4b1c",
+              "D4e",
+              "D4e1",
+              "D4e1'3",
               "K1c",
               "L0a'b'f'g",
               "L0a'b'f'g'k",
@@ -600,8 +624,8 @@
               "W+194"
             ],
             "by_type": {
-              "flattened_source_intermediate": 28,
-              "flattened_unreportable_source_intermediate": 5,
+              "flattened_source_intermediate": 33,
+              "flattened_unreportable_source_intermediate": 6,
               "unreportable_source_node": 1
             }
           },
@@ -610,18 +634,18 @@
             "cohorts": 2
           },
           "locked_exact_frontier": {
-            "count": 96,
-            "sha256": "2df501afa2899171549f2a4f3fedc5e16e19ce8310fe5bd3f1e63e19d07957ae"
+            "count": 102,
+            "sha256": "639d66e7a6dd546ea22d325634f8d145100a3d660960307da04f1ffd170b51ab"
           },
           "locked_direct_motif_frontier": {
-            "count": 85,
-            "sha256": "3a00aa587a5dfc5bf4d9c94587d0f23db3bcca25e17568d4e398748d8ce81442"
+            "count": 91,
+            "sha256": "f6b1e9c729805aa912d763a37632c7a9e19032dfec01750463f35597a2f5d194"
           },
           "digests": {
             "array_manifest_sha256": "42de22517a4644884596e36b0499a4fc45f264986c63f6fb239452b88719f977",
             "baseline_snapshot_sha256": "f8aecb8ba02e5c2becbccfc40846bd3c8668d4b8c6de5be1761ab78c0d83a87e",
             "baseline_emitted_tree_sha256": "02a40be2096dd8c60e6e2934ba68a813f07478117a749e60e94e0608bed21914",
-            "locked_emitted_tree_sha256": "7d9847e94e3c6a62919de750823af34c410eab98a12e58361bdb558bd9be0f97",
+            "locked_emitted_tree_sha256": "f824922f37bfabcf8a34181041ee9df86772cc09c10f380647d4e266027be608",
             "baseline_exact_nodes_sha256": "3e3386bf2d57ce5814df595576223e08addccba96c92818b7d1cf338b02bf5d9",
             "baseline_v1_coverage_sha256": "d88d4491671f99175bea3c6188affb3b0bbbd31681e0f7c35103ac4f194da6e6",
             "baseline_v1_semantic_sha256": "c044b73c08b339d0be782306b84d593982b13242d995d541522da6f5bc9fc7c6",
@@ -631,12 +655,12 @@
             "baseline_direct_motif_semantic_sha256": "ecc1dbf4c93872031e102ee166eac50e31d6468395e5d0053357af44f8a9785a",
             "initial_pending_nodes_sha256": "996c2c96c22d37a2aa7edf1f4639d626ccc5199ecc5eb35984aa84204e05a591",
             "initial_direct_motif_pending_nodes_sha256": "7b4848980e34ca1eff9739f964906d68eb4acdbbcd5e93227e17ece79296aefb",
-            "locked_direct_motif_exact_nodes_sha256": "3a00aa587a5dfc5bf4d9c94587d0f23db3bcca25e17568d4e398748d8ce81442",
-            "locked_direct_motif_semantic_sha256": "a8187e3ad3e284c95e4f58253f5e7bdd490c6bedce2624b25392e115d96b7938",
-            "locked_exact_coverage_membership_sha256": "3c65e61be08659aa74b243eb302ae84e84bea9ebe40c840123e91637f0e83db2",
-            "locked_exact_semantic_sha256": "c2b87f89f3fc4e166bc09c9292236eec0c09099297006906ae308d41fd27db58",
+            "locked_direct_motif_exact_nodes_sha256": "f6b1e9c729805aa912d763a37632c7a9e19032dfec01750463f35597a2f5d194",
+            "locked_direct_motif_semantic_sha256": "57dc1a9989215c6252350eb3460987a7c78185fec776adb8df99e01fafb717ae",
+            "locked_exact_coverage_membership_sha256": "a2b304ab71d0608d6bef05fa704af2486ede36c380d33c71a833a89fbfd0735c",
+            "locked_exact_semantic_sha256": "cd606fbe34d01f98ffa57607d911ff99352da5454eb5c3555fd13ed489a343ac",
             "source_metadata_sha256": "5b3a3578fc208c91f6c3fdcc6d772f5071851b3604762b9e81994cf2632deb3d",
-            "state_partition_sha256": "455617bb7d15f029293d1861031239a061738aac6cb32f4047a73124ec9f2bd4"
+            "state_partition_sha256": "75366394e97c1cab9911865bbffdf55af7e4b03470c0c61dff5e037c73ab3aeb"
           },
           "baseline_commit": "e463604fc5b4af4d5887c9e9a76c2f54598ef312"
         }
@@ -2110,51 +2134,6 @@
                   ],
                   "children": [
                     {
-                      "haplogroup": "D1",
-                      "defining_snps": [
-                        {
-                          "rsid": "i5005178",
-                          "pos": 5178,
-                          "allele": "A"
-                        },
-                        {
-                          "rsid": "i5016325",
-                          "pos": 16325,
-                          "allele": "C"
-                        }
-                      ]
-                    },
-                    {
-                      "haplogroup": "D2",
-                      "defining_snps": [
-                        {
-                          "rsid": "i5008703",
-                          "pos": 8703,
-                          "allele": "T"
-                        },
-                        {
-                          "rsid": "i5016129",
-                          "pos": 16129,
-                          "allele": "A"
-                        }
-                      ]
-                    },
-                    {
-                      "haplogroup": "D3",
-                      "defining_snps": [
-                        {
-                          "rsid": "i5003394",
-                          "pos": 3394,
-                          "allele": "C"
-                        },
-                        {
-                          "rsid": "i5010181",
-                          "pos": 10181,
-                          "allele": "T"
-                        }
-                      ]
-                    },
-                    {
                       "haplogroup": "D4",
                       "defining_snps": [
                         {
@@ -2175,12 +2154,42 @@
                       ],
                       "children": [
                         {
+                          "haplogroup": "D1",
+                          "defining_snps": [
+                            {
+                              "rsid": "i5002092",
+                              "pos": 2092,
+                              "allele": "T"
+                            },
+                            {
+                              "rsid": "i5016325",
+                              "pos": 16325,
+                              "allele": "C"
+                            }
+                          ]
+                        },
+                        {
                           "haplogroup": "D4a",
                           "defining_snps": [
                             {
-                              "rsid": "i5012026",
-                              "pos": 12026,
-                              "allele": "G"
+                              "rsid": "i5003206",
+                              "pos": 3206,
+                              "allele": "T"
+                            },
+                            {
+                              "rsid": "i5008473",
+                              "pos": 8473,
+                              "allele": "C"
+                            },
+                            {
+                              "rsid": "i5014979",
+                              "pos": 14979,
+                              "allele": "C"
+                            },
+                            {
+                              "rsid": "i5016129",
+                              "pos": 16129,
+                              "allele": "A"
                             }
                           ]
                         },
@@ -2192,6 +2201,48 @@
                               "pos": 8020,
                               "allele": "A"
                             }
+                          ],
+                          "children": [
+                            {
+                              "haplogroup": "D3",
+                              "defining_snps": [
+                                {
+                                  "rsid": "i5000722",
+                                  "pos": 722,
+                                  "allele": "T"
+                                },
+                                {
+                                  "rsid": "i5004023",
+                                  "pos": 4023,
+                                  "allele": "C"
+                                },
+                                {
+                                  "rsid": "i5006374",
+                                  "pos": 6374,
+                                  "allele": "C"
+                                },
+                                {
+                                  "rsid": "i5009785",
+                                  "pos": 9785,
+                                  "allele": "T"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "haplogroup": "D2",
+                          "defining_snps": [
+                            {
+                              "rsid": "i5008703",
+                              "pos": 8703,
+                              "allele": "T"
+                            },
+                            {
+                              "rsid": "i5016129",
+                              "pos": 16129,
+                              "allele": "A"
+                            }
                           ]
                         }
                       ]
@@ -2200,14 +2251,19 @@
                       "haplogroup": "D5",
                       "defining_snps": [
                         {
-                          "rsid": "i5001048",
-                          "pos": 1048,
-                          "allele": "T"
+                          "rsid": "i5001107",
+                          "pos": 1107,
+                          "allele": "C"
                         },
                         {
-                          "rsid": "i5004883",
-                          "pos": 4883,
-                          "allele": "T"
+                          "rsid": "i5005301",
+                          "pos": 5301,
+                          "allele": "G"
+                        },
+                        {
+                          "rsid": "i5010397",
+                          "pos": 10397,
+                          "allele": "G"
                         }
                       ]
                     }
@@ -6133,8 +6189,8 @@
   },
   "stats": {
     "mt_haplogroups": 194,
-    "mt_defining_snps": 574,
-    "mt_unique_snps": 464,
+    "mt_defining_snps": 580,
+    "mt_unique_snps": 472,
     "mt_max_depth": 11,
     "y_haplogroups": 107,
     "y_defining_snps": 154,
@@ -6143,7 +6199,7 @@
     "y_source_haplogroups": 127,
     "y_omitted_haplogroups": 20,
     "total_haplogroups": 301,
-    "total_defining_snps": 728,
-    "total_unique_snps": 618
+    "total_defining_snps": 734,
+    "total_unique_snps": 626
   }
 }
