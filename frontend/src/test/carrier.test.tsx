@@ -9,7 +9,7 @@ import { DEFAULT_COPY_NUMBER_CAVEAT, type CarrierVariant } from "@/types/carrier
 const CFTR_VARIANT: CarrierVariant = {
   rsid: "rs113993960",
   gene_symbol: "CFTR",
-  genotype: "C/T",
+  genotype: "DI",
   zygosity: "het",
   clinvar_significance: "Pathogenic",
   clinvar_accession: "VCV000007105",
@@ -92,7 +92,7 @@ const CFTR_HOMO_AFFECTED_VARIANT: CarrierVariant = {
 const BRCA1_VARIANT: CarrierVariant = {
   rsid: "rs80357906",
   gene_symbol: "BRCA1",
-  genotype: "C/T",
+  genotype: "GGG/GGGG",
   zygosity: "het",
   clinvar_significance: "Pathogenic",
   clinvar_accession: "VCV000017677",

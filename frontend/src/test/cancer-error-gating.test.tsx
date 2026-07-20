@@ -37,7 +37,7 @@ import CancerView from "@/pages/CancerView"
 const VARIANT: CancerVariant = {
   rsid: "rs80357906",
   gene_symbol: "BRCA1",
-  genotype: "AG",
+  genotype: "GGG/GGGG",
   zygosity: "heterozygous",
   clinvar_significance: "Pathogenic",
   clinvar_accession: "VCV000017677",

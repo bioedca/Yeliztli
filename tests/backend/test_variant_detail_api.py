@@ -33,7 +33,7 @@ SAMPLE_VARIANT_BRCA1 = {
     "pos": 41209080,
     "ref": "GGG",
     "alt": "GGGG",
-    "genotype": "AG",
+    "genotype": "GGG/GGGG",
     "zygosity": "het",
     "gene_symbol": "BRCA1",
     "transcript_id": "NM_007294.4",
@@ -456,7 +456,7 @@ class TestGetVariantDetail:
         assert data["pos"] == 41209080
         assert data["ref"] == "GGG"
         assert data["alt"] == "GGGG"
-        assert data["genotype"] == "AG"
+        assert data["genotype"] == "GGG/GGGG"
         assert data["zygosity"] == "het"
         assert data["zygosity_label"] == "Heterozygous"
 

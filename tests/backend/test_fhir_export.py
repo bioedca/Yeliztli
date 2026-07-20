@@ -70,8 +70,8 @@ ANNOTATED_VARIANTS = [
         "pos": 41209080,
         "ref": "GGG",
         "alt": "GGGG",
-        # Raw probe call: resolved ref/alt plus zygosity drive FHIR export.
-        "genotype": "TC",
+        # Allele-level insertion call; resolved ref/alt plus zygosity drive FHIR export.
+        "genotype": "GGG/GGGG",
         "zygosity": "het",
         "gene_symbol": "BRCA1",
         "consequence": "frameshift_variant",

@@ -50,7 +50,7 @@ ANNOTATED_VARIANTS = [
         "pos": 41209080,
         "ref": "GGG",
         "alt": "GGGG",
-        "genotype": "TC",
+        "genotype": "GGG/GGGG",
         "zygosity": "het",
         "gene_symbol": "BRCA1",
         "consequence": "frameshift_variant",
