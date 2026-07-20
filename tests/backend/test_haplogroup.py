@@ -174,9 +174,7 @@ _RCRS_H2A2A1_GENOTYPES = _MT_R_TRUNK_GENOTYPES + [
     {"rsid": "i5001438", "chrom": "MT", "pos": 1438, "genotype": "AA"},
     {"rsid": "i5004769", "chrom": "MT", "pos": 4769, "genotype": "AA"},
     {"rsid": "i5009380", "chrom": "MT", "pos": 9380, "genotype": "GG"},
-    {"rsid": "i5000750", "chrom": "MT", "pos": 750, "genotype": "AA"},
     {"rsid": "i5008860", "chrom": "MT", "pos": 8860, "genotype": "AA"},
-    {"rsid": "i5015326", "chrom": "MT", "pos": 15326, "genotype": "AA"},
     {"rsid": "i5000263", "chrom": "MT", "pos": 263, "genotype": "AA"},
     {"rsid": "i5000951", "chrom": "MT", "pos": 951, "genotype": "GG"},
     {"rsid": "i5015354", "chrom": "MT", "pos": 15354, "genotype": "CC"},
@@ -823,6 +821,23 @@ _ISSUE_1798_BATCH08_TREE = {
 }
 
 
+_ISSUE_1798_BATCH09_TREE = {
+    "H1a": ("H1", ((73, "G"), (16162, "G"))),
+    "H1a1": ("H1a", ((6365, "C"),)),
+    "H1b": ("H1", ((16356, "C"),)),
+    "H1c": ("H1", ((477, "C"),)),
+    "H1e": ("H1", ((5460, "A"),)),
+    "H2a": ("H2", ((4769, "A"),)),
+    "H2a1": ("H2a", ((951, "A"), (16354, "T"))),
+    "H2a2": ("H2a", ()),
+    "H2a2a": ("H2a2", ((8860, "A"),)),
+    "H2a2a1": ("H2a2a", ((263, "A"),)),
+    "H5a": ("H5", ((4336, "C"),)),
+    "H6a": ("H6", ((3915, "A"),)),
+    "H13a": ("H13", ((2259, "T"),)),
+}
+
+
 _W_DIRECT_POSITION_GENOTYPES = [
     {"pos": row["pos"], "genotype": row["genotype"]}
     for row in _MT_W_TRUNK_GENOTYPES[len(_MT_N_TRUNK_GENOTYPES) :]
@@ -871,7 +886,7 @@ class TestLoadHaplogroupBundle:
     """Test haplogroup bundle loading from JSON."""
 
     def test_loads_from_json(self, bundle: HaplogroupBundle) -> None:
-        assert bundle.version == "1.1.24"
+        assert bundle.version == "1.1.25"
         assert bundle.build == "GRCh37"
 
     def test_mt_tree_root(self, bundle: HaplogroupBundle) -> None:
@@ -1354,8 +1369,8 @@ class TestTreeWalk:
         assert _mt_snp_map(h2) == {1438: "A"}  # Build 17: G1438A
         assert _mt_snp_map(h2a) == {4769: "A"}  # Build 17: G4769A
         assert _mt_snp_map(h2a1) == {951: "A", 16354: "T"}  # G951A, C16354T
-        assert _mt_snp_map(h2a2) == {750: "A"}  # G750A
-        assert _mt_snp_map(h2a2a) == {8860: "A", 15326: "A"}  # G8860A, G15326A
+        assert _mt_snp_map(h2a2) == {}  # historical-only G750A is source-only
+        assert _mt_snp_map(h2a2a) == {8860: "A"}  # historical-only G15326A is source-only
         assert _mt_snp_map(h2a2a1) == {263: "A"}  # G263A
         assert _mt_snp_map(hv0) == {72: "C"}  # Build 17: T72C
 
@@ -6574,6 +6589,173 @@ class TestAssignHaplogroups:
         assert len(matching_children) == 1
         node = matching_children[0]
         assert tuple((snp.pos, snp.allele) for snp in node.defining_snps) == expected_markers
+
+    @pytest.mark.parametrize(
+        ("target", "expected_parent", "expected_markers"),
+        [
+            pytest.param(target, parent, markers, id=target)
+            for target, (parent, markers) in _ISSUE_1798_BATCH09_TREE.items()
+        ],
+    )
+    def test_issue_1798_batch09_h_descendant_tree_is_exact(
+        self,
+        bundle: HaplogroupBundle,
+        target: str,
+        expected_parent: str,
+        expected_markers: tuple[tuple[int, str], ...],
+    ) -> None:
+        """Batch 09 retains only reviewed H-descendant evidence and parents."""
+        parent = _find_mt_node(bundle.mt_tree, expected_parent)
+        assert parent is not None
+        matching_children = [child for child in parent.children if child.haplogroup == target]
+        assert len(matching_children) == 1
+        node = matching_children[0]
+        assert tuple((snp.pos, snp.allele) for snp in node.defining_snps) == expected_markers
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize(
+        ("case", "extra_calls", "expected", "expected_path"),
+        [
+            pytest.param(
+                "H1-only",
+                (),
+                "H1",
+                ["L3", "N", "R", "R0", "HV", "H", "H1"],
+                id="H1-does-not-borrow-duplicated-m3010",
+            ),
+            pytest.param(
+                "source-helper-only",
+                ((16189, "C"),),
+                "H1",
+                ["L3", "N", "R", "R0", "HV", "H", "H1"],
+                id="H1-plus-16189-does-not-refine",
+            ),
+            pytest.param(
+                "direct-H1b",
+                ((16356, "C"),),
+                "H1b",
+                ["L3", "N", "R", "R0", "HV", "H", "H1", "H1b"],
+                id="direct-m16356-resolves-H1b",
+            ),
+        ],
+    )
+    def test_issue_1798_batch09_h1b_requires_its_direct_marker(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        case: str,
+        extra_calls: tuple[tuple[int, str], ...],
+        expected: str,
+        expected_path: list[str],
+    ) -> None:
+        """H1+16189 is source-only, while direct m.16356 resolves sibling H1b."""
+        rows = [
+            {
+                **row,
+                "rsid": f"vendor_issue_1798_batch09_{case}_{index}",
+                "chrom": "MT",
+            }
+            for index, row in enumerate(
+                [
+                    *_derived_mt_path_genotypes("H1"),
+                    *(
+                        {"pos": position, "genotype": allele * 2}
+                        for position, allele in extra_calls
+                    ),
+                ]
+            )
+        ]
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        assert mt.haplogroup == expected
+        assert [step.haplogroup for step in mt.traversal_path] == expected_path
+        if expected == "H1b":
+            assert (mt.traversal_path[-1].snps_present, mt.traversal_path[-1].snps_total) == (
+                1,
+                1,
+            )
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize(
+        ("case", "extra_calls", "expected", "expected_path"),
+        [
+            pytest.param(
+                "historical-gateway-only",
+                ((750, "A"),),
+                "H2a",
+                ["L3", "N", "R", "R0", "HV", "H", "H2", "H2a"],
+                id="m750-cannot-terminal-call-H2a2",
+            ),
+            pytest.param(
+                "primary-rCRS-descendant",
+                ((8860, "A"), (263, "A")),
+                "H2a2a1",
+                [
+                    "L3",
+                    "N",
+                    "R",
+                    "R0",
+                    "HV",
+                    "H",
+                    "H2",
+                    "H2a",
+                    "H2a2",
+                    "H2a2a",
+                    "H2a2a1",
+                ],
+                id="primary-markers-traverse-markerless-H2a2",
+            ),
+        ],
+    )
+    def test_issue_1798_batch09_h2a2_is_a_markerless_gateway(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        case: str,
+        extra_calls: tuple[tuple[int, str], ...],
+        expected: str,
+        expected_path: list[str],
+    ) -> None:
+        """Historical m.750 is source-only, but primary descendants remain reachable."""
+        rows = [
+            {
+                **row,
+                "rsid": f"vendor_issue_1798_batch09_{case}_{index}",
+                "chrom": "MT",
+            }
+            for index, row in enumerate(
+                [
+                    *_derived_mt_path_genotypes("H2a"),
+                    *(
+                        {"pos": position, "genotype": allele * 2}
+                        for position, allele in extra_calls
+                    ),
+                ]
+            )
+        ]
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        assert mt.haplogroup == expected
+        assert [step.haplogroup for step in mt.traversal_path] == expected_path
+        if expected == "H2a2a1":
+            assert (mt.traversal_path[-1].snps_present, mt.traversal_path[-1].snps_total) == (
+                1,
+                1,
+            )
 
     @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
     @pytest.mark.parametrize(

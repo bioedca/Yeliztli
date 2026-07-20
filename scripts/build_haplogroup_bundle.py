@@ -46,7 +46,7 @@ from typing import Any
 
 # ── Version & metadata ─────────────────────────────────────────────────
 
-BUNDLE_VERSION = "1.1.24"
+BUNDLE_VERSION = "1.1.25"
 BUILD = "GRCh37"
 MT_SOURCE_PATH = Path(__file__).with_name("mt_haplogroup_source.json")
 MT_BASELINE_SNAPSHOT_PATH = Path(__file__).with_name("mt_haplogroup_baseline_snapshot.json")
@@ -78,12 +78,12 @@ _MT_BASELINE_V2_REGISTRY_SEMANTIC_SHA256 = (
 _MT_BASELINE_V2_COVERAGE_MEMBERSHIP_SHA256 = (
     "9e9d25bd07652d0637fde59d9292b6a4cba1c593268c2301bba1c910b9bd338b"
 )
-_MT_LOCKED_EXACT_NAMES_SHA256 = "85fabe4fd44b076d010da910c28c47be4b1e68b0031fa80f411fe2ce516ce264"
+_MT_LOCKED_EXACT_NAMES_SHA256 = "203bd72b4f41a55e92e5e095551156d55e5102f7cdde5fa2572ff451451bd26c"
 _MT_LOCKED_EXACT_SEMANTIC_SHA256 = (
-    "3cccd9e25fee7fdc40426116c90886eab1020f9c547f92e695d7ecca4bc49942"
+    "5863c80a9498a620a50b3bab00aca5404538678b7fdbf7745134a174547a8283"
 )
 _MT_LOCKED_EXACT_COVERAGE_MEMBERSHIP_SHA256 = (
-    "8cb8fc5f7ca660de0a9f8af087b271eaa629b5d881d8d1aec26109b617356273"
+    "9bfd7222cadaa3a6cac6acb10097c8d7594930dac5ec30ed4e142cdb712c31ea"
 )
 _MT_BASELINE_DIRECT_MOTIF_EXACT_NAMES_SHA256 = (
     "0dc2cc812e511bc89b76fca6ed13614d8ddb75a6ebe6321bde670096c44fba61"
@@ -92,10 +92,10 @@ _MT_BASELINE_DIRECT_MOTIF_SEMANTIC_SHA256 = (
     "ecc1dbf4c93872031e102ee166eac50e31d6468395e5d0053357af44f8a9785a"
 )
 _MT_LOCKED_DIRECT_MOTIF_EXACT_NAMES_SHA256 = (
-    "5930191a23f69921c151d981ff9bb6e0f9db5c0cac8b4ce5852fa63ecbf4612e"
+    "dc7a231de1a97ce6f252b2b25878eb32edb1ca2d0d0888aa77ec6dd47620fe72"
 )
 _MT_LOCKED_DIRECT_MOTIF_SEMANTIC_SHA256 = (
-    "c69330ad174eb5ddcaf45f325ec947065541cca1fb8741ed456b8331b8f809d5"
+    "84d79d5e8ce056de59fb4681618f33c5a5df19e0786b60763c61cf3302cc4f16"
 )
 _MT_INITIAL_DIRECT_MOTIF_PENDING_NAMES_SHA256 = (
     "7b4848980e34ca1eff9739f964906d68eb4acdbbcd5e93227e17ece79296aefb"
@@ -105,11 +105,11 @@ _MT_INITIAL_PENDING_NAMES_SHA256 = (
 )
 _MT_ARRAY_MANIFEST_SHA256 = "42de22517a4644884596e36b0499a4fc45f264986c63f6fb239452b88719f977"
 _MT_SOURCE_METADATA_SHA256 = "5b3a3578fc208c91f6c3fdcc6d772f5071851b3604762b9e81994cf2632deb3d"
-_MT_STATE_PARTITION_SHA256 = "107faae1d7f4ce19fb9a3f5d0f47737fabce69f1f61e881da0722d55acc52deb"
+_MT_STATE_PARTITION_SHA256 = "af1fff7c71642cea289e2a9adab205e41b34af27495fa4e1029ebefae0b53f03"
 _MT_BASELINE_EMITTED_TREE_SHA256 = (
     "02a40be2096dd8c60e6e2934ba68a813f07478117a749e60e94e0608bed21914"
 )
-_MT_LOCKED_EMITTED_TREE_SHA256 = "9af5a77c7e89fccd2b2ab7b9002989343c82a7d0dc69f0f60656544d61742d32"
+_MT_LOCKED_EMITTED_TREE_SHA256 = "978d88ca53852601daef6e1614fa4742184437d8e46e5953f62dd02c16d7e1ff"
 _MT_SYNTHETIC_ROOT_NAME = "mt-MRCA"
 _MT_FLATTENED_OMISSION_TYPES = frozenset(
     {
@@ -1557,7 +1557,7 @@ def build_mt_tree() -> dict[str, Any]:
     h1a1 = _node(
         "H1a1",
         [
-            _mt_snp("i5014587", 14587, "G"),
+            _mt_snp("i5006365", 6365, "C"),
         ],
     )
     h1a = _node(
@@ -1571,21 +1571,21 @@ def build_mt_tree() -> dict[str, Any]:
     h1b = _node(
         "H1b",
         [
-            _mt_snp("i5003010", 3010, "A"),
-            _mt_snp("i5016189", 16189, "C"),
+            # Build 17 inserts an unreportable T16189C! source step between
+            # H1 and H1b. Only H1b's direct T16356C event is emitted here.
+            _mt_snp("i5016356", 16356, "C"),
         ],
     )
     h1c = _node(
         "H1c",
         [
-            _mt_snp("i5004310", 4310, "G"),
+            _mt_snp("i5000477", 477, "C"),
         ],
     )
     h1e = _node(
         "H1e",
         [
-            _mt_snp("i5003796", 3796, "G"),
-            _mt_snp("i5009066", 9066, "G"),
+            _mt_snp("i5005460", 5460, "A"),
         ],
     )
     h1 = _node(
@@ -1616,15 +1616,14 @@ def build_mt_tree() -> dict[str, Any]:
         "H2a2a",
         [
             _mt_snp("i5008860", 8860, "A"),
-            _mt_snp("i5015326", 15326, "A"),
         ],
         [h2a2a1],
     )
     h2a2 = _node(
         "H2a2",
-        [
-            _mt_snp("i5000750", 750, "A"),
-        ],
+        # Direct G750A is historical-only. Keep this gateway markerless so
+        # primary-array profiles can reach reportable H2a2a descendants.
+        [],
         [h2a2a],
     )
     h2a = _node(
