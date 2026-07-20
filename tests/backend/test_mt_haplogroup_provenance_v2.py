@@ -57,7 +57,7 @@ INITIAL_DIRECT_MOTIF_PENDING_NAMES_SHA256 = (
 )
 INITIAL_PENDING_NAMES_SHA256 = "996c2c96c22d37a2aa7edf1f4639d626ccc5199ecc5eb35984aa84204e05a591"
 ARRAY_MANIFEST_SHA256 = "42de22517a4644884596e36b0499a4fc45f264986c63f6fb239452b88719f977"
-SOURCE_METADATA_SHA256 = "5b3a3578fc208c91f6c3fdcc6d772f5071851b3604762b9e81994cf2632deb3d"
+SOURCE_METADATA_SHA256 = "13755a154c19c603bac63a2195287165271571ece1e36e178a666aa35184d04b"
 STATE_PARTITION_SHA256 = "af1fff7c71642cea289e2a9adab205e41b34af27495fa4e1029ebefae0b53f03"
 BASELINE_EMITTED_TREE_SHA256 = "02a40be2096dd8c60e6e2934ba68a813f07478117a749e60e94e0608bed21914"
 LOCKED_EMITTED_TREE_SHA256 = "978d88ca53852601daef6e1614fa4742184437d8e46e5953f62dd02c16d7e1ff"
@@ -1232,6 +1232,25 @@ BATCH09_DIRECT_MOTIF_PROMOTIONS = set(BATCH09_MARKER_PROMOTIONS)
 BATCH09_EDGE_ONLY_RECORDS = {"H6a", "H13a"}
 BATCH09_PREEXISTING_EXACT = {"H1a"}
 BATCH09_STRUCTURAL_PROMOTIONS = {"H2a2"}
+BATCH09_PROMOTED_RECORDS = (
+    BATCH09_MARKER_PROMOTIONS | BATCH09_STRUCTURAL_PROMOTIONS | BATCH09_EDGE_ONLY_RECORDS
+)
+BATCH09_AUTHORITATIVE_CITATIONS = (
+    {
+        "doi": "10.1002/humu.20921",
+        "pmid": "18853457",
+        "accessed": "2026-07-20",
+    },
+    {
+        "doi": "10.3390/ijms22115747",
+        "pmid": "34072215",
+        "pmcid": "PMC8198973",
+        "accessed": "2026-07-20",
+    },
+)
+BATCH09_PROMOTED_RECORD_EVIDENCE = {
+    name: BATCH09_AUTHORITATIVE_CITATIONS for name in sorted(BATCH09_PROMOTED_RECORDS)
+}
 BATCH09_OLD_MARKERS = {
     "H1a1": ((14587, "G"),),
     "H1b": ((3010, "A"), (16189, "C")),
@@ -5966,6 +5985,36 @@ def test_issue_1798_batch_09_advances_only_reviewed_live_frontiers() -> None:
     assert _canonical_sha256(migration["initial_direct_motif_pending_nodes"]) == (
         INITIAL_DIRECT_MOTIF_PENDING_NAMES_SHA256
     )
+
+
+def test_issue_1798_batch_09_promotions_have_independent_authoritative_evidence() -> None:
+    """Bind every promoted record to the archive and two paper/tool identifiers."""
+    source_metadata = _MT_SOURCE["source"]
+    references_by_doi = {reference["doi"]: reference for reference in _MT_SOURCE["references"]}
+
+    assert source_metadata["version"] == "Build 17"
+    assert source_metadata["archive_url"] == (
+        "https://www.phylotree.org/builds/mtDNA_tree_Build_17.zip"
+    )
+    assert source_metadata["archive_sha256"] == (
+        "3fe8cf00a15e1ccb09235091016eef1af3a68f44dd9355dd2b7666f8f767b146"
+    )
+    assert source_metadata["accessed"] == "2026-07-12"
+    assert set(BATCH09_PROMOTED_RECORD_EVIDENCE) == BATCH09_PROMOTED_RECORDS
+
+    for name, citations in BATCH09_PROMOTED_RECORD_EVIDENCE.items():
+        if name in BATCH09_STRUCTURAL_PROMOTIONS:
+            record = _MT_SOURCE["structural_exceptions"][name]
+            assert record["source_status"] == "exact"
+        else:
+            record = _MT_SOURCE["nodes"][name]
+            assert record["source_motif_status"] == "exact"
+            assert record["source_topology"]["status"] == "exact"
+
+        assert len(citations) == 2
+        for citation in citations:
+            reference = references_by_doi[citation["doi"]]
+            assert {key: reference[key] for key in citation} == citation
 
 
 @pytest.mark.parametrize("name", BATCH09_REGULAR_NAMES)

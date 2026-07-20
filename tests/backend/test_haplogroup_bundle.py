@@ -454,7 +454,7 @@ class TestBundleStructure:
                 "5863c80a9498a620a50b3bab00aca5404538678b7fdbf7745134a174547a8283"
             ),
             "source_metadata_sha256": (
-                "5b3a3578fc208c91f6c3fdcc6d772f5071851b3604762b9e81994cf2632deb3d"
+                "13755a154c19c603bac63a2195287165271571ece1e36e178a666aa35184d04b"
             ),
             "state_partition_sha256": (
                 "af1fff7c71642cea289e2a9adab205e41b34af27495fa4e1029ebefae0b53f03"
@@ -480,7 +480,7 @@ class TestBundleStructure:
                 ),
             }
         }
-        assert {reference["id"] for reference in mt_source["references"]} == {1, 2, 3, 4}
+        assert {reference["id"] for reference in mt_source["references"]} == {1, 2, 3, 4, 5}
 
     def test_sources_y(self, bundle: dict) -> None:
         y_source = bundle["sources"]["Y"]

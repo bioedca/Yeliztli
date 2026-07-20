@@ -28,7 +28,8 @@
       "id": 1,
       "title": "Updated comprehensive phylogenetic tree of global human mitochondrial DNA variation",
       "doi": "10.1002/humu.20921",
-      "pmid": "18853457"
+      "pmid": "18853457",
+      "accessed": "2026-07-20"
     },
     {
       "id": 2,
@@ -49,6 +50,14 @@
       "title": "Reanalysis and revision of the Cambridge reference sequence for human mitochondrial DNA",
       "doi": "10.1038/13779",
       "pmid": "10508508"
+    },
+    {
+      "id": 5,
+      "title": "Fine-Tuning Phylogenetic Alignment and Haplogrouping of mtDNA Sequences",
+      "doi": "10.3390/ijms22115747",
+      "pmid": "34072215",
+      "pmcid": "PMC8198973",
+      "accessed": "2026-07-20"
     }
   ],
   "array_exports": {
@@ -22804,7 +22813,7 @@
     ],
     "initial_pending_nodes_sha256": "996c2c96c22d37a2aa7edf1f4639d626ccc5199ecc5eb35984aa84204e05a591",
     "array_manifest_sha256": "42de22517a4644884596e36b0499a4fc45f264986c63f6fb239452b88719f977",
-    "source_metadata_sha256": "5b3a3578fc208c91f6c3fdcc6d772f5071851b3604762b9e81994cf2632deb3d",
+    "source_metadata_sha256": "13755a154c19c603bac63a2195287165271571ece1e36e178a666aa35184d04b",
     "state_partition_sha256": "af1fff7c71642cea289e2a9adab205e41b34af27495fa4e1029ebefae0b53f03",
     "baseline_emitted_tree_sha256": "02a40be2096dd8c60e6e2934ba68a813f07478117a749e60e94e0608bed21914",
     "locked_emitted_tree_sha256": "978d88ca53852601daef6e1614fa4742184437d8e46e5953f62dd02c16d7e1ff"
