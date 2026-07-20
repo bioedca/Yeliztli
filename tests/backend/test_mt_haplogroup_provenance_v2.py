@@ -6456,10 +6456,10 @@ def test_issue_1798_batch_10_advances_only_reviewed_live_frontiers() -> None:
     initial_pending = set(migration["initial_pending_nodes"])
 
     assert BATCH10_MARKER_PROMOTIONS <= exact
-    assert BATCH10_MARKER_PROMOTIONS <= direct
     assert BATCH10_MARKER_PROMOTIONS <= initial_pending
     assert BATCH10_MARKER_PROMOTIONS.isdisjoint(_MT_SOURCE["pending_nodes"])
-    assert BATCH10_MARKER_PROMOTIONS.isdisjoint(legacy)
+    assert BATCH10_DIRECT_MOTIF_PROMOTIONS <= direct
+    assert BATCH10_DIRECT_MOTIF_PROMOTIONS.isdisjoint(legacy)
     assert BATCH10_STRUCTURAL_PROMOTIONS <= set(_MT_SOURCE["structural_exceptions"])
     assert BATCH10_STRUCTURAL_PROMOTIONS <= initial_pending
     assert BATCH10_STRUCTURAL_PROMOTIONS.isdisjoint(_MT_SOURCE["pending_nodes"])
