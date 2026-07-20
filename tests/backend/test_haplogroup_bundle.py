@@ -147,7 +147,7 @@ class TestBundleStructure:
         parts = bundle["version"].split(".")
         assert len(parts) == 3
         assert all(p.isdigit() for p in parts)
-        assert bundle["version"] == "1.1.21"
+        assert bundle["version"] == "1.1.22"
 
     def test_build_is_grch37(self, bundle: dict) -> None:
         assert bundle["build"] == "GRCh37"
@@ -165,6 +165,9 @@ class TestBundleStructure:
         assert audit["schema_version"] == 3
         assert audit["audited_nodes"] == provenance["marker_exact_nodes"]["names"]
         assert set(provenance["marker_exact_nodes"]["names"]) == {
+            "A",
+            "A2",
+            "A5",
             "C",
             "C1",
             "C4",
@@ -253,7 +256,10 @@ class TestBundleStructure:
             "N",
             "N1",
             "N1a",
+            "N1b",
             "N9",
+            "N9a",
+            "N9b",
             "S",
             "S1",
             "S2",
@@ -277,12 +283,19 @@ class TestBundleStructure:
             "Z1",
         }
         assert provenance["migration_status"] == "in_progress"
-        assert provenance["emitted_nodes"] == 194
-        assert provenance["marker_bearing_nodes"] == 192
-        assert provenance["marker_exact_nodes"]["count"] == 110
-        assert provenance["direct_source_motif_nodes"]["exact"]["count"] == 99
-        assert provenance["direct_source_motif_nodes"]["legacy_partial"]["count"] == 11
+        assert provenance["emitted_nodes"] == 193
+        assert provenance["marker_bearing_nodes"] == 191
+        assert provenance["marker_exact_nodes"]["count"] == 116
+        assert provenance["direct_source_motif_nodes"]["exact"]["count"] == 108
+        assert provenance["direct_source_motif_nodes"]["legacy_partial"] == {
+            "count": 8,
+            "names": ["H6", "K", "K1", "K1a", "K2a", "U2e", "X2", "X2a"],
+        }
         assert "I" in provenance["direct_source_motif_nodes"]["exact"]["names"]
+        assert set(provenance["direct_source_motif_nodes"]["exact"]["names"]) == (
+            set(provenance["marker_exact_nodes"]["names"])
+            - set(provenance["direct_source_motif_nodes"]["legacy_partial"]["names"])
+        )
         assert set(provenance["direct_source_motif_nodes"]["exact"]["names"]).isdisjoint(
             provenance["direct_source_motif_nodes"]["legacy_partial"]["names"]
         )
@@ -290,37 +303,39 @@ class TestBundleStructure:
             "count": 2,
             "names": ["R0", "mt-MRCA"],
         }
-        assert provenance["pending_nodes"]["count"] == 82
-        assert provenance["retired_emitted_nodes"] == {"count": 0, "names": []}
+        assert provenance["pending_nodes"]["count"] == 75
+        assert provenance["retired_emitted_nodes"] == {"count": 1, "names": ["A4"]}
         assert provenance["marker_records"] == {
-            "emitted": 586,
-            "marker_exact": 444,
+            "emitted": 599,
+            "marker_exact": 471,
             "marker_exact_by_cohort": {
-                "historical_five_23andme_including_2014": 15,
-                "primary_four_23andme": 429,
+                "historical_five_23andme_including_2014": 13,
+                "primary_four_23andme": 458,
             },
         }
         assert provenance["source_mutation_decisions"] == {
-            "total": 713,
-            "emitted": 444,
-            "omitted": 269,
-            "direct_motif_exact": 553,
-            "direct_motif_legacy_partial": 35,
-            "recurrent_or_uncertain_events": 6,
-            "reversion_events": 51,
-            "reversion_marks": 53,
+            "total": 755,
+            "emitted": 471,
+            "omitted": 284,
+            "direct_motif_exact": 606,
+            "direct_motif_legacy_partial": 22,
+            "recurrent_or_uncertain_events": 7,
+            "reversion_events": 57,
+            "reversion_marks": 60,
         }
         assert provenance["emitted_parent_edges"] == {
-            "total": 193,
-            "validated_declarations": 193,
+            "total": 192,
+            "validated_declarations": 192,
         }
         assert provenance["source_parent_edges"] == {
-            "validated": 79,
-            "pending": 114,
+            "validated": 89,
+            "pending": 103,
         }
         assert provenance["omitted_source_nodes"] == {
-            "count": 43,
+            "count": 45,
             "names": [
+                "A+152",
+                "A+152+16362",
                 "CZ",
                 "D+16189",
                 "D4b1",
@@ -366,19 +381,19 @@ class TestBundleStructure:
                 "Z+152",
             ],
             "by_type": {
-                "flattened_source_intermediate": 36,
+                "flattened_source_intermediate": 38,
                 "flattened_unreportable_source_intermediate": 6,
                 "unreportable_source_node": 1,
             },
         }
         assert provenance["arrays"] == {"exports": 6, "cohorts": 2}
         assert provenance["locked_exact_frontier"] == {
-            "count": 110,
-            "sha256": "e93eda10285e2a54b5dfc63b3bb15593559d7df548eaef27cf6c45cf7e62518e",
+            "count": 116,
+            "sha256": "482a3c1fb07c08d23af0e35375a09300499b694cd0a8b860e8fbc685d612209a",
         }
         assert provenance["locked_direct_motif_frontier"] == {
-            "count": 99,
-            "sha256": "af7e62f6286fb2a256804d58429e92eb85c02fd6eb48afff4c9774b3abde059d",
+            "count": 108,
+            "sha256": "833034f139f5ce5ff6b1d5de2729948d3b73c44572ba37fb028c7665a59bd24f",
         }
         digests = provenance["digests"]
         assert {
@@ -398,25 +413,25 @@ class TestBundleStructure:
                 "f8aecb8ba02e5c2becbccfc40846bd3c8668d4b8c6de5be1761ab78c0d83a87e"
             ),
             "locked_emitted_tree_sha256": (
-                "812080cefeccce1c93a2d8e4013ee835db4270413e1107c674780aa1d8848789"
+                "9ee68253659ecde4a6bb0f103dbb088c8c90bf8058222405a986cd9ea33f296a"
             ),
             "locked_direct_motif_exact_nodes_sha256": (
-                "af7e62f6286fb2a256804d58429e92eb85c02fd6eb48afff4c9774b3abde059d"
+                "833034f139f5ce5ff6b1d5de2729948d3b73c44572ba37fb028c7665a59bd24f"
             ),
             "locked_direct_motif_semantic_sha256": (
-                "09deffce17a9c681b9ea68ab92f2d254fa8152230f50e672979917bc6684264b"
+                "02e8cb70c4e12f72dd089a087964967aaab99c31e4c3d0982e9c3d5606a524e6"
             ),
             "locked_exact_coverage_membership_sha256": (
-                "d7df9cee73c050cac3e889f751ac144ab06300d02061b264ad7ccf71f7e96925"
+                "e642adcd344e3ec89d56941e8c675662b6c970ef4c5f8b3a74d24371b44bad4d"
             ),
             "locked_exact_semantic_sha256": (
-                "c51e189d50192ffb55b911f1fbc3653d72a840a5babe4e63fc19e422f1f3a80b"
+                "3ebf6b27efff183913cff61e4ae39cf543ecdc129da1acd09ee4df363a98f6df"
             ),
             "source_metadata_sha256": (
                 "5b3a3578fc208c91f6c3fdcc6d772f5071851b3604762b9e81994cf2632deb3d"
             ),
             "state_partition_sha256": (
-                "cbd1b56f0f5a4bc8f176d86a95ee5f19ec26af6373f6642ede5035d553192a63"
+                "e5458a3b31e81aee23710f999ae47734910ecb9e47c5edaf2f847975b69487b9"
             ),
         }
 
@@ -425,7 +440,20 @@ class TestBundleStructure:
         omitted = audit["omitted_nodes"]
         assert set(omitted) == set(provenance["omitted_source_nodes"]["names"])
         assert all(isinstance(reason, str) and reason for reason in omitted.values())
-        assert audit["retired_emitted_nodes"] == {}
+        assert audit["retired_emitted_nodes"] == {
+            "A4": {
+                "type": "retired_unmapped_emitted_node",
+                "former_emitted_parent": "A",
+                "former_defining_snps": [
+                    {"rsid": "i5009347", "pos": 9347, "allele": "G"},
+                    {"rsid": "i5014308", "pos": 14308, "allele": "A"},
+                ],
+                "reason": (
+                    "Retired in issue #1798 batch 06 because emitted A4 has no exact "
+                    "PhyloTree Build 17 source identity."
+                ),
+            }
+        }
         assert {reference["id"] for reference in mt_source["references"]} == {1, 2, 3, 4}
 
     def test_sources_y(self, bundle: dict) -> None:
@@ -625,11 +653,7 @@ class TestMtDNATree:
             12720: "G",
         }
         assert allele_map("L3") == {1018: "G"}
-        assert allele_map("N") == {
-            8701: "A",
-            9540: "T",
-            10873: "T",
-        }
+        assert allele_map("N") == {9540: "T"}
         assert allele_map("N1") == {1719: "A", 10238: "C", 12501: "A"}
         assert allele_map("N1a") == {204: "C", 13780: "G"}
         assert allele_map("R") == {12705: "C", 16223: "C"}
@@ -833,10 +857,17 @@ class TestMtDNATree:
             assert node is not None
             return {snp["pos"]: snp["allele"] for snp in node["defining_snps"]}
 
-        assert allele_map("N") == {8701: "A", 9540: "T", 10873: "T"}
+        assert allele_map("N") == {9540: "T"}
         assert allele_map("N1") == {1719: "A", 10238: "C", 12501: "A"}
         assert allele_map("N1a") == {204: "C", 13780: "G"}
-        assert allele_map("N1b") == {6261: "A"}
+        assert allele_map("N1b") == {
+            1598: "A",
+            5471: "A",
+            8251: "A",
+            16176: "G",
+            16390: "A",
+        }
+        assert {8701, 10398, 10873, 15301}.isdisjoint(allele_map("N"))
         assert {6365, 10398}.isdisjoint(allele_map("N1"))
         assert {152, 6365, 10398}.isdisjoint(allele_map("N1a"))
 
@@ -1020,6 +1051,84 @@ class TestMtDNATree:
         emitted_names = collect_haplogroup_names(mt_tree)
         assert {"CZ", "G2a'c", "M7b'c", "Z+152"}.isdisjoint(emitted_names)
 
+    def test_issue_1798_batch_06_n_a_i_n9_y_subtrees_match_build17(self, mt_tree: dict) -> None:
+        """Batch 06 retains the audited N topology and reportable marker rows."""
+
+        def allele_map(haplogroup: str) -> dict[int, str]:
+            node = find_node(mt_tree, haplogroup)
+            assert node is not None, f"{haplogroup} not found"
+            return {snp["pos"]: snp["allele"] for snp in node["defining_snps"]}
+
+        n = find_node(mt_tree, "N")
+        a = find_node(mt_tree, "A")
+        n1a = find_node(mt_tree, "N1a")
+        n9 = find_node(mt_tree, "N9")
+        y_mt = find_node(mt_tree, "Y_mt")
+        assert all(node is not None for node in (n, a, n1a, n9, y_mt))
+
+        assert [child["haplogroup"] for child in n["children"]] == [
+            "A",
+            "N1",
+            "N9",
+            "S",
+            "W",
+            "X",
+            "R",
+        ]
+        assert [child["haplogroup"] for child in a["children"]] == ["A2", "A5"]
+        assert [child["haplogroup"] for child in n9["children"]] == [
+            "N9a",
+            "N9b",
+            "Y_mt",
+        ]
+        assert [child["haplogroup"] for child in y_mt["children"]] == ["Y1", "Y2"]
+
+        assert get_path_to(mt_tree, "I") == ["mt-MRCA", "L3", "N", "N1", "N1a", "I"]
+        assert get_path_to(mt_tree, "Y2") == ["mt-MRCA", "L3", "N", "N9", "Y_mt", "Y2"]
+        emitted_names = set(collect_haplogroup_names(mt_tree))
+        assert {"A4", "A+152", "A+152+16362"}.isdisjoint(emitted_names)
+
+        expected_markers = {
+            "N": {9540: "T"},
+            "A": {235: "G", 663: "G", 4248: "C", 4824: "G", 8794: "T"},
+            "A2": {146: "C", 8027: "A", 12007: "A", 16111: "T", 16362: "C"},
+            "A5": {8563: "G", 11536: "T"},
+            "N1b": {1598: "A", 5471: "A", 8251: "A", 16176: "G", 16390: "A"},
+            "N9": {5417: "A"},
+            "N9a": {5231: "A", 12372: "A", 16261: "T"},
+            "N9b": {
+                5147: "A",
+                10607: "T",
+                11016: "A",
+                13183: "G",
+                14893: "G",
+            },
+            "Y_mt": {
+                8392: "A",
+                10398: "G",
+                14178: "C",
+                14693: "G",
+                16126: "C",
+                16223: "C",
+                16231: "C",
+            },
+            "Y1": {3834: "A"},
+            "Y2": {
+                482: "C",
+                5147: "A",
+                6941: "C",
+                7859: "A",
+                14914: "G",
+                15244: "G",
+            },
+            "I": {10034: "C", 15043: "A", 16129: "A"},
+        }
+        assert {name: allele_map(name) for name in expected_markers} == expected_markers
+
+        assert {8701, 10398, 10873, 15301}.isdisjoint(allele_map("N"))
+        assert 16362 in allele_map("A2")
+        assert 152 not in allele_map("A2")
+
     def test_issue_1907_d2_uses_exact_build17_motif(self, mt_tree: dict) -> None:
         """D2 uses its direct row while inherited D and R markers stay at their owners."""
 
@@ -1128,12 +1237,13 @@ class TestMtDNATree:
         nodes = collect_all_nodes(mt_tree)
         snps = collect_all_snps(mt_tree)
         unique_rsids = {s["rsid"] for s in snps}
-        assert (len(snps), len(unique_rsids)) == (586, 477)
+        assert (len(nodes), len(snps), len(unique_rsids)) == (193, 599, 483)
         assert bundle["stats"]["mt_haplogroups"] == len(nodes)
         assert bundle["stats"]["mt_defining_snps"] == len(snps)
         assert bundle["stats"]["mt_unique_snps"] == len(unique_rsids)
-        assert bundle["stats"]["total_defining_snps"] == 740
-        assert bundle["stats"]["total_unique_snps"] == 631
+        assert bundle["stats"]["total_haplogroups"] == 300
+        assert bundle["stats"]["total_defining_snps"] == 753
+        assert bundle["stats"]["total_unique_snps"] == 637
 
     def test_non_root_nodes_have_defining_snps(self, mt_tree: dict) -> None:
         """Every non-root node should have at least one defining SNP.
@@ -1415,6 +1525,9 @@ class TestBuildScript:
         b2 = build_bundle()
         assert json.dumps(b1, sort_keys=True) == json.dumps(b2, sort_keys=True)
         assert b1 == json.loads(BUNDLE_PRODUCTION.read_text())
+        expected_bytes = json.dumps(b1, indent=2, ensure_ascii=False).encode("utf-8")
+        assert BUNDLE_PRODUCTION.read_bytes() == expected_bytes
+        assert BUNDLE_FIXTURE.read_bytes() == expected_bytes
 
     def test_validate_tree_passes(self) -> None:
         """Internal validation should report no issues."""

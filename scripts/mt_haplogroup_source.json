@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "audit_scope": "Incremental-to-complete PhyloTree Build 17 audit for issue 1798. 110 marker-exact nodes retain emitted-marker and coverage locks; independent raw-row comparison classifies 99 direct motifs as exact and 11 legacy motifs as partial. All other emitted nodes have explicit pending or structural states. Schema v3 distinguishes general flattened source intermediates from caller-unreportable intermediates and separately accounts for retired emitted identities. Completion requires every direct motif and source-topology edge to become exact.",
+  "audit_scope": "Incremental-to-complete PhyloTree Build 17 audit for issue 1798. 116 marker-exact nodes retain emitted-marker and coverage locks; independent raw-row comparison classifies 108 direct motifs as exact and 8 legacy motifs as partial. All other emitted nodes have explicit pending or structural states. Schema v3 distinguishes general flattened source intermediates from caller-unreportable intermediates and separately accounts for retired emitted identities. Completion requires every direct motif and source-topology edge to become exact.",
   "source": {
     "name": "PhyloTree",
     "version": "Build 17",
@@ -123,6 +123,9 @@
   },
   "direct_source_motif_states": {
     "exact_nodes": [
+      "A",
+      "A2",
+      "A5",
       "C",
       "C1",
       "C4",
@@ -206,7 +209,10 @@
       "N",
       "N1",
       "N1a",
+      "N1b",
       "N9",
+      "N9a",
+      "N9b",
       "S",
       "S1",
       "S2",
@@ -220,6 +226,9 @@
       "W3",
       "X",
       "X2b",
+      "Y1",
+      "Y2",
+      "Y_mt",
       "Z",
       "Z1"
     ],
@@ -231,13 +240,18 @@
       "K2a",
       "U2e",
       "X2",
-      "X2a",
-      "Y1",
-      "Y2",
-      "Y_mt"
+      "X2a"
     ]
   },
   "omitted_nodes": {
+    "A+152": {
+      "type": "flattened_source_intermediate",
+      "reason": "Flattened in issue 1798 batch 06: Build 17 places the mutation-only A+152 segment between A and A2. Its historical-only T152C! event remains source-only."
+    },
+    "A+152+16362": {
+      "type": "flattened_source_intermediate",
+      "reason": "Flattened in issue 1798 batch 06: Build 17 places mutation-only A+152+16362 between A+152 and A2. Its primary-callable T16362C event is emitted on A2 with source ownership; helper-only support is 1/5, below the caller threshold."
+    },
     "CZ": {
       "type": "flattened_unreportable_source_intermediate",
       "reason": "Flattened in issue 1797: Build 17 defines this structural parent of C and Z only by A249d, whose position is unrepresented in all four modern export exemplars and whose deletion allele is unsupported by the substitution-only caller. C and Z remain children of M8 so they inherit the source-backed lineage without an unscoreable 0/0 path step."
@@ -411,8 +425,492 @@
       "reason": "Flattened in issue 1798 batch 05: the mutation-only Build 17 Z+152 segment lies between Z and Z1. Its T152C! event remains source-only because it is callable only in the historical 2014 exemplar."
     }
   },
-  "retired_emitted_nodes": {},
+  "retired_emitted_nodes": {
+    "A4": {
+      "type": "retired_unmapped_emitted_node",
+      "former_emitted_parent": "A",
+      "former_defining_snps": [
+        {
+          "rsid": "i5009347",
+          "pos": 9347,
+          "allele": "G"
+        },
+        {
+          "rsid": "i5014308",
+          "pos": 14308,
+          "allele": "A"
+        }
+      ],
+      "reason": "Retired in issue #1798 batch 06 because emitted A4 has no exact PhyloTree Build 17 source identity."
+    }
+  },
   "nodes": {
+    "A": {
+      "source_node": "A",
+      "emitted_parent": "N",
+      "source_motif_status": "exact",
+      "source_topology": {
+        "status": "exact",
+        "emitted_parent_source_node": "N",
+        "source_parent": "N",
+        "flattened_source_path": []
+      },
+      "direct_source_motif": [
+        {
+          "notation": "A235G",
+          "mutation_type": "substitution",
+          "pos": 235,
+          "ancestral_allele": "A",
+          "derived_allele": "G",
+          "emitted": true
+        },
+        {
+          "notation": "A663G",
+          "mutation_type": "substitution",
+          "pos": 663,
+          "ancestral_allele": "A",
+          "derived_allele": "G",
+          "emitted": true
+        },
+        {
+          "notation": "A1736G",
+          "mutation_type": "substitution",
+          "pos": 1736,
+          "ancestral_allele": "A",
+          "derived_allele": "G",
+          "emitted": false,
+          "omission_reason": "absent or non-callable in the primary four; retained as source provenance without enlarging the runtime marker denominator"
+        },
+        {
+          "notation": "T4248C",
+          "mutation_type": "substitution",
+          "pos": 4248,
+          "ancestral_allele": "T",
+          "derived_allele": "C",
+          "emitted": true
+        },
+        {
+          "notation": "A4824G",
+          "mutation_type": "substitution",
+          "pos": 4824,
+          "ancestral_allele": "A",
+          "derived_allele": "G",
+          "emitted": true
+        },
+        {
+          "notation": "C8794T",
+          "mutation_type": "substitution",
+          "pos": 8794,
+          "ancestral_allele": "C",
+          "derived_allele": "T",
+          "emitted": true
+        },
+        {
+          "notation": "C16290T",
+          "mutation_type": "substitution",
+          "pos": 16290,
+          "ancestral_allele": "C",
+          "derived_allele": "T",
+          "emitted": false,
+          "omission_reason": "absent or non-callable in the primary four; retained as source provenance without enlarging the runtime marker denominator"
+        },
+        {
+          "notation": "G16319A",
+          "mutation_type": "substitution",
+          "pos": 16319,
+          "ancestral_allele": "G",
+          "derived_allele": "A",
+          "emitted": false,
+          "omission_reason": "absent or non-callable in the primary four; retained as source provenance without enlarging the runtime marker denominator"
+        }
+      ],
+      "emitted_snps": [
+        {
+          "rsid": "i5000235",
+          "pos": 235,
+          "ancestral_allele": "A",
+          "allele": "G",
+          "motif_owner": "A",
+          "array_coverage": {
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
+          }
+        },
+        {
+          "rsid": "i5000663",
+          "pos": 663,
+          "ancestral_allele": "A",
+          "allele": "G",
+          "motif_owner": "A",
+          "array_coverage": {
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
+          }
+        },
+        {
+          "rsid": "i5004248",
+          "pos": 4248,
+          "ancestral_allele": "T",
+          "allele": "C",
+          "motif_owner": "A",
+          "array_coverage": {
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
+          }
+        },
+        {
+          "rsid": "i5004824",
+          "pos": 4824,
+          "ancestral_allele": "A",
+          "allele": "G",
+          "motif_owner": "A",
+          "array_coverage": {
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
+          }
+        },
+        {
+          "rsid": "i5008794",
+          "pos": 8794,
+          "ancestral_allele": "C",
+          "allele": "T",
+          "motif_owner": "A",
+          "array_coverage": {
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
+          }
+        }
+      ]
+    },
+    "A2": {
+      "source_node": "A2",
+      "emitted_parent": "A",
+      "source_motif_status": "exact",
+      "source_topology": {
+        "status": "exact",
+        "emitted_parent_source_node": "A",
+        "source_parent": "A+152+16362",
+        "flattened_source_path": [
+          {
+            "source_node": "A+152",
+            "source_parent": "A",
+            "reason": "Flattened in issue 1798 batch 06: Build 17 places the mutation-only A+152 segment between A and A2. Its historical-only T152C! event remains source-only.",
+            "direct_source_motif": [
+              {
+                "notation": "T152C!",
+                "mutation_type": "substitution",
+                "pos": 152,
+                "ancestral_allele": "T",
+                "derived_allele": "C",
+                "emitted": false,
+                "omission_reason": "absent or non-callable in the primary four; retained as source provenance without enlarging the runtime marker denominator"
+              }
+            ]
+          },
+          {
+            "source_node": "A+152+16362",
+            "source_parent": "A+152",
+            "reason": "Flattened in issue 1798 batch 06: Build 17 places mutation-only A+152+16362 between A+152 and A2. Its primary-callable T16362C event is emitted on A2 with source ownership; helper-only support is 1/5, below the caller threshold.",
+            "direct_source_motif": [
+              {
+                "notation": "T16362C",
+                "mutation_type": "substitution",
+                "pos": 16362,
+                "ancestral_allele": "T",
+                "derived_allele": "C",
+                "emitted": true
+              }
+            ]
+          }
+        ]
+      },
+      "direct_source_motif": [
+        {
+          "notation": "T146C!",
+          "mutation_type": "substitution",
+          "pos": 146,
+          "ancestral_allele": "T",
+          "derived_allele": "C",
+          "emitted": true
+        },
+        {
+          "notation": "C152T!!",
+          "mutation_type": "substitution",
+          "pos": 152,
+          "ancestral_allele": "C",
+          "derived_allele": "T",
+          "emitted": false,
+          "omission_reason": "absent or non-callable in the primary four; retained as source provenance without enlarging the runtime marker denominator"
+        },
+        {
+          "notation": "A153G",
+          "mutation_type": "substitution",
+          "pos": 153,
+          "ancestral_allele": "A",
+          "derived_allele": "G",
+          "emitted": false,
+          "omission_reason": "absent or non-callable in the primary four; retained as source provenance without enlarging the runtime marker denominator"
+        },
+        {
+          "notation": "G8027A",
+          "mutation_type": "substitution",
+          "pos": 8027,
+          "ancestral_allele": "G",
+          "derived_allele": "A",
+          "emitted": true
+        },
+        {
+          "notation": "G12007A",
+          "mutation_type": "substitution",
+          "pos": 12007,
+          "ancestral_allele": "G",
+          "derived_allele": "A",
+          "emitted": true
+        },
+        {
+          "notation": "C16111T",
+          "mutation_type": "substitution",
+          "pos": 16111,
+          "ancestral_allele": "C",
+          "derived_allele": "T",
+          "emitted": true
+        }
+      ],
+      "emitted_snps": [
+        {
+          "rsid": "i5016362",
+          "pos": 16362,
+          "ancestral_allele": "T",
+          "allele": "C",
+          "motif_owner": "A+152+16362",
+          "array_coverage": {
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
+          }
+        },
+        {
+          "rsid": "i5000146",
+          "pos": 146,
+          "ancestral_allele": "T",
+          "allele": "C",
+          "motif_owner": "A2",
+          "array_coverage": {
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
+          }
+        },
+        {
+          "rsid": "i5008027",
+          "pos": 8027,
+          "ancestral_allele": "G",
+          "allele": "A",
+          "motif_owner": "A2",
+          "array_coverage": {
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
+          }
+        },
+        {
+          "rsid": "i5012007",
+          "pos": 12007,
+          "ancestral_allele": "G",
+          "allele": "A",
+          "motif_owner": "A2",
+          "array_coverage": {
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
+          }
+        },
+        {
+          "rsid": "i5016111",
+          "pos": 16111,
+          "ancestral_allele": "C",
+          "allele": "T",
+          "motif_owner": "A2",
+          "array_coverage": {
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162"
+            ]
+          }
+        }
+      ]
+    },
+    "A5": {
+      "source_node": "A5",
+      "emitted_parent": "A",
+      "source_motif_status": "exact",
+      "source_topology": {
+        "status": "exact",
+        "emitted_parent_source_node": "A",
+        "source_parent": "A",
+        "flattened_source_path": []
+      },
+      "direct_source_motif": [
+        {
+          "notation": "A8563G",
+          "mutation_type": "substitution",
+          "pos": 8563,
+          "ancestral_allele": "A",
+          "derived_allele": "G",
+          "emitted": true
+        },
+        {
+          "notation": "C11536T",
+          "mutation_type": "substitution",
+          "pos": 11536,
+          "ancestral_allele": "C",
+          "derived_allele": "T",
+          "emitted": true
+        }
+      ],
+      "emitted_snps": [
+        {
+          "rsid": "i5008563",
+          "pos": 8563,
+          "ancestral_allele": "A",
+          "allele": "G",
+          "motif_owner": "A5",
+          "array_coverage": {
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
+          }
+        },
+        {
+          "rsid": "i5011536",
+          "pos": 11536,
+          "ancestral_allele": "C",
+          "allele": "T",
+          "motif_owner": "A5",
+          "array_coverage": {
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
+          }
+        }
+      ]
+    },
     "C": {
       "source_node": "C",
       "emitted_parent": "M8",
@@ -17254,7 +17752,8 @@
           "pos": 8701,
           "ancestral_allele": "G",
           "derived_allele": "A",
-          "emitted": true
+          "emitted": false,
+          "omission_reason": "absent or non-callable in the primary four; retained as source provenance without enlarging the runtime marker denominator"
         },
         {
           "notation": "C9540T",
@@ -17279,7 +17778,8 @@
           "pos": 10873,
           "ancestral_allele": "C",
           "derived_allele": "T",
-          "emitted": true
+          "emitted": false,
+          "omission_reason": "absent or non-callable in the primary four; retained as source provenance without enlarging the runtime marker denominator"
         },
         {
           "notation": "A15301G!",
@@ -17292,22 +17792,6 @@
         }
       ],
       "emitted_snps": [
-        {
-          "rsid": "i5008701",
-          "pos": 8701,
-          "ancestral_allele": "G",
-          "allele": "A",
-          "motif_owner": "N",
-          "array_coverage": {
-            "cohort_id": "historical_five_23andme_including_2014",
-            "position_present_in": [
-              "pgp_1050"
-            ],
-            "callable_snv_in": [
-              "pgp_1050"
-            ]
-          }
-        },
         {
           "rsid": "i5009540",
           "pos": 9540,
@@ -17327,22 +17811,6 @@
               "pgp_4162",
               "pgp_4187",
               "pgp_huA08F4D"
-            ]
-          }
-        },
-        {
-          "rsid": "i5010873",
-          "pos": 10873,
-          "ancestral_allele": "C",
-          "allele": "T",
-          "motif_owner": "N",
-          "array_coverage": {
-            "cohort_id": "historical_five_23andme_including_2014",
-            "position_present_in": [
-              "pgp_1050"
-            ],
-            "callable_snv_in": [
-              "pgp_1050"
             ]
           }
         }
@@ -17530,12 +17998,201 @@
         }
       ]
     },
+    "N1b": {
+      "source_node": "N1b",
+      "emitted_parent": "N1",
+      "source_motif_status": "exact",
+      "source_topology": {
+        "status": "exact",
+        "emitted_parent_source_node": "N1",
+        "source_parent": "N1",
+        "flattened_source_path": []
+      },
+      "direct_source_motif": [
+        {
+          "notation": "T152C!",
+          "mutation_type": "substitution",
+          "pos": 152,
+          "ancestral_allele": "T",
+          "derived_allele": "C",
+          "emitted": false,
+          "omission_reason": "absent or non-callable in the primary four; retained as source provenance without enlarging the runtime marker denominator"
+        },
+        {
+          "notation": "G1598A",
+          "mutation_type": "substitution",
+          "pos": 1598,
+          "ancestral_allele": "G",
+          "derived_allele": "A",
+          "emitted": true
+        },
+        {
+          "notation": "C2639T",
+          "mutation_type": "substitution",
+          "pos": 2639,
+          "ancestral_allele": "C",
+          "derived_allele": "T",
+          "emitted": false,
+          "omission_reason": "absent or non-callable in the primary four; retained as source provenance without enlarging the runtime marker denominator"
+        },
+        {
+          "notation": "G5471A",
+          "mutation_type": "substitution",
+          "pos": 5471,
+          "ancestral_allele": "G",
+          "derived_allele": "A",
+          "emitted": true
+        },
+        {
+          "notation": "G8251A",
+          "mutation_type": "substitution",
+          "pos": 8251,
+          "ancestral_allele": "G",
+          "derived_allele": "A",
+          "emitted": true
+        },
+        {
+          "notation": "A8836G",
+          "mutation_type": "substitution",
+          "pos": 8836,
+          "ancestral_allele": "A",
+          "derived_allele": "G",
+          "emitted": false,
+          "omission_reason": "absent or non-callable in the primary four; retained as source provenance without enlarging the runtime marker denominator"
+        },
+        {
+          "notation": "C16176g",
+          "mutation_type": "substitution",
+          "pos": 16176,
+          "ancestral_allele": "C",
+          "derived_allele": "G",
+          "emitted": true
+        },
+        {
+          "notation": "G16390A",
+          "mutation_type": "substitution",
+          "pos": 16390,
+          "ancestral_allele": "G",
+          "derived_allele": "A",
+          "emitted": true
+        }
+      ],
+      "emitted_snps": [
+        {
+          "rsid": "i5001598",
+          "pos": 1598,
+          "ancestral_allele": "G",
+          "allele": "A",
+          "motif_owner": "N1b",
+          "array_coverage": {
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
+          }
+        },
+        {
+          "rsid": "i5005471",
+          "pos": 5471,
+          "ancestral_allele": "G",
+          "allele": "A",
+          "motif_owner": "N1b",
+          "array_coverage": {
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
+          }
+        },
+        {
+          "rsid": "i5008251",
+          "pos": 8251,
+          "ancestral_allele": "G",
+          "allele": "A",
+          "motif_owner": "N1b",
+          "array_coverage": {
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4187"
+            ]
+          }
+        },
+        {
+          "rsid": "i5016176",
+          "pos": 16176,
+          "ancestral_allele": "C",
+          "allele": "G",
+          "motif_owner": "N1b",
+          "array_coverage": {
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
+          }
+        },
+        {
+          "rsid": "i5016390",
+          "pos": 16390,
+          "ancestral_allele": "G",
+          "allele": "A",
+          "motif_owner": "N1b",
+          "array_coverage": {
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
+          }
+        }
+      ]
+    },
     "N9": {
       "source_node": "N9",
       "emitted_parent": "N",
       "source_motif_status": "exact",
       "source_topology": {
-        "status": "pending"
+        "status": "exact",
+        "emitted_parent_source_node": "N",
+        "source_parent": "N",
+        "flattened_source_path": []
       },
       "direct_source_motif": [
         {
@@ -17563,6 +18220,302 @@
             ],
             "callable_snv_in": [
               "pgp_4139",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
+          }
+        }
+      ]
+    },
+    "N9a": {
+      "source_node": "N9a",
+      "emitted_parent": "N9",
+      "source_motif_status": "exact",
+      "source_topology": {
+        "status": "exact",
+        "emitted_parent_source_node": "N9",
+        "source_parent": "N9",
+        "flattened_source_path": []
+      },
+      "direct_source_motif": [
+        {
+          "notation": "C150T",
+          "mutation_type": "substitution",
+          "pos": 150,
+          "ancestral_allele": "C",
+          "derived_allele": "T",
+          "emitted": false,
+          "omission_reason": "absent or non-callable in the primary four; retained as source provenance without enlarging the runtime marker denominator"
+        },
+        {
+          "notation": "G5231A",
+          "mutation_type": "substitution",
+          "pos": 5231,
+          "ancestral_allele": "G",
+          "derived_allele": "A",
+          "emitted": true
+        },
+        {
+          "notation": "A12358G",
+          "mutation_type": "substitution",
+          "pos": 12358,
+          "ancestral_allele": "A",
+          "derived_allele": "G",
+          "emitted": false,
+          "omission_reason": "absent or non-callable in the primary four; retained as source provenance without enlarging the runtime marker denominator"
+        },
+        {
+          "notation": "G12372A",
+          "mutation_type": "substitution",
+          "pos": 12372,
+          "ancestral_allele": "G",
+          "derived_allele": "A",
+          "emitted": true
+        },
+        {
+          "notation": "C16257a",
+          "mutation_type": "substitution",
+          "pos": 16257,
+          "ancestral_allele": "C",
+          "derived_allele": "A",
+          "emitted": false,
+          "omission_reason": "absent or non-callable in the primary four; retained as source provenance without enlarging the runtime marker denominator"
+        },
+        {
+          "notation": "C16261T",
+          "mutation_type": "substitution",
+          "pos": 16261,
+          "ancestral_allele": "C",
+          "derived_allele": "T",
+          "emitted": true
+        }
+      ],
+      "emitted_snps": [
+        {
+          "rsid": "i5005231",
+          "pos": 5231,
+          "ancestral_allele": "G",
+          "allele": "A",
+          "motif_owner": "N9a",
+          "array_coverage": {
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_huA08F4D"
+            ]
+          }
+        },
+        {
+          "rsid": "i5012372",
+          "pos": 12372,
+          "ancestral_allele": "G",
+          "allele": "A",
+          "motif_owner": "N9a",
+          "array_coverage": {
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
+          }
+        },
+        {
+          "rsid": "i5016261",
+          "pos": 16261,
+          "ancestral_allele": "C",
+          "allele": "T",
+          "motif_owner": "N9a",
+          "array_coverage": {
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
+          }
+        }
+      ]
+    },
+    "N9b": {
+      "source_node": "N9b",
+      "emitted_parent": "N9",
+      "source_motif_status": "exact",
+      "source_topology": {
+        "status": "exact",
+        "emitted_parent_source_node": "N9",
+        "source_parent": "N9",
+        "flattened_source_path": []
+      },
+      "direct_source_motif": [
+        {
+          "notation": "G5147A",
+          "mutation_type": "substitution",
+          "pos": 5147,
+          "ancestral_allele": "G",
+          "derived_allele": "A",
+          "emitted": true
+        },
+        {
+          "notation": "C10607T",
+          "mutation_type": "substitution",
+          "pos": 10607,
+          "ancestral_allele": "C",
+          "derived_allele": "T",
+          "emitted": true
+        },
+        {
+          "notation": "G11016A",
+          "mutation_type": "substitution",
+          "pos": 11016,
+          "ancestral_allele": "G",
+          "derived_allele": "A",
+          "emitted": true
+        },
+        {
+          "notation": "A13183G",
+          "mutation_type": "substitution",
+          "pos": 13183,
+          "ancestral_allele": "A",
+          "derived_allele": "G",
+          "emitted": true
+        },
+        {
+          "notation": "A14893G",
+          "mutation_type": "substitution",
+          "pos": 14893,
+          "ancestral_allele": "A",
+          "derived_allele": "G",
+          "emitted": true
+        },
+        {
+          "notation": "T16189C!",
+          "mutation_type": "substitution",
+          "pos": 16189,
+          "ancestral_allele": "T",
+          "derived_allele": "C",
+          "emitted": false,
+          "omission_reason": "absent or non-callable in all five pinned public exports"
+        }
+      ],
+      "emitted_snps": [
+        {
+          "rsid": "i5005147",
+          "pos": 5147,
+          "ancestral_allele": "G",
+          "allele": "A",
+          "motif_owner": "N9b",
+          "array_coverage": {
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
+          }
+        },
+        {
+          "rsid": "i5010607",
+          "pos": 10607,
+          "ancestral_allele": "C",
+          "allele": "T",
+          "motif_owner": "N9b",
+          "array_coverage": {
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
+          }
+        },
+        {
+          "rsid": "i5011016",
+          "pos": 11016,
+          "ancestral_allele": "G",
+          "allele": "A",
+          "motif_owner": "N9b",
+          "array_coverage": {
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187"
+            ]
+          }
+        },
+        {
+          "rsid": "i5013183",
+          "pos": 13183,
+          "ancestral_allele": "A",
+          "allele": "G",
+          "motif_owner": "N9b",
+          "array_coverage": {
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
+          }
+        },
+        {
+          "rsid": "i5014893",
+          "pos": 14893,
+          "ancestral_allele": "A",
+          "allele": "G",
+          "motif_owner": "N9b",
+          "array_coverage": {
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
               "pgp_4187",
               "pgp_huA08F4D"
             ]
@@ -19004,9 +19957,12 @@
     "Y1": {
       "source_node": "Y1",
       "emitted_parent": "Y_mt",
-      "source_motif_status": "legacy_partial",
+      "source_motif_status": "exact",
       "source_topology": {
-        "status": "pending"
+        "status": "exact",
+        "emitted_parent_source_node": "Y",
+        "source_parent": "Y",
+        "flattened_source_path": []
       },
       "direct_source_motif": [
         {
@@ -19016,7 +19972,7 @@
           "ancestral_allele": "T",
           "derived_allele": "C",
           "emitted": false,
-          "omission_reason": "Recurrent control-region reversal; coding-region m.3834 provides stronger evidence."
+          "omission_reason": "recurrent control-region event omitted because it alone would satisfy one half of Y1 when the coding-region marker is untyped"
         },
         {
           "notation": "G3834A",
@@ -19027,13 +19983,13 @@
           "emitted": true
         },
         {
-          "notation": "C16266T",
+          "notation": "(C16266T)",
           "mutation_type": "substitution",
           "pos": 16266,
           "ancestral_allele": "C",
           "derived_allele": "T",
           "emitted": false,
-          "omission_reason": "Absent from all four post-2017 v5-era export exemplars."
+          "omission_reason": "absent or non-callable in the primary four; retained as source provenance without enlarging the runtime marker denominator"
         }
       ],
       "emitted_snps": [
@@ -19064,9 +20020,12 @@
     "Y2": {
       "source_node": "Y2",
       "emitted_parent": "Y_mt",
-      "source_motif_status": "legacy_partial",
+      "source_motif_status": "exact",
       "source_topology": {
-        "status": "pending"
+        "status": "exact",
+        "emitted_parent_source_node": "Y",
+        "source_parent": "Y",
+        "flattened_source_path": []
       },
       "direct_source_motif": [
         {
@@ -19118,13 +20077,13 @@
           "emitted": true
         },
         {
-          "notation": "T16311C",
+          "notation": "T16311C!",
           "mutation_type": "substitution",
           "pos": 16311,
           "ancestral_allele": "T",
           "derived_allele": "C",
           "emitted": false,
-          "omission_reason": "Absent from all four post-2017 v5-era export exemplars."
+          "omission_reason": "absent or non-callable in the primary four; retained as source provenance without enlarging the runtime marker denominator"
         }
       ],
       "emitted_snps": [
@@ -19262,10 +20221,13 @@
     },
     "Y_mt": {
       "source_node": "Y",
-      "emitted_parent": "N",
-      "source_motif_status": "legacy_partial",
+      "emitted_parent": "N9",
+      "source_motif_status": "exact",
       "source_topology": {
-        "status": "pending"
+        "status": "exact",
+        "emitted_parent_source_node": "N9",
+        "source_parent": "N9",
+        "flattened_source_path": []
       },
       "direct_source_motif": [
         {
@@ -19288,6 +20250,38 @@
           "notation": "T14178C",
           "mutation_type": "substitution",
           "pos": 14178,
+          "ancestral_allele": "T",
+          "derived_allele": "C",
+          "emitted": true
+        },
+        {
+          "notation": "A14693G",
+          "mutation_type": "substitution",
+          "pos": 14693,
+          "ancestral_allele": "A",
+          "derived_allele": "G",
+          "emitted": true
+        },
+        {
+          "notation": "T16126C",
+          "mutation_type": "substitution",
+          "pos": 16126,
+          "ancestral_allele": "T",
+          "derived_allele": "C",
+          "emitted": true
+        },
+        {
+          "notation": "T16223C",
+          "mutation_type": "substitution",
+          "pos": 16223,
+          "ancestral_allele": "T",
+          "derived_allele": "C",
+          "emitted": true
+        },
+        {
+          "notation": "T16231C",
+          "mutation_type": "substitution",
+          "pos": 16231,
           "ancestral_allele": "T",
           "derived_allele": "C",
           "emitted": true
@@ -19355,6 +20349,89 @@
             "callable_snv_in": [
               "pgp_4139",
               "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
+          }
+        },
+        {
+          "rsid": "i5014693",
+          "pos": 14693,
+          "ancestral_allele": "A",
+          "allele": "G",
+          "motif_owner": "Y",
+          "array_coverage": {
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
+          }
+        },
+        {
+          "rsid": "i5016126",
+          "pos": 16126,
+          "ancestral_allele": "T",
+          "allele": "C",
+          "motif_owner": "Y",
+          "array_coverage": {
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
+          }
+        },
+        {
+          "rsid": "i5016223",
+          "pos": 16223,
+          "ancestral_allele": "T",
+          "allele": "C",
+          "motif_owner": "Y",
+          "array_coverage": {
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_huA08F4D"
+            ]
+          }
+        },
+        {
+          "rsid": "i5016231",
+          "pos": 16231,
+          "ancestral_allele": "T",
+          "allele": "C",
+          "motif_owner": "Y",
+          "array_coverage": {
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
               "pgp_4187",
               "pgp_huA08F4D"
             ]
@@ -19580,18 +20657,6 @@
     }
   },
   "pending_nodes": {
-    "A": {
-      "emitted_parent": "N"
-    },
-    "A2": {
-      "emitted_parent": "A"
-    },
-    "A4": {
-      "emitted_parent": "A"
-    },
-    "A5": {
-      "emitted_parent": "A"
-    },
     "B": {
       "emitted_parent": "R"
     },
@@ -19708,15 +20773,6 @@
     },
     "JT": {
       "emitted_parent": "R"
-    },
-    "N1b": {
-      "emitted_parent": "N1"
-    },
-    "N9a": {
-      "emitted_parent": "N9"
-    },
-    "N9b": {
-      "emitted_parent": "N9"
     },
     "P": {
       "emitted_parent": "R"
@@ -19913,6 +20969,9 @@
     "baseline_v2_registry_semantic_sha256": "3eaa8bb5a9cc33c1a892bd70a7007b8293c2698d4e541a95566f7547c914c553",
     "baseline_v2_coverage_membership_sha256": "9e9d25bd07652d0637fde59d9292b6a4cba1c593268c2301bba1c910b9bd338b",
     "locked_exact_nodes": [
+      "A",
+      "A2",
+      "A5",
       "C",
       "C1",
       "C4",
@@ -20001,7 +21060,10 @@
       "N",
       "N1",
       "N1a",
+      "N1b",
       "N9",
+      "N9a",
+      "N9b",
       "S",
       "S1",
       "S2",
@@ -20024,9 +21086,9 @@
       "Z",
       "Z1"
     ],
-    "locked_exact_nodes_sha256": "e93eda10285e2a54b5dfc63b3bb15593559d7df548eaef27cf6c45cf7e62518e",
-    "locked_exact_semantic_sha256": "c51e189d50192ffb55b911f1fbc3653d72a840a5babe4e63fc19e422f1f3a80b",
-    "locked_exact_coverage_membership_sha256": "d7df9cee73c050cac3e889f751ac144ab06300d02061b264ad7ccf71f7e96925",
+    "locked_exact_nodes_sha256": "482a3c1fb07c08d23af0e35375a09300499b694cd0a8b860e8fbc685d612209a",
+    "locked_exact_semantic_sha256": "3ebf6b27efff183913cff61e4ae39cf543ecdc129da1acd09ee4df363a98f6df",
+    "locked_exact_coverage_membership_sha256": "e642adcd344e3ec89d56941e8c675662b6c970ef4c5f8b3a74d24371b44bad4d",
     "baseline_direct_motif_exact_nodes": [
       "C",
       "G1",
@@ -20059,6 +21121,9 @@
     "baseline_direct_motif_exact_nodes_sha256": "0dc2cc812e511bc89b76fca6ed13614d8ddb75a6ebe6321bde670096c44fba61",
     "baseline_direct_motif_semantic_sha256": "ecc1dbf4c93872031e102ee166eac50e31d6468395e5d0053357af44f8a9785a",
     "locked_direct_motif_exact_nodes": [
+      "A",
+      "A2",
+      "A5",
       "C",
       "C1",
       "C4",
@@ -20142,7 +21207,10 @@
       "N",
       "N1",
       "N1a",
+      "N1b",
       "N9",
+      "N9a",
+      "N9b",
       "S",
       "S1",
       "S2",
@@ -20156,11 +21224,14 @@
       "W3",
       "X",
       "X2b",
+      "Y1",
+      "Y2",
+      "Y_mt",
       "Z",
       "Z1"
     ],
-    "locked_direct_motif_exact_nodes_sha256": "af7e62f6286fb2a256804d58429e92eb85c02fd6eb48afff4c9774b3abde059d",
-    "locked_direct_motif_semantic_sha256": "09deffce17a9c681b9ea68ab92f2d254fa8152230f50e672979917bc6684264b",
+    "locked_direct_motif_exact_nodes_sha256": "833034f139f5ce5ff6b1d5de2729948d3b73c44572ba37fb028c7665a59bd24f",
+    "locked_direct_motif_semantic_sha256": "02e8cb70c4e12f72dd089a087964967aaab99c31e4c3d0982e9c3d5606a524e6",
     "initial_direct_motif_pending_nodes": [
       "G",
       "H6",
@@ -20334,8 +21405,8 @@
     "initial_pending_nodes_sha256": "996c2c96c22d37a2aa7edf1f4639d626ccc5199ecc5eb35984aa84204e05a591",
     "array_manifest_sha256": "42de22517a4644884596e36b0499a4fc45f264986c63f6fb239452b88719f977",
     "source_metadata_sha256": "5b3a3578fc208c91f6c3fdcc6d772f5071851b3604762b9e81994cf2632deb3d",
-    "state_partition_sha256": "cbd1b56f0f5a4bc8f176d86a95ee5f19ec26af6373f6642ede5035d553192a63",
+    "state_partition_sha256": "e5458a3b31e81aee23710f999ae47734910ecb9e47c5edaf2f847975b69487b9",
     "baseline_emitted_tree_sha256": "02a40be2096dd8c60e6e2934ba68a813f07478117a749e60e94e0608bed21914",
-    "locked_emitted_tree_sha256": "812080cefeccce1c93a2d8e4013ee835db4270413e1107c674780aa1d8848789"
+    "locked_emitted_tree_sha256": "9ee68253659ecde4a6bb0f103dbb088c8c90bf8058222405a986cd9ea33f296a"
   }
 }

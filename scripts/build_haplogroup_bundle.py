@@ -46,7 +46,7 @@ from typing import Any
 
 # ── Version & metadata ─────────────────────────────────────────────────
 
-BUNDLE_VERSION = "1.1.21"
+BUNDLE_VERSION = "1.1.22"
 BUILD = "GRCh37"
 MT_SOURCE_PATH = Path(__file__).with_name("mt_haplogroup_source.json")
 MT_BASELINE_SNAPSHOT_PATH = Path(__file__).with_name("mt_haplogroup_baseline_snapshot.json")
@@ -78,12 +78,12 @@ _MT_BASELINE_V2_REGISTRY_SEMANTIC_SHA256 = (
 _MT_BASELINE_V2_COVERAGE_MEMBERSHIP_SHA256 = (
     "9e9d25bd07652d0637fde59d9292b6a4cba1c593268c2301bba1c910b9bd338b"
 )
-_MT_LOCKED_EXACT_NAMES_SHA256 = "e93eda10285e2a54b5dfc63b3bb15593559d7df548eaef27cf6c45cf7e62518e"
+_MT_LOCKED_EXACT_NAMES_SHA256 = "482a3c1fb07c08d23af0e35375a09300499b694cd0a8b860e8fbc685d612209a"
 _MT_LOCKED_EXACT_SEMANTIC_SHA256 = (
-    "c51e189d50192ffb55b911f1fbc3653d72a840a5babe4e63fc19e422f1f3a80b"
+    "3ebf6b27efff183913cff61e4ae39cf543ecdc129da1acd09ee4df363a98f6df"
 )
 _MT_LOCKED_EXACT_COVERAGE_MEMBERSHIP_SHA256 = (
-    "d7df9cee73c050cac3e889f751ac144ab06300d02061b264ad7ccf71f7e96925"
+    "e642adcd344e3ec89d56941e8c675662b6c970ef4c5f8b3a74d24371b44bad4d"
 )
 _MT_BASELINE_DIRECT_MOTIF_EXACT_NAMES_SHA256 = (
     "0dc2cc812e511bc89b76fca6ed13614d8ddb75a6ebe6321bde670096c44fba61"
@@ -92,10 +92,10 @@ _MT_BASELINE_DIRECT_MOTIF_SEMANTIC_SHA256 = (
     "ecc1dbf4c93872031e102ee166eac50e31d6468395e5d0053357af44f8a9785a"
 )
 _MT_LOCKED_DIRECT_MOTIF_EXACT_NAMES_SHA256 = (
-    "af7e62f6286fb2a256804d58429e92eb85c02fd6eb48afff4c9774b3abde059d"
+    "833034f139f5ce5ff6b1d5de2729948d3b73c44572ba37fb028c7665a59bd24f"
 )
 _MT_LOCKED_DIRECT_MOTIF_SEMANTIC_SHA256 = (
-    "09deffce17a9c681b9ea68ab92f2d254fa8152230f50e672979917bc6684264b"
+    "02e8cb70c4e12f72dd089a087964967aaab99c31e4c3d0982e9c3d5606a524e6"
 )
 _MT_INITIAL_DIRECT_MOTIF_PENDING_NAMES_SHA256 = (
     "7b4848980e34ca1eff9739f964906d68eb4acdbbcd5e93227e17ece79296aefb"
@@ -105,11 +105,11 @@ _MT_INITIAL_PENDING_NAMES_SHA256 = (
 )
 _MT_ARRAY_MANIFEST_SHA256 = "42de22517a4644884596e36b0499a4fc45f264986c63f6fb239452b88719f977"
 _MT_SOURCE_METADATA_SHA256 = "5b3a3578fc208c91f6c3fdcc6d772f5071851b3604762b9e81994cf2632deb3d"
-_MT_STATE_PARTITION_SHA256 = "cbd1b56f0f5a4bc8f176d86a95ee5f19ec26af6373f6642ede5035d553192a63"
+_MT_STATE_PARTITION_SHA256 = "e5458a3b31e81aee23710f999ae47734910ecb9e47c5edaf2f847975b69487b9"
 _MT_BASELINE_EMITTED_TREE_SHA256 = (
     "02a40be2096dd8c60e6e2934ba68a813f07478117a749e60e94e0608bed21914"
 )
-_MT_LOCKED_EMITTED_TREE_SHA256 = "812080cefeccce1c93a2d8e4013ee835db4270413e1107c674780aa1d8848789"
+_MT_LOCKED_EMITTED_TREE_SHA256 = "9ee68253659ecde4a6bb0f103dbb088c8c90bf8058222405a986cd9ea33f296a"
 _MT_SYNTHETIC_ROOT_NAME = "mt-MRCA"
 _MT_FLATTENED_OMISSION_TYPES = frozenset(
     {
@@ -1237,21 +1237,22 @@ def build_mt_tree() -> dict[str, Any]:
     a2 = _node(
         "A2",
         [
+            # Build 17 places mutation-only A+152 and A+152+16362 between
+            # A and A2. Historical-only A+152:T152C! remains source-only;
+            # retain primary-callable A+152+16362:T16362C with its source
+            # ownership on the emitted A2 record.
+            _mt_snp("i5016362", 16362, "C"),
+            _mt_snp("i5000146", 146, "C"),
             _mt_snp("i5008027", 8027, "A"),
+            _mt_snp("i5012007", 12007, "A"),
             _mt_snp("i5016111", 16111, "T"),
-        ],
-    )
-    a4 = _node(
-        "A4",
-        [
-            _mt_snp("i5009347", 9347, "G"),
-            _mt_snp("i5014308", 14308, "A"),
         ],
     )
     a5 = _node(
         "A5",
         [
-            _mt_snp("i5011884", 11884, "G"),
+            _mt_snp("i5008563", 8563, "G"),
+            _mt_snp("i5011536", 11536, "T"),
         ],
     )
     a = _node(
@@ -1259,10 +1260,11 @@ def build_mt_tree() -> dict[str, Any]:
         [
             _mt_snp("i5000235", 235, "G"),
             _mt_snp("i5000663", 663, "G"),
-            _mt_snp("i5001736", 1736, "G"),
+            _mt_snp("i5004248", 4248, "C"),
             _mt_snp("i5004824", 4824, "G"),
+            _mt_snp("i5008794", 8794, "T"),
         ],
-        [a2, a4, a5],
+        [a2, a5],
     )
 
     ii = _node(
@@ -1288,7 +1290,11 @@ def build_mt_tree() -> dict[str, Any]:
     n1b = _node(
         "N1b",
         [
-            _mt_snp("i5006261", 6261, "A"),
+            _mt_snp("i5001598", 1598, "A"),
+            _mt_snp("i5005471", 5471, "A"),
+            _mt_snp("i5008251", 8251, "A"),
+            _mt_snp("i5016176", 16176, "G"),
+            _mt_snp("i5016390", 16390, "A"),
         ],
     )
     n1 = _node(
@@ -1307,14 +1313,18 @@ def build_mt_tree() -> dict[str, Any]:
         "N9a",
         [
             _mt_snp("i5005231", 5231, "A"),
-            _mt_snp("i5012358", 12358, "G"),
+            _mt_snp("i5012372", 12372, "A"),
+            _mt_snp("i5016261", 16261, "T"),
         ],
     )
     n9b = _node(
         "N9b",
         [
-            _mt_snp("i5001598", 1598, "A"),
-            _mt_snp("i5012549", 12549, "G"),
+            _mt_snp("i5005147", 5147, "A"),
+            _mt_snp("i5010607", 10607, "T"),
+            _mt_snp("i5011016", 11016, "A"),
+            _mt_snp("i5013183", 13183, "G"),
+            _mt_snp("i5014893", 14893, "G"),
         ],
     )
     n9 = _node(
@@ -1436,9 +1446,16 @@ def build_mt_tree() -> dict[str, Any]:
             _mt_snp("i5008392", 8392, "A"),
             _mt_snp("i5010398", 10398, "G"),
             _mt_snp("i5014178", 14178, "C"),
+            _mt_snp("i5014693", 14693, "G"),
+            _mt_snp("i5016126", 16126, "C"),
+            _mt_snp("i5016223", 16223, "C"),
+            _mt_snp("i5016231", 16231, "C"),
         ],
         [y1, y2],
     )
+    # Build 17 places source Y beneath N9. Keep the emitted namespace alias
+    # Y_mt, but require the N9 gateway before either Y child can resolve.
+    n9["children"].append(y_mt)
 
     # ── R branch (sub-branch of N) ────────────────────────────────
     b4a = _node(
@@ -2194,14 +2211,13 @@ def build_mt_tree() -> dict[str, Any]:
     n_branch = _node(
         "N",
         [
-            # Source-direction N markers, excluding positions with modeled
-            # downstream reversions/opposite alleles (10398, 15301) so typed
-            # descendant clades do not hard-conflict before reaching N.
-            _mt_snp("i5008701", 8701, "A"),
+            # Keep the primary-four-callable N gateway. Historical-only 8701
+            # and 10873 made modern layouts score 1/3 and blocked every N
+            # descendant; source reversions at 10398 and 15301 also remain
+            # provenance-only.
             _mt_snp("i5009540", 9540, "T"),
-            _mt_snp("i5010873", 10873, "T"),
         ],
-        [a, n1, n9, s, w, x, y_mt, r],
+        [a, n1, n9, s, w, x, r],
     )
 
     # ── L4, L5, L6 branches ───────────────────────────────────────
