@@ -147,7 +147,7 @@ class TestBundleStructure:
         parts = bundle["version"].split(".")
         assert len(parts) == 3
         assert all(p.isdigit() for p in parts)
-        assert bundle["version"] == "1.1.27"
+        assert bundle["version"] == "1.1.28"
 
     def test_build_is_grch37(self, bundle: dict) -> None:
         assert bundle["build"] == "GRCh37"
@@ -309,11 +309,25 @@ class TestBundleStructure:
             "T2c",
             "T2e",
             "T2f",
+            "U",
+            "U1",
+            "U1a",
+            "U1b",
             "U2",
             "U2e",
+            "U3",
             "U3a",
             "U3b",
+            "U4",
+            "U4a",
+            "U4b",
+            "U4c",
             "U5b2",
+            "U6",
+            "U6a",
+            "U7",
+            "U8",
+            "U9",
             "V",
             "V1",
             "V7",
@@ -334,11 +348,11 @@ class TestBundleStructure:
         assert provenance["migration_status"] == "in_progress"
         assert provenance["emitted_nodes"] == 193
         assert provenance["marker_bearing_nodes"] == 187
-        assert provenance["marker_exact_nodes"]["count"] == 165
-        assert provenance["direct_source_motif_nodes"]["exact"]["count"] == 160
+        assert provenance["marker_exact_nodes"]["count"] == 179
+        assert provenance["direct_source_motif_nodes"]["exact"]["count"] == 175
         assert provenance["direct_source_motif_nodes"]["legacy_partial"] == {
-            "count": 5,
-            "names": ["K", "K1", "K1a", "K2a", "U2e"],
+            "count": 4,
+            "names": ["K", "K1", "K1a", "K2a"],
         }
         assert "I" in provenance["direct_source_motif_nodes"]["exact"]["names"]
         assert set(provenance["direct_source_motif_nodes"]["exact"]["names"]) == (
@@ -352,36 +366,36 @@ class TestBundleStructure:
             "count": 6,
             "names": ["B", "H2a2", "H5", "HV", "R0", "mt-MRCA"],
         }
-        assert provenance["pending_nodes"]["count"] == 22
+        assert provenance["pending_nodes"]["count"] == 8
         assert provenance["retired_emitted_nodes"] == {"count": 1, "names": ["A4"]}
         assert provenance["marker_records"] == {
-            "emitted": 602,
-            "marker_exact": 570,
+            "emitted": 633,
+            "marker_exact": 622,
             "marker_exact_by_cohort": {
                 "historical_five_23andme_including_2014": 15,
-                "primary_four_23andme": 555,
+                "primary_four_23andme": 607,
             },
         }
         assert provenance["source_mutation_decisions"] == {
-            "total": 917,
-            "emitted": 570,
-            "omitted": 347,
-            "direct_motif_exact": 742,
-            "direct_motif_legacy_partial": 13,
-            "recurrent_or_uncertain_events": 14,
-            "reversion_events": 74,
-            "reversion_marks": 78,
+            "total": 991,
+            "emitted": 622,
+            "omitted": 369,
+            "direct_motif_exact": 810,
+            "direct_motif_legacy_partial": 10,
+            "recurrent_or_uncertain_events": 16,
+            "reversion_events": 81,
+            "reversion_marks": 85,
         }
         assert provenance["emitted_parent_edges"] == {
             "total": 192,
             "validated_declarations": 192,
         }
         assert provenance["source_parent_edges"] == {
-            "validated": 158,
-            "pending": 34,
+            "validated": 176,
+            "pending": 16,
         }
         assert provenance["omitted_source_nodes"] == {
-            "count": 65,
+            "count": 70,
             "names": [
                 "A+152",
                 "A+152+16362",
@@ -441,6 +455,11 @@ class TestBundleStructure:
                 "R9",
                 "T2+150",
                 "T2+16189",
+                "U2'3'4'7'8'9",
+                "U2+152",
+                "U3a'c",
+                "U4'9",
+                "U6a'b'd",
                 "W+194",
                 "X1'2'3",
                 "X1'3",
@@ -450,19 +469,19 @@ class TestBundleStructure:
                 "Z+152",
             ],
             "by_type": {
-                "flattened_source_intermediate": 53,
+                "flattened_source_intermediate": 58,
                 "flattened_unreportable_source_intermediate": 11,
                 "unreportable_source_node": 1,
             },
         }
         assert provenance["arrays"] == {"exports": 6, "cohorts": 2}
         assert provenance["locked_exact_frontier"] == {
-            "count": 165,
-            "sha256": "ec8fba30938462e5664ca84a0b91a2b1edd02e4e10734a882d5b43194a4c9485",
+            "count": 179,
+            "sha256": "8691eae4dabb6978a8def825a1b5a429cc20b2e1a31a8a1a6f5c67d0654c7f57",
         }
         assert provenance["locked_direct_motif_frontier"] == {
-            "count": 160,
-            "sha256": "bedeb636aab72d7ec54ffeca1cdd7da00c3ae3e4164c394ef5155fa3f24f2da4",
+            "count": 175,
+            "sha256": "064892149df247d891f603c1925182f14ef845383933b0c5132a62a92e90d20e",
         }
         digests = provenance["digests"]
         assert {
@@ -482,25 +501,25 @@ class TestBundleStructure:
                 "f8aecb8ba02e5c2becbccfc40846bd3c8668d4b8c6de5be1761ab78c0d83a87e"
             ),
             "locked_emitted_tree_sha256": (
-                "7b6aba1b991aee804e8d6ed7f9943d63208066886f478df5d3f7dc8f3c574141"
+                "152011793ca300c5096d20f284ffe673b8dec0b5332bef372583cc98b562434e"
             ),
             "locked_direct_motif_exact_nodes_sha256": (
-                "bedeb636aab72d7ec54ffeca1cdd7da00c3ae3e4164c394ef5155fa3f24f2da4"
+                "064892149df247d891f603c1925182f14ef845383933b0c5132a62a92e90d20e"
             ),
             "locked_direct_motif_semantic_sha256": (
-                "2c72142e49f23eba2f8cc2fd6a3d56fe9b314bae1ee75e9b62138033edc01fdf"
+                "fbcb664c186956bafbd74e1584b88cf1c3be8f58bf0820922a55987e7b54592d"
             ),
             "locked_exact_coverage_membership_sha256": (
-                "b91bcb5199e1d71f7a0440a5d5b0c977c2172c18b54411a5da27434cd4123b1b"
+                "1aac659eeefb9ece71c2cc42e4ffd3263ded92ed66b62f95165edb2b79a25948"
             ),
             "locked_exact_semantic_sha256": (
-                "7417f5ea95466f5bd7347242148c6bc19241ba165671152b4248b86d8b8ed367"
+                "f22b3870b9f48fc05772bf2f3fd22e5c7e6175f6e1c5dc90344360790e409633"
             ),
             "source_metadata_sha256": (
                 "13755a154c19c603bac63a2195287165271571ece1e36e178a666aa35184d04b"
             ),
             "state_partition_sha256": (
-                "5ceec03145ca6bbf93cad65d6c66bbe2b5ebe3ea7472af68b83580d2404acca4"
+                "454619240e542ac190cac99f8c8bd2a65f3229d39d4dd10c4ceb04110b1f3bbf"
             ),
         }
 
@@ -1581,6 +1600,158 @@ class TestMtDNATree:
         for name, positions in removed_positions.items():
             assert positions.isdisjoint(position for position, _allele in marker_pairs(name))
 
+    def test_issue_1798_batch_12_basal_u_branches_match_build17(self, mt_tree: dict) -> None:
+        """Batch 12 locks basal-U markers, helpers, and repaired source semantics."""
+        from scripts.build_haplogroup_bundle import _MT_SOURCE
+
+        def marker_pairs(haplogroup: str) -> tuple[tuple[int, str], ...]:
+            node = find_node(mt_tree, haplogroup)
+            assert node is not None, f"{haplogroup} not found"
+            return tuple((snp["pos"], snp["allele"]) for snp in node["defining_snps"])
+
+        expected = {
+            "U": ((11467, "G"), (12308, "G"), (12372, "A")),
+            "U1": (
+                (285, "T"),
+                (12879, "C"),
+                (14070, "G"),
+                (15148, "A"),
+                (15954, "C"),
+                (16249, "C"),
+            ),
+            "U1a": ((2218, "T"),),
+            "U1b": (
+                (146, "C"),
+                (2387, "C"),
+                (8395, "T"),
+                (11566, "G"),
+                (15172, "A"),
+                (16111, "T"),
+                (16327, "T"),
+            ),
+            "U2": ((16051, "G"),),
+            "U2e": (
+                (508, "G"),
+                (3720, "G"),
+                (5390, "G"),
+                (5426, "C"),
+                (6045, "T"),
+                (13020, "C"),
+                (13734, "C"),
+                (15907, "G"),
+                (16129, "C"),
+                (16362, "C"),
+            ),
+            "U3": ((14139, "G"), (15454, "C"), (16343, "G")),
+            "U3a": ((6518, "T"), (10506, "G"), (13934, "T"), (16390, "A")),
+            "U3b": ((4188, "G"), (9656, "C"), (13743, "C")),
+            "U4": ((4646, "C"), (6047, "G"), (15693, "C"), (16356, "C")),
+            "U4a": ((8818, "T"),),
+            "U4b": ((7705, "C"),),
+            "U4c": ((10907, "C"),),
+            "U6": ((3348, "G"), (16172, "C")),
+            "U6a": ((7805, "A"), (14179, "G")),
+            "U7": (
+                (980, "C"),
+                (3741, "T"),
+                (8137, "T"),
+                (8684, "T"),
+                (10142, "T"),
+                (13500, "C"),
+                (14569, "A"),
+                (16309, "G"),
+                (16318, "T"),
+            ),
+            "U8": ((9698, "C"),),
+            "U9": ((3531, "A"), (3834, "A"), (14094, "C")),
+        }
+        assert {name: marker_pairs(name) for name in expected} == expected
+
+        assert get_path_to(mt_tree, "U2e") == [
+            "mt-MRCA",
+            "L3",
+            "N",
+            "R",
+            "U",
+            "U2",
+            "U2e",
+        ]
+        assert get_path_to(mt_tree, "U4c") == [
+            "mt-MRCA",
+            "L3",
+            "N",
+            "R",
+            "U",
+            "U4",
+            "U4c",
+        ]
+        assert get_path_to(mt_tree, "U6a") == [
+            "mt-MRCA",
+            "L3",
+            "N",
+            "R",
+            "U",
+            "U6",
+            "U6a",
+        ]
+        assert get_path_to(mt_tree, "K1b") == [
+            "mt-MRCA",
+            "L3",
+            "N",
+            "R",
+            "U",
+            "U8",
+            "K",
+            "K1",
+            "K1b",
+        ]
+
+        removed_positions = {
+            "U": {13133},
+            "U1": {3531, 7581, 13104},
+            "U1a": {6026, 14364, 16189},
+            "U1b": {4991, 10885},
+            "U2": {1811},
+            "U2e": {152, 6152, 10876, 16189},
+            "U3": {150, 1811},
+            "U3a": {2294, 4703, 9266},
+            "U3b": {4640},
+            "U4": {195, 499, 1811, 3714, 5999, 11332, 11339, 14620},
+            "U4a": {5999},
+            "U4b": {1811},
+            "U4c": {11332},
+            "U6a": {16219, 16278},
+            "U7": {152, 5360, 12308},
+            "U8": {1811},
+            "U9": {195, 499, 1811, 5999, 6386, 11914},
+        }
+        for name, positions in removed_positions.items():
+            assert positions.isdisjoint(position for position, _allele in marker_pairs(name))
+
+        u2e_topology = _MT_SOURCE["nodes"]["U2e"]["source_topology"]
+        assert u2e_topology["source_parent"] == "U2+152"
+        assert [step["source_node"] for step in u2e_topology["flattened_source_path"]] == [
+            "U2+152"
+        ]
+        assert "U2b" not in _MT_SOURCE["omitted_nodes"]
+
+        c4640 = next(
+            mutation
+            for mutation in _MT_SOURCE["nodes"]["U3b"]["direct_source_motif"]
+            if mutation["notation"] == "C4640a"
+        )
+        assert c4640 == {
+            "notation": "C4640a",
+            "mutation_type": "substitution",
+            "pos": 4640,
+            "ancestral_allele": "C",
+            "derived_allele": "A",
+            "emitted": False,
+            "omission_reason": (
+                "absent or non-callable in the primary four; callable only in historical pgp_1050"
+            ),
+        }
+
     def test_issue_1907_d2_uses_exact_build17_motif(self, mt_tree: dict) -> None:
         """D2 uses its direct row while inherited D and R markers stay at their owners."""
 
@@ -1691,8 +1862,8 @@ class TestMtDNATree:
         unique_rsids = {s["rsid"] for s in snps}
         assert (len(nodes), len(snps), len(unique_rsids), tree_max_depth(mt_tree)) == (
             193,
-            602,
-            492,
+            633,
+            516,
             11,
         )
         assert bundle["stats"]["mt_haplogroups"] == len(nodes)
@@ -1700,8 +1871,8 @@ class TestMtDNATree:
         assert bundle["stats"]["mt_unique_snps"] == len(unique_rsids)
         assert bundle["stats"]["mt_max_depth"] == tree_max_depth(mt_tree)
         assert bundle["stats"]["total_haplogroups"] == 300
-        assert bundle["stats"]["total_defining_snps"] == 756
-        assert bundle["stats"]["total_unique_snps"] == 646
+        assert bundle["stats"]["total_defining_snps"] == 787
+        assert bundle["stats"]["total_unique_snps"] == 670
 
     def test_non_root_nodes_have_defining_snps(self, bundle: dict, mt_tree: dict) -> None:
         """Every non-root node should have at least one defining SNP.
@@ -1934,14 +2105,14 @@ class TestFixtureIntegration:
     }
 
     def test_fixture_mt_snps_in_bundle(self, mt_tree: dict) -> None:
-        """Test fixture's MT SNP rsids should appear in the bundle tree."""
+        """Exact Build-17 mtDNA markers must not borrow fixture-only rsids."""
         bundle_rsids = {s["rsid"] for s in collect_all_snps(mt_tree)}
         fixture_rsids = set(self.FIXTURE_MT_SNPS.keys())
         overlap = fixture_rsids & bundle_rsids
         # H1a no longer borrows fixture rs1000390; assignment uses rCRS positions,
-        # while the U-path probe remains useful fixture overlap. M no longer
-        # borrows rs1000361/m.10951 from outside its exact Build-17 motif.
-        assert overlap == {"rs1000731"}
+        # M no longer borrows rs1000361/m.10951, and U no longer borrows
+        # rs1000731/m.13133 from outside their exact Build-17 motifs.
+        assert overlap == set()
 
     def test_fixture_y_snps_in_bundle(self, y_tree: dict) -> None:
         """The compact fixture retains its canonical R-M207 probe in the tree."""
