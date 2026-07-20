@@ -85,7 +85,7 @@ const BRCA1_VARIANTS: GeneVariantSummary[] = [
     rsid: "rs80357906",
     chrom: "17",
     pos: 41209080,
-    genotype: "C/T",
+    genotype: "GGG/GGGG",
     consequence: "frameshift_variant",
     hgvs_protein: "p.Gln1756Profs*74",
     hgvs_coding: "c.5266dupC",

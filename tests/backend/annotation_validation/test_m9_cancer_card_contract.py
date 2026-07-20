@@ -61,7 +61,7 @@ def sample_with_cancer_variants(sample_engine: sa.Engine) -> sa.Engine:
             "rsid": "rs80357906",
             "chrom": "17",
             "pos": 41209080,
-            "genotype": "CT",
+            "genotype": "GGG/GGGG",
             "zygosity": "het",
             "gene_symbol": "BRCA1",
             "clinvar_significance": "Pathogenic",
@@ -140,7 +140,7 @@ def sample_with_cancer_variants(sample_engine: sa.Engine) -> sa.Engine:
             "rsid": "rs113993960",
             "chrom": "7",
             "pos": 117199645,
-            "genotype": "CT",
+            "genotype": "DI",
             "zygosity": "het",
             "gene_symbol": "CFTR",
             "clinvar_significance": "Pathogenic",
@@ -186,7 +186,7 @@ class TestCancerCardContract:
                 sa.select(findings).where(findings.c.rsid == "rs80357906")
             ).fetchone()
         detail = json.loads(row.detail_json)
-        assert detail["genotype"] == "CT"
+        assert detail["genotype"] == "GGG/GGGG"
 
     def test_prs_findings_excluded_from_variants(
         self, panel: CancerPanel, sample_with_cancer_variants: sa.Engine

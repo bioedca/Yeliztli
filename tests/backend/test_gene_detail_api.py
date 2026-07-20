@@ -117,7 +117,7 @@ def gene_detail_client(
                         "rsid": "rs80357906",
                         "chrom": "17",
                         "pos": 41209080,
-                        "genotype": "A/G",
+                        "genotype": "GGG/GGGG",
                         "gene_symbol": "BRCA1",
                         "consequence": "frameshift_variant",
                         "hgvs_protein": "p.Gln1756Profs*74",

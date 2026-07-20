@@ -122,13 +122,15 @@ SEED_RAW_VARIANTS = [
         "rsid": "rs80357906",
         "chrom": "17",
         "pos": 41209080,
-        "genotype": "CT",
+        # Generic indel token; the VEP pass preserves it without scoring carriage.
+        "genotype": "DI",
     },
     {
         "rsid": "rs113993960",
         "chrom": "7",
         "pos": 117199645,
-        "genotype": "AA",
+        # Documented vendor indel encoding for CFTR F508del.
+        "genotype": "DI",
     },
     {"rsid": "rs12345", "chrom": "1", "pos": 100000, "genotype": "AA"},
     {
@@ -796,14 +798,21 @@ class TestAnnotateSampleVep:
         sample_with_variants: sa.Engine,
         vep_engine_inmemory: sa.Engine,
     ) -> None:
-        """Genotype from raw_variants is carried into annotated_variants."""
+        """SNV and indel tokens are carried into annotated_variants unchanged."""
         annotate_sample_vep(sample_with_variants, vep_engine_inmemory)
         with sample_with_variants.connect() as conn:
-            row = conn.execute(
-                sa.select(annotated_variants).where(annotated_variants.c.rsid == "rs429358")
-            ).fetchone()
-        assert row is not None
-        assert row.genotype == "TC"
+            rows = conn.execute(
+                sa.select(annotated_variants).where(
+                    annotated_variants.c.rsid.in_(["rs429358", "rs80357906", "rs113993960"])
+                )
+            ).fetchall()
+
+        genotypes = {row.rsid: row.genotype for row in rows}
+        assert genotypes == {
+            "rs429358": "TC",
+            "rs80357906": "DI",
+            "rs113993960": "DI",
+        }
 
 
 # ═══════════════════════════════════════════════════════════════════════

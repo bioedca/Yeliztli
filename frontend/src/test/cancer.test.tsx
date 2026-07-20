@@ -14,7 +14,7 @@ import { PRS_PROV_DEFAULTS } from "./fixtures/prs"
 const BRCA1_VARIANT: CancerVariant = {
   rsid: "rs80357906",
   gene_symbol: "BRCA1",
-  genotype: "C/T",
+  genotype: "GGG/GGGG",
   zygosity: "het",
   clinvar_significance: "Pathogenic",
   clinvar_accession: "VCV000017677",
@@ -234,7 +234,7 @@ describe("VariantCard", () => {
 
   it("renders genotype and zygosity", () => {
     render(<VariantCard variant={BRCA1_VARIANT} onClick={onClick} sampleId={1} />)
-    expect(screen.getByText("C/T")).toBeInTheDocument()
+    expect(screen.getByText("GGG/GGGG")).toBeInTheDocument()
     expect(screen.getByText("(het)")).toBeInTheDocument()
   })
 

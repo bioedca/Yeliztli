@@ -179,10 +179,10 @@ describe("GenomeBrowser", () => {
         { config: { type: "variant" } },
         [
           { name: "Chr", value: "chr17" },
-          { name: "Pos", value: "41,196,312" },
+          { name: "Pos", value: "41,209,080" },
           { name: "ID", value: "rs80357906" },
-          { name: "Ref", value: "A" },
-          { name: "Alt", value: "G" },
+          { name: "Ref", value: "GGG" },
+          { name: "Alt", value: "GGGG" },
         ],
       )
     })
@@ -190,7 +190,7 @@ describe("GenomeBrowser", () => {
     await waitFor(() => {
       expect(screen.getByTestId("variant-click-indicator")).toBeInTheDocument()
     })
-    expect(screen.getByText("chr17:41196312")).toBeInTheDocument()
+    expect(screen.getByText("chr17:41209080")).toBeInTheDocument()
     expect(screen.getByText("rs80357906")).toBeInTheDocument()
   })
 

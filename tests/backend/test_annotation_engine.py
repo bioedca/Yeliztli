@@ -138,7 +138,8 @@ SEED_RAW_VARIANTS = [
     {"rsid": "rs7412", "chrom": "19", "pos": 44908822, "genotype": "CC"},
     {"rsid": "rs1801133", "chrom": "1", "pos": 11856378, "genotype": "AG"},
     {"rsid": "rs4680", "chrom": "22", "pos": 19951271, "genotype": "AG"},
-    {"rsid": "rs80357906", "chrom": "17", "pos": 41209080, "genotype": "CT"},
+    # Generic indel token: preserve the raw call without claiming carriage.
+    {"rsid": "rs80357906", "chrom": "17", "pos": 41209080, "genotype": "DI"},
     {"rsid": "rs12913832", "chrom": "15", "pos": 28365618, "genotype": "GG"},
     {"rsid": "rs7903146", "chrom": "10", "pos": 114758349, "genotype": "CT"},
     {"rsid": "rs_nomatch", "chrom": "99", "pos": 1, "genotype": "AA"},
@@ -1109,15 +1110,20 @@ class TestRunAnnotation:
         sample_with_variants: sa.Engine,
         mock_registry: MagicMock,
     ) -> None:
-        """Genotype from raw_variants is carried into annotated_variants."""
+        """Raw genotypes are preserved without scoring generic indel tokens."""
         run_annotation(sample_with_variants, mock_registry)
 
         with sample_with_variants.connect() as conn:
-            row = conn.execute(
-                sa.select(annotated_variants).where(annotated_variants.c.rsid == "rs429358")
-            ).fetchone()
-        assert row is not None
-        assert row.genotype == "TC"
+            rows = conn.execute(
+                sa.select(annotated_variants).where(
+                    annotated_variants.c.rsid.in_(["rs429358", "rs80357906"])
+                )
+            ).fetchall()
+
+        by_rsid = {row.rsid: row for row in rows}
+        assert by_rsid["rs429358"].genotype == "TC"
+        assert by_rsid["rs80357906"].genotype == "DI"
+        assert by_rsid["rs80357906"].zygosity is None
 
     def test_custom_batch_size(
         self,

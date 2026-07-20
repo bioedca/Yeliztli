@@ -23,7 +23,7 @@ const CARRIER_VARIANTS = {
     {
       rsid: 'rs113993960',
       gene_symbol: 'CFTR',
-      genotype: 'C/T',
+      genotype: 'DI',
       zygosity: 'het',
       clinvar_significance: 'Pathogenic',
       clinvar_accession: 'VCV000007105',

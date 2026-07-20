@@ -778,7 +778,7 @@ class TestRecessiveInheritanceGating:
             "rsid": "rs80357906",
             "chrom": "17",
             "pos": 41209080,
-            "genotype": "CT",
+            "genotype": "GGG/GGGG",
             "zygosity": "het",
             "gene_symbol": "BRCA1",
             "clinvar_significance": "Pathogenic",

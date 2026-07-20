@@ -52,6 +52,9 @@ PANELS_DIR = Path(__file__).resolve().parent.parent.parent / "backend" / "data" 
 FIXTURE = (
     Path(__file__).resolve().parent.parent / "fixtures" / "categorical_panel_ensembl_alleles.json"
 )
+DBSNP_RS1800012_FIXTURE = (
+    Path(__file__).resolve().parent.parent / "fixtures" / "rs1800012_dbsnp_grch37.json"
+)
 
 # The modules that score by genotype_effects (see genotype_lookup's docstring).
 CATEGORICAL_PANELS = (
@@ -100,6 +103,13 @@ def _load_reference() -> dict[str, dict]:
 
 _ALL_SNPS = _load_categorical_snps()
 _REFERENCE = _load_reference()
+_DBSNP_RS1800012 = json.loads(DBSNP_RS1800012_FIXTURE.read_text())
+
+# #1949 normalized these panel identities to the repository-wide GRCh37
+# plus-strand contract. The generic categorical scorer intentionally accepts a
+# wholly complemented panel (to support legacy chip orientations), so these
+# reviewed rows need a stricter recurrence guard than `_strand_consistent`.
+_PLUS_STRAND_REQUIRED_RSIDS = {"rs1800012"}
 
 # (panel, rsid, real_alleles, snp_entry) for every categorical SNP whose rsid has
 # a verified plus-strand allele reference.
@@ -170,6 +180,44 @@ def test_referenced_cases_nonempty() -> None:
     assert _REFERENCED_CASES, "no referenced categorical-panel loci were collected"
     rsids = {rsid for (_, rsid, _, _) in _REFERENCED_CASES}
     assert "rs4236601" in rsids  # the #538 locus must be under guard
+
+
+def test_reviewed_panel_identities_stay_grch37_plus_strand() -> None:
+    """Reviewed #1949 rows must match independent dbSNP plus-strand evidence."""
+    provenance = _DBSNP_RS1800012["_provenance"]
+    assert provenance["source"].startswith("NCBI RefSNP v0:")
+    assert provenance["accessed"] == "2026-07-19"
+    assert provenance["assembly"] == "GRCh37.p13"
+
+    reviewed = [case for case in _ALL_SNPS if case[1] in _PLUS_STRAND_REQUIRED_RSIDS]
+    assert {rsid for _, rsid, _ in reviewed} == _PLUS_STRAND_REQUIRED_RSIDS
+
+    for panel, rsid, snp in reviewed:
+        dbsnp = _DBSNP_RS1800012[rsid]
+        spdi = dbsnp["modeled_grch37_spdi"]
+        ref = spdi["deleted_sequence"]
+        alt = spdi["inserted_sequence"]
+        assert spdi["seq_id"] == "NC_000017.10"
+        assert spdi["position"] + 1 == 48_277_749
+        assert ref != alt
+        assert {ref, alt} <= set(dbsnp["all_grch37_inserted_sequences"])
+
+        # Keep the independent NCBI placement and the broader Ensembl fixture
+        # in agreement; either source drifting now fails instead of allowing a
+        # self-consistent inverted panel and oracle to pass together.
+        ensembl = _REFERENCE[rsid]
+        assert ensembl["location"] == "17:48277749"
+        assert {ref, alt} <= set(ensembl["allele_string"].split("/"))
+        assert snp.get("ref_allele") == ref, (
+            f"{panel}:{rsid} ref_allele must use GRCh37 plus-strand {ref}"
+        )
+        assert snp.get("risk_allele") == alt, (
+            f"{panel}:{rsid} risk_allele must use GRCh37 plus-strand {alt}"
+        )
+        expected_genotypes = {ref + ref, ref + alt, alt + ref, alt + alt}
+        assert set(snp["genotype_effects"]) == expected_genotypes, (
+            f"{panel}:{rsid} genotype keys must be GRCh37 plus-strand {sorted(expected_genotypes)}"
+        )
 
 
 @pytest.mark.parametrize(
