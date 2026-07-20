@@ -46,7 +46,7 @@ from typing import Any
 
 # ── Version & metadata ─────────────────────────────────────────────────
 
-BUNDLE_VERSION = "1.1.20"
+BUNDLE_VERSION = "1.1.21"
 BUILD = "GRCh37"
 MT_SOURCE_PATH = Path(__file__).with_name("mt_haplogroup_source.json")
 MT_BASELINE_SNAPSHOT_PATH = Path(__file__).with_name("mt_haplogroup_baseline_snapshot.json")
@@ -78,12 +78,12 @@ _MT_BASELINE_V2_REGISTRY_SEMANTIC_SHA256 = (
 _MT_BASELINE_V2_COVERAGE_MEMBERSHIP_SHA256 = (
     "9e9d25bd07652d0637fde59d9292b6a4cba1c593268c2301bba1c910b9bd338b"
 )
-_MT_LOCKED_EXACT_NAMES_SHA256 = "639d66e7a6dd546ea22d325634f8d145100a3d660960307da04f1ffd170b51ab"
+_MT_LOCKED_EXACT_NAMES_SHA256 = "e93eda10285e2a54b5dfc63b3bb15593559d7df548eaef27cf6c45cf7e62518e"
 _MT_LOCKED_EXACT_SEMANTIC_SHA256 = (
-    "cd606fbe34d01f98ffa57607d911ff99352da5454eb5c3555fd13ed489a343ac"
+    "c51e189d50192ffb55b911f1fbc3653d72a840a5babe4e63fc19e422f1f3a80b"
 )
 _MT_LOCKED_EXACT_COVERAGE_MEMBERSHIP_SHA256 = (
-    "a2b304ab71d0608d6bef05fa704af2486ede36c380d33c71a833a89fbfd0735c"
+    "d7df9cee73c050cac3e889f751ac144ab06300d02061b264ad7ccf71f7e96925"
 )
 _MT_BASELINE_DIRECT_MOTIF_EXACT_NAMES_SHA256 = (
     "0dc2cc812e511bc89b76fca6ed13614d8ddb75a6ebe6321bde670096c44fba61"
@@ -92,10 +92,10 @@ _MT_BASELINE_DIRECT_MOTIF_SEMANTIC_SHA256 = (
     "ecc1dbf4c93872031e102ee166eac50e31d6468395e5d0053357af44f8a9785a"
 )
 _MT_LOCKED_DIRECT_MOTIF_EXACT_NAMES_SHA256 = (
-    "f6b1e9c729805aa912d763a37632c7a9e19032dfec01750463f35597a2f5d194"
+    "af7e62f6286fb2a256804d58429e92eb85c02fd6eb48afff4c9774b3abde059d"
 )
 _MT_LOCKED_DIRECT_MOTIF_SEMANTIC_SHA256 = (
-    "57dc1a9989215c6252350eb3460987a7c78185fec776adb8df99e01fafb717ae"
+    "09deffce17a9c681b9ea68ab92f2d254fa8152230f50e672979917bc6684264b"
 )
 _MT_INITIAL_DIRECT_MOTIF_PENDING_NAMES_SHA256 = (
     "7b4848980e34ca1eff9739f964906d68eb4acdbbcd5e93227e17ece79296aefb"
@@ -105,11 +105,11 @@ _MT_INITIAL_PENDING_NAMES_SHA256 = (
 )
 _MT_ARRAY_MANIFEST_SHA256 = "42de22517a4644884596e36b0499a4fc45f264986c63f6fb239452b88719f977"
 _MT_SOURCE_METADATA_SHA256 = "5b3a3578fc208c91f6c3fdcc6d772f5071851b3604762b9e81994cf2632deb3d"
-_MT_STATE_PARTITION_SHA256 = "75366394e97c1cab9911865bbffdf55af7e4b03470c0c61dff5e037c73ab3aeb"
+_MT_STATE_PARTITION_SHA256 = "cbd1b56f0f5a4bc8f176d86a95ee5f19ec26af6373f6642ede5035d553192a63"
 _MT_BASELINE_EMITTED_TREE_SHA256 = (
     "02a40be2096dd8c60e6e2934ba68a813f07478117a749e60e94e0608bed21914"
 )
-_MT_LOCKED_EMITTED_TREE_SHA256 = "f824922f37bfabcf8a34181041ee9df86772cc09c10f380647d4e266027be608"
+_MT_LOCKED_EMITTED_TREE_SHA256 = "812080cefeccce1c93a2d8e4013ee835db4270413e1107c674780aa1d8848789"
 _MT_SYNTHETIC_ROOT_NAME = "mt-MRCA"
 _MT_FLATTENED_OMISSION_TYPES = frozenset(
     {
@@ -984,23 +984,23 @@ def build_mt_tree() -> dict[str, Any]:
     c1 = _node(
         "C1",
         [
-            _mt_snp("i5006026", 6026, "T"),
-            _mt_snp("i5011969", 11969, "A"),
-            _mt_snp("i5013263", 13263, "G"),
+            # Build 17 also defines the unscoreable deletion 290-291d.
+            _mt_snp("i5016325", 16325, "C"),
         ],
     )
     c4 = _node(
         "C4",
         [
-            _mt_snp("i5005979", 5979, "T"),
-            _mt_snp("i5011365", 11365, "C"),
+            # G6026A is callable only in the pinned historical 2014 export.
+            _mt_snp("i5011969", 11969, "A"),
+            _mt_snp("i5015204", 15204, "C"),
         ],
     )
     c5 = _node(
         "C5",
         [
-            _mt_snp("i5001607", 1607, "G"),
-            _mt_snp("i5009545", 9545, "G"),
+            # Build 17 also defines the unscoreable insertion 595.1C.
+            _mt_snp("i5016288", 16288, "C"),
         ],
     )
     c = _node(
@@ -1086,9 +1086,11 @@ def build_mt_tree() -> dict[str, Any]:
     e = _node(
         "E",
         [
+            _mt_snp("i5003027", 3027, "C"),
+            _mt_snp("i5003705", 3705, "A"),
             _mt_snp("i5007598", 7598, "A"),
-            _mt_snp("i5012405", 12405, "T"),
-            _mt_snp("i5014110", 14110, "C"),
+            _mt_snp("i5013626", 13626, "T"),
+            _mt_snp("i5016390", 16390, "A"),
         ],
     )
     g1 = _node(
@@ -1102,7 +1104,11 @@ def build_mt_tree() -> dict[str, Any]:
     g2a = _node(
         "G2a",
         [
+            # Build 17 places m.9575 on the flattened G2a'c source segment.
+            _mt_snp("i5009575", 9575, "A"),
             _mt_snp("i5007600", 7600, "A"),
+            _mt_snp("i5009377", 9377, "G"),
+            _mt_snp("i5016227", 16227, "G"),
         ],
     )
     g2 = _node(
@@ -1156,30 +1162,34 @@ def build_mt_tree() -> dict[str, Any]:
     m7a = _node(
         "M7a",
         [
+            _mt_snp("i5002626", 2626, "C"),
+            _mt_snp("i5002772", 2772, "T"),
             _mt_snp("i5004386", 4386, "C"),
-            _mt_snp("i5008684", 8684, "T"),
+            _mt_snp("i5004958", 4958, "G"),
+            _mt_snp("i5012771", 12771, "A"),
         ],
     )
     m7b = _node(
         "M7b",
         [
-            _mt_snp("i5005351", 5351, "G"),
-            _mt_snp("i5009824", 9824, "A"),
+            # The direct Build 17 event is callable only in the pinned
+            # historical 2014 export. Shared M7b'c m.4071 remains source-only.
+            _mt_snp("i5012405", 12405, "T"),
         ],
     )
     m7c = _node(
         "M7c",
         [
-            _mt_snp("i5003606", 3606, "G"),
+            _mt_snp("i5000146", 146, "C"),
             _mt_snp("i5011665", 11665, "T"),
+            _mt_snp("i5012091", 12091, "C"),
         ],
     )
     m7 = _node(
         "M7",
         [
-            # Build 17 also has T9824C here, but the pending M7b child still
-            # carries the opposite legacy allele. Batch 05 repairs that subtree.
             _mt_snp("i5006455", 6455, "T"),
+            _mt_snp("i5009824", 9824, "C"),
         ],
         [m7a, m7b, m7c],
     )
@@ -1211,6 +1221,7 @@ def build_mt_tree() -> dict[str, Any]:
             _mt_snp("i5004491", 4491, "A"),
             _mt_snp("i5016362", 16362, "C"),
         ],
+        [e],
     )
 
     m_branch = _node(
@@ -1219,7 +1230,7 @@ def build_mt_tree() -> dict[str, Any]:
             _mt_snp("i5014783", 14783, "C"),
             _mt_snp("i5015043", 15043, "A"),
         ],
-        [d, e, g, m1, m7, m8, m9],
+        [d, g, m1, m7, m8, m9],
     )
 
     # ── N branch (out-of-Africa via L3) ────────────────────────────
