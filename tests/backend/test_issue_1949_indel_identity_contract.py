@@ -73,17 +73,18 @@ class _PythonFixtureVisitor(ast.NodeVisitor):
     visit_FunctionDef = _visit_function
     visit_AsyncFunctionDef = _visit_function
 
-    def visit_Assign(self, node: ast.Assign) -> None:
-        names = [target.id for target in node.targets if isinstance(target, ast.Name)]
-        self.assignment_names.append(names[0] if len(names) == 1 else "")
-        self.generic_visit(node)
-        self.assignment_names.pop()
-
-    def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
-        name = node.target.id if isinstance(node.target, ast.Name) else ""
+    def _visit_assignment(self, node: ast.Assign | ast.AnnAssign) -> None:
+        if isinstance(node, ast.Assign):
+            names = [target.id for target in node.targets if isinstance(target, ast.Name)]
+            name = names[0] if len(names) == 1 else ""
+        else:
+            name = node.target.id if isinstance(node.target, ast.Name) else ""
         self.assignment_names.append(name)
         self.generic_visit(node)
         self.assignment_names.pop()
+
+    visit_Assign = _visit_assignment
+    visit_AnnAssign = _visit_assignment
 
     def _check_binding(self, literals: dict[str, str], lineno: int) -> None:
         rsid = literals.get("rsid")
@@ -336,6 +337,7 @@ _v("rs113993960", "7", 117199645, "CT")
 """
     tree = ast.parse(source)
     visitor = _PythonFixtureVisitor("tests/example.py", _positional_fixture_helpers(tree))
+    assert visitor.visit_AnnAssign == visitor._visit_assignment
     visitor.visit(tree)
     assert visitor.checked == Counter({"rs113993960": 1})
     assert len(visitor.failures) == 1
