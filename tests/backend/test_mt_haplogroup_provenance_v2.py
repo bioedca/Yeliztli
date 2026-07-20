@@ -1108,9 +1108,9 @@ BATCH08_STRUCTURAL_MOTIFS = {
 }
 
 BATCH08_STRUCTURAL_TOPOLOGY = {
-    "R0": ("R", "R0", "R", "R", ()),
-    "HV": ("R0", "HV", "R0", "R0", ()),
-    "H5": ("H", "H5", "H", "H5'36", ("H5'36",)),
+    "R0": ("R0", "R", "R", "R", ()),
+    "HV": ("HV", "R0", "R0", "R0", ()),
+    "H5": ("H5", "H", "H", "H5'36", ("H5'36",)),
 }
 
 BATCH08_FLATTENED_STEPS = {
@@ -1125,6 +1125,11 @@ BATCH08_FLATTENED_STEPS = {
 
 BATCH08_MARKER_PROMOTIONS = {"R", "H", "H2", "H3", "H4", "H7", "H11"}
 BATCH08_DIRECT_MOTIF_PROMOTIONS = {*BATCH08_MARKER_PROMOTIONS, "H6"}
+
+# H was the only promoted record whose old runtime markers were a strict subset
+# of the audited set. R, H2, H3, H4, H6, and H7 retained their runtime markers;
+# H11's replaced m.13101 set is covered with the other removed rows below.
+BATCH08_OLD_MARKERS = {"H": ((2706, "A"),)}
 
 HISTORICAL_ONLY_REASON = (
     "absent from the primary four; callable only in the historical five-export cohort"
@@ -5361,6 +5366,7 @@ def _batch08_flattened_step(source: dict[str, Any], identity: str) -> dict[str, 
 
 def test_issue_1798_batch_08_marker_records_are_exact_covered_and_tree_locked() -> None:
     """Lock all 11 regular R/H records to reviewed source, topology, and coverage."""
+    assert BATCH08_NAMES
     assert set(BATCH08_RECORD_SHA256) == set(BATCH08_NAMES)
     assert set(BATCH08_DIRECT_MOTIFS) == set(BATCH08_NAMES)
     assert set(BATCH08_TOPOLOGY) == set(BATCH08_NAMES)
@@ -5413,13 +5419,14 @@ def test_issue_1798_batch_08_marker_records_are_exact_covered_and_tree_locked() 
 
 def test_issue_1798_batch_08_structural_records_are_exact_and_markerless() -> None:
     """R0, HV, and H5 retain complete exact source records without caller markers."""
+    assert BATCH08_STRUCTURAL_MOTIFS
     assert set(BATCH08_STRUCTURAL_SHA256) == set(BATCH08_STRUCTURAL_MOTIFS)
     assert set(BATCH08_STRUCTURAL_TOPOLOGY) == set(BATCH08_STRUCTURAL_MOTIFS)
     inventory = _index_mt_tree(build_mt_tree())
 
     for name in BATCH08_STRUCTURAL_MOTIFS:
         record = _MT_SOURCE["structural_exceptions"][name]
-        emitted_parent, source_node, parent_source, source_parent, flattened_path = (
+        source_node, emitted_parent, parent_source, source_parent, flattened_path = (
             BATCH08_STRUCTURAL_TOPOLOGY[name]
         )
         topology = record["source_topology"]
@@ -5453,6 +5460,7 @@ def test_issue_1798_batch_08_structural_records_are_exact_and_markerless() -> No
 
 def test_issue_1798_batch_08_flattened_helpers_are_exact_and_source_only() -> None:
     """Lock H5'36 and H+195 type, adjacency, reason, and literal event bytes."""
+    assert BATCH08_FLATTENED_STEPS
     assert set(BATCH08_OMITTED_SHA256) == set(BATCH08_FLATTENED_STEPS)
     for identity, (source_parent, omission_type, motif, _owner) in BATCH08_FLATTENED_STEPS.items():
         step = _batch08_flattened_step(_MT_SOURCE, identity)
@@ -5626,6 +5634,19 @@ def test_issue_1798_batch_08_flattened_mutations_fail_closed(identity: str, muta
     text = _issues_text(detailed_issues)
     assert expected in text
     assert lock_expected in _issues_text(_validate_mt_source_schema(source))
+
+
+@pytest.mark.parametrize("name", list(BATCH08_OLD_MARKERS))
+def test_issue_1798_batch_08_old_marker_sets_cannot_be_restored(name: str) -> None:
+    """Reject each changed pre-audit marker set in the promoted batch."""
+    tree = build_mt_tree()
+    _index_mt_tree(tree).by_name[name].node["defining_snps"] = [
+        {"rsid": f"i5{pos:06d}", "pos": pos, "allele": allele}
+        for pos, allele in BATCH08_OLD_MARKERS[name]
+    ]
+
+    text = _issues_text(_validate_mt_registry_against_tree(_MT_SOURCE, _index_mt_tree(tree)))
+    assert f"Marker-exact mtDNA node {name} has markers" in text
 
 
 @pytest.mark.parametrize(
