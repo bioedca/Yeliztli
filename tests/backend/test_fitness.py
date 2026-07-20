@@ -334,13 +334,12 @@ class TestACEProxy:
 class TestCOL1A1Injury:
     """COL1A1 rs1800012 in the Recovery & Injury (soft-tissue) pathway.
 
-    Meta-analyses of sports tendon/ligament injury report the rare TT genotype
-    in transcript-oriented literature (GRCh37 plus-strand AA) as protective and
-    the heterozygous genotype as the higher-risk soft-tissue genotype
-    (overdominant). The bone-mineral-density / osteoporotic-fracture signal of
-    the literature T allele (plus-strand A) is a distinct phenotype and must not
-    be presented as an athletic stress-fracture risk that makes AA the
-    elevated-injury genotype.
+    Meta-analyses of sports tendon/ligament injury associate the rare TT genotype
+    in transcript-oriented literature (GRCh37 plus-strand AA) with protection;
+    heterozygote-specific evidence is inconclusive. The bone-mineral-density /
+    osteoporotic-fracture signal of the literature T allele (plus-strand A) is a
+    distinct phenotype and must not be presented as an athletic stress-fracture
+    risk that makes AA the elevated-injury genotype.
 
     Sports-injury direction: PMID:28206959 and PMID:38787354 (both accessed
     2026-07-19). Bone-fragility direction: PMID:12810179 and PMID:39850783 (both
@@ -365,11 +364,15 @@ class TestCOL1A1Injury:
         assert "increased stress fracture risk in athletes" not in text
 
     def test_heterozygous_is_the_cautious_genotype(self, panel: FitnessPanel) -> None:
-        """Plus-strand CA/AC (literature GT/TG) is the cautious genotype."""
+        """CA/AC is a cautious flag without a confirmed higher-risk direction."""
         snp = self._get_col1a1(panel)
         for gt in ("CA", "AC"):
             result = _score_snp(snp, gt)
             assert result.category == MODERATE, gt
+            text = result.effect_summary.lower()
+            assert "inconclusive" in text
+            assert "not a confirmed higher-risk call" in text
+            assert "highest" not in text
 
     def test_plus_strand_cc_baseline_standard(self, panel: FitnessPanel) -> None:
         """Plus-strand CC (literature GG, no T allele) is baseline."""

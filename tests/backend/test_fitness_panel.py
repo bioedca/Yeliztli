@@ -205,6 +205,17 @@ class TestSNPFields:
         )
         assert col5a1["pmids"] == ["29632650", "29922378"]
 
+    def test_col1a1_citations_include_access_provenance(self, panel_data: dict) -> None:
+        """#1949 keeps numeric PMIDs plus reviewable per-source access metadata."""
+        col1a1 = next(
+            s for p in panel_data["pathways"] for s in p["snps"] if s["rsid"] == "rs1800012"
+        )
+        expected_pmids = ["28206959", "38787354", "12810179", "39850783"]
+        assert col1a1["pmids"] == expected_pmids
+        assert col1a1["evidence_provenance"] == [
+            f"PMID:{pmid} (accessed 2026-07-19)" for pmid in expected_pmids
+        ]
+
     def test_fto_cites_verified_sources(self, panel_data: dict) -> None:
         """#387 — the FTO (rs9939609) row must cite FTO/physical-activity literature.
 

@@ -1,0 +1,18 @@
+{
+  "_provenance": {
+    "source": "NCBI RefSNP v0: https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/1800012",
+    "accessed": "2026-07-19",
+    "record_last_updated": "2024-11-01T21:37Z",
+    "assembly": "GRCh37.p13",
+    "note": "Independent dbSNP cross-check for the #1949 rs1800012 panel guard. SPDI positions are zero-based; NC_000017.10:48277748 corresponds to GRCh37 17:48277749. The RefSNP record also contains C>G, while this panel models the literature-linked C>A allele."
+  },
+  "rs1800012": {
+    "modeled_grch37_spdi": {
+      "seq_id": "NC_000017.10",
+      "position": 48277748,
+      "deleted_sequence": "C",
+      "inserted_sequence": "A"
+    },
+    "all_grch37_inserted_sequences": ["C", "A", "G"]
+  }
+}
