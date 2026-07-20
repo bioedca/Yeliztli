@@ -1262,6 +1262,75 @@ class TestTreeWalk:
 
         assert terminal.haplogroup == "A"
 
+    def test_equal_fraction_picks_child_with_more_derived_support(self) -> None:
+        """Equal fractions use absolute support instead of child order."""
+        root = HaplogroupNode(
+            haplogroup="root",
+            defining_snps=[],
+            children=[
+                HaplogroupNode(
+                    haplogroup="P",
+                    defining_snps=[HaplogroupSNP("rs_p", 1, "G")],
+                    children=[],
+                ),
+                HaplogroupNode(
+                    haplogroup="JT",
+                    defining_snps=[
+                        HaplogroupSNP("rs_jt_1", 2, "A"),
+                        HaplogroupSNP("rs_jt_2", 3, "C"),
+                        HaplogroupSNP("rs_jt_3", 4, "T"),
+                    ],
+                    children=[],
+                ),
+            ],
+        )
+        genotypes = {
+            "rs_p": "GG",
+            "rs_jt_1": "AA",
+            "rs_jt_2": "CC",
+            "rs_jt_3": "TT",
+        }
+
+        terminal, path = _tree_walk(root, genotypes, [])
+
+        assert terminal.haplogroup == "JT"
+        assert [step.haplogroup for step in path] == ["JT"]
+
+    def test_fraction_precedes_larger_absolute_support(self) -> None:
+        """A higher fraction still wins when the lower fraction has more matches."""
+        root = HaplogroupNode(
+            haplogroup="root",
+            defining_snps=[],
+            children=[
+                HaplogroupNode(
+                    haplogroup="B",
+                    defining_snps=[
+                        HaplogroupSNP("rs_b_1", 1, "G"),
+                        HaplogroupSNP("rs_b_2", 2, "T"),
+                        HaplogroupSNP("rs_b_3", 3, "C"),
+                        HaplogroupSNP("rs_b_4", 4, "A"),
+                    ],
+                    children=[],
+                ),
+                HaplogroupNode(
+                    haplogroup="A",
+                    defining_snps=[HaplogroupSNP("rs_a", 5, "G")],
+                    children=[],
+                ),
+            ],
+        )
+        genotypes = {
+            "rs_b_1": "GG",
+            "rs_b_2": "TT",
+            "rs_b_3": "CC",
+            "rs_a": "GG",
+        }
+
+        terminal, path = _tree_walk(root, genotypes, [])
+
+        assert terminal.haplogroup == "A"
+        assert [step.haplogroup for step in path] == ["A"]
+
     def _parent_with_two_marker_child(self) -> HaplogroupNode:
         """Root → A (rs1) → A1 (rs2, rs3): A1 is a two-defining-SNP terminal."""
         return HaplogroupNode(

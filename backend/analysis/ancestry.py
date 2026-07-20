@@ -1773,11 +1773,13 @@ def _tree_walk(
     supported clade, but it is not reported as terminal on its own. Leaf children
     keep the existing conflict/fraction behavior, because there is no deeper
     branch to over-resolve into. Among eligible direct children the highest
-    clade-specific fraction is the direct candidate. If sparse pass-through
-    descendants are also supported, candidates are ranked by clade-specific
-    support: total derived markers, confidence, then supported path depth. The
-    recorded path step keeps the **full** node match (including inherited
-    markers) so the confidence present/total semantics are unchanged.
+    clade-specific fraction is the direct candidate; an equal fraction is
+    resolved by the larger number of observed derived markers rather than tree
+    order. If sparse pass-through descendants are also supported, candidates are
+    ranked by clade-specific support: total derived markers, confidence, then
+    supported path depth. The recorded path step keeps the **full** node match
+    (including inherited markers) so the confidence present/total semantics are
+    unchanged.
 
     The root node (mt-MRCA / Y-Adam) has no defining SNPs and always matches.
 
@@ -1807,7 +1809,7 @@ def _tree_walk(
 
     best_child: HaplogroupNode | None = None
     best_child_support: tuple[int, int] | None = None
-    best_child_fraction = 0.0
+    best_child_score: tuple[float, int] | None = None
     passthrough_children: list[tuple[HaplogroupNode, int, int]] = []
 
     def candidate_score(
@@ -1868,10 +1870,13 @@ def _tree_walk(
             passthrough_children.append((child, present, total))
             continue
 
-        if fraction >= _HAPLOGROUP_MIN_MATCH_FRACTION and fraction > best_child_fraction:
+        direct_score = (fraction, present)
+        if fraction >= _HAPLOGROUP_MIN_MATCH_FRACTION and (
+            best_child_score is None or direct_score > best_child_score
+        ):
             best_child = child
             best_child_support = (present, total)
-            best_child_fraction = fraction
+            best_child_score = direct_score
 
     best_terminal: HaplogroupNode | None = None
     best_path: list[HaplogroupTraversalStep] = []
