@@ -226,11 +226,14 @@ _MT_B_REVERSAL_GENOTYPES = _MT_R_TRUNK_GENOTYPES + [
 ]
 
 _MT_J_REVERSAL_GENOTYPES = _MT_R_TRUNK_GENOTYPES + [
-    {"rsid": "i5000489", "chrom": "MT", "pos": 489, "genotype": "CC"},
     {"rsid": "i5011251", "chrom": "MT", "pos": 11251, "genotype": "GG"},
+    {"rsid": "i5015452", "chrom": "MT", "pos": 15452, "genotype": "AA"},
+    {"rsid": "i5016126", "chrom": "MT", "pos": 16126, "genotype": "CC"},
     {"rsid": "i5000295", "chrom": "MT", "pos": 295, "genotype": "TT"},
+    {"rsid": "i5000489", "chrom": "MT", "pos": 489, "genotype": "CC"},
     {"rsid": "i5010398", "chrom": "MT", "pos": 10398, "genotype": "GG"},
     {"rsid": "i5012612", "chrom": "MT", "pos": 12612, "genotype": "GG"},
+    {"rsid": "i5013708", "chrom": "MT", "pos": 13708, "genotype": "AA"},
     {"rsid": "i5016069", "chrom": "MT", "pos": 16069, "genotype": "TT"},
 ]
 
@@ -868,6 +871,108 @@ _ISSUE_1798_BATCH10_TREE = {
 }
 
 
+_ISSUE_1798_BATCH11_TREE = {
+    "JT": ("R", ((11251, "G"), (15452, "A"), (16126, "C"))),
+    "J": (
+        "JT",
+        ((295, "T"), (489, "C"), (10398, "G"), (12612, "G"), (13708, "A"), (16069, "T")),
+    ),
+    "J1": ("J", ((462, "T"), (3010, "A"))),
+    "J1b": ("J1", ((16145, "A"), (16222, "T"), (16261, "T"))),
+    "J1c": ("J1", ((228, "A"), (14798, "C"))),
+    "J1d": ("J1", ((7963, "G"),)),
+    "J2": ("J", ((7476, "T"), (15257, "A"))),
+    "J2a": ("J2", ((10499, "G"), (11377, "A"))),
+    "J2b": ("J2", ((5633, "T"), (15812, "A"))),
+    "T": (
+        "JT",
+        (
+            (1888, "A"),
+            (4917, "G"),
+            (8697, "A"),
+            (10463, "C"),
+            (13368, "A"),
+            (15607, "G"),
+            (15928, "A"),
+        ),
+    ),
+    "T1": ("T", ((12633, "A"), (16163, "G"))),
+    "T1a": ("T1", ((16186, "T"),)),
+    "T2": ("T", ((11812, "G"), (14233, "G"))),
+    "T2a": ("T2", ((13965, "C"),)),
+    "T2b": ("T2", ((5147, "A"),)),
+    "T2c": ("T2", ((10822, "T"),)),
+    "T2e": ("T2", ((16153, "A"),)),
+    "T2f": ("T2", ((8270, "T"),)),
+}
+
+
+# Sparse, primary-array-shaped paths used by the Batch 11 caller regressions.
+# Each internal node has exactly the minimum direct support needed by the
+# caller's >= 0.5 threshold; no sibling or flattened-helper event contributes
+# credit. T intentionally excludes recurrent m.15607G here so the focused
+# per-node cases do not accidentally rely on P's identically encoded marker.
+_ISSUE_1798_BATCH11_JT_CALLS = ((11251, "G"), (15452, "A"))
+_ISSUE_1798_BATCH11_J_CALLS = _ISSUE_1798_BATCH11_JT_CALLS + (
+    (295, "T"),
+    (489, "C"),
+    (10398, "G"),
+)
+_ISSUE_1798_BATCH11_J1_CALLS = _ISSUE_1798_BATCH11_J_CALLS + ((462, "T"),)
+_ISSUE_1798_BATCH11_J2_CALLS = _ISSUE_1798_BATCH11_J_CALLS + ((7476, "T"),)
+_ISSUE_1798_BATCH11_T_CALLS = _ISSUE_1798_BATCH11_JT_CALLS + (
+    (1888, "A"),
+    (4917, "G"),
+    (8697, "A"),
+    (10463, "C"),
+)
+_ISSUE_1798_BATCH11_T1_CALLS = _ISSUE_1798_BATCH11_T_CALLS + ((12633, "A"),)
+_ISSUE_1798_BATCH11_T2_CALLS = _ISSUE_1798_BATCH11_T_CALLS + ((11812, "G"),)
+
+
+_ISSUE_1798_BATCH11_DIRECT_CASES = {
+    "JT": (_ISSUE_1798_BATCH11_JT_CALLS, ("L3", "N", "R", "JT")),
+    "J": (_ISSUE_1798_BATCH11_J_CALLS, ("L3", "N", "R", "JT", "J")),
+    "J1": (_ISSUE_1798_BATCH11_J1_CALLS, ("L3", "N", "R", "JT", "J", "J1")),
+    "J1b": (
+        _ISSUE_1798_BATCH11_J1_CALLS + ((16145, "A"), (16222, "T")),
+        ("L3", "N", "R", "JT", "J", "J1", "J1b"),
+    ),
+    "J1c": (
+        _ISSUE_1798_BATCH11_J1_CALLS + ((228, "A"),),
+        ("L3", "N", "R", "JT", "J", "J1", "J1c"),
+    ),
+    "J1d": (
+        _ISSUE_1798_BATCH11_J1_CALLS + ((7963, "G"),),
+        ("L3", "N", "R", "JT", "J", "J1", "J1d"),
+    ),
+    "J2": (_ISSUE_1798_BATCH11_J2_CALLS, ("L3", "N", "R", "JT", "J", "J2")),
+    "J2a": (
+        _ISSUE_1798_BATCH11_J2_CALLS + ((10499, "G"),),
+        ("L3", "N", "R", "JT", "J", "J2", "J2a"),
+    ),
+    "J2b": (
+        _ISSUE_1798_BATCH11_J2_CALLS + ((5633, "T"),),
+        ("L3", "N", "R", "JT", "J", "J2", "J2b"),
+    ),
+    "T": (_ISSUE_1798_BATCH11_T_CALLS, ("L3", "N", "R", "JT", "T")),
+    "T1": (_ISSUE_1798_BATCH11_T1_CALLS, ("L3", "N", "R", "JT", "T", "T1")),
+    "T2": (_ISSUE_1798_BATCH11_T2_CALLS, ("L3", "N", "R", "JT", "T", "T2")),
+    "T2a": (
+        _ISSUE_1798_BATCH11_T2_CALLS + ((13965, "C"),),
+        ("L3", "N", "R", "JT", "T", "T2", "T2a"),
+    ),
+    "T2b": (
+        _ISSUE_1798_BATCH11_T2_CALLS + ((5147, "A"),),
+        ("L3", "N", "R", "JT", "T", "T2", "T2b"),
+    ),
+    "T2c": (
+        _ISSUE_1798_BATCH11_T2_CALLS + ((10822, "T"),),
+        ("L3", "N", "R", "JT", "T", "T2", "T2c"),
+    ),
+}
+
+
 _W_DIRECT_POSITION_GENOTYPES = [
     {"pos": row["pos"], "genotype": row["genotype"]}
     for row in _MT_W_TRUNK_GENOTYPES[len(_MT_N_TRUNK_GENOTYPES) :]
@@ -916,7 +1021,7 @@ class TestLoadHaplogroupBundle:
     """Test haplogroup bundle loading from JSON."""
 
     def test_loads_from_json(self, bundle: HaplogroupBundle) -> None:
-        assert bundle.version == "1.1.26"
+        assert bundle.version == "1.1.27"
         assert bundle.build == "GRCh37"
 
     def test_mt_tree_root(self, bundle: HaplogroupBundle) -> None:
@@ -6732,6 +6837,457 @@ class TestAssignHaplogroups:
         assert len(matching_children) == 1
         node = matching_children[0]
         assert tuple((snp.pos, snp.allele) for snp in node.defining_snps) == expected_markers
+
+    @pytest.mark.parametrize(
+        ("target", "expected_parent", "expected_markers"),
+        [
+            pytest.param(target, parent, markers, id=target)
+            for target, (parent, markers) in _ISSUE_1798_BATCH11_TREE.items()
+        ],
+    )
+    def test_issue_1798_batch11_jt_branch_tree_is_exact(
+        self,
+        bundle: HaplogroupBundle,
+        target: str,
+        expected_parent: str,
+        expected_markers: tuple[tuple[int, str], ...],
+    ) -> None:
+        """Batch 11 retains only exact J/T markers at their runtime owners."""
+        parent = _find_mt_node(bundle.mt_tree, expected_parent)
+        assert parent is not None
+        matching_children = [child for child in parent.children if child.haplogroup == target]
+        assert len(matching_children) == 1
+        node = matching_children[0]
+        assert tuple((snp.pos, snp.allele) for snp in node.defining_snps) == expected_markers
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize(
+        ("target", "calls", "expected_path"),
+        [
+            pytest.param(target, calls, expected_path, id=target)
+            for target, (calls, expected_path) in _ISSUE_1798_BATCH11_DIRECT_CASES.items()
+        ],
+    )
+    def test_issue_1798_batch11_direct_branches_resolve_without_sibling_borrowing(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        target: str,
+        calls: tuple[tuple[int, str], ...],
+        expected_path: tuple[str, ...],
+    ) -> None:
+        """Each J/T node resolves from its own minimum direct support."""
+        rows = [
+            {
+                **row,
+                "rsid": f"vendor_issue_1798_batch11_direct_{target}_{index}",
+                "chrom": "MT",
+            }
+            for index, row in enumerate(
+                [
+                    *_derived_mt_path_genotypes("R"),
+                    *({"pos": position, "genotype": allele * 2} for position, allele in calls),
+                ]
+            )
+        ]
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        assert mt.haplogroup == target
+        assert [step.haplogroup for step in mt.traversal_path] == list(expected_path)
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    def test_issue_1798_batch11_full_t_motif_is_not_stolen_by_p_sibling(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+    ) -> None:
+        """A complete emitted T path must traverse JT/T instead of sibling P."""
+        t_path_rows = _derived_mt_path_genotypes("T")
+        rows = [
+            {
+                **row,
+                "rsid": f"vendor_issue_1798_batch11_full_T_{index}",
+                "chrom": "MT",
+            }
+            for index, row in enumerate(t_path_rows)
+        ]
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        assert mt.haplogroup == "T"
+        assert [step.haplogroup for step in mt.traversal_path] == ["L3", "N", "R", "JT", "T"]
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize(
+        ("case", "calls", "expected", "expected_path"),
+        [
+            pytest.param(
+                "R2-JT",
+                ((4216, "C"),),
+                "R",
+                ("L3", "N", "R"),
+                id="R2-JT-helper-cannot-call-JT",
+            ),
+            pytest.param(
+                "J1-plus-16193",
+                _ISSUE_1798_BATCH11_J1_CALLS + ((16193, "T"),),
+                "J1",
+                ("L3", "N", "R", "JT", "J", "J1"),
+                id="J1-helper-cannot-call-J1d",
+            ),
+            pytest.param(
+                "T2-plus-150",
+                _ISSUE_1798_BATCH11_T2_CALLS + ((150, "T"),),
+                "T2",
+                ("L3", "N", "R", "JT", "T", "T2"),
+                id="T2-150-helper-cannot-call-T2e",
+            ),
+            pytest.param(
+                "T2-plus-16189",
+                _ISSUE_1798_BATCH11_T2_CALLS + ((16189, "C"),),
+                "T2",
+                ("L3", "N", "R", "JT", "T", "T2"),
+                id="T2-16189-helper-cannot-call-T2f",
+            ),
+        ],
+    )
+    def test_issue_1798_batch11_flattened_helpers_are_source_only(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        case: str,
+        calls: tuple[tuple[int, str], ...],
+        expected: str,
+        expected_path: tuple[str, ...],
+    ) -> None:
+        """Flattened helper evidence cannot manufacture a reportable J/T child."""
+        rows = [
+            {
+                **row,
+                "rsid": f"vendor_issue_1798_batch11_helper_{case}_{index}",
+                "chrom": "MT",
+            }
+            for index, row in enumerate(
+                [
+                    *_derived_mt_path_genotypes("R"),
+                    *({"pos": position, "genotype": allele * 2} for position, allele in calls),
+                ]
+            )
+        ]
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        assert mt.haplogroup == expected
+        assert [step.haplogroup for step in mt.traversal_path] == list(expected_path)
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize("include_historical", [True, False], ids=["typed", "untyped"])
+    @pytest.mark.parametrize(
+        ("target", "parent", "parent_calls", "direct_call", "target_path"),
+        [
+            pytest.param(
+                "T1a",
+                "T1",
+                _ISSUE_1798_BATCH11_T1_CALLS,
+                (16186, "T"),
+                ("L3", "N", "R", "JT", "T", "T1", "T1a"),
+                id="T1a-historical-m16186",
+            ),
+            pytest.param(
+                "T2f",
+                "T2",
+                _ISSUE_1798_BATCH11_T2_CALLS,
+                (8270, "T"),
+                ("L3", "N", "R", "JT", "T", "T2", "T2f"),
+                id="T2f-historical-m8270",
+            ),
+        ],
+    )
+    def test_issue_1798_batch11_historical_leaves_require_their_direct_marker(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        include_historical: bool,
+        target: str,
+        parent: str,
+        parent_calls: tuple[tuple[int, str], ...],
+        direct_call: tuple[int, str],
+        target_path: tuple[str, ...],
+    ) -> None:
+        """Historical m.16186/m.8270 resolve their leaves only when typed."""
+        calls = parent_calls + ((direct_call,) if include_historical else ())
+        rows = [
+            {
+                **row,
+                "rsid": f"vendor_issue_1798_batch11_historical_{target}_{index}",
+                "chrom": "MT",
+            }
+            for index, row in enumerate(
+                [
+                    *_derived_mt_path_genotypes("R"),
+                    *({"pos": position, "genotype": allele * 2} for position, allele in calls),
+                ]
+            )
+        ]
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        expected = target if include_historical else parent
+        expected_path = target_path if include_historical else target_path[:-1]
+        assert mt.haplogroup == expected
+        assert [step.haplogroup for step in mt.traversal_path] == list(expected_path)
+        if include_historical:
+            assert (mt.traversal_path[-1].snps_present, mt.traversal_path[-1].snps_total) == (
+                1,
+                1,
+            )
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    def test_issue_1798_batch11_pgp_4162_layout_keeps_t2_descendant_reachable(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+    ) -> None:
+        """Typed m.11812 alone keeps T2 at 1/2 and routes direct T2e evidence."""
+        calls = _ISSUE_1798_BATCH11_T2_CALLS + ((16153, "A"),)
+        positions = {position for position, _allele in calls}
+        assert 11812 in positions
+        assert positions.isdisjoint({14233, 16296})
+        rows = [
+            {
+                **row,
+                "rsid": f"vendor_issue_1798_batch11_pgp_4162_{index}",
+                "chrom": "MT",
+            }
+            for index, row in enumerate(
+                [
+                    *_derived_mt_path_genotypes("R"),
+                    *({"pos": position, "genotype": allele * 2} for position, allele in calls),
+                ]
+            )
+        ]
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        assert mt.haplogroup == "T2e"
+        assert [step.haplogroup for step in mt.traversal_path] == [
+            "L3",
+            "N",
+            "R",
+            "JT",
+            "T",
+            "T2",
+            "T2e",
+        ]
+        t2_step = next(step for step in mt.traversal_path if step.haplogroup == "T2")
+        assert (t2_step.snps_present, t2_step.snps_total) == (1, 2)
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize(
+        ("case", "calls", "expected", "expected_path"),
+        [
+            pytest.param(
+                "old-JT",
+                ((11251, "G"), (489, "C")),
+                "R",
+                ("L3", "N", "R"),
+                id="old-JT-pair-stays-at-R",
+            ),
+            pytest.param(
+                "old-J1b",
+                _ISSUE_1798_BATCH11_J1_CALLS + ((8269, "A"),),
+                "J1",
+                ("L3", "N", "R", "JT", "J", "J1"),
+                id="old-J1b-markers-stay-at-J1",
+            ),
+            pytest.param(
+                "old-J1c",
+                _ISSUE_1798_BATCH11_J1_CALLS + ((9055, "A"), (13708, "A")),
+                "J1",
+                ("L3", "N", "R", "JT", "J", "J1"),
+                id="old-J1c-markers-stay-at-J1",
+            ),
+            pytest.param(
+                "old-J2a",
+                _ISSUE_1798_BATCH11_J2_CALLS + ((15257, "A"),),
+                "J2",
+                ("L3", "N", "R", "JT", "J", "J2"),
+                id="old-J2a-markers-are-now-inherited",
+            ),
+            pytest.param(
+                "old-J2b",
+                _ISSUE_1798_BATCH11_J2_CALLS + ((6261, "A"), (13708, "A")),
+                "J2",
+                ("L3", "N", "R", "JT", "J", "J2"),
+                id="old-J2b-markers-stay-at-J2",
+            ),
+            pytest.param(
+                "old-T1",
+                _ISSUE_1798_BATCH11_T_CALLS + ((6185, "C"), (16189, "C")),
+                "T",
+                ("L3", "N", "R", "JT", "T"),
+                id="old-T1-markers-stay-at-T",
+            ),
+            pytest.param(
+                "old-T1a",
+                _ISSUE_1798_BATCH11_T1_CALLS + ((6253, "C"), (16163, "G")),
+                "T1",
+                ("L3", "N", "R", "JT", "T", "T1"),
+                id="old-T1a-markers-stay-at-T1",
+            ),
+            pytest.param(
+                "removed-T2b",
+                _ISSUE_1798_BATCH11_T2_CALLS + ((15907, "G"),),
+                "T2",
+                ("L3", "N", "R", "JT", "T", "T2"),
+                id="removed-m15907-does-not-call-T2b",
+            ),
+            pytest.param(
+                "old-T2c",
+                _ISSUE_1798_BATCH11_T2_CALLS + ((6489, "G"),),
+                "T2",
+                ("L3", "N", "R", "JT", "T", "T2"),
+                id="old-T2c-marker-stays-at-T2",
+            ),
+            pytest.param(
+                "old-T2e",
+                _ISSUE_1798_BATCH11_T2_CALLS + ((7859, "C"),),
+                "T2",
+                ("L3", "N", "R", "JT", "T", "T2"),
+                id="old-T2e-marker-stays-at-T2",
+            ),
+            pytest.param(
+                "old-T2f",
+                _ISSUE_1798_BATCH11_T2_CALLS + ((12633, "G"),),
+                "T2",
+                ("L3", "N", "R", "JT", "T", "T2"),
+                id="old-T2f-marker-stays-at-T2",
+            ),
+            pytest.param(
+                "ancestral-JT",
+                (
+                    (11251, "A"),
+                    (15452, "A"),
+                    (16126, "C"),
+                    (295, "T"),
+                    (489, "C"),
+                    (10398, "G"),
+                ),
+                "R",
+                ("L3", "N", "R"),
+                id="ancestral-JT-marker-blocks-J",
+            ),
+            pytest.param(
+                "ancestral-J1",
+                _ISSUE_1798_BATCH11_J_CALLS
+                + ((462, "C"), (3010, "A"), (16145, "A"), (16222, "T")),
+                "J",
+                ("L3", "N", "R", "JT", "J"),
+                id="ancestral-J1-marker-blocks-J1b",
+            ),
+            pytest.param(
+                "ancestral-J2",
+                _ISSUE_1798_BATCH11_J_CALLS + ((7476, "T"), (15257, "G"), (10499, "G")),
+                "J",
+                ("L3", "N", "R", "JT", "J"),
+                id="ancestral-J2-marker-blocks-J2a",
+            ),
+            pytest.param(
+                "ancestral-T",
+                _ISSUE_1798_BATCH11_JT_CALLS
+                + (
+                    (1888, "G"),
+                    (4917, "G"),
+                    (8697, "A"),
+                    (10463, "C"),
+                    (12633, "A"),
+                    (16163, "G"),
+                ),
+                "JT",
+                ("L3", "N", "R", "JT"),
+                id="ancestral-T-marker-blocks-T1",
+            ),
+            pytest.param(
+                "ancestral-T1",
+                _ISSUE_1798_BATCH11_T_CALLS + ((12633, "C"), (16163, "G"), (16186, "T")),
+                "T",
+                ("L3", "N", "R", "JT", "T"),
+                id="ancestral-T1-marker-blocks-T1a",
+            ),
+            pytest.param(
+                "ancestral-T2",
+                _ISSUE_1798_BATCH11_T_CALLS + ((11812, "A"), (14233, "G"), (16153, "A")),
+                "T",
+                ("L3", "N", "R", "JT", "T"),
+                id="ancestral-T2-marker-blocks-T2e",
+            ),
+        ],
+    )
+    def test_issue_1798_batch11_old_and_ancestral_states_do_not_refine(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        case: str,
+        calls: tuple[tuple[int, str], ...],
+        expected: str,
+        expected_path: tuple[str, ...],
+    ) -> None:
+        """Former and explicitly ancestral states cannot over-resolve J/T."""
+        rows = [
+            {
+                **row,
+                "rsid": f"vendor_issue_1798_batch11_negative_{case}_{index}",
+                "chrom": "MT",
+            }
+            for index, row in enumerate(
+                [
+                    *_derived_mt_path_genotypes("R"),
+                    *({"pos": position, "genotype": allele * 2} for position, allele in calls),
+                ]
+            )
+        ]
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        assert mt.haplogroup == expected
+        assert [step.haplogroup for step in mt.traversal_path] == list(expected_path)
 
     @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
     @pytest.mark.parametrize(

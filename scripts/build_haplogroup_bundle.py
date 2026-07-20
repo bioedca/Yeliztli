@@ -46,7 +46,7 @@ from typing import Any
 
 # ── Version & metadata ─────────────────────────────────────────────────
 
-BUNDLE_VERSION = "1.1.26"
+BUNDLE_VERSION = "1.1.27"
 BUILD = "GRCh37"
 MT_SOURCE_PATH = Path(__file__).with_name("mt_haplogroup_source.json")
 MT_BASELINE_SNAPSHOT_PATH = Path(__file__).with_name("mt_haplogroup_baseline_snapshot.json")
@@ -78,12 +78,12 @@ _MT_BASELINE_V2_REGISTRY_SEMANTIC_SHA256 = (
 _MT_BASELINE_V2_COVERAGE_MEMBERSHIP_SHA256 = (
     "9e9d25bd07652d0637fde59d9292b6a4cba1c593268c2301bba1c910b9bd338b"
 )
-_MT_LOCKED_EXACT_NAMES_SHA256 = "c6ed5c52492181c33b54d95c8c03627438d8b92a0eb9fe3d9ce6de38bfaba669"
+_MT_LOCKED_EXACT_NAMES_SHA256 = "ec8fba30938462e5664ca84a0b91a2b1edd02e4e10734a882d5b43194a4c9485"
 _MT_LOCKED_EXACT_SEMANTIC_SHA256 = (
-    "62d1414ec8c133c5c8e3419ecac1391ccfb62c3f1f954b8ee8b7413dba4a4f2a"
+    "7417f5ea95466f5bd7347242148c6bc19241ba165671152b4248b86d8b8ed367"
 )
 _MT_LOCKED_EXACT_COVERAGE_MEMBERSHIP_SHA256 = (
-    "b31dde695984731f020c1dfcb2e2a6d197f05c85803cd40c7457ae59e48cec8f"
+    "b91bcb5199e1d71f7a0440a5d5b0c977c2172c18b54411a5da27434cd4123b1b"
 )
 _MT_BASELINE_DIRECT_MOTIF_EXACT_NAMES_SHA256 = (
     "0dc2cc812e511bc89b76fca6ed13614d8ddb75a6ebe6321bde670096c44fba61"
@@ -92,10 +92,10 @@ _MT_BASELINE_DIRECT_MOTIF_SEMANTIC_SHA256 = (
     "ecc1dbf4c93872031e102ee166eac50e31d6468395e5d0053357af44f8a9785a"
 )
 _MT_LOCKED_DIRECT_MOTIF_EXACT_NAMES_SHA256 = (
-    "8b09abb5515970ed2142525f9d46ac34199a9a7497c2a7670093f7d4458e82dd"
+    "bedeb636aab72d7ec54ffeca1cdd7da00c3ae3e4164c394ef5155fa3f24f2da4"
 )
 _MT_LOCKED_DIRECT_MOTIF_SEMANTIC_SHA256 = (
-    "c0194896a68c8a176dcb3d51c30e4ae43facefb05e6cc22c75c1fecb53f64bc4"
+    "2c72142e49f23eba2f8cc2fd6a3d56fe9b314bae1ee75e9b62138033edc01fdf"
 )
 _MT_INITIAL_DIRECT_MOTIF_PENDING_NAMES_SHA256 = (
     "7b4848980e34ca1eff9739f964906d68eb4acdbbcd5e93227e17ece79296aefb"
@@ -105,11 +105,11 @@ _MT_INITIAL_PENDING_NAMES_SHA256 = (
 )
 _MT_ARRAY_MANIFEST_SHA256 = "42de22517a4644884596e36b0499a4fc45f264986c63f6fb239452b88719f977"
 _MT_SOURCE_METADATA_SHA256 = "13755a154c19c603bac63a2195287165271571ece1e36e178a666aa35184d04b"
-_MT_STATE_PARTITION_SHA256 = "1f8e3cd3146d82e9ce869608a691cfdca855923112f16a0a51eacf058f5ec6da"
+_MT_STATE_PARTITION_SHA256 = "5ceec03145ca6bbf93cad65d6c66bbe2b5ebe3ea7472af68b83580d2404acca4"
 _MT_BASELINE_EMITTED_TREE_SHA256 = (
     "02a40be2096dd8c60e6e2934ba68a813f07478117a749e60e94e0608bed21914"
 )
-_MT_LOCKED_EMITTED_TREE_SHA256 = "5f4230bef828604767deb179c9f8434eb33eb0db7740f15e04db8223148ccc4e"
+_MT_LOCKED_EMITTED_TREE_SHA256 = "7b6aba1b991aee804e8d6ed7f9943d63208066886f478df5d3f7dc8f3c574141"
 _MT_SYNTHETIC_ROOT_NAME = "mt-MRCA"
 _MT_FLATTENED_OMISSION_TYPES = frozenset(
     {
@@ -1797,15 +1797,16 @@ def build_mt_tree() -> dict[str, Any]:
     j1b = _node(
         "J1b",
         [
-            _mt_snp("i5008269", 8269, "A"),
-            _mt_snp("i5015452", 15452, "A"),
+            _mt_snp("i5016145", 16145, "A"),
+            _mt_snp("i5016222", 16222, "T"),
+            _mt_snp("i5016261", 16261, "T"),
         ],
     )
     j1c = _node(
         "J1c",
         [
-            _mt_snp("i5009055", 9055, "A"),
-            _mt_snp("i5013708", 13708, "A"),
+            _mt_snp("i5000228", 228, "A"),
+            _mt_snp("i5014798", 14798, "C"),
         ],
     )
     j1d = _node(
@@ -1817,29 +1818,30 @@ def build_mt_tree() -> dict[str, Any]:
     j1 = _node(
         "J1",
         [
+            _mt_snp("i5000462", 462, "T"),
             _mt_snp("i5003010", 3010, "A"),
-            _mt_snp("i5013708", 13708, "A"),
         ],
         [j1b, j1c, j1d],
     )
     j2a = _node(
         "J2a",
         [
-            _mt_snp("i5007476", 7476, "T"),
-            _mt_snp("i5015257", 15257, "A"),
+            _mt_snp("i5010499", 10499, "G"),
+            _mt_snp("i5011377", 11377, "A"),
         ],
     )
     j2b = _node(
         "J2b",
         [
-            _mt_snp("i5006261", 6261, "A"),
-            _mt_snp("i5013708", 13708, "A"),
+            _mt_snp("i5005633", 5633, "T"),
+            _mt_snp("i5015812", 15812, "A"),
         ],
     )
     j2 = _node(
         "J2",
         [
             _mt_snp("i5007476", 7476, "T"),
+            _mt_snp("i5015257", 15257, "A"),
         ],
         [j2a, j2b],
     )
@@ -1850,6 +1852,7 @@ def build_mt_tree() -> dict[str, Any]:
             _mt_snp("i5000489", 489, "C"),
             _mt_snp("i5010398", 10398, "G"),
             _mt_snp("i5012612", 12612, "G"),
+            _mt_snp("i5013708", 13708, "A"),
             _mt_snp("i5016069", 16069, "T"),
         ],
         [j1, j2],
@@ -1859,15 +1862,15 @@ def build_mt_tree() -> dict[str, Any]:
     t1a = _node(
         "T1a",
         [
-            _mt_snp("i5006253", 6253, "C"),
-            _mt_snp("i5016163", 16163, "G"),
+            # Build 17's direct C16186T is a historical-array-only leaf marker.
+            _mt_snp("i5016186", 16186, "T"),
         ],
     )
     t1 = _node(
         "T1",
         [
-            _mt_snp("i5006185", 6185, "C"),
-            _mt_snp("i5016189", 16189, "C"),
+            _mt_snp("i5012633", 12633, "A"),
+            _mt_snp("i5016163", 16163, "G"),
         ],
         [t1a],
     )
@@ -1881,44 +1884,49 @@ def build_mt_tree() -> dict[str, Any]:
         "T2b",
         [
             _mt_snp("i5005147", 5147, "A"),
-            _mt_snp("i5015907", 15907, "G"),
         ],
     )
     t2c = _node(
         "T2c",
         [
-            _mt_snp("i5006489", 6489, "G"),
+            _mt_snp("i5010822", 10822, "T"),
         ],
     )
     t2e = _node(
         "T2e",
         [
-            _mt_snp("i5007859", 7859, "C"),
+            _mt_snp("i5016153", 16153, "A"),
         ],
     )
     t2f = _node(
         "T2f",
         [
-            _mt_snp("i5012633", 12633, "G"),
+            # Build 17's direct C8270T is a historical-array-only leaf marker;
+            # its co-defining m.8281-8289 deletion remains source-only.
+            _mt_snp("i5008270", 8270, "T"),
         ],
     )
     t2 = _node(
         "T2",
         [
             _mt_snp("i5011812", 11812, "G"),
+            _mt_snp("i5014233", 14233, "G"),
+            # Parenthesized C16296T is source-only: pgp_4162 lacks both
+            # m.14233 and m.16296, so emitting it would turn a qualifying 1/2
+            # internal gateway into 1/3 and block valid T2 descendants.
         ],
         [t2a, t2b, t2c, t2e, t2f],
     )
     t = _node(
         "T",
         [
-            _mt_snp("i5000709", 709, "A"),
             _mt_snp("i5001888", 1888, "A"),
             _mt_snp("i5004917", 4917, "G"),
             _mt_snp("i5008697", 8697, "A"),
             _mt_snp("i5010463", 10463, "C"),
             _mt_snp("i5013368", 13368, "A"),
-            _mt_snp("i5016294", 16294, "T"),
+            _mt_snp("i5015607", 15607, "G"),
+            _mt_snp("i5015928", 15928, "A"),
         ],
         [t1, t2],
     )
@@ -2194,8 +2202,9 @@ def build_mt_tree() -> dict[str, Any]:
     jt = _node(
         "JT",
         [
-            _mt_snp("i5000489", 489, "C"),
             _mt_snp("i5011251", 11251, "G"),
+            _mt_snp("i5015452", 15452, "A"),
+            _mt_snp("i5016126", 16126, "C"),
         ],
         [j, t],
     )
