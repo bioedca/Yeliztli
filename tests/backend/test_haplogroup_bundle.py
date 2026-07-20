@@ -147,7 +147,7 @@ class TestBundleStructure:
         parts = bundle["version"].split(".")
         assert len(parts) == 3
         assert all(p.isdigit() for p in parts)
-        assert bundle["version"] == "1.1.24"
+        assert bundle["version"] == "1.1.25"
 
     def test_build_is_grch37(self, bundle: dict) -> None:
         assert bundle["build"] == "GRCh37"
@@ -192,9 +192,18 @@ class TestBundleStructure:
             "H13",
             "H13a",
             "H1a",
+            "H1a1",
+            "H1b",
+            "H1c",
+            "H1e",
             "H2",
+            "H2a",
+            "H2a1",
+            "H2a2a",
+            "H2a2a1",
             "H3",
             "H4",
+            "H5a",
             "H6",
             "H6a",
             "H7",
@@ -292,9 +301,9 @@ class TestBundleStructure:
         }
         assert provenance["migration_status"] == "in_progress"
         assert provenance["emitted_nodes"] == 193
-        assert provenance["marker_bearing_nodes"] == 189
-        assert provenance["marker_exact_nodes"]["count"] == 124
-        assert provenance["direct_source_motif_nodes"]["exact"]["count"] == 119
+        assert provenance["marker_bearing_nodes"] == 188
+        assert provenance["marker_exact_nodes"]["count"] == 133
+        assert provenance["direct_source_motif_nodes"]["exact"]["count"] == 128
         assert provenance["direct_source_motif_nodes"]["legacy_partial"] == {
             "count": 5,
             "names": ["K", "K1", "K1a", "K2a", "U2e"],
@@ -308,39 +317,39 @@ class TestBundleStructure:
             provenance["direct_source_motif_nodes"]["legacy_partial"]["names"]
         )
         assert provenance["structural_nodes"] == {
-            "count": 4,
-            "names": ["H5", "HV", "R0", "mt-MRCA"],
+            "count": 5,
+            "names": ["H2a2", "H5", "HV", "R0", "mt-MRCA"],
         }
-        assert provenance["pending_nodes"]["count"] == 65
+        assert provenance["pending_nodes"]["count"] == 55
         assert provenance["retired_emitted_nodes"] == {"count": 1, "names": ["A4"]}
         assert provenance["marker_records"] == {
-            "emitted": 598,
-            "marker_exact": 485,
+            "emitted": 594,
+            "marker_exact": 495,
             "marker_exact_by_cohort": {
                 "historical_five_23andme_including_2014": 13,
-                "primary_four_23andme": 472,
+                "primary_four_23andme": 482,
             },
         }
         assert provenance["source_mutation_decisions"] == {
-            "total": 789,
-            "emitted": 485,
-            "omitted": 304,
-            "direct_motif_exact": 633,
+            "total": 803,
+            "emitted": 495,
+            "omitted": 308,
+            "direct_motif_exact": 645,
             "direct_motif_legacy_partial": 13,
             "recurrent_or_uncertain_events": 9,
-            "reversion_events": 62,
-            "reversion_marks": 66,
+            "reversion_events": 63,
+            "reversion_marks": 67,
         }
         assert provenance["emitted_parent_edges"] == {
             "total": 192,
             "validated_declarations": 192,
         }
         assert provenance["source_parent_edges"] == {
-            "validated": 111,
-            "pending": 81,
+            "validated": 123,
+            "pending": 69,
         }
         assert provenance["omitted_source_nodes"] == {
-            "count": 53,
+            "count": 54,
             "names": [
                 "A+152",
                 "A+152+16362",
@@ -353,6 +362,7 @@ class TestBundleStructure:
                 "D4e1'3",
                 "G2a'c",
                 "H+195",
+                "H1+16189",
                 "H5'36",
                 "K1c",
                 "L0a'b'f'g",
@@ -398,18 +408,18 @@ class TestBundleStructure:
             ],
             "by_type": {
                 "flattened_source_intermediate": 46,
-                "flattened_unreportable_source_intermediate": 6,
+                "flattened_unreportable_source_intermediate": 7,
                 "unreportable_source_node": 1,
             },
         }
         assert provenance["arrays"] == {"exports": 6, "cohorts": 2}
         assert provenance["locked_exact_frontier"] == {
-            "count": 124,
-            "sha256": "85fabe4fd44b076d010da910c28c47be4b1e68b0031fa80f411fe2ce516ce264",
+            "count": 133,
+            "sha256": "203bd72b4f41a55e92e5e095551156d55e5102f7cdde5fa2572ff451451bd26c",
         }
         assert provenance["locked_direct_motif_frontier"] == {
-            "count": 119,
-            "sha256": "5930191a23f69921c151d981ff9bb6e0f9db5c0cac8b4ce5852fa63ecbf4612e",
+            "count": 128,
+            "sha256": "dc7a231de1a97ce6f252b2b25878eb32edb1ca2d0d0888aa77ec6dd47620fe72",
         }
         digests = provenance["digests"]
         assert {
@@ -429,25 +439,25 @@ class TestBundleStructure:
                 "f8aecb8ba02e5c2becbccfc40846bd3c8668d4b8c6de5be1761ab78c0d83a87e"
             ),
             "locked_emitted_tree_sha256": (
-                "9af5a77c7e89fccd2b2ab7b9002989343c82a7d0dc69f0f60656544d61742d32"
+                "978d88ca53852601daef6e1614fa4742184437d8e46e5953f62dd02c16d7e1ff"
             ),
             "locked_direct_motif_exact_nodes_sha256": (
-                "5930191a23f69921c151d981ff9bb6e0f9db5c0cac8b4ce5852fa63ecbf4612e"
+                "dc7a231de1a97ce6f252b2b25878eb32edb1ca2d0d0888aa77ec6dd47620fe72"
             ),
             "locked_direct_motif_semantic_sha256": (
-                "c69330ad174eb5ddcaf45f325ec947065541cca1fb8741ed456b8331b8f809d5"
+                "84d79d5e8ce056de59fb4681618f33c5a5df19e0786b60763c61cf3302cc4f16"
             ),
             "locked_exact_coverage_membership_sha256": (
-                "8cb8fc5f7ca660de0a9f8af087b271eaa629b5d881d8d1aec26109b617356273"
+                "9bfd7222cadaa3a6cac6acb10097c8d7594930dac5ec30ed4e142cdb712c31ea"
             ),
             "locked_exact_semantic_sha256": (
-                "3cccd9e25fee7fdc40426116c90886eab1020f9c547f92e695d7ecca4bc49942"
+                "5863c80a9498a620a50b3bab00aca5404538678b7fdbf7745134a174547a8283"
             ),
             "source_metadata_sha256": (
-                "5b3a3578fc208c91f6c3fdcc6d772f5071851b3604762b9e81994cf2632deb3d"
+                "13755a154c19c603bac63a2195287165271571ece1e36e178a666aa35184d04b"
             ),
             "state_partition_sha256": (
-                "107faae1d7f4ce19fb9a3f5d0f47737fabce69f1f61e881da0722d55acc52deb"
+                "af1fff7c71642cea289e2a9adab205e41b34af27495fa4e1029ebefae0b53f03"
             ),
         }
 
@@ -470,7 +480,7 @@ class TestBundleStructure:
                 ),
             }
         }
-        assert {reference["id"] for reference in mt_source["references"]} == {1, 2, 3, 4}
+        assert {reference["id"] for reference in mt_source["references"]} == {1, 2, 3, 4, 5}
 
     def test_sources_y(self, bundle: dict) -> None:
         y_source = bundle["sources"]["Y"]
@@ -1284,6 +1294,82 @@ class TestMtDNATree:
         }
         assert {456, 9123, 13101, 14766, 16304}.isdisjoint(emitted_positions)
 
+    def test_issue_1798_batch_09_h_descendants_match_build17(self, mt_tree: dict) -> None:
+        """Batch 09 locks H descendants, H1b's sibling edge, and markerless H2a2."""
+
+        def marker_pairs(haplogroup: str) -> tuple[tuple[int, str], ...]:
+            node = find_node(mt_tree, haplogroup)
+            assert node is not None, f"{haplogroup} not found"
+            return tuple((snp["pos"], snp["allele"]) for snp in node["defining_snps"])
+
+        expected = {
+            "H1a": ((73, "G"), (16162, "G")),
+            "H1a1": ((6365, "C"),),
+            "H1b": ((16356, "C"),),
+            "H1c": ((477, "C"),),
+            "H1e": ((5460, "A"),),
+            "H2a": ((4769, "A"),),
+            "H2a1": ((951, "A"), (16354, "T")),
+            "H2a2": (),
+            "H2a2a": ((8860, "A"),),
+            "H2a2a1": ((263, "A"),),
+            "H5a": ((4336, "C"),),
+            "H6a": ((3915, "A"),),
+            "H13a": ((2259, "T"),),
+        }
+        assert {name: marker_pairs(name) for name in expected} == expected
+
+        h1 = find_node(mt_tree, "H1")
+        h1a = find_node(mt_tree, "H1a")
+        h2a = find_node(mt_tree, "H2a")
+        assert h1 is not None
+        assert h1a is not None
+        assert h2a is not None
+        assert {child["haplogroup"] for child in h1["children"]} == {
+            "H1a",
+            "H1b",
+            "H1c",
+            "H1e",
+        }
+        assert {child["haplogroup"] for child in h1a["children"]} == {"H1a1"}
+        assert {child["haplogroup"] for child in h2a["children"]} == {"H2a1", "H2a2"}
+        assert get_path_to(mt_tree, "H1b") == [
+            "mt-MRCA",
+            "L3",
+            "N",
+            "R",
+            "R0",
+            "HV",
+            "H",
+            "H1",
+            "H1b",
+        ]
+        assert get_path_to(mt_tree, "H2a2a1") == [
+            "mt-MRCA",
+            "L3",
+            "N",
+            "R",
+            "R0",
+            "HV",
+            "H",
+            "H2",
+            "H2a",
+            "H2a2",
+            "H2a2a",
+            "H2a2a1",
+        ]
+
+        removed_positions = {
+            "H1a1": {14587, 16209},
+            "H1b": {3010, 16189},
+            "H1c": {4310},
+            "H1e": {3796, 9066},
+            "H2a2": {750},
+            "H2a2a": {15326},
+        }
+        for name, positions in removed_positions.items():
+            assert positions.isdisjoint(position for position, _allele in marker_pairs(name))
+
     def test_issue_1907_d2_uses_exact_build17_motif(self, mt_tree: dict) -> None:
         """D2 uses its direct row while inherited D and R markers stay at their owners."""
 
@@ -1394,8 +1480,8 @@ class TestMtDNATree:
         unique_rsids = {s["rsid"] for s in snps}
         assert (len(nodes), len(snps), len(unique_rsids), tree_max_depth(mt_tree)) == (
             193,
-            598,
-            483,
+            594,
+            481,
             11,
         )
         assert bundle["stats"]["mt_haplogroups"] == len(nodes)
@@ -1403,8 +1489,8 @@ class TestMtDNATree:
         assert bundle["stats"]["mt_unique_snps"] == len(unique_rsids)
         assert bundle["stats"]["mt_max_depth"] == tree_max_depth(mt_tree)
         assert bundle["stats"]["total_haplogroups"] == 300
-        assert bundle["stats"]["total_defining_snps"] == 752
-        assert bundle["stats"]["total_unique_snps"] == 637
+        assert bundle["stats"]["total_defining_snps"] == 748
+        assert bundle["stats"]["total_unique_snps"] == 635
 
     def test_non_root_nodes_have_defining_snps(self, bundle: dict, mt_tree: dict) -> None:
         """Every non-root node should have at least one defining SNP.
