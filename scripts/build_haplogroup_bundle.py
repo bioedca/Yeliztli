@@ -46,7 +46,7 @@ from typing import Any
 
 # ── Version & metadata ─────────────────────────────────────────────────
 
-BUNDLE_VERSION = "1.1.28"
+BUNDLE_VERSION = "1.1.29"
 BUILD = "GRCh37"
 MT_SOURCE_PATH = Path(__file__).with_name("mt_haplogroup_source.json")
 MT_BASELINE_SNAPSHOT_PATH = Path(__file__).with_name("mt_haplogroup_baseline_snapshot.json")
@@ -78,12 +78,12 @@ _MT_BASELINE_V2_REGISTRY_SEMANTIC_SHA256 = (
 _MT_BASELINE_V2_COVERAGE_MEMBERSHIP_SHA256 = (
     "9e9d25bd07652d0637fde59d9292b6a4cba1c593268c2301bba1c910b9bd338b"
 )
-_MT_LOCKED_EXACT_NAMES_SHA256 = "8691eae4dabb6978a8def825a1b5a429cc20b2e1a31a8a1a6f5c67d0654c7f57"
+_MT_LOCKED_EXACT_NAMES_SHA256 = "cbd8af4204fdbabb36d9c97a1ecb7100279d71d337f9e56aecc9dc44ccfd1454"
 _MT_LOCKED_EXACT_SEMANTIC_SHA256 = (
-    "f22b3870b9f48fc05772bf2f3fd22e5c7e6175f6e1c5dc90344360790e409633"
+    "5b2a64dc6b5328bdb4523938ebcfd079a2a6ea3129b5fda7d9cc379ea3649fe0"
 )
 _MT_LOCKED_EXACT_COVERAGE_MEMBERSHIP_SHA256 = (
-    "1aac659eeefb9ece71c2cc42e4ffd3263ded92ed66b62f95165edb2b79a25948"
+    "6763bae78f35afc14e8782cdd0b179c06980db2836f43cb9c7d169794ec19d5f"
 )
 _MT_BASELINE_DIRECT_MOTIF_EXACT_NAMES_SHA256 = (
     "0dc2cc812e511bc89b76fca6ed13614d8ddb75a6ebe6321bde670096c44fba61"
@@ -92,10 +92,10 @@ _MT_BASELINE_DIRECT_MOTIF_SEMANTIC_SHA256 = (
     "ecc1dbf4c93872031e102ee166eac50e31d6468395e5d0053357af44f8a9785a"
 )
 _MT_LOCKED_DIRECT_MOTIF_EXACT_NAMES_SHA256 = (
-    "064892149df247d891f603c1925182f14ef845383933b0c5132a62a92e90d20e"
+    "cbd8af4204fdbabb36d9c97a1ecb7100279d71d337f9e56aecc9dc44ccfd1454"
 )
 _MT_LOCKED_DIRECT_MOTIF_SEMANTIC_SHA256 = (
-    "fbcb664c186956bafbd74e1584b88cf1c3be8f58bf0820922a55987e7b54592d"
+    "a7e8897c43b9144b4363e9eb3e50d0fc662444a98e55ad09d69710db27af0160"
 )
 _MT_INITIAL_DIRECT_MOTIF_PENDING_NAMES_SHA256 = (
     "7b4848980e34ca1eff9739f964906d68eb4acdbbcd5e93227e17ece79296aefb"
@@ -105,11 +105,11 @@ _MT_INITIAL_PENDING_NAMES_SHA256 = (
 )
 _MT_ARRAY_MANIFEST_SHA256 = "42de22517a4644884596e36b0499a4fc45f264986c63f6fb239452b88719f977"
 _MT_SOURCE_METADATA_SHA256 = "13755a154c19c603bac63a2195287165271571ece1e36e178a666aa35184d04b"
-_MT_STATE_PARTITION_SHA256 = "454619240e542ac190cac99f8c8bd2a65f3229d39d4dd10c4ceb04110b1f3bbf"
+_MT_STATE_PARTITION_SHA256 = "b4f46c5140936d99429b7f52f1a94c7ded344417ad579e7d381ba07dc56c9115"
 _MT_BASELINE_EMITTED_TREE_SHA256 = (
     "02a40be2096dd8c60e6e2934ba68a813f07478117a749e60e94e0608bed21914"
 )
-_MT_LOCKED_EMITTED_TREE_SHA256 = "152011793ca300c5096d20f284ffe673b8dec0b5332bef372583cc98b562434e"
+_MT_LOCKED_EMITTED_TREE_SHA256 = "73323f94e8740b24faa0001065f0ca79a9a24c18554500545e65694b1f17a566"
 _MT_SYNTHETIC_ROOT_NAME = "mt-MRCA"
 _MT_FLATTENED_OMISSION_TYPES = frozenset(
     {
@@ -2059,20 +2059,21 @@ def build_mt_tree() -> dict[str, Any]:
     u5a1 = _node(
         "U5a1",
         [
-            _mt_snp("i5014793", 14793, "G"),
-            _mt_snp("i5016256", 16256, "T"),
+            _mt_snp("i5015218", 15218, "G"),
+            _mt_snp("i5016399", 16399, "G"),
         ],
     )
     u5a2 = _node(
         "U5a2",
         [
-            _mt_snp("i5001700", 1700, "C"),
+            _mt_snp("i5016526", 16526, "A"),
         ],
     )
     u5a = _node(
         "U5a",
         [
-            _mt_snp("i5014793", 14793, "G"),
+            # Historical-only m.14793 and shared U5a'b ancestry stay source-only.
+            _mt_snp("i5016256", 16256, "T"),
         ],
         [u5a1, u5a2],
     )
@@ -2080,7 +2081,6 @@ def build_mt_tree() -> dict[str, Any]:
         "U5b1",
         [
             _mt_snp("i5005656", 5656, "G"),
-            _mt_snp("i5012618", 12618, "A"),
         ],
     )
     u5b2 = _node(
@@ -2093,16 +2093,17 @@ def build_mt_tree() -> dict[str, Any]:
     u5b = _node(
         "U5b",
         [
-            _mt_snp("i5007768", 7768, "G"),
+            # Historical-only m.150/m.7768 and shared U5a'b ancestry stay source-only.
+            _mt_snp("i5014182", 14182, "C"),
         ],
         [u5b1, u5b2],
     )
     u5 = _node(
         "U5",
-        [
-            _mt_snp("i5003197", 3197, "C"),
-            _mt_snp("i5009477", 9477, "A"),
-        ],
+        # Exact markerless gateway: direct m.16192 is historical-only and
+        # m.16270 is callable in only two of four primary exports. Emitting
+        # either available subset would block valid U5a/U5b descendants.
+        [],
         [u5a, u5b],
     )
 
@@ -2142,13 +2143,19 @@ def build_mt_tree() -> dict[str, Any]:
     u8a = _node(
         "U8a",
         [
-            _mt_snp("i5007028", 7028, "T"),
+            # Historical-only m.7055 remains source-only.
+            _mt_snp("i5000282", 282, "C"),
+            _mt_snp("i5006392", 6392, "C"),
+            _mt_snp("i5006455", 6455, "T"),
+            _mt_snp("i5009365", 9365, "T"),
+            _mt_snp("i5013145", 13145, "A"),
         ],
     )
     u8b = _node(
         "U8b",
         [
-            _mt_snp("i5003480", 3480, "G"),
+            # Historical-only m.9055 and shared U8b'c m.3480 stay source-only.
+            _mt_snp("i5014167", 14167, "T"),
         ],
     )
     u8 = _node(
@@ -2233,8 +2240,8 @@ def build_mt_tree() -> dict[str, Any]:
         ],
         [k1, k2],
     )
-    # PhyloTree Build 17 places K within U8, not as a direct sibling of U.
-    u8["children"].append(k)
+    # PhyloTree Build 17 places K below U8b, after shared U8b'c ancestry.
+    u8b.setdefault("children", []).append(k)
 
     # Assemble R branch
     r0 = _node(

@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "audit_scope": "Incremental-to-complete PhyloTree Build 17 audit for issue 1798. 179 marker-exact nodes retain emitted-marker and coverage locks; independent raw-row comparison classifies 175 direct motifs as exact and 4 legacy motifs as partial. All other emitted nodes have explicit pending or structural states. Schema v3 distinguishes general flattened source intermediates from caller-unreportable intermediates and separately accounts for retired emitted identities. Completion requires every direct motif and source-topology edge to become exact.",
+  "audit_scope": "Completed full emitted-tree PhyloTree Build 17 provenance audit for issue 1798. All 186 marker-bearing emitted nodes have exact direct motifs, exact source topology, emitted-marker semantics, and pinned array-coverage membership; all 7 markerless structural nodes including the synthetic root have explicit reviewed states. Schema v3 separately accounts for flattened source intermediates, caller-unreportable events, and retired emitted identities. No pending or legacy-partial live record remains.",
   "source": {
     "name": "PhyloTree",
     "version": "Build 17",
@@ -196,8 +196,12 @@
       "J2a",
       "J2b",
       "JT",
+      "K",
+      "K1",
+      "K1a",
       "K1b",
       "K2",
+      "K2a",
       "K2b",
       "L0",
       "L0a",
@@ -285,11 +289,18 @@
       "U4a",
       "U4b",
       "U4c",
+      "U5a",
+      "U5a1",
+      "U5a2",
+      "U5b",
+      "U5b1",
       "U5b2",
       "U6",
       "U6a",
       "U7",
       "U8",
+      "U8a",
+      "U8b",
       "U9",
       "V",
       "V1",
@@ -308,12 +319,7 @@
       "Z",
       "Z1"
     ],
-    "legacy_partial_nodes": [
-      "K",
-      "K1",
-      "K1a",
-      "K2a"
-    ]
+    "legacy_partial_nodes": []
   },
   "omitted_nodes": {
     "A+152": {
@@ -564,9 +570,17 @@
       "type": "flattened_source_intermediate",
       "reason": "Flattened in issue 1798 batch 12: Build 17 places U4'9 between U2'3'4'7'8'9 and U4/U9. Its shared motif remains source-only so the intermediate cannot provide terminal credit."
     },
+    "U5a'b": {
+      "type": "flattened_source_intermediate",
+      "reason": "Flattened in issue 1798 batch 13: Build 17 places shared U5a'b between U5 and emitted U5a/U5b. Its motif remains source-only so shared ancestry cannot provide terminal credit to either child."
+    },
     "U6a'b'd": {
       "type": "flattened_source_intermediate",
       "reason": "Flattened in issue 1798 batch 12: Build 17 places U6a'b'd between U6 and U6a. Historical-only m.16219 remains source-only so the intermediate cannot provide U6a terminal credit."
+    },
+    "U8b'c": {
+      "type": "flattened_source_intermediate",
+      "reason": "Flattened in issue 1798 batch 13: Build 17 places shared U8b'c between U8 and emitted U8b. Callable m.3480 remains source-only so the helper cannot terminal-call U8b or bypass its direct m.14167 evidence."
     },
     "W+194": {
       "type": "flattened_source_intermediate",
@@ -6737,10 +6751,13 @@
     },
     "K": {
       "source_node": "K",
-      "emitted_parent": "U8",
-      "source_motif_status": "legacy_partial",
+      "emitted_parent": "U8b",
+      "source_motif_status": "exact",
       "source_topology": {
-        "status": "pending"
+        "status": "exact",
+        "emitted_parent_source_node": "U8b",
+        "source_parent": "U8b",
+        "flattened_source_path": []
       },
       "direct_source_motif": [
         {
@@ -6774,16 +6791,16 @@
           "ancestral_allele": "T",
           "derived_allele": "C",
           "emitted": false,
-          "omission_reason": "Absent from all four post-2017 v5-era export exemplars."
+          "omission_reason": "absent or non-callable in the primary four; callable only in historical pgp_1050"
         },
         {
-          "notation": "T16311C",
+          "notation": "T16311C!",
           "mutation_type": "substitution",
           "pos": 16311,
           "ancestral_allele": "T",
           "derived_allele": "C",
           "emitted": false,
-          "omission_reason": "Recurrent locus already represented on the emitted ancestor path."
+          "omission_reason": "recurrent locus already represented on the emitted ancestor path"
         }
       ],
       "emitted_snps": [
@@ -6852,9 +6869,12 @@
     "K1": {
       "source_node": "K1",
       "emitted_parent": "K",
-      "source_motif_status": "legacy_partial",
+      "source_motif_status": "exact",
       "source_topology": {
-        "status": "pending"
+        "status": "exact",
+        "emitted_parent_source_node": "K",
+        "source_parent": "K",
+        "flattened_source_path": []
       },
       "direct_source_motif": [
         {
@@ -6866,7 +6886,7 @@
           "emitted": true
         },
         {
-          "notation": "A10398G",
+          "notation": "A10398G!",
           "mutation_type": "substitution",
           "pos": 10398,
           "ancestral_allele": "A",
@@ -6924,9 +6944,12 @@
     "K1a": {
       "source_node": "K1a",
       "emitted_parent": "K1",
-      "source_motif_status": "legacy_partial",
+      "source_motif_status": "exact",
       "source_topology": {
-        "status": "pending"
+        "status": "exact",
+        "emitted_parent_source_node": "K1",
+        "source_parent": "K1",
+        "flattened_source_path": []
       },
       "direct_source_motif": [
         {
@@ -6938,13 +6961,13 @@
           "emitted": true
         },
         {
-          "notation": "T16093C",
+          "notation": "(T16093C)",
           "mutation_type": "substitution",
           "pos": 16093,
           "ancestral_allele": "T",
           "derived_allele": "C",
           "emitted": false,
-          "omission_reason": "Unstable control-region motif and absent from all four v5-era export exemplars."
+          "omission_reason": "unstable control-region motif and absent from all four primary exports"
         }
       ],
       "emitted_snps": [
@@ -6975,7 +6998,10 @@
       "emitted_parent": "K1",
       "source_motif_status": "exact",
       "source_topology": {
-        "status": "pending"
+        "status": "exact",
+        "emitted_parent_source_node": "K1",
+        "source_parent": "K1",
+        "flattened_source_path": []
       },
       "direct_source_motif": [
         {
@@ -7010,7 +7036,10 @@
       "emitted_parent": "K",
       "source_motif_status": "exact",
       "source_topology": {
-        "status": "pending"
+        "status": "exact",
+        "emitted_parent_source_node": "K",
+        "source_parent": "K",
+        "flattened_source_path": []
       },
       "direct_source_motif": [
         {
@@ -7059,11 +7088,32 @@
     "K2a": {
       "source_node": "K2a",
       "emitted_parent": "K2",
-      "source_motif_status": "legacy_partial",
+      "source_motif_status": "exact",
       "source_topology": {
-        "status": "pending"
+        "status": "exact",
+        "emitted_parent_source_node": "K2",
+        "source_parent": "K2",
+        "flattened_source_path": []
       },
       "direct_source_motif": [
+        {
+          "notation": "T152C!",
+          "mutation_type": "substitution",
+          "pos": 152,
+          "ancestral_allele": "T",
+          "derived_allele": "C",
+          "emitted": false,
+          "omission_reason": "recurrent control-region reversion remains source-only; direct m.4561 provides terminal K2a evidence"
+        },
+        {
+          "notation": "G709A",
+          "mutation_type": "substitution",
+          "pos": 709,
+          "ancestral_allele": "G",
+          "derived_allele": "A",
+          "emitted": false,
+          "omission_reason": "absent or non-callable in the primary four; callable only in historical pgp_1050"
+        },
         {
           "notation": "T4561C",
           "mutation_type": "substitution",
@@ -7103,7 +7153,10 @@
       "emitted_parent": "K2",
       "source_motif_status": "exact",
       "source_topology": {
-        "status": "pending"
+        "status": "exact",
+        "emitted_parent_source_node": "K2",
+        "source_parent": "K2",
+        "flattened_source_path": []
       },
       "direct_source_motif": [
         {
@@ -24556,12 +24609,367 @@
         }
       ]
     },
+    "U5a": {
+      "source_node": "U5a",
+      "emitted_parent": "U5",
+      "source_motif_status": "exact",
+      "source_topology": {
+        "status": "exact",
+        "emitted_parent_source_node": "U5",
+        "source_parent": "U5a'b",
+        "flattened_source_path": [
+          {
+            "source_node": "U5a'b",
+            "source_parent": "U5",
+            "reason": "Flattened in issue 1798 batch 13: Build 17 places shared U5a'b between U5 and emitted U5a/U5b. Its motif remains source-only so shared ancestry cannot provide terminal credit to either child.",
+            "direct_source_motif": [
+              {
+                "notation": "T3197C",
+                "mutation_type": "substitution",
+                "pos": 3197,
+                "ancestral_allele": "T",
+                "derived_allele": "C",
+                "emitted": false,
+                "omission_reason": "Flattened in issue 1798 batch 13: Build 17 places shared U5a'b between U5 and emitted U5a/U5b. Its motif remains source-only so shared ancestry cannot provide terminal credit to either child."
+              },
+              {
+                "notation": "G9477A",
+                "mutation_type": "substitution",
+                "pos": 9477,
+                "ancestral_allele": "G",
+                "derived_allele": "A",
+                "emitted": false,
+                "omission_reason": "Flattened in issue 1798 batch 13: Build 17 places shared U5a'b between U5 and emitted U5a/U5b. Its motif remains source-only so shared ancestry cannot provide terminal credit to either child."
+              },
+              {
+                "notation": "T13617C",
+                "mutation_type": "substitution",
+                "pos": 13617,
+                "ancestral_allele": "T",
+                "derived_allele": "C",
+                "emitted": false,
+                "omission_reason": "Flattened in issue 1798 batch 13: Build 17 places shared U5a'b between U5 and emitted U5a/U5b. Its motif remains source-only so shared ancestry cannot provide terminal credit to either child."
+              }
+            ]
+          }
+        ]
+      },
+      "direct_source_motif": [
+        {
+          "notation": "A14793G",
+          "mutation_type": "substitution",
+          "pos": 14793,
+          "ancestral_allele": "A",
+          "derived_allele": "G",
+          "emitted": false,
+          "omission_reason": "absent or non-callable in the primary four; callable only in historical pgp_1050"
+        },
+        {
+          "notation": "C16256T",
+          "mutation_type": "substitution",
+          "pos": 16256,
+          "ancestral_allele": "C",
+          "derived_allele": "T",
+          "emitted": true
+        }
+      ],
+      "emitted_snps": [
+        {
+          "rsid": "i5016256",
+          "pos": 16256,
+          "ancestral_allele": "C",
+          "allele": "T",
+          "motif_owner": "U5a",
+          "array_coverage": {
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
+          }
+        }
+      ]
+    },
+    "U5a1": {
+      "source_node": "U5a1",
+      "emitted_parent": "U5a",
+      "source_motif_status": "exact",
+      "source_topology": {
+        "status": "exact",
+        "emitted_parent_source_node": "U5a",
+        "source_parent": "U5a",
+        "flattened_source_path": []
+      },
+      "direct_source_motif": [
+        {
+          "notation": "A15218G",
+          "mutation_type": "substitution",
+          "pos": 15218,
+          "ancestral_allele": "A",
+          "derived_allele": "G",
+          "emitted": true
+        },
+        {
+          "notation": "A16399G",
+          "mutation_type": "substitution",
+          "pos": 16399,
+          "ancestral_allele": "A",
+          "derived_allele": "G",
+          "emitted": true
+        }
+      ],
+      "emitted_snps": [
+        {
+          "rsid": "i5015218",
+          "pos": 15218,
+          "ancestral_allele": "A",
+          "allele": "G",
+          "motif_owner": "U5a1",
+          "array_coverage": {
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
+          }
+        },
+        {
+          "rsid": "i5016399",
+          "pos": 16399,
+          "ancestral_allele": "A",
+          "allele": "G",
+          "motif_owner": "U5a1",
+          "array_coverage": {
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
+          }
+        }
+      ]
+    },
+    "U5a2": {
+      "source_node": "U5a2",
+      "emitted_parent": "U5a",
+      "source_motif_status": "exact",
+      "source_topology": {
+        "status": "exact",
+        "emitted_parent_source_node": "U5a",
+        "source_parent": "U5a",
+        "flattened_source_path": []
+      },
+      "direct_source_motif": [
+        {
+          "notation": "G16526A",
+          "mutation_type": "substitution",
+          "pos": 16526,
+          "ancestral_allele": "G",
+          "derived_allele": "A",
+          "emitted": true
+        }
+      ],
+      "emitted_snps": [
+        {
+          "rsid": "i5016526",
+          "pos": 16526,
+          "ancestral_allele": "G",
+          "allele": "A",
+          "motif_owner": "U5a2",
+          "array_coverage": {
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
+          }
+        }
+      ]
+    },
+    "U5b": {
+      "source_node": "U5b",
+      "emitted_parent": "U5",
+      "source_motif_status": "exact",
+      "source_topology": {
+        "status": "exact",
+        "emitted_parent_source_node": "U5",
+        "source_parent": "U5a'b",
+        "flattened_source_path": [
+          {
+            "source_node": "U5a'b",
+            "source_parent": "U5",
+            "reason": "Flattened in issue 1798 batch 13: Build 17 places shared U5a'b between U5 and emitted U5a/U5b. Its motif remains source-only so shared ancestry cannot provide terminal credit to either child.",
+            "direct_source_motif": [
+              {
+                "notation": "T3197C",
+                "mutation_type": "substitution",
+                "pos": 3197,
+                "ancestral_allele": "T",
+                "derived_allele": "C",
+                "emitted": false,
+                "omission_reason": "Flattened in issue 1798 batch 13: Build 17 places shared U5a'b between U5 and emitted U5a/U5b. Its motif remains source-only so shared ancestry cannot provide terminal credit to either child."
+              },
+              {
+                "notation": "G9477A",
+                "mutation_type": "substitution",
+                "pos": 9477,
+                "ancestral_allele": "G",
+                "derived_allele": "A",
+                "emitted": false,
+                "omission_reason": "Flattened in issue 1798 batch 13: Build 17 places shared U5a'b between U5 and emitted U5a/U5b. Its motif remains source-only so shared ancestry cannot provide terminal credit to either child."
+              },
+              {
+                "notation": "T13617C",
+                "mutation_type": "substitution",
+                "pos": 13617,
+                "ancestral_allele": "T",
+                "derived_allele": "C",
+                "emitted": false,
+                "omission_reason": "Flattened in issue 1798 batch 13: Build 17 places shared U5a'b between U5 and emitted U5a/U5b. Its motif remains source-only so shared ancestry cannot provide terminal credit to either child."
+              }
+            ]
+          }
+        ]
+      },
+      "direct_source_motif": [
+        {
+          "notation": "C150T",
+          "mutation_type": "substitution",
+          "pos": 150,
+          "ancestral_allele": "C",
+          "derived_allele": "T",
+          "emitted": false,
+          "omission_reason": "absent or non-callable in the primary four; callable only in historical pgp_1050"
+        },
+        {
+          "notation": "A7768G",
+          "mutation_type": "substitution",
+          "pos": 7768,
+          "ancestral_allele": "A",
+          "derived_allele": "G",
+          "emitted": false,
+          "omission_reason": "absent or non-callable in the primary four; callable only in historical pgp_1050"
+        },
+        {
+          "notation": "T14182C",
+          "mutation_type": "substitution",
+          "pos": 14182,
+          "ancestral_allele": "T",
+          "derived_allele": "C",
+          "emitted": true
+        }
+      ],
+      "emitted_snps": [
+        {
+          "rsid": "i5014182",
+          "pos": 14182,
+          "ancestral_allele": "T",
+          "allele": "C",
+          "motif_owner": "U5b",
+          "array_coverage": {
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
+          }
+        }
+      ]
+    },
+    "U5b1": {
+      "source_node": "U5b1",
+      "emitted_parent": "U5b",
+      "source_motif_status": "exact",
+      "source_topology": {
+        "status": "exact",
+        "emitted_parent_source_node": "U5b",
+        "source_parent": "U5b",
+        "flattened_source_path": []
+      },
+      "direct_source_motif": [
+        {
+          "notation": "A5656G",
+          "mutation_type": "substitution",
+          "pos": 5656,
+          "ancestral_allele": "A",
+          "derived_allele": "G",
+          "emitted": true
+        }
+      ],
+      "emitted_snps": [
+        {
+          "rsid": "i5005656",
+          "pos": 5656,
+          "ancestral_allele": "A",
+          "allele": "G",
+          "motif_owner": "U5b1",
+          "array_coverage": {
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
+          }
+        }
+      ]
+    },
     "U5b2": {
       "source_node": "U5b2",
       "emitted_parent": "U5b",
       "source_motif_status": "exact",
       "source_topology": {
-        "status": "pending"
+        "status": "exact",
+        "emitted_parent_source_node": "U5b",
+        "source_parent": "U5b",
+        "flattened_source_path": []
       },
       "direct_source_motif": [
         {
@@ -25150,6 +25558,249 @@
           "ancestral_allele": "T",
           "allele": "C",
           "motif_owner": "U8",
+          "array_coverage": {
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
+          }
+        }
+      ]
+    },
+    "U8a": {
+      "source_node": "U8a",
+      "emitted_parent": "U8",
+      "source_motif_status": "exact",
+      "source_topology": {
+        "status": "exact",
+        "emitted_parent_source_node": "U8",
+        "source_parent": "U8",
+        "flattened_source_path": []
+      },
+      "direct_source_motif": [
+        {
+          "notation": "T282C",
+          "mutation_type": "substitution",
+          "pos": 282,
+          "ancestral_allele": "T",
+          "derived_allele": "C",
+          "emitted": true
+        },
+        {
+          "notation": "T6392C",
+          "mutation_type": "substitution",
+          "pos": 6392,
+          "ancestral_allele": "T",
+          "derived_allele": "C",
+          "emitted": true
+        },
+        {
+          "notation": "C6455T",
+          "mutation_type": "substitution",
+          "pos": 6455,
+          "ancestral_allele": "C",
+          "derived_allele": "T",
+          "emitted": true
+        },
+        {
+          "notation": "A7055G",
+          "mutation_type": "substitution",
+          "pos": 7055,
+          "ancestral_allele": "A",
+          "derived_allele": "G",
+          "emitted": false,
+          "omission_reason": "absent or non-callable in the primary four; callable only in historical pgp_1050"
+        },
+        {
+          "notation": "C9365T",
+          "mutation_type": "substitution",
+          "pos": 9365,
+          "ancestral_allele": "C",
+          "derived_allele": "T",
+          "emitted": true
+        },
+        {
+          "notation": "G13145A",
+          "mutation_type": "substitution",
+          "pos": 13145,
+          "ancestral_allele": "G",
+          "derived_allele": "A",
+          "emitted": true
+        }
+      ],
+      "emitted_snps": [
+        {
+          "rsid": "i5000282",
+          "pos": 282,
+          "ancestral_allele": "T",
+          "allele": "C",
+          "motif_owner": "U8a",
+          "array_coverage": {
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
+          }
+        },
+        {
+          "rsid": "i5006392",
+          "pos": 6392,
+          "ancestral_allele": "T",
+          "allele": "C",
+          "motif_owner": "U8a",
+          "array_coverage": {
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
+          }
+        },
+        {
+          "rsid": "i5006455",
+          "pos": 6455,
+          "ancestral_allele": "C",
+          "allele": "T",
+          "motif_owner": "U8a",
+          "array_coverage": {
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
+          }
+        },
+        {
+          "rsid": "i5009365",
+          "pos": 9365,
+          "ancestral_allele": "C",
+          "allele": "T",
+          "motif_owner": "U8a",
+          "array_coverage": {
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
+          }
+        },
+        {
+          "rsid": "i5013145",
+          "pos": 13145,
+          "ancestral_allele": "G",
+          "allele": "A",
+          "motif_owner": "U8a",
+          "array_coverage": {
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162"
+            ]
+          }
+        }
+      ]
+    },
+    "U8b": {
+      "source_node": "U8b",
+      "emitted_parent": "U8",
+      "source_motif_status": "exact",
+      "source_topology": {
+        "status": "exact",
+        "emitted_parent_source_node": "U8",
+        "source_parent": "U8b'c",
+        "flattened_source_path": [
+          {
+            "source_node": "U8b'c",
+            "source_parent": "U8",
+            "reason": "Flattened in issue 1798 batch 13: Build 17 places shared U8b'c between U8 and emitted U8b. Callable m.3480 remains source-only so the helper cannot terminal-call U8b or bypass its direct m.14167 evidence.",
+            "direct_source_motif": [
+              {
+                "notation": "A3480G",
+                "mutation_type": "substitution",
+                "pos": 3480,
+                "ancestral_allele": "A",
+                "derived_allele": "G",
+                "emitted": false,
+                "omission_reason": "Flattened in issue 1798 batch 13: Build 17 places shared U8b'c between U8 and emitted U8b. Callable m.3480 remains source-only so the helper cannot terminal-call U8b or bypass its direct m.14167 evidence."
+              }
+            ]
+          }
+        ]
+      },
+      "direct_source_motif": [
+        {
+          "notation": "G9055A",
+          "mutation_type": "substitution",
+          "pos": 9055,
+          "ancestral_allele": "G",
+          "derived_allele": "A",
+          "emitted": false,
+          "omission_reason": "absent or non-callable in the primary four; callable only in historical pgp_1050"
+        },
+        {
+          "notation": "C14167T",
+          "mutation_type": "substitution",
+          "pos": 14167,
+          "ancestral_allele": "C",
+          "derived_allele": "T",
+          "emitted": true
+        }
+      ],
+      "emitted_snps": [
+        {
+          "rsid": "i5014167",
+          "pos": 14167,
+          "ancestral_allele": "C",
+          "allele": "T",
+          "motif_owner": "U8b",
           "array_coverage": {
             "cohort_id": "primary_four_23andme",
             "position_present_in": [
@@ -27415,6 +28066,40 @@
       ],
       "emitted_snps": []
     },
+    "U5": {
+      "type": "markerless_passthrough",
+      "emitted_parent": "U",
+      "source_status": "exact",
+      "reason": "Exact markerless U5 gateway retained for issue 1798 batch 13: direct C16192T is historical-only and C16270T is callable in only two of four primary exports, so emitting either available subset would block valid U5a/U5b descendants.",
+      "source_node": "U5",
+      "source_topology": {
+        "status": "exact",
+        "emitted_parent_source_node": "U",
+        "source_parent": "U",
+        "flattened_source_path": []
+      },
+      "direct_source_motif": [
+        {
+          "notation": "C16192T",
+          "mutation_type": "substitution",
+          "pos": 16192,
+          "ancestral_allele": "C",
+          "derived_allele": "T",
+          "emitted": false,
+          "omission_reason": "absent or non-callable in the primary four; callable only in historical pgp_1050; retain U5 as an exact markerless structural pass-through"
+        },
+        {
+          "notation": "C16270T",
+          "mutation_type": "substitution",
+          "pos": 16270,
+          "ancestral_allele": "C",
+          "derived_allele": "T",
+          "emitted": false,
+          "omission_reason": "callable only in pgp_4187 and pgp_huA08F4D; emitting it would block the U5 subtree in pgp_4139 and pgp_4162, so retain exact U5 as markerless"
+        }
+      ],
+      "emitted_snps": []
+    },
     "mt-MRCA": {
       "type": "root",
       "emitted_parent": null,
@@ -27423,34 +28108,9 @@
       "reason": "Synthetic tree-walk root; it emits no defining marker."
     }
   },
-  "pending_nodes": {
-    "U5": {
-      "emitted_parent": "U"
-    },
-    "U5a": {
-      "emitted_parent": "U5"
-    },
-    "U5a1": {
-      "emitted_parent": "U5a"
-    },
-    "U5a2": {
-      "emitted_parent": "U5a"
-    },
-    "U5b": {
-      "emitted_parent": "U5"
-    },
-    "U5b1": {
-      "emitted_parent": "U5b"
-    },
-    "U8a": {
-      "emitted_parent": "U8"
-    },
-    "U8b": {
-      "emitted_parent": "U8"
-    }
-  },
+  "pending_nodes": {},
   "migration": {
-    "status": "in_progress",
+    "status": "complete",
     "baseline_commit": "e463604fc5b4af4d5887c9e9a76c2f54598ef312",
     "baseline_snapshot_sha256": "f8aecb8ba02e5c2becbccfc40846bd3c8668d4b8c6de5be1761ab78c0d83a87e",
     "legacy_locked_exact_nodes": [
@@ -27692,11 +28352,18 @@
       "U4a",
       "U4b",
       "U4c",
+      "U5a",
+      "U5a1",
+      "U5a2",
+      "U5b",
+      "U5b1",
       "U5b2",
       "U6",
       "U6a",
       "U7",
       "U8",
+      "U8a",
+      "U8b",
       "U9",
       "V",
       "V1",
@@ -27715,9 +28382,9 @@
       "Z",
       "Z1"
     ],
-    "locked_exact_nodes_sha256": "8691eae4dabb6978a8def825a1b5a429cc20b2e1a31a8a1a6f5c67d0654c7f57",
-    "locked_exact_semantic_sha256": "f22b3870b9f48fc05772bf2f3fd22e5c7e6175f6e1c5dc90344360790e409633",
-    "locked_exact_coverage_membership_sha256": "1aac659eeefb9ece71c2cc42e4ffd3263ded92ed66b62f95165edb2b79a25948",
+    "locked_exact_nodes_sha256": "cbd8af4204fdbabb36d9c97a1ecb7100279d71d337f9e56aecc9dc44ccfd1454",
+    "locked_exact_semantic_sha256": "5b2a64dc6b5328bdb4523938ebcfd079a2a6ea3129b5fda7d9cc379ea3649fe0",
+    "locked_exact_coverage_membership_sha256": "6763bae78f35afc14e8782cdd0b179c06980db2836f43cb9c7d169794ec19d5f",
     "baseline_direct_motif_exact_nodes": [
       "C",
       "G1",
@@ -27814,8 +28481,12 @@
       "J2a",
       "J2b",
       "JT",
+      "K",
+      "K1",
+      "K1a",
       "K1b",
       "K2",
+      "K2a",
       "K2b",
       "L0",
       "L0a",
@@ -27903,11 +28574,18 @@
       "U4a",
       "U4b",
       "U4c",
+      "U5a",
+      "U5a1",
+      "U5a2",
+      "U5b",
+      "U5b1",
       "U5b2",
       "U6",
       "U6a",
       "U7",
       "U8",
+      "U8a",
+      "U8b",
       "U9",
       "V",
       "V1",
@@ -27926,8 +28604,8 @@
       "Z",
       "Z1"
     ],
-    "locked_direct_motif_exact_nodes_sha256": "064892149df247d891f603c1925182f14ef845383933b0c5132a62a92e90d20e",
-    "locked_direct_motif_semantic_sha256": "fbcb664c186956bafbd74e1584b88cf1c3be8f58bf0820922a55987e7b54592d",
+    "locked_direct_motif_exact_nodes_sha256": "cbd8af4204fdbabb36d9c97a1ecb7100279d71d337f9e56aecc9dc44ccfd1454",
+    "locked_direct_motif_semantic_sha256": "a7e8897c43b9144b4363e9eb3e50d0fc662444a98e55ad09d69710db27af0160",
     "initial_direct_motif_pending_nodes": [
       "G",
       "H6",
@@ -28101,8 +28779,8 @@
     "initial_pending_nodes_sha256": "996c2c96c22d37a2aa7edf1f4639d626ccc5199ecc5eb35984aa84204e05a591",
     "array_manifest_sha256": "42de22517a4644884596e36b0499a4fc45f264986c63f6fb239452b88719f977",
     "source_metadata_sha256": "13755a154c19c603bac63a2195287165271571ece1e36e178a666aa35184d04b",
-    "state_partition_sha256": "454619240e542ac190cac99f8c8bd2a65f3229d39d4dd10c4ceb04110b1f3bbf",
+    "state_partition_sha256": "b4f46c5140936d99429b7f52f1a94c7ded344417ad579e7d381ba07dc56c9115",
     "baseline_emitted_tree_sha256": "02a40be2096dd8c60e6e2934ba68a813f07478117a749e60e94e0608bed21914",
-    "locked_emitted_tree_sha256": "152011793ca300c5096d20f284ffe673b8dec0b5332bef372583cc98b562434e"
+    "locked_emitted_tree_sha256": "73323f94e8740b24faa0001065f0ca79a9a24c18554500545e65694b1f17a566"
   }
 }
