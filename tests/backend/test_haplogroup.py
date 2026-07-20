@@ -217,9 +217,12 @@ _MT_I_GENOTYPES = _MT_N1A_GENOTYPES + [
 ]
 
 _MT_B_REVERSAL_GENOTYPES = _MT_R_TRUNK_GENOTYPES + [
-    {"rsid": "i5000827", "chrom": "MT", "pos": 827, "genotype": "GG"},
-    {"rsid": "i5008281", "chrom": "MT", "pos": 8281, "genotype": "CC"},
-    {"rsid": "i5015301", "chrom": "MT", "pos": 15301, "genotype": "AA"},
+    {"rsid": "i5008584", "chrom": "MT", "pos": 8584, "genotype": "AA"},
+    {"rsid": "i5009950", "chrom": "MT", "pos": 9950, "genotype": "CC"},
+    # N omits its source m.10398A event so the B5 back mutation remains
+    # reachable through markerless B without a hard ancestor conflict.
+    {"rsid": "i5010398", "chrom": "MT", "pos": 10398, "genotype": "GG"},
+    {"rsid": "i5016140", "chrom": "MT", "pos": 16140, "genotype": "CC"},
 ]
 
 _MT_J_REVERSAL_GENOTYPES = _MT_R_TRUNK_GENOTYPES + [
@@ -838,6 +841,33 @@ _ISSUE_1798_BATCH09_TREE = {
 }
 
 
+_ISSUE_1798_BATCH10_TREE = {
+    "HV0": ("HV", ((72, "C"),)),
+    "HV1": ("HV", ((8014, "T"), (16067, "T"))),
+    "V": ("HV0", ((4580, "A"),)),
+    "V1": ("V", ((8869, "G"),)),
+    "V7": ("V", ((93, "G"), (7444, "A"))),
+    "B": ("R", ()),
+    "B4": ("B", ((16217, "C"),)),
+    "B4a": ("B4", ((5465, "C"),)),
+    "B4b": ("B4", ((499, "A"), (4820, "A"), (13590, "A"))),
+    "B4c": ("B4", ((1119, "C"), (15346, "A"))),
+    "B5": ("B", ((8584, "A"), (9950, "C"), (10398, "G"), (16140, "C"))),
+    "F": ("R", ((6392, "C"), (10310, "A"))),
+    "F1": ("F", ((6962, "A"), (10609, "C"), (12882, "T"))),
+    "F1a": ("F1", ((4086, "T"), (16172, "C"))),
+    "F1b": (
+        "F1",
+        ((10976, "T"), (12633, "T"), (14476, "A"), (16232, "A"), (16249, "C")),
+    ),
+    "F2": (
+        "F",
+        ((1005, "C"), (7828, "G"), (10535, "C"), (10586, "A"), (12338, "C"), (13708, "A")),
+    ),
+    "P": ("R", ((15607, "G"),)),
+}
+
+
 _W_DIRECT_POSITION_GENOTYPES = [
     {"pos": row["pos"], "genotype": row["genotype"]}
     for row in _MT_W_TRUNK_GENOTYPES[len(_MT_N_TRUNK_GENOTYPES) :]
@@ -886,7 +916,7 @@ class TestLoadHaplogroupBundle:
     """Test haplogroup bundle loading from JSON."""
 
     def test_loads_from_json(self, bundle: HaplogroupBundle) -> None:
-        assert bundle.version == "1.1.25"
+        assert bundle.version == "1.1.26"
         assert bundle.build == "GRCh37"
 
     def test_mt_tree_root(self, bundle: HaplogroupBundle) -> None:
@@ -1465,7 +1495,7 @@ class TestTreeWalk:
         [
             (_MT_N1_REVERSAL_GENOTYPES, ["L3", "N", "N1"]),
             (_MT_N1A_GENOTYPES, ["L3", "N", "N1", "N1a"]),
-            (_MT_B_REVERSAL_GENOTYPES, ["L3", "N", "R", "B"]),
+            (_MT_B_REVERSAL_GENOTYPES, ["L3", "N", "R", "B", "B5"]),
             (_MT_J_REVERSAL_GENOTYPES, ["L3", "N", "R", "JT", "J"]),
             (_MT_K1_REVERSAL_GENOTYPES, ["L3", "N", "R", "U", "U8", "K", "K1"]),
         ],
@@ -6611,6 +6641,427 @@ class TestAssignHaplogroups:
         assert len(matching_children) == 1
         node = matching_children[0]
         assert tuple((snp.pos, snp.allele) for snp in node.defining_snps) == expected_markers
+
+    @pytest.mark.parametrize(
+        ("target", "expected_parent", "expected_markers"),
+        [
+            pytest.param(target, parent, markers, id=target)
+            for target, (parent, markers) in _ISSUE_1798_BATCH10_TREE.items()
+        ],
+    )
+    def test_issue_1798_batch10_r_other_branch_tree_is_exact(
+        self,
+        bundle: HaplogroupBundle,
+        target: str,
+        expected_parent: str,
+        expected_markers: tuple[tuple[int, str], ...],
+    ) -> None:
+        """Batch 10 retains exact direct markers and deletion-defined markerless B."""
+        parent = _find_mt_node(bundle.mt_tree, expected_parent)
+        assert parent is not None
+        matching_children = [child for child in parent.children if child.haplogroup == target]
+        assert len(matching_children) == 1
+        node = matching_children[0]
+        assert tuple((snp.pos, snp.allele) for snp in node.defining_snps) == expected_markers
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize(
+        ("case", "calls", "expected", "expected_path"),
+        [
+            pytest.param(
+                "B4",
+                ((16217, "C"),),
+                "B4",
+                ["L3", "N", "R", "B", "B4"],
+                id="direct-B4-through-markerless-B",
+            ),
+            pytest.param(
+                "B5",
+                ((8584, "A"), (9950, "C"), (10398, "G"), (16140, "C")),
+                "B5",
+                ["L3", "N", "R", "B", "B5"],
+                id="direct-B5-through-markerless-B",
+            ),
+            pytest.param(
+                "B-source-only",
+                ((16189, "C"), (8281, "C")),
+                "R",
+                ["L3", "N", "R"],
+                id="helper-and-old-substitution-cannot-terminal-call-B",
+            ),
+        ],
+    )
+    def test_issue_1798_batch10_markerless_b_routes_only_direct_children(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        case: str,
+        calls: tuple[tuple[int, str], ...],
+        expected: str,
+        expected_path: list[str],
+    ) -> None:
+        """B itself is never terminal, while direct B4/B5 evidence remains reachable."""
+        rows = [
+            {
+                **row,
+                "rsid": f"vendor_issue_1798_batch10_{case}_{index}",
+                "chrom": "MT",
+            }
+            for index, row in enumerate(
+                [
+                    *_derived_mt_path_genotypes("R"),
+                    *({"pos": position, "genotype": allele * 2} for position, allele in calls),
+                ]
+            )
+        ]
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        assert mt.haplogroup == expected
+        assert [step.haplogroup for step in mt.traversal_path] == expected_path
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize(
+        ("case", "ancestor", "calls", "expected", "expected_path"),
+        [
+            pytest.param(
+                "HV0a",
+                "HV0",
+                ((15904, "T"),),
+                "HV0",
+                ["L3", "N", "R", "R0", "HV", "HV0"],
+                id="HV0a-does-not-call-V",
+            ),
+            pytest.param(
+                "B4-plus-16261",
+                "B4",
+                ((16261, "T"),),
+                "B4",
+                ["L3", "N", "R", "B", "B4"],
+                id="B4-helper-does-not-call-B4a",
+            ),
+            pytest.param(
+                "B4b-shared",
+                "B4",
+                ((827, "G"), (15535, "T")),
+                "B4",
+                ["L3", "N", "R", "B", "B4"],
+                id="B4b-shared-helper-does-not-refine",
+            ),
+            pytest.param(
+                "R9",
+                "R",
+                ((3970, "T"), (13928, "C"), (16304, "C")),
+                "R",
+                ["L3", "N", "R"],
+                id="R9-does-not-call-F",
+            ),
+            pytest.param(
+                "F1a-shared",
+                "F1",
+                ((9053, "A"), (13759, "A"), (16129, "A")),
+                "F1",
+                ["L3", "N", "R", "F", "F1"],
+                id="F1a-shared-helper-does-not-refine",
+            ),
+            pytest.param(
+                "F1-plus-16189",
+                "F1",
+                ((16189, "C"),),
+                "F1",
+                ["L3", "N", "R", "F", "F1"],
+                id="F1-helper-does-not-call-F1b",
+            ),
+        ],
+    )
+    def test_issue_1798_batch10_flattened_helpers_are_source_only(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        case: str,
+        ancestor: str,
+        calls: tuple[tuple[int, str], ...],
+        expected: str,
+        expected_path: list[str],
+    ) -> None:
+        """None of the corrected seven flattened paths can create terminal credit."""
+        rows = [
+            {
+                **row,
+                "rsid": f"vendor_issue_1798_batch10_{case}_{index}",
+                "chrom": "MT",
+            }
+            for index, row in enumerate(
+                [
+                    *_derived_mt_path_genotypes(ancestor),
+                    *({"pos": position, "genotype": allele * 2} for position, allele in calls),
+                ]
+            )
+        ]
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        assert mt.haplogroup == expected
+        assert [step.haplogroup for step in mt.traversal_path] == expected_path
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize(
+        ("target", "ancestor", "direct_calls", "expected_path"),
+        [
+            pytest.param(
+                "V1",
+                "V",
+                ((8869, "G"),),
+                ["L3", "N", "R", "R0", "HV", "HV0", "V", "V1"],
+                id="V1-direct",
+            ),
+            pytest.param(
+                "V7",
+                "V",
+                ((93, "G"), (7444, "A")),
+                ["L3", "N", "R", "R0", "HV", "HV0", "V", "V7"],
+                id="V7-direct",
+            ),
+            pytest.param(
+                "F1a",
+                "F1",
+                ((4086, "T"), (16172, "C")),
+                ["L3", "N", "R", "F", "F1", "F1a"],
+                id="F1a-direct",
+            ),
+            pytest.param(
+                "F1b",
+                "F1",
+                ((10976, "T"), (12633, "T"), (14476, "A"), (16232, "A"), (16249, "C")),
+                ["L3", "N", "R", "F", "F1", "F1b"],
+                id="F1b-direct",
+            ),
+            pytest.param(
+                "F2",
+                "F",
+                ((1005, "C"), (7828, "G"), (10535, "C"), (10586, "A"), (12338, "C"), (13708, "A")),
+                ["L3", "N", "R", "F", "F2"],
+                id="F2-direct",
+            ),
+            pytest.param(
+                "P",
+                "R",
+                ((15607, "G"),),
+                ["L3", "N", "R", "P"],
+                id="P-direct",
+            ),
+        ],
+    )
+    def test_issue_1798_batch10_direct_branches_resolve_without_sibling_borrowing(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        target: str,
+        ancestor: str,
+        direct_calls: tuple[tuple[int, str], ...],
+        expected_path: list[str],
+    ) -> None:
+        """Direct evidence resolves its own Batch 10 child through the reviewed parent."""
+        rows = [
+            {
+                **row,
+                "rsid": f"vendor_issue_1798_batch10_{target}_{index}",
+                "chrom": "MT",
+            }
+            for index, row in enumerate(
+                [
+                    *_derived_mt_path_genotypes(ancestor),
+                    *(
+                        {"pos": position, "genotype": allele * 2}
+                        for position, allele in direct_calls
+                    ),
+                ]
+            )
+        ]
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        assert mt.haplogroup == target
+        assert [step.haplogroup for step in mt.traversal_path] == expected_path
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize(
+        ("case", "ancestor", "calls", "expected", "expected_path"),
+        [
+            pytest.param(
+                "V-ancestral",
+                "HV0",
+                ((4580, "G"),),
+                "HV0",
+                ["L3", "N", "R", "R0", "HV", "HV0"],
+            ),
+            pytest.param(
+                "B4-ancestral",
+                "R",
+                ((16217, "T"),),
+                "R",
+                ["L3", "N", "R"],
+            ),
+            pytest.param(
+                "B4a-ancestral",
+                "B4",
+                ((5465, "T"),),
+                "B4",
+                ["L3", "N", "R", "B", "B4"],
+            ),
+            pytest.param(
+                "F-ancestral",
+                "R",
+                ((6392, "T"), (10310, "A")),
+                "R",
+                ["L3", "N", "R"],
+            ),
+            pytest.param(
+                "F1b-ancestral",
+                "F1",
+                ((10976, "C"), (12633, "T"), (14476, "A"), (16232, "A"), (16249, "C")),
+                "F1",
+                ["L3", "N", "R", "F", "F1"],
+            ),
+            pytest.param(
+                "P-ancestral",
+                "R",
+                ((15607, "A"),),
+                "R",
+                ["L3", "N", "R"],
+            ),
+        ],
+    )
+    def test_issue_1798_batch10_typed_ancestral_calls_block_descent(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        case: str,
+        ancestor: str,
+        calls: tuple[tuple[int, str], ...],
+        expected: str,
+        expected_path: list[str],
+    ) -> None:
+        """A typed source-ancestral state wins over otherwise matching child evidence."""
+        rows = [
+            {
+                **row,
+                "rsid": f"vendor_issue_1798_batch10_{case}_{index}",
+                "chrom": "MT",
+            }
+            for index, row in enumerate(
+                [
+                    *_derived_mt_path_genotypes(ancestor),
+                    *({"pos": position, "genotype": allele * 2} for position, allele in calls),
+                ]
+            )
+        ]
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        assert mt.haplogroup == expected
+        assert [step.haplogroup for step in mt.traversal_path] == expected_path
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize(
+        ("case", "ancestor", "calls", "expected", "expected_path"),
+        [
+            pytest.param(
+                "old-V",
+                "HV0",
+                ((15904, "C"), (4732, "G"), (5263, "T")),
+                "HV0",
+                ["L3", "N", "R", "R0", "HV", "HV0"],
+            ),
+            pytest.param(
+                "old-B",
+                "R",
+                ((827, "G"), (8281, "C"), (15301, "A")),
+                "R",
+                ["L3", "N", "R"],
+            ),
+            pytest.param(
+                "old-F1",
+                "F",
+                ((3970, "T"), (12406, "A")),
+                "F",
+                ["L3", "N", "R", "F"],
+            ),
+            pytest.param(
+                "old-F1b",
+                "F1",
+                ((7828, "G"),),
+                "F1",
+                ["L3", "N", "R", "F", "F1"],
+            ),
+            pytest.param(
+                "old-P",
+                "R",
+                ((1438, "G"), (3705, "T"), (16176, "G")),
+                "R",
+                ["L3", "N", "R"],
+            ),
+        ],
+    )
+    def test_issue_1798_batch10_old_marker_sets_do_not_refine(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        case: str,
+        ancestor: str,
+        calls: tuple[tuple[int, str], ...],
+        expected: str,
+        expected_path: list[str],
+    ) -> None:
+        """Former inherited, helper, historical, and unsupported markers stay inert."""
+        rows = [
+            {
+                **row,
+                "rsid": f"vendor_issue_1798_batch10_{case}_{index}",
+                "chrom": "MT",
+            }
+            for index, row in enumerate(
+                [
+                    *_derived_mt_path_genotypes(ancestor),
+                    *({"pos": position, "genotype": allele * 2} for position, allele in calls),
+                ]
+            )
+        ]
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        assert mt.haplogroup == expected
+        assert [step.haplogroup for step in mt.traversal_path] == expected_path
 
     @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
     @pytest.mark.parametrize(

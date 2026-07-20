@@ -46,7 +46,7 @@ from typing import Any
 
 # ── Version & metadata ─────────────────────────────────────────────────
 
-BUNDLE_VERSION = "1.1.25"
+BUNDLE_VERSION = "1.1.26"
 BUILD = "GRCh37"
 MT_SOURCE_PATH = Path(__file__).with_name("mt_haplogroup_source.json")
 MT_BASELINE_SNAPSHOT_PATH = Path(__file__).with_name("mt_haplogroup_baseline_snapshot.json")
@@ -78,12 +78,12 @@ _MT_BASELINE_V2_REGISTRY_SEMANTIC_SHA256 = (
 _MT_BASELINE_V2_COVERAGE_MEMBERSHIP_SHA256 = (
     "9e9d25bd07652d0637fde59d9292b6a4cba1c593268c2301bba1c910b9bd338b"
 )
-_MT_LOCKED_EXACT_NAMES_SHA256 = "203bd72b4f41a55e92e5e095551156d55e5102f7cdde5fa2572ff451451bd26c"
+_MT_LOCKED_EXACT_NAMES_SHA256 = "c6ed5c52492181c33b54d95c8c03627438d8b92a0eb9fe3d9ce6de38bfaba669"
 _MT_LOCKED_EXACT_SEMANTIC_SHA256 = (
-    "5863c80a9498a620a50b3bab00aca5404538678b7fdbf7745134a174547a8283"
+    "62d1414ec8c133c5c8e3419ecac1391ccfb62c3f1f954b8ee8b7413dba4a4f2a"
 )
 _MT_LOCKED_EXACT_COVERAGE_MEMBERSHIP_SHA256 = (
-    "9bfd7222cadaa3a6cac6acb10097c8d7594930dac5ec30ed4e142cdb712c31ea"
+    "b31dde695984731f020c1dfcb2e2a6d197f05c85803cd40c7457ae59e48cec8f"
 )
 _MT_BASELINE_DIRECT_MOTIF_EXACT_NAMES_SHA256 = (
     "0dc2cc812e511bc89b76fca6ed13614d8ddb75a6ebe6321bde670096c44fba61"
@@ -92,10 +92,10 @@ _MT_BASELINE_DIRECT_MOTIF_SEMANTIC_SHA256 = (
     "ecc1dbf4c93872031e102ee166eac50e31d6468395e5d0053357af44f8a9785a"
 )
 _MT_LOCKED_DIRECT_MOTIF_EXACT_NAMES_SHA256 = (
-    "dc7a231de1a97ce6f252b2b25878eb32edb1ca2d0d0888aa77ec6dd47620fe72"
+    "8b09abb5515970ed2142525f9d46ac34199a9a7497c2a7670093f7d4458e82dd"
 )
 _MT_LOCKED_DIRECT_MOTIF_SEMANTIC_SHA256 = (
-    "84d79d5e8ce056de59fb4681618f33c5a5df19e0786b60763c61cf3302cc4f16"
+    "c0194896a68c8a176dcb3d51c30e4ae43facefb05e6cc22c75c1fecb53f64bc4"
 )
 _MT_INITIAL_DIRECT_MOTIF_PENDING_NAMES_SHA256 = (
     "7b4848980e34ca1eff9739f964906d68eb4acdbbcd5e93227e17ece79296aefb"
@@ -105,11 +105,11 @@ _MT_INITIAL_PENDING_NAMES_SHA256 = (
 )
 _MT_ARRAY_MANIFEST_SHA256 = "42de22517a4644884596e36b0499a4fc45f264986c63f6fb239452b88719f977"
 _MT_SOURCE_METADATA_SHA256 = "13755a154c19c603bac63a2195287165271571ece1e36e178a666aa35184d04b"
-_MT_STATE_PARTITION_SHA256 = "af1fff7c71642cea289e2a9adab205e41b34af27495fa4e1029ebefae0b53f03"
+_MT_STATE_PARTITION_SHA256 = "1f8e3cd3146d82e9ce869608a691cfdca855923112f16a0a51eacf058f5ec6da"
 _MT_BASELINE_EMITTED_TREE_SHA256 = (
     "02a40be2096dd8c60e6e2934ba68a813f07478117a749e60e94e0608bed21914"
 )
-_MT_LOCKED_EMITTED_TREE_SHA256 = "978d88ca53852601daef6e1614fa4742184437d8e46e5953f62dd02c16d7e1ff"
+_MT_LOCKED_EMITTED_TREE_SHA256 = "5f4230bef828604767deb179c9f8434eb33eb0db7740f15e04db8223148ccc4e"
 _MT_SYNTHETIC_ROOT_NAME = "mt-MRCA"
 _MT_FLATTENED_OMISSION_TYPES = frozenset(
     {
@@ -1463,81 +1463,91 @@ def build_mt_tree() -> dict[str, Any]:
     b4a = _node(
         "B4a",
         [
-            _mt_snp("i5006719", 6719, "C"),
-            _mt_snp("i5009123", 9123, "A"),
+            _mt_snp("i5005465", 5465, "C"),
         ],
     )
     b4b = _node(
         "B4b",
         [
-            _mt_snp("i5003453", 3453, "G"),
+            _mt_snp("i5000499", 499, "A"),
             _mt_snp("i5004820", 4820, "A"),
+            _mt_snp("i5013590", 13590, "A"),
         ],
     )
     b4c = _node(
         "B4c",
         [
-            _mt_snp("i5003497", 3497, "T"),
+            _mt_snp("i5001119", 1119, "C"),
+            _mt_snp("i5015346", 15346, "A"),
         ],
     )
     b4 = _node(
         "B4",
         [
-            _mt_snp("i5003453", 3453, "G"),
-            _mt_snp("i5009123", 9123, "A"),
+            _mt_snp("i5016217", 16217, "C"),
         ],
         [b4a, b4b, b4c],
     )
     b5 = _node(
         "B5",
         [
-            _mt_snp("i5000210", 210, "G"),
-            _mt_snp("i5001809", 1809, "C"),
-            _mt_snp("i5006960", 6960, "C"),
+            _mt_snp("i5008584", 8584, "A"),
+            _mt_snp("i5009950", 9950, "C"),
+            _mt_snp("i5010398", 10398, "G"),
+            _mt_snp("i5016140", 16140, "C"),
         ],
     )
     b = _node(
         "B",
-        [
-            _mt_snp("i5000827", 827, "G"),
-            _mt_snp("i5008281", 8281, "C"),
-            _mt_snp("i5015301", 15301, "A"),
-        ],
+        # Source B4'5 is defined by the m.8281-8289 deletion, which the
+        # substitution-only caller cannot score. Keep B as an exact markerless
+        # gateway so direct evidence can still resolve B4 and B5 descendants.
+        [],
         [b4, b5],
     )
 
     f1a = _node(
         "F1a",
         [
-            _mt_snp("i5003970", 3970, "T"),
-            _mt_snp("i5013759", 13759, "A"),
+            _mt_snp("i5004086", 4086, "T"),
+            _mt_snp("i5016172", 16172, "C"),
         ],
     )
     f1b = _node(
         "F1b",
         [
-            _mt_snp("i5007828", 7828, "G"),
+            _mt_snp("i5010976", 10976, "T"),
+            _mt_snp("i5012633", 12633, "T"),
+            _mt_snp("i5014476", 14476, "A"),
+            _mt_snp("i5016232", 16232, "A"),
+            _mt_snp("i5016249", 16249, "C"),
         ],
     )
     f1 = _node(
         "F1",
         [
-            _mt_snp("i5003970", 3970, "T"),
-            _mt_snp("i5012406", 12406, "A"),
+            _mt_snp("i5006962", 6962, "A"),
+            _mt_snp("i5010609", 10609, "C"),
+            _mt_snp("i5012882", 12882, "T"),
         ],
         [f1a, f1b],
     )
     f2 = _node(
         "F2",
         [
-            _mt_snp("i5004218", 4218, "C"),
-            _mt_snp("i5013928", 13928, "C"),
+            _mt_snp("i5001005", 1005, "C"),
+            _mt_snp("i5007828", 7828, "G"),
+            _mt_snp("i5010535", 10535, "C"),
+            _mt_snp("i5010586", 10586, "A"),
+            _mt_snp("i5012338", 12338, "C"),
+            _mt_snp("i5013708", 13708, "A"),
         ],
     )
     f = _node(
         "F",
         [
-            _mt_snp("i5000249", 249, "A"),
+            # Direct A249d is retained in provenance but cannot be emitted by
+            # the substitution-only caller.
             _mt_snp("i5006392", 6392, "C"),
             _mt_snp("i5010310", 10310, "A"),
         ],
@@ -1547,9 +1557,7 @@ def build_mt_tree() -> dict[str, Any]:
     p = _node(
         "P",
         [
-            _mt_snp("i5001438", 1438, "G"),
-            _mt_snp("i5003705", 3705, "T"),
-            _mt_snp("i5016176", 16176, "G"),
+            _mt_snp("i5015607", 15607, "G"),
         ],
     )
 
@@ -1741,20 +1749,20 @@ def build_mt_tree() -> dict[str, Any]:
     v1 = _node(
         "V1",
         [
-            _mt_snp("i5004732", 4732, "G"),
+            _mt_snp("i5008869", 8869, "G"),
         ],
     )
     v7 = _node(
         "V7",
         [
-            _mt_snp("i5005263", 5263, "T"),
+            _mt_snp("i5000093", 93, "G"),
+            _mt_snp("i5007444", 7444, "A"),
         ],
     )
     v = _node(
         "V",
         [
             _mt_snp("i5004580", 4580, "A"),
-            _mt_snp("i5015904", 15904, "C"),
         ],
         [v1, v7],
     )
@@ -1771,6 +1779,7 @@ def build_mt_tree() -> dict[str, Any]:
     hv1 = _node(
         "HV1",
         [
+            _mt_snp("i5008014", 8014, "T"),
             _mt_snp("i5016067", 16067, "T"),
         ],
     )
