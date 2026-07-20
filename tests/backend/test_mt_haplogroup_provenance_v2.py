@@ -5400,6 +5400,7 @@ def test_issue_1798_batch_08_marker_records_are_exact_covered_and_tree_locked() 
             {key: marker[key] for key in ("rsid", "pos", "allele")}
             for marker in record["emitted_snps"]
         ] == inventory.by_name[name].node["defining_snps"]
+        assert record["emitted_snps"]
         for marker in record["emitted_snps"]:
             assert marker["motif_owner"] == name
             coverage = marker["array_coverage"]
