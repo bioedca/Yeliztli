@@ -153,9 +153,8 @@ _MT_U3_TRUNK_GENOTYPES = _MT_U_TRUNK_GENOTYPES + [
 ]
 
 _MT_U5B_TRUNK_GENOTYPES = _MT_U_TRUNK_GENOTYPES + [
-    {"rsid": "i5003197", "chrom": "MT", "pos": 3197, "genotype": "CC"},
-    {"rsid": "i5009477", "chrom": "MT", "pos": 9477, "genotype": "AA"},
-    {"rsid": "i5007768", "chrom": "MT", "pos": 7768, "genotype": "GG"},
+    # U5 is an exact markerless gateway; shared U5a'b events stay source-only.
+    {"rsid": "i5014182", "chrom": "MT", "pos": 14182, "genotype": "CC"},
 ]
 
 _MT_U8_TRUNK_GENOTYPES = _MT_U_TRUNK_GENOTYPES + [
@@ -163,6 +162,8 @@ _MT_U8_TRUNK_GENOTYPES = _MT_U_TRUNK_GENOTYPES + [
 ]
 
 _MT_K_GENOTYPES = _MT_U8_TRUNK_GENOTYPES + [
+    # K is below the direct U8b gateway and cannot bypass m.14167T.
+    {"rsid": "i5014167", "chrom": "MT", "pos": 14167, "genotype": "TT"},
     {"rsid": "i5010550", "chrom": "MT", "pos": 10550, "genotype": "GG"},
     {"rsid": "i5011299", "chrom": "MT", "pos": 11299, "genotype": "CC"},
     {"rsid": "i5014798", "chrom": "MT", "pos": 14798, "genotype": "CC"},
@@ -1453,6 +1454,243 @@ _ISSUE_1798_BATCH12_LAYOUT_COUNTS = {
 }
 
 
+_ISSUE_1798_BATCH13_TREE = {
+    "U5": ("U", ()),
+    "U5a": ("U5", ((16256, "T"),)),
+    "U5a1": ("U5a", ((15218, "G"), (16399, "G"))),
+    "U5a2": ("U5a", ((16526, "A"),)),
+    "U5b": ("U5", ((14182, "C"),)),
+    "U5b1": ("U5b", ((5656, "G"),)),
+    "U5b2": ("U5b", ((1721, "T"), (13637, "G"))),
+    "U8a": ("U8", ((282, "C"), (6392, "C"), (6455, "T"), (9365, "T"), (13145, "A"))),
+    "U8b": ("U8", ((14167, "T"),)),
+    "K": ("U8b", ((10550, "G"), (11299, "C"), (14798, "C"))),
+    "K1": ("K", ((1189, "C"), (10398, "G"))),
+    "K1a": ("K1", ((497, "T"),)),
+    "K1b": ("K1", ((5913, "A"),)),
+    "K2": ("K", ((9716, "C"),)),
+    "K2a": ("K2", ((4561, "C"),)),
+    "K2b": ("K2", ((5231, "A"), (14037, "G"))),
+}
+
+
+_ISSUE_1798_BATCH13_PATHS = {
+    "U5": ("L3", "N", "R", "U", "U5"),
+    "U5a": ("L3", "N", "R", "U", "U5", "U5a"),
+    "U5a1": ("L3", "N", "R", "U", "U5", "U5a", "U5a1"),
+    "U5a2": ("L3", "N", "R", "U", "U5", "U5a", "U5a2"),
+    "U5b": ("L3", "N", "R", "U", "U5", "U5b"),
+    "U5b1": ("L3", "N", "R", "U", "U5", "U5b", "U5b1"),
+    "U5b2": ("L3", "N", "R", "U", "U5", "U5b", "U5b2"),
+    "U8a": ("L3", "N", "R", "U", "U8", "U8a"),
+    "U8b": ("L3", "N", "R", "U", "U8", "U8b"),
+    "K": ("L3", "N", "R", "U", "U8", "U8b", "K"),
+    "K1": ("L3", "N", "R", "U", "U8", "U8b", "K", "K1"),
+    "K1a": ("L3", "N", "R", "U", "U8", "U8b", "K", "K1", "K1a"),
+    "K1b": ("L3", "N", "R", "U", "U8", "U8b", "K", "K1", "K1b"),
+    "K2": ("L3", "N", "R", "U", "U8", "U8b", "K", "K2"),
+    "K2a": ("L3", "N", "R", "U", "U8", "U8b", "K", "K2", "K2a"),
+    "K2b": ("L3", "N", "R", "U", "U8", "U8b", "K", "K2", "K2b"),
+}
+
+
+_ISSUE_1798_BATCH13_U8_CALLS = _ISSUE_1798_BATCH12_U_CALLS + ((9698, "C"),)
+_ISSUE_1798_BATCH13_U5A_CALLS = _ISSUE_1798_BATCH12_U_CALLS + ((16256, "T"),)
+_ISSUE_1798_BATCH13_U5B_CALLS = _ISSUE_1798_BATCH12_U_CALLS + ((14182, "C"),)
+_ISSUE_1798_BATCH13_U8B_CALLS = _ISSUE_1798_BATCH13_U8_CALLS + ((14167, "T"),)
+_ISSUE_1798_BATCH13_K_CALLS = _ISSUE_1798_BATCH13_U8B_CALLS + (
+    (10550, "G"),
+    (11299, "C"),
+    (14798, "C"),
+)
+_ISSUE_1798_BATCH13_K1_CALLS = _ISSUE_1798_BATCH13_K_CALLS + (
+    (1189, "C"),
+    (10398, "G"),
+)
+_ISSUE_1798_BATCH13_K2_CALLS = _ISSUE_1798_BATCH13_K_CALLS + ((9716, "C"),)
+
+
+_ISSUE_1798_BATCH13_DIRECT_CASES = {
+    "U5a": (_ISSUE_1798_BATCH13_U5A_CALLS, _ISSUE_1798_BATCH13_PATHS["U5a"]),
+    "U5a1": (
+        _ISSUE_1798_BATCH13_U5A_CALLS + ((15218, "G"), (16399, "G")),
+        _ISSUE_1798_BATCH13_PATHS["U5a1"],
+    ),
+    "U5a2": (
+        _ISSUE_1798_BATCH13_U5A_CALLS + ((16526, "A"),),
+        _ISSUE_1798_BATCH13_PATHS["U5a2"],
+    ),
+    "U5b": (_ISSUE_1798_BATCH13_U5B_CALLS, _ISSUE_1798_BATCH13_PATHS["U5b"]),
+    "U5b1": (
+        _ISSUE_1798_BATCH13_U5B_CALLS + ((5656, "G"),),
+        _ISSUE_1798_BATCH13_PATHS["U5b1"],
+    ),
+    "U5b2": (
+        _ISSUE_1798_BATCH13_U5B_CALLS + ((1721, "T"), (13637, "G")),
+        _ISSUE_1798_BATCH13_PATHS["U5b2"],
+    ),
+    "U8a": (
+        _ISSUE_1798_BATCH13_U8_CALLS
+        + ((282, "C"), (6392, "C"), (6455, "T"), (9365, "T"), (13145, "A")),
+        _ISSUE_1798_BATCH13_PATHS["U8a"],
+    ),
+    "U8b": (_ISSUE_1798_BATCH13_U8B_CALLS, _ISSUE_1798_BATCH13_PATHS["U8b"]),
+    "K": (_ISSUE_1798_BATCH13_K_CALLS, _ISSUE_1798_BATCH13_PATHS["K"]),
+    "K1": (_ISSUE_1798_BATCH13_K1_CALLS, _ISSUE_1798_BATCH13_PATHS["K1"]),
+    "K1a": (
+        _ISSUE_1798_BATCH13_K1_CALLS + ((497, "T"),),
+        _ISSUE_1798_BATCH13_PATHS["K1a"],
+    ),
+    "K1b": (
+        _ISSUE_1798_BATCH13_K1_CALLS + ((5913, "A"),),
+        _ISSUE_1798_BATCH13_PATHS["K1b"],
+    ),
+    "K2": (_ISSUE_1798_BATCH13_K2_CALLS, _ISSUE_1798_BATCH13_PATHS["K2"]),
+    "K2a": (
+        _ISSUE_1798_BATCH13_K2_CALLS + ((4561, "C"),),
+        _ISSUE_1798_BATCH13_PATHS["K2a"],
+    ),
+    "K2b": (
+        _ISSUE_1798_BATCH13_K2_CALLS + ((5231, "A"), (14037, "G")),
+        _ISSUE_1798_BATCH13_PATHS["K2b"],
+    ),
+}
+
+
+_ISSUE_1798_BATCH13_CONFLICTS = {
+    "U5a": (16256, "C", "U", ("L3", "N", "R", "U")),
+    "U5a1": (15218, "A", "U5a", _ISSUE_1798_BATCH13_PATHS["U5a"]),
+    "U5a2": (16526, "G", "U5a", _ISSUE_1798_BATCH13_PATHS["U5a"]),
+    "U5b": (14182, "T", "U", ("L3", "N", "R", "U")),
+    "U5b1": (5656, "A", "U5b", _ISSUE_1798_BATCH13_PATHS["U5b"]),
+    "U5b2": (1721, "C", "U5b", _ISSUE_1798_BATCH13_PATHS["U5b"]),
+    "U8a": (282, "T", "U8", ("L3", "N", "R", "U", "U8")),
+    "U8b": (14167, "C", "U8", ("L3", "N", "R", "U", "U8")),
+    "K": (10550, "A", "U8b", _ISSUE_1798_BATCH13_PATHS["U8b"]),
+    "K1": (1189, "T", "K", _ISSUE_1798_BATCH13_PATHS["K"]),
+    "K1a": (497, "C", "K1", _ISSUE_1798_BATCH13_PATHS["K1"]),
+    "K1b": (5913, "G", "K1", _ISSUE_1798_BATCH13_PATHS["K1"]),
+    "K2": (9716, "T", "K", _ISSUE_1798_BATCH13_PATHS["K"]),
+    "K2a": (4561, "T", "K2", _ISSUE_1798_BATCH13_PATHS["K2"]),
+    "K2b": (5231, "G", "K2", _ISSUE_1798_BATCH13_PATHS["K2"]),
+}
+
+
+_ISSUE_1798_BATCH13_PRIMARY_LAYOUT_CALLABLE_POSITIONS = {
+    "pgp_4139": frozenset(
+        {
+            282,
+            497,
+            1189,
+            1721,
+            4561,
+            5231,
+            5656,
+            6392,
+            6455,
+            9365,
+            9716,
+            10398,
+            10550,
+            11299,
+            13145,
+            13637,
+            14037,
+            14167,
+            14182,
+            15218,
+            16256,
+            16399,
+            16526,
+        }
+    ),
+    "pgp_4162": frozenset(
+        {
+            282,
+            1189,
+            1721,
+            4561,
+            5656,
+            6392,
+            6455,
+            9365,
+            9716,
+            10398,
+            10550,
+            11299,
+            13145,
+            14037,
+            14167,
+            14182,
+            14798,
+            15218,
+            16256,
+            16399,
+            16526,
+        }
+    ),
+    "pgp_4187": frozenset(
+        {
+            282,
+            497,
+            1189,
+            1721,
+            4561,
+            5656,
+            6392,
+            6455,
+            9365,
+            9716,
+            10398,
+            10550,
+            11299,
+            13637,
+            14037,
+            14167,
+            14182,
+            15218,
+            16256,
+            16399,
+            16526,
+        }
+    ),
+    "pgp_huA08F4D": frozenset(
+        {
+            282,
+            497,
+            1189,
+            1721,
+            4561,
+            5231,
+            5656,
+            6392,
+            6455,
+            9365,
+            9716,
+            10398,
+            10550,
+            11299,
+            13637,
+            14037,
+            14167,
+            14182,
+            15218,
+            16256,
+            16399,
+            16526,
+        }
+    ),
+}
+
+
+_ISSUE_1798_BATCH13_PRIMARY_LAYOUT_COUNTS = {
+    "pgp_4139": (0, 1, 2, 1, 1, 1, 2, 5, 1, 2, 2, 1, 0, 1, 1, 2),
+    "pgp_4162": (0, 1, 2, 1, 1, 1, 1, 5, 1, 3, 2, 0, 0, 1, 1, 1),
+    "pgp_4187": (0, 1, 2, 1, 1, 1, 2, 4, 1, 2, 2, 1, 0, 1, 1, 1),
+    "pgp_huA08F4D": (0, 1, 2, 1, 1, 1, 2, 4, 1, 2, 2, 1, 0, 1, 1, 2),
+}
+
+
 _W_DIRECT_POSITION_GENOTYPES = [
     {"pos": row["pos"], "genotype": row["genotype"]}
     for row in _MT_W_TRUNK_GENOTYPES[len(_MT_N_TRUNK_GENOTYPES) :]
@@ -1501,7 +1739,7 @@ class TestLoadHaplogroupBundle:
     """Test haplogroup bundle loading from JSON."""
 
     def test_loads_from_json(self, bundle: HaplogroupBundle) -> None:
-        assert bundle.version == "1.1.28"
+        assert bundle.version == "1.1.29"
         assert bundle.build == "GRCh37"
 
     def test_mt_tree_root(self, bundle: HaplogroupBundle) -> None:
@@ -2134,7 +2372,15 @@ class TestTreeWalk:
         terminal, path = _tree_walk(bundle.mt_tree, genotypes, [])
 
         assert terminal.haplogroup == "K"
-        assert [step.haplogroup for step in path] == ["L3", "N", "R", "U", "U8", "K"]
+        assert [step.haplogroup for step in path] == [
+            "L3",
+            "N",
+            "R",
+            "U",
+            "U8",
+            "U8b",
+            "K",
+        ]
 
     def test_source_polarity_l0_resolves_on_real_bundle(self, bundle: HaplogroupBundle) -> None:
         """#1080: an L0 source-motif sample should resolve below mt-MRCA."""
@@ -2151,7 +2397,10 @@ class TestTreeWalk:
             (_MT_N1A_GENOTYPES, ["L3", "N", "N1", "N1a"]),
             (_MT_B_REVERSAL_GENOTYPES, ["L3", "N", "R", "B", "B5"]),
             (_MT_J_REVERSAL_GENOTYPES, ["L3", "N", "R", "JT", "J"]),
-            (_MT_K1_REVERSAL_GENOTYPES, ["L3", "N", "R", "U", "U8", "K", "K1"]),
+            (
+                _MT_K1_REVERSAL_GENOTYPES,
+                ["L3", "N", "R", "U", "U8", "U8b", "K", "K1"],
+            ),
         ],
     )
     def test_n_subset_does_not_block_descendant_reversion_markers(
@@ -4706,7 +4955,7 @@ class TestAssignHaplogroups:
             ),
             pytest.param(
                 "K1b",
-                ("L3", "N", "R", "U", "U8", "K", "K1", "K1b"),
+                ("L3", "N", "R", "U", "U8", "U8b", "K", "K1", "K1b"),
                 id="excluded-K1b-stays-reachable",
             ),
         ],
@@ -4738,6 +4987,401 @@ class TestAssignHaplogroups:
         )
         assert mt.haplogroup == target
         assert [step.haplogroup for step in mt.traversal_path] == list(expected_path)
+
+    @pytest.mark.parametrize(
+        ("target", "expected_parent", "expected_markers"),
+        [
+            pytest.param(target, parent, markers, id=target)
+            for target, (parent, markers) in _ISSUE_1798_BATCH13_TREE.items()
+        ],
+    )
+    def test_issue_1798_batch13_u5_u8_k_tree_is_exact(
+        self,
+        bundle: HaplogroupBundle,
+        target: str,
+        expected_parent: str,
+        expected_markers: tuple[tuple[int, str], ...],
+    ) -> None:
+        """Batch 13 emits the audited runtime owner, parent, and marker set."""
+        parent = _find_mt_node(bundle.mt_tree, expected_parent)
+        assert parent is not None
+        matching_children = [child for child in parent.children if child.haplogroup == target]
+        assert len(matching_children) == 1
+        node = matching_children[0]
+        assert tuple((snp.pos, snp.allele) for snp in node.defining_snps) == expected_markers
+
+    def test_issue_1798_batch13_structural_and_coverage_contracts_are_explicit(
+        self,
+        bundle: HaplogroupBundle,
+    ) -> None:
+        """U5 is structural, helpers are source-only, and K1b keeps its audited scope."""
+        source = json.loads(MT_HAPLOGROUP_SOURCE_PATH.read_text(encoding="utf-8"))
+
+        u5 = source["structural_exceptions"]["U5"]
+        assert u5["type"] == "markerless_passthrough"
+        assert u5["emitted_parent"] == "U"
+        assert u5["source_status"] == "exact"
+        assert u5["emitted_snps"] == []
+        assert [(row["pos"], row["emitted"]) for row in u5["direct_source_motif"]] == [
+            (16192, False),
+            (16270, False),
+        ]
+
+        assert _find_mt_node(bundle.mt_tree, "U5a'b") is None
+        assert _find_mt_node(bundle.mt_tree, "U8b'c") is None
+        assert 3197 not in _mt_snp_map(_find_mt_node(bundle.mt_tree, "U5a"))
+        assert 3197 not in _mt_snp_map(_find_mt_node(bundle.mt_tree, "U5b"))
+        assert 3480 not in _mt_snp_map(_find_mt_node(bundle.mt_tree, "U8b"))
+
+        k1b_marker = source["nodes"]["K1b"]["emitted_snps"]
+        assert len(k1b_marker) == 1
+        assert k1b_marker[0]["pos"] == 5913
+        assert k1b_marker[0]["array_coverage"] == {
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": ["pgp_4139", "pgp_4187"],
+            "callable_snv_in": [],
+        }
+        assert _ISSUE_1798_BATCH13_PRIMARY_LAYOUT_COUNTS["pgp_4162"][11] == 0
+        assert all(
+            counts[12] == 0 for counts in _ISSUE_1798_BATCH13_PRIMARY_LAYOUT_COUNTS.values()
+        )
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize(
+        ("target", "calls", "expected_path"),
+        [
+            pytest.param(target, calls, expected_path, id=target)
+            for target, (calls, expected_path) in _ISSUE_1798_BATCH13_DIRECT_CASES.items()
+        ],
+    )
+    def test_issue_1798_batch13_direct_branches_resolve_without_sibling_borrowing(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        target: str,
+        calls: tuple[tuple[int, str], ...],
+        expected_path: tuple[str, ...],
+    ) -> None:
+        """Every reportable Batch 13 identity resolves from only its own path."""
+        rows = [
+            {
+                **row,
+                "rsid": f"vendor_issue_1798_batch13_direct_{target}_{index}",
+                "chrom": "MT",
+            }
+            for index, row in enumerate(
+                [
+                    *_derived_mt_path_genotypes("R"),
+                    *({"pos": position, "genotype": allele * 2} for position, allele in calls),
+                ]
+            )
+        ]
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        assert mt.haplogroup == target
+        assert [step.haplogroup for step in mt.traversal_path] == list(expected_path)
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize("layout_id", list(_ISSUE_1798_BATCH13_PRIMARY_LAYOUT_COUNTS))
+    @pytest.mark.parametrize("target", list(_ISSUE_1798_BATCH13_TREE))
+    def test_issue_1798_batch13_primary_layouts_preserve_honest_u5_u8_k_calls(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        layout_id: str,
+        target: str,
+    ) -> None:
+        """All four pinned modern layouts retain exact per-node callable counts."""
+        callable_positions = _ISSUE_1798_BATCH13_PRIMARY_LAYOUT_CALLABLE_POSITIONS[layout_id]
+        expected_counts = dict(
+            zip(
+                _ISSUE_1798_BATCH13_TREE,
+                _ISSUE_1798_BATCH13_PRIMARY_LAYOUT_COUNTS[layout_id],
+                strict=True,
+            )
+        )
+        full_path = _ISSUE_1798_BATCH13_PATHS[target]
+        batch_path = tuple(name for name in full_path if name in _ISSUE_1798_BATCH13_TREE)
+        upstream_calls = (
+            _ISSUE_1798_BATCH13_U8_CALLS if "U8" in full_path else _ISSUE_1798_BATCH12_U_CALLS
+        )
+        calls = upstream_calls + tuple(
+            (position, allele)
+            for name in batch_path
+            for position, allele in _ISSUE_1798_BATCH13_TREE[name][1]
+            if position in callable_positions
+        )
+
+        for name in batch_path:
+            observed = sum(
+                position in callable_positions
+                for position, _allele in _ISSUE_1798_BATCH13_TREE[name][1]
+            )
+            assert observed == expected_counts[name]
+            if observed:
+                assert observed * 2 >= len(_ISSUE_1798_BATCH13_TREE[name][1])
+
+        target_is_typed = expected_counts[target] > 0
+        if target == "U5":
+            expected_path = full_path[:-1]
+        elif target_is_typed:
+            expected_path = full_path
+        else:
+            assert target in {"K1a", "K1b"}
+            if target == "K1a":
+                assert layout_id == "pgp_4162"
+            expected_path = full_path[:-1]
+
+        rows = [
+            {
+                **row,
+                "rsid": f"vendor_issue_1798_batch13_layout_{layout_id}_{target}_{index}",
+                "chrom": "MT",
+            }
+            for index, row in enumerate(
+                [
+                    *_derived_mt_path_genotypes("R"),
+                    *({"pos": position, "genotype": allele * 2} for position, allele in calls),
+                ]
+            )
+        ]
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        assert mt.haplogroup == expected_path[-1]
+        assert [step.haplogroup for step in mt.traversal_path] == list(expected_path)
+
+        traversal_by_name = {step.haplogroup: step for step in mt.traversal_path}
+        for name in batch_path:
+            if name not in traversal_by_name:
+                assert name == target
+                assert expected_counts[name] == 0
+                continue
+            step = traversal_by_name[name]
+            assert (step.snps_present, step.snps_total) == (
+                expected_counts[name],
+                len(_ISSUE_1798_BATCH13_TREE[name][1]),
+            )
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize(
+        ("target", "conflict_position", "ancestral", "expected", "expected_path"),
+        [
+            pytest.param(target, position, allele, expected, path, id=target)
+            for target, (position, allele, expected, path) in (
+                _ISSUE_1798_BATCH13_CONFLICTS.items()
+            )
+        ],
+    )
+    def test_issue_1798_batch13_typed_ancestral_states_block_refinement(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        target: str,
+        conflict_position: int,
+        ancestral: str,
+        expected: str,
+        expected_path: tuple[str, ...],
+    ) -> None:
+        """A typed ancestral direct state blocks its branch despite other support."""
+        direct_calls = _ISSUE_1798_BATCH13_DIRECT_CASES[target][0]
+        assert conflict_position in {position for position, _allele in direct_calls}
+        calls = tuple(
+            (position, ancestral if position == conflict_position else allele)
+            for position, allele in direct_calls
+        )
+        rows = [
+            {
+                **row,
+                "rsid": f"vendor_issue_1798_batch13_ancestral_{target}_{index}",
+                "chrom": "MT",
+            }
+            for index, row in enumerate(
+                [
+                    *_derived_mt_path_genotypes("R"),
+                    *({"pos": position, "genotype": allele * 2} for position, allele in calls),
+                ]
+            )
+        ]
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        assert mt.haplogroup == expected
+        assert [step.haplogroup for step in mt.traversal_path] == list(expected_path)
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize(
+        ("case", "calls", "expected", "expected_path"),
+        [
+            pytest.param(
+                "U5-direct-motif",
+                _ISSUE_1798_BATCH12_U_CALLS + ((16192, "T"), (16270, "T")),
+                "U",
+                ("L3", "N", "R", "U"),
+                id="markerless-U5-source-events",
+            ),
+            pytest.param(
+                "U5a-prime-b",
+                _ISSUE_1798_BATCH12_U_CALLS + ((3197, "C"), (9477, "A"), (13617, "C")),
+                "U",
+                ("L3", "N", "R", "U"),
+                id="U5-helper-stays-source-only",
+            ),
+            pytest.param(
+                "U5a-historical",
+                _ISSUE_1798_BATCH12_U_CALLS + ((14793, "G"),),
+                "U",
+                ("L3", "N", "R", "U"),
+                id="U5a-historical-marker-cannot-terminal-call",
+            ),
+            pytest.param(
+                "U5b-historical",
+                _ISSUE_1798_BATCH12_U_CALLS + ((150, "T"), (7768, "G")),
+                "U",
+                ("L3", "N", "R", "U"),
+                id="U5b-historical-markers-cannot-terminal-call",
+            ),
+            pytest.param(
+                "U8b-prime-c",
+                _ISSUE_1798_BATCH13_U8_CALLS + ((3480, "G"),),
+                "U8",
+                ("L3", "N", "R", "U", "U8"),
+                id="U8b-helper-stays-source-only",
+            ),
+            pytest.param(
+                "U8a-historical",
+                _ISSUE_1798_BATCH13_U8_CALLS + ((7055, "G"),),
+                "U8",
+                ("L3", "N", "R", "U", "U8"),
+                id="U8a-historical-marker-cannot-terminal-call",
+            ),
+            pytest.param(
+                "U8b-historical",
+                _ISSUE_1798_BATCH13_U8_CALLS + ((9055, "A"),),
+                "U8",
+                ("L3", "N", "R", "U", "U8"),
+                id="U8b-historical-marker-cannot-terminal-call",
+            ),
+            pytest.param(
+                "K-source-only",
+                _ISSUE_1798_BATCH13_U8B_CALLS + ((16224, "C"), (16311, "C")),
+                "U8b",
+                _ISSUE_1798_BATCH13_PATHS["U8b"],
+                id="K-historical-and-recurrent-events-cannot-call-K",
+            ),
+            pytest.param(
+                "K1a-optional",
+                _ISSUE_1798_BATCH13_K1_CALLS + ((16093, "C"),),
+                "K1",
+                _ISSUE_1798_BATCH13_PATHS["K1"],
+                id="K1a-optional-event-cannot-call-K1a",
+            ),
+            pytest.param(
+                "K2-reversion",
+                _ISSUE_1798_BATCH13_K_CALLS + ((146, "C"),),
+                "K",
+                _ISSUE_1798_BATCH13_PATHS["K"],
+                id="K2-source-only-reversion-cannot-call-K2",
+            ),
+            pytest.param(
+                "K2a-source-only",
+                _ISSUE_1798_BATCH13_K2_CALLS + ((152, "C"), (709, "A")),
+                "K2",
+                _ISSUE_1798_BATCH13_PATHS["K2"],
+                id="K2a-source-only-events-cannot-call-K2a",
+            ),
+        ],
+    )
+    def test_issue_1798_batch13_helpers_and_omitted_events_do_not_over_refine(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        case: str,
+        calls: tuple[tuple[int, str], ...],
+        expected: str,
+        expected_path: tuple[str, ...],
+    ) -> None:
+        """Flattened, historical-only, optional, and recurrent events do not score."""
+        rows = [
+            {
+                **row,
+                "rsid": f"vendor_issue_1798_batch13_source_only_{case}_{index}",
+                "chrom": "MT",
+            }
+            for index, row in enumerate(
+                [
+                    *_derived_mt_path_genotypes("R"),
+                    *({"pos": position, "genotype": allele * 2} for position, allele in calls),
+                ]
+            )
+        ]
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        assert mt.haplogroup == expected
+        assert [step.haplogroup for step in mt.traversal_path] == list(expected_path)
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    def test_issue_1798_batch13_k_cannot_bypass_u8b_gateway(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+    ) -> None:
+        """Complete K evidence remains unreachable when direct U8b evidence is absent."""
+        calls = _ISSUE_1798_BATCH13_U8_CALLS + (
+            (10550, "G"),
+            (11299, "C"),
+            (14798, "C"),
+        )
+        rows = [
+            {
+                **row,
+                "rsid": f"vendor_issue_1798_batch13_ungated_K_{index}",
+                "chrom": "MT",
+            }
+            for index, row in enumerate(
+                [
+                    *_derived_mt_path_genotypes("R"),
+                    *({"pos": position, "genotype": allele * 2} for position, allele in calls),
+                ]
+            )
+        ]
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        assert mt.haplogroup == "U8"
+        assert [step.haplogroup for step in mt.traversal_path] == ["L3", "N", "R", "U", "U8"]
 
     @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
     @pytest.mark.parametrize(
@@ -7107,6 +7751,7 @@ class TestAssignHaplogroups:
             "R",
             "U",
             "U8",
+            "U8b",
             "K",
             "K1",
         ]
