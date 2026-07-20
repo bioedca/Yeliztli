@@ -5988,7 +5988,7 @@ def test_issue_1798_batch_09_advances_only_reviewed_live_frontiers() -> None:
 
 
 def test_issue_1798_batch_09_promotions_have_independent_authoritative_evidence() -> None:
-    """Bind every promoted record to the archive and two paper/tool identifiers."""
+    """Validate promoted exact records against schema-v3's shared global references."""
     source_metadata = _MT_SOURCE["source"]
     references_by_doi = {reference["doi"]: reference for reference in _MT_SOURCE["references"]}
 
