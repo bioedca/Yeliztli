@@ -46,7 +46,7 @@ from typing import Any
 
 # ── Version & metadata ─────────────────────────────────────────────────
 
-BUNDLE_VERSION = "1.1.27"
+BUNDLE_VERSION = "1.1.28"
 BUILD = "GRCh37"
 MT_SOURCE_PATH = Path(__file__).with_name("mt_haplogroup_source.json")
 MT_BASELINE_SNAPSHOT_PATH = Path(__file__).with_name("mt_haplogroup_baseline_snapshot.json")
@@ -78,12 +78,12 @@ _MT_BASELINE_V2_REGISTRY_SEMANTIC_SHA256 = (
 _MT_BASELINE_V2_COVERAGE_MEMBERSHIP_SHA256 = (
     "9e9d25bd07652d0637fde59d9292b6a4cba1c593268c2301bba1c910b9bd338b"
 )
-_MT_LOCKED_EXACT_NAMES_SHA256 = "ec8fba30938462e5664ca84a0b91a2b1edd02e4e10734a882d5b43194a4c9485"
+_MT_LOCKED_EXACT_NAMES_SHA256 = "8691eae4dabb6978a8def825a1b5a429cc20b2e1a31a8a1a6f5c67d0654c7f57"
 _MT_LOCKED_EXACT_SEMANTIC_SHA256 = (
-    "7417f5ea95466f5bd7347242148c6bc19241ba165671152b4248b86d8b8ed367"
+    "f22b3870b9f48fc05772bf2f3fd22e5c7e6175f6e1c5dc90344360790e409633"
 )
 _MT_LOCKED_EXACT_COVERAGE_MEMBERSHIP_SHA256 = (
-    "b91bcb5199e1d71f7a0440a5d5b0c977c2172c18b54411a5da27434cd4123b1b"
+    "1aac659eeefb9ece71c2cc42e4ffd3263ded92ed66b62f95165edb2b79a25948"
 )
 _MT_BASELINE_DIRECT_MOTIF_EXACT_NAMES_SHA256 = (
     "0dc2cc812e511bc89b76fca6ed13614d8ddb75a6ebe6321bde670096c44fba61"
@@ -92,10 +92,10 @@ _MT_BASELINE_DIRECT_MOTIF_SEMANTIC_SHA256 = (
     "ecc1dbf4c93872031e102ee166eac50e31d6468395e5d0053357af44f8a9785a"
 )
 _MT_LOCKED_DIRECT_MOTIF_EXACT_NAMES_SHA256 = (
-    "bedeb636aab72d7ec54ffeca1cdd7da00c3ae3e4164c394ef5155fa3f24f2da4"
+    "064892149df247d891f603c1925182f14ef845383933b0c5132a62a92e90d20e"
 )
 _MT_LOCKED_DIRECT_MOTIF_SEMANTIC_SHA256 = (
-    "2c72142e49f23eba2f8cc2fd6a3d56fe9b314bae1ee75e9b62138033edc01fdf"
+    "fbcb664c186956bafbd74e1584b88cf1c3be8f58bf0820922a55987e7b54592d"
 )
 _MT_INITIAL_DIRECT_MOTIF_PENDING_NAMES_SHA256 = (
     "7b4848980e34ca1eff9739f964906d68eb4acdbbcd5e93227e17ece79296aefb"
@@ -105,11 +105,11 @@ _MT_INITIAL_PENDING_NAMES_SHA256 = (
 )
 _MT_ARRAY_MANIFEST_SHA256 = "42de22517a4644884596e36b0499a4fc45f264986c63f6fb239452b88719f977"
 _MT_SOURCE_METADATA_SHA256 = "13755a154c19c603bac63a2195287165271571ece1e36e178a666aa35184d04b"
-_MT_STATE_PARTITION_SHA256 = "5ceec03145ca6bbf93cad65d6c66bbe2b5ebe3ea7472af68b83580d2404acca4"
+_MT_STATE_PARTITION_SHA256 = "454619240e542ac190cac99f8c8bd2a65f3229d39d4dd10c4ceb04110b1f3bbf"
 _MT_BASELINE_EMITTED_TREE_SHA256 = (
     "02a40be2096dd8c60e6e2934ba68a813f07478117a749e60e94e0608bed21914"
 )
-_MT_LOCKED_EMITTED_TREE_SHA256 = "7b6aba1b991aee804e8d6ed7f9943d63208066886f478df5d3f7dc8f3c574141"
+_MT_LOCKED_EMITTED_TREE_SHA256 = "152011793ca300c5096d20f284ffe673b8dec0b5332bef372583cc98b562434e"
 _MT_SYNTHETIC_ROOT_NAME = "mt-MRCA"
 _MT_FLATTENED_OMISSION_TYPES = frozenset(
     {
@@ -1935,20 +1935,35 @@ def build_mt_tree() -> dict[str, Any]:
     u1a = _node(
         "U1a",
         [
-            _mt_snp("i5006026", 6026, "T"),
+            # Direct Build 17 motif. Historical-only m.14364 and unavailable
+            # reversion m.16189 remain source-only.
+            _mt_snp("i5002218", 2218, "T"),
         ],
     )
     u1b = _node(
         "U1b",
         [
-            _mt_snp("i5004991", 4991, "A"),
+            # Historical-only m.10885 remains source-only.
+            _mt_snp("i5000146", 146, "C"),
+            _mt_snp("i5002387", 2387, "C"),
+            _mt_snp("i5008395", 8395, "T"),
+            _mt_snp("i5011566", 11566, "G"),
+            _mt_snp("i5015172", 15172, "A"),
+            _mt_snp("i5016111", 16111, "T"),
+            _mt_snp("i5016327", 16327, "T"),
         ],
     )
     u1 = _node(
         "U1",
         [
-            _mt_snp("i5003531", 3531, "A"),
-            _mt_snp("i5007581", 7581, "C"),
+            # Historical-only m.13104 remains source-only so every primary
+            # layout retains a callable internal gateway.
+            _mt_snp("i5000285", 285, "T"),
+            _mt_snp("i5012879", 12879, "C"),
+            _mt_snp("i5014070", 14070, "G"),
+            _mt_snp("i5015148", 15148, "A"),
+            _mt_snp("i5015954", 15954, "C"),
+            _mt_snp("i5016249", 16249, "C"),
         ],
         [u1a, u1b],
     )
@@ -1956,8 +1971,18 @@ def build_mt_tree() -> dict[str, Any]:
     u2e = _node(
         "U2e",
         [
+            # Direct Build 17 motif below source-only U2+152. Historical-only
+            # m.6152/m.10876 and unavailable reversion m.16189 are provenance-only.
             _mt_snp("i5000508", 508, "G"),
+            _mt_snp("i5003720", 3720, "G"),
+            _mt_snp("i5005390", 5390, "G"),
+            _mt_snp("i5005426", 5426, "C"),
+            _mt_snp("i5006045", 6045, "T"),
             _mt_snp("i5013020", 13020, "C"),
+            _mt_snp("i5013734", 13734, "C"),
+            _mt_snp("i5015907", 15907, "G"),
+            _mt_snp("i5016129", 16129, "C"),
+            _mt_snp("i5016362", 16362, "C"),
         ],
     )
     u2 = _node(
@@ -1981,6 +2006,8 @@ def build_mt_tree() -> dict[str, Any]:
     u3b = _node(
         "U3b",
         [
+            # Historical-only C4640a is a Build 17 C>A transversion, not an
+            # insertion; it remains source-only while these marker locks stay intact.
             _mt_snp("i5004188", 4188, "G"),
             _mt_snp("i5009656", 9656, "C"),
             _mt_snp("i5013743", 13743, "C"),
@@ -1989,8 +2016,11 @@ def build_mt_tree() -> dict[str, Any]:
     u3 = _node(
         "U3",
         [
-            _mt_snp("i5001811", 1811, "G"),
+            # Historical-only m.150 and flattened U2'3'4'7'8'9 m.1811 remain
+            # source-only; these are U3's callable direct events.
+            _mt_snp("i5014139", 14139, "G"),
             _mt_snp("i5015454", 15454, "C"),
+            _mt_snp("i5016343", 16343, "G"),
         ],
         [u3a, u3b],
     )
@@ -1998,26 +2028,30 @@ def build_mt_tree() -> dict[str, Any]:
     u4a = _node(
         "U4a",
         [
-            _mt_snp("i5005999", 5999, "C"),
+            _mt_snp("i5008818", 8818, "T"),
         ],
     )
     u4b = _node(
         "U4b",
         [
-            _mt_snp("i5001811", 1811, "G"),
+            _mt_snp("i5007705", 7705, "C"),
         ],
     )
     u4c = _node(
         "U4c",
         [
-            _mt_snp("i5011332", 11332, "T"),
+            _mt_snp("i5010907", 10907, "C"),
         ],
     )
     u4 = _node(
         "U4",
         [
-            _mt_snp("i5003714", 3714, "G"),
-            _mt_snp("i5011339", 11339, "C"),
+            # Historical-only m.11332/m.14620 and the two flattened helper
+            # motifs remain source-only.
+            _mt_snp("i5004646", 4646, "C"),
+            _mt_snp("i5006047", 6047, "G"),
+            _mt_snp("i5015693", 15693, "C"),
+            _mt_snp("i5016356", 16356, "C"),
         ],
         [u4a, u4b, u4c],
     )
@@ -2075,13 +2109,17 @@ def build_mt_tree() -> dict[str, Any]:
     u6a = _node(
         "U6a",
         [
-            _mt_snp("i5016219", 16219, "G"),
+            # Flattened U6a'b'd m.16219 and historical reversion m.16278
+            # remain source-only.
+            _mt_snp("i5007805", 7805, "A"),
+            _mt_snp("i5014179", 14179, "G"),
         ],
     )
     u6 = _node(
         "U6",
         [
             _mt_snp("i5003348", 3348, "G"),
+            _mt_snp("i5016172", 16172, "C"),
         ],
         [u6a],
     )
@@ -2089,8 +2127,16 @@ def build_mt_tree() -> dict[str, Any]:
     u7 = _node(
         "U7",
         [
-            _mt_snp("i5012308", 12308, "G"),
+            # Historical-only m.152/m.5360 remain source-only.
+            _mt_snp("i5000980", 980, "C"),
+            _mt_snp("i5003741", 3741, "T"),
+            _mt_snp("i5008137", 8137, "T"),
+            _mt_snp("i5008684", 8684, "T"),
+            _mt_snp("i5010142", 10142, "T"),
+            _mt_snp("i5013500", 13500, "C"),
+            _mt_snp("i5014569", 14569, "A"),
             _mt_snp("i5016309", 16309, "G"),
+            _mt_snp("i5016318", 16318, "T"),
         ],
     )
     u8a = _node(
@@ -2115,15 +2161,17 @@ def build_mt_tree() -> dict[str, Any]:
     u9 = _node(
         "U9",
         [
+            _mt_snp("i5003531", 3531, "A"),
             _mt_snp("i5003834", 3834, "A"),
-            _mt_snp("i5011914", 11914, "A"),
+            # m.6386 is non-callable in the primary rows and remains source-only.
+            _mt_snp("i5014094", 14094, "C"),
         ],
     )
 
     u = _node(
         "U",
         [
-            _mt_snp("rs1000731", 13133, "T"),
+            _mt_snp("i5011467", 11467, "G"),
             _mt_snp("i5012308", 12308, "G"),
             _mt_snp("i5012372", 12372, "A"),
         ],
