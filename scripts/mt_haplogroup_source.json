@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "audit_scope": "Incremental-to-complete PhyloTree Build 17 audit for issue 1798. 116 marker-exact nodes retain emitted-marker and coverage locks; independent raw-row comparison classifies 108 direct motifs as exact and 8 legacy motifs as partial. All other emitted nodes have explicit pending or structural states. Schema v3 distinguishes general flattened source intermediates from caller-unreportable intermediates and separately accounts for retired emitted identities. Completion requires every direct motif and source-topology edge to become exact.",
+  "audit_scope": "Incremental-to-complete PhyloTree Build 17 audit for issue 1798. 117 marker-exact nodes retain emitted-marker and coverage locks; independent raw-row comparison classifies 111 direct motifs as exact and 6 legacy motifs as partial. All other emitted nodes have explicit pending or structural states. Schema v3 distinguishes general flattened source intermediates from caller-unreportable intermediates and separately accounts for retired emitted identities. Completion requires every direct motif and source-topology edge to become exact.",
   "source": {
     "name": "PhyloTree",
     "version": "Build 17",
@@ -225,6 +225,9 @@
       "W1",
       "W3",
       "X",
+      "X1",
+      "X2",
+      "X2a",
       "X2b",
       "Y1",
       "Y2",
@@ -238,9 +241,7 @@
       "K1",
       "K1a",
       "K2a",
-      "U2e",
-      "X2",
-      "X2a"
+      "U2e"
     ]
   },
   "omitted_nodes": {
@@ -416,9 +417,33 @@
       "type": "flattened_source_intermediate",
       "reason": "Flattened in issue 1899: Build 17 places N1a1b between N1a1 and I. Its exact motif is retained as source provenance, but its five events are not part of the retained sparse I classifier and remain non-emitted to avoid broadening caller behavior without separate specificity validation."
     },
+    "N2": {
+      "type": "flattened_source_intermediate",
+      "reason": "Flattened in issue 1798 batch 07: Build 17 places N2 between N and W. All five events remain source-only because W's nine direct markers already clear every primary layout; copying shared N2 ancestry would weaken terminal specificity."
+    },
     "W+194": {
-      "type": "flattened_unreportable_source_intermediate",
+      "type": "flattened_source_intermediate",
       "reason": "Flattened mutation-only Build 17 intermediate between W and W3: its sole direct C194T event is absent from all four primary export exemplars and callable only in the historical 2014 export."
+    },
+    "X1'2'3": {
+      "type": "flattened_source_intermediate",
+      "reason": "Flattened in issue 1798 batch 07: Build 17 places shared X1'2'3 below X for X1, X2, and omitted X3. Historical-only A153G remains source-only rather than being duplicated onto emitted siblings."
+    },
+    "X1'3": {
+      "type": "flattened_source_intermediate",
+      "reason": "Flattened in issue 1798 batch 07: Build 17 places X1'3 between X1'2'3 and X1. T146C! remains source-only because every primary layout already clears X1's direct row, while the historical layout would otherwise call X1 from this shared reversion plus only recurrent direct m.16104."
+    },
+    "X2+225": {
+      "type": "flattened_source_intermediate",
+      "reason": "Flattened in issue 1798 batch 07: Build 17 places mutation-only X2+225 above both X2a and X2b. Its callable G225A event remains source-only because the shared prefix is not terminal-specific and adds no reachability."
+    },
+    "X2a'j": {
+      "type": "flattened_source_intermediate",
+      "reason": "Flattened in issue 1798 batch 07: Build 17 places X2a'j between X2+225 and X2a. Historical-only A12397G remains source-only."
+    },
+    "X2b'd": {
+      "type": "flattened_source_intermediate",
+      "reason": "Flattened in issue 1798 batch 07: Build 17 places X2b'd between X2+225 and X2b. G13708A remains source-only because helper-only support would meet X2b's one-of-two threshold when direct m.8393 is untyped."
     },
     "Z+152": {
       "type": "flattened_source_intermediate",
@@ -18528,7 +18553,10 @@
       "emitted_parent": "N",
       "source_motif_status": "exact",
       "source_topology": {
-        "status": "pending"
+        "status": "exact",
+        "emitted_parent_source_node": "N",
+        "source_parent": "N",
+        "flattened_source_path": []
       },
       "direct_source_motif": [
         {
@@ -19222,7 +19250,63 @@
       "emitted_parent": "N",
       "source_motif_status": "exact",
       "source_topology": {
-        "status": "pending"
+        "status": "exact",
+        "emitted_parent_source_node": "N",
+        "source_parent": "N2",
+        "flattened_source_path": [
+          {
+            "source_node": "N2",
+            "source_parent": "N",
+            "reason": "Flattened in issue 1798 batch 07: Build 17 places N2 between N and W. All five events remain source-only because W's nine direct markers already clear every primary layout; copying shared N2 ancestry would weaken terminal specificity.",
+            "direct_source_motif": [
+              {
+                "notation": "A189G",
+                "mutation_type": "substitution",
+                "pos": 189,
+                "ancestral_allele": "A",
+                "derived_allele": "G",
+                "emitted": false,
+                "omission_reason": "absent or non-callable in the primary four; callable only in the historical 2014 export"
+              },
+              {
+                "notation": "G709A",
+                "mutation_type": "substitution",
+                "pos": 709,
+                "ancestral_allele": "G",
+                "derived_allele": "A",
+                "emitted": false,
+                "omission_reason": "absent or non-callable in the primary four; callable only in the historical 2014 export"
+              },
+              {
+                "notation": "G5046A",
+                "mutation_type": "substitution",
+                "pos": 5046,
+                "ancestral_allele": "G",
+                "derived_allele": "A",
+                "emitted": false,
+                "omission_reason": "shared N2 ancestry kept provenance-only: every primary layout already clears W's nine direct events (worst 6/9), while adding the three callable N2 events would let an N2 carrier reach 6/12 with only three W-like events instead of requiring five of nine W-direct events"
+              },
+              {
+                "notation": "C11674T",
+                "mutation_type": "substitution",
+                "pos": 11674,
+                "ancestral_allele": "C",
+                "derived_allele": "T",
+                "emitted": false,
+                "omission_reason": "shared N2 ancestry kept provenance-only: every primary layout already clears W's nine direct events (worst 6/9), while adding the three callable N2 events would let an N2 carrier reach 6/12 with only three W-like events instead of requiring five of nine W-direct events"
+              },
+              {
+                "notation": "T12414C",
+                "mutation_type": "substitution",
+                "pos": 12414,
+                "ancestral_allele": "T",
+                "derived_allele": "C",
+                "emitted": false,
+                "omission_reason": "shared N2 ancestry kept provenance-only: every primary layout already clears W's nine direct events (worst 6/9), while adding the three callable N2 events would let an N2 carrier reach 6/12 with only three W-like events instead of requiring five of nine W-direct events"
+              }
+            ]
+          }
+        ]
       },
       "direct_source_motif": [
         {
@@ -19513,7 +19597,10 @@
       "emitted_parent": "W",
       "source_motif_status": "exact",
       "source_topology": {
-        "status": "pending"
+        "status": "exact",
+        "emitted_parent_source_node": "W",
+        "source_parent": "W",
+        "flattened_source_path": []
       },
       "direct_source_motif": [
         {
@@ -19619,7 +19706,10 @@
       "emitted_parent": "N",
       "source_motif_status": "exact",
       "source_topology": {
-        "status": "pending"
+        "status": "exact",
+        "emitted_parent_source_node": "N",
+        "source_parent": "N",
+        "flattened_source_path": []
       },
       "direct_source_motif": [
         {
@@ -19764,22 +19854,197 @@
         }
       ]
     },
-    "X2": {
-      "source_node": "X2",
+    "X1": {
+      "source_node": "X1",
       "emitted_parent": "X",
-      "source_motif_status": "legacy_partial",
+      "source_motif_status": "exact",
       "source_topology": {
-        "status": "pending"
+        "status": "exact",
+        "emitted_parent_source_node": "X",
+        "source_parent": "X1'3",
+        "flattened_source_path": [
+          {
+            "source_node": "X1'2'3",
+            "source_parent": "X",
+            "reason": "Flattened in issue 1798 batch 07: Build 17 places shared X1'2'3 below X for X1, X2, and omitted X3. Historical-only A153G remains source-only rather than being duplicated onto emitted siblings.",
+            "direct_source_motif": [
+              {
+                "notation": "A153G",
+                "mutation_type": "substitution",
+                "pos": 153,
+                "ancestral_allele": "A",
+                "derived_allele": "G",
+                "emitted": false,
+                "omission_reason": "absent or non-callable in the primary four; callable only in the historical 2014 export"
+              }
+            ]
+          },
+          {
+            "source_node": "X1'3",
+            "source_parent": "X1'2'3",
+            "reason": "Flattened in issue 1798 batch 07: Build 17 places X1'3 between X1'2'3 and X1. T146C! remains source-only because every primary layout already clears X1's direct row, while the historical layout would otherwise call X1 from this shared reversion plus only recurrent direct m.16104.",
+            "direct_source_motif": [
+              {
+                "notation": "T146C!",
+                "mutation_type": "substitution",
+                "pos": 146,
+                "ancestral_allele": "T",
+                "derived_allele": "C",
+                "emitted": false,
+                "omission_reason": "shared X1'3 reversion kept provenance-only: all primary layouts already clear X1's three direct events (worst 2/3), while historical pgp_1050 would combine m.146 with only parenthesized recurrent/uncertain direct m.16104 to reach 2/4; without the helper it remains 1/3 and conservatively stops at X"
+              }
+            ]
+          }
+        ]
       },
       "direct_source_motif": [
         {
-          "notation": "T195C",
+          "notation": "T5302C",
+          "mutation_type": "substitution",
+          "pos": 5302,
+          "ancestral_allele": "T",
+          "derived_allele": "C",
+          "emitted": true
+        },
+        {
+          "notation": "A14587G",
+          "mutation_type": "substitution",
+          "pos": 14587,
+          "ancestral_allele": "A",
+          "derived_allele": "G",
+          "emitted": false,
+          "omission_reason": "absent or non-callable in the primary four; callable only in the historical 2014 export"
+        },
+        {
+          "notation": "T15654C",
+          "mutation_type": "substitution",
+          "pos": 15654,
+          "ancestral_allele": "T",
+          "derived_allele": "C",
+          "emitted": true
+        },
+        {
+          "notation": "(C16104T)",
+          "mutation_type": "substitution",
+          "pos": 16104,
+          "ancestral_allele": "C",
+          "derived_allele": "T",
+          "emitted": true
+        },
+        {
+          "notation": "T16278C!!",
+          "mutation_type": "substitution",
+          "pos": 16278,
+          "ancestral_allele": "T",
+          "derived_allele": "C",
+          "emitted": false,
+          "omission_reason": "absent or non-callable in the primary four; callable only in the historical 2014 export"
+        }
+      ],
+      "emitted_snps": [
+        {
+          "rsid": "i5005302",
+          "pos": 5302,
+          "ancestral_allele": "T",
+          "allele": "C",
+          "motif_owner": "X1",
+          "array_coverage": {
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
+          }
+        },
+        {
+          "rsid": "i5015654",
+          "pos": 15654,
+          "ancestral_allele": "T",
+          "allele": "C",
+          "motif_owner": "X1",
+          "array_coverage": {
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
+          }
+        },
+        {
+          "rsid": "i5016104",
+          "pos": 16104,
+          "ancestral_allele": "C",
+          "allele": "T",
+          "motif_owner": "X1",
+          "array_coverage": {
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4139",
+              "pgp_4162",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
+          }
+        }
+      ]
+    },
+    "X2": {
+      "source_node": "X2",
+      "emitted_parent": "X",
+      "source_motif_status": "exact",
+      "source_topology": {
+        "status": "exact",
+        "emitted_parent_source_node": "X",
+        "source_parent": "X1'2'3",
+        "flattened_source_path": [
+          {
+            "source_node": "X1'2'3",
+            "source_parent": "X",
+            "reason": "Flattened in issue 1798 batch 07: Build 17 places shared X1'2'3 below X for X1, X2, and omitted X3. Historical-only A153G remains source-only rather than being duplicated onto emitted siblings.",
+            "direct_source_motif": [
+              {
+                "notation": "A153G",
+                "mutation_type": "substitution",
+                "pos": 153,
+                "ancestral_allele": "A",
+                "derived_allele": "G",
+                "emitted": false,
+                "omission_reason": "absent or non-callable in the primary four; callable only in the historical 2014 export"
+              }
+            ]
+          }
+        ]
+      },
+      "direct_source_motif": [
+        {
+          "notation": "T195C!",
           "mutation_type": "substitution",
           "pos": 195,
           "ancestral_allele": "T",
           "derived_allele": "C",
           "emitted": false,
-          "omission_reason": "Absent from all four post-2017 v5-era export exemplars."
+          "omission_reason": "absent or non-callable in all five pinned public exports"
         },
         {
           "notation": "G1719A",
@@ -19818,19 +20083,55 @@
     "X2a": {
       "source_node": "X2a",
       "emitted_parent": "X2",
-      "source_motif_status": "legacy_partial",
+      "source_motif_status": "exact",
       "source_topology": {
-        "status": "pending"
+        "status": "exact",
+        "emitted_parent_source_node": "X2",
+        "source_parent": "X2a'j",
+        "flattened_source_path": [
+          {
+            "source_node": "X2+225",
+            "source_parent": "X2",
+            "reason": "Flattened in issue 1798 batch 07: Build 17 places mutation-only X2+225 above both X2a and X2b. Its callable G225A event remains source-only because the shared prefix is not terminal-specific and adds no reachability.",
+            "direct_source_motif": [
+              {
+                "notation": "G225A",
+                "mutation_type": "substitution",
+                "pos": 225,
+                "ancestral_allele": "G",
+                "derived_allele": "A",
+                "emitted": false,
+                "omission_reason": "shared X2+225 ancestry kept provenance-only: m.225 is not terminal-specific to either X2a or X2b and both direct runtime rows are already reachable in every layout where their retained direct marker(s) are callable"
+              }
+            ]
+          },
+          {
+            "source_node": "X2a'j",
+            "source_parent": "X2+225",
+            "reason": "Flattened in issue 1798 batch 07: Build 17 places X2a'j between X2+225 and X2a. Historical-only A12397G remains source-only.",
+            "direct_source_motif": [
+              {
+                "notation": "A12397G",
+                "mutation_type": "substitution",
+                "pos": 12397,
+                "ancestral_allele": "A",
+                "derived_allele": "G",
+                "emitted": false,
+                "omission_reason": "absent or non-callable in the primary four; callable only in the historical 2014 export"
+              }
+            ]
+          }
+        ]
       },
       "direct_source_motif": [
         {
-          "notation": "T200C",
+          "notation": "A200G",
           "mutation_type": "substitution",
           "pos": 200,
-          "ancestral_allele": "T",
-          "derived_allele": "C",
+          "ancestral_allele": "A",
+          "derived_allele": "G",
           "emitted": false,
-          "omission_reason": "Absent from all four post-2017 v5-era export exemplars."
+          "omission_reason": "absent or non-callable in the primary four; callable only in the historical 2014 export"
         },
         {
           "notation": "A8913G",
@@ -19849,13 +20150,13 @@
           "emitted": true
         },
         {
-          "notation": "T16213C",
+          "notation": "G16213A",
           "mutation_type": "substitution",
           "pos": 16213,
-          "ancestral_allele": "T",
-          "derived_allele": "C",
+          "ancestral_allele": "G",
+          "derived_allele": "A",
           "emitted": false,
-          "omission_reason": "Absent from all four post-2017 v5-era export exemplars."
+          "omission_reason": "absent or non-callable in the primary four; callable only in the historical 2014 export"
         }
       ],
       "emitted_snps": [
@@ -19910,7 +20211,43 @@
       "emitted_parent": "X2",
       "source_motif_status": "exact",
       "source_topology": {
-        "status": "pending"
+        "status": "exact",
+        "emitted_parent_source_node": "X2",
+        "source_parent": "X2b'd",
+        "flattened_source_path": [
+          {
+            "source_node": "X2+225",
+            "source_parent": "X2",
+            "reason": "Flattened in issue 1798 batch 07: Build 17 places mutation-only X2+225 above both X2a and X2b. Its callable G225A event remains source-only because the shared prefix is not terminal-specific and adds no reachability.",
+            "direct_source_motif": [
+              {
+                "notation": "G225A",
+                "mutation_type": "substitution",
+                "pos": 225,
+                "ancestral_allele": "G",
+                "derived_allele": "A",
+                "emitted": false,
+                "omission_reason": "shared X2+225 ancestry kept provenance-only: m.225 is not terminal-specific to either X2a or X2b and both direct runtime rows are already reachable in every layout where their retained direct marker(s) are callable"
+              }
+            ]
+          },
+          {
+            "source_node": "X2b'd",
+            "source_parent": "X2+225",
+            "reason": "Flattened in issue 1798 batch 07: Build 17 places X2b'd between X2+225 and X2b. G13708A remains source-only because helper-only support would meet X2b's one-of-two threshold when direct m.8393 is untyped.",
+            "direct_source_motif": [
+              {
+                "notation": "G13708A",
+                "mutation_type": "substitution",
+                "pos": 13708,
+                "ancestral_allele": "G",
+                "derived_allele": "A",
+                "emitted": false,
+                "omission_reason": "source helper kept provenance-only: one helper among two otherwise emitted X2b events would meet the 0.5 node threshold if direct m.8393 were untyped"
+              }
+            ]
+          }
+        ]
       },
       "direct_source_motif": [
         {
@@ -20878,9 +21215,6 @@
     },
     "V7": {
       "emitted_parent": "V"
-    },
-    "X1": {
-      "emitted_parent": "X"
     }
   },
   "migration": {
@@ -21077,6 +21411,7 @@
       "W1",
       "W3",
       "X",
+      "X1",
       "X2",
       "X2a",
       "X2b",
@@ -21086,9 +21421,9 @@
       "Z",
       "Z1"
     ],
-    "locked_exact_nodes_sha256": "482a3c1fb07c08d23af0e35375a09300499b694cd0a8b860e8fbc685d612209a",
-    "locked_exact_semantic_sha256": "3ebf6b27efff183913cff61e4ae39cf543ecdc129da1acd09ee4df363a98f6df",
-    "locked_exact_coverage_membership_sha256": "e642adcd344e3ec89d56941e8c675662b6c970ef4c5f8b3a74d24371b44bad4d",
+    "locked_exact_nodes_sha256": "9a5e3a61242a7c59f766862d3e6d0e6ed0c270e32ed14b58c8e31202418862b4",
+    "locked_exact_semantic_sha256": "8c418c6a197b55dc975f09eec5f7d0e555a8ccf67b2cab754f74b10e376c6770",
+    "locked_exact_coverage_membership_sha256": "e85027b4b8cc97499714519cd12d28894ae5f74b8797c4f1af3460b802f93331",
     "baseline_direct_motif_exact_nodes": [
       "C",
       "G1",
@@ -21223,6 +21558,9 @@
       "W1",
       "W3",
       "X",
+      "X1",
+      "X2",
+      "X2a",
       "X2b",
       "Y1",
       "Y2",
@@ -21230,8 +21568,8 @@
       "Z",
       "Z1"
     ],
-    "locked_direct_motif_exact_nodes_sha256": "833034f139f5ce5ff6b1d5de2729948d3b73c44572ba37fb028c7665a59bd24f",
-    "locked_direct_motif_semantic_sha256": "02e8cb70c4e12f72dd089a087964967aaab99c31e4c3d0982e9c3d5606a524e6",
+    "locked_direct_motif_exact_nodes_sha256": "8a1864b17f6030da543e08fa88a486ffcc04668f02132b5e02332cc9ee123fc1",
+    "locked_direct_motif_semantic_sha256": "ae5382af70b9f91aae55b8e516746e0422c46efaaf191f005524afa32fa5e42c",
     "initial_direct_motif_pending_nodes": [
       "G",
       "H6",
@@ -21405,8 +21743,8 @@
     "initial_pending_nodes_sha256": "996c2c96c22d37a2aa7edf1f4639d626ccc5199ecc5eb35984aa84204e05a591",
     "array_manifest_sha256": "42de22517a4644884596e36b0499a4fc45f264986c63f6fb239452b88719f977",
     "source_metadata_sha256": "5b3a3578fc208c91f6c3fdcc6d772f5071851b3604762b9e81994cf2632deb3d",
-    "state_partition_sha256": "e5458a3b31e81aee23710f999ae47734910ecb9e47c5edaf2f847975b69487b9",
+    "state_partition_sha256": "4d8846189dbf3d1d2bf41dad0d4b9ec223c66c11fd088520d6403f9ef0cd39e9",
     "baseline_emitted_tree_sha256": "02a40be2096dd8c60e6e2934ba68a813f07478117a749e60e94e0608bed21914",
-    "locked_emitted_tree_sha256": "9ee68253659ecde4a6bb0f103dbb088c8c90bf8058222405a986cd9ea33f296a"
+    "locked_emitted_tree_sha256": "b99a8653b1efe7024f5a55c8579bb1d30cf56c2b5eb16f91ee25b683497084ce"
   }
 }
