@@ -7,9 +7,14 @@ on:
   pull_request_review_comment:
     types: [created, edited, deleted]
 
-# This workflow carries no credentials and executes no repository code. Its
-# trusted run-name transports only the PR number and head to the default-branch
+# This workflow carries no credentials and executes no repository code. Every
+# diff-comment actor emits this credential-free signal; formal review signals
+# are limited to maintainers and the configured review bots. Its trusted
+# run-name transports only the PR number and head to the default-branch
 # workflow_run invalidator, which can publish pending but never success.
+# GitHub Actions has no review-thread resolved/unresolved trigger.
+# Native required conversation resolution is the synchronous authority for
+# those transitions, and final validation rechecks every thread.
 permissions: {}
 
 jobs:
@@ -24,12 +29,14 @@ jobs:
             ${{ github.event.review.author_association ||
             github.event.comment.author_association }}
           ACTOR_ID: ${{ github.event.review.user.id || github.event.comment.user.id }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
+          if [ "$EVENT_NAME" = "pull_request_review_comment" ]; then exit 0; fi
           case "$ACTOR_ASSOCIATION" in
             OWNER|MEMBER|COLLABORATOR) exit 0 ;;
           esac
           case "$ACTOR_ID" in
             175728472|199175422|136622811) exit 0 ;;
           esac
-          echo "::error title=Review Route::untrusted review-state signal actor"
+          echo "::error title=Review Route::untrusted formal-review signal actor"
           exit 1

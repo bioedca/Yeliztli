@@ -73,17 +73,25 @@ coordination. Any later trigger needs a new reservation and completion.
 The final human approver must not be the PR author, and an active maintainer
 change request blocks the route. After final approval, record its evidence,
 resolve every review thread, then have a maintainer comment `/validate-route`.
-Review events emit only a credential-free invalidation signal; a dedicated
-GitHub App marks the route pending and runs the explicit refresh only from
-trusted default-branch workflow code. Native repository rules remain
-authoritative for approval after the most recent push. Commit statuses are
-SHA-scoped and do not expire: two open `main` PRs must never share a head SHA,
-and any failed, skipped, or cancelled trusted/relevant signal or publisher run
-is merge-blocking even if an older green status remains. Rejected outsider
-signals are irrelevant and expected to fail. The repository ruleset must
-require the branch to be up to date before merging. Immediately before merging,
-confirm the newest relevant signal and publisher runs are terminal, then issue
-or repeat `/validate-route` after all review activity.
+Diff-comment mutations from every actor, plus trusted formal-review mutations,
+emit only a credential-free invalidation signal; a dedicated GitHub App marks
+the route pending and runs the explicit refresh only from trusted default-branch
+workflow code. An outsider's body-only formal review is irrelevant, but an
+outsider diff comment always invalidates because it can create an unresolved
+thread. GitHub Actions cannot subscribe directly to review-thread
+resolved/unresolved events.
+Native required conversation resolution is therefore the authoritative
+synchronous gate for those transitions, and final validation rechecks every
+thread. Native repository rules also remain authoritative for approval after
+the most recent push. Commit statuses are SHA-scoped and do not expire: two open
+`main` PRs must never share a head SHA.
+Any failed, skipped, or cancelled trusted/relevant signal or publisher run is
+merge-blocking even if an older green status remains. The repository ruleset
+must require the branch to be up to date before merging, and its
+conversation-resolution rule must remain enabled whenever `Review Route` is
+required. Immediately before merging, confirm the newest relevant signal and
+publisher runs are terminal, then issue or repeat `/validate-route` after all
+review activity.
 AI tools draft review and suggestions; a **human owns the decision to merge**.
 
 Feedback etiquette: criticise the code, not the coder; prefix optional nits with

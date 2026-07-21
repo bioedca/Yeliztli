@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import json
+import os
+import subprocess
+import textwrap
 from copy import deepcopy
 from datetime import UTC, datetime
 from pathlib import Path
@@ -37,6 +41,21 @@ GATE_TIMES = {
     CODERABBIT_GATE: "2026-07-21T12:30:00Z",
     HUMAN_GATE: "2026-07-21T12:40:00Z",
 }
+
+
+def _workflow_step_script(workflow: str, step_name: str) -> str:
+    """Extract one literal Actions ``run`` block for executable regression tests."""
+    step = workflow.split(f"      - name: {step_name}\n", maxsplit=1)[1]
+    block = step.split("        run: |\n", maxsplit=1)[1]
+    lines: list[str] = []
+    for line in block.splitlines():
+        if not line:
+            lines.append(line)
+        elif line.startswith("          "):
+            lines.append(line[10:])
+        else:
+            break
+    return "\n".join(lines)
 
 
 def _actor(database_id: int, typename: str = "Bot") -> dict[str, object]:
@@ -252,6 +271,14 @@ def test_real_template_is_accepted_for_a_classified_draft() -> None:
     files = [ChangedFile(".github/workflows/ci.yml")]
     context = _context("Load-bearing", files, draft=True, complete=False, body=template)
     assert validate_context(context, files, now=NOW) == []
+
+
+def test_real_template_is_rejected_for_an_unclassified_draft() -> None:
+    root = Path(__file__).resolve().parents[2]
+    template = (root / ".github/PULL_REQUEST_TEMPLATE.md").read_text(encoding="utf-8")
+    files = [ChangedFile(".github/workflows/ci.yml")]
+    context = _context("Load-bearing", files, draft=True, complete=False, body=template)
+    assert "select exactly one review route" in validate_context(context, files, now=NOW)
 
 
 def test_exactly_one_route_is_required() -> None:
@@ -1467,6 +1494,7 @@ def test_workflow_uses_trusted_base_and_explicit_head_status() -> None:
     assert "FINALIZE_COMMENT_NODE_ID: ${{ github.event.comment.node_id }}" in workflow
     assert "FINALIZE_COMMENT_CREATED_AT: ${{ github.event.comment.created_at }}" in workflow
     assert "FINALIZE_COMMENT_ACTOR_ID: ${{ github.event.comment.user.id }}" in workflow
+    assert "WORKFLOW_SHA: ${{ github.workflow_sha }}" in workflow
     assert '[ "$FINALIZE_ROUTE" = "true" ]' in workflow
     assert '"$GITHUB_EVENT_PATH" "$RUNNER_TEMP/pr.json"' in workflow
     assert "Route is complete; a maintainer must comment /validate-route." in workflow
@@ -1511,8 +1539,17 @@ def test_workflow_uses_trusted_base_and_explicit_head_status() -> None:
     assert workflow.index('> "$RUNNER_TEMP/open-pulls-final.json"') < workflow.index(
         "state=success"
     )
+    assert '[ "$WORKFLOW_SHA" = "$TRUSTED_SHA" ]' in validate_job
+    assert validate_job.index('[ "$WORKFLOW_SHA" = "$TRUSTED_SHA" ]') < validate_job.index(
+        "state=success"
+    )
     assert "Draft route is classified; current-head reviews remain pending." in workflow
-    assert 'if [ "$IS_DRAFT" = "true" ]; then' in workflow
+    assert "Draft review route schema or classification is invalid." in workflow
+    assert (
+        'if [ "$IS_DRAFT" = "true" ] && \\\n'
+        '                [ "$VALIDATION_OUTCOME" = "success" ]; then'
+    ) in workflow
+    assert 'elif [ "$IS_DRAFT" = "true" ]; then' in workflow
     assert 'context="Review Route"' in workflow
     assert "statuses/$HEAD_SHA" in workflow
 
@@ -1529,9 +1566,18 @@ def test_review_state_signal_is_credential_free_and_only_drives_pending() -> Non
     assert "types: [submitted, edited, dismissed]" in signal
     assert "pull_request_review_comment:" in signal
     assert "types: [created, edited, deleted]" in signal
+    assert "pull_request_review_thread:" not in signal
     assert "permissions: {}" in signal
+    assert "ACTOR_ASSOCIATION" in signal
+    assert "ACTOR_ID" in signal
+    assert "EVENT_NAME: ${{ github.event_name }}" in signal
     assert "OWNER|MEMBER|COLLABORATOR" in signal
     assert "175728472|199175422|136622811" in signal
+    outsider_comment_path = 'if [ "$EVENT_NAME" = "pull_request_review_comment" ]; then exit 0; fi'
+    assert outsider_comment_path in signal
+    assert signal.index(outsider_comment_path) < signal.index('case "$ACTOR_ASSOCIATION"')
+    assert "Every\n# diff-comment actor emits this credential-free signal" in signal
+    assert "Native required conversation resolution" in signal
     assert "actions/checkout" not in signal
     assert "secrets." not in signal
     assert "create-github-app-token" not in signal
@@ -1548,8 +1594,12 @@ def test_review_state_signal_is_credential_free_and_only_drives_pending() -> Non
         "'.github/workflows/review-route-invalidation.yml'" in resolver
     )
     assert 'fromJSON(\'["pull_request_review","pull_request_review_comment"]\')' in resolver
-    assert "github.event.workflow_run.pull_requests[0].number != null" in resolver
-    assert "any(.workflow_run.pull_requests[]?;" in resolver
+    assert "workflow_run.pull_requests" not in resolver
+    assert "any(.workflow_run.pull_requests[]?;" not in resolver
+    assert "SOURCE_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}" in resolver
+    assert '[ "$signal_head" != "$source_head" ]' in resolver
+    assert "(.head.sha | ascii_downcase) == $head" in resolver
+    assert "($matches | length) == 1" in resolver
     assert "environment:\n      name: review-route-publisher" in invalidator
     assert "steps.invalidator.outputs.token" in invalidator
     assert "group: review-route-${{ needs.resolve_review_state.outputs.head_sha }}" in invalidator
@@ -1569,6 +1619,175 @@ def test_review_state_signal_is_credential_free_and_only_drives_pending() -> Non
     assert "actions/checkout" not in invalidator
 
 
+@pytest.mark.parametrize(
+    ("draft", "validation", "workflow_matches", "expected"),
+    [
+        ("true", "success", True, "pending"),
+        ("true", "failure", True, "failure"),
+        ("false", "success", True, "success"),
+        ("false", "failure", True, "failure"),
+        ("true", "success", False, "failure"),
+        ("true", "failure", False, "failure"),
+        ("false", "success", False, "failure"),
+        ("false", "failure", False, "failure"),
+    ],
+)
+def test_publisher_executes_fail_closed_status_matrix(
+    tmp_path: Path,
+    draft: str,
+    validation: str,
+    workflow_matches: bool,
+    expected: str,
+) -> None:
+    root = Path(__file__).resolve().parents[2]
+    workflow = (root / ".github/workflows/review-route.yml").read_text(encoding="utf-8")
+    start = workflow.index("          state=failure")
+    end = workflow.index("          posted=false", start)
+    decision = textwrap.dedent(workflow[start:end])
+    shell = "\n".join(
+        [
+            "set -u",
+            "gh() { printf '{}\\n'; }",
+            "jq() { return 0; }",
+            'head_unique="true"',
+            'finalizer_ok="true"',
+            decision,
+            'printf "%s\\t%s\\n" "$state" "$description"',
+        ]
+    )
+    env = {
+        **os.environ,
+        "FINALIZE_ROUTE": "true",
+        "FINALIZE_COMMENT_NODE_ID": FINALIZER_NODE_ID,
+        "FINALIZE_COMMENT_ACTOR_ID": str(HUMAN_ID),
+        "FINALIZE_COMMENT_CREATED_AT": CREATED_AT,
+        "GITHUB_REPOSITORY": "bioedca/Yeliztli",
+        "HEAD_SHA": HEAD_SHA,
+        "IS_DRAFT": draft,
+        "PR_NUMBER": "2183",
+        "PR_UPDATED_AT": PR_UPDATED_AT,
+        "RUNNER_TEMP": str(tmp_path),
+        "TRUSTED_SHA": HEAD_SHA,
+        "VALIDATION_OUTCOME": validation,
+        "WORKFLOW_SHA": HEAD_SHA if workflow_matches else "b" * 40,
+    }
+    completed = subprocess.run(
+        ["bash", "-e", "-o", "pipefail", "-c", shell],
+        check=True,
+        capture_output=True,
+        env=env,
+        text=True,
+    )
+    assert completed.stdout.split("\t", maxsplit=1)[0] == expected
+
+
+@pytest.mark.parametrize(
+    ("event_name", "association", "actor_id", "expected"),
+    [
+        ("pull_request_review_comment", "NONE", "999", 0),
+        ("pull_request_review", "NONE", "999", 1),
+        ("pull_request_review", "COLLABORATOR", "999", 0),
+        ("pull_request_review", "NONE", "175728472", 0),
+    ],
+)
+def test_review_signal_executes_actor_and_event_matrix(
+    event_name: str,
+    association: str,
+    actor_id: str,
+    expected: int,
+) -> None:
+    root = Path(__file__).resolve().parents[2]
+    workflow = (root / ".github/workflows/review-route-invalidation.yml").read_text(
+        encoding="utf-8"
+    )
+    shell = _workflow_step_script(workflow, "Emit trusted review-state signal")
+    completed = subprocess.run(
+        ["bash", "-e", "-o", "pipefail", "-c", shell],
+        check=False,
+        capture_output=True,
+        env={
+            **os.environ,
+            "ACTOR_ASSOCIATION": association,
+            "ACTOR_ID": actor_id,
+            "EVENT_NAME": event_name,
+        },
+        text=True,
+    )
+    assert completed.returncode == expected
+
+
+@pytest.mark.parametrize(
+    ("source_head", "duplicate_head", "expected"),
+    [(HEAD_SHA, False, 0), ("b" * 40, False, 1), (HEAD_SHA, True, 1)],
+)
+def test_review_signal_resolver_executes_fork_safe_live_binding(
+    tmp_path: Path,
+    source_head: str,
+    duplicate_head: bool,
+    expected: int,
+) -> None:
+    root = Path(__file__).resolve().parents[2]
+    workflow = (root / ".github/workflows/review-route.yml").read_text(encoding="utf-8")
+    shell = _workflow_step_script(workflow, "Bind signal to its associated pull request")
+    pull = {
+        "number": 2183,
+        "state": "open",
+        "base": {"ref": "main", "repo": {"full_name": "bioedca/Yeliztli"}},
+        "head": {"sha": HEAD_SHA},
+    }
+    open_pulls = [pull]
+    if duplicate_head:
+        open_pulls.append({**pull, "number": 2184})
+    pr_fixture = tmp_path / "fixture-pr.json"
+    open_fixture = tmp_path / "open-prs.json"
+    event_fixture = tmp_path / "event.json"
+    output = tmp_path / "output"
+    pr_fixture.write_text(json.dumps(pull), encoding="utf-8")
+    open_fixture.write_text(json.dumps([open_pulls]), encoding="utf-8")
+    event_fixture.write_text(json.dumps({"workflow_run": {"pull_requests": []}}), encoding="utf-8")
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_gh = fake_bin / "gh"
+    fake_gh.write_text(
+        """#!/usr/bin/env bash
+set -eu
+case "$*" in
+  *"pulls/2183"*) exec /bin/cat "$PR_FIXTURE" ;;
+  *"pulls?state=open"*) exec /bin/cat "$OPEN_PRS_FIXTURE" ;;
+  *) exit 2 ;;
+esac
+""",
+        encoding="utf-8",
+    )
+    fake_gh.chmod(0o755)
+    completed = subprocess.run(
+        ["bash", "-e", "-o", "pipefail", "-c", shell],
+        check=False,
+        capture_output=True,
+        env={
+            **os.environ,
+            "GH_TOKEN": "test-token",
+            "GITHUB_EVENT_PATH": str(event_fixture),
+            "GITHUB_OUTPUT": str(output),
+            "GITHUB_REPOSITORY": "bioedca/Yeliztli",
+            "OPEN_PRS_FIXTURE": str(open_fixture),
+            "PATH": f"{fake_bin}:{os.environ['PATH']}",
+            "PR_FIXTURE": str(pr_fixture),
+            "RUNNER_TEMP": str(tmp_path),
+            "SIGNAL_TITLE": f"review-route-pr-2183-head-{HEAD_SHA}",
+            "SOURCE_HEAD_SHA": source_head,
+        },
+        text=True,
+    )
+    assert completed.returncode == expected, completed.stderr
+    if expected == 0:
+        assert output.read_text(encoding="utf-8").splitlines() == [
+            f"head_sha={HEAD_SHA}",
+            "pr_number=2183",
+            f"signal_head={HEAD_SHA}",
+        ]
+
+
 def test_public_template_contains_only_hosted_review_gates() -> None:
     root = Path(__file__).resolve().parents[2]
     template = (root / ".github/PULL_REQUEST_TEMPLATE.md").read_text(encoding="utf-8")
@@ -1578,14 +1797,24 @@ def test_public_template_contains_only_hosted_review_gates() -> None:
 def test_contributor_review_routes_match_the_public_template() -> None:
     root = Path(__file__).resolve().parents[2]
     contributing = (root / "CONTRIBUTING.md").read_text(encoding="utf-8")
+    normalized = " ".join(contributing.split())
     assert all(route in contributing for route in ("Low", "Standard", "Load-bearing"))
     assert "Copilot, Codex, manual\n  CodeRabbit, then human approval" in contributing
     assert "five" in contributing and "rolling-hour" in contributing
     assert "/validate-route" in contributing
-    assert "two open `main` PRs must never share a head SHA" in contributing
-    assert "failed, skipped, or cancelled trusted/relevant signal or publisher run" in contributing
-    assert "Rejected outsider\nsignals are irrelevant and expected to fail" in contributing
-    assert "require the branch to be up to date before merging" in contributing
+    assert "two open `main` PRs must never share a head SHA" in normalized
+    assert "failed, skipped, or cancelled trusted/relevant signal or publisher run" in normalized
+    assert (
+        "Diff-comment mutations from every actor, plus trusted formal-review mutations"
+        in normalized
+    )
+    assert "outsider diff comment always invalidates" in normalized
+    assert "Native required conversation resolution is therefore the authoritative" in normalized
+    assert (
+        "conversation-resolution rule must remain enabled whenever `Review Route` is required"
+        in normalized
+    )
+    assert "require the branch to be up to date before merging" in normalized
 
 
 def test_graphql_context_tracks_comment_association_and_head_epoch() -> None:

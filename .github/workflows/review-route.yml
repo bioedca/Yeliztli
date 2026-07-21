@@ -35,8 +35,7 @@ jobs:
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.path == '.github/workflows/review-route-invalidation.yml' &&
       contains(fromJSON('["pull_request_review","pull_request_review_comment"]'),
-      github.event.workflow_run.event) &&
-      github.event.workflow_run.pull_requests[0].number != null
+      github.event.workflow_run.event)
     name: Resolve Review-State Signal
     outputs:
       head_sha: ${{ steps.resolve.outputs.head_sha }}
@@ -50,26 +49,46 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           SIGNAL_TITLE: ${{ github.event.workflow_run.display_title }}
+          SOURCE_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           if [[ "$SIGNAL_TITLE" =~ ^review-route-pr-([0-9]+)-head-([0-9a-fA-F]{40})$ ]]; then
             pr_number="${BASH_REMATCH[1]}"
-            signal_head="${BASH_REMATCH[2]}"
+            signal_head="$(printf '%s' "${BASH_REMATCH[2]}" | tr '[:upper:]' '[:lower:]')"
           else
             echo "::error title=Review Route::invalid review-state signal identity"
             exit 1
           fi
-          jq -e --arg pr "$pr_number" \
-            'any(.workflow_run.pull_requests[]?; (.number | tostring) == $pr)' \
-            "$GITHUB_EVENT_PATH" > /dev/null
+          # workflow_run.head_sha is GitHub run metadata, distinct from the
+          # source runner's event-dependent GITHUB_SHA value.
+          source_head="$(printf '%s' "$SOURCE_HEAD_SHA" | tr '[:upper:]' '[:lower:]')"
+          if ! [[ "$source_head" =~ ^[0-9a-f]{40}$ ]] || \
+            [ "$signal_head" != "$source_head" ]; then
+            echo "::error title=Review Route::signal head does not match its source run"
+            exit 1
+          fi
           gh api "repos/$GITHUB_REPOSITORY/pulls/$pr_number" > "$RUNNER_TEMP/pr.json"
-          jq -e --arg repo "$GITHUB_REPOSITORY" \
-            '.base.ref == "main" and .base.repo.full_name == $repo' \
+          jq -e --arg repo "$GITHUB_REPOSITORY" --arg head "$signal_head" \
+            --arg pr "$pr_number" '
+              (.number | tostring) == $pr and
+              .state == "open" and
+              .base.ref == "main" and
+              .base.repo.full_name == $repo and
+              (.head.sha | ascii_downcase) == $head
+            ' \
             "$RUNNER_TEMP/pr.json" > /dev/null
           head_sha="$(jq -er '.head.sha' "$RUNNER_TEMP/pr.json")"
           if ! [[ "$head_sha" =~ ^[0-9a-fA-F]{40}$ ]]; then
             echo "::error title=Review Route::resolved head is not a full SHA"
             exit 1
           fi
+          gh api --paginate --slurp \
+            "repos/$GITHUB_REPOSITORY/pulls?state=open&base=main&per_page=100" \
+            > "$RUNNER_TEMP/open-pulls.json"
+          jq -e --arg head "$signal_head" --arg pr "$pr_number" '
+            [ .[][] | select((.head.sha | ascii_downcase) == $head) ] as $matches |
+            ($matches | length) == 1 and
+            ($matches[0].number | tostring) == $pr
+          ' "$RUNNER_TEMP/open-pulls.json" > /dev/null
           printf 'head_sha=%s\npr_number=%s\nsignal_head=%s\n' \
             "$head_sha" "$pr_number" "$signal_head" >> "$GITHUB_OUTPUT"
 
@@ -199,6 +218,7 @@ jobs:
       FINALIZE_COMMENT_NODE_ID: ${{ github.event.comment.node_id }}
       FINALIZE_COMMENT_CREATED_AT: ${{ github.event.comment.created_at }}
       FINALIZE_COMMENT_ACTOR_ID: ${{ github.event.comment.user.id }}
+      WORKFLOW_SHA: ${{ github.workflow_sha }}
     steps:
       - name: Mint dedicated publisher token
         id: publisher
@@ -388,7 +408,8 @@ jobs:
                 finalizer_ok=true
               fi
             fi
-            if [ "$head_unique" = "true" ] && \
+            if [ "$WORKFLOW_SHA" = "$TRUSTED_SHA" ] && \
+              [ "$head_unique" = "true" ] && \
               [ "$finalizer_ok" = "true" ] && \
               gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" \
               > "$RUNNER_TEMP/pr-final.json" && \
@@ -411,9 +432,12 @@ jobs:
                 '.object.sha == $trusted' \
                 "$RUNNER_TEMP/main-ref-final.json" > /dev/null; then
               description="Current-head review route is incomplete or invalid."
-              if [ "$IS_DRAFT" = "true" ]; then
+              if [ "$IS_DRAFT" = "true" ] && \
+                [ "$VALIDATION_OUTCOME" = "success" ]; then
                 state=pending
                 description="Draft route is classified; current-head reviews remain pending."
+              elif [ "$IS_DRAFT" = "true" ]; then
+                description="Draft review route schema or classification is invalid."
               elif [ "$VALIDATION_OUTCOME" = "success" ] && \
                 [ "$FINALIZE_ROUTE" = "true" ]; then
                 state=success
@@ -423,7 +447,7 @@ jobs:
                 description="Route is complete; a maintainer must comment /validate-route."
               fi
             else
-              description="PR identity, head uniqueness, finalizer, or trusted main changed."
+              description="PR identity, head uniqueness, finalizer, workflow policy, or trusted main changed."
             fi
           fi
           posted=false
