@@ -1248,8 +1248,7 @@ def test_untrusted_trigger_mentions_do_not_consume_coderabbit_quota() -> None:
         }
     )
     recent["totalCount"] += 1
-    errors = validate_context(context, files, now=NOW)
-    assert not any("quota exceeded" in error for error in errors)
+    assert validate_context(context, files, now=NOW) == []
 
 
 def test_later_triggers_do_not_retroactively_break_an_earlier_review() -> None:
