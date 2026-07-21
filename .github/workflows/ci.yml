@@ -44,10 +44,29 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          persist-credentials: false  # paths-filter needs no git creds
+          # paths-filter runs git (see `token: ''` below) and fetches the base
+          # SHA from origin. That is an anonymous fetch, which works because
+          # this repo is public — if it ever goes private, this must become
+          # `true` or the fetch will fail to authenticate.
+          persist-credentials: false
       - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
         id: filter
         with:
+          # Detect changes with a local `git diff` instead of the GitHub API.
+          # An empty token is the action's documented switch for this: it then
+          # diffs pull_request.base.sha..HEAD, fetching the base SHA at depth 1.
+          #
+          # The API path calls listFiles(), which GitHub refuses on PRs whose
+          # diff it cannot generate in time:
+          #   Server Error: Sorry, this diff is taking too long to generate.
+          #   {"resource":"PullRequest","field":"diff","code":"not_available"}
+          # The committed knowledge graph (graphify-out/graph.json, ~32 MB /
+          # ~940k lines) crosses that threshold, so a graph-refresh PR failed
+          # this step outright — and because every downstream job keys off these
+          # outputs, all of them skipped and the PR could not go green (#2173).
+          # Locally the same diff takes ~4s, so git-based detection is both
+          # immune to the API limit and no slower here.
+          token: ''
           # Keep filters broad: the Docker image bundles backend + a frontend
           # build, so `docker` must include both. On push/merge_group every job
           # runs unconditionally (see each job's `if:`), so these outputs only
