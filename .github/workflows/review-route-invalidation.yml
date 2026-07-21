@@ -1,0 +1,35 @@
+name: Review Route Invalidation Signal
+run-name: review-route-pr-${{ github.event.pull_request.number }}-head-${{ github.event.pull_request.head.sha }}
+
+on:
+  pull_request_review:
+    types: [submitted, edited, dismissed]
+  pull_request_review_comment:
+    types: [created, edited, deleted]
+
+# This workflow carries no credentials and executes no repository code. Its
+# trusted run-name transports only the PR number and head to the default-branch
+# workflow_run invalidator, which can publish pending but never success.
+permissions: {}
+
+jobs:
+  signal:
+    name: Signal review-state change
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - name: Emit trusted review-state signal
+        env:
+          ACTOR_ASSOCIATION: >-
+            ${{ github.event.review.author_association ||
+            github.event.comment.author_association }}
+          ACTOR_ID: ${{ github.event.review.user.id || github.event.comment.user.id }}
+        run: |
+          case "$ACTOR_ASSOCIATION" in
+            OWNER|MEMBER|COLLABORATOR) exit 0 ;;
+          esac
+          case "$ACTOR_ID" in
+            175728472|199175422|136622811) exit 0 ;;
+          esac
+          echo "::error title=Review Route::untrusted review-state signal actor"
+          exit 1

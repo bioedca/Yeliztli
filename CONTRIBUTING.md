@@ -27,8 +27,9 @@ For help, see [SUPPORT.md](SUPPORT.md); to report a vulnerability, see
 3. **Open a PR** — the [pull-request template](.github/PULL_REQUEST_TEMPLATE.md)
    guides you: link the issue (`Closes #123`), say what/how/**why**, and work the
    Definition-of-Done checklist. Give the PR a specific, imperative title.
-4. **Pass the gates** — a change merges only after it passes the review gate
-   (below) **and all required CI checks are green**. CI's per-PR (Tier-1) gate is
+4. **Pass the gates** — select the final-diff review route in the PR template. A
+   change merges only after `Review Route` and **all required CI checks are
+   green**. CI's per-PR (Tier-1) gate is
    the `ci-required` aggregate plus `lint` (Ruff, Vulture, ESLint, Knip),
    `test-backend` (py3.12 + py3.13), `test-frontend`, `build-frontend`,
    `smoke-install`, and `docs-build --strict`. Note that the end-to-end
@@ -36,22 +37,54 @@ For help, see [SUPPORT.md](SUPPORT.md); to report a vulnerability, see
    nightly, **not** on your PR — so verify UI changes in a real browser before
    merging.
 5. **Merge** — pull requests are **squash-merged**; the squashed subject stays
-   imperative and ends with `(#<PR number>)`.
+   imperative and ends with `(#<PR number>)`. Merge queue is not supported.
 
 Issues are organised by a labelled taxonomy — see
 [Labels & triage](https://bioedca.github.io/Yeliztli/develop/labels-and-triage/).
 
 ## The review gate
 
-Every change is reviewed before it merges — by someone other than the author.
-Automated review runs first and is not a substitute for human judgement:
+Choose the highest route required by any part of the final diff:
 
-1. **CodeRabbit** — the primary automated reviewer on each PR.
-2. **GitHub Copilot code review** — an additional automated reviewer (where
-   enabled), which follows the repository's
-   [`.github/copilot-instructions.md`](.github/copilot-instructions.md).
-3. A maintainer reviews and approves. AI tools *draft* review and suggestions; a
-   **human owns the decision to merge** and is accountable for what lands.
+- **Low:** text or mechanical changes with no behavior, public-contract,
+  science, security, dependency, or workflow impact. Run Copilot, then obtain
+  independent human approval.
+- **Standard:** routine code, tests, UI, refactors, or bug fixes outside a
+  load-bearing area. Run Copilot, Codex `@codex review`, then human approval.
+- **Load-bearing:** science or clinical logic/data and their tests; privacy,
+  security, or auth; schema, migration, or data-loss paths; concurrency;
+  dependencies; updater, installer, release, CI, workflows, permissions, core
+  architecture, or broad/hard-to-revert changes. Run Copilot, Codex, manual
+  CodeRabbit, then human approval.
+
+Reviews must be formal GitHub reviews on the final head SHA and occur in route
+order. Record the exact SHA and UTC completion time in the PR table. For
+CodeRabbit, after Codex completes, the same maintainer posts two separate,
+immutable comments at distinct times:
+
+1. `coderabbit-reservation: <full-head-SHA>`
+2. `@coderabbitai full review`
+
+The reservation is a cooperative intent marker, not an atomic vendor slot.
+Maintainers serialize triggers; the validator rejects a visible rolling-hour
+ledger above five, but deleted comments or simultaneous races require manual
+coordination. Any later trigger needs a new reservation and completion.
+
+The final human approver must not be the PR author, and an active maintainer
+change request blocks the route. After final approval, record its evidence,
+resolve every review thread, then have a maintainer comment `/validate-route`.
+Review events emit only a credential-free invalidation signal; a dedicated
+GitHub App marks the route pending and runs the explicit refresh only from
+trusted default-branch workflow code. Native repository rules remain
+authoritative for approval after the most recent push. Commit statuses are
+SHA-scoped and do not expire: two open `main` PRs must never share a head SHA,
+and any failed, skipped, or cancelled trusted/relevant signal or publisher run
+is merge-blocking even if an older green status remains. Rejected outsider
+signals are irrelevant and expected to fail. The repository ruleset must
+require the branch to be up to date before merging. Immediately before merging,
+confirm the newest relevant signal and publisher runs are terminal, then issue
+or repeat `/validate-route` after all review activity.
+AI tools draft review and suggestions; a **human owns the decision to merge**.
 
 Feedback etiquette: criticise the code, not the coder; prefix optional nits with
 `Nit:`; explain the rationale for a suggestion; and let automated formatters

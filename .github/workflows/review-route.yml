@@ -1,0 +1,442 @@
+name: Review Route Policy
+
+on:
+  pull_request_target:
+    branches: [main]
+    types: [opened, edited, synchronize, reopened, closed, ready_for_review, converted_to_draft, review_requested, review_request_removed]
+  issue_comment:
+    types: [created, edited, deleted]
+  workflow_run:
+    workflows: ["Review Route Invalidation Signal"]
+    types: [completed]
+
+# Merge queue is intentionally unsupported. Enabling it requires a separate
+# design that validates every constituent PR and publishes on the synthetic SHA.
+
+# Privileged publication intentionally uses only default-branch workflow refs.
+# Review events first run a credential-free signal; its default-branch
+# workflow_run consumer can only invalidate the current PR head. After reviews
+# and thread resolution, a trusted maintainer explicitly refreshes the route
+# with `/validate-route`.
+#
+# The `review-route-publisher` environment must allow only branch `main` and
+# hold a dedicated GitHub App client ID/private key. The app, not the generic
+# Actions app, is the only acceptable source for the required `Review Route`
+# status. It needs Issues: read, Pull requests: read, and Statuses: write.
+# Reading and rechecking `refs/heads/main` also requires Contents: read.
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  resolve_review_state:
+    if: >-
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.path == '.github/workflows/review-route-invalidation.yml' &&
+      contains(fromJSON('["pull_request_review","pull_request_review_comment"]'),
+      github.event.workflow_run.event) &&
+      github.event.workflow_run.pull_requests[0].number != null
+    name: Resolve Review-State Signal
+    outputs:
+      head_sha: ${{ steps.resolve.outputs.head_sha }}
+      pr_number: ${{ steps.resolve.outputs.pr_number }}
+      signal_head: ${{ steps.resolve.outputs.signal_head }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Bind signal to its associated pull request
+        id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SIGNAL_TITLE: ${{ github.event.workflow_run.display_title }}
+        run: |
+          if [[ "$SIGNAL_TITLE" =~ ^review-route-pr-([0-9]+)-head-([0-9a-fA-F]{40})$ ]]; then
+            pr_number="${BASH_REMATCH[1]}"
+            signal_head="${BASH_REMATCH[2]}"
+          else
+            echo "::error title=Review Route::invalid review-state signal identity"
+            exit 1
+          fi
+          jq -e --arg pr "$pr_number" \
+            'any(.workflow_run.pull_requests[]?; (.number | tostring) == $pr)' \
+            "$GITHUB_EVENT_PATH" > /dev/null
+          gh api "repos/$GITHUB_REPOSITORY/pulls/$pr_number" > "$RUNNER_TEMP/pr.json"
+          jq -e --arg repo "$GITHUB_REPOSITORY" \
+            '.base.ref == "main" and .base.repo.full_name == $repo' \
+            "$RUNNER_TEMP/pr.json" > /dev/null
+          head_sha="$(jq -er '.head.sha' "$RUNNER_TEMP/pr.json")"
+          if ! [[ "$head_sha" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            echo "::error title=Review Route::resolved head is not a full SHA"
+            exit 1
+          fi
+          printf 'head_sha=%s\npr_number=%s\nsignal_head=%s\n' \
+            "$head_sha" "$pr_number" "$signal_head" >> "$GITHUB_OUTPUT"
+
+  resolve_route_event:
+    if: >-
+      github.event_name == 'pull_request_target' ||
+      (github.event_name == 'issue_comment' &&
+      github.event.issue.pull_request &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'),
+      github.event.comment.author_association))
+    name: Resolve Route Event
+    outputs:
+      head_sha: ${{ steps.resolve.outputs.head_sha }}
+      pr_number: ${{ steps.resolve.outputs.pr_number }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Resolve live pull request head
+        id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+        run: |
+          if ! [[ "$PR_NUMBER" =~ ^[0-9]+$ ]]; then
+            echo "::error title=Review Route::pull request number is invalid"
+            exit 1
+          fi
+          gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" > "$RUNNER_TEMP/pr.json"
+          jq -e --arg repo "$GITHUB_REPOSITORY" \
+            '.base.ref == "main" and .base.repo.full_name == $repo' \
+            "$RUNNER_TEMP/pr.json" > /dev/null
+          head_sha="$(jq -er '.head.sha' "$RUNNER_TEMP/pr.json")"
+          if ! [[ "$head_sha" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            echo "::error title=Review Route::resolved head is not a full SHA"
+            exit 1
+          fi
+          printf 'head_sha=%s\npr_number=%s\n' \
+            "$head_sha" "$PR_NUMBER" >> "$GITHUB_OUTPUT"
+
+  invalidate-review-state:
+    needs: resolve_review_state
+    concurrency:
+      group: review-route-${{ needs.resolve_review_state.outputs.head_sha }}
+      cancel-in-progress: true
+    environment:
+      name: review-route-publisher
+    name: Invalidate Review Route
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Mint dedicated publisher token
+        id: invalidator
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
+        with:
+          client-id: ${{ vars.REVIEW_ROUTE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.REVIEW_ROUTE_APP_PRIVATE_KEY }}
+          permission-pull-requests: read
+          permission-statuses: write
+
+      - name: Mark current PR head pending
+        env:
+          EXPECTED_HEAD_SHA: ${{ needs.resolve_review_state.outputs.head_sha }}
+          GH_TOKEN: ${{ steps.invalidator.outputs.token }}
+          PR_NUMBER: ${{ needs.resolve_review_state.outputs.pr_number }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SIGNAL_HEAD_SHA: ${{ needs.resolve_review_state.outputs.signal_head }}
+        run: |
+          post_pending() {
+            local sha="$1"
+            local description="$2"
+            local attempt
+            for attempt in 1 2 3; do
+              if gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$sha" \
+                -f state=pending \
+                -f context="Review Route" \
+                -f description="$description" \
+                -f target_url="$RUN_URL"; then
+                return 0
+              fi
+              if [ "$attempt" -lt 3 ]; then sleep "$attempt"; fi
+            done
+            return 1
+          }
+
+          gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" > "$RUNNER_TEMP/pr.json"
+          jq -e --arg repo "$GITHUB_REPOSITORY" \
+            '.base.ref == "main" and .base.repo.full_name == $repo' \
+            "$RUNNER_TEMP/pr.json" > /dev/null
+          head_sha="$(jq -er '.head.sha' "$RUNNER_TEMP/pr.json")"
+          if ! [[ "$head_sha" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            echo "::error title=Review Route::resolved head is not a full SHA"
+            exit 1
+          fi
+          post_pending "$head_sha" \
+            "Review state changed; a maintainer must revalidate the route."
+          if [ "$EXPECTED_HEAD_SHA" != "$head_sha" ]; then
+            if ! post_pending "$EXPECTED_HEAD_SHA" \
+              "PR head changed after review activity; revalidate the route."; then
+              echo "::warning title=Review Route::could not invalidate prior resolved head"
+            fi
+          fi
+          if [ "$SIGNAL_HEAD_SHA" != "$head_sha" ] && \
+            [ "$SIGNAL_HEAD_SHA" != "$EXPECTED_HEAD_SHA" ]; then
+            if ! post_pending "$SIGNAL_HEAD_SHA" \
+              "Review occurred on a prior head; revalidate before reusing it."; then
+              echo "::warning title=Review Route::could not invalidate stale signal head"
+            fi
+          fi
+
+  validate:
+    needs: resolve_route_event
+    concurrency:
+      group: review-route-${{ needs.resolve_route_event.outputs.head_sha }}
+      cancel-in-progress: true
+    environment:
+      name: review-route-publisher
+    name: Review Route Publisher
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      PR_NUMBER: ${{ needs.resolve_route_event.outputs.pr_number }}
+      RESOLVED_HEAD_SHA: ${{ needs.resolve_route_event.outputs.head_sha }}
+      FINALIZE_ROUTE: >-
+        ${{ github.event_name == 'issue_comment' &&
+        github.event.action == 'created' &&
+        github.event.comment.body == '/validate-route' }}
+      FINALIZE_COMMENT_NODE_ID: ${{ github.event.comment.node_id }}
+      FINALIZE_COMMENT_CREATED_AT: ${{ github.event.comment.created_at }}
+      FINALIZE_COMMENT_ACTOR_ID: ${{ github.event.comment.user.id }}
+    steps:
+      - name: Mint dedicated publisher token
+        id: publisher
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
+        with:
+          client-id: ${{ vars.REVIEW_ROUTE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.REVIEW_ROUTE_APP_PRIVATE_KEY }}
+          permission-issues: read
+          permission-pull-requests: read
+          permission-statuses: write
+          permission-contents: read
+
+      - name: Pre-invalidate event head, resolve PR, and mark current head pending
+        env:
+          EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          GH_TOKEN: ${{ steps.publisher.outputs.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          post_pending() {
+            local sha="$1"
+            local attempt
+            for attempt in 1 2 3; do
+              if gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$sha" \
+                -f state=pending \
+                -f context="Review Route" \
+                -f description="Verifying current-head review route." \
+                -f target_url="$RUN_URL"; then
+                return 0
+              fi
+              if [ "$attempt" -lt 3 ]; then sleep "$attempt"; fi
+            done
+            return 1
+          }
+
+          if [ -n "$EVENT_HEAD_SHA" ]; then
+            if ! [[ "$EVENT_HEAD_SHA" =~ ^[0-9a-fA-F]{40}$ ]]; then
+              echo "::error title=Review Route::event head is not a full SHA"
+              exit 1
+            fi
+            printf 'HEAD_SHA=%s\n' "$EVENT_HEAD_SHA" >> "$GITHUB_ENV"
+            post_pending "$EVENT_HEAD_SHA"
+          fi
+
+          gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" > "$RUNNER_TEMP/pr.json"
+          head_sha="$(jq -er '.head.sha' "$RUNNER_TEMP/pr.json")"
+          if ! [[ "$head_sha" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            echo "::error title=Review Route::resolved head is not a full SHA"
+            exit 1
+          fi
+          printf 'HEAD_SHA=%s\n' "$head_sha" >> "$GITHUB_ENV"
+          post_pending "$head_sha"
+          if [ "$head_sha" != "$RESOLVED_HEAD_SHA" ]; then
+            echo "::error title=Review Route::head changed after concurrency binding"
+            exit 1
+          fi
+
+          if [ "$FINALIZE_ROUTE" = "true" ]; then
+            if ! [[ "$FINALIZE_COMMENT_ACTOR_ID" =~ ^[0-9]+$ ]] || \
+              [ -z "$FINALIZE_COMMENT_NODE_ID" ] || \
+              ! [[ "$FINALIZE_COMMENT_CREATED_AT" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T ]]; then
+              echo "::error title=Review Route::finalizer event identity is incomplete"
+              exit 1
+            fi
+            jq -e -s '
+              .[0].issue.number == .[1].number and
+              .[0].issue.body == .[1].body and
+              .[0].issue.updated_at == .[1].updated_at
+            ' "$GITHUB_EVENT_PATH" "$RUNNER_TEMP/pr.json" > /dev/null
+          fi
+
+          jq -e --arg repo "$GITHUB_REPOSITORY" \
+            '.base.ref == "main" and .base.repo.full_name == $repo' \
+            "$RUNNER_TEMP/pr.json" > /dev/null
+          gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" \
+            > "$RUNNER_TEMP/main-ref.json"
+          trusted_sha="$(jq -er '.object.sha' "$RUNNER_TEMP/main-ref.json")"
+          if ! [[ "$trusted_sha" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            echo "::error title=Review Route::trusted main is not a full SHA"
+            exit 1
+          fi
+          is_draft="$(jq -er \
+            'if .draft == true then "true" elif .draft == false then "false" else error("missing draft") end' \
+            "$RUNNER_TEMP/pr.json")"
+          pr_updated_at="$(jq -er '.updated_at' "$RUNNER_TEMP/pr.json")"
+          printf 'TRUSTED_SHA=%s\nIS_DRAFT=%s\nPR_UPDATED_AT=%s\n' \
+            "$trusted_sha" "$is_draft" "$pr_updated_at" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ env.TRUSTED_SHA }}
+          persist-credentials: false
+
+      - name: Validate live route state
+        id: route
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ steps.publisher.outputs.token }}
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.event.repository.name }}
+        run: |
+          gh api graphql \
+            -F owner="$OWNER" \
+            -F repo="$REPO" \
+            -F number="$PR_NUMBER" \
+            -F query=@scripts/review_route_context.graphql \
+            > "$RUNNER_TEMP/review-route-context.json"
+          gh api --paginate --slurp \
+            "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" \
+            > "$RUNNER_TEMP/review-route-files.json"
+          finalizer_args=()
+          if [ "$FINALIZE_ROUTE" = "true" ]; then
+            finalizer_args=(
+              --finalize-comment-node-id "$FINALIZE_COMMENT_NODE_ID"
+              --finalize-comment-created-at "$FINALIZE_COMMENT_CREATED_AT"
+              --finalize-comment-actor-id "$FINALIZE_COMMENT_ACTOR_ID"
+            )
+          fi
+          python scripts/validate_review_route.py \
+            --context "$RUNNER_TEMP/review-route-context.json" \
+            --files "$RUNNER_TEMP/review-route-files.json" \
+            --expected-head "$HEAD_SHA" \
+            --expected-draft "$IS_DRAFT" \
+            --expected-pr-updated-at "$PR_UPDATED_AT" \
+            "${finalizer_args[@]}"
+
+      - name: Publish required status on PR head
+        if: ${{ always() && !cancelled() }}
+        env:
+          GH_TOKEN: ${{ steps.publisher.outputs.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          VALIDATION_OUTCOME: ${{ steps.route.outcome }}
+        run: |
+          if ! [[ "${HEAD_SHA:-}" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            echo "::error title=Review Route::no valid head SHA was captured"
+            exit 1
+          fi
+          head_unique=false
+          if gh api --paginate --slurp \
+              "repos/$GITHUB_REPOSITORY/pulls?state=open&base=main&per_page=100" \
+              > "$RUNNER_TEMP/open-pulls-final.json" && \
+            jq -e --arg head "$HEAD_SHA" --arg pr "$PR_NUMBER" '
+              [ .[][] | select(.head.sha == $head) ] as $matches |
+              ($matches | length) == 1 and
+              ($matches[0].number | tostring) == $pr
+            ' "$RUNNER_TEMP/open-pulls-final.json" > /dev/null; then
+            head_unique=true
+          fi
+          state=failure
+          description="Initial PR state could not be captured; review route failed closed."
+          if [ "${IS_DRAFT:-}" = "true" ] || [ "${IS_DRAFT:-}" = "false" ]; then
+            finalizer_ok=true
+            if [ "$FINALIZE_ROUTE" = "true" ]; then
+              finalizer_ok=false
+              if gh api graphql \
+                  -F node="$FINALIZE_COMMENT_NODE_ID" \
+                  -f query="query(\$node: ID!) {
+                    node(id: \$node) {
+                      ... on IssueComment {
+                        id
+                        author {
+                          __typename
+                          ... on User { databaseId }
+                        }
+                        authorAssociation
+                        body
+                        createdAt
+                        lastEditedAt
+                        updatedAt
+                      }
+                    }
+                  }" > "$RUNNER_TEMP/finalizer-final.json" && \
+                jq -e \
+                  --arg node "$FINALIZE_COMMENT_NODE_ID" \
+                  --arg actor "$FINALIZE_COMMENT_ACTOR_ID" \
+                  --arg created "$FINALIZE_COMMENT_CREATED_AT" '
+                    .data.node.id == $node and
+                    .data.node.author.__typename == "User" and
+                    (.data.node.author.databaseId | tostring) == $actor and
+                    .data.node.body == "/validate-route" and
+                    .data.node.createdAt == $created and
+                    .data.node.updatedAt == .data.node.createdAt and
+                    .data.node.lastEditedAt == null and
+                    (.data.node.authorAssociation == "OWNER" or
+                     .data.node.authorAssociation == "MEMBER" or
+                     .data.node.authorAssociation == "COLLABORATOR")
+                  ' "$RUNNER_TEMP/finalizer-final.json" > /dev/null; then
+                finalizer_ok=true
+              fi
+            fi
+            if [ "$head_unique" = "true" ] && \
+              [ "$finalizer_ok" = "true" ] && \
+              gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" \
+              > "$RUNNER_TEMP/pr-final.json" && \
+              gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" \
+              > "$RUNNER_TEMP/main-ref-final.json" && \
+              jq -e -s \
+                --arg head "$HEAD_SHA" \
+                --argjson draft "$IS_DRAFT" \
+                --arg repo "$GITHUB_REPOSITORY" \
+                --arg updated "$PR_UPDATED_AT" '
+                  .[1].head.sha == $head and
+                  .[1].draft == $draft and
+                  .[1].base.ref == "main" and
+                  .[1].base.repo.full_name == $repo and
+                  .[0].body == .[1].body and
+                  .[0].updated_at == $updated and
+                  .[1].updated_at == $updated
+                ' "$RUNNER_TEMP/pr.json" "$RUNNER_TEMP/pr-final.json" > /dev/null && \
+              jq -e --arg trusted "$TRUSTED_SHA" \
+                '.object.sha == $trusted' \
+                "$RUNNER_TEMP/main-ref-final.json" > /dev/null; then
+              description="Current-head review route is incomplete or invalid."
+              if [ "$IS_DRAFT" = "true" ]; then
+                state=pending
+                description="Draft route is classified; current-head reviews remain pending."
+              elif [ "$VALIDATION_OUTCOME" = "success" ] && \
+                [ "$FINALIZE_ROUTE" = "true" ]; then
+                state=success
+                description="Current-head review route is verified."
+              elif [ "$VALIDATION_OUTCOME" = "success" ]; then
+                state=pending
+                description="Route is complete; a maintainer must comment /validate-route."
+              fi
+            else
+              description="PR identity, head uniqueness, finalizer, or trusted main changed."
+            fi
+          fi
+          posted=false
+          for attempt in 1 2 3; do
+            if gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" \
+              -f state="$state" \
+              -f context="Review Route" \
+              -f description="$description" \
+              -f target_url="$RUN_URL"; then
+              posted=true
+              break
+            fi
+            if [ "$attempt" -lt 3 ]; then sleep "$attempt"; fi
+          done
+          test "$posted" = true
+          test "$state" != failure

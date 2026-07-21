@@ -1,0 +1,110 @@
+query ReviewRouteContext($owner: String!, $repo: String!, $number: Int!) {
+  repository(owner: $owner, name: $repo) {
+    pullRequest(number: $number) {
+      number
+      author {
+        __typename
+        login
+        ... on User { databaseId }
+        ... on Bot { databaseId }
+      }
+      body
+      changedFiles
+      createdAt
+      headRefOid
+      isDraft
+      state
+      updatedAt
+      commits(last: 1) {
+        nodes { commit { committedDate } }
+      }
+      timelineItems(last: 1, itemTypes: [HEAD_REF_FORCE_PUSHED_EVENT]) {
+        nodes { ... on HeadRefForcePushedEvent { createdAt } }
+      }
+      reviews(last: 100) {
+        totalCount
+        nodes {
+          author {
+            __typename
+            login
+            ... on User { databaseId }
+            ... on Bot { databaseId }
+          }
+          authorAssociation
+          body
+          commit { oid }
+          state
+          submittedAt
+        }
+      }
+      latestHumanOpinions: latestOpinionatedReviews(first: 100, writersOnly: true) {
+        totalCount
+        nodes {
+          author {
+            __typename
+            login
+            ... on User { databaseId }
+            ... on Bot { databaseId }
+          }
+          authorAssociation
+          commit { oid }
+          state
+          submittedAt
+        }
+      }
+      comments(last: 100, orderBy: {field: UPDATED_AT, direction: ASC}) {
+        totalCount
+        nodes {
+          id
+          author {
+            __typename
+            login
+            ... on User { databaseId }
+            ... on Bot { databaseId }
+          }
+          authorAssociation
+          body
+          createdAt
+          lastEditedAt
+          updatedAt
+        }
+      }
+      reviewThreads(first: 100) {
+        totalCount
+        nodes { isResolved }
+      }
+    }
+    openPullRequests: pullRequests(first: 100, states: OPEN, baseRefName: "main") {
+      totalCount
+      nodes {
+        headRefOid
+        number
+      }
+    }
+    recentPullRequests: pullRequests(
+      first: 100
+      orderBy: {field: UPDATED_AT, direction: DESC}
+      states: [OPEN, MERGED, CLOSED]
+    ) {
+      totalCount
+      nodes {
+        updatedAt
+        comments(last: 100, orderBy: {field: UPDATED_AT, direction: ASC}) {
+          totalCount
+          nodes {
+            author {
+              __typename
+              ... on User { databaseId }
+              ... on Bot { databaseId }
+            }
+            authorAssociation
+            body
+            createdAt
+            lastEditedAt
+            updatedAt
+          }
+        }
+      }
+    }
+  }
+}
