@@ -43,6 +43,7 @@ query ReviewRouteContext(
           authorAssociation
           body
           commit { oid }
+          lastEditedAt
           state
           submittedAt
         }

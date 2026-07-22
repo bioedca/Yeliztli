@@ -71,17 +71,21 @@ Copilot and Codex together by default; one verified outcome is the gate.
 Existing PRs using `review-route-schema:v1` must replace their route section
 with the v2 template before validation; v1's multi-provider matrix is obsolete.
 
-Codex may return a no-findings outcome as a conversation comment rather than a
-formal review. A comment outcome counts only when it is immutable and from the
+Codex may return a no-findings outcome as a conversation comment rather than an
+unedited formal review. A comment outcome counts only when it is immutable and from the
 trusted Codex bot, its first line is the canonical clean result, its single
 10-hex reviewed-commit marker matches the current head, and GitHub's full-OID
 lookup reports that head's canonical abbreviation at no more than 10
 characters. This fails closed if 10 characters cannot distinguish the head.
 Untrusted comments never control route state. The evidence table still records
-the full 40-character head SHA. A later exact maintainer `@codex review`
-request or invalid Codex response makes the lane incomplete until a newer
-valid outcome arrives; multiple earlier requests need only one later real
-review of the unchanged head.
+the full 40-character head SHA. The `@codex review` comment only invokes the
+service; it is not evidence and does not supersede an existing valid review of
+the unchanged head. Likewise, a later quota/error message is not a review
+outcome. To require a fresh review, clear the Codex evidence row and do not
+finalize until a new valid current-head outcome is recorded. Head changes,
+mutation/deletion/dismissal of the actual evidence, unresolved findings, and
+loss of human approval still invalidate affected evidence; the route remains
+blocked unless another valid required outcome exists.
 
 If CodeRabbit is selected, the same maintainer posts two separate, immutable
 comments at distinct times:
@@ -109,12 +113,14 @@ solely for CodeRabbit.
 The final human approver must not be the PR author, and an active maintainer
 change request blocks the route. After final approval, record its evidence,
 resolve every review thread, then have a maintainer comment `/validate-route`.
-Diff-comment mutations from every actor, plus trusted formal-review mutations,
-emit only a credential-free invalidation signal; a dedicated GitHub App marks
-the route pending and runs the explicit refresh only from trusted default-branch
-workflow code. An outsider's body-only formal review is irrelevant, but an
-outsider diff comment always invalidates because it can create an unresolved
-thread. GitHub Actions cannot subscribe directly to review-thread
+PR lifecycle events (including fork and Dependabot PRs), diff-comment mutations
+from every actor, and trusted formal-review mutations emit only a
+credential-free signal. Its trusted default-branch consumer live-binds the PR
+before a dedicated GitHub App marks or refreshes the route. Privileged jobs
+never check out PR code or consume PR artifacts/caches, and the publisher key
+is never copied into Dependabot secrets. An outsider's body-only formal review
+is irrelevant, but an outsider diff comment always invalidates because it can
+create an unresolved thread. GitHub Actions cannot subscribe directly to review-thread
 resolved/unresolved events.
 Native required conversation resolution is therefore the authoritative
 synchronous gate for those transitions, and final validation rechecks every

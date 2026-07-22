@@ -447,8 +447,12 @@ def _bot_activity(
             if when > head_epoch:
                 candidates.append((when, review))
     if gate == CODEX_GATE:
-        signals: list[tuple[datetime, bool]] = [
-            (when, review.get("state") in TERMINAL_REVIEW_STATES) for when, review in candidates
+        valid_outcomes = [
+            when
+            for when, review in candidates
+            if review.get("state") in TERMINAL_REVIEW_STATES
+            and "lastEditedAt" in review
+            and review["lastEditedAt"] is None
         ]
         comments = pull_request.get("comments") or {}
         for comment in comments.get("nodes") or []:
@@ -456,30 +460,15 @@ def _bot_activity(
             updated_raw = comment.get("updatedAt") or created_raw
             author = comment.get("author") or {}
             body = comment.get("body") or ""
-            trusted_trigger = (
-                author.get("__typename") == "User"
-                and comment.get("authorAssociation") in HUMAN_ASSOCIATIONS
-                and body == CODEX_TRIGGER
-                and isinstance(_actor_id(comment), int)
-            )
             codex_response = author.get("__typename") == "Bot" and _actor_id(comment) == actor_id
-            if not (trusted_trigger or codex_response):
+            if not codex_response or not created_raw or not updated_raw:
                 continue
-            if not created_raw or not updated_raw:
-                return None
             created = _parse_utc(created_raw)
             updated = _parse_utc(updated_raw)
             if updated <= head_epoch:
                 continue
             database_id = comment.get("databaseId")
             if not isinstance(database_id, int):
-                return None
-            if trusted_trigger:
-                # A later exact maintainer request makes the lane pending until
-                # Codex publishes a newer current-head outcome. Multiple
-                # requests may share one later result: the result, not the
-                # request comment, is the review evidence.
-                signals.append((updated, False))
                 continue
             immutable = created == updated and comment.get("lastEditedAt") is None
             commit_lines = CODEX_REVIEWED_COMMIT_LINE.findall(body)
@@ -491,11 +480,9 @@ def _bot_activity(
                 and commit_lines[0] == head_sha[:10].lower()
                 and codex_head_safe
             )
-            signals.append((updated, clean_completion))
-        if not signals:
-            return None
-        latest_at = max(when for when, _ in signals)
-        return latest_at if all(valid for when, valid in signals if when == latest_at) else None
+            if clean_completion:
+                valid_outcomes.append(created)
+        return max(valid_outcomes) if valid_outcomes else None
     if not candidates:
         return None
     if gate == CODERABBIT_GATE:

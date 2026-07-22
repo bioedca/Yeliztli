@@ -5,9 +5,6 @@ name: Review Route Policy
 # automated reviewer, then independently verifies human approval and threads.
 
 on:
-  pull_request_target:
-    branches: [main]
-    types: [opened, edited, synchronize, reopened, closed, ready_for_review, converted_to_draft, review_requested, review_request_removed]
   issue_comment:
     types: [created, edited, deleted]
   workflow_run:
@@ -18,10 +15,14 @@ on:
 # design that validates every constituent PR and publishes on the synthetic SHA.
 
 # Privileged publication intentionally uses only default-branch workflow refs.
-# Review events first run a credential-free signal; its default-branch
-# workflow_run consumer can invalidate the live-bound current head and an
-# unowned prior event head. After reviews and thread resolution, a trusted
-# maintainer explicitly refreshes the route with `/validate-route`.
+# PR lifecycle and review events first run a credential-free signal; its
+# default-branch workflow_run consumer live-binds the PR and current/event heads.
+# Review-state signals can only invalidate. Lifecycle signals can refresh the
+# non-final route, including for fork and Dependabot PRs whose source run cannot
+# access Actions secrets; every completed source conclusion is consumed so a
+# failed or cancelled signal cannot leave an older success live. After reviews
+# and thread resolution, a trusted
+# maintainer explicitly finalizes the route with `/validate-route`.
 #
 # The `review-route-publisher` environment must allow only branch `main` and
 # hold a dedicated GitHub App client ID/private key. The app, not the generic
@@ -108,7 +109,9 @@ jobs:
 
   resolve_route_event:
     if: >-
-      github.event_name == 'pull_request_target' ||
+      (github.event_name == 'workflow_run' &&
+      github.event.workflow_run.path == '.github/workflows/review-route-invalidation.yml' &&
+      github.event.workflow_run.event == 'pull_request_target') ||
       (github.event_name == 'issue_comment' &&
       github.event.issue.pull_request &&
       (contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'),
@@ -117,6 +120,7 @@ jobs:
       github.event.comment.user.id == 199175422)))
     name: Resolve Route Event
     outputs:
+      event_head: ${{ steps.resolve.outputs.event_head }}
       head_sha: ${{ steps.resolve.outputs.head_sha }}
       pr_number: ${{ steps.resolve.outputs.pr_number }}
     runs-on: ubuntu-latest
@@ -125,24 +129,45 @@ jobs:
       - name: Resolve live pull request head
         id: resolve
         env:
+          EVENT_NAME: ${{ github.event_name }}
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          SIGNAL_TITLE: ${{ github.event.workflow_run.display_title }}
         run: |
-          if ! [[ "$PR_NUMBER" =~ ^[0-9]+$ ]]; then
+          if [ "$EVENT_NAME" = "workflow_run" ]; then
+            if [[ "$SIGNAL_TITLE" =~ ^review-route-pr-([0-9]+)-head-([0-9a-fA-F]{40})$ ]]; then
+              pr_number="${BASH_REMATCH[1]}"
+              event_head="$(printf '%s' "${BASH_REMATCH[2]}" | tr '[:upper:]' '[:lower:]')"
+            else
+              echo "::error title=Review Route::invalid lifecycle signal identity"
+              exit 1
+            fi
+          else
+            pr_number="$ISSUE_NUMBER"
+            event_head=""
+          fi
+          if ! [[ "$pr_number" =~ ^[0-9]+$ ]]; then
             echo "::error title=Review Route::pull request number is invalid"
             exit 1
           fi
-          gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" > "$RUNNER_TEMP/pr.json"
-          jq -e --arg repo "$GITHUB_REPOSITORY" \
-            '.base.ref == "main" and .base.repo.full_name == $repo' \
+          gh api "repos/$GITHUB_REPOSITORY/pulls/$pr_number" > "$RUNNER_TEMP/pr.json"
+          jq -e --arg repo "$GITHUB_REPOSITORY" --arg pr "$pr_number" '
+            (.number | tostring) == $pr and
+            .base.ref == "main" and .base.repo.full_name == $repo
+          ' \
             "$RUNNER_TEMP/pr.json" > /dev/null
-          head_sha="$(jq -er '.head.sha' "$RUNNER_TEMP/pr.json")"
-          if ! [[ "$head_sha" =~ ^[0-9a-fA-F]{40}$ ]]; then
+          head_sha="$(jq -er '.head.sha | ascii_downcase' "$RUNNER_TEMP/pr.json")"
+          if ! [[ "$head_sha" =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error title=Review Route::resolved head is not a full SHA"
             exit 1
           fi
-          printf 'head_sha=%s\npr_number=%s\n' \
-            "$head_sha" "$PR_NUMBER" >> "$GITHUB_OUTPUT"
+          if [ -z "$event_head" ]; then event_head="$head_sha"; fi
+          if ! [[ "$event_head" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error title=Review Route::event head is not a full SHA"
+            exit 1
+          fi
+          printf 'event_head=%s\nhead_sha=%s\npr_number=%s\n' \
+            "$event_head" "$head_sha" "$pr_number" >> "$GITHUB_OUTPUT"
 
   invalidate-review-state:
     needs: resolve_review_state
@@ -344,7 +369,7 @@ jobs:
 
       - name: Pre-invalidate event head, resolve PR, and mark current head pending
         env:
-          EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          EVENT_HEAD_SHA: ${{ needs.resolve_route_event.outputs.event_head }}
           GH_TOKEN: ${{ steps.publisher.outputs.token }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
@@ -473,6 +498,9 @@ jobs:
             post_pending_if_unowned "$EVENT_HEAD_SHA"
           fi
           if [ "$head_sha" != "$RESOLVED_HEAD_SHA" ]; then
+            if [ "$RESOLVED_HEAD_SHA" != "$EVENT_HEAD_SHA" ]; then
+              post_pending_if_unowned "$RESOLVED_HEAD_SHA"
+            fi
             echo "::error title=Review Route::head changed after concurrency binding"
             exit 1
           fi
