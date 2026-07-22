@@ -68,6 +68,9 @@ selected automated review must complete before human approval. Do not manually
 request CodeRabbit as an extra advisory review; select the CodeRabbit lane first
 so its reservation and repository-wide quota remain enforceable. Do not request
 Copilot and Codex together by default; one verified outcome is the gate.
+Route checkboxes and evidence must render as normal Markdown; indented or fenced
+code-block copies are not route state, and raw HTML cannot contain or appear in
+the route section.
 Only unedited formal bot-review nodes count as evidence; an edited outcome needs
 another unedited current-head review before independent human approval.
 Existing PRs using `review-route-schema:v1` must replace their route section
@@ -110,13 +113,16 @@ before triggering, re-fetch the PR: CodeRabbit must still be selected and the
 reservation SHA must still be the head. The validator attributes the SHA-less
 trigger to that same maintainer's preceding reservation before evaluating the
 current-head lane. Every actual trigger counts in the repository-wide ledger,
-including prior-head pairs, and needs a new reservation and completion if
-repeated. If no slot is available, choose Copilot or Codex instead of waiting
-solely for CodeRabbit.
+including prior-head pairs. A pair reserved to an old SHA does not block a
+substitute provider on the current head, but a repeated request needs a new
+reservation and completion. If no slot is available, choose Copilot or Codex
+instead of waiting solely for CodeRabbit.
 
 The final human approver must not be the PR author, and an active maintainer
 change request blocks the route. After final approval, record its evidence,
-resolve every review thread, then have a maintainer comment `/validate-route`.
+resolve every review thread, then have a write-capable maintainer comment
+`/validate-route`. The publisher binds that actor's live `admin` or `write`
+repository permission before validation and again immediately before success.
 PR lifecycle events (including fork and Dependabot PRs), diff-comment mutations,
 and formal-review mutations emit only a credential-free signal carrying GitHub's
 triggering actor. The unprivileged default-branch resolver consumes every
@@ -135,7 +141,10 @@ thread. Native repository rules also remain authoritative for approval after
 the most recent push. Commit statuses are SHA-scoped and do not expire: two open
 `main` PRs must never share a head SHA.
 Any failed, skipped, or cancelled trusted/relevant signal or publisher run is
-merge-blocking even if an older green status remains. The repository ruleset
+merge-blocking even if an older green status remains. Resolver failures invoke a
+dedicated App-authenticated fallback that marks the immutable affected head
+pending; read-only outsider formal reviews are classified as irrelevant before
+that fallback boundary. The repository ruleset
 must require the branch to be up to date before merging, and its
 conversation-resolution rule must remain enabled whenever `Review Route` is
 required. Immediately before merging, confirm the newest relevant signal and

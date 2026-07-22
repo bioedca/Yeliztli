@@ -379,6 +379,7 @@ def _finalizer_kwargs(*, created_at: str = PR_UPDATED_AT) -> dict[str, object]:
         "finalize_comment_node_id": FINALIZER_NODE_ID,
         "finalize_comment_created_at": created_at,
         "finalize_comment_actor_id": HUMAN_ID,
+        "finalize_comment_actor_permission": "write",
     }
 
 
@@ -921,6 +922,24 @@ def test_v2_unselected_manual_coderabbit_request_fails(gate: str) -> None:
 
 
 @pytest.mark.parametrize("gate", [COPILOT_GATE, CODEX_GATE])
+def test_v2_unselected_coderabbit_trigger_bound_to_old_head_allows_fallback(
+    gate: str,
+) -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, automated_gates={gate})
+    repository = context["data"]["repository"]
+    comments = [
+        _comment(AUTHOR_ID, f"coderabbit-reservation: {'b' * 40}", "2026-07-21T12:24:00Z"),
+        _comment(AUTHOR_ID, "@coderabbitai full review", "2026-07-21T12:25:00Z"),
+    ]
+    repository["pullRequest"]["comments"] = {
+        "totalCount": len(comments),
+        "nodes": comments,
+    }
+    assert validate_context(context, files, now=NOW) == []
+
+
+@pytest.mark.parametrize("gate", [COPILOT_GATE, CODEX_GATE])
 def test_v2_abandoned_coderabbit_reservation_allows_provider_fallback(gate: str) -> None:
     files = [ChangedFile("README.md")]
     context = _context("Load-bearing", files, automated_gates={gate})
@@ -1444,6 +1463,17 @@ def test_valid_immutable_finalizer_after_all_gates_succeeds() -> None:
     assert validate_context(context, files, now=NOW, **_finalizer_kwargs()) == []
 
 
+@pytest.mark.parametrize("permission", ["read", "triage", "maintain", "none"])
+def test_finalizer_requires_live_repository_write_permission(permission: str) -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files)
+    _add_finalizer(context)
+    finalizer = _finalizer_kwargs()
+    finalizer["finalize_comment_actor_permission"] = permission
+    errors = validate_context(context, files, now=NOW, **finalizer)
+    assert "finalizer actor does not have live repository write permission" in errors
+
+
 def test_partial_finalizer_identity_fails_closed() -> None:
     files = [ChangedFile("README.md")]
     context = _context("Load-bearing", files)
@@ -1522,14 +1552,8 @@ def test_missing_copilot_activity_fails() -> None:
     assert f"no verified current-head GitHub activity for: {COPILOT_GATE}" in errors
 
 
-@pytest.mark.parametrize(
-    ("gate", "expected_failure"),
-    [(COPILOT_GATE, True), (CODEX_GATE, False)],
-)
-def test_same_second_extra_review_state_respects_provider_contract(
-    gate: str,
-    expected_failure: bool,
-) -> None:
+@pytest.mark.parametrize("gate", [COPILOT_GATE, CODEX_GATE, CODERABBIT_GATE])
+def test_same_second_extra_review_state_fails_closed(gate: str) -> None:
     files = [ChangedFile("README.md")]
     context = _context("Load-bearing", files, automated_gates={gate})
     reviews = context["data"]["repository"]["pullRequest"]["reviews"]
@@ -1543,10 +1567,87 @@ def test_same_second_extra_review_state_respects_provider_contract(
     )
     reviews["totalCount"] += 1
     errors = validate_context(context, files, now=NOW)
-    if expected_failure:
-        assert f"no verified current-head GitHub activity for: {gate}" in errors
-    else:
-        assert errors == []
+    assert f"no verified current-head GitHub activity for: {gate}" in errors
+
+
+@pytest.mark.parametrize("gate", [COPILOT_GATE, CODEX_GATE, CODERABBIT_GATE])
+@pytest.mark.parametrize("state", ["CHANGES_REQUESTED", "DISMISSED"])
+def test_later_formal_bot_noncompletion_supersedes_older_completion(
+    gate: str,
+    state: str,
+) -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, automated_gates={gate})
+    reviews = context["data"]["repository"]["pullRequest"]["reviews"]
+    reviews["nodes"].append(
+        _review(
+            BOT_ACTOR_IDS[gate],
+            "2026-07-21T12:35:00Z",
+            state=state,
+            body="A later formal review did not complete cleanly.",
+        )
+    )
+    reviews["totalCount"] += 1
+    errors = validate_context(context, files, now=NOW)
+    assert f"no verified current-head GitHub activity for: {gate}" in errors
+
+
+def test_later_formal_codex_noncompletion_supersedes_clean_comment() -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, automated_gates={CODEX_GATE})
+    _use_codex_clean_comment(context)
+    reviews = context["data"]["repository"]["pullRequest"]["reviews"]
+    reviews["nodes"].append(
+        _review(
+            BOT_ACTOR_IDS[CODEX_GATE],
+            "2026-07-21T12:35:00Z",
+            state="CHANGES_REQUESTED",
+        )
+    )
+    reviews["totalCount"] += 1
+    errors = validate_context(context, files, now=NOW)
+    assert f"no verified current-head GitHub activity for: {CODEX_GATE}" in errors
+
+
+def test_formal_codex_completion_after_noncompletion_restores_lane() -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, automated_gates={CODEX_GATE})
+    pull_request = context["data"]["repository"]["pullRequest"]
+    pull_request["body"] = pull_request["body"].replace(
+        GATE_TIMES[CODEX_GATE],
+        "2026-07-21T12:35:00Z",
+    )
+    reviews = pull_request["reviews"]
+    reviews["nodes"].extend(
+        [
+            _review(
+                BOT_ACTOR_IDS[CODEX_GATE],
+                "2026-07-21T12:30:00Z",
+                state="CHANGES_REQUESTED",
+            ),
+            _review(BOT_ACTOR_IDS[CODEX_GATE], "2026-07-21T12:35:00Z"),
+        ]
+    )
+    reviews["totalCount"] += 2
+    assert validate_context(context, files, now=NOW) == []
+
+
+@pytest.mark.parametrize("gate", [COPILOT_GATE, CODEX_GATE, CODERABBIT_GATE])
+def test_later_edited_formal_review_supersedes_older_completion(gate: str) -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, automated_gates={gate})
+    reviews = context["data"]["repository"]["pullRequest"]["reviews"]
+    reviews["nodes"].append(
+        _review(
+            BOT_ACTOR_IDS[gate],
+            "2026-07-21T12:35:00Z",
+            state="CHANGES_REQUESTED",
+            last_edited_at="2026-07-21T12:36:00Z",
+        )
+    )
+    reviews["totalCount"] += 1
+    errors = validate_context(context, files, now=NOW)
+    assert f"no verified current-head GitHub activity for: {gate}" in errors
 
 
 def test_bot_completion_is_not_inferred_from_review_body_phrases() -> None:
@@ -1975,8 +2076,8 @@ def test_old_head_coderabbit_pair_does_not_block_provider_fallback(gate: str) ->
     context = _context("Load-bearing", files, automated_gates={gate})
     repository = context["data"]["repository"]
     comments = [
-        _comment(AUTHOR_ID, f"coderabbit-reservation: {'b' * 40}", "2026-07-21T12:05:00Z"),
-        _comment(AUTHOR_ID, "@coderabbitai full review", "2026-07-21T12:06:00Z"),
+        _comment(AUTHOR_ID, f"coderabbit-reservation: {'b' * 40}", "2026-07-21T11:55:00Z"),
+        _comment(AUTHOR_ID, "@coderabbitai full review", "2026-07-21T11:56:00Z"),
     ]
     repository["pullRequest"]["comments"] = {
         "totalCount": len(comments),
@@ -2329,6 +2430,25 @@ def test_review_pagination_fails_closed_when_current_window_is_truncated() -> No
     )
 
 
+def test_review_pagination_fails_closed_when_an_old_review_is_omitted() -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Low", files)
+    reviews = context["data"]["repository"]["pullRequest"]["reviews"]
+    reviews["nodes"].insert(
+        0,
+        _review(
+            BOT_ACTOR_IDS[COPILOT_GATE],
+            "2026-07-21T11:00:00Z",
+            state="COMMENTED",
+            head_sha="b" * 40,
+        ),
+    )
+    reviews["totalCount"] = len(reviews["nodes"]) + 1
+    assert "review pagination cannot prove current-head review state" in validate_context(
+        context, files, now=NOW
+    )
+
+
 def test_empty_truncated_review_connection_fails_closed() -> None:
     files = [ChangedFile("README.md")]
     context = _context("Low", files)
@@ -2367,6 +2487,160 @@ def test_schema_marker_must_be_below_route_heading() -> None:
     pr["body"] = pr["body"].replace(SCHEMA_MARKER, "") + f"\n```\n{SCHEMA_MARKER}\n```"
     errors = validate_context(context, files, now=NOW)
     assert any("schema marker" in error for error in errors)
+
+
+def test_fenced_route_heading_and_marker_cannot_authorize_visible_rows() -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Standard", files, automated_gates={CODEX_GATE})
+    pull_request = context["data"]["repository"]["pullRequest"]
+    pull_request["body"] = (
+        pull_request["body"].replace(SCHEMA_MARKER, "")
+        + f"\n```markdown\n## Review route\n{SCHEMA_MARKER}\n```"
+    )
+    errors = validate_context(context, files, now=NOW)
+    assert any("schema marker" in error for error in errors)
+
+
+def test_schema_marker_hidden_in_an_html_comment_is_rejected() -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Standard", files, automated_gates={CODEX_GATE})
+    pull_request = context["data"]["repository"]["pullRequest"]
+    pull_request["body"] = (
+        pull_request["body"].replace(SCHEMA_MARKER, "")
+        + f"\n<!--\n## Review route\n{SCHEMA_MARKER}\n-->"
+    )
+    errors = validate_context(context, files, now=NOW)
+    assert any("schema marker" in error for error in errors)
+
+
+def test_unclosed_fence_hides_route_rows_and_is_rejected() -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Standard", files, automated_gates={CODEX_GATE})
+    pull_request = context["data"]["repository"]["pullRequest"]
+    pull_request["body"] = pull_request["body"].replace(
+        f"{SCHEMA_MARKER}\n",
+        f"{SCHEMA_MARKER}\n```markdown\n",
+    )
+    errors = validate_context(context, files, now=NOW)
+    assert "expected each canonical route checkbox exactly once" in errors
+    assert "expected each automated reviewer checkbox exactly once" in errors
+    assert any(error.startswith("missing review evidence rows:") for error in errors)
+
+
+@pytest.mark.parametrize("tag", ["pre", "code"])
+def test_route_structure_rendered_in_raw_html_code_is_rejected(tag: str) -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Standard", files, automated_gates={CODEX_GATE})
+    pull_request = context["data"]["repository"]["pullRequest"]
+    pull_request["body"] = (
+        pull_request["body"].replace(
+            "## Review route",
+            f"<{tag}>\n## Review route",
+        )
+        + f"\n</{tag}>"
+    )
+    errors = validate_context(context, files, now=NOW)
+    assert any("raw HTML is not allowed" in error for error in errors)
+
+
+def test_unclosed_raw_html_code_block_hiding_rows_is_rejected() -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Standard", files, automated_gates={CODEX_GATE})
+    pull_request = context["data"]["repository"]["pullRequest"]
+    pull_request["body"] = pull_request["body"].replace(
+        f"{SCHEMA_MARKER}\n",
+        f"{SCHEMA_MARKER}\n<pre\n",
+    )
+    errors = validate_context(context, files, now=NOW)
+    assert "raw HTML is not allowed in the review-route section" in errors
+
+
+def test_nested_raw_html_prefix_cannot_hide_route_until_the_next_heading() -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Low", files)
+    pull_request = context["data"]["repository"]["pullRequest"]
+    pull_request["body"] = (
+        pull_request["body"]
+        .replace(
+            "## Review route",
+            "<div><pre>\n## Review route",
+        )
+        .replace("## Legal", "## Legal\n</pre></div>")
+    )
+    errors = validate_context(context, files, now=NOW)
+    assert "raw HTML is not allowed to contain the review-route section" in errors
+
+
+def test_closed_raw_html_before_route_does_not_hide_it() -> None:
+    files = [ChangedFile("docs/guide.md")]
+    context = _context("Low", files)
+    pull_request = context["data"]["repository"]["pullRequest"]
+    pull_request["body"] = pull_request["body"].replace(
+        "## Review route",
+        "<pre>example</pre>\n\n## Review route",
+    )
+    assert validate_context(context, files, now=NOW) == []
+
+
+@pytest.mark.parametrize(
+    ("opening", "closing"),
+    [
+        ("<?route", "?>"),
+        ("<![CDATA[", "]]>"),
+        ("<!ROUTE", ">"),
+    ],
+)
+def test_raw_html_directive_prefix_cannot_hide_route(
+    opening: str,
+    closing: str,
+) -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Low", files)
+    pull_request = context["data"]["repository"]["pullRequest"]
+    pull_request["body"] = (
+        pull_request["body"]
+        .replace(
+            "## Review route",
+            f"{opening}\n## Review route",
+        )
+        .replace("## Legal", f"## Legal\n{closing}")
+    )
+    errors = validate_context(context, files, now=NOW)
+    assert "raw HTML is not allowed to contain the review-route section" in errors
+
+
+@pytest.mark.parametrize(
+    "tag",
+    [
+        '<x-route title=">">',
+        '<x-route title="<">',
+        '<x-route data-x=">" />',
+    ],
+)
+def test_custom_raw_html_tag_with_quoted_angle_cannot_hide_route(tag: str) -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Low", files)
+    pull_request = context["data"]["repository"]["pullRequest"]
+    pull_request["body"] = pull_request["body"].replace(
+        "## Review route",
+        f"{tag}\n## Review route",
+    )
+    errors = validate_context(context, files, now=NOW)
+    assert "raw HTML is not allowed to contain the review-route section" in errors
+
+
+def test_review_route_rows_rendered_as_indented_code_do_not_count() -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, automated_gates={CODEX_GATE})
+    pull_request = context["data"]["repository"]["pullRequest"]
+    pull_request["body"] = "\n".join(
+        f"    {line}" if line.startswith(("- [", "|")) else line
+        for line in pull_request["body"].splitlines()
+    )
+    errors = validate_context(context, files, now=NOW)
+    assert "expected each canonical route checkbox exactly once" in errors
+    assert "expected each automated reviewer checkbox exactly once" in errors
+    assert any(error.startswith("missing review evidence rows:") for error in errors)
 
 
 def test_new_head_invalidates_live_bot_reviews() -> None:
@@ -2502,6 +2776,9 @@ def test_workflow_uses_trusted_base_and_explicit_head_status() -> None:
     assert "FINALIZE_COMMENT_NODE_ID: ${{ github.event.comment.node_id }}" in workflow
     assert "FINALIZE_COMMENT_CREATED_AT: ${{ github.event.comment.created_at }}" in workflow
     assert "FINALIZE_COMMENT_ACTOR_ID: ${{ github.event.comment.user.id }}" in workflow
+    assert "FINALIZE_COMMENT_ACTOR_LOGIN: ${{ github.event.comment.user.login }}" in workflow
+    assert "collaborators/$FINALIZE_COMMENT_ACTOR_LOGIN/permission" in workflow
+    assert "finalizer lacks bound repository write permission" in workflow
     assert "WORKFLOW_SHA: ${{ github.workflow_sha }}" in workflow
     assert '[ "$FINALIZE_ROUTE" = "true" ]' in workflow
     assert '"$GITHUB_EVENT_PATH" "$RUNNER_TEMP/pr.json"' in workflow
@@ -2509,8 +2786,8 @@ def test_workflow_uses_trusted_base_and_explicit_head_status() -> None:
     assert "concurrency:" in workflow.split("jobs:", maxsplit=1)[1]
     assert "ref: ${{ env.TRUSTED_SHA }}" in workflow
     assert "actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803" in workflow
-    assert workflow.count('.base.ref == "main"') == 7
-    assert workflow.count(".base.repo.full_name == $repo") == 7
+    assert workflow.count('.base.ref == "main"') == 9
+    assert workflow.count(".base.repo.full_name == $repo") == 9
     assert workflow.count("git/ref/heads/main") == 2
     assert "'.object.sha == $trusted'" in workflow
     assert ".base.sha" not in workflow
@@ -2522,7 +2799,7 @@ def test_workflow_uses_trusted_base_and_explicit_head_status() -> None:
     assert 'post_pending_if_unowned "$EVENT_HEAD_SHA"' in validate_job
     assert '[ "$EVENT_HEAD_SHA" != "$head_sha" ]' in validate_job
     assert "^[0-9a-fA-F]{40}$" in workflow
-    assert workflow.count("for attempt in 1 2 3") == 5
+    assert workflow.count("for attempt in 1 2 3") == 9
     assert '--expected-head "$HEAD_SHA"' in workflow
     assert '--expected-draft "$IS_DRAFT"' in workflow
     assert '--expected-pr-updated-at "$PR_UPDATED_AT"' in workflow
@@ -2532,8 +2809,10 @@ def test_workflow_uses_trusted_base_and_explicit_head_status() -> None:
     assert '--finalize-comment-node-id "$FINALIZE_COMMENT_NODE_ID"' in workflow
     assert '--finalize-comment-created-at "$FINALIZE_COMMENT_CREATED_AT"' in workflow
     assert '--finalize-comment-actor-id "$FINALIZE_COMMENT_ACTOR_ID"' in workflow
+    assert '--finalize-comment-actor-permission "$FINALIZE_COMMENT_ACTOR_PERMISSION"' in workflow
     assert 'if .draft == true then "true" elif .draft == false then "false"' in workflow
     assert '-F node="$FINALIZE_COMMENT_NODE_ID"' in workflow
+    assert "collaborators/$finalizer_login/permission" in workflow
     assert ".data.node.lastEditedAt == null" in workflow
     assert ".[0].body == .[1].body" in workflow
     assert ".[0].updated_at == $updated" in workflow
@@ -2604,6 +2883,12 @@ def test_review_state_signal_is_credential_free_and_only_drives_pending() -> Non
         "\n  resolve_route_event:", maxsplit=1
     )[0]
     route_resolver = publisher.split("  resolve_route_event:", maxsplit=1)[1].split(
+        "\n  fail-closed-review-resolution:", maxsplit=1
+    )[0]
+    review_fallback = publisher.split("  fail-closed-review-resolution:", maxsplit=1)[1].split(
+        "\n  fail-closed-route-resolution:", maxsplit=1
+    )[0]
+    route_fallback = publisher.split("  fail-closed-route-resolution:", maxsplit=1)[1].split(
         "\n  invalidate-review-state:", maxsplit=1
     )[0]
     assert "github.event_name == 'workflow_run'" in resolver
@@ -2622,7 +2907,9 @@ def test_review_state_signal_is_credential_free_and_only_drives_pending() -> Non
     assert "review-state trigger actor is invalid" in resolver
     assert "175728472|199175422|136622811" in resolver
     assert "collaborators/$SOURCE_ACTOR_LOGIN/permission" in resolver
-    assert "untrusted formal-review signal actor" in resolver
+    assert "Untrusted formal-review signal actor is irrelevant" in resolver
+    assert "relevant: ${{ steps.resolve.outputs.relevant }}" in resolver
+    assert "relevant=false" in resolver
     assert "actor permission lookup was inconclusive; invalidating fail closed" in resolver
     assert '[ "$source_head" != "$signal_head" ]' in resolver
     assert "Review-event workflow_run.head_sha is the reviewed PR head" in resolver
@@ -2630,9 +2917,28 @@ def test_review_state_signal_is_credential_free_and_only_drives_pending() -> Non
     assert ".mergeable" not in resolver
     assert "($current_matches | length) == 1" in resolver
     assert "($signal_matches | length) == 0" in resolver
+    assert "always() &&" in review_fallback
+    assert "needs.resolve_review_state.result != 'success'" in review_fallback
+    assert "SOURCE_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}" in review_fallback
+    assert "permission-pull-requests: read" in review_fallback
+    assert "Confirmed read-only outsider review remains irrelevant" in review_fallback
+    assert "failed review signal could not be safely rebound" in review_fallback
+    assert "pulls?state=open" not in review_fallback
+    assert 'post_pending "$current_head"' in review_fallback
+    assert 'post_pending "$source_head"' in review_fallback
+    assert "review signal resolution failed closed" in review_fallback
+    assert "always() &&" in route_fallback
+    assert "needs.resolve_route_event.result != 'success'" in route_fallback
+    assert "route event resolution failed closed" in route_fallback
+    assert "steps.route-fallback.outputs.token" in route_fallback
+    assert "failed route event could not be safely rebound" in route_fallback
+    assert "pulls?state=open" not in route_fallback
+    assert 'post_pending "$current_head"' in route_fallback
+    assert 'post_pending "$event_head"' in route_fallback
     assert "environment:\n      name: review-route-publisher" in invalidator
     assert "steps.invalidator.outputs.token" in invalidator
     assert "group: review-route-${{ needs.resolve_review_state.outputs.head_sha }}" in invalidator
+    assert "needs.resolve_review_state.outputs.relevant != 'false'" in invalidator
     validate_job = publisher.split("\n  validate:", maxsplit=1)[1]
     assert "group: review-route-${{ needs.resolve_route_event.outputs.head_sha }}" in validate_job
     assert "^review-route-pr-([0-9]+)-head-([0-9a-fA-F]{40})-trigger-([0-9]+)$" in resolver
@@ -2692,7 +2998,11 @@ def test_publisher_executes_fail_closed_status_matrix(
         [
             "set -u",
             "gh() { printf '{}\\n'; }",
-            "jq() { return 0; }",
+            (
+                'jq() { if [ "${1:-}" = "-er" ] && '
+                '[ "${2:-}" = ".data.node.author.login" ]; then '
+                "printf 'trusted-reviewer\\n'; else return 0; fi; }"
+            ),
             'head_unique="true"',
             'finalizer_ok="true"',
             decision,
@@ -2749,6 +3059,7 @@ def test_review_signal_contains_no_pr_controlled_trust_decision() -> None:
         "permission",
         "permission_user_id",
         "actor_expected",
+        "relevant_expected",
     ),
     [
         (
@@ -2759,9 +3070,28 @@ def test_review_signal_contains_no_pr_controlled_trust_decision() -> None:
             None,
             None,
             0,
+            "true",
         ),
-        ("pull_request_review", AUTHOR_ID, AUTHOR_ID, "maintainer", "write", AUTHOR_ID, 0),
-        ("pull_request_review", AUTHOR_ID, AUTHOR_ID, "outsider", "read", AUTHOR_ID, 1),
+        (
+            "pull_request_review",
+            AUTHOR_ID,
+            AUTHOR_ID,
+            "maintainer",
+            "write",
+            AUTHOR_ID,
+            0,
+            "true",
+        ),
+        (
+            "pull_request_review",
+            AUTHOR_ID,
+            AUTHOR_ID,
+            "outsider",
+            "read",
+            AUTHOR_ID,
+            0,
+            "false",
+        ),
         (
             "pull_request_review_comment",
             AUTHOR_ID,
@@ -2770,12 +3100,58 @@ def test_review_signal_contains_no_pr_controlled_trust_decision() -> None:
             "read",
             AUTHOR_ID,
             0,
+            "true",
         ),
-        ("pull_request_review", HUMAN_ID, AUTHOR_ID, "maintainer", "write", AUTHOR_ID, 1),
-        ("not_a_review_event", AUTHOR_ID, AUTHOR_ID, "maintainer", "write", AUTHOR_ID, 1),
-        ("pull_request_review", AUTHOR_ID, AUTHOR_ID, "bad/login", "write", AUTHOR_ID, 1),
-        ("pull_request_review", AUTHOR_ID, AUTHOR_ID, "maintainer", None, None, 0),
-        ("pull_request_review", AUTHOR_ID, AUTHOR_ID, "maintainer", "write", HUMAN_ID, 0),
+        (
+            "pull_request_review",
+            HUMAN_ID,
+            AUTHOR_ID,
+            "maintainer",
+            "write",
+            AUTHOR_ID,
+            1,
+            None,
+        ),
+        (
+            "not_a_review_event",
+            AUTHOR_ID,
+            AUTHOR_ID,
+            "maintainer",
+            "write",
+            AUTHOR_ID,
+            1,
+            None,
+        ),
+        (
+            "pull_request_review",
+            AUTHOR_ID,
+            AUTHOR_ID,
+            "bad/login",
+            "write",
+            AUTHOR_ID,
+            1,
+            None,
+        ),
+        (
+            "pull_request_review",
+            AUTHOR_ID,
+            AUTHOR_ID,
+            "maintainer",
+            None,
+            None,
+            0,
+            "true",
+        ),
+        (
+            "pull_request_review",
+            AUTHOR_ID,
+            AUTHOR_ID,
+            "maintainer",
+            "write",
+            HUMAN_ID,
+            0,
+            "true",
+        ),
     ],
 )
 @pytest.mark.parametrize(
@@ -2831,6 +3207,7 @@ def test_review_signal_resolver_binds_source_and_live_head(
     permission: str | None,
     permission_user_id: int | None,
     actor_expected: int,
+    relevant_expected: str | None,
     signal_head: str,
     source_head_sha: str,
     live_head_sha: str,
@@ -2928,8 +3305,190 @@ esac
         assert output.read_text(encoding="utf-8").splitlines() == [
             f"head_sha={live_head_sha}",
             "pr_number=2183",
+            f"relevant={relevant_expected}",
             f"signal_head={signal_head}",
         ]
+
+
+@pytest.mark.parametrize(
+    (
+        "source_actor_id",
+        "source_actor_login",
+        "permission",
+        "live_head",
+        "expected_pending_heads",
+    ),
+    [
+        (
+            BOT_ACTOR_IDS[CODEX_GATE],
+            "chatgpt-codex-connector[bot]",
+            None,
+            HEAD_SHA,
+            [HEAD_SHA],
+        ),
+        (
+            BOT_ACTOR_IDS[CODEX_GATE],
+            "chatgpt-codex-connector[bot]",
+            None,
+            "b" * 40,
+            ["b" * 40, HEAD_SHA],
+        ),
+        (333, "read-only-outsider", "read", HEAD_SHA, []),
+    ],
+)
+def test_failed_review_resolver_fallback_respects_actor_relevance(
+    tmp_path: Path,
+    source_actor_id: int,
+    source_actor_login: str,
+    permission: str | None,
+    live_head: str,
+    expected_pending_heads: list[str],
+) -> None:
+    root = Path(__file__).resolve().parents[2]
+    workflow = (root / ".github/workflows/review-route.yml").read_text(encoding="utf-8")
+    shell = _workflow_step_script(workflow, "Invalidate immutable review-signal head")
+    pull = {
+        "number": 2183,
+        "state": "open",
+        "base": {"ref": "main", "repo": {"full_name": "bioedca/Yeliztli"}},
+        "head": {"sha": live_head},
+    }
+    pull_fixture = tmp_path / "pull.json"
+    permission_fixture = tmp_path / "permission.json"
+    status_log = tmp_path / "statuses.log"
+    pull_fixture.write_text(json.dumps(pull), encoding="utf-8")
+    if permission is not None:
+        permission_fixture.write_text(
+            json.dumps({"permission": permission, "user": {"id": source_actor_id}}),
+            encoding="utf-8",
+        )
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_gh = fake_bin / "gh"
+    fake_gh.write_text(
+        """#!/usr/bin/env bash
+set -eu
+case "$*" in
+  *"collaborators/"*"/permission"*) exec /bin/cat "$PERMISSION_FIXTURE" ;;
+  *"pulls/2183"*) exec /bin/cat "$PULL_FIXTURE" ;;
+  *"statuses/"*) printf '%s\n' "$*" >> "$STATUS_LOG" ; printf '{}\n' ;;
+  *) exit 2 ;;
+esac
+""",
+        encoding="utf-8",
+    )
+    fake_gh.chmod(0o755)
+    completed = subprocess.run(
+        ["bash", "-e", "-o", "pipefail", "-c", shell],
+        check=False,
+        capture_output=True,
+        env={
+            **os.environ,
+            "GH_TOKEN": "test-token",
+            "GITHUB_REPOSITORY": "bioedca/Yeliztli",
+            "PATH": f"{fake_bin}:{os.environ['PATH']}",
+            "PERMISSION_FIXTURE": str(permission_fixture),
+            "PULL_FIXTURE": str(pull_fixture),
+            "RUNNER_TEMP": str(tmp_path),
+            "RUN_URL": "https://example.test/run",
+            "SIGNAL_EVENT": "pull_request_review",
+            "SIGNAL_TITLE": _signal_title(HEAD_SHA),
+            "SOURCE_ACTOR_ID": str(source_actor_id),
+            "SOURCE_ACTOR_LOGIN": source_actor_login,
+            "SOURCE_HEAD_SHA": HEAD_SHA.upper(),
+            "STATUS_LOG": str(status_log),
+        },
+        text=True,
+    )
+    if expected_pending_heads:
+        assert completed.returncode == 1
+        status_calls = status_log.read_text(encoding="utf-8").splitlines()
+        assert [
+            next(argument for argument in call.split() if "/statuses/" in argument).rsplit("/", 1)[
+                1
+            ]
+            for call in status_calls
+        ] == expected_pending_heads
+        assert all("state=pending" in call for call in status_calls)
+        assert "review signal resolution failed closed" in completed.stdout
+    else:
+        assert completed.returncode == 0
+        assert not status_log.exists()
+        assert "Confirmed read-only outsider review remains irrelevant" in completed.stdout
+
+
+@pytest.mark.parametrize(
+    ("event_name", "live_head", "expected_pending_heads"),
+    [
+        ("workflow_run", HEAD_SHA, [HEAD_SHA]),
+        ("workflow_run", "b" * 40, ["b" * 40, HEAD_SHA]),
+        ("issue_comment", HEAD_SHA, [HEAD_SHA]),
+    ],
+)
+def test_failed_route_resolver_marks_bound_head_pending(
+    tmp_path: Path,
+    event_name: str,
+    live_head: str,
+    expected_pending_heads: list[str],
+) -> None:
+    root = Path(__file__).resolve().parents[2]
+    workflow = (root / ".github/workflows/review-route.yml").read_text(encoding="utf-8")
+    shell = _workflow_step_script(workflow, "Resolve fallback head and invalidate it")
+    pull_fixture = tmp_path / "pull.json"
+    status_log = tmp_path / "statuses.log"
+    pull_fixture.write_text(
+        json.dumps(
+            {
+                "number": 2183,
+                "state": "open",
+                "base": {"ref": "main", "repo": {"full_name": "bioedca/Yeliztli"}},
+                "head": {"sha": live_head},
+            }
+        ),
+        encoding="utf-8",
+    )
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_gh = fake_bin / "gh"
+    fake_gh.write_text(
+        """#!/usr/bin/env bash
+set -eu
+case "$*" in
+  *"pulls/2183"*) exec /bin/cat "$PULL_FIXTURE" ;;
+  *"statuses/"*) printf '%s\n' "$*" >> "$STATUS_LOG" ; printf '{}\n' ;;
+  *) exit 2 ;;
+esac
+""",
+        encoding="utf-8",
+    )
+    fake_gh.chmod(0o755)
+    completed = subprocess.run(
+        ["bash", "-e", "-o", "pipefail", "-c", shell],
+        check=False,
+        capture_output=True,
+        env={
+            **os.environ,
+            "EVENT_NAME": event_name,
+            "GH_TOKEN": "test-token",
+            "GITHUB_REPOSITORY": "bioedca/Yeliztli",
+            "ISSUE_NUMBER": "2183",
+            "PATH": f"{fake_bin}:{os.environ['PATH']}",
+            "PULL_FIXTURE": str(pull_fixture),
+            "RUNNER_TEMP": str(tmp_path),
+            "RUN_URL": "https://example.test/run",
+            "SIGNAL_TITLE": _signal_title(HEAD_SHA),
+            "STATUS_LOG": str(status_log),
+        },
+        text=True,
+    )
+    assert completed.returncode == 1
+    status_calls = status_log.read_text(encoding="utf-8").splitlines()
+    assert [
+        next(argument for argument in call.split() if "/statuses/" in argument).rsplit("/", 1)[1]
+        for call in status_calls
+    ] == expected_pending_heads
+    assert all("state=pending" in call for call in status_calls)
+    assert "route event resolution failed closed" in completed.stdout
 
 
 @pytest.mark.parametrize(
@@ -3494,6 +4053,77 @@ esac
     assert actual_attempts == expected_attempts
 
 
+def test_route_preinvalidator_rejects_nonwrite_finalizer(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[2]
+    workflow = (root / ".github/workflows/review-route.yml").read_text(encoding="utf-8")
+    shell = _workflow_step_script(
+        workflow,
+        "Pre-invalidate event head, resolve PR, and mark current head pending",
+    )
+    pull = {
+        "number": 2183,
+        "state": "open",
+        "base": {"ref": "main", "repo": {"full_name": "bioedca/Yeliztli"}},
+        "head": {"sha": HEAD_SHA},
+        "draft": False,
+        "updated_at": PR_UPDATED_AT,
+    }
+    pull_fixture = tmp_path / "pull.json"
+    open_fixture = tmp_path / "open.json"
+    permission_fixture = tmp_path / "permission.json"
+    pull_fixture.write_text(json.dumps(pull), encoding="utf-8")
+    open_fixture.write_text(json.dumps([[pull]]), encoding="utf-8")
+    permission_fixture.write_text(
+        json.dumps({"permission": "read", "user": {"id": HUMAN_ID}}),
+        encoding="utf-8",
+    )
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_gh = fake_bin / "gh"
+    fake_gh.write_text(
+        """#!/usr/bin/env bash
+set -eu
+case "$*" in
+  *"pulls?state=open"*) exec /bin/cat "$OPEN_FIXTURE" ;;
+  *"pulls/2183"*) exec /bin/cat "$PULL_FIXTURE" ;;
+  *"collaborators/"*"/permission"*) exec /bin/cat "$PERMISSION_FIXTURE" ;;
+  *"statuses/"*) printf '{}\n' ;;
+  *) exit 2 ;;
+esac
+""",
+        encoding="utf-8",
+    )
+    fake_gh.chmod(0o755)
+    completed = subprocess.run(
+        ["bash", "-e", "-o", "pipefail", "-c", shell],
+        check=False,
+        capture_output=True,
+        env={
+            **os.environ,
+            "EVENT_HEAD_SHA": HEAD_SHA,
+            "FINALIZE_COMMENT_ACTOR_ID": str(HUMAN_ID),
+            "FINALIZE_COMMENT_ACTOR_LOGIN": "read-only-reviewer",
+            "FINALIZE_COMMENT_CREATED_AT": CREATED_AT,
+            "FINALIZE_COMMENT_NODE_ID": FINALIZER_NODE_ID,
+            "FINALIZE_ROUTE": "true",
+            "GH_TOKEN": "test-token",
+            "GITHUB_ENV": str(tmp_path / "environment"),
+            "GITHUB_REPOSITORY": "bioedca/Yeliztli",
+            "OPEN_FIXTURE": str(open_fixture),
+            "PATH": f"{fake_bin}:{os.environ['PATH']}",
+            "PERMISSION_FIXTURE": str(permission_fixture),
+            "PULL_FIXTURE": str(pull_fixture),
+            "PR_NUMBER": "2183",
+            "RESOLVED_HEAD_SHA": HEAD_SHA,
+            "RUNNER_TEMP": str(tmp_path),
+            "RUN_URL": "https://example.test/run",
+        },
+        text=True,
+    )
+    assert completed.returncode == 1
+    assert "finalizer lacks bound repository write permission" in completed.stdout
+
+
 def test_route_preinvalidator_covers_event_resolved_and_live_heads(
     tmp_path: Path,
 ) -> None:
@@ -3680,12 +4310,28 @@ esac
 
 
 @pytest.mark.parametrize(
-    ("later_mode", "expected_returncode", "expected_state"),
-    [("replacement", 0, None), ("duplicate", 1, "failure")],
+    (
+        "later_mode",
+        "final_permission",
+        "permission_user_id",
+        "permission_lookup_fails",
+        "expected_returncode",
+        "expected_state",
+    ),
+    [
+        ("replacement", "write", HUMAN_ID, False, 0, None),
+        ("duplicate", "write", HUMAN_ID, False, 1, "failure"),
+        ("claimed", "read", HUMAN_ID, False, 1, "failure"),
+        ("claimed", "write", 999, False, 1, "failure"),
+        ("claimed", "write", HUMAN_ID, True, 1, "failure"),
+    ],
 )
 def test_route_final_publisher_rechecks_ownership_before_success(
     tmp_path: Path,
     later_mode: str,
+    final_permission: str,
+    permission_user_id: int,
+    permission_lookup_fails: bool,
     expected_returncode: int,
     expected_state: str | None,
 ) -> None:
@@ -3708,9 +4354,14 @@ def test_route_final_publisher_rechecks_ownership_before_success(
     pr_fixture = tmp_path / "fixture-pr-final.json"
     main_fixture = tmp_path / "fixture-main-final.json"
     finalizer_fixture = tmp_path / "fixture-finalizer.json"
+    permission_fixture = tmp_path / "fixture-finalizer-permission.json"
     status_log = tmp_path / "statuses.log"
     initial_owners.write_text(json.dumps([[claimed]]), encoding="utf-8")
-    later = [replacement] if later_mode == "replacement" else [claimed, replacement]
+    later = {
+        "claimed": [claimed],
+        "duplicate": [claimed, replacement],
+        "replacement": [replacement],
+    }[later_mode]
     later_owners.write_text(json.dumps([later]), encoding="utf-8")
     pr_fixture.write_text(json.dumps(claimed), encoding="utf-8")
     main_fixture.write_text(json.dumps({"object": {"sha": HEAD_SHA}}), encoding="utf-8")
@@ -3720,7 +4371,11 @@ def test_route_final_publisher_rechecks_ownership_before_success(
                 "data": {
                     "node": {
                         "id": FINALIZER_NODE_ID,
-                        "author": {"__typename": "User", "databaseId": HUMAN_ID},
+                        "author": {
+                            "__typename": "User",
+                            "databaseId": HUMAN_ID,
+                            "login": "trusted-reviewer",
+                        },
                         "authorAssociation": "MEMBER",
                         "body": "/validate-route",
                         "createdAt": CREATED_AT,
@@ -3730,6 +4385,10 @@ def test_route_final_publisher_rechecks_ownership_before_success(
                 }
             }
         ),
+        encoding="utf-8",
+    )
+    permission_fixture.write_text(
+        json.dumps({"permission": final_permission, "user": {"id": permission_user_id}}),
         encoding="utf-8",
     )
     (tmp_path / "pr.json").write_text(json.dumps(claimed), encoding="utf-8")
@@ -3751,6 +4410,10 @@ case "$*" in
     exec /bin/cat "$LATER_OWNERS"
     ;;
   *"api graphql"*) exec /bin/cat "$FINALIZER_FIXTURE" ;;
+  *"collaborators/"*"/permission"*)
+    [ "${PERMISSION_LOOKUP_FAILS:-false}" != "true" ] || exit 2
+    exec /bin/cat "$PERMISSION_FIXTURE"
+    ;;
   *"pulls/2183"*) exec /bin/cat "$PR_FIXTURE" ;;
   *"git/ref/heads/main"*) exec /bin/cat "$MAIN_FIXTURE" ;;
   *"statuses/"*) printf '%s\n' "$*" >> "$STATUS_LOG" ; printf '{}\n' ;;
@@ -3780,6 +4443,8 @@ esac
             "MAIN_FIXTURE": str(main_fixture),
             "OWNERSHIP_COUNTER": str(ownership_counter),
             "PATH": f"{fake_bin}:{os.environ['PATH']}",
+            "PERMISSION_FIXTURE": str(permission_fixture),
+            "PERMISSION_LOOKUP_FAILS": str(permission_lookup_fails).lower(),
             "PR_FIXTURE": str(pr_fixture),
             "PR_NUMBER": "2183",
             "PR_UPDATED_AT": PR_UPDATED_AT,
@@ -3800,7 +4465,10 @@ esac
     else:
         status_call = status_log.read_text(encoding="utf-8")
         assert f"state={expected_state}" in status_call
-        assert "Head ownership changed before publication" in status_call
+        if later_mode == "duplicate":
+            assert "Head ownership changed before publication" in status_call
+        else:
+            assert "finalizer" in status_call
 
 
 def test_public_template_contains_only_hosted_review_gates() -> None:
@@ -3817,6 +4485,7 @@ def test_public_template_contains_only_hosted_review_gates() -> None:
     assert "Later requests or quota/error messages do not supersede" in template
     assert "Immediately before any trigger, re-fetch" in template
     assert "Within this PR, service queued current-head reservations FIFO" in template
+    assert "code block or raw HTML" in template
 
 
 def test_contributor_review_routes_match_the_public_template() -> None:
@@ -3838,6 +4507,7 @@ def test_contributor_review_routes_match_the_public_template() -> None:
     assert "Immediately before triggering, re-fetch the PR" in normalized
     assert "attributes the SHA-less trigger" in normalized
     assert "Within one PR, service current-head reservations FIFO" in normalized
+    assert "raw HTML cannot contain or appear in the route section" in normalized
     assert "wait for its distinct completed review before posting the next trigger" in normalized
     assert "/validate-route" in contributing
     assert "two open `main` PRs must never share a head SHA" in normalized

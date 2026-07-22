@@ -20,9 +20,10 @@ on:
 # Review-state signals can only invalidate. Lifecycle signals can refresh the
 # non-final route, including for fork and Dependabot PRs whose source run cannot
 # access Actions secrets; every completed source conclusion is consumed so a
-# failed or cancelled signal cannot leave an older success live. After reviews
-# and thread resolution, a trusted
-# maintainer explicitly finalizes the route with `/validate-route`.
+# failed or cancelled signal cannot leave an older success live. Dedicated
+# fallback publishers mark safely rebound heads pending if either resolver
+# fails. After reviews and thread resolution, a write-capable maintainer
+# explicitly finalizes the route with `/validate-route`.
 #
 # The `review-route-publisher` environment must allow only branch `main` and
 # hold a dedicated GitHub App client ID/private key. The app, not the generic
@@ -44,6 +45,7 @@ jobs:
     outputs:
       head_sha: ${{ steps.resolve.outputs.head_sha }}
       pr_number: ${{ steps.resolve.outputs.pr_number }}
+      relevant: ${{ steps.resolve.outputs.relevant }}
       signal_head: ${{ steps.resolve.outputs.signal_head }}
     runs-on: ubuntu-latest
     timeout-minutes: 2
@@ -72,6 +74,7 @@ jobs:
             echo "::error title=Review Route::review-state trigger actor is invalid"
             exit 1
           fi
+          relevant=true
           case "$SIGNAL_EVENT" in
             pull_request_review_comment) ;;
             pull_request_review)
@@ -96,8 +99,8 @@ jobs:
                 case "$actor_permission" in
                   admin|write) ;;
                   read|none)
-                    echo "::error title=Review Route::untrusted formal-review signal actor"
-                    exit 1
+                    echo "Untrusted formal-review signal actor is irrelevant to route state."
+                    relevant=false
                     ;;
                   *)
                     echo "::warning title=Review Route::actor permission lookup was inconclusive; invalidating fail closed"
@@ -148,8 +151,8 @@ jobs:
             ($current_matches[0].number | tostring) == $pr and
             ($signal == $current or ($signal_matches | length) == 0)
           ' "$RUNNER_TEMP/open-pulls.json" > /dev/null
-          printf 'head_sha=%s\npr_number=%s\nsignal_head=%s\n' \
-            "$head_sha" "$pr_number" "$signal_head" >> "$GITHUB_OUTPUT"
+          printf 'head_sha=%s\npr_number=%s\nrelevant=%s\nsignal_head=%s\n' \
+            "$head_sha" "$pr_number" "$relevant" "$signal_head" >> "$GITHUB_OUTPUT"
 
   resolve_route_event:
     if: >-
@@ -221,8 +224,237 @@ jobs:
           printf 'event_head=%s\nhead_sha=%s\npr_number=%s\n' \
             "$event_head" "$head_sha" "$pr_number" >> "$GITHUB_OUTPUT"
 
+  fail-closed-review-resolution:
+    needs: resolve_review_state
+    if: >-
+      always() &&
+      needs.resolve_review_state.result != 'success' &&
+      needs.resolve_review_state.result != 'skipped'
+    environment:
+      name: review-route-publisher
+    name: Fail Closed on Review Resolver Error
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Mint fallback publisher token
+        id: review-fallback
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
+        with:
+          client-id: ${{ vars.REVIEW_ROUTE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.REVIEW_ROUTE_APP_PRIVATE_KEY }}
+          permission-pull-requests: read
+          permission-statuses: write
+
+      - name: Invalidate immutable review-signal head
+        env:
+          GH_TOKEN: ${{ steps.review-fallback.outputs.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SIGNAL_EVENT: ${{ github.event.workflow_run.event }}
+          SIGNAL_TITLE: ${{ github.event.workflow_run.display_title }}
+          SOURCE_ACTOR_ID: ${{ github.event.workflow_run.actor.id }}
+          SOURCE_ACTOR_LOGIN: ${{ github.event.workflow_run.actor.login }}
+          SOURCE_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          if [ "$SIGNAL_EVENT" = "pull_request_review" ]; then
+            trusted_actor=false
+            case "$SOURCE_ACTOR_ID" in
+              175728472|199175422|136622811) trusted_actor=true ;;
+            esac
+            if [ "$trusted_actor" != "true" ]; then
+              if ! [[ "$SOURCE_ACTOR_ID" =~ ^[1-9][0-9]*$ ]] || \
+                ! [[ "$SOURCE_ACTOR_LOGIN" =~ ^[A-Za-z0-9][A-Za-z0-9-]*(\[bot\])?$ ]]; then
+                echo "::error title=Review Route::failed resolver actor identity is invalid"
+                exit 1
+              fi
+              actor_permission="lookup-failed"
+              if gh api \
+                  "repos/$GITHUB_REPOSITORY/collaborators/$SOURCE_ACTOR_LOGIN/permission" \
+                  > "$RUNNER_TEMP/review-fallback-permission.json"; then
+                actor_permission="$(jq -er --arg actor "$SOURCE_ACTOR_ID" '
+                  if (.user.id | tostring) == $actor then .permission else "identity-mismatch" end
+                ' "$RUNNER_TEMP/review-fallback-permission.json" 2>/dev/null || printf 'invalid')"
+              fi
+              case "$actor_permission" in
+                admin|write) ;;
+                read|none)
+                  echo "Confirmed read-only outsider review remains irrelevant."
+                  exit 0
+                  ;;
+                *) ;;
+              esac
+            fi
+          elif [ "$SIGNAL_EVENT" != "pull_request_review_comment" ]; then
+            echo "::error title=Review Route::failed resolver event is invalid"
+            exit 1
+          fi
+          source_head="$(printf '%s' "$SOURCE_HEAD_SHA" | tr '[:upper:]' '[:lower:]')"
+          if [[ "$SIGNAL_TITLE" =~ ^review-route-pr-([0-9]+)-head-([0-9a-fA-F]{40})-trigger-([0-9]+)$ ]]; then
+            pr_number="${BASH_REMATCH[1]}"
+            claimed_head="$(printf '%s' "${BASH_REMATCH[2]}" | tr '[:upper:]' '[:lower:]')"
+          else
+            echo "::error title=Review Route::failed resolver exposed no valid signal identity"
+            exit 1
+          fi
+          if ! [[ "$source_head" =~ ^[0-9a-f]{40}$ ]] || \
+            [ "$source_head" != "$claimed_head" ]; then
+            echo "::error title=Review Route::failed resolver exposed no valid source head"
+            exit 1
+          fi
+          bound=false
+          for attempt in 1 2 3; do
+            if gh api "repos/$GITHUB_REPOSITORY/pulls/$pr_number" \
+                > "$RUNNER_TEMP/review-fallback-pr.json" && \
+              current_head="$(jq -er --arg repo "$GITHUB_REPOSITORY" --arg pr "$pr_number" '
+                if (.number | tostring) == $pr and .state == "open" and
+                  .base.ref == "main" and .base.repo.full_name == $repo and
+                  (.head.sha | type) == "string"
+                then (.head.sha | ascii_downcase)
+                else error("unexpected pull response")
+                end
+              ' "$RUNNER_TEMP/review-fallback-pr.json")" && \
+              [[ "$current_head" =~ ^[0-9a-f]{40}$ ]]; then
+              bound=true
+              break
+            fi
+            if [ "$attempt" -lt 3 ]; then sleep "$attempt"; fi
+          done
+          if [ "$bound" != "true" ]; then
+            echo "::error title=Review Route::failed review signal could not be safely rebound"
+            exit 1
+          fi
+          post_pending() {
+            local sha="$1"
+            local attempt
+            for attempt in 1 2 3; do
+              if gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$sha" \
+                -f state=pending \
+                -f context="Review Route" \
+                -f description="Review signal resolution failed; revalidation is required." \
+                -f target_url="$RUN_URL"; then
+                return 0
+              fi
+              if [ "$attempt" -lt 3 ]; then sleep "$attempt"; fi
+            done
+            return 1
+          }
+          post_pending "$current_head" || {
+            echo "::error title=Review Route::could not invalidate current head after failed review signal"
+            exit 1
+          }
+          if [ "$source_head" != "$current_head" ]; then
+            post_pending "$source_head" || {
+              echo "::error title=Review Route::could not invalidate stale failed review signal"
+              exit 1
+            }
+          fi
+          echo "::error title=Review Route::review signal resolution failed closed"
+          exit 1
+
+  fail-closed-route-resolution:
+    needs: resolve_route_event
+    if: >-
+      always() &&
+      needs.resolve_route_event.result != 'success' &&
+      needs.resolve_route_event.result != 'skipped'
+    environment:
+      name: review-route-publisher
+    name: Fail Closed on Route Resolver Error
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Mint fallback publisher token
+        id: route-fallback
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
+        with:
+          client-id: ${{ vars.REVIEW_ROUTE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.REVIEW_ROUTE_APP_PRIVATE_KEY }}
+          permission-pull-requests: read
+          permission-statuses: write
+
+      - name: Resolve fallback head and invalidate it
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          GH_TOKEN: ${{ steps.route-fallback.outputs.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SIGNAL_TITLE: ${{ github.event.workflow_run.display_title }}
+        run: |
+          pr_number=""
+          event_head=""
+          if [ "$EVENT_NAME" = "workflow_run" ]; then
+            if [[ "$SIGNAL_TITLE" =~ ^review-route-pr-([0-9]+)-head-([0-9a-fA-F]{40})-trigger-([0-9]+)$ ]]; then
+              pr_number="${BASH_REMATCH[1]}"
+              event_head="$(printf '%s' "${BASH_REMATCH[2]}" | tr '[:upper:]' '[:lower:]')"
+            else
+              echo "::error title=Review Route::failed lifecycle resolver exposed no valid head"
+              exit 1
+            fi
+          else
+            if ! [[ "$ISSUE_NUMBER" =~ ^[1-9][0-9]*$ ]]; then
+              echo "::error title=Review Route::failed comment resolver exposed no PR number"
+              exit 1
+            fi
+            pr_number="$ISSUE_NUMBER"
+          fi
+          bound=false
+          for attempt in 1 2 3; do
+            if gh api "repos/$GITHUB_REPOSITORY/pulls/$pr_number" \
+                > "$RUNNER_TEMP/route-fallback-pr.json" && \
+              current_head="$(jq -er --arg repo "$GITHUB_REPOSITORY" --arg pr "$pr_number" '
+                if (.number | tostring) == $pr and
+                  (.state == "open" or .state == "closed") and
+                  .base.ref == "main" and .base.repo.full_name == $repo and
+                  (.head.sha | type) == "string"
+                then (.head.sha | ascii_downcase)
+                else error("unexpected pull response")
+                end
+              ' "$RUNNER_TEMP/route-fallback-pr.json")" && \
+              [[ "$current_head" =~ ^[0-9a-f]{40}$ ]]; then
+              if [ -z "$event_head" ]; then event_head="$current_head"; fi
+              if [[ "$event_head" =~ ^[0-9a-f]{40}$ ]]; then
+                bound=true
+                break
+              fi
+            fi
+            if [ "$attempt" -lt 3 ]; then sleep "$attempt"; fi
+          done
+          if [ "$bound" != "true" ] || \
+            ! [[ "$current_head" =~ ^[0-9a-f]{40}$ ]] || \
+            ! [[ "$event_head" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error title=Review Route::failed route event could not be safely rebound"
+            exit 1
+          fi
+          post_pending() {
+            local sha="$1"
+            local attempt
+            for attempt in 1 2 3; do
+              if gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$sha" \
+                  -f state=pending \
+                  -f context="Review Route" \
+                  -f description="Route event resolution failed; revalidation is required." \
+                  -f target_url="$RUN_URL"; then
+                return 0
+              fi
+              if [ "$attempt" -lt 3 ]; then sleep "$attempt"; fi
+            done
+            return 1
+          }
+          post_pending "$current_head" || {
+            echo "::error title=Review Route::could not invalidate failed route event"
+            exit 1
+          }
+          if [ "$event_head" != "$current_head" ]; then
+            post_pending "$event_head" || {
+              echo "::error title=Review Route::could not invalidate stale failed route event"
+              exit 1
+            }
+          fi
+          echo "::error title=Review Route::route event resolution failed closed"
+          exit 1
+
   invalidate-review-state:
     needs: resolve_review_state
+    if: needs.resolve_review_state.outputs.relevant != 'false'
     concurrency:
       group: review-route-${{ needs.resolve_review_state.outputs.head_sha }}
       cancel-in-progress: true
@@ -406,6 +638,7 @@ jobs:
       FINALIZE_COMMENT_NODE_ID: ${{ github.event.comment.node_id }}
       FINALIZE_COMMENT_CREATED_AT: ${{ github.event.comment.created_at }}
       FINALIZE_COMMENT_ACTOR_ID: ${{ github.event.comment.user.id }}
+      FINALIZE_COMMENT_ACTOR_LOGIN: ${{ github.event.comment.user.login }}
       WORKFLOW_SHA: ${{ github.workflow_sha }}
     steps:
       - name: Mint dedicated publisher token
@@ -558,12 +791,31 @@ jobs:
           fi
 
           if [ "$FINALIZE_ROUTE" = "true" ]; then
-            if ! [[ "$FINALIZE_COMMENT_ACTOR_ID" =~ ^[0-9]+$ ]] || \
+            if ! [[ "$FINALIZE_COMMENT_ACTOR_ID" =~ ^[1-9][0-9]*$ ]] || \
               [ -z "$FINALIZE_COMMENT_NODE_ID" ] || \
-              ! [[ "$FINALIZE_COMMENT_CREATED_AT" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T ]]; then
+              ! [[ "$FINALIZE_COMMENT_CREATED_AT" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T ]] || \
+              ! [[ "$FINALIZE_COMMENT_ACTOR_LOGIN" =~ ^[A-Za-z0-9][A-Za-z0-9-]*$ ]]; then
               echo "::error title=Review Route::finalizer event identity is incomplete"
               exit 1
             fi
+            if ! gh api \
+                "repos/$GITHUB_REPOSITORY/collaborators/$FINALIZE_COMMENT_ACTOR_LOGIN/permission" \
+                > "$RUNNER_TEMP/finalizer-permission.json"; then
+              echo "::error title=Review Route::could not resolve finalizer repository permission"
+              exit 1
+            fi
+            finalizer_permission="$(jq -er --arg actor "$FINALIZE_COMMENT_ACTOR_ID" '
+              if type == "object" and (.user.id | tostring) == $actor and
+                (.permission == "admin" or .permission == "write")
+              then .permission
+              else error("finalizer lacks bound write permission")
+              end
+            ' "$RUNNER_TEMP/finalizer-permission.json")" || {
+              echo "::error title=Review Route::finalizer lacks bound repository write permission"
+              exit 1
+            }
+            printf 'FINALIZE_COMMENT_ACTOR_PERMISSION=%s\n' \
+              "$finalizer_permission" >> "$GITHUB_ENV"
             jq -e -s '
               .[0].issue.number == .[1].number and
               .[0].issue.body == .[1].body and
@@ -626,6 +878,7 @@ jobs:
               --finalize-comment-node-id "$FINALIZE_COMMENT_NODE_ID"
               --finalize-comment-created-at "$FINALIZE_COMMENT_CREATED_AT"
               --finalize-comment-actor-id "$FINALIZE_COMMENT_ACTOR_ID"
+              --finalize-comment-actor-permission "$FINALIZE_COMMENT_ACTOR_PERMISSION"
             )
           fi
           python scripts/validate_review_route.py \
@@ -701,6 +954,7 @@ jobs:
                         id
                         author {
                           __typename
+                          login
                           ... on User { databaseId }
                         }
                         authorAssociation
@@ -710,8 +964,19 @@ jobs:
                         updatedAt
                       }
                     }
-                  }" > "$RUNNER_TEMP/finalizer-final.json" && \
-                jq -e \
+                  }" > "$RUNNER_TEMP/finalizer-final.json"; then
+                finalizer_login="$(jq -er '.data.node.author.login' \
+                  "$RUNNER_TEMP/finalizer-final.json")" || finalizer_login=""
+                if [[ "$finalizer_login" =~ ^[A-Za-z0-9][A-Za-z0-9-]*$ ]] && \
+                  gh api \
+                    "repos/$GITHUB_REPOSITORY/collaborators/$finalizer_login/permission" \
+                    > "$RUNNER_TEMP/finalizer-permission-final.json" && \
+                  jq -e --arg actor "$FINALIZE_COMMENT_ACTOR_ID" '
+                    type == "object" and
+                    (.user.id | tostring) == $actor and
+                    (.permission == "admin" or .permission == "write")
+                  ' "$RUNNER_TEMP/finalizer-permission-final.json" > /dev/null && \
+                  jq -e \
                   --arg node "$FINALIZE_COMMENT_NODE_ID" \
                   --arg actor "$FINALIZE_COMMENT_ACTOR_ID" \
                   --arg created "$FINALIZE_COMMENT_CREATED_AT" '
@@ -726,7 +991,8 @@ jobs:
                      .data.node.authorAssociation == "MEMBER" or
                      .data.node.authorAssociation == "COLLABORATOR")
                   ' "$RUNNER_TEMP/finalizer-final.json" > /dev/null; then
-                finalizer_ok=true
+                  finalizer_ok=true
+                fi
               fi
             fi
             if [ "$WORKFLOW_SHA" = "$TRUSTED_SHA" ] && \

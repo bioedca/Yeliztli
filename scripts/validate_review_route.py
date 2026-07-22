@@ -278,9 +278,148 @@ def _parse_utc(value: str) -> datetime:
     return datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
 
 
+def _markdown_without_code(body: str) -> str:
+    visible_lines: list[str] = []
+    fence_char: str | None = None
+    fence_length = 0
+    for line in body.splitlines():
+        if fence_char is not None:
+            closing = re.fullmatch(
+                rf"[ ]{{0,3}}{re.escape(fence_char)}{{{fence_length},}}[ \t]*", line
+            )
+            if closing:
+                fence_char = None
+                fence_length = 0
+            visible_lines.append("")
+            continue
+        opening = re.match(r"^[ ]{0,3}(`{3,}|~{3,})(.*)$", line)
+        if opening:
+            fence = opening.group(1)
+            info = opening.group(2)
+            if fence.startswith("`") and "`" in info:
+                visible_lines.append(line)
+                continue
+            fence_char = fence[0]
+            fence_length = len(fence)
+            visible_lines.append("")
+            continue
+        visible_lines.append("" if line.startswith(("    ", "\t")) else line)
+    return "\n".join(visible_lines)
+
+
+def _route_structure_markdown(body: str) -> str:
+    """Strip HTML comments while retaining standalone schema-marker comments."""
+    schema_line = re.compile(r"(?i)^<!-- review-route-schema:v[12] -->\s*$")
+    visible_lines: list[str] = []
+    in_comment = False
+    for line in _markdown_without_code(body).splitlines():
+        if not in_comment and schema_line.fullmatch(line):
+            visible_lines.append(line)
+            continue
+        cursor = 0
+        visible: list[str] = []
+        while cursor < len(line):
+            if in_comment:
+                close = line.find("-->", cursor)
+                if close < 0:
+                    cursor = len(line)
+                    continue
+                in_comment = False
+                cursor = close + 3
+                continue
+            opening = line.find("<!--", cursor)
+            if opening < 0:
+                visible.append(line[cursor:])
+                break
+            visible.append(line[cursor:opening])
+            close = line.find("-->", opening + 4)
+            if close < 0:
+                in_comment = True
+                cursor = len(line)
+            else:
+                cursor = close + 3
+        visible_lines.append("".join(visible))
+    return "\n".join(visible_lines)
+
+
 def _visible_markdown(body: str) -> str:
-    body = re.sub(r"```.*?```|~~~.*?~~~", "", body, flags=re.DOTALL)
-    return re.sub(r"<!--.*?-->", "", body, flags=re.DOTALL)
+    return re.sub(r"<!--.*?-->", "", _route_structure_markdown(body), flags=re.DOTALL)
+
+
+def _inside_raw_html_container(markdown: str) -> bool:
+    stack: list[str] = []
+    tag_pattern = re.compile(
+        r"(?is)<\s*(?P<close>/)?\s*"
+        r"(?P<tag>code|pre|script|style|textarea)\b[^<>]*?>"
+    )
+    for match in tag_pattern.finditer(markdown):
+        tag = match.group("tag").lower()
+        if match.group("close"):
+            if not stack or stack[-1] != tag:
+                return True
+            stack.pop()
+        elif not match.group(0).rstrip().endswith("/>"):
+            stack.append(tag)
+    if stack:
+        return True
+
+    def unterminated(opener: str, closer: str) -> bool:
+        cursor = 0
+        pattern = re.compile(opener, flags=re.IGNORECASE | re.MULTILINE)
+        while match := pattern.search(markdown, cursor):
+            close = markdown.find(closer, match.end())
+            if close < 0:
+                return True
+            cursor = close + len(closer)
+        return False
+
+    if any(
+        (
+            unterminated(r"^[ ]{0,3}<\?", "?>"),
+            unterminated(r"^[ ]{0,3}<!\[CDATA\[", "]]>"),
+            unterminated(r"^[ ]{0,3}<![A-Z]", ">"),
+            bool(
+                re.search(
+                    r"(?im)^[ ]{0,3}<(?:pre|script|style|textarea)"
+                    r"(?:[ \t]|$)[^>\n]*$",
+                    markdown,
+                )
+            ),
+        )
+    ):
+        return True
+
+    tail = re.split(r"\n[ \t]*\n", markdown)[-1]
+    block_tags = (
+        "address|article|aside|base|basefont|blockquote|body|caption|center|col|"
+        "colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|"
+        "footer|form|frame|frameset|h[1-6]|head|header|hr|html|iframe|legend|li|"
+        "link|main|menu|menuitem|nav|noframes|ol|optgroup|option|p|param|search|"
+        "section|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul"
+    )
+    if re.search(rf"(?im)^[ ]{{0,3}}</?(?:{block_tags})(?:[ \t>/]|$)", tail):
+        return True
+
+    def is_complete_tag_line(line: str) -> bool:
+        content = line[0:]
+        indentation = len(content) - len(content.lstrip(" "))
+        if indentation > 3:
+            return False
+        content = content[indentation:]
+        if re.match(r"(?i)^</?[a-z][a-z0-9-]*(?:[ \t]|/?>)", content) is None:
+            return False
+        quote: str | None = None
+        for index, character in enumerate(content):
+            if quote is not None:
+                if character == quote:
+                    quote = None
+            elif character in {'"', "'"}:
+                quote = character
+            elif character == ">":
+                return not content[index + 1 :].strip()
+        return False
+
+    return any(is_complete_tag_line(line) for line in tail.splitlines())
 
 
 def _normalise_gate(value: str) -> str:
@@ -299,7 +438,7 @@ def _parse_route_section(
         r"(?mi)^## Review route\s*\n"
         r"<!-- review-route-schema:v(?P<version>[12]) -->\s*$"
     )
-    marker_matches = list(marker_pattern.finditer(body))
+    marker_matches = list(marker_pattern.finditer(_route_structure_markdown(body)))
     if len(marker_matches) != 1:
         errors.append(
             "a supported review-route schema marker must appear once directly below its heading"
@@ -311,11 +450,18 @@ def _parse_route_section(
     if len(headings) != 1:
         errors.append("expected exactly one '## Review route' heading")
         return None, schema_version, [], {}, errors
+    if _inside_raw_html_container(visible[: headings[0].start()]):
+        errors.append("raw HTML is not allowed to contain the review-route section")
     start = headings[0].end()
     following = re.search(r"(?mi)^##\s+", visible[start:])
     section = visible[start : start + following.start()] if following else visible[start:]
+    if "<" in section:
+        errors.append("raw HTML is not allowed in the review-route section")
 
-    route_rows = re.findall(r"(?m)^\s*-\s*\[([ xX])\]\s*(Low|Standard|Load-bearing)\b", section)
+    route_rows = re.findall(
+        r"(?m)^[ ]{0,3}-\s*\[([ xX])\]\s*(Low|Standard|Load-bearing)\b",
+        section,
+    )
     counts = {name: 0 for name in ROUTE_RANK}
     selected: list[str] = []
     for mark, name in route_rows:
@@ -331,7 +477,7 @@ def _parse_route_section(
     selected_bots: list[str] = []
     if schema_version == 2:
         reviewer_rows = re.findall(
-            r"(?m)^\s*-\s*\[([ xX])\]\s*(Copilot|Codex|CodeRabbit)\b",
+            r"(?m)^[ ]{0,3}-\s*\[([ xX])\]\s*(Copilot|Codex|CodeRabbit)\b",
             section,
         )
         reviewer_counts = {name: 0 for name in AUTOMATED_REVIEW_CHOICES}
@@ -346,7 +492,7 @@ def _parse_route_section(
     evidence: dict[str, Evidence] = {}
     unknown: list[str] = []
     for line in section.splitlines():
-        if not line.lstrip().startswith("|"):
+        if re.match(r"^[ ]{0,3}\|", line) is None:
             continue
         cells = _table_cells(line)
         if len(cells) != 4 or cells[0] in {"Required review gate", "---"}:
@@ -448,16 +594,34 @@ def _bot_activity(
             and _actor_id(review) == actor_id
             and commit.get("oid") == head_sha
             and submitted
-            and "lastEditedAt" in review
-            and review["lastEditedAt"] is None
         ):
-            when = _parse_utc(submitted)
-            if when > head_epoch:
-                candidates.append((when, review))
+            submitted_at = _parse_utc(submitted)
+            edited_raw = review.get("lastEditedAt")
+            effective_at = max(
+                submitted_at,
+                _parse_utc(edited_raw) if isinstance(edited_raw, str) else submitted_at,
+            )
+            if effective_at > head_epoch:
+                candidates.append((effective_at, review))
+    signals: list[tuple[datetime, bool]] = [
+        (
+            when,
+            "lastEditedAt" in review
+            and review["lastEditedAt"] is None
+            and review.get("state") in TERMINAL_REVIEW_STATES
+            and (
+                gate != CODERABBIT_GATE
+                or CODERABBIT_COMPLETION_MARKER.lower() in (review.get("body") or "").lower()
+            ),
+        )
+        for when, review in candidates
+        if not (
+            gate == CODERABBIT_GATE
+            and review.get("state") in TERMINAL_REVIEW_STATES
+            and not (review.get("body") or "").strip()
+        )
+    ]
     if gate == CODEX_GATE:
-        valid_outcomes = [
-            when for when, review in candidates if review.get("state") in TERMINAL_REVIEW_STATES
-        ]
         comments = pull_request.get("comments") or {}
         for comment in comments.get("nodes") or []:
             created_raw = comment.get("createdAt")
@@ -485,39 +649,11 @@ def _bot_activity(
                 and codex_head_safe
             )
             if clean_completion:
-                valid_outcomes.append(created)
-        return max(valid_outcomes) if valid_outcomes else None
-    if not candidates:
+                signals.append((created, True))
+    if not signals:
         return None
-    if gate == CODERABBIT_GATE:
-        completed = [
-            (when, review)
-            for when, review in candidates
-            if review.get("state") in TERMINAL_REVIEW_STATES
-            and CODERABBIT_COMPLETION_MARKER.lower() in (review.get("body") or "").lower()
-        ]
-        if not completed:
-            return None
-        completed_at = max(when for when, _ in completed)
-        later_noncompletion = [
-            review
-            for when, review in candidates
-            if when >= completed_at
-            and (
-                review.get("state") not in TERMINAL_REVIEW_STATES
-                or (
-                    (review.get("body") or "").strip()
-                    and CODERABBIT_COMPLETION_MARKER.lower()
-                    not in (review.get("body") or "").lower()
-                )
-            )
-        ]
-        return None if later_noncompletion else completed_at
-    latest_at = max(when for when, _ in candidates)
-    latest = [review for when, review in candidates if when == latest_at]
-    if any(review.get("state") not in TERMINAL_REVIEW_STATES for review in latest):
-        return None
-    return latest_at
+    latest_at = max(when for when, _ in signals)
+    return latest_at if all(valid for when, valid in signals if when == latest_at) else None
 
 
 def _current_human_approval(
@@ -766,6 +902,7 @@ def _finalizer_activity(
     comment_node_id: str,
     comment_created_at: str,
     comment_actor_id: int,
+    comment_actor_permission: str,
 ) -> tuple[datetime | None, list[str]]:
     errors: list[str] = []
     matches = [
@@ -783,6 +920,8 @@ def _finalizer_activity(
         or comment.get("authorAssociation") not in HUMAN_ASSOCIATIONS
     ):
         errors.append("finalizer comment is not from the expected trusted maintainer")
+    if comment_actor_permission not in {"admin", "write"}:
+        errors.append("finalizer actor does not have live repository write permission")
     if (comment.get("body") or "") != FINALIZE_COMMAND:
         errors.append("finalizer comment body is not the exact validation command")
     created_raw = comment.get("createdAt")
@@ -812,6 +951,7 @@ def validate_context(
     finalize_comment_node_id: str | None = None,
     finalize_comment_created_at: str | None = None,
     finalize_comment_actor_id: int | None = None,
+    finalize_comment_actor_permission: str | None = None,
 ) -> list[str]:
     now = now or datetime.now(UTC)
     repository, errors = _load_repository(context)
@@ -854,6 +994,7 @@ def validate_context(
         finalize_comment_node_id,
         finalize_comment_created_at,
         finalize_comment_actor_id,
+        finalize_comment_actor_permission,
     )
     has_finalizer = all(value is not None for value in finalizer_values)
     if any(value is not None for value in finalizer_values) and not has_finalizer:
@@ -897,7 +1038,8 @@ def validate_context(
     reviews = pull_request.get("reviews") or {}
     comments = pull_request.get("comments") or {}
     human_opinions = pull_request.get("latestHumanOpinions") or {}
-    if _connection_truncated_since(reviews, time_key="submittedAt", since=head_epoch):
+    review_nodes = reviews.get("nodes") or []
+    if reviews.get("totalCount", 0) != len(review_nodes):
         errors.append("review pagination cannot prove current-head review state")
     if _connection_truncated_since(comments, time_key="updatedAt", since=head_epoch):
         errors.append("comment pagination cannot prove current-head review state")
@@ -913,7 +1055,7 @@ def validate_context(
         errors.append("select exactly one automated PR reviewer")
     required = {*selected_bots, HUMAN_GATE}
     if CODERABBIT_GATE not in required and any(
-        when > head_epoch and kind == "trigger"
+        kind == "trigger" and when > head_epoch
         for when, kind, _, _ in _coderabbit_protocol_events(pull_request, head_sha)
     ):
         errors.append("manual CodeRabbit triggers require selecting the CodeRabbit lane")
@@ -1017,6 +1159,7 @@ def validate_context(
             comment_node_id=finalize_comment_node_id,
             comment_created_at=finalize_comment_created_at,
             comment_actor_id=finalize_comment_actor_id,
+            comment_actor_permission=finalize_comment_actor_permission,
         )
         errors.extend(finalizer_errors)
         required_times = [
@@ -1054,6 +1197,7 @@ def main() -> int:
     parser.add_argument("--finalize-comment-node-id")
     parser.add_argument("--finalize-comment-created-at")
     parser.add_argument("--finalize-comment-actor-id", type=int)
+    parser.add_argument("--finalize-comment-actor-permission")
     args = parser.parse_args()
     context = json.loads(args.context.read_text(encoding="utf-8"))
     expected_snapshot = json.loads(args.expected_pr_snapshot.read_text(encoding="utf-8"))
@@ -1071,6 +1215,7 @@ def main() -> int:
         finalize_comment_node_id=args.finalize_comment_node_id,
         finalize_comment_created_at=args.finalize_comment_created_at,
         finalize_comment_actor_id=args.finalize_comment_actor_id,
+        finalize_comment_actor_permission=args.finalize_comment_actor_permission,
     )
     if errors:
         for error in dict.fromkeys(errors):
