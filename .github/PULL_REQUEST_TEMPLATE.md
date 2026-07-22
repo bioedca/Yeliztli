@@ -27,18 +27,23 @@
 <!-- Optional: point reviewers at a design decision you're unsure about, an area you want scrutiny on, or context they need. -->
 
 ## Review route
-<!-- review-route-schema:v1 -->
+<!-- review-route-schema:v2 -->
 <!-- Check EXACTLY ONE for the FINAL diff. Mixed/uncertain scope takes the higher route; reviews bind to one head SHA. -->
 - [ ] Low — text/docs/mechanical only; no behavior, public contract, science, security, dependency, or workflow change
 - [ ] Standard — routine code/tests/UI/refactor/bug fix not protecting a load-bearing area
 - [ ] Load-bearing — science/clinical/reference data or their tests; privacy/security/auth; schema/migration/data loss; concurrency; dependencies; updater/installer/release; CI/workflows/permissions; core architecture; broad/hard-to-revert
 
-<!-- Drafts need the route selected. Before ready/merge, required bot rows need the exact 40-character head SHA and `YYYY-MM-DDTHH:MM:SSZ — COMPLETE`; the human row uses `... — APPROVED`. For gates outside the selected route, enter exactly N/A in BOTH evidence columns. On Load-bearing PRs, after Codex completes, the same maintainer posts separate, immutable `coderabbit-reservation: <full-head-SHA>` then `@coderabbitai full review` comments at distinct times. This is a cooperative five-per-hour ledger, not an atomic slot. After final approval is recorded and every review thread is resolved, a maintainer MUST comment `/validate-route` to publish the final status. -->
+<!-- Before ready/merge, check EXACTLY ONE automated reviewer. They are substitutes; use the preferred lane when available, otherwise choose another instead of waiting on quota. -->
+- [ ] Copilot — Low preferred; fallback for any route
+- [ ] Codex — Standard preferred; fallback for any route
+- [ ] CodeRabbit — Load-bearing preferred; fallback for any route
+
+<!-- Drafts need only the route classification. Before ready/merge, the selected automated-review row needs the exact 40-character head SHA and `YYYY-MM-DDTHH:MM:SSZ — COMPLETE`; enter exactly N/A in BOTH cells for unused providers. Complete the selected automated review before the human row, which uses `... — APPROVED`. Manually trigger CodeRabbit ONLY when it is selected: the same maintainer posts separate, immutable `coderabbit-reservation: <full-head-SHA>` then `@coderabbitai full review` comments at distinct times. This is a cooperative five-per-hour ledger, not an atomic slot. After final approval is recorded and every review thread is resolved, a maintainer MUST comment `/validate-route` to publish the final status. -->
 | Required review gate | Applies to | Head SHA or N/A | UTC time and status, or N/A |
 | --- | --- | --- | --- |
-| Copilot PR review | All | | |
-| Codex `@codex review` | Standard, Load-bearing | | |
-| Manual CodeRabbit reservation and `@coderabbitai full review` | Load-bearing | | |
+| Copilot PR review | Low preferred; fallback for any route | | |
+| Codex `@codex review` | Standard preferred; fallback for any route | | |
+| Manual CodeRabbit reservation and `@coderabbitai full review` | Load-bearing preferred; fallback for any route | | |
 | Independent human maintainer review | All | | |
 
 ## Legal

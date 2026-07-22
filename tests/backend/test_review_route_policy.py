@@ -20,6 +20,7 @@ from scripts.validate_review_route import (
     COPILOT_GATE,
     GATES,
     HUMAN_GATE,
+    LEGACY_SCHEMA_MARKER,
     SCHEMA_MARKER,
     ChangedFile,
     minimum_route,
@@ -40,6 +41,11 @@ GATE_TIMES = {
     CODEX_GATE: "2026-07-21T12:20:00Z",
     CODERABBIT_GATE: "2026-07-21T12:30:00Z",
     HUMAN_GATE: "2026-07-21T12:40:00Z",
+}
+DEFAULT_AUTOMATED_GATE = {
+    "Low": COPILOT_GATE,
+    "Standard": CODEX_GATE,
+    "Load-bearing": CODERABBIT_GATE,
 }
 
 
@@ -107,15 +113,22 @@ def _comment(
     }
 
 
-def _body(route: str, *, complete: bool = True) -> str:
+def _body(
+    route: str,
+    *,
+    complete: bool = True,
+    automated_gates: set[str] | None = None,
+) -> str:
     selected = {
         name: "x" if name == route else " " for name in ("Low", "Standard", "Load-bearing")
     }
-    required = {
-        "Low": {COPILOT_GATE, HUMAN_GATE},
-        "Standard": {COPILOT_GATE, CODEX_GATE, HUMAN_GATE},
-        "Load-bearing": set(GATES),
-    }[route]
+    selected_bots = {DEFAULT_AUTOMATED_GATE[route]} if automated_gates is None else automated_gates
+    required = {*selected_bots, HUMAN_GATE}
+    reviewer_labels = {
+        COPILOT_GATE: "Copilot",
+        CODEX_GATE: "Codex",
+        CODERABBIT_GATE: "CodeRabbit",
+    }
     rows = []
     for gate in GATES:
         if not complete:
@@ -134,6 +147,10 @@ def _body(route: str, *, complete: bool = True) -> str:
             f"- [{selected['Low']}] Low — docs",
             f"- [{selected['Standard']}] Standard — code",
             f"- [{selected['Load-bearing']}] Load-bearing — governance",
+            *[
+                f"- [{'x' if gate in selected_bots else ' '}] {label} — automated review"
+                for gate, label in reviewer_labels.items()
+            ],
             (
                 "| Required review gate | Applies to | Head SHA or N/A "
                 "| UTC time and status, or N/A |"
@@ -145,6 +162,27 @@ def _body(route: str, *, complete: bool = True) -> str:
     )
 
 
+def _legacy_body(route: str) -> str:
+    legacy_bots = {
+        "Low": {COPILOT_GATE},
+        "Standard": {COPILOT_GATE, CODEX_GATE},
+        "Load-bearing": {COPILOT_GATE, CODEX_GATE, CODERABBIT_GATE},
+    }[route]
+    body = _body(route, automated_gates=legacy_bots).replace(SCHEMA_MARKER, LEGACY_SCHEMA_MARKER)
+    return "\n".join(
+        line
+        for line in body.splitlines()
+        if not any(
+            line.startswith(f"- [{'x' if gate in legacy_bots else ' '}] {label}")
+            for gate, label in (
+                (COPILOT_GATE, "Copilot"),
+                (CODEX_GATE, "Codex"),
+                (CODERABBIT_GATE, "CodeRabbit"),
+            )
+        )
+    )
+
+
 def _context(
     route: str,
     files: list[ChangedFile],
@@ -152,7 +190,9 @@ def _context(
     draft: bool = False,
     complete: bool = True,
     body: str | None = None,
+    automated_gates: set[str] | None = None,
 ) -> dict[str, object]:
+    selected_bots = {DEFAULT_AUTOMATED_GATE[route]} if automated_gates is None else automated_gates
     human_review = _review(
         HUMAN_ID,
         GATE_TIMES[HUMAN_GATE],
@@ -171,7 +211,7 @@ def _context(
         human_review,
     ]
     comments = []
-    if route == "Load-bearing":
+    if CODERABBIT_GATE in selected_bots:
         comments = [
             _comment(AUTHOR_ID, f"coderabbit-reservation: {HEAD_SHA}", "2026-07-21T12:25:00Z"),
             _comment(AUTHOR_ID, "@coderabbitai full review", "2026-07-21T12:26:00Z"),
@@ -179,7 +219,11 @@ def _context(
     pull_request = {
         "number": 42,
         "author": _actor(AUTHOR_ID, "User"),
-        "body": body if body is not None else _body(route, complete=complete),
+        "body": (
+            body
+            if body is not None
+            else _body(route, complete=complete, automated_gates=selected_bots)
+        ),
         "changedFiles": len(files),
         "createdAt": CREATED_AT,
         "headRefOid": HEAD_SHA,
@@ -287,6 +331,202 @@ def test_exactly_one_route_is_required() -> None:
     pr = context["data"]["repository"]["pullRequest"]
     pr["body"] = pr["body"].replace("- [ ] Standard", "- [x] Standard")
     assert "select exactly one review route" in validate_context(context, files, now=NOW)
+
+
+@pytest.mark.parametrize(
+    ("route", "path"),
+    [
+        ("Low", "docs/typo-fix.md"),
+        ("Standard", "frontend/src/hooks/useDialogFocus.ts"),
+        ("Load-bearing", "README.md"),
+    ],
+)
+@pytest.mark.parametrize("gate", [COPILOT_GATE, CODEX_GATE, CODERABBIT_GATE])
+def test_v2_review_providers_are_interchangeable(route: str, path: str, gate: str) -> None:
+    files = [ChangedFile(path)]
+    context = _context(route, files, automated_gates={gate})
+    assert validate_context(context, files, now=NOW) == []
+
+
+@pytest.mark.parametrize(
+    "automated_gates",
+    [set(), {COPILOT_GATE, CODEX_GATE}],
+)
+def test_v2_requires_exactly_one_selected_automated_reviewer(
+    automated_gates: set[str],
+) -> None:
+    files = [ChangedFile("docs/typo-fix.md")]
+    context = _context("Low", files, automated_gates=automated_gates)
+    assert "select exactly one automated PR reviewer" in validate_context(context, files, now=NOW)
+
+
+def test_v2_requires_each_automated_reviewer_checkbox_once() -> None:
+    files = [ChangedFile("docs/typo-fix.md")]
+    body = _body("Low").replace(
+        "| Required review gate",
+        "- [ ] Copilot — duplicate automated review\n| Required review gate",
+    )
+    context = _context("Low", files, body=body)
+    assert "expected each automated reviewer checkbox exactly once" in validate_context(
+        context, files, now=NOW
+    )
+
+
+@pytest.mark.parametrize(
+    ("canonical", "malformed", "expected_error"),
+    [
+        ("- [x] Low", "- [x] low", "expected each canonical route checkbox exactly once"),
+        (
+            "- [x] Copilot",
+            "- [x] copilot",
+            "expected each automated reviewer checkbox exactly once",
+        ),
+    ],
+)
+def test_noncanonical_checkbox_casing_fails_without_crashing(
+    canonical: str, malformed: str, expected_error: str
+) -> None:
+    files = [ChangedFile("docs/typo-fix.md")]
+    body = _body("Low").replace(canonical, malformed)
+    context = _context("Low", files, body=body)
+    assert expected_error in validate_context(context, files, now=NOW)
+
+
+def test_v2_unused_provider_evidence_must_be_na() -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, automated_gates={CODEX_GATE})
+    pull_request = context["data"]["repository"]["pullRequest"]
+    pull_request["body"] = pull_request["body"].replace(
+        f"| {COPILOT_GATE} | scope | N/A | N/A |",
+        (f"| {COPILOT_GATE} | scope | {HEAD_SHA} | {GATE_TIMES[COPILOT_GATE]} — COMPLETE |"),
+    )
+    errors = validate_context(context, files, now=NOW)
+    assert f"nonapplicable gate must use N/A in both cells: {COPILOT_GATE}" in errors
+
+
+@pytest.mark.parametrize("gate", [COPILOT_GATE, CODEX_GATE, CODERABBIT_GATE])
+def test_v2_missing_selected_provider_activity_fails(gate: str) -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, automated_gates={gate})
+    reviews = context["data"]["repository"]["pullRequest"]["reviews"]
+    reviews["nodes"] = [
+        review
+        for review in reviews["nodes"]
+        if review["author"]["databaseId"] != BOT_ACTOR_IDS[gate]
+    ]
+    reviews["totalCount"] = len(reviews["nodes"])
+    errors = validate_context(context, files, now=NOW)
+    assert f"no verified current-head GitHub activity for: {gate}" in errors
+
+
+def test_v2_coderabbit_does_not_require_a_codex_review() -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, automated_gates={CODERABBIT_GATE})
+    reviews = context["data"]["repository"]["pullRequest"]["reviews"]
+    reviews["nodes"] = [
+        review
+        for review in reviews["nodes"]
+        if review["author"]["databaseId"] != BOT_ACTOR_IDS[CODEX_GATE]
+    ]
+    reviews["totalCount"] = len(reviews["nodes"])
+    assert validate_context(context, files, now=NOW) == []
+
+
+@pytest.mark.parametrize("gate", [COPILOT_GATE, CODEX_GATE])
+def test_v2_global_coderabbit_quota_does_not_block_other_providers(gate: str) -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, automated_gates={gate})
+    recent = context["data"]["repository"]["recentPullRequests"]
+    trigger = _comment(AUTHOR_ID, "@coderabbitai full review", "2026-07-21T12:19:00Z")
+    recent["nodes"].append(
+        {
+            "updatedAt": "2026-07-21T12:19:00Z",
+            "comments": {"totalCount": 6, "nodes": [trigger] * 6},
+        }
+    )
+    recent["totalCount"] += 1
+    assert validate_context(context, files, now=NOW) == []
+
+
+@pytest.mark.parametrize("gate", [COPILOT_GATE, CODEX_GATE])
+def test_v2_unselected_manual_coderabbit_request_fails(gate: str) -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, automated_gates={gate})
+    repository = context["data"]["repository"]
+    comments = [
+        _comment(AUTHOR_ID, f"coderabbit-reservation: {HEAD_SHA}", "2026-07-21T12:24:00Z"),
+        _comment(AUTHOR_ID, "@coderabbitai full review", "2026-07-21T12:25:00Z"),
+    ]
+    repository["pullRequest"]["comments"] = {
+        "totalCount": len(comments),
+        "nodes": comments,
+    }
+    repository["recentPullRequests"]["nodes"][0]["comments"] = {
+        "totalCount": len(comments),
+        "nodes": comments,
+    }
+    errors = validate_context(context, files, now=NOW)
+    assert "manual CodeRabbit requests require selecting the CodeRabbit lane" in errors
+
+
+def test_v2_draft_may_defer_exactly_one_provider_selection() -> None:
+    files = [ChangedFile("docs/typo-fix.md")]
+    context = _context(
+        "Low",
+        files,
+        draft=True,
+        complete=False,
+        automated_gates={COPILOT_GATE, CODEX_GATE},
+    )
+    assert validate_context(context, files, now=NOW) == []
+
+
+@pytest.mark.parametrize(
+    ("route", "path"),
+    [
+        ("Low", "docs/typo-fix.md"),
+        ("Standard", "frontend/src/hooks/useDialogFocus.ts"),
+        ("Load-bearing", "README.md"),
+    ],
+)
+def test_v1_route_bodies_keep_the_legacy_gate_matrix(route: str, path: str) -> None:
+    files = [ChangedFile(path)]
+    context = _context(route, files, body=_legacy_body(route))
+    assert validate_context(context, files, now=NOW) == []
+
+
+def test_v1_standard_still_requires_copilot_and_codex() -> None:
+    files = [ChangedFile("frontend/src/hooks/useDialogFocus.ts")]
+    context = _context("Standard", files, body=_legacy_body("Standard"))
+    reviews = context["data"]["repository"]["pullRequest"]["reviews"]
+    reviews["nodes"] = [
+        review
+        for review in reviews["nodes"]
+        if review["author"]["databaseId"] != BOT_ACTOR_IDS[COPILOT_GATE]
+    ]
+    reviews["totalCount"] = len(reviews["nodes"])
+    errors = validate_context(context, files, now=NOW)
+    assert f"no verified current-head GitHub activity for: {COPILOT_GATE}" in errors
+
+
+def test_v1_load_bearing_coderabbit_protocol_still_follows_codex() -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, body=_legacy_body("Load-bearing"))
+    repository = context["data"]["repository"]
+    comments = [
+        _comment(AUTHOR_ID, f"coderabbit-reservation: {HEAD_SHA}", "2026-07-21T12:15:00Z"),
+        _comment(AUTHOR_ID, "@coderabbitai full review", "2026-07-21T12:16:00Z"),
+    ]
+    repository["pullRequest"]["comments"] = {
+        "totalCount": len(comments),
+        "nodes": comments,
+    }
+    repository["recentPullRequests"]["nodes"][0]["comments"] = {
+        "totalCount": len(comments),
+        "nodes": comments,
+    }
+    errors = validate_context(context, files, now=NOW)
+    assert "CodeRabbit needs a current-SHA reservation, trigger, then completed review" in errors
 
 
 def test_protected_rename_raises_route_floor() -> None:
@@ -473,12 +713,17 @@ def test_changed_file_count_mismatch_fails_closed() -> None:
     )
 
 
-def test_wrong_head_sha_invalidates_required_evidence() -> None:
+@pytest.mark.parametrize("gate", [COPILOT_GATE, CODEX_GATE, CODERABBIT_GATE])
+def test_wrong_head_sha_invalidates_selected_provider_evidence(gate: str) -> None:
     files = [ChangedFile("README.md")]
-    context = _context("Low", files)
-    context["data"]["repository"]["pullRequest"]["headRefOid"] = "b" * 40
+    context = _context("Load-bearing", files, automated_gates={gate})
+    pull_request = context["data"]["repository"]["pullRequest"]
+    pull_request["body"] = pull_request["body"].replace(
+        f"| {gate} | scope | {HEAD_SHA} |",
+        f"| {gate} | scope | {'b' * 40} |",
+    )
     errors = validate_context(context, files, now=NOW)
-    assert any("not bound to the current head SHA" in error for error in errors)
+    assert f"required gate is not bound to the current head SHA: {gate}" in errors
 
 
 def test_expected_head_mismatch_fails_closed() -> None:
@@ -597,7 +842,7 @@ def test_latest_same_second_terminal_and_nonterminal_bot_reviews_fail_closed(
     gate: str,
 ) -> None:
     files = [ChangedFile("README.md")]
-    context = _context("Load-bearing", files)
+    context = _context("Load-bearing", files, automated_gates={gate})
     reviews = context["data"]["repository"]["pullRequest"]["reviews"]
     reviews["nodes"].append(
         _review(
@@ -614,7 +859,7 @@ def test_latest_same_second_terminal_and_nonterminal_bot_reviews_fail_closed(
 
 def test_bot_completion_is_not_inferred_from_review_body_phrases() -> None:
     files = [ChangedFile("README.md")]
-    context = _context("Load-bearing", files)
+    context = _context("Load-bearing", files, automated_gates={COPILOT_GATE})
     pr = context["data"]["repository"]["pullRequest"]
     pr["body"] = pr["body"].replace(
         "2026-07-21T12:10:00Z — COMPLETE",
@@ -975,7 +1220,7 @@ def test_old_coderabbit_trigger_does_not_break_new_head_sequence() -> None:
     repository = context["data"]["repository"]
     comments = repository["pullRequest"]["comments"]
     comments["nodes"].insert(
-        0, _comment(AUTHOR_ID, "@coderabbitai full review", "2026-07-21T12:05:00Z")
+        0, _comment(AUTHOR_ID, "@coderabbitai full review", "2026-07-21T11:55:00Z")
     )
     comments["totalCount"] += 1
     repository["recentPullRequests"]["nodes"][0]["comments"]["totalCount"] += 1
@@ -1009,12 +1254,12 @@ def test_coderabbit_commands_in_the_same_second_fail_closed() -> None:
         "nodes": comments,
     }
     assert (
-        "CodeRabbit needs strictly ordered reservation and trigger comments after Codex"
-        in validate_context(context, files, now=NOW)
+        "CodeRabbit needs strictly ordered reservation and trigger comments "
+        "after the current head" in validate_context(context, files, now=NOW)
     )
 
 
-def test_coderabbit_trigger_must_follow_codex_completion() -> None:
+def test_coderabbit_trigger_may_precede_unselected_codex_activity() -> None:
     files = [ChangedFile(".github/workflows/review-route.yml")]
     context = _context("Load-bearing", files)
     repository = context["data"]["repository"]
@@ -1030,18 +1275,16 @@ def test_coderabbit_trigger_must_follow_codex_completion() -> None:
         "totalCount": len(comments),
         "nodes": comments,
     }
-    assert "CodeRabbit needs a current-SHA reservation, trigger, then completed review" in (
-        validate_context(context, files, now=NOW)
-    )
+    assert validate_context(context, files, now=NOW) == []
 
 
-def test_coderabbit_reservation_must_strictly_follow_codex_completion() -> None:
+def test_coderabbit_reservation_must_strictly_follow_current_head() -> None:
     files = [ChangedFile(".github/workflows/review-route.yml")]
     context = _context("Load-bearing", files)
     repository = context["data"]["repository"]
     comments = [
-        _comment(AUTHOR_ID, f"coderabbit-reservation: {HEAD_SHA}", GATE_TIMES[CODEX_GATE]),
-        _comment(AUTHOR_ID, "@coderabbitai full review", "2026-07-21T12:21:00Z"),
+        _comment(AUTHOR_ID, f"coderabbit-reservation: {HEAD_SHA}", COMMITTED_AT),
+        _comment(AUTHOR_ID, "@coderabbitai full review", "2026-07-21T12:01:00Z"),
     ]
     repository["pullRequest"]["comments"] = {
         "totalCount": len(comments),
@@ -1145,16 +1388,17 @@ def test_coderabbit_trigger_at_completion_second_requires_a_new_completion() -> 
     )
 
 
-def test_review_gates_in_the_same_second_fail_closed() -> None:
-    files = [ChangedFile("docs/typo-fix.md")]
-    context = _context("Low", files)
+@pytest.mark.parametrize("gate", [COPILOT_GATE, CODEX_GATE, CODERABBIT_GATE])
+def test_selected_provider_and_human_in_the_same_second_fail_closed(gate: str) -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, automated_gates={gate})
     pull_request = context["data"]["repository"]["pullRequest"]
     pull_request["body"] = pull_request["body"].replace(
         f"{GATE_TIMES[HUMAN_GATE]} — APPROVED",
-        f"{GATE_TIMES[COPILOT_GATE]} — APPROVED",
+        f"{GATE_TIMES[gate]} — APPROVED",
     )
-    pull_request["latestHumanOpinions"]["nodes"][0]["submittedAt"] = GATE_TIMES[COPILOT_GATE]
-    assert "verified reviews do not follow the selected route order" in validate_context(
+    pull_request["latestHumanOpinions"]["nodes"][0]["submittedAt"] = GATE_TIMES[gate]
+    assert "selected automated review must precede human approval" in validate_context(
         context, files, now=NOW
     )
 
@@ -1368,7 +1612,7 @@ def test_new_head_invalidates_live_bot_reviews() -> None:
     context = deepcopy(_context("Standard", files))
     context["data"]["repository"]["pullRequest"]["headRefOid"] = "c" * 40
     errors = validate_context(context, files, now=NOW)
-    assert f"no verified current-head GitHub activity for: {COPILOT_GATE}" in errors
+    assert f"no verified current-head GitHub activity for: {CODEX_GATE}" in errors
 
 
 def test_duplicate_open_pull_request_head_fails_closed() -> None:
@@ -1790,6 +2034,8 @@ esac
 def test_public_template_contains_only_hosted_review_gates() -> None:
     root = Path(__file__).resolve().parents[2]
     template = (root / ".github/PULL_REQUEST_TEMPLATE.md").read_text(encoding="utf-8")
+    assert SCHEMA_MARKER in template
+    assert all(f"- [ ] {reviewer}" in template for reviewer in ("Copilot", "Codex", "CodeRabbit"))
     assert all(gate in template.replace("`", "") for gate in GATES)
 
 
@@ -1798,7 +2044,8 @@ def test_contributor_review_routes_match_the_public_template() -> None:
     contributing = (root / "CONTRIBUTING.md").read_text(encoding="utf-8")
     normalized = " ".join(contributing.split())
     assert all(route in contributing for route in ("Low", "Standard", "Load-bearing"))
-    assert "Copilot, Codex, manual\n  CodeRabbit, then human approval" in contributing
+    assert "selects exactly one formal automated GitHub review" in normalized
+    assert "providers are substitutes, not a mandatory sequence" in normalized
     assert "five" in contributing and "rolling-hour" in contributing
     assert "/validate-route" in contributing
     assert "two open `main` PRs must never share a head SHA" in normalized

@@ -47,20 +47,29 @@ Issues are organised by a labelled taxonomy — see
 Choose the highest route required by any part of the final diff:
 
 - **Low:** text or mechanical changes with no behavior, public-contract,
-  science, security, dependency, or workflow impact. Run Copilot, then obtain
-  independent human approval.
+  science, security, dependency, or workflow impact. Copilot is the usual
+  automated reviewer.
 - **Standard:** routine code, tests, UI, refactors, or bug fixes outside a
-  load-bearing area. Run Copilot, Codex `@codex review`, then human approval.
+  load-bearing area. Codex `@codex review` is the usual automated reviewer.
 - **Load-bearing:** science or clinical logic/data and their tests; privacy,
   security, or auth; schema, migration, or data-loss paths; concurrency;
   dependencies; updater, installer, release, CI, workflows, permissions, core
-  architecture, or broad/hard-to-revert changes. Run Copilot, Codex, manual
-  CodeRabbit, then human approval.
+  architecture, or broad/hard-to-revert changes. Manual CodeRabbit is the
+  preferred automated reviewer when its quota is available.
 
-Reviews must be formal GitHub reviews on the final head SHA and occur in route
-order. Record the exact SHA and UTC completion time in the PR table. For
-CodeRabbit, after Codex completes, the same maintainer posts two separate,
-immutable comments at distinct times:
+Every route selects exactly one formal automated GitHub review from Copilot,
+Codex, or CodeRabbit, followed by independent human approval. These providers
+are substitutes, not a mandatory sequence: choose another when the preferred
+provider is unavailable or quota-limited. A maintainer may request extra
+advisory reviews when risk or findings justify them, but the selected lane is
+the one recorded in the route evidence. Record its exact final-head SHA and UTC
+completion time in the PR table; mark unused provider rows `N/A`. The selected
+automated review must complete before human approval. Do not manually request
+CodeRabbit as an extra advisory review; select the CodeRabbit lane first so its
+reservation and repository-wide quota remain enforceable.
+
+If CodeRabbit is selected, the same maintainer posts two separate, immutable
+comments at distinct times:
 
 1. `coderabbit-reservation: <full-head-SHA>`
 2. `@coderabbitai full review`
@@ -69,6 +78,8 @@ The reservation is a cooperative intent marker, not an atomic vendor slot.
 Maintainers serialize triggers; the validator rejects a visible rolling-hour
 ledger above five, but deleted comments or simultaneous races require manual
 coordination. Any later trigger needs a new reservation and completion.
+If no slot is available, choose Copilot or Codex instead of waiting solely for
+CodeRabbit.
 
 The final human approver must not be the PR author, and an active maintainer
 change request blocks the route. After final approval, record its evidence,

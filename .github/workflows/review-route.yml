@@ -1,5 +1,9 @@
 name: Review Route Policy
 
+# Repository rules cannot express OR across separate reviewer checks. This
+# trusted App-published aggregate accepts the PR's selected current-head
+# automated reviewer, then independently verifies human approval and threads.
+
 on:
   pull_request_target:
     branches: [main]

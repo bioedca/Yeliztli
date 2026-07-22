@@ -12,17 +12,24 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-SCHEMA_MARKER = "<!-- review-route-schema:v1 -->"
+LEGACY_SCHEMA_MARKER = "<!-- review-route-schema:v1 -->"
+SCHEMA_MARKER = "<!-- review-route-schema:v2 -->"
 ROUTE_RANK = {"Low": 0, "Standard": 1, "Load-bearing": 2}
 COPILOT_GATE = "Copilot PR review"
 CODEX_GATE = "Codex @codex review"
 CODERABBIT_GATE = "Manual CodeRabbit reservation and @coderabbitai full review"
 HUMAN_GATE = "Independent human maintainer review"
-GATES = (COPILOT_GATE, CODEX_GATE, CODERABBIT_GATE, HUMAN_GATE)
-REQUIRED_GATES = {
+BOT_GATES = (COPILOT_GATE, CODEX_GATE, CODERABBIT_GATE)
+GATES = (*BOT_GATES, HUMAN_GATE)
+REQUIRED_GATES_V1 = {
     "Low": {COPILOT_GATE, HUMAN_GATE},
     "Standard": {COPILOT_GATE, CODEX_GATE, HUMAN_GATE},
     "Load-bearing": set(GATES),
+}
+AUTOMATED_REVIEW_CHOICES = {
+    "Copilot": COPILOT_GATE,
+    "Codex": CODEX_GATE,
+    "CodeRabbit": CODERABBIT_GATE,
 }
 BOT_ACTOR_IDS = {
     COPILOT_GATE: 175728472,  # Copilot GitHub App
@@ -282,22 +289,31 @@ def _table_cells(line: str) -> list[str]:
     return [cell.strip() for cell in line.strip().strip("|").split("|")]
 
 
-def _parse_route_section(body: str) -> tuple[str | None, dict[str, Evidence], list[str]]:
+def _parse_route_section(
+    body: str,
+) -> tuple[str | None, int | None, list[str], dict[str, Evidence], list[str]]:
     errors: list[str] = []
-    marker_pattern = re.compile(r"(?mi)^## Review route\s*\n" + re.escape(SCHEMA_MARKER) + r"\s*$")
-    if len(marker_pattern.findall(body)) != 1:
-        errors.append("review-route schema marker must appear once directly below its heading")
+    marker_pattern = re.compile(
+        r"(?mi)^## Review route\s*\n"
+        r"<!-- review-route-schema:v(?P<version>[12]) -->\s*$"
+    )
+    marker_matches = list(marker_pattern.finditer(body))
+    if len(marker_matches) != 1:
+        errors.append(
+            "a supported review-route schema marker must appear once directly below its heading"
+        )
+    schema_version = int(marker_matches[0].group("version")) if len(marker_matches) == 1 else None
 
     visible = _visible_markdown(body)
     headings = list(re.finditer(r"(?mi)^## Review route\s*$", visible))
     if len(headings) != 1:
         errors.append("expected exactly one '## Review route' heading")
-        return None, {}, errors
+        return None, schema_version, [], {}, errors
     start = headings[0].end()
     following = re.search(r"(?mi)^##\s+", visible[start:])
     section = visible[start : start + following.start()] if following else visible[start:]
 
-    route_rows = re.findall(r"(?mi)^\s*-\s*\[([ xX])\]\s*(Low|Standard|Load-bearing)\b", section)
+    route_rows = re.findall(r"(?m)^\s*-\s*\[([ xX])\]\s*(Low|Standard|Load-bearing)\b", section)
     counts = {name: 0 for name in ROUTE_RANK}
     selected: list[str] = []
     for mark, name in route_rows:
@@ -309,6 +325,20 @@ def _parse_route_section(body: str) -> tuple[str | None, dict[str, Evidence], li
     if len(selected) != 1:
         errors.append("select exactly one review route")
     route = selected[0] if len(selected) == 1 else None
+
+    selected_bots: list[str] = []
+    if schema_version == 2:
+        reviewer_rows = re.findall(
+            r"(?m)^\s*-\s*\[([ xX])\]\s*(Copilot|Codex|CodeRabbit)\b",
+            section,
+        )
+        reviewer_counts = {name: 0 for name in AUTOMATED_REVIEW_CHOICES}
+        for mark, name in reviewer_rows:
+            reviewer_counts[name] += 1
+            if mark.lower() == "x":
+                selected_bots.append(AUTOMATED_REVIEW_CHOICES[name])
+        if any(count != 1 for count in reviewer_counts.values()):
+            errors.append("expected each automated reviewer checkbox exactly once")
 
     expected = set(GATES)
     evidence: dict[str, Evidence] = {}
@@ -333,7 +363,7 @@ def _parse_route_section(body: str) -> tuple[str | None, dict[str, Evidence], li
         errors.append("missing review evidence rows: " + ", ".join(sorted(missing)))
     if unknown:
         errors.append("unknown review evidence rows: " + ", ".join(sorted(unknown)))
-    return route, evidence, errors
+    return route, schema_version, selected_bots, evidence, errors
 
 
 def _is_load_bearing(path: str) -> bool:
@@ -474,15 +504,10 @@ def _current_human_approval(
     return (max(approvals) if approvals else None, active_change_request)
 
 
-def _coderabbit_trigger_state(
-    repository: dict[str, Any],
+def _coderabbit_protocol_events(
     pull_request: dict[str, Any],
     head_sha: str,
-    review_at: datetime,
-    head_epoch: datetime,
-    codex_at: datetime,
-) -> list[str]:
-    errors: list[str] = []
+) -> list[tuple[datetime, str, int]]:
     reservation_pattern = re.compile(rf"(?i)coderabbit-reservation:\s*{re.escape(head_sha)}")
     protocol: list[tuple[datetime, str, int]] = []
     for comment in pull_request["comments"].get("nodes") or []:
@@ -503,17 +528,32 @@ def _coderabbit_trigger_state(
             protocol.append((when, "reservation", actor_id))
         elif body.strip().lower() == "@coderabbitai full review":
             protocol.append((when, "trigger", actor_id))
+    return protocol
+
+
+def _coderabbit_trigger_state(
+    repository: dict[str, Any],
+    pull_request: dict[str, Any],
+    head_sha: str,
+    review_at: datetime,
+    head_epoch: datetime,
+    protocol_epoch: datetime,
+    protocol_label: str,
+) -> list[str]:
+    errors: list[str] = []
+    protocol = _coderabbit_protocol_events(pull_request, head_sha)
 
     # GitHub timestamps have one-second resolution. Equality cannot prove that
-    # a reservation followed Codex, or that a review followed its trigger.
-    protocol = [event for event in protocol if event[0] > max(head_epoch, codex_at)]
+    # a reservation followed its required epoch, or that a review followed its trigger.
+    protocol = [event for event in protocol if event[0] > max(head_epoch, protocol_epoch)]
     protocol.sort(key=lambda event: event[0])
     if not protocol:
         errors.append("CodeRabbit needs a current-SHA reservation, trigger, then completed review")
         return errors
     if any(left[0] == right[0] for left, right in zip(protocol, protocol[1:], strict=False)):
         errors.append(
-            "CodeRabbit needs strictly ordered reservation and trigger comments after Codex"
+            "CodeRabbit needs strictly ordered reservation and trigger comments "
+            f"after {protocol_label}"
         )
         return errors
     expected = "reservation"
@@ -696,7 +736,9 @@ def validate_context(
     if force_push_times:
         head_epoch = max(head_epoch, *force_push_times)
 
-    route, evidence, parse_errors = _parse_route_section(pull_request.get("body") or "")
+    route, schema_version, selected_bots, evidence, parse_errors = _parse_route_section(
+        pull_request.get("body") or ""
+    )
     errors.extend(parse_errors)
     if pull_request.get("changedFiles") != len(files):
         errors.append("changed-file API count does not match the pull request")
@@ -725,7 +767,16 @@ def validate_context(
     if any(not thread.get("isResolved") for thread in threads.get("nodes") or []):
         errors.append("unresolved review threads remain")
 
-    required = REQUIRED_GATES[route]
+    if schema_version == 1:
+        required = REQUIRED_GATES_V1[route]
+    else:
+        if len(selected_bots) != 1:
+            errors.append("select exactly one automated PR reviewer")
+        required = {*selected_bots, HUMAN_GATE}
+    if CODERABBIT_GATE not in required and any(
+        when > head_epoch for when, _, _ in _coderabbit_protocol_events(pull_request, head_sha)
+    ):
+        errors.append("manual CodeRabbit requests require selecting the CodeRabbit lane")
     body_times: dict[str, datetime] = {}
     for gate in GATES:
         row = evidence.get(gate)
@@ -781,7 +832,12 @@ def validate_context(
                 f"declared evidence time does not match verified GitHub activity: {gate}"
             )
 
-    if route == "Load-bearing" and CODERABBIT_GATE in observed and CODEX_GATE in observed:
+    if (
+        schema_version == 1
+        and route == "Load-bearing"
+        and CODERABBIT_GATE in observed
+        and CODEX_GATE in observed
+    ):
         errors.extend(
             _coderabbit_trigger_state(
                 repository,
@@ -790,20 +846,40 @@ def validate_context(
                 observed[CODERABBIT_GATE],
                 head_epoch,
                 observed[CODEX_GATE],
+                "Codex",
+            )
+        )
+    elif (
+        schema_version == 2 and selected_bots == [CODERABBIT_GATE] and CODERABBIT_GATE in observed
+    ):
+        errors.extend(
+            _coderabbit_trigger_state(
+                repository,
+                pull_request,
+                head_sha,
+                observed[CODERABBIT_GATE],
+                head_epoch,
+                head_epoch,
+                "the current head",
             )
         )
 
     gate_times = {**body_times, **observed}
-    if route == "Low":
-        sequence = [COPILOT_GATE, HUMAN_GATE]
-    elif route == "Standard":
-        sequence = [COPILOT_GATE, CODEX_GATE, HUMAN_GATE]
+    if schema_version == 1:
+        if route == "Low":
+            sequence = [COPILOT_GATE, HUMAN_GATE]
+        elif route == "Standard":
+            sequence = [COPILOT_GATE, CODEX_GATE, HUMAN_GATE]
+        else:
+            sequence = [COPILOT_GATE, CODEX_GATE, CODERABBIT_GATE, HUMAN_GATE]
+        sequence_error = "verified reviews do not follow the selected route order"
     else:
-        sequence = [COPILOT_GATE, CODEX_GATE, CODERABBIT_GATE, HUMAN_GATE]
+        sequence = [*selected_bots, HUMAN_GATE]
+        sequence_error = "selected automated review must precede human approval"
     if all(gate in gate_times for gate in sequence):
         times = [gate_times[gate] for gate in sequence]
         if any(left >= right for left, right in zip(times, times[1:], strict=False)):
-            errors.append("verified reviews do not follow the selected route order")
+            errors.append(sequence_error)
     if has_finalizer:
         finalizer_at, finalizer_errors = _finalizer_activity(
             pull_request,
