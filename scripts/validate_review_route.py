@@ -9,6 +9,7 @@ import re
 import sys
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
 
@@ -384,6 +385,104 @@ def _inside_raw_html_container(markdown: str) -> bool:
     ):
         return True
 
+    container_tags = {
+        "address",
+        "article",
+        "aside",
+        "blockquote",
+        "body",
+        "center",
+        "details",
+        "dialog",
+        "dir",
+        "div",
+        "dl",
+        "fieldset",
+        "figcaption",
+        "figure",
+        "footer",
+        "form",
+        "frameset",
+        "head",
+        "header",
+        "html",
+        "iframe",
+        "main",
+        "menu",
+        "nav",
+        "noframes",
+        "ol",
+        "optgroup",
+        "section",
+        "summary",
+        "table",
+        "tbody",
+        "template",
+        "tfoot",
+        "thead",
+        "title",
+        "tr",
+        "ul",
+    }
+
+    class ContainerParser(HTMLParser):
+        def __init__(self) -> None:
+            super().__init__(convert_charrefs=True)
+            self.stack: list[str] = []
+            self.invalid = False
+
+        @staticmethod
+        def tracked(tag: str) -> bool:
+            return tag in container_tags or "-" in tag
+
+        def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+            del attrs
+            tag = tag.lower()
+            if self.tracked(tag):
+                self.stack.append(tag)
+
+        # HTMLParser invokes these callbacks dynamically.
+        def handle_startendtag(  # noqa
+            self, tag: str, attrs: list[tuple[str, str | None]]
+        ) -> None:
+            # HTML ignores self-closing syntax on non-void elements. GitHub can
+            # therefore render `<details />` as a container around later rows.
+            self.handle_starttag(tag, attrs)
+
+        def handle_endtag(self, tag: str) -> None:  # noqa
+            tag = tag.lower()
+            if not self.tracked(tag) or not self.stack:
+                return
+            if tag not in self.stack or self.stack[-1] != tag:
+                self.invalid = True
+            if tag in self.stack:
+                while self.stack:
+                    if self.stack.pop() == tag:
+                        break
+
+    container_parser = ContainerParser()
+    raw_tag_line = re.compile(
+        r"^[ ]{0,3}</?(?P<tag>[a-z][a-z0-9-]*)(?=[ \t/>])",
+        flags=re.IGNORECASE,
+    )
+    previous_blank = True
+    for line in markdown.splitlines():
+        # Do not turn autolinks or inline-code examples into container state.
+        # Once a real container is open, continue parsing every line so a
+        # closing tag after ordinary text is still observed. CommonMark type-7
+        # tags, including custom elements and template, cannot interrupt an
+        # ordinary paragraph; the standard block containers can.
+        raw_tag = raw_tag_line.match(line)
+        interrupting_tag = bool(
+            raw_tag and raw_tag.group("tag").lower() in container_tags - {"template"}
+        )
+        if container_parser.stack or (raw_tag and (previous_blank or interrupting_tag)):
+            container_parser.feed(f"{line}\n")
+        previous_blank = not line.strip()
+    container_parser.close()
+    if container_parser.invalid or container_parser.stack:
+        return True
+
     tail = re.split(r"\n[ \t]*\n", markdown)[-1]
     block_tags = (
         "address|article|aside|base|basefont|blockquote|body|caption|center|col|"
@@ -464,7 +563,7 @@ def _parse_route_section(
         errors.append("raw HTML is not allowed in the review-route section")
 
     route_rows = re.findall(
-        r"(?m)^[ ]{0,3}-\s*\[([ xX])\]\s*(Low|Standard|Load-bearing)\b",
+        r"(?m)^[ ]{0,3}-[ \t]+\[([ xX])\][ \t]+(Low|Standard|Load-bearing)\b",
         section,
     )
     counts = {name: 0 for name in ROUTE_RANK}
@@ -482,7 +581,7 @@ def _parse_route_section(
     selected_bots: list[str] = []
     if schema_version == 2:
         reviewer_rows = re.findall(
-            r"(?m)^[ ]{0,3}-\s*\[([ xX])\]\s*(Copilot|Codex|CodeRabbit)\b",
+            r"(?m)^[ ]{0,3}-[ \t]+\[([ xX])\][ \t]+(Copilot|Codex|CodeRabbit)\b",
             section,
         )
         reviewer_counts = {name: 0 for name in AUTOMATED_REVIEW_CHOICES}

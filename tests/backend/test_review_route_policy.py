@@ -844,6 +844,50 @@ def test_noncanonical_checkbox_casing_fails_without_crashing(
     assert expected_error in validate_context(context, files, now=NOW)
 
 
+@pytest.mark.parametrize(
+    ("canonical", "malformed", "expected_error"),
+    [
+        (
+            "- [x] Low",
+            "-[x] Low",
+            "expected each canonical route checkbox exactly once",
+        ),
+        (
+            "- [x] Low",
+            "- [x]Low",
+            "expected each canonical route checkbox exactly once",
+        ),
+        (
+            "- [x] Low",
+            "-\n[x]\nLow",
+            "expected each canonical route checkbox exactly once",
+        ),
+        (
+            "- [x] Copilot",
+            "-[x] Copilot",
+            "expected each automated reviewer checkbox exactly once",
+        ),
+        (
+            "- [x] Copilot",
+            "- [x]Copilot",
+            "expected each automated reviewer checkbox exactly once",
+        ),
+        (
+            "- [x] Copilot",
+            "-\n[x]\nCopilot",
+            "expected each automated reviewer checkbox exactly once",
+        ),
+    ],
+)
+def test_task_list_rows_require_horizontal_whitespace(
+    canonical: str, malformed: str, expected_error: str
+) -> None:
+    files = [ChangedFile("docs/typo-fix.md")]
+    body = _body("Low").replace(canonical, malformed)
+    context = _context("Low", files, body=body)
+    assert expected_error in validate_context(context, files, now=NOW)
+
+
 def test_v2_unused_provider_evidence_must_be_na() -> None:
     files = [ChangedFile("README.md")]
     context = _context("Load-bearing", files, automated_gates={CODEX_GATE})
@@ -2569,6 +2613,34 @@ def test_nested_raw_html_prefix_cannot_hide_route_until_the_next_heading() -> No
     )
     errors = validate_context(context, files, now=NOW)
     assert "raw HTML is not allowed to contain the review-route section" in errors
+
+
+@pytest.mark.parametrize("opening", ['<details data-label="a > b">', "<details />"])
+def test_open_details_across_a_blank_line_cannot_hide_route(opening: str) -> None:
+    files = [ChangedFile("docs/guide.md")]
+    context = _context("Low", files)
+    pull_request = context["data"]["repository"]["pullRequest"]
+    pull_request["body"] = (
+        pull_request["body"]
+        .replace(
+            "## Review route",
+            f"{opening}\n<summary>Hidden route</summary>\n\n## Review route",
+        )
+        .replace("## Legal", "## Legal\n\n</details>")
+    )
+    errors = validate_context(context, files, now=NOW)
+    assert "raw HTML is not allowed to contain the review-route section" in errors
+
+
+def test_closed_details_before_route_does_not_hide_it() -> None:
+    files = [ChangedFile("docs/guide.md")]
+    context = _context("Low", files)
+    pull_request = context["data"]["repository"]["pullRequest"]
+    pull_request["body"] = pull_request["body"].replace(
+        "## Review route",
+        "<details><summary>Earlier details</summary></details>\n\n## Review route",
+    )
+    assert validate_context(context, files, now=NOW) == []
 
 
 def test_closed_raw_html_before_route_does_not_hide_it() -> None:
