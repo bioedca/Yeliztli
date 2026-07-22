@@ -75,11 +75,21 @@ comments at distinct times:
 2. `@coderabbitai full review`
 
 The reservation is a cooperative intent marker, not an atomic vendor slot.
-Maintainers serialize triggers; the validator rejects a visible rolling-hour
-ledger above five, but deleted comments or simultaneous races require manual
-coordination. Any later trigger needs a new reservation and completion.
-If no slot is available, choose Copilot or Codex instead of waiting solely for
-CodeRabbit.
+Within one PR, service current-head reservations FIFO by GitHub creation time,
+then immutable comment ID for same-second reservations, and serialize triggers
+in that order. Across PRs, maintainers coordinate triggers manually; the
+validator counts them repository-wide but does not provide an atomic queue.
+The validator rejects a visible rolling-hour ledger above five, but deleted
+comments or simultaneous races require manual coordination. If a quota refetch
+or race forces a provider switch before the trigger, leave the immutable
+reservation in place; it invokes no vendor and consumes no quota. Immediately
+before triggering, re-fetch the PR: CodeRabbit must still be selected and the
+reservation SHA must still be the head. The validator attributes the SHA-less
+trigger to that same maintainer's preceding reservation before evaluating the
+current-head lane. Every actual trigger counts in the repository-wide ledger,
+including prior-head pairs, and needs a new reservation and completion if
+repeated. If no slot is available, choose Copilot or Codex instead of waiting
+solely for CodeRabbit.
 
 The final human approver must not be the PR author, and an active maintainer
 change request blocks the route. After final approval, record its evidence,

@@ -9,9 +9,9 @@ on:
 
 # This workflow carries no credentials and executes no repository code. Every
 # diff-comment actor emits this credential-free signal; formal review signals
-# are limited to maintainers and the configured review bots. Its trusted
-# run-name transports only the PR number and head to the default-branch
-# workflow_run invalidator, which can publish pending but never success.
+# are limited to maintainers and the configured review bots. Its structured
+# run-name transports only a claimed PR/head identity to the default-branch
+# workflow_run invalidator, which live-binds it and can publish only pending.
 # GitHub Actions has no review-thread resolved/unresolved trigger.
 # Native required conversation resolution is the synchronous authority for
 # those transitions, and final validation rechecks every thread.

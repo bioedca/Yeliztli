@@ -507,9 +507,9 @@ def _current_human_approval(
 def _coderabbit_protocol_events(
     pull_request: dict[str, Any],
     head_sha: str,
-) -> list[tuple[datetime, str, int]]:
-    reservation_pattern = re.compile(rf"(?i)coderabbit-reservation:\s*{re.escape(head_sha)}")
-    protocol: list[tuple[datetime, str, int]] = []
+) -> list[tuple[datetime, str, int, int | None]]:
+    reservation_pattern = re.compile(r"(?i)coderabbit-reservation:\s*([0-9a-f]{40})")
+    raw_events: list[tuple[datetime, str, int, str | None, int | None]] = []
     for comment in pull_request["comments"].get("nodes") or []:
         body = comment.get("body") or ""
         when = _parse_utc(comment["createdAt"])
@@ -524,10 +524,41 @@ def _coderabbit_protocol_events(
             or comment.get("lastEditedAt") is not None
         ):
             continue
-        if reservation_pattern.fullmatch(body.strip()):
-            protocol.append((when, "reservation", actor_id))
+        comment_id = comment.get("databaseId")
+        if not isinstance(comment_id, int):
+            comment_id = None
+        reservation = reservation_pattern.fullmatch(body.strip())
+        if reservation:
+            raw_events.append(
+                (when, "reservation", actor_id, reservation.group(1).lower(), comment_id)
+            )
         elif body.strip().lower() == "@coderabbitai full review":
-            protocol.append((when, "trigger", actor_id))
+            raw_events.append((when, "trigger", actor_id, None, comment_id))
+
+    # A trigger carries no SHA. Attribute it to its same-maintainer reservation
+    # before filtering for the current head; filtering reservations first can
+    # leave a prior head's trigger looking current when a commit predates its push.
+    raw_events.sort(key=lambda event: (event[0], event[4] if event[4] is not None else -1))
+    pending: dict[int, tuple[datetime, str]] = {}
+    protocol: list[tuple[datetime, str, int, int | None]] = []
+    current_head = head_sha.lower()
+    for when, kind, actor_id, reservation_sha, comment_id in raw_events:
+        if kind == "reservation":
+            assert reservation_sha is not None
+            pending[actor_id] = (when, reservation_sha)
+            if reservation_sha == current_head:
+                protocol.append((when, "reservation", actor_id, comment_id))
+            continue
+        reservation = pending.pop(actor_id, None)
+        if reservation is None:
+            # An exact trusted trigger without a visible reservation is
+            # unattributable, so retain it to make current-head checks fail closed.
+            protocol.append((when, "trigger", actor_id, comment_id))
+            continue
+        _, reserved_sha = reservation
+        if reserved_sha == current_head:
+            protocol.append((when, "trigger", actor_id, comment_id))
+    protocol.sort(key=lambda event: (event[0], event[3] if event[3] is not None else -1))
     return protocol
 
 
@@ -543,39 +574,53 @@ def _coderabbit_trigger_state(
     errors: list[str] = []
     protocol = _coderabbit_protocol_events(pull_request, head_sha)
 
-    # GitHub timestamps have one-second resolution. Equality cannot prove that
-    # a reservation followed its required epoch, or that a review followed its trigger.
+    # GitHub timestamps have one-second resolution; immutable database IDs break
+    # ties between different protocol attempts. One maintainer's reservation and
+    # trigger must still occur in distinct seconds.
     protocol = [event for event in protocol if event[0] > max(head_epoch, protocol_epoch)]
-    protocol.sort(key=lambda event: event[0])
+    protocol.sort(key=lambda event: (event[0], event[3] if event[3] is not None else -1))
     if not protocol:
         errors.append("CodeRabbit needs a current-SHA reservation, trigger, then completed review")
         return errors
-    if any(left[0] == right[0] for left, right in zip(protocol, protocol[1:], strict=False)):
-        errors.append(
-            "CodeRabbit needs strictly ordered reservation and trigger comments "
-            f"after {protocol_label}"
-        )
+    comment_ids = [event[3] for event in protocol]
+    if any(comment_id is None for comment_id in comment_ids) or len(comment_ids) != len(
+        set(comment_ids)
+    ):
+        errors.append("CodeRabbit protocol needs unique immutable comment IDs")
         return errors
-    expected = "reservation"
-    reservation_actor: int | None = None
+    pending_by_actor: dict[int, datetime] = {}
+    reservation_queue: list[int] = []
     trigger_at: datetime | None = None
-    for when, kind, actor_id in protocol:
-        if kind != expected:
-            errors.append("CodeRabbit reservations and triggers must form one-to-one pairs")
-            return errors
+    for when, kind, actor_id, _ in protocol:
         if kind == "reservation":
-            reservation_actor = actor_id
-            expected = "trigger"
+            if actor_id in pending_by_actor:
+                errors.append("CodeRabbit reservations and triggers must form one-to-one pairs")
+                return errors
+            pending_by_actor[actor_id] = when
+            reservation_queue.append(actor_id)
             continue
-        if actor_id != reservation_actor:
-            errors.append("the same maintainer must reserve and trigger CodeRabbit")
+        if actor_id not in pending_by_actor:
+            if pending_by_actor:
+                errors.append("the same maintainer must reserve and trigger CodeRabbit")
+            else:
+                errors.append("CodeRabbit reservations and triggers must form one-to-one pairs")
+            return errors
+        if not reservation_queue or reservation_queue[0] != actor_id:
+            errors.append("CodeRabbit triggers must follow reservation FIFO order")
+            return errors
+        if when == pending_by_actor[actor_id]:
+            errors.append(
+                "CodeRabbit needs strictly ordered reservation and trigger comments "
+                f"after {protocol_label}"
+            )
             return errors
         if when >= review_at:
             errors.append("CodeRabbit was triggered again after its latest completed review")
             return errors
+        reservation_queue.pop(0)
+        del pending_by_actor[actor_id]
         trigger_at = when
-        expected = "reservation"
-    if expected != "reservation" or trigger_at is None:
+    if reservation_queue or pending_by_actor or trigger_at is None:
         errors.append("CodeRabbit needs a current-SHA reservation, trigger, then completed review")
         return errors
 
@@ -774,9 +819,10 @@ def validate_context(
             errors.append("select exactly one automated PR reviewer")
         required = {*selected_bots, HUMAN_GATE}
     if CODERABBIT_GATE not in required and any(
-        when > head_epoch for when, _, _ in _coderabbit_protocol_events(pull_request, head_sha)
+        when > head_epoch and kind == "trigger"
+        for when, kind, _, _ in _coderabbit_protocol_events(pull_request, head_sha)
     ):
-        errors.append("manual CodeRabbit requests require selecting the CodeRabbit lane")
+        errors.append("manual CodeRabbit triggers require selecting the CodeRabbit lane")
     body_times: dict[str, datetime] = {}
     for gate in GATES:
         row = evidence.get(gate)

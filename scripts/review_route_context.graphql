@@ -56,6 +56,7 @@ query ReviewRouteContext($owner: String!, $repo: String!, $number: Int!) {
         totalCount
         nodes {
           id
+          databaseId
           author {
             __typename
             login

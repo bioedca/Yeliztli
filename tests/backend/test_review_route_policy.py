@@ -466,7 +466,197 @@ def test_v2_unselected_manual_coderabbit_request_fails(gate: str) -> None:
         "nodes": comments,
     }
     errors = validate_context(context, files, now=NOW)
-    assert "manual CodeRabbit requests require selecting the CodeRabbit lane" in errors
+    assert "manual CodeRabbit triggers require selecting the CodeRabbit lane" in errors
+
+
+@pytest.mark.parametrize("gate", [COPILOT_GATE, CODEX_GATE])
+def test_v2_abandoned_coderabbit_reservation_allows_provider_fallback(gate: str) -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, automated_gates={gate})
+    repository = context["data"]["repository"]
+    comments = [_comment(AUTHOR_ID, f"coderabbit-reservation: {HEAD_SHA}", "2026-07-21T12:24:00Z")]
+    repository["pullRequest"]["comments"] = {
+        "totalCount": len(comments),
+        "nodes": comments,
+    }
+    repository["recentPullRequests"]["nodes"][0]["comments"] = {
+        "totalCount": len(comments),
+        "nodes": comments,
+    }
+    assert validate_context(context, files, now=NOW) == []
+
+
+def test_v2_selected_coderabbit_reservation_without_trigger_is_incomplete() -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, automated_gates={CODERABBIT_GATE})
+    repository = context["data"]["repository"]
+    comments = [_comment(AUTHOR_ID, f"coderabbit-reservation: {HEAD_SHA}", "2026-07-21T12:24:00Z")]
+    repository["pullRequest"]["comments"] = {
+        "totalCount": len(comments),
+        "nodes": comments,
+    }
+    repository["recentPullRequests"]["nodes"][0]["comments"] = {
+        "totalCount": len(comments),
+        "nodes": comments,
+    }
+    errors = validate_context(context, files, now=NOW)
+    assert "CodeRabbit needs a current-SHA reservation, trigger, then completed review" in errors
+
+
+def test_v2_selected_coderabbit_rejects_duplicate_reservation_before_trigger() -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, automated_gates={CODERABBIT_GATE})
+    repository = context["data"]["repository"]
+    comments = [
+        _comment(AUTHOR_ID, f"coderabbit-reservation: {HEAD_SHA}", "2026-07-21T12:23:00Z"),
+        _comment(AUTHOR_ID, f"coderabbit-reservation: {HEAD_SHA}", "2026-07-21T12:24:00Z"),
+        _comment(AUTHOR_ID, "@coderabbitai full review", "2026-07-21T12:25:00Z"),
+    ]
+    repository["pullRequest"]["comments"] = {
+        "totalCount": len(comments),
+        "nodes": comments,
+    }
+    repository["recentPullRequests"]["nodes"][0]["comments"] = {
+        "totalCount": len(comments),
+        "nodes": comments,
+    }
+    assert "CodeRabbit reservations and triggers must form one-to-one pairs" in validate_context(
+        context, files, now=NOW
+    )
+
+
+def test_v2_selected_coderabbit_accepts_fifo_queued_reservations() -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, automated_gates={CODERABBIT_GATE})
+    repository = context["data"]["repository"]
+    comments = [
+        _comment(AUTHOR_ID, f"coderabbit-reservation: {HEAD_SHA}", "2026-07-21T12:22:00Z"),
+        _comment(333, f"coderabbit-reservation: {HEAD_SHA}", "2026-07-21T12:23:00Z"),
+        _comment(AUTHOR_ID, "@coderabbitai full review", "2026-07-21T12:24:00Z"),
+        _comment(333, "@coderabbitai full review", "2026-07-21T12:25:00Z"),
+    ]
+    repository["pullRequest"]["comments"] = {
+        "totalCount": len(comments),
+        "nodes": comments,
+    }
+    repository["recentPullRequests"]["nodes"][0]["comments"] = {
+        "totalCount": len(comments),
+        "nodes": comments,
+    }
+    assert validate_context(context, files, now=NOW) == []
+
+
+def test_v2_selected_coderabbit_uses_comment_id_for_same_second_reservation_fifo() -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, automated_gates={CODERABBIT_GATE})
+    repository = context["data"]["repository"]
+    comments = [
+        _comment(
+            333,
+            f"coderabbit-reservation: {HEAD_SHA}",
+            "2026-07-21T12:22:00Z",
+            comment_id=1002,
+        ),
+        _comment(
+            AUTHOR_ID,
+            f"coderabbit-reservation: {HEAD_SHA}",
+            "2026-07-21T12:22:00Z",
+            comment_id=1001,
+        ),
+        _comment(AUTHOR_ID, "@coderabbitai full review", "2026-07-21T12:24:00Z"),
+        _comment(333, "@coderabbitai full review", "2026-07-21T12:25:00Z"),
+    ]
+    repository["pullRequest"]["comments"] = {
+        "totalCount": len(comments),
+        "nodes": comments,
+    }
+    repository["recentPullRequests"]["nodes"][0]["comments"] = {
+        "totalCount": len(comments),
+        "nodes": comments,
+    }
+    assert validate_context(context, files, now=NOW) == []
+
+
+def test_v2_selected_coderabbit_allows_cross_attempt_same_second_fifo() -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, automated_gates={CODERABBIT_GATE})
+    repository = context["data"]["repository"]
+    comments = [
+        _comment(
+            AUTHOR_ID,
+            f"coderabbit-reservation: {HEAD_SHA}",
+            "2026-07-21T12:22:00Z",
+            comment_id=1000,
+        ),
+        _comment(
+            AUTHOR_ID,
+            "@coderabbitai full review",
+            "2026-07-21T12:23:00Z",
+            comment_id=1001,
+        ),
+        _comment(
+            333,
+            f"coderabbit-reservation: {HEAD_SHA}",
+            "2026-07-21T12:23:00Z",
+            comment_id=1002,
+        ),
+        _comment(
+            333,
+            "@coderabbitai full review",
+            "2026-07-21T12:24:00Z",
+            comment_id=1003,
+        ),
+    ]
+    repository["pullRequest"]["comments"] = {
+        "totalCount": len(comments),
+        "nodes": comments,
+    }
+    repository["recentPullRequests"]["nodes"][0]["comments"] = {
+        "totalCount": len(comments),
+        "nodes": comments,
+    }
+    assert validate_context(context, files, now=NOW) == []
+
+
+def test_v2_selected_coderabbit_rejects_reverse_reservation_order() -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, automated_gates={CODERABBIT_GATE})
+    repository = context["data"]["repository"]
+    comments = [
+        _comment(AUTHOR_ID, f"coderabbit-reservation: {HEAD_SHA}", "2026-07-21T12:22:00Z"),
+        _comment(333, f"coderabbit-reservation: {HEAD_SHA}", "2026-07-21T12:23:00Z"),
+        _comment(333, "@coderabbitai full review", "2026-07-21T12:24:00Z"),
+        _comment(AUTHOR_ID, "@coderabbitai full review", "2026-07-21T12:25:00Z"),
+    ]
+    repository["pullRequest"]["comments"] = {
+        "totalCount": len(comments),
+        "nodes": comments,
+    }
+    repository["recentPullRequests"]["nodes"][0]["comments"] = {
+        "totalCount": len(comments),
+        "nodes": comments,
+    }
+    assert "CodeRabbit triggers must follow reservation FIFO order" in validate_context(
+        context, files, now=NOW
+    )
+
+
+@pytest.mark.parametrize("gate", [COPILOT_GATE, CODEX_GATE])
+def test_v2_unselected_orphan_coderabbit_trigger_fails_closed(gate: str) -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, automated_gates={gate})
+    repository = context["data"]["repository"]
+    comments = [_comment(AUTHOR_ID, "@coderabbitai full review", "2026-07-21T12:25:00Z")]
+    repository["pullRequest"]["comments"] = {
+        "totalCount": len(comments),
+        "nodes": comments,
+    }
+    repository["recentPullRequests"]["nodes"][0]["comments"] = {
+        "totalCount": len(comments),
+        "nodes": comments,
+    }
+    errors = validate_context(context, files, now=NOW)
+    assert "manual CodeRabbit triggers require selecting the CodeRabbit lane" in errors
 
 
 def test_v2_draft_may_defer_exactly_one_provider_selection() -> None:
@@ -1096,6 +1286,53 @@ def test_coderabbit_quota_overflow_fails() -> None:
     assert "CodeRabbit rolling-hour trigger quota exceeded: 6 > 5" in errors
 
 
+def test_prior_head_coderabbit_triggers_still_count_toward_global_quota() -> None:
+    files = [ChangedFile(".github/workflows/review-route.yml")]
+    context = _context("Load-bearing", files)
+    recent = context["data"]["repository"]["recentPullRequests"]
+    old_sha = "b" * 40
+    old_pairs = []
+    for reservation_minute in (30, 40, 50):
+        old_pairs.extend(
+            [
+                _comment(
+                    AUTHOR_ID,
+                    f"coderabbit-reservation: {old_sha}",
+                    f"2026-07-21T11:{reservation_minute}:00Z",
+                ),
+                _comment(
+                    AUTHOR_ID,
+                    "@coderabbitai full review",
+                    f"2026-07-21T11:{reservation_minute + 1}:00Z",
+                ),
+            ]
+        )
+    for reservation_minute in (0, 10):
+        old_pairs.extend(
+            [
+                _comment(
+                    AUTHOR_ID,
+                    f"coderabbit-reservation: {old_sha}",
+                    f"2026-07-21T12:{reservation_minute:02d}:00Z",
+                ),
+                _comment(
+                    AUTHOR_ID,
+                    "@coderabbitai full review",
+                    f"2026-07-21T12:{reservation_minute + 1:02d}:00Z",
+                ),
+            ]
+        )
+    recent["nodes"].append(
+        {
+            "updatedAt": "2026-07-21T12:11:00Z",
+            "comments": {"totalCount": len(old_pairs), "nodes": old_pairs},
+        }
+    )
+    recent["totalCount"] += 1
+    errors = validate_context(context, files, now=NOW)
+    assert "CodeRabbit rolling-hour trigger quota exceeded: 6 > 5" in errors
+
+
 def test_coderabbit_quota_allows_exactly_five_visible_triggers() -> None:
     files = [ChangedFile(".github/workflows/review-route.yml")]
     context = _context("Load-bearing", files)
@@ -1214,16 +1451,39 @@ def test_coderabbit_completion_marker_allows_quoted_failure_text() -> None:
     assert validate_context(context, files, now=NOW) == []
 
 
-def test_old_coderabbit_trigger_does_not_break_new_head_sequence() -> None:
+def test_old_head_coderabbit_pair_does_not_break_new_head_sequence() -> None:
     files = [ChangedFile(".github/workflows/review-route.yml")]
     context = _context("Load-bearing", files)
     repository = context["data"]["repository"]
     comments = repository["pullRequest"]["comments"]
-    comments["nodes"].insert(
-        0, _comment(AUTHOR_ID, "@coderabbitai full review", "2026-07-21T11:55:00Z")
-    )
-    comments["totalCount"] += 1
-    repository["recentPullRequests"]["nodes"][0]["comments"]["totalCount"] += 1
+    old_pair = [
+        _comment(AUTHOR_ID, f"coderabbit-reservation: {'b' * 40}", "2026-07-21T12:05:00Z"),
+        _comment(AUTHOR_ID, "@coderabbitai full review", "2026-07-21T12:06:00Z"),
+    ]
+    comments["nodes"][:0] = old_pair
+    comments["totalCount"] += len(old_pair)
+    recent_comments = repository["recentPullRequests"]["nodes"][0]["comments"]
+    recent_comments["totalCount"] += len(old_pair)
+    assert validate_context(context, files, now=NOW) == []
+
+
+@pytest.mark.parametrize("gate", [COPILOT_GATE, CODEX_GATE])
+def test_old_head_coderabbit_pair_does_not_block_provider_fallback(gate: str) -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, automated_gates={gate})
+    repository = context["data"]["repository"]
+    comments = [
+        _comment(AUTHOR_ID, f"coderabbit-reservation: {'b' * 40}", "2026-07-21T12:05:00Z"),
+        _comment(AUTHOR_ID, "@coderabbitai full review", "2026-07-21T12:06:00Z"),
+    ]
+    repository["pullRequest"]["comments"] = {
+        "totalCount": len(comments),
+        "nodes": comments,
+    }
+    repository["recentPullRequests"]["nodes"][0]["comments"] = {
+        "totalCount": len(comments),
+        "nodes": comments,
+    }
     assert validate_context(context, files, now=NOW) == []
 
 
@@ -1840,7 +2100,10 @@ def test_review_state_signal_is_credential_free_and_only_drives_pending() -> Non
     assert "workflow_run.pull_requests" not in resolver
     assert "any(.workflow_run.pull_requests[]?;" not in resolver
     assert "SOURCE_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}" in resolver
-    assert '[ "$signal_head" != "$source_head" ]' in resolver
+    assert "$source == $head" in resolver
+    assert "Review-event workflow_run.head_sha is the reviewed PR head" in resolver
+    assert "merge_commit_sha" not in resolver
+    assert ".mergeable" not in resolver
     assert "(.head.sha | ascii_downcase) == $head" in resolver
     assert "($matches | length) == 1" in resolver
     assert "environment:\n      name: review-route-publisher" in invalidator
@@ -1960,13 +2223,54 @@ def test_review_signal_executes_actor_and_event_matrix(
 
 
 @pytest.mark.parametrize(
-    ("source_head", "duplicate_head", "expected"),
-    [(HEAD_SHA, False, 0), ("b" * 40, False, 1), (HEAD_SHA, True, 1)],
+    (
+        "signal_head",
+        "source_head_sha",
+        "live_head_sha",
+        "duplicate_head",
+        "state",
+        "base_ref",
+        "base_repo",
+        "expected",
+    ),
+    [
+        (HEAD_SHA, HEAD_SHA, HEAD_SHA, False, "open", "main", "bioedca/Yeliztli", 0),
+        (
+            "b" * 40,
+            HEAD_SHA,
+            HEAD_SHA,
+            False,
+            "open",
+            "main",
+            "bioedca/Yeliztli",
+            1,
+        ),
+        (HEAD_SHA, "b" * 40, HEAD_SHA, False, "open", "main", "bioedca/Yeliztli", 1),
+        (HEAD_SHA, HEAD_SHA, "b" * 40, False, "open", "main", "bioedca/Yeliztli", 1),
+        (HEAD_SHA, HEAD_SHA, HEAD_SHA, True, "open", "main", "bioedca/Yeliztli", 1),
+        (HEAD_SHA, HEAD_SHA, HEAD_SHA, False, "closed", "main", "bioedca/Yeliztli", 1),
+        (HEAD_SHA, HEAD_SHA, HEAD_SHA, False, "open", "release", "bioedca/Yeliztli", 1),
+        (
+            HEAD_SHA,
+            HEAD_SHA,
+            HEAD_SHA,
+            False,
+            "open",
+            "main",
+            "attacker/Yeliztli",
+            1,
+        ),
+    ],
 )
-def test_review_signal_resolver_executes_fork_safe_live_binding(
+def test_review_signal_resolver_binds_source_and_live_head(
     tmp_path: Path,
-    source_head: str,
+    signal_head: str,
+    source_head_sha: str,
+    live_head_sha: str,
     duplicate_head: bool,
+    state: str,
+    base_ref: str,
+    base_repo: str,
     expected: int,
 ) -> None:
     root = Path(__file__).resolve().parents[2]
@@ -1974,9 +2278,9 @@ def test_review_signal_resolver_executes_fork_safe_live_binding(
     shell = _workflow_step_script(workflow, "Bind signal to its associated pull request")
     pull = {
         "number": 2183,
-        "state": "open",
-        "base": {"ref": "main", "repo": {"full_name": "bioedca/Yeliztli"}},
-        "head": {"sha": HEAD_SHA},
+        "state": state,
+        "base": {"ref": base_ref, "repo": {"full_name": base_repo}},
+        "head": {"sha": live_head_sha},
     }
     open_pulls = [pull]
     if duplicate_head:
@@ -1987,7 +2291,10 @@ def test_review_signal_resolver_executes_fork_safe_live_binding(
     output = tmp_path / "output"
     pr_fixture.write_text(json.dumps(pull), encoding="utf-8")
     open_fixture.write_text(json.dumps([open_pulls]), encoding="utf-8")
-    event_fixture.write_text(json.dumps({"workflow_run": {"pull_requests": []}}), encoding="utf-8")
+    event_fixture.write_text(
+        json.dumps({"workflow_run": {"head_sha": source_head_sha, "pull_requests": []}}),
+        encoding="utf-8",
+    )
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
     fake_gh = fake_bin / "gh"
@@ -2017,8 +2324,8 @@ esac
             "PATH": f"{fake_bin}:{os.environ['PATH']}",
             "PR_FIXTURE": str(pr_fixture),
             "RUNNER_TEMP": str(tmp_path),
-            "SIGNAL_TITLE": f"review-route-pr-2183-head-{HEAD_SHA}",
-            "SOURCE_HEAD_SHA": source_head,
+            "SIGNAL_TITLE": f"review-route-pr-2183-head-{signal_head}",
+            "SOURCE_HEAD_SHA": source_head_sha,
         },
         text=True,
     )
@@ -2037,6 +2344,8 @@ def test_public_template_contains_only_hosted_review_gates() -> None:
     assert SCHEMA_MARKER in template
     assert all(f"- [ ] {reviewer}" in template for reviewer in ("Copilot", "Codex", "CodeRabbit"))
     assert all(gate in template.replace("`", "") for gate in GATES)
+    assert "Immediately before any trigger, re-fetch" in template
+    assert "Within this PR, service queued current-head reservations FIFO" in template
 
 
 def test_contributor_review_routes_match_the_public_template() -> None:
@@ -2047,6 +2356,9 @@ def test_contributor_review_routes_match_the_public_template() -> None:
     assert "selects exactly one formal automated GitHub review" in normalized
     assert "providers are substitutes, not a mandatory sequence" in normalized
     assert "five" in contributing and "rolling-hour" in contributing
+    assert "Immediately before triggering, re-fetch the PR" in normalized
+    assert "attributes the SHA-less trigger" in normalized
+    assert "Within one PR, service current-head reservations FIFO" in normalized
     assert "/validate-route" in contributing
     assert "two open `main` PRs must never share a head SHA" in normalized
     assert "failed, skipped, or cancelled trusted/relevant signal or publisher run" in normalized
@@ -2068,7 +2380,7 @@ def test_graphql_context_tracks_comment_association_and_head_epoch() -> None:
     query = (root / "scripts/review_route_context.graphql").read_text(encoding="utf-8")
     assert query.count("authorAssociation") == 4
     assert query.count("updatedAt") == 4
-    assert "\n          id\n          author" in query
+    assert "\n          id\n          databaseId\n          author" in query
     assert query.count("lastEditedAt") == 2
     assert "latestHumanOpinions: latestOpinionatedReviews(first: 100, writersOnly: true)" in query
     assert query.count("orderBy: {field: UPDATED_AT, direction: ASC}") == 2

@@ -62,21 +62,24 @@ jobs:
             echo "::error title=Review Route::invalid review-state signal identity"
             exit 1
           fi
-          # workflow_run.head_sha is GitHub run metadata, distinct from the
-          # source runner's event-dependent GITHUB_SHA value.
+          # Review-event workflow_run.head_sha is the reviewed PR head. Require
+          # both that trusted event field and the run-name's claimed event head
+          # to identify the same unique, open, current PR head. This prevents a
+          # signal from one PR from invalidating another PR's successful route.
           source_head="$(printf '%s' "$SOURCE_HEAD_SHA" | tr '[:upper:]' '[:lower:]')"
-          if ! [[ "$source_head" =~ ^[0-9a-f]{40}$ ]] || \
-            [ "$signal_head" != "$source_head" ]; then
-            echo "::error title=Review Route::signal head does not match its source run"
+          if ! [[ "$source_head" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error title=Review Route::source head SHA is invalid"
             exit 1
           fi
           gh api "repos/$GITHUB_REPOSITORY/pulls/$pr_number" > "$RUNNER_TEMP/pr.json"
           jq -e --arg repo "$GITHUB_REPOSITORY" --arg head "$signal_head" \
+            --arg source "$source_head" \
             --arg pr "$pr_number" '
               (.number | tostring) == $pr and
               .state == "open" and
               .base.ref == "main" and
               .base.repo.full_name == $repo and
+              $source == $head and
               (.head.sha | ascii_downcase) == $head
             ' \
             "$RUNNER_TEMP/pr.json" > /dev/null
