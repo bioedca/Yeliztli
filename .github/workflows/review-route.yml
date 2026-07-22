@@ -19,9 +19,9 @@ on:
 
 # Privileged publication intentionally uses only default-branch workflow refs.
 # Review events first run a credential-free signal; its default-branch
-# workflow_run consumer can only invalidate the current PR head. After reviews
-# and thread resolution, a trusted maintainer explicitly refreshes the route
-# with `/validate-route`.
+# workflow_run consumer can invalidate the live-bound current head and an
+# unowned prior event head. After reviews and thread resolution, a trusted
+# maintainer explicitly refreshes the route with `/validate-route`.
 #
 # The `review-route-publisher` environment must allow only branch `main` and
 # hold a dedicated GitHub App client ID/private key. The app, not the generic
@@ -170,20 +170,46 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           SIGNAL_HEAD_SHA: ${{ needs.resolve_review_state.outputs.signal_head }}
         run: |
-          post_pending() {
+          post_pending_for_current_pr() {
             local sha="$1"
             local description="$2"
-            local attempt
+            local failure_warning="$3"
+            local attempt remains_current
             for attempt in 1 2 3; do
+              if [ "$attempt" != "1" ]; then
+                if ! gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" \
+                    > "$RUNNER_TEMP/pr-before-current-retry.json"; then
+                  if [ "$attempt" -lt 3 ]; then sleep "$attempt"; continue; fi
+                  echo "::error title=Review Route::could not recheck current PR before retry"
+                  return 1
+                fi
+                if ! remains_current="$(jq -er --arg head "$sha" --arg repo "$GITHUB_REPOSITORY" '
+                  if type == "object" and (.state | type) == "string" and
+                    (.head.sha | type) == "string" and (.base.ref | type) == "string" and
+                    (.base.repo.full_name | type) == "string" then
+                    if .state == "open" and
+                      (.head.sha | ascii_downcase) == ($head | ascii_downcase) and
+                      .base.ref == "main" and .base.repo.full_name == $repo
+                    then "true" else "false" end
+                  else
+                    error("pull response has an unexpected shape")
+                  end
+                ' "$RUNNER_TEMP/pr-before-current-retry.json")"; then
+                  echo "::error title=Review Route::could not parse current PR before retry"
+                  return 1
+                fi
+                if [ "$remains_current" != "true" ]; then return 2; fi
+              fi
               if gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$sha" \
-                -f state=pending \
-                -f context="Review Route" \
-                -f description="$description" \
-                -f target_url="$RUN_URL"; then
+                  -f state=pending \
+                  -f context="Review Route" \
+                  -f description="$description" \
+                  -f target_url="$RUN_URL"; then
                 return 0
               fi
               if [ "$attempt" -lt 3 ]; then sleep "$attempt"; fi
             done
+            echo "::warning title=Review Route::$failure_warning"
             return 1
           }
 
@@ -191,31 +217,51 @@ jobs:
             local sha="$1"
             local description="$2"
             local failure_warning="$3"
-            gh api --paginate --slurp \
-              "repos/$GITHUB_REPOSITORY/pulls?state=open&base=main&per_page=100" \
-              > "$RUNNER_TEMP/open-pulls-before-post.json"
-            if ! owner_count="$(jq -er --arg head "$sha" --arg pr "$PR_NUMBER" '
-              if type == "array" and all(.[]; type == "array") then
-                [ .[][] |
-                  select(
-                    (.head.sha | ascii_downcase) == $head and
-                    (.number | tostring) != $pr
-                  )
-                ] | length
-              else
-                error("open pull response has an unexpected shape")
-              end
-            ' "$RUNNER_TEMP/open-pulls-before-post.json")"; then
-              echo "::error title=Review Route::could not verify stale-head ownership"
-              return 1
-            fi
-            if [ "$owner_count" != "0" ]; then
-              echo "::warning title=Review Route::head now belongs to another open PR; skipped"
-              return 0
-            fi
-            if ! post_pending "$sha" "$description"; then
-              echo "::warning title=Review Route::$failure_warning"
-            fi
+            local attempt ownership foreign_owner_count claimed_owner_count match_count
+            for attempt in 1 2 3; do
+              if ! gh api --paginate --slurp \
+                  "repos/$GITHUB_REPOSITORY/pulls?state=open&base=main&per_page=100" \
+                  > "$RUNNER_TEMP/open-pulls-before-post.json"; then
+                if [ "$attempt" -lt 3 ]; then sleep "$attempt"; continue; fi
+                echo "::error title=Review Route::could not verify head ownership"
+                return 1
+              fi
+              if ! ownership="$(jq -er --arg head "$sha" --arg pr "$PR_NUMBER" '
+                if type == "array" and all(.[]; type == "array") and
+                  all(.[][]; (.number | type) == "number" and
+                    (.head.sha | type) == "string") then
+                  [ .[][] |
+                    select((.head.sha | ascii_downcase) == ($head | ascii_downcase))
+                  ] as $matches |
+                  [
+                    ($matches | map(select((.number | tostring) != $pr)) | length),
+                    ($matches | map(select((.number | tostring) == $pr)) | length),
+                    ($matches | length)
+                  ] | @tsv
+                else
+                  error("open pull response has an unexpected shape")
+                end
+              ' "$RUNNER_TEMP/open-pulls-before-post.json")"; then
+                echo "::error title=Review Route::could not verify head ownership"
+                return 1
+              fi
+              IFS=$'\t' read -r foreign_owner_count claimed_owner_count match_count <<< "$ownership"
+              if [ "$claimed_owner_count" = "0" ] && \
+                [ "$foreign_owner_count" = "1" ] && [ "$match_count" = "1" ]; then
+                echo "::warning title=Review Route::head now belongs exclusively to a replacement PR; skipped"
+                return 0
+              fi
+              if gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$sha" \
+                  -f state=pending \
+                  -f context="Review Route" \
+                  -f description="$description" \
+                  -f target_url="$RUN_URL"; then
+                return 0
+              fi
+              if [ "$attempt" -lt 3 ]; then sleep "$attempt"; fi
+            done
+            echo "::warning title=Review Route::$failure_warning"
+            return 1
           }
 
           gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" > "$RUNNER_TEMP/pr.json"
@@ -223,12 +269,32 @@ jobs:
             '.base.ref == "main" and .base.repo.full_name == $repo' \
             "$RUNNER_TEMP/pr.json" > /dev/null
           head_sha="$(jq -er '.head.sha' "$RUNNER_TEMP/pr.json")"
+          pr_state="$(jq -er '
+            if .state == "open" then "open"
+            elif .state == "closed" then "closed"
+            else error("missing pull state") end
+          ' "$RUNNER_TEMP/pr.json")"
           if ! [[ "$head_sha" =~ ^[0-9a-fA-F]{40}$ ]]; then
             echo "::error title=Review Route::resolved head is not a full SHA"
             exit 1
           fi
-          post_pending "$head_sha" \
-            "Review state changed; a maintainer must revalidate the route."
+          if [ "$pr_state" = "open" ]; then
+            if post_pending_for_current_pr "$head_sha" \
+                "Review state changed; a maintainer must revalidate the route." \
+                "could not invalidate refreshed PR head"; then
+              :
+            else
+              current_result="$?"
+              if [ "$current_result" != "2" ]; then exit "$current_result"; fi
+              post_pending_if_unowned "$head_sha" \
+                "Review state changed after PR closure; revalidate the route." \
+                "could not invalidate moved PR head"
+            fi
+          else
+            post_pending_if_unowned "$head_sha" \
+              "Review state changed after PR closure; revalidate the route." \
+              "could not invalidate closed PR head"
+          fi
           if [ "$EXPECTED_HEAD_SHA" != "$head_sha" ]; then
             post_pending_if_unowned "$EXPECTED_HEAD_SHA" \
               "PR head changed after review activity; revalidate the route." \
@@ -280,15 +346,87 @@ jobs:
           GH_TOKEN: ${{ steps.publisher.outputs.token }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          post_pending() {
+          post_pending_for_current_pr() {
             local sha="$1"
-            local attempt
+            local attempt remains_current
             for attempt in 1 2 3; do
+              if [ "$attempt" != "1" ]; then
+                if ! gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" \
+                    > "$RUNNER_TEMP/pr-before-current-retry.json"; then
+                  if [ "$attempt" -lt 3 ]; then sleep "$attempt"; continue; fi
+                  echo "::error title=Review Route::could not recheck current PR before retry"
+                  return 1
+                fi
+                if ! remains_current="$(jq -er --arg head "$sha" --arg repo "$GITHUB_REPOSITORY" '
+                  if type == "object" and (.state | type) == "string" and
+                    (.head.sha | type) == "string" and (.base.ref | type) == "string" and
+                    (.base.repo.full_name | type) == "string" then
+                    if .state == "open" and
+                      (.head.sha | ascii_downcase) == ($head | ascii_downcase) and
+                      .base.ref == "main" and .base.repo.full_name == $repo
+                    then "true" else "false" end
+                  else
+                    error("pull response has an unexpected shape")
+                  end
+                ' "$RUNNER_TEMP/pr-before-current-retry.json")"; then
+                  echo "::error title=Review Route::could not parse current PR before retry"
+                  return 1
+                fi
+                if [ "$remains_current" != "true" ]; then return 2; fi
+              fi
               if gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$sha" \
-                -f state=pending \
-                -f context="Review Route" \
-                -f description="Verifying current-head review route." \
-                -f target_url="$RUN_URL"; then
+                  -f state=pending \
+                  -f context="Review Route" \
+                  -f description="Verifying current-head review route." \
+                  -f target_url="$RUN_URL"; then
+                return 0
+              fi
+              if [ "$attempt" -lt 3 ]; then sleep "$attempt"; fi
+            done
+            return 1
+          }
+
+          post_pending_if_unowned() {
+            local sha="$1"
+            local attempt ownership foreign_owner_count claimed_owner_count match_count
+            for attempt in 1 2 3; do
+              if ! gh api --paginate --slurp \
+                  "repos/$GITHUB_REPOSITORY/pulls?state=open&base=main&per_page=100" \
+                  > "$RUNNER_TEMP/open-pulls-before-preinvalidate.json"; then
+                if [ "$attempt" -lt 3 ]; then sleep "$attempt"; continue; fi
+                echo "::error title=Review Route::could not verify event-head ownership"
+                return 1
+              fi
+              if ! ownership="$(jq -er --arg head "$sha" --arg pr "$PR_NUMBER" '
+                if type == "array" and all(.[]; type == "array") and
+                  all(.[][]; (.number | type) == "number" and
+                    (.head.sha | type) == "string") then
+                  [ .[][] |
+                    select((.head.sha | ascii_downcase) == ($head | ascii_downcase))
+                  ] as $matches |
+                  [
+                    ($matches | map(select((.number | tostring) != $pr)) | length),
+                    ($matches | map(select((.number | tostring) == $pr)) | length),
+                    ($matches | length)
+                  ] | @tsv
+                else
+                  error("open pull response has an unexpected shape")
+                end
+              ' "$RUNNER_TEMP/open-pulls-before-preinvalidate.json")"; then
+                echo "::error title=Review Route::could not verify event-head ownership"
+                return 1
+              fi
+              IFS=$'\t' read -r foreign_owner_count claimed_owner_count match_count <<< "$ownership"
+              if [ "$claimed_owner_count" = "0" ] && \
+                [ "$foreign_owner_count" = "1" ] && [ "$match_count" = "1" ]; then
+                echo "::warning title=Review Route::head belongs exclusively to a replacement PR; skipped"
+                return 0
+              fi
+              if gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$sha" \
+                  -f state=pending \
+                  -f context="Review Route" \
+                  -f description="Verifying current-head review route." \
+                  -f target_url="$RUN_URL"; then
                 return 0
               fi
               if [ "$attempt" -lt 3 ]; then sleep "$attempt"; fi
@@ -301,18 +439,37 @@ jobs:
               echo "::error title=Review Route::event head is not a full SHA"
               exit 1
             fi
-            printf 'HEAD_SHA=%s\n' "$EVENT_HEAD_SHA" >> "$GITHUB_ENV"
-            post_pending "$EVENT_HEAD_SHA"
           fi
 
           gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" > "$RUNNER_TEMP/pr.json"
+          jq -e --arg repo "$GITHUB_REPOSITORY" \
+            '.base.ref == "main" and .base.repo.full_name == $repo' \
+            "$RUNNER_TEMP/pr.json" > /dev/null
           head_sha="$(jq -er '.head.sha' "$RUNNER_TEMP/pr.json")"
+          pr_state="$(jq -er '
+            if .state == "open" then "open"
+            elif .state == "closed" then "closed"
+            else error("missing pull state") end
+          ' "$RUNNER_TEMP/pr.json")"
           if ! [[ "$head_sha" =~ ^[0-9a-fA-F]{40}$ ]]; then
             echo "::error title=Review Route::resolved head is not a full SHA"
             exit 1
           fi
           printf 'HEAD_SHA=%s\n' "$head_sha" >> "$GITHUB_ENV"
-          post_pending "$head_sha"
+          if [ "$pr_state" = "open" ]; then
+            if post_pending_for_current_pr "$head_sha"; then
+              :
+            else
+              current_result="$?"
+              if [ "$current_result" != "2" ]; then exit "$current_result"; fi
+              post_pending_if_unowned "$head_sha"
+            fi
+          else
+            post_pending_if_unowned "$head_sha"
+          fi
+          if [ -n "$EVENT_HEAD_SHA" ] && [ "$EVENT_HEAD_SHA" != "$head_sha" ]; then
+            post_pending_if_unowned "$EVENT_HEAD_SHA"
+          fi
           if [ "$head_sha" != "$RESOLVED_HEAD_SHA" ]; then
             echo "::error title=Review Route::head changed after concurrency binding"
             exit 1
@@ -332,9 +489,6 @@ jobs:
             ' "$GITHUB_EVENT_PATH" "$RUNNER_TEMP/pr.json" > /dev/null
           fi
 
-          jq -e --arg repo "$GITHUB_REPOSITORY" \
-            '.base.ref == "main" and .base.repo.full_name == $repo' \
-            "$RUNNER_TEMP/pr.json" > /dev/null
           gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" \
             > "$RUNNER_TEMP/main-ref.json"
           trusted_sha="$(jq -er '.object.sha' "$RUNNER_TEMP/main-ref.json")"
@@ -398,15 +552,43 @@ jobs:
             echo "::error title=Review Route::no valid head SHA was captured"
             exit 1
           fi
-          head_unique=false
-          if gh api --paginate --slurp \
+
+          classify_head_ownership() {
+            local output_file="$1"
+            gh api --paginate --slurp \
               "repos/$GITHUB_REPOSITORY/pulls?state=open&base=main&per_page=100" \
-              > "$RUNNER_TEMP/open-pulls-final.json" && \
-            jq -e --arg head "$HEAD_SHA" --arg pr "$PR_NUMBER" '
-              [ .[][] | select(.head.sha == $head) ] as $matches |
-              ($matches | length) == 1 and
-              ($matches[0].number | tostring) == $pr
-            ' "$RUNNER_TEMP/open-pulls-final.json" > /dev/null; then
+              > "$output_file" || return 1
+            jq -er --arg head "$HEAD_SHA" --arg pr "$PR_NUMBER" '
+              if type == "array" and all(.[]; type == "array") and
+                all(.[][]; (.number | type) == "number" and
+                  (.head.sha | type) == "string") then
+                [ .[][] |
+                  select((.head.sha | ascii_downcase) == ($head | ascii_downcase))
+                ] as $matches |
+                [
+                  ($matches | map(select((.number | tostring) != $pr)) | length),
+                  ($matches | map(select((.number | tostring) == $pr)) | length),
+                  ($matches | length)
+                ] | @tsv
+              else
+                error("open pull response has an unexpected shape")
+              end
+            ' "$output_file"
+          }
+
+          if ! ownership="$(classify_head_ownership \
+              "$RUNNER_TEMP/open-pulls-final.json")"; then
+            echo "::error title=Review Route::could not verify final head ownership"
+            exit 1
+          fi
+          IFS=$'\t' read -r foreign_owner_count claimed_owner_count match_count <<< "$ownership"
+          if [ "$claimed_owner_count" = "0" ] && \
+            [ "$foreign_owner_count" = "1" ] && [ "$match_count" = "1" ]; then
+            echo "::warning title=Review Route::head belongs exclusively to a replacement PR; publication skipped"
+            exit 0
+          fi
+          head_unique=false
+          if [ "$claimed_owner_count" = "1" ] && [ "$match_count" = "1" ]; then
             head_unique=true
           fi
           state=failure
@@ -464,6 +646,7 @@ jobs:
                 --arg repo "$GITHUB_REPOSITORY" \
                 --arg updated "$PR_UPDATED_AT" '
                   .[1].head.sha == $head and
+                  .[1].state == "open" and
                   .[1].draft == $draft and
                   .[1].base.ref == "main" and
                   .[1].base.repo.full_name == $repo and
@@ -495,6 +678,24 @@ jobs:
           fi
           posted=false
           for attempt in 1 2 3; do
+            if ! ownership="$(classify_head_ownership \
+                "$RUNNER_TEMP/open-pulls-before-post-$attempt.json")"; then
+              echo "::error title=Review Route::could not recheck final head ownership"
+              exit 1
+            fi
+            IFS=$'\t' read -r foreign_owner_count claimed_owner_count match_count <<< "$ownership"
+            if [ "$claimed_owner_count" = "0" ] && \
+              [ "$foreign_owner_count" = "1" ] && [ "$match_count" = "1" ]; then
+              echo "::warning title=Review Route::head moved exclusively to a replacement PR; publication skipped"
+              exit 0
+            fi
+            if [ "$state" = "success" ] && ! { \
+              [ "$claimed_owner_count" = "1" ] && \
+              [ "$foreign_owner_count" = "0" ] && [ "$match_count" = "1" ]; \
+            }; then
+              state=failure
+              description="Head ownership changed before publication; review route failed closed."
+            fi
             if gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" \
               -f state="$state" \
               -f context="Review Route" \

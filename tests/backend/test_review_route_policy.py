@@ -2004,25 +2004,20 @@ def test_workflow_uses_trusted_base_and_explicit_head_status() -> None:
     assert "concurrency:" in workflow.split("jobs:", maxsplit=1)[1]
     assert "ref: ${{ env.TRUSTED_SHA }}" in workflow
     assert "actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803" in workflow
-    assert workflow.count('.base.ref == "main"') == 5
-    assert workflow.count(".base.repo.full_name == $repo") == 5
+    assert workflow.count('.base.ref == "main"') == 7
+    assert workflow.count(".base.repo.full_name == $repo") == 7
     assert workflow.count("git/ref/heads/main") == 2
     assert "'.object.sha == $trusted'" in workflow
     assert ".base.sha" not in workflow
     assert "-f state=pending" in workflow
     assert "EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha }}" in workflow
     validate_job = workflow.split("\n  validate:", maxsplit=1)[1]
-    assert validate_job.index('post_pending "$EVENT_HEAD_SHA"') < validate_job.index(
-        "pulls/$PR_NUMBER"
-    )
-    assert validate_job.index('post_pending "$head_sha"') < validate_job.index(
-        "git/ref/heads/main"
-    )
-    assert validate_job.index('post_pending "$head_sha"') < validate_job.index(
-        "$GITHUB_EVENT_PATH"
-    )
+    assert 'post_pending_for_current_pr "$head_sha"' in validate_job
+    assert 'post_pending_if_unowned "$head_sha"' in validate_job
+    assert 'post_pending_if_unowned "$EVENT_HEAD_SHA"' in validate_job
+    assert '[ "$EVENT_HEAD_SHA" != "$head_sha" ]' in validate_job
     assert "^[0-9a-fA-F]{40}$" in workflow
-    assert workflow.count("for attempt in 1 2 3") == 3
+    assert workflow.count("for attempt in 1 2 3") == 5
     assert '--expected-head "$HEAD_SHA"' in workflow
     assert '--expected-draft "$IS_DRAFT"' in workflow
     assert '--expected-pr-updated-at "$PR_UPDATED_AT"' in workflow
@@ -2037,11 +2032,11 @@ def test_workflow_uses_trusted_base_and_explicit_head_status() -> None:
     assert ".[1].updated_at == $updated" in workflow
     assert "always() && !cancelled()" in workflow
     assert "pulls?state=open&base=main&per_page=100" in workflow
-    assert "($matches | length) == 1" in workflow
+    assert "read -r foreign_owner_count claimed_owner_count match_count" in workflow
+    assert "head belongs exclusively to a replacement PR; publication skipped" in workflow
     assert '[ "$head_unique" = "true" ]' in workflow
-    assert workflow.index('> "$RUNNER_TEMP/open-pulls-final.json"') < workflow.index(
-        "state=success"
-    )
+    assert workflow.index("classify_head_ownership()") < workflow.index("state=success")
+    assert workflow.index('.[1].state == "open"') < workflow.index("state=success")
     assert '[ "$WORKFLOW_SHA" = "$TRUSTED_SHA" ]' in validate_job
     assert validate_job.index('[ "$WORKFLOW_SHA" = "$TRUSTED_SHA" ]') < validate_job.index(
         "state=success"
@@ -2055,6 +2050,10 @@ def test_workflow_uses_trusted_base_and_explicit_head_status() -> None:
     assert 'elif [ "$IS_DRAFT" = "true" ]; then' in workflow
     assert 'context="Review Route"' in workflow
     assert "statuses/$HEAD_SHA" in workflow
+    assert validate_job.index('publication skipped"') < validate_job.index('statuses/$HEAD_SHA"')
+    assert validate_job.rindex("classify_head_ownership") < validate_job.index(
+        'statuses/$HEAD_SHA"'
+    )
 
 
 def test_review_state_signal_is_credential_free_and_only_drives_pending() -> None:
@@ -2112,12 +2111,13 @@ def test_review_state_signal_is_credential_free_and_only_drives_pending() -> Non
     validate_job = publisher.split("\n  validate:", maxsplit=1)[1]
     assert "group: review-route-${{ needs.resolve_route_event.outputs.head_sha }}" in validate_job
     assert "^review-route-pr-([0-9]+)-head-([0-9a-fA-F]{40})$" in resolver
-    assert invalidator.index('post_pending "$head_sha"') < invalidator.index(
+    assert invalidator.index('post_pending_for_current_pr "$head_sha"') < invalidator.index(
         'post_pending_if_unowned "$EXPECTED_HEAD_SHA"'
     )
+    assert 'post_pending_if_unowned "$head_sha"' in invalidator
     assert 'post_pending_if_unowned "$SIGNAL_HEAD_SHA"' in invalidator
     assert "could not invalidate stale signal head" in invalidator
-    assert "head now belongs to another open PR; skipped" in invalidator
+    assert "head now belongs exclusively to a replacement PR; skipped" in invalidator
     assert "PR head changed after review activity; revalidate the route." in invalidator
     assert "stale prior-head invalidation ignored" not in invalidator
     assert "stale pre-success invalidation ignored" not in invalidator
@@ -2353,18 +2353,39 @@ esac
 
 
 @pytest.mark.parametrize(
-    ("stale_owned_elsewhere", "malformed_response", "expected_statuses", "expected_returncode"),
+    (
+        "stale_owned_elsewhere",
+        "duplicate_live_head",
+        "malformed_response",
+        "fail_stale_post",
+        "expected_statuses",
+        "expected_attempts",
+        "expected_returncode",
+    ),
     [
-        (False, False, [HEAD_SHA, "b" * 40], 0),
-        (True, False, [HEAD_SHA], 0),
-        (False, True, [HEAD_SHA], 1),
+        (False, False, False, False, [HEAD_SHA, "b" * 40], [HEAD_SHA, "b" * 40], 0),
+        (True, False, False, False, [HEAD_SHA], [HEAD_SHA], 0),
+        (False, False, True, False, [HEAD_SHA], [HEAD_SHA], 1),
+        (
+            False,
+            False,
+            False,
+            True,
+            [HEAD_SHA],
+            [HEAD_SHA, *("b" * 40 for _ in range(3))],
+            1,
+        ),
+        (False, True, False, False, [HEAD_SHA, "b" * 40], [HEAD_SHA, "b" * 40], 0),
     ],
 )
 def test_review_signal_invalidator_rechecks_stale_head_ownership(
     tmp_path: Path,
     stale_owned_elsewhere: bool,
+    duplicate_live_head: bool,
     malformed_response: bool,
+    fail_stale_post: bool,
     expected_statuses: list[str],
+    expected_attempts: list[str],
     expected_returncode: int,
 ) -> None:
     root = Path(__file__).resolve().parents[2]
@@ -2377,6 +2398,8 @@ def test_review_signal_invalidator_rechecks_stale_head_ownership(
         "head": {"sha": HEAD_SHA},
     }
     open_pulls = [pull]
+    if duplicate_live_head:
+        open_pulls.append({**pull, "number": 2184})
     if stale_owned_elsewhere:
         open_pulls.append(
             {
@@ -2387,6 +2410,7 @@ def test_review_signal_invalidator_rechecks_stale_head_ownership(
         )
     pr_fixture = tmp_path / "fixture-pr.json"
     open_fixture = tmp_path / "open-prs.json"
+    attempt_log = tmp_path / "attempts.log"
     status_log = tmp_path / "statuses.log"
     pr_fixture.write_text(json.dumps(pull), encoding="utf-8")
     open_fixture.write_text(
@@ -2405,7 +2429,12 @@ case "$*" in
   *"statuses/"*)
     for argument in "$@"; do
       case "$argument" in
-        repos/*/statuses/*) printf '%s\n' "${argument##*/}" >> "$STATUS_LOG" ;;
+            repos/*/statuses/*)
+              sha="${argument##*/}"
+              printf '%s\n' "$sha" >> "$ATTEMPT_LOG"
+              if [ "$sha" = "${FAIL_STATUS_SHA:-}" ]; then exit 1; fi
+          printf '%s\n' "$sha" >> "$STATUS_LOG"
+          ;;
       esac
     done
     printf '{}\n'
@@ -2423,6 +2452,8 @@ esac
         env={
             **os.environ,
             "EXPECTED_HEAD_SHA": "b" * 40,
+            "ATTEMPT_LOG": str(attempt_log),
+            "FAIL_STATUS_SHA": "b" * 40 if fail_stale_post else "",
             "GH_TOKEN": "test-token",
             "GITHUB_REPOSITORY": "bioedca/Yeliztli",
             "OPEN_PRS_FIXTURE": str(open_fixture),
@@ -2437,7 +2468,463 @@ esac
         text=True,
     )
     assert completed.returncode == expected_returncode, completed.stderr
-    assert status_log.read_text(encoding="utf-8").splitlines() == expected_statuses
+    actual_statuses = (
+        status_log.read_text(encoding="utf-8").splitlines() if status_log.exists() else []
+    )
+    actual_attempts = (
+        attempt_log.read_text(encoding="utf-8").splitlines() if attempt_log.exists() else []
+    )
+    assert actual_statuses == expected_statuses
+    assert actual_attempts == expected_attempts
+
+
+def test_review_signal_invalidator_rechecks_ownership_before_retry(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[2]
+    workflow = (root / ".github/workflows/review-route.yml").read_text(encoding="utf-8")
+    shell = _workflow_step_script(workflow, "Mark current PR head pending")
+    claimed = {
+        "number": 2183,
+        "state": "open",
+        "base": {"ref": "main", "repo": {"full_name": "bioedca/Yeliztli"}},
+        "head": {"sha": HEAD_SHA},
+    }
+    replacement = {**claimed, "number": 2184}
+    closed_claim = {**claimed, "state": "closed"}
+    initial_pr = tmp_path / "initial-pr.json"
+    later_pr = tmp_path / "later-pr.json"
+    open_fixture = tmp_path / "open-prs.json"
+    pr_counter = tmp_path / "pr-counter"
+    attempt_log = tmp_path / "attempts.log"
+    status_log = tmp_path / "statuses.log"
+    initial_pr.write_text(json.dumps(claimed), encoding="utf-8")
+    later_pr.write_text(json.dumps(closed_claim), encoding="utf-8")
+    open_fixture.write_text(json.dumps([[replacement]]), encoding="utf-8")
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_gh = fake_bin / "gh"
+    fake_gh.write_text(
+        """#!/usr/bin/env bash
+set -eu
+case "$*" in
+  *"pulls/2183"*)
+    count=0
+    if [ -f "$PR_COUNTER" ]; then read -r count < "$PR_COUNTER"; fi
+    if [ "$count" = "0" ]; then
+      printf '1\n' > "$PR_COUNTER"
+      exec /bin/cat "$INITIAL_PR"
+    fi
+    printf '2\n' > "$PR_COUNTER"
+    exec /bin/cat "$LATER_PR"
+    ;;
+  *"pulls?state=open"*) exec /bin/cat "$OPEN_PRS_FIXTURE" ;;
+  *"statuses/"*)
+    for argument in "$@"; do
+      case "$argument" in
+        repos/*/statuses/*)
+          sha="${argument##*/}"
+          printf '%s\n' "$sha" >> "$ATTEMPT_LOG"
+          if [ "$sha" = "$EXPECTED_HEAD_SHA" ]; then exit 1; fi
+          printf '%s\n' "$sha" >> "$STATUS_LOG"
+          ;;
+      esac
+    done
+    printf '{}\n'
+    ;;
+  *) exit 2 ;;
+esac
+""",
+        encoding="utf-8",
+    )
+    fake_gh.chmod(0o755)
+    completed = subprocess.run(
+        ["bash", "-e", "-o", "pipefail", "-c", shell],
+        check=False,
+        capture_output=True,
+        env={
+            **os.environ,
+            "ATTEMPT_LOG": str(attempt_log),
+            "EXPECTED_HEAD_SHA": HEAD_SHA,
+            "GH_TOKEN": "test-token",
+            "GITHUB_REPOSITORY": "bioedca/Yeliztli",
+            "INITIAL_PR": str(initial_pr),
+            "LATER_PR": str(later_pr),
+            "OPEN_PRS_FIXTURE": str(open_fixture),
+            "PATH": f"{fake_bin}:{os.environ['PATH']}",
+            "PR_COUNTER": str(pr_counter),
+            "PR_NUMBER": "2183",
+            "RUNNER_TEMP": str(tmp_path),
+            "RUN_URL": "https://example.test/run",
+            "SIGNAL_HEAD_SHA": HEAD_SHA,
+            "STATUS_LOG": str(status_log),
+        },
+        text=True,
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert attempt_log.read_text(encoding="utf-8").splitlines() == [HEAD_SHA]
+    assert pr_counter.read_text(encoding="utf-8").strip() == "2"
+    assert not status_log.exists()
+
+
+@pytest.mark.parametrize(
+    (
+        "current_open",
+        "replacement_owns_head",
+        "malformed_response",
+        "fail_status_post",
+        "expected_statuses",
+        "expected_attempts",
+        "expected_returncode",
+    ),
+    [
+        (False, False, False, False, [HEAD_SHA], [HEAD_SHA], 0),
+        (False, True, False, False, [], [], 0),
+        (True, True, False, False, [HEAD_SHA], [HEAD_SHA], 0),
+        (False, False, True, False, [], [], 1),
+        (False, False, False, True, [], [HEAD_SHA, HEAD_SHA, HEAD_SHA], 1),
+        (True, False, True, False, [HEAD_SHA], [HEAD_SHA], 0),
+        (True, False, False, True, [], [HEAD_SHA, HEAD_SHA, HEAD_SHA], 1),
+    ],
+)
+def test_route_preinvalidator_does_not_overwrite_replacement_pr_status(
+    tmp_path: Path,
+    current_open: bool,
+    replacement_owns_head: bool,
+    malformed_response: bool,
+    fail_status_post: bool,
+    expected_statuses: list[str],
+    expected_attempts: list[str],
+    expected_returncode: int,
+) -> None:
+    root = Path(__file__).resolve().parents[2]
+    workflow = (root / ".github/workflows/review-route.yml").read_text(encoding="utf-8")
+    shell = _workflow_step_script(
+        workflow,
+        "Pre-invalidate event head, resolve PR, and mark current head pending",
+    )
+    pull = {
+        "number": 2183,
+        "state": "open" if current_open else "closed",
+        "base": {"ref": "main", "repo": {"full_name": "bioedca/Yeliztli"}},
+        "head": {"sha": HEAD_SHA},
+        "draft": False,
+        "updated_at": PR_UPDATED_AT,
+    }
+    open_pulls = [pull] if current_open else []
+    if replacement_owns_head:
+        open_pulls.append(
+            {
+                **pull,
+                "number": 2184,
+                "state": "open",
+            }
+        )
+    pr_fixture = tmp_path / "fixture-pr.json"
+    open_fixture = tmp_path / "open-prs.json"
+    main_fixture = tmp_path / "fixture-main-ref.json"
+    event_fixture = tmp_path / "event.json"
+    environment_file = tmp_path / "environment"
+    attempt_log = tmp_path / "attempts.log"
+    status_log = tmp_path / "statuses.log"
+    pr_fixture.write_text(json.dumps(pull), encoding="utf-8")
+    open_fixture.write_text(
+        json.dumps({"unexpected": []} if malformed_response else [open_pulls]),
+        encoding="utf-8",
+    )
+    main_fixture.write_text(json.dumps({"object": {"sha": HEAD_SHA}}), encoding="utf-8")
+    event_fixture.write_text("{}", encoding="utf-8")
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_gh = fake_bin / "gh"
+    fake_gh.write_text(
+        """#!/usr/bin/env bash
+set -eu
+case "$*" in
+  *"pulls?state=open"*) exec /bin/cat "$OPEN_PRS_FIXTURE" ;;
+  *"pulls/2183"*) exec /bin/cat "$PR_FIXTURE" ;;
+  *"git/ref/heads/main"*) exec /bin/cat "$MAIN_REF_FIXTURE" ;;
+      *"statuses/"*)
+        for argument in "$@"; do
+          case "$argument" in
+            repos/*/statuses/*)
+              sha="${argument##*/}"
+              printf '%s\n' "$sha" >> "$ATTEMPT_LOG"
+              if [ "$sha" = "${FAIL_STATUS_SHA:-}" ]; then exit 1; fi
+              printf '%s\n' "$sha" >> "$STATUS_LOG"
+              ;;
+          esac
+    done
+    printf '{}\n'
+    ;;
+  *) exit 2 ;;
+esac
+""",
+        encoding="utf-8",
+    )
+    fake_gh.chmod(0o755)
+    completed = subprocess.run(
+        ["bash", "-e", "-o", "pipefail", "-c", shell],
+        check=False,
+        capture_output=True,
+        env={
+            **os.environ,
+            "ATTEMPT_LOG": str(attempt_log),
+            "EVENT_HEAD_SHA": HEAD_SHA,
+            "FAIL_STATUS_SHA": HEAD_SHA if fail_status_post else "",
+            "FINALIZE_ROUTE": "false",
+            "GH_TOKEN": "test-token",
+            "GITHUB_ENV": str(environment_file),
+            "GITHUB_EVENT_PATH": str(event_fixture),
+            "GITHUB_REPOSITORY": "bioedca/Yeliztli",
+            "MAIN_REF_FIXTURE": str(main_fixture),
+            "OPEN_PRS_FIXTURE": str(open_fixture),
+            "PATH": f"{fake_bin}:{os.environ['PATH']}",
+            "PR_FIXTURE": str(pr_fixture),
+            "PR_NUMBER": "2183",
+            "RESOLVED_HEAD_SHA": HEAD_SHA,
+            "RUNNER_TEMP": str(tmp_path),
+            "RUN_URL": "https://example.test/run",
+            "STATUS_LOG": str(status_log),
+        },
+        text=True,
+    )
+    assert completed.returncode == expected_returncode, completed.stderr
+    actual_statuses = (
+        status_log.read_text(encoding="utf-8").splitlines() if status_log.exists() else []
+    )
+    actual_attempts = (
+        attempt_log.read_text(encoding="utf-8").splitlines() if attempt_log.exists() else []
+    )
+    assert actual_statuses == expected_statuses
+    assert actual_attempts == expected_attempts
+
+
+@pytest.mark.parametrize(
+    (
+        "owner_mode",
+        "malformed_response",
+        "fail_status_post",
+        "expected_returncode",
+        "expected_statuses",
+        "expected_attempts",
+    ),
+    [
+        ("replacement", False, False, 0, [], []),
+        ("duplicate", False, False, 1, [HEAD_SHA], [HEAD_SHA]),
+        ("claimed", False, True, 1, [], [HEAD_SHA, HEAD_SHA, HEAD_SHA]),
+        ("replacement", True, False, 1, [], []),
+    ],
+)
+def test_route_final_publisher_skips_head_owned_by_replacement_pr(
+    tmp_path: Path,
+    owner_mode: str,
+    malformed_response: bool,
+    fail_status_post: bool,
+    expected_returncode: int,
+    expected_statuses: list[str],
+    expected_attempts: list[str],
+) -> None:
+    root = Path(__file__).resolve().parents[2]
+    workflow = (root / ".github/workflows/review-route.yml").read_text(encoding="utf-8")
+    shell = _workflow_step_script(workflow, "Publish required status on PR head")
+    claimed = {
+        "number": 2183,
+        "state": "open",
+        "base": {"ref": "main", "repo": {"full_name": "bioedca/Yeliztli"}},
+        "head": {"sha": HEAD_SHA},
+    }
+    replacement = {**claimed, "number": 2184}
+    owners = {
+        "claimed": [claimed],
+        "duplicate": [claimed, replacement],
+        "replacement": [replacement],
+    }[owner_mode]
+    open_fixture = tmp_path / "open-prs.json"
+    attempt_log = tmp_path / "attempts.log"
+    status_log = tmp_path / "statuses.log"
+    open_fixture.write_text(
+        json.dumps({"unexpected": []} if malformed_response else [owners]),
+        encoding="utf-8",
+    )
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_gh = fake_bin / "gh"
+    fake_gh.write_text(
+        """#!/usr/bin/env bash
+set -eu
+case "$*" in
+  *"pulls?state=open"*) exec /bin/cat "$OPEN_PRS_FIXTURE" ;;
+  *"statuses/"*)
+    for argument in "$@"; do
+      case "$argument" in
+        repos/*/statuses/*)
+          sha="${argument##*/}"
+          printf '%s\n' "$sha" >> "$ATTEMPT_LOG"
+          if [ "$sha" = "${FAIL_STATUS_SHA:-}" ]; then exit 1; fi
+          printf '%s\n' "$sha" >> "$STATUS_LOG"
+          ;;
+      esac
+    done
+    printf '{}\n'
+    ;;
+  *) exit 2 ;;
+esac
+""",
+        encoding="utf-8",
+    )
+    fake_gh.chmod(0o755)
+    completed = subprocess.run(
+        ["bash", "-e", "-o", "pipefail", "-c", shell],
+        check=False,
+        capture_output=True,
+        env={
+            **os.environ,
+            "ATTEMPT_LOG": str(attempt_log),
+            "FAIL_STATUS_SHA": HEAD_SHA if fail_status_post else "",
+            "GH_TOKEN": "test-token",
+            "HEAD_SHA": HEAD_SHA,
+            "OPEN_PRS_FIXTURE": str(open_fixture),
+            "PATH": f"{fake_bin}:{os.environ['PATH']}",
+            "PR_NUMBER": "2183",
+            "RUNNER_TEMP": str(tmp_path),
+            "RUN_URL": "https://example.test/run",
+            "STATUS_LOG": str(status_log),
+            "VALIDATION_OUTCOME": "failure",
+        },
+        text=True,
+    )
+    assert completed.returncode == expected_returncode, completed.stderr
+    actual_statuses = (
+        status_log.read_text(encoding="utf-8").splitlines() if status_log.exists() else []
+    )
+    actual_attempts = (
+        attempt_log.read_text(encoding="utf-8").splitlines() if attempt_log.exists() else []
+    )
+    assert actual_statuses == expected_statuses
+    assert actual_attempts == expected_attempts
+
+
+@pytest.mark.parametrize(
+    ("later_mode", "expected_returncode", "expected_state"),
+    [("replacement", 0, None), ("duplicate", 1, "failure")],
+)
+def test_route_final_publisher_rechecks_ownership_before_success(
+    tmp_path: Path,
+    later_mode: str,
+    expected_returncode: int,
+    expected_state: str | None,
+) -> None:
+    root = Path(__file__).resolve().parents[2]
+    workflow = (root / ".github/workflows/review-route.yml").read_text(encoding="utf-8")
+    shell = _workflow_step_script(workflow, "Publish required status on PR head")
+    claimed = {
+        "number": 2183,
+        "state": "open",
+        "body": "review route evidence",
+        "updated_at": PR_UPDATED_AT,
+        "draft": False,
+        "base": {"ref": "main", "repo": {"full_name": "bioedca/Yeliztli"}},
+        "head": {"sha": HEAD_SHA},
+    }
+    replacement = {**claimed, "number": 2184}
+    initial_owners = tmp_path / "initial-owners.json"
+    later_owners = tmp_path / "later-owners.json"
+    ownership_counter = tmp_path / "ownership-counter"
+    pr_fixture = tmp_path / "fixture-pr-final.json"
+    main_fixture = tmp_path / "fixture-main-final.json"
+    finalizer_fixture = tmp_path / "fixture-finalizer.json"
+    status_log = tmp_path / "statuses.log"
+    initial_owners.write_text(json.dumps([[claimed]]), encoding="utf-8")
+    later = [replacement] if later_mode == "replacement" else [claimed, replacement]
+    later_owners.write_text(json.dumps([later]), encoding="utf-8")
+    pr_fixture.write_text(json.dumps(claimed), encoding="utf-8")
+    main_fixture.write_text(json.dumps({"object": {"sha": HEAD_SHA}}), encoding="utf-8")
+    finalizer_fixture.write_text(
+        json.dumps(
+            {
+                "data": {
+                    "node": {
+                        "id": FINALIZER_NODE_ID,
+                        "author": {"__typename": "User", "databaseId": HUMAN_ID},
+                        "authorAssociation": "MEMBER",
+                        "body": "/validate-route",
+                        "createdAt": CREATED_AT,
+                        "updatedAt": CREATED_AT,
+                        "lastEditedAt": None,
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / "pr.json").write_text(json.dumps(claimed), encoding="utf-8")
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_gh = fake_bin / "gh"
+    fake_gh.write_text(
+        """#!/usr/bin/env bash
+set -eu
+case "$*" in
+  *"pulls?state=open"*)
+    count=0
+    if [ -f "$OWNERSHIP_COUNTER" ]; then read -r count < "$OWNERSHIP_COUNTER"; fi
+    if [ "$count" = "0" ]; then
+      printf '1\n' > "$OWNERSHIP_COUNTER"
+      exec /bin/cat "$INITIAL_OWNERS"
+    fi
+    printf '2\n' > "$OWNERSHIP_COUNTER"
+    exec /bin/cat "$LATER_OWNERS"
+    ;;
+  *"api graphql"*) exec /bin/cat "$FINALIZER_FIXTURE" ;;
+  *"pulls/2183"*) exec /bin/cat "$PR_FIXTURE" ;;
+  *"git/ref/heads/main"*) exec /bin/cat "$MAIN_FIXTURE" ;;
+  *"statuses/"*) printf '%s\n' "$*" >> "$STATUS_LOG" ; printf '{}\n' ;;
+  *) exit 2 ;;
+esac
+""",
+        encoding="utf-8",
+    )
+    fake_gh.chmod(0o755)
+    completed = subprocess.run(
+        ["bash", "-e", "-o", "pipefail", "-c", shell],
+        check=False,
+        capture_output=True,
+        env={
+            **os.environ,
+            "FINALIZE_COMMENT_ACTOR_ID": str(HUMAN_ID),
+            "FINALIZE_COMMENT_CREATED_AT": CREATED_AT,
+            "FINALIZE_COMMENT_NODE_ID": FINALIZER_NODE_ID,
+            "FINALIZE_ROUTE": "true",
+            "FINALIZER_FIXTURE": str(finalizer_fixture),
+            "GH_TOKEN": "test-token",
+            "GITHUB_REPOSITORY": "bioedca/Yeliztli",
+            "HEAD_SHA": HEAD_SHA,
+            "INITIAL_OWNERS": str(initial_owners),
+            "IS_DRAFT": "false",
+            "LATER_OWNERS": str(later_owners),
+            "MAIN_FIXTURE": str(main_fixture),
+            "OWNERSHIP_COUNTER": str(ownership_counter),
+            "PATH": f"{fake_bin}:{os.environ['PATH']}",
+            "PR_FIXTURE": str(pr_fixture),
+            "PR_NUMBER": "2183",
+            "PR_UPDATED_AT": PR_UPDATED_AT,
+            "RUNNER_TEMP": str(tmp_path),
+            "RUN_URL": "https://example.test/run",
+            "STATUS_LOG": str(status_log),
+            "TRUSTED_SHA": HEAD_SHA,
+            "VALIDATION_OUTCOME": "success",
+            "WORKFLOW_SHA": HEAD_SHA,
+        },
+        text=True,
+    )
+    assert completed.returncode == expected_returncode, completed.stderr
+    assert ownership_counter.read_text(encoding="utf-8").strip() == "2"
+    if expected_state is None:
+        assert "publication skipped" in completed.stdout
+        assert not status_log.exists()
+    else:
+        status_call = status_log.read_text(encoding="utf-8")
+        assert f"state={expected_state}" in status_call
+        assert "Head ownership changed before publication" in status_call
 
 
 def test_public_template_contains_only_hosted_review_gates() -> None:
