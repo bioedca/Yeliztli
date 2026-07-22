@@ -2582,6 +2582,42 @@ def test_closed_raw_html_before_route_does_not_hide_it() -> None:
     assert validate_context(context, files, now=NOW) == []
 
 
+@pytest.mark.parametrize("tag", ["pre", "script", "style", "textarea"])
+@pytest.mark.parametrize("template", ["<{tag} />", "<{tag}/>"])
+def test_type_one_self_closing_syntax_still_hides_route(
+    tag: str,
+    template: str,
+) -> None:
+    files = [ChangedFile("docs/guide.md")]
+    context = _context("Low", files)
+    pull_request = context["data"]["repository"]["pullRequest"]
+    pull_request["body"] = template.format(tag=tag) + "\n" + pull_request["body"]
+    errors = validate_context(context, files, now=NOW)
+    assert "raw HTML is not allowed to contain the review-route section" in errors
+
+
+def test_closed_multiline_type_one_block_before_route_is_accepted() -> None:
+    files = [ChangedFile("docs/guide.md")]
+    context = _context("Low", files)
+    pull_request = context["data"]["repository"]["pullRequest"]
+    pull_request["body"] = pull_request["body"].replace(
+        "## Review route",
+        "<pre>\nexample\n</pre>\n## Review route",
+    )
+    assert validate_context(context, files, now=NOW) == []
+
+
+def test_type_seven_tag_cannot_interrupt_an_ordinary_paragraph() -> None:
+    files = [ChangedFile("docs/guide.md")]
+    context = _context("Low", files)
+    pull_request = context["data"]["repository"]["pullRequest"]
+    pull_request["body"] = pull_request["body"].replace(
+        "## Review route",
+        "ordinary paragraph\n<x-route>\n## Review route",
+    )
+    assert validate_context(context, files, now=NOW) == []
+
+
 @pytest.mark.parametrize(
     ("opening", "closing"),
     [

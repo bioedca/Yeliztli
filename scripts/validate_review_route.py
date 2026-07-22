@@ -347,20 +347,22 @@ def _visible_markdown(body: str) -> str:
 
 
 def _inside_raw_html_container(markdown: str) -> bool:
-    stack: list[str] = []
-    tag_pattern = re.compile(
-        r"(?is)<\s*(?P<close>/)?\s*"
-        r"(?P<tag>code|pre|script|style|textarea)\b[^<>]*?>"
-    )
-    for match in tag_pattern.finditer(markdown):
-        tag = match.group("tag").lower()
-        if match.group("close"):
-            if not stack or stack[-1] != tag:
-                return True
-            stack.pop()
-        elif not match.group(0).rstrip().endswith("/>"):
-            stack.append(tag)
-    if stack:
+    type_one_tag: str | None = None
+    for line in markdown.splitlines():
+        if type_one_tag is not None:
+            if re.search(rf"</{type_one_tag}>", line, flags=re.IGNORECASE):
+                type_one_tag = None
+            continue
+        opening = re.match(
+            r"^[ ]{0,3}<(?P<tag>pre|script|style|textarea)(?:[ \t>]|$)",
+            line,
+            flags=re.IGNORECASE,
+        )
+        if opening:
+            tag = opening.group("tag").lower()
+            if re.search(rf"</{tag}>", line[opening.start() :], flags=re.IGNORECASE) is None:
+                type_one_tag = tag
+    if type_one_tag is not None:
         return True
 
     def unterminated(opener: str, closer: str) -> bool:
@@ -378,13 +380,6 @@ def _inside_raw_html_container(markdown: str) -> bool:
             unterminated(r"^[ ]{0,3}<\?", "?>"),
             unterminated(r"^[ ]{0,3}<!\[CDATA\[", "]]>"),
             unterminated(r"^[ ]{0,3}<![A-Z]", ">"),
-            bool(
-                re.search(
-                    r"(?im)^[ ]{0,3}<(?:pre|script|style|textarea)"
-                    r"(?:[ \t]|$)[^>\n]*$",
-                    markdown,
-                )
-            ),
         )
     ):
         return True
@@ -406,7 +401,16 @@ def _inside_raw_html_container(markdown: str) -> bool:
         if indentation > 3:
             return False
         content = content[indentation:]
-        if re.match(r"(?i)^</?[a-z][a-z0-9-]*(?:[ \t]|/?>)", content) is None:
+        tag_match = re.match(
+            r"(?i)^<(?P<close>/)?(?P<tag>[a-z][a-z0-9-]*)(?:[ \t]|/?>)",
+            content,
+        )
+        if tag_match is None:
+            return False
+        if tag_match.group("close") is None and re.match(
+            r"(?i)^<(?:pre|script|style|textarea)(?:[ \t>]|$)",
+            content,
+        ):
             return False
         quote: str | None = None
         for index, character in enumerate(content):
@@ -419,7 +423,8 @@ def _inside_raw_html_container(markdown: str) -> bool:
                 return not content[index + 1 :].strip()
         return False
 
-    return any(is_complete_tag_line(line) for line in tail.splitlines())
+    first_line = tail.splitlines()[0] if tail.splitlines() else ""
+    return is_complete_tag_line(first_line)
 
 
 def _normalise_gate(value: str) -> str:
