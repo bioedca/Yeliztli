@@ -21,11 +21,6 @@ CODERABBIT_GATE = "Manual CodeRabbit reservation and @coderabbitai full review"
 HUMAN_GATE = "Independent human maintainer review"
 BOT_GATES = (COPILOT_GATE, CODEX_GATE, CODERABBIT_GATE)
 GATES = (*BOT_GATES, HUMAN_GATE)
-REQUIRED_GATES_V1 = {
-    "Low": {COPILOT_GATE, HUMAN_GATE},
-    "Standard": {COPILOT_GATE, CODEX_GATE, HUMAN_GATE},
-    "Load-bearing": set(GATES),
-}
 AUTOMATED_REVIEW_CHOICES = {
     "Copilot": COPILOT_GATE,
     "Codex": CODEX_GATE,
@@ -255,6 +250,13 @@ UTC_RESULT = re.compile(
 )
 TERMINAL_REVIEW_STATES = {"APPROVED", "COMMENTED"}
 HUMAN_ASSOCIATIONS = {"OWNER", "MEMBER", "COLLABORATOR"}
+CODEX_CLEAN_COMPLETION_MARKER = (
+    "Codex Review: Didn't find any major issues. What shall we delve into next?"
+)
+CODEX_REVIEWED_COMMIT_LINE = re.compile(
+    r"(?m)^\*\*Reviewed commit:\*\* `(?P<sha>[0-9a-f]{10})`\s*$"
+)
+CODEX_TRIGGER = "@codex review"
 CODERABBIT_COMPLETION_MARKER = "auto-generated comment by CodeRabbit for review status"
 HUMAN_OPINION_STATES = {"APPROVED", "CHANGES_REQUESTED", "DISMISSED"}
 FINALIZE_COMMAND = "/validate-route"
@@ -428,15 +430,72 @@ def _bot_activity(
     actor_id: int,
     head_sha: str,
     head_epoch: datetime,
+    codex_head_safe: bool = False,
 ) -> datetime | None:
     candidates: list[tuple[datetime, dict[str, Any]]] = []
     for review in pull_request["reviews"].get("nodes") or []:
         commit = review.get("commit") or {}
         submitted = review.get("submittedAt")
-        if _actor_id(review) == actor_id and commit.get("oid") == head_sha and submitted:
+        author = review.get("author") or {}
+        if (
+            author.get("__typename") == "Bot"
+            and _actor_id(review) == actor_id
+            and commit.get("oid") == head_sha
+            and submitted
+        ):
             when = _parse_utc(submitted)
             if when > head_epoch:
                 candidates.append((when, review))
+    if gate == CODEX_GATE:
+        signals: list[tuple[datetime, bool]] = [
+            (when, review.get("state") in TERMINAL_REVIEW_STATES) for when, review in candidates
+        ]
+        comments = pull_request.get("comments") or {}
+        for comment in comments.get("nodes") or []:
+            created_raw = comment.get("createdAt")
+            updated_raw = comment.get("updatedAt") or created_raw
+            author = comment.get("author") or {}
+            body = comment.get("body") or ""
+            trusted_trigger = (
+                author.get("__typename") == "User"
+                and comment.get("authorAssociation") in HUMAN_ASSOCIATIONS
+                and body == CODEX_TRIGGER
+                and isinstance(_actor_id(comment), int)
+            )
+            codex_response = author.get("__typename") == "Bot" and _actor_id(comment) == actor_id
+            if not (trusted_trigger or codex_response):
+                continue
+            if not created_raw or not updated_raw:
+                return None
+            created = _parse_utc(created_raw)
+            updated = _parse_utc(updated_raw)
+            if updated <= head_epoch:
+                continue
+            database_id = comment.get("databaseId")
+            if not isinstance(database_id, int):
+                return None
+            if trusted_trigger:
+                # A later exact maintainer request makes the lane pending until
+                # Codex publishes a newer current-head outcome. Multiple
+                # requests may share one later result: the result, not the
+                # request comment, is the review evidence.
+                signals.append((updated, False))
+                continue
+            immutable = created == updated and comment.get("lastEditedAt") is None
+            commit_lines = CODEX_REVIEWED_COMMIT_LINE.findall(body)
+            clean_completion = (
+                immutable
+                and created > head_epoch
+                and body.splitlines()[0:1] == [CODEX_CLEAN_COMPLETION_MARKER]
+                and len(commit_lines) == 1
+                and commit_lines[0] == head_sha[:10].lower()
+                and codex_head_safe
+            )
+            signals.append((updated, clean_completion))
+        if not signals:
+            return None
+        latest_at = max(when for when, _ in signals)
+        return latest_at if all(valid for when, valid in signals if when == latest_at) else None
     if not candidates:
         return None
     if gate == CODERABBIT_GATE:
@@ -794,6 +853,11 @@ def validate_context(
         floor = None
     if route and floor and ROUTE_RANK[route] < ROUTE_RANK[floor]:
         errors.append(f"selected route {route} is below changed-path minimum {floor}")
+    if schema_version == 1:
+        errors.append(
+            "review-route schema v1 is obsolete; migrate to v2 and select one automated reviewer"
+        )
+        return errors
     if pull_request.get("isDraft") is True or route is None:
         return errors
 
@@ -812,12 +876,9 @@ def validate_context(
     if any(not thread.get("isResolved") for thread in threads.get("nodes") or []):
         errors.append("unresolved review threads remain")
 
-    if schema_version == 1:
-        required = REQUIRED_GATES_V1[route]
-    else:
-        if len(selected_bots) != 1:
-            errors.append("select exactly one automated PR reviewer")
-        required = {*selected_bots, HUMAN_GATE}
+    if len(selected_bots) != 1:
+        errors.append("select exactly one automated PR reviewer")
+    required = {*selected_bots, HUMAN_GATE}
     if CODERABBIT_GATE not in required and any(
         when > head_epoch and kind == "trigger"
         for when, kind, _, _ in _coderabbit_protocol_events(pull_request, head_sha)
@@ -853,10 +914,29 @@ def validate_context(
         body_times[gate] = when
 
     observed: dict[str, datetime] = {}
+    codex_head_object = repository.get("codexHeadObject") or {}
+    codex_full_oid = codex_head_object.get("oid")
+    codex_abbreviated_oid = codex_head_object.get("abbreviatedOid")
+    normalized_head = head_sha.lower()
+    codex_head_safe = (
+        codex_head_object.get("__typename") == "Commit"
+        and isinstance(codex_full_oid, str)
+        and codex_full_oid.lower() == normalized_head
+        and isinstance(codex_abbreviated_oid, str)
+        and re.fullmatch(r"[0-9a-f]{4,10}", codex_abbreviated_oid) is not None
+        and normalized_head.startswith(codex_abbreviated_oid)
+    )
     for gate, actor_id in BOT_ACTOR_IDS.items():
         if gate not in required:
             continue
-        activity = _bot_activity(pull_request, gate, actor_id, head_sha, head_epoch)
+        activity = _bot_activity(
+            pull_request,
+            gate,
+            actor_id,
+            head_sha,
+            head_epoch,
+            codex_head_safe,
+        )
         if activity is None:
             errors.append(f"no verified current-head GitHub activity for: {gate}")
         else:
@@ -878,26 +958,7 @@ def validate_context(
                 f"declared evidence time does not match verified GitHub activity: {gate}"
             )
 
-    if (
-        schema_version == 1
-        and route == "Load-bearing"
-        and CODERABBIT_GATE in observed
-        and CODEX_GATE in observed
-    ):
-        errors.extend(
-            _coderabbit_trigger_state(
-                repository,
-                pull_request,
-                head_sha,
-                observed[CODERABBIT_GATE],
-                head_epoch,
-                observed[CODEX_GATE],
-                "Codex",
-            )
-        )
-    elif (
-        schema_version == 2 and selected_bots == [CODERABBIT_GATE] and CODERABBIT_GATE in observed
-    ):
+    if schema_version == 2 and selected_bots == [CODERABBIT_GATE] and CODERABBIT_GATE in observed:
         errors.extend(
             _coderabbit_trigger_state(
                 repository,
@@ -911,17 +972,8 @@ def validate_context(
         )
 
     gate_times = {**body_times, **observed}
-    if schema_version == 1:
-        if route == "Low":
-            sequence = [COPILOT_GATE, HUMAN_GATE]
-        elif route == "Standard":
-            sequence = [COPILOT_GATE, CODEX_GATE, HUMAN_GATE]
-        else:
-            sequence = [COPILOT_GATE, CODEX_GATE, CODERABBIT_GATE, HUMAN_GATE]
-        sequence_error = "verified reviews do not follow the selected route order"
-    else:
-        sequence = [*selected_bots, HUMAN_GATE]
-        sequence_error = "selected automated review must precede human approval"
+    sequence = [*selected_bots, HUMAN_GATE]
+    sequence_error = "selected automated review must precede human approval"
     if all(gate in gate_times for gate in sequence):
         times = [gate_times[gate] for gate in sequence]
         if any(left >= right for left, right in zip(times, times[1:], strict=False)):

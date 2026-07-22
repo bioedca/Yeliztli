@@ -1,5 +1,15 @@
-query ReviewRouteContext($owner: String!, $repo: String!, $number: Int!) {
+query ReviewRouteContext(
+  $owner: String!
+  $repo: String!
+  $number: Int!
+  $headOid: GitObjectID!
+) {
   repository(owner: $owner, name: $repo) {
+    codexHeadObject: object(oid: $headOid) {
+      __typename
+      oid
+      abbreviatedOid
+    }
     pullRequest(number: $number) {
       number
       author {

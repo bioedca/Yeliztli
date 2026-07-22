@@ -57,16 +57,31 @@ Choose the highest route required by any part of the final diff:
   architecture, or broad/hard-to-revert changes. Manual CodeRabbit is the
   preferred automated reviewer when its quota is available.
 
-Every route selects exactly one formal automated GitHub review from Copilot,
-Codex, or CodeRabbit, followed by independent human approval. These providers
-are substitutes, not a mandatory sequence: choose another when the preferred
-provider is unavailable or quota-limited. A maintainer may request extra
-advisory reviews when risk or findings justify them, but the selected lane is
-the one recorded in the route evidence. Record its exact final-head SHA and UTC
-completion time in the PR table; mark unused provider rows `N/A`. The selected
-automated review must complete before human approval. Do not manually request
-CodeRabbit as an extra advisory review; select the CodeRabbit lane first so its
-reservation and repository-wide quota remain enforceable.
+Every route selects exactly one verified automated GitHub review outcome from
+Copilot, Codex, or CodeRabbit, followed by independent human approval. These
+providers are substitutes, not a mandatory sequence: choose another when the
+preferred provider is unavailable or quota-limited. A maintainer may request
+extra advisory reviews when risk or findings justify them, but the selected
+lane is the one recorded in the route evidence. Record its exact final-head SHA
+and UTC completion time in the PR table; mark unused provider rows `N/A`. The
+selected automated review must complete before human approval. Do not manually
+request CodeRabbit as an extra advisory review; select the CodeRabbit lane first
+so its reservation and repository-wide quota remain enforceable. Do not request
+Copilot and Codex together by default; one verified outcome is the gate.
+Existing PRs using `review-route-schema:v1` must replace their route section
+with the v2 template before validation; v1's multi-provider matrix is obsolete.
+
+Codex may return a no-findings outcome as a conversation comment rather than a
+formal review. A comment outcome counts only when it is immutable and from the
+trusted Codex bot, its first line is the canonical clean result, its single
+10-hex reviewed-commit marker matches the current head, and GitHub's full-OID
+lookup reports that head's canonical abbreviation at no more than 10
+characters. This fails closed if 10 characters cannot distinguish the head.
+Untrusted comments never control route state. The evidence table still records
+the full 40-character head SHA. A later exact maintainer `@codex review`
+request or invalid Codex response makes the lane incomplete until a newer
+valid outcome arrives; multiple earlier requests need only one later real
+review of the unchanged head.
 
 If CodeRabbit is selected, the same maintainer posts two separate, immutable
 comments at distinct times:

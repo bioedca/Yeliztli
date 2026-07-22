@@ -111,8 +111,10 @@ jobs:
       github.event_name == 'pull_request_target' ||
       (github.event_name == 'issue_comment' &&
       github.event.issue.pull_request &&
-      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'),
-      github.event.comment.author_association))
+      (contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'),
+      github.event.comment.author_association) ||
+      (github.event.comment.user.type == 'Bot' &&
+      github.event.comment.user.id == 199175422)))
     name: Resolve Route Event
     outputs:
       head_sha: ${{ steps.resolve.outputs.head_sha }}
@@ -520,6 +522,7 @@ jobs:
             -F owner="$OWNER" \
             -F repo="$REPO" \
             -F number="$PR_NUMBER" \
+            -f headOid="$HEAD_SHA" \
             -F query=@scripts/review_route_context.graphql \
             > "$RUNNER_TEMP/review-route-context.json"
           gh api --paginate --slurp \

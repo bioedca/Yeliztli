@@ -16,7 +16,9 @@ from scripts.validate_review_route import (
     BOT_ACTOR_IDS,
     CODERABBIT_COMPLETION_MARKER,
     CODERABBIT_GATE,
+    CODEX_CLEAN_COMPLETION_MARKER,
     CODEX_GATE,
+    CODEX_TRIGGER,
     COPILOT_GATE,
     GATES,
     HUMAN_GATE,
@@ -95,7 +97,9 @@ def _comment(
     *,
     association: str = "COLLABORATOR",
     updated_at: str | None = None,
+    last_edited_at: str | None = None,
     comment_id: int | None = None,
+    typename: str = "User",
 ) -> dict[str, object]:
     if comment_id is None:
         comment_id = int(
@@ -104,13 +108,66 @@ def _comment(
     return {
         "id": f"IC_kwDOTest{comment_id}",
         "databaseId": comment_id,
-        "author": _actor(database_id, "User"),
+        "author": _actor(database_id, typename),
         "authorAssociation": association,
         "body": body,
         "createdAt": created_at,
-        "lastEditedAt": None,
+        "lastEditedAt": last_edited_at,
         "updatedAt": updated_at or created_at,
     }
+
+
+def _codex_clean_comment(
+    created_at: str = GATE_TIMES[CODEX_GATE],
+    *,
+    actor_id: int = BOT_ACTOR_IDS[CODEX_GATE],
+    head_sha: str = HEAD_SHA,
+    updated_at: str | None = None,
+    last_edited_at: str | None = None,
+) -> dict[str, object]:
+    return _comment(
+        actor_id,
+        (
+            f"{CODEX_CLEAN_COMPLETION_MARKER}\n\n"
+            f"**Reviewed commit:** `{head_sha[:10]}`\n\n"
+            "<details><summary>About Codex</summary></details>"
+        ),
+        created_at,
+        association="NONE",
+        updated_at=updated_at,
+        last_edited_at=last_edited_at,
+        typename="Bot",
+    )
+
+
+def _use_codex_clean_comment(
+    context: dict[str, object],
+    *,
+    trigger: dict[str, object] | None = None,
+    response: dict[str, object] | None = None,
+    include_trigger: bool = True,
+) -> tuple[dict[str, object] | None, dict[str, object]]:
+    pull_request = context["data"]["repository"]["pullRequest"]
+    reviews = pull_request["reviews"]
+    reviews["nodes"] = [
+        review
+        for review in reviews["nodes"]
+        if review["author"]["databaseId"] != BOT_ACTOR_IDS[CODEX_GATE]
+    ]
+    reviews["totalCount"] = len(reviews["nodes"])
+    if include_trigger:
+        trigger = trigger or _comment(
+            AUTHOR_ID,
+            CODEX_TRIGGER,
+            "2026-07-21T12:19:00Z",
+            association="OWNER",
+        )
+    response = response or _codex_clean_comment()
+    comments = [item for item in (trigger, response) if item is not None]
+    pull_request["comments"] = {"totalCount": len(comments), "nodes": comments}
+    recent = context["data"]["repository"]["recentPullRequests"]["nodes"][0]
+    recent["comments"] = {"totalCount": len(comments), "nodes": comments}
+    return trigger, response
 
 
 def _body(
@@ -240,6 +297,11 @@ def _context(
     return {
         "data": {
             "repository": {
+                "codexHeadObject": {
+                    "__typename": "Commit",
+                    "oid": HEAD_SHA,
+                    "abbreviatedOid": HEAD_SHA[:7],
+                },
                 "pullRequest": pull_request,
                 "openPullRequests": {
                     "totalCount": 1,
@@ -346,6 +408,241 @@ def test_v2_review_providers_are_interchangeable(route: str, path: str, gate: st
     files = [ChangedFile(path)]
     context = _context(route, files, automated_gates={gate})
     assert validate_context(context, files, now=NOW) == []
+
+
+def test_v2_codex_clean_issue_comment_is_verified_on_the_current_head() -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, automated_gates={CODEX_GATE})
+    _use_codex_clean_comment(context)
+    assert validate_context(context, files, now=NOW) == []
+
+
+def test_v2_codex_clean_issue_comment_is_review_evidence_without_a_visible_trigger() -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, automated_gates={CODEX_GATE})
+    _use_codex_clean_comment(context, include_trigger=False)
+    assert validate_context(context, files, now=NOW) == []
+
+
+@pytest.mark.parametrize(
+    "resolved",
+    [
+        None,
+        {"__typename": "Blob", "oid": HEAD_SHA, "abbreviatedOid": HEAD_SHA[:7]},
+        {"__typename": "Commit", "oid": 42, "abbreviatedOid": HEAD_SHA[:7]},
+        {"__typename": "Commit", "oid": "b" * 40, "abbreviatedOid": HEAD_SHA[:7]},
+        {"__typename": "Commit", "oid": HEAD_SHA, "abbreviatedOid": HEAD_SHA[:3]},
+        {"__typename": "Commit", "oid": HEAD_SHA, "abbreviatedOid": HEAD_SHA[:11]},
+        {"__typename": "Commit", "oid": HEAD_SHA, "abbreviatedOid": "b" * 7},
+        {"__typename": "Commit", "oid": HEAD_SHA, "abbreviatedOid": "A" * 7},
+    ],
+)
+def test_v2_codex_clean_comment_requires_safe_full_oid_resolution(
+    resolved: dict[str, object] | None,
+) -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, automated_gates={CODEX_GATE})
+    _use_codex_clean_comment(context)
+    context["data"]["repository"]["codexHeadObject"] = resolved
+    errors = validate_context(context, files, now=NOW)
+    assert f"no verified current-head GitHub activity for: {CODEX_GATE}" in errors
+
+
+def test_formal_codex_review_does_not_depend_on_abbreviated_oid_resolution() -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, automated_gates={CODEX_GATE})
+    context["data"]["repository"]["codexHeadObject"] = None
+    assert validate_context(context, files, now=NOW) == []
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "wrong_actor",
+        "user_actor",
+        "edited",
+        "updated",
+        "wrong_first_line",
+        "wrong_head",
+        "duplicate_commit",
+        "short_commit",
+    ],
+)
+def test_v2_codex_clean_issue_comment_fails_closed_when_untrusted(case: str) -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, automated_gates={CODEX_GATE})
+    _, response = _use_codex_clean_comment(context)
+    if case == "wrong_actor":
+        response["author"] = _actor(AUTHOR_ID)
+    elif case == "user_actor":
+        response["author"]["__typename"] = "User"
+    elif case == "edited":
+        response["lastEditedAt"] = response["createdAt"]
+    elif case == "updated":
+        response["updatedAt"] = "2026-07-21T12:21:00Z"
+    elif case == "wrong_first_line":
+        response["body"] = response["body"].replace(
+            CODEX_CLEAN_COMPLETION_MARKER,
+            f"> {CODEX_CLEAN_COMPLETION_MARKER}",
+            1,
+        )
+    elif case == "wrong_head":
+        response["body"] = response["body"].replace(HEAD_SHA[:10], "b" * 10)
+    elif case == "duplicate_commit":
+        response["body"] += f"\n**Reviewed commit:** `{HEAD_SHA[:10]}`"
+    elif case == "short_commit":
+        response["body"] = response["body"].replace(HEAD_SHA[:10], HEAD_SHA[:9])
+    errors = validate_context(context, files, now=NOW)
+    assert f"no verified current-head GitHub activity for: {CODEX_GATE}" in errors
+
+
+@pytest.mark.parametrize("same_second", [False, True])
+def test_later_codex_noncompletion_invalidates_clean_comment(same_second: bool) -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, automated_gates={CODEX_GATE})
+    _use_codex_clean_comment(context)
+    when = GATE_TIMES[CODEX_GATE] if same_second else "2026-07-21T12:21:00Z"
+    pull_request = context["data"]["repository"]["pullRequest"]
+    pull_request["comments"]["nodes"].append(
+        _comment(
+            BOT_ACTOR_IDS[CODEX_GATE],
+            "Codex review did not produce a clean completion.",
+            when,
+            association="NONE",
+            typename="Bot",
+        )
+    )
+    pull_request["comments"]["totalCount"] += 1
+    errors = validate_context(context, files, now=NOW)
+    assert f"no verified current-head GitHub activity for: {CODEX_GATE}" in errors
+
+
+@pytest.mark.parametrize("use_clean_comment", [False, True])
+def test_later_codex_trigger_requires_a_new_result(use_clean_comment: bool) -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, automated_gates={CODEX_GATE})
+    if use_clean_comment:
+        _use_codex_clean_comment(context)
+    pull_request = context["data"]["repository"]["pullRequest"]
+    pull_request["comments"]["nodes"].append(
+        _comment(
+            HUMAN_ID,
+            CODEX_TRIGGER,
+            "2026-07-21T12:21:00Z",
+            association="MEMBER",
+        )
+    )
+    pull_request["comments"]["totalCount"] += 1
+    errors = validate_context(context, files, now=NOW)
+    assert f"no verified current-head GitHub activity for: {CODEX_GATE}" in errors
+
+
+def test_multiple_codex_requests_can_share_one_later_current_head_result() -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, automated_gates={CODEX_GATE})
+    _, response = _use_codex_clean_comment(context)
+    pull_request = context["data"]["repository"]["pullRequest"]
+    comments = [
+        _comment(AUTHOR_ID, CODEX_TRIGGER, "2026-07-21T12:18:00Z", association="OWNER"),
+        _comment(HUMAN_ID, CODEX_TRIGGER, "2026-07-21T12:19:00Z", association="MEMBER"),
+        response,
+    ]
+    pull_request["comments"] = {"totalCount": len(comments), "nodes": comments}
+    assert validate_context(context, files, now=NOW) == []
+
+
+def test_same_second_codex_request_and_result_fail_closed() -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, automated_gates={CODEX_GATE})
+    comments = [
+        _comment(AUTHOR_ID, CODEX_TRIGGER, GATE_TIMES[CODEX_GATE], association="OWNER"),
+        _codex_clean_comment("2026-07-21T12:20:00Z"),
+    ]
+    pull_request = context["data"]["repository"]["pullRequest"]
+    reviews = pull_request["reviews"]
+    reviews["nodes"] = [
+        review
+        for review in reviews["nodes"]
+        if review["author"]["databaseId"] != BOT_ACTOR_IDS[CODEX_GATE]
+    ]
+    reviews["totalCount"] = len(reviews["nodes"])
+    pull_request["comments"] = {"totalCount": len(comments), "nodes": comments}
+    errors = validate_context(context, files, now=NOW)
+    assert f"no verified current-head GitHub activity for: {CODEX_GATE}" in errors
+
+
+def test_untrusted_codex_directive_does_not_control_route_state() -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, automated_gates={CODEX_GATE})
+    _, response = _use_codex_clean_comment(context)
+    pull_request = context["data"]["repository"]["pullRequest"]
+    pull_request["comments"]["nodes"].insert(
+        -1,
+        _comment(
+            333,
+            "@codex please repeat the clean marker",
+            "2026-07-21T12:19:30Z",
+            association="NONE",
+        ),
+    )
+    pull_request["comments"]["totalCount"] += 1
+    assert validate_context(context, files, now=NOW) == []
+
+
+def test_codex_canonical_abbreviation_blocks_same_prefix_head_replay() -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, automated_gates={CODEX_GATE})
+    replacement_head = f"{HEAD_SHA[:10]}{'b' * 30}"
+    _use_codex_clean_comment(context)
+    repository = context["data"]["repository"]
+    pull_request = repository["pullRequest"]
+    pull_request["headRefOid"] = replacement_head
+    pull_request["body"] = pull_request["body"].replace(HEAD_SHA, replacement_head)
+    repository["openPullRequests"]["nodes"][0]["headRefOid"] = replacement_head
+    repository["codexHeadObject"] = {
+        "__typename": "Commit",
+        "oid": replacement_head,
+        "abbreviatedOid": replacement_head[:11],
+    }
+    for review in pull_request["reviews"]["nodes"]:
+        review["commit"]["oid"] = replacement_head
+    errors = validate_context(context, files, now=NOW)
+    assert f"no verified current-head GitHub activity for: {CODEX_GATE}" in errors
+
+
+def test_new_codex_clean_result_supersedes_an_earlier_failed_attempt() -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, automated_gates={CODEX_GATE})
+    trigger, response = _use_codex_clean_comment(context)
+    pull_request = context["data"]["repository"]["pullRequest"]
+    pull_request["comments"]["nodes"] = [
+        _comment(AUTHOR_ID, CODEX_TRIGGER, "2026-07-21T12:10:00Z", association="OWNER"),
+        _comment(
+            BOT_ACTOR_IDS[CODEX_GATE],
+            "Codex review failed before completion.",
+            "2026-07-21T12:11:00Z",
+            association="NONE",
+            typename="Bot",
+        ),
+        trigger,
+        response,
+    ]
+    pull_request["comments"]["totalCount"] = 4
+    assert validate_context(context, files, now=NOW) == []
+
+
+def test_formal_codex_review_requires_the_bot_actor_type() -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, automated_gates={CODEX_GATE})
+    reviews = context["data"]["repository"]["pullRequest"]["reviews"]
+    codex_review = next(
+        review
+        for review in reviews["nodes"]
+        if review["author"]["databaseId"] == BOT_ACTOR_IDS[CODEX_GATE]
+    )
+    codex_review["author"]["__typename"] = "User"
+    errors = validate_context(context, files, now=NOW)
+    assert f"no verified current-head GitHub activity for: {CODEX_GATE}" in errors
 
 
 @pytest.mark.parametrize(
@@ -671,52 +968,16 @@ def test_v2_draft_may_defer_exactly_one_provider_selection() -> None:
     assert validate_context(context, files, now=NOW) == []
 
 
-@pytest.mark.parametrize(
-    ("route", "path"),
-    [
-        ("Low", "docs/typo-fix.md"),
-        ("Standard", "frontend/src/hooks/useDialogFocus.ts"),
-        ("Load-bearing", "README.md"),
-    ],
-)
-def test_v1_route_bodies_keep_the_legacy_gate_matrix(route: str, path: str) -> None:
-    files = [ChangedFile(path)]
-    context = _context(route, files, body=_legacy_body(route))
-    assert validate_context(context, files, now=NOW) == []
-
-
-def test_v1_standard_still_requires_copilot_and_codex() -> None:
-    files = [ChangedFile("frontend/src/hooks/useDialogFocus.ts")]
-    context = _context("Standard", files, body=_legacy_body("Standard"))
-    reviews = context["data"]["repository"]["pullRequest"]["reviews"]
-    reviews["nodes"] = [
-        review
-        for review in reviews["nodes"]
-        if review["author"]["databaseId"] != BOT_ACTOR_IDS[COPILOT_GATE]
-    ]
-    reviews["totalCount"] = len(reviews["nodes"])
-    errors = validate_context(context, files, now=NOW)
-    assert f"no verified current-head GitHub activity for: {COPILOT_GATE}" in errors
-
-
-def test_v1_load_bearing_coderabbit_protocol_still_follows_codex() -> None:
+@pytest.mark.parametrize("route", ["Low", "Standard", "Load-bearing"])
+@pytest.mark.parametrize("draft", [False, True])
+def test_v1_route_bodies_require_migration_to_one_provider(route: str, draft: bool) -> None:
     files = [ChangedFile("README.md")]
-    context = _context("Load-bearing", files, body=_legacy_body("Load-bearing"))
-    repository = context["data"]["repository"]
-    comments = [
-        _comment(AUTHOR_ID, f"coderabbit-reservation: {HEAD_SHA}", "2026-07-21T12:15:00Z"),
-        _comment(AUTHOR_ID, "@coderabbitai full review", "2026-07-21T12:16:00Z"),
-    ]
-    repository["pullRequest"]["comments"] = {
-        "totalCount": len(comments),
-        "nodes": comments,
-    }
-    repository["recentPullRequests"]["nodes"][0]["comments"] = {
-        "totalCount": len(comments),
-        "nodes": comments,
-    }
+    context = _context(route, files, body=_legacy_body(route), draft=draft)
     errors = validate_context(context, files, now=NOW)
-    assert "CodeRabbit needs a current-SHA reservation, trigger, then completed review" in errors
+    assert (
+        "review-route schema v1 is obsolete; migrate to v2 and select one automated reviewer"
+        in errors
+    )
 
 
 def test_protected_rename_raises_route_floor() -> None:
@@ -1982,10 +2243,15 @@ def test_workflow_uses_trusted_base_and_explicit_head_status() -> None:
     assert "review_requested" in workflow and "review_request_removed" in workflow
     assert "closed" in workflow.split("types:", maxsplit=1)[1].split("\n", maxsplit=1)[0]
     assert "github.event.comment.author_association" in workflow
+    assert "github.event.comment.user.type == 'Bot'" in workflow
+    assert "github.event.comment.user.id == 199175422" in workflow
+    assert "contains(github.event.comment.body, '@codex')" not in workflow
+    assert "startsWith(github.event.comment.body, 'codex-reservation:')" not in workflow
     assert "environment:\n      name: review-route-publisher" in workflow
     assert "actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1" in workflow
     assert "REVIEW_ROUTE_APP_CLIENT_ID" in workflow
     assert "REVIEW_ROUTE_APP_PRIVATE_KEY" in workflow
+    assert '-f headOid="$HEAD_SHA"' in workflow
     assert "permission-statuses: write" in workflow
     assert "permission-contents: read" in workflow
     assert "statuses: write" not in workflow.split("jobs:", maxsplit=1)[0]
@@ -2933,6 +3199,10 @@ def test_public_template_contains_only_hosted_review_gates() -> None:
     assert SCHEMA_MARKER in template
     assert all(f"- [ ] {reviewer}" in template for reviewer in ("Copilot", "Codex", "CodeRabbit"))
     assert all(gate in template.replace("`", "") for gate in GATES)
+    assert "codex-reservation" not in template
+    assert "Do not request multiple hosted providers by default" in template
+    assert "formal current-head review" in template
+    assert "immutable canonical clean comment" in template
     assert "Immediately before any trigger, re-fetch" in template
     assert "Within this PR, service queued current-head reservations FIFO" in template
 
@@ -2942,8 +3212,13 @@ def test_contributor_review_routes_match_the_public_template() -> None:
     contributing = (root / "CONTRIBUTING.md").read_text(encoding="utf-8")
     normalized = " ".join(contributing.split())
     assert all(route in contributing for route in ("Low", "Standard", "Load-bearing"))
-    assert "selects exactly one formal automated GitHub review" in normalized
+    assert "selects exactly one verified automated GitHub review outcome" in normalized
+    assert "Codex may return a no-findings outcome as a conversation comment" in normalized
+    assert "codex-reservation" not in contributing
     assert "providers are substitutes, not a mandatory sequence" in normalized
+    assert "Do not request Copilot and Codex together by default" in normalized
+    assert "review-route-schema:v1" in contributing
+    assert "v1's multi-provider matrix is obsolete" in normalized
     assert "five" in contributing and "rolling-hour" in contributing
     assert "Immediately before triggering, re-fetch the PR" in normalized
     assert "attributes the SHA-less trigger" in normalized
@@ -2968,6 +3243,9 @@ def test_graphql_context_tracks_comment_association_and_head_epoch() -> None:
     root = Path(__file__).resolve().parents[2]
     query = (root / "scripts/review_route_context.graphql").read_text(encoding="utf-8")
     assert query.count("authorAssociation") == 4
+    assert "$headOid: GitObjectID!" in query
+    assert "codexHeadObject: object(oid: $headOid)" in query
+    assert "abbreviatedOid" in query
     assert query.count("updatedAt") == 4
     assert "\n          id\n          databaseId\n          author" in query
     assert query.count("lastEditedAt") == 2
