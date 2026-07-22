@@ -16,7 +16,7 @@ on:
 
 # Privileged publication intentionally uses only default-branch workflow refs.
 # PR lifecycle and review events first run a credential-free signal; its
-# default-branch workflow_run consumer live-binds the PR, heads, and review actor.
+# default-branch workflow_run consumer live-binds the PR, heads, and trigger actor.
 # Review-state signals can only invalidate. Lifecycle signals can refresh the
 # non-final route, including for fork and Dependabot PRs whose source run cannot
 # access Actions secrets; every completed source conclusion is consumed so a
@@ -55,14 +55,13 @@ jobs:
           SIGNAL_EVENT: ${{ github.event.workflow_run.event }}
           SIGNAL_TITLE: ${{ github.event.workflow_run.display_title }}
           SOURCE_ACTOR_ID: ${{ github.event.workflow_run.actor.id }}
+          SOURCE_ACTOR_LOGIN: ${{ github.event.workflow_run.actor.login }}
           SOURCE_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
-          if [[ "$SIGNAL_TITLE" =~ ^review-route-pr-([0-9]+)-head-([0-9a-fA-F]{40})-trigger-([0-9]+)-actor-([0-9]+)-assoc-([A-Z_]+)$ ]]; then
+          if [[ "$SIGNAL_TITLE" =~ ^review-route-pr-([0-9]+)-head-([0-9a-fA-F]{40})-trigger-([0-9]+)$ ]]; then
             pr_number="${BASH_REMATCH[1]}"
             signal_head="$(printf '%s' "${BASH_REMATCH[2]}" | tr '[:upper:]' '[:lower:]')"
             signal_trigger_actor_id="${BASH_REMATCH[3]}"
-            signal_actor_id="${BASH_REMATCH[4]}"
-            signal_association="${BASH_REMATCH[5]}"
           else
             echo "::error title=Review Route::invalid review-state signal identity"
             exit 1
@@ -73,30 +72,41 @@ jobs:
             echo "::error title=Review Route::review-state trigger actor is invalid"
             exit 1
           fi
-          if ! [[ "$signal_actor_id" =~ ^[1-9][0-9]*$ ]]; then
-            echo "::error title=Review Route::review-state actor is invalid"
-            exit 1
-          fi
-          case "$signal_association" in
-            COLLABORATOR|CONTRIBUTOR|FIRST_TIMER|FIRST_TIME_CONTRIBUTOR|MANNEQUIN|MEMBER|NONE|OWNER) ;;
-            *) echo "::error title=Review Route::review-state association is invalid"; exit 1 ;;
+          case "$SIGNAL_EVENT" in
+            pull_request_review_comment) ;;
+            pull_request_review)
+              trusted_actor=false
+              case "$SOURCE_ACTOR_ID" in
+                175728472|199175422|136622811) trusted_actor=true ;;
+              esac
+              if [ "$trusted_actor" != "true" ]; then
+                if ! [[ "$SOURCE_ACTOR_LOGIN" =~ ^[A-Za-z0-9][A-Za-z0-9-]*(\[bot\])?$ ]]; then
+                  echo "::error title=Review Route::review-state actor login is invalid"
+                  exit 1
+                fi
+                permission_file="$RUNNER_TEMP/source-actor-permission.json"
+                actor_permission="lookup-failed"
+                if gh api \
+                  "repos/$GITHUB_REPOSITORY/collaborators/$SOURCE_ACTOR_LOGIN/permission" \
+                  > "$permission_file"; then
+                  actor_permission="$(jq -er --arg actor "$SOURCE_ACTOR_ID" '
+                    if (.user.id | tostring) == $actor then .permission else "identity-mismatch" end
+                  ' "$permission_file" 2>/dev/null || printf 'invalid')"
+                fi
+                case "$actor_permission" in
+                  admin|write) ;;
+                  read|none)
+                    echo "::error title=Review Route::untrusted formal-review signal actor"
+                    exit 1
+                    ;;
+                  *)
+                    echo "::warning title=Review Route::actor permission lookup was inconclusive; invalidating fail closed"
+                    ;;
+                esac
+              fi
+              ;;
+            *) echo "::error title=Review Route::review-state event is invalid"; exit 1 ;;
           esac
-          if [ "$SIGNAL_EVENT" = "pull_request_review" ]; then
-            trusted_actor=false
-            case "$signal_association" in
-              OWNER|MEMBER|COLLABORATOR) trusted_actor=true ;;
-            esac
-            case "$signal_actor_id" in
-              175728472|199175422|136622811) trusted_actor=true ;;
-            esac
-            if [ "$trusted_actor" != "true" ]; then
-              echo "::error title=Review Route::untrusted formal-review signal actor"
-              exit 1
-            fi
-          elif [ "$SIGNAL_EVENT" != "pull_request_review_comment" ]; then
-            echo "::error title=Review Route::review-state event is invalid"
-            exit 1
-          fi
           # Review-event workflow_run.head_sha is the reviewed PR head. Bind it
           # to the run-name's claimed event head, then separately live-bind the
           # claimed PR and its current head. A delayed signal may name an older
@@ -170,12 +180,10 @@ jobs:
           SOURCE_ACTOR_ID: ${{ github.event.workflow_run.actor.id }}
         run: |
           if [ "$EVENT_NAME" = "workflow_run" ]; then
-            if [[ "$SIGNAL_TITLE" =~ ^review-route-pr-([0-9]+)-head-([0-9a-fA-F]{40})-trigger-([0-9]+)-actor-([0-9]+)-assoc-([A-Z_]+)$ ]]; then
+            if [[ "$SIGNAL_TITLE" =~ ^review-route-pr-([0-9]+)-head-([0-9a-fA-F]{40})-trigger-([0-9]+)$ ]]; then
               pr_number="${BASH_REMATCH[1]}"
               event_head="$(printf '%s' "${BASH_REMATCH[2]}" | tr '[:upper:]' '[:lower:]')"
               event_trigger_actor_id="${BASH_REMATCH[3]}"
-              event_actor_id="${BASH_REMATCH[4]}"
-              event_association="${BASH_REMATCH[5]}"
             else
               echo "::error title=Review Route::invalid lifecycle signal identity"
               exit 1
@@ -184,10 +192,6 @@ jobs:
                ! [[ "$SOURCE_ACTOR_ID" =~ ^[1-9][0-9]*$ ]] || \
                [ "$event_trigger_actor_id" != "$SOURCE_ACTOR_ID" ]; then
               echo "::error title=Review Route::lifecycle trigger actor is invalid"
-              exit 1
-            fi
-            if [ "$event_actor_id" != "0" ] || [ "$event_association" != "NONE" ]; then
-              echo "::error title=Review Route::lifecycle signal carries review actor state"
               exit 1
             fi
           else

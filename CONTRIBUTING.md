@@ -117,12 +117,13 @@ solely for CodeRabbit.
 The final human approver must not be the PR author, and an active maintainer
 change request blocks the route. After final approval, record its evidence,
 resolve every review thread, then have a maintainer comment `/validate-route`.
-PR lifecycle events (including fork and Dependabot PRs), diff-comment mutations
-from every actor, and trusted formal-review mutations emit only a
-credential-free signal carrying GitHub's triggering actor plus the review
-subject's ID and association. The unprivileged default-branch resolver consumes
-every conclusion, rejects untrusted formal-review actors, and live-binds the
-signal and PR before a dedicated GitHub App marks or refreshes the route. Privileged jobs
+PR lifecycle events (including fork and Dependabot PRs), diff-comment mutations,
+and formal-review mutations emit only a credential-free signal carrying GitHub's
+triggering actor. The unprivileged default-branch resolver consumes every
+conclusion, authorizes formal-review source actors against immutable bot IDs or
+live write permission, and live-binds the signal and PR before a dedicated
+GitHub App marks or refreshes the route; an inconclusive permission lookup
+invalidates fail closed. Privileged jobs
 never check out PR code or consume PR artifacts/caches, and the publisher key
 is never copied into Dependabot secrets. An outsider's body-only formal review
 is irrelevant, but an outsider diff comment always invalidates because it can

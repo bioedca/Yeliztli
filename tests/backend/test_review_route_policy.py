@@ -57,13 +57,8 @@ def _signal_title(
     *,
     pr_number: int = 2183,
     trigger_actor_id: int = AUTHOR_ID,
-    actor_id: int = BOT_ACTOR_IDS[CODEX_GATE],
-    association: str = "NONE",
 ) -> str:
-    return (
-        f"review-route-pr-{pr_number}-head-{head}-trigger-{trigger_actor_id}"
-        f"-actor-{actor_id}-assoc-{association}"
-    )
+    return f"review-route-pr-{pr_number}-head-{head}-trigger-{trigger_actor_id}"
 
 
 def _workflow_step_script(workflow: str, step_name: str) -> str:
@@ -2581,28 +2576,20 @@ def test_review_state_signal_is_credential_free_and_only_drives_pending() -> Non
     assert lifecycle_types in signal
     assert (
         "run-name: review-route-pr-${{ github.event.pull_request.number }}-head-"
-        "${{ github.event.pull_request.head.sha }}-trigger-${{ github.actor_id }}-actor-" in signal
+        "${{ github.event.pull_request.head.sha }}-trigger-${{ github.actor_id }}" in signal
     )
-    assert "github.event.review.user.id || github.event.comment.user.id || 0" in signal
-    assert "github.event.review.author_association ||" in signal
+    assert "github.event.review.user.id" not in signal
+    assert "github.event.comment.user.id" not in signal
     assert "pull_request_review:" in signal
     assert "types: [submitted, edited, dismissed]" in signal
     assert "pull_request_review_comment:" in signal
     assert "types: [created, edited, deleted]" in signal
     assert "pull_request_review_thread:" not in signal
     assert "permissions: {}" in signal
-    assert "ACTOR_ASSOCIATION" in signal
-    assert "ACTOR_ID" in signal
-    assert "EVENT_NAME: ${{ github.event_name }}" in signal
-    assert "OWNER|MEMBER|COLLABORATOR" in signal
-    assert "175728472|199175422|136622811" in signal
-    lifecycle_path = 'if [ "$EVENT_NAME" = "pull_request_target" ]; then exit 0; fi'
-    outsider_comment_path = 'if [ "$EVENT_NAME" = "pull_request_review_comment" ]; then exit 0; fi'
-    assert lifecycle_path in signal
-    assert outsider_comment_path in signal
-    assert signal.index(lifecycle_path) < signal.index('case "$ACTOR_ASSOCIATION"')
-    assert signal.index(outsider_comment_path) < signal.index('case "$ACTOR_ASSOCIATION"')
-    assert "Every\n# PR lifecycle event and diff-comment actor" in signal
+    assert "ACTOR_ASSOCIATION" not in signal
+    assert "ACTOR_ID" not in signal
+    assert "untrusted formal-review signal actor" not in signal
+    assert "PR lifecycle, formal-review, and diff-comment mutation" in signal
     assert "fork and Dependabot PRs" in signal
     assert "Native required conversation resolution" in signal
     assert "actions/checkout" not in signal
@@ -2630,9 +2617,13 @@ def test_review_state_signal_is_credential_free_and_only_drives_pending() -> Non
     assert "any(.workflow_run.pull_requests[]?;" not in resolver
     assert "SOURCE_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}" in resolver
     assert "SOURCE_ACTOR_ID: ${{ github.event.workflow_run.actor.id }}" in resolver
+    assert "SOURCE_ACTOR_LOGIN: ${{ github.event.workflow_run.actor.login }}" in resolver
     assert "SIGNAL_EVENT: ${{ github.event.workflow_run.event }}" in resolver
-    assert "untrusted formal-review signal actor" in resolver
+    assert "review-state trigger actor is invalid" in resolver
     assert "175728472|199175422|136622811" in resolver
+    assert "collaborators/$SOURCE_ACTOR_LOGIN/permission" in resolver
+    assert "untrusted formal-review signal actor" in resolver
+    assert "actor permission lookup was inconclusive; invalidating fail closed" in resolver
     assert '[ "$source_head" != "$signal_head" ]' in resolver
     assert "Review-event workflow_run.head_sha is the reviewed PR head" in resolver
     assert "merge_commit_sha" not in resolver
@@ -2644,10 +2635,7 @@ def test_review_state_signal_is_credential_free_and_only_drives_pending() -> Non
     assert "group: review-route-${{ needs.resolve_review_state.outputs.head_sha }}" in invalidator
     validate_job = publisher.split("\n  validate:", maxsplit=1)[1]
     assert "group: review-route-${{ needs.resolve_route_event.outputs.head_sha }}" in validate_job
-    assert (
-        "^review-route-pr-([0-9]+)-head-([0-9a-fA-F]{40})-trigger-"
-        "([0-9]+)-actor-([0-9]+)-assoc-([A-Z_]+)$" in resolver
-    )
+    assert "^review-route-pr-([0-9]+)-head-([0-9a-fA-F]{40})-trigger-([0-9]+)$" in resolver
     assert invalidator.index('post_pending_for_current_pr "$head_sha"') < invalidator.index(
         'post_pending_if_unowned "$EXPECTED_HEAD_SHA"'
     )
@@ -2667,7 +2655,7 @@ def test_review_state_signal_is_credential_free_and_only_drives_pending() -> Non
     assert "SOURCE_ACTOR_ID: ${{ github.event.workflow_run.actor.id }}" in route_resolver
     assert "SOURCE_HEAD_SHA" not in route_resolver
     assert "invalid lifecycle signal identity" in route_resolver
-    assert "lifecycle signal carries review actor state" in route_resolver
+    assert "lifecycle trigger actor is invalid" in route_resolver
     assert "event_head=${{ steps.resolve.outputs.event_head }}" not in route_resolver
     assert "event_head: ${{ steps.resolve.outputs.event_head }}" in route_resolver
     assert "(.number | tostring) == $pr" in route_resolver
@@ -2737,40 +2725,19 @@ def test_publisher_executes_fail_closed_status_matrix(
     assert completed.stdout.split("\t", maxsplit=1)[0] == expected
 
 
-@pytest.mark.parametrize(
-    ("event_name", "association", "actor_id", "expected"),
-    [
-        ("pull_request_target", "", "", 0),
-        ("pull_request_review_comment", "NONE", "999", 0),
-        ("pull_request_review", "NONE", "999", 1),
-        ("pull_request_review", "COLLABORATOR", "999", 0),
-        ("pull_request_review", "NONE", "175728472", 0),
-    ],
-)
-def test_review_signal_executes_actor_and_event_matrix(
-    event_name: str,
-    association: str,
-    actor_id: str,
-    expected: int,
-) -> None:
+def test_review_signal_contains_no_pr_controlled_trust_decision() -> None:
     root = Path(__file__).resolve().parents[2]
     workflow = (root / ".github/workflows/review-route-invalidation.yml").read_text(
         encoding="utf-8"
     )
-    shell = _workflow_step_script(workflow, "Emit trusted review-state signal")
+    shell = _workflow_step_script(workflow, "Emit review-state signal")
     completed = subprocess.run(
         ["bash", "-e", "-o", "pipefail", "-c", shell],
-        check=False,
+        check=True,
         capture_output=True,
-        env={
-            **os.environ,
-            "ACTOR_ASSOCIATION": association,
-            "ACTOR_ID": actor_id,
-            "EVENT_NAME": event_name,
-        },
         text=True,
     )
-    assert completed.returncode == expected
+    assert completed.stdout.strip() == "Review-state invalidation signal emitted."
 
 
 @pytest.mark.parametrize(
@@ -2778,17 +2745,37 @@ def test_review_signal_executes_actor_and_event_matrix(
         "signal_event",
         "signal_trigger_actor_id",
         "source_actor_id",
-        "signal_actor_id",
-        "signal_association",
+        "source_actor_login",
+        "permission",
+        "permission_user_id",
         "actor_expected",
     ),
     [
-        ("pull_request_review", AUTHOR_ID, AUTHOR_ID, BOT_ACTOR_IDS[CODEX_GATE], "NONE", 0),
-        ("pull_request_review", AUTHOR_ID, AUTHOR_ID, 999, "COLLABORATOR", 0),
-        ("pull_request_review", AUTHOR_ID, AUTHOR_ID, 999, "NONE", 1),
-        ("pull_request_review_comment", AUTHOR_ID, AUTHOR_ID, 999, "NONE", 0),
-        ("pull_request_review", AUTHOR_ID, AUTHOR_ID, 999, "INVALID", 1),
-        ("pull_request_review", HUMAN_ID, AUTHOR_ID, BOT_ACTOR_IDS[CODEX_GATE], "NONE", 1),
+        (
+            "pull_request_review",
+            BOT_ACTOR_IDS[CODEX_GATE],
+            BOT_ACTOR_IDS[CODEX_GATE],
+            "chatgpt-codex-connector[bot]",
+            None,
+            None,
+            0,
+        ),
+        ("pull_request_review", AUTHOR_ID, AUTHOR_ID, "maintainer", "write", AUTHOR_ID, 0),
+        ("pull_request_review", AUTHOR_ID, AUTHOR_ID, "outsider", "read", AUTHOR_ID, 1),
+        (
+            "pull_request_review_comment",
+            AUTHOR_ID,
+            AUTHOR_ID,
+            "outsider",
+            "read",
+            AUTHOR_ID,
+            0,
+        ),
+        ("pull_request_review", HUMAN_ID, AUTHOR_ID, "maintainer", "write", AUTHOR_ID, 1),
+        ("not_a_review_event", AUTHOR_ID, AUTHOR_ID, "maintainer", "write", AUTHOR_ID, 1),
+        ("pull_request_review", AUTHOR_ID, AUTHOR_ID, "bad/login", "write", AUTHOR_ID, 1),
+        ("pull_request_review", AUTHOR_ID, AUTHOR_ID, "maintainer", None, None, 0),
+        ("pull_request_review", AUTHOR_ID, AUTHOR_ID, "maintainer", "write", HUMAN_ID, 0),
     ],
 )
 @pytest.mark.parametrize(
@@ -2840,8 +2827,9 @@ def test_review_signal_resolver_binds_source_and_live_head(
     signal_event: str,
     signal_trigger_actor_id: int,
     source_actor_id: int,
-    signal_actor_id: int,
-    signal_association: str,
+    source_actor_login: str,
+    permission: str | None,
+    permission_user_id: int | None,
     actor_expected: int,
     signal_head: str,
     source_head_sha: str,
@@ -2876,6 +2864,7 @@ def test_review_signal_resolver_binds_source_and_live_head(
     pr_fixture = tmp_path / "fixture-pr.json"
     open_fixture = tmp_path / "open-prs.json"
     event_fixture = tmp_path / "event.json"
+    permission_fixture = tmp_path / "permission.json"
     output = tmp_path / "output"
     pr_fixture.write_text(json.dumps(pull), encoding="utf-8")
     open_fixture.write_text(json.dumps([open_pulls]), encoding="utf-8")
@@ -2883,6 +2872,11 @@ def test_review_signal_resolver_binds_source_and_live_head(
         json.dumps({"workflow_run": {"head_sha": source_head_sha, "pull_requests": []}}),
         encoding="utf-8",
     )
+    if permission is not None:
+        permission_fixture.write_text(
+            json.dumps({"permission": permission, "user": {"id": permission_user_id}}),
+            encoding="utf-8",
+        )
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
     fake_gh = fake_bin / "gh"
@@ -2890,6 +2884,10 @@ def test_review_signal_resolver_binds_source_and_live_head(
         """#!/usr/bin/env bash
 set -eu
 case "$*" in
+  *"collaborators/"*"/permission"*)
+    [ -n "${PERMISSION_FIXTURE:-}" ] || exit 2
+    exec /bin/cat "$PERMISSION_FIXTURE"
+    ;;
   *"pulls/2183"*) exec /bin/cat "$PR_FIXTURE" ;;
   *"pulls?state=open"*) exec /bin/cat "$OPEN_PRS_FIXTURE" ;;
   *) exit 2 ;;
@@ -2910,16 +2908,16 @@ esac
             "GITHUB_REPOSITORY": "bioedca/Yeliztli",
             "OPEN_PRS_FIXTURE": str(open_fixture),
             "PATH": f"{fake_bin}:{os.environ['PATH']}",
+            "PERMISSION_FIXTURE": str(permission_fixture) if permission is not None else "",
             "PR_FIXTURE": str(pr_fixture),
             "RUNNER_TEMP": str(tmp_path),
             "SIGNAL_EVENT": signal_event,
             "SIGNAL_TITLE": _signal_title(
                 signal_head,
                 trigger_actor_id=signal_trigger_actor_id,
-                actor_id=signal_actor_id,
-                association=signal_association,
             ),
             "SOURCE_ACTOR_ID": str(source_actor_id),
+            "SOURCE_ACTOR_LOGIN": source_actor_login,
             "SOURCE_HEAD_SHA": source_head_sha,
         },
         text=True,
@@ -2951,7 +2949,7 @@ esac
     [
         (
             "workflow_run",
-            _signal_title(HEAD_SHA, actor_id=0),
+            _signal_title(HEAD_SHA),
             "",
             2183,
             HEAD_SHA,
@@ -2964,7 +2962,7 @@ esac
         ),
         (
             "workflow_run",
-            _signal_title("b" * 40, actor_id=0),
+            _signal_title("b" * 40),
             "",
             2183,
             HEAD_SHA,
@@ -2977,7 +2975,7 @@ esac
         ),
         (
             "workflow_run",
-            _signal_title(HEAD_SHA, actor_id=0),
+            _signal_title(HEAD_SHA),
             "",
             2183,
             HEAD_SHA,
@@ -3016,7 +3014,7 @@ esac
         ),
         (
             "workflow_run",
-            _signal_title(HEAD_SHA, trigger_actor_id=HUMAN_ID, actor_id=0),
+            _signal_title(HEAD_SHA, trigger_actor_id=HUMAN_ID),
             "",
             2183,
             HEAD_SHA,
@@ -3029,7 +3027,7 @@ esac
         ),
         (
             "workflow_run",
-            _signal_title(HEAD_SHA, actor_id=999, association="COLLABORATOR"),
+            _signal_title(HEAD_SHA, pr_number=2184),
             "",
             2183,
             HEAD_SHA,
@@ -3042,20 +3040,7 @@ esac
         ),
         (
             "workflow_run",
-            _signal_title(HEAD_SHA, pr_number=2184, actor_id=0),
-            "",
-            2183,
-            HEAD_SHA,
-            "main",
-            "bioedca/Yeliztli",
-            "dependabot[bot]",
-            "bioedca/Yeliztli",
-            1,
-            None,
-        ),
-        (
-            "workflow_run",
-            _signal_title(HEAD_SHA, actor_id=0),
+            _signal_title(HEAD_SHA),
             "",
             2183,
             "not-a-sha",
@@ -3068,7 +3053,7 @@ esac
         ),
         (
             "workflow_run",
-            _signal_title(HEAD_SHA, actor_id=0),
+            _signal_title(HEAD_SHA),
             "",
             2183,
             HEAD_SHA,
@@ -3081,7 +3066,7 @@ esac
         ),
         (
             "workflow_run",
-            _signal_title(HEAD_SHA, actor_id=0),
+            _signal_title(HEAD_SHA),
             "",
             2183,
             HEAD_SHA,
@@ -3858,11 +3843,10 @@ def test_contributor_review_routes_match_the_public_template() -> None:
     assert "two open `main` PRs must never share a head SHA" in normalized
     assert "failed, skipped, or cancelled trusted/relevant signal or publisher run" in normalized
     assert "PR lifecycle events (including fork and Dependabot PRs)" in normalized
-    assert (
-        "credential-free signal carrying GitHub's triggering actor plus the review" in normalized
-    )
+    assert "credential-free signal carrying GitHub's triggering actor" in normalized
     assert "unprivileged default-branch resolver consumes every conclusion" in normalized
-    assert "rejects untrusted formal-review actors" in normalized
+    assert "authorizes formal-review source actors against immutable bot IDs" in normalized
+    assert "inconclusive permission lookup invalidates fail closed" in normalized
     assert "never check out PR code or consume PR artifacts/caches" in normalized
     assert "publisher key is never copied into Dependabot secrets" in normalized
     assert "outsider diff comment always invalidates" in normalized

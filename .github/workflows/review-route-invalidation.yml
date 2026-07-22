@@ -1,5 +1,5 @@
 name: Review Route Invalidation Signal
-run-name: review-route-pr-${{ github.event.pull_request.number }}-head-${{ github.event.pull_request.head.sha }}-trigger-${{ github.actor_id }}-actor-${{ github.event.review.user.id || github.event.comment.user.id || 0 }}-assoc-${{ github.event.review.author_association || github.event.comment.author_association || 'NONE' }}
+run-name: review-route-pr-${{ github.event.pull_request.number }}-head-${{ github.event.pull_request.head.sha }}-trigger-${{ github.actor_id }}
 
 on:
   pull_request_target:
@@ -11,11 +11,10 @@ on:
     types: [created, edited, deleted]
 
 # This workflow carries no credentials and executes no repository code. Every
-# PR lifecycle event and diff-comment actor emits this credential-free signal;
-# formal review signals are limited to maintainers and the configured review
-# bots. Its structured run-name transports the PR/head plus triggering and
-# review-subject identities to the default-branch workflow_run consumer, which
-# live-binds them before any privileged publication. This indirection also covers fork and Dependabot PRs
+# PR lifecycle, formal-review, and diff-comment mutation emits this
+# credential-free invalidation signal. Its structured run-name transports only
+# the PR/head plus triggering actor to the default-branch workflow_run consumer,
+# which live-binds them before any privileged publication. This indirection also covers fork and Dependabot PRs
 # without exposing the publisher key or consuming untrusted artifacts/caches.
 # GitHub Actions has no review-thread resolved/unresolved trigger.
 # Native required conversation resolution is the synchronous authority for
@@ -28,21 +27,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 1
     steps:
-      - name: Emit trusted review-state signal
-        env:
-          ACTOR_ASSOCIATION: >-
-            ${{ github.event.review.author_association ||
-            github.event.comment.author_association }}
-          ACTOR_ID: ${{ github.event.review.user.id || github.event.comment.user.id }}
-          EVENT_NAME: ${{ github.event_name }}
+      - name: Emit review-state signal
         run: |
-          if [ "$EVENT_NAME" = "pull_request_target" ]; then exit 0; fi
-          if [ "$EVENT_NAME" = "pull_request_review_comment" ]; then exit 0; fi
-          case "$ACTOR_ASSOCIATION" in
-            OWNER|MEMBER|COLLABORATOR) exit 0 ;;
-          esac
-          case "$ACTOR_ID" in
-            175728472|199175422|136622811) exit 0 ;;
-          esac
-          echo "::error title=Review Route::untrusted formal-review signal actor"
-          exit 1
+          echo "Review-state invalidation signal emitted."
