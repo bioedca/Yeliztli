@@ -26,6 +26,7 @@ from scripts.validate_review_route import (
     SCHEMA_MARKER,
     ChangedFile,
     minimum_route,
+    needs_coderabbit_ledger,
     validate_context,
 )
 
@@ -49,6 +50,20 @@ DEFAULT_AUTOMATED_GATE = {
     "Standard": CODEX_GATE,
     "Load-bearing": CODERABBIT_GATE,
 }
+
+
+def _signal_title(
+    head: str = HEAD_SHA,
+    *,
+    pr_number: int = 2183,
+    trigger_actor_id: int = AUTHOR_ID,
+    actor_id: int = BOT_ACTOR_IDS[CODEX_GATE],
+    association: str = "NONE",
+) -> str:
+    return (
+        f"review-route-pr-{pr_number}-head-{head}-trigger-{trigger_actor_id}"
+        f"-actor-{actor_id}-assoc-{association}"
+    )
 
 
 def _workflow_step_script(workflow: str, step_name: str) -> str:
@@ -170,6 +185,18 @@ def _use_codex_clean_comment(
     recent = context["data"]["repository"]["recentPullRequests"]["nodes"][0]
     recent["comments"] = {"totalCount": len(comments), "nodes": comments}
     return trigger, response
+
+
+def _add_coderabbit_completion(context: dict[str, object], submitted_at: str) -> dict[str, object]:
+    review = _review(
+        BOT_ACTOR_IDS[CODERABBIT_GATE],
+        submitted_at,
+        body=f"Review completed. <!-- This is an {CODERABBIT_COMPLETION_MARKER} -->",
+    )
+    reviews = context["data"]["repository"]["pullRequest"]["reviews"]
+    reviews["nodes"].append(review)
+    reviews["totalCount"] += 1
+    return review
 
 
 def _body(
@@ -412,6 +439,62 @@ def test_v2_review_providers_are_interchangeable(route: str, path: str, gate: st
     assert validate_context(context, files, now=NOW) == []
 
 
+@pytest.mark.parametrize("route", ["Low", "Standard", "Load-bearing"])
+def test_ledger_selector_is_true_only_for_a_valid_v2_coderabbit_lane(route: str) -> None:
+    assert needs_coderabbit_ledger(_body(route, automated_gates={CODERABBIT_GATE}))
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        _body("Load-bearing", automated_gates={COPILOT_GATE}),
+        _body("Load-bearing", automated_gates={CODEX_GATE}),
+        _body("Load-bearing", automated_gates=set()),
+        _body("Load-bearing", automated_gates={CODEX_GATE, CODERABBIT_GATE}),
+        _legacy_body("Load-bearing"),
+        "## Review route\nmalformed",
+    ],
+)
+def test_ledger_selector_rejects_other_or_malformed_routes(body: str) -> None:
+    assert not needs_coderabbit_ledger(body)
+
+
+@pytest.mark.parametrize("gate", [COPILOT_GATE, CODEX_GATE])
+def test_unselected_coderabbit_routes_do_not_require_global_ledger(gate: str) -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, automated_gates={gate})
+    del context["data"]["repository"]["recentPullRequests"]
+    assert validate_context(context, files, now=NOW) == []
+
+
+def test_selected_coderabbit_without_global_ledger_fails_closed() -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, automated_gates={CODERABBIT_GATE})
+    del context["data"]["repository"]["recentPullRequests"]
+    assert "CodeRabbit rolling-hour ledger is unavailable" in validate_context(
+        context, files, now=NOW
+    )
+
+
+@pytest.mark.parametrize(
+    "ledger",
+    [
+        {},
+        {"totalCount": "1", "nodes": []},
+        {"totalCount": 1, "nodes": "not-a-list"},
+    ],
+)
+def test_selected_coderabbit_rejects_malformed_global_ledger(
+    ledger: dict[str, object],
+) -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, automated_gates={CODERABBIT_GATE})
+    context["data"]["repository"]["recentPullRequests"] = ledger
+    assert "CodeRabbit rolling-hour ledger has an invalid shape" in validate_context(
+        context, files, now=NOW
+    )
+
+
 def test_v2_codex_clean_issue_comment_is_verified_on_the_current_head() -> None:
     files = [ChangedFile("README.md")]
     context = _context("Load-bearing", files, automated_gates={CODEX_GATE})
@@ -457,29 +540,30 @@ def test_formal_codex_review_does_not_depend_on_abbreviated_oid_resolution() -> 
     assert validate_context(context, files, now=NOW) == []
 
 
-def test_edited_formal_codex_review_is_not_valid_evidence() -> None:
+@pytest.mark.parametrize("gate", [COPILOT_GATE, CODEX_GATE, CODERABBIT_GATE])
+def test_edited_formal_bot_review_is_not_valid_evidence(gate: str) -> None:
     files = [ChangedFile("README.md")]
-    context = _context("Load-bearing", files, automated_gates={CODEX_GATE})
+    context = _context("Load-bearing", files, automated_gates={gate})
     reviews = context["data"]["repository"]["pullRequest"]["reviews"]["nodes"]
-    codex_review = next(
-        review for review in reviews if review["author"]["databaseId"] == BOT_ACTOR_IDS[CODEX_GATE]
+    bot_review = next(
+        review for review in reviews if review["author"]["databaseId"] == BOT_ACTOR_IDS[gate]
     )
-    codex_review["body"] = "Edited after submission."
-    codex_review["lastEditedAt"] = "2026-07-21T12:21:00Z"
+    bot_review["lastEditedAt"] = "2026-07-21T12:21:00Z"
     errors = validate_context(context, files, now=NOW)
-    assert f"no verified current-head GitHub activity for: {CODEX_GATE}" in errors
+    assert f"no verified current-head GitHub activity for: {gate}" in errors
 
 
-def test_formal_codex_review_without_edit_metadata_fails_closed() -> None:
+@pytest.mark.parametrize("gate", [COPILOT_GATE, CODEX_GATE, CODERABBIT_GATE])
+def test_formal_bot_review_without_edit_metadata_fails_closed(gate: str) -> None:
     files = [ChangedFile("README.md")]
-    context = _context("Load-bearing", files, automated_gates={CODEX_GATE})
+    context = _context("Load-bearing", files, automated_gates={gate})
     reviews = context["data"]["repository"]["pullRequest"]["reviews"]["nodes"]
-    codex_review = next(
-        review for review in reviews if review["author"]["databaseId"] == BOT_ACTOR_IDS[CODEX_GATE]
+    bot_review = next(
+        review for review in reviews if review["author"]["databaseId"] == BOT_ACTOR_IDS[gate]
     )
-    del codex_review["lastEditedAt"]
+    del bot_review["lastEditedAt"]
     errors = validate_context(context, files, now=NOW)
-    assert f"no verified current-head GitHub activity for: {CODEX_GATE}" in errors
+    assert f"no verified current-head GitHub activity for: {gate}" in errors
 
 
 @pytest.mark.parametrize(
@@ -905,8 +989,9 @@ def test_v2_selected_coderabbit_accepts_fifo_queued_reservations() -> None:
         _comment(AUTHOR_ID, f"coderabbit-reservation: {HEAD_SHA}", "2026-07-21T12:22:00Z"),
         _comment(333, f"coderabbit-reservation: {HEAD_SHA}", "2026-07-21T12:23:00Z"),
         _comment(AUTHOR_ID, "@coderabbitai full review", "2026-07-21T12:24:00Z"),
-        _comment(333, "@coderabbitai full review", "2026-07-21T12:25:00Z"),
+        _comment(333, "@coderabbitai full review", "2026-07-21T12:26:00Z"),
     ]
+    _add_coderabbit_completion(context, "2026-07-21T12:25:00Z")
     repository["pullRequest"]["comments"] = {
         "totalCount": len(comments),
         "nodes": comments,
@@ -916,6 +1001,71 @@ def test_v2_selected_coderabbit_accepts_fifo_queued_reservations() -> None:
         "nodes": comments,
     }
     assert validate_context(context, files, now=NOW) == []
+
+
+def test_v2_coderabbit_triggers_cannot_share_one_completion() -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, automated_gates={CODERABBIT_GATE})
+    repository = context["data"]["repository"]
+    comments = [
+        _comment(AUTHOR_ID, f"coderabbit-reservation: {HEAD_SHA}", "2026-07-21T12:22:00Z"),
+        _comment(333, f"coderabbit-reservation: {HEAD_SHA}", "2026-07-21T12:23:00Z"),
+        _comment(AUTHOR_ID, "@coderabbitai full review", "2026-07-21T12:24:00Z"),
+        _comment(333, "@coderabbitai full review", "2026-07-21T12:25:00Z"),
+    ]
+    repository["pullRequest"]["comments"] = {"totalCount": len(comments), "nodes": comments}
+    repository["recentPullRequests"]["nodes"][0]["comments"] = {
+        "totalCount": len(comments),
+        "nodes": comments,
+    }
+    assert (
+        "wait for each CodeRabbit review completion before triggering again"
+        in validate_context(context, files, now=NOW)
+    )
+
+
+def test_v2_coderabbit_triggers_must_serialize_even_with_two_later_completions() -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, automated_gates={CODERABBIT_GATE})
+    repository = context["data"]["repository"]
+    comments = [
+        _comment(AUTHOR_ID, f"coderabbit-reservation: {HEAD_SHA}", "2026-07-21T12:22:00Z"),
+        _comment(333, f"coderabbit-reservation: {HEAD_SHA}", "2026-07-21T12:23:00Z"),
+        _comment(AUTHOR_ID, "@coderabbitai full review", "2026-07-21T12:24:00Z"),
+        _comment(333, "@coderabbitai full review", "2026-07-21T12:25:00Z"),
+    ]
+    _add_coderabbit_completion(context, "2026-07-21T12:26:00Z")
+    repository["pullRequest"]["comments"] = {"totalCount": len(comments), "nodes": comments}
+    repository["recentPullRequests"]["nodes"][0]["comments"] = {
+        "totalCount": len(comments),
+        "nodes": comments,
+    }
+    assert (
+        "wait for each CodeRabbit review completion before triggering again"
+        in validate_context(context, files, now=NOW)
+    )
+
+
+def test_v2_coderabbit_next_trigger_must_follow_completion_by_a_full_second() -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, automated_gates={CODERABBIT_GATE})
+    repository = context["data"]["repository"]
+    comments = [
+        _comment(AUTHOR_ID, f"coderabbit-reservation: {HEAD_SHA}", "2026-07-21T12:22:00Z"),
+        _comment(333, f"coderabbit-reservation: {HEAD_SHA}", "2026-07-21T12:23:00Z"),
+        _comment(AUTHOR_ID, "@coderabbitai full review", "2026-07-21T12:24:00Z"),
+        _comment(333, "@coderabbitai full review", "2026-07-21T12:25:00Z"),
+    ]
+    _add_coderabbit_completion(context, "2026-07-21T12:25:00Z")
+    repository["pullRequest"]["comments"] = {"totalCount": len(comments), "nodes": comments}
+    repository["recentPullRequests"]["nodes"][0]["comments"] = {
+        "totalCount": len(comments),
+        "nodes": comments,
+    }
+    assert (
+        "wait for each CodeRabbit review completion before triggering again"
+        in validate_context(context, files, now=NOW)
+    )
 
 
 def test_v2_selected_coderabbit_uses_comment_id_for_same_second_reservation_fifo() -> None:
@@ -938,6 +1088,7 @@ def test_v2_selected_coderabbit_uses_comment_id_for_same_second_reservation_fifo
         _comment(AUTHOR_ID, "@coderabbitai full review", "2026-07-21T12:24:00Z"),
         _comment(333, "@coderabbitai full review", "2026-07-21T12:25:00Z"),
     ]
+    _add_coderabbit_completion(context, "2026-07-21T12:24:30Z")
     repository["pullRequest"]["comments"] = {
         "totalCount": len(comments),
         "nodes": comments,
@@ -979,6 +1130,7 @@ def test_v2_selected_coderabbit_allows_cross_attempt_same_second_fifo() -> None:
             comment_id=1003,
         ),
     ]
+    _add_coderabbit_completion(context, "2026-07-21T12:23:30Z")
     repository["pullRequest"]["comments"] = {
         "totalCount": len(comments),
         "nodes": comments,
@@ -1276,6 +1428,18 @@ def test_expected_pr_update_mismatch_fails_closed() -> None:
         expected_pr_updated_at="2026-07-21T12:44:59Z",
     )
     assert "pull request state changed during validation" in errors
+
+
+def test_expected_pr_body_mismatch_fails_closed() -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files)
+    errors = validate_context(
+        context,
+        files,
+        now=NOW,
+        expected_pr_body="different same-second body",
+    )
+    assert "GitHub context body changed during validation" in errors
 
 
 def test_valid_immutable_finalizer_after_all_gates_succeeds() -> None:
@@ -2367,6 +2531,9 @@ def test_workflow_uses_trusted_base_and_explicit_head_status() -> None:
     assert '--expected-head "$HEAD_SHA"' in workflow
     assert '--expected-draft "$IS_DRAFT"' in workflow
     assert '--expected-pr-updated-at "$PR_UPDATED_AT"' in workflow
+    assert '--expected-pr-snapshot "$RUNNER_TEMP/pr.json"' in workflow
+    assert "from scripts.validate_review_route import needs_coderabbit_ledger" in workflow
+    assert '-F includeCodeRabbitLedger="$include_coderabbit_ledger"' in workflow
     assert '--finalize-comment-node-id "$FINALIZE_COMMENT_NODE_ID"' in workflow
     assert '--finalize-comment-created-at "$FINALIZE_COMMENT_CREATED_AT"' in workflow
     assert '--finalize-comment-actor-id "$FINALIZE_COMMENT_ACTOR_ID"' in workflow
@@ -2414,8 +2581,10 @@ def test_review_state_signal_is_credential_free_and_only_drives_pending() -> Non
     assert lifecycle_types in signal
     assert (
         "run-name: review-route-pr-${{ github.event.pull_request.number }}-head-"
-        "${{ github.event.pull_request.head.sha }}" in signal
+        "${{ github.event.pull_request.head.sha }}-trigger-${{ github.actor_id }}-actor-" in signal
     )
+    assert "github.event.review.user.id || github.event.comment.user.id || 0" in signal
+    assert "github.event.review.author_association ||" in signal
     assert "pull_request_review:" in signal
     assert "types: [submitted, edited, dismissed]" in signal
     assert "pull_request_review_comment:" in signal
@@ -2451,7 +2620,7 @@ def test_review_state_signal_is_credential_free_and_only_drives_pending() -> Non
         "\n  invalidate-review-state:", maxsplit=1
     )[0]
     assert "github.event_name == 'workflow_run'" in resolver
-    assert "github.event.workflow_run.conclusion == 'success'" in resolver
+    assert "github.event.workflow_run.conclusion == 'success'" not in resolver
     assert (
         "github.event.workflow_run.path == "
         "'.github/workflows/review-route-invalidation.yml'" in resolver
@@ -2460,6 +2629,10 @@ def test_review_state_signal_is_credential_free_and_only_drives_pending() -> Non
     assert "workflow_run.pull_requests" not in resolver
     assert "any(.workflow_run.pull_requests[]?;" not in resolver
     assert "SOURCE_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}" in resolver
+    assert "SOURCE_ACTOR_ID: ${{ github.event.workflow_run.actor.id }}" in resolver
+    assert "SIGNAL_EVENT: ${{ github.event.workflow_run.event }}" in resolver
+    assert "untrusted formal-review signal actor" in resolver
+    assert "175728472|199175422|136622811" in resolver
     assert '[ "$source_head" != "$signal_head" ]' in resolver
     assert "Review-event workflow_run.head_sha is the reviewed PR head" in resolver
     assert "merge_commit_sha" not in resolver
@@ -2471,7 +2644,10 @@ def test_review_state_signal_is_credential_free_and_only_drives_pending() -> Non
     assert "group: review-route-${{ needs.resolve_review_state.outputs.head_sha }}" in invalidator
     validate_job = publisher.split("\n  validate:", maxsplit=1)[1]
     assert "group: review-route-${{ needs.resolve_route_event.outputs.head_sha }}" in validate_job
-    assert "^review-route-pr-([0-9]+)-head-([0-9a-fA-F]{40})$" in resolver
+    assert (
+        "^review-route-pr-([0-9]+)-head-([0-9a-fA-F]{40})-trigger-"
+        "([0-9]+)-actor-([0-9]+)-assoc-([A-Z_]+)$" in resolver
+    )
     assert invalidator.index('post_pending_for_current_pr "$head_sha"') < invalidator.index(
         'post_pending_if_unowned "$EXPECTED_HEAD_SHA"'
     )
@@ -2488,8 +2664,10 @@ def test_review_state_signal_is_credential_free_and_only_drives_pending() -> Non
     assert "github.event.workflow_run.event == 'pull_request_target'" in route_resolver
     assert "github.event.workflow_run.conclusion == 'success'" not in route_resolver
     assert "SIGNAL_TITLE: ${{ github.event.workflow_run.display_title }}" in route_resolver
+    assert "SOURCE_ACTOR_ID: ${{ github.event.workflow_run.actor.id }}" in route_resolver
     assert "SOURCE_HEAD_SHA" not in route_resolver
     assert "invalid lifecycle signal identity" in route_resolver
+    assert "lifecycle signal carries review actor state" in route_resolver
     assert "event_head=${{ steps.resolve.outputs.event_head }}" not in route_resolver
     assert "event_head: ${{ steps.resolve.outputs.event_head }}" in route_resolver
     assert "(.number | tostring) == $pr" in route_resolver
@@ -2597,6 +2775,24 @@ def test_review_signal_executes_actor_and_event_matrix(
 
 @pytest.mark.parametrize(
     (
+        "signal_event",
+        "signal_trigger_actor_id",
+        "source_actor_id",
+        "signal_actor_id",
+        "signal_association",
+        "actor_expected",
+    ),
+    [
+        ("pull_request_review", AUTHOR_ID, AUTHOR_ID, BOT_ACTOR_IDS[CODEX_GATE], "NONE", 0),
+        ("pull_request_review", AUTHOR_ID, AUTHOR_ID, 999, "COLLABORATOR", 0),
+        ("pull_request_review", AUTHOR_ID, AUTHOR_ID, 999, "NONE", 1),
+        ("pull_request_review_comment", AUTHOR_ID, AUTHOR_ID, 999, "NONE", 0),
+        ("pull_request_review", AUTHOR_ID, AUTHOR_ID, 999, "INVALID", 1),
+        ("pull_request_review", HUMAN_ID, AUTHOR_ID, BOT_ACTOR_IDS[CODEX_GATE], "NONE", 1),
+    ],
+)
+@pytest.mark.parametrize(
+    (
         "signal_head",
         "source_head_sha",
         "live_head_sha",
@@ -2641,6 +2837,12 @@ def test_review_signal_executes_actor_and_event_matrix(
 )
 def test_review_signal_resolver_binds_source_and_live_head(
     tmp_path: Path,
+    signal_event: str,
+    signal_trigger_actor_id: int,
+    source_actor_id: int,
+    signal_actor_id: int,
+    signal_association: str,
+    actor_expected: int,
     signal_head: str,
     source_head_sha: str,
     live_head_sha: str,
@@ -2710,13 +2912,21 @@ esac
             "PATH": f"{fake_bin}:{os.environ['PATH']}",
             "PR_FIXTURE": str(pr_fixture),
             "RUNNER_TEMP": str(tmp_path),
-            "SIGNAL_TITLE": f"review-route-pr-2183-head-{signal_head}",
+            "SIGNAL_EVENT": signal_event,
+            "SIGNAL_TITLE": _signal_title(
+                signal_head,
+                trigger_actor_id=signal_trigger_actor_id,
+                actor_id=signal_actor_id,
+                association=signal_association,
+            ),
+            "SOURCE_ACTOR_ID": str(source_actor_id),
             "SOURCE_HEAD_SHA": source_head_sha,
         },
         text=True,
     )
-    assert completed.returncode == expected, completed.stderr
-    if expected == 0:
+    combined_expected = max(expected, actor_expected)
+    assert completed.returncode == combined_expected, completed.stderr
+    if combined_expected == 0:
         assert output.read_text(encoding="utf-8").splitlines() == [
             f"head_sha={live_head_sha}",
             "pr_number=2183",
@@ -2741,7 +2951,7 @@ esac
     [
         (
             "workflow_run",
-            f"review-route-pr-2183-head-{HEAD_SHA}",
+            _signal_title(HEAD_SHA, actor_id=0),
             "",
             2183,
             HEAD_SHA,
@@ -2754,7 +2964,7 @@ esac
         ),
         (
             "workflow_run",
-            f"review-route-pr-2183-head-{'b' * 40}",
+            _signal_title("b" * 40, actor_id=0),
             "",
             2183,
             HEAD_SHA,
@@ -2767,7 +2977,7 @@ esac
         ),
         (
             "workflow_run",
-            f"review-route-pr-2183-head-{HEAD_SHA}",
+            _signal_title(HEAD_SHA, actor_id=0),
             "",
             2183,
             HEAD_SHA,
@@ -2806,7 +3016,7 @@ esac
         ),
         (
             "workflow_run",
-            f"review-route-pr-2184-head-{HEAD_SHA}",
+            _signal_title(HEAD_SHA, trigger_actor_id=HUMAN_ID, actor_id=0),
             "",
             2183,
             HEAD_SHA,
@@ -2819,7 +3029,33 @@ esac
         ),
         (
             "workflow_run",
-            f"review-route-pr-2183-head-{HEAD_SHA}",
+            _signal_title(HEAD_SHA, actor_id=999, association="COLLABORATOR"),
+            "",
+            2183,
+            HEAD_SHA,
+            "main",
+            "bioedca/Yeliztli",
+            "dependabot[bot]",
+            "bioedca/Yeliztli",
+            1,
+            None,
+        ),
+        (
+            "workflow_run",
+            _signal_title(HEAD_SHA, pr_number=2184, actor_id=0),
+            "",
+            2183,
+            HEAD_SHA,
+            "main",
+            "bioedca/Yeliztli",
+            "dependabot[bot]",
+            "bioedca/Yeliztli",
+            1,
+            None,
+        ),
+        (
+            "workflow_run",
+            _signal_title(HEAD_SHA, actor_id=0),
             "",
             2183,
             "not-a-sha",
@@ -2832,7 +3068,7 @@ esac
         ),
         (
             "workflow_run",
-            f"review-route-pr-2183-head-{HEAD_SHA}",
+            _signal_title(HEAD_SHA, actor_id=0),
             "",
             2183,
             HEAD_SHA,
@@ -2845,7 +3081,7 @@ esac
         ),
         (
             "workflow_run",
-            f"review-route-pr-2183-head-{HEAD_SHA}",
+            _signal_title(HEAD_SHA, actor_id=0),
             "",
             2183,
             HEAD_SHA,
@@ -2914,6 +3150,7 @@ esac
             "PR_FIXTURE": str(pr_fixture),
             "RUNNER_TEMP": str(tmp_path),
             "SIGNAL_TITLE": signal_title,
+            "SOURCE_ACTOR_ID": str(AUTHOR_ID),
         },
         text=True,
     )
@@ -3609,17 +3846,23 @@ def test_contributor_review_routes_match_the_public_template() -> None:
     assert "codex-reservation" not in contributing
     assert "providers are substitutes, not a mandatory sequence" in normalized
     assert "Do not request Copilot and Codex together by default" in normalized
+    assert "Only unedited formal bot-review nodes count as evidence" in normalized
     assert "review-route-schema:v1" in contributing
     assert "v1's multi-provider matrix is obsolete" in normalized
     assert "five" in contributing and "rolling-hour" in contributing
     assert "Immediately before triggering, re-fetch the PR" in normalized
     assert "attributes the SHA-less trigger" in normalized
     assert "Within one PR, service current-head reservations FIFO" in normalized
+    assert "wait for its distinct completed review before posting the next trigger" in normalized
     assert "/validate-route" in contributing
     assert "two open `main` PRs must never share a head SHA" in normalized
     assert "failed, skipped, or cancelled trusted/relevant signal or publisher run" in normalized
     assert "PR lifecycle events (including fork and Dependabot PRs)" in normalized
-    assert "Its trusted default-branch consumer live-binds the PR" in normalized
+    assert (
+        "credential-free signal carrying GitHub's triggering actor plus the review" in normalized
+    )
+    assert "unprivileged default-branch resolver consumes every conclusion" in normalized
+    assert "rejects untrusted formal-review actors" in normalized
     assert "never check out PR code or consume PR artifacts/caches" in normalized
     assert "publisher key is never copied into Dependabot secrets" in normalized
     assert "outsider diff comment always invalidates" in normalized
@@ -3636,6 +3879,7 @@ def test_graphql_context_tracks_comment_association_and_head_epoch() -> None:
     query = (root / "scripts/review_route_context.graphql").read_text(encoding="utf-8")
     assert query.count("authorAssociation") == 4
     assert "$headOid: GitObjectID!" in query
+    assert "$includeCodeRabbitLedger: Boolean!" in query
     assert "codexHeadObject: object(oid: $headOid)" in query
     assert "abbreviatedOid" in query
     assert query.count("updatedAt") == 4
@@ -3647,4 +3891,5 @@ def test_graphql_context_tracks_comment_association_and_head_epoch() -> None:
     assert "HEAD_REF_FORCE_PUSHED_EVENT" in query
     assert "createdAt" in query
     assert 'openPullRequests: pullRequests(first: 100, states: OPEN, baseRefName: "main")' in query
+    assert ") @include(if: $includeCodeRabbitLedger) {" in query
     assert "headRefOid\n        number" in query

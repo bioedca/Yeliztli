@@ -368,6 +368,12 @@ def _parse_route_section(
     return route, schema_version, selected_bots, evidence, errors
 
 
+def needs_coderabbit_ledger(body: str) -> bool:
+    """Return whether a valid v2 route selected the global CodeRabbit ledger."""
+    _, schema_version, selected_bots, _, errors = _parse_route_section(body)
+    return not errors and schema_version == 2 and selected_bots == [CODERABBIT_GATE]
+
+
 def _is_load_bearing(path: str) -> bool:
     lowered = path.lower()
     name = Path(path).name.lower()
@@ -442,17 +448,15 @@ def _bot_activity(
             and _actor_id(review) == actor_id
             and commit.get("oid") == head_sha
             and submitted
+            and "lastEditedAt" in review
+            and review["lastEditedAt"] is None
         ):
             when = _parse_utc(submitted)
             if when > head_epoch:
                 candidates.append((when, review))
     if gate == CODEX_GATE:
         valid_outcomes = [
-            when
-            for when, review in candidates
-            if review.get("state") in TERMINAL_REVIEW_STATES
-            and "lastEditedAt" in review
-            and review["lastEditedAt"] is None
+            when for when, review in candidates if review.get("state") in TERMINAL_REVIEW_STATES
         ]
         comments = pull_request.get("comments") or {}
         for comment in comments.get("nodes") or []:
@@ -636,7 +640,7 @@ def _coderabbit_trigger_state(
         return errors
     pending_by_actor: dict[int, datetime] = {}
     reservation_queue: list[int] = []
-    trigger_at: datetime | None = None
+    trigger_times: list[datetime] = []
     for when, kind, actor_id, _ in protocol:
         if kind == "reservation":
             if actor_id in pending_by_actor:
@@ -665,14 +669,53 @@ def _coderabbit_trigger_state(
             return errors
         reservation_queue.pop(0)
         del pending_by_actor[actor_id]
-        trigger_at = when
-    if reservation_queue or pending_by_actor or trigger_at is None:
+        trigger_times.append(when)
+    if reservation_queue or pending_by_actor or not trigger_times:
         errors.append("CodeRabbit needs a current-SHA reservation, trigger, then completed review")
         return errors
 
+    completion_times = sorted(
+        _parse_utc(review["submittedAt"])
+        for review in pull_request["reviews"].get("nodes") or []
+        if (review.get("author") or {}).get("__typename") == "Bot"
+        and _actor_id(review) == BOT_ACTOR_IDS[CODERABBIT_GATE]
+        and (review.get("commit") or {}).get("oid") == head_sha
+        and review.get("submittedAt")
+        and _parse_utc(review["submittedAt"]) > head_epoch
+        and review.get("state") in TERMINAL_REVIEW_STATES
+        and "lastEditedAt" in review
+        and review["lastEditedAt"] is None
+        and CODERABBIT_COMPLETION_MARKER.lower() in (review.get("body") or "").lower()
+    )
+    completion_index = 0
+    for trigger_index, current_trigger in enumerate(trigger_times):
+        while (
+            completion_index < len(completion_times)
+            and completion_times[completion_index] <= current_trigger
+        ):
+            completion_index += 1
+        if completion_index >= len(completion_times):
+            errors.append("each CodeRabbit trigger needs a distinct later completed review")
+            return errors
+        completion = completion_times[completion_index]
+        completion_index += 1
+        if (
+            trigger_index + 1 < len(trigger_times)
+            and trigger_times[trigger_index + 1] <= completion
+        ):
+            errors.append("wait for each CodeRabbit review completion before triggering again")
+            return errors
+
+    trigger_at = trigger_times[-1]
     window = trigger_at - timedelta(hours=1)
-    recent = repository["recentPullRequests"]
-    nodes = recent.get("nodes") or []
+    recent = repository.get("recentPullRequests")
+    if not isinstance(recent, dict):
+        errors.append("CodeRabbit rolling-hour ledger is unavailable")
+        return errors
+    nodes = recent.get("nodes")
+    if not isinstance(recent.get("totalCount"), int) or not isinstance(nodes, list):
+        errors.append("CodeRabbit rolling-hour ledger has an invalid shape")
+        return errors
     if recent.get("totalCount", 0) > len(nodes):
         if not nodes:
             errors.append("recent PR pagination cannot prove the CodeRabbit hourly quota")
@@ -765,6 +808,7 @@ def validate_context(
     expected_head: str | None = None,
     expected_draft: bool | None = None,
     expected_pr_updated_at: str | None = None,
+    expected_pr_body: str | None = None,
     finalize_comment_node_id: str | None = None,
     finalize_comment_created_at: str | None = None,
     finalize_comment_actor_id: int | None = None,
@@ -781,6 +825,8 @@ def validate_context(
         errors.append("GitHub context head SHA changed during validation")
     if expected_draft is not None and pull_request.get("isDraft") is not expected_draft:
         errors.append("GitHub context draft state changed during validation")
+    if expected_pr_body is not None and (pull_request.get("body") or "") != expected_pr_body:
+        errors.append("GitHub context body changed during validation")
     if expected_pr_updated_at is not None:
         try:
             actual_updated_at = _parse_utc(pull_request["updatedAt"])
@@ -1004,17 +1050,24 @@ def main() -> int:
     parser.add_argument("--expected-head", required=True)
     parser.add_argument("--expected-draft", choices=("true", "false"), required=True)
     parser.add_argument("--expected-pr-updated-at", required=True)
+    parser.add_argument("--expected-pr-snapshot", type=Path, required=True)
     parser.add_argument("--finalize-comment-node-id")
     parser.add_argument("--finalize-comment-created-at")
     parser.add_argument("--finalize-comment-actor-id", type=int)
     args = parser.parse_args()
     context = json.loads(args.context.read_text(encoding="utf-8"))
+    expected_snapshot = json.loads(args.expected_pr_snapshot.read_text(encoding="utf-8"))
+    expected_pr_body = expected_snapshot.get("body") or ""
+    if not isinstance(expected_pr_body, str):
+        print("::error title=Review Route::REST pull request body has an invalid shape")
+        return 1
     errors = validate_context(
         context,
         _load_files(args.files),
         expected_head=args.expected_head,
         expected_draft=args.expected_draft == "true",
         expected_pr_updated_at=args.expected_pr_updated_at,
+        expected_pr_body=expected_pr_body,
         finalize_comment_node_id=args.finalize_comment_node_id,
         finalize_comment_created_at=args.finalize_comment_created_at,
         finalize_comment_actor_id=args.finalize_comment_actor_id,

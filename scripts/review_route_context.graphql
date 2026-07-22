@@ -3,6 +3,7 @@ query ReviewRouteContext(
   $repo: String!
   $number: Int!
   $headOid: GitObjectID!
+  $includeCodeRabbitLedger: Boolean!
 ) {
   repository(owner: $owner, name: $repo) {
     codexHeadObject: object(oid: $headOid) {
@@ -97,7 +98,7 @@ query ReviewRouteContext(
       first: 100
       orderBy: {field: UPDATED_AT, direction: DESC}
       states: [OPEN, MERGED, CLOSED]
-    ) {
+    ) @include(if: $includeCodeRabbitLedger) {
       totalCount
       nodes {
         updatedAt

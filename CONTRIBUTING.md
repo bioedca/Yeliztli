@@ -68,13 +68,15 @@ selected automated review must complete before human approval. Do not manually
 request CodeRabbit as an extra advisory review; select the CodeRabbit lane first
 so its reservation and repository-wide quota remain enforceable. Do not request
 Copilot and Codex together by default; one verified outcome is the gate.
+Only unedited formal bot-review nodes count as evidence; an edited outcome needs
+another unedited current-head review before independent human approval.
 Existing PRs using `review-route-schema:v1` must replace their route section
 with the v2 template before validation; v1's multi-provider matrix is obsolete.
 
 Codex may return a no-findings outcome as a conversation comment rather than an
-unedited formal review. A comment outcome counts only when it is immutable and from the
-trusted Codex bot, its first line is the canonical clean result, its single
-10-hex reviewed-commit marker matches the current head, and GitHub's full-OID
+unedited formal review. A comment outcome counts only when it is immutable and
+from the trusted Codex bot, its first line is the canonical clean result, its
+single 10-hex reviewed-commit marker matches the current head, and GitHub's full-OID
 lookup reports that head's canonical abbreviation at no more than 10
 characters. This fails closed if 10 characters cannot distinguish the head.
 Untrusted comments never control route state. The evidence table still records
@@ -96,8 +98,10 @@ comments at distinct times:
 The reservation is a cooperative intent marker, not an atomic vendor slot.
 Within one PR, service current-head reservations FIFO by GitHub creation time,
 then immutable comment ID for same-second reservations, and serialize triggers
-in that order. Across PRs, maintainers coordinate triggers manually; the
-validator counts them repository-wide but does not provide an atomic queue.
+in that order. After each trigger, wait for its distinct completed review before
+posting the next trigger; equal timestamps fail closed. Across PRs, maintainers
+coordinate triggers manually; the validator counts them repository-wide but
+does not provide an atomic queue.
 The validator rejects a visible rolling-hour ledger above five, but deleted
 comments or simultaneous races require manual coordination. If a quota refetch
 or race forces a provider switch before the trigger, leave the immutable
@@ -115,8 +119,10 @@ change request blocks the route. After final approval, record its evidence,
 resolve every review thread, then have a maintainer comment `/validate-route`.
 PR lifecycle events (including fork and Dependabot PRs), diff-comment mutations
 from every actor, and trusted formal-review mutations emit only a
-credential-free signal. Its trusted default-branch consumer live-binds the PR
-before a dedicated GitHub App marks or refreshes the route. Privileged jobs
+credential-free signal carrying GitHub's triggering actor plus the review
+subject's ID and association. The unprivileged default-branch resolver consumes
+every conclusion, rejects untrusted formal-review actors, and live-binds the
+signal and PR before a dedicated GitHub App marks or refreshes the route. Privileged jobs
 never check out PR code or consume PR artifacts/caches, and the publisher key
 is never copied into Dependabot secrets. An outsider's body-only formal review
 is irrelevant, but an outsider diff comment always invalidates because it can

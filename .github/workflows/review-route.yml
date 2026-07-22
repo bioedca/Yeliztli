@@ -16,7 +16,7 @@ on:
 
 # Privileged publication intentionally uses only default-branch workflow refs.
 # PR lifecycle and review events first run a credential-free signal; its
-# default-branch workflow_run consumer live-binds the PR and current/event heads.
+# default-branch workflow_run consumer live-binds the PR, heads, and review actor.
 # Review-state signals can only invalidate. Lifecycle signals can refresh the
 # non-final route, including for fork and Dependabot PRs whose source run cannot
 # access Actions secrets; every completed source conclusion is consumed so a
@@ -37,7 +37,6 @@ jobs:
   resolve_review_state:
     if: >-
       github.event_name == 'workflow_run' &&
-      github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.path == '.github/workflows/review-route-invalidation.yml' &&
       contains(fromJSON('["pull_request_review","pull_request_review_comment"]'),
       github.event.workflow_run.event)
@@ -53,14 +52,49 @@ jobs:
         id: resolve
         env:
           GH_TOKEN: ${{ github.token }}
+          SIGNAL_EVENT: ${{ github.event.workflow_run.event }}
           SIGNAL_TITLE: ${{ github.event.workflow_run.display_title }}
+          SOURCE_ACTOR_ID: ${{ github.event.workflow_run.actor.id }}
           SOURCE_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
-          if [[ "$SIGNAL_TITLE" =~ ^review-route-pr-([0-9]+)-head-([0-9a-fA-F]{40})$ ]]; then
+          if [[ "$SIGNAL_TITLE" =~ ^review-route-pr-([0-9]+)-head-([0-9a-fA-F]{40})-trigger-([0-9]+)-actor-([0-9]+)-assoc-([A-Z_]+)$ ]]; then
             pr_number="${BASH_REMATCH[1]}"
             signal_head="$(printf '%s' "${BASH_REMATCH[2]}" | tr '[:upper:]' '[:lower:]')"
+            signal_trigger_actor_id="${BASH_REMATCH[3]}"
+            signal_actor_id="${BASH_REMATCH[4]}"
+            signal_association="${BASH_REMATCH[5]}"
           else
             echo "::error title=Review Route::invalid review-state signal identity"
+            exit 1
+          fi
+          if ! [[ "$signal_trigger_actor_id" =~ ^[1-9][0-9]*$ ]] || \
+             ! [[ "$SOURCE_ACTOR_ID" =~ ^[1-9][0-9]*$ ]] || \
+             [ "$signal_trigger_actor_id" != "$SOURCE_ACTOR_ID" ]; then
+            echo "::error title=Review Route::review-state trigger actor is invalid"
+            exit 1
+          fi
+          if ! [[ "$signal_actor_id" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error title=Review Route::review-state actor is invalid"
+            exit 1
+          fi
+          case "$signal_association" in
+            COLLABORATOR|CONTRIBUTOR|FIRST_TIMER|FIRST_TIME_CONTRIBUTOR|MANNEQUIN|MEMBER|NONE|OWNER) ;;
+            *) echo "::error title=Review Route::review-state association is invalid"; exit 1 ;;
+          esac
+          if [ "$SIGNAL_EVENT" = "pull_request_review" ]; then
+            trusted_actor=false
+            case "$signal_association" in
+              OWNER|MEMBER|COLLABORATOR) trusted_actor=true ;;
+            esac
+            case "$signal_actor_id" in
+              175728472|199175422|136622811) trusted_actor=true ;;
+            esac
+            if [ "$trusted_actor" != "true" ]; then
+              echo "::error title=Review Route::untrusted formal-review signal actor"
+              exit 1
+            fi
+          elif [ "$SIGNAL_EVENT" != "pull_request_review_comment" ]; then
+            echo "::error title=Review Route::review-state event is invalid"
             exit 1
           fi
           # Review-event workflow_run.head_sha is the reviewed PR head. Bind it
@@ -133,13 +167,27 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           SIGNAL_TITLE: ${{ github.event.workflow_run.display_title }}
+          SOURCE_ACTOR_ID: ${{ github.event.workflow_run.actor.id }}
         run: |
           if [ "$EVENT_NAME" = "workflow_run" ]; then
-            if [[ "$SIGNAL_TITLE" =~ ^review-route-pr-([0-9]+)-head-([0-9a-fA-F]{40})$ ]]; then
+            if [[ "$SIGNAL_TITLE" =~ ^review-route-pr-([0-9]+)-head-([0-9a-fA-F]{40})-trigger-([0-9]+)-actor-([0-9]+)-assoc-([A-Z_]+)$ ]]; then
               pr_number="${BASH_REMATCH[1]}"
               event_head="$(printf '%s' "${BASH_REMATCH[2]}" | tr '[:upper:]' '[:lower:]')"
+              event_trigger_actor_id="${BASH_REMATCH[3]}"
+              event_actor_id="${BASH_REMATCH[4]}"
+              event_association="${BASH_REMATCH[5]}"
             else
               echo "::error title=Review Route::invalid lifecycle signal identity"
+              exit 1
+            fi
+            if ! [[ "$event_trigger_actor_id" =~ ^[1-9][0-9]*$ ]] || \
+               ! [[ "$SOURCE_ACTOR_ID" =~ ^[1-9][0-9]*$ ]] || \
+               [ "$event_trigger_actor_id" != "$SOURCE_ACTOR_ID" ]; then
+              echo "::error title=Review Route::lifecycle trigger actor is invalid"
+              exit 1
+            fi
+            if [ "$event_actor_id" != "0" ] || [ "$event_association" != "NONE" ]; then
+              echo "::error title=Review Route::lifecycle signal carries review actor state"
               exit 1
             fi
           else
@@ -546,11 +594,23 @@ jobs:
           OWNER: ${{ github.repository_owner }}
           REPO: ${{ github.event.repository.name }}
         run: |
+          include_coderabbit_ledger="$(python -c '
+          import json, sys
+          from pathlib import Path
+          from scripts.validate_review_route import needs_coderabbit_ledger
+          body = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8")).get("body") or ""
+          print(str(needs_coderabbit_ledger(body)).lower())
+          ' "$RUNNER_TEMP/pr.json")"
+          case "$include_coderabbit_ledger" in
+            true|false) ;;
+            *) echo "::error title=Review Route::invalid ledger selector"; exit 1 ;;
+          esac
           gh api graphql \
             -F owner="$OWNER" \
             -F repo="$REPO" \
             -F number="$PR_NUMBER" \
             -f headOid="$HEAD_SHA" \
+            -F includeCodeRabbitLedger="$include_coderabbit_ledger" \
             -F query=@scripts/review_route_context.graphql \
             > "$RUNNER_TEMP/review-route-context.json"
           gh api --paginate --slurp \
@@ -570,6 +630,7 @@ jobs:
             --expected-head "$HEAD_SHA" \
             --expected-draft "$IS_DRAFT" \
             --expected-pr-updated-at "$PR_UPDATED_AT" \
+            --expected-pr-snapshot "$RUNNER_TEMP/pr.json" \
             "${finalizer_args[@]}"
 
       - name: Publish required status on PR head
