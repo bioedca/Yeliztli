@@ -2100,12 +2100,12 @@ def test_review_state_signal_is_credential_free_and_only_drives_pending() -> Non
     assert "workflow_run.pull_requests" not in resolver
     assert "any(.workflow_run.pull_requests[]?;" not in resolver
     assert "SOURCE_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}" in resolver
-    assert "$source == $head" in resolver
+    assert '[ "$source_head" != "$signal_head" ]' in resolver
     assert "Review-event workflow_run.head_sha is the reviewed PR head" in resolver
     assert "merge_commit_sha" not in resolver
     assert ".mergeable" not in resolver
-    assert "(.head.sha | ascii_downcase) == $head" in resolver
-    assert "($matches | length) == 1" in resolver
+    assert "($current_matches | length) == 1" in resolver
+    assert "($signal_matches | length) == 0" in resolver
     assert "environment:\n      name: review-route-publisher" in invalidator
     assert "steps.invalidator.outputs.token" in invalidator
     assert "group: review-route-${{ needs.resolve_review_state.outputs.head_sha }}" in invalidator
@@ -2113,10 +2113,11 @@ def test_review_state_signal_is_credential_free_and_only_drives_pending() -> Non
     assert "group: review-route-${{ needs.resolve_route_event.outputs.head_sha }}" in validate_job
     assert "^review-route-pr-([0-9]+)-head-([0-9a-fA-F]{40})$" in resolver
     assert invalidator.index('post_pending "$head_sha"') < invalidator.index(
-        'post_pending "$EXPECTED_HEAD_SHA"'
+        'post_pending_if_unowned "$EXPECTED_HEAD_SHA"'
     )
-    assert 'if ! post_pending "$SIGNAL_HEAD_SHA"' in invalidator
+    assert 'post_pending_if_unowned "$SIGNAL_HEAD_SHA"' in invalidator
     assert "could not invalidate stale signal head" in invalidator
+    assert "head now belongs to another open PR; skipped" in invalidator
     assert "PR head changed after review activity; revalidate the route." in invalidator
     assert "stale prior-head invalidation ignored" not in invalidator
     assert "stale pre-success invalidation ignored" not in invalidator
@@ -2228,32 +2229,36 @@ def test_review_signal_executes_actor_and_event_matrix(
         "source_head_sha",
         "live_head_sha",
         "duplicate_head",
+        "signal_owned_elsewhere",
         "state",
         "base_ref",
         "base_repo",
         "expected",
     ),
     [
-        (HEAD_SHA, HEAD_SHA, HEAD_SHA, False, "open", "main", "bioedca/Yeliztli", 0),
+        (HEAD_SHA, HEAD_SHA, HEAD_SHA, False, False, "open", "main", "bioedca/Yeliztli", 0),
         (
             "b" * 40,
             HEAD_SHA,
             HEAD_SHA,
+            False,
             False,
             "open",
             "main",
             "bioedca/Yeliztli",
             1,
         ),
-        (HEAD_SHA, "b" * 40, HEAD_SHA, False, "open", "main", "bioedca/Yeliztli", 1),
-        (HEAD_SHA, HEAD_SHA, "b" * 40, False, "open", "main", "bioedca/Yeliztli", 1),
-        (HEAD_SHA, HEAD_SHA, HEAD_SHA, True, "open", "main", "bioedca/Yeliztli", 1),
-        (HEAD_SHA, HEAD_SHA, HEAD_SHA, False, "closed", "main", "bioedca/Yeliztli", 1),
-        (HEAD_SHA, HEAD_SHA, HEAD_SHA, False, "open", "release", "bioedca/Yeliztli", 1),
+        (HEAD_SHA, "b" * 40, HEAD_SHA, False, False, "open", "main", "bioedca/Yeliztli", 1),
+        (HEAD_SHA, HEAD_SHA, "b" * 40, False, False, "open", "main", "bioedca/Yeliztli", 0),
+        (HEAD_SHA, HEAD_SHA, "b" * 40, False, True, "open", "main", "bioedca/Yeliztli", 1),
+        (HEAD_SHA, HEAD_SHA, HEAD_SHA, True, False, "open", "main", "bioedca/Yeliztli", 1),
+        (HEAD_SHA, HEAD_SHA, HEAD_SHA, False, False, "closed", "main", "bioedca/Yeliztli", 1),
+        (HEAD_SHA, HEAD_SHA, HEAD_SHA, False, False, "open", "release", "bioedca/Yeliztli", 1),
         (
             HEAD_SHA,
             HEAD_SHA,
             HEAD_SHA,
+            False,
             False,
             "open",
             "main",
@@ -2268,6 +2273,7 @@ def test_review_signal_resolver_binds_source_and_live_head(
     source_head_sha: str,
     live_head_sha: str,
     duplicate_head: bool,
+    signal_owned_elsewhere: bool,
     state: str,
     base_ref: str,
     base_repo: str,
@@ -2285,6 +2291,14 @@ def test_review_signal_resolver_binds_source_and_live_head(
     open_pulls = [pull]
     if duplicate_head:
         open_pulls.append({**pull, "number": 2184})
+    if signal_owned_elsewhere:
+        open_pulls.append(
+            {
+                **pull,
+                "number": 2184,
+                "head": {"sha": signal_head},
+            }
+        )
     pr_fixture = tmp_path / "fixture-pr.json"
     open_fixture = tmp_path / "open-prs.json"
     event_fixture = tmp_path / "event.json"
@@ -2332,10 +2346,98 @@ esac
     assert completed.returncode == expected, completed.stderr
     if expected == 0:
         assert output.read_text(encoding="utf-8").splitlines() == [
-            f"head_sha={HEAD_SHA}",
+            f"head_sha={live_head_sha}",
             "pr_number=2183",
-            f"signal_head={HEAD_SHA}",
+            f"signal_head={signal_head}",
         ]
+
+
+@pytest.mark.parametrize(
+    ("stale_owned_elsewhere", "malformed_response", "expected_statuses", "expected_returncode"),
+    [
+        (False, False, [HEAD_SHA, "b" * 40], 0),
+        (True, False, [HEAD_SHA], 0),
+        (False, True, [HEAD_SHA], 1),
+    ],
+)
+def test_review_signal_invalidator_rechecks_stale_head_ownership(
+    tmp_path: Path,
+    stale_owned_elsewhere: bool,
+    malformed_response: bool,
+    expected_statuses: list[str],
+    expected_returncode: int,
+) -> None:
+    root = Path(__file__).resolve().parents[2]
+    workflow = (root / ".github/workflows/review-route.yml").read_text(encoding="utf-8")
+    shell = _workflow_step_script(workflow, "Mark current PR head pending")
+    pull = {
+        "number": 2183,
+        "state": "open",
+        "base": {"ref": "main", "repo": {"full_name": "bioedca/Yeliztli"}},
+        "head": {"sha": HEAD_SHA},
+    }
+    open_pulls = [pull]
+    if stale_owned_elsewhere:
+        open_pulls.append(
+            {
+                **pull,
+                "number": 2184,
+                "head": {"sha": "b" * 40},
+            }
+        )
+    pr_fixture = tmp_path / "fixture-pr.json"
+    open_fixture = tmp_path / "open-prs.json"
+    status_log = tmp_path / "statuses.log"
+    pr_fixture.write_text(json.dumps(pull), encoding="utf-8")
+    open_fixture.write_text(
+        json.dumps({"unexpected": []} if malformed_response else [open_pulls]),
+        encoding="utf-8",
+    )
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_gh = fake_bin / "gh"
+    fake_gh.write_text(
+        """#!/usr/bin/env bash
+set -eu
+case "$*" in
+  *"pulls/2183"*) exec /bin/cat "$PR_FIXTURE" ;;
+  *"pulls?state=open"*) exec /bin/cat "$OPEN_PRS_FIXTURE" ;;
+  *"statuses/"*)
+    for argument in "$@"; do
+      case "$argument" in
+        repos/*/statuses/*) printf '%s\n' "${argument##*/}" >> "$STATUS_LOG" ;;
+      esac
+    done
+    printf '{}\n'
+    ;;
+  *) exit 2 ;;
+esac
+""",
+        encoding="utf-8",
+    )
+    fake_gh.chmod(0o755)
+    completed = subprocess.run(
+        ["bash", "-e", "-o", "pipefail", "-c", shell],
+        check=False,
+        capture_output=True,
+        env={
+            **os.environ,
+            "EXPECTED_HEAD_SHA": "b" * 40,
+            "GH_TOKEN": "test-token",
+            "GITHUB_REPOSITORY": "bioedca/Yeliztli",
+            "OPEN_PRS_FIXTURE": str(open_fixture),
+            "PATH": f"{fake_bin}:{os.environ['PATH']}",
+            "PR_FIXTURE": str(pr_fixture),
+            "PR_NUMBER": "2183",
+            "RUNNER_TEMP": str(tmp_path),
+            "RUN_URL": "https://example.test/run",
+            "SIGNAL_HEAD_SHA": "b" * 40,
+            "STATUS_LOG": str(status_log),
+        },
+        text=True,
+    )
+    assert completed.returncode == expected_returncode, completed.stderr
+    assert status_log.read_text(encoding="utf-8").splitlines() == expected_statuses
 
 
 def test_public_template_contains_only_hosted_review_gates() -> None:

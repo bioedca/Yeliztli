@@ -62,39 +62,46 @@ jobs:
             echo "::error title=Review Route::invalid review-state signal identity"
             exit 1
           fi
-          # Review-event workflow_run.head_sha is the reviewed PR head. Require
-          # both that trusted event field and the run-name's claimed event head
-          # to identify the same unique, open, current PR head. This prevents a
-          # signal from one PR from invalidating another PR's successful route.
+          # Review-event workflow_run.head_sha is the reviewed PR head. Bind it
+          # to the run-name's claimed event head, then separately live-bind the
+          # claimed PR and its current head. A delayed signal may name an older
+          # unowned head so the invalidator can revoke stale success there. If
+          # an ownership snapshot shows another open main PR on that head, the
+          # signal is rejected here and rechecked again immediately before use.
           source_head="$(printf '%s' "$SOURCE_HEAD_SHA" | tr '[:upper:]' '[:lower:]')"
           if ! [[ "$source_head" =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error title=Review Route::source head SHA is invalid"
             exit 1
           fi
+          if [ "$source_head" != "$signal_head" ]; then
+            echo "::error title=Review Route::source and claimed signal heads differ"
+            exit 1
+          fi
           gh api "repos/$GITHUB_REPOSITORY/pulls/$pr_number" > "$RUNNER_TEMP/pr.json"
-          jq -e --arg repo "$GITHUB_REPOSITORY" --arg head "$signal_head" \
-            --arg source "$source_head" \
-            --arg pr "$pr_number" '
+          jq -e --arg repo "$GITHUB_REPOSITORY" --arg pr "$pr_number" '
               (.number | tostring) == $pr and
               .state == "open" and
               .base.ref == "main" and
-              .base.repo.full_name == $repo and
-              $source == $head and
-              (.head.sha | ascii_downcase) == $head
+              .base.repo.full_name == $repo
             ' \
             "$RUNNER_TEMP/pr.json" > /dev/null
-          head_sha="$(jq -er '.head.sha' "$RUNNER_TEMP/pr.json")"
-          if ! [[ "$head_sha" =~ ^[0-9a-fA-F]{40}$ ]]; then
+          head_sha="$(jq -er '.head.sha | ascii_downcase' "$RUNNER_TEMP/pr.json")"
+          if ! [[ "$head_sha" =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error title=Review Route::resolved head is not a full SHA"
             exit 1
           fi
           gh api --paginate --slurp \
             "repos/$GITHUB_REPOSITORY/pulls?state=open&base=main&per_page=100" \
             > "$RUNNER_TEMP/open-pulls.json"
-          jq -e --arg head "$signal_head" --arg pr "$pr_number" '
-            [ .[][] | select((.head.sha | ascii_downcase) == $head) ] as $matches |
-            ($matches | length) == 1 and
-            ($matches[0].number | tostring) == $pr
+          jq -e --arg current "$head_sha" --arg signal "$signal_head" \
+            --arg pr "$pr_number" '
+            [ .[][] | select((.head.sha | ascii_downcase) == $current) ]
+              as $current_matches |
+            [ .[][] | select((.head.sha | ascii_downcase) == $signal) ]
+              as $signal_matches |
+            ($current_matches | length) == 1 and
+            ($current_matches[0].number | tostring) == $pr and
+            ($signal == $current or ($signal_matches | length) == 0)
           ' "$RUNNER_TEMP/open-pulls.json" > /dev/null
           printf 'head_sha=%s\npr_number=%s\nsignal_head=%s\n' \
             "$head_sha" "$pr_number" "$signal_head" >> "$GITHUB_OUTPUT"
@@ -180,6 +187,37 @@ jobs:
             return 1
           }
 
+          post_pending_if_unowned() {
+            local sha="$1"
+            local description="$2"
+            local failure_warning="$3"
+            gh api --paginate --slurp \
+              "repos/$GITHUB_REPOSITORY/pulls?state=open&base=main&per_page=100" \
+              > "$RUNNER_TEMP/open-pulls-before-post.json"
+            if ! owner_count="$(jq -er --arg head "$sha" --arg pr "$PR_NUMBER" '
+              if type == "array" and all(.[]; type == "array") then
+                [ .[][] |
+                  select(
+                    (.head.sha | ascii_downcase) == $head and
+                    (.number | tostring) != $pr
+                  )
+                ] | length
+              else
+                error("open pull response has an unexpected shape")
+              end
+            ' "$RUNNER_TEMP/open-pulls-before-post.json")"; then
+              echo "::error title=Review Route::could not verify stale-head ownership"
+              return 1
+            fi
+            if [ "$owner_count" != "0" ]; then
+              echo "::warning title=Review Route::head now belongs to another open PR; skipped"
+              return 0
+            fi
+            if ! post_pending "$sha" "$description"; then
+              echo "::warning title=Review Route::$failure_warning"
+            fi
+          }
+
           gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" > "$RUNNER_TEMP/pr.json"
           jq -e --arg repo "$GITHUB_REPOSITORY" \
             '.base.ref == "main" and .base.repo.full_name == $repo' \
@@ -192,17 +230,15 @@ jobs:
           post_pending "$head_sha" \
             "Review state changed; a maintainer must revalidate the route."
           if [ "$EXPECTED_HEAD_SHA" != "$head_sha" ]; then
-            if ! post_pending "$EXPECTED_HEAD_SHA" \
-              "PR head changed after review activity; revalidate the route."; then
-              echo "::warning title=Review Route::could not invalidate prior resolved head"
-            fi
+            post_pending_if_unowned "$EXPECTED_HEAD_SHA" \
+              "PR head changed after review activity; revalidate the route." \
+              "could not invalidate prior resolved head"
           fi
           if [ "$SIGNAL_HEAD_SHA" != "$head_sha" ] && \
             [ "$SIGNAL_HEAD_SHA" != "$EXPECTED_HEAD_SHA" ]; then
-            if ! post_pending "$SIGNAL_HEAD_SHA" \
-              "Review occurred on a prior head; revalidate before reusing it."; then
-              echo "::warning title=Review Route::could not invalidate stale signal head"
-            fi
+            post_pending_if_unowned "$SIGNAL_HEAD_SHA" \
+              "Review occurred on a prior head; revalidate before reusing it." \
+              "could not invalidate stale signal head"
           fi
 
   validate:
