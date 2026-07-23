@@ -872,6 +872,28 @@ jobs:
           gh api --paginate --slurp \
             "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" \
             > "$RUNNER_TEMP/review-route-files.json"
+          render_nonce="review-route-render-bind-$(python -c \
+            'import secrets; print(secrets.token_hex(24))')"
+          python -c '
+          import json, sys
+          from pathlib import Path
+          from scripts.validate_review_route import render_probe_body
+          snapshot = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          body = snapshot.get("body")
+          if not isinstance(body, str):
+              raise SystemExit("REST pull request body has an invalid shape")
+          payload = {
+              "context": sys.argv[4],
+              "mode": "gfm",
+              "text": render_probe_body(body, sys.argv[3]),
+          }
+          Path(sys.argv[2]).write_text(json.dumps(payload), encoding="utf-8")
+          ' "$RUNNER_TEMP/pr.json" \
+            "$RUNNER_TEMP/review-route-render-request.json" \
+            "$render_nonce" "$GITHUB_REPOSITORY"
+          gh api markdown \
+            --input "$RUNNER_TEMP/review-route-render-request.json" \
+            > "$RUNNER_TEMP/review-route-rendered.html"
           finalizer_args=()
           if [ "$FINALIZE_ROUTE" = "true" ]; then
             finalizer_args=(
@@ -888,6 +910,8 @@ jobs:
             --expected-draft "$IS_DRAFT" \
             --expected-pr-updated-at "$PR_UPDATED_AT" \
             --expected-pr-snapshot "$RUNNER_TEMP/pr.json" \
+            --rendered-body "$RUNNER_TEMP/review-route-rendered.html" \
+            --render-nonce "$render_nonce" \
             "${finalizer_args[@]}"
 
       - name: Publish required status on PR head
@@ -925,6 +949,59 @@ jobs:
             ' "$output_file"
           }
 
+          verify_finalizer() {
+            local suffix="$1"
+            if [ "$FINALIZE_ROUTE" != "true" ]; then return 0; fi
+            local comment_file="$RUNNER_TEMP/finalizer-$suffix.json"
+            local permission_file="$RUNNER_TEMP/finalizer-permission-$suffix.json"
+            local finalizer_login
+            gh api graphql \
+              -F node="$FINALIZE_COMMENT_NODE_ID" \
+              -f query="query(\$node: ID!) {
+                node(id: \$node) {
+                  ... on IssueComment {
+                    id
+                    author {
+                      __typename
+                      login
+                      ... on User { databaseId }
+                    }
+                    authorAssociation
+                    body
+                    createdAt
+                    lastEditedAt
+                    updatedAt
+                  }
+                }
+              }" > "$comment_file" || return 1
+            finalizer_login="$(jq -er '.data.node.author.login' \
+              "$comment_file")" || return 1
+            [[ "$finalizer_login" =~ ^[A-Za-z0-9][A-Za-z0-9-]*$ ]] || return 1
+            gh api \
+              "repos/$GITHUB_REPOSITORY/collaborators/$finalizer_login/permission" \
+              > "$permission_file" || return 1
+            jq -e --arg actor "$FINALIZE_COMMENT_ACTOR_ID" '
+              type == "object" and
+              (.user.id | tostring) == $actor and
+              (.permission == "admin" or .permission == "write")
+            ' "$permission_file" > /dev/null || return 1
+            jq -e \
+              --arg node "$FINALIZE_COMMENT_NODE_ID" \
+              --arg actor "$FINALIZE_COMMENT_ACTOR_ID" \
+              --arg created "$FINALIZE_COMMENT_CREATED_AT" '
+                .data.node.id == $node and
+                .data.node.author.__typename == "User" and
+                (.data.node.author.databaseId | tostring) == $actor and
+                .data.node.body == "/validate-route" and
+                .data.node.createdAt == $created and
+                .data.node.updatedAt == .data.node.createdAt and
+                .data.node.lastEditedAt == null and
+                (.data.node.authorAssociation == "OWNER" or
+                 .data.node.authorAssociation == "MEMBER" or
+                 .data.node.authorAssociation == "COLLABORATOR")
+              ' "$comment_file" > /dev/null
+          }
+
           if ! ownership="$(classify_head_ownership \
               "$RUNNER_TEMP/open-pulls-final.json")"; then
             echo "::error title=Review Route::could not verify final head ownership"
@@ -943,58 +1020,8 @@ jobs:
           state=failure
           description="Initial PR state could not be captured; review route failed closed."
           if [ "${IS_DRAFT:-}" = "true" ] || [ "${IS_DRAFT:-}" = "false" ]; then
-            finalizer_ok=true
-            if [ "$FINALIZE_ROUTE" = "true" ]; then
-              finalizer_ok=false
-              if gh api graphql \
-                  -F node="$FINALIZE_COMMENT_NODE_ID" \
-                  -f query="query(\$node: ID!) {
-                    node(id: \$node) {
-                      ... on IssueComment {
-                        id
-                        author {
-                          __typename
-                          login
-                          ... on User { databaseId }
-                        }
-                        authorAssociation
-                        body
-                        createdAt
-                        lastEditedAt
-                        updatedAt
-                      }
-                    }
-                  }" > "$RUNNER_TEMP/finalizer-final.json"; then
-                finalizer_login="$(jq -er '.data.node.author.login' \
-                  "$RUNNER_TEMP/finalizer-final.json")" || finalizer_login=""
-                if [[ "$finalizer_login" =~ ^[A-Za-z0-9][A-Za-z0-9-]*$ ]] && \
-                  gh api \
-                    "repos/$GITHUB_REPOSITORY/collaborators/$finalizer_login/permission" \
-                    > "$RUNNER_TEMP/finalizer-permission-final.json" && \
-                  jq -e --arg actor "$FINALIZE_COMMENT_ACTOR_ID" '
-                    type == "object" and
-                    (.user.id | tostring) == $actor and
-                    (.permission == "admin" or .permission == "write")
-                  ' "$RUNNER_TEMP/finalizer-permission-final.json" > /dev/null && \
-                  jq -e \
-                  --arg node "$FINALIZE_COMMENT_NODE_ID" \
-                  --arg actor "$FINALIZE_COMMENT_ACTOR_ID" \
-                  --arg created "$FINALIZE_COMMENT_CREATED_AT" '
-                    .data.node.id == $node and
-                    .data.node.author.__typename == "User" and
-                    (.data.node.author.databaseId | tostring) == $actor and
-                    .data.node.body == "/validate-route" and
-                    .data.node.createdAt == $created and
-                    .data.node.updatedAt == .data.node.createdAt and
-                    .data.node.lastEditedAt == null and
-                    (.data.node.authorAssociation == "OWNER" or
-                     .data.node.authorAssociation == "MEMBER" or
-                     .data.node.authorAssociation == "COLLABORATOR")
-                  ' "$RUNNER_TEMP/finalizer-final.json" > /dev/null; then
-                  finalizer_ok=true
-                fi
-              fi
-            fi
+            finalizer_ok=false
+            if verify_finalizer final; then finalizer_ok=true; fi
             if [ "$WORKFLOW_SHA" = "$TRUSTED_SHA" ] && \
               [ "$head_unique" = "true" ] && \
               [ "$finalizer_ok" = "true" ] && \
@@ -1057,6 +1084,34 @@ jobs:
             }; then
               state=failure
               description="Head ownership changed before publication; review route failed closed."
+            fi
+            if [ "$state" = "success" ]; then
+              if ! verify_finalizer "before-post-$attempt" || \
+                ! gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" \
+                  > "$RUNNER_TEMP/pr-before-post-$attempt.json" || \
+                ! gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" \
+                  > "$RUNNER_TEMP/main-before-post-$attempt.json" || \
+                ! jq -e -s \
+                  --arg head "$HEAD_SHA" \
+                  --argjson draft "$IS_DRAFT" \
+                  --arg repo "$GITHUB_REPOSITORY" \
+                  --arg updated "$PR_UPDATED_AT" '
+                    .[1].head.sha == $head and
+                    .[1].state == "open" and
+                    .[1].draft == $draft and
+                    .[1].base.ref == "main" and
+                    .[1].base.repo.full_name == $repo and
+                    .[0].body == .[1].body and
+                    .[0].updated_at == $updated and
+                    .[1].updated_at == $updated
+                  ' "$RUNNER_TEMP/pr.json" \
+                    "$RUNNER_TEMP/pr-before-post-$attempt.json" > /dev/null || \
+                ! jq -e --arg trusted "$TRUSTED_SHA" \
+                  '.object.sha == $trusted' \
+                  "$RUNNER_TEMP/main-before-post-$attempt.json" > /dev/null; then
+                state=failure
+                description="Finalizer authorization, PR state, or trusted main changed before publication."
+              fi
             fi
             if gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" \
               -f state="$state" \

@@ -23,10 +23,12 @@ from scripts.validate_review_route import (
     GATES,
     HUMAN_GATE,
     LEGACY_SCHEMA_MARKER,
+    RENDERED_ROUTE_ERROR,
     SCHEMA_MARKER,
     ChangedFile,
     minimum_route,
     needs_coderabbit_ledger,
+    render_probe_body,
     validate_context,
 )
 
@@ -50,6 +52,7 @@ DEFAULT_AUTOMATED_GATE = {
     "Standard": CODEX_GATE,
     "Load-bearing": CODERABBIT_GATE,
 }
+RENDER_NONCE = "review-route-render-bind-" + "b" * 48
 
 
 def _signal_title(
@@ -228,10 +231,12 @@ def _body(
             f"- [{selected['Low']}] Low — docs",
             f"- [{selected['Standard']}] Standard — code",
             f"- [{selected['Load-bearing']}] Load-bearing — governance",
+            "<!-- route/provider render boundary -->",
             *[
                 f"- [{'x' if gate in selected_bots else ' '}] {label} — automated review"
                 for gate, label in reviewer_labels.items()
             ],
+            "<!-- provider/table render boundary -->",
             (
                 "| Required review gate | Applies to | Head SHA or N/A "
                 "| UTC time and status, or N/A |"
@@ -240,6 +245,65 @@ def _body(
             *rows,
             "## Legal",
         ]
+    )
+
+
+def _rendered_route_html(
+    route: str,
+    *,
+    automated_gates: set[str] | None = None,
+    nonce: str = RENDER_NONCE,
+    schema_version: int = 2,
+) -> str:
+    selected_bots = {DEFAULT_AUTOMATED_GATE[route]} if automated_gates is None else automated_gates
+    route_items = "".join(
+        f'<li><input type="checkbox"{" checked" if name == route else ""}> {name} — route</li>'
+        for name in ("Low", "Standard", "Load-bearing")
+    )
+    provider_items = "".join(
+        f'<li><input type="checkbox"{" checked" if gate in selected_bots else ""}> '
+        f"{label} — automated review</li>"
+        for gate, label in (
+            (COPILOT_GATE, "Copilot"),
+            (CODEX_GATE, "Codex"),
+            (CODERABBIT_GATE, "CodeRabbit"),
+        )
+    )
+    provider_group = f"<ul>{provider_items}</ul>" if schema_version == 2 else ""
+    required = {*selected_bots, HUMAN_GATE}
+    evidence_rows = []
+    for gate in GATES:
+        if gate in required:
+            head = HEAD_SHA
+            result = "APPROVED" if gate == HUMAN_GATE else "COMPLETE"
+            status = f"{GATE_TIMES[gate]} — {result}"
+        else:
+            head = status = "N/A"
+        evidence_rows.append(
+            f"<tr><td>{gate}</td><td>scope</td><td>{head}</td><td>{status}</td></tr>"
+        )
+    return (
+        f"<h2>Review route</h2><p>{nonce}</p>"
+        f"<ul>{route_items}</ul>{provider_group}"
+        "<markdown-accessiblity-table><table>"
+        "<thead><tr><th>Required review gate</th><th>Applies to</th>"
+        "<th>Head SHA or N/A</th><th>UTC time and status, or N/A</th></tr></thead>"
+        f"<tbody>{''.join(evidence_rows)}</tbody></table></markdown-accessiblity-table>"
+        "<h2>Legal</h2>"
+    )
+
+
+def _validate_rendered(
+    context: dict[str, object],
+    files: list[ChangedFile],
+    rendered_html: str,
+) -> list[str]:
+    return validate_context(
+        context,
+        files,
+        now=NOW,
+        rendered_body=rendered_html,
+        render_nonce=RENDER_NONCE,
     )
 
 
@@ -863,6 +927,11 @@ def test_noncanonical_checkbox_casing_fails_without_crashing(
             "expected each canonical route checkbox exactly once",
         ),
         (
+            "- [x] Low",
+            "-     [x] Low",
+            "expected each canonical route checkbox exactly once",
+        ),
+        (
             "- [x] Copilot",
             "-[x] Copilot",
             "expected each automated reviewer checkbox exactly once",
@@ -875,6 +944,11 @@ def test_noncanonical_checkbox_casing_fails_without_crashing(
         (
             "- [x] Copilot",
             "-\n[x]\nCopilot",
+            "expected each automated reviewer checkbox exactly once",
+        ),
+        (
+            "- [x] Copilot",
+            "-     [x] Copilot",
             "expected each automated reviewer checkbox exactly once",
         ),
     ],
@@ -2575,16 +2649,8 @@ def test_unclosed_fence_hides_route_rows_and_is_rejected() -> None:
 def test_route_structure_rendered_in_raw_html_code_is_rejected(tag: str) -> None:
     files = [ChangedFile("README.md")]
     context = _context("Standard", files, automated_gates={CODEX_GATE})
-    pull_request = context["data"]["repository"]["pullRequest"]
-    pull_request["body"] = (
-        pull_request["body"].replace(
-            "## Review route",
-            f"<{tag}>\n## Review route",
-        )
-        + f"\n</{tag}>"
-    )
-    errors = validate_context(context, files, now=NOW)
-    assert any("raw HTML is not allowed" in error for error in errors)
+    rendered = f"<{tag}>{_rendered_route_html('Standard')}</{tag}>"
+    assert RENDERED_ROUTE_ERROR in _validate_rendered(context, files, rendered)
 
 
 def test_unclosed_raw_html_code_block_hiding_rows_is_rejected() -> None:
@@ -2599,142 +2665,246 @@ def test_unclosed_raw_html_code_block_hiding_rows_is_rejected() -> None:
     assert "raw HTML is not allowed in the review-route section" in errors
 
 
-def test_nested_raw_html_prefix_cannot_hide_route_until_the_next_heading() -> None:
-    files = [ChangedFile("README.md")]
-    context = _context("Low", files)
-    pull_request = context["data"]["repository"]["pullRequest"]
-    pull_request["body"] = (
-        pull_request["body"]
-        .replace(
-            "## Review route",
-            "<div><pre>\n## Review route",
-        )
-        .replace("## Legal", "## Legal\n</pre></div>")
-    )
-    errors = validate_context(context, files, now=NOW)
-    assert "raw HTML is not allowed to contain the review-route section" in errors
+def test_render_probe_binds_nonce_directly_to_the_unique_source_marker() -> None:
+    body = _body("Low")
+    rendered_source = render_probe_body(body, RENDER_NONCE)
+    assert rendered_source.count(RENDER_NONCE) == 1
+    assert f"{SCHEMA_MARKER}\n\n{RENDER_NONCE}\n" in rendered_source
 
 
-@pytest.mark.parametrize("opening", ['<details data-label="a > b">', "<details />"])
-def test_open_details_across_a_blank_line_cannot_hide_route(opening: str) -> None:
-    files = [ChangedFile("docs/guide.md")]
-    context = _context("Low", files)
-    pull_request = context["data"]["repository"]["pullRequest"]
-    pull_request["body"] = (
-        pull_request["body"]
-        .replace(
-            "## Review route",
-            f"{opening}\n<summary>Hidden route</summary>\n\n## Review route",
-        )
-        .replace("## Legal", "## Legal\n\n</details>")
-    )
-    errors = validate_context(context, files, now=NOW)
-    assert "raw HTML is not allowed to contain the review-route section" in errors
-
-
-def test_closed_details_before_route_does_not_hide_it() -> None:
-    files = [ChangedFile("docs/guide.md")]
-    context = _context("Low", files)
-    pull_request = context["data"]["repository"]["pullRequest"]
-    pull_request["body"] = pull_request["body"].replace(
-        "## Review route",
-        "<details><summary>Earlier details</summary></details>\n\n## Review route",
-    )
-    assert validate_context(context, files, now=NOW) == []
-
-
-def test_closed_raw_html_before_route_does_not_hide_it() -> None:
-    files = [ChangedFile("docs/guide.md")]
-    context = _context("Low", files)
-    pull_request = context["data"]["repository"]["pullRequest"]
-    pull_request["body"] = pull_request["body"].replace(
-        "## Review route",
-        "<pre>example</pre>\n\n## Review route",
-    )
-    assert validate_context(context, files, now=NOW) == []
-
-
-@pytest.mark.parametrize("tag", ["pre", "script", "style", "textarea"])
-@pytest.mark.parametrize("template", ["<{tag} />", "<{tag}/>"])
-def test_type_one_self_closing_syntax_still_hides_route(
-    tag: str,
-    template: str,
-) -> None:
-    files = [ChangedFile("docs/guide.md")]
-    context = _context("Low", files)
-    pull_request = context["data"]["repository"]["pullRequest"]
-    pull_request["body"] = template.format(tag=tag) + "\n" + pull_request["body"]
-    errors = validate_context(context, files, now=NOW)
-    assert "raw HTML is not allowed to contain the review-route section" in errors
-
-
-def test_closed_multiline_type_one_block_before_route_is_accepted() -> None:
-    files = [ChangedFile("docs/guide.md")]
-    context = _context("Low", files)
-    pull_request = context["data"]["repository"]["pullRequest"]
-    pull_request["body"] = pull_request["body"].replace(
-        "## Review route",
-        "<pre>\nexample\n</pre>\n## Review route",
-    )
-    assert validate_context(context, files, now=NOW) == []
-
-
-def test_type_seven_tag_cannot_interrupt_an_ordinary_paragraph() -> None:
-    files = [ChangedFile("docs/guide.md")]
-    context = _context("Low", files)
-    pull_request = context["data"]["repository"]["pullRequest"]
-    pull_request["body"] = pull_request["body"].replace(
-        "## Review route",
-        "ordinary paragraph\n<x-route>\n## Review route",
-    )
-    assert validate_context(context, files, now=NOW) == []
+def test_render_probe_preserves_and_binds_crlf_bodies() -> None:
+    body = _body("Low").replace("\n", "\r\n")
+    rendered_source = render_probe_body(body, RENDER_NONCE)
+    assert rendered_source.count(RENDER_NONCE) == 1
+    assert f"{SCHEMA_MARKER}\r\n\n{RENDER_NONCE}\n" in rendered_source
 
 
 @pytest.mark.parametrize(
-    ("opening", "closing"),
+    ("body", "nonce"),
     [
-        ("<?route", "?>"),
-        ("<![CDATA[", "]]>"),
-        ("<!ROUTE", ">"),
+        ("No route", RENDER_NONCE),
+        (_body("Low") + "\n" + _body("Low"), RENDER_NONCE),
+        (_body("Low"), "predictable"),
     ],
 )
-def test_raw_html_directive_prefix_cannot_hide_route(
-    opening: str,
-    closing: str,
-) -> None:
-    files = [ChangedFile("README.md")]
+def test_render_probe_rejects_unbound_or_ambiguous_inputs(body: str, nonce: str) -> None:
+    with pytest.raises(ValueError):
+        render_probe_body(body, nonce)
+
+
+def test_top_level_github_rendered_route_is_accepted() -> None:
+    files = [ChangedFile("docs/guide.md")]
     context = _context("Low", files)
-    pull_request = context["data"]["repository"]["pullRequest"]
-    pull_request["body"] = (
-        pull_request["body"]
-        .replace(
-            "## Review route",
-            f"{opening}\n## Review route",
-        )
-        .replace("## Legal", f"## Legal\n{closing}")
+    assert _validate_rendered(context, files, _rendered_route_html("Low")) == []
+
+
+def test_combined_visible_task_list_with_root_evidence_table_is_accepted() -> None:
+    files = [ChangedFile("docs/guide.md")]
+    context = _context("Low", files)
+    rendered = _rendered_route_html("Low").replace("</ul><ul>", "", 1)
+    rendered = rendered.replace("<li><input", "<li><p><input").replace("</li>", "</p></li>")
+    assert _validate_rendered(context, files, rendered) == []
+
+
+def test_rendered_context_must_supply_body_and_nonce_together() -> None:
+    files = [ChangedFile("docs/guide.md")]
+    context = _context("Low", files)
+    errors = validate_context(
+        context,
+        files,
+        now=NOW,
+        rendered_body=_rendered_route_html("Low"),
     )
-    errors = validate_context(context, files, now=NOW)
-    assert "raw HTML is not allowed to contain the review-route section" in errors
+    assert "rendered review-route context is incomplete" in errors
 
 
 @pytest.mark.parametrize(
-    "tag",
+    "rendered",
     [
-        '<x-route title=">">',
-        '<x-route title="<">',
-        '<x-route data-x=">" />',
+        f"<details><summary>Hidden</summary>{_rendered_route_html('Low')}</details>",
+        f"<div hidden>{_rendered_route_html('Low')}</div>",
+        (
+            "<p>ordinary Review route "
+            + RENDER_NONCE
+            + " [x] Low [ ] Standard [ ] Load-bearing "
+            + "Copilot Codex CodeRabbit "
+            + " ".join(GATES)
+            + "</p>"
+        ),
     ],
 )
-def test_custom_raw_html_tag_with_quoted_angle_cannot_hide_route(tag: str) -> None:
-    files = [ChangedFile("README.md")]
+def test_rendered_route_cannot_be_hidden_or_swallowed(rendered: str) -> None:
+    files = [ChangedFile("docs/guide.md")]
     context = _context("Low", files)
-    pull_request = context["data"]["repository"]["pullRequest"]
-    pull_request["body"] = pull_request["body"].replace(
-        "## Review route",
-        f"{tag}\n## Review route",
+    assert RENDERED_ROUTE_ERROR in _validate_rendered(context, files, rendered)
+
+
+@pytest.mark.parametrize(
+    "source_prefix",
+    [
+        "<details>\n\nText \\</details>\n\n",
+        "<details>\n\n[ref]: </details>\n\n",
+        '<details>\n\n[link](https://example.test "</details>")\n\n',
+        "<details>\n\n[link](</details>)\n\n",
+        "<details>\n\n![alt </details>](image.png)\n\n",
+        "<details>\n\nThe token `</details>` is code.\n\n",
+    ],
+)
+def test_markdown_context_closers_cannot_fake_rendered_containment(
+    source_prefix: str,
+) -> None:
+    files = [ChangedFile("docs/guide.md")]
+    context = _context("Low", files, body=source_prefix + _body("Low") + "\n</details>")
+    probe = render_probe_body(context["data"]["repository"]["pullRequest"]["body"], RENDER_NONCE)
+    assert RENDER_NONCE in probe
+    rendered = f"<details><summary>Details</summary>{_rendered_route_html('Low')}</details>"
+    assert RENDERED_ROUTE_ERROR in _validate_rendered(context, files, rendered)
+
+
+@pytest.mark.parametrize(
+    "source_prefix",
+    [
+        "<details><summary>Earlier</summary></details>\n\n",
+        "<details>\n\nUse `<div>` in prose.\n\n</details>\n\n",
+        "<details>\n\nText \\<details>\n\n</details>\n\n",
+        "<details>\n\nVisible text. </details> <https://example.test/path>\n\n",
+        "<h1 hidden>\n\n",
+        "<image src=x>\n\n",
+        "<svg>\n\n",
+        "<math>\n\n",
+        "ordinary paragraph\n<template>\n\n",
+        "unmatched ` paragraph\n\nreal close </details>\n\nstill ` literal\n\n",
+    ],
+)
+def test_visible_github_render_is_not_rejected_by_markdown_source_syntax(
+    source_prefix: str,
+) -> None:
+    files = [ChangedFile("docs/guide.md")]
+    context = _context("Low", files, body=source_prefix + _body("Low"))
+    rendered_prefix = "<p>Earlier rendered content</p>"
+    assert (
+        _validate_rendered(
+            context,
+            files,
+            rendered_prefix + _rendered_route_html("Low"),
+        )
+        == []
     )
-    errors = validate_context(context, files, now=NOW)
-    assert "raw HTML is not allowed to contain the review-route section" in errors
+
+
+def test_nonce_must_immediately_follow_the_bound_top_level_heading() -> None:
+    files = [ChangedFile("docs/guide.md")]
+    context = _context("Low", files)
+    rendered = _rendered_route_html("Low").replace(
+        f"<h2>Review route</h2><p>{RENDER_NONCE}</p>",
+        f"<h2>Review route</h2><p>decoy</p><p>{RENDER_NONCE}</p>",
+    )
+    assert RENDERED_ROUTE_ERROR in _validate_rendered(context, files, rendered)
+
+
+@pytest.mark.parametrize("extra", ["<p>decoy</p>", "<h3>decoy</h3>", "<hr>", "text"])
+def test_rendered_route_rejects_extra_root_content(extra: str) -> None:
+    files = [ChangedFile("docs/guide.md")]
+    context = _context("Low", files)
+    rendered = _rendered_route_html("Low").replace(
+        f"<p>{RENDER_NONCE}</p>",
+        f"<p>{RENDER_NONCE}</p>{extra}",
+    )
+    assert RENDERED_ROUTE_ERROR in _validate_rendered(context, files, rendered)
+
+
+@pytest.mark.parametrize("group", ["route", "provider"])
+def test_rendered_checklists_reject_visible_noncanonical_items(group: str) -> None:
+    files = [ChangedFile("docs/guide.md")]
+    context = _context("Low", files)
+    rendered = _rendered_route_html("Low")
+    fake = "<li><strong>FAKE: all reviews waived</strong></li>"
+    if group == "route":
+        rendered = rendered.replace("<ul>", f"<ul>{fake}", 1)
+    else:
+        rendered = rendered.replace("</ul><ul>", f"</ul><ul>{fake}", 1)
+    assert RENDERED_ROUTE_ERROR in _validate_rendered(context, files, rendered)
+
+
+@pytest.mark.parametrize("target", ["route", "provider", "table"])
+def test_every_rendered_route_control_must_remain_at_the_document_root(target: str) -> None:
+    files = [ChangedFile("docs/guide.md")]
+    context = _context("Low", files)
+    rendered = _rendered_route_html("Low")
+    if target == "route":
+        rendered = rendered.replace("<ul>", "<details><ul>", 1).replace(
+            "</ul>", "</ul></details>", 1
+        )
+    elif target == "provider":
+        first_end = rendered.index("</ul>") + len("</ul>")
+        rendered = rendered[:first_end] + rendered[first_end:].replace(
+            "<ul>", "<details><ul>", 1
+        ).replace("</ul>", "</ul></details>", 1)
+    else:
+        rendered = rendered.replace(
+            "<markdown-accessiblity-table>",
+            "<details><markdown-accessiblity-table>",
+        ).replace(
+            "</markdown-accessiblity-table>",
+            "</markdown-accessiblity-table></details>",
+        )
+    assert RENDERED_ROUTE_ERROR in _validate_rendered(context, files, rendered)
+
+
+def test_rendered_evidence_table_cells_must_match_source_rows() -> None:
+    files = [ChangedFile("docs/guide.md")]
+    context = _context("Low", files)
+    rendered = _rendered_route_html("Low").replace(
+        f"<td>{HEAD_SHA}</td>",
+        f"<td>{'c' * 40}</td>",
+        1,
+    )
+    assert RENDERED_ROUTE_ERROR in _validate_rendered(context, files, rendered)
+
+
+def test_plain_evidence_rows_cannot_be_substituted_with_a_decoy_table() -> None:
+    files = [ChangedFile("docs/guide.md")]
+    context = _context("Low", files)
+    rendered = _rendered_route_html("Low").replace(
+        "<markdown-accessiblity-table>",
+        "<p>canonical pipe rows rendered as prose</p><markdown-accessiblity-table>",
+    )
+    assert RENDERED_ROUTE_ERROR in _validate_rendered(context, files, rendered)
+
+
+@pytest.mark.parametrize(
+    ("route", "automated_gates", "rendered_route", "rendered_gates"),
+    [
+        ("Low", {COPILOT_GATE}, "Standard", {COPILOT_GATE}),
+        ("Standard", {CODEX_GATE}, "Standard", {COPILOT_GATE}),
+    ],
+)
+def test_rendered_selections_must_match_source(
+    route: str,
+    automated_gates: set[str],
+    rendered_route: str,
+    rendered_gates: set[str],
+) -> None:
+    files = [ChangedFile("docs/guide.md")]
+    context = _context(route, files, automated_gates=automated_gates)
+    rendered = _rendered_route_html(
+        rendered_route,
+        automated_gates=rendered_gates,
+    )
+    assert RENDERED_ROUTE_ERROR in _validate_rendered(context, files, rendered)
+
+
+def test_closed_html_before_the_rendered_route_remains_valid() -> None:
+    files = [ChangedFile("docs/guide.md")]
+    context = _context(
+        "Low",
+        files,
+        body="<details><summary>Earlier</summary></details>\n\n" + _body("Low"),
+    )
+    rendered = "<details><summary>Earlier</summary><p>Text</p></details>" + _rendered_route_html(
+        "Low"
+    )
+    assert _validate_rendered(context, files, rendered) == []
 
 
 def test_review_route_rows_rendered_as_indented_code_do_not_count() -> None:
@@ -2894,9 +3064,9 @@ def test_workflow_uses_trusted_base_and_explicit_head_status() -> None:
     assert "concurrency:" in workflow.split("jobs:", maxsplit=1)[1]
     assert "ref: ${{ env.TRUSTED_SHA }}" in workflow
     assert "actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803" in workflow
-    assert workflow.count('.base.ref == "main"') == 9
-    assert workflow.count(".base.repo.full_name == $repo") == 9
-    assert workflow.count("git/ref/heads/main") == 2
+    assert workflow.count('.base.ref == "main"') == 10
+    assert workflow.count(".base.repo.full_name == $repo") == 10
+    assert workflow.count("git/ref/heads/main") == 3
     assert "'.object.sha == $trusted'" in workflow
     assert ".base.sha" not in workflow
     assert "-f state=pending" in workflow
@@ -2912,7 +3082,13 @@ def test_workflow_uses_trusted_base_and_explicit_head_status() -> None:
     assert '--expected-draft "$IS_DRAFT"' in workflow
     assert '--expected-pr-updated-at "$PR_UPDATED_AT"' in workflow
     assert '--expected-pr-snapshot "$RUNNER_TEMP/pr.json"' in workflow
+    assert '--rendered-body "$RUNNER_TEMP/review-route-rendered.html"' in workflow
+    assert '--render-nonce "$render_nonce"' in workflow
     assert "from scripts.validate_review_route import needs_coderabbit_ledger" in workflow
+    assert "from scripts.validate_review_route import render_probe_body" in workflow
+    assert "secrets.token_hex(24)" in workflow
+    assert "gh api markdown" in workflow
+    assert '--input "$RUNNER_TEMP/review-route-render-request.json"' in workflow
     assert '-F includeCodeRabbitLedger="$include_coderabbit_ledger"' in workflow
     assert '--finalize-comment-node-id "$FINALIZE_COMMENT_NODE_ID"' in workflow
     assert '--finalize-comment-created-at "$FINALIZE_COMMENT_CREATED_AT"' in workflow
@@ -2948,6 +3124,16 @@ def test_workflow_uses_trusted_base_and_explicit_head_status() -> None:
     assert validate_job.index('publication skipped"') < validate_job.index('statuses/$HEAD_SHA"')
     assert validate_job.rindex("classify_head_ownership") < validate_job.index(
         'statuses/$HEAD_SHA"'
+    )
+    assert validate_job.rindex("pr-before-post-$attempt.json") < validate_job.index(
+        'statuses/$HEAD_SHA"'
+    )
+    assert validate_job.rindex('verify_finalizer "before-post-$attempt"') < validate_job.index(
+        'statuses/$HEAD_SHA"'
+    )
+    assert (
+        "Finalizer authorization, PR state, or trusted main changed before publication."
+        in validate_job
     )
 
 
@@ -3106,6 +3292,7 @@ def test_publisher_executes_fail_closed_status_matrix(
         [
             "set -u",
             "gh() { printf '{}\\n'; }",
+            "verify_finalizer() { return 0; }",
             (
                 'jq() { if [ "${1:-}" = "-er" ] && '
                 '[ "${2:-}" = ".data.node.author.login" ]; then '
@@ -4423,15 +4610,27 @@ esac
         "final_permission",
         "permission_user_id",
         "permission_lookup_fails",
+        "fail_first_status",
+        "revoke_on_retry",
         "expected_returncode",
-        "expected_state",
+        "expected_states",
     ),
     [
-        ("replacement", "write", HUMAN_ID, False, 0, None),
-        ("duplicate", "write", HUMAN_ID, False, 1, "failure"),
-        ("claimed", "read", HUMAN_ID, False, 1, "failure"),
-        ("claimed", "write", 999, False, 1, "failure"),
-        ("claimed", "write", HUMAN_ID, True, 1, "failure"),
+        ("replacement", "write", HUMAN_ID, False, False, False, 0, []),
+        ("duplicate", "write", HUMAN_ID, False, False, False, 1, ["failure"]),
+        ("claimed", "read", HUMAN_ID, False, False, False, 1, ["failure"]),
+        ("claimed", "write", 999, False, False, False, 1, ["failure"]),
+        ("claimed", "write", HUMAN_ID, True, False, False, 1, ["failure"]),
+        (
+            "claimed",
+            "write",
+            HUMAN_ID,
+            False,
+            True,
+            True,
+            1,
+            ["success", "failure"],
+        ),
     ],
 )
 def test_route_final_publisher_rechecks_ownership_before_success(
@@ -4440,8 +4639,10 @@ def test_route_final_publisher_rechecks_ownership_before_success(
     final_permission: str,
     permission_user_id: int,
     permission_lookup_fails: bool,
+    fail_first_status: bool,
+    revoke_on_retry: bool,
     expected_returncode: int,
-    expected_state: str | None,
+    expected_states: list[str],
 ) -> None:
     root = Path(__file__).resolve().parents[2]
     workflow = (root / ".github/workflows/review-route.yml").read_text(encoding="utf-8")
@@ -4463,6 +4664,9 @@ def test_route_final_publisher_rechecks_ownership_before_success(
     main_fixture = tmp_path / "fixture-main-final.json"
     finalizer_fixture = tmp_path / "fixture-finalizer.json"
     permission_fixture = tmp_path / "fixture-finalizer-permission.json"
+    revoked_permission_fixture = tmp_path / "fixture-revoked-permission.json"
+    permission_counter = tmp_path / "permission-counter"
+    status_counter = tmp_path / "status-counter"
     status_log = tmp_path / "statuses.log"
     initial_owners.write_text(json.dumps([[claimed]]), encoding="utf-8")
     later = {
@@ -4499,6 +4703,10 @@ def test_route_final_publisher_rechecks_ownership_before_success(
         json.dumps({"permission": final_permission, "user": {"id": permission_user_id}}),
         encoding="utf-8",
     )
+    revoked_permission_fixture.write_text(
+        json.dumps({"permission": "read", "user": {"id": HUMAN_ID}}),
+        encoding="utf-8",
+    )
     (tmp_path / "pr.json").write_text(json.dumps(claimed), encoding="utf-8")
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
@@ -4520,11 +4728,28 @@ case "$*" in
   *"api graphql"*) exec /bin/cat "$FINALIZER_FIXTURE" ;;
   *"collaborators/"*"/permission"*)
     [ "${PERMISSION_LOOKUP_FAILS:-false}" != "true" ] || exit 2
+    count=0
+    if [ -f "$PERMISSION_COUNTER" ]; then read -r count < "$PERMISSION_COUNTER"; fi
+    count=$((count + 1))
+    printf '%s\n' "$count" > "$PERMISSION_COUNTER"
+    if [ "${REVOKE_ON_RETRY:-false}" = "true" ] && [ "$count" -ge 3 ]; then
+      exec /bin/cat "$REVOKED_PERMISSION_FIXTURE"
+    fi
     exec /bin/cat "$PERMISSION_FIXTURE"
     ;;
   *"pulls/2183"*) exec /bin/cat "$PR_FIXTURE" ;;
   *"git/ref/heads/main"*) exec /bin/cat "$MAIN_FIXTURE" ;;
-  *"statuses/"*) printf '%s\n' "$*" >> "$STATUS_LOG" ; printf '{}\n' ;;
+  *"statuses/"*)
+    printf '%s\n' "$*" >> "$STATUS_LOG"
+    count=0
+    if [ -f "$STATUS_COUNTER" ]; then read -r count < "$STATUS_COUNTER"; fi
+    count=$((count + 1))
+    printf '%s\n' "$count" > "$STATUS_COUNTER"
+    if [ "${FAIL_FIRST_STATUS:-false}" = "true" ] && [ "$count" = "1" ]; then
+      exit 2
+    fi
+    printf '{}\n'
+    ;;
   *) exit 2 ;;
 esac
 """,
@@ -4542,6 +4767,7 @@ esac
             "FINALIZE_COMMENT_NODE_ID": FINALIZER_NODE_ID,
             "FINALIZE_ROUTE": "true",
             "FINALIZER_FIXTURE": str(finalizer_fixture),
+            "FAIL_FIRST_STATUS": str(fail_first_status).lower(),
             "GH_TOKEN": "test-token",
             "GITHUB_REPOSITORY": "bioedca/Yeliztli",
             "HEAD_SHA": HEAD_SHA,
@@ -4551,6 +4777,7 @@ esac
             "MAIN_FIXTURE": str(main_fixture),
             "OWNERSHIP_COUNTER": str(ownership_counter),
             "PATH": f"{fake_bin}:{os.environ['PATH']}",
+            "PERMISSION_COUNTER": str(permission_counter),
             "PERMISSION_FIXTURE": str(permission_fixture),
             "PERMISSION_LOOKUP_FAILS": str(permission_lookup_fails).lower(),
             "PR_FIXTURE": str(pr_fixture),
@@ -4558,6 +4785,9 @@ esac
             "PR_UPDATED_AT": PR_UPDATED_AT,
             "RUNNER_TEMP": str(tmp_path),
             "RUN_URL": "https://example.test/run",
+            "REVOKED_PERMISSION_FIXTURE": str(revoked_permission_fixture),
+            "REVOKE_ON_RETRY": str(revoke_on_retry).lower(),
+            "STATUS_COUNTER": str(status_counter),
             "STATUS_LOG": str(status_log),
             "TRUSTED_SHA": HEAD_SHA,
             "VALIDATION_OUTCOME": "success",
@@ -4567,16 +4797,20 @@ esac
     )
     assert completed.returncode == expected_returncode, completed.stderr
     assert ownership_counter.read_text(encoding="utf-8").strip() == "2"
-    if expected_state is None:
+    if not expected_states:
         assert "publication skipped" in completed.stdout
         assert not status_log.exists()
     else:
-        status_call = status_log.read_text(encoding="utf-8")
-        assert f"state={expected_state}" in status_call
+        status_calls = status_log.read_text(encoding="utf-8").splitlines()
+        assert len(status_calls) == len(expected_states)
+        assert all(
+            f"state={expected_state}" in status_call
+            for expected_state, status_call in zip(expected_states, status_calls, strict=True)
+        )
         if later_mode == "duplicate":
-            assert "Head ownership changed before publication" in status_call
+            assert "Head ownership changed before publication" in status_calls[-1]
         else:
-            assert "finalizer" in status_call
+            assert "finalizer" in status_calls[-1].lower()
 
 
 def test_public_template_contains_only_hosted_review_gates() -> None:
@@ -4594,6 +4828,12 @@ def test_public_template_contains_only_hosted_review_gates() -> None:
     assert "Immediately before any trigger, re-fetch" in template
     assert "Within this PR, service queued current-head reservations FIFO" in template
     assert "code block or raw HTML" in template
+    route_end = template.index("- [ ] Load-bearing")
+    provider_start = template.index("- [ ] Copilot", route_end)
+    provider_end = template.index("- [ ] CodeRabbit", provider_start)
+    table_start = template.index("| Required review gate", provider_end)
+    assert "<!--" in template[route_end:provider_start]
+    assert "<!--" in template[provider_end:table_start]
 
 
 def test_contributor_review_routes_match_the_public_template() -> None:

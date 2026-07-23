@@ -265,6 +265,7 @@ FINALIZE_COMMAND = "/validate-route"
 
 @dataclass(frozen=True)
 class Evidence:
+    applies_to: str
     head: str
     status: str
 
@@ -347,183 +348,339 @@ def _visible_markdown(body: str) -> str:
     return re.sub(r"<!--.*?-->", "", _route_structure_markdown(body), flags=re.DOTALL)
 
 
-def _inside_raw_html_container(markdown: str) -> bool:
-    type_one_tag: str | None = None
-    for line in markdown.splitlines():
-        if type_one_tag is not None:
-            if re.search(rf"</{type_one_tag}>", line, flags=re.IGNORECASE):
-                type_one_tag = None
-            continue
-        opening = re.match(
-            r"^[ ]{0,3}<(?P<tag>pre|script|style|textarea)(?:[ \t>]|$)",
-            line,
-            flags=re.IGNORECASE,
-        )
-        if opening:
-            tag = opening.group("tag").lower()
-            if re.search(rf"</{tag}>", line[opening.start() :], flags=re.IGNORECASE) is None:
-                type_one_tag = tag
-    if type_one_tag is not None:
-        return True
+RENDER_NONCE = re.compile(r"review-route-render-bind-[0-9a-f]{48}")
+RENDERED_ROUTE_ERROR = "GitHub-rendered review route is not visibly bound at the document root"
 
-    def unterminated(opener: str, closer: str) -> bool:
-        cursor = 0
-        pattern = re.compile(opener, flags=re.IGNORECASE | re.MULTILINE)
-        while match := pattern.search(markdown, cursor):
-            close = markdown.find(closer, match.end())
-            if close < 0:
-                return True
-            cursor = close + len(closer)
-        return False
 
-    if any(
-        (
-            unterminated(r"^[ ]{0,3}<\?", "?>"),
-            unterminated(r"^[ ]{0,3}<!\[CDATA\[", "]]>"),
-            unterminated(r"^[ ]{0,3}<![A-Z]", ">"),
-        )
-    ):
-        return True
+def render_probe_body(body: str, nonce: str) -> str:
+    """Bind a one-use marker to the source route before GitHub renders it."""
+    if RENDER_NONCE.fullmatch(nonce) is None:
+        raise ValueError("render nonce has an invalid shape")
+    marker = re.compile(
+        r"(?mi)^## Review route[ \t]*\r?\n(?:[ \t]*\r?\n)*"
+        r"<!-- review-route-schema:v[12] -->[ \t]*\r?$"
+    )
+    matches = list(marker.finditer(body))
+    if len(matches) != 1:
+        raise ValueError("cannot bind rendered output to exactly one source route marker")
+    end = matches[0].end()
+    return f"{body[:end]}\n\n{nonce}\n{body[end:]}"
 
-    container_tags = {
-        "address",
-        "article",
-        "aside",
-        "blockquote",
-        "body",
-        "center",
-        "details",
-        "dialog",
-        "dir",
-        "div",
-        "dl",
-        "fieldset",
-        "figcaption",
-        "figure",
-        "footer",
-        "form",
-        "frameset",
-        "head",
-        "header",
-        "html",
-        "iframe",
-        "main",
-        "menu",
-        "nav",
-        "noframes",
-        "ol",
-        "optgroup",
-        "section",
-        "summary",
-        "table",
-        "tbody",
-        "template",
-        "tfoot",
-        "thead",
-        "title",
-        "tr",
-        "ul",
+
+def _rendered_route_errors(
+    rendered_html: str,
+    nonce: str,
+    route: str | None,
+    schema_version: int | None,
+    selected_bots: list[str],
+    evidence: dict[str, Evidence],
+) -> list[str]:
+    """Require the source-bound route controls to render as one exact root section."""
+    if RENDER_NONCE.fullmatch(nonce) is None:
+        return ["render nonce has an invalid shape"]
+
+    void_tags = {
+        "area",
+        "base",
+        "br",
+        "col",
+        "embed",
+        "hr",
+        "img",
+        "input",
+        "link",
+        "meta",
+        "param",
+        "source",
+        "track",
+        "wbr",
     }
 
-    class ContainerParser(HTMLParser):
+    class RenderedParser(HTMLParser):
         def __init__(self) -> None:
             super().__init__(convert_charrefs=True)
-            self.stack: list[str] = []
-            self.invalid = False
-
-        @staticmethod
-        def tracked(tag: str) -> bool:
-            return tag in container_tags or "-" in tag
+            self.elements: list[dict[str, Any]] = []
+            self.stack: list[dict[str, Any]] = []
 
         def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-            del attrs
             tag = tag.lower()
-            if self.tracked(tag):
-                self.stack.append(tag)
+            node: dict[str, Any] = {
+                "checkboxes": [],
+                "order": len(self.elements),
+                "parent": self.stack[-1] if self.stack else None,
+                "tag": tag,
+                "text": [],
+            }
+            self.elements.append(node)
+            if tag == "input":
+                attributes = {name.lower(): value for name, value in attrs}
+                if (attributes.get("type") or "").lower() == "checkbox":
+                    owner = next(
+                        (ancestor for ancestor in reversed(self.stack) if ancestor["tag"] == "li"),
+                        None,
+                    )
+                    for ancestor in reversed(self.stack):
+                        if ancestor["tag"] == "ul":
+                            ancestor["checkboxes"].append(
+                                {
+                                    "checked": "checked" in attributes,
+                                    "node": node,
+                                    "owner": owner,
+                                    "text": [],
+                                }
+                            )
+                            break
+            if tag not in void_tags:
+                self.stack.append(node)
 
-        # HTMLParser invokes these callbacks dynamically.
         def handle_startendtag(  # noqa
             self, tag: str, attrs: list[tuple[str, str | None]]
         ) -> None:
-            # HTML ignores self-closing syntax on non-void elements. GitHub can
-            # therefore render `<details />` as a container around later rows.
             self.handle_starttag(tag, attrs)
+            if tag.lower() not in void_tags:
+                self.handle_endtag(tag)
 
-        def handle_endtag(self, tag: str) -> None:  # noqa
+        def handle_endtag(self, tag: str) -> None:
             tag = tag.lower()
-            if not self.tracked(tag) or not self.stack:
+            if not any(node["tag"] == tag for node in self.stack):
                 return
-            if tag not in self.stack or self.stack[-1] != tag:
-                self.invalid = True
-            if tag in self.stack:
-                while self.stack:
-                    if self.stack.pop() == tag:
-                        break
+            while self.stack:
+                node = self.stack.pop()
+                if node["tag"] == tag:
+                    break
 
-    container_parser = ContainerParser()
-    raw_tag_line = re.compile(
-        r"^[ ]{0,3}</?(?P<tag>[a-z][a-z0-9-]*)(?=[ \t/>])",
-        flags=re.IGNORECASE,
+        def handle_data(self, data: str) -> None:  # noqa
+            if not self.stack and data.strip():
+                self.elements.append(
+                    {
+                        "checkboxes": [],
+                        "order": len(self.elements),
+                        "parent": None,
+                        "tag": "#text",
+                        "text": [data],
+                    }
+                )
+                return
+            for node in self.stack:
+                node["text"].append(data)
+                if node["tag"] == "ul" and node["checkboxes"]:
+                    node["checkboxes"][-1]["text"].append(data)
+
+    parser = RenderedParser()
+    try:
+        parser.feed(rendered_html)
+        parser.close()
+    except (AssertionError, ValueError):
+        return [RENDERED_ROUTE_ERROR]
+
+    def text(node: dict[str, Any]) -> str:
+        return re.sub(r"\s+", " ", " ".join(node["text"])).strip()
+
+    roots = [node for node in parser.elements if node["parent"] is None]
+    nonce_nodes = [node for node in roots if node["tag"] == "p" and text(node) == nonce]
+    route_headings = [
+        node for node in parser.elements if node["tag"] == "h2" and text(node) == "Review route"
+    ]
+    if len(nonce_nodes) != 1 or len(route_headings) != 1:
+        return [RENDERED_ROUTE_ERROR]
+    nonce_node = nonce_nodes[0]
+    heading = route_headings[0]
+    if heading["parent"] is not None:
+        return [RENDERED_ROUTE_ERROR]
+
+    nonce_index = next(
+        (index for index, node in enumerate(roots) if node is nonce_node),
+        None,
     )
-    previous_blank = True
-    for line in markdown.splitlines():
-        # Do not turn autolinks or inline-code examples into container state.
-        # Once a real container is open, continue parsing every line so a
-        # closing tag after ordinary text is still observed. CommonMark type-7
-        # tags, including custom elements and template, cannot interrupt an
-        # ordinary paragraph; the standard block containers can.
-        raw_tag = raw_tag_line.match(line)
-        interrupting_tag = bool(
-            raw_tag and raw_tag.group("tag").lower() in container_tags - {"template"}
-        )
-        if container_parser.stack or (raw_tag and (previous_blank or interrupting_tag)):
-            container_parser.feed(f"{line}\n")
-        previous_blank = not line.strip()
-    container_parser.close()
-    if container_parser.invalid or container_parser.stack:
-        return True
-
-    tail = re.split(r"\n[ \t]*\n", markdown)[-1]
-    block_tags = (
-        "address|article|aside|base|basefont|blockquote|body|caption|center|col|"
-        "colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|"
-        "footer|form|frame|frameset|h[1-6]|head|header|hr|html|iframe|legend|li|"
-        "link|main|menu|menuitem|nav|noframes|ol|optgroup|option|p|param|search|"
-        "section|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul"
+    if nonce_index is None or nonce_index == 0 or roots[nonce_index - 1] is not heading:
+        return [RENDERED_ROUTE_ERROR]
+    following_heading_index = next(
+        (
+            index
+            for index, node in enumerate(roots[nonce_index + 1 :], nonce_index + 1)
+            if node["tag"] == "h2"
+        ),
+        len(roots),
     )
-    if re.search(rf"(?im)^[ ]{{0,3}}</?(?:{block_tags})(?:[ \t>/]|$)", tail):
-        return True
+    section_roots = roots[nonce_index + 1 : following_heading_index]
+    table_tags = {
+        "table",
+        "markdown-accessibility-table",
+        "markdown-accessiblity-table",
+    }
+    root_tags = [node["tag"] for node in section_roots]
+    separate_groups = root_tags[:2] == ["ul", "ul"] and len(root_tags) == 3
+    combined_groups = root_tags[:1] == ["ul"] and len(root_tags) == 2
+    if (
+        not section_roots
+        or section_roots[-1]["tag"] not in table_tags
+        or (schema_version == 2 and not (separate_groups or combined_groups))
+        or (schema_version != 2 and root_tags != ["ul", section_roots[-1]["tag"]])
+    ):
+        return [RENDERED_ROUTE_ERROR]
 
-    def is_complete_tag_line(line: str) -> bool:
-        content = line[0:]
-        indentation = len(content) - len(content.lstrip(" "))
-        if indentation > 3:
-            return False
-        content = content[indentation:]
-        tag_match = re.match(
-            r"(?i)^<(?P<close>/)?(?P<tag>[a-z][a-z0-9-]*)(?:[ \t]|/?>)",
-            content,
-        )
-        if tag_match is None:
-            return False
-        if tag_match.group("close") is None and re.match(
-            r"(?i)^<(?:pre|script|style|textarea)(?:[ \t>]|$)",
-            content,
-        ):
-            return False
-        quote: str | None = None
-        for index, character in enumerate(content):
-            if quote is not None:
-                if character == quote:
-                    quote = None
-            elif character in {'"', "'"}:
-                quote = character
-            elif character == ">":
-                return not content[index + 1 :].strip()
+    def descends_from(node: dict[str, Any], ancestor: dict[str, Any]) -> bool:
+        parent = node["parent"]
+        while parent is not None:
+            if parent is ancestor:
+                return True
+            parent = parent["parent"]
         return False
 
-    first_line = tail.splitlines()[0] if tail.splitlines() else ""
-    return is_complete_tag_line(first_line)
+    def exact_checklist(node: dict[str, Any], expected_count: int) -> bool:
+        items = [
+            candidate
+            for candidate in parser.elements
+            if candidate["tag"] == "li" and candidate["parent"] is node
+        ]
+        checkboxes = node["checkboxes"]
+        if (
+            len(items) != expected_count
+            or len(checkboxes) != expected_count
+            or [checkbox["owner"] for checkbox in checkboxes] != items
+        ):
+            return False
+        paragraphs = [
+            candidate
+            for candidate in parser.elements
+            if candidate["tag"] == "p" and descends_from(candidate, node)
+        ]
+        if paragraphs:
+            if (
+                len(paragraphs) != expected_count
+                or [paragraph["parent"] for paragraph in paragraphs] != items
+                or [checkbox["node"]["parent"] for checkbox in checkboxes] != paragraphs
+            ):
+                return False
+        elif [checkbox["node"]["parent"] for checkbox in checkboxes] != items:
+            return False
+        nested_blocks = {
+            "blockquote",
+            "details",
+            "div",
+            "h1",
+            "h2",
+            "h3",
+            "h4",
+            "h5",
+            "h6",
+            "ol",
+            "pre",
+            "table",
+            "ul",
+        }
+        return not any(
+            candidate["tag"] in nested_blocks and descends_from(candidate, node)
+            for candidate in parser.elements
+        )
+
+    checklist_nodes = section_roots[:-1]
+    expected_checklist_sizes = [6] if combined_groups else [3] * len(checklist_nodes)
+    if any(
+        not exact_checklist(node, expected_count)
+        for node, expected_count in zip(
+            checklist_nodes,
+            expected_checklist_sizes,
+            strict=True,
+        )
+    ):
+        return [RENDERED_ROUTE_ERROR]
+
+    def task_rows(checkboxes: list[dict[str, Any]], labels: list[str]) -> list[str] | None:
+        item_labels: list[str] = []
+        checked: list[str] = []
+        for label, checkbox in zip(labels, checkboxes, strict=False):
+            item = re.sub(r"\s+", " ", " ".join(checkbox["text"])).strip()
+            item_labels.append(item.split(" —", maxsplit=1)[0])
+            if checkbox["checked"]:
+                checked.append(label)
+        if len(checkboxes) != len(labels) or item_labels != labels:
+            return None
+        return checked
+
+    route_labels = ["Low", "Standard", "Load-bearing"]
+    first_checkboxes = section_roots[0]["checkboxes"]
+    route_checkboxes = first_checkboxes[:3] if combined_groups else first_checkboxes
+    checked_routes = task_rows(route_checkboxes, route_labels)
+    if checked_routes is None or (route is not None and checked_routes != [route]):
+        return [RENDERED_ROUTE_ERROR]
+
+    if schema_version == 2:
+        provider_labels = ["Copilot", "Codex", "CodeRabbit"]
+        provider_checkboxes = (
+            first_checkboxes[3:] if combined_groups else section_roots[1]["checkboxes"]
+        )
+        checked_providers = task_rows(provider_checkboxes, provider_labels)
+        if checked_providers is None:
+            return [RENDERED_ROUTE_ERROR]
+        gate_to_label = {
+            COPILOT_GATE: "Copilot",
+            CODEX_GATE: "Codex",
+            CODERABBIT_GATE: "CodeRabbit",
+        }
+        expected_providers = [gate_to_label[gate] for gate in BOT_GATES if gate in selected_bots]
+        if checked_providers != expected_providers:
+            return [RENDERED_ROUTE_ERROR]
+
+    table_container = section_roots[-1]
+    if table_container["tag"] == "table":
+        table = table_container
+    else:
+        tables = [
+            node
+            for node in parser.elements
+            if node["tag"] == "table" and node["parent"] is table_container
+        ]
+        if len(tables) != 1:
+            return [RENDERED_ROUTE_ERROR]
+        table = tables[0]
+
+    def nearest_parent(node: dict[str, Any], tag: str) -> dict[str, Any] | None:
+        parent = node["parent"]
+        while parent is not None and parent["tag"] != tag:
+            parent = parent["parent"]
+        return parent
+
+    rows = [
+        node
+        for node in parser.elements
+        if node["tag"] == "tr" and nearest_parent(node, "table") is table
+    ]
+    rendered_rows: list[list[str]] = []
+    for row in rows:
+        cells = [
+            node
+            for node in parser.elements
+            if node["tag"] in {"td", "th"} and nearest_parent(node, "tr") is row
+        ]
+        rendered_rows.append([text(cell) for cell in cells])
+
+    header = [
+        "Required review gate",
+        "Applies to",
+        "Head SHA or N/A",
+        "UTC time and status, or N/A",
+    ]
+    if (
+        len(rendered_rows) != len(GATES) + 1
+        or rendered_rows[0] != header
+        or any(len(row) != 4 for row in rendered_rows[1:])
+        or [row[0] for row in rendered_rows[1:]] != list(GATES)
+    ):
+        return [RENDERED_ROUTE_ERROR]
+    if len(evidence) == len(GATES):
+        expected_rows = [
+            [
+                gate,
+                _normalise_gate(evidence[gate].applies_to),
+                _normalise_gate(evidence[gate].head),
+                _normalise_gate(evidence[gate].status),
+            ]
+            for gate in GATES
+        ]
+        if rendered_rows[1:] != expected_rows:
+            return [RENDERED_ROUTE_ERROR]
+    return []
 
 
 def _normalise_gate(value: str) -> str:
@@ -554,8 +711,6 @@ def _parse_route_section(
     if len(headings) != 1:
         errors.append("expected exactly one '## Review route' heading")
         return None, schema_version, [], {}, errors
-    if _inside_raw_html_container(visible[: headings[0].start()]):
-        errors.append("raw HTML is not allowed to contain the review-route section")
     start = headings[0].end()
     following = re.search(r"(?mi)^##\s+", visible[start:])
     section = visible[start : start + following.start()] if following else visible[start:]
@@ -563,7 +718,7 @@ def _parse_route_section(
         errors.append("raw HTML is not allowed in the review-route section")
 
     route_rows = re.findall(
-        r"(?m)^[ ]{0,3}-[ \t]+\[([ xX])\][ \t]+(Low|Standard|Load-bearing)\b",
+        r"(?m)^[ ]{0,3}- \[([ xX])\] (Low|Standard|Load-bearing)\b",
         section,
     )
     counts = {name: 0 for name in ROUTE_RANK}
@@ -581,7 +736,7 @@ def _parse_route_section(
     selected_bots: list[str] = []
     if schema_version == 2:
         reviewer_rows = re.findall(
-            r"(?m)^[ ]{0,3}-[ \t]+\[([ xX])\][ \t]+(Copilot|Codex|CodeRabbit)\b",
+            r"(?m)^[ ]{0,3}- \[([ xX])\] (Copilot|Codex|CodeRabbit)\b",
             section,
         )
         reviewer_counts = {name: 0 for name in AUTOMATED_REVIEW_CHOICES}
@@ -609,7 +764,11 @@ def _parse_route_section(
         elif gate in evidence:
             errors.append(f"duplicate review evidence row: {gate}")
         else:
-            evidence[gate] = Evidence(head=cells[2], status=cells[3])
+            evidence[gate] = Evidence(
+                applies_to=cells[1],
+                head=cells[2],
+                status=cells[3],
+            )
     missing = expected - evidence.keys()
     if missing:
         errors.append("missing review evidence rows: " + ", ".join(sorted(missing)))
@@ -1052,6 +1211,8 @@ def validate_context(
     expected_draft: bool | None = None,
     expected_pr_updated_at: str | None = None,
     expected_pr_body: str | None = None,
+    rendered_body: str | None = None,
+    render_nonce: str | None = None,
     finalize_comment_node_id: str | None = None,
     finalize_comment_created_at: str | None = None,
     finalize_comment_actor_id: int | None = None,
@@ -1122,6 +1283,19 @@ def validate_context(
         pull_request.get("body") or ""
     )
     errors.extend(parse_errors)
+    if (rendered_body is None) != (render_nonce is None):
+        errors.append("rendered review-route context is incomplete")
+    elif rendered_body is not None and render_nonce is not None:
+        errors.extend(
+            _rendered_route_errors(
+                rendered_body,
+                render_nonce,
+                route,
+                schema_version,
+                selected_bots,
+                evidence,
+            )
+        )
     if pull_request.get("changedFiles") != len(files):
         errors.append("changed-file API count does not match the pull request")
     try:
@@ -1298,6 +1472,8 @@ def main() -> int:
     parser.add_argument("--expected-draft", choices=("true", "false"), required=True)
     parser.add_argument("--expected-pr-updated-at", required=True)
     parser.add_argument("--expected-pr-snapshot", type=Path, required=True)
+    parser.add_argument("--rendered-body", type=Path, required=True)
+    parser.add_argument("--render-nonce", required=True)
     parser.add_argument("--finalize-comment-node-id")
     parser.add_argument("--finalize-comment-created-at")
     parser.add_argument("--finalize-comment-actor-id", type=int)
@@ -1316,6 +1492,8 @@ def main() -> int:
         expected_draft=args.expected_draft == "true",
         expected_pr_updated_at=args.expected_pr_updated_at,
         expected_pr_body=expected_pr_body,
+        rendered_body=args.rendered_body.read_text(encoding="utf-8"),
+        render_nonce=args.render_nonce,
         finalize_comment_node_id=args.finalize_comment_node_id,
         finalize_comment_created_at=args.finalize_comment_created_at,
         finalize_comment_actor_id=args.finalize_comment_actor_id,
