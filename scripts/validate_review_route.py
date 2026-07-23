@@ -357,13 +357,20 @@ def render_probe_body(body: str, nonce: str) -> str:
     if RENDER_NONCE.fullmatch(nonce) is None:
         raise ValueError("render nonce has an invalid shape")
     marker = re.compile(
-        r"(?mi)^## Review route[ \t]*\r?\n(?:[ \t]*\r?\n)*"
-        r"<!-- review-route-schema:v[12] -->[ \t]*\r?$"
+        r"(?mi)^## Review route[ \t]*\n(?:[ \t]*\n)*"
+        r"<!-- review-route-schema:v[12] -->[ \t]*$"
     )
-    matches = list(marker.finditer(body))
+    structure = _route_structure_markdown(body)
+    matches = list(marker.finditer(structure))
     if len(matches) != 1:
         raise ValueError("cannot bind rendered output to exactly one source route marker")
-    end = matches[0].end()
+    marker_line = structure[: matches[0].end()].count("\n")
+    original_lines = body.splitlines(keepends=True)
+    if marker_line >= len(original_lines):
+        raise ValueError("cannot bind rendered output to the source route marker")
+    end = sum(len(line) for line in original_lines[:marker_line]) + len(
+        original_lines[marker_line].rstrip("\n")
+    )
     return f"{body[:end]}\n\n{nonce}\n{body[end:]}"
 
 
@@ -404,7 +411,9 @@ def _rendered_route_errors(
 
         def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
             tag = tag.lower()
+            attributes = {name.lower(): value for name, value in attrs}
             node: dict[str, Any] = {
+                "attrs": attributes,
                 "checkboxes": [],
                 "order": len(self.elements),
                 "parent": self.stack[-1] if self.stack else None,
@@ -413,7 +422,6 @@ def _rendered_route_errors(
             }
             self.elements.append(node)
             if tag == "input":
-                attributes = {name.lower(): value for name, value in attrs}
                 if (attributes.get("type") or "").lower() == "checkbox":
                     owner = next(
                         (ancestor for ancestor in reversed(self.stack) if ancestor["tag"] == "li"),
@@ -437,10 +445,8 @@ def _rendered_route_errors(
             self, tag: str, attrs: list[tuple[str, str | None]]
         ) -> None:
             self.handle_starttag(tag, attrs)
-            if tag.lower() not in void_tags:
-                self.handle_endtag(tag)
 
-        def handle_endtag(self, tag: str) -> None:
+        def handle_endtag(self, tag: str) -> None:  # noqa
             tag = tag.lower()
             if not any(node["tag"] == tag for node in self.stack):
                 return
@@ -454,6 +460,7 @@ def _rendered_route_errors(
                 self.elements.append(
                     {
                         "checkboxes": [],
+                        "attrs": {},
                         "order": len(self.elements),
                         "parent": None,
                         "tag": "#text",
@@ -647,12 +654,14 @@ def _rendered_route_errors(
         if node["tag"] == "tr" and nearest_parent(node, "table") is table
     ]
     rendered_rows: list[list[str]] = []
+    rendered_cells: list[list[dict[str, Any]]] = []
     for row in rows:
         cells = [
             node
             for node in parser.elements
             if node["tag"] in {"td", "th"} and nearest_parent(node, "tr") is row
         ]
+        rendered_cells.append(cells)
         rendered_rows.append([text(cell) for cell in cells])
 
     header = [
@@ -678,7 +687,46 @@ def _rendered_route_errors(
             ]
             for gate in GATES
         ]
-        if rendered_rows[1:] != expected_rows:
+
+        def rendered_head_matches(cell: dict[str, Any], expected: str) -> bool:
+            actual = text(cell)
+            if actual == expected:
+                return True
+            if re.fullmatch(r"[0-9a-fA-F]{40}", expected) is None:
+                return False
+            links = [
+                node
+                for node in parser.elements
+                if node["tag"] == "a" and descends_from(node, cell)
+            ]
+            if len(links) != 1:
+                return False
+            link = links[0]
+            label = text(link)
+            href = link["attrs"].get("href") or ""
+            classes = (link["attrs"].get("class") or "").split()
+            return (
+                actual == label
+                and 7 <= len(label) <= 40
+                and expected.lower().startswith(label.lower())
+                and "commit-link" in classes
+                and re.fullmatch(
+                    rf"https://github\.com/[^/]+/[^/]+/commit/{re.escape(expected)}",
+                    href,
+                    flags=re.IGNORECASE,
+                )
+                is not None
+            )
+
+        if any(
+            rendered_row[0] != expected_row[0]
+            or rendered_row[1] != expected_row[1]
+            or not rendered_head_matches(cells[2], expected_row[2])
+            or rendered_row[3] != expected_row[3]
+            for rendered_row, cells, expected_row in zip(
+                rendered_rows[1:], rendered_cells[1:], expected_rows, strict=True
+            )
+        ):
             return [RENDERED_ROUTE_ERROR]
     return []
 

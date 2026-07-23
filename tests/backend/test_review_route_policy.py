@@ -2679,6 +2679,17 @@ def test_render_probe_preserves_and_binds_crlf_bodies() -> None:
     assert f"{SCHEMA_MARKER}\r\n\n{RENDER_NONCE}\n" in rendered_source
 
 
+@pytest.mark.parametrize("sample_position", ["before", "after"])
+def test_render_probe_ignores_fenced_route_examples(sample_position: str) -> None:
+    example = f"```markdown\n## Review route\n{SCHEMA_MARKER}\n```"
+    parts = [example, _body("Low")]
+    if sample_position == "after":
+        parts.reverse()
+    rendered_source = render_probe_body("\n\n".join(parts), RENDER_NONCE)
+    assert rendered_source.count(RENDER_NONCE) == 1
+    assert f"{SCHEMA_MARKER}\n\n{RENDER_NONCE}\n" in rendered_source
+
+
 @pytest.mark.parametrize(
     ("body", "nonce"),
     [
@@ -2722,6 +2733,7 @@ def test_rendered_context_must_supply_body_and_nonce_together() -> None:
     "rendered",
     [
         f"<details><summary>Hidden</summary>{_rendered_route_html('Low')}</details>",
+        f"<details />{_rendered_route_html('Low')}",
         f"<div hidden>{_rendered_route_html('Low')}</div>",
         (
             "<p>ordinary Review route "
@@ -2857,6 +2869,37 @@ def test_rendered_evidence_table_cells_must_match_source_rows() -> None:
     rendered = _rendered_route_html("Low").replace(
         f"<td>{HEAD_SHA}</td>",
         f"<td>{'c' * 40}</td>",
+        1,
+    )
+    assert RENDERED_ROUTE_ERROR in _validate_rendered(context, files, rendered)
+
+
+def test_rendered_evidence_accepts_github_abbreviated_commit_link() -> None:
+    files = [ChangedFile("docs/guide.md")]
+    context = _context("Low", files)
+    commit_link = (
+        f'<td><a class="commit-link" href="https://github.com/bioedca/Yeliztli/'
+        f'commit/{HEAD_SHA}"><tt>{HEAD_SHA[:7]}</tt></a></td>'
+    )
+    rendered = _rendered_route_html("Low").replace(
+        f"<td>{HEAD_SHA}</td>",
+        commit_link,
+        1,
+    )
+    assert _validate_rendered(context, files, rendered) == []
+
+
+def test_rendered_evidence_rejects_abbreviated_link_to_another_commit() -> None:
+    files = [ChangedFile("docs/guide.md")]
+    context = _context("Low", files)
+    other = "c" * 40
+    commit_link = (
+        f'<td><a class="commit-link" href="https://github.com/bioedca/Yeliztli/'
+        f'commit/{other}"><tt>{HEAD_SHA[:7]}</tt></a></td>'
+    )
+    rendered = _rendered_route_html("Low").replace(
+        f"<td>{HEAD_SHA}</td>",
+        commit_link,
         1,
     )
     assert RENDERED_ROUTE_ERROR in _validate_rendered(context, files, rendered)
