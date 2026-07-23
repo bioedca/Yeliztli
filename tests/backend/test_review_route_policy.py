@@ -2709,6 +2709,13 @@ def test_top_level_github_rendered_route_is_accepted() -> None:
     assert _validate_rendered(context, files, _rendered_route_html("Low")) == []
 
 
+@pytest.mark.parametrize("opening", ["<p />", "<h1 />", "<svg />", "<math />"])
+def test_self_closing_visible_html_before_rendered_route_is_accepted(opening: str) -> None:
+    files = [ChangedFile("docs/guide.md")]
+    context = _context("Low", files, body=f"{opening}\n\n" + _body("Low"))
+    assert _validate_rendered(context, files, opening + _rendered_route_html("Low")) == []
+
+
 def test_combined_visible_task_list_with_root_evidence_table_is_accepted() -> None:
     files = [ChangedFile("docs/guide.md")]
     context = _context("Low", files)

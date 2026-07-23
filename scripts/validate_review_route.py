@@ -402,6 +402,44 @@ def _rendered_route_errors(
         "track",
         "wbr",
     }
+    foreign_roots = {"math", "svg"}
+    heading_tags = {"h1", "h2", "h3", "h4", "h5", "h6"}
+    paragraph_closing_tags = {
+        "address",
+        "article",
+        "aside",
+        "blockquote",
+        "center",
+        "details",
+        "dialog",
+        "dir",
+        "div",
+        "dl",
+        "fieldset",
+        "figcaption",
+        "figure",
+        "footer",
+        "h1",
+        "h2",
+        "h3",
+        "h4",
+        "h5",
+        "h6",
+        "header",
+        "hgroup",
+        "hr",
+        "main",
+        "menu",
+        "nav",
+        "ol",
+        "p",
+        "pre",
+        "search",
+        "section",
+        "summary",
+        "table",
+        "ul",
+    }
 
     class RenderedParser(HTMLParser):
         def __init__(self) -> None:
@@ -411,6 +449,10 @@ def _rendered_route_errors(
 
         def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
             tag = tag.lower()
+            if tag in paragraph_closing_tags:
+                self.close_open("p")
+            if tag in heading_tags:
+                self.close_open_any(heading_tags)
             attributes = {name.lower(): value for name, value in attrs}
             node: dict[str, Any] = {
                 "attrs": attributes,
@@ -441,10 +483,26 @@ def _rendered_route_errors(
             if tag not in void_tags:
                 self.stack.append(node)
 
+        def close_open(self, tag: str) -> None:
+            if not any(node["tag"] == tag for node in self.stack):
+                return
+            while self.stack:
+                if self.stack.pop()["tag"] == tag:
+                    break
+
+        def close_open_any(self, tags: set[str]) -> None:
+            if not any(node["tag"] in tags for node in self.stack):
+                return
+            while self.stack:
+                if self.stack.pop()["tag"] in tags:
+                    break
+
         def handle_startendtag(  # noqa
             self, tag: str, attrs: list[tuple[str, str | None]]
         ) -> None:
             self.handle_starttag(tag, attrs)
+            if tag.lower() in foreign_roots:
+                self.handle_endtag(tag)
 
         def handle_endtag(self, tag: str) -> None:  # noqa
             tag = tag.lower()
