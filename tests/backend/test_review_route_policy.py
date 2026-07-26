@@ -2746,6 +2746,25 @@ def test_implicit_close_accepts_html5_closable_content(opening: str) -> None:
 
 
 @pytest.mark.parametrize(
+    "rendered_prefix",
+    [
+        "<dl><dt>one<dd>two</dl>",
+        "<ol><li>one</ol>",
+        "<table><tr><td>one</table>",
+        "<ul><li>one<li>two</ul>",
+        "<svg><path /></svg>",
+        "<math><mi /></math>",
+    ],
+)
+def test_valid_optional_and_foreign_closures_before_route_are_accepted(
+    rendered_prefix: str,
+) -> None:
+    files = [ChangedFile("docs/guide.md")]
+    context = _context("Low", files, body=f"{rendered_prefix}\n\n" + _body("Low"))
+    assert _validate_rendered(context, files, rendered_prefix + _rendered_route_html("Low")) == []
+
+
+@pytest.mark.parametrize(
     ("opening", "closing"),
     [
         ("<b><i hidden></b>", "</i>"),

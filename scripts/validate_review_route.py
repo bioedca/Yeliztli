@@ -511,6 +511,22 @@ def _rendered_route_errors(
         "u",
     }
     containment_boundaries = special_elements | active_formatting_elements
+    optional_end_children = {
+        "dl": {"dd", "dt"},
+        "menu": {"li"},
+        "ol": {"li"},
+        "optgroup": {"option"},
+        "ruby": {"rb", "rp", "rt", "rtc"},
+        "select": {"optgroup", "option"},
+        "table": {"colgroup", "tbody", "td", "tfoot", "th", "thead", "tr"},
+        "tbody": {"td", "th", "tr"},
+        "tfoot": {"td", "th", "tr"},
+        "thead": {"td", "th", "tr"},
+        "tr": {"td", "th"},
+        "ul": {"li"},
+    }
+    for parent in paragraph_closing_tags | {"body", "form"}:
+        optional_end_children.setdefault(parent, set()).add("p")
 
     class RenderedParser(HTMLParser):
         def __init__(self) -> None:
@@ -567,15 +583,22 @@ def _rendered_route_errors(
                     return
 
         def close_end_tag(self, tag: str) -> None:
+            optional = optional_end_children.get(tag, set())
+            while self.stack and self.stack[-1]["tag"] in optional:
+                self.stack.pop()
             if self.stack and self.stack[-1]["tag"] == tag:
                 self.stack.pop()
 
         def handle_startendtag(  # noqa
             self, tag: str, attrs: list[tuple[str, str | None]]
         ) -> None:
+            tag = tag.lower()
+            in_foreign_content = tag in foreign_roots or any(
+                node["tag"] in foreign_roots for node in self.stack
+            )
             self.handle_starttag(tag, attrs)
-            if tag.lower() in foreign_roots:
-                self.handle_endtag(tag)
+            if in_foreign_content and self.stack and self.stack[-1]["tag"] == tag:
+                self.stack.pop()
 
         def handle_endtag(self, tag: str) -> None:  # noqa
             tag = tag.lower()
