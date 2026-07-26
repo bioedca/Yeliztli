@@ -1538,10 +1538,25 @@ def test_sensitive_paths_require_load_bearing_route(path: str) -> None:
 
 
 @pytest.mark.parametrize(
+    "path",
+    [
+        ".GITHUB/PULL_REQUEST_TEMPLATE.MD",
+        ".GITHUB/WORKFLOWS/CI.YML",
+        "README.MD",
+        "FRONTEND/SRC/APP.TSX",
+        "BACKEND/CONFIG.PY",
+    ],
+)
+def test_sensitive_path_case_variants_remain_load_bearing(path: str) -> None:
+    assert minimum_route([ChangedFile(path)]) == "Load-bearing"
+
+
+@pytest.mark.parametrize(
     ("path", "route"),
     [
         ("README.md", "Load-bearing"),
         ("frontend/src/hooks/useDialogFocus.ts", "Standard"),
+        ("FRONTEND/SRC/HOOKS/useDialogFocus.ts", "Standard"),
         ("frontend/src/index.css", "Standard"),
         ("docs/typo-fix.md", "Low"),
     ],

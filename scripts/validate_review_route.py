@@ -38,22 +38,22 @@ LOAD_BEARING_EXACT = {
     ".gitignore",
     ".gitmodules",
     ".graphifyignore",
-    ".github/CODEOWNERS",
+    ".github/codeowners",
     ".github/copilot-instructions.md",
     ".github/dependabot.yml",
-    ".github/PULL_REQUEST_TEMPLATE.md",
-    "CHANGELOG.md",
-    "CODE_OF_CONDUCT.md",
-    "CITATION.cff",
-    "CONTRIBUTING.md",
-    "Dockerfile",
-    "GOVERNANCE.md",
-    "LICENSE",
-    "Makefile",
-    "NOTICE",
-    "README.md",
-    "SECURITY.md",
-    "SUPPORT.md",
+    ".github/pull_request_template.md",
+    "changelog.md",
+    "code_of_conduct.md",
+    "citation.cff",
+    "contributing.md",
+    "dockerfile",
+    "governance.md",
+    "license",
+    "makefile",
+    "notice",
+    "readme.md",
+    "security.md",
+    "support.md",
     "alembic.ini",
     "backend/config.py",
     "backend/__init__.py",
@@ -68,7 +68,7 @@ LOAD_BEARING_EXACT = {
     "docs/internal/sex_inference_threshold_validation.md",
     "docs/lai-bundle-release-runbook-env.lock.yaml",
     "docs/lai-bundle-release-runbook.md",
-    "frontend/src/App.tsx",
+    "frontend/src/app.tsx",
     "frontend/.gitignore",
     "frontend/index.html",
     "frontend/knip.jsonc",
@@ -1069,8 +1069,8 @@ def _is_load_bearing(path: str) -> bool:
     lowered = path.lower()
     name = Path(path).name.lower()
     return (
-        path in LOAD_BEARING_EXACT
-        or path.startswith(LOAD_BEARING_PREFIXES)
+        lowered in LOAD_BEARING_EXACT
+        or lowered.startswith(LOAD_BEARING_PREFIXES)
         or name in LOAD_BEARING_NAMES
         or name.startswith(".env")
         or name.startswith("constraints")
