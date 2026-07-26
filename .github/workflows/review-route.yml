@@ -674,18 +674,54 @@ jobs:
             return 1
           }
 
-          gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" > "$RUNNER_TEMP/pr.json"
-          jq -e --arg repo "$GITHUB_REPOSITORY" \
-            '.base.ref == "main" and .base.repo.full_name == $repo' \
-            "$RUNNER_TEMP/pr.json" > /dev/null
-          head_sha="$(jq -er '.head.sha | ascii_downcase' "$RUNNER_TEMP/pr.json")"
-          pr_state="$(jq -er '
-            if .state == "open" then "open"
-            elif .state == "closed" then "closed"
-            else error("missing pull state") end
-          ' "$RUNNER_TEMP/pr.json")"
-          if ! [[ "$head_sha" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "::error title=Review Route::resolved head is not a full SHA"
+          load_current_pr_snapshot() {
+            local attempt
+            for attempt in 1 2 3; do
+              if gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" \
+                  > "$RUNNER_TEMP/pr.json" &&
+                jq -e --arg repo "$GITHUB_REPOSITORY" \
+                  '.base.ref == "main" and .base.repo.full_name == $repo' \
+                  "$RUNNER_TEMP/pr.json" > /dev/null &&
+                head_sha="$(jq -er '.head.sha | ascii_downcase' \
+                  "$RUNNER_TEMP/pr.json")" &&
+                pr_state="$(jq -er '
+                  if .state == "open" then "open"
+                  elif .state == "closed" then "closed"
+                  else error("missing pull state") end
+                ' "$RUNNER_TEMP/pr.json")" &&
+                [[ "$head_sha" =~ ^[0-9a-f]{40}$ ]]; then
+                return 0
+              fi
+              if [ "$attempt" -lt 3 ]; then sleep "$attempt"; fi
+            done
+            return 1
+          }
+
+          if ! load_current_pr_snapshot; then
+            expected_head_sha="$(
+              printf '%s' "$EXPECTED_HEAD_SHA" | tr '[:upper:]' '[:lower:]'
+            )"
+            if ! [[ "$expected_head_sha" =~ ^[0-9a-f]{40}$ ]]; then
+              echo "::error title=Review Route::resolved head is not a full SHA"
+              exit 1
+            fi
+            post_pending_if_unowned "$expected_head_sha" \
+              "Review state could not be refreshed; revalidate the route." \
+              "could not invalidate resolved head after PR refresh failure"
+            signal_head_sha="$(
+              printf '%s' "$SIGNAL_HEAD_SHA" | tr '[:upper:]' '[:lower:]'
+            )"
+            if [ -n "$signal_head_sha" ] && \
+              [ "$signal_head_sha" != "$expected_head_sha" ]; then
+              if ! [[ "$signal_head_sha" =~ ^[0-9a-f]{40}$ ]]; then
+                echo "::error title=Review Route::signal head is not a full SHA"
+                exit 1
+              fi
+              post_pending_if_unowned "$signal_head_sha" \
+                "Review occurred on a prior head; revalidate before reusing it." \
+                "could not invalidate stale signal head after PR refresh failure"
+            fi
+            echo "::error title=Review Route::could not bind the current PR after three attempts"
             exit 1
           fi
           if [ "$pr_state" = "open" ]; then
@@ -1029,7 +1065,11 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           VALIDATION_OUTCOME: ${{ steps.route.outcome }}
         run: |
-          if ! [[ "${HEAD_SHA:-}" =~ ^[0-9a-f]{40}$ ]]; then
+          HEAD_SHA="$(
+            printf '%s' "${HEAD_SHA:-${RESOLVED_HEAD_SHA:-}}" |
+              tr '[:upper:]' '[:lower:]'
+          )"
+          if ! [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error title=Review Route::no valid head SHA was captured"
             exit 1
           fi

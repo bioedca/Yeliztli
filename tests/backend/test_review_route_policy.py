@@ -3398,6 +3398,9 @@ def test_workflow_uses_trusted_base_and_explicit_head_status() -> None:
     assert "'.object.sha == $trusted'" in workflow
     assert ".base.sha" not in workflow
     assert "-f state=pending" in workflow
+    assert "EXPECTED_HEAD_SHA: ${{ needs.resolve_review_state.outputs.head_sha }}" in workflow
+    assert "SIGNAL_HEAD_SHA: ${{ needs.resolve_review_state.outputs.signal_head }}" in workflow
+    assert "RESOLVED_HEAD_SHA: ${{ needs.resolve_route_event.outputs.head_sha }}" in workflow
     assert "EVENT_HEAD_SHA: ${{ needs.resolve_route_event.outputs.event_head }}" in workflow
     validate_job = workflow.split("\n  validate:", maxsplit=1)[1]
     assert 'post_pending_for_current_pr "$head_sha"' in validate_job
@@ -3405,7 +3408,7 @@ def test_workflow_uses_trusted_base_and_explicit_head_status() -> None:
     assert 'post_pending_if_unowned "$EVENT_HEAD_SHA"' in validate_job
     assert '[ "$EVENT_HEAD_SHA" != "$head_sha" ]' in validate_job
     assert "^[0-9a-fA-F]{40}$" in workflow
-    assert workflow.count("for attempt in 1 2 3") == 11
+    assert workflow.count("for attempt in 1 2 3") == 12
     assert '--expected-head "$HEAD_SHA"' in workflow
     assert '--expected-draft "$IS_DRAFT"' in workflow
     assert '--expected-pr-updated-at "$PR_UPDATED_AT"' in workflow
@@ -4378,38 +4381,202 @@ esac
 
 @pytest.mark.parametrize(
     (
+        "pr_snapshot_mode",
         "stale_owned_elsewhere",
         "duplicate_live_head",
         "malformed_response",
-        "fail_stale_post",
+        "stale_post_failures",
+        "replace_stale_on_retry",
+        "signal_head",
         "expected_statuses",
         "expected_attempts",
+        "expected_fetch_attempts",
         "expected_returncode",
     ),
     [
-        (False, False, False, False, [HEAD_SHA, "b" * 40], [HEAD_SHA, "b" * 40], 0),
-        (True, False, False, False, [HEAD_SHA], [HEAD_SHA], 0),
-        (False, False, True, False, [HEAD_SHA], [HEAD_SHA], 1),
         (
+            "normal",
             False,
+            False,
+            False,
+            0,
+            False,
+            "b" * 40,
+            [HEAD_SHA, "b" * 40],
+            [HEAD_SHA, "b" * 40],
+            1,
+            0,
+        ),
+        (
+            "normal",
+            True,
+            False,
+            False,
+            0,
+            False,
+            "b" * 40,
+            [HEAD_SHA],
+            [HEAD_SHA],
+            1,
+            0,
+        ),
+        (
+            "normal",
             False,
             False,
             True,
+            0,
+            False,
+            "b" * 40,
+            [HEAD_SHA],
+            [HEAD_SHA],
+            1,
+            1,
+        ),
+        (
+            "normal",
+            False,
+            False,
+            False,
+            3,
+            False,
+            "b" * 40,
             [HEAD_SHA],
             [HEAD_SHA, *("b" * 40 for _ in range(3))],
             1,
+            1,
         ),
-        (False, True, False, False, [HEAD_SHA, "b" * 40], [HEAD_SHA, "b" * 40], 0),
+        (
+            "normal",
+            False,
+            True,
+            False,
+            0,
+            False,
+            "b" * 40,
+            [HEAD_SHA, "b" * 40],
+            [HEAD_SHA, "b" * 40],
+            1,
+            0,
+        ),
+        (
+            "fetch-failure",
+            False,
+            False,
+            False,
+            0,
+            False,
+            "b" * 40,
+            ["b" * 40],
+            ["b" * 40],
+            3,
+            1,
+        ),
+        (
+            "malformed",
+            False,
+            False,
+            False,
+            0,
+            False,
+            "b" * 40,
+            ["b" * 40],
+            ["b" * 40],
+            3,
+            1,
+        ),
+        (
+            "fetch-failure",
+            True,
+            False,
+            False,
+            0,
+            False,
+            "b" * 40,
+            [],
+            [],
+            3,
+            1,
+        ),
+        (
+            "fetch-failure",
+            False,
+            False,
+            False,
+            3,
+            False,
+            "b" * 40,
+            [],
+            ["b" * 40, "b" * 40, "b" * 40],
+            3,
+            1,
+        ),
+        (
+            "fetch-failure",
+            False,
+            False,
+            False,
+            1,
+            False,
+            "b" * 40,
+            ["b" * 40],
+            ["b" * 40, "b" * 40],
+            3,
+            1,
+        ),
+        (
+            "fetch-failure",
+            False,
+            False,
+            False,
+            1,
+            True,
+            "b" * 40,
+            [],
+            ["b" * 40],
+            3,
+            1,
+        ),
+        (
+            "fetch-failure",
+            True,
+            False,
+            False,
+            0,
+            False,
+            "c" * 40,
+            ["c" * 40],
+            ["c" * 40],
+            3,
+            1,
+        ),
+        (
+            "transient-failure",
+            False,
+            False,
+            False,
+            0,
+            False,
+            "b" * 40,
+            [HEAD_SHA, "b" * 40],
+            [HEAD_SHA, "b" * 40],
+            2,
+            0,
+        ),
     ],
 )
 def test_review_signal_invalidator_rechecks_stale_head_ownership(
     tmp_path: Path,
+    pr_snapshot_mode: str,
     stale_owned_elsewhere: bool,
     duplicate_live_head: bool,
     malformed_response: bool,
-    fail_stale_post: bool,
+    stale_post_failures: int,
+    replace_stale_on_retry: bool,
+    signal_head: str,
     expected_statuses: list[str],
     expected_attempts: list[str],
+    expected_fetch_attempts: int,
     expected_returncode: int,
 ) -> None:
     root = Path(__file__).resolve().parents[2]
@@ -4434,11 +4601,31 @@ def test_review_signal_invalidator_rechecks_stale_head_ownership(
         )
     pr_fixture = tmp_path / "fixture-pr.json"
     open_fixture = tmp_path / "open-prs.json"
+    later_open_fixture = tmp_path / "later-open-prs.json"
+    pr_counter = tmp_path / "pr-counter"
+    open_counter = tmp_path / "open-counter"
+    status_failure_counter = tmp_path / "status-failure-counter"
     attempt_log = tmp_path / "attempts.log"
+    status_details_log = tmp_path / "status-details.log"
     status_log = tmp_path / "statuses.log"
     pr_fixture.write_text(json.dumps(pull), encoding="utf-8")
     open_fixture.write_text(
         json.dumps({"unexpected": []} if malformed_response else [open_pulls]),
+        encoding="utf-8",
+    )
+    later_open_fixture.write_text(
+        json.dumps(
+            [
+                [
+                    pull,
+                    {
+                        **pull,
+                        "number": 2184,
+                        "head": {"sha": "b" * 40},
+                    },
+                ]
+            ]
+        ),
         encoding="utf-8",
     )
     fake_bin = tmp_path / "bin"
@@ -4448,19 +4635,55 @@ def test_review_signal_invalidator_rechecks_stale_head_ownership(
         """#!/usr/bin/env bash
 set -eu
 case "$*" in
-  *"pulls/2183"*) exec /bin/cat "$PR_FIXTURE" ;;
-  *"pulls?state=open"*) exec /bin/cat "$OPEN_PRS_FIXTURE" ;;
+  *"pulls/2183"*)
+    count=0
+    if [ -f "$PR_COUNTER" ]; then count="$(/bin/cat "$PR_COUNTER")"; fi
+    count=$((count + 1))
+    printf '%s\n' "$count" > "$PR_COUNTER"
+    case "$PR_SNAPSHOT_MODE" in
+      fetch-failure) exit 1 ;;
+      malformed) printf '{}\n' ;;
+      transient-failure)
+        if [ "$count" = "1" ]; then exit 1; fi
+        exec /bin/cat "$PR_FIXTURE"
+        ;;
+      normal) exec /bin/cat "$PR_FIXTURE" ;;
+      *) exit 2 ;;
+    esac
+    ;;
+  *"pulls?state=open"*)
+    count=0
+    if [ -f "$OPEN_COUNTER" ]; then count="$(/bin/cat "$OPEN_COUNTER")"; fi
+    count=$((count + 1))
+    printf '%s\n' "$count" > "$OPEN_COUNTER"
+    if [ "$REPLACE_STALE_ON_RETRY" = "true" ] && [ "$count" -gt 1 ]; then
+      exec /bin/cat "$LATER_OPEN_PRS_FIXTURE"
+    fi
+    exec /bin/cat "$OPEN_PRS_FIXTURE"
+    ;;
   *"statuses/"*)
+    sha=""
+    state=""
+    context=""
     for argument in "$@"; do
       case "$argument" in
-            repos/*/statuses/*)
-              sha="${argument##*/}"
-              printf '%s\n' "$sha" >> "$ATTEMPT_LOG"
-              if [ "$sha" = "${FAIL_STATUS_SHA:-}" ]; then exit 1; fi
-          printf '%s\n' "$sha" >> "$STATUS_LOG"
-          ;;
+        repos/*/statuses/*) sha="${argument##*/}" ;;
+        state=*) state="${argument#state=}" ;;
+        context=*) context="${argument#context=}" ;;
       esac
     done
+    printf '%s\n' "$sha" >> "$ATTEMPT_LOG"
+    printf '%s\t%s\t%s\n' "$sha" "$state" "$context" >> "$STATUS_DETAILS_LOG"
+    if [ "$sha" = "${FAIL_STATUS_SHA:-}" ]; then
+      count=0
+      if [ -f "$STATUS_FAILURE_COUNTER" ]; then
+        count="$(/bin/cat "$STATUS_FAILURE_COUNTER")"
+      fi
+      count=$((count + 1))
+      printf '%s\n' "$count" > "$STATUS_FAILURE_COUNTER"
+      if [ "$count" -le "$FAIL_STATUS_COUNT" ]; then exit 1; fi
+    fi
+    printf '%s\n' "$sha" >> "$STATUS_LOG"
     printf '{}\n'
     ;;
   *) exit 2 ;;
@@ -4469,6 +4692,9 @@ esac
         encoding="utf-8",
     )
     fake_gh.chmod(0o755)
+    fake_sleep = fake_bin / "sleep"
+    fake_sleep.write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
+    fake_sleep.chmod(0o755)
     completed = subprocess.run(
         ["bash", "-e", "-o", "pipefail", "-c", shell],
         check=False,
@@ -4477,16 +4703,24 @@ esac
             **os.environ,
             "EXPECTED_HEAD_SHA": "b" * 40,
             "ATTEMPT_LOG": str(attempt_log),
-            "FAIL_STATUS_SHA": "b" * 40 if fail_stale_post else "",
+            "FAIL_STATUS_COUNT": str(stale_post_failures),
+            "FAIL_STATUS_SHA": "b" * 40 if stale_post_failures else "",
             "GH_TOKEN": "test-token",
             "GITHUB_REPOSITORY": "bioedca/Yeliztli",
+            "LATER_OPEN_PRS_FIXTURE": str(later_open_fixture),
+            "OPEN_COUNTER": str(open_counter),
             "OPEN_PRS_FIXTURE": str(open_fixture),
             "PATH": f"{fake_bin}:{os.environ['PATH']}",
+            "PR_COUNTER": str(pr_counter),
             "PR_FIXTURE": str(pr_fixture),
             "PR_NUMBER": "2183",
+            "PR_SNAPSHOT_MODE": pr_snapshot_mode,
+            "REPLACE_STALE_ON_RETRY": str(replace_stale_on_retry).lower(),
             "RUNNER_TEMP": str(tmp_path),
             "RUN_URL": "https://example.test/run",
-            "SIGNAL_HEAD_SHA": "b" * 40,
+            "SIGNAL_HEAD_SHA": signal_head,
+            "STATUS_DETAILS_LOG": str(status_details_log),
+            "STATUS_FAILURE_COUNTER": str(status_failure_counter),
             "STATUS_LOG": str(status_log),
         },
         text=True,
@@ -4500,6 +4734,13 @@ esac
     )
     assert actual_statuses == expected_statuses
     assert actual_attempts == expected_attempts
+    assert int(pr_counter.read_text(encoding="utf-8")) == expected_fetch_attempts
+    actual_status_details = (
+        status_details_log.read_text(encoding="utf-8").splitlines()
+        if status_details_log.exists()
+        else []
+    )
+    assert actual_status_details == [f"{sha}\tpending\tReview Route" for sha in expected_attempts]
 
 
 def test_review_signal_invalidator_rechecks_ownership_before_retry(tmp_path: Path) -> None:
@@ -4914,15 +5155,30 @@ esac
         "owner_mode",
         "malformed_response",
         "fail_status_post",
+        "captured_head",
+        "resolved_head",
         "expected_returncode",
         "expected_statuses",
         "expected_attempts",
     ),
     [
-        ("replacement", False, False, 0, [], []),
-        ("duplicate", False, False, 1, [HEAD_SHA], [HEAD_SHA]),
-        ("claimed", False, True, 1, [], [HEAD_SHA, HEAD_SHA, HEAD_SHA]),
-        ("replacement", True, False, 1, [], []),
+        ("replacement", False, False, HEAD_SHA, "", 0, [], []),
+        ("duplicate", False, False, HEAD_SHA, "", 1, [HEAD_SHA], [HEAD_SHA]),
+        (
+            "claimed",
+            False,
+            True,
+            HEAD_SHA,
+            "",
+            1,
+            [],
+            [HEAD_SHA, HEAD_SHA, HEAD_SHA],
+        ),
+        ("replacement", True, False, HEAD_SHA, "", 1, [], []),
+        ("claimed", False, False, "", HEAD_SHA.upper(), 1, [HEAD_SHA], [HEAD_SHA]),
+        ("replacement", False, False, "", HEAD_SHA.upper(), 0, [], []),
+        ("claimed", False, False, "b" * 40, HEAD_SHA, 1, ["b" * 40], ["b" * 40]),
+        ("claimed", False, False, "", "not-a-sha", 1, [], []),
     ],
 )
 def test_route_final_publisher_skips_head_owned_by_replacement_pr(
@@ -4930,6 +5186,8 @@ def test_route_final_publisher_skips_head_owned_by_replacement_pr(
     owner_mode: str,
     malformed_response: bool,
     fail_status_post: bool,
+    captured_head: str,
+    resolved_head: str,
     expected_returncode: int,
     expected_statuses: list[str],
     expected_attempts: list[str],
@@ -4937,11 +5195,12 @@ def test_route_final_publisher_skips_head_owned_by_replacement_pr(
     root = Path(__file__).resolve().parents[2]
     workflow = (root / ".github/workflows/review-route.yml").read_text(encoding="utf-8")
     shell = _workflow_step_script(workflow, "Publish required status on PR head")
+    effective_head = (captured_head or resolved_head).lower()
     claimed = {
         "number": 2183,
         "state": "open",
         "base": {"ref": "main", "repo": {"full_name": "bioedca/Yeliztli"}},
-        "head": {"sha": HEAD_SHA.upper()},
+        "head": {"sha": effective_head.upper()},
     }
     replacement = {**claimed, "number": 2184}
     owners = {
@@ -4990,12 +5249,13 @@ esac
         env={
             **os.environ,
             "ATTEMPT_LOG": str(attempt_log),
-            "FAIL_STATUS_SHA": HEAD_SHA if fail_status_post else "",
+            "FAIL_STATUS_SHA": effective_head if fail_status_post else "",
             "GH_TOKEN": "test-token",
-            "HEAD_SHA": HEAD_SHA,
+            "HEAD_SHA": captured_head,
             "OPEN_PRS_FIXTURE": str(open_fixture),
             "PATH": f"{fake_bin}:{os.environ['PATH']}",
             "PR_NUMBER": "2183",
+            "RESOLVED_HEAD_SHA": resolved_head,
             "RUNNER_TEMP": str(tmp_path),
             "RUN_URL": "https://example.test/run",
             "STATUS_LOG": str(status_log),
