@@ -2716,6 +2716,59 @@ def test_self_closing_visible_html_before_rendered_route_is_accepted(opening: st
     assert _validate_rendered(context, files, opening + _rendered_route_html("Low")) == []
 
 
+@pytest.mark.parametrize(
+    "opening",
+    [
+        "<h1 hidden><table>",
+        "<h1 hidden><span>",
+        "<p><i hidden>",
+        "<p hidden><button>",
+        "<p hidden><object>",
+        "<p hidden><select>",
+        "<p hidden><table>",
+    ],
+)
+def test_implicit_close_cannot_escape_active_html5_container(opening: str) -> None:
+    files = [ChangedFile("docs/guide.md")]
+    context = _context("Low", files, body=f"{opening}\n\n" + _body("Low"))
+    assert RENDERED_ROUTE_ERROR in _validate_rendered(
+        context,
+        files,
+        opening + _rendered_route_html("Low"),
+    )
+
+
+@pytest.mark.parametrize("opening", ["<h1><span></span>", "<p><span>"])
+def test_implicit_close_accepts_html5_closable_content(opening: str) -> None:
+    files = [ChangedFile("docs/guide.md")]
+    context = _context("Low", files, body=f"{opening}\n\n" + _body("Low"))
+    assert _validate_rendered(context, files, opening + _rendered_route_html("Low")) == []
+
+
+@pytest.mark.parametrize(
+    ("opening", "closing"),
+    [
+        ("<b><i hidden></b>", "</i>"),
+        ("<form hidden><span></form>", "</span>"),
+        ("<h1><i hidden></h1>", "</i>"),
+        ("<h1 hidden><table></h1>", "</table>"),
+        ("<h1 hidden><script></h1>", "</script>"),
+        ("<p><i hidden></p>", "</i>"),
+        ("<p hidden><object></p>", "</object>"),
+        ("<p hidden><select></p>", "</select>"),
+        ("<span hidden><div></span>", "</div>"),
+    ],
+)
+def test_end_tag_cannot_cross_html5_scope_or_special_boundary(
+    opening: str,
+    closing: str,
+) -> None:
+    files = [ChangedFile("docs/guide.md")]
+    context = _context("Low", files, body=f"{opening}\n\n" + _body("Low") + closing)
+    rendered = opening + _rendered_route_html("Low") + closing
+    assert RENDERED_ROUTE_ERROR in _validate_rendered(context, files, rendered)
+
+
 def test_combined_visible_task_list_with_root_evidence_table_is_accepted() -> None:
     files = [ChangedFile("docs/guide.md")]
     context = _context("Low", files)

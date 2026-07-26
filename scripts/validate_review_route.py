@@ -404,6 +404,28 @@ def _rendered_route_errors(
     }
     foreign_roots = {"math", "svg"}
     heading_tags = {"h1", "h2", "h3", "h4", "h5", "h6"}
+    scope_boundaries = {
+        "annotation-xml",
+        "applet",
+        "caption",
+        "desc",
+        "foreignobject",
+        "html",
+        "marquee",
+        "math",
+        "mi",
+        "mn",
+        "mo",
+        "ms",
+        "mtext",
+        "object",
+        "svg",
+        "table",
+        "td",
+        "template",
+        "th",
+        "title",
+    }
     paragraph_closing_tags = {
         "address",
         "article",
@@ -440,6 +462,55 @@ def _rendered_route_errors(
         "table",
         "ul",
     }
+    # ``HTMLParser`` has no HTML5 insertion modes. Treat special elements as
+    # conservative barriers so malformed rendered fragments fail closed.
+    special_elements = (
+        paragraph_closing_tags
+        | scope_boundaries
+        | {
+            "body",
+            "button",
+            "colgroup",
+            "dd",
+            "dt",
+            "form",
+            "frameset",
+            "head",
+            "iframe",
+            "li",
+            "listing",
+            "noembed",
+            "noframes",
+            "noscript",
+            "plaintext",
+            "script",
+            "select",
+            "style",
+            "tbody",
+            "textarea",
+            "tfoot",
+            "thead",
+            "tr",
+            "xmp",
+        }
+    )
+    active_formatting_elements = {
+        "a",
+        "b",
+        "big",
+        "code",
+        "em",
+        "font",
+        "i",
+        "nobr",
+        "s",
+        "small",
+        "strike",
+        "strong",
+        "tt",
+        "u",
+    }
+    containment_boundaries = special_elements | active_formatting_elements
 
     class RenderedParser(HTMLParser):
         def __init__(self) -> None:
@@ -450,9 +521,9 @@ def _rendered_route_errors(
         def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
             tag = tag.lower()
             if tag in paragraph_closing_tags:
-                self.close_open("p")
-            if tag in heading_tags:
-                self.close_open_any(heading_tags)
+                self.close_open("p", containment_boundaries)
+            if tag in heading_tags and self.stack and self.stack[-1]["tag"] in heading_tags:
+                self.stack.pop()
             attributes = {name.lower(): value for name, value in attrs}
             node: dict[str, Any] = {
                 "attrs": attributes,
@@ -483,19 +554,21 @@ def _rendered_route_errors(
             if tag not in void_tags:
                 self.stack.append(node)
 
-        def close_open(self, tag: str) -> None:
-            if not any(node["tag"] == tag for node in self.stack):
-                return
-            while self.stack:
-                if self.stack.pop()["tag"] == tag:
-                    break
+        def close_open(self, tag: str, boundaries: set[str]) -> None:
+            self.close_open_any({tag}, boundaries)
 
-        def close_open_any(self, tags: set[str]) -> None:
-            if not any(node["tag"] in tags for node in self.stack):
-                return
-            while self.stack:
-                if self.stack.pop()["tag"] in tags:
-                    break
+        def close_open_any(self, tags: set[str], boundaries: set[str]) -> None:
+            for index in range(len(self.stack) - 1, -1, -1):
+                open_tag = self.stack[index]["tag"]
+                if open_tag in tags:
+                    del self.stack[index:]
+                    return
+                if open_tag in boundaries:
+                    return
+
+        def close_end_tag(self, tag: str) -> None:
+            if self.stack and self.stack[-1]["tag"] == tag:
+                self.stack.pop()
 
         def handle_startendtag(  # noqa
             self, tag: str, attrs: list[tuple[str, str | None]]
@@ -506,12 +579,12 @@ def _rendered_route_errors(
 
         def handle_endtag(self, tag: str) -> None:  # noqa
             tag = tag.lower()
-            if not any(node["tag"] == tag for node in self.stack):
-                return
-            while self.stack:
-                node = self.stack.pop()
-                if node["tag"] == tag:
-                    break
+            if tag in heading_tags:
+                self.close_open_any(heading_tags, containment_boundaries)
+            elif tag == "p":
+                self.close_open("p", containment_boundaries)
+            else:
+                self.close_end_tag(tag)
 
         def handle_data(self, data: str) -> None:  # noqa
             if not self.stack and data.strip():
