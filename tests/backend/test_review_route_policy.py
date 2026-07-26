@@ -3366,6 +3366,13 @@ def test_workflow_uses_trusted_base_and_explicit_head_status() -> None:
     assert '-f headOid="$HEAD_SHA"' in workflow
     assert "permission-statuses: write" in workflow
     assert "permission-contents: read" in workflow
+    assert workflow.count("permission-metadata: read") == 2
+    review_fallback_token = workflow.split("id: review-fallback", maxsplit=1)[1].split(
+        "\n\n", maxsplit=1
+    )[0]
+    publisher_token = workflow.split("id: publisher", maxsplit=1)[1].split("\n\n", maxsplit=1)[0]
+    assert "permission-metadata: read" in review_fallback_token
+    assert "permission-metadata: read" in publisher_token
     assert "statuses: write" not in workflow.split("jobs:", maxsplit=1)[0]
     assert workflow.count("GH_TOKEN: ${{ github.token }}") == 2
     privileged_jobs = workflow.split("  invalidate-review-state:", maxsplit=1)[1]
