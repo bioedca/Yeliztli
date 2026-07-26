@@ -1,0 +1,32 @@
+name: Review Route Invalidation Signal
+run-name: review-route-pr-${{ github.event.pull_request.number }}-head-${{ github.event.pull_request.head.sha }}-trigger-${{ github.actor_id }}
+
+on:
+  pull_request_target:
+    branches: [main]
+    types: [opened, edited, synchronize, reopened, closed, ready_for_review, converted_to_draft, review_requested, review_request_removed]
+  pull_request_review:
+    types: [submitted, edited, dismissed]
+  pull_request_review_comment:
+    types: [created, edited, deleted]
+
+# This workflow carries no credentials and executes no repository code. Every
+# PR lifecycle, formal-review, and diff-comment mutation emits this
+# credential-free invalidation signal. Its structured run-name transports only
+# the PR/head plus triggering actor to the default-branch workflow_run consumer,
+# which live-binds them before any privileged publication. This indirection also covers fork and Dependabot PRs
+# without exposing the publisher key or consuming untrusted artifacts/caches.
+# GitHub Actions has no review-thread resolved/unresolved trigger.
+# Native required conversation resolution is the synchronous authority for
+# those transitions, and final validation rechecks every thread.
+permissions: {}
+
+jobs:
+  signal:
+    name: Signal review-state change
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - name: Emit review-state signal
+        run: |
+          echo "Review-state invalidation signal emitted."

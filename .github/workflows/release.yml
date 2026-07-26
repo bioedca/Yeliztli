@@ -19,7 +19,7 @@ permissions:
 jobs:
   # ── Lint ────────────────────────────────────────────────
   lint:
-    name: Lint
+    name: Release Lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6

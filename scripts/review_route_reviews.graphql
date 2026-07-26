@@ -1,0 +1,36 @@
+query ReviewRouteReviewPages(
+  $owner: String!
+  $repo: String!
+  $number: Int!
+  $endCursor: String
+) {
+  repository(owner: $owner, name: $repo) {
+    pullRequest(number: $number) {
+      number
+      headRefOid
+      updatedAt
+      reviews(first: 100, after: $endCursor) {
+        totalCount
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+        nodes {
+          id
+          author {
+            __typename
+            login
+            ... on User { databaseId }
+            ... on Bot { databaseId }
+          }
+          authorAssociation
+          body
+          commit { oid }
+          lastEditedAt
+          state
+          submittedAt
+        }
+      }
+    }
+  }
+}

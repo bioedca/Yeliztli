@@ -1,0 +1,1294 @@
+name: Review Route Policy
+
+# Repository rules cannot express OR across separate reviewer checks. This
+# trusted App-published aggregate accepts the PR's selected current-head
+# automated reviewer, then independently verifies human approval and threads.
+
+on:
+  issue_comment:
+    types: [created, edited, deleted]
+  workflow_run:
+    workflows: ["Review Route Invalidation Signal"]
+    types: [completed]
+
+# Merge queue is intentionally unsupported. Enabling it requires a separate
+# design that validates every constituent PR and publishes on the synthetic SHA.
+
+# Privileged publication intentionally uses only default-branch workflow refs.
+# PR lifecycle and review events first run a credential-free signal; its
+# default-branch workflow_run consumer live-binds the PR, heads, and trigger actor.
+# Review-state signals can only invalidate. Lifecycle signals can refresh the
+# non-final route, including for fork and Dependabot PRs whose source run cannot
+# access Actions secrets; every completed source conclusion is consumed so a
+# failed or cancelled signal cannot leave an older success live. Dedicated
+# fallback publishers mark safely rebound heads pending if either resolver
+# fails. After reviews and thread resolution, a write-capable maintainer
+# explicitly finalizes the route with `/validate-route`.
+#
+# The `review-route-publisher` environment must allow only branch `main` and
+# hold a dedicated GitHub App client ID/private key. The app, not the generic
+# Actions app, is the only acceptable source for the required `Review Route`
+# status. It needs Issues: read, Pull requests: read, and Statuses: write.
+# Reading and rechecking `refs/heads/main` also requires Contents: read.
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  resolve_review_state:
+    if: >-
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.path == '.github/workflows/review-route-invalidation.yml' &&
+      contains(fromJSON('["pull_request_review","pull_request_review_comment"]'),
+      github.event.workflow_run.event)
+    name: Resolve Review-State Signal
+    outputs:
+      head_sha: ${{ steps.resolve.outputs.head_sha }}
+      pr_number: ${{ steps.resolve.outputs.pr_number }}
+      relevant: ${{ steps.resolve.outputs.relevant }}
+      signal_head: ${{ steps.resolve.outputs.signal_head }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Bind signal to its associated pull request
+        id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SIGNAL_EVENT: ${{ github.event.workflow_run.event }}
+          SIGNAL_TITLE: ${{ github.event.workflow_run.display_title }}
+          SOURCE_ACTOR_ID: ${{ github.event.workflow_run.actor.id }}
+          SOURCE_ACTOR_LOGIN: ${{ github.event.workflow_run.actor.login }}
+          SOURCE_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          if [[ "$SIGNAL_TITLE" =~ ^review-route-pr-([0-9]+)-head-([0-9a-fA-F]{40})-trigger-([0-9]+)$ ]]; then
+            pr_number="${BASH_REMATCH[1]}"
+            signal_head="$(printf '%s' "${BASH_REMATCH[2]}" | tr '[:upper:]' '[:lower:]')"
+            signal_trigger_actor_id="${BASH_REMATCH[3]}"
+          else
+            echo "::error title=Review Route::invalid review-state signal identity"
+            exit 1
+          fi
+          if ! [[ "$signal_trigger_actor_id" =~ ^[1-9][0-9]*$ ]] || \
+             ! [[ "$SOURCE_ACTOR_ID" =~ ^[1-9][0-9]*$ ]] || \
+             [ "$signal_trigger_actor_id" != "$SOURCE_ACTOR_ID" ]; then
+            echo "::error title=Review Route::review-state trigger actor is invalid"
+            exit 1
+          fi
+          relevant=true
+          case "$SIGNAL_EVENT" in
+            pull_request_review_comment) ;;
+            pull_request_review)
+              trusted_actor=false
+              case "$SOURCE_ACTOR_ID" in
+                175728472|199175422|136622811) trusted_actor=true ;;
+              esac
+              if [ "$trusted_actor" != "true" ]; then
+                if ! [[ "$SOURCE_ACTOR_LOGIN" =~ ^[A-Za-z0-9][A-Za-z0-9-]*(\[bot\])?$ ]]; then
+                  echo "::error title=Review Route::review-state actor login is invalid"
+                  exit 1
+                fi
+                permission_file="$RUNNER_TEMP/source-actor-permission.json"
+                actor_permission="lookup-failed"
+                if gh api \
+                  "repos/$GITHUB_REPOSITORY/collaborators/$SOURCE_ACTOR_LOGIN/permission" \
+                  > "$permission_file"; then
+                  actor_permission="$(jq -er --arg actor "$SOURCE_ACTOR_ID" '
+                    if (.user.id | tostring) == $actor then .permission else "identity-mismatch" end
+                  ' "$permission_file" 2>/dev/null || printf 'invalid')"
+                fi
+                case "$actor_permission" in
+                  admin|write) ;;
+                  read|none)
+                    echo "Untrusted formal-review signal actor is irrelevant to route state."
+                    relevant=false
+                    ;;
+                  *)
+                    echo "::warning title=Review Route::actor permission lookup was inconclusive; invalidating fail closed"
+                    ;;
+                esac
+              fi
+              ;;
+            *) echo "::error title=Review Route::review-state event is invalid"; exit 1 ;;
+          esac
+          # Review-event workflow_run.head_sha is the reviewed PR head. Bind it
+          # to the run-name's claimed event head, then separately live-bind the
+          # claimed PR and its current head. A delayed signal may name an older
+          # unowned head so the invalidator can revoke stale success there. If
+          # an ownership snapshot shows another open main PR on that head, the
+          # signal is rejected here and rechecked again immediately before use.
+          source_head="$(printf '%s' "$SOURCE_HEAD_SHA" | tr '[:upper:]' '[:lower:]')"
+          if ! [[ "$source_head" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error title=Review Route::source head SHA is invalid"
+            exit 1
+          fi
+          if [ "$source_head" != "$signal_head" ]; then
+            echo "::error title=Review Route::source and claimed signal heads differ"
+            exit 1
+          fi
+          gh api "repos/$GITHUB_REPOSITORY/pulls/$pr_number" > "$RUNNER_TEMP/pr.json"
+          jq -e --arg repo "$GITHUB_REPOSITORY" --arg pr "$pr_number" '
+              (.number | tostring) == $pr and
+              .state == "open" and
+              .base.ref == "main" and
+              .base.repo.full_name == $repo
+            ' \
+            "$RUNNER_TEMP/pr.json" > /dev/null
+          head_sha="$(jq -er '.head.sha | ascii_downcase' "$RUNNER_TEMP/pr.json")"
+          if ! [[ "$head_sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error title=Review Route::resolved head is not a full SHA"
+            exit 1
+          fi
+          gh api --paginate --slurp \
+            "repos/$GITHUB_REPOSITORY/pulls?state=open&base=main&per_page=100" \
+            > "$RUNNER_TEMP/open-pulls.json"
+          jq -e --arg current "$head_sha" --arg signal "$signal_head" \
+            --arg pr "$pr_number" '
+            [ .[][] | select((.head.sha | ascii_downcase) == $current) ]
+              as $current_matches |
+            [ .[][] | select((.head.sha | ascii_downcase) == $signal) ]
+              as $signal_matches |
+            ($current_matches | length) == 1 and
+            ($current_matches[0].number | tostring) == $pr and
+            ($signal == $current or ($signal_matches | length) == 0)
+          ' "$RUNNER_TEMP/open-pulls.json" > /dev/null
+          printf 'head_sha=%s\npr_number=%s\nrelevant=%s\nsignal_head=%s\n' \
+            "$head_sha" "$pr_number" "$relevant" "$signal_head" >> "$GITHUB_OUTPUT"
+
+  resolve_route_event:
+    if: >-
+      (github.event_name == 'workflow_run' &&
+      github.event.workflow_run.path == '.github/workflows/review-route-invalidation.yml' &&
+      github.event.workflow_run.event == 'pull_request_target') ||
+      (github.event_name == 'issue_comment' &&
+      github.event.issue.pull_request &&
+      (contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'),
+      github.event.comment.author_association) ||
+      (github.event.comment.user.type == 'Bot' &&
+      github.event.comment.user.id == 199175422)))
+    name: Resolve Route Event
+    outputs:
+      event_head: ${{ steps.resolve.outputs.event_head }}
+      head_sha: ${{ steps.resolve.outputs.head_sha }}
+      pr_number: ${{ steps.resolve.outputs.pr_number }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Resolve live pull request head
+        id: resolve
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          SIGNAL_TITLE: ${{ github.event.workflow_run.display_title }}
+          SOURCE_ACTOR_ID: ${{ github.event.workflow_run.actor.id }}
+        run: |
+          if [ "$EVENT_NAME" = "workflow_run" ]; then
+            if [[ "$SIGNAL_TITLE" =~ ^review-route-pr-([0-9]+)-head-([0-9a-fA-F]{40})-trigger-([0-9]+)$ ]]; then
+              pr_number="${BASH_REMATCH[1]}"
+              event_head="$(printf '%s' "${BASH_REMATCH[2]}" | tr '[:upper:]' '[:lower:]')"
+              event_trigger_actor_id="${BASH_REMATCH[3]}"
+            else
+              echo "::error title=Review Route::invalid lifecycle signal identity"
+              exit 1
+            fi
+            if ! [[ "$event_trigger_actor_id" =~ ^[1-9][0-9]*$ ]] || \
+               ! [[ "$SOURCE_ACTOR_ID" =~ ^[1-9][0-9]*$ ]] || \
+               [ "$event_trigger_actor_id" != "$SOURCE_ACTOR_ID" ]; then
+              echo "::error title=Review Route::lifecycle trigger actor is invalid"
+              exit 1
+            fi
+          else
+            pr_number="$ISSUE_NUMBER"
+            event_head=""
+          fi
+          if ! [[ "$pr_number" =~ ^[0-9]+$ ]]; then
+            echo "::error title=Review Route::pull request number is invalid"
+            exit 1
+          fi
+          gh api "repos/$GITHUB_REPOSITORY/pulls/$pr_number" > "$RUNNER_TEMP/pr.json"
+          jq -e --arg repo "$GITHUB_REPOSITORY" --arg pr "$pr_number" '
+            (.number | tostring) == $pr and
+            .base.ref == "main" and .base.repo.full_name == $repo
+          ' \
+            "$RUNNER_TEMP/pr.json" > /dev/null
+          head_sha="$(jq -er '.head.sha | ascii_downcase' "$RUNNER_TEMP/pr.json")"
+          if ! [[ "$head_sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error title=Review Route::resolved head is not a full SHA"
+            exit 1
+          fi
+          if [ -z "$event_head" ]; then event_head="$head_sha"; fi
+          if ! [[ "$event_head" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error title=Review Route::event head is not a full SHA"
+            exit 1
+          fi
+          printf 'event_head=%s\nhead_sha=%s\npr_number=%s\n' \
+            "$event_head" "$head_sha" "$pr_number" >> "$GITHUB_OUTPUT"
+
+  # Resolver fallbacks intentionally stay outside concurrency groups. A failed
+  # resolver may expose no safe group key, and cancellation or pending-job
+  # replacement must never suppress its App-authenticated pending publication.
+  fail-closed-review-resolution:
+    needs: resolve_review_state
+    if: >-
+      always() &&
+      needs.resolve_review_state.result != 'success' &&
+      needs.resolve_review_state.result != 'skipped'
+    environment:
+      name: review-route-publisher
+    name: Fail Closed on Review Resolver Error
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Mint fallback publisher token
+        id: review-fallback
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
+        with:
+          client-id: ${{ vars.REVIEW_ROUTE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.REVIEW_ROUTE_APP_PRIVATE_KEY }}
+          permission-metadata: read
+          permission-pull-requests: read
+          permission-statuses: write
+
+      - name: Invalidate immutable review-signal head
+        env:
+          GH_TOKEN: ${{ steps.review-fallback.outputs.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SIGNAL_EVENT: ${{ github.event.workflow_run.event }}
+          SIGNAL_TITLE: ${{ github.event.workflow_run.display_title }}
+          SOURCE_ACTOR_ID: ${{ github.event.workflow_run.actor.id }}
+          SOURCE_ACTOR_LOGIN: ${{ github.event.workflow_run.actor.login }}
+          SOURCE_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          if [ "$SIGNAL_EVENT" = "pull_request_review" ]; then
+            trusted_actor=false
+            case "$SOURCE_ACTOR_ID" in
+              175728472|199175422|136622811) trusted_actor=true ;;
+            esac
+            if [ "$trusted_actor" != "true" ]; then
+              if ! [[ "$SOURCE_ACTOR_ID" =~ ^[1-9][0-9]*$ ]] || \
+                ! [[ "$SOURCE_ACTOR_LOGIN" =~ ^[A-Za-z0-9][A-Za-z0-9-]*(\[bot\])?$ ]]; then
+                echo "::error title=Review Route::failed resolver actor identity is invalid"
+                exit 1
+              fi
+              actor_permission="lookup-failed"
+              if gh api \
+                  "repos/$GITHUB_REPOSITORY/collaborators/$SOURCE_ACTOR_LOGIN/permission" \
+                  > "$RUNNER_TEMP/review-fallback-permission.json"; then
+                actor_permission="$(jq -er --arg actor "$SOURCE_ACTOR_ID" '
+                  if (.user.id | tostring) == $actor then .permission else "identity-mismatch" end
+                ' "$RUNNER_TEMP/review-fallback-permission.json" 2>/dev/null || printf 'invalid')"
+              fi
+              case "$actor_permission" in
+                admin|write) ;;
+                read|none)
+                  echo "Confirmed read-only outsider review remains irrelevant."
+                  exit 0
+                  ;;
+                *) ;;
+              esac
+            fi
+          elif [ "$SIGNAL_EVENT" != "pull_request_review_comment" ]; then
+            echo "::error title=Review Route::failed resolver event is invalid"
+            exit 1
+          fi
+          source_head="$(printf '%s' "$SOURCE_HEAD_SHA" | tr '[:upper:]' '[:lower:]')"
+          if [[ "$SIGNAL_TITLE" =~ ^review-route-pr-([0-9]+)-head-([0-9a-fA-F]{40})-trigger-([0-9]+)$ ]]; then
+            pr_number="${BASH_REMATCH[1]}"
+            claimed_head="$(printf '%s' "${BASH_REMATCH[2]}" | tr '[:upper:]' '[:lower:]')"
+          else
+            echo "::error title=Review Route::failed resolver exposed no valid signal identity"
+            exit 1
+          fi
+          if ! [[ "$source_head" =~ ^[0-9a-f]{40}$ ]] || \
+            [ "$source_head" != "$claimed_head" ]; then
+            echo "::error title=Review Route::failed resolver exposed no valid source head"
+            exit 1
+          fi
+          bound=false
+          for attempt in 1 2 3; do
+            if gh api "repos/$GITHUB_REPOSITORY/pulls/$pr_number" \
+                > "$RUNNER_TEMP/review-fallback-pr.json" && \
+              current_head="$(jq -er --arg repo "$GITHUB_REPOSITORY" --arg pr "$pr_number" '
+                if (.number | tostring) == $pr and .state == "open" and
+                  .base.ref == "main" and .base.repo.full_name == $repo and
+                  (.head.sha | type) == "string"
+                then (.head.sha | ascii_downcase)
+                else error("unexpected pull response")
+                end
+              ' "$RUNNER_TEMP/review-fallback-pr.json")" && \
+              [[ "$current_head" =~ ^[0-9a-f]{40}$ ]]; then
+              bound=true
+              break
+            fi
+            if [ "$attempt" -lt 3 ]; then sleep "$attempt"; fi
+          done
+          if [ "$bound" != "true" ]; then
+            echo "::error title=Review Route::failed review signal could not be safely rebound"
+            exit 1
+          fi
+          post_pending() {
+            local sha="$1"
+            local attempt
+            for attempt in 1 2 3; do
+              if gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$sha" \
+                -f state=pending \
+                -f context="Review Route" \
+                -f description="Review signal resolution failed; revalidation is required." \
+                -f target_url="$RUN_URL"; then
+                return 0
+              fi
+              if [ "$attempt" -lt 3 ]; then sleep "$attempt"; fi
+            done
+            return 1
+          }
+          post_pending_if_unowned() {
+            local sha="$1"
+            local attempt ownership foreign_owner_count claimed_owner_count match_count
+            for attempt in 1 2 3; do
+              if ! gh api --paginate --slurp \
+                  "repos/$GITHUB_REPOSITORY/pulls?state=open&base=main&per_page=100" \
+                  > "$RUNNER_TEMP/review-fallback-open-pulls-$attempt.json"; then
+                if [ "$attempt" -lt 3 ]; then sleep "$attempt"; continue; fi
+                echo "::error title=Review Route::could not verify stale fallback head ownership"
+                return 1
+              fi
+              if ! ownership="$(jq -er --arg head "$sha" --arg pr "$pr_number" '
+                if type == "array" and all(.[]; type == "array") and
+                  all(.[][]; (.number | type) == "number" and
+                    (.head.sha | type) == "string") then
+                  [ .[][] |
+                    select((.head.sha | ascii_downcase) == ($head | ascii_downcase))
+                  ] as $matches |
+                  [
+                    ($matches | map(select((.number | tostring) != $pr)) | length),
+                    ($matches | map(select((.number | tostring) == $pr)) | length),
+                    ($matches | length)
+                  ] | @tsv
+                else
+                  error("open pull response has an unexpected shape")
+                end
+              ' "$RUNNER_TEMP/review-fallback-open-pulls-$attempt.json")"; then
+                echo "::error title=Review Route::could not verify stale fallback head ownership"
+                return 1
+              fi
+              IFS=$'\t' read -r foreign_owner_count claimed_owner_count match_count <<< "$ownership"
+              if [ "$claimed_owner_count" = "0" ] && \
+                [ "$foreign_owner_count" = "1" ] && [ "$match_count" = "1" ]; then
+                echo "::warning title=Review Route::stale fallback head belongs to a replacement PR; skipped"
+                return 0
+              fi
+              if gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$sha" \
+                -f state=pending \
+                -f context="Review Route" \
+                -f description="Review signal resolution failed; revalidation is required." \
+                -f target_url="$RUN_URL"; then
+                return 0
+              fi
+              if [ "$attempt" -lt 3 ]; then sleep "$attempt"; fi
+            done
+            return 1
+          }
+          post_pending "$current_head" || {
+            echo "::error title=Review Route::could not invalidate current head after failed review signal"
+            exit 1
+          }
+          if [ "$source_head" != "$current_head" ]; then
+            post_pending_if_unowned "$source_head" || {
+              echo "::error title=Review Route::could not invalidate stale failed review signal"
+              exit 1
+            }
+          fi
+          echo "::error title=Review Route::review signal resolution failed closed"
+          exit 1
+
+  # Keep this fallback uncancellable for the same fail-closed reason above.
+  fail-closed-route-resolution:
+    needs: resolve_route_event
+    if: >-
+      always() &&
+      needs.resolve_route_event.result != 'success' &&
+      needs.resolve_route_event.result != 'skipped'
+    environment:
+      name: review-route-publisher
+    name: Fail Closed on Route Resolver Error
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Mint fallback publisher token
+        id: route-fallback
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
+        with:
+          client-id: ${{ vars.REVIEW_ROUTE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.REVIEW_ROUTE_APP_PRIVATE_KEY }}
+          permission-pull-requests: read
+          permission-statuses: write
+
+      - name: Resolve fallback head and invalidate it
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          GH_TOKEN: ${{ steps.route-fallback.outputs.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SIGNAL_TITLE: ${{ github.event.workflow_run.display_title }}
+        run: |
+          pr_number=""
+          event_head=""
+          if [ "$EVENT_NAME" = "workflow_run" ]; then
+            if [[ "$SIGNAL_TITLE" =~ ^review-route-pr-([0-9]+)-head-([0-9a-fA-F]{40})-trigger-([0-9]+)$ ]]; then
+              pr_number="${BASH_REMATCH[1]}"
+              event_head="$(printf '%s' "${BASH_REMATCH[2]}" | tr '[:upper:]' '[:lower:]')"
+            else
+              echo "::error title=Review Route::failed lifecycle resolver exposed no valid head"
+              exit 1
+            fi
+          else
+            if ! [[ "$ISSUE_NUMBER" =~ ^[1-9][0-9]*$ ]]; then
+              echo "::error title=Review Route::failed comment resolver exposed no PR number"
+              exit 1
+            fi
+            pr_number="$ISSUE_NUMBER"
+          fi
+          bound=false
+          for attempt in 1 2 3; do
+            if gh api "repos/$GITHUB_REPOSITORY/pulls/$pr_number" \
+                > "$RUNNER_TEMP/route-fallback-pr.json" && \
+              current_head="$(jq -er --arg repo "$GITHUB_REPOSITORY" --arg pr "$pr_number" '
+                if (.number | tostring) == $pr and
+                  (.state == "open" or .state == "closed") and
+                  .base.ref == "main" and .base.repo.full_name == $repo and
+                  (.head.sha | type) == "string"
+                then (.head.sha | ascii_downcase)
+                else error("unexpected pull response")
+                end
+              ' "$RUNNER_TEMP/route-fallback-pr.json")" && \
+              [[ "$current_head" =~ ^[0-9a-f]{40}$ ]]; then
+              if [ -z "$event_head" ]; then event_head="$current_head"; fi
+              if [[ "$event_head" =~ ^[0-9a-f]{40}$ ]]; then
+                bound=true
+                break
+              fi
+            fi
+            if [ "$attempt" -lt 3 ]; then sleep "$attempt"; fi
+          done
+          if [ "$bound" != "true" ] || \
+            ! [[ "$current_head" =~ ^[0-9a-f]{40}$ ]] || \
+            ! [[ "$event_head" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error title=Review Route::failed route event could not be safely rebound"
+            exit 1
+          fi
+          post_pending() {
+            local sha="$1"
+            local attempt
+            for attempt in 1 2 3; do
+              if gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$sha" \
+                  -f state=pending \
+                  -f context="Review Route" \
+                  -f description="Route event resolution failed; revalidation is required." \
+                  -f target_url="$RUN_URL"; then
+                return 0
+              fi
+              if [ "$attempt" -lt 3 ]; then sleep "$attempt"; fi
+            done
+            return 1
+          }
+          post_pending_if_unowned() {
+            local sha="$1"
+            local attempt ownership foreign_owner_count claimed_owner_count match_count
+            for attempt in 1 2 3; do
+              if ! gh api --paginate --slurp \
+                  "repos/$GITHUB_REPOSITORY/pulls?state=open&base=main&per_page=100" \
+                  > "$RUNNER_TEMP/route-fallback-open-pulls-$attempt.json"; then
+                if [ "$attempt" -lt 3 ]; then sleep "$attempt"; continue; fi
+                echo "::error title=Review Route::could not verify stale fallback head ownership"
+                return 1
+              fi
+              if ! ownership="$(jq -er --arg head "$sha" --arg pr "$pr_number" '
+                if type == "array" and all(.[]; type == "array") and
+                  all(.[][]; (.number | type) == "number" and
+                    (.head.sha | type) == "string") then
+                  [ .[][] |
+                    select((.head.sha | ascii_downcase) == ($head | ascii_downcase))
+                  ] as $matches |
+                  [
+                    ($matches | map(select((.number | tostring) != $pr)) | length),
+                    ($matches | map(select((.number | tostring) == $pr)) | length),
+                    ($matches | length)
+                  ] | @tsv
+                else
+                  error("open pull response has an unexpected shape")
+                end
+              ' "$RUNNER_TEMP/route-fallback-open-pulls-$attempt.json")"; then
+                echo "::error title=Review Route::could not verify stale fallback head ownership"
+                return 1
+              fi
+              IFS=$'\t' read -r foreign_owner_count claimed_owner_count match_count <<< "$ownership"
+              if [ "$claimed_owner_count" = "0" ] && \
+                [ "$foreign_owner_count" = "1" ] && [ "$match_count" = "1" ]; then
+                echo "::warning title=Review Route::stale fallback head belongs to a replacement PR; skipped"
+                return 0
+              fi
+              if gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$sha" \
+                -f state=pending \
+                -f context="Review Route" \
+                -f description="Route event resolution failed; revalidation is required." \
+                -f target_url="$RUN_URL"; then
+                return 0
+              fi
+              if [ "$attempt" -lt 3 ]; then sleep "$attempt"; fi
+            done
+            return 1
+          }
+          post_pending "$current_head" || {
+            echo "::error title=Review Route::could not invalidate failed route event"
+            exit 1
+          }
+          if [ "$event_head" != "$current_head" ]; then
+            post_pending_if_unowned "$event_head" || {
+              echo "::error title=Review Route::could not invalidate stale failed route event"
+              exit 1
+            }
+          fi
+          echo "::error title=Review Route::route event resolution failed closed"
+          exit 1
+
+  invalidate-review-state:
+    needs: resolve_review_state
+    if: needs.resolve_review_state.outputs.relevant != 'false'
+    concurrency:
+      group: review-route-${{ needs.resolve_review_state.outputs.head_sha }}
+      cancel-in-progress: true
+    environment:
+      name: review-route-publisher
+    name: Invalidate Review Route
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Mint dedicated publisher token
+        id: invalidator
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
+        with:
+          client-id: ${{ vars.REVIEW_ROUTE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.REVIEW_ROUTE_APP_PRIVATE_KEY }}
+          permission-pull-requests: read
+          permission-statuses: write
+
+      - name: Mark current PR head pending
+        env:
+          EXPECTED_HEAD_SHA: ${{ needs.resolve_review_state.outputs.head_sha }}
+          GH_TOKEN: ${{ steps.invalidator.outputs.token }}
+          PR_NUMBER: ${{ needs.resolve_review_state.outputs.pr_number }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SIGNAL_HEAD_SHA: ${{ needs.resolve_review_state.outputs.signal_head }}
+        run: |
+          post_pending_for_current_pr() {
+            local sha="$1"
+            local description="$2"
+            local failure_warning="$3"
+            local attempt remains_current
+            for attempt in 1 2 3; do
+              if [ "$attempt" != "1" ]; then
+                if ! gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" \
+                    > "$RUNNER_TEMP/pr-before-current-retry.json"; then
+                  if [ "$attempt" -lt 3 ]; then sleep "$attempt"; continue; fi
+                  echo "::error title=Review Route::could not recheck current PR before retry"
+                  return 1
+                fi
+                if ! remains_current="$(jq -er --arg head "$sha" --arg repo "$GITHUB_REPOSITORY" '
+                  if type == "object" and (.state | type) == "string" and
+                    (.head.sha | type) == "string" and (.base.ref | type) == "string" and
+                    (.base.repo.full_name | type) == "string" then
+                    if .state == "open" and
+                      (.head.sha | ascii_downcase) == ($head | ascii_downcase) and
+                      .base.ref == "main" and .base.repo.full_name == $repo
+                    then "true" else "false" end
+                  else
+                    error("pull response has an unexpected shape")
+                  end
+                ' "$RUNNER_TEMP/pr-before-current-retry.json")"; then
+                  echo "::error title=Review Route::could not parse current PR before retry"
+                  return 1
+                fi
+                if [ "$remains_current" != "true" ]; then return 2; fi
+              fi
+              if gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$sha" \
+                  -f state=pending \
+                  -f context="Review Route" \
+                  -f description="$description" \
+                  -f target_url="$RUN_URL"; then
+                return 0
+              fi
+              if [ "$attempt" -lt 3 ]; then sleep "$attempt"; fi
+            done
+            echo "::warning title=Review Route::$failure_warning"
+            return 1
+          }
+
+          post_pending_if_unowned() {
+            local sha="$1"
+            local description="$2"
+            local failure_warning="$3"
+            local attempt ownership foreign_owner_count claimed_owner_count match_count
+            for attempt in 1 2 3; do
+              if ! gh api --paginate --slurp \
+                  "repos/$GITHUB_REPOSITORY/pulls?state=open&base=main&per_page=100" \
+                  > "$RUNNER_TEMP/open-pulls-before-post.json"; then
+                if [ "$attempt" -lt 3 ]; then sleep "$attempt"; continue; fi
+                echo "::error title=Review Route::could not verify head ownership"
+                return 1
+              fi
+              if ! ownership="$(jq -er --arg head "$sha" --arg pr "$PR_NUMBER" '
+                if type == "array" and all(.[]; type == "array") and
+                  all(.[][]; (.number | type) == "number" and
+                    (.head.sha | type) == "string") then
+                  [ .[][] |
+                    select((.head.sha | ascii_downcase) == ($head | ascii_downcase))
+                  ] as $matches |
+                  [
+                    ($matches | map(select((.number | tostring) != $pr)) | length),
+                    ($matches | map(select((.number | tostring) == $pr)) | length),
+                    ($matches | length)
+                  ] | @tsv
+                else
+                  error("open pull response has an unexpected shape")
+                end
+              ' "$RUNNER_TEMP/open-pulls-before-post.json")"; then
+                echo "::error title=Review Route::could not verify head ownership"
+                return 1
+              fi
+              IFS=$'\t' read -r foreign_owner_count claimed_owner_count match_count <<< "$ownership"
+              if [ "$claimed_owner_count" = "0" ] && \
+                [ "$foreign_owner_count" = "1" ] && [ "$match_count" = "1" ]; then
+                echo "::warning title=Review Route::head now belongs exclusively to a replacement PR; skipped"
+                return 0
+              fi
+              if gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$sha" \
+                  -f state=pending \
+                  -f context="Review Route" \
+                  -f description="$description" \
+                  -f target_url="$RUN_URL"; then
+                return 0
+              fi
+              if [ "$attempt" -lt 3 ]; then sleep "$attempt"; fi
+            done
+            echo "::warning title=Review Route::$failure_warning"
+            return 1
+          }
+
+          load_current_pr_snapshot() {
+            local attempt
+            for attempt in 1 2 3; do
+              if gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" \
+                  > "$RUNNER_TEMP/pr.json" &&
+                jq -e --arg repo "$GITHUB_REPOSITORY" \
+                  '.base.ref == "main" and .base.repo.full_name == $repo' \
+                  "$RUNNER_TEMP/pr.json" > /dev/null &&
+                head_sha="$(jq -er '.head.sha | ascii_downcase' \
+                  "$RUNNER_TEMP/pr.json")" &&
+                pr_state="$(jq -er '
+                  if .state == "open" then "open"
+                  elif .state == "closed" then "closed"
+                  else error("missing pull state") end
+                ' "$RUNNER_TEMP/pr.json")" &&
+                [[ "$head_sha" =~ ^[0-9a-f]{40}$ ]]; then
+                return 0
+              fi
+              if [ "$attempt" -lt 3 ]; then sleep "$attempt"; fi
+            done
+            return 1
+          }
+
+          if ! load_current_pr_snapshot; then
+            expected_head_sha="$(
+              printf '%s' "$EXPECTED_HEAD_SHA" | tr '[:upper:]' '[:lower:]'
+            )"
+            if ! [[ "$expected_head_sha" =~ ^[0-9a-f]{40}$ ]]; then
+              echo "::error title=Review Route::resolved head is not a full SHA"
+              exit 1
+            fi
+            post_pending_if_unowned "$expected_head_sha" \
+              "Review state could not be refreshed; revalidate the route." \
+              "could not invalidate resolved head after PR refresh failure"
+            signal_head_sha="$(
+              printf '%s' "$SIGNAL_HEAD_SHA" | tr '[:upper:]' '[:lower:]'
+            )"
+            if [ -n "$signal_head_sha" ] && \
+              [ "$signal_head_sha" != "$expected_head_sha" ]; then
+              if ! [[ "$signal_head_sha" =~ ^[0-9a-f]{40}$ ]]; then
+                echo "::error title=Review Route::signal head is not a full SHA"
+                exit 1
+              fi
+              post_pending_if_unowned "$signal_head_sha" \
+                "Review occurred on a prior head; revalidate before reusing it." \
+                "could not invalidate stale signal head after PR refresh failure"
+            fi
+            echo "::error title=Review Route::could not bind the current PR after three attempts"
+            exit 1
+          fi
+          if [ "$pr_state" = "open" ]; then
+            if post_pending_for_current_pr "$head_sha" \
+                "Review state changed; a maintainer must revalidate the route." \
+                "could not invalidate refreshed PR head"; then
+              :
+            else
+              current_result="$?"
+              if [ "$current_result" != "2" ]; then exit "$current_result"; fi
+              post_pending_if_unowned "$head_sha" \
+                "Review state changed after PR closure; revalidate the route." \
+                "could not invalidate moved PR head"
+            fi
+          else
+            post_pending_if_unowned "$head_sha" \
+              "Review state changed after PR closure; revalidate the route." \
+              "could not invalidate closed PR head"
+          fi
+          if [ "$EXPECTED_HEAD_SHA" != "$head_sha" ]; then
+            post_pending_if_unowned "$EXPECTED_HEAD_SHA" \
+              "PR head changed after review activity; revalidate the route." \
+              "could not invalidate prior resolved head"
+          fi
+          if [ "$SIGNAL_HEAD_SHA" != "$head_sha" ] && \
+            [ "$SIGNAL_HEAD_SHA" != "$EXPECTED_HEAD_SHA" ]; then
+            post_pending_if_unowned "$SIGNAL_HEAD_SHA" \
+              "Review occurred on a prior head; revalidate before reusing it." \
+              "could not invalidate stale signal head"
+          fi
+
+  validate:
+    needs: resolve_route_event
+    concurrency:
+      group: review-route-${{ needs.resolve_route_event.outputs.head_sha }}
+      cancel-in-progress: true
+    environment:
+      name: review-route-publisher
+    name: Review Route Publisher
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      PR_NUMBER: ${{ needs.resolve_route_event.outputs.pr_number }}
+      RESOLVED_HEAD_SHA: ${{ needs.resolve_route_event.outputs.head_sha }}
+      FINALIZE_ROUTE: >-
+        ${{ github.event_name == 'issue_comment' &&
+        github.event.action == 'created' &&
+        github.event.comment.body == '/validate-route' }}
+      FINALIZE_COMMENT_NODE_ID: ${{ github.event.comment.node_id }}
+      FINALIZE_COMMENT_CREATED_AT: ${{ github.event.comment.created_at }}
+      FINALIZE_COMMENT_ACTOR_ID: ${{ github.event.comment.user.id }}
+      FINALIZE_COMMENT_ACTOR_LOGIN: ${{ github.event.comment.user.login }}
+      WORKFLOW_SHA: ${{ github.workflow_sha }}
+    steps:
+      - name: Mint dedicated publisher token
+        id: publisher
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
+        with:
+          client-id: ${{ vars.REVIEW_ROUTE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.REVIEW_ROUTE_APP_PRIVATE_KEY }}
+          permission-issues: read
+          permission-metadata: read
+          permission-pull-requests: read
+          permission-statuses: write
+          permission-contents: read
+
+      - name: Pre-invalidate event head, resolve PR, and mark current head pending
+        env:
+          EVENT_HEAD_SHA: ${{ needs.resolve_route_event.outputs.event_head }}
+          GH_TOKEN: ${{ steps.publisher.outputs.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          post_pending_for_current_pr() {
+            local sha="$1"
+            local attempt remains_current
+            for attempt in 1 2 3; do
+              if [ "$attempt" != "1" ]; then
+                if ! gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" \
+                    > "$RUNNER_TEMP/pr-before-current-retry.json"; then
+                  if [ "$attempt" -lt 3 ]; then sleep "$attempt"; continue; fi
+                  echo "::error title=Review Route::could not recheck current PR before retry"
+                  return 1
+                fi
+                if ! remains_current="$(jq -er --arg head "$sha" --arg repo "$GITHUB_REPOSITORY" '
+                  if type == "object" and (.state | type) == "string" and
+                    (.head.sha | type) == "string" and (.base.ref | type) == "string" and
+                    (.base.repo.full_name | type) == "string" then
+                    if .state == "open" and
+                      (.head.sha | ascii_downcase) == ($head | ascii_downcase) and
+                      .base.ref == "main" and .base.repo.full_name == $repo
+                    then "true" else "false" end
+                  else
+                    error("pull response has an unexpected shape")
+                  end
+                ' "$RUNNER_TEMP/pr-before-current-retry.json")"; then
+                  echo "::error title=Review Route::could not parse current PR before retry"
+                  return 1
+                fi
+                if [ "$remains_current" != "true" ]; then return 2; fi
+              fi
+              if gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$sha" \
+                  -f state=pending \
+                  -f context="Review Route" \
+                  -f description="Verifying current-head review route." \
+                  -f target_url="$RUN_URL"; then
+                return 0
+              fi
+              if [ "$attempt" -lt 3 ]; then sleep "$attempt"; fi
+            done
+            return 1
+          }
+
+          post_pending_if_unowned() {
+            local sha="$1"
+            local attempt ownership foreign_owner_count claimed_owner_count match_count
+            for attempt in 1 2 3; do
+              if ! gh api --paginate --slurp \
+                  "repos/$GITHUB_REPOSITORY/pulls?state=open&base=main&per_page=100" \
+                  > "$RUNNER_TEMP/open-pulls-before-preinvalidate.json"; then
+                if [ "$attempt" -lt 3 ]; then sleep "$attempt"; continue; fi
+                echo "::error title=Review Route::could not verify event-head ownership"
+                return 1
+              fi
+              if ! ownership="$(jq -er --arg head "$sha" --arg pr "$PR_NUMBER" '
+                if type == "array" and all(.[]; type == "array") and
+                  all(.[][]; (.number | type) == "number" and
+                    (.head.sha | type) == "string") then
+                  [ .[][] |
+                    select((.head.sha | ascii_downcase) == ($head | ascii_downcase))
+                  ] as $matches |
+                  [
+                    ($matches | map(select((.number | tostring) != $pr)) | length),
+                    ($matches | map(select((.number | tostring) == $pr)) | length),
+                    ($matches | length)
+                  ] | @tsv
+                else
+                  error("open pull response has an unexpected shape")
+                end
+              ' "$RUNNER_TEMP/open-pulls-before-preinvalidate.json")"; then
+                echo "::error title=Review Route::could not verify event-head ownership"
+                return 1
+              fi
+              IFS=$'\t' read -r foreign_owner_count claimed_owner_count match_count <<< "$ownership"
+              if [ "$claimed_owner_count" = "0" ] && \
+                [ "$foreign_owner_count" = "1" ] && [ "$match_count" = "1" ]; then
+                echo "::warning title=Review Route::head belongs exclusively to a replacement PR; skipped"
+                return 0
+              fi
+              if gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$sha" \
+                  -f state=pending \
+                  -f context="Review Route" \
+                  -f description="Verifying current-head review route." \
+                  -f target_url="$RUN_URL"; then
+                return 0
+              fi
+              if [ "$attempt" -lt 3 ]; then sleep "$attempt"; fi
+            done
+            return 1
+          }
+
+          if [ -n "$EVENT_HEAD_SHA" ]; then
+            EVENT_HEAD_SHA="$(printf '%s' "$EVENT_HEAD_SHA" | tr '[:upper:]' '[:lower:]')"
+            if ! [[ "$EVENT_HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+              echo "::error title=Review Route::event head is not a full SHA"
+              exit 1
+            fi
+          fi
+
+          gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" > "$RUNNER_TEMP/pr.json"
+          jq -e --arg repo "$GITHUB_REPOSITORY" \
+            '.base.ref == "main" and .base.repo.full_name == $repo' \
+            "$RUNNER_TEMP/pr.json" > /dev/null
+          head_sha="$(jq -er '.head.sha | ascii_downcase' "$RUNNER_TEMP/pr.json")"
+          pr_state="$(jq -er '
+            if .state == "open" then "open"
+            elif .state == "closed" then "closed"
+            else error("missing pull state") end
+          ' "$RUNNER_TEMP/pr.json")"
+          if ! [[ "$head_sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error title=Review Route::resolved head is not a full SHA"
+            exit 1
+          fi
+          printf 'HEAD_SHA=%s\n' "$head_sha" >> "$GITHUB_ENV"
+          if [ "$pr_state" = "open" ]; then
+            if post_pending_for_current_pr "$head_sha"; then
+              :
+            else
+              current_result="$?"
+              if [ "$current_result" != "2" ]; then exit "$current_result"; fi
+              post_pending_if_unowned "$head_sha"
+            fi
+          else
+            post_pending_if_unowned "$head_sha"
+          fi
+          if [ -n "$EVENT_HEAD_SHA" ] && [ "$EVENT_HEAD_SHA" != "$head_sha" ]; then
+            post_pending_if_unowned "$EVENT_HEAD_SHA"
+          fi
+          if [ "$head_sha" != "$RESOLVED_HEAD_SHA" ]; then
+            if [ "$RESOLVED_HEAD_SHA" != "$EVENT_HEAD_SHA" ]; then
+              post_pending_if_unowned "$RESOLVED_HEAD_SHA"
+            fi
+            echo "::error title=Review Route::head changed after concurrency binding"
+            exit 1
+          fi
+
+          if [ "$FINALIZE_ROUTE" = "true" ]; then
+            if ! [[ "$FINALIZE_COMMENT_ACTOR_ID" =~ ^[1-9][0-9]*$ ]] || \
+              [ -z "$FINALIZE_COMMENT_NODE_ID" ] || \
+              ! [[ "$FINALIZE_COMMENT_CREATED_AT" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T ]] || \
+              ! [[ "$FINALIZE_COMMENT_ACTOR_LOGIN" =~ ^[A-Za-z0-9][A-Za-z0-9-]*$ ]]; then
+              echo "::error title=Review Route::finalizer event identity is incomplete"
+              exit 1
+            fi
+            if ! gh api \
+                "repos/$GITHUB_REPOSITORY/collaborators/$FINALIZE_COMMENT_ACTOR_LOGIN/permission" \
+                > "$RUNNER_TEMP/finalizer-permission.json"; then
+              echo "::error title=Review Route::could not resolve finalizer repository permission"
+              exit 1
+            fi
+            finalizer_permission="$(jq -er --arg actor "$FINALIZE_COMMENT_ACTOR_ID" '
+              if type == "object" and (.user.id | tostring) == $actor and
+                (.permission == "admin" or .permission == "write")
+              then .permission
+              else error("finalizer lacks bound write permission")
+              end
+            ' "$RUNNER_TEMP/finalizer-permission.json")" || {
+              echo "::error title=Review Route::finalizer lacks bound repository write permission"
+              exit 1
+            }
+            printf 'FINALIZE_COMMENT_ACTOR_PERMISSION=%s\n' \
+              "$finalizer_permission" >> "$GITHUB_ENV"
+            jq -e -s '
+              .[0].issue.number == .[1].number and
+              .[0].issue.body == .[1].body and
+              .[0].issue.updated_at == .[1].updated_at
+            ' "$GITHUB_EVENT_PATH" "$RUNNER_TEMP/pr.json" > /dev/null
+          fi
+
+          gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" \
+            > "$RUNNER_TEMP/main-ref.json"
+          trusted_sha="$(jq -er '.object.sha' "$RUNNER_TEMP/main-ref.json")"
+          if ! [[ "$trusted_sha" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            echo "::error title=Review Route::trusted main is not a full SHA"
+            exit 1
+          fi
+          is_draft="$(jq -er \
+            'if .draft == true then "true" elif .draft == false then "false" else error("missing draft") end' \
+            "$RUNNER_TEMP/pr.json")"
+          pr_updated_at="$(jq -er '
+            if (.updated_at | type) == "string" then .updated_at
+            else error("missing pull request updated_at") end
+          ' "$RUNNER_TEMP/pr.json")"
+          if ! [[ "$pr_updated_at" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]]; then
+            echo "::error title=Review Route::pull request updated_at has an invalid shape"
+            exit 1
+          fi
+          printf 'TRUSTED_SHA=%s\nIS_DRAFT=%s\nPR_UPDATED_AT=%s\n' \
+            "$trusted_sha" "$is_draft" "$pr_updated_at" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ env.TRUSTED_SHA }}
+          persist-credentials: false
+
+      - name: Validate live route state
+        id: route
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ steps.publisher.outputs.token }}
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.event.repository.name }}
+        run: |
+          include_coderabbit_ledger="$(python -c '
+          import json, sys
+          from pathlib import Path
+          from scripts.validate_review_route import needs_coderabbit_ledger
+          body = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8")).get("body") or ""
+          print(str(needs_coderabbit_ledger(body)).lower())
+          ' "$RUNNER_TEMP/pr.json")"
+          case "$include_coderabbit_ledger" in
+            true|false) ;;
+            *) echo "::error title=Review Route::invalid ledger selector"; exit 1 ;;
+          esac
+          gh api graphql \
+            -F owner="$OWNER" \
+            -F repo="$REPO" \
+            -F number="$PR_NUMBER" \
+            -f headOid="$HEAD_SHA" \
+            -F includeCodeRabbitLedger="$include_coderabbit_ledger" \
+            -F query=@scripts/review_route_context.graphql \
+            > "$RUNNER_TEMP/review-route-context.json"
+          review_page_args=()
+          if jq -e '
+            .data.repository.pullRequest.reviews as $reviews |
+            ($reviews | type) == "object" and
+            ($reviews.totalCount | type) == "number" and
+            ($reviews.nodes | type) == "array" and
+            $reviews.totalCount > ($reviews.nodes | length)
+          ' "$RUNNER_TEMP/review-route-context.json" > /dev/null; then
+            gh api graphql --paginate --slurp \
+              -F owner="$OWNER" \
+              -F repo="$REPO" \
+              -F number="$PR_NUMBER" \
+              -F query=@scripts/review_route_reviews.graphql \
+              > "$RUNNER_TEMP/review-route-review-pages.json"
+            review_page_args=(
+              --review-pages "$RUNNER_TEMP/review-route-review-pages.json"
+            )
+          fi
+          gh api --paginate --slurp \
+            "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" \
+            > "$RUNNER_TEMP/review-route-files.json"
+          render_nonce="review-route-render-bind-$(python -c \
+            'import secrets; print(secrets.token_hex(24))')"
+          python -c '
+          import json, sys
+          from pathlib import Path
+          from scripts.validate_review_route import render_probe_body
+          snapshot = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          body = snapshot.get("body")
+          if not isinstance(body, str):
+              raise SystemExit("REST pull request body has an invalid shape")
+          payload = {
+              "context": sys.argv[4],
+              "mode": "gfm",
+              "text": render_probe_body(body, sys.argv[3]),
+          }
+          Path(sys.argv[2]).write_text(json.dumps(payload), encoding="utf-8")
+          ' "$RUNNER_TEMP/pr.json" \
+            "$RUNNER_TEMP/review-route-render-request.json" \
+            "$render_nonce" "$GITHUB_REPOSITORY"
+          gh api markdown \
+            --input "$RUNNER_TEMP/review-route-render-request.json" \
+            > "$RUNNER_TEMP/review-route-rendered.html"
+          finalizer_args=()
+          if [ "$FINALIZE_ROUTE" = "true" ]; then
+            finalizer_args=(
+              --finalize-comment-node-id "$FINALIZE_COMMENT_NODE_ID"
+              --finalize-comment-created-at "$FINALIZE_COMMENT_CREATED_AT"
+              --finalize-comment-actor-id "$FINALIZE_COMMENT_ACTOR_ID"
+              --finalize-comment-actor-permission "$FINALIZE_COMMENT_ACTOR_PERMISSION"
+            )
+          fi
+          python scripts/validate_review_route.py \
+            --context "$RUNNER_TEMP/review-route-context.json" \
+            --files "$RUNNER_TEMP/review-route-files.json" \
+            --expected-head "$HEAD_SHA" \
+            --expected-draft "$IS_DRAFT" \
+            --expected-pr-updated-at "$PR_UPDATED_AT" \
+            --expected-pr-snapshot "$RUNNER_TEMP/pr.json" \
+            --rendered-body "$RUNNER_TEMP/review-route-rendered.html" \
+            --render-nonce "$render_nonce" \
+            "${review_page_args[@]}" \
+            "${finalizer_args[@]}"
+
+      - name: Publish required status on PR head
+        if: ${{ always() && !cancelled() }}
+        env:
+          GH_TOKEN: ${{ steps.publisher.outputs.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          VALIDATION_OUTCOME: ${{ steps.route.outcome }}
+        run: |
+          HEAD_SHA="$(
+            printf '%s' "${HEAD_SHA:-${RESOLVED_HEAD_SHA:-}}" |
+              tr '[:upper:]' '[:lower:]'
+          )"
+          if ! [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error title=Review Route::no valid head SHA was captured"
+            exit 1
+          fi
+
+          classify_head_ownership() {
+            local output_file="$1"
+            gh api --paginate --slurp \
+              "repos/$GITHUB_REPOSITORY/pulls?state=open&base=main&per_page=100" \
+              > "$output_file" || return 1
+            jq -er --arg head "$HEAD_SHA" --arg pr "$PR_NUMBER" '
+              if type == "array" and all(.[]; type == "array") and
+                all(.[][]; (.number | type) == "number" and
+                  (.head.sha | type) == "string") then
+                [ .[][] |
+                  select((.head.sha | ascii_downcase) == ($head | ascii_downcase))
+                ] as $matches |
+                [
+                  ($matches | map(select((.number | tostring) != $pr)) | length),
+                  ($matches | map(select((.number | tostring) == $pr)) | length),
+                  ($matches | length)
+                ] | @tsv
+              else
+                error("open pull response has an unexpected shape")
+              end
+            ' "$output_file"
+          }
+
+          verify_finalizer() {
+            local suffix="$1"
+            if [ "$FINALIZE_ROUTE" != "true" ]; then return 0; fi
+            local comment_file="$RUNNER_TEMP/finalizer-$suffix.json"
+            local permission_file="$RUNNER_TEMP/finalizer-permission-$suffix.json"
+            local finalizer_login
+            gh api graphql \
+              -F node="$FINALIZE_COMMENT_NODE_ID" \
+              -f query="query(\$node: ID!) {
+                node(id: \$node) {
+                  ... on IssueComment {
+                    id
+                    author {
+                      __typename
+                      login
+                      ... on User { databaseId }
+                    }
+                    authorAssociation
+                    body
+                    createdAt
+                    lastEditedAt
+                    updatedAt
+                  }
+                }
+              }" > "$comment_file" || return 1
+            finalizer_login="$(jq -er '.data.node.author.login' \
+              "$comment_file")" || return 1
+            [[ "$finalizer_login" =~ ^[A-Za-z0-9][A-Za-z0-9-]*$ ]] || return 1
+            gh api \
+              "repos/$GITHUB_REPOSITORY/collaborators/$finalizer_login/permission" \
+              > "$permission_file" || return 1
+            jq -e --arg actor "$FINALIZE_COMMENT_ACTOR_ID" '
+              type == "object" and
+              (.user.id | tostring) == $actor and
+              (.permission == "admin" or .permission == "write")
+            ' "$permission_file" > /dev/null || return 1
+            jq -e \
+              --arg node "$FINALIZE_COMMENT_NODE_ID" \
+              --arg actor "$FINALIZE_COMMENT_ACTOR_ID" \
+              --arg created "$FINALIZE_COMMENT_CREATED_AT" '
+                .data.node.id == $node and
+                .data.node.author.__typename == "User" and
+                (.data.node.author.databaseId | tostring) == $actor and
+                .data.node.body == "/validate-route" and
+                .data.node.createdAt == $created and
+                .data.node.updatedAt == .data.node.createdAt and
+                .data.node.lastEditedAt == null and
+                (.data.node.authorAssociation == "OWNER" or
+                 .data.node.authorAssociation == "MEMBER" or
+                 .data.node.authorAssociation == "COLLABORATOR")
+              ' "$comment_file" > /dev/null
+          }
+
+          if ! ownership="$(classify_head_ownership \
+              "$RUNNER_TEMP/open-pulls-final.json")"; then
+            echo "::error title=Review Route::could not verify final head ownership"
+            exit 1
+          fi
+          IFS=$'\t' read -r foreign_owner_count claimed_owner_count match_count <<< "$ownership"
+          if [ "$claimed_owner_count" = "0" ] && \
+            [ "$foreign_owner_count" = "1" ] && [ "$match_count" = "1" ]; then
+            echo "::warning title=Review Route::head belongs exclusively to a replacement PR; publication skipped"
+            exit 0
+          fi
+          head_unique=false
+          if [ "$claimed_owner_count" = "1" ] && [ "$match_count" = "1" ]; then
+            head_unique=true
+          fi
+          state=failure
+          description="Initial PR state could not be captured; review route failed closed."
+          if [ "${IS_DRAFT:-}" = "true" ] || [ "${IS_DRAFT:-}" = "false" ]; then
+            finalizer_ok=false
+            if verify_finalizer final; then finalizer_ok=true; fi
+            if [ "$WORKFLOW_SHA" = "$TRUSTED_SHA" ] && \
+              [ "$head_unique" = "true" ] && \
+              [ "$finalizer_ok" = "true" ] && \
+              gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" \
+              > "$RUNNER_TEMP/pr-final.json" && \
+              gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" \
+              > "$RUNNER_TEMP/main-ref-final.json" && \
+              jq -e -s \
+                --arg head "$HEAD_SHA" \
+                --argjson draft "$IS_DRAFT" \
+                --arg repo "$GITHUB_REPOSITORY" \
+                --arg updated "$PR_UPDATED_AT" '
+                  (.[1].head.sha | ascii_downcase) == $head and
+                  .[1].state == "open" and
+                  .[1].draft == $draft and
+                  .[1].base.ref == "main" and
+                  .[1].base.repo.full_name == $repo and
+                  .[0].body == .[1].body and
+                  .[0].updated_at == $updated and
+                  .[1].updated_at == $updated
+                ' "$RUNNER_TEMP/pr.json" "$RUNNER_TEMP/pr-final.json" > /dev/null && \
+              jq -e --arg trusted "$TRUSTED_SHA" \
+                '.object.sha == $trusted' \
+                "$RUNNER_TEMP/main-ref-final.json" > /dev/null; then
+              description="Current-head review route is incomplete or invalid."
+              if [ "$IS_DRAFT" = "true" ] && \
+                [ "$VALIDATION_OUTCOME" = "success" ]; then
+                state=pending
+                description="Draft route is classified; current-head reviews remain pending."
+              elif [ "$IS_DRAFT" = "true" ]; then
+                description="Draft review route schema or classification is invalid."
+              elif [ "$VALIDATION_OUTCOME" = "success" ] && \
+                [ "$FINALIZE_ROUTE" = "true" ]; then
+                state=success
+                description="Current-head review route is verified."
+              elif [ "$VALIDATION_OUTCOME" = "success" ]; then
+                state=pending
+                description="Route is complete; a maintainer must comment /validate-route."
+              fi
+            else
+              description="PR identity, head uniqueness, finalizer, workflow policy, or trusted main changed."
+            fi
+          fi
+          posted=false
+          for attempt in 1 2 3; do
+            if ! ownership="$(classify_head_ownership \
+                "$RUNNER_TEMP/open-pulls-before-post-$attempt.json")"; then
+              echo "::error title=Review Route::could not recheck final head ownership"
+              exit 1
+            fi
+            IFS=$'\t' read -r foreign_owner_count claimed_owner_count match_count <<< "$ownership"
+            if [ "$claimed_owner_count" = "0" ] && \
+              [ "$foreign_owner_count" = "1" ] && [ "$match_count" = "1" ]; then
+              echo "::warning title=Review Route::head moved exclusively to a replacement PR; publication skipped"
+              exit 0
+            fi
+            if [ "$state" = "success" ] && ! { \
+              [ "$claimed_owner_count" = "1" ] && \
+              [ "$foreign_owner_count" = "0" ] && [ "$match_count" = "1" ]; \
+            }; then
+              state=failure
+              description="Head ownership changed before publication; review route failed closed."
+            fi
+            if [ "$state" = "success" ]; then
+              if ! verify_finalizer "before-post-$attempt" || \
+                ! gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" \
+                  > "$RUNNER_TEMP/pr-before-post-$attempt.json" || \
+                ! gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" \
+                  > "$RUNNER_TEMP/main-before-post-$attempt.json" || \
+                ! jq -e -s \
+                  --arg head "$HEAD_SHA" \
+                  --argjson draft "$IS_DRAFT" \
+                  --arg repo "$GITHUB_REPOSITORY" \
+                  --arg updated "$PR_UPDATED_AT" '
+                    (.[1].head.sha | ascii_downcase) == $head and
+                    .[1].state == "open" and
+                    .[1].draft == $draft and
+                    .[1].base.ref == "main" and
+                    .[1].base.repo.full_name == $repo and
+                    .[0].body == .[1].body and
+                    .[0].updated_at == $updated and
+                    .[1].updated_at == $updated
+                  ' "$RUNNER_TEMP/pr.json" \
+                    "$RUNNER_TEMP/pr-before-post-$attempt.json" > /dev/null || \
+                ! jq -e --arg trusted "$TRUSTED_SHA" \
+                  '.object.sha == $trusted' \
+                  "$RUNNER_TEMP/main-before-post-$attempt.json" > /dev/null; then
+                state=failure
+                description="Finalizer authorization, PR state, or trusted main changed before publication."
+              fi
+            fi
+            if gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" \
+              -f state="$state" \
+              -f context="Review Route" \
+              -f description="$description" \
+              -f target_url="$RUN_URL"; then
+              posted=true
+              break
+            fi
+            if [ "$attempt" -lt 3 ]; then sleep "$attempt"; fi
+          done
+          test "$posted" = true
+          test "$state" != failure
