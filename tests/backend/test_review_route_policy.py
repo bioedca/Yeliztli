@@ -26,6 +26,7 @@ from scripts.validate_review_route import (
     RENDERED_ROUTE_ERROR,
     SCHEMA_MARKER,
     ChangedFile,
+    _expected_snapshot_body,
     minimum_route,
     needs_coderabbit_ledger,
     render_probe_body,
@@ -1339,6 +1340,41 @@ def test_v1_route_bodies_require_migration_to_one_provider(route: str, draft: bo
     )
 
 
+@pytest.mark.parametrize("route", ["Low", "Standard", "Load-bearing"])
+def test_v1_rendered_route_reports_only_the_migration_error(route: str) -> None:
+    files = [
+        ChangedFile(
+            {
+                "Low": "docs/typo-fix.md",
+                "Standard": "frontend/src/hooks/useDialogFocus.ts",
+                "Load-bearing": "README.md",
+            }[route]
+        )
+    ]
+    legacy_bots = {
+        "Low": {COPILOT_GATE},
+        "Standard": {COPILOT_GATE, CODEX_GATE},
+        "Load-bearing": {COPILOT_GATE, CODEX_GATE, CODERABBIT_GATE},
+    }[route]
+    context = _context(route, files, body=_legacy_body(route))
+    errors = validate_context(
+        context,
+        files,
+        now=NOW,
+        rendered_body=_rendered_route_html(
+            route,
+            automated_gates=legacy_bots,
+            schema_version=1,
+        ),
+        render_nonce=RENDER_NONCE,
+    )
+    assert (
+        "review-route schema v1 is obsolete; migrate to v2 and select one automated reviewer"
+        in errors
+    )
+    assert RENDERED_ROUTE_ERROR not in errors
+
+
 def test_protected_rename_raises_route_floor() -> None:
     files = [ChangedFile("docs/ci-history.md", previous_filename=".github/workflows/ci.yml")]
     errors = validate_context(_context("Low", files), files, now=NOW)
@@ -1574,6 +1610,37 @@ def test_expected_pr_body_mismatch_fails_closed() -> None:
     assert "GitHub context body changed during validation" in errors
 
 
+@pytest.mark.parametrize(
+    "body",
+    [False, 0, [], {}],
+    ids=["false", "zero", "list", "object"],
+)
+def test_expected_snapshot_body_rejects_falsy_non_strings(body: object) -> None:
+    with pytest.raises(TypeError):
+        _expected_snapshot_body({"body": body})
+
+
+@pytest.mark.parametrize(
+    ("snapshot", "expected"),
+    [
+        ({}, ""),
+        ({"body": None}, ""),
+        ({"body": ""}, ""),
+        ({"body": "route"}, "route"),
+    ],
+)
+def test_expected_snapshot_body_preserves_nullable_rest_contract(
+    snapshot: dict[str, object],
+    expected: str,
+) -> None:
+    assert _expected_snapshot_body(snapshot) == expected
+
+
+def test_expected_snapshot_body_requires_an_object() -> None:
+    with pytest.raises(TypeError):
+        _expected_snapshot_body([])
+
+
 def test_valid_immutable_finalizer_after_all_gates_succeeds() -> None:
     files = [ChangedFile("README.md")]
     context = _context("Load-bearing", files)
@@ -1612,6 +1679,8 @@ def test_partial_finalizer_identity_fails_closed() -> None:
         ("wrong-actor", "finalizer comment is not from the expected trusted maintainer"),
         ("untrusted", "finalizer comment is not from the expected trusted maintainer"),
         ("wrong-body", "finalizer comment body is not the exact validation command"),
+        ("leading-whitespace", "finalizer comment body is not the exact validation command"),
+        ("trailing-whitespace", "finalizer comment body is not the exact validation command"),
         ("edited", "finalizer comment was edited after creation"),
         ("same-second-edit", "finalizer comment was edited after creation"),
         ("wrong-time", "finalizer comment creation time does not match the triggering event"),
@@ -1630,6 +1699,10 @@ def test_invalid_finalizer_identity_fails_closed(mutation: str, expected_error: 
             comment["authorAssociation"] = "NONE"
         elif mutation == "wrong-body":
             comment["body"] = "please /validate-route"
+        elif mutation == "leading-whitespace":
+            comment["body"] = " /validate-route"
+        elif mutation == "trailing-whitespace":
+            comment["body"] = "/validate-route\n"
         elif mutation == "edited":
             comment["lastEditedAt"] = "2026-07-21T12:46:00Z"
             comment["updatedAt"] = "2026-07-21T12:46:00Z"
@@ -2814,6 +2887,9 @@ def test_unmatched_optional_parent_close_cannot_escape_hidden_child(
 @pytest.mark.parametrize(
     "rendered_prefix",
     [
+        "<svg><foreignObject><div hidden /></foreignObject></svg>",
+        "<svg><foreignObject><p hidden /></foreignObject></svg>",
+        ('<math><annotation-xml encoding="text/html"><div hidden /></annotation-xml></math>'),
         (
             "<details><summary>x</summary>"
             "<svg><foreignObject><div /></foreignObject></svg></details>"
@@ -3291,6 +3367,10 @@ def test_workflow_uses_trusted_base_and_explicit_head_status() -> None:
     assert '--expected-head "$HEAD_SHA"' in workflow
     assert '--expected-draft "$IS_DRAFT"' in workflow
     assert '--expected-pr-updated-at "$PR_UPDATED_AT"' in workflow
+    assert "pull request updated_at has an invalid shape" in workflow
+    assert (
+        '[[ "$pr_updated_at" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]]'
+    ) in workflow
     assert '--expected-pr-snapshot "$RUNNER_TEMP/pr.json"' in workflow
     assert '--rendered-body "$RUNNER_TEMP/review-route-rendered.html"' in workflow
     assert '--render-nonce "$render_nonce"' in workflow
@@ -4297,7 +4377,7 @@ def test_review_signal_invalidator_rechecks_stale_head_ownership(
         "number": 2183,
         "state": "open",
         "base": {"ref": "main", "repo": {"full_name": "bioedca/Yeliztli"}},
-        "head": {"sha": HEAD_SHA},
+        "head": {"sha": HEAD_SHA.upper()},
     }
     open_pulls = [pull]
     if duplicate_live_head:
@@ -4388,7 +4468,7 @@ def test_review_signal_invalidator_rechecks_ownership_before_retry(tmp_path: Pat
         "number": 2183,
         "state": "open",
         "base": {"ref": "main", "repo": {"full_name": "bioedca/Yeliztli"}},
-        "head": {"sha": HEAD_SHA},
+        "head": {"sha": HEAD_SHA.upper()},
     }
     replacement = {**claimed, "number": 2184}
     closed_claim = {**claimed, "state": "closed"}
@@ -4473,18 +4553,47 @@ esac
         "replacement_owns_head",
         "malformed_response",
         "fail_status_post",
+        "updated_at",
         "expected_statuses",
         "expected_attempts",
         "expected_returncode",
     ),
     [
-        (False, False, False, False, [HEAD_SHA], [HEAD_SHA], 0),
-        (False, True, False, False, [], [], 0),
-        (True, True, False, False, [HEAD_SHA], [HEAD_SHA], 0),
-        (False, False, True, False, [], [], 1),
-        (False, False, False, True, [], [HEAD_SHA, HEAD_SHA, HEAD_SHA], 1),
-        (True, False, True, False, [HEAD_SHA], [HEAD_SHA], 0),
-        (True, False, False, True, [], [HEAD_SHA, HEAD_SHA, HEAD_SHA], 1),
+        (False, False, False, False, PR_UPDATED_AT, [HEAD_SHA], [HEAD_SHA], 0),
+        (False, True, False, False, PR_UPDATED_AT, [], [], 0),
+        (True, True, False, False, PR_UPDATED_AT, [HEAD_SHA], [HEAD_SHA], 0),
+        (False, False, True, False, PR_UPDATED_AT, [], [], 1),
+        (
+            False,
+            False,
+            False,
+            True,
+            PR_UPDATED_AT,
+            [],
+            [HEAD_SHA, HEAD_SHA, HEAD_SHA],
+            1,
+        ),
+        (True, False, True, False, PR_UPDATED_AT, [HEAD_SHA], [HEAD_SHA], 0),
+        (
+            True,
+            False,
+            False,
+            True,
+            PR_UPDATED_AT,
+            [],
+            [HEAD_SHA, HEAD_SHA, HEAD_SHA],
+            1,
+        ),
+        (
+            True,
+            False,
+            False,
+            False,
+            f"{PR_UPDATED_AT}\nHEAD_SHA={'b' * 40}",
+            [HEAD_SHA],
+            [HEAD_SHA],
+            1,
+        ),
     ],
 )
 def test_route_preinvalidator_does_not_overwrite_replacement_pr_status(
@@ -4493,6 +4602,7 @@ def test_route_preinvalidator_does_not_overwrite_replacement_pr_status(
     replacement_owns_head: bool,
     malformed_response: bool,
     fail_status_post: bool,
+    updated_at: str,
     expected_statuses: list[str],
     expected_attempts: list[str],
     expected_returncode: int,
@@ -4507,9 +4617,9 @@ def test_route_preinvalidator_does_not_overwrite_replacement_pr_status(
         "number": 2183,
         "state": "open" if current_open else "closed",
         "base": {"ref": "main", "repo": {"full_name": "bioedca/Yeliztli"}},
-        "head": {"sha": HEAD_SHA},
+        "head": {"sha": HEAD_SHA.upper()},
         "draft": False,
-        "updated_at": PR_UPDATED_AT,
+        "updated_at": updated_at,
     }
     open_pulls = [pull] if current_open else []
     if replacement_owns_head:
@@ -4570,7 +4680,7 @@ esac
         env={
             **os.environ,
             "ATTEMPT_LOG": str(attempt_log),
-            "EVENT_HEAD_SHA": HEAD_SHA,
+            "EVENT_HEAD_SHA": HEAD_SHA.upper(),
             "FAIL_STATUS_SHA": HEAD_SHA if fail_status_post else "",
             "FINALIZE_ROUTE": "false",
             "GH_TOKEN": "test-token",
@@ -4598,6 +4708,12 @@ esac
     )
     assert actual_statuses == expected_statuses
     assert actual_attempts == expected_attempts
+    if updated_at != PR_UPDATED_AT:
+        environment = (
+            environment_file.read_text(encoding="utf-8") if environment_file.exists() else ""
+        )
+        assert "PR_UPDATED_AT=" not in environment
+        assert f"HEAD_SHA={'b' * 40}" not in environment
 
 
 def test_route_preinvalidator_rejects_nonwrite_finalizer(tmp_path: Path) -> None:
@@ -4783,7 +4899,7 @@ def test_route_final_publisher_skips_head_owned_by_replacement_pr(
         "number": 2183,
         "state": "open",
         "base": {"ref": "main", "repo": {"full_name": "bioedca/Yeliztli"}},
-        "head": {"sha": HEAD_SHA},
+        "head": {"sha": HEAD_SHA.upper()},
     }
     replacement = {**claimed, "number": 2184}
     owners = {
@@ -4906,7 +5022,7 @@ def test_route_final_publisher_rechecks_ownership_before_success(
         "updated_at": PR_UPDATED_AT,
         "draft": False,
         "base": {"ref": "main", "repo": {"full_name": "bioedca/Yeliztli"}},
-        "head": {"sha": HEAD_SHA},
+        "head": {"sha": HEAD_SHA.upper()},
     }
     replacement = {**claimed, "number": 2184}
     initial_owners = tmp_path / "initial-owners.json"

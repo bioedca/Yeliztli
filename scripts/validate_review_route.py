@@ -814,7 +814,9 @@ def _rendered_route_errors(
         )
 
     checklist_nodes = section_roots[:-1]
-    expected_checklist_sizes = [6] if combined_groups else [3] * len(checklist_nodes)
+    expected_checklist_sizes = (
+        [6] if schema_version == 2 and combined_groups else [3] * len(checklist_nodes)
+    )
     if any(
         not exact_checklist(node, expected_count)
         for node, expected_count in zip(
@@ -1772,6 +1774,17 @@ def _load_files(path: Path) -> list[ChangedFile]:
     ]
 
 
+def _expected_snapshot_body(snapshot: Any) -> str:
+    if not isinstance(snapshot, dict):
+        raise TypeError("REST pull request snapshot is not an object")
+    body = snapshot.get("body")
+    if body is None:
+        return ""
+    if not isinstance(body, str):
+        raise TypeError("REST pull request body is not a string")
+    return body
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--context", type=Path, required=True)
@@ -1789,8 +1802,9 @@ def main() -> int:
     args = parser.parse_args()
     context = json.loads(args.context.read_text(encoding="utf-8"))
     expected_snapshot = json.loads(args.expected_pr_snapshot.read_text(encoding="utf-8"))
-    expected_pr_body = expected_snapshot.get("body") or ""
-    if not isinstance(expected_pr_body, str):
+    try:
+        expected_pr_body = _expected_snapshot_body(expected_snapshot)
+    except TypeError:
         print("::error title=Review Route::REST pull request body has an invalid shape")
         return 1
     errors = validate_context(
