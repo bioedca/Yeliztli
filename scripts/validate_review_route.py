@@ -1395,34 +1395,62 @@ def _coderabbit_trigger_state(
     if not isinstance(recent.get("totalCount"), int) or not isinstance(nodes, list):
         errors.append("CodeRabbit rolling-hour ledger has an invalid shape")
         return errors
+    if any(
+        not isinstance(node, dict) or not isinstance(node.get("updatedAt"), str) for node in nodes
+    ):
+        errors.append("recent PR pagination cannot prove the CodeRabbit hourly quota")
+        return errors
     if recent.get("totalCount", 0) > len(nodes):
         if not nodes:
             errors.append("recent PR pagination cannot prove the CodeRabbit hourly quota")
         else:
-            oldest_update = min(_parse_utc(node["updatedAt"]) for node in nodes)
+            try:
+                oldest_update = min(_parse_utc(node["updatedAt"]) for node in nodes)
+            except ValueError:
+                errors.append("recent PR pagination cannot prove the CodeRabbit hourly quota")
+                return errors
             if oldest_update >= window:
                 errors.append("recent PR pagination cannot prove the CodeRabbit hourly quota")
     trigger_count = 0
     for pr in nodes:
-        comments = pr["comments"]
-        if _connection_truncated_since(
-            comments,
-            time_key="updatedAt",
-            since=window,
-            inclusive=True,
+        comments = pr.get("comments")
+        if not isinstance(comments, dict):
+            errors.append("comment pagination cannot prove the CodeRabbit hourly quota")
+            return errors
+        comment_nodes = comments.get("nodes")
+        if (
+            not isinstance(comments.get("totalCount"), int)
+            or not isinstance(comment_nodes, list)
+            or any(
+                not isinstance(comment, dict)
+                or not isinstance(comment.get("createdAt"), str)
+                or not isinstance(comment.get("updatedAt"), str)
+                for comment in comment_nodes
+            )
         ):
             errors.append("comment pagination cannot prove the CodeRabbit hourly quota")
-            continue
-        trigger_count += sum(
-            window <= _parse_utc(comment["createdAt"]) <= trigger_at
-            and _parse_utc(comment.get("updatedAt") or comment["createdAt"])
-            == _parse_utc(comment["createdAt"])
-            and comment.get("lastEditedAt") is None
-            and (comment.get("author") or {}).get("__typename") == "User"
-            and comment.get("authorAssociation") in HUMAN_ASSOCIATIONS
-            and (comment.get("body") or "").strip().lower() == "@coderabbitai full review"
-            for comment in comments.get("nodes") or []
-        )
+            return errors
+        try:
+            if _connection_truncated_since(
+                comments,
+                time_key="updatedAt",
+                since=window,
+                inclusive=True,
+            ):
+                errors.append("comment pagination cannot prove the CodeRabbit hourly quota")
+                continue
+            trigger_count += sum(
+                window <= _parse_utc(comment["createdAt"]) <= trigger_at
+                and _parse_utc(comment["updatedAt"]) == _parse_utc(comment["createdAt"])
+                and comment.get("lastEditedAt") is None
+                and (comment.get("author") or {}).get("__typename") == "User"
+                and comment.get("authorAssociation") in HUMAN_ASSOCIATIONS
+                and (comment.get("body") or "").strip().lower() == "@coderabbitai full review"
+                for comment in comment_nodes
+            )
+        except ValueError:
+            errors.append("comment pagination cannot prove the CodeRabbit hourly quota")
+            return errors
     if trigger_count > 5:
         errors.append(f"CodeRabbit rolling-hour trigger quota exceeded: {trigger_count} > 5")
     return errors

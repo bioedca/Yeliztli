@@ -2089,6 +2089,25 @@ def test_coderabbit_recent_pr_pagination_at_inclusive_boundary_fails_closed() ->
     assert "recent PR pagination cannot prove the CodeRabbit hourly quota" in errors
 
 
+def test_coderabbit_partial_recent_pr_ledger_fails_closed() -> None:
+    files = [ChangedFile(".github/workflows/review-route.yml")]
+    context = _context("Load-bearing", files)
+    recent = context["data"]["repository"]["recentPullRequests"]
+    del recent["nodes"][0]["updatedAt"]
+    recent["totalCount"] = len(recent["nodes"]) + 1
+    errors = validate_context(context, files, now=NOW)
+    assert "recent PR pagination cannot prove the CodeRabbit hourly quota" in errors
+
+
+def test_coderabbit_partial_comment_ledger_fails_closed() -> None:
+    files = [ChangedFile(".github/workflows/review-route.yml")]
+    context = _context("Load-bearing", files)
+    recent = context["data"]["repository"]["recentPullRequests"]
+    del recent["nodes"][0]["comments"]
+    errors = validate_context(context, files, now=NOW)
+    assert "comment pagination cannot prove the CodeRabbit hourly quota" in errors
+
+
 def test_coderabbit_comment_pagination_at_inclusive_boundary_fails_closed() -> None:
     files = [ChangedFile(".github/workflows/review-route.yml")]
     context = _context("Load-bearing", files)
@@ -3268,7 +3287,7 @@ def test_workflow_uses_trusted_base_and_explicit_head_status() -> None:
     assert 'post_pending_if_unowned "$EVENT_HEAD_SHA"' in validate_job
     assert '[ "$EVENT_HEAD_SHA" != "$head_sha" ]' in validate_job
     assert "^[0-9a-fA-F]{40}$" in workflow
-    assert workflow.count("for attempt in 1 2 3") == 9
+    assert workflow.count("for attempt in 1 2 3") == 11
     assert '--expected-head "$HEAD_SHA"' in workflow
     assert '--expected-draft "$IS_DRAFT"' in workflow
     assert '--expected-pr-updated-at "$PR_UPDATED_AT"' in workflow
@@ -3404,22 +3423,28 @@ def test_review_state_signal_is_credential_free_and_only_drives_pending() -> Non
     assert "($signal_matches | length) == 0" in resolver
     assert "always() &&" in review_fallback
     assert "needs.resolve_review_state.result != 'success'" in review_fallback
+    assert "concurrency:" not in review_fallback
     assert "SOURCE_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}" in review_fallback
     assert "permission-pull-requests: read" in review_fallback
     assert "Confirmed read-only outsider review remains irrelevant" in review_fallback
     assert "failed review signal could not be safely rebound" in review_fallback
-    assert "pulls?state=open" not in review_fallback
+    assert "pulls?state=open" in review_fallback
     assert 'post_pending "$current_head"' in review_fallback
-    assert 'post_pending "$source_head"' in review_fallback
+    assert 'post_pending_if_unowned "$source_head"' in review_fallback
     assert "review signal resolution failed closed" in review_fallback
     assert "always() &&" in route_fallback
     assert "needs.resolve_route_event.result != 'success'" in route_fallback
+    assert "concurrency:" not in route_fallback
+    assert "Resolver fallbacks intentionally stay outside concurrency groups" in publisher
+    assert "Keep this fallback uncancellable" in publisher
     assert "route event resolution failed closed" in route_fallback
     assert "steps.route-fallback.outputs.token" in route_fallback
     assert "failed route event could not be safely rebound" in route_fallback
-    assert "pulls?state=open" not in route_fallback
+    assert "pulls?state=open" in route_fallback
     assert 'post_pending "$current_head"' in route_fallback
-    assert 'post_pending "$event_head"' in route_fallback
+    assert 'post_pending_if_unowned "$event_head"' in route_fallback
+    assert "stale fallback head belongs to a replacement PR; skipped" in review_fallback
+    assert "stale fallback head belongs to a replacement PR; skipped" in route_fallback
     assert "environment:\n      name: review-route-publisher" in invalidator
     assert "steps.invalidator.outputs.token" in invalidator
     assert "group: review-route-${{ needs.resolve_review_state.outputs.head_sha }}" in invalidator
@@ -3802,6 +3827,7 @@ esac
         "source_actor_login",
         "permission",
         "live_head",
+        "stale_owned_elsewhere",
         "expected_pending_heads",
     ),
     [
@@ -3810,6 +3836,7 @@ esac
             "chatgpt-codex-connector[bot]",
             None,
             HEAD_SHA,
+            False,
             [HEAD_SHA],
         ),
         (
@@ -3817,9 +3844,18 @@ esac
             "chatgpt-codex-connector[bot]",
             None,
             "b" * 40,
+            False,
             ["b" * 40, HEAD_SHA],
         ),
-        (333, "read-only-outsider", "read", HEAD_SHA, []),
+        (
+            BOT_ACTOR_IDS[CODEX_GATE],
+            "chatgpt-codex-connector[bot]",
+            None,
+            "b" * 40,
+            True,
+            ["b" * 40],
+        ),
+        (333, "read-only-outsider", "read", HEAD_SHA, False, []),
     ],
 )
 def test_failed_review_resolver_fallback_respects_actor_relevance(
@@ -3828,6 +3864,7 @@ def test_failed_review_resolver_fallback_respects_actor_relevance(
     source_actor_login: str,
     permission: str | None,
     live_head: str,
+    stale_owned_elsewhere: bool,
     expected_pending_heads: list[str],
 ) -> None:
     root = Path(__file__).resolve().parents[2]
@@ -3840,9 +3877,20 @@ def test_failed_review_resolver_fallback_respects_actor_relevance(
         "head": {"sha": live_head},
     }
     pull_fixture = tmp_path / "pull.json"
+    open_pulls_fixture = tmp_path / "open-pulls.json"
     permission_fixture = tmp_path / "permission.json"
     status_log = tmp_path / "statuses.log"
     pull_fixture.write_text(json.dumps(pull), encoding="utf-8")
+    open_pulls = [pull]
+    if stale_owned_elsewhere:
+        open_pulls.append(
+            {
+                **pull,
+                "number": 2184,
+                "head": {"sha": HEAD_SHA},
+            }
+        )
+    open_pulls_fixture.write_text(json.dumps([open_pulls]), encoding="utf-8")
     if permission is not None:
         permission_fixture.write_text(
             json.dumps({"permission": permission, "user": {"id": source_actor_id}}),
@@ -3856,6 +3904,7 @@ def test_failed_review_resolver_fallback_respects_actor_relevance(
 set -eu
 case "$*" in
   *"collaborators/"*"/permission"*) exec /bin/cat "$PERMISSION_FIXTURE" ;;
+  *"pulls?state=open"*) exec /bin/cat "$OPEN_PRS_FIXTURE" ;;
   *"pulls/2183"*) exec /bin/cat "$PULL_FIXTURE" ;;
   *"statuses/"*) printf '%s\n' "$*" >> "$STATUS_LOG" ; printf '{}\n' ;;
   *) exit 2 ;;
@@ -3872,6 +3921,7 @@ esac
             **os.environ,
             "GH_TOKEN": "test-token",
             "GITHUB_REPOSITORY": "bioedca/Yeliztli",
+            "OPEN_PRS_FIXTURE": str(open_pulls_fixture),
             "PATH": f"{fake_bin}:{os.environ['PATH']}",
             "PERMISSION_FIXTURE": str(permission_fixture),
             "PULL_FIXTURE": str(pull_fixture),
@@ -3904,35 +3954,44 @@ esac
 
 
 @pytest.mark.parametrize(
-    ("event_name", "live_head", "expected_pending_heads"),
+    ("event_name", "live_head", "stale_owned_elsewhere", "expected_pending_heads"),
     [
-        ("workflow_run", HEAD_SHA, [HEAD_SHA]),
-        ("workflow_run", "b" * 40, ["b" * 40, HEAD_SHA]),
-        ("issue_comment", HEAD_SHA, [HEAD_SHA]),
+        ("workflow_run", HEAD_SHA, False, [HEAD_SHA]),
+        ("workflow_run", "b" * 40, False, ["b" * 40, HEAD_SHA]),
+        ("workflow_run", "b" * 40, True, ["b" * 40]),
+        ("issue_comment", HEAD_SHA, False, [HEAD_SHA]),
     ],
 )
 def test_failed_route_resolver_marks_bound_head_pending(
     tmp_path: Path,
     event_name: str,
     live_head: str,
+    stale_owned_elsewhere: bool,
     expected_pending_heads: list[str],
 ) -> None:
     root = Path(__file__).resolve().parents[2]
     workflow = (root / ".github/workflows/review-route.yml").read_text(encoding="utf-8")
     shell = _workflow_step_script(workflow, "Resolve fallback head and invalidate it")
     pull_fixture = tmp_path / "pull.json"
+    open_pulls_fixture = tmp_path / "open-pulls.json"
     status_log = tmp_path / "statuses.log"
-    pull_fixture.write_text(
-        json.dumps(
+    pull = {
+        "number": 2183,
+        "state": "open",
+        "base": {"ref": "main", "repo": {"full_name": "bioedca/Yeliztli"}},
+        "head": {"sha": live_head},
+    }
+    pull_fixture.write_text(json.dumps(pull), encoding="utf-8")
+    open_pulls = [pull]
+    if stale_owned_elsewhere:
+        open_pulls.append(
             {
-                "number": 2183,
-                "state": "open",
-                "base": {"ref": "main", "repo": {"full_name": "bioedca/Yeliztli"}},
-                "head": {"sha": live_head},
+                **pull,
+                "number": 2184,
+                "head": {"sha": HEAD_SHA},
             }
-        ),
-        encoding="utf-8",
-    )
+        )
+    open_pulls_fixture.write_text(json.dumps([open_pulls]), encoding="utf-8")
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
     fake_gh = fake_bin / "gh"
@@ -3940,6 +3999,7 @@ def test_failed_route_resolver_marks_bound_head_pending(
         """#!/usr/bin/env bash
 set -eu
 case "$*" in
+  *"pulls?state=open"*) exec /bin/cat "$OPEN_PRS_FIXTURE" ;;
   *"pulls/2183"*) exec /bin/cat "$PULL_FIXTURE" ;;
   *"statuses/"*) printf '%s\n' "$*" >> "$STATUS_LOG" ; printf '{}\n' ;;
   *) exit 2 ;;
@@ -3958,6 +4018,7 @@ esac
             "GH_TOKEN": "test-token",
             "GITHUB_REPOSITORY": "bioedca/Yeliztli",
             "ISSUE_NUMBER": "2183",
+            "OPEN_PRS_FIXTURE": str(open_pulls_fixture),
             "PATH": f"{fake_bin}:{os.environ['PATH']}",
             "PULL_FIXTURE": str(pull_fixture),
             "RUNNER_TEMP": str(tmp_path),

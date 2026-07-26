@@ -224,6 +224,9 @@ jobs:
           printf 'event_head=%s\nhead_sha=%s\npr_number=%s\n' \
             "$event_head" "$head_sha" "$pr_number" >> "$GITHUB_OUTPUT"
 
+  # Resolver fallbacks intentionally stay outside concurrency groups. A failed
+  # resolver may expose no safe group key, and cancellation or pending-job
+  # replacement must never suppress its App-authenticated pending publication.
   fail-closed-review-resolution:
     needs: resolve_review_state
     if: >-
@@ -337,12 +340,59 @@ jobs:
             done
             return 1
           }
+          post_pending_if_unowned() {
+            local sha="$1"
+            local attempt ownership foreign_owner_count claimed_owner_count match_count
+            for attempt in 1 2 3; do
+              if ! gh api --paginate --slurp \
+                  "repos/$GITHUB_REPOSITORY/pulls?state=open&base=main&per_page=100" \
+                  > "$RUNNER_TEMP/review-fallback-open-pulls-$attempt.json"; then
+                if [ "$attempt" -lt 3 ]; then sleep "$attempt"; continue; fi
+                echo "::error title=Review Route::could not verify stale fallback head ownership"
+                return 1
+              fi
+              if ! ownership="$(jq -er --arg head "$sha" --arg pr "$pr_number" '
+                if type == "array" and all(.[]; type == "array") and
+                  all(.[][]; (.number | type) == "number" and
+                    (.head.sha | type) == "string") then
+                  [ .[][] |
+                    select((.head.sha | ascii_downcase) == ($head | ascii_downcase))
+                  ] as $matches |
+                  [
+                    ($matches | map(select((.number | tostring) != $pr)) | length),
+                    ($matches | map(select((.number | tostring) == $pr)) | length),
+                    ($matches | length)
+                  ] | @tsv
+                else
+                  error("open pull response has an unexpected shape")
+                end
+              ' "$RUNNER_TEMP/review-fallback-open-pulls-$attempt.json")"; then
+                echo "::error title=Review Route::could not verify stale fallback head ownership"
+                return 1
+              fi
+              IFS=$'\t' read -r foreign_owner_count claimed_owner_count match_count <<< "$ownership"
+              if [ "$claimed_owner_count" = "0" ] && \
+                [ "$foreign_owner_count" = "1" ] && [ "$match_count" = "1" ]; then
+                echo "::warning title=Review Route::stale fallback head belongs to a replacement PR; skipped"
+                return 0
+              fi
+              if gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$sha" \
+                -f state=pending \
+                -f context="Review Route" \
+                -f description="Review signal resolution failed; revalidation is required." \
+                -f target_url="$RUN_URL"; then
+                return 0
+              fi
+              if [ "$attempt" -lt 3 ]; then sleep "$attempt"; fi
+            done
+            return 1
+          }
           post_pending "$current_head" || {
             echo "::error title=Review Route::could not invalidate current head after failed review signal"
             exit 1
           }
           if [ "$source_head" != "$current_head" ]; then
-            post_pending "$source_head" || {
+            post_pending_if_unowned "$source_head" || {
               echo "::error title=Review Route::could not invalidate stale failed review signal"
               exit 1
             }
@@ -350,6 +400,7 @@ jobs:
           echo "::error title=Review Route::review signal resolution failed closed"
           exit 1
 
+  # Keep this fallback uncancellable for the same fail-closed reason above.
   fail-closed-route-resolution:
     needs: resolve_route_event
     if: >-
@@ -439,12 +490,59 @@ jobs:
             done
             return 1
           }
+          post_pending_if_unowned() {
+            local sha="$1"
+            local attempt ownership foreign_owner_count claimed_owner_count match_count
+            for attempt in 1 2 3; do
+              if ! gh api --paginate --slurp \
+                  "repos/$GITHUB_REPOSITORY/pulls?state=open&base=main&per_page=100" \
+                  > "$RUNNER_TEMP/route-fallback-open-pulls-$attempt.json"; then
+                if [ "$attempt" -lt 3 ]; then sleep "$attempt"; continue; fi
+                echo "::error title=Review Route::could not verify stale fallback head ownership"
+                return 1
+              fi
+              if ! ownership="$(jq -er --arg head "$sha" --arg pr "$pr_number" '
+                if type == "array" and all(.[]; type == "array") and
+                  all(.[][]; (.number | type) == "number" and
+                    (.head.sha | type) == "string") then
+                  [ .[][] |
+                    select((.head.sha | ascii_downcase) == ($head | ascii_downcase))
+                  ] as $matches |
+                  [
+                    ($matches | map(select((.number | tostring) != $pr)) | length),
+                    ($matches | map(select((.number | tostring) == $pr)) | length),
+                    ($matches | length)
+                  ] | @tsv
+                else
+                  error("open pull response has an unexpected shape")
+                end
+              ' "$RUNNER_TEMP/route-fallback-open-pulls-$attempt.json")"; then
+                echo "::error title=Review Route::could not verify stale fallback head ownership"
+                return 1
+              fi
+              IFS=$'\t' read -r foreign_owner_count claimed_owner_count match_count <<< "$ownership"
+              if [ "$claimed_owner_count" = "0" ] && \
+                [ "$foreign_owner_count" = "1" ] && [ "$match_count" = "1" ]; then
+                echo "::warning title=Review Route::stale fallback head belongs to a replacement PR; skipped"
+                return 0
+              fi
+              if gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$sha" \
+                -f state=pending \
+                -f context="Review Route" \
+                -f description="Route event resolution failed; revalidation is required." \
+                -f target_url="$RUN_URL"; then
+                return 0
+              fi
+              if [ "$attempt" -lt 3 ]; then sleep "$attempt"; fi
+            done
+            return 1
+          }
           post_pending "$current_head" || {
             echo "::error title=Review Route::could not invalidate failed route event"
             exit 1
           }
           if [ "$event_head" != "$current_head" ]; then
-            post_pending "$event_head" || {
+            post_pending_if_unowned "$event_head" || {
               echo "::error title=Review Route::could not invalidate stale failed route event"
               exit 1
             }
