@@ -2752,7 +2752,11 @@ def test_implicit_close_accepts_html5_closable_content(opening: str) -> None:
         "<ol><li>one</ol>",
         "<table><tr><td>one</table>",
         "<ul><li>one<li>two</ul>",
+        "<svg><g><font hidden /></g></svg>",
+        "<svg><g><path /></g></svg>",
+        "<svg><foreignObject><svg><path /></svg></foreignObject></svg>",
         "<svg><path /></svg>",
+        "<math><mtext><mglyph /></mtext></math>",
         "<math><mi /></math>",
     ],
 )
@@ -2777,6 +2781,47 @@ def test_valid_optional_and_foreign_closures_before_route_are_accepted(
     ],
 )
 def test_unmatched_optional_parent_close_cannot_escape_hidden_child(
+    rendered_prefix: str,
+) -> None:
+    files = [ChangedFile("docs/guide.md")]
+    context = _context("Low", files, body=f"{rendered_prefix}\n\n" + _body("Low"))
+    assert RENDERED_ROUTE_ERROR in _validate_rendered(
+        context,
+        files,
+        rendered_prefix + _rendered_route_html("Low"),
+    )
+
+
+@pytest.mark.parametrize(
+    "rendered_prefix",
+    [
+        (
+            "<details><summary>x</summary>"
+            "<svg><foreignObject><div /></foreignObject></svg></details>"
+        ),
+        "<details><summary>x</summary><svg><desc><div /></desc></svg></details>",
+        "<details><summary>x</summary><math><mtext><div /></mtext></math></details>",
+        (
+            "<details><summary>x</summary>"
+            '<math><annotation-xml encoding="text/html"><div />'
+            "</annotation-xml></math></details>"
+        ),
+        (
+            "<details><summary>x</summary>"
+            '<math><annotation-xml encoding="application/xhtml+xml"><div />'
+            "</annotation-xml></math></details>"
+        ),
+        (
+            "<details><summary>x</summary><math>"
+            '<annotation-xml encoding="text/html" encoding="application/xml"><div />'
+            "</annotation-xml></math></details>"
+        ),
+        "<svg><g><div hidden /></g></svg>",
+        "<math><mrow><div hidden /></mrow></math>",
+        '<svg><g><font color="red" hidden /></g></svg>',
+    ],
+)
+def test_foreign_html_transition_cannot_self_close_hidden_html(
     rendered_prefix: str,
 ) -> None:
     files = [ChangedFile("docs/guide.md")]

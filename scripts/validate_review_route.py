@@ -403,6 +403,55 @@ def _rendered_route_errors(
         "wbr",
     }
     foreign_roots = {"math", "svg"}
+    foreign_breakout_tags = {
+        "b",
+        "big",
+        "blockquote",
+        "body",
+        "br",
+        "center",
+        "code",
+        "dd",
+        "div",
+        "dl",
+        "dt",
+        "em",
+        "embed",
+        "h1",
+        "h2",
+        "h3",
+        "h4",
+        "h5",
+        "h6",
+        "head",
+        "hr",
+        "i",
+        "img",
+        "li",
+        "listing",
+        "menu",
+        "meta",
+        "nobr",
+        "ol",
+        "p",
+        "pre",
+        "ruby",
+        "s",
+        "small",
+        "span",
+        "strike",
+        "strong",
+        "sub",
+        "sup",
+        "table",
+        "tt",
+        "u",
+        "ul",
+        "var",
+    }
+    mathml_text_integration_points = {"mi", "mn", "mo", "ms", "mtext"}
+    mathml_text_integration_exceptions = {"malignmark", "mglyph"}
+    svg_html_integration_points = {"desc", "foreignobject", "title"}
     heading_tags = {"h1", "h2", "h3", "h4", "h5", "h6"}
     scope_boundaries = {
         "annotation-xml",
@@ -534,16 +583,47 @@ def _rendered_route_errors(
             self.elements: list[dict[str, Any]] = []
             self.stack: list[dict[str, Any]] = []
 
+        def start_tag_is_foreign(
+            self,
+            tag: str,
+            attributes: dict[str, str | None],
+        ) -> bool:
+            if tag in foreign_roots:
+                return True
+            if not self.stack or not self.stack[-1]["foreign"]:
+                return False
+            if tag in foreign_breakout_tags or (
+                tag == "font" and {"color", "face", "size"} & attributes.keys()
+            ):
+                return False
+            parent = self.stack[-1]
+            if parent["tag"] in svg_html_integration_points:
+                return False
+            if (
+                parent["tag"] in mathml_text_integration_points
+                and tag not in mathml_text_integration_exceptions
+            ):
+                return False
+            if parent["tag"] == "annotation-xml" and (
+                (parent["attrs"].get("encoding") or "").strip().lower()
+                in {"application/xhtml+xml", "text/html"}
+            ):
+                return False
+            return True
+
         def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
             tag = tag.lower()
             if tag in paragraph_closing_tags:
                 self.close_open("p", containment_boundaries)
             if tag in heading_tags and self.stack and self.stack[-1]["tag"] in heading_tags:
                 self.stack.pop()
-            attributes = {name.lower(): value for name, value in attrs}
+            attributes: dict[str, str | None] = {}
+            for name, value in attrs:
+                attributes.setdefault(name.lower(), value)
             node: dict[str, Any] = {
                 "attrs": attributes,
                 "checkboxes": [],
+                "foreign": self.start_tag_is_foreign(tag, attributes),
                 "order": len(self.elements),
                 "parent": self.stack[-1] if self.stack else None,
                 "tag": tag,
@@ -594,11 +674,8 @@ def _rendered_route_errors(
             self, tag: str, attrs: list[tuple[str, str | None]]
         ) -> None:
             tag = tag.lower()
-            in_foreign_content = tag in foreign_roots or any(
-                node["tag"] in foreign_roots for node in self.stack
-            )
             self.handle_starttag(tag, attrs)
-            if in_foreign_content and self.stack and self.stack[-1]["tag"] == tag:
+            if self.stack and self.stack[-1]["tag"] == tag and self.stack[-1]["foreign"]:
                 self.stack.pop()
 
         def handle_endtag(self, tag: str) -> None:  # noqa
