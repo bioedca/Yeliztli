@@ -27,8 +27,9 @@ For help, see [SUPPORT.md](SUPPORT.md); to report a vulnerability, see
 3. **Open a PR** — the [pull-request template](.github/PULL_REQUEST_TEMPLATE.md)
    guides you: link the issue (`Closes #123`), say what/how/**why**, and work the
    Definition-of-Done checklist. Give the PR a specific, imperative title.
-4. **Pass the gates** — a change merges only after it passes the review gate
-   (below) **and all required CI checks are green**. CI's per-PR (Tier-1) gate is
+4. **Pass the gates** — select the final-diff review route in the PR template. A
+   change merges only after `Review Route` and **all required CI checks are
+   green**. CI's per-PR (Tier-1) gate is
    the `ci-required` aggregate plus `lint` (Ruff, Vulture, ESLint, Knip),
    `test-backend` (py3.12 + py3.13), `test-frontend`, `build-frontend`,
    `smoke-install`, and `docs-build --strict`. Note that the end-to-end
@@ -36,22 +37,120 @@ For help, see [SUPPORT.md](SUPPORT.md); to report a vulnerability, see
    nightly, **not** on your PR — so verify UI changes in a real browser before
    merging.
 5. **Merge** — pull requests are **squash-merged**; the squashed subject stays
-   imperative and ends with `(#<PR number>)`.
+   imperative and ends with `(#<PR number>)`. Merge queue is not supported.
 
 Issues are organised by a labelled taxonomy — see
 [Labels & triage](https://bioedca.github.io/Yeliztli/develop/labels-and-triage/).
 
 ## The review gate
 
-Every change is reviewed before it merges — by someone other than the author.
-Automated review runs first and is not a substitute for human judgement:
+Choose the highest route required by any part of the final diff:
 
-1. **CodeRabbit** — the primary automated reviewer on each PR.
-2. **GitHub Copilot code review** — an additional automated reviewer (where
-   enabled), which follows the repository's
-   [`.github/copilot-instructions.md`](.github/copilot-instructions.md).
-3. A maintainer reviews and approves. AI tools *draft* review and suggestions; a
-   **human owns the decision to merge** and is accountable for what lands.
+- **Low:** text or mechanical changes with no behavior, public-contract,
+  science, security, dependency, or workflow impact. Copilot is the usual
+  automated reviewer.
+- **Standard:** routine code, tests, UI, refactors, or bug fixes outside a
+  load-bearing area. Codex `@codex review` is the usual automated reviewer.
+- **Load-bearing:** science or clinical logic/data and their tests; privacy,
+  security, or auth; schema, migration, or data-loss paths; concurrency;
+  dependencies; updater, installer, release, CI, workflows, permissions, core
+  architecture, or broad/hard-to-revert changes. Manual CodeRabbit is the
+  preferred automated reviewer when its quota is available.
+
+Every route selects exactly one verified automated GitHub review outcome from
+Copilot, Codex, or CodeRabbit, followed by independent human approval. These
+providers are substitutes, not a mandatory sequence: choose another when the
+preferred provider is unavailable or quota-limited. A maintainer may request
+extra advisory reviews when risk or findings justify them, but the selected
+lane is the one recorded in the route evidence. Record its exact final-head SHA
+and UTC completion time in the PR table; mark unused provider rows `N/A`. The
+selected automated review must complete before human approval. Do not manually
+request CodeRabbit as an extra advisory review; select the CodeRabbit lane first
+so its reservation and repository-wide quota remain enforceable. Do not request
+Copilot and Codex together by default; one verified outcome is the gate.
+Route checkboxes and evidence must render as normal Markdown; indented or fenced
+code-block copies are not route state, and raw HTML cannot contain or appear in
+the route section.
+Only unedited formal bot-review nodes count as evidence; an edited outcome needs
+another unedited current-head review before independent human approval.
+Existing PRs using `review-route-schema:v1` must replace their route section
+with the v2 template before validation; v1's multi-provider matrix is obsolete.
+
+Codex may return a no-findings outcome as a conversation comment rather than an
+unedited formal review. A comment outcome counts only when it is immutable and
+from the trusted Codex bot, its first line is the canonical clean result, its
+single 10-hex reviewed-commit marker matches the current head, and GitHub's full-OID
+lookup reports that head's canonical abbreviation at no more than 10
+characters. This fails closed if 10 characters cannot distinguish the head.
+Untrusted comments never control route state. The evidence table still records
+the full 40-character head SHA. The `@codex review` comment only invokes the
+service; it is not evidence and does not supersede an existing valid review of
+the unchanged head. Likewise, a later quota/error message is not a review
+outcome. To require a fresh review, clear the Codex evidence row and do not
+finalize until a new valid current-head outcome is recorded. Head changes,
+mutation/deletion/dismissal of the actual evidence, unresolved findings, and
+loss of human approval still invalidate affected evidence; the route remains
+blocked unless another valid required outcome exists.
+
+If CodeRabbit is selected, the same maintainer posts two separate, immutable
+comments at distinct times:
+
+1. `coderabbit-reservation: <full-head-SHA>`
+2. `@coderabbitai full review`
+
+The reservation is a cooperative intent marker, not an atomic vendor slot.
+Within one PR, service current-head reservations FIFO by GitHub creation time,
+then immutable comment ID for same-second reservations, and serialize triggers
+in that order. After each trigger, wait for its distinct completed review before
+posting the next trigger; equal timestamps fail closed. Across PRs, maintainers
+coordinate triggers manually; the validator counts them repository-wide but
+does not provide an atomic queue.
+The validator rejects a visible rolling-hour ledger above five, but deleted
+comments or simultaneous races require manual coordination. If a quota refetch
+or race forces a provider switch before the trigger, leave the immutable
+reservation in place; it invokes no vendor and consumes no quota. Immediately
+before triggering, re-fetch the PR: CodeRabbit must still be selected and the
+reservation SHA must still be the head. The validator attributes the SHA-less
+trigger to that same maintainer's preceding reservation before evaluating the
+current-head lane. Every actual trigger counts in the repository-wide ledger,
+including prior-head pairs. A pair reserved to an old SHA does not block a
+substitute provider on the current head, but a repeated request needs a new
+reservation and completion. If no slot is available, choose Copilot or Codex
+instead of waiting solely for CodeRabbit.
+
+The final human approver must not be the PR author, and an active maintainer
+change request blocks the route. After final approval, record its evidence,
+resolve every review thread, then have a write-capable maintainer comment
+`/validate-route`. The publisher binds that actor's live `admin` or `write`
+repository permission before validation and again immediately before success.
+PR lifecycle events (including fork and Dependabot PRs), diff-comment mutations,
+and formal-review mutations emit only a credential-free signal carrying GitHub's
+triggering actor. The unprivileged default-branch resolver consumes every
+conclusion, authorizes formal-review source actors against immutable bot IDs or
+live write permission, and live-binds the signal and PR before a dedicated
+GitHub App marks or refreshes the route; an inconclusive permission lookup
+invalidates fail closed. Privileged jobs
+never check out PR code or consume PR artifacts/caches, and the publisher key
+is never copied into Dependabot secrets. An outsider's body-only formal review
+is irrelevant, but an outsider diff comment always invalidates because it can
+create an unresolved thread. GitHub Actions cannot subscribe directly to review-thread
+resolved/unresolved events.
+Native required conversation resolution is therefore the authoritative
+synchronous gate for those transitions, and final validation rechecks every
+thread. Native repository rules also remain authoritative for approval after
+the most recent push. Commit statuses are SHA-scoped and do not expire: two open
+`main` PRs must never share a head SHA.
+Any failed, skipped, or cancelled trusted/relevant signal or publisher run is
+merge-blocking even if an older green status remains. Resolver failures invoke a
+dedicated App-authenticated fallback that marks the immutable affected head
+pending; read-only outsider formal reviews are classified as irrelevant before
+that fallback boundary. The repository ruleset
+must require the branch to be up to date before merging, and its
+conversation-resolution rule must remain enabled whenever `Review Route` is
+required. Immediately before merging, confirm the newest relevant signal and
+publisher runs are terminal, then issue or repeat `/validate-route` after all
+review activity.
+AI tools draft review and suggestions; a **human owns the decision to merge**.
 
 Feedback etiquette: criticise the code, not the coder; prefix optional nits with
 `Nit:`; explain the rationale for a suggestion; and let automated formatters
