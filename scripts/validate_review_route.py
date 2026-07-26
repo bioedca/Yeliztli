@@ -255,6 +255,15 @@ HUMAN_ASSOCIATIONS = {"OWNER", "MEMBER", "COLLABORATOR"}
 CODEX_CLEAN_COMPLETION_MARKER = (
     "Codex Review: Didn't find any major issues. What shall we delve into next?"
 )
+CODEX_CLEAN_COMPLETION_MARKER_CURRENT = (
+    "Codex Review: Didn't find any major issues. Already looking forward to the next diff."
+)
+CODEX_CLEAN_COMPLETION_MARKERS = frozenset(
+    {
+        CODEX_CLEAN_COMPLETION_MARKER,
+        CODEX_CLEAN_COMPLETION_MARKER_CURRENT,
+    }
+)
 CODEX_REVIEWED_COMMIT_LINE = re.compile(
     r"(?m)^\*\*Reviewed commit:\*\* `(?P<sha>[0-9a-f]{10})`\s*$"
 )
@@ -1186,10 +1195,12 @@ def _bot_activity(
                 continue
             immutable = created == updated and comment.get("lastEditedAt") is None
             commit_lines = CODEX_REVIEWED_COMMIT_LINE.findall(body)
+            first_lines = body.splitlines()[0:1]
             clean_completion = (
                 immutable
                 and created > head_epoch
-                and body.splitlines()[0:1] == [CODEX_CLEAN_COMPLETION_MARKER]
+                and len(first_lines) == 1
+                and first_lines[0] in CODEX_CLEAN_COMPLETION_MARKERS
                 and len(commit_lines) == 1
                 and commit_lines[0] == head_sha[:10].lower()
                 and codex_head_safe
