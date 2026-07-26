@@ -35,6 +35,7 @@ query ReviewRouteContext(
       reviews(last: 100) {
         totalCount
         nodes {
+          id
           author {
             __typename
             login

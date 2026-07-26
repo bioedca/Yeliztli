@@ -27,6 +27,7 @@ from scripts.validate_review_route import (
     SCHEMA_MARKER,
     ChangedFile,
     _expected_snapshot_body,
+    _merge_review_pages,
     minimum_route,
     needs_coderabbit_ledger,
     render_probe_body,
@@ -408,6 +409,69 @@ def _context(
             }
         }
     }
+
+
+def _review_pages(
+    context: dict[str, object],
+    all_reviews: list[dict[str, object]],
+    *,
+    page_size: int = 100,
+) -> list[dict[str, object]]:
+    materialized: list[dict[str, object]] = []
+    for index, review in enumerate(all_reviews):
+        node = deepcopy(review)
+        node["id"] = f"PRR_test_{index:04d}"
+        materialized.append(node)
+    pull_request = context["data"]["repository"]["pullRequest"]
+    pull_request["reviews"] = {
+        "totalCount": len(materialized),
+        "nodes": deepcopy(materialized[-100:]),
+    }
+    chunks = [
+        materialized[index : index + page_size] for index in range(0, len(materialized), page_size)
+    ] or [[]]
+    pages: list[dict[str, object]] = []
+    for index, chunk in enumerate(chunks):
+        pages.append(
+            {
+                "data": {
+                    "repository": {
+                        "pullRequest": {
+                            "number": pull_request["number"],
+                            "headRefOid": pull_request["headRefOid"],
+                            "updatedAt": pull_request["updatedAt"],
+                            "reviews": {
+                                "totalCount": len(materialized),
+                                "pageInfo": {
+                                    "hasNextPage": index < len(chunks) - 1,
+                                    "endCursor": f"review-cursor-{index}",
+                                },
+                                "nodes": deepcopy(chunk),
+                            },
+                        }
+                    }
+                }
+            }
+        )
+    return pages
+
+
+def _truncated_review_fixture(
+    route: str = "Low",
+) -> tuple[dict[str, object], list[dict[str, object]]]:
+    context = _context(route, [ChangedFile("docs/guide.md")])
+    base_reviews = deepcopy(context["data"]["repository"]["pullRequest"]["reviews"]["nodes"])
+    historical_reviews = [
+        _review(
+            10_000 + index,
+            "2026-07-21T11:00:00Z",
+            typename="User",
+            head_sha="b" * 40,
+        )
+        for index in range(100)
+    ]
+    pages = _review_pages(context, [*historical_reviews, *base_reviews])
+    return context, pages
 
 
 def _add_finalizer(
@@ -2706,6 +2770,120 @@ def test_empty_truncated_review_connection_fails_closed() -> None:
     )
 
 
+@pytest.mark.parametrize(
+    ("route", "path"),
+    [
+        ("Low", "docs/guide.md"),
+        ("Standard", "frontend/src/hooks/useDialogFocus.ts"),
+        ("Load-bearing", ".github/workflows/ci.yml"),
+    ],
+)
+def test_complete_paginated_reviews_validate_beyond_first_hundred(route: str, path: str) -> None:
+    files = [ChangedFile(path)]
+    context, pages = _truncated_review_fixture(route)
+    assert (
+        _merge_review_pages(
+            context,
+            pages,
+            expected_head=HEAD_SHA,
+            expected_updated_at=PR_UPDATED_AT,
+        )
+        == []
+    )
+    assert len(context["data"]["repository"]["pullRequest"]["reviews"]["nodes"]) == 104
+    assert validate_context(context, files, now=NOW) == []
+
+
+def test_later_paginated_noncompletion_supersedes_earlier_bot_review() -> None:
+    files = [ChangedFile("docs/guide.md")]
+    context, _ = _truncated_review_fixture()
+    reviews = deepcopy(context["data"]["repository"]["pullRequest"]["reviews"]["nodes"])
+    reviews.append(
+        _review(
+            BOT_ACTOR_IDS[COPILOT_GATE],
+            "2026-07-21T12:50:00Z",
+            state="DISMISSED",
+        )
+    )
+    pages = _review_pages(context, reviews)
+    assert (
+        _merge_review_pages(
+            context,
+            pages,
+            expected_head=HEAD_SHA,
+            expected_updated_at=PR_UPDATED_AT,
+        )
+        == []
+    )
+    assert len(context["data"]["repository"]["pullRequest"]["reviews"]["nodes"]) == 101
+    assert validate_context(context, files, now=NOW) == [
+        "no verified current-head GitHub activity for: Copilot PR review"
+    ]
+
+
+@pytest.mark.parametrize(
+    ("mode", "expected_error"),
+    [
+        ("missing-final-page", "page sequence is incomplete"),
+        ("changed-total", "total changed between requests"),
+        ("duplicate-review", "missing or duplicate review ID"),
+        ("duplicate-cursor", "cursor is missing or duplicated"),
+        ("empty-terminal-page", "page sequence is incomplete"),
+        ("graphql-error", "GraphQL errors or malformed data"),
+        ("malformed-data", "GraphQL errors or malformed data"),
+        ("changed-head", "snapshot changed between requests"),
+        ("changed-update-time", "snapshot changed between requests"),
+        ("changed-overlap", "disagrees with the original review snapshot"),
+    ],
+)
+def test_review_page_merge_fails_closed_on_incomplete_or_drifting_ledger(
+    mode: str,
+    expected_error: str,
+) -> None:
+    context, pages = _truncated_review_fixture()
+    if mode == "missing-final-page":
+        pages.pop()
+    elif mode == "changed-total":
+        pages[1]["data"]["repository"]["pullRequest"]["reviews"]["totalCount"] += 1
+    elif mode == "duplicate-review":
+        pages[1]["data"]["repository"]["pullRequest"]["reviews"]["nodes"][0]["id"] = pages[0][
+            "data"
+        ]["repository"]["pullRequest"]["reviews"]["nodes"][0]["id"]
+    elif mode == "duplicate-cursor":
+        pages[1]["data"]["repository"]["pullRequest"]["reviews"]["pageInfo"]["endCursor"] = pages[
+            0
+        ]["data"]["repository"]["pullRequest"]["reviews"]["pageInfo"]["endCursor"]
+    elif mode == "empty-terminal-page":
+        pages[1]["data"]["repository"]["pullRequest"]["reviews"]["pageInfo"] = {
+            "hasNextPage": True,
+            "endCursor": "review-cursor-extra",
+        }
+        terminal = deepcopy(pages[1])
+        terminal["data"]["repository"]["pullRequest"]["reviews"]["pageInfo"] = {
+            "hasNextPage": False,
+            "endCursor": None,
+        }
+        terminal["data"]["repository"]["pullRequest"]["reviews"]["nodes"] = []
+        pages.append(terminal)
+    elif mode == "graphql-error":
+        pages[1]["errors"] = [{"message": "injected failure"}]
+    elif mode == "malformed-data":
+        pages[1]["data"] = []
+    elif mode == "changed-head":
+        pages[1]["data"]["repository"]["pullRequest"]["headRefOid"] = "b" * 40
+    elif mode == "changed-update-time":
+        pages[1]["data"]["repository"]["pullRequest"]["updatedAt"] = "2026-07-21T12:59:00Z"
+    elif mode == "changed-overlap":
+        pages[1]["data"]["repository"]["pullRequest"]["reviews"]["nodes"][-1]["body"] = "mutated"
+    errors = _merge_review_pages(
+        context,
+        pages,
+        expected_head=HEAD_SHA,
+        expected_updated_at=PR_UPDATED_AT,
+    )
+    assert any(expected_error in error for error in errors)
+
+
 def test_truncated_comment_page_uses_update_order_for_completeness() -> None:
     files = [ChangedFile("README.md")]
     context = _context("Low", files)
@@ -3412,6 +3590,9 @@ def test_workflow_uses_trusted_base_and_explicit_head_status() -> None:
     assert '--expected-head "$HEAD_SHA"' in workflow
     assert '--expected-draft "$IS_DRAFT"' in workflow
     assert '--expected-pr-updated-at "$PR_UPDATED_AT"' in workflow
+    assert "gh api graphql --paginate --slurp" in workflow
+    assert "-F query=@scripts/review_route_reviews.graphql" in workflow
+    assert '--review-pages "$RUNNER_TEMP/review-route-review-pages.json"' in workflow
     assert "pull request updated_at has an invalid shape" in workflow
     assert (
         '[[ "$pr_updated_at" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]]'
@@ -3470,6 +3651,97 @@ def test_workflow_uses_trusted_base_and_explicit_head_status() -> None:
         "Finalizer authorization, PR state, or trusted main changed before publication."
         in validate_job
     )
+
+
+@pytest.mark.parametrize(
+    ("truncated", "fetch_fails", "expected_returncode", "expected_fetch"),
+    [
+        (True, False, 0, True),
+        (True, True, 1, True),
+        (False, True, 0, False),
+    ],
+)
+def test_review_pagination_workflow_fetches_only_a_truncated_ledger(
+    tmp_path: Path,
+    truncated: bool,
+    fetch_fails: bool,
+    expected_returncode: int,
+    expected_fetch: bool,
+) -> None:
+    root = Path(__file__).resolve().parents[2]
+    workflow = (root / ".github/workflows/review-route.yml").read_text(encoding="utf-8")
+    shell = _workflow_step_script(workflow, "Validate live route state")
+    start = shell.index("review_page_args=()")
+    end = shell.index(
+        "gh api --paginate --slurp \\\n"
+        '  "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100"'
+    )
+    pagination_shell = (
+        shell[start:end]
+        + '\nif [ "${#review_page_args[@]}" -gt 0 ]; then\n'
+        + '  printf \'%s\\n\' "${review_page_args[@]}" > "$ARGS_LOG"\n'
+        + "fi\n"
+    )
+    context_path = tmp_path / "review-route-context.json"
+    context_path.write_text(
+        json.dumps(
+            {
+                "data": {
+                    "repository": {
+                        "pullRequest": {
+                            "reviews": {
+                                "totalCount": 104 if truncated else 100,
+                                "nodes": [{} for _ in range(100)],
+                            }
+                        }
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    gh_log = tmp_path / "gh.log"
+    args_log = tmp_path / "args.log"
+    fake_gh = fake_bin / "gh"
+    fake_gh.write_text(
+        """#!/usr/bin/env bash
+set -eu
+printf '%s\n' "$*" >> "$GH_LOG"
+if [ "$FETCH_FAILS" = "true" ]; then exit 1; fi
+printf '[{"data":{"repository":{"pullRequest":{}}}}]\n'
+""",
+        encoding="utf-8",
+    )
+    fake_gh.chmod(0o755)
+    completed = subprocess.run(
+        ["bash", "-e", "-o", "pipefail", "-c", pagination_shell],
+        check=False,
+        capture_output=True,
+        env={
+            **os.environ,
+            "ARGS_LOG": str(args_log),
+            "FETCH_FAILS": str(fetch_fails).lower(),
+            "GH_LOG": str(gh_log),
+            "OWNER": "bioedca",
+            "PATH": f"{fake_bin}:{os.environ['PATH']}",
+            "PR_NUMBER": "2183",
+            "REPO": "Yeliztli",
+            "RUNNER_TEMP": str(tmp_path),
+        },
+        text=True,
+    )
+    assert completed.returncode == expected_returncode, completed.stderr
+    assert gh_log.exists() is expected_fetch
+    if expected_returncode == 0 and expected_fetch:
+        assert args_log.read_text(encoding="utf-8").splitlines() == [
+            "--review-pages",
+            str(tmp_path / "review-route-review-pages.json"),
+        ]
+        assert "--paginate --slurp" in gh_log.read_text(encoding="utf-8")
+    else:
+        assert not args_log.exists()
 
 
 def test_review_state_signal_is_credential_free_and_only_drives_pending() -> None:
@@ -5549,11 +5821,16 @@ def test_contributor_review_routes_match_the_public_template() -> None:
 def test_graphql_context_tracks_comment_association_and_head_epoch() -> None:
     root = Path(__file__).resolve().parents[2]
     query = (root / "scripts/review_route_context.graphql").read_text(encoding="utf-8")
+    review_query = (root / "scripts/review_route_reviews.graphql").read_text(encoding="utf-8")
     assert query.count("authorAssociation") == 4
     assert "$headOid: GitObjectID!" in query
     assert "$includeCodeRabbitLedger: Boolean!" in query
     assert "codexHeadObject: object(oid: $headOid)" in query
     assert "abbreviatedOid" in query
+    review_block = query.split("reviews(last: 100)", maxsplit=1)[1].split(
+        "latestHumanOpinions:", maxsplit=1
+    )[0]
+    assert "\n          id\n" in review_block
     assert query.count("updatedAt") == 4
     assert "\n          id\n          databaseId\n          author" in query
     assert query.count("lastEditedAt") == 3
@@ -5565,3 +5842,21 @@ def test_graphql_context_tracks_comment_association_and_head_epoch() -> None:
     assert 'openPullRequests: pullRequests(first: 100, states: OPEN, baseRefName: "main")' in query
     assert ") @include(if: $includeCodeRabbitLedger) {" in query
     assert "headRefOid\n        number" in query
+    assert "$endCursor: String" in review_query
+    assert "reviews(first: 100, after: $endCursor)" in review_query
+    assert "pageInfo {\n          hasNextPage\n          endCursor" in review_query
+    assert "\n          id\n" in review_query
+    assert "\n            __typename\n            login\n" in review_query
+    assert "... on User { databaseId }" in review_query
+    assert "... on Bot { databaseId }" in review_query
+    assert "\n          body\n" in review_query
+    assert all(
+        field in review_query
+        for field in (
+            "authorAssociation",
+            "commit { oid }",
+            "lastEditedAt",
+            "state",
+            "submittedAt",
+        )
+    )

@@ -7,6 +7,7 @@ import argparse
 import json
 import re
 import sys
+from copy import deepcopy
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from html.parser import HTMLParser
@@ -1458,6 +1459,101 @@ def _coderabbit_trigger_state(
     return errors
 
 
+def _merge_review_pages(
+    context: dict[str, Any],
+    pages: Any,
+    *,
+    expected_head: str,
+    expected_updated_at: str,
+) -> list[str]:
+    """Replace a truncated review window with a complete, bound cursor ledger."""
+    if not isinstance(pages, list) or not pages:
+        return ["review pagination pages are missing or malformed"]
+    context_data = context.get("data")
+    repository = context_data.get("repository") if isinstance(context_data, dict) else None
+    pull_request = repository.get("pullRequest") if isinstance(repository, dict) else None
+    reviews = pull_request.get("reviews") if isinstance(pull_request, dict) else None
+    if not isinstance(reviews, dict):
+        return ["review pagination source context is malformed"]
+    total_count = reviews.get("totalCount")
+    original_nodes = reviews.get("nodes")
+    if (
+        isinstance(total_count, bool)
+        or not isinstance(total_count, int)
+        or total_count < 0
+        or not isinstance(original_nodes, list)
+        or total_count < len(original_nodes)
+    ):
+        return ["review pagination source context is malformed"]
+
+    original_by_id: dict[str, dict[str, Any]] = {}
+    for node in original_nodes:
+        review_id = node.get("id") if isinstance(node, dict) else None
+        if not isinstance(review_id, str) or not review_id or review_id in original_by_id:
+            return ["review pagination source review IDs are missing or duplicated"]
+        original_by_id[review_id] = node
+
+    expected_number = pull_request.get("number")
+    merged_nodes: list[dict[str, Any]] = []
+    seen_ids: set[str] = set()
+    seen_cursors: set[str] = set()
+    for index, page in enumerate(pages):
+        if not isinstance(page, dict) or page.get("errors"):
+            return ["review pagination page contains GraphQL errors or malformed data"]
+        page_data = page.get("data")
+        page_repository = page_data.get("repository") if isinstance(page_data, dict) else None
+        page_pull = (
+            page_repository.get("pullRequest") if isinstance(page_repository, dict) else None
+        )
+        if not isinstance(page_pull, dict):
+            return ["review pagination page contains GraphQL errors or malformed data"]
+        page_head = page_pull.get("headRefOid")
+        if (
+            page_pull.get("number") != expected_number
+            or not isinstance(page_head, str)
+            or page_head.lower() != expected_head.lower()
+            or page_pull.get("updatedAt") != expected_updated_at
+        ):
+            return ["review pagination pull request snapshot changed between requests"]
+        page_reviews = page_pull.get("reviews")
+        if not isinstance(page_reviews, dict) or page_reviews.get("totalCount") != total_count:
+            return ["review pagination total changed between requests"]
+        page_nodes = page_reviews.get("nodes")
+        page_info = page_reviews.get("pageInfo")
+        if not isinstance(page_nodes, list) or not isinstance(page_info, dict):
+            return ["review pagination page contains GraphQL errors or malformed data"]
+        has_next_page = page_info.get("hasNextPage")
+        end_cursor = page_info.get("endCursor")
+        expected_has_next = index < len(pages) - 1
+        if has_next_page is not expected_has_next:
+            return ["review pagination page sequence is incomplete"]
+        if expected_has_next and (not isinstance(end_cursor, str) or not end_cursor):
+            return ["review pagination cursor is missing or duplicated"]
+        if end_cursor is not None:
+            if not isinstance(end_cursor, str) or not end_cursor or end_cursor in seen_cursors:
+                return ["review pagination cursor is missing or duplicated"]
+            seen_cursors.add(end_cursor)
+        if not page_nodes and total_count > 0:
+            return ["review pagination page sequence is incomplete"]
+        for node in page_nodes:
+            review_id = node.get("id") if isinstance(node, dict) else None
+            if not isinstance(review_id, str) or not review_id or review_id in seen_ids:
+                return ["review pagination contains a missing or duplicate review ID"]
+            seen_ids.add(review_id)
+            merged_nodes.append(node)
+
+    if len(merged_nodes) != total_count:
+        return ["review pagination aggregate count does not match totalCount"]
+    merged_by_id = {node["id"]: node for node in merged_nodes}
+    if any(merged_by_id.get(review_id) != node for review_id, node in original_by_id.items()):
+        return ["review pagination disagrees with the original review snapshot"]
+
+    complete_reviews = deepcopy(reviews)
+    complete_reviews["nodes"] = merged_nodes
+    pull_request["reviews"] = complete_reviews
+    return []
+
+
 def _load_repository(context: dict[str, Any]) -> tuple[dict[str, Any] | None, list[str]]:
     errors: list[str] = []
     if context.get("errors"):
@@ -1789,6 +1885,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--context", type=Path, required=True)
     parser.add_argument("--files", type=Path, required=True)
+    parser.add_argument("--review-pages", type=Path)
     parser.add_argument("--expected-head", required=True)
     parser.add_argument("--expected-draft", choices=("true", "false"), required=True)
     parser.add_argument("--expected-pr-updated-at", required=True)
@@ -1801,6 +1898,22 @@ def main() -> int:
     parser.add_argument("--finalize-comment-actor-permission")
     args = parser.parse_args()
     context = json.loads(args.context.read_text(encoding="utf-8"))
+    if args.review_pages is not None:
+        try:
+            review_pages = json.loads(args.review_pages.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            print("::error title=Review Route::review pagination output is unreadable")
+            return 1
+        page_errors = _merge_review_pages(
+            context,
+            review_pages,
+            expected_head=args.expected_head,
+            expected_updated_at=args.expected_pr_updated_at,
+        )
+        if page_errors:
+            for error in page_errors:
+                print(f"::error title=Review Route::{error}")
+            return 1
     expected_snapshot = json.loads(args.expected_pr_snapshot.read_text(encoding="utf-8"))
     try:
         expected_pr_body = _expected_snapshot_body(expected_snapshot)

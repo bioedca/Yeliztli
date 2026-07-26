@@ -1013,6 +1013,24 @@ jobs:
             -F includeCodeRabbitLedger="$include_coderabbit_ledger" \
             -F query=@scripts/review_route_context.graphql \
             > "$RUNNER_TEMP/review-route-context.json"
+          review_page_args=()
+          if jq -e '
+            .data.repository.pullRequest.reviews as $reviews |
+            ($reviews | type) == "object" and
+            ($reviews.totalCount | type) == "number" and
+            ($reviews.nodes | type) == "array" and
+            $reviews.totalCount > ($reviews.nodes | length)
+          ' "$RUNNER_TEMP/review-route-context.json" > /dev/null; then
+            gh api graphql --paginate --slurp \
+              -F owner="$OWNER" \
+              -F repo="$REPO" \
+              -F number="$PR_NUMBER" \
+              -F query=@scripts/review_route_reviews.graphql \
+              > "$RUNNER_TEMP/review-route-review-pages.json"
+            review_page_args=(
+              --review-pages "$RUNNER_TEMP/review-route-review-pages.json"
+            )
+          fi
           gh api --paginate --slurp \
             "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" \
             > "$RUNNER_TEMP/review-route-files.json"
@@ -1056,6 +1074,7 @@ jobs:
             --expected-pr-snapshot "$RUNNER_TEMP/pr.json" \
             --rendered-body "$RUNNER_TEMP/review-route-rendered.html" \
             --render-nonce "$render_nonce" \
+            "${review_page_args[@]}" \
             "${finalizer_args[@]}"
 
       - name: Publish required status on PR head
