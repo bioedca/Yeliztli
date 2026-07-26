@@ -2382,8 +2382,8 @@ def test_coderabbit_reservation_must_strictly_follow_current_head() -> None:
         "totalCount": len(comments),
         "nodes": comments,
     }
-    assert any(
-        error.startswith("CodeRabbit") for error in validate_context(context, files, now=NOW)
+    assert "CodeRabbit reservations and triggers must form one-to-one pairs" in validate_context(
+        context, files, now=NOW
     )
 
 
@@ -2492,61 +2492,81 @@ def test_selected_provider_and_human_in_the_same_second_fail_closed(gate: str) -
 
 
 @pytest.mark.parametrize(
-    "comments",
+    ("comments", "expected_error"),
     [
-        [
-            _comment(
-                AUTHOR_ID,
-                f"coderabbit-reservation: {HEAD_SHA}\n@coderabbitai full review",
-                "2026-07-21T12:25:00Z",
-            )
-        ],
-        [
-            _comment(
-                AUTHOR_ID,
-                f"coderabbit-reservation: {HEAD_SHA}",
-                "2026-07-21T12:25:00Z",
-                association="NONE",
-            ),
-            _comment(
-                AUTHOR_ID,
-                "@coderabbitai full review",
-                "2026-07-21T12:26:00Z",
-                association="NONE",
-            ),
-        ],
-        [
-            _comment(AUTHOR_ID, f"coderabbit-reservation: {HEAD_SHA}", "2026-07-21T12:25:00Z"),
-            _comment(
-                AUTHOR_ID,
-                "Please run @coderabbitai full review",
-                "2026-07-21T12:26:00Z",
-            ),
-        ],
-        [
-            _comment(
-                AUTHOR_ID,
-                f"coderabbit-reservation: {HEAD_SHA}",
-                "2026-07-21T12:01:00Z",
-                updated_at="2026-07-21T12:25:00Z",
-            ),
-            _comment(AUTHOR_ID, "@coderabbitai full review", "2026-07-21T12:26:00Z"),
-        ],
-        [
-            {
-                **_comment(
+        (
+            [
+                _comment(
+                    AUTHOR_ID,
+                    f"coderabbit-reservation: {HEAD_SHA}\n@coderabbitai full review",
+                    "2026-07-21T12:25:00Z",
+                )
+            ],
+            "CodeRabbit needs a current-SHA reservation, trigger, then completed review",
+        ),
+        (
+            [
+                _comment(
+                    AUTHOR_ID,
+                    f"coderabbit-reservation: {HEAD_SHA}",
+                    "2026-07-21T12:25:00Z",
+                    association="NONE",
+                ),
+                _comment(
+                    AUTHOR_ID,
+                    "@coderabbitai full review",
+                    "2026-07-21T12:26:00Z",
+                    association="NONE",
+                ),
+            ],
+            "CodeRabbit needs a current-SHA reservation, trigger, then completed review",
+        ),
+        (
+            [
+                _comment(
                     AUTHOR_ID,
                     f"coderabbit-reservation: {HEAD_SHA}",
                     "2026-07-21T12:25:00Z",
                 ),
-                "lastEditedAt": "2026-07-21T12:25:00Z",
-            },
-            _comment(AUTHOR_ID, "@coderabbitai full review", "2026-07-21T12:26:00Z"),
-        ],
+                _comment(
+                    AUTHOR_ID,
+                    "Please run @coderabbitai full review",
+                    "2026-07-21T12:26:00Z",
+                ),
+            ],
+            "CodeRabbit needs a current-SHA reservation, trigger, then completed review",
+        ),
+        (
+            [
+                _comment(
+                    AUTHOR_ID,
+                    f"coderabbit-reservation: {HEAD_SHA}",
+                    "2026-07-21T12:01:00Z",
+                    updated_at="2026-07-21T12:25:00Z",
+                ),
+                _comment(AUTHOR_ID, "@coderabbitai full review", "2026-07-21T12:26:00Z"),
+            ],
+            "CodeRabbit reservations and triggers must form one-to-one pairs",
+        ),
+        (
+            [
+                {
+                    **_comment(
+                        AUTHOR_ID,
+                        f"coderabbit-reservation: {HEAD_SHA}",
+                        "2026-07-21T12:25:00Z",
+                    ),
+                    "lastEditedAt": "2026-07-21T12:25:00Z",
+                },
+                _comment(AUTHOR_ID, "@coderabbitai full review", "2026-07-21T12:26:00Z"),
+            ],
+            "CodeRabbit reservations and triggers must form one-to-one pairs",
+        ),
     ],
 )
 def test_coderabbit_rejects_combined_untrusted_or_quoted_commands(
     comments: list[dict[str, object]],
+    expected_error: str,
 ) -> None:
     files = [ChangedFile(".github/workflows/review-route.yml")]
     context = _context("Load-bearing", files)
@@ -2560,7 +2580,7 @@ def test_coderabbit_rejects_combined_untrusted_or_quoted_commands(
         "nodes": comments,
     }
     errors = validate_context(context, files, now=NOW)
-    assert any(error.startswith("CodeRabbit") for error in errors)
+    assert expected_error in errors
 
 
 def test_untrusted_trigger_mentions_do_not_consume_coderabbit_quota() -> None:
