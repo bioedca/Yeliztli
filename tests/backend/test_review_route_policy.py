@@ -2765,6 +2765,30 @@ def test_valid_optional_and_foreign_closures_before_route_are_accepted(
 
 
 @pytest.mark.parametrize(
+    "rendered_prefix",
+    [
+        "<li hidden></ul>",
+        "<ol><li hidden></ul>",
+        "<dt hidden></dl>",
+        "<menu><li hidden></ol>",
+        "<option hidden></select>",
+        "<ruby><rt hidden></rtc>",
+        "<select><option hidden></optgroup>",
+    ],
+)
+def test_unmatched_optional_parent_close_cannot_escape_hidden_child(
+    rendered_prefix: str,
+) -> None:
+    files = [ChangedFile("docs/guide.md")]
+    context = _context("Low", files, body=f"{rendered_prefix}\n\n" + _body("Low"))
+    assert RENDERED_ROUTE_ERROR in _validate_rendered(
+        context,
+        files,
+        rendered_prefix + _rendered_route_html("Low"),
+    )
+
+
+@pytest.mark.parametrize(
     ("opening", "closing"),
     [
         ("<b><i hidden></b>", "</i>"),

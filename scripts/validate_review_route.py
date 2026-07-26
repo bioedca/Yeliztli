@@ -584,10 +584,11 @@ def _rendered_route_errors(
 
         def close_end_tag(self, tag: str) -> None:
             optional = optional_end_children.get(tag, set())
-            while self.stack and self.stack[-1]["tag"] in optional:
-                self.stack.pop()
-            if self.stack and self.stack[-1]["tag"] == tag:
-                self.stack.pop()
+            parent_index = len(self.stack) - 1
+            while parent_index >= 0 and self.stack[parent_index]["tag"] in optional:
+                parent_index -= 1
+            if parent_index >= 0 and self.stack[parent_index]["tag"] == tag:
+                del self.stack[parent_index:]
 
         def handle_startendtag(  # noqa
             self, tag: str, attrs: list[tuple[str, str | None]]
