@@ -252,17 +252,10 @@ UTC_RESULT = re.compile(
 )
 TERMINAL_REVIEW_STATES = {"APPROVED", "COMMENTED"}
 HUMAN_ASSOCIATIONS = {"OWNER", "MEMBER", "COLLABORATOR"}
-CODEX_CLEAN_COMPLETION_MARKER = (
-    "Codex Review: Didn't find any major issues. What shall we delve into next?"
-)
-CODEX_CLEAN_COMPLETION_MARKER_CURRENT = (
-    "Codex Review: Didn't find any major issues. Already looking forward to the next diff."
-)
-CODEX_CLEAN_COMPLETION_MARKERS = frozenset(
-    {
-        CODEX_CLEAN_COMPLETION_MARKER,
-        CODEX_CLEAN_COMPLETION_MARKER_CURRENT,
-    }
+CODEX_CLEAN_COMPLETION_PREFIX = "Codex Review: Didn't find any major issues."
+CODEX_CLEAN_COMPLETION_MARKER = f"{CODEX_CLEAN_COMPLETION_PREFIX} What shall we delve into next?"
+CODEX_CLEAN_COMPLETION_LINE = re.compile(
+    rf"^{re.escape(CODEX_CLEAN_COMPLETION_PREFIX)}(?: [^\r\n]{{1,160}})?$"
 )
 CODEX_REVIEWED_COMMIT_LINE = re.compile(
     r"(?m)^\*\*Reviewed commit:\*\* `(?P<sha>[0-9a-f]{10})`\s*$"
@@ -1200,7 +1193,7 @@ def _bot_activity(
                 immutable
                 and created > head_epoch
                 and len(first_lines) == 1
-                and first_lines[0] in CODEX_CLEAN_COMPLETION_MARKERS
+                and CODEX_CLEAN_COMPLETION_LINE.fullmatch(first_lines[0]) is not None
                 and len(commit_lines) == 1
                 and commit_lines[0] == head_sha[:10].lower()
                 and codex_head_safe

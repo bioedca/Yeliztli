@@ -17,7 +17,6 @@ from scripts.validate_review_route import (
     CODERABBIT_COMPLETION_MARKER,
     CODERABBIT_GATE,
     CODEX_CLEAN_COMPLETION_MARKER,
-    CODEX_CLEAN_COMPLETION_MARKER_CURRENT,
     CODEX_GATE,
     CODEX_TRIGGER,
     COPILOT_GATE,
@@ -635,13 +634,23 @@ def test_v2_codex_clean_issue_comment_is_review_evidence_without_a_visible_trigg
     assert validate_context(context, files, now=NOW) == []
 
 
-def test_v2_codex_current_clean_issue_comment_marker_is_verified() -> None:
+@pytest.mark.parametrize(
+    "marker",
+    [
+        "Codex Review: Didn't find any major issues.",
+        "Codex Review: Didn't find any major issues. Already looking forward to the next diff.",
+        "Codex Review: Didn't find any major issues. Swish!",
+    ],
+)
+def test_v2_codex_current_clean_issue_comment_markers_are_verified(
+    marker: str,
+) -> None:
     files = [ChangedFile("README.md")]
     context = _context("Load-bearing", files, automated_gates={CODEX_GATE})
     _, response = _use_codex_clean_comment(context)
     response["body"] = response["body"].replace(
         CODEX_CLEAN_COMPLETION_MARKER,
-        CODEX_CLEAN_COMPLETION_MARKER_CURRENT,
+        marker,
         1,
     )
     assert validate_context(context, files, now=NOW) == []
@@ -712,7 +721,8 @@ def test_formal_bot_review_without_edit_metadata_fails_closed(gate: str) -> None
         "edited",
         "updated",
         "wrong_first_line",
-        "unknown_completion_marker",
+        "wrong_completion_sentence",
+        "oversized_completion_flourish",
         "wrong_head",
         "duplicate_commit",
         "short_commit",
@@ -736,10 +746,16 @@ def test_v2_codex_clean_issue_comment_fails_closed_when_untrusted(case: str) -> 
             f"> {CODEX_CLEAN_COMPLETION_MARKER}",
             1,
         )
-    elif case == "unknown_completion_marker":
+    elif case == "wrong_completion_sentence":
         response["body"] = response["body"].replace(
             CODEX_CLEAN_COMPLETION_MARKER,
-            "Codex Review: Didn't find any major issues. An unrecognized response.",
+            "Codex Review: Didn't complete the review. Swish!",
+            1,
+        )
+    elif case == "oversized_completion_flourish":
+        response["body"] = response["body"].replace(
+            CODEX_CLEAN_COMPLETION_MARKER,
+            "Codex Review: Didn't find any major issues. " + ("x" * 161),
             1,
         )
     elif case == "wrong_head":
