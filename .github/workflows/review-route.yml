@@ -1336,25 +1336,47 @@ jobs:
           test "$posted" = true
           if [ "$state" = "success" ] && [ "${SCHEMA_VERSION:-legacy}" = "3" ]; then
             if ! bash scripts/validate_review_route_snapshot.sh after-success; then
-              gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" \
-                -f state=pending \
-                -f context="Review Route" \
-                -f description="Post-success audit changed; review route is pending." \
-                -f target_url="$RUN_URL"
+              publish_audit_pending() {
+                local sha="$1"
+                local label="$2"
+                local attempt response_file
+                for attempt in 1 2 3; do
+                  response_file="$RUNNER_TEMP/audit-pending-$label-$attempt.json"
+                  if gh api --method POST \
+                      "repos/$GITHUB_REPOSITORY/statuses/$sha" \
+                      -f state=pending \
+                      -f context="Review Route" \
+                      -f description="Post-success audit changed; review route is pending." \
+                      -f target_url="$RUN_URL" > "$response_file" && \
+                    jq -e '
+                      .state == "pending" and .context == "Review Route"
+                    ' "$response_file" > /dev/null; then
+                    return 0
+                  fi
+                  if [ "$attempt" -lt 3 ]; then sleep "$attempt"; fi
+                done
+                return 1
+              }
+              rollback_ok=true
+              if ! publish_audit_pending "$HEAD_SHA" original; then
+                rollback_ok=false
+                echo "::error title=Review Route::could not replace original-head success with pending"
+              fi
               current_head="$(
                 gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" \
                   --jq '.head.sha | ascii_downcase' 2>/dev/null || true
               )"
               if [[ "$current_head" =~ ^[0-9a-f]{40}$ ]] && \
                 [ "$current_head" != "$HEAD_SHA" ]; then
-                gh api --method POST \
-                  "repos/$GITHUB_REPOSITORY/statuses/$current_head" \
-                  -f state=pending \
-                  -f context="Review Route" \
-                  -f description="Post-success audit changed; review route is pending." \
-                  -f target_url="$RUN_URL"
+                if ! publish_audit_pending "$current_head" current; then
+                  rollback_ok=false
+                  echo "::error title=Review Route::could not publish pending on the changed current head"
+                fi
               fi
               echo "::error title=Review Route::post-success audit failed closed"
+              if [ "$rollback_ok" != "true" ]; then
+                echo "::error title=Review Route::post-success pending rollback was incomplete"
+              fi
               exit 1
             fi
           fi

@@ -3901,7 +3901,7 @@ def test_workflow_uses_trusted_base_and_explicit_head_status() -> None:
     assert 'post_pending_if_unowned "$EVENT_HEAD_SHA"' in validate_job
     assert '[ "$EVENT_HEAD_SHA" != "$head_sha" ]' in validate_job
     assert "^[0-9a-fA-F]{40}$" in workflow
-    assert workflow.count("for attempt in 1 2 3") == 12
+    assert workflow.count("for attempt in 1 2 3") == 13
     assert '--expected-head "$HEAD_SHA"' in workflow
     assert '--expected-draft "$IS_DRAFT"' in workflow
     assert '--expected-pr-updated-at "$PR_UPDATED_AT"' in workflow
@@ -5461,6 +5461,7 @@ esac
 
 @pytest.mark.parametrize(
     (
+        "v3",
         "current_open",
         "replacement_owns_head",
         "malformed_response",
@@ -5471,11 +5472,12 @@ esac
         "expected_returncode",
     ),
     [
-        (False, False, False, False, PR_UPDATED_AT, [HEAD_SHA], [HEAD_SHA], 0),
-        (False, True, False, False, PR_UPDATED_AT, [], [], 0),
-        (True, True, False, False, PR_UPDATED_AT, [HEAD_SHA], [HEAD_SHA], 0),
-        (False, False, True, False, PR_UPDATED_AT, [], [], 1),
+        (False, False, False, False, False, PR_UPDATED_AT, [HEAD_SHA], [HEAD_SHA], 0),
+        (False, False, True, False, False, PR_UPDATED_AT, [], [], 0),
+        (False, True, True, False, False, PR_UPDATED_AT, [HEAD_SHA], [HEAD_SHA], 0),
+        (False, False, False, True, False, PR_UPDATED_AT, [], [], 1),
         (
+            False,
             False,
             False,
             False,
@@ -5485,8 +5487,9 @@ esac
             [HEAD_SHA, HEAD_SHA, HEAD_SHA],
             1,
         ),
-        (True, False, True, False, PR_UPDATED_AT, [HEAD_SHA], [HEAD_SHA], 0),
+        (False, True, False, True, False, PR_UPDATED_AT, [HEAD_SHA], [HEAD_SHA], 0),
         (
+            False,
             True,
             False,
             False,
@@ -5497,6 +5500,7 @@ esac
             1,
         ),
         (
+            False,
             True,
             False,
             False,
@@ -5506,10 +5510,12 @@ esac
             [HEAD_SHA],
             1,
         ),
+        (True, True, False, False, False, PR_UPDATED_AT, [HEAD_SHA], [HEAD_SHA], 0),
     ],
 )
 def test_route_preinvalidator_does_not_overwrite_replacement_pr_status(
     tmp_path: Path,
+    v3: bool,
     current_open: bool,
     replacement_owns_head: bool,
     malformed_response: bool,
@@ -5536,6 +5542,7 @@ def test_route_preinvalidator_does_not_overwrite_replacement_pr_status(
         },
         "draft": False,
         "updated_at": updated_at,
+        "body": AUTONOMOUS_SCHEMA_MARKER if v3 else "",
     }
     open_pulls = [pull] if current_open else []
     if replacement_owns_head:
@@ -5624,6 +5631,23 @@ esac
     )
     assert actual_statuses == expected_statuses
     assert actual_attempts == expected_attempts
+    if v3:
+        environment = environment_file.read_text(encoding="utf-8")
+        assert "SCHEMA_VERSION=3" in environment
+        assert "INVALIDATION_ONLY=true" in environment
+        publisher_shell = _workflow_step_script(workflow, "Publish required status on PR head")
+        publisher = subprocess.run(
+            ["/bin/bash", "-e", "-o", "pipefail", "-c", publisher_shell],
+            check=False,
+            capture_output=True,
+            env={
+                **os.environ,
+                "INVALIDATION_ONLY": "true",
+            },
+            text=True,
+        )
+        assert publisher.returncode == 0
+        assert "V3 invalidation is complete after publishing pending." in publisher.stdout
     if updated_at != PR_UPDATED_AT:
         environment = (
             environment_file.read_text(encoding="utf-8") if environment_file.exists() else ""
@@ -6114,6 +6138,220 @@ esac
             assert "Head ownership changed before publication" in status_calls[-1]
         else:
             assert "finalizer" in status_calls[-1].lower()
+
+
+@pytest.mark.parametrize(
+    (
+        "snapshot_plan",
+        "fail_first_pending",
+        "expected_returncode",
+        "expected_statuses",
+    ),
+    [
+        ("pre-fail", False, 1, [(HEAD_SHA, "pending")]),
+        ("pass", False, 0, [(HEAD_SHA, "success")]),
+        (
+            "post-fail",
+            True,
+            1,
+            [
+                (HEAD_SHA, "success"),
+                (HEAD_SHA, "pending"),
+                (HEAD_SHA, "pending"),
+                ("b" * 40, "pending"),
+            ],
+        ),
+    ],
+)
+def test_v3_publisher_executes_fresh_validation_and_audit_rollback(
+    tmp_path: Path,
+    snapshot_plan: str,
+    fail_first_pending: bool,
+    expected_returncode: int,
+    expected_statuses: list[tuple[str, str]],
+) -> None:
+    root = Path(__file__).resolve().parents[2]
+    workflow = (root / ".github/workflows/review-route.yml").read_text(encoding="utf-8")
+    shell = _workflow_step_script(workflow, "Publish required status on PR head")
+    claimed = {
+        "number": 2183,
+        "state": "open",
+        "body": "v3 review route evidence",
+        "updated_at": PR_UPDATED_AT,
+        "draft": False,
+        "base": {"ref": "main", "repo": {"full_name": "bioedca/Yeliztli"}},
+        "head": {
+            "sha": HEAD_SHA.upper(),
+            "ref": "issue-2183",
+            "repo": {"full_name": "bioedca/Yeliztli"},
+        },
+    }
+    current = deepcopy(claimed)
+    current["head"]["sha"] = ("b" * 40).upper()
+    owners_fixture = tmp_path / "owners.json"
+    pr_fixture = tmp_path / "pr.json"
+    current_pr_fixture = tmp_path / "current-pr.json"
+    main_fixture = tmp_path / "main.json"
+    finalizer_fixture = tmp_path / "finalizer.json"
+    permission_fixture = tmp_path / "permission.json"
+    pr_counter = tmp_path / "pr-counter"
+    snapshot_counter = tmp_path / "snapshot-counter"
+    pending_counter = tmp_path / "pending-counter"
+    status_log = tmp_path / "statuses.log"
+    owners_fixture.write_text(json.dumps([[claimed]]), encoding="utf-8")
+    pr_fixture.write_text(json.dumps(claimed), encoding="utf-8")
+    current_pr_fixture.write_text(json.dumps(current), encoding="utf-8")
+    main_fixture.write_text(json.dumps({"object": {"sha": HEAD_SHA}}), encoding="utf-8")
+    finalizer_fixture.write_text(
+        json.dumps(
+            {
+                "data": {
+                    "node": {
+                        "id": FINALIZER_NODE_ID,
+                        "author": {
+                            "__typename": "User",
+                            "databaseId": HUMAN_ID,
+                            "login": "trusted-reviewer",
+                        },
+                        "authorAssociation": "MEMBER",
+                        "body": "/validate-route",
+                        "createdAt": CREATED_AT,
+                        "updatedAt": CREATED_AT,
+                        "lastEditedAt": None,
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    permission_fixture.write_text(
+        json.dumps({"permission": "write", "user": {"id": HUMAN_ID}}),
+        encoding="utf-8",
+    )
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_bash = fake_bin / "bash"
+    fake_bash.write_text(
+        """#!/bin/bash
+set -eu
+if [ "${1:-}" = "scripts/validate_review_route_snapshot.sh" ]; then
+  count=0
+  if [ -f "$SNAPSHOT_COUNTER" ]; then read -r count < "$SNAPSHOT_COUNTER"; fi
+  count=$((count + 1))
+  printf '%s\n' "$count" > "$SNAPSHOT_COUNTER"
+  if [ "$SNAPSHOT_PLAN" = "pre-fail" ] && [ "$count" = "1" ]; then exit 1; fi
+  if [ "$SNAPSHOT_PLAN" = "post-fail" ] && [ "$count" = "2" ]; then exit 1; fi
+  exit 0
+fi
+exec /bin/bash "$@"
+""",
+        encoding="utf-8",
+    )
+    fake_bash.chmod(0o755)
+    fake_gh = fake_bin / "gh"
+    fake_gh.write_text(
+        """#!/usr/bin/env bash
+set -eu
+case "$*" in
+  *"pulls?state=open"*) exec /bin/cat "$OWNERS_FIXTURE" ;;
+  *"api graphql"*) exec /bin/cat "$FINALIZER_FIXTURE" ;;
+  *"collaborators/"*"/permission"*) exec /bin/cat "$PERMISSION_FIXTURE" ;;
+  *"git/ref/heads/main"*) exec /bin/cat "$MAIN_FIXTURE" ;;
+  *"pulls/2183"*)
+    if [[ " $* " == *" --jq "* ]]; then
+      printf '%s\n' "$(printf 'b%.0s' {1..40})"
+      exit 0
+    fi
+    count=0
+    if [ -f "$PR_COUNTER" ]; then read -r count < "$PR_COUNTER"; fi
+    count=$((count + 1))
+    printf '%s\n' "$count" > "$PR_COUNTER"
+    if [ "$count" -ge 3 ]; then exec /bin/cat "$CURRENT_PR_FIXTURE"; fi
+    exec /bin/cat "$PR_FIXTURE"
+    ;;
+  *"statuses/"*)
+    sha=""
+    state=""
+    context=""
+    for argument in "$@"; do
+      case "$argument" in
+        repos/*/statuses/*) sha="${argument##*/}" ;;
+        state=*) state="${argument#state=}" ;;
+        context=*) context="${argument#context=}" ;;
+      esac
+    done
+    printf '%s\t%s\n' "$sha" "$state" >> "$STATUS_LOG"
+    if [ "$state" = "pending" ]; then
+      count=0
+      if [ -f "$PENDING_COUNTER" ]; then read -r count < "$PENDING_COUNTER"; fi
+      count=$((count + 1))
+      printf '%s\n' "$count" > "$PENDING_COUNTER"
+      if [ "$FAIL_FIRST_PENDING" = "true" ] && [ "$count" = "1" ]; then exit 1; fi
+    fi
+    printf '{"state":"%s","context":"%s"}\n' "$state" "$context"
+    ;;
+  *) exit 2 ;;
+esac
+""",
+        encoding="utf-8",
+    )
+    fake_gh.chmod(0o755)
+    fake_sleep = fake_bin / "sleep"
+    fake_sleep.write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
+    fake_sleep.chmod(0o755)
+    completed = subprocess.run(
+        ["/bin/bash", "-e", "-o", "pipefail", "-c", shell],
+        check=False,
+        capture_output=True,
+        env={
+            **os.environ,
+            "CURRENT_PR_FIXTURE": str(current_pr_fixture),
+            "FAIL_FIRST_PENDING": str(fail_first_pending).lower(),
+            "FINALIZE_COMMENT_ACTOR_ID": str(HUMAN_ID),
+            "FINALIZE_COMMENT_CREATED_AT": CREATED_AT,
+            "FINALIZE_COMMENT_NODE_ID": FINALIZER_NODE_ID,
+            "FINALIZE_ROUTE": "true",
+            "FINALIZER_FIXTURE": str(finalizer_fixture),
+            "GH_TOKEN": "test-token",
+            "GITHUB_REPOSITORY": "bioedca/Yeliztli",
+            "HEAD_BRANCH": "issue-2183",
+            "HEAD_REPOSITORY": "bioedca/Yeliztli",
+            "HEAD_SHA": HEAD_SHA,
+            "IS_DRAFT": "false",
+            "MAIN_FIXTURE": str(main_fixture),
+            "OWNERS_FIXTURE": str(owners_fixture),
+            "PATH": f"{fake_bin}:{os.environ['PATH']}",
+            "PENDING_COUNTER": str(pending_counter),
+            "PERMISSION_FIXTURE": str(permission_fixture),
+            "PR_COUNTER": str(pr_counter),
+            "PR_FIXTURE": str(pr_fixture),
+            "PR_NUMBER": "2183",
+            "PR_UPDATED_AT": PR_UPDATED_AT,
+            "RESOLVED_HEAD_SHA": HEAD_SHA,
+            "RUNNER_TEMP": str(tmp_path),
+            "RUN_URL": "https://example.test/run",
+            "SCHEMA_VERSION": "3",
+            "SNAPSHOT_COUNTER": str(snapshot_counter),
+            "SNAPSHOT_PLAN": snapshot_plan,
+            "STATUS_LOG": str(status_log),
+            "TRUSTED_SHA": HEAD_SHA,
+            "VALIDATION_OUTCOME": "success",
+            "WORKFLOW_SHA": HEAD_SHA,
+        },
+        text=True,
+    )
+    assert completed.returncode == expected_returncode, completed.stderr
+    actual_statuses = [
+        (sha, state)
+        for sha, state in (
+            line.split("\t") for line in status_log.read_text(encoding="utf-8").splitlines()
+        )
+    ]
+    assert actual_statuses == expected_statuses
+    expected_snapshots = 1 if snapshot_plan == "pre-fail" else 2
+    assert int(snapshot_counter.read_text(encoding="utf-8")) == expected_snapshots
+    if snapshot_plan == "post-fail":
+        assert "post-success audit failed closed" in completed.stdout
 
 
 def test_public_template_contains_only_hosted_review_gates() -> None:
