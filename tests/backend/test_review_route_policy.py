@@ -653,6 +653,27 @@ def test_v3_accepts_one_clean_trusted_provider_without_human_approval(gate: str)
     assert validate_context(context, files, now=NOW) == []
 
 
+def test_v3_missing_evidence_error_uses_the_public_row_label() -> None:
+    files = [ChangedFile("README.md")]
+    context = _context(
+        "Load-bearing",
+        files,
+        automated_gates={CODERABBIT_GATE},
+        schema_version=3,
+    )
+    pull_request = context["data"]["repository"]["pullRequest"]
+    pull_request["body"] = "\n".join(
+        line
+        for line in pull_request["body"].splitlines()
+        if not line.startswith("| CodeRabbit structured clean review |")
+    )
+
+    errors = validate_context(context, files, now=NOW)
+
+    assert "missing review evidence rows: CodeRabbit structured clean review" in errors
+    assert f"missing review evidence rows: {CODERABBIT_GATE}" not in errors
+
+
 def test_v3_requires_exactly_one_hosted_provider_and_no_human_row() -> None:
     files = [ChangedFile("README.md")]
     context = _context("Load-bearing", files, schema_version=3)

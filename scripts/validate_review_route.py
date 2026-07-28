@@ -1073,6 +1073,7 @@ def _parse_route_section(
             strict=True,
         )
     )
+    gate_to_label = {gate: label for label, gate in label_to_gate.items()}
     evidence: dict[str, Evidence] = {}
     unknown: list[str] = []
     for line in section.splitlines():
@@ -1097,7 +1098,10 @@ def _parse_route_section(
             )
     missing = expected - evidence.keys()
     if missing:
-        errors.append("missing review evidence rows: " + ", ".join(sorted(missing)))
+        errors.append(
+            "missing review evidence rows: "
+            + ", ".join(sorted(gate_to_label[gate] for gate in missing))
+        )
     if unknown:
         errors.append("unknown review evidence rows: " + ", ".join(sorted(unknown)))
     return route, schema_version, selected_bots, evidence, errors
