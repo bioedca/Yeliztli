@@ -3901,7 +3901,7 @@ def test_workflow_uses_trusted_base_and_explicit_head_status() -> None:
     assert 'post_pending_if_unowned "$EVENT_HEAD_SHA"' in validate_job
     assert '[ "$EVENT_HEAD_SHA" != "$head_sha" ]' in validate_job
     assert "^[0-9a-fA-F]{40}$" in workflow
-    assert workflow.count("for attempt in 1 2 3") == 13
+    assert workflow.count("for attempt in 1 2 3") == 14
     assert '--expected-head "$HEAD_SHA"' in workflow
     assert '--expected-draft "$IS_DRAFT"' in workflow
     assert '--expected-pr-updated-at "$PR_UPDATED_AT"' in workflow
@@ -6144,15 +6144,18 @@ esac
     (
         "snapshot_plan",
         "fail_first_pending",
+        "head_lookup_failures",
         "expected_returncode",
         "expected_statuses",
+        "expect_incomplete_rollback",
     ),
     [
-        ("pre-fail", False, 1, [(HEAD_SHA, "pending")]),
-        ("pass", False, 0, [(HEAD_SHA, "success")]),
+        ("pre-fail", False, 0, 1, [(HEAD_SHA, "pending")], False),
+        ("pass", False, 0, 0, [(HEAD_SHA, "success")], False),
         (
             "post-fail",
             True,
+            0,
             1,
             [
                 (HEAD_SHA, "success"),
@@ -6160,6 +6163,30 @@ esac
                 (HEAD_SHA, "pending"),
                 ("b" * 40, "pending"),
             ],
+            False,
+        ),
+        (
+            "post-fail",
+            False,
+            2,
+            1,
+            [
+                (HEAD_SHA, "success"),
+                (HEAD_SHA, "pending"),
+                ("b" * 40, "pending"),
+            ],
+            False,
+        ),
+        (
+            "post-fail",
+            False,
+            3,
+            1,
+            [
+                (HEAD_SHA, "success"),
+                (HEAD_SHA, "pending"),
+            ],
+            True,
         ),
     ],
 )
@@ -6167,8 +6194,10 @@ def test_v3_publisher_executes_fresh_validation_and_audit_rollback(
     tmp_path: Path,
     snapshot_plan: str,
     fail_first_pending: bool,
+    head_lookup_failures: int,
     expected_returncode: int,
     expected_statuses: list[tuple[str, str]],
+    expect_incomplete_rollback: bool,
 ) -> None:
     root = Path(__file__).resolve().parents[2]
     workflow = (root / ".github/workflows/review-route.yml").read_text(encoding="utf-8")
@@ -6194,6 +6223,7 @@ def test_v3_publisher_executes_fresh_validation_and_audit_rollback(
     main_fixture = tmp_path / "main.json"
     finalizer_fixture = tmp_path / "finalizer.json"
     permission_fixture = tmp_path / "permission.json"
+    head_lookup_counter = tmp_path / "head-lookup-counter"
     pr_counter = tmp_path / "pr-counter"
     snapshot_counter = tmp_path / "snapshot-counter"
     pending_counter = tmp_path / "pending-counter"
@@ -6259,6 +6289,11 @@ case "$*" in
   *"git/ref/heads/main"*) exec /bin/cat "$MAIN_FIXTURE" ;;
   *"pulls/2183"*)
     if [[ " $* " == *" --jq "* ]]; then
+      count=0
+      if [ -f "$HEAD_LOOKUP_COUNTER" ]; then read -r count < "$HEAD_LOOKUP_COUNTER"; fi
+      count=$((count + 1))
+      printf '%s\n' "$count" > "$HEAD_LOOKUP_COUNTER"
+      if [ "$count" -le "$HEAD_LOOKUP_FAILURES" ]; then exit 1; fi
       printf '%s\n' "$(printf 'b%.0s' {1..40})"
       exit 0
     fi
@@ -6315,6 +6350,8 @@ esac
             "GH_TOKEN": "test-token",
             "GITHUB_REPOSITORY": "bioedca/Yeliztli",
             "HEAD_BRANCH": "issue-2183",
+            "HEAD_LOOKUP_COUNTER": str(head_lookup_counter),
+            "HEAD_LOOKUP_FAILURES": str(head_lookup_failures),
             "HEAD_REPOSITORY": "bioedca/Yeliztli",
             "HEAD_SHA": HEAD_SHA,
             "IS_DRAFT": "false",
@@ -6352,6 +6389,12 @@ esac
     assert int(snapshot_counter.read_text(encoding="utf-8")) == expected_snapshots
     if snapshot_plan == "post-fail":
         assert "post-success audit failed closed" in completed.stdout
+        assert (
+            "post-success pending rollback was incomplete" in completed.stdout
+        ) is expect_incomplete_rollback
+        assert int(head_lookup_counter.read_text(encoding="utf-8")) == min(
+            head_lookup_failures + 1, 3
+        )
 
 
 def test_public_template_contains_only_hosted_review_gates() -> None:

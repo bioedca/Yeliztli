@@ -1362,12 +1362,23 @@ jobs:
                 rollback_ok=false
                 echo "::error title=Review Route::could not replace original-head success with pending"
               fi
-              current_head="$(
-                gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" \
-                  --jq '.head.sha | ascii_downcase' 2>/dev/null || true
-              )"
-              if [[ "$current_head" =~ ^[0-9a-f]{40}$ ]] && \
-                [ "$current_head" != "$HEAD_SHA" ]; then
+              current_head=""
+              current_head_resolved=false
+              for attempt in 1 2 3; do
+                current_head="$(
+                  gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" \
+                    --jq '.head.sha | ascii_downcase' 2>/dev/null || true
+                )"
+                if [[ "$current_head" =~ ^[0-9a-f]{40}$ ]]; then
+                  current_head_resolved=true
+                  break
+                fi
+                if [ "$attempt" -lt 3 ]; then sleep "$attempt"; fi
+              done
+              if [ "$current_head_resolved" != "true" ]; then
+                rollback_ok=false
+                echo "::error title=Review Route::could not resolve the current PR head for pending rollback"
+              elif [ "$current_head" != "$HEAD_SHA" ]; then
                 if ! publish_audit_pending "$current_head" current; then
                   rollback_ok=false
                   echo "::error title=Review Route::could not publish pending on the changed current head"
