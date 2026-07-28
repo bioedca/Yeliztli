@@ -4153,7 +4153,7 @@ def test_v3_workflow_invalidates_to_pending_and_audits_one_published_success() -
 
     assert 'contains("<!-- review-route-schema:v3 -->")' in validate_job
     assert "INVALIDATION_ONLY=%s" in validate_job
-    assert "V3 invalidation is complete after publishing pending." in validate_job
+    assert "Invalidation is complete after publishing pending." in validate_job
     assert (
         "- uses: actions/checkout@" in validate_job
         and "if: ${{ env.INVALIDATION_ONLY != 'true' }}" in validate_job
@@ -5808,9 +5808,9 @@ esac
     )
     assert actual_statuses == expected_statuses
     assert actual_attempts == expected_attempts
-    if v3:
+    if expected_returncode == 0 and (v3 or not current_open):
         environment = environment_file.read_text(encoding="utf-8")
-        assert "SCHEMA_VERSION=3" in environment
+        assert f"SCHEMA_VERSION={'3' if v3 else 'legacy'}" in environment
         assert "INVALIDATION_ONLY=true" in environment
         publisher_shell = _workflow_step_script(workflow, "Publish required status on PR head")
         publisher = subprocess.run(
@@ -5824,7 +5824,7 @@ esac
             text=True,
         )
         assert publisher.returncode == 0
-        assert "V3 invalidation is complete after publishing pending." in publisher.stdout
+        assert "Invalidation is complete after publishing pending." in publisher.stdout
     if updated_at != PR_UPDATED_AT:
         environment = (
             environment_file.read_text(encoding="utf-8") if environment_file.exists() else ""
