@@ -16,10 +16,13 @@ from typing import Any
 
 LEGACY_SCHEMA_MARKER = "<!-- review-route-schema:v1 -->"
 SCHEMA_MARKER = "<!-- review-route-schema:v2 -->"
+AUTONOMOUS_SCHEMA_MARKER = "<!-- review-route-schema:v3 -->"
+REVIEW_SIGNAL_WORKFLOW = ".github/workflows/review-route-invalidation.yml"
 ROUTE_RANK = {"Low": 0, "Standard": 1, "Load-bearing": 2}
 COPILOT_GATE = "Copilot PR review"
 CODEX_GATE = "Codex @codex review"
 CODERABBIT_GATE = "Manual CodeRabbit reservation and @coderabbitai full review"
+CODERABBIT_V3_GATE = "CodeRabbit structured clean review"
 HUMAN_GATE = "Independent human maintainer review"
 BOT_GATES = (COPILOT_GATE, CODEX_GATE, CODERABBIT_GATE)
 GATES = (*BOT_GATES, HUMAN_GATE)
@@ -252,6 +255,13 @@ UTC_RESULT = re.compile(
 )
 TERMINAL_REVIEW_STATES = {"APPROVED", "COMMENTED"}
 HUMAN_ASSOCIATIONS = {"OWNER", "MEMBER", "COLLABORATOR"}
+COPILOT_V3_FINDINGS_BODY = re.compile(
+    r"\A## Copilot's findings\n"
+    r"(?:\n){5,6}"
+    r"- \*\*Files reviewed:\*\* "
+    r"(?P<reviewed>[1-9][0-9]*)/(?P<total>[1-9][0-9]*) changed files\n"
+    r"- \*\*Comments generated:\*\* 0 new\n\n\Z"
+)
 CODEX_CLEAN_COMPLETION_PREFIX = "Codex Review: Didn't find any major issues."
 CODEX_CLEAN_COMPLETION_MARKER = f"{CODEX_CLEAN_COMPLETION_PREFIX} What shall we delve into next?"
 CODEX_CLEAN_COMPLETION_LINE = re.compile(
@@ -262,8 +272,29 @@ CODEX_REVIEWED_COMMIT_LINE = re.compile(
 )
 CODEX_TRIGGER = "@codex review"
 CODERABBIT_COMPLETION_MARKER = "auto-generated comment by CodeRabbit for review status"
+CODERABBIT_ACTIONABLE_COUNT = re.compile(
+    r"(?m)^\*\*Actionable comments posted: (?P<count>0|[1-9][0-9]*)\*\*$"
+)
+CODERABBIT_IGNORED_COUNT = re.compile(
+    r"(?m)^<summary>⛔ Files ignored due to path filters "
+    r"\((?P<count>0|[1-9][0-9]*)\)</summary>$"
+)
+CODERABBIT_SELECTED_COUNT = re.compile(
+    r"(?m)^<summary>📒 Files selected for processing "
+    r"\((?P<count>[1-9][0-9]*)\)</summary>$"
+)
 HUMAN_OPINION_STATES = {"APPROVED", "CHANGES_REQUESTED", "DISMISSED"}
 FINALIZE_COMMAND = "/validate-route"
+
+
+def _gates_for_schema(schema_version: int | None) -> tuple[str, ...]:
+    return BOT_GATES if schema_version == 3 else GATES
+
+
+def _gate_labels_for_schema(schema_version: int | None) -> tuple[str, ...]:
+    if schema_version == 3:
+        return (COPILOT_GATE, CODEX_GATE, CODERABBIT_V3_GATE)
+    return GATES
 
 
 @dataclass(frozen=True)
@@ -314,7 +345,7 @@ def _markdown_without_code(body: str) -> str:
 
 def _route_structure_markdown(body: str) -> str:
     """Strip HTML comments while retaining standalone schema-marker comments."""
-    schema_line = re.compile(r"(?i)^<!-- review-route-schema:v[12] -->\s*$")
+    schema_line = re.compile(r"(?i)^<!-- review-route-schema:v[123] -->\s*$")
     visible_lines: list[str] = []
     in_comment = False
     for line in _markdown_without_code(body).splitlines():
@@ -361,7 +392,7 @@ def render_probe_body(body: str, nonce: str) -> str:
         raise ValueError("render nonce has an invalid shape")
     marker = re.compile(
         r"(?mi)^## Review route[ \t]*\n(?:[ \t]*\n)*"
-        r"<!-- review-route-schema:v[12] -->[ \t]*$"
+        r"<!-- review-route-schema:v[123] -->[ \t]*$"
     )
     structure = _route_structure_markdown(body)
     matches = list(marker.finditer(structure))
@@ -756,8 +787,8 @@ def _rendered_route_errors(
     if (
         not section_roots
         or section_roots[-1]["tag"] not in table_tags
-        or (schema_version == 2 and not (separate_groups or combined_groups))
-        or (schema_version != 2 and root_tags != ["ul", section_roots[-1]["tag"]])
+        or (schema_version in {2, 3} and not (separate_groups or combined_groups))
+        or (schema_version not in {2, 3} and root_tags != ["ul", section_roots[-1]["tag"]])
     ):
         return [RENDERED_ROUTE_ERROR]
 
@@ -818,7 +849,7 @@ def _rendered_route_errors(
 
     checklist_nodes = section_roots[:-1]
     expected_checklist_sizes = (
-        [6] if schema_version == 2 and combined_groups else [3] * len(checklist_nodes)
+        [6] if schema_version in {2, 3} and combined_groups else [3] * len(checklist_nodes)
     )
     if any(
         not exact_checklist(node, expected_count)
@@ -849,7 +880,7 @@ def _rendered_route_errors(
     if checked_routes is None or (route is not None and checked_routes != [route]):
         return [RENDERED_ROUTE_ERROR]
 
-    if schema_version == 2:
+    if schema_version in {2, 3}:
         provider_labels = ["Copilot", "Codex", "CodeRabbit"]
         provider_checkboxes = (
             first_checkboxes[3:] if combined_groups else section_roots[1]["checkboxes"]
@@ -907,22 +938,24 @@ def _rendered_route_errors(
         "Head SHA or N/A",
         "UTC time and status, or N/A",
     ]
+    expected_gates = _gates_for_schema(schema_version)
+    expected_labels = _gate_labels_for_schema(schema_version)
     if (
-        len(rendered_rows) != len(GATES) + 1
+        len(rendered_rows) != len(expected_gates) + 1
         or rendered_rows[0] != header
         or any(len(row) != 4 for row in rendered_rows[1:])
-        or [row[0] for row in rendered_rows[1:]] != list(GATES)
+        or [row[0] for row in rendered_rows[1:]] != list(expected_labels)
     ):
         return [RENDERED_ROUTE_ERROR]
-    if len(evidence) == len(GATES):
+    if len(evidence) == len(expected_gates):
         expected_rows = [
             [
-                gate,
+                label,
                 _normalise_gate(evidence[gate].applies_to),
                 _normalise_gate(evidence[gate].head),
                 _normalise_gate(evidence[gate].status),
             ]
-            for gate in GATES
+            for gate, label in zip(expected_gates, expected_labels, strict=True)
         ]
 
         def rendered_head_matches(cell: dict[str, Any], expected: str) -> bool:
@@ -982,7 +1015,7 @@ def _parse_route_section(
     errors: list[str] = []
     marker_pattern = re.compile(
         r"(?mi)^## Review route\s*\n"
-        r"<!-- review-route-schema:v(?P<version>[12]) -->\s*$"
+        r"<!-- review-route-schema:v(?P<version>[123]) -->\s*$"
     )
     marker_matches = list(marker_pattern.finditer(_route_structure_markdown(body)))
     if len(marker_matches) != 1:
@@ -1019,7 +1052,7 @@ def _parse_route_section(
     route = selected[0] if len(selected) == 1 else None
 
     selected_bots: list[str] = []
-    if schema_version == 2:
+    if schema_version in {2, 3}:
         reviewer_rows = re.findall(
             r"(?m)^[ ]{0,3}- \[([ xX])\] (Copilot|Codex|CodeRabbit)\b",
             section,
@@ -1032,7 +1065,15 @@ def _parse_route_section(
         if any(count != 1 for count in reviewer_counts.values()):
             errors.append("expected each automated reviewer checkbox exactly once")
 
-    expected = set(GATES)
+    expected = set(_gates_for_schema(schema_version))
+    label_to_gate = dict(
+        zip(
+            _gate_labels_for_schema(schema_version),
+            _gates_for_schema(schema_version),
+            strict=True,
+        )
+    )
+    gate_to_label = {gate: label for label, gate in label_to_gate.items()}
     evidence: dict[str, Evidence] = {}
     unknown: list[str] = []
     for line in section.splitlines():
@@ -1043,11 +1084,12 @@ def _parse_route_section(
             continue
         if all(re.fullmatch(r":?-{3,}:?", cell) for cell in cells):
             continue
-        gate = _normalise_gate(cells[0])
-        if gate not in expected:
-            unknown.append(gate)
+        label = _normalise_gate(cells[0])
+        gate = label_to_gate.get(label)
+        if gate is None:
+            unknown.append(label)
         elif gate in evidence:
-            errors.append(f"duplicate review evidence row: {gate}")
+            errors.append(f"duplicate review evidence row: {label}")
         else:
             evidence[gate] = Evidence(
                 applies_to=cells[1],
@@ -1056,10 +1098,86 @@ def _parse_route_section(
             )
     missing = expected - evidence.keys()
     if missing:
-        errors.append("missing review evidence rows: " + ", ".join(sorted(missing)))
+        errors.append(
+            "missing review evidence rows: "
+            + ", ".join(sorted(gate_to_label[gate] for gate in missing))
+        )
     if unknown:
         errors.append("unknown review evidence rows: " + ", ".join(sorted(unknown)))
     return route, schema_version, selected_bots, evidence, errors
+
+
+def _v3_provenance_errors(
+    body: str,
+    head_sha: str,
+    selected_bots: list[str],
+    *,
+    allow_blank: bool = False,
+) -> list[str]:
+    errors: list[str] = []
+    visible = _visible_markdown(body)
+    headings = list(re.finditer(r"(?mi)^## Automated contribution provenance\s*$", visible))
+    if len(headings) != 1:
+        return ["expected exactly one v3 automated contribution provenance section"]
+    start = headings[0].end()
+    following = re.search(r"(?mi)^##\s+", visible[start:])
+    section = visible[start : start + following.start()] if following else visible[start:]
+    if "<" in section:
+        errors.append(
+            "raw HTML is not allowed in the v3 automated contribution provenance section"
+        )
+    field_names = (
+        "Issue",
+        "Exact head SHA",
+        "Selected hosted reviewer",
+        "Test evidence",
+        "Agent claim ID",
+    )
+    fields: dict[str, str] = {}
+    for name in field_names:
+        matches = re.findall(
+            rf"(?m)^[ ]{{0,3}}- {re.escape(name)}:[ \t]*(.*?)[ \t]*$",
+            section,
+        )
+        if len(matches) != 1:
+            errors.append(f"expected exactly one v3 provenance field: {name}")
+        else:
+            fields[name] = matches[0]
+
+    issue = fields.get("Issue", "")
+    if (issue or not allow_blank) and re.fullmatch(
+        r"(?:Closes|Fixes|Resolves) #[1-9][0-9]*", issue
+    ) is None:
+        errors.append("v3 provenance issue must be an exact closing reference")
+    exact_head = fields.get("Exact head SHA", "")
+    if (exact_head or not allow_blank) and exact_head.lower() != head_sha.lower():
+        errors.append("v3 provenance head does not match the current head SHA")
+    provider_labels = {
+        COPILOT_GATE: "Copilot",
+        CODEX_GATE: "Codex",
+        CODERABBIT_GATE: "CodeRabbit",
+    }
+    expected_provider = provider_labels[selected_bots[0]] if len(selected_bots) == 1 else None
+    selected_provider = fields.get("Selected hosted reviewer", "")
+    if (selected_provider or not allow_blank) and (
+        expected_provider is None or selected_provider != expected_provider
+    ):
+        errors.append("v3 provenance reviewer does not match the selected hosted reviewer")
+    test_evidence = fields.get("Test evidence", "")
+    if (test_evidence or not allow_blank) and (not test_evidence or test_evidence == "N/A"):
+        errors.append("v3 provenance test evidence must be nonempty")
+    claim_id = fields.get("Agent claim ID", "")
+    if (claim_id or not allow_blank) and (
+        re.fullmatch(
+            r"yz-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-"
+            r"[89ab][0-9a-f]{3}-[0-9a-f]{12}",
+            claim_id,
+            flags=re.IGNORECASE,
+        )
+        is None
+    ):
+        errors.append("v3 provenance agent claim ID must be a UUIDv4 claim")
+    return errors
 
 
 def needs_coderabbit_ledger(body: str) -> bool:
@@ -1124,6 +1242,58 @@ def _connection_truncated_since(
     return oldest >= since if inclusive else oldest > since
 
 
+def _v3_formal_review_is_clean(
+    review: dict[str, Any],
+    gate: str,
+    changed_files: Any,
+) -> bool:
+    """Validate only the provider's small authenticated completion envelope."""
+    comments = review.get("comments")
+    attached_count = comments.get("totalCount") if isinstance(comments, dict) else None
+    if (
+        isinstance(attached_count, bool)
+        or not isinstance(attached_count, int)
+        or attached_count != 0
+    ):
+        return False
+    body = review.get("body")
+    if not isinstance(body, str):
+        return False
+    if gate == CODEX_GATE:
+        return review.get("state") == "APPROVED" and body == ""
+    if review.get("state") != "COMMENTED":
+        return False
+    if isinstance(changed_files, bool) or not isinstance(changed_files, int) or changed_files <= 0:
+        return False
+    if gate == COPILOT_GATE:
+        match = COPILOT_V3_FINDINGS_BODY.fullmatch(body)
+        return (
+            match is not None
+            and int(match.group("reviewed")) == changed_files
+            and int(match.group("total")) == changed_files
+        )
+    if gate != CODERABBIT_GATE:
+        return False
+    actionable = list(CODERABBIT_ACTIONABLE_COUNT.finditer(body))
+    ignored = list(CODERABBIT_IGNORED_COUNT.finditer(body))
+    selected = list(CODERABBIT_SELECTED_COUNT.finditer(body))
+    marker = f"<!-- This is an {CODERABBIT_COMPLETION_MARKER} -->"
+    return (
+        body.startswith("**Actionable comments posted: 0**\n")
+        and body.endswith(marker)
+        and body.count(marker) == 1
+        and len(actionable) == 1
+        and body.count("Actionable comments posted:") == 1
+        and actionable[0].group("count") == "0"
+        and len(ignored) <= 1
+        and body.lower().count("files ignored") == len(ignored)
+        and all(match.group("count") == "0" for match in ignored)
+        and len(selected) == 1
+        and body.count("Files selected for processing") == 1
+        and int(selected[0].group("count")) == changed_files
+    )
+
+
 def _bot_activity(
     pull_request: dict[str, Any],
     gate: str,
@@ -1131,6 +1301,7 @@ def _bot_activity(
     head_sha: str,
     head_epoch: datetime,
     codex_head_safe: bool = False,
+    schema_version: int | None = None,
 ) -> datetime | None:
     candidates: list[tuple[datetime, dict[str, Any]]] = []
     for review in pull_request["reviews"].get("nodes") or []:
@@ -1158,13 +1329,22 @@ def _bot_activity(
             and review["lastEditedAt"] is None
             and review.get("state") in TERMINAL_REVIEW_STATES
             and (
-                gate != CODERABBIT_GATE
-                or CODERABBIT_COMPLETION_MARKER.lower() in (review.get("body") or "").lower()
+                _v3_formal_review_is_clean(
+                    review,
+                    gate,
+                    pull_request.get("changedFiles"),
+                )
+                if schema_version == 3
+                else (
+                    gate != CODERABBIT_GATE
+                    or CODERABBIT_COMPLETION_MARKER.lower() in (review.get("body") or "").lower()
+                )
             ),
         )
         for when, review in candidates
         if not (
-            gate == CODERABBIT_GATE
+            schema_version != 3
+            and gate == CODERABBIT_GATE
             and review.get("state") in TERMINAL_REVIEW_STATES
             and not (review.get("body") or "").strip()
         )
@@ -1186,7 +1366,11 @@ def _bot_activity(
             database_id = comment.get("databaseId")
             if not isinstance(database_id, int):
                 continue
-            immutable = created == updated and comment.get("lastEditedAt") is None
+            immutable = (
+                created == updated
+                and "lastEditedAt" in comment
+                and comment["lastEditedAt"] is None
+            )
             commit_lines = CODEX_REVIEWED_COMMIT_LINE.findall(body)
             first_lines = body.splitlines()[0:1]
             clean_completion = (
@@ -1198,7 +1382,9 @@ def _bot_activity(
                 and commit_lines[0] == head_sha[:10].lower()
                 and codex_head_safe
             )
-            if clean_completion:
+            if schema_version == 3:
+                signals.append((max(created, updated), clean_completion))
+            elif clean_completion:
                 signals.append((created, True))
     if not signals:
         return None
@@ -1720,6 +1906,25 @@ def validate_context(
             "review-route schema v1 is obsolete; migrate to v2 and select one automated reviewer"
         )
         return errors
+    if schema_version == 3 and any(
+        path == REVIEW_SIGNAL_WORKFLOW
+        for item in files
+        for path in (item.filename, item.previous_filename)
+        if path is not None
+    ):
+        errors.append(
+            "review-route schema v3 cannot modify the PR-controlled review signal workflow; "
+            "use the human-gated v2 route"
+        )
+    if schema_version == 3:
+        errors.extend(
+            _v3_provenance_errors(
+                pull_request.get("body") or "",
+                head_sha,
+                selected_bots,
+                allow_blank=pull_request.get("isDraft") is True,
+            )
+        )
     if pull_request.get("isDraft") is True or route is None:
         return errors
 
@@ -1741,14 +1946,20 @@ def validate_context(
 
     if len(selected_bots) != 1:
         errors.append("select exactly one automated PR reviewer")
-    required = {*selected_bots, HUMAN_GATE}
-    if CODERABBIT_GATE not in required and any(
-        kind == "trigger" and when > head_epoch
-        for when, kind, _, _ in _coderabbit_protocol_events(pull_request, head_sha)
+    required = set(selected_bots)
+    if schema_version != 3:
+        required.add(HUMAN_GATE)
+    if (
+        schema_version == 2
+        and CODERABBIT_GATE not in required
+        and any(
+            kind == "trigger" and when > head_epoch
+            for when, kind, _, _ in _coderabbit_protocol_events(pull_request, head_sha)
+        )
     ):
         errors.append("manual CodeRabbit triggers require selecting the CodeRabbit lane")
     body_times: dict[str, datetime] = {}
-    for gate in GATES:
+    for gate in _gates_for_schema(schema_version):
         row = evidence.get(gate)
         if row is None:
             continue
@@ -1799,21 +2010,26 @@ def validate_context(
             head_sha,
             head_epoch,
             codex_head_safe,
+            schema_version,
         )
         if activity is None:
             errors.append(f"no verified current-head GitHub activity for: {gate}")
         else:
             observed[gate] = activity
+    approval, active_change_request = _current_human_approval(pull_request, head_sha, head_epoch)
+    if active_change_request:
+        errors.append("an active human maintainer change request remains")
     if HUMAN_GATE in required:
-        approval, active_change_request = _current_human_approval(
-            pull_request, head_sha, head_epoch
-        )
-        if active_change_request:
-            errors.append("an active human maintainer change request remains")
         if approval is None:
             errors.append("no current-head approval from an independent human collaborator")
         else:
             observed[HUMAN_GATE] = approval
+    if schema_version == 3 and selected_bots:
+        selected_actor = BOT_ACTOR_IDS[selected_bots[0]]
+        if _actor_id(pull_request) == selected_actor:
+            errors.append(
+                "selected hosted reviewer must be independent of the pull request author"
+            )
 
     for gate, activity in observed.items():
         if gate in body_times and abs((body_times[gate] - activity).total_seconds()) > 600:
@@ -1835,12 +2051,11 @@ def validate_context(
         )
 
     gate_times = {**body_times, **observed}
-    sequence = [*selected_bots, HUMAN_GATE]
-    sequence_error = "selected automated review must precede human approval"
-    if all(gate in gate_times for gate in sequence):
+    sequence = [*selected_bots, HUMAN_GATE] if schema_version != 3 else []
+    if sequence and all(gate in gate_times for gate in sequence):
         times = [gate_times[gate] for gate in sequence]
         if any(left >= right for left, right in zip(times, times[1:], strict=False)):
-            errors.append(sequence_error)
+            errors.append("selected automated review must precede human approval")
     if has_finalizer:
         finalizer_at, finalizer_errors = _finalizer_activity(
             pull_request,

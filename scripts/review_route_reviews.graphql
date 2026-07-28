@@ -25,6 +25,7 @@ query ReviewRouteReviewPages(
           }
           authorAssociation
           body
+          comments { totalCount }
           commit { oid }
           lastEditedAt
           state
