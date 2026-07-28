@@ -13,6 +13,7 @@ from pathlib import Path
 import pytest
 
 from scripts.validate_review_route import (
+    AUTONOMOUS_SCHEMA_MARKER,
     BOT_ACTOR_IDS,
     CODERABBIT_COMPLETION_MARKER,
     CODERABBIT_GATE,
@@ -95,16 +96,48 @@ def _review(
     association: str = "NONE",
     body: str = "Review completed.",
     last_edited_at: str | None = None,
+    review_comment_count: int = 0,
 ) -> dict[str, object]:
     return {
         "author": _actor(database_id, typename),
         "authorAssociation": association,
         "body": body,
+        "comments": {"totalCount": review_comment_count},
         "commit": {"oid": head_sha},
         "lastEditedAt": last_edited_at,
         "state": state,
         "submittedAt": submitted_at,
     }
+
+
+def _copilot_v3_body(changed_files: int, *, generated_comments: int = 0) -> str:
+    return (
+        "## Copilot's findings"
+        + "\n" * 7
+        + f"- **Files reviewed:** {changed_files}/{changed_files} changed files\n"
+        + f"- **Comments generated:** {generated_comments} new\n\n"
+    )
+
+
+def _coderabbit_v3_body(changed_files: int, *, ignored_files: int | None = None) -> str:
+    ignored = (
+        ""
+        if ignored_files is None
+        else (
+            "<details>\n"
+            f"<summary>⛔ Files ignored due to path filters ({ignored_files})</summary>\n"
+            "</details>\n\n"
+        )
+    )
+    return (
+        "**Actionable comments posted: 0**\n\n"
+        "<details>\n"
+        "<summary>📜 Review details</summary>\n\n"
+        f"{ignored}"
+        f"<summary>📒 Files selected for processing ({changed_files})</summary>\n"
+        "</details>\n\n"
+        f"<!-- This is an {CODERABBIT_COMPLETION_MARKER} -->"
+    )
 
 
 def _comment(
@@ -204,19 +237,28 @@ def _body(
     *,
     complete: bool = True,
     automated_gates: set[str] | None = None,
+    schema_version: int = 2,
 ) -> str:
     selected = {
         name: "x" if name == route else " " for name in ("Low", "Standard", "Load-bearing")
     }
     selected_bots = {DEFAULT_AUTOMATED_GATE[route]} if automated_gates is None else automated_gates
-    required = {*selected_bots, HUMAN_GATE}
+    required = set(selected_bots)
+    if schema_version == 2:
+        required.add(HUMAN_GATE)
     reviewer_labels = {
         COPILOT_GATE: "Copilot",
         CODEX_GATE: "Codex",
         CODERABBIT_GATE: "CodeRabbit",
     }
     rows = []
-    for gate in GATES:
+    evidence_gates = GATES if schema_version == 2 else tuple(GATES[:-1])
+    for gate in evidence_gates:
+        label = (
+            "CodeRabbit structured clean review"
+            if schema_version == 3 and gate == CODERABBIT_GATE
+            else gate
+        )
         if not complete:
             head, status = "", ""
         elif gate in required:
@@ -225,11 +267,11 @@ def _body(
             status = f"{GATE_TIMES[gate]} — {result}"
         else:
             head, status = "N/A", "N/A"
-        rows.append(f"| {gate} | scope | {head} | {status} |")
+        rows.append(f"| {label} | scope | {head} | {status} |")
     return "\n".join(
         [
             "## Review route",
-            SCHEMA_MARKER,
+            SCHEMA_MARKER if schema_version == 2 else AUTONOMOUS_SCHEMA_MARKER,
             f"- [{selected['Low']}] Low — docs",
             f"- [{selected['Standard']}] Standard — code",
             f"- [{selected['Load-bearing']}] Load-bearing — governance",
@@ -271,10 +313,18 @@ def _rendered_route_html(
             (CODERABBIT_GATE, "CodeRabbit"),
         )
     )
-    provider_group = f"<ul>{provider_items}</ul>" if schema_version == 2 else ""
-    required = {*selected_bots, HUMAN_GATE}
+    provider_group = f"<ul>{provider_items}</ul>" if schema_version in {2, 3} else ""
+    required = set(selected_bots)
+    if schema_version != 3:
+        required.add(HUMAN_GATE)
     evidence_rows = []
-    for gate in GATES:
+    evidence_gates = tuple(GATES[:-1]) if schema_version == 3 else GATES
+    for gate in evidence_gates:
+        label = (
+            "CodeRabbit structured clean review"
+            if schema_version == 3 and gate == CODERABBIT_GATE
+            else gate
+        )
         if gate in required:
             head = HEAD_SHA
             result = "APPROVED" if gate == HUMAN_GATE else "COMPLETE"
@@ -282,7 +332,7 @@ def _rendered_route_html(
         else:
             head = status = "N/A"
         evidence_rows.append(
-            f"<tr><td>{gate}</td><td>scope</td><td>{head}</td><td>{status}</td></tr>"
+            f"<tr><td>{label}</td><td>scope</td><td>{head}</td><td>{status}</td></tr>"
         )
     return (
         f"<h2>Review route</h2><p>{nonce}</p>"
@@ -338,6 +388,7 @@ def _context(
     complete: bool = True,
     body: str | None = None,
     automated_gates: set[str] | None = None,
+    schema_version: int = 2,
 ) -> dict[str, object]:
     selected_bots = {DEFAULT_AUTOMATED_GATE[route]} if automated_gates is None else automated_gates
     human_review = _review(
@@ -348,17 +399,30 @@ def _context(
         association="COLLABORATOR",
     )
     reviews = [
-        _review(BOT_ACTOR_IDS[COPILOT_GATE], GATE_TIMES[COPILOT_GATE]),
-        _review(BOT_ACTOR_IDS[CODEX_GATE], GATE_TIMES[CODEX_GATE]),
+        _review(
+            BOT_ACTOR_IDS[COPILOT_GATE],
+            GATE_TIMES[COPILOT_GATE],
+            body=(_copilot_v3_body(len(files)) if schema_version == 3 else "Review completed."),
+        ),
+        _review(
+            BOT_ACTOR_IDS[CODEX_GATE],
+            GATE_TIMES[CODEX_GATE],
+            state="APPROVED" if schema_version == 3 else "COMMENTED",
+            body="" if schema_version == 3 else "Review completed.",
+        ),
         _review(
             BOT_ACTOR_IDS[CODERABBIT_GATE],
             GATE_TIMES[CODERABBIT_GATE],
-            body=(f"Review completed. <!-- This is an {CODERABBIT_COMPLETION_MARKER} -->"),
+            body=(
+                _coderabbit_v3_body(len(files))
+                if schema_version == 3
+                else f"Review completed. <!-- This is an {CODERABBIT_COMPLETION_MARKER} -->"
+            ),
         ),
         human_review,
     ]
     comments = []
-    if CODERABBIT_GATE in selected_bots:
+    if schema_version == 2 and CODERABBIT_GATE in selected_bots:
         comments = [
             _comment(AUTHOR_ID, f"coderabbit-reservation: {HEAD_SHA}", "2026-07-21T12:25:00Z"),
             _comment(AUTHOR_ID, "@coderabbitai full review", "2026-07-21T12:26:00Z"),
@@ -369,7 +433,12 @@ def _context(
         "body": (
             body
             if body is not None
-            else _body(route, complete=complete, automated_gates=selected_bots)
+            else _body(
+                route,
+                complete=complete,
+                automated_gates=selected_bots,
+                schema_version=schema_version,
+            )
         ),
         "changedFiles": len(files),
         "createdAt": CREATED_AT,
@@ -562,6 +631,216 @@ def test_v2_review_providers_are_interchangeable(route: str, path: str, gate: st
     files = [ChangedFile(path)]
     context = _context(route, files, automated_gates={gate})
     assert validate_context(context, files, now=NOW) == []
+
+
+@pytest.mark.parametrize("gate", [COPILOT_GATE, CODEX_GATE, CODERABBIT_GATE])
+def test_v3_accepts_one_clean_trusted_provider_without_human_approval(gate: str) -> None:
+    files = [ChangedFile("README.md")]
+    context = _context(
+        "Load-bearing",
+        files,
+        automated_gates={gate},
+        schema_version=3,
+    )
+    pull_request = context["data"]["repository"]["pullRequest"]
+    pull_request["reviews"]["nodes"] = [
+        review
+        for review in pull_request["reviews"]["nodes"]
+        if review["author"]["databaseId"] != HUMAN_ID
+    ]
+    pull_request["reviews"]["totalCount"] = len(pull_request["reviews"]["nodes"])
+    pull_request["latestHumanOpinions"] = {"totalCount": 0, "nodes": []}
+    assert validate_context(context, files, now=NOW) == []
+
+
+def test_v3_requires_exactly_one_hosted_provider_and_no_human_row() -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, schema_version=3)
+    body = context["data"]["repository"]["pullRequest"]["body"]
+    context["data"]["repository"]["pullRequest"]["body"] = body.replace(
+        "- [ ] Copilot",
+        "- [x] Copilot",
+    )
+    errors = validate_context(context, files, now=NOW)
+    assert "select exactly one automated PR reviewer" in errors
+
+    context = _context("Load-bearing", files, schema_version=3)
+    context["data"]["repository"]["pullRequest"]["body"] = context["data"]["repository"][
+        "pullRequest"
+    ]["body"].replace(
+        "## Legal",
+        f"| {HUMAN_GATE} | All | {HEAD_SHA} | {GATE_TIMES[HUMAN_GATE]} — APPROVED |\n## Legal",
+    )
+    assert f"unknown review evidence rows: {HUMAN_GATE}" in validate_context(
+        context,
+        files,
+        now=NOW,
+    )
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    ["actor", "head", "edited", "attached-comment", "blocking-state"],
+)
+def test_v3_provider_evidence_is_exact_head_immutable_and_nonblocking(mutation: str) -> None:
+    files = [ChangedFile("README.md")]
+    context = _context(
+        "Load-bearing",
+        files,
+        automated_gates={CODEX_GATE},
+        schema_version=3,
+    )
+    review = next(
+        item
+        for item in context["data"]["repository"]["pullRequest"]["reviews"]["nodes"]
+        if item["author"]["databaseId"] == BOT_ACTOR_IDS[CODEX_GATE]
+    )
+    if mutation == "actor":
+        review["author"] = _actor(999_999_999)
+    elif mutation == "head":
+        review["commit"]["oid"] = "b" * 40
+    elif mutation == "edited":
+        review["lastEditedAt"] = "2026-07-21T12:21:00Z"
+    elif mutation == "attached-comment":
+        review["comments"]["totalCount"] = 1
+    else:
+        review["state"] = "CHANGES_REQUESTED"
+    assert f"no verified current-head GitHub activity for: {CODEX_GATE}" in validate_context(
+        context,
+        files,
+        now=NOW,
+    )
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        _copilot_v3_body(2).replace("2/2", "1/2"),
+        _copilot_v3_body(2, generated_comments=1),
+        "No findings.",
+    ],
+)
+def test_v3_copilot_requires_its_concise_exhaustive_zero_comment_envelope(body: str) -> None:
+    files = [ChangedFile("README.md"), ChangedFile("GOVERNANCE.md")]
+    context = _context(
+        "Load-bearing",
+        files,
+        automated_gates={COPILOT_GATE},
+        schema_version=3,
+    )
+    review = next(
+        item
+        for item in context["data"]["repository"]["pullRequest"]["reviews"]["nodes"]
+        if item["author"]["databaseId"] == BOT_ACTOR_IDS[COPILOT_GATE]
+    )
+    review["body"] = body
+    assert f"no verified current-head GitHub activity for: {COPILOT_GATE}" in validate_context(
+        context,
+        files,
+        now=NOW,
+    )
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        _coderabbit_v3_body(2).replace(
+            "selected for processing (2)", "selected for processing (1)"
+        ),
+        _coderabbit_v3_body(2, ignored_files=1),
+        _coderabbit_v3_body(2).replace(
+            "<details>", "<p>Files ignored by provider: 1</p>\n<details>", 1
+        ),
+        _coderabbit_v3_body(2).replace(
+            "Actionable comments posted: 0", "Actionable comments posted: 1"
+        ),
+        "Review completed.",
+    ],
+)
+def test_v3_coderabbit_trusts_only_its_clean_structured_counts(body: str) -> None:
+    files = [ChangedFile("README.md"), ChangedFile("GOVERNANCE.md")]
+    context = _context(
+        "Load-bearing",
+        files,
+        automated_gates={CODERABBIT_GATE},
+        schema_version=3,
+    )
+    review = next(
+        item
+        for item in context["data"]["repository"]["pullRequest"]["reviews"]["nodes"]
+        if item["author"]["databaseId"] == BOT_ACTOR_IDS[CODERABBIT_GATE]
+    )
+    review["body"] = body
+    assert f"no verified current-head GitHub activity for: {CODERABBIT_GATE}" in validate_context(
+        context,
+        files,
+        now=NOW,
+    )
+
+
+def test_v3_codex_accepts_the_existing_canonical_immutable_clean_comment() -> None:
+    files = [ChangedFile("README.md")]
+    context = _context(
+        "Load-bearing",
+        files,
+        automated_gates={CODEX_GATE},
+        schema_version=3,
+    )
+    _use_codex_clean_comment(context, include_trigger=False)
+    assert validate_context(context, files, now=NOW) == []
+
+
+def test_v3_active_human_change_request_blocks_but_approval_is_not_a_gate() -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, schema_version=3)
+    opinion = context["data"]["repository"]["pullRequest"]["latestHumanOpinions"]["nodes"][0]
+    opinion["state"] = "CHANGES_REQUESTED"
+    errors = validate_context(context, files, now=NOW)
+    assert "an active human maintainer change request remains" in errors
+
+
+def test_v3_requires_v2_for_changes_to_the_pr_controlled_signal_workflow() -> None:
+    files = [ChangedFile(".github/workflows/review-route-invalidation.yml")]
+    context = _context("Load-bearing", files, schema_version=3)
+    assert (
+        "review-route schema v3 cannot modify the PR-controlled review signal workflow; "
+        "use the human-gated v2 route"
+    ) in validate_context(context, files, now=NOW)
+
+
+def test_v3_coderabbit_does_not_request_the_v2_global_trigger_ledger() -> None:
+    assert not needs_coderabbit_ledger(
+        _body(
+            "Load-bearing",
+            automated_gates={CODERABBIT_GATE},
+            schema_version=3,
+        )
+    )
+
+
+def test_v3_rendered_route_and_exact_finalizer_validate_without_human_approval() -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, schema_version=3)
+    pull_request = context["data"]["repository"]["pullRequest"]
+    pull_request["reviews"]["nodes"] = [
+        review
+        for review in pull_request["reviews"]["nodes"]
+        if review["author"]["databaseId"] != HUMAN_ID
+    ]
+    pull_request["reviews"]["totalCount"] = len(pull_request["reviews"]["nodes"])
+    pull_request["latestHumanOpinions"] = {"totalCount": 0, "nodes": []}
+    _add_finalizer(context)
+    assert (
+        validate_context(
+            context,
+            files,
+            now=NOW,
+            rendered_body=_rendered_route_html("Load-bearing", schema_version=3),
+            render_nonce=RENDER_NONCE,
+            **_finalizer_kwargs(),
+        )
+        == []
+    )
 
 
 @pytest.mark.parametrize("route", ["Low", "Standard", "Load-bearing"])
@@ -3689,6 +3968,44 @@ def test_workflow_uses_trusted_base_and_explicit_head_status() -> None:
     )
 
 
+def test_v3_workflow_invalidates_to_pending_and_audits_one_published_success() -> None:
+    root = Path(__file__).resolve().parents[2]
+    workflow = (root / ".github/workflows/review-route.yml").read_text(encoding="utf-8")
+    helper = (root / "scripts/validate_review_route_snapshot.sh").read_text(encoding="utf-8")
+    validate_job = workflow.split("\n  validate:", maxsplit=1)[1]
+
+    assert 'contains("<!-- review-route-schema:v3 -->")' in validate_job
+    assert "INVALIDATION_ONLY=%s" in validate_job
+    assert "V3 invalidation is complete after publishing pending." in validate_job
+    assert (
+        "- uses: actions/checkout@" in validate_job
+        and "if: ${{ env.INVALIDATION_ONLY != 'true' }}" in validate_job
+    )
+    assert "bash scripts/validate_review_route_snapshot.sh before-success" in validate_job
+    assert "bash scripts/validate_review_route_snapshot.sh after-success" in validate_job
+    assert "HEAD_REPOSITORY" in validate_job
+    assert "HEAD_BRANCH" in validate_job
+    assert validate_job.index("before-success") < validate_job.index('statuses/$HEAD_SHA"')
+    assert validate_job.index('statuses/$HEAD_SHA"') < validate_job.index("after-success")
+    assert "Post-success audit changed; review route is pending." in validate_job
+    assert "post-success audit failed closed" in validate_job
+    assert "review_route_ledger.py" not in workflow
+
+    assert "pulls/$PR_NUMBER" in helper
+    assert "git/ref/heads/main" in helper
+    assert ".head.repo.full_name == $head_repo" in helper
+    assert ".head.ref == $head_branch" in helper
+    assert "pulls?state=open" not in helper
+    assert "-F query=@scripts/review_route_context.graphql" in helper
+    assert "pulls/$PR_NUMBER/files?per_page=100" in helper
+    assert "collaborators/$finalizer_login/permission" in helper
+    assert "python scripts/validate_review_route.py" in helper
+    assert ".issue.body == .[1].body" in helper
+    assert ".object.sha == $trusted" in helper
+    assert "actions/runs?" not in helper
+    assert "display_title" not in helper
+
+
 @pytest.mark.parametrize(
     ("truncated", "fetch_fails", "expected_returncode", "expected_fetch"),
     [
@@ -4894,7 +5211,11 @@ def test_review_signal_invalidator_rechecks_stale_head_ownership(
         "number": 2183,
         "state": "open",
         "base": {"ref": "main", "repo": {"full_name": "bioedca/Yeliztli"}},
-        "head": {"sha": HEAD_SHA.upper()},
+        "head": {
+            "sha": HEAD_SHA.upper(),
+            "ref": "issue-2183",
+            "repo": {"full_name": "bioedca/Yeliztli"},
+        },
     }
     open_pulls = [pull]
     if duplicate_live_head:
@@ -5208,7 +5529,11 @@ def test_route_preinvalidator_does_not_overwrite_replacement_pr_status(
         "number": 2183,
         "state": "open" if current_open else "closed",
         "base": {"ref": "main", "repo": {"full_name": "bioedca/Yeliztli"}},
-        "head": {"sha": HEAD_SHA.upper()},
+        "head": {
+            "sha": HEAD_SHA.upper(),
+            "ref": "issue-2183",
+            "repo": {"full_name": "bioedca/Yeliztli"},
+        },
         "draft": False,
         "updated_at": updated_at,
     }
@@ -5794,17 +6119,19 @@ esac
 def test_public_template_contains_only_hosted_review_gates() -> None:
     root = Path(__file__).resolve().parents[2]
     template = (root / ".github/PULL_REQUEST_TEMPLATE.md").read_text(encoding="utf-8")
-    assert SCHEMA_MARKER in template
+    assert AUTONOMOUS_SCHEMA_MARKER in template
+    assert SCHEMA_MARKER not in template
     assert all(f"- [ ] {reviewer}" in template for reviewer in ("Copilot", "Codex", "CodeRabbit"))
-    assert all(gate in template.replace("`", "") for gate in GATES)
-    assert "codex-reservation" not in template
-    assert "Do not request multiple hosted providers by default" in template
-    assert "unedited formal current-head review" in template
-    assert "immutable canonical clean comment" in template
-    assert "that command only invokes the service" in template
-    assert "Later requests or quota/error messages do not supersede" in template
-    assert "Immediately before any trigger, re-fetch" in template
-    assert "Within this PR, service queued current-head reservations FIFO" in template
+    assert COPILOT_GATE in template
+    assert CODEX_GATE in template.replace("`", "")
+    assert "CodeRabbit structured clean review" in template
+    assert CODERABBIT_GATE not in template.replace("`", "")
+    assert HUMAN_GATE not in template
+    assert "Developer Certificate of Origin" not in template
+    assert "Agent claim ID:" in template
+    assert "all changed files reviewed and zero generated/attached comments" in template
+    assert "zero actionable/attached comments, no ignored files" in template
+    assert "empty zero-comment formal approval" in template
     assert "code block or raw HTML" in template
     route_end = template.index("- [ ] Load-bearing")
     provider_start = template.index("- [ ] Copilot", route_end)
@@ -5819,39 +6146,31 @@ def test_contributor_review_routes_match_the_public_template() -> None:
     contributing = (root / "CONTRIBUTING.md").read_text(encoding="utf-8")
     normalized = " ".join(contributing.split())
     assert all(route in contributing for route in ("Low", "Standard", "Load-bearing"))
-    assert "selects exactly one verified automated GitHub review outcome" in normalized
-    assert "rather than an unedited formal review" in normalized
-    assert "only invokes the service; it is not evidence" in normalized
-    assert "a later quota/error message is not a review outcome" in normalized
-    assert "codex-reservation" not in contributing
-    assert "providers are substitutes, not a mandatory sequence" in normalized
-    assert "Do not request Copilot and Codex together by default" in normalized
-    assert "Only unedited formal bot-review nodes count as evidence" in normalized
-    assert "review-route-schema:v1" in contributing
-    assert "v1's multi-provider matrix is obsolete" in normalized
-    assert "five" in contributing and "rolling-hour" in contributing
-    assert "Immediately before triggering, re-fetch the PR" in normalized
-    assert "attributes the SHA-less trigger" in normalized
-    assert "Within one PR, service current-head reservations FIFO" in normalized
-    assert "raw HTML cannot contain or appear in the route section" in normalized
-    assert "wait for its distinct completed review before posting the next trigger" in normalized
+    assert "New pull requests use `review-route-schema:v3`" in contributing
+    assert "Existing v2 pull requests keep their human-gated contract" in normalized
+    assert "V3 trusts only a small provider-authenticated terminal envelope" in normalized
+    assert "selected-file count equal to GitHub's changed-file count" in normalized
+    assert "select another provider instead of guessing" in normalized
+    assert "cannot modify the PR-controlled review-signal workflow" in normalized
     assert "/validate-route" in contributing
-    assert "two open `main` PRs must never share a head SHA" in normalized
-    assert "failed, skipped, or cancelled trusted/relevant signal or publisher run" in normalized
-    assert "PR lifecycle events (including fork and Dependabot PRs)" in normalized
-    assert "credential-free signal carrying GitHub's triggering actor" in normalized
-    assert "unprivileged default-branch resolver consumes every conclusion" in normalized
-    assert "authorizes formal-review source actors against immutable bot IDs" in normalized
-    assert "inconclusive permission lookup invalidates fail closed" in normalized
-    assert "never check out PR code or consume PR artifacts/caches" in normalized
-    assert "publisher key is never copied into Dependabot secrets" in normalized
-    assert "outsider diff comment always invalidates" in normalized
-    assert "Native required conversation resolution is therefore the authoritative" in normalized
-    assert (
-        "conversation-resolution rule must remain enabled whenever `Review Route` is required"
-        in normalized
-    )
-    assert "require the branch to be up to date before merging" in normalized
+    assert "audits the result once more" in normalized
+    assert "only invalidate affected heads to `pending`" in normalized
+    assert "never check out PR code or consume PR artifacts or caches" in normalized
+    assert "V2 retains its existing requirements" in normalized
+    assert "V3 does not require DCO, independent human approval" in normalized
+    assert "never `github-actions[bot]`" in normalized
+
+
+def test_governance_and_docs_describe_versioned_provenance() -> None:
+    root = Path(__file__).resolve().parents[2]
+    governance = (root / "GOVERNANCE.md").read_text(encoding="utf-8")
+    docs = (root / "docs/develop/contributing.md").read_text(encoding="utf-8")
+    normalized = " ".join(governance.split())
+    assert "legacy v2 change still needs maintainer approval" in normalized
+    assert "v3 change may be squash-merged without per-PR human authorization" in normalized
+    assert "without a legal or DCO attestation" in normalized
+    normalized_docs = " ".join(docs.replace("\n>", "\n").split())
+    assert "versioned review routes, and contribution provenance" in normalized_docs
 
 
 def test_graphql_context_tracks_comment_association_and_head_epoch() -> None:
@@ -5886,6 +6205,8 @@ def test_graphql_context_tracks_comment_association_and_head_epoch() -> None:
     assert "... on User { databaseId }" in review_query
     assert "... on Bot { databaseId }" in review_query
     assert "\n          body\n" in review_query
+    assert query.count("comments { totalCount }") == 1
+    assert "comments { totalCount }" in review_query
     assert all(
         field in review_query
         for field in (

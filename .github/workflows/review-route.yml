@@ -1,8 +1,8 @@
 name: Review Route Policy
 
 # Repository rules cannot express OR across separate reviewer checks. This
-# trusted App-published aggregate accepts the PR's selected current-head
-# automated reviewer, then independently verifies human approval and threads.
+# trusted App-published aggregate preserves v2's selected reviewer plus human
+# approval and accepts v3's single selected clean hosted-review outcome.
 
 on:
   issue_comment:
@@ -22,8 +22,9 @@ on:
 # access Actions secrets; every completed source conclusion is consumed so a
 # failed or cancelled signal cannot leave an older success live. Dedicated
 # fallback publishers mark safely rebound heads pending if either resolver
-# fails. After reviews and thread resolution, a write-capable maintainer
-# explicitly finalizes the route with `/validate-route`.
+# fails. V3 invalidation stops at pending. Exact `/validate-route` performs the
+# complete trusted snapshot, a fresh pre-success validation, and one audit
+# after publication; audit drift immediately replaces success with pending.
 #
 # The `review-route-publisher` environment must allow only branch `main` and
 # hold a dedicated GitHub App client ID/private key. The app, not the generic
@@ -980,13 +981,36 @@ jobs:
           fi
           printf 'TRUSTED_SHA=%s\nIS_DRAFT=%s\nPR_UPDATED_AT=%s\n' \
             "$trusted_sha" "$is_draft" "$pr_updated_at" >> "$GITHUB_ENV"
+          schema_version=legacy
+          invalidation_only=false
+          if jq -e \
+              '(.body // "") | ascii_downcase |
+               contains("<!-- review-route-schema:v3 -->")' \
+              "$RUNNER_TEMP/pr.json" > /dev/null; then
+            schema_version=3
+            head_repository="$(jq -er '
+              if (.head.repo.full_name | type) == "string" then .head.repo.full_name
+              else error("missing pull request source repository") end
+            ' "$RUNNER_TEMP/pr.json")"
+            head_branch="$(jq -er '
+              if (.head.ref | type) == "string" then .head.ref
+              else error("missing pull request source branch") end
+            ' "$RUNNER_TEMP/pr.json")"
+            printf 'HEAD_REPOSITORY=%s\nHEAD_BRANCH=%s\n' \
+              "$head_repository" "$head_branch" >> "$GITHUB_ENV"
+            if [ "$FINALIZE_ROUTE" != "true" ]; then invalidation_only=true; fi
+          fi
+          printf 'SCHEMA_VERSION=%s\nINVALIDATION_ONLY=%s\n' \
+            "$schema_version" "$invalidation_only" >> "$GITHUB_ENV"
 
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        if: ${{ env.INVALIDATION_ONLY != 'true' }}
         with:
           ref: ${{ env.TRUSTED_SHA }}
           persist-credentials: false
 
       - name: Validate live route state
+        if: ${{ env.INVALIDATION_ONLY != 'true' }}
         id: route
         continue-on-error: true
         env:
@@ -1081,9 +1105,15 @@ jobs:
         if: ${{ always() && !cancelled() }}
         env:
           GH_TOKEN: ${{ steps.publisher.outputs.token }}
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.event.repository.name }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           VALIDATION_OUTCOME: ${{ steps.route.outcome }}
         run: |
+          if [ "${INVALIDATION_ONLY:-false}" = "true" ]; then
+            echo "V3 invalidation is complete after publishing pending."
+            exit 0
+          fi
           HEAD_SHA="$(
             printf '%s' "${HEAD_SHA:-${RESOLVED_HEAD_SHA:-}}" |
               tr '[:upper:]' '[:lower:]'
@@ -1232,6 +1262,19 @@ jobs:
               description="PR identity, head uniqueness, finalizer, workflow policy, or trusted main changed."
             fi
           fi
+          v3_validation_failed=false
+          if [ "${SCHEMA_VERSION:-legacy}" = "3" ] && [ "$state" = "success" ]; then
+            if ! bash scripts/validate_review_route_snapshot.sh before-success; then
+              state=pending
+              description="Fresh final validation changed; review route is pending."
+              v3_validation_failed=true
+            fi
+          elif [ "${SCHEMA_VERSION:-legacy}" = "3" ] && \
+            [ "$FINALIZE_ROUTE" = "true" ]; then
+            state=pending
+            description="V3 validation is incomplete or invalid; review route is pending."
+            v3_validation_failed=true
+          fi
           posted=false
           for attempt in 1 2 3; do
             if ! ownership="$(classify_head_ownership \
@@ -1291,4 +1334,29 @@ jobs:
             if [ "$attempt" -lt 3 ]; then sleep "$attempt"; fi
           done
           test "$posted" = true
+          if [ "$state" = "success" ] && [ "${SCHEMA_VERSION:-legacy}" = "3" ]; then
+            if ! bash scripts/validate_review_route_snapshot.sh after-success; then
+              gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" \
+                -f state=pending \
+                -f context="Review Route" \
+                -f description="Post-success audit changed; review route is pending." \
+                -f target_url="$RUN_URL"
+              current_head="$(
+                gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" \
+                  --jq '.head.sha | ascii_downcase' 2>/dev/null || true
+              )"
+              if [[ "$current_head" =~ ^[0-9a-f]{40}$ ]] && \
+                [ "$current_head" != "$HEAD_SHA" ]; then
+                gh api --method POST \
+                  "repos/$GITHUB_REPOSITORY/statuses/$current_head" \
+                  -f state=pending \
+                  -f context="Review Route" \
+                  -f description="Post-success audit changed; review route is pending." \
+                  -f target_url="$RUN_URL"
+              fi
+              echo "::error title=Review Route::post-success audit failed closed"
+              exit 1
+            fi
+          fi
+          if [ "$v3_validation_failed" = "true" ]; then exit 1; fi
           test "$state" != failure

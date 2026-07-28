@@ -3,8 +3,9 @@
 Yeliztli keeps a few conventions that make the test suite **honest** — a test should fail when
 the behaviour it describes breaks. The most load-bearing ones are below.
 
-> For the full contribution workflow (branching, the pull-request template, the review gate, and
-> the Developer Certificate of Origin), see [CONTRIBUTING.md](https://github.com/bioedca/Yeliztli/blob/main/CONTRIBUTING.md)
+> For the full contribution workflow (branching, the pull-request template, versioned review
+> routes, and contribution provenance), see
+> [CONTRIBUTING.md](https://github.com/bioedca/Yeliztli/blob/main/CONTRIBUTING.md)
 > in the repository root. How issues are categorised and triaged is described in
 > [Labels & triage](labels-and-triage.md). Participation is governed by the
 > [Code of Conduct](https://github.com/bioedca/Yeliztli/blob/main/CODE_OF_CONDUCT.md).

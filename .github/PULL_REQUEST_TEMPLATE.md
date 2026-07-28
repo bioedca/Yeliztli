@@ -26,30 +26,35 @@
 ## Reviewer notes
 <!-- Optional: point reviewers at a design decision you're unsure about, an area you want scrutiny on, or context they need. -->
 
+## Automated contribution provenance
+<!-- New v3 pull requests record operational provenance, not a legal attestation. -->
+- Issue: <!-- e.g. Closes #123 -->
+- Exact head SHA:
+- Selected hosted reviewer:
+- Test evidence:
+- Agent claim ID:
+
 ## Review route
-<!-- review-route-schema:v2 -->
+<!-- review-route-schema:v3 -->
 <!-- Check EXACTLY ONE for the FINAL diff. Mixed/uncertain scope takes the higher route; reviews bind to one head SHA. Keep this section rendered as normal Markdown: do not indent it into or wrap it in a code block or raw HTML. -->
 - [ ] Low — text/docs/mechanical only; no behavior, public contract, science, security, dependency, or workflow change
 - [ ] Standard — routine code/tests/UI/refactor/bug fix not protecting a load-bearing area
 - [ ] Load-bearing — science/clinical/reference data or their tests; privacy/security/auth; schema/migration/data loss; concurrency; dependencies; updater/installer/release; CI/workflows/permissions; core architecture; broad/hard-to-revert
 
-<!-- Before ready/merge, check EXACTLY ONE automated reviewer. They are substitutes; use the preferred lane when available, otherwise choose another instead of waiting on quota. Do not request multiple hosted providers by default; switch the selected lane if the first choice is unavailable. -->
+<!-- Before ready/merge, check EXACTLY ONE hosted reviewer. They are substitutes; select another provider instead of adding fallback parsers or waiting on quota. -->
 - [ ] Copilot — Low preferred; fallback for any route
 - [ ] Codex — Standard preferred; fallback for any route
 - [ ] CodeRabbit — Load-bearing preferred; fallback for any route
 
-<!-- Drafts need only the route classification. Before ready/merge, the selected automated-review row needs the exact 40-character head SHA and `YYYY-MM-DDTHH:MM:SSZ — COMPLETE`; enter exactly N/A in BOTH cells for unused providers. Complete the selected automated review before the human row, which uses `... — APPROVED`; only unedited formal bot-review nodes count. When Codex is selected, request exact `@codex review`; that command only invokes the service, while an unedited formal current-head review or immutable canonical clean comment from the Codex Bot is the evidence. Later requests or quota/error messages do not supersede a valid unchanged-head outcome; to require a fresh review, clear the evidence row until the new outcome arrives. Manually trigger CodeRabbit ONLY when it is selected: the same maintainer posts separate, immutable `coderabbit-reservation: <full-head-SHA>` then `@coderabbitai full review` comments at distinct times. This is a cooperative five-per-hour ledger, not an atomic slot. Within this PR, service queued current-head reservations FIFO by GitHub creation time, then immutable comment ID for same-second reservations; after each trigger, wait for its distinct completed review before posting the next trigger, and coordinate cross-PR triggers manually. An abandoned reservation may remain when switching providers before the trigger. Immediately before any trigger, re-fetch that the provider is still selected and, for CodeRabbit, the reservation SHA is still the head; each CodeRabbit trigger is attributed to its reservation and counts in the global ledger. After final approval is recorded and every review thread is resolved, a write-capable maintainer MUST comment `/validate-route` to publish the final status; the publisher verifies live repository permission. -->
+<!-- Drafts need only the route classification. The selected row needs the exact 40-character head SHA and `YYYY-MM-DDTHH:MM:SSZ — COMPLETE`; enter exactly N/A in BOTH cells for unused providers. Evidence must be unedited, provider-authored, and exact-head. Codex accepts an empty zero-comment formal approval or its canonical immutable clean comment. Copilot accepts only its concise findings envelope with all changed files reviewed and zero generated/attached comments. CodeRabbit accepts only its structured clean review with zero actionable/attached comments, no ignored files, and a selected-file count equal to GitHub's changed-file count. Resolve every thread, then have a live write-capable finalizer post the exact unedited `/validate-route`. -->
 | Required review gate | Applies to | Head SHA or N/A | UTC time and status, or N/A |
 | --- | --- | --- | --- |
 | Copilot PR review | Low preferred; fallback for any route | | |
 | Codex `@codex review` | Standard preferred; fallback for any route | | |
-| Manual CodeRabbit reservation and `@coderabbitai full review` | Load-bearing preferred; fallback for any route | | |
-| Independent human maintainer review | All | | |
-
-## Legal
-- [ ] I certify that this contribution is mine to submit and may be included under the project's MIT license (Developer Certificate of Origin).
+| CodeRabbit structured clean review | Load-bearing preferred; fallback for any route | | |
 
 <!--
-  Do not merge until required CI checks are green and a reviewer other than the author has approved.
+  Do not merge until required CI and the dedicated App's Review Route status are green.
+  V3 does not require DCO, independent human approval, or per-PR human merge authorization.
   Merges are squash-merges; the squashed subject should stay imperative and end with "(#<PR number>)".
 -->

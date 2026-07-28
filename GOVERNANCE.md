@@ -30,9 +30,10 @@ maintainers with shared merge rights and explicit decision-making by consensus.
 ## Decision-making
 
 - **Everyday changes** (bug fixes, docs, well-scoped features): decided in the
-  pull request. A change merges once it meets the [contribution
-  requirements](CONTRIBUTING.md) — it passes the review gate and all required CI
-  checks are green — and a maintainer approves it.
+  pull request. A legacy v2 change still needs maintainer approval and explicit
+  merge authorization. A v3 change may be squash-merged without per-PR human
+  authorization once the exact-head hosted-review route, dedicated publisher
+  App status, resolved threads, and all required CI/security checks are green.
 - **Design decisions** that need discussion before code: open a **Design
   proposal** issue or an **Ideas** discussion, state the motivation and the
   options, and let it be discussed. The maintainer records the outcome.
@@ -56,15 +57,15 @@ disagreement we **withhold and flag** rather than pick a side. This is a
 governance rule, not just a coding convention — see `CONTRIBUTING.md` and the
 `scientific-validity` / `evidence-cited` labels.
 
-## Contributor agreement (DCO, not a CLA)
+## Contribution provenance
 
-Contributions are accepted under a **Developer Certificate of Origin (DCO)**
-rather than a Contributor License Agreement. By contributing, you certify that
-the contribution is yours to submit and may be included under the project's
-[MIT license](LICENSE). We prefer a DCO because a CLA is a barrier to
-first-time contributors and creates a maintainer/contributor power imbalance. In
-practice: the pull-request template includes a DCO acknowledgement checkbox —
-check it to confirm.
+Existing pull requests remain on the human-gated v2 contract until explicitly
+migrated to v3, including their DCO acknowledgement, independent approval, and
+maintainer merge decision. New v3 pull requests use operational
+automated-contribution provenance—issue, exact head, hosted reviewer, tests, and
+agent claim ID—without a legal or DCO attestation. The exact-head provider and
+publisher-App gates do not weaken the repository's scientific, privacy,
+security, or test requirements.
 
 ## Becoming a collaborator
 
