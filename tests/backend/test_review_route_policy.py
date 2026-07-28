@@ -251,6 +251,14 @@ def _body(
         CODEX_GATE: "Codex",
         CODERABBIT_GATE: "CodeRabbit",
     }
+    selected_provider = next(
+        (
+            reviewer_labels[gate]
+            for gate in (COPILOT_GATE, CODEX_GATE, CODERABBIT_GATE)
+            if gate in selected_bots
+        ),
+        "",
+    )
     rows = []
     evidence_gates = GATES if schema_version == 2 else tuple(GATES[:-1])
     for gate in evidence_gates:
@@ -270,6 +278,20 @@ def _body(
         rows.append(f"| {label} | scope | {head} | {status} |")
     return "\n".join(
         [
+            *(
+                [
+                    "## Related issue",
+                    "Closes #42",
+                    "## Automated contribution provenance",
+                    "- Issue: Closes #42",
+                    f"- Exact head SHA: {HEAD_SHA}",
+                    f"- Selected hosted reviewer: {selected_provider}",
+                    "- Test evidence: focused policy suite passed",
+                    "- Agent claim ID: yz-12345678-1234-4abc-8def-1234567890ab",
+                ]
+                if schema_version == 3
+                else []
+            ),
             "## Review route",
             SCHEMA_MARKER if schema_version == 2 else AUTONOMOUS_SCHEMA_MARKER,
             f"- [{selected['Low']}] Low — docs",
@@ -672,6 +694,80 @@ def test_v3_missing_evidence_error_uses_the_public_row_label() -> None:
 
     assert "missing review evidence rows: CodeRabbit structured clean review" in errors
     assert f"missing review evidence rows: {CODERABBIT_GATE}" not in errors
+
+
+@pytest.mark.parametrize(
+    ("old", "new", "expected_error"),
+    [
+        (
+            "- Issue: Closes #42",
+            "- Issue:",
+            "v3 provenance issue must be an exact closing reference",
+        ),
+        (
+            f"- Exact head SHA: {HEAD_SHA}",
+            f"- Exact head SHA: {'b' * 40}",
+            "v3 provenance head does not match the current head SHA",
+        ),
+        (
+            "- Selected hosted reviewer: CodeRabbit",
+            "- Selected hosted reviewer: Codex",
+            "v3 provenance reviewer does not match the selected hosted reviewer",
+        ),
+        (
+            "- Test evidence: focused policy suite passed",
+            "- Test evidence:",
+            "v3 provenance test evidence must be nonempty",
+        ),
+        (
+            "- Agent claim ID: yz-12345678-1234-4abc-8def-1234567890ab",
+            "- Agent claim ID: agent-42",
+            "v3 provenance agent claim ID must be a UUIDv4 claim",
+        ),
+    ],
+)
+def test_v3_requires_bound_operational_provenance(
+    old: str,
+    new: str,
+    expected_error: str,
+) -> None:
+    files = [ChangedFile("README.md")]
+    context = _context(
+        "Load-bearing",
+        files,
+        automated_gates={CODERABBIT_GATE},
+        schema_version=3,
+    )
+    pull_request = context["data"]["repository"]["pullRequest"]
+    pull_request["body"] = pull_request["body"].replace(old, new)
+
+    assert expected_error in validate_context(context, files, now=NOW)
+
+
+def test_v3_draft_allows_unfilled_operational_provenance() -> None:
+    files = [ChangedFile("README.md")]
+    context = _context(
+        "Load-bearing",
+        files,
+        automated_gates={CODERABBIT_GATE},
+        schema_version=3,
+        draft=True,
+        complete=False,
+    )
+    pull_request = context["data"]["repository"]["pullRequest"]
+    for field in (
+        "Issue",
+        "Exact head SHA",
+        "Selected hosted reviewer",
+        "Test evidence",
+        "Agent claim ID",
+    ):
+        pull_request["body"] = "\n".join(
+            f"- {field}:" if line.startswith(f"- {field}:") else line
+            for line in pull_request["body"].splitlines()
+        )
+
+    assert validate_context(context, files, now=NOW) == []
 
 
 def test_v3_requires_exactly_one_hosted_provider_and_no_human_row() -> None:

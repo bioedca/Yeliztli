@@ -1107,6 +1107,67 @@ def _parse_route_section(
     return route, schema_version, selected_bots, evidence, errors
 
 
+def _v3_provenance_errors(
+    body: str,
+    head_sha: str,
+    selected_bots: list[str],
+) -> list[str]:
+    errors: list[str] = []
+    visible = _visible_markdown(body)
+    headings = list(re.finditer(r"(?mi)^## Automated contribution provenance\s*$", visible))
+    if len(headings) != 1:
+        return ["expected exactly one v3 automated contribution provenance section"]
+    start = headings[0].end()
+    following = re.search(r"(?mi)^##\s+", visible[start:])
+    section = visible[start : start + following.start()] if following else visible[start:]
+    field_names = (
+        "Issue",
+        "Exact head SHA",
+        "Selected hosted reviewer",
+        "Test evidence",
+        "Agent claim ID",
+    )
+    fields: dict[str, str] = {}
+    for name in field_names:
+        matches = re.findall(
+            rf"(?m)^[ ]{{0,3}}- {re.escape(name)}:[ \t]*(.*?)[ \t]*$",
+            section,
+        )
+        if len(matches) != 1:
+            errors.append(f"expected exactly one v3 provenance field: {name}")
+        else:
+            fields[name] = matches[0]
+
+    issue = fields.get("Issue", "")
+    if re.fullmatch(r"(?:Closes|Fixes|Resolves) #[1-9][0-9]*", issue) is None:
+        errors.append("v3 provenance issue must be an exact closing reference")
+    if fields.get("Exact head SHA", "").lower() != head_sha.lower():
+        errors.append("v3 provenance head does not match the current head SHA")
+    provider_labels = {
+        COPILOT_GATE: "Copilot",
+        CODEX_GATE: "Codex",
+        CODERABBIT_GATE: "CodeRabbit",
+    }
+    expected_provider = provider_labels[selected_bots[0]] if len(selected_bots) == 1 else None
+    if expected_provider is None or fields.get("Selected hosted reviewer") != expected_provider:
+        errors.append("v3 provenance reviewer does not match the selected hosted reviewer")
+    test_evidence = fields.get("Test evidence", "")
+    if not test_evidence or test_evidence == "N/A":
+        errors.append("v3 provenance test evidence must be nonempty")
+    claim_id = fields.get("Agent claim ID", "")
+    if (
+        re.fullmatch(
+            r"yz-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-"
+            r"[89ab][0-9a-f]{3}-[0-9a-f]{12}",
+            claim_id,
+            flags=re.IGNORECASE,
+        )
+        is None
+    ):
+        errors.append("v3 provenance agent claim ID must be a UUIDv4 claim")
+    return errors
+
+
 def needs_coderabbit_ledger(body: str) -> bool:
     """Return whether a valid v2 route selected the global CodeRabbit ledger."""
     _, schema_version, selected_bots, _, errors = _parse_route_section(body)
@@ -1842,6 +1903,14 @@ def validate_context(
         errors.append(
             "review-route schema v3 cannot modify the PR-controlled review signal workflow; "
             "use the human-gated v2 route"
+        )
+    if schema_version == 3 and pull_request.get("isDraft") is False:
+        errors.extend(
+            _v3_provenance_errors(
+                pull_request.get("body") or "",
+                head_sha,
+                selected_bots,
+            )
         )
     if pull_request.get("isDraft") is True or route is None:
         return errors
