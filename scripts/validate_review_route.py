@@ -1111,6 +1111,8 @@ def _v3_provenance_errors(
     body: str,
     head_sha: str,
     selected_bots: list[str],
+    *,
+    allow_blank: bool = False,
 ) -> list[str]:
     errors: list[str] = []
     visible = _visible_markdown(body)
@@ -1120,6 +1122,10 @@ def _v3_provenance_errors(
     start = headings[0].end()
     following = re.search(r"(?mi)^##\s+", visible[start:])
     section = visible[start : start + following.start()] if following else visible[start:]
+    if "<" in section:
+        errors.append(
+            "raw HTML is not allowed in the v3 automated contribution provenance section"
+        )
     field_names = (
         "Issue",
         "Exact head SHA",
@@ -1139,9 +1145,12 @@ def _v3_provenance_errors(
             fields[name] = matches[0]
 
     issue = fields.get("Issue", "")
-    if re.fullmatch(r"(?:Closes|Fixes|Resolves) #[1-9][0-9]*", issue) is None:
+    if (issue or not allow_blank) and re.fullmatch(
+        r"(?:Closes|Fixes|Resolves) #[1-9][0-9]*", issue
+    ) is None:
         errors.append("v3 provenance issue must be an exact closing reference")
-    if fields.get("Exact head SHA", "").lower() != head_sha.lower():
+    exact_head = fields.get("Exact head SHA", "")
+    if (exact_head or not allow_blank) and exact_head.lower() != head_sha.lower():
         errors.append("v3 provenance head does not match the current head SHA")
     provider_labels = {
         COPILOT_GATE: "Copilot",
@@ -1149,13 +1158,16 @@ def _v3_provenance_errors(
         CODERABBIT_GATE: "CodeRabbit",
     }
     expected_provider = provider_labels[selected_bots[0]] if len(selected_bots) == 1 else None
-    if expected_provider is None or fields.get("Selected hosted reviewer") != expected_provider:
+    selected_provider = fields.get("Selected hosted reviewer", "")
+    if (selected_provider or not allow_blank) and (
+        expected_provider is None or selected_provider != expected_provider
+    ):
         errors.append("v3 provenance reviewer does not match the selected hosted reviewer")
     test_evidence = fields.get("Test evidence", "")
-    if not test_evidence or test_evidence == "N/A":
+    if (test_evidence or not allow_blank) and (not test_evidence or test_evidence == "N/A"):
         errors.append("v3 provenance test evidence must be nonempty")
     claim_id = fields.get("Agent claim ID", "")
-    if (
+    if (claim_id or not allow_blank) and (
         re.fullmatch(
             r"yz-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-"
             r"[89ab][0-9a-f]{3}-[0-9a-f]{12}",
@@ -1904,12 +1916,13 @@ def validate_context(
             "review-route schema v3 cannot modify the PR-controlled review signal workflow; "
             "use the human-gated v2 route"
         )
-    if schema_version == 3 and pull_request.get("isDraft") is False:
+    if schema_version == 3:
         errors.extend(
             _v3_provenance_errors(
                 pull_request.get("body") or "",
                 head_sha,
                 selected_bots,
+                allow_blank=pull_request.get("isDraft") is True,
             )
         )
     if pull_request.get("isDraft") is True or route is None:

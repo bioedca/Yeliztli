@@ -770,6 +770,66 @@ def test_v3_draft_allows_unfilled_operational_provenance() -> None:
     assert validate_context(context, files, now=NOW) == []
 
 
+@pytest.mark.parametrize("mutation", ["missing field", "duplicate section"])
+def test_v3_draft_still_requires_canonical_provenance_structure(mutation: str) -> None:
+    files = [ChangedFile("README.md")]
+    context = _context(
+        "Load-bearing",
+        files,
+        automated_gates=set(),
+        schema_version=3,
+        draft=True,
+        complete=False,
+    )
+    pull_request = context["data"]["repository"]["pullRequest"]
+    body = pull_request["body"]
+    if mutation == "missing field":
+        body = "\n".join(
+            line for line in body.splitlines() if not line.startswith("- Exact head SHA:")
+        )
+        expected = "expected exactly one v3 provenance field: Exact head SHA"
+    else:
+        section = body.split("## Automated contribution provenance", 1)[1].split(
+            "## Review route", 1
+        )[0]
+        body = body.replace(
+            "## Review route",
+            "## Automated contribution provenance" + section + "## Review route",
+            1,
+        )
+        expected = "expected exactly one v3 automated contribution provenance section"
+    pull_request["body"] = body
+
+    assert expected in validate_context(context, files, now=NOW)
+
+
+def test_v3_rejects_provenance_hidden_in_collapsed_raw_html() -> None:
+    files = [ChangedFile("README.md")]
+    context = _context(
+        "Load-bearing",
+        files,
+        automated_gates={CODERABBIT_GATE},
+        schema_version=3,
+    )
+    pull_request = context["data"]["repository"]["pullRequest"]
+    pull_request["body"] = (
+        pull_request["body"]
+        .replace(
+            "- Issue: Closes #42",
+            "<details>\n<summary>Provenance</summary>\n\n- Issue: Closes #42",
+        )
+        .replace(
+            "- Agent claim ID: yz-12345678-1234-4abc-8def-1234567890ab",
+            "- Agent claim ID: yz-12345678-1234-4abc-8def-1234567890ab\n</details>",
+        )
+    )
+
+    assert (
+        "raw HTML is not allowed in the v3 automated contribution provenance section"
+        in validate_context(context, files, now=NOW)
+    )
+
+
 def test_v3_requires_exactly_one_hosted_provider_and_no_human_row() -> None:
     files = [ChangedFile("README.md")]
     context = _context("Load-bearing", files, schema_version=3)
