@@ -983,6 +983,7 @@ jobs:
             "$trusted_sha" "$is_draft" "$pr_updated_at" >> "$GITHUB_ENV"
           schema_version=legacy
           invalidation_only=false
+          if [ "$pr_state" = "closed" ]; then invalidation_only=true; fi
           if jq -e \
               '(.body // "") | ascii_downcase |
                contains("<!-- review-route-schema:v3 -->")' \
@@ -1111,7 +1112,7 @@ jobs:
           VALIDATION_OUTCOME: ${{ steps.route.outcome }}
         run: |
           if [ "${INVALIDATION_ONLY:-false}" = "true" ]; then
-            echo "V3 invalidation is complete after publishing pending."
+            echo "Invalidation is complete after publishing pending."
             exit 0
           fi
           HEAD_SHA="$(
