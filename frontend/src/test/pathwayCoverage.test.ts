@@ -36,6 +36,41 @@ describe("pathwayCoverage", () => {
   it("does not claim no variants of concern when observed SNPs are indeterminate", () => {
     const pathway = {
       level: "Standard",
+      called_snps: 2,
+      total_snps: 3,
+      missing_snps: ["rs1049434"],
+      no_call_snps: [],
+      indeterminate_snps: ["rs4341"],
+    }
+
+    expect(pathwayLevelDisplayLabel(pathway, "Standard")).toBe("Tested Standard")
+    expect(pathwayCoverageCaveat(pathway)).toBe(
+      "Standard result is based on interpreted SNPs only; 1 tracked SNP (1 off-chip) not assessed.",
+    )
+  })
+
+  // #2178: `called_snps` counts observed SNPs including indeterminate ones, so
+  // these render a clean negative unless the interpreted count is derived. The
+  // same helper backs the traits card, the fitness card, and the backend
+  // report/SVG paths, so one result cannot be labelled differently per surface.
+  it("reports not assessed when every observed SNP is indeterminate", () => {
+    const pathway = {
+      level: "Standard",
+      called_snps: 1,
+      total_snps: 1,
+      missing_snps: [],
+      no_call_snps: [],
+      indeterminate_snps: ["rs9939609"],
+    }
+
+    expect(pathwayLevelDisplayLabel(pathway, "Standard")).toBe("Not Assessed")
+    // "based on interpreted SNPs only" would presume an interpreted SNP.
+    expect(pathwayCoverageCaveat(pathway)).toBeNull()
+  })
+
+  it("reports not assessed when nothing is interpreted and SNPs are missing", () => {
+    const pathway = {
+      level: "Standard",
       called_snps: 1,
       total_snps: 2,
       missing_snps: ["rs1049434"],
@@ -43,9 +78,20 @@ describe("pathwayCoverage", () => {
       indeterminate_snps: ["rs4341"],
     }
 
-    expect(pathwayCoverageCaveat(pathway)).toBe(
-      "Standard result is based on interpreted SNPs only; 1 tracked SNP (1 off-chip) not assessed.",
-    )
+    expect(pathwayLevelDisplayLabel(pathway, "Standard")).toBe("Not Assessed")
+  })
+
+  it("keeps a non-Standard level unchanged when nothing is interpreted", () => {
+    const pathway = {
+      level: "Elevated",
+      called_snps: 1,
+      total_snps: 1,
+      missing_snps: [],
+      no_call_snps: [],
+      indeterminate_snps: ["rs9939609"],
+    }
+
+    expect(pathwayLevelDisplayLabel(pathway, "Elevated")).toBe("Elevated")
   })
 
   it("keeps complete Standard coverage unchanged", () => {
@@ -60,4 +106,5 @@ describe("pathwayCoverage", () => {
     expect(pathwayLevelDisplayLabel(pathway, "Standard")).toBe("Standard")
     expect(pathwayCoverageCaveat(pathway)).toBeNull()
   })
+
 })

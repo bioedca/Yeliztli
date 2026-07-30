@@ -36,6 +36,32 @@ from backend.reports.variant_card import _load_single_finding
         ("Elevated", {"missing_snps": ["rs1"], "called_snps": 0}, "Elevated"),  # non-Standard
         ("Moderate", {"missing_snps": ["rs1"], "called_snps": 1}, "Moderate"),
         (None, {"missing_snps": ["rs1"]}, None),
+        # #2178: `called_snps` counts observed SNPs including ones withheld from
+        # interpretation, so full coverage with nothing scored used to render a
+        # plain green Standard badge on the report/SVG paths.
+        (
+            "Standard",
+            {"missing_snps": [], "called_snps": 2, "indeterminate_snps": ["rs1", "rs2"]},
+            "Not Assessed",
+        ),
+        # Partially interpreted still reads Standard — the guard must discriminate.
+        (
+            "Standard",
+            {"missing_snps": [], "called_snps": 3, "indeterminate_snps": ["rs1"]},
+            "Standard",
+        ),
+        # Nothing interpreted AND missing SNPs is Not Assessed, not Tested Standard.
+        (
+            "Standard",
+            {"missing_snps": ["rs9"], "called_snps": 1, "indeterminate_snps": ["rs1"]},
+            "Not Assessed",
+        ),
+        # A non-Standard level is never relabelled, whatever the interpreted count.
+        (
+            "Elevated",
+            {"missing_snps": [], "called_snps": 2, "indeterminate_snps": ["rs1", "rs2"]},
+            "Elevated",
+        ),
     ],
 )
 def test_pathway_level_display_label(level, detail, expected) -> None:
@@ -65,6 +91,22 @@ _NOT_ASSESSED = {
 }
 
 
+_ALL_INDETERMINATE = {
+    "module": "traits",
+    "category": "pathway_summary",
+    "evidence_level": 1,
+    "finding_text": "Novelty Seeking — not assessed: 1 tracked SNP observed but not "
+    "interpreted (indeterminate), no variant scored — see SNP details",
+    "pathway": "Novelty Seeking",
+    "pathway_level": "Standard",
+    # Fully covered on paper: nothing missing, one SNP observed -- but that SNP was
+    # withheld from interpretation, so no variant was scored (#2178).
+    "detail_json": json.dumps(
+        {"called_snps": 1, "missing_snps": [], "indeterminate_snps": ["rs1800955"]}
+    ),
+}
+
+
 @pytest.fixture
 def sample_with_incomplete_pathways(tmp_path: Path) -> tuple[Path, sa.Engine, sa.Engine]:
     data_dir = tmp_path / "data"
@@ -80,7 +122,7 @@ def sample_with_incomplete_pathways(tmp_path: Path) -> tuple[Path, sa.Engine, sa
             )
         )
     with sample_engine.begin() as conn:
-        for f in (_TESTED_STANDARD, _NOT_ASSESSED):
+        for f in (_TESTED_STANDARD, _NOT_ASSESSED, _ALL_INDETERMINATE):
             conn.execute(findings.insert().values(**f))
     return data_dir, ref_engine, sample_engine
 
@@ -92,6 +134,8 @@ def test_load_findings_carries_coverage_label(
     rows = {r["pathway"]: r for r in _load_findings(sample_engine, modules=None)}
     assert rows["Caffeine Metabolism"]["pathway_level_display"] == "Tested Standard"
     assert rows["Power/Endurance"]["pathway_level_display"] == "Not Assessed"
+    # Full coverage, nothing interpreted -- must not read as a clean negative (#2178).
+    assert rows["Novelty Seeking"]["pathway_level_display"] == "Not Assessed"
 
 
 def test_variant_card_carries_coverage_label(
