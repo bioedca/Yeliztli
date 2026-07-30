@@ -2042,6 +2042,9 @@ class TestGnomadAnnotationLookupIntegration:
         # It must NOT inherit the other call's 0.20. Either its own 0.001, or
         # withheld -- what it may not do is report a frequency it does not have.
         assert old_row.gnomad_af_global != pytest.approx(0.20)
+        # Discriminating control for the status split: here the candidates are
+        # G>A and G>T at ONE position, so the allele genuinely is ambiguous.
+        assert old_row.gnomad_source_status == "allele_ambiguous"
 
     def test_aliased_rsids_agreeing_on_genotype_still_resolve(
         self,
@@ -2233,6 +2236,10 @@ class TestGnomadAnnotationLookupIntegration:
         assert old_row is not None
         # It sits at pos 300; it must not inherit pos 900's 0.40.
         assert old_row.gnomad_af_global != pytest.approx(0.40)
+        # Both candidates are G>A, so no allele is in question -- the aliases
+        # disagree on POSITION. Reporting allele ambiguity would invent a cause
+        # and hide a likely build/mapping mismatch (#2214 review).
+        assert old_row.gnomad_source_status == "locus_unresolved"
 
     def test_no_call_alias_does_not_suppress_a_valid_call(
         self,

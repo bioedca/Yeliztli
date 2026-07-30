@@ -1052,7 +1052,17 @@ def lookup_gnomad_by_rsids(
                 # surviving locus's frequency would still be fanned to aliases
                 # that sit elsewhere.
                 if len(candidates) > 1 and rsid in conflicting_genotype_rsids:
-                    if allele_ambiguous_out is not None:
+                    # Why the aliases conflict decides which explanation is true.
+                    # If every candidate shares one REF/ALT, no allele is in
+                    # question -- the aliases disagree on POSITION, and claiming
+                    # "several alternate alleles" would invent a cause here just
+                    # as it did for a plain coordinate miss (#2214 review).
+                    if (
+                        len({(r.ref, r.alt) for r in candidates}) == 1
+                        and locus_unresolved_out is not None
+                    ):
+                        locus_unresolved_out.add(rsid)
+                    elif allele_ambiguous_out is not None:
                         allele_ambiguous_out.add(rsid)
                     continue
 
