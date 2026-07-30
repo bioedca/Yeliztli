@@ -2002,6 +2002,83 @@ class TestGnomadAnnotationLookupIntegration:
         assert row.gnomad_af_global is None
         assert row.gnomad_source_status == "allele_ambiguous"
 
+    def test_aliased_rsids_with_different_genotypes_do_not_share_a_frequency(
+        self,
+        sample_engine: sa.Engine,
+        mock_registry: MagicMock,
+        gnomad_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """#2214 review: alias collapse must not hand one call's ALT to another.
+
+        `raw_by_query` keeps ONE sample row per queried rsID, so a deprecated
+        rsID and its current replacement (with different genotypes) share a
+        single genotype for ALT selection, and `_rekey_to_original` then fans the
+        chosen frequency back to both. That is #2171's own defect reached by a
+        different route: one allele's frequency assigned to another allele.
+        """
+        with reference_engine.begin() as conn:
+            conn.execute(
+                dbsnp_merges.insert().values(
+                    old_rsid="rs_alias_old", current_rsid="rs_shared_prod", build_id=155
+                )
+            )
+        self._shared_rsid_gnomad_rows(gnomad_engine)
+        with sample_engine.begin() as conn:
+            conn.execute(
+                raw_variants.insert(),
+                [
+                    # Carries G>A (AF 0.001)
+                    {"rsid": "rs_alias_old", "chrom": "1", "pos": 300, "genotype": "AG"},
+                    # Carries G>T (AF 0.20) -- self-mapped, so it wins raw_by_query
+                    {"rsid": "rs_shared_prod", "chrom": "1", "pos": 300, "genotype": "TT"},
+                ],
+            )
+
+        run_annotation(sample_engine, mock_registry)
+
+        old_row = self._annotated_row(sample_engine, "rs_alias_old")
+        assert old_row is not None
+        # It must NOT inherit the other call's 0.20. Either its own 0.001, or
+        # withheld -- what it may not do is report a frequency it does not have.
+        assert old_row.gnomad_af_global != pytest.approx(0.20)
+
+    def test_aliased_rsids_agreeing_on_genotype_still_resolve(
+        self,
+        sample_engine: sa.Engine,
+        mock_registry: MagicMock,
+        gnomad_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """Discriminating control for the alias guard.
+
+        Withholding whenever a query id serves several rows would suppress the
+        common, harmless case where the aliases simply agree. Both calls carry
+        G>A here, so the pick is well-defined and the frequency must still land.
+        """
+        with reference_engine.begin() as conn:
+            conn.execute(
+                dbsnp_merges.insert().values(
+                    old_rsid="rs_agree_old", current_rsid="rs_shared_prod", build_id=155
+                )
+            )
+        self._shared_rsid_gnomad_rows(gnomad_engine)
+        with sample_engine.begin() as conn:
+            conn.execute(
+                raw_variants.insert(),
+                [
+                    {"rsid": "rs_agree_old", "chrom": "1", "pos": 300, "genotype": "AG"},
+                    {"rsid": "rs_shared_prod", "chrom": "1", "pos": 300, "genotype": "AG"},
+                ],
+            )
+
+        run_annotation(sample_engine, mock_registry)
+
+        for rsid in ("rs_agree_old", "rs_shared_prod"):
+            row = self._annotated_row(sample_engine, rsid)
+            assert row is not None, rsid
+            assert row.gnomad_af_global == pytest.approx(0.001), rsid
+
     def test_single_alt_rsid_is_annotated_regardless_of_genotype(
         self, sample_engine: sa.Engine, mock_registry: MagicMock, gnomad_engine: sa.Engine
     ) -> None:

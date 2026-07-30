@@ -496,6 +496,7 @@ def _lookup_gnomad(
     raw_by_rsid: dict[str, sa.Row],
     gnomad_engine: sa.Engine,
     allele_ambiguous_out: set[str] | None = None,
+    conflicting_genotype_rsids: set[str] | None = None,
 ) -> dict[str, dict]:
     """Look up gnomAD allele frequencies by exact allele, then rsid.
 
@@ -556,6 +557,7 @@ def _lookup_gnomad(
             gnomad_engine,
             genotype_by_rsid=genotype_by_rsid,
             allele_ambiguous_out=allele_ambiguous_out,
+            conflicting_genotype_rsids=conflicting_genotype_rsids,
         )
         for rsid, annot in rsid_matches.items():
             results[rsid] = _annot_to_dict(annot)
@@ -1492,6 +1494,17 @@ def run_annotation(
                 if q == r or q not in raw_by_query:
                     raw_by_query[q] = raw_by_rsid[r]
 
+            # Aliases collapse to one row above, so a query id served by several
+            # sample rows with DIFFERENT genotypes has no single genotype that
+            # speaks for all of them. gnomAD must not pick an ALT from one call
+            # and let `_rekey_to_original` fan it out to the others (#2171).
+            genotypes_by_query: dict[str, set[str]] = {}
+            for r in batch_rsids:
+                genotypes_by_query.setdefault(lookup_key[r], set()).add(raw_by_rsid[r].genotype)
+            conflicting_genotype_rsids = {
+                q for q, genos in genotypes_by_query.items() if len(genos) > 1
+            }
+
             # 5. Concurrent lookups across annotation sources
             vep_data: dict[str, dict] = {}
             clinvar_data: dict[str, dict] = {}
@@ -1544,6 +1557,7 @@ def run_annotation(
                         raw_by_query,
                         gnomad_engine,
                         gnomad_allele_ambiguous,
+                        conflicting_genotype_rsids,
                         source_timings=source_timings,
                         source_name="gnomad",
                     )

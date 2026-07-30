@@ -977,6 +977,7 @@ def lookup_gnomad_by_rsids(
     gnomad_engine: sa.Engine,
     genotype_by_rsid: dict[str, str] | None = None,
     allele_ambiguous_out: set[str] | None = None,
+    conflicting_genotype_rsids: set[str] | None = None,
 ) -> dict[str, GnomADAnnotation]:
     """Look up gnomAD allele frequencies for a batch of rsids.
 
@@ -993,6 +994,12 @@ def lookup_gnomad_by_rsids(
             candidate rows but whose allele could not be resolved. Without it a
             withheld rsID is indistinguishable from one absent from gnomAD, and
             the UI would say "Not in gnomAD" about a variant gnomAD does list.
+        conflicting_genotype_rsids: Optional set of queried rsIDs that several
+            sample rows map to with *different* genotypes (a deprecated rsID and
+            its replacement, or two deprecated IDs sharing one current ID). The
+            caller collapses those aliases to one row, so a single genotype
+            cannot speak for all of them; at a multi-ALT site that would hand one
+            call's frequency to another, which is the very defect #2171 fixes.
 
     Returns:
         Dict mapping rsid → GnomADAnnotation for matched variants.
@@ -1001,6 +1008,7 @@ def lookup_gnomad_by_rsids(
         return {}
 
     genotype_by_rsid = genotype_by_rsid or {}
+    conflicting_genotype_rsids = conflicting_genotype_rsids or set()
     results: dict[str, GnomADAnnotation] = {}
 
     with gnomad_engine.connect() as conn:
@@ -1022,7 +1030,13 @@ def lookup_gnomad_by_rsids(
                 rows_by_rsid.setdefault(row.rsid, []).append(row)
 
             for rsid, candidates in rows_by_rsid.items():
-                picked = _pick_gnomad_row(candidates, genotype_by_rsid.get(rsid))
+                if len(candidates) > 1 and rsid in conflicting_genotype_rsids:
+                    # Aliased sample rows disagree on the genotype, so no single
+                    # ALT can be chosen for all of them. One row is unambiguous
+                    # regardless, so the guard is scoped to multi-ALT sites.
+                    picked = None
+                else:
+                    picked = _pick_gnomad_row(candidates, genotype_by_rsid.get(rsid))
                 if picked is not None:
                     results[rsid] = _annotation_from_row(picked)
                 elif allele_ambiguous_out is not None:
