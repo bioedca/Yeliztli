@@ -64,6 +64,11 @@ class PathwaySummary(BaseModel):
     # Subset of missing_snps that were on the array but failed genotyping.
     # Preserve missing_snps as the historical union for compatibility.
     no_call_snps: list[str] = []
+    # Called SNPs observed but withheld from interpretation (e.g. a strand-
+    # unresolved palindromic homozygote). A Standard pathway holding one of these
+    # is not a clean negative, so the summary must be able to say so without the
+    # user having to open SNP detail (#2178).
+    indeterminate_snps: list[str] = []
     pmids: list[str] = []
 
 
@@ -135,6 +140,11 @@ class PathwayDetailResponse(BaseModel):
     # Subset of missing_snps that were on the array but failed genotyping.
     # Preserve missing_snps as the historical union for compatibility.
     no_call_snps: list[str] = []
+    # Called SNPs observed but withheld from interpretation (e.g. a strand-
+    # unresolved palindromic homozygote). A Standard pathway holding one of these
+    # is not a clean negative, so the summary must be able to say so without the
+    # user having to open SNP detail (#2178).
+    indeterminate_snps: list[str] = []
     pmids: list[str] = []
     snp_details: list[SNPDetail] = []
 
@@ -261,6 +271,7 @@ def list_pathways(
                 total_snps=detail.get("total_snps", 0),
                 missing_snps=detail.get("missing_snps", []),
                 no_call_snps=detail.get("no_call_snps", []),
+                indeterminate_snps=detail.get("indeterminate_snps", []),
                 pmids=ps["pmids"],
             )
         )
