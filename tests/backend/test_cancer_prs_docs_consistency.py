@@ -137,6 +137,9 @@ def test_cancer_docs_distinguish_the_runtime_block_from_ancestry_withholding() -
     assert "model_provenance.current_allele_audit" in audit_reference, (
         "breast PRS allele counts must cite their bundled audit provenance"
     )
+    assert "DOI:10.1093/database/bay119" in audit_reference, (
+        "breast PRS allele audit must cite the Ensembl Variation resource"
+    )
     assert _ACCESS_DATE_RE.search(audit_reference), (
         "breast PRS allele-audit reference must include an '(accessed YYYY-MM-DD)' date"
     )
