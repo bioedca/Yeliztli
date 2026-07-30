@@ -116,6 +116,11 @@ _MAX_WORKERS = 4
 
 GNOMAD_SOURCE_OBSERVED = "observed"
 GNOMAD_SOURCE_UNCOVERED = "source_uncovered"
+# gnomAD lists this rsID, but across several ALTs and the sample genotype does
+# not identify which one is carried, so no frequency is published (#2171).
+# Distinct from "absent": without it the UI says "Not in gnomAD" about a variant
+# gnomAD does catalogue.
+GNOMAD_SOURCE_ALLELE_AMBIGUOUS = "allele_ambiguous"
 
 _GNOMAD_EXOME_UNCOVERED_CONSEQUENCES: frozenset[str] = frozenset(
     {
@@ -465,16 +470,22 @@ def _consequence_terms(consequence: str | None) -> set[str]:
     return {term.strip() for term in consequence.split("&") if term.strip()}
 
 
-def _gnomad_source_status(row_data: dict, *, matched: bool) -> str | None:
+def _gnomad_source_status(
+    row_data: dict, *, matched: bool, allele_ambiguous: bool = False
+) -> str | None:
     """Return the status for the currently selected gnomAD AF source.
 
     The bundled AF source is gnomAD r2.1.1 exomes. A matched row is observed in
     that source. An unmatched non-coding VEP consequence is outside the selected
     exome source's intended assessment scope, so callers should not present it
-    as simply absent from gnomAD.
+    as simply absent from gnomAD. A shared rsID whose carried ALT could not be
+    resolved is likewise *present but unreportable* rather than absent (#2171) --
+    reporting it as absent would be a false statement about gnomAD's contents.
     """
     if matched:
         return GNOMAD_SOURCE_OBSERVED
+    if allele_ambiguous:
+        return GNOMAD_SOURCE_ALLELE_AMBIGUOUS
     if _consequence_terms(row_data.get("consequence")) & _GNOMAD_EXOME_UNCOVERED_CONSEQUENCES:
         return GNOMAD_SOURCE_UNCOVERED
     return None
@@ -484,6 +495,7 @@ def _lookup_gnomad(
     rsids: list[str],
     raw_by_rsid: dict[str, sa.Row],
     gnomad_engine: sa.Engine,
+    allele_ambiguous_out: set[str] | None = None,
 ) -> dict[str, dict]:
     """Look up gnomAD allele frequencies by exact allele, then rsid.
 
@@ -540,7 +552,10 @@ def _lookup_gnomad(
             rsid: raw_by_rsid[rsid].genotype for rsid in unmatched if rsid in raw_by_rsid
         }
         rsid_matches = lookup_gnomad_by_rsids(
-            unmatched, gnomad_engine, genotype_by_rsid=genotype_by_rsid
+            unmatched,
+            gnomad_engine,
+            genotype_by_rsid=genotype_by_rsid,
+            allele_ambiguous_out=allele_ambiguous_out,
         )
         for rsid, annot in rsid_matches.items():
             results[rsid] = _annot_to_dict(annot)
@@ -773,6 +788,7 @@ def _merge_annotations(
     gene_phenotype_data: dict[str, dict] | None = None,
     alphamissense_data: dict[str, dict] | None = None,
     merged_rsid_map: dict[str, str] | None = None,
+    gnomad_allele_ambiguous: set[str] | None = None,
 ) -> list[dict]:
     """Merge all annotation sources into upsert-ready dicts.
 
@@ -837,7 +853,11 @@ def _merge_annotations(
             row_data.update(gene_phenotype_data[rsid])
             bitmask |= GENE_PHENOTYPE_BIT
 
-        gnomad_status = _gnomad_source_status(row_data, matched=rsid in gnomad_data)
+        gnomad_status = _gnomad_source_status(
+            row_data,
+            matched=rsid in gnomad_data,
+            allele_ambiguous=rsid in (gnomad_allele_ambiguous or ()),
+        )
         if gnomad_status is not None:
             row_data["gnomad_source_status"] = gnomad_status
 
@@ -1476,6 +1496,11 @@ def run_annotation(
             vep_data: dict[str, dict] = {}
             clinvar_data: dict[str, dict] = {}
             gnomad_data: dict[str, dict] = {}
+            # Filled by the gnomAD worker with rsIDs that HAD candidate rows but
+            # whose carried ALT could not be resolved (#2171). Kept out of
+            # `gnomad_data` deliberately: an entry there would set GNOMAD_BIT and
+            # claim coverage this row does not have.
+            gnomad_allele_ambiguous: set[str] = set()
             dbnsfp_data: dict[str, dict] = {}
             alphamissense_data: dict[str, dict] = {}
 
@@ -1518,6 +1543,7 @@ def run_annotation(
                         query_rsids,
                         raw_by_query,
                         gnomad_engine,
+                        gnomad_allele_ambiguous,
                         source_timings=source_timings,
                         source_name="gnomad",
                     )
@@ -1563,6 +1589,12 @@ def run_annotation(
                 vep_data = _rekey_to_original(vep_data, lookup_key)
                 clinvar_data = _rekey_to_original(clinvar_data, lookup_key)
                 gnomad_data = _rekey_to_original(gnomad_data, lookup_key)
+                # Same F18 re-keying for the ambiguity set: it is keyed by the
+                # queried (merge-resolved) rsid and must come back to the
+                # sample's own rsid before the merge reads it.
+                gnomad_allele_ambiguous = {
+                    lookup_key.get(rsid, rsid) for rsid in gnomad_allele_ambiguous
+                }
                 dbnsfp_data = _rekey_to_original(dbnsfp_data, lookup_key)
 
             # Accumulate per-source timings
@@ -1681,6 +1713,7 @@ def run_annotation(
                 gene_phenotype_data,
                 alphamissense_data=alphamissense_data,
                 merged_rsid_map=current_by_old,
+                gnomad_allele_ambiguous=gnomad_allele_ambiguous,
             )
 
             # 6b. Ensemble pathogenicity flag (P2-13)

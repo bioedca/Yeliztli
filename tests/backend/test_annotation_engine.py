@@ -1919,6 +1919,54 @@ class TestGnomadAnnotationLookupIntegration:
 
         assert "rs_shared_prod" in {v.rsid for v in found.variants}
 
+    def test_withheld_rsid_is_not_reported_as_absent_from_gnomad(
+        self, sample_engine: sa.Engine, mock_registry: MagicMock, gnomad_engine: sa.Engine
+    ) -> None:
+        """#2171 review: withholding must not read as "Not in gnomAD".
+
+        gnomAD lists `rs_shared_prod` -- twice. Withholding the frequency because
+        the carried ALT is unresolvable is correct, but leaving no status makes
+        the row indistinguishable from an rsID gnomAD has never heard of, and
+        `gnomadNoFrequencyLabel` then tells the user "Not in gnomAD" about a
+        variant that is in gnomAD.
+        """
+        self._shared_rsid_gnomad_rows(gnomad_engine)
+        with sample_engine.begin() as conn:
+            conn.execute(
+                raw_variants.insert().values(
+                    rsid="rs_shared_prod", chrom="1", pos=300, genotype="CC"
+                )
+            )
+
+        run_annotation(sample_engine, mock_registry)
+
+        row = self._annotated_row(sample_engine, "rs_shared_prod")
+        assert row is not None
+        assert row.gnomad_af_global is None
+        assert row.gnomad_source_status == "allele_ambiguous"
+
+    def test_absent_rsid_keeps_no_ambiguity_status(
+        self, sample_engine: sa.Engine, mock_registry: MagicMock, gnomad_engine: sa.Engine
+    ) -> None:
+        """Discriminating control: a genuinely absent rsID must NOT be relabelled.
+
+        Without this, always emitting the ambiguity status would satisfy the test
+        above while making the new label meaningless.
+        """
+        with sample_engine.begin() as conn:
+            conn.execute(
+                raw_variants.insert().values(
+                    rsid="rs_absent_prod", chrom="1", pos=999, genotype="AG"
+                )
+            )
+
+        run_annotation(sample_engine, mock_registry)
+
+        row = self._annotated_row(sample_engine, "rs_absent_prod")
+        assert row is not None
+        assert row.gnomad_af_global is None
+        assert row.gnomad_source_status != "allele_ambiguous"
+
     def test_single_alt_rsid_is_annotated_regardless_of_genotype(
         self, sample_engine: sa.Engine, mock_registry: MagicMock, gnomad_engine: sa.Engine
     ) -> None:

@@ -976,6 +976,7 @@ def lookup_gnomad_by_rsids(
     rsids: list[str],
     gnomad_engine: sa.Engine,
     genotype_by_rsid: dict[str, str] | None = None,
+    allele_ambiguous_out: set[str] | None = None,
 ) -> dict[str, GnomADAnnotation]:
     """Look up gnomAD allele frequencies for a batch of rsids.
 
@@ -988,6 +989,10 @@ def lookup_gnomad_by_rsids(
             the row whose ALT the sample carries; when carriage is ambiguous or
             no catalogued ALT matches, the rsID is omitted from the result
             instead of inheriting another ALT's frequency (#2171).
+        allele_ambiguous_out: Optional set, populated with rsIDs that DID have
+            candidate rows but whose allele could not be resolved. Without it a
+            withheld rsID is indistinguishable from one absent from gnomAD, and
+            the UI would say "Not in gnomAD" about a variant gnomAD does list.
 
     Returns:
         Dict mapping rsid → GnomADAnnotation for matched variants.
@@ -1020,6 +1025,9 @@ def lookup_gnomad_by_rsids(
                 picked = _pick_gnomad_row(candidates, genotype_by_rsid.get(rsid))
                 if picked is not None:
                     results[rsid] = _annotation_from_row(picked)
+                elif allele_ambiguous_out is not None:
+                    # Rows existed; we declined to choose between them.
+                    allele_ambiguous_out.add(rsid)
 
     return results
 
