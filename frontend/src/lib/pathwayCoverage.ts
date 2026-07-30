@@ -41,17 +41,42 @@ function notAssessedLabel(pathway: PathwayCoverageSummary): string {
   return parts.length > 0 ? `${base} (${parts.join(", ")})` : base
 }
 
+/** True when SNPs were observed but every one of them was withheld from
+ * interpretation, so nothing was actually scored.
+ *
+ * `called_snps` counts observed SNPs including indeterminate ones, so deriving a
+ * label from it alone renders a clean "Standard" for a pathway where no variant
+ * was scored (#2178). Shared by every surface — traits and fitness cards here,
+ * the report/export/SVG paths via `backend.analysis.pathway_coverage` — so one
+ * result cannot carry conflicting labels depending on where it is rendered.
+ */
+function pathwayNothingInterpreted(pathway: PathwayCoverageSummary): boolean {
+  return pathway.called_snps > 0 && pathway.called_snps - indeterminateCount(pathway) <= 0
+}
+
 export function pathwayLevelDisplayLabel(
   pathway: PathwayCoverageSummary,
   defaultLabel: string,
 ): string {
-  if (pathway.level !== "Standard" || missingSnps(pathway).length === 0) {
+  if (pathway.level !== "Standard") {
+    return defaultLabel
+  }
+  if (pathwayNothingInterpreted(pathway)) {
+    return "Not Assessed"
+  }
+  if (missingSnps(pathway).length === 0) {
     return defaultLabel
   }
   return pathway.called_snps === 0 ? "Not Assessed" : "Tested Standard"
 }
 
 export function pathwayCoverageCaveat(pathway: PathwayCoverageSummary): string | null {
+  // "based on interpreted SNPs only" presumes at least one interpreted SNP. When
+  // none were interpreted the card already reads "Not Assessed" and the
+  // indeterminate caveat carries the reason, so add nothing here (#2178).
+  if (pathwayNothingInterpreted(pathway)) {
+    return null
+  }
   if (missingSnps(pathway).length === 0) {
     return null
   }

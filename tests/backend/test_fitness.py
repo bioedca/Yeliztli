@@ -1019,6 +1019,12 @@ class TestStoreFindingsIntegration:
         assert "not interpreted" in row.finding_text
         assert "strand-unresolved" not in row.finding_text
         assert "indeterminate" in row.finding_text.lower()
+        # rs9939609 is the pathway's only SNP, so an indeterminate call leaves
+        # NOTHING scored -- even "Standard for scored variants" overstates it.
+        # The card and the report/SVG paths both read "Not Assessed" here, so the
+        # stored summary has to agree rather than contradict them (#2178).
+        assert "no variant scored" in row.finding_text
+        assert "Standard for scored variants" not in row.finding_text
         detail = json.loads(row.detail_json)
         assert detail["indeterminate_snps"] == ["rs9939609"]
 
