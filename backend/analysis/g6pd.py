@@ -356,7 +356,7 @@ def g6pd_phenotype(
             "phenotype": "normal",
             "detail": (
                 "Hemizygous male: no deficiency allele detected at any of the "
-                f"{typeable_total} curated G6PD deficiency variants that were tested. This does "
+                f"{called_typeable} curated G6PD deficiency variants that were tested. This does "
                 "not exclude G6PD deficiency — over 200 deficiency variants are known and "
                 "only enzyme activity testing establishes G6PD status."
             ),
@@ -399,7 +399,7 @@ def g6pd_phenotype(
             "phenotype": "normal",
             "detail": (
                 "Female: no deficiency allele detected at any of the "
-                f"{typeable_total} curated G6PD deficiency variants that were tested. This does "
+                f"{called_typeable} curated G6PD deficiency variants that were tested. This does "
                 "not exclude G6PD deficiency — over 200 deficiency variants are known and "
                 "only enzyme activity testing establishes G6PD status."
             ),
@@ -563,29 +563,23 @@ def assess_g6pd(
     ]
     typeable_total = len(resolvable_loci)
     called_typeable = sum(1 for loc in resolvable_loci if loc["called"])
-    # Adequacy is NOT a bare count. A count-only majority would clear the
-    # medication warning for any 6 of the 11 resolvable loci even when A− and
-    # Mediterranean — the two highest-yield deficiency alleles, and the ones this
-    # module's own panel notes identify as dominant globally — were never
-    # assessed. Powell et al. frame c.202G>A (A−) as the variant limited panels
-    # test, and quantify what testing it alone still misses (PMID:39607789), so a
-    # negative panel that skipped both anchors cannot be called informative.
+    # Adequacy requires the WHOLE resolvable curated panel to have been called.
     #
-    # So require BOTH: the two anchor alleles callable, AND a majority of the
-    # resolvable panel. Requiring *every* locus was rejected empirically — it made
-    # a real AncestryDNA sample indeterminate over a single genuinely-absent
-    # variant (10/11, missing only Chinese-5), suppressing the module for ordinary
-    # inputs instead of fixing the defect. No source fixes an exact fraction, so
-    # the majority term is a documented floor and the counts are surfaced either
-    # way; the anchor term is what stops a broad-but-unhelpful panel clearing risk.
-    anchors_called = all(
-        loc["called"]
-        for loc in deficiency_loci
-        if loc["rsid"] in (G6PD_A_MINUS_RSID, G6PD_MED_RSID)
-    )
-    coverage_sufficient = (
-        typeable_total > 0 and anchors_called and called_typeable * 2 > typeable_total
-    )
+    # Earlier revisions used a majority (with an anchor-allele term), justified by
+    # the claim that requiring every locus would suppress the module for ordinary
+    # samples. That justification was wrong: Seattle/Lodi is palindromic, so a
+    # homozygous-reference call there is strand-ambiguous, and the pre-existing
+    # strand branch below already forces `indeterminate` with the drug warning
+    # retained for any sample that types it at all — which is the common case. The
+    # relaxation therefore bought nothing real while leaving a threshold that, as
+    # its own comment conceded, no source establishes.
+    #
+    # Requiring completeness needs no such threshold: it is the only rule that
+    # makes "no deficiency allele detected among the variants tested" both true
+    # and exhaustive over the curated panel, and it cannot clear the oxidative-drug
+    # warning while any curated variant is unassessed. The counts are surfaced so a
+    # consumer can see exactly what was read.
+    coverage_sufficient = typeable_total > 0 and called_typeable == typeable_total
 
     verdict = g6pd_phenotype(
         sex,

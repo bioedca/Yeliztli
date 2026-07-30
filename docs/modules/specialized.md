@@ -71,10 +71,10 @@ An **X-linked**, sex-aware pharmacogenomic context module: it assigns a phenotyp
 variable / deficient / indeterminate) and lists high-risk oxidative drugs (e.g. rasburicase,
 primaquine, dapsone). Array coverage of these variants varies.
 
-**A negative result depends on how much of the panel was actually read.** If too few of the
-curated deficiency variants were callable, the result is reported as *indeterminate*
-with medication risk **undetermined**, rather than as a normal, risk-clearing result — one
-callable reference locus is not a negative panel. Even a fully covered negative reads as "no
+**A negative result depends on how much of the panel was actually read.** If *any* of the
+curated deficiency variants could not be called, the result is reported as *indeterminate*
+with medication risk **undetermined**, rather than as a normal, risk-clearing result — a
+partial panel is not a negative panel, however many of its loci were read. Even a fully covered negative reads as "no
 tested deficiency allele detected" rather than "G6PD normal": over 200 deficiency variants are
 known, limited-variant genotyping misses carriers,[^g6pd-limited-panel] and only an
 enzyme-activity assay establishes G6PD status.[^cpic-g6pd] A *detected* deficiency allele stays

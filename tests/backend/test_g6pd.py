@@ -176,32 +176,56 @@ class TestAssessG6pd:
         assert "cannot be cleared" in r["detail"]
 
     def test_broad_panel_without_anchor_alleles_is_still_indeterminate(self) -> None:
-        """#2172: adequacy is not a bare count.
+        """#2172: a partial panel cannot clear risk, however broad.
 
-        A count-only majority would clear the oxidative-drug warning for any 6 of
-        the 11 resolvable loci even when A- and Mediterranean -- the two
-        highest-yield deficiency alleles -- were never assessed. Powell et al.
-        (PMID:39607789) quantify what limited panels miss, so a negative panel
-        that skipped both anchors cannot be called informative.
+        A majority-style rule would have cleared the oxidative-drug warning for
+        any 6 of the 11 resolvable loci -- including when A- and Mediterranean,
+        the two highest-yield deficiency alleles, were never assessed. Powell et
+        al. (PMID:39607789) quantify what limited panels miss. The gate now
+        requires the whole resolvable panel, so this fails on completeness.
         """
         panel = _covered_panel("XY")
         for rsid in (G6PD_A_MINUS_RSID, G6PD_MED_RSID):
             panel.pop(rsid, None)
         r = self._assess("XY", panel)
         assert r["called_typeable_records"] * 2 > r["typeable_records"]  # a majority...
-        assert r["coverage_sufficient"] is False  # ...but still not adequate
+        assert r["called_typeable_records"] < r["typeable_records"]  # ...but incomplete
+        assert r["coverage_sufficient"] is False  # ...so still not adequate
         assert r["phenotype"] == "indeterminate"
         assert r["medication_risk"] == "undetermined"
 
     def test_anchor_alleles_alone_do_not_clear_coverage(self) -> None:
-        """#2172 other half: the anchors are necessary, not sufficient.
-
-        Both anchor alleles callable with the rest of the panel absent is still
-        a sparse negative, so breadth is required too.
-        """
+        """#2172: the highest-yield alleles alone are not a negative panel."""
         r = self._assess("XY", {G6PD_A_MINUS_RSID: "C", G6PD_MED_RSID: "G"})
         assert r["coverage_sufficient"] is False
         assert r["medication_risk"] == "undetermined"
+
+    def test_one_absent_locus_blocks_a_negative(self) -> None:
+        """#2172: completeness, not a fraction.
+
+        An earlier revision used a majority threshold that no source establishes,
+        justified by the claim that requiring every locus would suppress ordinary
+        samples. That was wrong: Seattle/Lodi is palindromic, so a
+        homozygous-reference call there is strand-ambiguous and the pre-existing
+        strand branch already forces indeterminate for any sample that types it.
+        Requiring the whole resolvable panel therefore costs nothing real and
+        removes the unevidenced threshold.
+        """
+        panel = _covered_panel("XY")
+        panel.pop("rs137852342", None)  # Chinese-5 absent
+        r = self._assess("XY", panel)
+        assert r["called_typeable_records"] == r["typeable_records"] - 1
+        assert r["coverage_sufficient"] is False
+        assert r["medication_risk"] == "undetermined"
+
+    def test_negative_detail_reports_the_number_actually_called(self) -> None:
+        """#2172: the detail must not overstate assay coverage.
+
+        A covered negative states how many curated variants were *tested*; that
+        number is the called count, never the panel size.
+        """
+        r = self._assess("XY", _covered_panel("XY"))
+        assert f"{r['called_typeable_records']} curated" in r["detail"]
 
     def test_sparse_positive_still_reports_deficiency(self) -> None:
         """#2172 discriminating control: the coverage gate is asymmetric.
