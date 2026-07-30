@@ -56,11 +56,13 @@ surfaces the relevant CPIC prescribing guidance.
   guidance turns on whether you express the enzyme, and the no-function alleles — chiefly `*3`
   (`rs776746`) — are what decide that.[^cyp3a5-expression] CPIC gives a starting dose *by
   genotype, when the genotype is known*: an increase for expressers, label-recommended dosing
-  for non-expressers.[^cpic-cyp3a5-tacrolimus] If one of those positions is not typed, both
-  groups stay possible, and they point in **opposite** directions — so no tacrolimus
-  recommendation is shown at all, rather than guessing one. The gene still appears with its
-  *Partial* call and the untyped allele listed as indeterminate. Direct *CYP3A5* typing is what
-  resolves it.
+  for non-expressers.[^cpic-cyp3a5-tacrolimus] If an untyped position leaves **both** groups
+  possible, they point in opposite directions, so no tacrolimus recommendation is shown at all
+  rather than guessing one — the gene still appears with its *Partial* call and the untyped
+  allele listed as indeterminate, and direct *CYP3A5* typing is what resolves it. If the typed
+  positions already settle expresser status the recommendation is still shown: a sample
+  homozygous for a no-function allele is a non-expresser whichever way the untyped position
+  falls, so it keeps its label-recommended dosing.
 - Some diplotypes are inferred from unphased data and carry phase ambiguity.
 
 !!! danger "Never change a medication based on this"

@@ -712,6 +712,34 @@ def test_cyp3a5_untyped_star6_also_withholds(reference_engine: sa.Engine) -> Non
     assert [a for a in alerts if a.gene == "CYP3A5" and a.drug == "tacrolimus"] == []
 
 
+def test_cyp3a5_typed_homozygous_no_function_keeps_its_alert(
+    reference_engine: sa.Engine,
+) -> None:
+    """#2169: withholding is conditional on the *direction spread*, not on the mere
+    presence of an untyped marker.
+
+    A sample homozygous for a no-function allele at a typed position is a
+    non-expresser whichever way the untyped position falls -- there is no
+    reference-filled chromosome left for the indeterminate allele to occupy -- so
+    its label-recommended dosing must survive. Without this control, "withhold
+    whenever anything is indeterminate" would pass the suite.
+    """
+    genotypes = {k: v * 2 for k, v in _CYP3A5.items() if k != "rs776746"}
+    genotypes["rs10264272"] = "TT"  # homozygous *6, a typed no-function allele
+    sample = _make_sample(genotypes)
+    results = call_all_star_alleles(reference_engine, sample, genes=frozenset({"CYP3A5"}))
+    cyp3a5 = next(r for r in results if r.gene == "CYP3A5")
+    assert cyp3a5.diplotype == "*6/*6"
+    assert cyp3a5.call_confidence == CallConfidence.PARTIAL
+    assert "*3" in cyp3a5.indeterminate_alleles  # rs776746 still untyped
+
+    alerts = generate_prescribing_alerts(results, reference_engine)
+    tac = [a for a in alerts if a.gene == "CYP3A5" and a.drug == "tacrolimus"]
+    assert len(tac) == 1
+    assert tac[0].phenotype == "Poor Metabolizer"
+    assert _CYP3A5_LABEL_DOSING in tac[0].recommendation
+
+
 def test_cyp2c9_conservative_policy_is_unchanged_by_cyp3a5_withholding(
     reference_engine: sa.Engine,
 ) -> None:
