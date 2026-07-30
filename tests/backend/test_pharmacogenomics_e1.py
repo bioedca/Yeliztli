@@ -559,6 +559,206 @@ def test_cyp3a5_true_star7_homozygous_is_poor_metabolizer_with_alert(
     assert tac[0].phenotype == "Poor Metabolizer"
 
 
+# ── CYP3A5 untyped *3 (rs776746) — dosing direction not established (#2169) ───
+
+_CYP3A5_DOSE_INCREASE = "Increase starting dose"
+_CYP3A5_LABEL_DOSING = "Use label-recommended dosing"
+
+
+@pytest.mark.parametrize(
+    ("case", "genotypes"),
+    [
+        # rs776746 absent from the array entirely.
+        ("missing", {k: v * 2 for k, v in _CYP3A5.items() if k != "rs776746"}),
+        # rs776746 present but a true SNV no-call.
+        ("no_call", _cyp3a5_genotypes(rs776746="--")),
+    ],
+)
+def test_cyp3a5_untyped_star3_withholds_the_tacrolimus_recommendation(
+    case: str,
+    genotypes: dict[str, str],
+    reference_engine: sa.Engine,
+) -> None:
+    """#2169: an untyped rs776746 leaves CYP3A5 dosing *direction* undetermined.
+
+    The caller reference-fills both chromosomes to ``*1/*1``, which used to emit
+    CPIC's expresser recommendation to increase the tacrolimus starting dose by
+    1.5-2x -- the most aggressive shipped row -- for a sample whose ``*3`` status
+    was never typed.
+
+    CPIC supplies tacrolimus dosing by CYP3A5 genotype *when known*: increase for
+    expressers, label-recommended dosing for non-expressers (Birdwell et al.,
+    2015; PMID:25801146, DOI:10.1002/cpt.113, accessed 2026-07-30). The ``*3``
+    and ``*6`` SNPs abolish CYP3A5 expression, so only a ``*1`` carrier expresses
+    the enzyme (Kuehl et al., 2001; PMID:11279519, DOI:10.1038/86882, accessed
+    2026-07-30).
+
+    An unassayed marker constrains neither chromosome, so ``*1/*1``, ``*1/*3``
+    and ``*3/*3`` all remain admissible and they span *opposite* recommendations.
+    Tacrolimus has a narrow therapeutic index, so guessing either way is a real
+    error -- overexposing a true non-expresser, or underexposing a true expresser
+    -- and no source establishes a default for an unknown genotype. The alert is
+    therefore withheld rather than swapped for the other direction.
+    """
+    sample = _make_sample(genotypes)
+    results = call_all_star_alleles(reference_engine, sample, genes=frozenset({"CYP3A5"}))
+    cyp3a5 = next(r for r in results if r.gene == "CYP3A5")
+
+    # The gene result is unchanged and still records what was and was not seen.
+    assert cyp3a5.diplotype == "*1/*1", case
+    assert cyp3a5.phenotype == "Normal Metabolizer", case
+    assert cyp3a5.call_confidence == CallConfidence.PARTIAL, case
+    assert "*3" in cyp3a5.indeterminate_alleles, case
+
+    alerts = generate_prescribing_alerts(results, reference_engine)
+    tac = [a for a in alerts if a.gene == "CYP3A5" and a.drug == "tacrolimus"]
+    assert tac == [], case
+
+    # Nothing is persisted either, so no genotype-directed dose reaches the user.
+    assert store_prescribing_alerts(alerts, sample) == 0, case
+    with sample.connect() as conn:
+        rows = conn.execute(
+            sa.select(findings.c.finding_text).where(
+                sa.and_(
+                    findings.c.module == "pharmacogenomics",
+                    findings.c.gene_symbol == "CYP3A5",
+                )
+            )
+        ).fetchall()
+    assert rows == [], case
+
+
+def test_cyp3a5_typed_reference_star3_keeps_expresser_dose_increase(
+    reference_engine: sa.Engine,
+) -> None:
+    """#2169 negative control: a genuine hom-ref non-carrier at all three CYP3A5
+    defining positions *establishes* expresser status, so CPIC's dose increase
+    must still be emitted.
+
+    This is the discriminating half of the pair above -- blanket-suppressing the
+    CYP3A5 tacrolimus alert would satisfy that test and fail this one.
+    """
+    sample = _make_sample(_cyp3a5_genotypes())
+    results = call_all_star_alleles(reference_engine, sample, genes=frozenset({"CYP3A5"}))
+    cyp3a5 = next(r for r in results if r.gene == "CYP3A5")
+    assert cyp3a5.diplotype == "*1/*1"
+    assert cyp3a5.call_confidence == CallConfidence.COMPLETE
+    assert not cyp3a5.indeterminate_alleles
+
+    alerts = generate_prescribing_alerts(results, reference_engine)
+    tac = [a for a in alerts if a.gene == "CYP3A5" and a.drug == "tacrolimus"]
+    assert len(tac) == 1
+    assert tac[0].phenotype == "Normal Metabolizer"
+    assert _CYP3A5_DOSE_INCREASE in tac[0].recommendation
+
+
+@pytest.mark.parametrize(
+    ("case", "genotypes", "diplotype", "phenotype", "fragment"),
+    [
+        (
+            "hom_star3",
+            _cyp3a5_genotypes(rs776746="CC"),
+            "*3/*3",
+            "Poor Metabolizer",
+            _CYP3A5_LABEL_DOSING,
+        ),
+        (
+            "het_star3",
+            _cyp3a5_genotypes(rs776746="TC"),
+            "*1/*3",
+            "Intermediate Metabolizer",
+            _CYP3A5_DOSE_INCREASE,
+        ),
+    ],
+)
+def test_cyp3a5_typed_star3_genotypes_keep_their_cpic_recommendation(
+    case: str,
+    genotypes: dict[str, str],
+    diplotype: str,
+    phenotype: str,
+    fragment: str,
+    reference_engine: sa.Engine,
+) -> None:
+    """#2169: withholding applies only to the *untyped* case. A genotype that was
+    actually typed keeps its own CPIC row, in either direction."""
+    sample = _make_sample(genotypes)
+    results = call_all_star_alleles(reference_engine, sample, genes=frozenset({"CYP3A5"}))
+    cyp3a5 = next(r for r in results if r.gene == "CYP3A5")
+    assert cyp3a5.diplotype == diplotype, case
+    assert cyp3a5.call_confidence == CallConfidence.COMPLETE, case
+
+    alerts = generate_prescribing_alerts(results, reference_engine)
+    tac = [a for a in alerts if a.gene == "CYP3A5" and a.drug == "tacrolimus"]
+    assert len(tac) == 1, case
+    assert tac[0].phenotype == phenotype, case
+    assert fragment in tac[0].recommendation, case
+
+
+def test_cyp3a5_untyped_star6_also_withholds(reference_engine: sa.Engine) -> None:
+    """#2169: the rule is the *direction spread*, not one specific marker.
+
+    With rs776746 typed reference but rs10264272 (*6, a no-function allele)
+    untyped, ``*1/*6`` and ``*6/*6`` stay admissible and span a different
+    recommendation from the direct ``*1/*1`` call, so the alert is withheld too.
+    """
+    genotypes = {k: v * 2 for k, v in _CYP3A5.items() if k != "rs10264272"}
+    sample = _make_sample(genotypes)
+    results = call_all_star_alleles(reference_engine, sample, genes=frozenset({"CYP3A5"}))
+    cyp3a5 = next(r for r in results if r.gene == "CYP3A5")
+    assert cyp3a5.diplotype == "*1/*1"
+    assert "*6" in cyp3a5.indeterminate_alleles
+
+    alerts = generate_prescribing_alerts(results, reference_engine)
+    assert [a for a in alerts if a.gene == "CYP3A5" and a.drug == "tacrolimus"] == []
+
+
+def test_cyp3a5_typed_homozygous_no_function_keeps_its_alert(
+    reference_engine: sa.Engine,
+) -> None:
+    """#2169: withholding is conditional on the *direction spread*, not on the mere
+    presence of an untyped marker.
+
+    A sample homozygous for a no-function allele at a typed position is a
+    non-expresser whichever way the untyped position falls -- there is no
+    reference-filled chromosome left for the indeterminate allele to occupy -- so
+    its label-recommended dosing must survive. Without this control, "withhold
+    whenever anything is indeterminate" would pass the suite.
+    """
+    genotypes = {k: v * 2 for k, v in _CYP3A5.items() if k != "rs776746"}
+    genotypes["rs10264272"] = "TT"  # homozygous *6, a typed no-function allele
+    sample = _make_sample(genotypes)
+    results = call_all_star_alleles(reference_engine, sample, genes=frozenset({"CYP3A5"}))
+    cyp3a5 = next(r for r in results if r.gene == "CYP3A5")
+    assert cyp3a5.diplotype == "*6/*6"
+    assert cyp3a5.call_confidence == CallConfidence.PARTIAL
+    assert "*3" in cyp3a5.indeterminate_alleles  # rs776746 still untyped
+
+    alerts = generate_prescribing_alerts(results, reference_engine)
+    tac = [a for a in alerts if a.gene == "CYP3A5" and a.drug == "tacrolimus"]
+    assert len(tac) == 1
+    assert tac[0].phenotype == "Poor Metabolizer"
+    assert _CYP3A5_LABEL_DOSING in tac[0].recommendation
+
+
+def test_cyp2c9_conservative_policy_is_unchanged_by_cyp3a5_withholding(
+    reference_engine: sa.Engine,
+) -> None:
+    """#2169 blast-radius guard: withholding is scoped to CYP3A5.
+
+    CYP2C9 keeps the reviewed conservative substitution from #1081/#1413 — its
+    untyped-marker alerts are still *emitted*, not withheld — so this change
+    cannot silently drop another gene's prescribing advice.
+    """
+    from backend.analysis.pharmacogenomics import (
+        CONSERVATIVE_UNTYPED_PHENOTYPE_GENES,
+        WITHHOLD_CROSS_DIRECTION_GENES,
+    )
+
+    assert WITHHOLD_CROSS_DIRECTION_GENES == frozenset({"CYP3A5"})
+    assert "CYP3A5" not in CONSERVATIVE_UNTYPED_PHENOTYPE_GENES
+    assert {"CYP2B6", "CYP2C9", "UGT1A1"} <= CONSERVATIVE_UNTYPED_PHENOTYPE_GENES
+
+
 # ── PharmVar versioning ───────────────────────────────────────────────────────
 
 
