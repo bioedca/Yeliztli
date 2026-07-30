@@ -72,7 +72,7 @@ variable / deficient / indeterminate) and lists high-risk oxidative drugs (e.g. 
 primaquine, dapsone). Array coverage of these variants varies.
 
 **A negative result depends on how much of the panel was actually read.** If too few of the
-deficiency variants this array types were callable, the result is reported as *indeterminate*
+curated deficiency variants were callable, the result is reported as *indeterminate*
 with medication risk **undetermined**, rather than as a normal, risk-clearing result — one
 callable reference locus is not a negative panel. Even a fully covered negative reads as "no
 tested deficiency allele detected" rather than "G6PD normal": over 200 deficiency variants are

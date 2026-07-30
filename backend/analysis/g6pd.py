@@ -305,8 +305,8 @@ def _insufficient_coverage_verdict(called_typeable: int, typeable_total: int) ->
     return {
         "phenotype": "indeterminate",
         "detail": (
-            f"Only {called_typeable} of the {typeable_total} G6PD deficiency variants this "
-            "array types were callable, so a negative result cannot be interpreted — the "
+            f"Only {called_typeable} of the {typeable_total} curated G6PD deficiency variants "
+            "were callable, so a negative result cannot be interpreted — the "
             "uncalled variants were not assessed. G6PD status is undetermined and "
             "medication risk cannot be cleared; confirm with an enzyme-activity assay "
             "before a high-risk oxidative drug."
@@ -356,9 +356,9 @@ def g6pd_phenotype(
             "phenotype": "normal",
             "detail": (
                 "Hemizygous male: no deficiency allele detected at any of the "
-                f"{typeable_total} G6PD variants this array types. This does not exclude "
-                "G6PD deficiency — over 200 deficiency variants are known and only enzyme "
-                "activity testing establishes G6PD status."
+                f"{typeable_total} curated G6PD deficiency variants that were tested. This does "
+                "not exclude G6PD deficiency — over 200 deficiency variants are known and "
+                "only enzyme activity testing establishes G6PD status."
             ),
         }
     if sex == "XX":
@@ -399,9 +399,9 @@ def g6pd_phenotype(
             "phenotype": "normal",
             "detail": (
                 "Female: no deficiency allele detected at any of the "
-                f"{typeable_total} G6PD variants this array types. This does not exclude "
-                "G6PD deficiency — over 200 deficiency variants are known and only enzyme "
-                "activity testing establishes G6PD status."
+                f"{typeable_total} curated G6PD deficiency variants that were tested. This does "
+                "not exclude G6PD deficiency — over 200 deficiency variants are known and "
+                "only enzyme activity testing establishes G6PD status."
             ),
         }
     # Sex could not be inferred (manual_review / unknown): zygosity is undefined.
@@ -542,27 +542,36 @@ def assess_g6pd(
     )
 
     # Coverage denominator is the array's own typeability, not the raw panel size:
-    # a locus the GSA-24v3 backbone never interrogates cannot be held against the
-    # sample. A negative verdict requires every typeable locus to have been called
-    # (#2172); failing to `indeterminate` is the safe direction, because the
-    # alternative silently clears the oxidative-drug list.
-    # The denominator excludes palindromic loci as well. A palindromic (C/G) locus is
-    # strand-unresolvable as a homozygote *even at its reference base* — Seattle/Lodi
-    # reads ambiguous for a plain reference "C" — so it can never be "called" in the
-    # sense this gate means. Counting it would make an adequately covered negative
-    # unreachable for every real sample; the existing strand_ambiguous_loci branch
-    # already handles it separately, and more conservatively.
-    resolvable_names = {
-        name
-        for name, _rsid, _cdna, ref, deficiency_allele in G6PD_DEFICIENCY_VARIANTS
+    # the *curated* panel, deliberately NOT the GSA-24v3 manifest. `gsa_v3_typed`
+    # describes one reference array (the v5/AncestryDNA backbone) and this module
+    # never reads the sample's own `file_format`, so using it as the denominator
+    # would apply v5 typeability to a 23andMe v3/v4 sample and describe probes it
+    # does not have as ones "this array types". It stays per-locus transparency
+    # metadata; the gate is array-agnostic.
+    #
+    # Palindromic loci are excluded: a palindromic (C/G) locus is strand-
+    # unresolvable as a homozygote *even at its reference base* — Seattle/Lodi
+    # reads ambiguous for a plain reference "C" — so it can never be "called" in
+    # the sense this gate means, and the strand_ambiguous_loci branch already
+    # handles it separately and more conservatively.
+    resolvable_loci = [
+        loc
+        for loc, (_n, _rsid, _cdna, ref, deficiency_allele) in zip(
+            deficiency_loci, G6PD_DEFICIENCY_VARIANTS, strict=True
+        )
         if not _is_palindromic(ref, deficiency_allele)
-    }
-    typeable_loci = [
-        loc for loc in deficiency_loci if loc["gsa_v3_typed"] and loc["name"] in resolvable_names
     ]
-    typeable_total = len(typeable_loci)
-    called_typeable = sum(1 for loc in typeable_loci if loc["called"])
-    coverage_sufficient = typeable_total > 0 and called_typeable == typeable_total
+    typeable_total = len(resolvable_loci)
+    called_typeable = sum(1 for loc in resolvable_loci if loc["called"])
+    # A *majority* rather than every locus. Requiring all of them made a real,
+    # well-covered sample indeterminate over a single genuinely-absent variant
+    # (10/11 observed on an AncestryDNA sample, missing only Chinese-5), which
+    # would suppress the module for ordinary inputs instead of fixing the defect.
+    # No source fixes a specific adequacy threshold, so this is a conservative
+    # floor chosen to make the reported failure — one callable locus read as a
+    # negative panel — unambiguously insufficient, while leaving a broadly
+    # covered panel interpretable. The exact counts are surfaced either way.
+    coverage_sufficient = typeable_total > 0 and called_typeable * 2 > typeable_total
 
     verdict = g6pd_phenotype(
         sex,

@@ -22,7 +22,6 @@ from backend.analysis.g6pd import (
     G6PD_MED_RSID,
     G6PD_PMID_CITATIONS,
     _deficiency_alleles,
-    _gsa_v3_typed,
     _is_palindromic,
     assess_g6pd,
     g6pd_phenotype,
@@ -32,7 +31,7 @@ from backend.db.tables import raw_variants
 
 
 def _covered_panel(sex: str, **overrides: str) -> dict[str, str]:
-    """Every array-typeable, strand-resolvable G6PD locus at its reference base.
+    """Every strand-resolvable curated G6PD locus at its reference base.
 
     A negative G6PD result now requires adequate assay coverage (#2172), so a
     fixture that supplies a single locus is deliberately *not* enough to produce
@@ -47,8 +46,7 @@ def _covered_panel(sex: str, **overrides: str) -> dict[str, str]:
     panel = {
         rsid: ref * copies
         for _name, rsid, _cdna, ref, deficiency_allele in G6PD_DEFICIENCY_VARIANTS
-        if _gsa_v3_typed(rsid, ref, deficiency_allele)
-        and not _is_palindromic(ref, deficiency_allele)
+        if not _is_palindromic(ref, deficiency_allele)
     }
     for rsid, genotype in overrides.items():
         if genotype is None:
@@ -172,7 +170,7 @@ class TestAssessG6pd:
         assert r["phenotype"] == "indeterminate"
         assert r["coverage_sufficient"] is False
         assert r["called_typeable_records"] == 1
-        assert r["typeable_records"] > 1
+        assert r["typeable_records"] > 2  # 1 of many is well under a majority
         # The result must not read as a cleared medication risk.
         assert r["medication_risk"] == "undetermined"
         assert "cannot be cleared" in r["detail"]

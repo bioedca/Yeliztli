@@ -16,7 +16,6 @@ from fastapi.testclient import TestClient
 from backend.analysis.g6pd import (
     G6PD_A_MINUS_RSID,
     G6PD_DEFICIENCY_VARIANTS,
-    _gsa_v3_typed,
     _is_palindromic,
 )
 from backend.config import Settings
@@ -29,7 +28,7 @@ from backend.db.tables import raw_variants, reference_metadata, samples
 _COVERED_G6PD_REFERENCE: list[tuple[str, str]] = [
     (rsid, ref)
     for _name, rsid, _cdna, ref, deficiency_allele in G6PD_DEFICIENCY_VARIANTS
-    if _gsa_v3_typed(rsid, ref, deficiency_allele) and not _is_palindromic(ref, deficiency_allele)
+    if not _is_palindromic(ref, deficiency_allele)
 ]
 
 # Evaluable sex-chromosome filler so ``infer_biological_sex`` clears the
