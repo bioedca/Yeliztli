@@ -433,6 +433,62 @@ class TestIndeterminateEndpointPropagation:
         assert summary["indeterminate_snps"] == detail["indeterminate_snps"]
 
 
+# A finding persisted BEFORE indeterminate_snps existed: the per-SNP category is
+# recorded, but the summary key is absent (#2178).
+LEGACY_INDETERMINATE_FINDING = {
+    **INDETERMINATE_PATHWAY_FINDING,
+    "detail_json": json.dumps(
+        {
+            k: v
+            for k, v in json.loads(INDETERMINATE_PATHWAY_FINDING["detail_json"]).items()
+            if k != "indeterminate_snps"
+        }
+    ),
+}
+
+
+@pytest.fixture()
+def legacy_client(_env: tuple[sa.Engine, sa.Engine]) -> TestClient:
+    """Client seeded with a pre-deployment finding lacking indeterminate_snps."""
+    sample_engine, _ = _env
+    with sample_engine.begin() as conn:
+        conn.execute(sa.insert(findings), LEGACY_INDETERMINATE_FINDING)
+
+    from fastapi import FastAPI
+
+    from backend.api.routes.traits import router
+
+    app = FastAPI()
+    app.include_router(router, prefix="/api")
+    return TestClient(app)
+
+
+class TestLegacyIndeterminateBackfill:
+    """#2178: findings stored before the new key must not stay falsely clean.
+
+    ``require_fresh_sample`` compares only the recorded VEP bundle major version,
+    so samples analysed before this change are not re-analysed on deploy. Their
+    ``detail_json`` still records the per-SNP ``Indeterminate`` category, so the
+    summary is derived from it rather than defaulting to empty.
+    """
+
+    def test_legacy_finding_has_no_stored_key(self) -> None:
+        """Premise guard: the fixture really is missing the key, so the tests
+        below are not silently exercising the new path."""
+        assert "indeterminate_snps" not in json.loads(LEGACY_INDETERMINATE_FINDING["detail_json"])
+
+    def test_list_pathways_derives_indeterminate_snps(self, legacy_client: TestClient) -> None:
+        data = legacy_client.get("/api/analysis/traits/pathways?sample_id=1").json()
+        item = next(i for i in data["items"] if i["pathway_id"] == "behavioral_traits")
+        assert item["indeterminate_snps"] == ["rs747302"]
+
+    def test_pathway_detail_derives_indeterminate_snps(self, legacy_client: TestClient) -> None:
+        data = legacy_client.get(
+            "/api/analysis/traits/pathway/behavioral_traits?sample_id=1"
+        ).json()
+        assert data["indeterminate_snps"] == ["rs747302"]
+
+
 # ── Endpoint tests ───────────────────────────────────────────────────
 
 
