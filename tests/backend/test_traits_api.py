@@ -336,6 +336,103 @@ def seeded_client(
     return TestClient(app)
 
 
+# ── #2178: a stored pathway holding an indeterminate call ────────────────────
+
+INDETERMINATE_PATHWAY_FINDING = {
+    "module": "traits",
+    "category": "pathway_summary",
+    "evidence_level": 1,
+    "gene_symbol": None,
+    "rsid": None,
+    "finding_text": (
+        "Behavioral Traits — Standard for scored variants; 1 variant observed "
+        "but not interpreted (indeterminate) — see SNP details"
+    ),
+    "pathway": "Behavioral Traits",
+    "pathway_level": "Standard",
+    "pmid_citations": json.dumps([]),
+    "detail_json": json.dumps(
+        {
+            "pathway_id": "behavioral_traits",
+            "prs_primary": False,
+            "called_snps": 2,
+            "total_snps": 2,
+            "missing_snps": [],
+            "indeterminate_snps": ["rs747302"],
+            "snp_details": [
+                {
+                    "rsid": "rs747302",
+                    "gene": "DRD4",
+                    "variant_name": "DRD4 exon III VNTR proxy",
+                    "genotype": "CC",
+                    "category": "Indeterminate",
+                    "effect_summary": "Palindromic homozygote; strand unresolved.",
+                    "evidence_level": 1,
+                    "trait_domain": "novelty_seeking",
+                    "coverage_note": "strand caveat",
+                }
+            ],
+        }
+    ),
+}
+
+
+@pytest.fixture()
+def indeterminate_client(_env: tuple[sa.Engine, sa.Engine]) -> TestClient:
+    """Client seeded with a stored pathway that holds an indeterminate call."""
+    sample_engine, _ = _env
+    with sample_engine.begin() as conn:
+        conn.execute(sa.insert(findings), INDETERMINATE_PATHWAY_FINDING)
+
+    from fastapi import FastAPI
+
+    from backend.api.routes.traits import router
+
+    app = FastAPI()
+    app.include_router(router, prefix="/api")
+    return TestClient(app)
+
+
+class TestIndeterminateEndpointPropagation:
+    """#2178 endpoint lock: both response mappings must carry indeterminate_snps.
+
+    The unit tests stop at persisted ``detail_json`` and the Playwright spec
+    intercepts the API, so without these neither new response mapping is
+    exercised end to end — which is exactly how ``pathway_detail()`` came to
+    declare the field and silently fall back to its empty default.
+    """
+
+    def test_list_pathways_reports_indeterminate_snps(
+        self, indeterminate_client: TestClient
+    ) -> None:
+        data = indeterminate_client.get("/api/analysis/traits/pathways?sample_id=1").json()
+        item = next(i for i in data["items"] if i["pathway_id"] == "behavioral_traits")
+        assert item["indeterminate_snps"] == ["rs747302"]
+        assert item["level"] == "Standard"
+
+    def test_pathway_detail_reports_indeterminate_snps(
+        self, indeterminate_client: TestClient
+    ) -> None:
+        data = indeterminate_client.get(
+            "/api/analysis/traits/pathway/behavioral_traits?sample_id=1"
+        ).json()
+        assert data["indeterminate_snps"] == ["rs747302"]
+
+    def test_summary_and_detail_agree(self, indeterminate_client: TestClient) -> None:
+        """The two representations of one stored pathway must not disagree."""
+        summary = next(
+            i
+            for i in indeterminate_client.get("/api/analysis/traits/pathways?sample_id=1").json()[
+                "items"
+            ]
+            if i["pathway_id"] == "behavioral_traits"
+        )
+        detail = indeterminate_client.get(
+            "/api/analysis/traits/pathway/behavioral_traits?sample_id=1"
+        ).json()
+        assert summary["indeterminate_snps"] == detail["indeterminate_snps"]
+
+
 # ── Endpoint tests ───────────────────────────────────────────────────
 
 
