@@ -1967,6 +1967,41 @@ class TestGnomadAnnotationLookupIntegration:
         assert row.gnomad_af_global is None
         assert row.gnomad_source_status != "allele_ambiguous"
 
+    def test_ambiguity_status_survives_a_merged_rsid(
+        self,
+        sample_engine: sa.Engine,
+        mock_registry: MagicMock,
+        gnomad_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """#2214 review: the ambiguity set must be re-keyed like every other source.
+
+        Source lookups are issued under the *current* rsid (F18), so the set
+        comes back keyed by the current id while `_merge_annotations` looks the
+        sample's *original* id up. `lookup_key` maps original -> current, so it
+        has to be walked in that direction -- a `.get(current)` lookup misses
+        silently and drops the status for every deprecated rsid, which is
+        indistinguishable from "absent from gnomAD" downstream.
+        """
+        with reference_engine.begin() as conn:
+            conn.execute(
+                dbsnp_merges.insert().values(
+                    old_rsid="rs_old_prod", current_rsid="rs_shared_prod", build_id=155
+                )
+            )
+        self._shared_rsid_gnomad_rows(gnomad_engine)
+        with sample_engine.begin() as conn:
+            conn.execute(
+                raw_variants.insert().values(rsid="rs_old_prod", chrom="1", pos=300, genotype="CC")
+            )
+
+        run_annotation(sample_engine, mock_registry)
+
+        row = self._annotated_row(sample_engine, "rs_old_prod")
+        assert row is not None
+        assert row.gnomad_af_global is None
+        assert row.gnomad_source_status == "allele_ambiguous"
+
     def test_single_alt_rsid_is_annotated_regardless_of_genotype(
         self, sample_engine: sa.Engine, mock_registry: MagicMock, gnomad_engine: sa.Engine
     ) -> None:

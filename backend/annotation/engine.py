@@ -1589,11 +1589,15 @@ def run_annotation(
                 vep_data = _rekey_to_original(vep_data, lookup_key)
                 clinvar_data = _rekey_to_original(clinvar_data, lookup_key)
                 gnomad_data = _rekey_to_original(gnomad_data, lookup_key)
-                # Same F18 re-keying for the ambiguity set: it is keyed by the
-                # queried (merge-resolved) rsid and must come back to the
-                # sample's own rsid before the merge reads it.
+                # Same F18 re-keying for the ambiguity set. `lookup_key` maps
+                # original -> current, so it must be walked in that direction
+                # exactly as `_rekey_to_original` does; a `.get(current)` lookup
+                # silently misses (the keys are originals) and the status would
+                # be dropped for every deprecated rsid.
                 gnomad_allele_ambiguous = {
-                    lookup_key.get(rsid, rsid) for rsid in gnomad_allele_ambiguous
+                    original
+                    for original, query in lookup_key.items()
+                    if query in gnomad_allele_ambiguous
                 }
                 dbnsfp_data = _rekey_to_original(dbnsfp_data, lookup_key)
 
