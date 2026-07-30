@@ -171,8 +171,14 @@ def _panel_universe_from_panels() -> set[str]:
 def test_allowlisted_rsids_really_are_non_loci() -> None:
     """Premise guard: an allowlisted rsID must genuinely be absent from every
     panel. If one is later added as a real locus, this trips so the allowlist
-    entry is removed rather than masking a now-scored marker."""
-    panel_universe = _all_panel_rsids()
+    entry is removed rather than masking a now-scored marker.
+
+    Deliberately panel-only: the CPIC fold-in widened ``_all_panel_rsids`` to the
+    whole *scored* universe, and reusing it here would conflate "became a panel
+    locus" with "is CPIC-scored". The CPIC half is asserted separately below so
+    each failure message names the right cause.
+    """
+    panel_universe = _panel_universe_from_panels()
     leaked = {
         f"{doc}:{rsid}"
         for doc, entries in _DOC_NON_LOCUS_ALLOWLIST.items()
@@ -182,4 +188,27 @@ def test_allowlisted_rsids_really_are_non_loci() -> None:
     assert not leaked, (
         f"allowlisted rsID(s) are now scored panel loci — remove them from "
         f"_DOC_NON_LOCUS_ALLOWLIST: {sorted(leaked)}"
+    )
+
+
+def test_allowlisted_rsids_are_not_cpic_scored() -> None:
+    """The other half of the premise: an allowlisted rsID must not be CPIC-scored.
+
+    If a star-allele marker is later added to ``cpic_alleles.csv``, the union
+    check admits it on its own and the allowlist entry becomes both redundant and
+    misleading (it asserts "not a scored locus" about something the product does
+    score). Keeping this separate from the panel guard means the failure message
+    points at the actual source.
+    """
+    cpic_universe = _cpic_allele_rsids()
+    scored = {
+        f"{doc}:{rsid}"
+        for doc, entries in _DOC_NON_LOCUS_ALLOWLIST.items()
+        for rsid in entries
+        if rsid in cpic_universe
+    }
+    assert not scored, (
+        f"allowlisted rsID(s) are CPIC star-allele markers and are therefore "
+        f"scored — drop them from _DOC_NON_LOCUS_ALLOWLIST, the CPIC universe "
+        f"already admits them: {sorted(scored)}"
     )
