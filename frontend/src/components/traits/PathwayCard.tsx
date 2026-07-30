@@ -37,9 +37,20 @@ export default function PathwayCard({
 }: PathwayCardProps) {
   const config = LEVEL_CONFIG[pathway.level] || LEVEL_CONFIG.Standard;
   const description = PATHWAY_DESCRIPTIONS[pathway.pathway_id] || "";
-  const levelLabel = pathwayLevelDisplayLabel(pathway, config.label);
-  const coverageCaveat = pathwayCoverageCaveat(pathway);
   const indeterminateCount = pathway.indeterminate_snps?.length ?? 0;
+  // `called_snps` counts every observed SNP, including indeterminate ones. When
+  // all of them are indeterminate nothing was actually interpreted, so deriving
+  // the label and coverage caveat from the raw count would render "Standard" (or
+  // "Tested Standard") and even claim the result is based on interpreted SNPs
+  // (#2178). Present it as not assessed instead, matching the stored summary.
+  const interpretedCount = pathway.called_snps - indeterminateCount;
+  const nothingInterpreted = pathway.called_snps > 0 && interpretedCount <= 0;
+  const levelLabel = nothingInterpreted
+    ? "Not Assessed"
+    : pathwayLevelDisplayLabel(pathway, config.label);
+  const coverageCaveat = nothingInterpreted
+    ? null
+    : pathwayCoverageCaveat(pathway);
   // The explicit aria-label overrides descendant text, so the visible
   // indeterminate caveat would otherwise never reach screen-reader users — the
   // card would announce only "<name> — Standard", i.e. the clean negative this

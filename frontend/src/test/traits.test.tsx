@@ -244,6 +244,45 @@ describe("PathwayCard", () => {
     ).toBeInTheDocument();
   });
 
+  it("shows Not Assessed when every called SNP is indeterminate (#2178)", () => {
+    // called_snps counts indeterminate calls too, so deriving the label from it
+    // rendered "Standard" at full coverage even though nothing was interpreted.
+    const pathway = {
+      ...PERSONALITY_PATHWAY,
+      level: "Standard" as const,
+      called_snps: 1,
+      total_snps: 1,
+      missing_snps: [],
+      indeterminate_snps: ["rs747302"],
+    };
+    render(<PathwayCard pathway={pathway} onClick={onClick} />);
+    expect(screen.getByText("Not Assessed")).toBeInTheDocument();
+    expect(screen.queryByText("Standard")).toBeNull();
+    expect(screen.queryByTestId("pathway-coverage-caveat")).toBeNull();
+    expect(
+      screen.getByTestId("pathway-indeterminate-caveat"),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps the scored label when some SNPs were interpreted (#2178)", () => {
+    // Discriminating control: a pathway with a real scored call plus an
+    // indeterminate one is still Standard — not "Not Assessed".
+    const pathway = {
+      ...PERSONALITY_PATHWAY,
+      level: "Standard" as const,
+      called_snps: 2,
+      total_snps: 2,
+      missing_snps: [],
+      indeterminate_snps: ["rs747302"],
+    };
+    render(<PathwayCard pathway={pathway} onClick={onClick} />);
+    expect(screen.getByText("Standard")).toBeInTheDocument();
+    expect(screen.queryByText("Not Assessed")).toBeNull();
+    expect(
+      screen.getByTestId("pathway-indeterminate-caveat"),
+    ).toBeInTheDocument();
+  });
+
   it("leaves the accessible name clean with no indeterminate calls (#2178)", () => {
     // Discriminating control: the uncertainty phrasing must not be added
     // unconditionally.
