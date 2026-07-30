@@ -392,6 +392,7 @@ def pathway_detail(
         total_snps=detail.get("total_snps", 0),
         missing_snps=detail.get("missing_snps", []),
         no_call_snps=detail.get("no_call_snps", []),
+        indeterminate_snps=detail.get("indeterminate_snps", []),
         pmids=pathway_summary["pmids"],
         snp_details=snp_details,
     )

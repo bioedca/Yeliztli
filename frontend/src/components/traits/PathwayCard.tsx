@@ -10,7 +10,7 @@ import type { PathwaySummary } from "@/types/traits"
 import { PATHWAY_LEVEL_CONFIG as LEVEL_CONFIG } from "@/lib/pathwayLevel"
 import { pathwayCoverageCaveat, pathwayLevelDisplayLabel } from "@/lib/pathwayCoverage"
 import EvidenceStars from "@/components/ui/EvidenceStars"
-import { ChevronRight, FlaskConical, Info } from "lucide-react"
+import { ChevronRight, FlaskConical, HelpCircle, Info } from "lucide-react"
 
 interface PathwayCardProps {
   pathway: PathwaySummary
@@ -32,6 +32,7 @@ export default function PathwayCard({ pathway, onClick, selected }: PathwayCardP
   const description = PATHWAY_DESCRIPTIONS[pathway.pathway_id] || ""
   const levelLabel = pathwayLevelDisplayLabel(pathway, config.label)
   const coverageCaveat = pathwayCoverageCaveat(pathway)
+  const indeterminateCount = pathway.indeterminate_snps?.length ?? 0
 
   return (
     <button
@@ -70,6 +71,26 @@ export default function PathwayCard({ pathway, onClick, selected }: PathwayCardP
         >
           <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           <span>{coverageCaveat}</span>
+        </p>
+      )}
+
+      {/* Indeterminate caveat (#2178, mirroring fitness #270/#608): a pathway
+          holding observed but uninterpreted calls is NOT confidently clear, and
+          the coverage caveat above only fires when SNPs are also missing.
+          Neutral styling — this is uncertainty, not elevated risk. */}
+      {indeterminateCount > 0 && (
+        <p
+          className={cn(
+            "mb-3 inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs",
+            "bg-muted text-muted-foreground",
+          )}
+          data-testid="pathway-indeterminate-caveat"
+        >
+          <HelpCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <span>
+            {indeterminateCount} variant{indeterminateCount === 1 ? "" : "s"} observed but
+            not interpreted — see details
+          </span>
         </p>
       )}
 

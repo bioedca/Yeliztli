@@ -53,17 +53,6 @@ export function pathwayLevelDisplayLabel(
 
 export function pathwayCoverageCaveat(pathway: PathwayCoverageSummary): string | null {
   if (missingSnps(pathway).length === 0) {
-    // Full coverage, yet a called SNP may still have been observed and withheld
-    // from interpretation — also not a clean negative. The indeterminate branch
-    // below sits after this guard, so without this the signal was visible only by
-    // opening SNP detail (#2178).
-    const indeterminate = indeterminateCount(pathway)
-    if (indeterminate > 0 && pathway.level === "Standard") {
-      return `Standard result is based on interpreted SNPs only; ${plural(
-        indeterminate,
-        "observed SNP",
-      )} could not be interpreted.`
-    }
     return null
   }
 

@@ -32,7 +32,15 @@ const CAVEAT =
 
 // Superset of the per-module PathwaysResponse fields (gene_health ignores the
 // skin-specific ones; skin's view dereferences mc1r_aggregate/insufficient_data).
-function pathwaysPayload(pathwayId: string, pathwayName: string) {
+// Only fitness and traits expose `indeterminate_snps` on their PathwaySummary
+// response model, so only those payloads may carry it. Otherwise the stub
+// fabricates a response the production endpoint cannot return, and a card
+// assertion would pass against something unreachable in reality (#2178).
+function pathwaysPayload(
+  pathwayId: string,
+  pathwayName: string,
+  indeterminateSnps?: string[],
+) {
   return {
     items: [
       {
@@ -43,10 +51,7 @@ function pathwaysPayload(pathwayId: string, pathwayName: string) {
         called_snps: 1,
         total_snps: 1,
         missing_snps: [],
-        // #2178: the one called SNP is the Indeterminate one, so this pathway has
-        // FULL coverage yet is not a clean negative. The summary must say so
-        // without the user opening SNP detail.
-        indeterminate_snps: ["rs9939609"],
+        ...(indeterminateSnps ? { indeterminate_snps: indeterminateSnps } : {}),
         pmids: [],
       },
     ],
@@ -106,6 +111,7 @@ const MODULES = [
   },
   {
     key: "fitness",
+    summaryIndeterminate: true,
     path: "/fitness",
     pathwayId: "power",
     pathwayName: "Power",
@@ -124,6 +130,7 @@ const MODULES = [
   },
   {
     key: "traits",
+    summaryIndeterminate: true,
     path: "/traits",
     pathwayId: "cognition",
     pathwayName: "Cognition",
@@ -137,7 +144,13 @@ for (const m of MODULES) {
     }) => {
       await page.route(`**/api/analysis/${m.key}/pathways**`, async (route) => {
         await route.fulfill(
-          jsonRoute(pathwaysPayload(m.pathwayId, m.pathwayName)),
+          jsonRoute(
+            pathwaysPayload(
+              m.pathwayId,
+              m.pathwayName,
+              m.summaryIndeterminate ? ["rs9939609"] : undefined,
+            ),
+          ),
         );
       });
       await page.route(`**/api/analysis/${m.key}/pathway/**`, async (route) => {
@@ -162,15 +175,18 @@ for (const m of MODULES) {
       await page.goto(`${m.path}?sample_id=1`);
       await waitForReactHydration(page);
 
-      // #2178: the card itself must carry the uncertainty. Before this, a
-      // fully-covered Standard pathway short-circuited the coverage caveat, so
-      // an observed-but-uninterpreted variant was visible only in SNP detail.
       const card = page
         .getByRole("button", { name: new RegExp(m.pathwayName) })
         .first();
-      await expect(card.getByTestId("pathway-coverage-caveat")).toContainText(
-        /could not be interpreted/i,
-      );
+
+      // #2178: for the modules whose API actually reports summary-level
+      // indeterminate state, the card must carry the uncertainty rather than
+      // leaving it visible only inside SNP detail.
+      if (m.summaryIndeterminate) {
+        await expect(
+          card.getByTestId("pathway-indeterminate-caveat"),
+        ).toContainText(/observed but\s+not interpreted/i);
+      }
 
       // Open the detail panel by clicking the pathway card.
       await card.click();
