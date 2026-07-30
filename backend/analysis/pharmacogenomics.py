@@ -101,12 +101,31 @@ STRUCTURAL_UNCALLABLE_ALLELES: dict[str, tuple[str, ...]] = {
     "NUDT15": ("*3.002", "*6", "*9"),
 }
 
-# Issue #1081/#1413: for these genes, an untyped reduced/no-function marker can
-# make the direct reference-filled call clinically milder than a plausible CPIC
-# phenotype. Keep this policy scoped to reproduced genes so existing
+# Issue #1081/#1413/#2169: for these genes, an untyped reduced/no-function marker
+# can make the direct reference-filled call clinically milder than a plausible
+# CPIC phenotype. Keep this policy scoped to reproduced genes so existing
 # gene-specific caveats (e.g. NUDT15 non-SNV alleles) do not change alert
 # semantics without separate review.
-CONSERVATIVE_UNTYPED_PHENOTYPE_GENES: frozenset[str] = frozenset({"CYP2B6", "CYP2C9", "UGT1A1"})
+CONSERVATIVE_UNTYPED_PHENOTYPE_GENES: frozenset[str] = frozenset(
+    {"CYP2B6", "CYP2C9", "CYP3A5", "UGT1A1"}
+)
+
+# Issue #2169: genes for which an entirely untyped defining marker also makes the
+# *homozygous* indeterminate diplotype plausible, not just the heterozygous one.
+# Replacing a single reference-filled chromosome models one untyped allele; when
+# a marker is unassayed both chromosomes are unconstrained at that position, so
+# the homozygous state is equally admissible.
+#
+# Scoped to CYP3A5 because its guideline is keyed to expresser status: CPIC gives
+# tacrolimus dosing recommendations by CYP3A5 genotype *when known*, increasing
+# the starting dose for expressers and keeping label-recommended dosing for
+# non-expressers (Birdwell et al., 2015; PMID:25801146, DOI:10.1002/cpt.113,
+# accessed 2026-07-30). A no-function homozygote (*3/*3, *6/*6, *7/*7) is a
+# non-expresser, so while one is admissible the expresser dose increase is not an
+# established recommendation. The other conservative genes keep the reviewed
+# single-chromosome model (see #1081/#1413) — for example CYP2C9 deliberately
+# does not promote an untyped *2 to a homozygous Poor Metabolizer alert.
+HOMOZYGOUS_UNTYPED_PHENOTYPE_GENES: frozenset[str] = frozenset({"CYP3A5"})
 
 # Genes whose diplotype must be flagged as phase-inferred when two *different*
 # non-reference alleles are called from unphased array genotypes. The helper
@@ -494,11 +513,14 @@ def _infer_conservative_phenotype(
     The caller fills unobserved chromosomes with the reference allele. For a
     partial call, replacing one such reference-filled chromosome with an
     indeterminate allele models the smallest clinically relevant uncertainty:
-    one untyped reduced/no-function allele may be present. If that plausible
-    diplotype has a lower CPIC activity score, use it for prescribing alerts
-    rather than alerting on the milder direct call. A same-label candidate is
-    relevant only when a shipped guideline explicitly keys that lower score
-    within the phenotype band (for example CYP2C9/phenytoin).
+    one untyped reduced/no-function allele may be present. For the genes in
+    ``HOMOZYGOUS_UNTYPED_PHENOTYPE_GENES`` the homozygous indeterminate state is
+    modelled as well, because an unassayed marker constrains neither chromosome
+    (#2169). If a plausible diplotype has a lower CPIC activity score, use it for
+    prescribing alerts rather than alerting on the milder direct call; the
+    lowest-scoring candidate wins. A same-label candidate is relevant only when a
+    shipped guideline explicitly keys that lower score within the phenotype band
+    (for example CYP2C9/phenytoin).
     """
     if (
         result.gene not in CONSERVATIVE_UNTYPED_PHENOTYPE_GENES
@@ -525,9 +547,20 @@ def _infer_conservative_phenotype(
         if allele_rsids & result.involved_rsids:
             continue
 
+        plausible_sets: list[list[str]] = []
         for index in reference_slots:
             plausible = called_alleles.copy()
             plausible[index] = indeterminate_allele
+            plausible_sets.append(plausible)
+        # #2169: the allele's defining rsids are unobserved (checked above), so
+        # for these genes every reference-filled chromosome is unconstrained and
+        # the homozygous indeterminate diplotype is plausible too.
+        if result.gene in HOMOZYGOUS_UNTYPED_PHENOTYPE_GENES and len(reference_slots) == len(
+            called_alleles
+        ):
+            plausible_sets.append([indeterminate_allele] * len(called_alleles))
+
+        for plausible in plausible_sets:
             plausible_diplotype = _canonical_diplotype(plausible[0], plausible[1])
             if plausible_diplotype == result.diplotype:
                 continue

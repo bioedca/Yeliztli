@@ -52,6 +52,12 @@ surfaces the relevant CPIC prescribing guidance.
   drugs. For *UGT1A1*, a normal `*1/*1` call does **not** rule out reduced *UGT1A1* activity
   from untyped `*28`, which matters for irinotecan and atazanavir prescribing
   context.[^ugt1a1-irinotecan][^ugt1a1-atazanavir]
+- **An untyped position can flip the direction of a *CYP3A5* result.** Tacrolimus guidance
+  turns on whether you express the enzyme, and the no-function alleles — chiefly `*3`
+  (`rs776746`) — are what decide that. When one of those positions is not typed, a
+  non-expresser genotype such as `*3/*3` cannot be ruled out, so the report shows the cautious
+  non-expresser reading (`possible *3/*3`, label-recommended dosing) instead of the expresser
+  starting-dose increase, and labels it a conservative partial call.[^cpic-cyp3a5-tacrolimus]
 - Some diplotypes are inferred from unphased data and carry phase ambiguity.
 
 !!! danger "Never change a medication based on this"
@@ -61,5 +67,6 @@ surfaces the relevant CPIC prescribing guidance.
 [^ugt1a1-repeat]: [Correlation between the UDP-glucuronosyltransferase (UGT1A1) TATAA box polymorphism and carcinogen detoxification phenotype](https://doi.org/10.1158/1055-9965.epi-03-0070) (Fang & Lazarus, 2004, *Cancer Epidemiology, Biomarkers & Prevention*; [PMID 14744740](https://pubmed.ncbi.nlm.nih.gov/14744740/)) describes `UGT1A1*28` as an additional `(TA)` repeat in the promoter TATA box linked to lower UGT1A1 expression/activity.
 [^ugt1a1-irinotecan]: [Dutch Pharmacogenetics Working Group guideline for the gene-drug interaction between UGT1A1 and irinotecan](https://doi.org/10.1038/s41431-022-01243-2) (Hulshof et al., 2023, *European Journal of Human Genetics*; [PMID 36443464](https://pubmed.ncbi.nlm.nih.gov/36443464/)) describes UGT1A1 poor metabolizers and genotype-informed irinotecan starting-dose adjustment.
 [^ugt1a1-atazanavir]: [Clinical Pharmacogenetics Implementation Consortium guideline for UGT1A1 and atazanavir prescribing](https://doi.org/10.1002/cpt.269) (Gammal et al., 2016, *Clinical Pharmacology & Therapeutics*; [PMID 26417955](https://pubmed.ncbi.nlm.nih.gov/26417955/)) summarizes atazanavir prescribing recommendations when UGT1A1 genotype is known.
+[^cpic-cyp3a5-tacrolimus]: [Clinical Pharmacogenetics Implementation Consortium (CPIC) Guidelines for CYP3A5 Genotype and Tacrolimus Dosing](https://doi.org/10.1002/cpt.113) (Birdwell et al., 2015, *Clinical Pharmacology & Therapeutics*; [PMID 25801146](https://pubmed.ncbi.nlm.nih.gov/25801146/); [PMCID PMC4481158](https://pmc.ncbi.nlm.nih.gov/articles/PMC4481158/)) gives tacrolimus dosing recommendations by CYP3A5 genotype *when known*, distinguishing expressers (extensive and intermediate metabolizers) from non-expressers (poor metabolizers).
 [^cpic-terms]: [Standardizing terms for clinical pharmacogenetic test results: consensus terms from the Clinical Pharmacogenetics Implementation Consortium (CPIC)](https://doi.org/10.1038/gim.2016.87) (Caudle et al., 2017, *Genetics in Medicine*) defines consensus pharmacogenetic phenotype terminology for consistent PGx interpretation.
 [^cpic-cyp2d6-as]: [Standardizing CYP2D6 Genotype to Phenotype Translation: Consensus Recommendations from the Clinical Pharmacogenetics Implementation Consortium and Dutch Pharmacogenetics Working Group](https://doi.org/10.1111/cts.12692) (Caudle et al., 2020, *Clinical and Translational Science*; [PMID 31647186](https://pubmed.ncbi.nlm.nih.gov/31647186/); [PMCID PMC6951851](https://pmc.ncbi.nlm.nih.gov/articles/PMC6951851/)) describes the CYP2D6 activity-score system as summed allele activity values and explains that phenotype translation depends on consensus, gene-specific thresholds.
