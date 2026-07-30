@@ -1,0 +1,116 @@
+# Claude Agent Development Contract
+
+Claude Code's half of the fleet contract; Codex reads `AGENTS.md`. Keep the two aligned — where they differ, the enforcing code wins. Review-route authority is `scripts/validate_review_route.py`, `.github/workflows/review-route.yml`, `.github/workflows/review-route-invalidation.yml`, `scripts/validate_review_route_snapshot.sh`, always read at `origin/main` (`git show origin/main:<path>`); the working tree is routinely behind. Docs bind only where code is silent.
+
+## Authority and priorities
+
+- Keep `main` releasable. Order decisions by privacy/safety, scientific correctness, functional correctness, test integrity, maintainability, then delivery speed.
+- Review-route schema v2 is the human-gated legacy route: the human contributor certifies DCO, an independent human maintainer supplies exact-head approval, and merge needs explicit authorization after every gate passes. Schema v3 uses automated contribution provenance and the dedicated publisher App's exact-head success as merge authority; it requires neither DCO, human approval, nor per-PR human merge authorization.
+- Follow the exact repository issue and PR forms. Never commit to `main`, weaken a test for green CI, fabricate data, expose secrets/genotypes, or mix unrelated work.
+- Do not start issue work unless covering `main` CI is terminal green. Allow one merge in flight; the next waits until the prior exact merge SHA's covering `main` run is terminal green.
+
+## Work selection and concurrent ownership
+
+- Prefer an assigned issue. Otherwise choose highest severity, then MoSCoW (`must`, `should`, `could`), then the oldest unclaimed actionable issue.
+- Before starting, fetch and verify fresh `origin/main`; inspect the issue, linked PRs, Project, claims, branches, worktrees (including other agents' — Codex uses `.Codex/worktrees/`), and current CI. Reuse valid interrupted work. If the ref cannot be verified or `main` is not green, stop new work.
+- Claims are cooperative coordination, not a security boundary: sessions share GitHub authority, and a claim comment cannot stop a parallel agent's in-flight PR. The only route-sanctioned claim artifact is `- Agent claim ID: yz-<UUIDv4>` in the PR body — one fresh UUIDv4 per PR. Publish only sanitized phase/state, public SHAs, and proposed branch/worktree aliases; never host/user/path, internal IDs, credentials, private data, vulnerability details, or cluster internals.
+- One issue = one branch = one worktree = one PR, owned by one agent. Every agent that may edit, stage, commit, or run write-producing checks gets a uniquely named dedicated worktree cut from current `origin/main`; never share a mutable worktree. Secondary writers declare disjoint file/symbol scope; overlaps serialize, and only the primary owner integrates commits.
+- Read-only research may share a checkout; reviewers inspect an immutable SHA/diff or a clean detached worktree, never a moving checkout. Fetch at start, before final review, before route finalization, and immediately before merge.
+- **Never let two open PRs against `main` share a head SHA** — it makes both routes unvalidatable and can flip a computed success to `failure`. To supersede your own PR, close the old one and push the replacement on a different commit.
+- **Serialize finalization.** `refs/heads/main` must not move between a `/validate-route` dispatch and its post-success audit; if another agent merges while your run is live, your route lands `pending`. Wait for a merge burst to settle, then re-post.
+- **Do not touch another agent's PR after they finalize** — any collaborator or Codex-bot comment (created, edited, *or deleted*) knocks their green route back to `pending`. Batch feedback before finalization.
+- Keep PRs small and quiet: >100 review threads, >100 open PRs on `main`, or >100 comments touched since the current head make a route unprovable regardless of evidence quality.
+- If behind, merge `origin/main` into the issue branch inside its worktree; never rebase a published branch or force-push. Resolve conflicts there, rerun affected gates, and restart the full review route on the new SHA.
+- Preserve unrelated dirty files, stashes, branches, and agent work. Never force-push, discard, delete, or rewrite work whose ownership is uncertain. `git checkout <file>` reverts to HEAD and destroys uncommitted work — never use it to undo a scratch edit.
+
+## Agile delivery loop
+
+1. Turn the issue into a user story, acceptance criteria, risks, and a reproducible baseline. Escalate a missing material design choice to a design issue or Discussion.
+2. Deliver the smallest complete vertical slice, including all data, API, UI, docs, and migration effects required by the user-visible contract.
+3. Work in short feedback loops: test first when practical, commit cohesive increments, publish early after the privacy gate, and keep the draft PR current.
+4. Move through the Project's equivalent of ready, in progress, review, and done. Limit WIP; finish or durably pause one issue before claiming another.
+5. Done means code + discriminating tests/validators + docs + provenance + selected review route + required CI + route-authorized merge + green post-merge checks + issue/Project update + cleanup.
+6. Turn repeated friction or regressions into a concrete issue, automation, test, skill, or contract improvement instead of relying on memory.
+
+## Tool routing
+
+- Use the Context7 MCP server for external library/framework/SDK/API/CLI/cloud syntax, setup, configuration, migration, version, or tool-specific debugging — even for libraries you think you know. Call `resolve-library-id` first (unless given an exact `/org/project`), then `query-docs` with the user's full question, one concept per call; split multi-concept questions into separate calls. Report quota failures, never guess.
+- Do not use Context7 for refactoring, scratch scripts, business-logic debugging, code review, or general programming concepts.
+- When `graphify-out/graph.json` exists and matches the inspected commit, run `graphify query "<question>"` (or `explain`/`path`) before raw search; a `PreToolUse` hook enforces this, and it applies to subagents — repeat the rule in every subagent prompt that explores code. If the graph is stale or unconfirmed, use raw search. `graph.json` is gitignored (#2179); keep generated graph churn out of issue commits.
+- For UI changes drive the Playwright MCP plugin in a real browser, verify the affected flow and accessibility, then run targeted Playwright tests. `npx playwright test` dies silently in this sandbox, so treat MCP-driven verification as the primary evidence and keep sanitized artifacts under ignored `output/playwright/`.
+- Review locally with the `coderabbit:code-review` skill (the default code-review lane) for the working diff, `/review` for a GitHub PR, and `/security-review` for the branch's security posture. `/code-review ultra` is user-triggered and billed — never launch it yourself. Local review never substitutes for the hosted provider evidence the route requires.
+- Prefer the GitHub MCP connector for GitHub state/actions, local `git` for branches/worktrees, and `gh` for Actions logs or unsupported operations.
+- Put questions/early ideas in Discussions, actionable work in issues, and durable guidance in MkDocs. Wiki notes are not source of truth.
+- Use Projects for ownership, priority, status, and review waiting. Treat Actions, CodeQL, secret scanning, Dependabot, and Insights as feedback; never game metrics or auto-merge risk.
+
+## Cluster and Slurm work
+
+- Offload heavy CPU/GPU work through Slurm, never a login shell. `ssh zero` is direct; `ssh one` and `ssh two` traverse `zero`. Connect serially if the jump host rejects concurrent starts. The Slurm CLIs (`sbatch`, `squeue`, `sacct`, `sinfo`, `scontrol`, `scancel`) exist only on the cluster — always invoke them over `ssh`, never on this workstation, where they are absent.
+- Before each submission inspect `sinfo`, `scontrol show nodes`, storage capacity, path visibility, and equivalent recorded/live jobs. Use `compute` for CPU and `gpu` for GPU only when live state supports it; reuse valid work rather than duplicate it.
+- Use `sbatch` with finite `--time`, `--cpus-per-task`, `--mem`, `--partition`, job name, and log paths; request `--gres=gpu:a4000:N` only when needed and cap arrays.
+- Use verified shared storage for portable jobs. Treat `/localscr` and `/localdata` as node-local. Namespace immutable inputs and task-owned outputs/logs by issue, commit, and job; never overwrite existing results.
+- Record alias/node, workdir, commit, command, environment, inputs, outputs, resources, and job ID. Monitor with `squeue`; verify `sacct`, logs, exit state, and output completeness. Failure, timeout, or missing output is not a pass.
+- Treat clusters as remote: stage only public, synthetic, or approved non-genomic data — never real genotype/variant data or credentials. `scancel` only an exact confirmed user-owned job; never blanket-cancel or touch another user's work.
+
+## Scientific evidence, privacy, and security
+
+- Never encode biological, statistical, or clinical claims from memory. Tests verify software behavior; they do not scientifically validate a claim.
+- Send Consensus/Scite only approved public or synthetic sanitized inputs. Never submit or durably store PII, secrets, real genotypes, or restricted data; evidence packets contain sanitized payloads only.
+- Invoke the Consensus and Scite MCP servers first, then the narrowest specialist connector — Scholar Gateway, PubMed, ChEMBL, Clinical Trials, Open Targets, bioRxiv, AdisInsight. Record unavailable/quota fallbacks. The `evidence` skill packages this ladder and the two-source rule, and refers to this section as "Scientific & statistical fact-checking". Remote analysis connectors (Biomni Lab, Synthesize Bio, EDEN, Boltz) may receive only public or synthetic inputs — never this repository's real genotype or variant data.
+- Store queries, source IDs, versions/builds, access dates, licenses, claim mapping, and raw payload paths in `data/science-evidence/<date-slug>/`. Cite primary papers and authoritative databases, not discovery tools; one paper surfaced twice counts once. Check corrections and retractions.
+- Carry a citation in durable artifacts: `PMID:… / DOI:… / ChEMBL:… / NCT:…` plus `(accessed YYYY-MM-DD)`. High-stakes facts require two agreeing sources that do not share a cohort, dataset, or upstream assertion; verify a guideline's working group and authors before attributing it. On conflict or insufficient evidence, withhold and file a scientific-validity issue — never guess or placehold.
+- Keep primary storage and live-annotation joins on GRCh37/b37 and repository strand/allele conventions. Preserve source-native provenance, build-detection fixtures, and documented build-specific pipelines such as GRCh38 LAI/Gnomix.
+- Before every push inspect staged content and history for secrets, real genotypes, raw payloads, generated artifacts, and oversized data. Use synthetic fixtures; report vulnerabilities privately.
+- Assess threat likelihood, impact, affected data, and mitigation cost. Resolve blocking CodeQL, secret, dependency, or privacy findings before merge.
+
+## Verification contract
+
+- Behavior/data defects require a regression test that fails without the change. Assert values/bodies, both sides of filters, non-empty collections before loops, and the production path; use the applicable validator for docs/metadata.
+- Analyses that emit a finding only when a risk allele is carried require a `hom_ref` non-carrier negative control (`tests/backend/_carriage_fixtures.py`). Never delete or relax an assertion merely to fit implementation or missing reference data.
+- Bootstrap a clean worktree with `python -m pip install -e ".[dev,docs]"`; run focused checks, then every affected workflow job at its declared versions. Local minimum: `ruff check backend/ tests/`; `ruff format --check backend/ tests/`; `vulture`; `python -m pytest tests/backend/ -v --tb=short -m "not slow"`.
+- Frontend/UI: `(cd frontend && npm ci && npm run lint && npm run knip && npm run test:ci && npm run build)`; at repository root run `npm ci`, install the required Playwright browser when absent, then verify via Playwright MCP. Docs: `mkdocs build --strict`. Changing a shared frontend component means running the full Vitest suite, not just its own page's tests.
+- Tier-1 (per-PR) is `ci-required` + `lint` (Ruff, Vulture, ESLint, Knip), `test-backend` (py3.12 + py3.13), `test-frontend`, `build-frontend`, `smoke-install`, `docs-build --strict`. E2E (Playwright) and macOS are **Tier-2** — they run on merge/nightly, so a UI change can pass PR checks and still redden `main`.
+- Run affected smoke-install, Docker, actionlint, security, and Tier-2 gates when applicable. Do not claim a check passed unless it ran; record every skip or unavailable gate and why.
+
+## Review routes (schema v3)
+
+Classify at draft creation and before merge; mixed or uncertain scope rises, and the selected route must be at or above the changed-path floor (`minimum_route`) — `README.md`, `CONTRIBUTING.md`, and `docs/develop/**` are load-bearing, so docs no longer imply `Low`. All reviews bind to the exact 40-character head SHA.
+
+| Route | Scope | Preferred lane |
+| --- | --- | --- |
+| Low | Text/docs/mechanical only; no behavior, public contract, science, security, dependency, or workflow change | Copilot |
+| Standard | Routine code, tests, UI, refactor, or bug fix not protecting a load-bearing area | Codex |
+| Load-bearing | Science/clinical/reference data or their tests; privacy/security/auth; schema/migration/data loss; concurrency; dependencies; updater/installer/release; CI/workflows/permissions; core architecture; broad/hard-to-revert | CodeRabbit |
+
+- New PRs use v3. Copy the `## Review route` and `## Automated contribution provenance` blocks **verbatim** from `.github/PULL_REQUEST_TEMPLATE.md`. `<!-- review-route-schema:v3 -->` must sit on the line immediately after the `## Review route` heading and appear exactly once in the body; never fence, indent, reflow, retitle, or put raw `<` in the section, and never paste that marker string anywhere else. Preserve an existing v2 PR exactly as the legacy human-gated route.
+- A v3 PR must not modify `.github/workflows/review-route-invalidation.yml`; route that change through v2.
+- Check exactly one route box and exactly one provider box. Providers are interchangeable on every route: prefer the table's lane, but select an available alternative rather than adding speculative parsers or waiting on quota. The selected provider must not be the PR author's account. Extra reviews are advisory but their threads must still be resolved; never trigger an unselected lane.
+- Evidence table header is exactly `| Required review gate | Applies to | Head SHA or N/A | UTC time and status, or N/A |` with rows `Copilot PR review`, `Codex @codex review`, `CodeRabbit structured clean review`. The selected row carries the exact 40-character head SHA and `YYYY-MM-DDTHH:MM:SSZ — COMPLETE`; every unused row is exactly `N/A` in **both** cells.
+- Provenance needs all five fields, each once: `- Issue:` matching `Closes|Fixes|Resolves #N`, `- Exact head SHA:` equal to the live head, `- Selected hosted reviewer:` equal to the checked provider, a nonempty `- Test evidence:` (not `N/A`), and `- Agent claim ID: yz-<UUIDv4>`. Blanks are tolerated only while the PR is a draft; refresh the SHA on every push.
+- Accepted envelopes are deliberately narrow and must be trusted, unedited, provider-authored, author-independent, and exact-head. Codex: an exact-head empty formal approval with zero attached comments, or its canonical immutable clean comment whose first line is `Codex Review: Didn't find any major issues.` Copilot: an unedited concise findings envelope whose two trusted reviewed-file counts both equal GitHub's changed-file count, with zero generated and attached comments. CodeRabbit: an unedited structured clean review with zero actionable/attached comments, no ignored files, and a selected-file count equal to GitHub's changed-file count.
+- Declared gate times must be later than the head epoch, no more than a minute ahead of now, and within 600 seconds of the provider's verified activity. Copy the real timestamp; never round, backdate, or reuse.
+- **Never self-certify.** Only the provider App's own artifact counts — quoting, re-posting, transcribing, or summarizing a bot review fails the bot-author and immutability checks.
+- Mark the PR ready before gathering evidence: a draft can never publish `success`, and flipping to ready re-pends the route anyway.
+- On v3 every event except finalization is invalidation-only: it republishes `Review Route: pending` and exits before checkout, so **you get no diagnostics until you finalize** — read the `/validate-route` run's `::error title=Review Route::` annotations. Pending is sufficient invalidation; do not build historical Actions-run ledgers, scan workflow history, or encode policy in run titles.
+- A closed PR or closed lifecycle event is invalidation-only for every schema: the affected head stays `pending`, validation never runs, and a replacement open PR's status is never overwritten. Never close/reopen or toggle draft to "refresh CI" — it destroys the route. A head SHA must belong to exactly one open PR.
+- After every thread is resolved and no active maintainer change request remains, a live write-capable collaborator posts the exact unedited comment `/validate-route`. Post it once, then stop touching the PR — editing the body, commenting, or deleting that comment mid-run turns the route red. Validation re-fetches head/source identity, body/schema, provider evidence, threads, finalizer permission, head ownership, and trusted `main` immediately before success; any drift fails closed.
+- Success is revocable: a post-success audit replaces it with `pending` on drift. Immediately before merge, re-read `GET /repos/{repo}/commits/<head>/status` and require context `Review Route` = `success` authored by the dedicated publisher App — never `github-actions[bot]`. A green *Review Route Policy* Actions run means nothing; the invalidation path exits 0.
+- On v3, validation failures publish `pending`, not `failure` — never read "not red" as "approved". Prefer clear fail-closed errors and another provider over output fallbacks; report rule drift instead of treating it as permission.
+- Every head-changing push invalidates the hosted review and the merge decision; restart on the new SHA. It also invalidates affected test, UI, science, and Slurm evidence unless rerun or an independent maintainer accepts documented commit/input independence.
+- The v2 CodeRabbit manual-trigger quota is 5 per rolling hour **repo-wide**; coordinate with the fleet or switch providers.
+- Fix every blocking finding. Only false-positive or nonblocking findings may receive a documented independent-maintainer disposition.
+- Validator changes only take effect after merge: privileged jobs check out trusted `main`, so a fix on your branch cannot rescue your own PR.
+
+## PR, merge, and lifecycle
+
+- The draft PR must contain `Closes #N`, what/how/why, acceptance evidence, tests, scientific/Slurm provenance, route evidence per reviewer/SHA, residual risks, and focus areas. Schema v2 leaves DCO for the human contributor; v3 records the exact issue, head, selected provider, test evidence, and public agent claim ID before ready or finalization.
+- Merge queue is unsupported (its synthetic SHA has no published status). Squash-merge with an imperative subject ending `(#<PR number>)`; never bypass the ruleset. Merge v2 only after explicit human authorization; v3 may merge once its exact-head App route status and every other gate pass. After merge, serialize the queue until that exact merge SHA's Tier-2 macOS/E2E and all covering `main` checks are terminal green, then fast-forward local main.
+- On post-merge failure keep the goal and worktree, notify the maintainer, and open or link the corrective issue/PR; do not revert, clean up, or start another merge without authorization.
+- After green, close/update the issue and Project; remove only the proven-merged branch, worktree, and task artifacts, then prune stale metadata.
+- For discovered defects, search first and use the exact bug, scientific-validity, feature, docs, or design form. Link the originating work and defer unless it blocks safety or correctness; never disclose security details, credentials, or genotype data.
+
+## Session controls
+
+- Track multi-step work with the task tools. Spawn subagents or workflows only when the user asks for parallel or multi-agent work; give each a named scope and its own worktree, and never let two of them write the same files.
+- Before pausing or stopping, record branch, PR, SHA, checks, and next step. Every continuing Slurm job needs an acknowledged monitoring owner other than the stopping agent plus a checkpoint; otherwise cancel its exact job ID and confirm terminal state.
+- On resume reconcile `squeue`, `sacct`, logs, outputs, commit, and inputs before accepting or resubmitting work.

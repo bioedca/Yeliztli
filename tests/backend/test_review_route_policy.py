@@ -13,6 +13,7 @@ from pathlib import Path
 import pytest
 
 from scripts.validate_review_route import (
+    AUTONOMOUS_SCHEMA_MARKER,
     BOT_ACTOR_IDS,
     CODERABBIT_COMPLETION_MARKER,
     CODERABBIT_GATE,
@@ -95,16 +96,48 @@ def _review(
     association: str = "NONE",
     body: str = "Review completed.",
     last_edited_at: str | None = None,
+    review_comment_count: int = 0,
 ) -> dict[str, object]:
     return {
         "author": _actor(database_id, typename),
         "authorAssociation": association,
         "body": body,
+        "comments": {"totalCount": review_comment_count},
         "commit": {"oid": head_sha},
         "lastEditedAt": last_edited_at,
         "state": state,
         "submittedAt": submitted_at,
     }
+
+
+def _copilot_v3_body(changed_files: int, *, generated_comments: int = 0) -> str:
+    return (
+        "## Copilot's findings"
+        + "\n" * 7
+        + f"- **Files reviewed:** {changed_files}/{changed_files} changed files\n"
+        + f"- **Comments generated:** {generated_comments} new\n\n"
+    )
+
+
+def _coderabbit_v3_body(changed_files: int, *, ignored_files: int | None = None) -> str:
+    ignored = (
+        ""
+        if ignored_files is None
+        else (
+            "<details>\n"
+            f"<summary>⛔ Files ignored due to path filters ({ignored_files})</summary>\n"
+            "</details>\n\n"
+        )
+    )
+    return (
+        "**Actionable comments posted: 0**\n\n"
+        "<details>\n"
+        "<summary>📜 Review details</summary>\n\n"
+        f"{ignored}"
+        f"<summary>📒 Files selected for processing ({changed_files})</summary>\n"
+        "</details>\n\n"
+        f"<!-- This is an {CODERABBIT_COMPLETION_MARKER} -->"
+    )
 
 
 def _comment(
@@ -204,19 +237,36 @@ def _body(
     *,
     complete: bool = True,
     automated_gates: set[str] | None = None,
+    schema_version: int = 2,
 ) -> str:
     selected = {
         name: "x" if name == route else " " for name in ("Low", "Standard", "Load-bearing")
     }
     selected_bots = {DEFAULT_AUTOMATED_GATE[route]} if automated_gates is None else automated_gates
-    required = {*selected_bots, HUMAN_GATE}
+    required = set(selected_bots)
+    if schema_version == 2:
+        required.add(HUMAN_GATE)
     reviewer_labels = {
         COPILOT_GATE: "Copilot",
         CODEX_GATE: "Codex",
         CODERABBIT_GATE: "CodeRabbit",
     }
+    selected_provider = next(
+        (
+            reviewer_labels[gate]
+            for gate in (COPILOT_GATE, CODEX_GATE, CODERABBIT_GATE)
+            if gate in selected_bots
+        ),
+        "",
+    )
     rows = []
-    for gate in GATES:
+    evidence_gates = GATES if schema_version == 2 else tuple(GATES[:-1])
+    for gate in evidence_gates:
+        label = (
+            "CodeRabbit structured clean review"
+            if schema_version == 3 and gate == CODERABBIT_GATE
+            else gate
+        )
         if not complete:
             head, status = "", ""
         elif gate in required:
@@ -225,11 +275,25 @@ def _body(
             status = f"{GATE_TIMES[gate]} — {result}"
         else:
             head, status = "N/A", "N/A"
-        rows.append(f"| {gate} | scope | {head} | {status} |")
+        rows.append(f"| {label} | scope | {head} | {status} |")
     return "\n".join(
         [
+            *(
+                [
+                    "## Related issue",
+                    "Closes #42",
+                    "## Automated contribution provenance",
+                    "- Issue: Closes #42",
+                    f"- Exact head SHA: {HEAD_SHA}",
+                    f"- Selected hosted reviewer: {selected_provider}",
+                    "- Test evidence: focused policy suite passed",
+                    "- Agent claim ID: yz-12345678-1234-4abc-8def-1234567890ab",
+                ]
+                if schema_version == 3
+                else []
+            ),
             "## Review route",
-            SCHEMA_MARKER,
+            SCHEMA_MARKER if schema_version == 2 else AUTONOMOUS_SCHEMA_MARKER,
             f"- [{selected['Low']}] Low — docs",
             f"- [{selected['Standard']}] Standard — code",
             f"- [{selected['Load-bearing']}] Load-bearing — governance",
@@ -271,10 +335,18 @@ def _rendered_route_html(
             (CODERABBIT_GATE, "CodeRabbit"),
         )
     )
-    provider_group = f"<ul>{provider_items}</ul>" if schema_version == 2 else ""
-    required = {*selected_bots, HUMAN_GATE}
+    provider_group = f"<ul>{provider_items}</ul>" if schema_version in {2, 3} else ""
+    required = set(selected_bots)
+    if schema_version != 3:
+        required.add(HUMAN_GATE)
     evidence_rows = []
-    for gate in GATES:
+    evidence_gates = tuple(GATES[:-1]) if schema_version == 3 else GATES
+    for gate in evidence_gates:
+        label = (
+            "CodeRabbit structured clean review"
+            if schema_version == 3 and gate == CODERABBIT_GATE
+            else gate
+        )
         if gate in required:
             head = HEAD_SHA
             result = "APPROVED" if gate == HUMAN_GATE else "COMPLETE"
@@ -282,7 +354,7 @@ def _rendered_route_html(
         else:
             head = status = "N/A"
         evidence_rows.append(
-            f"<tr><td>{gate}</td><td>scope</td><td>{head}</td><td>{status}</td></tr>"
+            f"<tr><td>{label}</td><td>scope</td><td>{head}</td><td>{status}</td></tr>"
         )
     return (
         f"<h2>Review route</h2><p>{nonce}</p>"
@@ -338,6 +410,7 @@ def _context(
     complete: bool = True,
     body: str | None = None,
     automated_gates: set[str] | None = None,
+    schema_version: int = 2,
 ) -> dict[str, object]:
     selected_bots = {DEFAULT_AUTOMATED_GATE[route]} if automated_gates is None else automated_gates
     human_review = _review(
@@ -348,17 +421,30 @@ def _context(
         association="COLLABORATOR",
     )
     reviews = [
-        _review(BOT_ACTOR_IDS[COPILOT_GATE], GATE_TIMES[COPILOT_GATE]),
-        _review(BOT_ACTOR_IDS[CODEX_GATE], GATE_TIMES[CODEX_GATE]),
+        _review(
+            BOT_ACTOR_IDS[COPILOT_GATE],
+            GATE_TIMES[COPILOT_GATE],
+            body=(_copilot_v3_body(len(files)) if schema_version == 3 else "Review completed."),
+        ),
+        _review(
+            BOT_ACTOR_IDS[CODEX_GATE],
+            GATE_TIMES[CODEX_GATE],
+            state="APPROVED" if schema_version == 3 else "COMMENTED",
+            body="" if schema_version == 3 else "Review completed.",
+        ),
         _review(
             BOT_ACTOR_IDS[CODERABBIT_GATE],
             GATE_TIMES[CODERABBIT_GATE],
-            body=(f"Review completed. <!-- This is an {CODERABBIT_COMPLETION_MARKER} -->"),
+            body=(
+                _coderabbit_v3_body(len(files))
+                if schema_version == 3
+                else f"Review completed. <!-- This is an {CODERABBIT_COMPLETION_MARKER} -->"
+            ),
         ),
         human_review,
     ]
     comments = []
-    if CODERABBIT_GATE in selected_bots:
+    if schema_version == 2 and CODERABBIT_GATE in selected_bots:
         comments = [
             _comment(AUTHOR_ID, f"coderabbit-reservation: {HEAD_SHA}", "2026-07-21T12:25:00Z"),
             _comment(AUTHOR_ID, "@coderabbitai full review", "2026-07-21T12:26:00Z"),
@@ -369,7 +455,12 @@ def _context(
         "body": (
             body
             if body is not None
-            else _body(route, complete=complete, automated_gates=selected_bots)
+            else _body(
+                route,
+                complete=complete,
+                automated_gates=selected_bots,
+                schema_version=schema_version,
+            )
         ),
         "changedFiles": len(files),
         "createdAt": CREATED_AT,
@@ -562,6 +653,371 @@ def test_v2_review_providers_are_interchangeable(route: str, path: str, gate: st
     files = [ChangedFile(path)]
     context = _context(route, files, automated_gates={gate})
     assert validate_context(context, files, now=NOW) == []
+
+
+@pytest.mark.parametrize("gate", [COPILOT_GATE, CODEX_GATE, CODERABBIT_GATE])
+def test_v3_accepts_one_clean_trusted_provider_without_human_approval(gate: str) -> None:
+    files = [ChangedFile("README.md")]
+    context = _context(
+        "Load-bearing",
+        files,
+        automated_gates={gate},
+        schema_version=3,
+    )
+    pull_request = context["data"]["repository"]["pullRequest"]
+    pull_request["reviews"]["nodes"] = [
+        review
+        for review in pull_request["reviews"]["nodes"]
+        if review["author"]["databaseId"] != HUMAN_ID
+    ]
+    pull_request["reviews"]["totalCount"] = len(pull_request["reviews"]["nodes"])
+    pull_request["latestHumanOpinions"] = {"totalCount": 0, "nodes": []}
+    assert validate_context(context, files, now=NOW) == []
+
+
+def test_v3_missing_evidence_error_uses_the_public_row_label() -> None:
+    files = [ChangedFile("README.md")]
+    context = _context(
+        "Load-bearing",
+        files,
+        automated_gates={CODERABBIT_GATE},
+        schema_version=3,
+    )
+    pull_request = context["data"]["repository"]["pullRequest"]
+    pull_request["body"] = "\n".join(
+        line
+        for line in pull_request["body"].splitlines()
+        if not line.startswith("| CodeRabbit structured clean review |")
+    )
+
+    errors = validate_context(context, files, now=NOW)
+
+    assert "missing review evidence rows: CodeRabbit structured clean review" in errors
+    assert f"missing review evidence rows: {CODERABBIT_GATE}" not in errors
+
+
+@pytest.mark.parametrize(
+    ("old", "new", "expected_error"),
+    [
+        (
+            "- Issue: Closes #42",
+            "- Issue:",
+            "v3 provenance issue must be an exact closing reference",
+        ),
+        (
+            f"- Exact head SHA: {HEAD_SHA}",
+            f"- Exact head SHA: {'b' * 40}",
+            "v3 provenance head does not match the current head SHA",
+        ),
+        (
+            "- Selected hosted reviewer: CodeRabbit",
+            "- Selected hosted reviewer: Codex",
+            "v3 provenance reviewer does not match the selected hosted reviewer",
+        ),
+        (
+            "- Test evidence: focused policy suite passed",
+            "- Test evidence:",
+            "v3 provenance test evidence must be nonempty",
+        ),
+        (
+            "- Agent claim ID: yz-12345678-1234-4abc-8def-1234567890ab",
+            "- Agent claim ID: agent-42",
+            "v3 provenance agent claim ID must be a UUIDv4 claim",
+        ),
+    ],
+)
+def test_v3_requires_bound_operational_provenance(
+    old: str,
+    new: str,
+    expected_error: str,
+) -> None:
+    files = [ChangedFile("README.md")]
+    context = _context(
+        "Load-bearing",
+        files,
+        automated_gates={CODERABBIT_GATE},
+        schema_version=3,
+    )
+    pull_request = context["data"]["repository"]["pullRequest"]
+    pull_request["body"] = pull_request["body"].replace(old, new)
+
+    assert expected_error in validate_context(context, files, now=NOW)
+
+
+def test_v3_draft_allows_unfilled_operational_provenance() -> None:
+    files = [ChangedFile("README.md")]
+    context = _context(
+        "Load-bearing",
+        files,
+        automated_gates={CODERABBIT_GATE},
+        schema_version=3,
+        draft=True,
+        complete=False,
+    )
+    pull_request = context["data"]["repository"]["pullRequest"]
+    for field in (
+        "Issue",
+        "Exact head SHA",
+        "Selected hosted reviewer",
+        "Test evidence",
+        "Agent claim ID",
+    ):
+        pull_request["body"] = "\n".join(
+            f"- {field}:" if line.startswith(f"- {field}:") else line
+            for line in pull_request["body"].splitlines()
+        )
+
+    assert validate_context(context, files, now=NOW) == []
+
+
+@pytest.mark.parametrize("mutation", ["missing field", "duplicate section"])
+def test_v3_draft_still_requires_canonical_provenance_structure(mutation: str) -> None:
+    files = [ChangedFile("README.md")]
+    context = _context(
+        "Load-bearing",
+        files,
+        automated_gates=set(),
+        schema_version=3,
+        draft=True,
+        complete=False,
+    )
+    pull_request = context["data"]["repository"]["pullRequest"]
+    body = pull_request["body"]
+    if mutation == "missing field":
+        body = "\n".join(
+            line for line in body.splitlines() if not line.startswith("- Exact head SHA:")
+        )
+        expected = "expected exactly one v3 provenance field: Exact head SHA"
+    else:
+        section = body.split("## Automated contribution provenance", 1)[1].split(
+            "## Review route", 1
+        )[0]
+        body = body.replace(
+            "## Review route",
+            "## Automated contribution provenance" + section + "## Review route",
+            1,
+        )
+        expected = "expected exactly one v3 automated contribution provenance section"
+    pull_request["body"] = body
+
+    assert expected in validate_context(context, files, now=NOW)
+
+
+def test_v3_rejects_provenance_hidden_in_collapsed_raw_html() -> None:
+    files = [ChangedFile("README.md")]
+    context = _context(
+        "Load-bearing",
+        files,
+        automated_gates={CODERABBIT_GATE},
+        schema_version=3,
+    )
+    pull_request = context["data"]["repository"]["pullRequest"]
+    pull_request["body"] = (
+        pull_request["body"]
+        .replace(
+            "- Issue: Closes #42",
+            "<details>\n<summary>Provenance</summary>\n\n- Issue: Closes #42",
+        )
+        .replace(
+            "- Agent claim ID: yz-12345678-1234-4abc-8def-1234567890ab",
+            "- Agent claim ID: yz-12345678-1234-4abc-8def-1234567890ab\n</details>",
+        )
+    )
+
+    assert (
+        "raw HTML is not allowed in the v3 automated contribution provenance section"
+        in validate_context(context, files, now=NOW)
+    )
+
+
+def test_v3_requires_exactly_one_hosted_provider_and_no_human_row() -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, schema_version=3)
+    body = context["data"]["repository"]["pullRequest"]["body"]
+    context["data"]["repository"]["pullRequest"]["body"] = body.replace(
+        "- [ ] Copilot",
+        "- [x] Copilot",
+    )
+    errors = validate_context(context, files, now=NOW)
+    assert "select exactly one automated PR reviewer" in errors
+
+    context = _context("Load-bearing", files, schema_version=3)
+    context["data"]["repository"]["pullRequest"]["body"] = context["data"]["repository"][
+        "pullRequest"
+    ]["body"].replace(
+        "## Legal",
+        f"| {HUMAN_GATE} | All | {HEAD_SHA} | {GATE_TIMES[HUMAN_GATE]} — APPROVED |\n## Legal",
+    )
+    assert f"unknown review evidence rows: {HUMAN_GATE}" in validate_context(
+        context,
+        files,
+        now=NOW,
+    )
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    ["actor", "head", "edited", "attached-comment", "blocking-state"],
+)
+def test_v3_provider_evidence_is_exact_head_immutable_and_nonblocking(mutation: str) -> None:
+    files = [ChangedFile("README.md")]
+    context = _context(
+        "Load-bearing",
+        files,
+        automated_gates={CODEX_GATE},
+        schema_version=3,
+    )
+    review = next(
+        item
+        for item in context["data"]["repository"]["pullRequest"]["reviews"]["nodes"]
+        if item["author"]["databaseId"] == BOT_ACTOR_IDS[CODEX_GATE]
+    )
+    if mutation == "actor":
+        review["author"] = _actor(999_999_999)
+    elif mutation == "head":
+        review["commit"]["oid"] = "b" * 40
+    elif mutation == "edited":
+        review["lastEditedAt"] = "2026-07-21T12:21:00Z"
+    elif mutation == "attached-comment":
+        review["comments"]["totalCount"] = 1
+    else:
+        review["state"] = "CHANGES_REQUESTED"
+    assert f"no verified current-head GitHub activity for: {CODEX_GATE}" in validate_context(
+        context,
+        files,
+        now=NOW,
+    )
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        _copilot_v3_body(2).replace("2/2", "1/2"),
+        _copilot_v3_body(2, generated_comments=1),
+        "No findings.",
+    ],
+)
+def test_v3_copilot_requires_its_concise_exhaustive_zero_comment_envelope(body: str) -> None:
+    files = [ChangedFile("README.md"), ChangedFile("GOVERNANCE.md")]
+    context = _context(
+        "Load-bearing",
+        files,
+        automated_gates={COPILOT_GATE},
+        schema_version=3,
+    )
+    review = next(
+        item
+        for item in context["data"]["repository"]["pullRequest"]["reviews"]["nodes"]
+        if item["author"]["databaseId"] == BOT_ACTOR_IDS[COPILOT_GATE]
+    )
+    review["body"] = body
+    assert f"no verified current-head GitHub activity for: {COPILOT_GATE}" in validate_context(
+        context,
+        files,
+        now=NOW,
+    )
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        _coderabbit_v3_body(2).replace(
+            "selected for processing (2)", "selected for processing (1)"
+        ),
+        _coderabbit_v3_body(2, ignored_files=1),
+        _coderabbit_v3_body(2).replace(
+            "<details>", "<p>Files ignored by provider: 1</p>\n<details>", 1
+        ),
+        _coderabbit_v3_body(2).replace(
+            "Actionable comments posted: 0", "Actionable comments posted: 1"
+        ),
+        "Review completed.",
+    ],
+)
+def test_v3_coderabbit_trusts_only_its_clean_structured_counts(body: str) -> None:
+    files = [ChangedFile("README.md"), ChangedFile("GOVERNANCE.md")]
+    context = _context(
+        "Load-bearing",
+        files,
+        automated_gates={CODERABBIT_GATE},
+        schema_version=3,
+    )
+    review = next(
+        item
+        for item in context["data"]["repository"]["pullRequest"]["reviews"]["nodes"]
+        if item["author"]["databaseId"] == BOT_ACTOR_IDS[CODERABBIT_GATE]
+    )
+    review["body"] = body
+    assert f"no verified current-head GitHub activity for: {CODERABBIT_GATE}" in validate_context(
+        context,
+        files,
+        now=NOW,
+    )
+
+
+def test_v3_codex_accepts_the_existing_canonical_immutable_clean_comment() -> None:
+    files = [ChangedFile("README.md")]
+    context = _context(
+        "Load-bearing",
+        files,
+        automated_gates={CODEX_GATE},
+        schema_version=3,
+    )
+    _use_codex_clean_comment(context, include_trigger=False)
+    assert validate_context(context, files, now=NOW) == []
+
+
+def test_v3_active_human_change_request_blocks_but_approval_is_not_a_gate() -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, schema_version=3)
+    opinion = context["data"]["repository"]["pullRequest"]["latestHumanOpinions"]["nodes"][0]
+    opinion["state"] = "CHANGES_REQUESTED"
+    errors = validate_context(context, files, now=NOW)
+    assert "an active human maintainer change request remains" in errors
+
+
+def test_v3_requires_v2_for_changes_to_the_pr_controlled_signal_workflow() -> None:
+    files = [ChangedFile(".github/workflows/review-route-invalidation.yml")]
+    context = _context("Load-bearing", files, schema_version=3)
+    assert (
+        "review-route schema v3 cannot modify the PR-controlled review signal workflow; "
+        "use the human-gated v2 route"
+    ) in validate_context(context, files, now=NOW)
+
+
+def test_v3_coderabbit_does_not_request_the_v2_global_trigger_ledger() -> None:
+    assert not needs_coderabbit_ledger(
+        _body(
+            "Load-bearing",
+            automated_gates={CODERABBIT_GATE},
+            schema_version=3,
+        )
+    )
+
+
+def test_v3_rendered_route_and_exact_finalizer_validate_without_human_approval() -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, schema_version=3)
+    pull_request = context["data"]["repository"]["pullRequest"]
+    pull_request["reviews"]["nodes"] = [
+        review
+        for review in pull_request["reviews"]["nodes"]
+        if review["author"]["databaseId"] != HUMAN_ID
+    ]
+    pull_request["reviews"]["totalCount"] = len(pull_request["reviews"]["nodes"])
+    pull_request["latestHumanOpinions"] = {"totalCount": 0, "nodes": []}
+    _add_finalizer(context)
+    assert (
+        validate_context(
+            context,
+            files,
+            now=NOW,
+            rendered_body=_rendered_route_html("Load-bearing", schema_version=3),
+            render_nonce=RENDER_NONCE,
+            **_finalizer_kwargs(),
+        )
+        == []
+    )
 
 
 @pytest.mark.parametrize("route", ["Low", "Standard", "Load-bearing"])
@@ -3622,7 +4078,7 @@ def test_workflow_uses_trusted_base_and_explicit_head_status() -> None:
     assert 'post_pending_if_unowned "$EVENT_HEAD_SHA"' in validate_job
     assert '[ "$EVENT_HEAD_SHA" != "$head_sha" ]' in validate_job
     assert "^[0-9a-fA-F]{40}$" in workflow
-    assert workflow.count("for attempt in 1 2 3") == 12
+    assert workflow.count("for attempt in 1 2 3") == 14
     assert '--expected-head "$HEAD_SHA"' in workflow
     assert '--expected-draft "$IS_DRAFT"' in workflow
     assert '--expected-pr-updated-at "$PR_UPDATED_AT"' in workflow
@@ -3687,6 +4143,44 @@ def test_workflow_uses_trusted_base_and_explicit_head_status() -> None:
         "Finalizer authorization, PR state, or trusted main changed before publication."
         in validate_job
     )
+
+
+def test_v3_workflow_invalidates_to_pending_and_audits_one_published_success() -> None:
+    root = Path(__file__).resolve().parents[2]
+    workflow = (root / ".github/workflows/review-route.yml").read_text(encoding="utf-8")
+    helper = (root / "scripts/validate_review_route_snapshot.sh").read_text(encoding="utf-8")
+    validate_job = workflow.split("\n  validate:", maxsplit=1)[1]
+
+    assert 'contains("<!-- review-route-schema:v3 -->")' in validate_job
+    assert "INVALIDATION_ONLY=%s" in validate_job
+    assert "Invalidation is complete after publishing pending." in validate_job
+    assert (
+        "- uses: actions/checkout@" in validate_job
+        and "if: ${{ env.INVALIDATION_ONLY != 'true' }}" in validate_job
+    )
+    assert "bash scripts/validate_review_route_snapshot.sh before-success" in validate_job
+    assert "bash scripts/validate_review_route_snapshot.sh after-success" in validate_job
+    assert "HEAD_REPOSITORY" in validate_job
+    assert "HEAD_BRANCH" in validate_job
+    assert validate_job.index("before-success") < validate_job.index('statuses/$HEAD_SHA"')
+    assert validate_job.index('statuses/$HEAD_SHA"') < validate_job.index("after-success")
+    assert "Post-success audit changed; review route is pending." in validate_job
+    assert "post-success audit failed closed" in validate_job
+    assert "review_route_ledger.py" not in workflow
+
+    assert "pulls/$PR_NUMBER" in helper
+    assert "git/ref/heads/main" in helper
+    assert ".head.repo.full_name == $head_repo" in helper
+    assert ".head.ref == $head_branch" in helper
+    assert "pulls?state=open" not in helper
+    assert "-F query=@scripts/review_route_context.graphql" in helper
+    assert "pulls/$PR_NUMBER/files?per_page=100" in helper
+    assert "collaborators/$finalizer_login/permission" in helper
+    assert "python scripts/validate_review_route.py" in helper
+    assert ".issue.body == .[1].body" in helper
+    assert ".object.sha == $trusted" in helper
+    assert "actions/runs?" not in helper
+    assert "display_title" not in helper
 
 
 @pytest.mark.parametrize(
@@ -4894,7 +5388,11 @@ def test_review_signal_invalidator_rechecks_stale_head_ownership(
         "number": 2183,
         "state": "open",
         "base": {"ref": "main", "repo": {"full_name": "bioedca/Yeliztli"}},
-        "head": {"sha": HEAD_SHA.upper()},
+        "head": {
+            "sha": HEAD_SHA.upper(),
+            "ref": "issue-2183",
+            "repo": {"full_name": "bioedca/Yeliztli"},
+        },
     }
     open_pulls = [pull]
     if duplicate_live_head:
@@ -5140,6 +5638,7 @@ esac
 
 @pytest.mark.parametrize(
     (
+        "v3",
         "current_open",
         "replacement_owns_head",
         "malformed_response",
@@ -5150,11 +5649,12 @@ esac
         "expected_returncode",
     ),
     [
-        (False, False, False, False, PR_UPDATED_AT, [HEAD_SHA], [HEAD_SHA], 0),
-        (False, True, False, False, PR_UPDATED_AT, [], [], 0),
-        (True, True, False, False, PR_UPDATED_AT, [HEAD_SHA], [HEAD_SHA], 0),
-        (False, False, True, False, PR_UPDATED_AT, [], [], 1),
+        (False, False, False, False, False, PR_UPDATED_AT, [HEAD_SHA], [HEAD_SHA], 0),
+        (False, False, True, False, False, PR_UPDATED_AT, [], [], 0),
+        (False, True, True, False, False, PR_UPDATED_AT, [HEAD_SHA], [HEAD_SHA], 0),
+        (False, False, False, True, False, PR_UPDATED_AT, [], [], 1),
         (
+            False,
             False,
             False,
             False,
@@ -5164,8 +5664,9 @@ esac
             [HEAD_SHA, HEAD_SHA, HEAD_SHA],
             1,
         ),
-        (True, False, True, False, PR_UPDATED_AT, [HEAD_SHA], [HEAD_SHA], 0),
+        (False, True, False, True, False, PR_UPDATED_AT, [HEAD_SHA], [HEAD_SHA], 0),
         (
+            False,
             True,
             False,
             False,
@@ -5176,6 +5677,7 @@ esac
             1,
         ),
         (
+            False,
             True,
             False,
             False,
@@ -5185,10 +5687,12 @@ esac
             [HEAD_SHA],
             1,
         ),
+        (True, True, False, False, False, PR_UPDATED_AT, [HEAD_SHA], [HEAD_SHA], 0),
     ],
 )
 def test_route_preinvalidator_does_not_overwrite_replacement_pr_status(
     tmp_path: Path,
+    v3: bool,
     current_open: bool,
     replacement_owns_head: bool,
     malformed_response: bool,
@@ -5208,9 +5712,14 @@ def test_route_preinvalidator_does_not_overwrite_replacement_pr_status(
         "number": 2183,
         "state": "open" if current_open else "closed",
         "base": {"ref": "main", "repo": {"full_name": "bioedca/Yeliztli"}},
-        "head": {"sha": HEAD_SHA.upper()},
+        "head": {
+            "sha": HEAD_SHA.upper(),
+            "ref": "issue-2183",
+            "repo": {"full_name": "bioedca/Yeliztli"},
+        },
         "draft": False,
         "updated_at": updated_at,
+        "body": AUTONOMOUS_SCHEMA_MARKER if v3 else "",
     }
     open_pulls = [pull] if current_open else []
     if replacement_owns_head:
@@ -5299,6 +5808,23 @@ esac
     )
     assert actual_statuses == expected_statuses
     assert actual_attempts == expected_attempts
+    if expected_returncode == 0 and (v3 or not current_open):
+        environment = environment_file.read_text(encoding="utf-8")
+        assert f"SCHEMA_VERSION={'3' if v3 else 'legacy'}" in environment
+        assert "INVALIDATION_ONLY=true" in environment
+        publisher_shell = _workflow_step_script(workflow, "Publish required status on PR head")
+        publisher = subprocess.run(
+            ["/bin/bash", "-e", "-o", "pipefail", "-c", publisher_shell],
+            check=False,
+            capture_output=True,
+            env={
+                **os.environ,
+                "INVALIDATION_ONLY": "true",
+            },
+            text=True,
+        )
+        assert publisher.returncode == 0
+        assert "Invalidation is complete after publishing pending." in publisher.stdout
     if updated_at != PR_UPDATED_AT:
         environment = (
             environment_file.read_text(encoding="utf-8") if environment_file.exists() else ""
@@ -5791,20 +6317,279 @@ esac
             assert "finalizer" in status_calls[-1].lower()
 
 
+@pytest.mark.parametrize(
+    (
+        "snapshot_plan",
+        "fail_first_pending",
+        "head_lookup_failures",
+        "expected_returncode",
+        "expected_statuses",
+        "expect_incomplete_rollback",
+    ),
+    [
+        ("pre-fail", False, 0, 1, [(HEAD_SHA, "pending")], False),
+        ("pass", False, 0, 0, [(HEAD_SHA, "success")], False),
+        (
+            "post-fail",
+            True,
+            0,
+            1,
+            [
+                (HEAD_SHA, "success"),
+                (HEAD_SHA, "pending"),
+                (HEAD_SHA, "pending"),
+                ("b" * 40, "pending"),
+            ],
+            False,
+        ),
+        (
+            "post-fail",
+            False,
+            2,
+            1,
+            [
+                (HEAD_SHA, "success"),
+                (HEAD_SHA, "pending"),
+                ("b" * 40, "pending"),
+            ],
+            False,
+        ),
+        (
+            "post-fail",
+            False,
+            3,
+            1,
+            [
+                (HEAD_SHA, "success"),
+                (HEAD_SHA, "pending"),
+            ],
+            True,
+        ),
+    ],
+)
+def test_v3_publisher_executes_fresh_validation_and_audit_rollback(
+    tmp_path: Path,
+    snapshot_plan: str,
+    fail_first_pending: bool,
+    head_lookup_failures: int,
+    expected_returncode: int,
+    expected_statuses: list[tuple[str, str]],
+    expect_incomplete_rollback: bool,
+) -> None:
+    root = Path(__file__).resolve().parents[2]
+    workflow = (root / ".github/workflows/review-route.yml").read_text(encoding="utf-8")
+    shell = _workflow_step_script(workflow, "Publish required status on PR head")
+    claimed = {
+        "number": 2183,
+        "state": "open",
+        "body": "v3 review route evidence",
+        "updated_at": PR_UPDATED_AT,
+        "draft": False,
+        "base": {"ref": "main", "repo": {"full_name": "bioedca/Yeliztli"}},
+        "head": {
+            "sha": HEAD_SHA.upper(),
+            "ref": "issue-2183",
+            "repo": {"full_name": "bioedca/Yeliztli"},
+        },
+    }
+    current = deepcopy(claimed)
+    current["head"]["sha"] = ("b" * 40).upper()
+    owners_fixture = tmp_path / "owners.json"
+    pr_fixture = tmp_path / "pr.json"
+    current_pr_fixture = tmp_path / "current-pr.json"
+    main_fixture = tmp_path / "main.json"
+    finalizer_fixture = tmp_path / "finalizer.json"
+    permission_fixture = tmp_path / "permission.json"
+    head_lookup_counter = tmp_path / "head-lookup-counter"
+    pr_counter = tmp_path / "pr-counter"
+    snapshot_counter = tmp_path / "snapshot-counter"
+    pending_counter = tmp_path / "pending-counter"
+    status_log = tmp_path / "statuses.log"
+    owners_fixture.write_text(json.dumps([[claimed]]), encoding="utf-8")
+    pr_fixture.write_text(json.dumps(claimed), encoding="utf-8")
+    current_pr_fixture.write_text(json.dumps(current), encoding="utf-8")
+    main_fixture.write_text(json.dumps({"object": {"sha": HEAD_SHA}}), encoding="utf-8")
+    finalizer_fixture.write_text(
+        json.dumps(
+            {
+                "data": {
+                    "node": {
+                        "id": FINALIZER_NODE_ID,
+                        "author": {
+                            "__typename": "User",
+                            "databaseId": HUMAN_ID,
+                            "login": "trusted-reviewer",
+                        },
+                        "authorAssociation": "MEMBER",
+                        "body": "/validate-route",
+                        "createdAt": CREATED_AT,
+                        "updatedAt": CREATED_AT,
+                        "lastEditedAt": None,
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    permission_fixture.write_text(
+        json.dumps({"permission": "write", "user": {"id": HUMAN_ID}}),
+        encoding="utf-8",
+    )
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_bash = fake_bin / "bash"
+    fake_bash.write_text(
+        """#!/bin/bash
+set -eu
+if [ "${1:-}" = "scripts/validate_review_route_snapshot.sh" ]; then
+  count=0
+  if [ -f "$SNAPSHOT_COUNTER" ]; then read -r count < "$SNAPSHOT_COUNTER"; fi
+  count=$((count + 1))
+  printf '%s\n' "$count" > "$SNAPSHOT_COUNTER"
+  if [ "$SNAPSHOT_PLAN" = "pre-fail" ] && [ "$count" = "1" ]; then exit 1; fi
+  if [ "$SNAPSHOT_PLAN" = "post-fail" ] && [ "$count" = "2" ]; then exit 1; fi
+  exit 0
+fi
+exec /bin/bash "$@"
+""",
+        encoding="utf-8",
+    )
+    fake_bash.chmod(0o755)
+    fake_gh = fake_bin / "gh"
+    fake_gh.write_text(
+        """#!/usr/bin/env bash
+set -eu
+case "$*" in
+  *"pulls?state=open"*) exec /bin/cat "$OWNERS_FIXTURE" ;;
+  *"api graphql"*) exec /bin/cat "$FINALIZER_FIXTURE" ;;
+  *"collaborators/"*"/permission"*) exec /bin/cat "$PERMISSION_FIXTURE" ;;
+  *"git/ref/heads/main"*) exec /bin/cat "$MAIN_FIXTURE" ;;
+  *"pulls/2183"*)
+    if [[ " $* " == *" --jq "* ]]; then
+      count=0
+      if [ -f "$HEAD_LOOKUP_COUNTER" ]; then read -r count < "$HEAD_LOOKUP_COUNTER"; fi
+      count=$((count + 1))
+      printf '%s\n' "$count" > "$HEAD_LOOKUP_COUNTER"
+      if [ "$count" -le "$HEAD_LOOKUP_FAILURES" ]; then exit 1; fi
+      printf '%s\n' "$(printf 'b%.0s' {1..40})"
+      exit 0
+    fi
+    count=0
+    if [ -f "$PR_COUNTER" ]; then read -r count < "$PR_COUNTER"; fi
+    count=$((count + 1))
+    printf '%s\n' "$count" > "$PR_COUNTER"
+    if [ "$count" -ge 3 ]; then exec /bin/cat "$CURRENT_PR_FIXTURE"; fi
+    exec /bin/cat "$PR_FIXTURE"
+    ;;
+  *"statuses/"*)
+    sha=""
+    state=""
+    context=""
+    for argument in "$@"; do
+      case "$argument" in
+        repos/*/statuses/*) sha="${argument##*/}" ;;
+        state=*) state="${argument#state=}" ;;
+        context=*) context="${argument#context=}" ;;
+      esac
+    done
+    printf '%s\t%s\n' "$sha" "$state" >> "$STATUS_LOG"
+    if [ "$state" = "pending" ]; then
+      count=0
+      if [ -f "$PENDING_COUNTER" ]; then read -r count < "$PENDING_COUNTER"; fi
+      count=$((count + 1))
+      printf '%s\n' "$count" > "$PENDING_COUNTER"
+      if [ "$FAIL_FIRST_PENDING" = "true" ] && [ "$count" = "1" ]; then exit 1; fi
+    fi
+    printf '{"state":"%s","context":"%s"}\n' "$state" "$context"
+    ;;
+  *) exit 2 ;;
+esac
+""",
+        encoding="utf-8",
+    )
+    fake_gh.chmod(0o755)
+    fake_sleep = fake_bin / "sleep"
+    fake_sleep.write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
+    fake_sleep.chmod(0o755)
+    completed = subprocess.run(
+        ["/bin/bash", "-e", "-o", "pipefail", "-c", shell],
+        check=False,
+        capture_output=True,
+        env={
+            **os.environ,
+            "CURRENT_PR_FIXTURE": str(current_pr_fixture),
+            "FAIL_FIRST_PENDING": str(fail_first_pending).lower(),
+            "FINALIZE_COMMENT_ACTOR_ID": str(HUMAN_ID),
+            "FINALIZE_COMMENT_CREATED_AT": CREATED_AT,
+            "FINALIZE_COMMENT_NODE_ID": FINALIZER_NODE_ID,
+            "FINALIZE_ROUTE": "true",
+            "FINALIZER_FIXTURE": str(finalizer_fixture),
+            "GH_TOKEN": "test-token",
+            "GITHUB_REPOSITORY": "bioedca/Yeliztli",
+            "HEAD_BRANCH": "issue-2183",
+            "HEAD_LOOKUP_COUNTER": str(head_lookup_counter),
+            "HEAD_LOOKUP_FAILURES": str(head_lookup_failures),
+            "HEAD_REPOSITORY": "bioedca/Yeliztli",
+            "HEAD_SHA": HEAD_SHA,
+            "IS_DRAFT": "false",
+            "MAIN_FIXTURE": str(main_fixture),
+            "OWNERS_FIXTURE": str(owners_fixture),
+            "PATH": f"{fake_bin}:{os.environ['PATH']}",
+            "PENDING_COUNTER": str(pending_counter),
+            "PERMISSION_FIXTURE": str(permission_fixture),
+            "PR_COUNTER": str(pr_counter),
+            "PR_FIXTURE": str(pr_fixture),
+            "PR_NUMBER": "2183",
+            "PR_UPDATED_AT": PR_UPDATED_AT,
+            "RESOLVED_HEAD_SHA": HEAD_SHA,
+            "RUNNER_TEMP": str(tmp_path),
+            "RUN_URL": "https://example.test/run",
+            "SCHEMA_VERSION": "3",
+            "SNAPSHOT_COUNTER": str(snapshot_counter),
+            "SNAPSHOT_PLAN": snapshot_plan,
+            "STATUS_LOG": str(status_log),
+            "TRUSTED_SHA": HEAD_SHA,
+            "VALIDATION_OUTCOME": "success",
+            "WORKFLOW_SHA": HEAD_SHA,
+        },
+        text=True,
+    )
+    assert completed.returncode == expected_returncode, completed.stderr
+    actual_statuses = [
+        (sha, state)
+        for sha, state in (
+            line.split("\t") for line in status_log.read_text(encoding="utf-8").splitlines()
+        )
+    ]
+    assert actual_statuses == expected_statuses
+    expected_snapshots = 1 if snapshot_plan == "pre-fail" else 2
+    assert int(snapshot_counter.read_text(encoding="utf-8")) == expected_snapshots
+    if snapshot_plan == "post-fail":
+        assert "post-success audit failed closed" in completed.stdout
+        assert (
+            "post-success pending rollback was incomplete" in completed.stdout
+        ) is expect_incomplete_rollback
+        assert int(head_lookup_counter.read_text(encoding="utf-8")) == min(
+            head_lookup_failures + 1, 3
+        )
+
+
 def test_public_template_contains_only_hosted_review_gates() -> None:
     root = Path(__file__).resolve().parents[2]
     template = (root / ".github/PULL_REQUEST_TEMPLATE.md").read_text(encoding="utf-8")
-    assert SCHEMA_MARKER in template
+    assert AUTONOMOUS_SCHEMA_MARKER in template
+    assert SCHEMA_MARKER not in template
     assert all(f"- [ ] {reviewer}" in template for reviewer in ("Copilot", "Codex", "CodeRabbit"))
-    assert all(gate in template.replace("`", "") for gate in GATES)
-    assert "codex-reservation" not in template
-    assert "Do not request multiple hosted providers by default" in template
-    assert "unedited formal current-head review" in template
-    assert "immutable canonical clean comment" in template
-    assert "that command only invokes the service" in template
-    assert "Later requests or quota/error messages do not supersede" in template
-    assert "Immediately before any trigger, re-fetch" in template
-    assert "Within this PR, service queued current-head reservations FIFO" in template
+    assert COPILOT_GATE in template
+    assert CODEX_GATE in template.replace("`", "")
+    assert "CodeRabbit structured clean review" in template
+    assert CODERABBIT_GATE not in template.replace("`", "")
+    assert HUMAN_GATE not in template
+    assert "Developer Certificate of Origin" not in template
+    assert "Agent claim ID:" in template
+    assert "all changed files reviewed and zero generated/attached comments" in template
+    assert "zero actionable/attached comments, no ignored files" in template
+    assert "empty zero-comment formal approval" in template
     assert "code block or raw HTML" in template
     route_end = template.index("- [ ] Load-bearing")
     provider_start = template.index("- [ ] Copilot", route_end)
@@ -5819,39 +6604,31 @@ def test_contributor_review_routes_match_the_public_template() -> None:
     contributing = (root / "CONTRIBUTING.md").read_text(encoding="utf-8")
     normalized = " ".join(contributing.split())
     assert all(route in contributing for route in ("Low", "Standard", "Load-bearing"))
-    assert "selects exactly one verified automated GitHub review outcome" in normalized
-    assert "rather than an unedited formal review" in normalized
-    assert "only invokes the service; it is not evidence" in normalized
-    assert "a later quota/error message is not a review outcome" in normalized
-    assert "codex-reservation" not in contributing
-    assert "providers are substitutes, not a mandatory sequence" in normalized
-    assert "Do not request Copilot and Codex together by default" in normalized
-    assert "Only unedited formal bot-review nodes count as evidence" in normalized
-    assert "review-route-schema:v1" in contributing
-    assert "v1's multi-provider matrix is obsolete" in normalized
-    assert "five" in contributing and "rolling-hour" in contributing
-    assert "Immediately before triggering, re-fetch the PR" in normalized
-    assert "attributes the SHA-less trigger" in normalized
-    assert "Within one PR, service current-head reservations FIFO" in normalized
-    assert "raw HTML cannot contain or appear in the route section" in normalized
-    assert "wait for its distinct completed review before posting the next trigger" in normalized
+    assert "New pull requests use `review-route-schema:v3`" in contributing
+    assert "Existing v2 pull requests keep their human-gated contract" in normalized
+    assert "V3 trusts only a small provider-authenticated terminal envelope" in normalized
+    assert "selected-file count equal to GitHub's changed-file count" in normalized
+    assert "select another provider instead of guessing" in normalized
+    assert "cannot modify the PR-controlled review-signal workflow" in normalized
     assert "/validate-route" in contributing
-    assert "two open `main` PRs must never share a head SHA" in normalized
-    assert "failed, skipped, or cancelled trusted/relevant signal or publisher run" in normalized
-    assert "PR lifecycle events (including fork and Dependabot PRs)" in normalized
-    assert "credential-free signal carrying GitHub's triggering actor" in normalized
-    assert "unprivileged default-branch resolver consumes every conclusion" in normalized
-    assert "authorizes formal-review source actors against immutable bot IDs" in normalized
-    assert "inconclusive permission lookup invalidates fail closed" in normalized
-    assert "never check out PR code or consume PR artifacts/caches" in normalized
-    assert "publisher key is never copied into Dependabot secrets" in normalized
-    assert "outsider diff comment always invalidates" in normalized
-    assert "Native required conversation resolution is therefore the authoritative" in normalized
-    assert (
-        "conversation-resolution rule must remain enabled whenever `Review Route` is required"
-        in normalized
-    )
-    assert "require the branch to be up to date before merging" in normalized
+    assert "audits the result once more" in normalized
+    assert "only invalidate affected heads to `pending`" in normalized
+    assert "never check out PR code or consume PR artifacts or caches" in normalized
+    assert "V2 retains its existing requirements" in normalized
+    assert "V3 does not require DCO, independent human approval" in normalized
+    assert "never `github-actions[bot]`" in normalized
+
+
+def test_governance_and_docs_describe_versioned_provenance() -> None:
+    root = Path(__file__).resolve().parents[2]
+    governance = (root / "GOVERNANCE.md").read_text(encoding="utf-8")
+    docs = (root / "docs/develop/contributing.md").read_text(encoding="utf-8")
+    normalized = " ".join(governance.split())
+    assert "legacy v2 change still needs maintainer approval" in normalized
+    assert "v3 change may be squash-merged without per-PR human authorization" in normalized
+    assert "without a legal or DCO attestation" in normalized
+    normalized_docs = " ".join(docs.replace("\n>", "\n").split())
+    assert "versioned review routes, and contribution provenance" in normalized_docs
 
 
 def test_graphql_context_tracks_comment_association_and_head_epoch() -> None:
@@ -5886,6 +6663,8 @@ def test_graphql_context_tracks_comment_association_and_head_epoch() -> None:
     assert "... on User { databaseId }" in review_query
     assert "... on Bot { databaseId }" in review_query
     assert "\n          body\n" in review_query
+    assert query.count("comments { totalCount }") == 1
+    assert "comments { totalCount }" in review_query
     assert all(
         field in review_query
         for field in (
