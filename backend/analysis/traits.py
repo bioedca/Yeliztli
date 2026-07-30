@@ -776,7 +776,20 @@ def store_traits_findings(
         called_count = len(pr.called_snps)
         total_count = len(pr.snp_results)
         indeterminate = pr.indeterminate_snps
-        if pr.level == STANDARD and indeterminate:
+        # SNPs that were called AND interpreted. "Standard for scored variants"
+        # is only honest when something was actually scored; if every called SNP
+        # is indeterminate, nothing was (#2178).
+        interpreted_count = called_count - len(indeterminate)
+        if pr.level == STANDARD and indeterminate and interpreted_count == 0:
+            n = len(indeterminate)
+            noun = "variant" if n == 1 else "variants"
+            finding_text = (
+                f"{pr.pathway_name} — not assessed: {n} {noun} observed but not "
+                f"interpreted (indeterminate), no variant scored — see SNP details"
+            )
+            if pr.missing_snps:
+                finding_text += f"; {format_not_assessed(pr.missing_snps)} not assessed"
+        elif pr.level == STANDARD and indeterminate:
             # A Standard *level* with indeterminate calls is NOT "no variants of
             # note": a locus was observed but withheld from interpretation, so a
             # clean-negative summary contradicts the SNP detail the user can open

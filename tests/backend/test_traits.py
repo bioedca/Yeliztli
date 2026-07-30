@@ -529,6 +529,43 @@ class TestIndeterminateSummaryPropagation:
         assert "Standard for scored variants" in row.finding_text
         assert json.loads(row.detail_json)["indeterminate_snps"] == ["rs747302"]
 
+    def test_only_indeterminate_calls_is_not_assessed(self) -> None:
+        """#2178: "Standard for scored variants" requires something to be scored.
+
+        If every called SNP is indeterminate, nothing was interpreted, so the
+        summary must not imply a scored Standard result.
+        """
+        engine = sa.create_engine("sqlite://")
+        create_sample_tables(engine)
+        pr = PathwayResult(
+            pathway_id="behavioral_traits",
+            pathway_name="Behavioral Traits",
+            level=STANDARD,
+            snp_results=[
+                SNPResult(
+                    rsid="rs747302",
+                    gene="DRD4",
+                    variant_name="DRD4 exon III VNTR proxy",
+                    genotype="CC",
+                    category=INDETERMINATE,
+                    effect_summary="Strand-ambiguous homozygote.",
+                    evidence_level=1,
+                    pmids=[],
+                    recommendation_text="",
+                    present_in_sample=True,
+                ),
+            ],
+        )
+        store_traits_findings(TraitsResult(pathway_results=[pr]), engine)
+        with engine.connect() as conn:
+            row = conn.execute(
+                sa.select(findings.c.finding_text).where(findings.c.category == "pathway_summary")
+            ).fetchone()
+        assert row is not None
+        assert "Standard for scored variants" not in row.finding_text
+        assert "no variant scored" in row.finding_text
+        assert "no variants of note" not in row.finding_text.lower()
+
     def test_standard_without_indeterminate_stays_a_clean_negative(self) -> None:
         """#2178 discriminating control: with the same shape but a genuinely
         Standard DRD4 call, the clean-negative wording must be unchanged — so the
