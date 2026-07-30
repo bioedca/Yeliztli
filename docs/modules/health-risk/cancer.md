@@ -10,7 +10,7 @@ separately estimates polygenic risk for a few common cancers.
 A **28-gene** hereditary-cancer panel, including *BRCA1*, *BRCA2*, *TP53*, *PALB2*, *ATM*,
 *CHEK2*, the Lynch-syndrome mismatch-repair genes (*MLH1*, *MSH2*, *MSH6*, *PMS2*), *APC*,
 *MUTYH*, *PTEN*, *STK11*, *CDH1*, and others. It also computes **polygenic risk scores**
-(PRS) for breast, prostate, colorectal, and melanoma.
+(PRS) for prostate, colorectal, and melanoma.
 
 ## What you'll see
 
@@ -28,6 +28,13 @@ A **28-gene** hereditary-cancer panel, including *BRCA1*, *BRCA2*, *TP53*, *PALB
   from NCI SEER with published female-carrier penetrance estimates for *BRCA1*/*BRCA2*
   Pathogenic/Likely-Pathogenic findings [1]. This is not a PRS-derived estimate and not a
   personalized clinical risk model.
+
+!!! note "Breast-cancer PRS is currently unavailable"
+    The source-verified breast-cancer PRS77 is not scored or reported. Thirty-nine of its
+    primary GRCh38 loci are multiallelic, and two additional biallelic loci are palindromic
+    without trusted effect-allele strand provenance. The current sample schema does not preserve
+    enough allele context to harmonize those loci safely. This is a runtime limitation, not an
+    ancestry-calibration result; the percentile note below applies only to models that are scored.
 
 !!! note "Percentiles can be withheld"
     A polygenic percentile is only shown when the score is properly calibrated for your
