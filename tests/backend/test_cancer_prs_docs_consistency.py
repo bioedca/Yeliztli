@@ -113,8 +113,13 @@ def test_cancer_docs_distinguish_the_runtime_block_from_ancestry_withholding() -
     required_phrases = {
         "source-verified breast-cancer prs77",
         "not scored or reported",
+        "39 multiallelic primary loci",
+        "two additional biallelic loci",
         "multiallelic",
         "palindromic",
+        "current sample schema",
+        "does not preserve enough allele context",
+        "harmonize those loci safely",
         "not an ancestry-calibration result",
     }
     missing = sorted(phrase for phrase in required_phrases if phrase not in note_text)
