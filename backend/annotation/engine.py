@@ -1466,12 +1466,17 @@ def run_annotation(
     # aliases can land in different batches, and a per-batch view would see no
     # conflict there while seeing one when they happen to share a batch -- making
     # the stored frequency and status depend on `batch_size` and row order (#2171).
-    _genotypes_by_query: dict[str, set[str]] = {}
+    # Keyed on (genotype, chrom, pos), not genotype alone: aliases can agree on
+    # the genotype while sitting at different GRCh37 loci, and `raw_by_query`
+    # keeps only one of them. Without the coordinate in the key that case goes
+    # undetected, so one alias receives the other locus's frequency -- and which
+    # locus wins still depends on `batch_size`.
+    _calls_by_query: dict[str, set[tuple[str, str, int]]] = {}
     for _row in raw_rows:
-        _genotypes_by_query.setdefault(current_by_old.get(_row.rsid, _row.rsid), set()).add(
-            _row.genotype
+        _calls_by_query.setdefault(current_by_old.get(_row.rsid, _row.rsid), set()).add(
+            (_row.genotype, _row.chrom, _row.pos)
         )
-    conflicting_genotype_rsids = {q for q, genos in _genotypes_by_query.items() if len(genos) > 1}
+    conflicting_genotype_rsids = {q for q, calls in _calls_by_query.items() if len(calls) > 1}
 
     # 4. Process in batches
     # Reuse a single ThreadPoolExecutor across all batches to avoid

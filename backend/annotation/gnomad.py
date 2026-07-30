@@ -1038,6 +1038,17 @@ def lookup_gnomad_by_rsids(
                 rows_by_rsid.setdefault(row.rsid, []).append(row)
 
             for rsid, candidates in rows_by_rsid.items():
+                # Order matters: the alias-conflict guard is evaluated on the RAW
+                # candidate set, before any locus narrowing. Filtering first can
+                # reduce a multi-row site to one row, and the guard below --
+                # scoped to `len(candidates) > 1` -- would then never fire, so a
+                # surviving locus's frequency would still be fanned to aliases
+                # that sit elsewhere.
+                if len(candidates) > 1 and rsid in conflicting_genotype_rsids:
+                    if allele_ambiguous_out is not None:
+                        allele_ambiguous_out.add(rsid)
+                    continue
+
                 # One rsID can be catalogued at more than one coordinate. Picking
                 # by genotype alone would let an ALT carried at a *different*
                 # locus supply this locus's frequency and homozygote count, which
@@ -1052,13 +1063,7 @@ def lookup_gnomad_by_rsids(
                         if allele_ambiguous_out is not None:
                             allele_ambiguous_out.add(rsid)
                         continue
-                if len(candidates) > 1 and rsid in conflicting_genotype_rsids:
-                    # Aliased sample rows disagree on the genotype, so no single
-                    # ALT can be chosen for all of them. One row is unambiguous
-                    # regardless, so the guard is scoped to multi-ALT sites.
-                    picked = None
-                else:
-                    picked = _pick_gnomad_row(candidates, genotype_by_rsid.get(rsid))
+                picked = _pick_gnomad_row(candidates, genotype_by_rsid.get(rsid))
                 if picked is not None:
                     results[rsid] = _annotation_from_row(picked)
                 elif allele_ambiguous_out is not None:

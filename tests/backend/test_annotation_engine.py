@@ -2184,6 +2184,56 @@ class TestGnomadAnnotationLookupIntegration:
         assert row is not None
         assert row.gnomad_af_global == pytest.approx(0.05)
 
+    def test_aliases_at_different_loci_conflict_even_with_equal_genotypes(
+        self,
+        sample_engine: sa.Engine,
+        mock_registry: MagicMock,
+        gnomad_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """#2214 review: the conflict key needs the locus, not just the genotype.
+
+        Two aliases can agree on `AG` while sitting at different GRCh37 loci.
+        `raw_by_query` keeps one of them, so the surviving locus's frequency is
+        fanned to both -- and which one survives depends on `batch_size`. Keying
+        the conflict map on (genotype, chrom, pos) catches it.
+        """
+        with reference_engine.begin() as conn:
+            conn.execute(
+                dbsnp_merges.insert().values(
+                    old_rsid="rs_loci_old", current_rsid="rs_loci_cur", build_id=155
+                )
+            )
+        with gnomad_engine.begin() as conn:
+            conn.execute(
+                sa.text(
+                    "INSERT INTO gnomad_af "
+                    "(rsid, chrom, pos, ref, alt, af_global, af_afr, af_amr, af_asj, "
+                    "af_eas, af_eur, af_fin, af_sas, homozygous_count) VALUES "
+                    "('rs_loci_cur', '1', 300, 'G', 'A', 0.004, 0.004, 0.004, 0.004, "
+                    "0.004, 0.004, 0.004, 0.004, 3), "
+                    "('rs_loci_cur', '1', 900, 'G', 'A', 0.40, 0.40, 0.40, 0.40, "
+                    "0.40, 0.40, 0.40, 0.40, 800)"
+                )
+            )
+        with sample_engine.begin() as conn:
+            conn.execute(
+                raw_variants.insert(),
+                [
+                    # Same genotype, different loci -- indistinguishable without
+                    # the coordinate in the conflict key.
+                    {"rsid": "rs_loci_old", "chrom": "1", "pos": 300, "genotype": "AG"},
+                    {"rsid": "rs_loci_cur", "chrom": "1", "pos": 900, "genotype": "AG"},
+                ],
+            )
+
+        run_annotation(sample_engine, mock_registry)
+
+        old_row = self._annotated_row(sample_engine, "rs_loci_old")
+        assert old_row is not None
+        # It sits at pos 300; it must not inherit pos 900's 0.40.
+        assert old_row.gnomad_af_global != pytest.approx(0.40)
+
     def test_single_alt_rsid_is_annotated_regardless_of_genotype(
         self, sample_engine: sa.Engine, mock_registry: MagicMock, gnomad_engine: sa.Engine
     ) -> None:
