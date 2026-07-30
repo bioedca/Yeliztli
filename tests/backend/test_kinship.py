@@ -10,16 +10,25 @@ shared SNPs is reported as indeterminate.
 
 from __future__ import annotations
 
+import json
+
+import sqlalchemy as sa
+
 from backend.analysis.kinship import (
+    CATEGORY,
     MIN_SHARED_SNPS,
+    MODULE,
     KinshipPair,
+    KinshipResult,
     KinshipStats,
     _classify,
     _hom_allele,
     _is_het,
     _pair_text,
     king_kinship,
+    store_kinship_findings,
 )
+from backend.db.tables import findings
 
 
 def _build(spec: list[tuple[int, str, str]]) -> tuple[dict[str, str], dict[str, str]]:
@@ -34,6 +43,57 @@ def _build(spec: list[tuple[int, str, str]]) -> tuple[dict[str, str], dict[str, 
             gi[rsid] = a
             gj[rsid] = b
     return gi, gj
+
+
+class TestUndefinedEstimator:
+    """#2170: `n_shared` counts calls that contribute nothing to the KING denominator.
+
+    The estimator divides by `het_i + het_j`. Identical homozygous calls satisfy
+    the 2,000-SNP reportability gate without entering that denominator, so a
+    comparison carrying no heterozygous information at all used to be published
+    as a confident "unrelated" after an undefined ratio was forced to 0.0.
+    """
+
+    def test_zero_denominator_is_indeterminate_not_unrelated(self) -> None:
+        gi, gj = _build([(MIN_SHARED_SNPS, "AA", "AA")])
+        s = king_kinship(gi, gj)
+
+        assert s.n_shared == MIN_SHARED_SNPS  # the old gate is satisfied...
+        assert s.informative_denominator == 0  # ...on zero actual evidence
+        assert s.relationship == "indeterminate"
+        assert s.indeterminate_reason == "no_heterozygous_information"
+        # phi is undefined here; 0.0 is a value, and it classified as unrelated.
+        assert s.phi is None
+
+    def test_too_few_shared_snps_reports_its_own_reason(self) -> None:
+        gi, gj = _build([(10, "AG", "AG"), (10, "AA", "AA")])
+        s = king_kinship(gi, gj)
+
+        assert s.relationship == "indeterminate"
+        assert s.indeterminate_reason == "insufficient_shared_snps"
+        # The denominator exists here, so the two causes stay distinguishable.
+        assert s.informative_denominator == 20
+
+    def test_evaluable_unrelated_pair_is_still_unrelated(self) -> None:
+        """Discriminating control: withholding must not swallow real negatives.
+
+        Without this, returning "indeterminate" unconditionally would pass every
+        other assertion in this class.
+        """
+        gi, gj = _build([(1000, "AG", "AA"), (1000, "AA", "AG"), (500, "AA", "GG")])
+        s = king_kinship(gi, gj)
+
+        assert s.relationship == "unrelated"
+        assert s.phi is not None
+        assert s.informative_denominator == 2000
+
+    def test_shared_count_and_denominator_can_diverge(self) -> None:
+        """The number a reader sees ("N shared SNPs") is not the evidence count."""
+        gi, gj = _build([(MIN_SHARED_SNPS, "AA", "AA"), (1, "AG", "AG")])
+        s = king_kinship(gi, gj)
+
+        assert s.n_shared == MIN_SHARED_SNPS + 1
+        assert s.informative_denominator == 2  # two orders of magnitude apart
 
 
 class TestHelpers:
@@ -178,3 +238,105 @@ class TestPairText:
         assert "3rd-degree relative" in text
         assert "first cousin" in text
         assert "KING kinship φ=0.062" in text
+
+
+def _pair(name: str, relationship: str, reason: str | None = None) -> KinshipPair:
+    return KinshipPair(
+        other_sample_id=7,
+        other_sample_name=name,
+        same_vendor=True,
+        stats=KinshipStats(
+            phi=None if relationship == "indeterminate" else 0.01,
+            ibs0=0,
+            ibs0_proportion=0.0,
+            n_shared=MIN_SHARED_SNPS,
+            het_i=0,
+            het_j=0,
+            hethet=0,
+            relationship=relationship,
+            informative_denominator=0 if relationship == "indeterminate" else 2000,
+            indeterminate_reason=reason,
+        ),
+    )
+
+
+def _stored_text(result: KinshipResult, sample_engine: sa.Engine) -> str:
+    store_kinship_findings(result, sample_engine)
+    with sample_engine.connect() as conn:
+        row = conn.execute(
+            sa.select(findings).where(findings.c.module == MODULE, findings.c.category == CATEGORY)
+        ).fetchone()
+    assert row is not None
+    return row.finding_text
+
+
+class TestUnevaluableSummary:
+    """#2170: an unevaluable comparison must not be summarised as a negative.
+
+    `store_kinship_findings` files nothing for unrelated *or* indeterminate
+    pairs, so a pair whose estimate was never defined fell into the same
+    "No related samples detected" summary as a genuine negative -- false
+    reassurance from a duplicate/sample-swap check.
+    """
+
+    def test_all_unevaluable_is_not_reported_as_no_related_samples(
+        self, sample_engine: sa.Engine
+    ) -> None:
+        result = KinshipResult(
+            target_sample_id=1,
+            pairs=[_pair("B", "indeterminate", "no_heterozygous_information")],
+            samples_compared=1,
+        )
+
+        text = _stored_text(result, sample_engine)
+
+        assert "No related samples detected" not in text
+        assert "could not be estimated" in text
+        assert "not a finding of unrelatedness" in text
+
+    def test_mixed_evaluable_and_unevaluable_counts_them_separately(
+        self, sample_engine: sa.Engine
+    ) -> None:
+        result = KinshipResult(
+            target_sample_id=1,
+            pairs=[
+                _pair("B", "unrelated"),
+                _pair("C", "indeterminate", "insufficient_shared_snps"),
+            ],
+            samples_compared=2,
+        )
+
+        text = _stored_text(result, sample_engine)
+
+        assert "1 of your 2 other local sample(s) that could be evaluated" in text
+        assert "1 could not be estimated and are not counted as unrelated" in text
+
+    def test_all_evaluable_keeps_the_plain_negative(self, sample_engine: sa.Engine) -> None:
+        """Discriminating control: a real negative must still read as one."""
+        result = KinshipResult(
+            target_sample_id=1,
+            pairs=[_pair("B", "unrelated")],
+            samples_compared=1,
+        )
+
+        text = _stored_text(result, sample_engine)
+
+        assert "No related samples detected among your 1 other local sample(s)" in text
+        assert "could not be estimated" not in text
+
+    def test_related_pair_detail_carries_the_denominator(self, sample_engine: sa.Engine) -> None:
+        """The evidence count reaches the stored detail, not just the shared count."""
+        pair = _pair("B", "duplicate_or_mz_twin")
+        result = KinshipResult(target_sample_id=1, pairs=[pair], samples_compared=1)
+
+        store_kinship_findings(result, sample_engine)
+        with sample_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(findings).where(
+                    findings.c.module == MODULE, findings.c.category == CATEGORY
+                )
+            ).fetchone()
+        assert row is not None
+        detail = json.loads(row.detail_json)
+        assert detail["informative_denominator"] == 2000
+        assert detail["n_shared_snps"] == MIN_SHARED_SNPS

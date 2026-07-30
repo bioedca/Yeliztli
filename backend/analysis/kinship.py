@@ -69,7 +69,10 @@ _ACGT = frozenset("ACGT")
 
 @dataclass(frozen=True)
 class KinshipStats:
-    phi: float
+    # None when the KING denominator (het_i + het_j) is zero: the estimator is
+    # undefined, not zero. Substituting 0.0 made a comparison carrying no
+    # heterozygous information read as a confident "unrelated" (#2170).
+    phi: float | None
     ibs0: int
     ibs0_proportion: float
     n_shared: int
@@ -77,6 +80,13 @@ class KinshipStats:
     het_j: int
     hethet: int
     relationship: str
+    # het_i + het_j -- the denominator the estimate actually rests on. `n_shared`
+    # counts every intersecting call including identical homozygotes, which
+    # contribute nothing here, so the two numbers can diverge wildly (#2170).
+    informative_denominator: int = 0
+    # Why `relationship` is "indeterminate": "insufficient_shared_snps" or
+    # "no_heterozygous_information". None when the pair was evaluable.
+    indeterminate_reason: str | None = None
 
 
 @dataclass
@@ -171,13 +181,29 @@ def king_kinship(genos_i: dict[str, str], genos_j: dict[str, str]) -> KinshipSta
             if hom_i is not None and hom_j is not None and hom_i != hom_j:
                 ibs0 += 1
     denom = het_i + het_j
-    phi = (hethet - 2 * ibs0) / denom if denom > 0 else 0.0
     ibs0_proportion = ibs0 / n_shared if n_shared else 0.0
+
+    # The KING-robust estimator divides by het_i + het_j. Two samples that are
+    # identically homozygous everywhere satisfy the shared-SNP gate while
+    # contributing nothing to that denominator, so the ratio is undefined --
+    # report it as such rather than forcing 0.0, which classified as "unrelated"
+    # and read as a confident negative (#2170).
+    indeterminate_reason: str | None = None
+    if denom <= 0:
+        phi = None
+        indeterminate_reason = "no_heterozygous_information"
+    else:
+        phi = round((hethet - 2 * ibs0) / denom, 4)
+    if n_shared < MIN_SHARED_SNPS:
+        indeterminate_reason = "insufficient_shared_snps"
+
     relationship = (
-        _classify(phi, ibs0_proportion) if n_shared >= MIN_SHARED_SNPS else "indeterminate"
+        "indeterminate"
+        if indeterminate_reason is not None or phi is None
+        else _classify(phi, ibs0_proportion)
     )
     return KinshipStats(
-        phi=round(phi, 4),
+        phi=phi,
         ibs0=ibs0,
         ibs0_proportion=round(ibs0_proportion, 5),
         n_shared=n_shared,
@@ -185,6 +211,8 @@ def king_kinship(genos_i: dict[str, str], genos_j: dict[str, str]) -> KinshipSta
         het_j=het_j,
         hethet=hethet,
         relationship=relationship,
+        informative_denominator=denom,
+        indeterminate_reason=indeterminate_reason,
     )
 
 
@@ -195,7 +223,7 @@ _RELATIONSHIP_LABEL = {
     "second_degree": "2nd-degree relative (e.g. grandparent, aunt/uncle, half-sibling)",
     "third_degree": "3rd-degree relative (e.g. first cousin)",
     "unrelated": "unrelated",
-    "indeterminate": "indeterminate (too few shared SNPs)",
+    "indeterminate": "indeterminate (not enough usable information)",
 }
 
 
@@ -237,7 +265,8 @@ def assess_kinship(
         stats = king_kinship(target_genos, other_genos)
         pairs.append(KinshipPair(other_id, other_name, same_vendor, stats))
     # Most-related first.
-    pairs.sort(key=lambda p: p.stats.phi, reverse=True)
+    # An undefined phi sorts last rather than blowing up the comparison.
+    pairs.sort(key=lambda p: (p.stats.phi is not None, p.stats.phi or 0.0), reverse=True)
     return KinshipResult(
         target_sample_id=target_sample_id,
         pairs=pairs,
@@ -277,6 +306,8 @@ def store_kinship_findings(result: KinshipResult, sample_engine: sa.Engine) -> i
                             "ibs0": s.ibs0,
                             "ibs0_proportion": s.ibs0_proportion,
                             "n_shared_snps": s.n_shared,
+                            "informative_denominator": s.informative_denominator,
+                            "indeterminate_reason": s.indeterminate_reason,
                             "het_i": s.het_i,
                             "het_j": s.het_j,
                             "hethet": s.hethet,
@@ -302,20 +333,55 @@ def store_kinship_findings(result: KinshipResult, sample_engine: sa.Engine) -> i
             }
         )
     else:
+        # An unevaluable comparison is not a negative result. Reporting "no
+        # related samples detected" for a pair whose KING estimate was never
+        # defined -- or rested on too few shared SNPs -- is false reassurance
+        # about a duplicate/sample-swap check (#2170).
+        unevaluable = [p for p in result.pairs if p.stats.relationship == "indeterminate"]
+        evaluated = result.samples_compared - len(unevaluable)
+        if unevaluable and evaluated <= 0:
+            finding_text = (
+                f"Relatedness could not be estimated for any of your "
+                f"{result.samples_compared} other local sample(s): the comparison did not "
+                f"carry enough usable information. This is not a finding of "
+                f"unrelatedness. This is a within-account QC estimate (duplicate / "
+                f"sample-swap and relatedness check), not a clinical or legal "
+                f"relationship test."
+            )
+            conditions = "Relatedness: not evaluable"
+        elif unevaluable:
+            finding_text = (
+                f"No related samples detected among the {evaluated} of your "
+                f"{result.samples_compared} other local sample(s) that could be "
+                f"evaluated; {len(unevaluable)} could not be estimated and are not "
+                f"counted as unrelated. This is a within-account QC estimate "
+                f"(duplicate / sample-swap and relatedness check), not a clinical or "
+                f"legal relationship test."
+            )
+            conditions = "Relatedness: none detected among evaluable samples"
+        else:
+            finding_text = (
+                f"No related samples detected among your {result.samples_compared} "
+                f"other local sample(s). This is a within-account QC estimate "
+                f"(duplicate / sample-swap and relatedness check), not a clinical or "
+                f"legal relationship test."
+            )
+            conditions = "Relatedness: none detected"
         rows.append(
             {
                 "module": MODULE,
                 "category": CATEGORY,
                 "evidence_level": 1,
-                "finding_text": (
-                    f"No related samples detected among your {result.samples_compared} "
-                    f"other local sample(s). This is a within-account QC estimate "
-                    f"(duplicate / sample-swap and relatedness check), not a clinical or "
-                    f"legal relationship test."
-                ),
-                "conditions": "Relatedness: none detected",
+                "finding_text": finding_text,
+                "conditions": conditions,
                 "clinvar_significance": None,
-                "detail_json": json.dumps({"samples_compared": result.samples_compared}),
+                "detail_json": json.dumps(
+                    {
+                        "samples_compared": result.samples_compared,
+                        "samples_evaluated": max(evaluated, 0),
+                        "samples_not_evaluable": len(unevaluable),
+                    }
+                ),
             }
         )
 

@@ -34,6 +34,13 @@ class KinshipFindingResponse(BaseModel):
     phi: float | None = None
     ibs0_proportion: float | None = None
     n_shared_snps: int | None = None
+    # het_i + het_j, the denominator the KING estimate rests on. `n_shared_snps`
+    # counts identical homozygotes that contribute nothing to it, so a large
+    # shared count can sit on a negligible -- or zero -- amount of actual
+    # evidence (#2170). Exposed so the two cannot be confused.
+    informative_denominator: int | None = None
+    # "insufficient_shared_snps" | "no_heterozygous_information" | None.
+    indeterminate_reason: str | None = None
     other_sample_id: int | None = None
     other_sample_name: str | None = None
     same_vendor: bool | None = None
@@ -88,6 +95,8 @@ def list_findings(sample_id: int = Query(..., description="Sample ID")) -> Kinsh
                 phi=detail.get("phi"),
                 ibs0_proportion=detail.get("ibs0_proportion"),
                 n_shared_snps=detail.get("n_shared_snps"),
+                informative_denominator=detail.get("informative_denominator"),
+                indeterminate_reason=detail.get("indeterminate_reason"),
                 other_sample_id=detail.get("other_sample_id"),
                 other_sample_name=detail.get("other_sample_name"),
                 same_vendor=detail.get("same_vendor"),
