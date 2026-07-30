@@ -21,6 +21,7 @@ import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
+from backend.analysis.traits import INDETERMINATE
 from backend.api.dependencies import require_fresh_sample
 from backend.db.connection import get_registry
 from backend.db.tables import findings, samples
@@ -64,6 +65,11 @@ class PathwaySummary(BaseModel):
     # Subset of missing_snps that were on the array but failed genotyping.
     # Preserve missing_snps as the historical union for compatibility.
     no_call_snps: list[str] = []
+    # Called SNPs observed but withheld from interpretation (e.g. a strand-
+    # unresolved palindromic homozygote). A Standard pathway holding one of these
+    # is not a clean negative, so the summary must be able to say so without the
+    # user having to open SNP detail (#2178).
+    indeterminate_snps: list[str] = []
     pmids: list[str] = []
 
 
@@ -135,6 +141,11 @@ class PathwayDetailResponse(BaseModel):
     # Subset of missing_snps that were on the array but failed genotyping.
     # Preserve missing_snps as the historical union for compatibility.
     no_call_snps: list[str] = []
+    # Called SNPs observed but withheld from interpretation (e.g. a strand-
+    # unresolved palindromic homozygote). A Standard pathway holding one of these
+    # is not a clean negative, so the summary must be able to say so without the
+    # user having to open SNP detail (#2178).
+    indeterminate_snps: list[str] = []
     pmids: list[str] = []
     snp_details: list[SNPDetail] = []
 
@@ -230,6 +241,26 @@ def _fetch_traits_findings(
 # ── Endpoints ────────────────────────────────────────────────────────
 
 
+def _indeterminate_snps(detail: dict[str, Any]) -> list[str]:
+    """Indeterminate rsIDs for a stored pathway summary.
+
+    Prefers the explicit ``indeterminate_snps`` key, but falls back to deriving
+    it from ``snp_details``. Findings persisted before that key existed still
+    record the per-SNP ``Indeterminate`` category, and ``require_fresh_sample``
+    compares only the recorded VEP bundle major version, so those samples are
+    not re-analysed on deploy. Without the fallback they would keep presenting
+    the false clean-negative summary this issue is about (#2178).
+    """
+    explicit = detail.get("indeterminate_snps")
+    if explicit is not None:
+        return list(explicit)
+    return [
+        sd["rsid"]
+        for sd in detail.get("snp_details", [])
+        if sd.get("category") == INDETERMINATE and sd.get("rsid")
+    ]
+
+
 @router.get("/pathways", dependencies=[Depends(require_fresh_sample)])
 def list_pathways(
     sample_id: int = Query(..., description="Sample ID"),
@@ -261,6 +292,7 @@ def list_pathways(
                 total_snps=detail.get("total_snps", 0),
                 missing_snps=detail.get("missing_snps", []),
                 no_call_snps=detail.get("no_call_snps", []),
+                indeterminate_snps=_indeterminate_snps(detail),
                 pmids=ps["pmids"],
             )
         )
@@ -381,6 +413,7 @@ def pathway_detail(
         total_snps=detail.get("total_snps", 0),
         missing_snps=detail.get("missing_snps", []),
         no_call_snps=detail.get("no_call_snps", []),
+        indeterminate_snps=_indeterminate_snps(detail),
         pmids=pathway_summary["pmids"],
         snp_details=snp_details,
     )

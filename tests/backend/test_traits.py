@@ -50,6 +50,7 @@ from backend.analysis.traits import (
     store_traits_findings,
     update_annotation_coverage_gwas,
 )
+from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import (
     annotated_variants,
     findings,
@@ -456,6 +457,138 @@ class TestPRSIntegration:
 
 
 # ── Cross-module finding tests ───────────────────────────────────────────
+
+
+class TestIndeterminateSummaryPropagation:
+    """#2178: a Standard pathway holding an Indeterminate call is not a clean negative."""
+
+    def _behavioral(self, drd4_category: str) -> PathwayResult:
+        return PathwayResult(
+            pathway_id="behavioral_traits",
+            pathway_name="Behavioral Traits",
+            level=STANDARD,
+            snp_results=[
+                SNPResult(
+                    rsid="rs993137",
+                    gene="CADM2",
+                    variant_name="CADM2 risk-taking proxy",
+                    genotype="TT",
+                    category=STANDARD,
+                    effect_summary="No signal.",
+                    evidence_level=1,
+                    pmids=[],
+                    recommendation_text="",
+                    present_in_sample=True,
+                ),
+                SNPResult(
+                    rsid="rs747302",
+                    gene="DRD4",
+                    variant_name="DRD4 exon III VNTR proxy",
+                    genotype="CC",
+                    category=drd4_category,
+                    effect_summary="Strand-ambiguous homozygote.",
+                    evidence_level=1,
+                    pmids=[],
+                    recommendation_text="",
+                    present_in_sample=True,
+                    trait_domain="novelty_seeking",
+                    coverage_note="strand caveat",
+                ),
+            ],
+        )
+
+    def test_indeterminate_snps_property(self) -> None:
+        pr = self._behavioral(INDETERMINATE)
+        assert [s.rsid for s in pr.indeterminate_snps] == ["rs747302"]
+        # It stays a *called* SNP — it was observed, just not interpreted.
+        assert "rs747302" in [s.rsid for s in pr.called_snps]
+
+    def test_standard_with_indeterminate_is_not_a_clean_negative(self) -> None:
+        """The witness from #2178: CADM2 Standard + DRD4 rs747302 CC Indeterminate
+        used to persist "Standard (no variants of note)", contradicting the SNP
+        detail that correctly kept the strand caveat."""
+        engine = sa.create_engine("sqlite://")
+        create_sample_tables(engine)
+        result = TraitsResult(pathway_results=[self._behavioral(INDETERMINATE)])
+        store_traits_findings(result, engine)
+
+        with engine.connect() as conn:
+            row = conn.execute(
+                sa.select(findings.c.finding_text, findings.c.detail_json).where(
+                    sa.and_(
+                        findings.c.module == "traits",
+                        findings.c.category == "pathway_summary",
+                    )
+                )
+            ).fetchone()
+
+        assert row is not None
+        assert "no variants of note" not in row.finding_text.lower()
+        assert "not interpreted (indeterminate)" in row.finding_text
+        # The scored tier is preserved, not downgraded.
+        assert "Standard for scored variants" in row.finding_text
+        assert json.loads(row.detail_json)["indeterminate_snps"] == ["rs747302"]
+
+    def test_only_indeterminate_calls_is_not_assessed(self) -> None:
+        """#2178: "Standard for scored variants" requires something to be scored.
+
+        If every called SNP is indeterminate, nothing was interpreted, so the
+        summary must not imply a scored Standard result.
+        """
+        engine = sa.create_engine("sqlite://")
+        create_sample_tables(engine)
+        pr = PathwayResult(
+            pathway_id="behavioral_traits",
+            pathway_name="Behavioral Traits",
+            level=STANDARD,
+            snp_results=[
+                SNPResult(
+                    rsid="rs747302",
+                    gene="DRD4",
+                    variant_name="DRD4 exon III VNTR proxy",
+                    genotype="CC",
+                    category=INDETERMINATE,
+                    effect_summary="Strand-ambiguous homozygote.",
+                    evidence_level=1,
+                    pmids=[],
+                    recommendation_text="",
+                    present_in_sample=True,
+                ),
+            ],
+        )
+        store_traits_findings(TraitsResult(pathway_results=[pr]), engine)
+        with engine.connect() as conn:
+            row = conn.execute(
+                sa.select(findings.c.finding_text).where(findings.c.category == "pathway_summary")
+            ).fetchone()
+        assert row is not None
+        assert "Standard for scored variants" not in row.finding_text
+        assert "no variant scored" in row.finding_text
+        assert "no variants of note" not in row.finding_text.lower()
+
+    def test_standard_without_indeterminate_stays_a_clean_negative(self) -> None:
+        """#2178 discriminating control: with the same shape but a genuinely
+        Standard DRD4 call, the clean-negative wording must be unchanged — so the
+        fix cannot be "always qualify the summary"."""
+        engine = sa.create_engine("sqlite://")
+        create_sample_tables(engine)
+        result = TraitsResult(pathway_results=[self._behavioral(STANDARD)])
+        store_traits_findings(result, engine)
+
+        with engine.connect() as conn:
+            row = conn.execute(
+                sa.select(findings.c.finding_text, findings.c.detail_json).where(
+                    sa.and_(
+                        findings.c.module == "traits",
+                        findings.c.category == "pathway_summary",
+                    )
+                )
+            ).fetchone()
+
+        assert row is not None
+        assert "no variants of note" in row.finding_text.lower()
+        assert "indeterminate" not in row.finding_text.lower()
+        assert json.loads(row.detail_json)["indeterminate_snps"] == []
 
 
 class TestCrossModuleFindings:

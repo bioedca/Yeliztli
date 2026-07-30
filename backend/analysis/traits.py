@@ -51,7 +51,11 @@ from backend.analysis.genotype_lookup import (
     is_strand_ambiguous,
     lookup_by_genotype,
 )
-from backend.analysis.pathway_coverage import coverage_detail, pathway_summary_text
+from backend.analysis.pathway_coverage import (
+    coverage_detail,
+    format_not_assessed,
+    pathway_summary_text,
+)
 from backend.analysis.prs import (
     PRSResult,
     PRSSNPWeight,
@@ -183,6 +187,17 @@ class PathwayResult:
     def missing_snps(self) -> list[SNPResult]:
         """SNPs that were not present in the sample."""
         return [s for s in self.snp_results if not s.present_in_sample]
+
+    @property
+    def indeterminate_snps(self) -> list[SNPResult]:
+        """Called SNPs observed but withheld from pathway interpretation.
+
+        Chiefly strand-unresolved palindromic homozygotes (e.g. DRD4 rs747302).
+        They neither raise nor lower the pathway level, but their presence means
+        the pathway is not a confident "no variants of note" result (#2178,
+        mirroring the fitness module's #270/#608 handling).
+        """
+        return [s for s in self.snp_results if s.present_in_sample and s.category == INDETERMINATE]
 
 
 @dataclass
@@ -760,24 +775,55 @@ def store_traits_findings(
         # Pathway-level summary finding
         called_count = len(pr.called_snps)
         total_count = len(pr.snp_results)
-        finding_text = pathway_summary_text(
-            pathway_name=pr.pathway_name,
-            level=pr.level,
-            called_count=called_count,
-            missing_snps=pr.missing_snps,
-            standard_complete_phrase="Standard (no variants of note)",
-            standard_limited_phrase="No variants of note among tested SNPs",
-        )
+        indeterminate = pr.indeterminate_snps
+        # SNPs that were called AND interpreted. "Standard for scored variants"
+        # is only honest when something was actually scored; if every called SNP
+        # is indeterminate, nothing was (#2178).
+        interpreted_count = called_count - len(indeterminate)
+        if pr.level == STANDARD and indeterminate and interpreted_count == 0:
+            n = len(indeterminate)
+            noun = "variant" if n == 1 else "variants"
+            finding_text = (
+                f"{pr.pathway_name} — not assessed: {n} {noun} observed but not "
+                f"interpreted (indeterminate), no variant scored — see SNP details"
+            )
+            if pr.missing_snps:
+                finding_text += f"; {format_not_assessed(pr.missing_snps)} not assessed"
+        elif pr.level == STANDARD and indeterminate:
+            # A Standard *level* with indeterminate calls is NOT "no variants of
+            # note": a locus was observed but withheld from interpretation, so a
+            # clean-negative summary contradicts the SNP detail the user can open
+            # (#2178). Keep the scored tier and qualify it; the per-SNP detail
+            # carries the reason, so the summary stays cause-neutral.
+            n = len(indeterminate)
+            noun = "variant" if n == 1 else "variants"
+            finding_text = (
+                f"{pr.pathway_name} — Standard for scored variants; {n} {noun} "
+                f"observed but not interpreted (indeterminate) — see SNP details"
+            )
+            if pr.missing_snps:
+                finding_text += f"; {format_not_assessed(pr.missing_snps)} not assessed"
+        else:
+            finding_text = pathway_summary_text(
+                pathway_name=pr.pathway_name,
+                level=pr.level,
+                called_count=called_count,
+                missing_snps=pr.missing_snps,
+                standard_complete_phrase="Standard (no variants of note)",
+                standard_limited_phrase="No variants of note among tested SNPs",
+            )
 
         detail = {
             "pathway_id": pr.pathway_id,
             "called_snps": called_count,
             "total_snps": total_count,
             "prs_primary": pr.prs_primary,
+            "indeterminate_snps": [s.rsid for s in indeterminate],
             **coverage_detail(
                 level=pr.level,
                 called_count=called_count,
                 missing_snps=pr.missing_snps,
+                indeterminate_count=len(indeterminate),
                 standard_limited_phrase="No variants of note among tested SNPs",
             ),
             "snp_details": [
