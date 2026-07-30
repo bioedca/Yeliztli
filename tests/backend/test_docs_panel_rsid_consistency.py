@@ -36,6 +36,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 _PANELS_DIR = REPO_ROOT / "backend" / "data" / "panels"
+_CPIC_ALLELES_CSV = REPO_ROOT / "backend" / "data" / "cpic" / "cpic_alleles.csv"
 _DOCS_DIR = REPO_ROOT / "docs" / "modules"
 
 _RSID_RE = re.compile(r"rs\d+")
@@ -83,11 +84,23 @@ def _panel_rsids(panel_filename: str) -> set[str]:
     return set(_RSID_RE.findall((_PANELS_DIR / panel_filename).read_text(encoding="utf-8")))
 
 
+def _cpic_allele_rsids() -> set[str]:
+    """Star-allele defining rsIDs the CPIC caller scores (#2169).
+
+    These are genuinely scored markers -- ``call_star_alleles_for_gene`` reads
+    them straight out of this CSV -- they just are not panel loci. Folding them
+    into the scored universe keeps the guard *discriminating*: if a marker is
+    later dropped or renamed in the CPIC tables, a page still citing it fails
+    here, which an allowlist entry would have silently masked.
+    """
+    return set(_RSID_RE.findall(_CPIC_ALLELES_CSV.read_text(encoding="utf-8")))
+
+
 def _all_panel_rsids() -> set[str]:
     rsids: set[str] = set()
     for panel in _PANELS_DIR.glob("*.json"):
         rsids |= set(_RSID_RE.findall(panel.read_text(encoding="utf-8")))
-    return rsids
+    return rsids | _cpic_allele_rsids()
 
 
 def _docs_citing_rsids() -> list[Path]:
@@ -130,11 +143,42 @@ def test_every_doc_rsid_is_scored_or_allowlisted() -> None:
     )
 
 
+def test_cpic_allele_universe_is_load_bearing() -> None:
+    """The CPIC fold-in must not silently become a no-op (#2169).
+
+    Star-allele markers are scored but are not panel loci, so they are admitted
+    via ``_cpic_allele_rsids``. If that source were emptied, renamed, or dropped,
+    the union check would quietly start rejecting every CPIC marker a page cites
+    — or, worse, an allowlist entry would mask it. Pin that the CSV really is
+    contributing, using the CYP3A5*3 marker this guard first tripped on.
+    """
+    cpic_rsids = _cpic_allele_rsids()
+    assert len(cpic_rsids) > 10, "CPIC allele universe looks empty — check the CSV path"
+    assert "rs776746" in cpic_rsids
+    assert cpic_rsids - _panel_universe_from_panels(), (
+        "every CPIC marker is already a panel locus, so this fold-in proves nothing"
+    )
+
+
+def _panel_universe_from_panels() -> set[str]:
+    """Panel-only universe (no CPIC), for the load-bearing check above."""
+    rsids: set[str] = set()
+    for panel in _PANELS_DIR.glob("*.json"):
+        rsids |= set(_RSID_RE.findall(panel.read_text(encoding="utf-8")))
+    return rsids
+
+
 def test_allowlisted_rsids_really_are_non_loci() -> None:
     """Premise guard: an allowlisted rsID must genuinely be absent from every
     panel. If one is later added as a real locus, this trips so the allowlist
-    entry is removed rather than masking a now-scored marker."""
-    panel_universe = _all_panel_rsids()
+    entry is removed rather than masking a now-scored marker.
+
+    Deliberately panel-only: the CPIC fold-in widened ``_all_panel_rsids`` to the
+    whole *scored* universe, and reusing it here would conflate "became a panel
+    locus" with "is CPIC-scored". The CPIC half is asserted separately below so
+    each failure message names the right cause.
+    """
+    panel_universe = _panel_universe_from_panels()
     leaked = {
         f"{doc}:{rsid}"
         for doc, entries in _DOC_NON_LOCUS_ALLOWLIST.items()
@@ -144,4 +188,27 @@ def test_allowlisted_rsids_really_are_non_loci() -> None:
     assert not leaked, (
         f"allowlisted rsID(s) are now scored panel loci — remove them from "
         f"_DOC_NON_LOCUS_ALLOWLIST: {sorted(leaked)}"
+    )
+
+
+def test_allowlisted_rsids_are_not_cpic_scored() -> None:
+    """The other half of the premise: an allowlisted rsID must not be CPIC-scored.
+
+    If a star-allele marker is later added to ``cpic_alleles.csv``, the union
+    check admits it on its own and the allowlist entry becomes both redundant and
+    misleading (it asserts "not a scored locus" about something the product does
+    score). Keeping this separate from the panel guard means the failure message
+    points at the actual source.
+    """
+    cpic_universe = _cpic_allele_rsids()
+    scored = {
+        f"{doc}:{rsid}"
+        for doc, entries in _DOC_NON_LOCUS_ALLOWLIST.items()
+        for rsid in entries
+        if rsid in cpic_universe
+    }
+    assert not scored, (
+        f"allowlisted rsID(s) are CPIC star-allele markers and are therefore "
+        f"scored — drop them from _DOC_NON_LOCUS_ALLOWLIST, the CPIC universe "
+        f"already admits them: {sorted(scored)}"
     )
