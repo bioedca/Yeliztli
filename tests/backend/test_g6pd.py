@@ -30,6 +30,32 @@ from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import raw_variants
 
 
+def _covered_panel(sex: str, **overrides: str) -> dict[str, str]:
+    """Every strand-resolvable curated G6PD locus at its reference base.
+
+    A negative G6PD result now requires adequate assay coverage (#2172), so a
+    fixture that supplies a single locus is deliberately *not* enough to produce
+    a ``normal`` call. Tests whose subject is something else — strand direction,
+    Canton/Cosenza cross-calling — start from a fully covered reference panel and
+    override the locus under test, which keeps their original intent intact
+    without weakening the coverage gate.
+
+    ``overrides`` may also *remove* a locus by passing ``None``.
+    """
+    copies = 1 if sex == "XY" else 2
+    panel = {
+        rsid: ref * copies
+        for _name, rsid, _cdna, ref, deficiency_allele in G6PD_DEFICIENCY_VARIANTS
+        if not _is_palindromic(ref, deficiency_allele)
+    }
+    for rsid, genotype in overrides.items():
+        if genotype is None:
+            panel.pop(rsid, None)
+        else:
+            panel[rsid] = genotype
+    return panel
+
+
 def _make_sample(genotypes: dict[str, str]) -> sa.Engine:
     engine = sa.create_engine("sqlite://")
     create_sample_tables(engine)
@@ -123,10 +149,103 @@ class TestAssessG6pd:
         assert r["inferred_sex"] == "XY"
 
     def test_hemizygous_male_normal(self) -> None:
-        r = self._assess("XY", {G6PD_A_MINUS_RSID: "C"})
+        r = self._assess("XY", _covered_panel("XY"))
         assert r["phenotype"] == "normal"
         assert r["at_risk"] is False
         assert r["high_risk_drugs"] == []
+        assert r["medication_risk"] == "no_tested_allele_detected"
+        assert r["coverage_sufficient"] is True
+
+    def test_sparse_negative_is_indeterminate_not_normal(self) -> None:
+        """#2169-style regression for G6PD (#2172): one callable reference locus is
+        not a negative panel.
+
+        A single ``rs1050828=C`` call with the rest of the panel absent used to
+        report ``normal`` / ``at_risk=False`` / ``high_risk_drugs=[]`` — turning
+        "we did not look" into a biochemical all-clear that cleared the oxidative
+        drug warning. Absence of a tested allele across 1 of 11 loci does not
+        exclude deficiency.
+        """
+        r = self._assess("XY", {G6PD_A_MINUS_RSID: "C"})
+        assert r["phenotype"] == "indeterminate"
+        assert r["coverage_sufficient"] is False
+        assert r["called_resolvable_records"] == 1
+        assert r["resolvable_records"] > 2  # 1 of many is well under a majority
+        # The result must not read as a cleared medication risk.
+        assert r["medication_risk"] == "undetermined"
+        assert "cannot be cleared" in r["detail"]
+
+    def test_broad_panel_without_anchor_alleles_is_still_indeterminate(self) -> None:
+        """#2172: a partial panel cannot clear risk, however broad.
+
+        A majority-style rule would have cleared the oxidative-drug warning for
+        any 6 of the 11 resolvable loci -- including when A- and Mediterranean,
+        the two highest-yield deficiency alleles, were never assessed. Powell et
+        al. (PMID:39607789) quantify what limited panels miss. The gate now
+        requires the whole resolvable panel, so this fails on completeness.
+        """
+        panel = _covered_panel("XY")
+        for rsid in (G6PD_A_MINUS_RSID, G6PD_MED_RSID):
+            panel.pop(rsid, None)
+        r = self._assess("XY", panel)
+        assert r["called_resolvable_records"] * 2 > r["resolvable_records"]  # a majority...
+        assert r["called_resolvable_records"] < r["resolvable_records"]  # ...but incomplete
+        assert r["coverage_sufficient"] is False  # ...so still not adequate
+        assert r["phenotype"] == "indeterminate"
+        assert r["medication_risk"] == "undetermined"
+
+    def test_anchor_alleles_alone_do_not_clear_coverage(self) -> None:
+        """#2172: the highest-yield alleles alone are not a negative panel."""
+        r = self._assess("XY", {G6PD_A_MINUS_RSID: "C", G6PD_MED_RSID: "G"})
+        assert r["coverage_sufficient"] is False
+        assert r["medication_risk"] == "undetermined"
+
+    def test_one_absent_locus_blocks_a_negative(self) -> None:
+        """#2172: completeness, not a fraction.
+
+        An earlier revision used a majority threshold that no source establishes,
+        justified by the claim that requiring every locus would suppress ordinary
+        samples. That was wrong: Seattle/Lodi is palindromic, so a
+        homozygous-reference call there is strand-ambiguous and the pre-existing
+        strand branch already forces indeterminate for any sample that types it.
+        Requiring the whole resolvable panel therefore costs nothing real and
+        removes the unevidenced threshold.
+        """
+        panel = _covered_panel("XY")
+        panel.pop("rs137852342", None)  # Chinese-5 absent
+        r = self._assess("XY", panel)
+        assert r["called_resolvable_records"] == r["resolvable_records"] - 1
+        assert r["coverage_sufficient"] is False
+        assert r["medication_risk"] == "undetermined"
+
+    def test_negative_detail_reports_the_number_actually_called(self) -> None:
+        """#2172: the detail must not overstate assay coverage.
+
+        A covered negative states how many curated variants were *tested*; that
+        number is the called count, never the panel size.
+        """
+        r = self._assess("XY", _covered_panel("XY"))
+        assert f"{r['called_resolvable_records']} curated" in r["detail"]
+
+    def test_sparse_positive_still_reports_deficiency(self) -> None:
+        """#2172 discriminating control: the coverage gate is asymmetric.
+
+        A deficiency allele seen on a sparse panel is still a real observation and
+        must stay actionable — otherwise the gate would suppress true positives.
+        """
+        r = self._assess("XY", {G6PD_A_MINUS_RSID: "T"})
+        assert r["phenotype"] == "deficient"
+        assert r["at_risk"] is True
+        assert r["medication_risk"] == "elevated"
+        assert "rasburicase" in r["high_risk_drugs"]
+
+    def test_covered_negative_avoids_biochemical_normal_wording(self) -> None:
+        """#2172: an adequately covered negative is 'no deficiency allele detected',
+        not the biochemical claim 'G6PD normal' — enzyme activity establishes that."""
+        r = self._assess("XY", _covered_panel("XY"))
+        assert "G6PD normal" not in r["detail"]
+        assert "no deficiency allele detected" in r["detail"]
+        assert "enzyme activity" in r["detail"]
 
     def test_female_heterozygous_is_variable(self) -> None:
         r = self._assess("XX", {G6PD_A_MINUS_RSID: "CT"})
@@ -159,7 +278,7 @@ class TestAssessG6pd:
 
     def test_female_reference_normal(self) -> None:
         # Negative control: no deficiency allele → no risk surfaced.
-        r = self._assess("XX", {G6PD_A_MINUS_RSID: "CC", G6PD_MED_RSID: "GG"})
+        r = self._assess("XX", _covered_panel("XX"))
         assert r["phenotype"] == "normal"
         assert r["at_risk"] is False
         assert r["high_risk_drugs"] == []
@@ -171,14 +290,25 @@ class TestAssessG6pd:
         assert r["high_risk_drugs"]
 
     def test_no_variant_called_is_indeterminate(self) -> None:
+        """Nothing callable → indeterminate, and the drug warning is NOT cleared.
+
+        This assertion previously required ``at_risk is False``. That is the same
+        defect class as #2172 one step further along: with zero callable loci the
+        module cleared the oxidative-drug list entirely. An empty read cannot
+        clear risk, so ``at_risk`` is now True while ``medication_risk`` stays
+        ``undetermined`` — conservative on the drug list without asserting a
+        deficiency signal the data does not show.
+        """
         r = self._assess("XY", {G6PD_A_MINUS_RSID: "--", G6PD_MED_RSID: "--"})
         assert r["any_called"] is False
         assert r["phenotype"] == "indeterminate"
-        assert r["at_risk"] is False
+        assert r["at_risk"] is True
+        assert r["medication_risk"] == "undetermined"
+        assert r["high_risk_drugs"]  # withheld conservatively, not cleared
 
     def test_a_plus_nondeficient_flagged_as_context(self) -> None:
         # 376G present (rs1050829 = C) with A- reference → A+ non-deficient allele.
-        r = self._assess("XX", {G6PD_A_MINUS_RSID: "CC", G6PD_376_RSID: "CC"})
+        r = self._assess("XX", _covered_panel("XX", **{G6PD_376_RSID: "CC"}))
         assert r["a_plus_nondeficient_present"] is True
         assert r["phenotype"] == "normal"
 
@@ -253,12 +383,16 @@ class TestExpandedDeficiencyPanel:
         self, name: str, rsid: str, ref: str, deff: str
     ) -> None:
         # Hemizygous male carrying the forward DEFICIENCY base → deficient + at-risk.
+        # A single deficiency call stays actionable at any coverage (#2172): absence
+        # of evidence is not evidence of absence, but presence is presence.
         r = self._assess("XY", {rsid: deff})
         assert r["phenotype"] == "deficient", name
         assert r["at_risk"] is True, name
         # The forward gene-NORMAL base → normal, no risk. A flipped REF/DEF would
-        # invert both assertions, so each variant's strand is locked here.
-        r = self._assess("XY", {rsid: ref})
+        # invert both assertions, so each variant's strand is locked here. The rest
+        # of the panel is supplied at reference so the negative clears the #2172
+        # coverage gate — this test is about strand, not about coverage.
+        r = self._assess("XY", _covered_panel("XY", **{rsid: ref}))
         assert r["phenotype"] == "normal", name
         assert r["at_risk"] is False, name
 
@@ -292,7 +426,7 @@ class TestExpandedDeficiencyPanel:
         # shared reference base observed on that probe; it should not be reinterpreted
         # as an observed Cosenza C/G palindromic ambiguity because Cosenza's G allele is
         # not interrogated by the GSA probe.
-        r = self._assess(sex, {"rs72554665": genotype})
+        r = self._assess(sex, _covered_panel(sex, **{"rs72554665": genotype}))
         canton = next(v for v in r["variants"] if v["name"] == "Canton (R459L)")
         cosenza = next(v for v in r["variants"] if v["name"] == "Cosenza (R459P)")
         assert canton["called"] is True and canton["deficiency_alleles"] == 0
@@ -320,6 +454,10 @@ class TestExpandedDeficiencyPanel:
         # No confident deficiency call from the palindromic hemizygote alone.
         assert r["phenotype"] == "indeterminate"
         assert r["at_risk"] is True
+        # ...and the descriptive field must not upgrade that withheld call to a
+        # confident deficiency. The locus is unresolvable, not positive (#2205
+        # review): "elevated" would assert what the same response declines to say.
+        assert r["medication_risk"] == "undetermined"
         assert "rasburicase" in r["high_risk_drugs"]
         assert "quantitative enzyme-activity assay" in r["detail"]
 
@@ -328,6 +466,34 @@ class TestExpandedDeficiencyPanel:
         seattle = next(v for v in r["variants"] if v["name"] == "Seattle/Lodi (D282H)")
         assert seattle["called"] is False and seattle["strand_ambiguous"] is True
         assert r["phenotype"] == "indeterminate"
+        assert r["at_risk"] is True
+        assert r["medication_risk"] == "undetermined"
+        assert r["high_risk_drugs"]
+
+    def test_confirmed_deficiency_is_the_only_elevated_state(self) -> None:
+        """Discriminating control for the two assertions above.
+
+        If `medication_risk` simply never said "elevated" they would pass
+        vacuously, so pin that a real deficiency call still does.
+        """
+        r = self._assess("XY", _covered_panel("XY", **{G6PD_A_MINUS_RSID: "T"}))
+        assert r["phenotype"] == "deficient"
+        assert r["medication_risk"] == "elevated"
+        assert r["at_risk"] is True
+
+    def test_unknown_sex_full_panel_keeps_the_legacy_warning(self) -> None:
+        """#2205 review: a withheld phenotype must not clear the legacy fields.
+
+        With sex unresolved, a fully covered *reference* panel yields
+        `phenotype="indeterminate"`. `medication_risk` said `undetermined` while
+        `at_risk`/`high_risk_drugs` said cleared -- the same contradiction #2172
+        is about, one layer up. `at_risk` is now derived from `medication_risk`,
+        so the pair cannot disagree.
+        """
+        r = self._assess("unknown", _covered_panel("XY"))
+        assert r["phenotype"] == "indeterminate"
+        assert r["coverage_sufficient"] is True
+        assert r["medication_risk"] == "undetermined"
         assert r["at_risk"] is True
         assert r["high_risk_drugs"]
 
@@ -343,6 +509,7 @@ class TestExpandedDeficiencyPanel:
         assert r["strand_ambiguous_loci"] == ["Cosenza (R459P)"]
         assert r["phenotype"] == "indeterminate"
         assert r["at_risk"] is True
+        assert r["medication_risk"] == "undetermined"
         assert r["high_risk_drugs"]
 
     def test_palindromic_heterozygous_female_is_variable(self) -> None:
