@@ -79,6 +79,14 @@ def g6pd_client(tmp_data_dir: Path) -> Generator[TestClient, None, None]:
     noncarrier_engine = sa.create_engine(f"sqlite:///{noncarrier_db_path}")
     create_sample_tables(noncarrier_engine)
 
+    # A third sample: the issue's own repro -- a single reference call and no
+    # data for the rest of the panel. Sample 1 is sparse but POSITIVE and sample
+    # 2 carries the whole panel, so without this the sparse-NEGATIVE branch that
+    # #2172 is about was never exercised through the API (#2205 review).
+    sparse_db_path = tmp_data_dir / "samples" / "sample_3.db"
+    sparse_engine = sa.create_engine(f"sqlite:///{sparse_db_path}")
+    create_sample_tables(sparse_engine)
+
     with ref_engine.begin() as conn:
         conn.execute(
             samples.insert().values(
@@ -96,6 +104,15 @@ def g6pd_client(tmp_data_dir: Path) -> Generator[TestClient, None, None]:
                 db_path="samples/sample_2.db",
                 file_format="v5",
                 file_hash="def456",
+            )
+        )
+        conn.execute(
+            samples.insert().values(
+                id=3,
+                name="Sparse negative",
+                db_path="samples/sample_3.db",
+                file_format="v5",
+                file_hash="ghi789",
             )
         )
     # The diploid-X het filler with no chrY evidence makes her XX; a het A- allele
@@ -131,9 +148,26 @@ def g6pd_client(tmp_data_dir: Path) -> Generator[TestClient, None, None]:
             ],
         )
 
+    with sparse_engine.begin() as conn:
+        conn.execute(
+            raw_variants.insert(),
+            [
+                {"rsid": "rs_x_het", "chrom": "X", "pos": 150000000, "genotype": "AG"},
+                # One reference A- call and nothing else -- the #2172 repro.
+                {
+                    "rsid": G6PD_A_MINUS_RSID,
+                    "chrom": "X",
+                    "pos": 153764217,
+                    "genotype": "CC",
+                },
+                *_EVAL_SEX_FILLER,
+            ],
+        )
+
     ref_engine.dispose()
     sample_engine.dispose()
     noncarrier_engine.dispose()
+    sparse_engine.dispose()
 
     with (
         patch("backend.main.get_settings", return_value=settings),
@@ -182,6 +216,22 @@ class TestG6pdEndpoint:
         assert data["high_risk_drugs"] == []
         assert data["medication_risk"] == "no_tested_allele_detected"
         assert data["coverage_sufficient"] is True
+
+    def test_sparse_negative_does_not_clear_risk(self, g6pd_client: TestClient) -> None:
+        """#2172 through the production route: a single reference call is not a
+        negative panel, and must not clear the oxidative-drug warning.
+
+        Sample 1 is sparse but positive and sample 2 carries the whole panel, so
+        this branch had no API coverage.
+        """
+        data = g6pd_client.get("/api/analysis/g6pd?sample_id=3").json()
+        assert data["phenotype"] == "indeterminate"
+        assert data["coverage_sufficient"] is False
+        assert data["called_resolvable_records"] < data["resolvable_records"]
+        assert data["medication_risk"] == "undetermined"
+        # The legacy fields existing clients read must not read as cleared.
+        assert data["at_risk"] is True
+        assert data["high_risk_drugs"]
 
     def test_coverage_fields_are_serialized(self, g6pd_client: TestClient) -> None:
         """#2172 response lock: the coverage/medication-risk fields must reach the
