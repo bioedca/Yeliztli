@@ -64,6 +64,19 @@ class G6pdResponse(BaseModel):
     phenotype: str
     detail: str
     at_risk: bool
+    # Three-state medication risk (#2172): "elevated", "no_tested_allele_detected",
+    # or "undetermined". `at_risk` alone is two-state and cannot distinguish "the
+    # panel was read and nothing was found" from "the panel was barely read" — both
+    # render as False with an empty drug list, which is how a single callable locus
+    # used to clear the oxidative-drug warning.
+    medication_risk: str
+    # Assay coverage behind a negative result (#2172): how many deficiency variants
+    # are curated, how many this array types with a resolvable strand, how many were
+    # actually callable, and whether that is enough to interpret a negative.
+    panel_records: int
+    typeable_records: int
+    called_typeable_records: int
+    coverage_sufficient: bool
     a_plus_nondeficient_present: bool
     high_risk_drugs: list[str] = []
     context_only: bool

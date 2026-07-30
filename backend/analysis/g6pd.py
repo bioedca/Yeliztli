@@ -294,11 +294,35 @@ def _deficiency_alleles(
     return {"deficiency": sum(1 for base in g if base == def_u), "copies": len(g)}
 
 
+def _insufficient_coverage_verdict(called_typeable: int, typeable_total: int) -> dict[str, str]:
+    """Verdict for a negative panel that was not adequately covered (#2172).
+
+    A negative G6PD result is only meaningful in proportion to how much of the
+    curated panel was actually read. Returning ``normal`` from a sparse call set
+    turns "we did not look" into "we looked and it is fine", and downstream that
+    clears the oxidative-drug risk list.
+    """
+    return {
+        "phenotype": "indeterminate",
+        "detail": (
+            f"Only {called_typeable} of the {typeable_total} G6PD deficiency variants this "
+            "array types were callable, so a negative result cannot be interpreted — the "
+            "uncalled variants were not assessed. G6PD status is undetermined and "
+            "medication risk cannot be cleared; confirm with an enzyme-activity assay "
+            "before a high-risk oxidative drug."
+        ),
+    }
+
+
 def g6pd_phenotype(
     sex: str,
     total_deficiency: int,
     any_called: bool,
     max_locus_deficiency: int = 0,
+    *,
+    coverage_sufficient: bool = True,
+    called_typeable: int = 0,
+    typeable_total: int = 0,
 ) -> dict[str, str]:
     """Assign a G6PD phenotype from inferred sex + deficiency-allele counts.
 
@@ -326,9 +350,16 @@ def g6pd_phenotype(
                     "Avoid high-risk oxidative drugs."
                 ),
             }
+        if not coverage_sufficient:
+            return _insufficient_coverage_verdict(called_typeable, typeable_total)
         return {
             "phenotype": "normal",
-            "detail": "Hemizygous male with no typed G6PD deficiency allele — G6PD normal.",
+            "detail": (
+                "Hemizygous male: no deficiency allele detected at any of the "
+                f"{typeable_total} G6PD variants this array types. This does not exclude "
+                "G6PD deficiency — over 200 deficiency variants are known and only enzyme "
+                "activity testing establishes G6PD status."
+            ),
         }
     if sex == "XX":
         if max_locus_deficiency >= 2:
@@ -362,9 +393,16 @@ def g6pd_phenotype(
                     "with an enzyme-activity assay before a high-risk oxidative drug."
                 ),
             }
+        if not coverage_sufficient:
+            return _insufficient_coverage_verdict(called_typeable, typeable_total)
         return {
             "phenotype": "normal",
-            "detail": "Female with no typed G6PD deficiency allele — G6PD normal.",
+            "detail": (
+                "Female: no deficiency allele detected at any of the "
+                f"{typeable_total} G6PD variants this array types. This does not exclude "
+                "G6PD deficiency — over 200 deficiency variants are known and only enzyme "
+                "activity testing establishes G6PD status."
+            ),
         }
     # Sex could not be inferred (manual_review / unknown): zygosity is undefined.
     if total_deficiency >= 1:
@@ -503,7 +541,38 @@ def assess_g6pd(
         g376 and g376["deficiency"] >= 1 and a_minus["deficiency_alleles"] in (0, None)
     )
 
-    verdict = g6pd_phenotype(sex, total_deficiency, any_called, max_locus_deficiency)
+    # Coverage denominator is the array's own typeability, not the raw panel size:
+    # a locus the GSA-24v3 backbone never interrogates cannot be held against the
+    # sample. A negative verdict requires every typeable locus to have been called
+    # (#2172); failing to `indeterminate` is the safe direction, because the
+    # alternative silently clears the oxidative-drug list.
+    # The denominator excludes palindromic loci as well. A palindromic (C/G) locus is
+    # strand-unresolvable as a homozygote *even at its reference base* — Seattle/Lodi
+    # reads ambiguous for a plain reference "C" — so it can never be "called" in the
+    # sense this gate means. Counting it would make an adequately covered negative
+    # unreachable for every real sample; the existing strand_ambiguous_loci branch
+    # already handles it separately, and more conservatively.
+    resolvable_names = {
+        name
+        for name, _rsid, _cdna, ref, deficiency_allele in G6PD_DEFICIENCY_VARIANTS
+        if not _is_palindromic(ref, deficiency_allele)
+    }
+    typeable_loci = [
+        loc for loc in deficiency_loci if loc["gsa_v3_typed"] and loc["name"] in resolvable_names
+    ]
+    typeable_total = len(typeable_loci)
+    called_typeable = sum(1 for loc in typeable_loci if loc["called"])
+    coverage_sufficient = typeable_total > 0 and called_typeable == typeable_total
+
+    verdict = g6pd_phenotype(
+        sex,
+        total_deficiency,
+        any_called,
+        max_locus_deficiency,
+        coverage_sufficient=coverage_sufficient,
+        called_typeable=called_typeable,
+        typeable_total=typeable_total,
+    )
     if strand_ambiguous_loci and total_deficiency == 0:
         verdict = {
             "phenotype": "indeterminate",
@@ -522,6 +591,19 @@ def assess_g6pd(
         or bool(strand_ambiguous_loci)
     )
 
+    # `at_risk` is a two-state flag, so on its own it cannot distinguish "we read the
+    # panel and found no deficiency allele" from "we barely read the panel". Both
+    # render as False and an empty drug list, which is what let a single callable
+    # locus clear the oxidative-drug warning (#2172). `medication_risk` carries the
+    # third state explicitly so a consumer can never read insufficient coverage as a
+    # cleared risk. Mirrors the existing HlaDrugRiskStatus idiom.
+    if at_risk:
+        medication_risk = "elevated"
+    elif phenotype == "normal":
+        medication_risk = "no_tested_allele_detected"
+    else:
+        medication_risk = "undetermined"
+
     return {
         # The biological sex used for the phenotype (resolved value); sex_source is
         # "recorded" when an authoritative individuals.biological_sex resolved it
@@ -534,6 +616,13 @@ def assess_g6pd(
         "phenotype": phenotype,
         "detail": verdict["detail"],
         "at_risk": at_risk,
+        "medication_risk": medication_risk,
+        # Assay coverage behind a negative result (#2172): how many of the curated
+        # deficiency variants this array actually types, and how many were callable.
+        "typeable_records": typeable_total,
+        "called_typeable_records": called_typeable,
+        "panel_records": len(deficiency_loci),
+        "coverage_sufficient": coverage_sufficient,
         "a_plus_nondeficient_present": a_plus_present,
         "high_risk_drugs": list(G6PD_HIGH_RISK_DRUGS) if at_risk else [],
         "context_only": True,

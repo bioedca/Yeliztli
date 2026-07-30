@@ -13,11 +13,24 @@ import pytest
 import sqlalchemy as sa
 from fastapi.testclient import TestClient
 
-from backend.analysis.g6pd import G6PD_A_MINUS_RSID
+from backend.analysis.g6pd import (
+    G6PD_A_MINUS_RSID,
+    G6PD_DEFICIENCY_VARIANTS,
+    _gsa_v3_typed,
+    _is_palindromic,
+)
 from backend.config import Settings
 from backend.db.connection import reset_registry
 from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import raw_variants, reference_metadata, samples
+
+# (rsid, reference base) for every G6PD locus the array types and whose strand is
+# resolvable — the denominator behind an adequately covered negative result (#2172).
+_COVERED_G6PD_REFERENCE: list[tuple[str, str]] = [
+    (rsid, ref)
+    for _name, rsid, _cdna, ref, deficiency_allele in G6PD_DEFICIENCY_VARIANTS
+    if _gsa_v3_typed(rsid, ref, deficiency_allele) and not _is_palindromic(ref, deficiency_allele)
+]
 
 # Evaluable sex-chromosome filler so ``infer_biological_sex`` clears the
 # minimum-evidence floors (issue #363) and resolves XX for the female samples
@@ -102,8 +115,19 @@ def g6pd_client(tmp_data_dir: Path) -> Generator[TestClient, None, None]:
             [
                 # Diploid-X het filler (below) with no chrY signal → XX.
                 {"rsid": "rs_x_het", "chrom": "X", "pos": 150000000, "genotype": "AG"},
-                # Reference G6PD A- allele → no deficiency.
-                {"rsid": G6PD_A_MINUS_RSID, "chrom": "X", "pos": 153764217, "genotype": "CC"},
+                # Every array-typeable, strand-resolvable G6PD locus at its reference
+                # base. A lone reference A- call is no longer a negative panel (#2172)
+                # — it is insufficient coverage — so this negative control has to
+                # actually cover the panel before it can assert "normal".
+                *(
+                    {
+                        "rsid": rsid,
+                        "chrom": "X",
+                        "pos": 153764217 + offset,
+                        "genotype": ref * 2,
+                    }
+                    for offset, (rsid, ref) in enumerate(_COVERED_G6PD_REFERENCE)
+                ),
                 *_EVAL_SEX_FILLER,
             ],
         )
@@ -150,12 +174,37 @@ class TestG6pdEndpoint:
         assert all("strand_ambiguous" in v for v in data["variants"])
 
     def test_noncarrier_is_normal(self, g6pd_client: TestClient) -> None:
-        # Negative control: non-carrier female → normal, no risk surfaced.
+        # Negative control: non-carrier female with the panel actually covered →
+        # normal, no risk surfaced.
         data = g6pd_client.get("/api/analysis/g6pd?sample_id=2").json()
         assert data["inferred_sex"] == "XX"
         assert data["phenotype"] == "normal"
         assert data["at_risk"] is False
         assert data["high_risk_drugs"] == []
+        assert data["medication_risk"] == "no_tested_allele_detected"
+        assert data["coverage_sufficient"] is True
+
+    def test_coverage_fields_are_serialized(self, g6pd_client: TestClient) -> None:
+        """#2172 response lock: the coverage/medication-risk fields must reach the
+        client.
+
+        `G6pdResponse` is an explicit Pydantic model, so a field present in
+        `assess_g6pd`'s dict but absent from the model is silently dropped — the
+        consumer would keep seeing only the two-state `at_risk`, which is the exact
+        conflation this issue is about.
+        """
+        data = g6pd_client.get("/api/analysis/g6pd?sample_id=2").json()
+        for field in (
+            "medication_risk",
+            "panel_records",
+            "typeable_records",
+            "called_typeable_records",
+            "coverage_sufficient",
+        ):
+            assert field in data, f"{field} dropped by G6pdResponse"
+        # Non-vacuous: the denominator is the real curated panel, not zero.
+        assert data["panel_records"] >= data["typeable_records"] > 0
+        assert data["called_typeable_records"] == data["typeable_records"]
 
     def test_invalid_sample_returns_404(self, g6pd_client: TestClient) -> None:
         assert g6pd_client.get("/api/analysis/g6pd?sample_id=999").status_code == 404
