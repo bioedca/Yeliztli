@@ -1836,10 +1836,16 @@ class TestGnomadAnnotationLookupIntegration:
         assert row.gnomad_af_global is None
         assert row.gnomad_homozygous_count is None
 
-    def test_shared_rsid_with_ambiguous_carriage_withholds_frequency(
+    def test_two_alt_compound_het_withholds_frequency(
         self, sample_engine: sa.Engine, mock_registry: MagicMock, gnomad_engine: sa.Engine
     ) -> None:
-        """`AT` carries both catalogued ALTs, and an array cannot say which row applies."""
+        """`AT` at a G>A / G>T site matches neither row, so nothing is published.
+
+        `classify_zygosity` returns None for a genotype carrying two ALTs and no
+        REF, so this lands on the zero-carried branch rather than the
+        multiple-carried one; `test_ref_alt_swapped_rows_withhold_frequency`
+        covers that separately.
+        """
         self._shared_rsid_gnomad_rows(gnomad_engine)
         with sample_engine.begin() as conn:
             conn.execute(
@@ -1853,6 +1859,39 @@ class TestGnomadAnnotationLookupIntegration:
         row = self._annotated_row(sample_engine, "rs_shared_prod")
         assert row is not None
         assert row.gnomad_af_global is None
+
+    def test_ref_alt_swapped_rows_withhold_frequency(
+        self, sample_engine: sa.Engine, mock_registry: MagicMock, gnomad_engine: sa.Engine
+    ) -> None:
+        """More than one candidate row is genuinely carried, so neither may be published.
+
+        An rsID whose rows are REF/ALT mirror images (G>A and A>G) makes `AG` a
+        heterozygote under *both*, with different frequencies. Picking either
+        would be a coin flip presented as a measurement.
+        """
+        with gnomad_engine.begin() as conn:
+            conn.execute(
+                sa.text(
+                    "INSERT INTO gnomad_af "
+                    "(rsid, chrom, pos, ref, alt, af_global, af_afr, af_amr, af_asj, "
+                    "af_eas, af_eur, af_fin, af_sas, homozygous_count) VALUES "
+                    "('rs_swapped', '1', 500, 'G', 'A', 0.003, 0.003, 0.003, 0.003, "
+                    "0.003, 0.003, 0.003, 0.003, 2), "
+                    "('rs_swapped', '1', 500, 'A', 'G', 0.30, 0.30, 0.30, 0.30, "
+                    "0.30, 0.30, 0.30, 0.30, 900)"
+                )
+            )
+        with sample_engine.begin() as conn:
+            conn.execute(
+                raw_variants.insert().values(rsid="rs_swapped", chrom="1", pos=500, genotype="AG")
+            )
+
+        run_annotation(sample_engine, mock_registry)
+
+        row = self._annotated_row(sample_engine, "rs_swapped")
+        assert row is not None
+        assert row.gnomad_af_global is None
+        assert row.gnomad_homozygous_count is None
 
     def test_carried_rare_alt_reaches_the_rare_variant_finder(
         self, sample_engine: sa.Engine, mock_registry: MagicMock, gnomad_engine: sa.Engine
