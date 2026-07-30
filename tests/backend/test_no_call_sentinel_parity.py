@@ -14,6 +14,11 @@ Coverage is the thirteen modules enumerated in Step 61:
     prs (_count_effect_allele), apoe (determine_apoe_genotype),
     ancestry (haplogroup tree-walk), lai_runner (pre-VCF-write drop filter).
 
+Ancestry has a *second* genotype reader that Step 61 did not cover — the PCA
+path — which kept its own no-call literals and drifted (#2180). Its dosage
+reader is locked below; the bundle-dependent AIM-coverage half is locked in
+``test_ancestry.py``.
+
 If any module's no-call filter drifts from the shared helper, exactly one of
 these parametrize cases will fail — that's the lock the cross-cutting
 adoption depends on.
@@ -40,6 +45,7 @@ from backend.analysis.ancestry import (
     HaplogroupNode,
     HaplogroupSNP,
     _classify_node_match,
+    _encode_dosage,
 )
 from backend.analysis.apoe import (
     APOE_RS7412,
@@ -188,6 +194,43 @@ def test_ancestry_haplogroup_tree_walk_parity() -> None:
     assert present_dash == 0
     assert present_q == 0
     assert (present_dash, total_dash) == (present_q, total_q)
+
+
+# ── ancestry PCA (AIM dosage + coverage) ─────────────────────────────────────
+#
+# The haplogroup tree-walk above was the only ancestry surface this file locked,
+# but ancestry has a second, independent genotype reader: the PCA path. It kept
+# its own no-call literals, which omitted "??" — so a flag_only merge conflict
+# was encoded as alt-allele dosage 0.0 (exactly a real homozygous-reference
+# call), counted toward snps_used, and reported as covered (#2180).
+
+
+def test_ancestry_encode_dosage_parity() -> None:
+    """``--`` and ``??`` both yield ``None`` from ``_encode_dosage``.
+
+    ``None`` is the missing-data signal that routes an AIM to mean imputation.
+    Dosage ``0.0`` is *not* equivalent: it is the value a genuine
+    homozygous-reference call produces, and it is standardized into the
+    projection as an observed genotype.
+    """
+    assert _encode_dosage("--", "G") is None
+    assert _encode_dosage("??", "G") is None
+    assert _encode_dosage("--", "G") == _encode_dosage("??", "G")
+    # Discriminating control: a real reference call is still scored, so this
+    # parity cannot be satisfied by treating every genotype as missing.
+    assert _encode_dosage("AA", "G") == 0.0
+
+
+@pytest.mark.parametrize("sentinel", sorted(_NO_CALL_SENTINELS))
+def test_ancestry_encode_dosage_honours_every_shared_sentinel(sentinel: str) -> None:
+    """Every sentinel in the shared contract is missing to the AIM dosage reader.
+
+    This is the drift lock: adding a sentinel to ``_NO_CALL_SENTINELS`` without
+    propagating it fails here rather than silently becoming a real genotype.
+    The matching AIM-coverage assertion (``compute_missing_aim_rate``) needs a
+    loaded bundle and lives in ``test_ancestry.py``.
+    """
+    assert _encode_dosage(sentinel, "G") is None
 
 
 # ── lai_runner._filter_genotypes (pre-VCF-write drop filter) ─────────────────

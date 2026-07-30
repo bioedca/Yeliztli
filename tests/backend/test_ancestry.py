@@ -52,6 +52,7 @@ from backend.analysis.ancestry import (
     population_display_label,
     store_ancestry_findings,
 )
+from backend.analysis.zygosity import _NO_CALL_SENTINELS
 from backend.db.tables import annotated_variants, findings, raw_variants
 
 # ── Fixtures ──────────────────────────────────────────────────────────────
@@ -345,6 +346,22 @@ class TestEncodeDosage:
         assert _encode_dosage("II", "G") is None
         assert _encode_dosage("DD", "G") is None
 
+    @pytest.mark.parametrize("genotype", sorted(_NO_CALL_SENTINELS))
+    def test_every_shared_no_call_sentinel_returns_none(self, genotype: str) -> None:
+        """#2180: AIM dosage must honour the whole shared no-call contract.
+
+        ``_encode_dosage`` kept its own sentinel list which omitted the ``??``
+        merge-ambiguity sentinel, so a ``flag_only`` merge conflict was scored as
+        dosage ``0.0`` — numerically identical to a real homozygous-reference
+        call — instead of routing to mean imputation.
+        """
+        assert _encode_dosage(genotype, "G") is None
+
+    def test_merge_ambiguity_is_not_homozygous_reference(self) -> None:
+        """``??`` must not produce the same dosage as a real reference call."""
+        assert _encode_dosage("??", "G") is None
+        assert _encode_dosage("AA", "G") == 0.0  # positive control: a real 0 dosage
+
 
 # ── PCA projection tests ────────────────────────────────────────────────
 
@@ -372,6 +389,47 @@ class TestProjectOntoPCA:
         assert snps_used == 0
         # All centered values are 0 → pc_scores should be 0
         np.testing.assert_array_equal(pc_scores, np.zeros(2))
+
+    def test_merge_ambiguity_projects_like_legacy_no_call(
+        self,
+        small_bundle: AncestryBundle,
+    ) -> None:
+        """#2180: a ``flag_only`` merge conflict must not become a real genotype.
+
+        ``??`` was encoded as dosage ``0.0`` and counted in ``snps_used``, so a
+        discordant AIM displaced the PCs exactly as a homozygous-reference call
+        would while also inflating coverage. Substituting ``??`` for ``--`` must
+        change neither the projected PCs nor the used-SNP count.
+        """
+        dash = {snp.rsid: "--" for snp in small_bundle.snps}
+        question = {snp.rsid: "??" for snp in small_bundle.snps}
+
+        pcs_dash, used_dash = _project_onto_pca(small_bundle, dash)
+        pcs_q, used_q = _project_onto_pca(small_bundle, question)
+
+        assert used_q == used_dash == 0
+        np.testing.assert_array_equal(pcs_q, pcs_dash)
+
+    def test_merge_ambiguity_is_not_a_homozygous_reference_projection(
+        self,
+        small_bundle: AncestryBundle,
+    ) -> None:
+        """#2180 discriminating half: ``??`` must differ from a real ref call.
+
+        The reference genotype of every ``small_bundle`` AIM has alt dosage 0,
+        which is exactly the value the defect produced for ``??``. A real
+        hom-ref sample must still project off-origin and count its SNPs, so the
+        fix cannot be "treat everything as missing".
+        """
+        hom_ref = {snp.rsid: snp.ref * 2 for snp in small_bundle.snps}
+        question = {snp.rsid: "??" for snp in small_bundle.snps}
+
+        pcs_ref, used_ref = _project_onto_pca(small_bundle, hom_ref)
+        pcs_q, used_q = _project_onto_pca(small_bundle, question)
+
+        assert used_ref == len(small_bundle.snps)
+        assert used_q == 0
+        assert not np.allclose(pcs_ref, pcs_q)
 
     def test_projection_is_linear(self, small_bundle: AncestryBundle) -> None:
         """Verify projection = standardized @ loadings."""
@@ -1456,6 +1514,29 @@ class TestComputeMissingAIMRate:
         genotype_map = {snp.rsid: "--" for snp in small_bundle.snps}
         rate = compute_missing_aim_rate(genotype_map, small_bundle)
         assert rate == 1.0
+
+    @pytest.mark.parametrize("genotype", sorted(_NO_CALL_SENTINELS - {""}))
+    def test_every_shared_no_call_sentinel_counted_as_missing(
+        self,
+        genotype: str,
+        small_bundle: AncestryBundle,
+    ) -> None:
+        """#2180: coverage must not be inflated by a sentinel this list forgot.
+
+        ``compute_missing_aim_rate`` repeated its own no-call literal, omitting
+        ``??``, so merge-ambiguous AIMs were reported as covered — which feeds
+        the production sufficiency/confidence gate.
+        """
+        genotype_map = {snp.rsid: genotype for snp in small_bundle.snps}
+        assert compute_missing_aim_rate(genotype_map, small_bundle) == 1.0
+
+    def test_real_calls_are_not_counted_as_missing(
+        self,
+        small_bundle: AncestryBundle,
+    ) -> None:
+        """#2180 positive control: real calls still count as covered."""
+        genotype_map = {snp.rsid: snp.ref * 2 for snp in small_bundle.snps}
+        assert compute_missing_aim_rate(genotype_map, small_bundle) == 0.0
 
 
 # ── Mean imputation test (T-ANC-07) ──────────────────────────────────────
