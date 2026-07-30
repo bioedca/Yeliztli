@@ -30,7 +30,7 @@ A **28-gene** hereditary-cancer panel, including *BRCA1*, *BRCA2*, *TP53*, *PALB
   personalized clinical risk model.
 
 !!! note "Breast-cancer PRS is currently unavailable"
-    The source-verified breast-cancer PRS77 is not scored or reported. Thirty-nine of its
+    The source-verified breast-cancer PRS77 [2] is not scored or reported. Thirty-nine of its
     primary GRCh38 loci are multiallelic, and two additional biallelic loci are palindromic
     without trusted effect-allele strand provenance. The current sample schema does not preserve
     enough allele context to harmonize those loci safely. This is a runtime limitation, not an
@@ -77,3 +77,8 @@ sex cannot be resolved from array data, sex-specific numeric penetrance is withh
 [1] Kuchenbaecker KB, Hopper JL, Barnes DR, et al. [Risks of breast, ovarian, and
 contralateral breast cancer for BRCA1 and BRCA2 mutation carriers](https://doi.org/10.1001/jama.2017.7112).
 *JAMA*. 2017;317(23):2402-2416. [PMID 28632866](https://pubmed.ncbi.nlm.nih.gov/28632866/).
+
+[2] Mavaddat N, et al. [Prediction of breast cancer risk based on profiling with common
+genetic variants](https://doi.org/10.1093/jnci/djv036). *Journal of the National Cancer
+Institute*. 2015;107(5):djv036. [PMID 25855707](https://pubmed.ncbi.nlm.nih.gov/25855707/)
+(accessed 2026-07-30).

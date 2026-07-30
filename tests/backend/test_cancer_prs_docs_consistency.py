@@ -13,6 +13,8 @@ import json
 import re
 from pathlib import Path
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 _PANEL_PATH = REPO_ROOT / "backend" / "data" / "panels" / "cancer_prs_weights.json"
 _DOC_PATH = REPO_ROOT / "docs" / "modules" / "health-risk" / "cancer.md"
@@ -24,6 +26,11 @@ _TRAIT_LABELS = {
     "melanoma": "melanoma",
 }
 _ADVERTISED_TRAITS_RE = re.compile(r"\(PRS\) for (?P<traits>[^.]+)\.", re.IGNORECASE)
+_BREAST_PRS_NOTE_RE = re.compile(
+    r'^!!! note "Breast-cancer PRS is currently unavailable"\n'
+    r"(?P<body>(?: {4}.*(?:\n|$))+)",
+    re.IGNORECASE | re.MULTILINE,
+)
 
 
 def _weight_sets() -> list[dict[str, object]]:
@@ -35,18 +42,35 @@ def _advertised_traits(doc_text: str) -> set[str]:
     match = _ADVERTISED_TRAITS_RE.search(doc_text)
     assert match, "cancer.md must retain an explicit '(PRS) for ...' active-trait list"
     prose = match.group("traits")
-    return {
-        trait
-        for trait, label in _TRAIT_LABELS.items()
-        if re.search(rf"\b{re.escape(label)}\b", prose, re.IGNORECASE)
+    advertised_labels = {
+        label.strip().lower()
+        for label in re.split(r",|\band\b", prose, flags=re.IGNORECASE)
+        if label.strip()
     }
+    trait_by_label = {label: trait for trait, label in _TRAIT_LABELS.items()}
+    unknown = sorted(advertised_labels - trait_by_label.keys())
+    assert not unknown, f"cancer.md advertises unknown PRS trait labels: {unknown}"
+    return {trait_by_label[label] for label in advertised_labels}
+
+
+def _breast_prs_note(doc_text: str) -> str:
+    match = _BREAST_PRS_NOTE_RE.search(doc_text)
+    assert match, "cancer.md must retain the breast-cancer PRS availability note"
+    return " ".join(match.group("body").lower().split())
+
+
+def test_advertised_traits_reject_unknown_labels() -> None:
+    with pytest.raises(AssertionError, match="unknown PRS trait labels.*lung"):
+        _advertised_traits("(PRS) for prostate and lung.")
 
 
 def test_cancer_docs_advertise_exactly_the_enabled_prs_models() -> None:
     doc_text = _DOC_PATH.read_text(encoding="utf-8")
+    weight_sets = _weight_sets()
+    assert weight_sets, "cancer PRS panel must contain at least one weight set"
     enabled = {
         weight_set["trait"]
-        for weight_set in _weight_sets()
+        for weight_set in weight_sets
         if weight_set.get("scoring_enabled", True)
     }
     assert _advertised_traits(doc_text) == enabled, (
@@ -62,7 +86,7 @@ def test_cancer_docs_distinguish_the_runtime_block_from_ancestry_withholding() -
     assert breast["model_status"] == "source_verified_runtime_blocked"
     assert breast["scoring_enabled"] is False
 
-    doc_text = " ".join(_DOC_PATH.read_text(encoding="utf-8").lower().split())
+    note_text = _breast_prs_note(_DOC_PATH.read_text(encoding="utf-8"))
     required_phrases = {
         "source-verified breast-cancer prs77",
         "not scored or reported",
@@ -70,7 +94,7 @@ def test_cancer_docs_distinguish_the_runtime_block_from_ancestry_withholding() -
         "palindromic",
         "not an ancestry-calibration result",
     }
-    missing = sorted(phrase for phrase in required_phrases if phrase not in doc_text)
+    missing = sorted(phrase for phrase in required_phrases if phrase not in note_text)
     assert not missing, (
         "cancer.md must explain the disabled breast PRS77 and distinguish its "
         f"runtime block from ancestry withholding; missing phrases: {missing}"
