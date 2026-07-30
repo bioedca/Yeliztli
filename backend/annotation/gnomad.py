@@ -948,9 +948,39 @@ def _annotation_rank(annot: GnomADAnnotation) -> float:
     return -1.0 if annot.af_popmax is None else annot.af_popmax
 
 
+def _pick_gnomad_row(rows: list[sa.Row], genotype: str | None) -> sa.Row | None:
+    """Select the gnomAD row whose ALT the sample carries, or nothing (#2171).
+
+    An rsID may be shared by several ALTs at the same position, and gnomAD
+    stores one row per ALT. Allele frequency and homozygote count are properties
+    of a specific REF/ALT pair, not of the rsID collectively, so borrowing a
+    different ALT's numbers is not a conservative approximation — it is a
+    different variant's evidence. A common uncarried ALT could hand its
+    frequency to a rare carried one and suppress it from rare-variant results.
+
+    Unlike :func:`_pick_dbnsfp_row`, an ambiguous site resolves to ``None``
+    rather than a deterministic row: withholding leaves the frequency fields
+    empty, which downstream code already handles, whereas guessing publishes a
+    number that reads as measured.
+    """
+    if len(rows) == 1:
+        return rows[0]
+    if not genotype:
+        return None
+
+    from backend.analysis.zygosity import CARRIED_ZYGOSITIES, classify_zygosity
+
+    carried = [r for r in rows if classify_zygosity(genotype, r.ref, r.alt) in CARRIED_ZYGOSITIES]
+    # Exactly one carried ALT is the only unambiguous answer. Zero means the
+    # sample carries none of the catalogued ALTs; more than one means an array
+    # genotype cannot say which (or both) it is.
+    return carried[0] if len(carried) == 1 else None
+
+
 def lookup_gnomad_by_rsids(
     rsids: list[str],
     gnomad_engine: sa.Engine,
+    genotype_by_rsid: dict[str, str] | None = None,
 ) -> dict[str, GnomADAnnotation]:
     """Look up gnomAD allele frequencies for a batch of rsids.
 
@@ -959,6 +989,10 @@ def lookup_gnomad_by_rsids(
     Args:
         rsids: List of rsid strings (e.g. ["rs429358", "rs7412"]).
         gnomad_engine: SQLAlchemy engine for gnomad_af.db.
+        genotype_by_rsid: Optional sample genotypes. A shared rsID resolves to
+            the row whose ALT the sample carries; when carriage is ambiguous or
+            no catalogued ALT matches, the rsID is omitted from the result
+            instead of inheriting another ALT's frequency (#2171).
 
     Returns:
         Dict mapping rsid → GnomADAnnotation for matched variants.
@@ -966,6 +1000,7 @@ def lookup_gnomad_by_rsids(
     if not rsids:
         return {}
 
+    genotype_by_rsid = genotype_by_rsid or {}
     results: dict[str, GnomADAnnotation] = {}
 
     with gnomad_engine.connect() as conn:
@@ -976,17 +1011,20 @@ def lookup_gnomad_by_rsids(
             params = {f"r{j}": rsid for j, rsid in enumerate(batch)}
 
             stmt = sa.text(
-                "SELECT rsid, "  # noqa: S608
+                "SELECT rsid, ref, alt, "  # noqa: S608
                 f"{af_select}, homozygous_count FROM gnomad_af WHERE rsid IN ({placeholders}) "
                 "ORDER BY rsid, chrom, pos, ref, alt"
             )
             rows = conn.execute(stmt, params).fetchall()
 
+            rows_by_rsid: dict[str, list[sa.Row]] = {}
             for row in rows:
-                annot = _annotation_from_row(row)
-                current = results.get(row.rsid)
-                if current is None or _annotation_rank(annot) > _annotation_rank(current):
-                    results[row.rsid] = annot
+                rows_by_rsid.setdefault(row.rsid, []).append(row)
+
+            for rsid, candidates in rows_by_rsid.items():
+                picked = _pick_gnomad_row(candidates, genotype_by_rsid.get(rsid))
+                if picked is not None:
+                    results[rsid] = _annotation_from_row(picked)
 
     return results
 

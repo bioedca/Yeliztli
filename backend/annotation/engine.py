@@ -529,9 +529,19 @@ def _lookup_gnomad(
                 results[rsid] = _annot_to_dict(annot)
 
     # Fallback: rsid-based lookup for rows without exact allele coordinates.
+    # Production ``raw_variants`` has no ref/alt columns, so this is the path
+    # every real annotation run takes and the exact-coordinate branch above is
+    # only reachable from callers that synthesise allele identity. Pass the
+    # genotypes so a shared rsID resolves to the ALT the sample actually carries
+    # rather than to whichever ALT happens to be most common (#2171).
     unmatched = [r for r in rsids if r not in results and r not in rsids_with_exact_coords]
     if unmatched:
-        rsid_matches = lookup_gnomad_by_rsids(unmatched, gnomad_engine)
+        genotype_by_rsid = {
+            rsid: raw_by_rsid[rsid].genotype for rsid in unmatched if rsid in raw_by_rsid
+        }
+        rsid_matches = lookup_gnomad_by_rsids(
+            unmatched, gnomad_engine, genotype_by_rsid=genotype_by_rsid
+        )
         for rsid, annot in rsid_matches.items():
             results[rsid] = _annot_to_dict(annot)
 

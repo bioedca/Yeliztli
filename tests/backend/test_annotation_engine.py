@@ -1748,6 +1748,171 @@ class TestGnomadAnnotationLookupIntegration:
 
         assert "rs_shared_miss" not in result
 
+    # ── production-shaped: raw_variants has no ref/alt (#2171) ──────────
+    #
+    # The two tests above synthesise a raw row carrying `ref`/`alt`, which the
+    # real `raw_variants` table does not have (backend/db/tables.py), so they
+    # exercise the exact-coordinate branch that `run_annotation()` can never
+    # reach. Everything below goes through `run_annotation()` on the real
+    # schema, where the rsID fallback is the only path.
+
+    @staticmethod
+    def _shared_rsid_gnomad_rows(gnomad_engine: sa.Engine) -> None:
+        """One rsID, two ALTs: a rare G>A and a common G>T."""
+        with gnomad_engine.begin() as conn:
+            conn.execute(
+                sa.text(
+                    "INSERT INTO gnomad_af "
+                    "(rsid, chrom, pos, ref, alt, af_global, af_afr, af_amr, af_asj, "
+                    "af_eas, af_eur, af_fin, af_sas, homozygous_count) VALUES "
+                    "('rs_shared_prod', '1', 300, 'G', 'A', 0.001, 0.001, 0.001, 0.001, "
+                    "0.001, 0.001, 0.001, 0.001, 1), "
+                    "('rs_shared_prod', '1', 300, 'G', 'T', 0.20, 0.05, 0.04, 0.03, "
+                    "0.02, 0.01, 0.07, 0.08, 500)"
+                )
+            )
+
+    @staticmethod
+    def _annotated_row(sample_engine: sa.Engine, rsid: str) -> sa.Row | None:
+        with sample_engine.connect() as conn:
+            return conn.execute(
+                sa.select(annotated_variants).where(annotated_variants.c.rsid == rsid)
+            ).fetchone()
+
+    def test_raw_variants_carries_no_allele_identity(self, sample_engine: sa.Engine) -> None:
+        """Premise guard: the production schema has no ref/alt to match on.
+
+        If this ever fails the exact-coordinate branch became reachable and the
+        rsID-fallback tests below stop testing the production path (#2171).
+        """
+        columns = {c.name for c in raw_variants.columns}
+        assert "ref" not in columns
+        assert "alt" not in columns
+
+    def test_shared_rsid_takes_the_carried_alt_frequency(
+        self, sample_engine: sa.Engine, mock_registry: MagicMock, gnomad_engine: sa.Engine
+    ) -> None:
+        """`AG` carries G>A, so it must not inherit the common G>T frequency.
+
+        Pre-fix the rsID fallback ranked candidates by population-max AF, so the
+        rare carried allele was stored with the common allele's AF (0.20) and
+        homozygote count (500) and dropped out of rare-variant results (#2171).
+        """
+        self._shared_rsid_gnomad_rows(gnomad_engine)
+        with sample_engine.begin() as conn:
+            conn.execute(
+                raw_variants.insert().values(
+                    rsid="rs_shared_prod", chrom="1", pos=300, genotype="AG"
+                )
+            )
+
+        run_annotation(sample_engine, mock_registry)
+
+        row = self._annotated_row(sample_engine, "rs_shared_prod")
+        assert row is not None
+        assert row.gnomad_af_global == pytest.approx(0.001)
+        assert row.gnomad_homozygous_count == 1
+
+    def test_shared_rsid_with_no_carried_alt_withholds_frequency(
+        self, sample_engine: sa.Engine, mock_registry: MagicMock, gnomad_engine: sa.Engine
+    ) -> None:
+        """A genotype matching neither catalogued ALT gets no frequency at all.
+
+        Borrowing the most common ALT's numbers would present another variant's
+        evidence as this one's; absent is the honest state (#2171).
+        """
+        self._shared_rsid_gnomad_rows(gnomad_engine)
+        with sample_engine.begin() as conn:
+            conn.execute(
+                raw_variants.insert().values(
+                    rsid="rs_shared_prod", chrom="1", pos=300, genotype="CC"
+                )
+            )
+
+        run_annotation(sample_engine, mock_registry)
+
+        row = self._annotated_row(sample_engine, "rs_shared_prod")
+        assert row is not None
+        assert row.gnomad_af_global is None
+        assert row.gnomad_homozygous_count is None
+
+    def test_shared_rsid_with_ambiguous_carriage_withholds_frequency(
+        self, sample_engine: sa.Engine, mock_registry: MagicMock, gnomad_engine: sa.Engine
+    ) -> None:
+        """`AT` carries both catalogued ALTs, and an array cannot say which row applies."""
+        self._shared_rsid_gnomad_rows(gnomad_engine)
+        with sample_engine.begin() as conn:
+            conn.execute(
+                raw_variants.insert().values(
+                    rsid="rs_shared_prod", chrom="1", pos=300, genotype="AT"
+                )
+            )
+
+        run_annotation(sample_engine, mock_registry)
+
+        row = self._annotated_row(sample_engine, "rs_shared_prod")
+        assert row is not None
+        assert row.gnomad_af_global is None
+
+    def test_carried_rare_alt_reaches_the_rare_variant_finder(
+        self, sample_engine: sa.Engine, mock_registry: MagicMock, gnomad_engine: sa.Engine
+    ) -> None:
+        """The consumer #2171 names: a rare carried ALT must not be filtered out.
+
+        `find_rare_variants` judges rarity on the stored population-max AF, so
+        inheriting the common ALT's 0.20 pushed the carried 0.001 allele above
+        every sane threshold and silently dropped it from the report.
+        """
+        from backend.analysis.rare_variant_finder import RareVariantFilter, find_rare_variants
+
+        self._shared_rsid_gnomad_rows(gnomad_engine)
+        with sample_engine.begin() as conn:
+            conn.execute(
+                raw_variants.insert().values(
+                    rsid="rs_shared_prod", chrom="1", pos=300, genotype="AG"
+                )
+            )
+
+        run_annotation(sample_engine, mock_registry)
+        found = find_rare_variants(
+            RareVariantFilter(af_threshold=0.01, include_novel=False), sample_engine
+        )
+
+        assert "rs_shared_prod" in {v.rsid for v in found.variants}
+
+    def test_single_alt_rsid_is_annotated_regardless_of_genotype(
+        self, sample_engine: sa.Engine, mock_registry: MagicMock, gnomad_engine: sa.Engine
+    ) -> None:
+        """Discriminating control: withholding must not swallow unambiguous sites.
+
+        With one catalogued ALT there is nothing to disambiguate, so a hom-ref
+        sample still gets that variant's frequency — otherwise the fix would
+        read as correct simply by suppressing gnomAD everywhere.
+        """
+        with gnomad_engine.begin() as conn:
+            conn.execute(
+                sa.text(
+                    "INSERT INTO gnomad_af "
+                    "(rsid, chrom, pos, ref, alt, af_global, af_afr, af_amr, af_asj, "
+                    "af_eas, af_eur, af_fin, af_sas, homozygous_count) VALUES "
+                    "('rs_single_prod', '1', 400, 'G', 'A', 0.02, 0.02, 0.02, 0.02, "
+                    "0.02, 0.02, 0.02, 0.02, 7)"
+                )
+            )
+        with sample_engine.begin() as conn:
+            conn.execute(
+                raw_variants.insert().values(
+                    rsid="rs_single_prod", chrom="1", pos=400, genotype="GG"
+                )
+            )
+
+        run_annotation(sample_engine, mock_registry)
+
+        row = self._annotated_row(sample_engine, "rs_single_prod")
+        assert row is not None
+        assert row.gnomad_af_global == pytest.approx(0.02)
+        assert row.gnomad_homozygous_count == 7
+
     def test_position_lookup_preserves_aliases_for_same_coordinate(
         self, gnomad_engine: sa.Engine
     ) -> None:
