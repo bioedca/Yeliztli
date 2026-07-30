@@ -85,11 +85,16 @@ test.describe('Fitness PathwayCard indeterminate caveat (#360/#961)', () => {
     await page.goto('/fitness?sample_id=1')
     await waitForReactHydration(page)
 
-    // The card renders with its Standard level badge...
+    // The card renders, labelled by what was actually interpreted. Its only
+    // observed SNP is indeterminate, so since #2178 the badge reads
+    // "Not Assessed" rather than "Standard" -- the same rule the report,
+    // export and SVG paths apply. The #360/#961 intent is unchanged and
+    // strengthened: this pathway must never read as confidently clear.
     await expect(page.getByText('Training Response')).toBeVisible()
-    await expect(page.getByText('Standard')).toBeVisible()
+    await expect(page.getByText('Not Assessed')).toBeVisible()
+    await expect(page.getByText('Standard')).toHaveCount(0)
 
-    // ...but it is NOT presented as confidently clear: the neutral caveat shows.
+    // ...and it is NOT presented as confidently clear: the neutral caveat shows.
     const caveat = page.getByTestId('pathway-indeterminate-caveat')
     await expect(caveat).toBeVisible()
     await expect(caveat).toContainText(/not interpreted/i)
