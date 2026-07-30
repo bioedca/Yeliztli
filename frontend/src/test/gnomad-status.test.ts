@@ -66,3 +66,28 @@ describe("gnomadNoFrequencyShortLabel", () => {
     expect(gnomadNoFrequencyShortLabel("observed")).toBeNull()
   })
 })
+
+describe("locus_unresolved", () => {
+  // #2214 review: gnomAD lists the rsID, just not at the sample's coordinate.
+  // The alleles may be identical, so the allele-ambiguity wording would be a
+  // false explanation and would hide a build/mapping mismatch.
+  it("does not reuse the allele-ambiguity explanation", () => {
+    expect(gnomadNoFrequencyDetail("locus_unresolved")).toContain("other genomic positions")
+    expect(gnomadNoFrequencyDetail("locus_unresolved")).not.toContain("alternate alleles")
+  })
+
+  it("does not claim absence from gnomAD", () => {
+    expect(gnomadNoFrequencyLabel("locus_unresolved")).toBe("Position not matched in gnomAD")
+    expect(gnomadNoFrequencyLabel("locus_unresolved")).not.toBe("Not in gnomAD")
+  })
+
+  it("has its own compact label", () => {
+    expect(gnomadNoFrequencyShortLabel("locus_unresolved")).toBe("Position unmatched")
+  })
+
+  it("leaves the allele-ambiguous wording alone", () => {
+    // Discriminating control: the two states must stay distinguishable.
+    expect(gnomadNoFrequencyShortLabel("allele_ambiguous")).toBe("Allele unresolved")
+    expect(gnomadNoFrequencyDetail("allele_ambiguous")).toContain("alternate alleles")
+  })
+})

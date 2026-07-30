@@ -979,6 +979,7 @@ def lookup_gnomad_by_rsids(
     allele_ambiguous_out: set[str] | None = None,
     conflicting_genotype_rsids: set[str] | None = None,
     locus_by_rsid: dict[str, tuple[str, int]] | None = None,
+    locus_unresolved_out: set[str] | None = None,
 ) -> dict[str, GnomADAnnotation]:
     """Look up gnomAD allele frequencies for a batch of rsids.
 
@@ -1007,6 +1008,11 @@ def lookup_gnomad_by_rsids(
             candidates sit at one position: rsID-only lookup has never required
             the array's coordinate to agree with gnomAD's, and demanding it
             everywhere would drop frequencies wherever the two disagree.
+        locus_unresolved_out: Optional set, populated with rsIDs whose rows all
+            sit at other coordinates. Kept separate from `allele_ambiguous_out`
+            because the alleles may be identical -- what failed is coordinate
+            concordance, and calling that "several alternate alleles" would be
+            a false explanation and would hide a build/mapping mismatch.
 
     Returns:
         Dict mapping rsid → GnomADAnnotation for matched variants.
@@ -1017,6 +1023,7 @@ def lookup_gnomad_by_rsids(
     genotype_by_rsid = genotype_by_rsid or {}
     conflicting_genotype_rsids = conflicting_genotype_rsids or set()
     locus_by_rsid = locus_by_rsid or {}
+    locus_unresolved_out = locus_unresolved_out if locus_unresolved_out is not None else None
     results: dict[str, GnomADAnnotation] = {}
 
     with gnomad_engine.connect() as conn:
@@ -1060,7 +1067,10 @@ def lookup_gnomad_by_rsids(
                     # frequency for this call; withhold rather than borrow one.
                     candidates = same_locus
                     if not candidates:
-                        if allele_ambiguous_out is not None:
+                        # Rows exist, just not at this sample's coordinate.
+                        if locus_unresolved_out is not None:
+                            locus_unresolved_out.add(rsid)
+                        elif allele_ambiguous_out is not None:
                             allele_ambiguous_out.add(rsid)
                         continue
                 picked = _pick_gnomad_row(candidates, genotype_by_rsid.get(rsid))

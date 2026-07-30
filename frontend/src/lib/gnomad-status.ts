@@ -11,6 +11,16 @@ function isGnomadSourceUncovered(status: GnomadSourceStatus | null | undefined):
  * is a false statement, and it is the reason this status exists rather than the
  * withheld row simply falling through to the absent branch.
  */
+/** gnomAD lists this rsID, but only at other coordinates (#2214 review).
+ *
+ * Distinct from allele ambiguity: the alleles may be identical and it is the
+ * COORDINATE that disagrees, so the "several alternate alleles" wording would be
+ * false here and would hide a build/mapping mismatch.
+ */
+function isGnomadLocusUnresolved(status: GnomadSourceStatus | null | undefined): boolean {
+  return status === "locus_unresolved"
+}
+
 export function isGnomadAlleleAmbiguous(status: GnomadSourceStatus | null | undefined): boolean {
   return status === "allele_ambiguous"
 }
@@ -29,6 +39,9 @@ export function gnomadNoFrequencyShortLabel(
   if (isGnomadSourceUncovered(status)) {
     return "Not assessed"
   }
+  if (isGnomadLocusUnresolved(status)) {
+    return "Position unmatched"
+  }
   if (isGnomadAlleleAmbiguous(status)) {
     return "Allele unresolved"
   }
@@ -41,6 +54,9 @@ export function gnomadNoFrequencyLabel(
 ): string {
   if (isGnomadSourceUncovered(status)) {
     return "Not assessed by current gnomAD exome source"
+  }
+  if (isGnomadLocusUnresolved(status)) {
+    return "Position not matched in gnomAD"
   }
   if (isGnomadAlleleAmbiguous(status)) {
     return "Allele not resolved in gnomAD"
@@ -57,6 +73,12 @@ export function gnomadNoFrequencyDetail(
 ): string {
   if (isGnomadSourceUncovered(status)) {
     return "Not assessed by current gnomAD exome source"
+  }
+  if (isGnomadLocusUnresolved(status)) {
+    return (
+      "gnomAD lists this rsID only at other genomic positions, so no frequency " +
+      "is shown for the position on your chip"
+    )
   }
   if (isGnomadAlleleAmbiguous(status)) {
     return (

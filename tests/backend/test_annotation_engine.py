@@ -2273,6 +2273,80 @@ class TestGnomadAnnotationLookupIntegration:
         assert row.gnomad_af_global == pytest.approx(0.001)
         assert row.gnomad_homozygous_count == 1
 
+    def test_typed_alias_beats_a_no_call_current_id(
+        self,
+        sample_engine: sa.Engine,
+        mock_registry: MagicMock,
+        gnomad_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """#2214 review: `raw_by_query`'s tie-break must not pick the no-call.
+
+        A typed deprecated rsID with a no-call *current* replacement leaves no
+        conflict, but the self-map tie-break keeps the current (no-call) row, so
+        selection ran on `--` and withheld from the typed alias too -- and with
+        `batch_size=1` it resolved normally instead. gnomAD now selects on the
+        sample's single typed call for that query id.
+        """
+        with reference_engine.begin() as conn:
+            conn.execute(
+                dbsnp_merges.insert().values(
+                    old_rsid="rs_typed_old", current_rsid="rs_shared_prod", build_id=155
+                )
+            )
+        self._shared_rsid_gnomad_rows(gnomad_engine)
+        with sample_engine.begin() as conn:
+            conn.execute(
+                raw_variants.insert(),
+                [
+                    {"rsid": "rs_typed_old", "chrom": "1", "pos": 300, "genotype": "AG"},
+                    {"rsid": "rs_shared_prod", "chrom": "1", "pos": 300, "genotype": "--"},
+                ],
+            )
+
+        run_annotation(sample_engine, mock_registry)
+
+        row = self._annotated_row(sample_engine, "rs_typed_old")
+        assert row is not None
+        assert row.gnomad_af_global == pytest.approx(0.001)
+
+    def test_locus_unresolved_is_not_reported_as_allele_ambiguous(
+        self, sample_engine: sa.Engine, mock_registry: MagicMock, gnomad_engine: sa.Engine
+    ) -> None:
+        """#2214 review: a coordinate mismatch is not an allele ambiguity.
+
+        Both rows here are G>A, so nothing about the *allele* is ambiguous; the
+        sample's position simply matches neither. Reporting `allele_ambiguous`
+        would render "several alternate alleles ... which one you carry", which
+        is false, and would hide a build/mapping mismatch.
+        """
+        with gnomad_engine.begin() as conn:
+            conn.execute(
+                sa.text(
+                    "INSERT INTO gnomad_af "
+                    "(rsid, chrom, pos, ref, alt, af_global, af_afr, af_amr, af_asj, "
+                    "af_eas, af_eur, af_fin, af_sas, homozygous_count) VALUES "
+                    "('rs_elsewhere', '1', 500, 'G', 'A', 0.01, 0.01, 0.01, 0.01, "
+                    "0.01, 0.01, 0.01, 0.01, 2), "
+                    "('rs_elsewhere', '1', 600, 'G', 'A', 0.02, 0.02, 0.02, 0.02, "
+                    "0.02, 0.02, 0.02, 0.02, 4)"
+                )
+            )
+        with sample_engine.begin() as conn:
+            conn.execute(
+                raw_variants.insert().values(
+                    rsid="rs_elsewhere", chrom="1", pos=999, genotype="AG"
+                )
+            )
+
+        run_annotation(sample_engine, mock_registry)
+
+        row = self._annotated_row(sample_engine, "rs_elsewhere")
+        assert row is not None
+        assert row.gnomad_af_global is None
+        assert row.gnomad_source_status == "locus_unresolved"
+        assert row.gnomad_source_status != "allele_ambiguous"
+
     def test_single_alt_rsid_is_annotated_regardless_of_genotype(
         self, sample_engine: sa.Engine, mock_registry: MagicMock, gnomad_engine: sa.Engine
     ) -> None:

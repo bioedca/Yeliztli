@@ -510,6 +510,9 @@ def store_rare_variant_findings(
             af_text = f"AF={v.gnomad_af_global:.6f}"
         elif v.gnomad_source_status == "source_uncovered":
             af_text = "Not assessed by current gnomAD exome source"
+        elif v.gnomad_source_status == "locus_unresolved":
+            # Rows exist for the rsID, just not at this coordinate (#2214).
+            af_text = "Position not matched in gnomAD"
         elif v.gnomad_source_status == "allele_ambiguous":
             # gnomAD lists this rsID across several ALTs and the genotype does
             # not say which is carried, so the frequency is withheld (#2171).
