@@ -270,6 +270,27 @@ def _stored_text(result: KinshipResult, sample_engine: sa.Engine) -> str:
     return row.finding_text
 
 
+class TestPairTextWithUndefinedPhi:
+    def test_undefined_phi_renders_a_word_not_a_crash(self) -> None:
+        """#2170: `phi` is Optional now, so the `:.3f` format would raise."""
+        pair = _pair("B", "indeterminate", "no_heterozygous_information")
+        assert pair.stats.phi is None
+
+        text = _pair_text(pair)
+
+        assert "undefined" in text
+        assert "informative calls" in text
+
+    def test_defined_phi_still_renders_the_number(self) -> None:
+        """Discriminating control: the normal path keeps its formatted value."""
+        pair = _pair("B", "duplicate_or_mz_twin")
+
+        text = _pair_text(pair)
+
+        assert "0.010" in text
+        assert "undefined" not in text
+
+
 class TestUnevaluableSummary:
     """#2170: an unevaluable comparison must not be summarised as a negative.
 

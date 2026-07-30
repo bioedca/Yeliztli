@@ -230,10 +230,17 @@ _RELATIONSHIP_LABEL = {
 def _pair_text(pair: KinshipPair) -> str:
     s = pair.stats
     label = _RELATIONSHIP_LABEL[s.relationship]
+    # phi is None exactly when the estimator was undefined, which also forces
+    # relationship="indeterminate" -- and `store_kinship_findings` files no
+    # finding for those, so this branch is unreachable today. Spell it out
+    # anyway: `{s.phi:.3f}` would raise TypeError on None, and a future caller
+    # that files indeterminate pairs should get a sentence, not a crash (#2170).
+    phi_text = "undefined" if s.phi is None else f"{s.phi:.3f}"
     base = (
         f"Estimated relationship to '{pair.other_sample_name}': {label} "
-        f"(KING kinship φ={s.phi:.3f}, IBS0 proportion {s.ibs0_proportion:.4f}, "
-        f"{s.n_shared:,} shared autosomal SNPs)."
+        f"(KING kinship φ={phi_text}, IBS0 proportion {s.ibs0_proportion:.4f}, "
+        f"{s.n_shared:,} shared autosomal SNPs, "
+        f"{s.informative_denominator:,} informative calls)."
     )
     if s.relationship == "duplicate_or_mz_twin":
         base += (
