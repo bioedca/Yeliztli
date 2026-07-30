@@ -943,11 +943,6 @@ def _annotation_from_row(row: sa.Row) -> GnomADAnnotation:
     )
 
 
-def _annotation_rank(annot: GnomADAnnotation) -> float:
-    """Rank ambiguous rsID-only hits by conservative popmax."""
-    return -1.0 if annot.af_popmax is None else annot.af_popmax
-
-
 def _pick_gnomad_row(rows: list[sa.Row], genotype: str | None) -> sa.Row | None:
     """Select the gnomAD row whose ALT the sample carries, or nothing (#2171).
 
