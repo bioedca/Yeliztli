@@ -1455,6 +1455,19 @@ def run_annotation(
         old: rec.current_rsid for old, rec in merge_records.items() if rec.current_rsid
     }
 
+    # Which queried rsIDs are served by sample rows carrying DIFFERENT genotypes
+    # (a deprecated rsID plus its replacement, or two deprecated IDs sharing one
+    # current ID). Computed across the whole sample, deliberately not per batch:
+    # aliases can land in different batches, and a per-batch view would see no
+    # conflict there while seeing one when they happen to share a batch -- making
+    # the stored frequency and status depend on `batch_size` and row order (#2171).
+    _genotypes_by_query: dict[str, set[str]] = {}
+    for _row in raw_rows:
+        _genotypes_by_query.setdefault(current_by_old.get(_row.rsid, _row.rsid), set()).add(
+            _row.genotype
+        )
+    conflicting_genotype_rsids = {q for q, genos in _genotypes_by_query.items() if len(genos) > 1}
+
     # 4. Process in batches
     # Reuse a single ThreadPoolExecutor across all batches to avoid
     # repeated thread creation/teardown overhead (P4-22 optimization).
@@ -1493,17 +1506,6 @@ def run_annotation(
                 q = lookup_key[r]
                 if q == r or q not in raw_by_query:
                     raw_by_query[q] = raw_by_rsid[r]
-
-            # Aliases collapse to one row above, so a query id served by several
-            # sample rows with DIFFERENT genotypes has no single genotype that
-            # speaks for all of them. gnomAD must not pick an ALT from one call
-            # and let `_rekey_to_original` fan it out to the others (#2171).
-            genotypes_by_query: dict[str, set[str]] = {}
-            for r in batch_rsids:
-                genotypes_by_query.setdefault(lookup_key[r], set()).add(raw_by_rsid[r].genotype)
-            conflicting_genotype_rsids = {
-                q for q, genos in genotypes_by_query.items() if len(genos) > 1
-            }
 
             # 5. Concurrent lookups across annotation sources
             vep_data: dict[str, dict] = {}

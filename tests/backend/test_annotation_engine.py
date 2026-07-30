@@ -2079,6 +2079,46 @@ class TestGnomadAnnotationLookupIntegration:
             assert row is not None, rsid
             assert row.gnomad_af_global == pytest.approx(0.001), rsid
 
+    def test_alias_conflict_is_independent_of_batch_boundaries(
+        self,
+        sample_engine: sa.Engine,
+        mock_registry: MagicMock,
+        gnomad_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """#2214 review: the conflict map must span the sample, not one batch.
+
+        Computed per batch, two aliases landing in *different* batches each see a
+        single genotype and publish allele-specific frequencies, while the same
+        pair in one batch is withheld. Stored AF and status would then depend on
+        `batch_size` and row order. `batch_size=1` forces the split.
+        """
+        with reference_engine.begin() as conn:
+            conn.execute(
+                dbsnp_merges.insert().values(
+                    old_rsid="rs_batch_old", current_rsid="rs_shared_prod", build_id=155
+                )
+            )
+        self._shared_rsid_gnomad_rows(gnomad_engine)
+        with sample_engine.begin() as conn:
+            conn.execute(
+                raw_variants.insert(),
+                [
+                    {"rsid": "rs_batch_old", "chrom": "1", "pos": 300, "genotype": "AG"},
+                    {"rsid": "rs_shared_prod", "chrom": "1", "pos": 300, "genotype": "TT"},
+                ],
+            )
+
+        run_annotation(sample_engine, mock_registry, batch_size=1)
+
+        for rsid in ("rs_batch_old", "rs_shared_prod"):
+            row = self._annotated_row(sample_engine, rsid)
+            assert row is not None, rsid
+            # Same outcome as the single-batch case: neither may borrow the
+            # other's allele just because batching separated them.
+            assert row.gnomad_af_global is None, rsid
+            assert row.gnomad_source_status == "allele_ambiguous", rsid
+
     def test_single_alt_rsid_is_annotated_regardless_of_genotype(
         self, sample_engine: sa.Engine, mock_registry: MagicMock, gnomad_engine: sa.Engine
     ) -> None:
