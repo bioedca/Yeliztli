@@ -2354,6 +2354,58 @@ class TestGnomadAnnotationLookupIntegration:
         assert row.gnomad_source_status == "locus_unresolved"
         assert row.gnomad_source_status != "allele_ambiguous"
 
+    def test_no_call_alias_at_another_locus_still_conflicts(
+        self,
+        sample_engine: sa.Engine,
+        mock_registry: MagicMock,
+        gnomad_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """#2214 review: a no-call has no allele, but it still occupies a locus.
+
+        Skipping no-call rows entirely (to stop them suppressing a valid call)
+        also erased their coordinate, so the typed alias's locus was selected and
+        `_rekey_to_original` fanned that frequency back to the no-call row at a
+        different position -- the cross-locus assignment this PR exists to stop.
+        Genotype conflicts now come from typed rows only; locus conflicts from
+        every row.
+        """
+        with reference_engine.begin() as conn:
+            conn.execute(
+                dbsnp_merges.insert().values(
+                    old_rsid="rs_nc_far", current_rsid="rs_multiloc_nc", build_id=155
+                )
+            )
+        with gnomad_engine.begin() as conn:
+            conn.execute(
+                sa.text(
+                    "INSERT INTO gnomad_af "
+                    "(rsid, chrom, pos, ref, alt, af_global, af_afr, af_amr, af_asj, "
+                    "af_eas, af_eur, af_fin, af_sas, homozygous_count) VALUES "
+                    "('rs_multiloc_nc', '1', 300, 'G', 'A', 0.004, 0.004, 0.004, 0.004, "
+                    "0.004, 0.004, 0.004, 0.004, 3), "
+                    "('rs_multiloc_nc', '1', 900, 'G', 'A', 0.40, 0.40, 0.40, 0.40, "
+                    "0.40, 0.40, 0.40, 0.40, 800)"
+                )
+            )
+        with sample_engine.begin() as conn:
+            conn.execute(
+                raw_variants.insert(),
+                [
+                    # No-call, at the OTHER coordinate from the typed alias.
+                    {"rsid": "rs_nc_far", "chrom": "1", "pos": 900, "genotype": "--"},
+                    {"rsid": "rs_multiloc_nc", "chrom": "1", "pos": 300, "genotype": "AG"},
+                ],
+            )
+
+        run_annotation(sample_engine, mock_registry)
+
+        nc_row = self._annotated_row(sample_engine, "rs_nc_far")
+        assert nc_row is not None
+        # It sits at pos 900 and was never typed; it must not receive pos 300's
+        # frequency just because the typed alias resolved there.
+        assert nc_row.gnomad_af_global != pytest.approx(0.004)
+
     def test_single_alt_rsid_is_annotated_regardless_of_genotype(
         self, sample_engine: sa.Engine, mock_registry: MagicMock, gnomad_engine: sa.Engine
     ) -> None:

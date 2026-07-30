@@ -1495,24 +1495,33 @@ def run_annotation(
     # keeps only one of them. Without the coordinate in the key that case goes
     # undetected, so one alias receives the other locus's frequency -- and which
     # locus wins still depends on `batch_size`.
+    # Two separate questions, because a no-call answers only one of them.
+    #   * Which ALLELE is carried -- a no-call says nothing, so counting it as a
+    #     distinct call would withhold the *valid* call's frequency.
+    #   * Which LOCUS the row occupies -- a no-call still sits at a coordinate,
+    #     so dropping it entirely let its position vanish from the map and a
+    #     typed alias's frequency get fanned back to it across loci (#2214).
     _calls_by_query: dict[str, set[tuple[str, str, int]]] = {}
+    _loci_by_query: dict[str, set[tuple[str, int]]] = {}
     for _row in raw_rows:
-        # A no-call carries no allele information, so it cannot genuinely
-        # disagree with a typed alias. Counting it as a distinct call made the
-        # guard withhold the *valid* call's frequency -- over-suppression, and
-        # potentially dropping it from rare-variant results (#2214 review).
+        _query = current_by_old.get(_row.rsid, _row.rsid)
+        _loci_by_query.setdefault(_query, set()).add((_row.chrom, _row.pos))
         if is_no_call(_row.genotype):
             continue
-        _calls_by_query.setdefault(current_by_old.get(_row.rsid, _row.rsid), set()).add(
-            (_row.genotype, _row.chrom, _row.pos)
-        )
-    conflicting_genotype_rsids = {q for q, calls in _calls_by_query.items() if len(calls) > 1}
+        _calls_by_query.setdefault(_query, set()).add((_row.genotype, _row.chrom, _row.pos))
+    conflicting_genotype_rsids = {
+        q
+        for q in set(_calls_by_query) | set(_loci_by_query)
+        if len(_calls_by_query.get(q, ())) > 1 or len(_loci_by_query.get(q, ())) > 1
+    }
     # The one typed call behind a query id, when there is exactly one. `raw_by_query`
     # keeps whichever row won its self-map tie-break, which may be a no-call even
     # though a typed alias exists -- gnomAD would then select on the no-call and
     # withhold from the typed call too, differently depending on `batch_size`.
     resolved_call_by_query: dict[str, tuple[str, str, int]] = {
-        q: next(iter(calls)) for q, calls in _calls_by_query.items() if len(calls) == 1
+        q: next(iter(calls))
+        for q, calls in _calls_by_query.items()
+        if len(calls) == 1 and len(_loci_by_query.get(q, ())) == 1
     }
 
     # 4. Process in batches
