@@ -30,11 +30,12 @@ A **28-gene** hereditary-cancer panel, including *BRCA1*, *BRCA2*, *TP53*, *PALB
   personalized clinical risk model.
 
 !!! note "Breast-cancer PRS is currently unavailable"
-    The source-verified breast-cancer PRS77 [2] is not scored or reported. Thirty-nine of its
-    primary GRCh38 loci are multiallelic, and two additional biallelic loci are palindromic
-    without trusted effect-allele strand provenance. The current sample schema does not preserve
-    enough allele context to harmonize those loci safely. This is a runtime limitation, not an
-    ancestry-calibration result; the percentile note below applies only to models that are scored.
+    The source-verified breast-cancer PRS77 [2] is not scored or reported. The bundled GRCh38
+    allele audit [3] records 39 multiallelic primary loci and two additional biallelic loci that
+    are palindromic without trusted effect-allele strand provenance. The current sample schema
+    does not preserve enough allele context to harmonize those loci safely. This is a runtime
+    limitation, not an ancestry-calibration result; the percentile note below applies only to
+    models that are scored.
 
 !!! note "Percentiles can be withheld"
     A polygenic percentile is only shown when the score is properly calibrated for your
@@ -81,4 +82,9 @@ contralateral breast cancer for BRCA1 and BRCA2 mutation carriers](https://doi.o
 [2] Mavaddat N, et al. [Prediction of breast cancer risk based on profiling with common
 genetic variants](https://doi.org/10.1093/jnci/djv036). *Journal of the National Cancer
 Institute*. 2015;107(5):djv036. [PMID:25855707](https://pubmed.ncbi.nlm.nih.gov/25855707/)
+(accessed 2026-07-30).
+
+[3] Yeliztli cancer PRS panel version 1.2.0, breast-cancer PRS77
+`model_provenance.current_allele_audit` (Ensembl Variation GRCh38 audit checked 2026-07-16).
+[Immutable source](https://github.com/bioedca/Yeliztli/blob/e5dbc9c8128fd57ce825b239c589365db924466b/backend/data/panels/cancer_prs_weights.json)
 (accessed 2026-07-30).

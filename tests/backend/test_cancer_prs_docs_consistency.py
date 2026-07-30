@@ -131,3 +131,12 @@ def test_cancer_docs_distinguish_the_runtime_block_from_ancestry_withholding() -
     assert _ACCESS_DATE_RE.search(reference_text), (
         "breast PRS reference must include an '(accessed YYYY-MM-DD)' date"
     )
+
+    assert "[3]" in note_text, "breast PRS note must link to the current allele audit"
+    audit_reference = _reference_entry(doc_text, 3)
+    assert "model_provenance.current_allele_audit" in audit_reference, (
+        "breast PRS allele counts must cite their bundled audit provenance"
+    )
+    assert _ACCESS_DATE_RE.search(audit_reference), (
+        "breast PRS allele-audit reference must include an '(accessed YYYY-MM-DD)' date"
+    )
