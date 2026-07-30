@@ -99,6 +99,22 @@ class TestDisclaimer:
         assert data["text"] == KINSHIP_DISCLAIMER_TEXT
         assert "within your own samples only" in data["text"].lower()
 
+    def test_disclaimer_does_not_sell_shared_snps_as_confidence(self, client: TestClient) -> None:
+        """#2170: the shared-SNP count is not the confidence signal.
+
+        The disclaimer used to tell readers the shared-SNP count "is reported
+        with each estimate so you can judge confidence". That is the one number
+        which does not indicate confidence -- identically homozygous positions
+        inflate it while contributing nothing to the KING denominator. Asserting
+        on `data["text"]` rather than the constant keeps this a content lock and
+        not a tautology.
+        """
+        text = client.get("/api/analysis/kinship/disclaimer").json()["text"]
+
+        assert "so you can judge \nconfidence" not in text
+        assert "actually informed it" in text
+        assert "indeterminate" in text
+
 
 class TestRunAndList:
     def test_duplicate_detected(self, client: TestClient) -> None:
