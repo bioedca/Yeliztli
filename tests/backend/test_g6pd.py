@@ -175,6 +175,34 @@ class TestAssessG6pd:
         assert r["medication_risk"] == "undetermined"
         assert "cannot be cleared" in r["detail"]
 
+    def test_broad_panel_without_anchor_alleles_is_still_indeterminate(self) -> None:
+        """#2172: adequacy is not a bare count.
+
+        A count-only majority would clear the oxidative-drug warning for any 6 of
+        the 11 resolvable loci even when A- and Mediterranean -- the two
+        highest-yield deficiency alleles -- were never assessed. Powell et al.
+        (PMID:39607789) quantify what limited panels miss, so a negative panel
+        that skipped both anchors cannot be called informative.
+        """
+        panel = _covered_panel("XY")
+        for rsid in (G6PD_A_MINUS_RSID, G6PD_MED_RSID):
+            panel.pop(rsid, None)
+        r = self._assess("XY", panel)
+        assert r["called_typeable_records"] * 2 > r["typeable_records"]  # a majority...
+        assert r["coverage_sufficient"] is False  # ...but still not adequate
+        assert r["phenotype"] == "indeterminate"
+        assert r["medication_risk"] == "undetermined"
+
+    def test_anchor_alleles_alone_do_not_clear_coverage(self) -> None:
+        """#2172 other half: the anchors are necessary, not sufficient.
+
+        Both anchor alleles callable with the rest of the panel absent is still
+        a sparse negative, so breadth is required too.
+        """
+        r = self._assess("XY", {G6PD_A_MINUS_RSID: "C", G6PD_MED_RSID: "G"})
+        assert r["coverage_sufficient"] is False
+        assert r["medication_risk"] == "undetermined"
+
     def test_sparse_positive_still_reports_deficiency(self) -> None:
         """#2172 discriminating control: the coverage gate is asymmetric.
 

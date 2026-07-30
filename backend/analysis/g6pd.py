@@ -563,15 +563,29 @@ def assess_g6pd(
     ]
     typeable_total = len(resolvable_loci)
     called_typeable = sum(1 for loc in resolvable_loci if loc["called"])
-    # A *majority* rather than every locus. Requiring all of them made a real,
-    # well-covered sample indeterminate over a single genuinely-absent variant
-    # (10/11 observed on an AncestryDNA sample, missing only Chinese-5), which
-    # would suppress the module for ordinary inputs instead of fixing the defect.
-    # No source fixes a specific adequacy threshold, so this is a conservative
-    # floor chosen to make the reported failure — one callable locus read as a
-    # negative panel — unambiguously insufficient, while leaving a broadly
-    # covered panel interpretable. The exact counts are surfaced either way.
-    coverage_sufficient = typeable_total > 0 and called_typeable * 2 > typeable_total
+    # Adequacy is NOT a bare count. A count-only majority would clear the
+    # medication warning for any 6 of the 11 resolvable loci even when A− and
+    # Mediterranean — the two highest-yield deficiency alleles, and the ones this
+    # module's own panel notes identify as dominant globally — were never
+    # assessed. Powell et al. frame c.202G>A (A−) as the variant limited panels
+    # test, and quantify what testing it alone still misses (PMID:39607789), so a
+    # negative panel that skipped both anchors cannot be called informative.
+    #
+    # So require BOTH: the two anchor alleles callable, AND a majority of the
+    # resolvable panel. Requiring *every* locus was rejected empirically — it made
+    # a real AncestryDNA sample indeterminate over a single genuinely-absent
+    # variant (10/11, missing only Chinese-5), suppressing the module for ordinary
+    # inputs instead of fixing the defect. No source fixes an exact fraction, so
+    # the majority term is a documented floor and the counts are surfaced either
+    # way; the anchor term is what stops a broad-but-unhelpful panel clearing risk.
+    anchors_called = all(
+        loc["called"]
+        for loc in deficiency_loci
+        if loc["rsid"] in (G6PD_A_MINUS_RSID, G6PD_MED_RSID)
+    )
+    coverage_sufficient = (
+        typeable_total > 0 and anchors_called and called_typeable * 2 > typeable_total
+    )
 
     verdict = g6pd_phenotype(
         sex,
