@@ -97,7 +97,7 @@ Classify at draft creation and before merge; mixed/uncertain scope rises. These 
 
 ## PR, merge, and lifecycle
 
-- The draft PR must contain `Closes #N`, what/how/why, acceptance evidence, tests, scientific/Slurm provenance, route evidence per reviewer/SHA, residual risks, and focus areas. Schema v2 leaves DCO for the human contributor; schema v3 retains the canonical provenance structure in draft and records the exact issue, head, selected provider, test evidence, and public agent claim ID before ready/finalization.
+- The draft PR must contain `Closes #N`, what/how/why, acceptance evidence, tests, applicable scientific/Slurm provenance (otherwise explicit `N/A`), route evidence per reviewer/SHA, residual risks, and focus areas. Schema v2 leaves DCO for the human contributor; schema v3 retains the canonical provenance structure in draft and records the exact issue, head, selected provider, test evidence, and public agent claim ID before ready/finalization.
 - Merge queue is unsupported. Squash with an imperative subject ending `(#<PR>)`; never bypass the ruleset. Merge schema v2 only after explicit human authorization; schema v3 may merge once its exact-head App route status and every other gate pass. After merge, serialize the queue until the resulting exact merge SHA's Tier-2 macOS/E2E and all covering `main` checks are terminal green.
 - On post-merge failure keep the goal/worktree, notify the maintainer, and open/link the corrective issue/PR; do not revert, clean up, or start another merge without authorization.
 - After green, close/update the issue and Project; remove only the proven-merged branch/worktree and task artifacts, then prune stale metadata.
