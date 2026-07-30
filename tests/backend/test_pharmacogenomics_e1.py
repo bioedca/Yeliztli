@@ -582,11 +582,16 @@ def test_cyp3a5_untyped_star3_withholds_expresser_dose_increase(
     """#2169: rs776746 (*3) is the principal CYP3A5 expresser/non-expresser marker.
 
     When it is untyped the caller still reference-fills both chromosomes to
-    ``*1/*1``. CPIC's tacrolimus recommendations are keyed to the CYP3A5
-    genotype *when known* (Birdwell et al., 2015; PMID:25801146,
-    DOI:10.1002/cpt.113), and an untyped rs776746 leaves *both* chromosomes
-    unconstrained, so a ``*3/*3`` non-expresser is not excluded. The active
-    recommendation must therefore not be the expresser starting-dose increase.
+    ``*1/*1``. Two independent sources fix the clinical direction: CPIC's
+    tacrolimus recommendations are keyed to the CYP3A5 genotype *when known*
+    (Birdwell et al., 2015; PMID:25801146, DOI:10.1002/cpt.113, accessed
+    2026-07-30), and the primary functional characterisation shows ``*3``/``*6``
+    abolish CYP3A5 expression so only ``*1`` carriers express the enzyme (Kuehl
+    et al., 2001; PMID:11279519, DOI:10.1038/86882, accessed 2026-07-30).
+
+    An untyped rs776746 leaves *both* chromosomes unconstrained, so a ``*3/*3``
+    non-expresser is not excluded, and the active recommendation must therefore
+    not be the expresser starting-dose increase.
     """
     sample = _make_sample(genotypes)
     results = call_all_star_alleles(reference_engine, sample, genes=frozenset({"CYP3A5"}))

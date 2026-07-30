@@ -116,15 +116,26 @@ CONSERVATIVE_UNTYPED_PHENOTYPE_GENES: frozenset[str] = frozenset(
 # a marker is unassayed both chromosomes are unconstrained at that position, so
 # the homozygous state is equally admissible.
 #
-# Scoped to CYP3A5 because its guideline is keyed to expresser status: CPIC gives
-# tacrolimus dosing recommendations by CYP3A5 genotype *when known*, increasing
-# the starting dose for expressers and keeping label-recommended dosing for
-# non-expressers (Birdwell et al., 2015; PMID:25801146, DOI:10.1002/cpt.113,
-# accessed 2026-07-30). A no-function homozygote (*3/*3, *6/*6, *7/*7) is a
-# non-expresser, so while one is admissible the expresser dose increase is not an
-# established recommendation. The other conservative genes keep the reviewed
-# single-chromosome model (see #1081/#1413) — for example CYP2C9 deliberately
-# does not promote an untyped *2 to a homozygous Poor Metabolizer alert.
+# Scoped to CYP3A5 because its guideline is keyed to expresser status. Two
+# independent agreeing sources, neither derived from the other:
+#
+#   - Dosing direction: CPIC gives tacrolimus dosing recommendations by CYP3A5
+#     genotype *when known*, increasing the starting dose for expressers and
+#     keeping label-recommended dosing for non-expressers (Birdwell et al.,
+#     2015; PMID:25801146, DOI:10.1002/cpt.113, accessed 2026-07-30).
+#   - Allele direction: primary functional characterisation showing the *3 and
+#     *6 SNPs cause alternative splicing and protein truncation, so CYP3A5 is
+#     absent from tissue, and that only carriers of at least one *1 express
+#     CYP3A5 (Kuehl et al., 2001; PMID:11279519, DOI:10.1038/86882, accessed
+#     2026-07-30). Star-allele nomenclature per PharmVar GeneFocus: CYP3A5
+#     (Rodriguez-Antona et al., 2022; PMID:35202484, DOI:10.1002/cpt.2563,
+#     accessed 2026-07-30).
+#
+# So a no-function homozygote (*3/*3, *6/*6, *7/*7) is a non-expresser, and while
+# one is admissible the expresser dose increase is not an established
+# recommendation. The other conservative genes keep the reviewed single-chromosome
+# model (see #1081/#1413) — for example CYP2C9 deliberately does not promote an
+# untyped *2 to a homozygous Poor Metabolizer alert.
 HOMOZYGOUS_UNTYPED_PHENOTYPE_GENES: frozenset[str] = frozenset({"CYP3A5"})
 
 # Genes whose diplotype must be flagged as phase-inferred when two *different*
