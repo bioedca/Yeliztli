@@ -5,7 +5,7 @@
 - Keep `main` releasable. Order decisions by privacy/safety, scientific correctness, functional correctness, test integrity, maintainability, then delivery speed.
 - Review-route schema v2 is the human-gated legacy route: only the human contributor certifies DCO, an independent human maintainer supplies exact-head approval, and an agent merges only with explicit authorization after every gate passes. Schema v3 uses automated contribution provenance and the dedicated publisher App's exact-head success as merge authority; it requires neither DCO, human approval, nor per-PR human merge authorization. Hosted-provider output alone never authorizes merge; only schema-required exact-head success from the dedicated publisher App can satisfy the Review Route merge gate.
 - Follow the exact repository issue and PR forms. Never commit to `main`, weaken a test for green CI, fabricate data, expose secrets/genotypes, or mix unrelated work.
-- Do not start issue work unless covering `main` CI is terminal green. Allow one merge in flight; the next waits until the prior exact merge SHA's covering `main` run is terminal green.
+- Do not start issue work until a fresh fetch proves and records `origin/main`'s SHA and covering check/run IDs; every named required check must be present, exact-SHA, and terminal-successful. Stale, missing, nonterminal, or unavailable evidence stops. Allow one merge in flight; the next waits until the prior exact merge SHA satisfies the same gate.
 
 ## Work selection and concurrent ownership
 
