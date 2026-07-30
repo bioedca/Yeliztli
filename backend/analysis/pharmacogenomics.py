@@ -108,6 +108,30 @@ STRUCTURAL_UNCALLABLE_ALLELES: dict[str, tuple[str, ...]] = {
 # semantics without separate review.
 CONSERVATIVE_UNTYPED_PHENOTYPE_GENES: frozenset[str] = frozenset({"CYP2B6", "CYP2C9", "UGT1A1"})
 
+# Issue #2169: genes whose drug recommendation must be *withheld* — not swapped for
+# a milder one — when an untyped defining marker leaves the plausible diplotypes
+# spanning different shipped recommendations.
+#
+# The conservative policy above answers "which plausible diplotype do we alert on?"
+# by picking the lowest activity score. That is only sound when the alternatives
+# differ in *degree*. For CYP3A5 they differ in *direction*: CPIC increases the
+# tacrolimus starting dose for expressers and keeps label-recommended dosing for
+# non-expressers, and it supplies those recommendations by genotype *when known*
+# (Birdwell et al., 2015; PMID:25801146, DOI:10.1002/cpt.113, accessed 2026-07-30).
+# The `*3`/`*6` SNPs abolish CYP3A5 expression, so only a `*1` carrier expresses the
+# enzyme (Kuehl et al., 2001; PMID:11279519, DOI:10.1038/86882, accessed
+# 2026-07-30); nomenclature per PharmVar GeneFocus: CYP3A5 (Rodriguez-Antona et al.,
+# 2022; PMID:35202484, DOI:10.1002/cpt.2563, accessed 2026-07-30).
+#
+# Neither direction is safely assumable from an untyped marker: the expresser dose
+# increase could overexpose a true non-expresser, and the non-expresser standard
+# dose could underexpose a true expresser (tacrolimus has a narrow therapeutic
+# index, so both errors are clinically real). No source establishes either branch
+# as the correct default for an *unknown* genotype, so this code does not pick one.
+# The alert is withheld and the gene result still records the Partial call and the
+# indeterminate allele.
+WITHHOLD_CROSS_DIRECTION_GENES: frozenset[str] = frozenset({"CYP3A5"})
+
 # Genes whose diplotype must be flagged as phase-inferred when two *different*
 # non-reference alleles are called from unphased array genotypes. The helper
 # below requires each allele to have its own heterozygous defining marker so
@@ -499,6 +523,12 @@ def _infer_conservative_phenotype(
     rather than alerting on the milder direct call. A same-label candidate is
     relevant only when a shipped guideline explicitly keys that lower score
     within the phenotype band (for example CYP2C9/phenytoin).
+
+    This substitution answers "which plausible diplotype do we alert on?" and is
+    only sound when the alternatives differ in *degree*. When they differ in
+    *direction* the answer is to withhold instead — see
+    :data:`WITHHOLD_CROSS_DIRECTION_GENES` and
+    :func:`_untyped_marker_spans_conflicting_recommendations` (#2169).
     """
     if (
         result.gene not in CONSERVATIVE_UNTYPED_PHENOTYPE_GENES
@@ -571,6 +601,73 @@ def _infer_conservative_phenotype(
             candidate.allele,
         ),
     )[0]
+
+
+def _untyped_marker_spans_conflicting_recommendations(
+    result: StarAlleleResult,
+    drug: str,
+    called_recommendation: str,
+    reference_engine: sa.Engine,
+) -> bool:
+    """Whether an untyped marker leaves this drug's shipped advice undetermined.
+
+    Substitutes each unobserved indeterminate allele into the reference-filled
+    chromosomes — one copy and, because an unassayed marker constrains *neither*
+    chromosome, both copies — and compares the shipped recommendation of every
+    resulting diplotype against the directly called one. A difference means the
+    data admit genotypes whose CPIC advice points in different directions, so no
+    recommendation can be chosen without asserting a genotype that was not typed.
+
+    This is a comparison of shipped guideline rows, not a new clinical claim.
+    """
+    if result.call_confidence != CallConfidence.PARTIAL or not result.indeterminate_alleles:
+        return False
+
+    reference_allele = result.reference_allele or "*1"
+    called_alleles = [result.allele1, result.allele2]
+    reference_slots = [i for i, allele in enumerate(called_alleles) if allele == reference_allele]
+    if not reference_slots:
+        return False
+
+    for indeterminate_allele in result.indeterminate_alleles:
+        if indeterminate_allele in called_alleles:
+            continue
+        allele_rsids = set(result.indeterminate_allele_rsids.get(indeterminate_allele, []))
+        if allele_rsids & result.involved_rsids:
+            continue
+
+        plausible_sets = [
+            [
+                indeterminate_allele if i == slot else allele
+                for i, allele in enumerate(called_alleles)
+            ]
+            for slot in reference_slots
+        ]
+        if len(reference_slots) == len(called_alleles):
+            plausible_sets.append([indeterminate_allele] * len(called_alleles))
+
+        for plausible in plausible_sets:
+            plausible_diplotype = _canonical_diplotype(plausible[0], plausible[1])
+            if plausible_diplotype == result.diplotype:
+                continue
+            diplo_data = _fetch_diplotype_phenotype(
+                result.gene, plausible_diplotype, reference_engine
+            )
+            if diplo_data is None:
+                continue
+            guidelines = _fetch_guidelines_for_gene_phenotype(
+                result.gene,
+                diplo_data["phenotype"],
+                reference_engine,
+                activity_score=diplo_data["activity_score"],
+            )
+            for guideline in guidelines:
+                if (
+                    guideline["drug"] == drug
+                    and guideline["recommendation"] != called_recommendation
+                ):
+                    return True
+    return False
 
 
 def _assess_call_confidence(
@@ -1477,6 +1574,27 @@ def generate_prescribing_alerts(
             continue
 
         for guideline in guidelines:
+            # #2169: an untyped defining marker can leave the plausible genotypes
+            # spanning opposite shipped recommendations (CYP3A5/tacrolimus: increase
+            # the starting dose for an expresser, keep label dosing for a
+            # non-expresser). Emitting either would assert a genotype that was never
+            # typed, and for a narrow-therapeutic-index drug both errors are real, so
+            # withhold this gene-drug pair instead of guessing a direction.
+            if result.gene in WITHHOLD_CROSS_DIRECTION_GENES and (
+                _untyped_marker_spans_conflicting_recommendations(
+                    result, guideline["drug"], guideline["recommendation"], reference_engine
+                )
+            ):
+                logger.info(
+                    "pgx_alert_withheld_undetermined_direction",
+                    gene=result.gene,
+                    drug=guideline["drug"],
+                    diplotype=result.diplotype,
+                    indeterminate_alleles=result.indeterminate_alleles,
+                    confidence_note=result.confidence_note,
+                )
+                continue
+
             evidence_level = assign_cpic_evidence_level(guideline["classification"])
 
             alert = PrescribingAlert(
