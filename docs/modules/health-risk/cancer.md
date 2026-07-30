@@ -80,5 +80,5 @@ contralateral breast cancer for BRCA1 and BRCA2 mutation carriers](https://doi.o
 
 [2] Mavaddat N, et al. [Prediction of breast cancer risk based on profiling with common
 genetic variants](https://doi.org/10.1093/jnci/djv036). *Journal of the National Cancer
-Institute*. 2015;107(5):djv036. [PMID 25855707](https://pubmed.ncbi.nlm.nih.gov/25855707/)
+Institute*. 2015;107(5):djv036. [PMID:25855707](https://pubmed.ncbi.nlm.nih.gov/25855707/)
 (accessed 2026-07-30).
