@@ -5,17 +5,20 @@
  * PRS-primary indicator, and contextual description.
  */
 
-import { cn } from "@/lib/utils"
-import type { PathwaySummary } from "@/types/traits"
-import { PATHWAY_LEVEL_CONFIG as LEVEL_CONFIG } from "@/lib/pathwayLevel"
-import { pathwayCoverageCaveat, pathwayLevelDisplayLabel } from "@/lib/pathwayCoverage"
-import EvidenceStars from "@/components/ui/EvidenceStars"
-import { ChevronRight, FlaskConical, HelpCircle, Info } from "lucide-react"
+import { cn } from "@/lib/utils";
+import type { PathwaySummary } from "@/types/traits";
+import { PATHWAY_LEVEL_CONFIG as LEVEL_CONFIG } from "@/lib/pathwayLevel";
+import {
+  pathwayCoverageCaveat,
+  pathwayLevelDisplayLabel,
+} from "@/lib/pathwayCoverage";
+import EvidenceStars from "@/components/ui/EvidenceStars";
+import { ChevronRight, FlaskConical, HelpCircle, Info } from "lucide-react";
 
 interface PathwayCardProps {
-  pathway: PathwaySummary
-  onClick: () => void
-  selected?: boolean
+  pathway: PathwaySummary;
+  onClick: () => void;
+  selected?: boolean;
 }
 
 const PATHWAY_DESCRIPTIONS: Record<string, string> = {
@@ -25,14 +28,28 @@ const PATHWAY_DESCRIPTIONS: Record<string, string> = {
     "Cognitive ability and educational attainment associations.",
   behavioral_traits:
     "Risk tolerance, novelty seeking, and behavioral tendency associations.",
-}
+};
 
-export default function PathwayCard({ pathway, onClick, selected }: PathwayCardProps) {
-  const config = LEVEL_CONFIG[pathway.level] || LEVEL_CONFIG.Standard
-  const description = PATHWAY_DESCRIPTIONS[pathway.pathway_id] || ""
-  const levelLabel = pathwayLevelDisplayLabel(pathway, config.label)
-  const coverageCaveat = pathwayCoverageCaveat(pathway)
-  const indeterminateCount = pathway.indeterminate_snps?.length ?? 0
+export default function PathwayCard({
+  pathway,
+  onClick,
+  selected,
+}: PathwayCardProps) {
+  const config = LEVEL_CONFIG[pathway.level] || LEVEL_CONFIG.Standard;
+  const description = PATHWAY_DESCRIPTIONS[pathway.pathway_id] || "";
+  const levelLabel = pathwayLevelDisplayLabel(pathway, config.label);
+  const coverageCaveat = pathwayCoverageCaveat(pathway);
+  const indeterminateCount = pathway.indeterminate_snps?.length ?? 0;
+  // The explicit aria-label overrides descendant text, so the visible
+  // indeterminate caveat would otherwise never reach screen-reader users — the
+  // card would announce only "<name> — Standard", i.e. the clean negative this
+  // issue is about (#2178).
+  const accessibleName =
+    indeterminateCount > 0
+      ? `${pathway.pathway_name} — ${levelLabel}; ${indeterminateCount} variant${
+          indeterminateCount === 1 ? "" : "s"
+        } observed but not interpreted`
+      : `${pathway.pathway_name} — ${levelLabel}`;
 
   return (
     <button
@@ -45,12 +62,14 @@ export default function PathwayCard({ pathway, onClick, selected }: PathwayCardP
         selected && "ring-2 ring-primary",
       )}
       onClick={onClick}
-      aria-label={`${pathway.pathway_name} — ${levelLabel}`}
+      aria-label={accessibleName}
       data-selected={selected || undefined}
     >
       {/* Header: pathway name + level badge */}
       <div className="flex items-start justify-between gap-2 mb-2">
-        <h3 className="font-semibold text-foreground">{pathway.pathway_name}</h3>
+        <h3 className="font-semibold text-foreground">
+          {pathway.pathway_name}
+        </h3>
         <span
           className={cn(
             "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap",
@@ -88,8 +107,8 @@ export default function PathwayCard({ pathway, onClick, selected }: PathwayCardP
         >
           <HelpCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           <span>
-            {indeterminateCount} variant{indeterminateCount === 1 ? "" : "s"} observed but
-            not interpreted — see details
+            {indeterminateCount} variant{indeterminateCount === 1 ? "" : "s"}{" "}
+            observed but not interpreted — see details
           </span>
         </p>
       )}
@@ -102,7 +121,10 @@ export default function PathwayCard({ pathway, onClick, selected }: PathwayCardP
       {/* PRS-primary indicator */}
       {pathway.prs_primary && (
         <div className="flex items-center gap-1.5 mb-3">
-          <FlaskConical className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" aria-hidden="true" />
+          <FlaskConical
+            className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400"
+            aria-hidden="true"
+          />
           <span className="text-xs text-violet-700 dark:text-violet-400 font-medium">
             PRS-primary pathway
           </span>
@@ -117,8 +139,11 @@ export default function PathwayCard({ pathway, onClick, selected }: PathwayCardP
             {pathway.called_snps}/{pathway.total_snps} SNPs called
           </span>
         </div>
-        <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" aria-hidden="true" />
+        <ChevronRight
+          className="h-4 w-4 text-muted-foreground shrink-0"
+          aria-hidden="true"
+        />
       </div>
     </button>
-  )
+  );
 }
