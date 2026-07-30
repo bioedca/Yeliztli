@@ -1,13 +1,13 @@
 /** Tests for the Traits & Personality UI (P3-64, T3-70). */
 
-import { describe, it, expect, vi, beforeEach } from "vitest"
-import { render, screen } from "./test-utils"
-import userEvent from "@testing-library/user-event"
-import PathwayCard from "@/components/traits/PathwayCard"
-import TraitsPRSGaugeCard from "@/components/traits/TraitsPRSGaugeCard"
-import BigFiveRadarChart from "@/components/traits/BigFiveRadarChart"
-import type { PathwaySummary, TraitsPRS, SNPDetail } from "@/types/traits"
-import { PRS_PROV_DEFAULTS } from "./fixtures/prs"
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen } from "./test-utils";
+import userEvent from "@testing-library/user-event";
+import PathwayCard from "@/components/traits/PathwayCard";
+import TraitsPRSGaugeCard from "@/components/traits/TraitsPRSGaugeCard";
+import BigFiveRadarChart from "@/components/traits/BigFiveRadarChart";
+import type { PathwaySummary, TraitsPRS, SNPDetail } from "@/types/traits";
+import { PRS_PROV_DEFAULTS } from "./fixtures/prs";
 
 // ── Fixtures ──────────────────────────────────────────────────────────
 
@@ -21,7 +21,7 @@ const PERSONALITY_PATHWAY: PathwaySummary = {
   total_snps: 5,
   missing_snps: [],
   pmids: ["29942086"],
-}
+};
 
 const COGNITIVE_PATHWAY: PathwaySummary = {
   pathway_id: "cognitive_traits",
@@ -33,7 +33,7 @@ const COGNITIVE_PATHWAY: PathwaySummary = {
   total_snps: 15,
   missing_snps: ["rs123", "rs456", "rs789"],
   pmids: ["29942086", "25201988"],
-}
+};
 
 const BEHAVIORAL_PATHWAY: PathwaySummary = {
   pathway_id: "behavioral_traits",
@@ -45,7 +45,7 @@ const BEHAVIORAL_PATHWAY: PathwaySummary = {
   total_snps: 4,
   missing_snps: ["rs747302"],
   pmids: [],
-}
+};
 
 const SUFFICIENT_PRS: TraitsPRS = {
   trait: "educational_attainment",
@@ -66,7 +66,7 @@ const SUFFICIENT_PRS: TraitsPRS = {
   research_use_only: true,
   evidence_level: 2,
   ...PRS_PROV_DEFAULTS,
-}
+};
 
 const INSUFFICIENT_PRS: TraitsPRS = {
   trait: "cognitive_ability",
@@ -87,7 +87,7 @@ const INSUFFICIENT_PRS: TraitsPRS = {
   research_use_only: true,
   evidence_level: 2,
   ...PRS_PROV_DEFAULTS,
-}
+};
 
 const UNCALIBRATED_PRS: TraitsPRS = {
   trait: "educational_attainment",
@@ -108,7 +108,7 @@ const UNCALIBRATED_PRS: TraitsPRS = {
   research_use_only: true,
   evidence_level: 2,
   ...PRS_PROV_DEFAULTS,
-}
+};
 
 const MISMATCH_PRS: TraitsPRS = {
   trait: "educational_attainment",
@@ -123,13 +123,14 @@ const MISMATCH_PRS: TraitsPRS = {
   snps_total: 100,
   coverage_fraction: 0.9,
   ancestry_mismatch: true,
-  ancestry_warning_text: "PRS weights derived from EUR populations — results may not generalize to other ancestries.",
+  ancestry_warning_text:
+    "PRS weights derived from EUR populations — results may not generalize to other ancestries.",
   is_sufficient: true,
   calibrated: true,
   research_use_only: true,
   evidence_level: 2,
   ...PRS_PROV_DEFAULTS,
-}
+};
 
 const BIG_FIVE_SNPS: SNPDetail[] = [
   {
@@ -174,254 +175,351 @@ const BIG_FIVE_SNPS: SNPDetail[] = [
     coverage_note: null,
     cross_module: null,
   },
-]
+];
 
 // ── PathwayCard tests ─────────────────────────────────────────────────
 
 describe("PathwayCard", () => {
-  const onClick = vi.fn()
+  const onClick = vi.fn();
 
   beforeEach(() => {
-    onClick.mockClear()
-  })
+    onClick.mockClear();
+  });
 
   it("renders pathway name", () => {
-    render(<PathwayCard pathway={PERSONALITY_PATHWAY} onClick={onClick} />)
-    expect(screen.getByText("Big Five Personality")).toBeInTheDocument()
-  })
+    render(<PathwayCard pathway={PERSONALITY_PATHWAY} onClick={onClick} />);
+    expect(screen.getByText("Big Five Personality")).toBeInTheDocument();
+  });
 
   it("shows Moderate badge for Moderate level", () => {
-    render(<PathwayCard pathway={PERSONALITY_PATHWAY} onClick={onClick} />)
-    expect(screen.getByText("Moderate")).toBeInTheDocument()
-  })
+    render(<PathwayCard pathway={PERSONALITY_PATHWAY} onClick={onClick} />);
+    expect(screen.getByText("Moderate")).toBeInTheDocument();
+  });
 
   it("shows Elevated badge for Elevated level", () => {
-    render(<PathwayCard pathway={COGNITIVE_PATHWAY} onClick={onClick} />)
-    expect(screen.getByText("Elevated")).toBeInTheDocument()
-  })
+    render(<PathwayCard pathway={COGNITIVE_PATHWAY} onClick={onClick} />);
+    expect(screen.getByText("Elevated")).toBeInTheDocument();
+  });
 
   it("qualifies Standard badge when SNP coverage is incomplete", () => {
-    render(<PathwayCard pathway={BEHAVIORAL_PATHWAY} onClick={onClick} />)
-    expect(screen.getByText("Tested Standard")).toBeInTheDocument()
+    render(<PathwayCard pathway={BEHAVIORAL_PATHWAY} onClick={onClick} />);
+    expect(screen.getByText("Tested Standard")).toBeInTheDocument();
     expect(screen.getByTestId("pathway-coverage-caveat")).toHaveTextContent(
       "No variants of concern among tested SNPs; 1 tracked SNP (1 off-chip) not assessed.",
-    )
-  })
+    );
+  });
+
+  it("shows an indeterminate caveat at full coverage (#2178)", () => {
+    const pathway = {
+      ...PERSONALITY_PATHWAY,
+      level: "Standard" as const,
+      called_snps: 2,
+      total_snps: 2,
+      missing_snps: [],
+      indeterminate_snps: ["rs747302"],
+    };
+    render(<PathwayCard pathway={pathway} onClick={onClick} />);
+    expect(
+      screen.getByTestId("pathway-indeterminate-caveat"),
+    ).toHaveTextContent(/1 variant observed but not interpreted/);
+  });
+
+  it("exposes the indeterminate caveat in the accessible name (#2178)", () => {
+    // The button carries an explicit aria-label, which overrides descendant
+    // text — without threading the caveat into it, a screen reader announces
+    // only "<name> — Standard", i.e. the clean negative this issue is about.
+    const pathway = {
+      ...PERSONALITY_PATHWAY,
+      level: "Standard" as const,
+      called_snps: 2,
+      total_snps: 2,
+      missing_snps: [],
+      indeterminate_snps: ["rs747302"],
+    };
+    render(<PathwayCard pathway={pathway} onClick={onClick} />);
+    expect(
+      screen.getByRole("button", {
+        name: /observed but not interpreted/i,
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows Not Assessed when every called SNP is indeterminate (#2178)", () => {
+    // called_snps counts indeterminate calls too, so deriving the label from it
+    // rendered "Standard" at full coverage even though nothing was interpreted.
+    const pathway = {
+      ...PERSONALITY_PATHWAY,
+      level: "Standard" as const,
+      called_snps: 1,
+      total_snps: 1,
+      missing_snps: [],
+      indeterminate_snps: ["rs747302"],
+    };
+    render(<PathwayCard pathway={pathway} onClick={onClick} />);
+    expect(screen.getByText("Not Assessed")).toBeInTheDocument();
+    expect(screen.queryByText("Standard")).toBeNull();
+    expect(screen.queryByTestId("pathway-coverage-caveat")).toBeNull();
+    expect(
+      screen.getByTestId("pathway-indeterminate-caveat"),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps the scored label when some SNPs were interpreted (#2178)", () => {
+    // Discriminating control: a pathway with a real scored call plus an
+    // indeterminate one is still Standard — not "Not Assessed".
+    const pathway = {
+      ...PERSONALITY_PATHWAY,
+      level: "Standard" as const,
+      called_snps: 2,
+      total_snps: 2,
+      missing_snps: [],
+      indeterminate_snps: ["rs747302"],
+    };
+    render(<PathwayCard pathway={pathway} onClick={onClick} />);
+    expect(screen.getByText("Standard")).toBeInTheDocument();
+    expect(screen.queryByText("Not Assessed")).toBeNull();
+    expect(
+      screen.getByTestId("pathway-indeterminate-caveat"),
+    ).toBeInTheDocument();
+  });
+
+  it("leaves the accessible name clean with no indeterminate calls (#2178)", () => {
+    // Discriminating control: the uncertainty phrasing must not be added
+    // unconditionally.
+    const pathway = {
+      ...PERSONALITY_PATHWAY,
+      level: "Standard" as const,
+      called_snps: 2,
+      total_snps: 2,
+      missing_snps: [],
+      indeterminate_snps: [],
+    };
+    render(<PathwayCard pathway={pathway} onClick={onClick} />);
+    expect(screen.queryByTestId("pathway-indeterminate-caveat")).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: /observed but not interpreted/i }),
+    ).toBeNull();
+  });
 
   it("renders evidence stars", () => {
-    render(<PathwayCard pathway={PERSONALITY_PATHWAY} onClick={onClick} />)
-    expect(screen.getByLabelText("2 of 4 stars evidence")).toBeInTheDocument()
-  })
+    render(<PathwayCard pathway={PERSONALITY_PATHWAY} onClick={onClick} />);
+    expect(screen.getByLabelText("2 of 4 stars evidence")).toBeInTheDocument();
+  });
 
   it("renders SNP coverage count", () => {
-    render(<PathwayCard pathway={COGNITIVE_PATHWAY} onClick={onClick} />)
-    expect(screen.getByText("12/15 SNPs called")).toBeInTheDocument()
-  })
+    render(<PathwayCard pathway={COGNITIVE_PATHWAY} onClick={onClick} />);
+    expect(screen.getByText("12/15 SNPs called")).toBeInTheDocument();
+  });
 
   it("shows PRS-primary indicator for PRS-primary pathways", () => {
-    render(<PathwayCard pathway={COGNITIVE_PATHWAY} onClick={onClick} />)
-    expect(screen.getByText("PRS-primary pathway")).toBeInTheDocument()
-  })
+    render(<PathwayCard pathway={COGNITIVE_PATHWAY} onClick={onClick} />);
+    expect(screen.getByText("PRS-primary pathway")).toBeInTheDocument();
+  });
 
   it("does not show PRS-primary indicator for non-PRS pathways", () => {
-    render(<PathwayCard pathway={PERSONALITY_PATHWAY} onClick={onClick} />)
-    expect(screen.queryByText("PRS-primary pathway")).not.toBeInTheDocument()
-  })
+    render(<PathwayCard pathway={PERSONALITY_PATHWAY} onClick={onClick} />);
+    expect(screen.queryByText("PRS-primary pathway")).not.toBeInTheDocument();
+  });
 
   it("calls onClick when clicked", async () => {
-    const user = userEvent.setup()
-    render(<PathwayCard pathway={PERSONALITY_PATHWAY} onClick={onClick} />)
+    const user = userEvent.setup();
+    render(<PathwayCard pathway={PERSONALITY_PATHWAY} onClick={onClick} />);
     await user.click(
       screen.getByRole("button", {
         name: "Big Five Personality — Moderate",
       }),
-    )
-    expect(onClick).toHaveBeenCalledOnce()
-  })
+    );
+    expect(onClick).toHaveBeenCalledOnce();
+  });
 
   it("calls onClick on Enter key", async () => {
-    const user = userEvent.setup()
-    render(<PathwayCard pathway={PERSONALITY_PATHWAY} onClick={onClick} />)
+    const user = userEvent.setup();
+    render(<PathwayCard pathway={PERSONALITY_PATHWAY} onClick={onClick} />);
     const card = screen.getByRole("button", {
       name: "Big Five Personality — Moderate",
-    })
-    card.focus()
-    await user.keyboard("{Enter}")
-    expect(onClick).toHaveBeenCalledOnce()
-  })
+    });
+    card.focus();
+    await user.keyboard("{Enter}");
+    expect(onClick).toHaveBeenCalledOnce();
+  });
 
   it("has accessible role and label", () => {
-    render(<PathwayCard pathway={PERSONALITY_PATHWAY} onClick={onClick} />)
+    render(<PathwayCard pathway={PERSONALITY_PATHWAY} onClick={onClick} />);
     expect(
       screen.getByRole("button", {
         name: "Big Five Personality — Moderate",
       }),
-    ).toBeInTheDocument()
-  })
+    ).toBeInTheDocument();
+  });
 
   it("renders pathway description for personality_big_five", () => {
-    render(<PathwayCard pathway={PERSONALITY_PATHWAY} onClick={onClick} />)
-    expect(
-      screen.getByText(/Big Five personality.*GWAS/),
-    ).toBeInTheDocument()
-  })
+    render(<PathwayCard pathway={PERSONALITY_PATHWAY} onClick={onClick} />);
+    expect(screen.getByText(/Big Five personality.*GWAS/)).toBeInTheDocument();
+  });
 
   it("renders pathway description for cognitive_traits", () => {
-    render(<PathwayCard pathway={COGNITIVE_PATHWAY} onClick={onClick} />)
+    render(<PathwayCard pathway={COGNITIVE_PATHWAY} onClick={onClick} />);
     expect(
       screen.getByText(/Cognitive ability.*educational attainment/),
-    ).toBeInTheDocument()
-  })
+    ).toBeInTheDocument();
+  });
 
   it("renders pathway description for behavioral_traits", () => {
-    render(<PathwayCard pathway={BEHAVIORAL_PATHWAY} onClick={onClick} />)
+    render(<PathwayCard pathway={BEHAVIORAL_PATHWAY} onClick={onClick} />);
     expect(
       screen.getByText(/Risk tolerance.*novelty seeking/),
-    ).toBeInTheDocument()
-  })
+    ).toBeInTheDocument();
+  });
 
   it("shows selected state when selected prop is true", () => {
     render(
       <PathwayCard pathway={PERSONALITY_PATHWAY} onClick={onClick} selected />,
-    )
+    );
     const card = screen.getByRole("button", {
       name: "Big Five Personality — Moderate",
-    })
-    expect(card).toHaveAttribute("data-selected", "true")
-  })
-})
+    });
+    expect(card).toHaveAttribute("data-selected", "true");
+  });
+});
 
 // ── TraitsPRSGaugeCard tests ──────────────────────────────────────────
 
 describe("TraitsPRSGaugeCard", () => {
   it("renders trait name", () => {
-    render(<TraitsPRSGaugeCard prs={SUFFICIENT_PRS} />)
-    expect(screen.getByText("Educational Attainment")).toBeInTheDocument()
-  })
+    render(<TraitsPRSGaugeCard prs={SUFFICIENT_PRS} />);
+    expect(screen.getByText("Educational Attainment")).toBeInTheDocument();
+  });
 
   it("shows Research Use Only banner", () => {
-    render(<TraitsPRSGaugeCard prs={SUFFICIENT_PRS} />)
+    render(<TraitsPRSGaugeCard prs={SUFFICIENT_PRS} />);
     expect(
       screen.getByText(/Research Use Only.*not for clinical/),
-    ).toBeInTheDocument()
-  })
+    ).toBeInTheDocument();
+  });
 
   it("shows percentile for sufficient PRS", () => {
-    render(<TraitsPRSGaugeCard prs={SUFFICIENT_PRS} />)
-    expect(screen.getByText("65")).toBeInTheDocument()
-    expect(screen.getByText("th percentile")).toBeInTheDocument()
-  })
+    render(<TraitsPRSGaugeCard prs={SUFFICIENT_PRS} />);
+    expect(screen.getByText("65")).toBeInTheDocument();
+    expect(screen.getByText("th percentile")).toBeInTheDocument();
+  });
 
   it("does not render legacy PRS CI fields", () => {
-    render(<TraitsPRSGaugeCard prs={SUFFICIENT_PRS} />)
-    expect(screen.getByText("65")).toBeInTheDocument()
-    expect(screen.getByText("th percentile")).toBeInTheDocument()
-    expect(screen.queryByText(/95% CI/)).not.toBeInTheDocument()
-    expect(screen.queryByText(/interval/i)).not.toBeInTheDocument()
-  })
+    render(<TraitsPRSGaugeCard prs={SUFFICIENT_PRS} />);
+    expect(screen.getByText("65")).toBeInTheDocument();
+    expect(screen.getByText("th percentile")).toBeInTheDocument();
+    expect(screen.queryByText(/95% CI/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/interval/i)).not.toBeInTheDocument();
+  });
 
   it("shows insufficient coverage message for insufficient PRS", () => {
-    render(<TraitsPRSGaugeCard prs={INSUFFICIENT_PRS} />)
-    expect(screen.getByText("Insufficient SNP coverage (30%)")).toBeInTheDocument()
-  })
+    render(<TraitsPRSGaugeCard prs={INSUFFICIENT_PRS} />);
+    expect(
+      screen.getByText("Insufficient SNP coverage (30%)"),
+    ).toBeInTheDocument();
+  });
 
   it("shows uncalibrated message when calibrated is false", () => {
-    render(<TraitsPRSGaugeCard prs={UNCALIBRATED_PRS} />)
-    expect(screen.getByTestId("traits-prs-uncalibrated")).toBeInTheDocument()
-    expect(screen.getByText(/reference distribution unavailable/)).toBeInTheDocument()
-  })
+    render(<TraitsPRSGaugeCard prs={UNCALIBRATED_PRS} />);
+    expect(screen.getByTestId("traits-prs-uncalibrated")).toBeInTheDocument();
+    expect(
+      screen.getByText(/reference distribution unavailable/),
+    ).toBeInTheDocument();
+  });
 
   it("shows ancestry mismatch warning when applicable", () => {
-    render(<TraitsPRSGaugeCard prs={MISMATCH_PRS} />)
+    render(<TraitsPRSGaugeCard prs={MISMATCH_PRS} />);
     expect(
       screen.getByText(/PRS weights derived from EUR.*may not generalize/),
-    ).toBeInTheDocument()
-  })
+    ).toBeInTheDocument();
+  });
 
   it("does not show ancestry mismatch warning when no mismatch", () => {
-    render(<TraitsPRSGaugeCard prs={SUFFICIENT_PRS} />)
+    render(<TraitsPRSGaugeCard prs={SUFFICIENT_PRS} />);
     expect(
       screen.queryByTestId("ancestry-mismatch-warning"),
-    ).not.toBeInTheDocument()
-  })
+    ).not.toBeInTheDocument();
+  });
 
   it("shows study source and ancestry", () => {
-    render(<TraitsPRSGaugeCard prs={SUFFICIENT_PRS} />)
-    expect(screen.getByText("Okbay 2022 (EUR)")).toBeInTheDocument()
-  })
+    render(<TraitsPRSGaugeCard prs={SUFFICIENT_PRS} />);
+    expect(screen.getByText("Okbay 2022 (EUR)")).toBeInTheDocument();
+  });
 
   it("shows SNP coverage stats", () => {
-    render(<TraitsPRSGaugeCard prs={SUFFICIENT_PRS} />)
-    expect(screen.getByText("95/100 SNPs (95%)")).toBeInTheDocument()
-  })
+    render(<TraitsPRSGaugeCard prs={SUFFICIENT_PRS} />);
+    expect(screen.getByText("95/100 SNPs (95%)")).toBeInTheDocument();
+  });
 
   it("has accessible aria-label", () => {
-    render(<TraitsPRSGaugeCard prs={SUFFICIENT_PRS} />)
+    render(<TraitsPRSGaugeCard prs={SUFFICIENT_PRS} />);
     expect(
       screen.getByLabelText("Educational Attainment polygenic risk score"),
-    ).toBeInTheDocument()
-  })
+    ).toBeInTheDocument();
+  });
 
   it("renders evidence stars", () => {
-    render(<TraitsPRSGaugeCard prs={SUFFICIENT_PRS} />)
-    expect(screen.getByLabelText("2 of 4 stars evidence")).toBeInTheDocument()
-  })
-})
+    render(<TraitsPRSGaugeCard prs={SUFFICIENT_PRS} />);
+    expect(screen.getByLabelText("2 of 4 stars evidence")).toBeInTheDocument();
+  });
+});
 
 // ── BigFiveRadarChart tests ───────────────────────────────────────────
 
 describe("BigFiveRadarChart", () => {
   it("renders SVG with radar chart role", () => {
-    render(<BigFiveRadarChart snpDetails={BIG_FIVE_SNPS} />)
+    render(<BigFiveRadarChart snpDetails={BIG_FIVE_SNPS} />);
     expect(
       screen.getByRole("img", {
         name: /Big Five personality trait associations/,
       }),
-    ).toBeInTheDocument()
-  })
+    ).toBeInTheDocument();
+  });
 
   it("renders all five dimension labels", () => {
-    render(<BigFiveRadarChart snpDetails={BIG_FIVE_SNPS} />)
-    expect(screen.getByText("Openness")).toBeInTheDocument()
-    expect(screen.getByText("Conscientiousness")).toBeInTheDocument()
-    expect(screen.getByText("Extraversion")).toBeInTheDocument()
-    expect(screen.getByText("Agreeableness")).toBeInTheDocument()
-    expect(screen.getByText("Neuroticism")).toBeInTheDocument()
-  })
+    render(<BigFiveRadarChart snpDetails={BIG_FIVE_SNPS} />);
+    expect(screen.getByText("Openness")).toBeInTheDocument();
+    expect(screen.getByText("Conscientiousness")).toBeInTheDocument();
+    expect(screen.getByText("Extraversion")).toBeInTheDocument();
+    expect(screen.getByText("Agreeableness")).toBeInTheDocument();
+    expect(screen.getByText("Neuroticism")).toBeInTheDocument();
+  });
 
   it("does not plot missing dimensions as measured Standard values", () => {
-    render(<BigFiveRadarChart snpDetails={BIG_FIVE_SNPS} />)
+    render(<BigFiveRadarChart snpDetails={BIG_FIVE_SNPS} />);
     const radar = screen.getByRole("img", {
       name: /3 of 5 dimensions assessed.*Not assessed: Extraversion, Agreeableness/,
-    })
+    });
 
     const measuredStandard = radar.querySelector(
       'circle[data-dimension="conscientiousness"]',
-    )
-    expect(measuredStandard).toBeInTheDocument()
-    expect(measuredStandard).toHaveAttribute("data-assessment-state", "assessed")
+    );
+    expect(measuredStandard).toBeInTheDocument();
+    expect(measuredStandard).toHaveAttribute(
+      "data-assessment-state",
+      "assessed",
+    );
 
     expect(
       radar.querySelector('circle[data-dimension="extraversion"]'),
-    ).not.toBeInTheDocument()
+    ).not.toBeInTheDocument();
     expect(
-      radar.querySelector('polygon[data-big-five-profile]'),
-    ).not.toBeInTheDocument()
+      radar.querySelector("polygon[data-big-five-profile]"),
+    ).not.toBeInTheDocument();
 
     const missingLabel = radar.querySelector(
       'text[data-dimension="extraversion"]',
-    )
+    );
     expect(missingLabel).toHaveAttribute(
       "data-assessment-state",
       "not-assessed",
-    )
-    expect(missingLabel).toHaveTextContent("ExtraversionNot assessed")
+    );
+    expect(missingLabel).toHaveTextContent("ExtraversionNot assessed");
     expect(
       screen.getByText(
         "3 of 5 dimensions assessed. Not assessed: Extraversion, Agreeableness.",
       ),
-    ).toBeInTheDocument()
-  })
+    ).toBeInTheDocument();
+  });
 
   it("renders a complete profile only when all five dimensions are assessed", () => {
     const completeSnps: SNPDetail[] = [
@@ -438,50 +536,52 @@ describe("BigFiveRadarChart", () => {
         trait_domain: "agreeableness",
         category: "Elevated",
       },
-    ]
+    ];
 
-    render(<BigFiveRadarChart snpDetails={completeSnps} />)
+    render(<BigFiveRadarChart snpDetails={completeSnps} />);
     const radar = screen.getByRole("img", {
       name: /5 of 5 dimensions assessed/,
-    })
+    });
     expect(
-      radar.querySelector('polygon[data-big-five-profile]'),
-    ).toBeInTheDocument()
-    expect(
-      radar.querySelectorAll('circle[data-big-five-point]'),
-    ).toHaveLength(5)
-  })
+      radar.querySelector("polygon[data-big-five-profile]"),
+    ).toBeInTheDocument();
+    expect(radar.querySelectorAll("circle[data-big-five-point]")).toHaveLength(
+      5,
+    );
+  });
 
   it("keeps edge dimension labels inside the SVG viewport", () => {
-    render(<BigFiveRadarChart snpDetails={BIG_FIVE_SNPS} />)
+    render(<BigFiveRadarChart snpDetails={BIG_FIVE_SNPS} />);
 
-    const rightLabel = screen.getByText("Conscientiousness")
-    expect(rightLabel).toHaveAttribute("text-anchor", "end")
-    expect(rightLabel).toHaveAttribute("x", "292")
+    const rightLabel = screen.getByText("Conscientiousness");
+    expect(rightLabel).toHaveAttribute("text-anchor", "end");
+    expect(rightLabel).toHaveAttribute("x", "292");
 
-    const leftLabel = screen.getByText("Neuroticism")
-    expect(leftLabel).toHaveAttribute("text-anchor", "start")
-    expect(leftLabel).toHaveAttribute("x", "8")
-  })
+    const leftLabel = screen.getByText("Neuroticism");
+    expect(leftLabel).toHaveAttribute("text-anchor", "start");
+    expect(leftLabel).toHaveAttribute("x", "8");
+  });
 
   it("renders visual-only disclaimer", () => {
-    render(<BigFiveRadarChart snpDetails={BIG_FIVE_SNPS} />)
+    render(<BigFiveRadarChart snpDetails={BIG_FIVE_SNPS} />);
     expect(
       screen.getByText(/Visual representation.*not a personality assessment/),
-    ).toBeInTheDocument()
-  })
+    ).toBeInTheDocument();
+  });
 
   it("renders empty SNP data as entirely not assessed", () => {
-    render(<BigFiveRadarChart snpDetails={[]} />)
+    render(<BigFiveRadarChart snpDetails={[]} />);
     const radar = screen.getByRole("img", {
       name: /0 of 5 dimensions assessed.*Not assessed: Openness, Conscientiousness, Extraversion, Agreeableness, Neuroticism/,
-    })
-    expect(radar.querySelectorAll('circle[data-big-five-point]')).toHaveLength(0)
+    });
+    expect(radar.querySelectorAll("circle[data-big-five-point]")).toHaveLength(
+      0,
+    );
     expect(
-      radar.querySelector('polygon[data-big-five-profile]'),
-    ).not.toBeInTheDocument()
+      radar.querySelector("polygon[data-big-five-profile]"),
+    ).not.toBeInTheDocument();
     expect(
       screen.getByText("0 of 5 dimensions assessed.", { exact: false }),
-    ).toBeInTheDocument()
-  })
-})
+    ).toBeInTheDocument();
+  });
+});

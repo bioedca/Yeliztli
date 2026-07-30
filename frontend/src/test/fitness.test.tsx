@@ -207,7 +207,11 @@ describe("PathwayCard", () => {
       <PathwayCard
         pathway={{
           ...INDETERMINATE_PATHWAY,
-          total_snps: 2,
+          // Two observed SNPs, one of them indeterminate: one SNP really was
+          // interpreted, which is the premise of "based on interpreted SNPs
+          // only". The all-indeterminate case is covered separately below.
+          called_snps: 2,
+          total_snps: 3,
           missing_snps: ["rs1049434"],
         }}
         onClick={onClick}
@@ -220,6 +224,21 @@ describe("PathwayCard", () => {
     expect(screen.getByTestId("pathway-coverage-caveat")).not.toHaveTextContent(
       "No variants of concern among tested SNPs",
     )
+    expect(screen.getByTestId("pathway-indeterminate-caveat")).toBeInTheDocument()
+  })
+
+  it("drops the interpreted-SNPs caveat when nothing was interpreted", () => {
+    // INDETERMINATE_PATHWAY's only observed SNP is indeterminate, so "based on
+    // interpreted SNPs only" would presume an interpreted SNP that does not
+    // exist (#2178). The indeterminate caveat still carries the reason.
+    render(
+      <PathwayCard
+        pathway={{ ...INDETERMINATE_PATHWAY, total_snps: 2, missing_snps: ["rs1049434"] }}
+        onClick={onClick}
+      />,
+    )
+
+    expect(screen.queryByTestId("pathway-coverage-caveat")).not.toBeInTheDocument()
     expect(screen.getByTestId("pathway-indeterminate-caveat")).toBeInTheDocument()
   })
 
@@ -269,11 +288,19 @@ describe("PathwayCard", () => {
     expect(screen.getByTestId("pathway-indeterminate-caveat")).toHaveTextContent(/2 variants\b/)
   })
 
-  it("shows both the Standard badge and the caveat (not just 'no concern')", () => {
+  it("labels an all-indeterminate pathway not assessed, with the caveat", () => {
     // The #270 regression: an all-indeterminate pathway must NOT read as a
-    // confidently-clear Standard. Both the level badge and the caveat appear.
+    // confidently-clear Standard. It used to show a "Standard" badge alongside
+    // the caveat; since #2178 the badge itself says "Not Assessed", because the
+    // pathway's only observed SNP was never interpreted. The report, export and
+    // SVG paths render the same label from the same rule.
     render(<PathwayCard pathway={INDETERMINATE_PATHWAY} onClick={onClick} />)
-    expect(screen.getByText("Standard")).toBeInTheDocument()
+    expect(screen.getByText("Not Assessed")).toBeInTheDocument()
+    expect(screen.queryByText("Standard")).not.toBeInTheDocument()
     expect(screen.getByTestId("pathway-indeterminate-caveat")).toBeInTheDocument()
+    // The accessible name must carry it too -- aria-label overrides descendants.
+    expect(
+      screen.getByRole("button", { name: /Training Response — Not Assessed/ }),
+    ).toBeInTheDocument()
   })
 })

@@ -36,6 +36,12 @@ export interface PathwaySummary {
   missing_snps: string[]
   /** Subset of missing_snps that were on-array no-calls. Optional for older cached responses. */
   no_call_snps?: string[]
+  /**
+   * Called SNPs observed but withheld from interpretation (e.g. a strand-unresolved
+   * palindromic homozygote). A Standard pathway holding one of these is NOT a clean
+   * negative. Optional for older cached responses.
+   */
+  indeterminate_snps?: string[]
   pmids: string[]
 }
 
@@ -71,6 +77,12 @@ export interface PathwayDetailResponse {
   missing_snps: string[]
   /** Subset of missing_snps that were on-array no-calls. Optional for older cached responses. */
   no_call_snps?: string[]
+  /**
+   * Called SNPs observed but withheld from interpretation (e.g. a strand-unresolved
+   * palindromic homozygote). A Standard pathway holding one of these is NOT a clean
+   * negative. Optional for older cached responses.
+   */
+  indeterminate_snps?: string[]
   pmids: string[]
   snp_details: SNPDetail[]
 }

@@ -681,10 +681,19 @@ def store_fitness_findings(
             # Keep the summary cause-neutral; per-SNP details carry the reason.
             n = len(indeterminate)
             noun = "variant" if n == 1 else "variants"
-            finding_text = (
-                f"{pr.pathway_name} — Standard for scored variants; {n} {noun} "
-                f"observed but not interpreted (indeterminate) — see SNP details"
-            )
+            if called_count - n <= 0:
+                # Nothing was scored at all, so even "Standard for scored
+                # variants" overstates it — the card and report both read
+                # "Not Assessed" here, and the summary must agree (#2178).
+                finding_text = (
+                    f"{pr.pathway_name} — not assessed: {n} {noun} observed but not "
+                    f"interpreted (indeterminate), no variant scored — see SNP details"
+                )
+            else:
+                finding_text = (
+                    f"{pr.pathway_name} — Standard for scored variants; {n} {noun} "
+                    f"observed but not interpreted (indeterminate) — see SNP details"
+                )
             if pr.missing_snps:
                 finding_text += f"; {format_not_assessed(pr.missing_snps)} not assessed"
         else:
