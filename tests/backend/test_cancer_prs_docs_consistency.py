@@ -31,6 +31,15 @@ _BREAST_PRS_NOTE_RE = re.compile(
     r"(?P<body>(?: {4}.*(?:\n|$))+)",
     re.IGNORECASE | re.MULTILINE,
 )
+_REFERENCE_ENTRY_RE = re.compile(
+    r"^\[(?P<number>[1-9][0-9]*)\]\s+(?P<body>.*?)(?=^\[[1-9][0-9]*\]\s+|\Z)",
+    re.DOTALL | re.MULTILINE,
+)
+_PROVENANCE_ID_RE = re.compile(
+    r"\b(?:PMID|DOI|ChEMBL|NCT):[A-Z0-9][A-Z0-9./_-]*",
+    re.IGNORECASE,
+)
+_ACCESS_DATE_RE = re.compile(r"\(accessed [0-9]{4}-[0-9]{2}-[0-9]{2}\)", re.IGNORECASE)
 
 
 def _weight_sets() -> list[dict[str, object]]:
@@ -57,6 +66,19 @@ def _breast_prs_note(doc_text: str) -> str:
     match = _BREAST_PRS_NOTE_RE.search(doc_text)
     assert match, "cancer.md must retain the breast-cancer PRS availability note"
     return " ".join(match.group("body").lower().split())
+
+
+def _reference_entry(doc_text: str, number: int) -> str:
+    match = next(
+        (
+            candidate
+            for candidate in _REFERENCE_ENTRY_RE.finditer(doc_text)
+            if int(candidate.group("number")) == number
+        ),
+        None,
+    )
+    assert match, f"cancer.md must retain reference [{number}]"
+    return " ".join(match.group("body").split())
 
 
 def test_advertised_traits_reject_unknown_labels() -> None:
@@ -86,7 +108,8 @@ def test_cancer_docs_distinguish_the_runtime_block_from_ancestry_withholding() -
     assert breast["model_status"] == "source_verified_runtime_blocked"
     assert breast["scoring_enabled"] is False
 
-    note_text = _breast_prs_note(_DOC_PATH.read_text(encoding="utf-8"))
+    doc_text = _DOC_PATH.read_text(encoding="utf-8")
+    note_text = _breast_prs_note(doc_text)
     required_phrases = {
         "source-verified breast-cancer prs77",
         "not scored or reported",
@@ -98,4 +121,13 @@ def test_cancer_docs_distinguish_the_runtime_block_from_ancestry_withholding() -
     assert not missing, (
         "cancer.md must explain the disabled breast PRS77 and distinguish its "
         f"runtime block from ancestry withholding; missing phrases: {missing}"
+    )
+
+    assert "[2]" in note_text, "breast PRS note must link to its scientific reference"
+    reference_text = _reference_entry(doc_text, 2)
+    assert _PROVENANCE_ID_RE.search(reference_text), (
+        "breast PRS reference must include a PMID:, DOI:, ChEMBL:, or NCT: identifier"
+    )
+    assert _ACCESS_DATE_RE.search(reference_text), (
+        "breast PRS reference must include an '(accessed YYYY-MM-DD)' date"
     )
