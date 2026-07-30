@@ -52,13 +52,15 @@ surfaces the relevant CPIC prescribing guidance.
   drugs. For *UGT1A1*, a normal `*1/*1` call does **not** rule out reduced *UGT1A1* activity
   from untyped `*28`, which matters for irinotecan and atazanavir prescribing
   context.[^ugt1a1-irinotecan][^ugt1a1-atazanavir]
-- **An untyped position can flip the direction of a *CYP3A5* result.** Tacrolimus guidance
-  turns on whether you express the enzyme, and the no-function alleles — chiefly `*3`
-  (`rs776746`) — are what decide that.[^cyp3a5-expression] When one of those positions is not
-  typed, a non-expresser genotype such as `*3/*3` cannot be ruled out, so the report shows the
-  cautious non-expresser reading (`possible *3/*3`, label-recommended dosing) instead of the
-  expresser starting-dose increase, and labels it a conservative partial
-  call.[^cpic-cyp3a5-tacrolimus]
+- **An untyped position can leave a *CYP3A5* drug recommendation undetermined.** Tacrolimus
+  guidance turns on whether you express the enzyme, and the no-function alleles — chiefly `*3`
+  (`rs776746`) — are what decide that.[^cyp3a5-expression] CPIC gives a starting dose *by
+  genotype, when the genotype is known*: an increase for expressers, label-recommended dosing
+  for non-expressers.[^cpic-cyp3a5-tacrolimus] If one of those positions is not typed, both
+  groups stay possible, and they point in **opposite** directions — so no tacrolimus
+  recommendation is shown at all, rather than guessing one. The gene still appears with its
+  *Partial* call and the untyped allele listed as indeterminate. Direct *CYP3A5* typing is what
+  resolves it.
 - Some diplotypes are inferred from unphased data and carry phase ambiguity.
 
 !!! danger "Never change a medication based on this"

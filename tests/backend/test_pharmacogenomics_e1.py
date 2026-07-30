@@ -559,7 +559,7 @@ def test_cyp3a5_true_star7_homozygous_is_poor_metabolizer_with_alert(
     assert tac[0].phenotype == "Poor Metabolizer"
 
 
-# ── CYP3A5 untyped *3 (rs776746) — expresser status not established (#2169) ───
+# ── CYP3A5 untyped *3 (rs776746) — dosing direction not established (#2169) ───
 
 _CYP3A5_DOSE_INCREASE = "Increase starting dose"
 _CYP3A5_LABEL_DOSING = "Use label-recommended dosing"
@@ -574,30 +574,37 @@ _CYP3A5_LABEL_DOSING = "Use label-recommended dosing"
         ("no_call", _cyp3a5_genotypes(rs776746="--")),
     ],
 )
-def test_cyp3a5_untyped_star3_withholds_expresser_dose_increase(
+def test_cyp3a5_untyped_star3_withholds_the_tacrolimus_recommendation(
     case: str,
     genotypes: dict[str, str],
     reference_engine: sa.Engine,
 ) -> None:
-    """#2169: rs776746 (*3) is the principal CYP3A5 expresser/non-expresser marker.
+    """#2169: an untyped rs776746 leaves CYP3A5 dosing *direction* undetermined.
 
-    When it is untyped the caller still reference-fills both chromosomes to
-    ``*1/*1``. Two independent sources fix the clinical direction: CPIC's
-    tacrolimus recommendations are keyed to the CYP3A5 genotype *when known*
-    (Birdwell et al., 2015; PMID:25801146, DOI:10.1002/cpt.113, accessed
-    2026-07-30), and the primary functional characterisation shows ``*3``/``*6``
-    abolish CYP3A5 expression so only ``*1`` carriers express the enzyme (Kuehl
-    et al., 2001; PMID:11279519, DOI:10.1038/86882, accessed 2026-07-30).
+    The caller reference-fills both chromosomes to ``*1/*1``, which used to emit
+    CPIC's expresser recommendation to increase the tacrolimus starting dose by
+    1.5-2x -- the most aggressive shipped row -- for a sample whose ``*3`` status
+    was never typed.
 
-    An untyped rs776746 leaves *both* chromosomes unconstrained, so a ``*3/*3``
-    non-expresser is not excluded, and the active recommendation must therefore
-    not be the expresser starting-dose increase.
+    CPIC supplies tacrolimus dosing by CYP3A5 genotype *when known*: increase for
+    expressers, label-recommended dosing for non-expressers (Birdwell et al.,
+    2015; PMID:25801146, DOI:10.1002/cpt.113, accessed 2026-07-30). The ``*3``
+    and ``*6`` SNPs abolish CYP3A5 expression, so only a ``*1`` carrier expresses
+    the enzyme (Kuehl et al., 2001; PMID:11279519, DOI:10.1038/86882, accessed
+    2026-07-30).
+
+    An unassayed marker constrains neither chromosome, so ``*1/*1``, ``*1/*3``
+    and ``*3/*3`` all remain admissible and they span *opposite* recommendations.
+    Tacrolimus has a narrow therapeutic index, so guessing either way is a real
+    error -- overexposing a true non-expresser, or underexposing a true expresser
+    -- and no source establishes a default for an unknown genotype. The alert is
+    therefore withheld rather than swapped for the other direction.
     """
     sample = _make_sample(genotypes)
     results = call_all_star_alleles(reference_engine, sample, genes=frozenset({"CYP3A5"}))
     cyp3a5 = next(r for r in results if r.gene == "CYP3A5")
 
-    # The direct call is unchanged: still the reference-filled *1/*1 at Partial.
+    # The gene result is unchanged and still records what was and was not seen.
     assert cyp3a5.diplotype == "*1/*1", case
     assert cyp3a5.phenotype == "Normal Metabolizer", case
     assert cyp3a5.call_confidence == CallConfidence.PARTIAL, case
@@ -605,47 +612,31 @@ def test_cyp3a5_untyped_star3_withholds_expresser_dose_increase(
 
     alerts = generate_prescribing_alerts(results, reference_engine)
     tac = [a for a in alerts if a.gene == "CYP3A5" and a.drug == "tacrolimus"]
-    assert len(tac) == 1, case
-    alert = tac[0]
+    assert tac == [], case
 
-    # The plausible *3/*3 non-expresser drives the alert, so the shipped
-    # expresser dose increase is not presented as the active recommendation.
-    assert alert.conservative_alert is True, case
-    assert alert.conservative_diplotype == "*3/*3", case
-    assert alert.conservative_allele == "*3", case
-    assert alert.phenotype == "Poor Metabolizer", case
-    assert _CYP3A5_DOSE_INCREASE not in alert.recommendation, case
-    assert _CYP3A5_LABEL_DOSING in alert.recommendation, case
-    # The directly called milder phenotype stays visible as provenance.
-    assert alert.called_phenotype == "Normal Metabolizer", case
-    assert "*3" in alert.confidence_note and "*3/*3" in alert.confidence_note, case
-
-    assert store_prescribing_alerts(alerts, sample) == 1
+    # Nothing is persisted either, so no genotype-directed dose reaches the user.
+    assert store_prescribing_alerts(alerts, sample) == 0, case
     with sample.connect() as conn:
         rows = conn.execute(
-            sa.select(findings.c.finding_text, findings.c.metabolizer_status).where(
+            sa.select(findings.c.finding_text).where(
                 sa.and_(
                     findings.c.module == "pharmacogenomics",
-                    findings.c.category == "prescribing_alert",
                     findings.c.gene_symbol == "CYP3A5",
                 )
             )
         ).fetchall()
-    assert len(rows) == 1, case
-    assert _CYP3A5_DOSE_INCREASE not in rows[0].finding_text, case
-    assert "possible *3/*3" in rows[0].finding_text, case
-    assert rows[0].metabolizer_status == "Poor Metabolizer", case
+    assert rows == [], case
 
 
 def test_cyp3a5_typed_reference_star3_keeps_expresser_dose_increase(
     reference_engine: sa.Engine,
 ) -> None:
     """#2169 negative control: a genuine hom-ref non-carrier at all three CYP3A5
-    defining positions establishes expresser status, so the CPIC dose increase
-    must still be the active recommendation.
+    defining positions *establishes* expresser status, so CPIC's dose increase
+    must still be emitted.
 
-    This is the discriminating half of the pair above — a blanket suppression of
-    the CYP3A5 tacrolimus increase would pass that test and fail this one.
+    This is the discriminating half of the pair above -- blanket-suppressing the
+    CYP3A5 tacrolimus alert would satisfy that test and fail this one.
     """
     sample = _make_sample(_cyp3a5_genotypes())
     results = call_all_star_alleles(reference_engine, sample, genes=frozenset({"CYP3A5"}))
@@ -657,19 +648,58 @@ def test_cyp3a5_typed_reference_star3_keeps_expresser_dose_increase(
     alerts = generate_prescribing_alerts(results, reference_engine)
     tac = [a for a in alerts if a.gene == "CYP3A5" and a.drug == "tacrolimus"]
     assert len(tac) == 1
-    assert tac[0].conservative_alert is False
     assert tac[0].phenotype == "Normal Metabolizer"
     assert _CYP3A5_DOSE_INCREASE in tac[0].recommendation
 
 
-def test_cyp3a5_untyped_star6_only_still_withholds_dose_increase(
+@pytest.mark.parametrize(
+    ("case", "genotypes", "diplotype", "phenotype", "fragment"),
+    [
+        (
+            "hom_star3",
+            _cyp3a5_genotypes(rs776746="CC"),
+            "*3/*3",
+            "Poor Metabolizer",
+            _CYP3A5_LABEL_DOSING,
+        ),
+        (
+            "het_star3",
+            _cyp3a5_genotypes(rs776746="TC"),
+            "*1/*3",
+            "Intermediate Metabolizer",
+            _CYP3A5_DOSE_INCREASE,
+        ),
+    ],
+)
+def test_cyp3a5_typed_star3_genotypes_keep_their_cpic_recommendation(
+    case: str,
+    genotypes: dict[str, str],
+    diplotype: str,
+    phenotype: str,
+    fragment: str,
     reference_engine: sa.Engine,
 ) -> None:
-    """#2169: the rule is expresser status, not one specific marker.
+    """#2169: withholding applies only to the *untyped* case. A genotype that was
+    actually typed keeps its own CPIC row, in either direction."""
+    sample = _make_sample(genotypes)
+    results = call_all_star_alleles(reference_engine, sample, genes=frozenset({"CYP3A5"}))
+    cyp3a5 = next(r for r in results if r.gene == "CYP3A5")
+    assert cyp3a5.diplotype == diplotype, case
+    assert cyp3a5.call_confidence == CallConfidence.COMPLETE, case
+
+    alerts = generate_prescribing_alerts(results, reference_engine)
+    tac = [a for a in alerts if a.gene == "CYP3A5" and a.drug == "tacrolimus"]
+    assert len(tac) == 1, case
+    assert tac[0].phenotype == phenotype, case
+    assert fragment in tac[0].recommendation, case
+
+
+def test_cyp3a5_untyped_star6_also_withholds(reference_engine: sa.Engine) -> None:
+    """#2169: the rule is the *direction spread*, not one specific marker.
 
     With rs776746 typed reference but rs10264272 (*6, a no-function allele)
-    untyped, a ``*6/*6`` non-expresser is still not excluded, so the expresser
-    dose increase must not be the active recommendation.
+    untyped, ``*1/*6`` and ``*6/*6`` stay admissible and span a different
+    recommendation from the direct ``*1/*1`` call, so the alert is withheld too.
     """
     genotypes = {k: v * 2 for k, v in _CYP3A5.items() if k != "rs10264272"}
     sample = _make_sample(genotypes)
@@ -679,12 +709,26 @@ def test_cyp3a5_untyped_star6_only_still_withholds_dose_increase(
     assert "*6" in cyp3a5.indeterminate_alleles
 
     alerts = generate_prescribing_alerts(results, reference_engine)
-    tac = [a for a in alerts if a.gene == "CYP3A5" and a.drug == "tacrolimus"]
-    assert len(tac) == 1
-    assert tac[0].conservative_alert is True
-    assert tac[0].conservative_diplotype == "*6/*6"
-    assert tac[0].phenotype == "Poor Metabolizer"
-    assert _CYP3A5_DOSE_INCREASE not in tac[0].recommendation
+    assert [a for a in alerts if a.gene == "CYP3A5" and a.drug == "tacrolimus"] == []
+
+
+def test_cyp2c9_conservative_policy_is_unchanged_by_cyp3a5_withholding(
+    reference_engine: sa.Engine,
+) -> None:
+    """#2169 blast-radius guard: withholding is scoped to CYP3A5.
+
+    CYP2C9 keeps the reviewed conservative substitution from #1081/#1413 — its
+    untyped-marker alerts are still *emitted*, not withheld — so this change
+    cannot silently drop another gene's prescribing advice.
+    """
+    from backend.analysis.pharmacogenomics import (
+        CONSERVATIVE_UNTYPED_PHENOTYPE_GENES,
+        WITHHOLD_CROSS_DIRECTION_GENES,
+    )
+
+    assert WITHHOLD_CROSS_DIRECTION_GENES == frozenset({"CYP3A5"})
+    assert "CYP3A5" not in CONSERVATIVE_UNTYPED_PHENOTYPE_GENES
+    assert {"CYP2B6", "CYP2C9", "UGT1A1"} <= CONSERVATIVE_UNTYPED_PHENOTYPE_GENES
 
 
 # ── PharmVar versioning ───────────────────────────────────────────────────────

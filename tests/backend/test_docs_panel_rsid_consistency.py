@@ -36,6 +36,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 _PANELS_DIR = REPO_ROOT / "backend" / "data" / "panels"
+_CPIC_ALLELES_CSV = REPO_ROOT / "backend" / "data" / "cpic" / "cpic_alleles.csv"
 _DOCS_DIR = REPO_ROOT / "docs" / "modules"
 
 _RSID_RE = re.compile(r"rs\d+")
@@ -70,14 +71,6 @@ _DOC_NON_LOCUS_ALLOWLIST: dict[str, dict[str, str]] = {
             "locus (true BChE deficiency is confirmed by enzyme-activity assay)."
         ),
     },
-    "pharmacogenomics.md": {
-        "rs776746": (
-            "CYP3A5*3 defining variant (#2169). It IS scored — by the CPIC "
-            "star-allele caller, from backend/data/cpic/cpic_alleles.csv — but the "
-            "CPIC tables are not a panel JSON, so the panel universe this guard "
-            "checks legitimately never contains it."
-        ),
-    },
 }
 
 
@@ -91,11 +84,23 @@ def _panel_rsids(panel_filename: str) -> set[str]:
     return set(_RSID_RE.findall((_PANELS_DIR / panel_filename).read_text(encoding="utf-8")))
 
 
+def _cpic_allele_rsids() -> set[str]:
+    """Star-allele defining rsIDs the CPIC caller scores (#2169).
+
+    These are genuinely scored markers -- ``call_star_alleles_for_gene`` reads
+    them straight out of this CSV -- they just are not panel loci. Folding them
+    into the scored universe keeps the guard *discriminating*: if a marker is
+    later dropped or renamed in the CPIC tables, a page still citing it fails
+    here, which an allowlist entry would have silently masked.
+    """
+    return set(_RSID_RE.findall(_CPIC_ALLELES_CSV.read_text(encoding="utf-8")))
+
+
 def _all_panel_rsids() -> set[str]:
     rsids: set[str] = set()
     for panel in _PANELS_DIR.glob("*.json"):
         rsids |= set(_RSID_RE.findall(panel.read_text(encoding="utf-8")))
-    return rsids
+    return rsids | _cpic_allele_rsids()
 
 
 def _docs_citing_rsids() -> list[Path]:
@@ -136,6 +141,31 @@ def test_every_doc_rsid_is_scored_or_allowlisted() -> None:
         + json.dumps(offenders)
         + ". Fix the page, or add the rsID to _DOC_NON_LOCUS_ALLOWLIST with a justification."
     )
+
+
+def test_cpic_allele_universe_is_load_bearing() -> None:
+    """The CPIC fold-in must not silently become a no-op (#2169).
+
+    Star-allele markers are scored but are not panel loci, so they are admitted
+    via ``_cpic_allele_rsids``. If that source were emptied, renamed, or dropped,
+    the union check would quietly start rejecting every CPIC marker a page cites
+    — or, worse, an allowlist entry would mask it. Pin that the CSV really is
+    contributing, using the CYP3A5*3 marker this guard first tripped on.
+    """
+    cpic_rsids = _cpic_allele_rsids()
+    assert len(cpic_rsids) > 10, "CPIC allele universe looks empty — check the CSV path"
+    assert "rs776746" in cpic_rsids
+    assert cpic_rsids - _panel_universe_from_panels(), (
+        "every CPIC marker is already a panel locus, so this fold-in proves nothing"
+    )
+
+
+def _panel_universe_from_panels() -> set[str]:
+    """Panel-only universe (no CPIC), for the load-bearing check above."""
+    rsids: set[str] = set()
+    for panel in _PANELS_DIR.glob("*.json"):
+        rsids |= set(_RSID_RE.findall(panel.read_text(encoding="utf-8")))
+    return rsids
 
 
 def test_allowlisted_rsids_really_are_non_loci() -> None:
