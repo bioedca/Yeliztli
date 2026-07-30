@@ -78,7 +78,7 @@ Classify at draft creation and before merge; mixed/uncertain scope rises. These 
 | --- | --- | --- |
 | Low | Text-only docs/comments or mechanical metadata; no behavior, public-contract, science, security, dependency, or workflow change | Copilot |
 | Standard | Routine code, tests, UI, refactor, or bug fix not protecting a load-bearing area | hosted Codex |
-| Load-bearing | Science/clinical/reference data or their tests; privacy/security/auth; schema/migration/data loss; concurrency; dependencies; updater/installer/release; CI/workflows/permissions; core architecture; broad/hard-to-revert change | CodeRabbit structured clean review |
+| Load-bearing | Agent-development contracts/governance; science/clinical/reference data or their tests; privacy/security/auth; schema/migration/data loss; concurrency; dependencies; updater/installer/release; CI/workflows/permissions; core architecture; broad/hard-to-revert change | CodeRabbit structured clean review |
 
 - New PRs use review-route schema v3. Preserve an existing schema-v2 PR exactly as the legacy human-gated route; do not silently convert its body or waive its DCO, independent exact-head human approval, exact `/validate-route`, checks, or explicit merge authorization. A v3 PR must not modify `.github/workflows/review-route-invalidation.yml`; use v2 for that PR-controlled signal workflow.
 - Every route requires a final local review on the committed head and exactly one selected hosted provider. Providers substitute for one another on every route; prefer the table's lane, but select an available alternative instead of adding speculative parsers or waiting on quota. Extra reviews are advisory, and every resulting thread must still be resolved; never trigger an unselected advisory lane.
