@@ -2119,6 +2119,71 @@ class TestGnomadAnnotationLookupIntegration:
             assert row.gnomad_af_global is None, rsid
             assert row.gnomad_source_status == "allele_ambiguous", rsid
 
+    def test_multi_locus_rsid_uses_the_sample_locus(
+        self, sample_engine: sa.Engine, mock_registry: MagicMock, gnomad_engine: sa.Engine
+    ) -> None:
+        """#2214 review: an rsID catalogued at two coordinates must not cross over.
+
+        Picking by genotype alone lets a G>A row at position 900 supply the
+        frequency for the sample's call at position 300 -- #2171's defect across
+        loci rather than across ALTs. Both rows here are G>A, so genotype cannot
+        discriminate; only the coordinate can.
+        """
+        with gnomad_engine.begin() as conn:
+            conn.execute(
+                sa.text(
+                    "INSERT INTO gnomad_af "
+                    "(rsid, chrom, pos, ref, alt, af_global, af_afr, af_amr, af_asj, "
+                    "af_eas, af_eur, af_fin, af_sas, homozygous_count) VALUES "
+                    "('rs_multiloc', '1', 300, 'G', 'A', 0.004, 0.004, 0.004, 0.004, "
+                    "0.004, 0.004, 0.004, 0.004, 3), "
+                    "('rs_multiloc', '1', 900, 'G', 'A', 0.40, 0.40, 0.40, 0.40, "
+                    "0.40, 0.40, 0.40, 0.40, 800)"
+                )
+            )
+        with sample_engine.begin() as conn:
+            conn.execute(
+                raw_variants.insert().values(rsid="rs_multiloc", chrom="1", pos=300, genotype="AG")
+            )
+
+        run_annotation(sample_engine, mock_registry)
+
+        row = self._annotated_row(sample_engine, "rs_multiloc")
+        assert row is not None
+        assert row.gnomad_af_global == pytest.approx(0.004)
+        assert row.gnomad_homozygous_count == 3
+
+    def test_single_locus_rsid_ignores_a_position_mismatch(
+        self, sample_engine: sa.Engine, mock_registry: MagicMock, gnomad_engine: sa.Engine
+    ) -> None:
+        """Discriminating control: coordinate agreement is NOT newly required.
+
+        rsID-only lookup has never demanded that the array's position match
+        gnomAD's. Filtering unconditionally would silently drop frequencies
+        wherever the two disagree, so the locus filter applies only when
+        candidates actually span several coordinates.
+        """
+        with gnomad_engine.begin() as conn:
+            conn.execute(
+                sa.text(
+                    "INSERT INTO gnomad_af "
+                    "(rsid, chrom, pos, ref, alt, af_global, af_afr, af_amr, af_asj, "
+                    "af_eas, af_eur, af_fin, af_sas, homozygous_count) VALUES "
+                    "('rs_offset', '1', 700, 'G', 'A', 0.05, 0.05, 0.05, 0.05, "
+                    "0.05, 0.05, 0.05, 0.05, 9)"
+                )
+            )
+        with sample_engine.begin() as conn:
+            conn.execute(
+                raw_variants.insert().values(rsid="rs_offset", chrom="1", pos=701, genotype="AG")
+            )
+
+        run_annotation(sample_engine, mock_registry)
+
+        row = self._annotated_row(sample_engine, "rs_offset")
+        assert row is not None
+        assert row.gnomad_af_global == pytest.approx(0.05)
+
     def test_single_alt_rsid_is_annotated_regardless_of_genotype(
         self, sample_engine: sa.Engine, mock_registry: MagicMock, gnomad_engine: sa.Engine
     ) -> None:

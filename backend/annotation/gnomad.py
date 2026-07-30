@@ -978,6 +978,7 @@ def lookup_gnomad_by_rsids(
     genotype_by_rsid: dict[str, str] | None = None,
     allele_ambiguous_out: set[str] | None = None,
     conflicting_genotype_rsids: set[str] | None = None,
+    locus_by_rsid: dict[str, tuple[str, int]] | None = None,
 ) -> dict[str, GnomADAnnotation]:
     """Look up gnomAD allele frequencies for a batch of rsids.
 
@@ -1000,6 +1001,12 @@ def lookup_gnomad_by_rsids(
             caller collapses those aliases to one row, so a single genotype
             cannot speak for all of them; at a multi-ALT site that would hand one
             call's frequency to another, which is the very defect #2171 fixes.
+        locus_by_rsid: Optional sample (chrom, pos) per rsID. Used only when an
+            rsID's gnomAD rows span **several coordinates**, to keep the choice
+            within the sample's own locus. Deliberately not applied when all
+            candidates sit at one position: rsID-only lookup has never required
+            the array's coordinate to agree with gnomAD's, and demanding it
+            everywhere would drop frequencies wherever the two disagree.
 
     Returns:
         Dict mapping rsid → GnomADAnnotation for matched variants.
@@ -1009,6 +1016,7 @@ def lookup_gnomad_by_rsids(
 
     genotype_by_rsid = genotype_by_rsid or {}
     conflicting_genotype_rsids = conflicting_genotype_rsids or set()
+    locus_by_rsid = locus_by_rsid or {}
     results: dict[str, GnomADAnnotation] = {}
 
     with gnomad_engine.connect() as conn:
@@ -1019,7 +1027,7 @@ def lookup_gnomad_by_rsids(
             params = {f"r{j}": rsid for j, rsid in enumerate(batch)}
 
             stmt = sa.text(
-                "SELECT rsid, ref, alt, "  # noqa: S608
+                "SELECT rsid, chrom, pos, ref, alt, "  # noqa: S608
                 f"{af_select}, homozygous_count FROM gnomad_af WHERE rsid IN ({placeholders}) "
                 "ORDER BY rsid, chrom, pos, ref, alt"
             )
@@ -1030,6 +1038,20 @@ def lookup_gnomad_by_rsids(
                 rows_by_rsid.setdefault(row.rsid, []).append(row)
 
             for rsid, candidates in rows_by_rsid.items():
+                # One rsID can be catalogued at more than one coordinate. Picking
+                # by genotype alone would let an ALT carried at a *different*
+                # locus supply this locus's frequency and homozygote count, which
+                # is #2171's defect across positions rather than across ALTs.
+                if len({(r.chrom, r.pos) for r in candidates}) > 1:
+                    locus = locus_by_rsid.get(rsid)
+                    same_locus = [r for r in candidates if locus and (r.chrom, r.pos) == locus]
+                    # No row at the sample's own locus means gnomAD has no
+                    # frequency for this call; withhold rather than borrow one.
+                    candidates = same_locus
+                    if not candidates:
+                        if allele_ambiguous_out is not None:
+                            allele_ambiguous_out.add(rsid)
+                        continue
                 if len(candidates) > 1 and rsid in conflicting_genotype_rsids:
                     # Aliased sample rows disagree on the genotype, so no single
                     # ALT can be chosen for all of them. One row is unambiguous

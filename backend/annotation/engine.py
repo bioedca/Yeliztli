@@ -558,6 +558,11 @@ def _lookup_gnomad(
             genotype_by_rsid=genotype_by_rsid,
             allele_ambiguous_out=allele_ambiguous_out,
             conflicting_genotype_rsids=conflicting_genotype_rsids,
+            locus_by_rsid={
+                rsid: (raw_by_rsid[rsid].chrom, raw_by_rsid[rsid].pos)
+                for rsid in unmatched
+                if rsid in raw_by_rsid
+            },
         )
         for rsid, annot in rsid_matches.items():
             results[rsid] = _annot_to_dict(annot)
