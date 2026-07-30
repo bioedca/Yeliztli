@@ -454,6 +454,10 @@ class TestExpandedDeficiencyPanel:
         # No confident deficiency call from the palindromic hemizygote alone.
         assert r["phenotype"] == "indeterminate"
         assert r["at_risk"] is True
+        # ...and the descriptive field must not upgrade that withheld call to a
+        # confident deficiency. The locus is unresolvable, not positive (#2205
+        # review): "elevated" would assert what the same response declines to say.
+        assert r["medication_risk"] == "undetermined"
         assert "rasburicase" in r["high_risk_drugs"]
         assert "quantitative enzyme-activity assay" in r["detail"]
 
@@ -462,6 +466,34 @@ class TestExpandedDeficiencyPanel:
         seattle = next(v for v in r["variants"] if v["name"] == "Seattle/Lodi (D282H)")
         assert seattle["called"] is False and seattle["strand_ambiguous"] is True
         assert r["phenotype"] == "indeterminate"
+        assert r["at_risk"] is True
+        assert r["medication_risk"] == "undetermined"
+        assert r["high_risk_drugs"]
+
+    def test_confirmed_deficiency_is_the_only_elevated_state(self) -> None:
+        """Discriminating control for the two assertions above.
+
+        If `medication_risk` simply never said "elevated" they would pass
+        vacuously, so pin that a real deficiency call still does.
+        """
+        r = self._assess("XY", _covered_panel("XY", **{G6PD_A_MINUS_RSID: "T"}))
+        assert r["phenotype"] == "deficient"
+        assert r["medication_risk"] == "elevated"
+        assert r["at_risk"] is True
+
+    def test_unknown_sex_full_panel_keeps_the_legacy_warning(self) -> None:
+        """#2205 review: a withheld phenotype must not clear the legacy fields.
+
+        With sex unresolved, a fully covered *reference* panel yields
+        `phenotype="indeterminate"`. `medication_risk` said `undetermined` while
+        `at_risk`/`high_risk_drugs` said cleared -- the same contradiction #2172
+        is about, one layer up. `at_risk` is now derived from `medication_risk`,
+        so the pair cannot disagree.
+        """
+        r = self._assess("unknown", _covered_panel("XY"))
+        assert r["phenotype"] == "indeterminate"
+        assert r["coverage_sufficient"] is True
+        assert r["medication_risk"] == "undetermined"
         assert r["at_risk"] is True
         assert r["high_risk_drugs"]
 
@@ -477,6 +509,7 @@ class TestExpandedDeficiencyPanel:
         assert r["strand_ambiguous_loci"] == ["Cosenza (R459P)"]
         assert r["phenotype"] == "indeterminate"
         assert r["at_risk"] is True
+        assert r["medication_risk"] == "undetermined"
         assert r["high_risk_drugs"]
 
     def test_palindromic_heterozygous_female_is_variable(self) -> None:

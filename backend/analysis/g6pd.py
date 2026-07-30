@@ -606,32 +606,40 @@ def assess_g6pd(
     # observed palindromic homozygous/hemizygous call that was withheld only because
     # strand could not be resolved: that result is not diagnostic, but it cannot be used
     # to clear high-risk oxidative drugs.
-    # A positive or non-diagnostic *observation* that cannot clear risk.
-    deficiency_signal = (
-        phenotype in {"deficient", "variable", "phase_indeterminate"}
-        or (phenotype == "indeterminate" and total_deficiency >= 1)
-        or bool(strand_ambiguous_loci)
+    # A CONFIRMED deficiency observation -- the only thing that justifies calling
+    # medication risk "elevated". The phase-indeterminate compound and the
+    # sex-indeterminate-with-a-deficiency-call case both belong here: the
+    # phenotype detail says to treat them as potentially deficient.
+    confirmed_deficiency = phenotype in {"deficient", "variable", "phase_indeterminate"} or (
+        phenotype == "indeterminate" and total_deficiency >= 1
     )
-    # An inadequately covered panel cannot clear oxidative-drug risk either
-    # (#2172). Without this the fix would live only in the new `medication_risk`
-    # field, and every existing consumer of `at_risk` / `high_risk_drugs` -- the
-    # fields this issue is actually about -- would still render a cleared warning.
-    at_risk = deficiency_signal or not coverage_sufficient
+    # Observed but NOT resolvable. A palindromic homozygous/hemizygous call at
+    # Seattle/Lodi or Cosenza is withheld precisely because it may be the
+    # reference allele read on the opposite strand, so it can neither confirm a
+    # deficiency nor clear the drug warning. Keeping it out of
+    # `confirmed_deficiency` stops the response asserting "elevated" from a call
+    # the same response declines to make.
+    unresolved_observation = bool(strand_ambiguous_loci)
 
-    # `at_risk` is two-state, so it cannot distinguish "we read the panel and
-    # found nothing" from "we barely read the panel" -- that conflation is the
-    # defect. `medication_risk` carries the third state. Note it keys off
-    # `deficiency_signal`, NOT `at_risk`: an under-covered panel withholds the
-    # drug list conservatively, but calling that "elevated" would assert a
-    # deficiency signal the data does not show.
-    if deficiency_signal:
+    # Three states, derived in one place so they cannot disagree:
+    #   elevated                   -- a deficiency allele is actually present
+    #   undetermined               -- observed-but-unresolvable, thin coverage, or
+    #                                 a phenotype withheld for any other reason
+    #                                 (e.g. sex could not be inferred)
+    #   no_tested_allele_detected  -- the panel was read and is genuinely negative
+    if confirmed_deficiency:
         medication_risk = "elevated"
-    elif not coverage_sufficient:
+    elif unresolved_observation or not coverage_sufficient or phenotype != "normal":
         medication_risk = "undetermined"
-    elif phenotype == "normal":
-        medication_risk = "no_tested_allele_detected"
     else:
-        medication_risk = "undetermined"
+        medication_risk = "no_tested_allele_detected"
+
+    # The legacy two-state field is DERIVED from the three-state one rather than
+    # computed alongside it. Deriving it guarantees the pair can never contradict
+    # -- an `at_risk=False` / `high_risk_drugs=[]` response that simultaneously
+    # says `medication_risk="undetermined"` reads to existing clients as a
+    # cleared warning, which is the defect #2172 is about, one layer up.
+    at_risk = medication_risk != "no_tested_allele_detected"
 
     return {
         # The biological sex used for the phenotype (resolved value); sex_source is

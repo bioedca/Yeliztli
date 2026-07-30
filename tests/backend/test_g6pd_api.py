@@ -87,6 +87,14 @@ def g6pd_client(tmp_data_dir: Path) -> Generator[TestClient, None, None]:
     sparse_engine = sa.create_engine(f"sqlite:///{sparse_db_path}")
     create_sample_tables(sparse_engine)
 
+    # A fourth sample: the whole reference panel but NO sex-informative filler, so
+    # biological sex cannot be inferred and the X-linked phenotype is withheld.
+    # This is the branch where `medication_risk` said "undetermined" while the
+    # legacy fields said cleared (#2205 review).
+    nosex_db_path = tmp_data_dir / "samples" / "sample_4.db"
+    nosex_engine = sa.create_engine(f"sqlite:///{nosex_db_path}")
+    create_sample_tables(nosex_engine)
+
     with ref_engine.begin() as conn:
         conn.execute(
             samples.insert().values(
@@ -113,6 +121,15 @@ def g6pd_client(tmp_data_dir: Path) -> Generator[TestClient, None, None]:
                 db_path="samples/sample_3.db",
                 file_format="v5",
                 file_hash="ghi789",
+            )
+        )
+        conn.execute(
+            samples.insert().values(
+                id=4,
+                name="Unknown sex, full panel",
+                db_path="samples/sample_4.db",
+                file_format="v5",
+                file_hash="jkl012",
             )
         )
     # The diploid-X het filler with no chrY evidence makes her XX; a het A- allele
@@ -164,10 +181,29 @@ def g6pd_client(tmp_data_dir: Path) -> Generator[TestClient, None, None]:
             ],
         )
 
+    with nosex_engine.begin() as conn:
+        conn.execute(
+            raw_variants.insert(),
+            [
+                # Full reference panel, deliberately WITHOUT _EVAL_SEX_FILLER: no
+                # X-het rate and no chrY evidence, so sex inference withholds.
+                *(
+                    {
+                        "rsid": rsid,
+                        "chrom": "X",
+                        "pos": 153764217 + offset,
+                        "genotype": ref * 2,
+                    }
+                    for offset, (rsid, ref) in enumerate(_COVERED_G6PD_REFERENCE)
+                ),
+            ],
+        )
+
     ref_engine.dispose()
     sample_engine.dispose()
     noncarrier_engine.dispose()
     sparse_engine.dispose()
+    nosex_engine.dispose()
 
     with (
         patch("backend.main.get_settings", return_value=settings),
@@ -230,6 +266,22 @@ class TestG6pdEndpoint:
         assert data["called_resolvable_records"] < data["resolvable_records"]
         assert data["medication_risk"] == "undetermined"
         # The legacy fields existing clients read must not read as cleared.
+        assert data["at_risk"] is True
+        assert data["high_risk_drugs"]
+
+    def test_unknown_sex_full_panel_does_not_clear_risk(self, g6pd_client: TestClient) -> None:
+        """#2205 review, through the production route.
+
+        A fully covered *reference* panel whose sex cannot be inferred yields a
+        withheld phenotype. The response used to say `medication_risk`
+        "undetermined" while `at_risk=false` and `high_risk_drugs=[]` told every
+        existing client the warning was cleared. Coverage is sufficient here, so
+        this is a different branch from the sparse-negative test above.
+        """
+        data = g6pd_client.get("/api/analysis/g6pd?sample_id=4").json()
+        assert data["phenotype"] == "indeterminate"
+        assert data["coverage_sufficient"] is True
+        assert data["medication_risk"] == "undetermined"
         assert data["at_risk"] is True
         assert data["high_risk_drugs"]
 
