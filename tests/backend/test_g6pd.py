@@ -169,8 +169,8 @@ class TestAssessG6pd:
         r = self._assess("XY", {G6PD_A_MINUS_RSID: "C"})
         assert r["phenotype"] == "indeterminate"
         assert r["coverage_sufficient"] is False
-        assert r["called_typeable_records"] == 1
-        assert r["typeable_records"] > 2  # 1 of many is well under a majority
+        assert r["called_resolvable_records"] == 1
+        assert r["resolvable_records"] > 2  # 1 of many is well under a majority
         # The result must not read as a cleared medication risk.
         assert r["medication_risk"] == "undetermined"
         assert "cannot be cleared" in r["detail"]
@@ -188,8 +188,8 @@ class TestAssessG6pd:
         for rsid in (G6PD_A_MINUS_RSID, G6PD_MED_RSID):
             panel.pop(rsid, None)
         r = self._assess("XY", panel)
-        assert r["called_typeable_records"] * 2 > r["typeable_records"]  # a majority...
-        assert r["called_typeable_records"] < r["typeable_records"]  # ...but incomplete
+        assert r["called_resolvable_records"] * 2 > r["resolvable_records"]  # a majority...
+        assert r["called_resolvable_records"] < r["resolvable_records"]  # ...but incomplete
         assert r["coverage_sufficient"] is False  # ...so still not adequate
         assert r["phenotype"] == "indeterminate"
         assert r["medication_risk"] == "undetermined"
@@ -214,7 +214,7 @@ class TestAssessG6pd:
         panel = _covered_panel("XY")
         panel.pop("rs137852342", None)  # Chinese-5 absent
         r = self._assess("XY", panel)
-        assert r["called_typeable_records"] == r["typeable_records"] - 1
+        assert r["called_resolvable_records"] == r["resolvable_records"] - 1
         assert r["coverage_sufficient"] is False
         assert r["medication_risk"] == "undetermined"
 
@@ -225,7 +225,7 @@ class TestAssessG6pd:
         number is the called count, never the panel size.
         """
         r = self._assess("XY", _covered_panel("XY"))
-        assert f"{r['called_typeable_records']} curated" in r["detail"]
+        assert f"{r['called_resolvable_records']} curated" in r["detail"]
 
     def test_sparse_positive_still_reports_deficiency(self) -> None:
         """#2172 discriminating control: the coverage gate is asymmetric.
@@ -290,10 +290,21 @@ class TestAssessG6pd:
         assert r["high_risk_drugs"]
 
     def test_no_variant_called_is_indeterminate(self) -> None:
+        """Nothing callable → indeterminate, and the drug warning is NOT cleared.
+
+        This assertion previously required ``at_risk is False``. That is the same
+        defect class as #2172 one step further along: with zero callable loci the
+        module cleared the oxidative-drug list entirely. An empty read cannot
+        clear risk, so ``at_risk`` is now True while ``medication_risk`` stays
+        ``undetermined`` — conservative on the drug list without asserting a
+        deficiency signal the data does not show.
+        """
         r = self._assess("XY", {G6PD_A_MINUS_RSID: "--", G6PD_MED_RSID: "--"})
         assert r["any_called"] is False
         assert r["phenotype"] == "indeterminate"
-        assert r["at_risk"] is False
+        assert r["at_risk"] is True
+        assert r["medication_risk"] == "undetermined"
+        assert r["high_risk_drugs"]  # withheld conservatively, not cleared
 
     def test_a_plus_nondeficient_flagged_as_context(self) -> None:
         # 376G present (rs1050829 = C) with A- reference → A+ non-deficient allele.

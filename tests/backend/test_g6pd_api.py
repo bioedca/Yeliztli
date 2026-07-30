@@ -196,14 +196,14 @@ class TestG6pdEndpoint:
         for field in (
             "medication_risk",
             "panel_records",
-            "typeable_records",
-            "called_typeable_records",
+            "resolvable_records",
+            "called_resolvable_records",
             "coverage_sufficient",
         ):
             assert field in data, f"{field} dropped by G6pdResponse"
         # Non-vacuous: the denominator is the real curated panel, not zero.
-        assert data["panel_records"] >= data["typeable_records"] > 0
-        assert data["called_typeable_records"] == data["typeable_records"]
+        assert data["panel_records"] >= data["resolvable_records"] > 0
+        assert data["called_resolvable_records"] == data["resolvable_records"]
 
     def test_invalid_sample_returns_404(self, g6pd_client: TestClient) -> None:
         assert g6pd_client.get("/api/analysis/g6pd?sample_id=999").status_code == 404

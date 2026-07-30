@@ -294,7 +294,9 @@ def _deficiency_alleles(
     return {"deficiency": sum(1 for base in g if base == def_u), "copies": len(g)}
 
 
-def _insufficient_coverage_verdict(called_typeable: int, typeable_total: int) -> dict[str, str]:
+def _insufficient_coverage_verdict(
+    called_resolvable: int, resolvable_total: int
+) -> dict[str, str]:
     """Verdict for a negative panel that was not adequately covered (#2172).
 
     A negative G6PD result is only meaningful in proportion to how much of the
@@ -305,7 +307,7 @@ def _insufficient_coverage_verdict(called_typeable: int, typeable_total: int) ->
     return {
         "phenotype": "indeterminate",
         "detail": (
-            f"Only {called_typeable} of the {typeable_total} curated G6PD deficiency variants "
+            f"Only {called_resolvable} of the {resolvable_total} curated G6PD deficiency variants "
             "were callable, so a negative result cannot be interpreted — the "
             "uncalled variants were not assessed. G6PD status is undetermined and "
             "medication risk cannot be cleared; confirm with an enzyme-activity assay "
@@ -321,8 +323,8 @@ def g6pd_phenotype(
     max_locus_deficiency: int = 0,
     *,
     coverage_sufficient: bool = True,
-    called_typeable: int = 0,
-    typeable_total: int = 0,
+    called_resolvable: int = 0,
+    resolvable_total: int = 0,
 ) -> dict[str, str]:
     """Assign a G6PD phenotype from inferred sex + deficiency-allele counts.
 
@@ -351,13 +353,14 @@ def g6pd_phenotype(
                 ),
             }
         if not coverage_sufficient:
-            return _insufficient_coverage_verdict(called_typeable, typeable_total)
+            return _insufficient_coverage_verdict(called_resolvable, resolvable_total)
         return {
             "phenotype": "normal",
             "detail": (
                 "Hemizygous male: no deficiency allele detected at any of the "
-                f"{called_typeable} curated G6PD deficiency variants that were tested. This does "
-                "not exclude G6PD deficiency — over 200 deficiency variants are known and "
+                f"{called_resolvable} curated G6PD deficiency variants that were "
+                "tested. This does not exclude G6PD deficiency — over 200 "
+                "deficiency variants are known and "
                 "only enzyme activity testing establishes G6PD status."
             ),
         }
@@ -394,13 +397,14 @@ def g6pd_phenotype(
                 ),
             }
         if not coverage_sufficient:
-            return _insufficient_coverage_verdict(called_typeable, typeable_total)
+            return _insufficient_coverage_verdict(called_resolvable, resolvable_total)
         return {
             "phenotype": "normal",
             "detail": (
                 "Female: no deficiency allele detected at any of the "
-                f"{called_typeable} curated G6PD deficiency variants that were tested. This does "
-                "not exclude G6PD deficiency — over 200 deficiency variants are known and "
+                f"{called_resolvable} curated G6PD deficiency variants that were "
+                "tested. This does not exclude G6PD deficiency — over 200 "
+                "deficiency variants are known and "
                 "only enzyme activity testing establishes G6PD status."
             ),
         }
@@ -561,8 +565,8 @@ def assess_g6pd(
         )
         if not _is_palindromic(ref, deficiency_allele)
     ]
-    typeable_total = len(resolvable_loci)
-    called_typeable = sum(1 for loc in resolvable_loci if loc["called"])
+    resolvable_total = len(resolvable_loci)
+    called_resolvable = sum(1 for loc in resolvable_loci if loc["called"])
     # Adequacy requires the WHOLE resolvable curated panel to have been called.
     #
     # Earlier revisions used a majority (with an anchor-allele term), justified by
@@ -579,7 +583,7 @@ def assess_g6pd(
     # and exhaustive over the curated panel, and it cannot clear the oxidative-drug
     # warning while any curated variant is unassessed. The counts are surfaced so a
     # consumer can see exactly what was read.
-    coverage_sufficient = typeable_total > 0 and called_typeable == typeable_total
+    coverage_sufficient = resolvable_total > 0 and called_resolvable == resolvable_total
 
     verdict = g6pd_phenotype(
         sex,
@@ -587,8 +591,8 @@ def assess_g6pd(
         any_called,
         max_locus_deficiency,
         coverage_sufficient=coverage_sufficient,
-        called_typeable=called_typeable,
-        typeable_total=typeable_total,
+        called_resolvable=called_resolvable,
+        resolvable_total=resolvable_total,
     )
     if strand_ambiguous_loci and total_deficiency == 0:
         verdict = {
@@ -602,20 +606,28 @@ def assess_g6pd(
     # observed palindromic homozygous/hemizygous call that was withheld only because
     # strand could not be resolved: that result is not diagnostic, but it cannot be used
     # to clear high-risk oxidative drugs.
-    at_risk = (
+    # A positive or non-diagnostic *observation* that cannot clear risk.
+    deficiency_signal = (
         phenotype in {"deficient", "variable", "phase_indeterminate"}
         or (phenotype == "indeterminate" and total_deficiency >= 1)
         or bool(strand_ambiguous_loci)
     )
+    # An inadequately covered panel cannot clear oxidative-drug risk either
+    # (#2172). Without this the fix would live only in the new `medication_risk`
+    # field, and every existing consumer of `at_risk` / `high_risk_drugs` -- the
+    # fields this issue is actually about -- would still render a cleared warning.
+    at_risk = deficiency_signal or not coverage_sufficient
 
-    # `at_risk` is a two-state flag, so on its own it cannot distinguish "we read the
-    # panel and found no deficiency allele" from "we barely read the panel". Both
-    # render as False and an empty drug list, which is what let a single callable
-    # locus clear the oxidative-drug warning (#2172). `medication_risk` carries the
-    # third state explicitly so a consumer can never read insufficient coverage as a
-    # cleared risk. Mirrors the existing HlaDrugRiskStatus idiom.
-    if at_risk:
+    # `at_risk` is two-state, so it cannot distinguish "we read the panel and
+    # found nothing" from "we barely read the panel" -- that conflation is the
+    # defect. `medication_risk` carries the third state. Note it keys off
+    # `deficiency_signal`, NOT `at_risk`: an under-covered panel withholds the
+    # drug list conservatively, but calling that "elevated" would assert a
+    # deficiency signal the data does not show.
+    if deficiency_signal:
         medication_risk = "elevated"
+    elif not coverage_sufficient:
+        medication_risk = "undetermined"
     elif phenotype == "normal":
         medication_risk = "no_tested_allele_detected"
     else:
@@ -636,8 +648,8 @@ def assess_g6pd(
         "medication_risk": medication_risk,
         # Assay coverage behind a negative result (#2172): how many of the curated
         # deficiency variants this array actually types, and how many were callable.
-        "typeable_records": typeable_total,
-        "called_typeable_records": called_typeable,
+        "resolvable_records": resolvable_total,
+        "called_resolvable_records": called_resolvable,
         "panel_records": len(deficiency_loci),
         "coverage_sufficient": coverage_sufficient,
         "a_plus_nondeficient_present": a_plus_present,
