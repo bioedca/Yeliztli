@@ -70,6 +70,14 @@ _DOC_NON_LOCUS_ALLOWLIST: dict[str, dict[str, str]] = {
             "locus (true BChE deficiency is confirmed by enzyme-activity assay)."
         ),
     },
+    "pharmacogenomics.md": {
+        "rs776746": (
+            "CYP3A5*3 defining variant (#2169). It IS scored — by the CPIC "
+            "star-allele caller, from backend/data/cpic/cpic_alleles.csv — but the "
+            "CPIC tables are not a panel JSON, so the panel universe this guard "
+            "checks legitimately never contains it."
+        ),
+    },
 }
 
 
