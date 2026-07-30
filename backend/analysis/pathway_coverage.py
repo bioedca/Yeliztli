@@ -53,10 +53,20 @@ def pathway_level_display_label(level: str | None, detail: dict[str, Any] | None
     if not level:
         return level
     detail = detail if isinstance(detail, dict) else {}
-    missing = detail.get("missing_snps") or []
-    if level != STANDARD_LEVEL or not missing:
+    if level != STANDARD_LEVEL:
         return level
     called = detail.get("called_snps") or 0
+    # `called_snps` counts every observed SNP, including ones withheld from
+    # interpretation. If all of them are indeterminate nothing was actually
+    # scored, so a plain Standard badge would be false reassurance on the report
+    # and export paths even at full coverage (#2178) — the same guard the missing
+    # SNP branch below applies, for a different reason.
+    indeterminate = len(detail.get("indeterminate_snps") or [])
+    if called > 0 and called - indeterminate <= 0:
+        return "Not Assessed"
+    missing = detail.get("missing_snps") or []
+    if not missing:
+        return level
     return "Not Assessed" if called == 0 else "Tested Standard"
 
 

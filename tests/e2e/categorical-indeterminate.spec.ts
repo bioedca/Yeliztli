@@ -11,34 +11,47 @@
  * and the strand caveat (the SNP `effect_summary`) is visible.
  */
 
-import { test, expect } from '@playwright/test'
-import { bypassSetup, waitForReactHydration } from './helpers'
+import { test, expect } from "@playwright/test";
+import { bypassSetup, waitForReactHydration } from "./helpers";
 
 test.beforeEach(async ({ page }) => {
-  await bypassSetup(page)
-})
+  await bypassSetup(page);
+});
 
 function jsonRoute(payload: unknown, status = 200) {
-  return { status, contentType: 'application/json', body: JSON.stringify(payload) }
+  return {
+    status,
+    contentType: "application/json",
+    body: JSON.stringify(payload),
+  };
 }
 
 const CAVEAT =
-  'TT is a palindromic (A/T or C/G) homozygote: its strand — and therefore its effect ' +
-  'category — cannot be determined from the array, so the result is withheld.'
+  "TT is a palindromic (A/T or C/G) homozygote: its strand — and therefore its effect " +
+  "category — cannot be determined from the array, so the result is withheld.";
 
 // Superset of the per-module PathwaysResponse fields (gene_health ignores the
 // skin-specific ones; skin's view dereferences mc1r_aggregate/insufficient_data).
-function pathwaysPayload(pathwayId: string, pathwayName: string) {
+// Only fitness and traits expose `indeterminate_snps` on their PathwaySummary
+// response model, so only those payloads may carry it. Otherwise the stub
+// fabricates a response the production endpoint cannot return, and a card
+// assertion would pass against something unreachable in reality (#2178).
+function pathwaysPayload(
+  pathwayId: string,
+  pathwayName: string,
+  indeterminateSnps?: string[],
+) {
   return {
     items: [
       {
         pathway_id: pathwayId,
         pathway_name: pathwayName,
-        level: 'Standard',
+        level: "Standard",
         evidence_level: 1,
         called_snps: 1,
         total_snps: 1,
         missing_snps: [],
+        ...(indeterminateSnps ? { indeterminate_snps: indeterminateSnps } : {}),
         pmids: [],
       },
     ],
@@ -49,14 +62,14 @@ function pathwaysPayload(pathwayId: string, pathwayName: string) {
     mc1r_aggregate: null,
     insufficient_data: [],
     compound_het: [],
-  }
+  };
 }
 
 function detailPayload(pathwayId: string, pathwayName: string) {
   return {
     pathway_id: pathwayId,
     pathway_name: pathwayName,
-    level: 'Standard',
+    level: "Standard",
     evidence_level: 1,
     called_snps: 1,
     total_snps: 1,
@@ -64,11 +77,11 @@ function detailPayload(pathwayId: string, pathwayName: string) {
     pmids: [],
     snp_details: [
       {
-        rsid: 'rs9939609',
-        gene: 'FTO',
-        variant_name: 'rs9939609',
-        genotype: 'TT',
-        category: 'Indeterminate',
+        rsid: "rs9939609",
+        gene: "FTO",
+        variant_name: "rs9939609",
+        genotype: "TT",
+        category: "Indeterminate",
         effect_summary: CAVEAT,
         evidence_level: 1,
         recommendation: null,
@@ -80,69 +93,130 @@ function detailPayload(pathwayId: string, pathwayName: string) {
         mc1r_allele_class: null,
       },
     ],
-  }
+  };
 }
 
 const MODULES = [
-  { key: 'gene_health', path: '/gene-health', pathwayId: 'metabolic_health', pathwayName: 'Metabolic Health' },
-  { key: 'skin', path: '/skin', pathwayId: 'sun_sensitivity', pathwayName: 'Sun Sensitivity' },
-  { key: 'fitness', path: '/fitness', pathwayId: 'power', pathwayName: 'Power' },
-  { key: 'methylation', path: '/methylation', pathwayId: 'folate_cycle', pathwayName: 'Folate Cycle' },
-  { key: 'nutrigenomics', path: '/nutrigenomics', pathwayId: 'caffeine', pathwayName: 'Caffeine Metabolism' },
-  { key: 'traits', path: '/traits', pathwayId: 'cognition', pathwayName: 'Cognition' },
-]
+  {
+    key: "gene_health",
+    path: "/gene-health",
+    pathwayId: "metabolic_health",
+    pathwayName: "Metabolic Health",
+  },
+  {
+    key: "skin",
+    path: "/skin",
+    pathwayId: "sun_sensitivity",
+    pathwayName: "Sun Sensitivity",
+  },
+  {
+    key: "fitness",
+    summaryIndeterminate: true,
+    path: "/fitness",
+    pathwayId: "power",
+    pathwayName: "Power",
+  },
+  {
+    key: "methylation",
+    path: "/methylation",
+    pathwayId: "folate_cycle",
+    pathwayName: "Folate Cycle",
+  },
+  {
+    key: "nutrigenomics",
+    path: "/nutrigenomics",
+    pathwayId: "caffeine",
+    pathwayName: "Caffeine Metabolism",
+  },
+  {
+    key: "traits",
+    summaryIndeterminate: true,
+    path: "/traits",
+    pathwayId: "cognition",
+    pathwayName: "Cognition",
+  },
+];
 
 for (const m of MODULES) {
   test.describe(`${m.key} detail panel renders Indeterminate as neutral (#369)`, () => {
-    test('shows a slate Indeterminate badge + strand caveat, not green Standard', async ({
+    test("shows a slate Indeterminate badge + strand caveat, not green Standard", async ({
       page,
     }) => {
       await page.route(`**/api/analysis/${m.key}/pathways**`, async (route) => {
-        await route.fulfill(jsonRoute(pathwaysPayload(m.pathwayId, m.pathwayName)))
-      })
+        await route.fulfill(
+          jsonRoute(
+            pathwaysPayload(
+              m.pathwayId,
+              m.pathwayName,
+              m.summaryIndeterminate ? ["rs9939609"] : undefined,
+            ),
+          ),
+        );
+      });
       await page.route(`**/api/analysis/${m.key}/pathway/**`, async (route) => {
-        await route.fulfill(jsonRoute(detailPayload(m.pathwayId, m.pathwayName)))
-      })
+        await route.fulfill(
+          jsonRoute(detailPayload(m.pathwayId, m.pathwayName)),
+        );
+      });
       // Traits is the only module with a PRS section, and its view gates ALL
       // main content (pathway cards included) on the PRS query — `isError`
       // OR's pathwaysQuery and prsQuery. The /prs route is gated by
       // `require_fresh_sample`, which 404s for this synthetic sample_id, so an
       // unstubbed /prs flips the page to a full-page error and the pathway card
       // never renders. Stub it with an empty PRS list so the list renders.
-      if (m.key === 'traits') {
+      if (m.key === "traits") {
         await page.route(`**/api/analysis/${m.key}/prs**`, async (route) => {
-          await route.fulfill(jsonRoute({ items: [], total: 0, module_disclaimer: '' }))
-        })
+          await route.fulfill(
+            jsonRoute({ items: [], total: 0, module_disclaimer: "" }),
+          );
+        });
       }
 
-      await page.goto(`${m.path}?sample_id=1`)
-      await waitForReactHydration(page)
+      await page.goto(`${m.path}?sample_id=1`);
+      await waitForReactHydration(page);
+
+      const card = page
+        .getByRole("button", { name: new RegExp(m.pathwayName) })
+        .first();
+
+      // #2178: for the modules whose API actually reports summary-level
+      // indeterminate state, the card must carry the uncertainty rather than
+      // leaving it visible only inside SNP detail.
+      if (m.summaryIndeterminate) {
+        await expect(
+          card.getByTestId("pathway-indeterminate-caveat"),
+        ).toContainText(/observed but\s+not interpreted/i);
+      }
 
       // Open the detail panel by clicking the pathway card.
-      await page.getByRole('button', { name: new RegExp(m.pathwayName) }).first().click()
+      await card.click();
 
-      const panel = page.getByRole('dialog', { name: new RegExp(`${m.pathwayName} pathway details`) })
-      await expect(panel).toBeVisible()
+      const panel = page.getByRole("dialog", {
+        name: new RegExp(`${m.pathwayName} pathway details`),
+      });
+      await expect(panel).toBeVisible();
 
       // Some panels (methylation) collapse the per-SNP breakdown behind an
       // "Advanced View" toggle — expand it if present.
-      const advanced = panel.getByRole('button', { name: /Advanced View/i })
+      const advanced = panel.getByRole("button", { name: /Advanced View/i });
       if (await advanced.count()) {
-        await advanced.first().click()
+        await advanced.first().click();
       }
 
       // The per-SNP category badge reads "Indeterminate" and uses the shared
       // neutral slate colour — NOT the emerald "Standard" fallback.
-      const badge = panel.getByText('Indeterminate', { exact: true })
-      await expect(badge).toBeVisible()
-      await expect(badge).toHaveClass(/text-slate-600/)
-      await expect(badge).not.toHaveClass(/text-emerald/)
+      const badge = panel.getByText("Indeterminate", { exact: true });
+      await expect(badge).toBeVisible();
+      await expect(badge).toHaveClass(/text-slate-600/);
+      await expect(badge).not.toHaveClass(/text-emerald/);
 
       // The strand caveat (effect_summary) is surfaced so the user understands why.
-      await expect(panel.getByText(/palindromic/i)).toBeVisible()
-      await expect(panel.getByText(/cannot be determined from the array/i)).toBeVisible()
-    })
-  })
+      await expect(panel.getByText(/palindromic/i)).toBeVisible();
+      await expect(
+        panel.getByText(/cannot be determined from the array/i),
+      ).toBeVisible();
+    });
+  });
 }
 
 // ── Allergy (#465) ────────────────────────────────────────────────────
@@ -154,17 +228,17 @@ for (const m of MODULES) {
 // Advanced-View toggle), so it gets a dedicated block seeding rs1049793 CC.
 
 const ALLERGY_CAVEAT =
-  'CC is a palindromic (A/T or C/G) homozygote: its strand — and therefore its effect ' +
-  'category — cannot be determined from the array genotype alone, so it is reported as ' +
-  'indeterminate rather than a possibly strand-flipped call.'
+  "CC is a palindromic (A/T or C/G) homozygote: its strand — and therefore its effect " +
+  "category — cannot be determined from the array genotype alone, so it is reported as " +
+  "indeterminate rather than a possibly strand-flipped call.";
 
 function allergyPathwaysPayload() {
   return {
     items: [
       {
-        pathway_id: 'histamine_metabolism',
-        pathway_name: 'Histamine Metabolism',
-        level: 'Standard',
+        pathway_id: "histamine_metabolism",
+        pathway_name: "Histamine Metabolism",
+        level: "Standard",
         evidence_level: 1,
         called_snps: 1,
         total_snps: 1,
@@ -177,14 +251,14 @@ function allergyPathwaysPayload() {
     celiac_combined: null,
     histamine_combined: null,
     cross_module: [],
-  }
+  };
 }
 
 function allergyDetailPayload() {
   return {
-    pathway_id: 'histamine_metabolism',
-    pathway_name: 'Histamine Metabolism',
-    level: 'Standard',
+    pathway_id: "histamine_metabolism",
+    pathway_name: "Histamine Metabolism",
+    level: "Standard",
     evidence_level: 1,
     called_snps: 1,
     total_snps: 1,
@@ -192,11 +266,11 @@ function allergyDetailPayload() {
     pmids: [],
     snp_details: [
       {
-        rsid: 'rs1049793',
-        gene: 'AOC1',
-        variant_name: 'His664Asp',
-        genotype: 'CC',
-        category: 'Indeterminate',
+        rsid: "rs1049793",
+        gene: "AOC1",
+        variant_name: "His664Asp",
+        genotype: "CC",
+        category: "Indeterminate",
         effect_summary: ALLERGY_CAVEAT,
         evidence_level: 1,
         recommendation: null,
@@ -207,34 +281,41 @@ function allergyDetailPayload() {
       },
     ],
     hla_proxy_lookup: null,
-  }
+  };
 }
 
-test.describe('allergy detail panel renders Indeterminate as neutral (#465)', () => {
-  test('shows a slate Indeterminate badge + strand caveat for AOC1 rs1049793', async ({
+test.describe("allergy detail panel renders Indeterminate as neutral (#465)", () => {
+  test("shows a slate Indeterminate badge + strand caveat for AOC1 rs1049793", async ({
     page,
   }) => {
-    await page.route('**/api/analysis/allergy/pathways**', async (route) => {
-      await route.fulfill(jsonRoute(allergyPathwaysPayload()))
-    })
-    await page.route('**/api/analysis/allergy/pathway/**', async (route) => {
-      await route.fulfill(jsonRoute(allergyDetailPayload()))
-    })
+    await page.route("**/api/analysis/allergy/pathways**", async (route) => {
+      await route.fulfill(jsonRoute(allergyPathwaysPayload()));
+    });
+    await page.route("**/api/analysis/allergy/pathway/**", async (route) => {
+      await route.fulfill(jsonRoute(allergyDetailPayload()));
+    });
 
-    await page.goto('/allergy?sample_id=1')
-    await waitForReactHydration(page)
+    await page.goto("/allergy?sample_id=1");
+    await waitForReactHydration(page);
 
-    await page.getByRole('button', { name: /Histamine Metabolism/ }).first().click()
+    await page
+      .getByRole("button", { name: /Histamine Metabolism/ })
+      .first()
+      .click();
 
-    const panel = page.getByRole('dialog', { name: /Histamine Metabolism pathway details/ })
-    await expect(panel).toBeVisible()
+    const panel = page.getByRole("dialog", {
+      name: /Histamine Metabolism pathway details/,
+    });
+    await expect(panel).toBeVisible();
 
-    const badge = panel.getByText('Indeterminate', { exact: true })
-    await expect(badge).toBeVisible()
-    await expect(badge).toHaveClass(/text-slate-600/)
-    await expect(badge).not.toHaveClass(/text-emerald/)
+    const badge = panel.getByText("Indeterminate", { exact: true });
+    await expect(badge).toBeVisible();
+    await expect(badge).toHaveClass(/text-slate-600/);
+    await expect(badge).not.toHaveClass(/text-emerald/);
 
-    await expect(panel.getByText(/palindromic/i)).toBeVisible()
-    await expect(panel.getByText(/cannot be determined from the array/i)).toBeVisible()
-  })
-})
+    await expect(panel.getByText(/palindromic/i)).toBeVisible();
+    await expect(
+      panel.getByText(/cannot be determined from the array/i),
+    ).toBeVisible();
+  });
+});
