@@ -449,7 +449,13 @@ def _encode_dosage(genotype: str | None, alt_allele: str) -> float | None:
     if not genotype or len(genotype) < 2:
         return None
 
-    if genotype in ("--", "00", "II", "DD", "DI", "ID"):
+    # Delegate to the single shared no-call contract instead of repeating a
+    # literal list. The local copy omitted the ``??`` merge-ambiguity sentinel
+    # that ``sample_merge``'s ``flag_only`` strategy writes for a discordant
+    # locus, so a merge conflict encoded as dosage 0.0 — numerically
+    # indistinguishable from a real homozygous-reference call, standardized into
+    # the projection as an observed genotype rather than mean-imputed (#2180).
+    if is_no_call(genotype):
         return None
 
     count = 0
@@ -894,8 +900,11 @@ def compute_missing_aim_rate(
 
     missing = 0
     for snp in bundle.snps:
-        gt = genotype_map.get(snp.rsid)
-        if gt is None or gt in ("--", "00", "II", "DD", "DI", "ID", ""):
+        # Same shared no-call contract as _encode_dosage: an AIM that cannot be
+        # scored must count as missing here, or coverage is inflated and the
+        # sufficiency/confidence gate passes on absent data. The literal list
+        # this replaced omitted "??", "-" and "0" (#2180).
+        if is_no_call(genotype_map.get(snp.rsid)):
             missing += 1
 
     return missing / bundle.snp_count
