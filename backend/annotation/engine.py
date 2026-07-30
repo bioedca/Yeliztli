@@ -33,7 +33,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from backend.analysis.insilico_tiers import is_missense_consequence
-from backend.analysis.zygosity import classify_zygosity
+from backend.analysis.zygosity import classify_zygosity, is_no_call
 from backend.annotation.alphamissense import lookup_alphamissense_by_positions
 from backend.annotation.dbnsfp import (
     DbNSFPAnnotation,
@@ -1473,6 +1473,12 @@ def run_annotation(
     # locus wins still depends on `batch_size`.
     _calls_by_query: dict[str, set[tuple[str, str, int]]] = {}
     for _row in raw_rows:
+        # A no-call carries no allele information, so it cannot genuinely
+        # disagree with a typed alias. Counting it as a distinct call made the
+        # guard withhold the *valid* call's frequency -- over-suppression, and
+        # potentially dropping it from rare-variant results (#2214 review).
+        if is_no_call(_row.genotype):
+            continue
         _calls_by_query.setdefault(current_by_old.get(_row.rsid, _row.rsid), set()).add(
             (_row.genotype, _row.chrom, _row.pos)
         )

@@ -2234,6 +2234,45 @@ class TestGnomadAnnotationLookupIntegration:
         # It sits at pos 300; it must not inherit pos 900's 0.40.
         assert old_row.gnomad_af_global != pytest.approx(0.40)
 
+    def test_no_call_alias_does_not_suppress_a_valid_call(
+        self,
+        sample_engine: sa.Engine,
+        mock_registry: MagicMock,
+        gnomad_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """#2214 review: over-suppression is a failure too.
+
+        A deprecated rsID with a `--` no-call mapping onto the same multi-ALT
+        query as a validly typed current rsID used to register as a conflicting
+        genotype, so the guard withheld the frequency from the *valid* call --
+        and with `include_novel=False` that can drop it from rare-variant
+        results. A no-call carries no allele information and cannot disagree.
+        """
+        with reference_engine.begin() as conn:
+            conn.execute(
+                dbsnp_merges.insert().values(
+                    old_rsid="rs_nocall_old", current_rsid="rs_shared_prod", build_id=155
+                )
+            )
+        self._shared_rsid_gnomad_rows(gnomad_engine)
+        with sample_engine.begin() as conn:
+            conn.execute(
+                raw_variants.insert(),
+                [
+                    {"rsid": "rs_nocall_old", "chrom": "1", "pos": 300, "genotype": "--"},
+                    {"rsid": "rs_shared_prod", "chrom": "1", "pos": 300, "genotype": "AG"},
+                ],
+            )
+
+        run_annotation(sample_engine, mock_registry)
+
+        row = self._annotated_row(sample_engine, "rs_shared_prod")
+        assert row is not None
+        # The typed call carries G>A and must keep its own frequency.
+        assert row.gnomad_af_global == pytest.approx(0.001)
+        assert row.gnomad_homozygous_count == 1
+
     def test_single_alt_rsid_is_annotated_regardless_of_genotype(
         self, sample_engine: sa.Engine, mock_registry: MagicMock, gnomad_engine: sa.Engine
     ) -> None:
