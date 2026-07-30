@@ -43,7 +43,7 @@ import { cn } from "@/lib/utils"
 import { getClinvarSignificanceBadgeClass } from "@/lib/clinvar-significance"
 import { formatClinvarConditionsText } from "@/lib/clinvar-conditions"
 import { formatAlleleFrequency } from "@/lib/format"
-import { gnomadNoFrequencyDetail, isGnomadSourceUncovered } from "@/lib/gnomad-status"
+import { gnomadNoFrequencyDetail, gnomadNoFrequencyShortLabel } from "@/lib/gnomad-status"
 import { polyphen2Display, siftDisplay } from "@/lib/insilico"
 import { HGVS_CODING_TOOLTIP, HGVS_PROTEIN_TOOLTIP } from "@/lib/hgvsInfo"
 import { SCORE_TOOLTIP_AFFORDANCE } from "@/lib/inSilicoScoreInfo"
@@ -192,7 +192,7 @@ function OverviewTab({ variant }: { variant: VariantDetail }) {
     : variant.rare_flag
       ? "Rare"
       : null
-  const gnomadUncovered = isGnomadSourceUncovered(variant.gnomad_source_status)
+  const gnomadNoAfLabel = gnomadNoFrequencyShortLabel(variant.gnomad_source_status)
   const conditions = formatClinvarConditionsText(variant.clinvar_conditions)
 
   return (
@@ -261,7 +261,7 @@ function OverviewTab({ variant }: { variant: VariantDetail }) {
       <SectionHeader icon={Activity} label="Key Scores" />
       <DetailRow label="gnomAD AF" value={
         <span className="flex items-center gap-1.5">
-          {gnomadUncovered ? "Not assessed" : formatAlleleFrequency(variant.gnomad_af_global)}
+          {gnomadNoAfLabel ?? formatAlleleFrequency(variant.gnomad_af_global)}
           {rareLabel && (
             <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
               {rareLabel}

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   gnomadNoFrequencyDetail,
   gnomadNoFrequencyLabel,
+  gnomadNoFrequencyShortLabel,
   isGnomadAlleleAmbiguous,
 } from "@/lib/gnomad-status"
 
@@ -42,5 +43,26 @@ describe("gnomadNoFrequencyLabel", () => {
     expect(isGnomadAlleleAmbiguous("allele_ambiguous")).toBe(true)
     expect(isGnomadAlleleAmbiguous("observed")).toBe(false)
     expect(isGnomadAlleleAmbiguous(null)).toBe(false)
+  })
+})
+
+describe("gnomadNoFrequencyShortLabel", () => {
+  // #2214 review: the variant table, side panel and detail page each
+  // special-cased `source_uncovered` inline, so an allele-ambiguous row rendered
+  // as an empty cell or a dash -- indistinguishable from genuine absence. They
+  // now share this helper so they cannot drift apart again.
+  it("labels an unresolved allele instead of leaving the cell blank", () => {
+    expect(gnomadNoFrequencyShortLabel("allele_ambiguous")).toBe("Allele unresolved")
+  })
+
+  it("keeps the uncovered-source label", () => {
+    expect(gnomadNoFrequencyShortLabel("source_uncovered")).toBe("Not assessed")
+  })
+
+  it("returns null for genuine absence so callers render their own empty state", () => {
+    // Discriminating control: labelling everything would put text in every
+    // blank AF cell in the variant table.
+    expect(gnomadNoFrequencyShortLabel(null)).toBeNull()
+    expect(gnomadNoFrequencyShortLabel("observed")).toBeNull()
   })
 })

@@ -1,6 +1,6 @@
 export type GnomadSourceStatus = string
 
-export function isGnomadSourceUncovered(status: GnomadSourceStatus | null | undefined): boolean {
+function isGnomadSourceUncovered(status: GnomadSourceStatus | null | undefined): boolean {
   return status === "source_uncovered"
 }
 
@@ -13,6 +13,26 @@ export function isGnomadSourceUncovered(status: GnomadSourceStatus | null | unde
  */
 export function isGnomadAlleleAmbiguous(status: GnomadSourceStatus | null | undefined): boolean {
   return status === "allele_ambiguous"
+}
+
+/** Compact cell/row label when no AF is shown, or null to fall through to the
+ * caller's own empty rendering.
+ *
+ * The table, the side panel and the detail page each special-cased
+ * `source_uncovered` inline, which is exactly how `allele_ambiguous` came to be
+ * rendered as a blank cell — indistinguishable from absence. One helper, three
+ * call sites.
+ */
+export function gnomadNoFrequencyShortLabel(
+  status: GnomadSourceStatus | null | undefined,
+): string | null {
+  if (isGnomadSourceUncovered(status)) {
+    return "Not assessed"
+  }
+  if (isGnomadAlleleAmbiguous(status)) {
+    return "Allele unresolved"
+  }
+  return null
 }
 
 export function gnomadNoFrequencyLabel(
