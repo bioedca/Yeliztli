@@ -12,6 +12,7 @@ reference so a coverage-qualified badge can't ship undocumented again.
 from __future__ import annotations
 
 import ast
+from collections.abc import Iterator
 from pathlib import Path
 
 from backend.annotation.dbnsfp import ENSEMBLE_MIN_AXES, is_ensemble_pathogenic_from_counts
@@ -29,6 +30,14 @@ _DOC = _REPO / "docs" / "modules" / "interpretation-reference.md"
 _RARE_VARIANTS_DOC = _REPO / "docs" / "modules" / "rare-variants.md"
 _VARIANT_DETAIL_DOC = _REPO / "docs" / "features" / "variant-detail.md"
 _VARIANT_EXPLORER_DOC = _REPO / "docs" / "features" / "variant-explorer.md"
+_RISK_ALLELE_EVIDENCE_XML = (
+    _REPO
+    / "data"
+    / "science-evidence"
+    / "2026-07-31-clingen-risk-allele-2052"
+    / "raw"
+    / "pubmed-efetch-38054408.xml"
+)
 _SRC = _REPO / "frontend" / "src" / "lib" / "pathwayCoverage.ts"
 _RARE_VARIANT_PANEL = (
     _REPO / "frontend" / "src" / "components" / "rare-variants" / "VariantDetailPanel.tsx"
@@ -93,6 +102,28 @@ def _documents_distinct_lower_penetrance_category(text: str) -> bool:
         in normalized
     )
     return canonical_distinct_category_language
+
+
+_NESTED_SCOPE_NODES = (
+    ast.FunctionDef,
+    ast.AsyncFunctionDef,
+    ast.Lambda,
+    ast.ClassDef,
+)
+
+
+def _walk_current_scope(node: ast.AST) -> Iterator[ast.AST]:
+    """Yield descendants without entering nested functions, lambdas, or classes."""
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        stack = list(reversed(node.body))
+    else:
+        stack = [node]
+    while stack:
+        current = stack.pop()
+        yield current
+        if isinstance(current, _NESTED_SCOPE_NODES):
+            continue
+        stack.extend(reversed(list(ast.iter_child_nodes(current))))
 
 
 def _merge_assignment_states(
@@ -239,7 +270,7 @@ def _expression_emits_lower_penetrance_category(
         return False
     seen.add(marker)
 
-    for node in ast.walk(expression):
+    for node in _walk_current_scope(expression):
         if isinstance(node, ast.Name) and node.id == "LOWER_PENETRANCE_RISK_ALLELE_CATEGORY":
             return True
         if isinstance(node, ast.Name):
@@ -271,7 +302,7 @@ def _expression_emits_lower_penetrance_category(
                     seen,
                     getattr(return_node, "lineno", before_lineno),
                 )
-                for return_node in ast.walk(called)
+                for return_node in _walk_current_scope(called)
             ):
                 return True
     return False
@@ -358,7 +389,7 @@ def _values_bound_payloads(
 
 def _insert_payloads(function: ast.FunctionDef) -> list[tuple[ast.expr, int]]:
     payloads: list[tuple[ast.expr, int]] = []
-    for node in ast.walk(function):
+    for node in _walk_current_scope(function):
         if (
             not isinstance(node, ast.Call)
             or not isinstance(node.func, ast.Attribute)
@@ -435,7 +466,7 @@ def _persisted_row_expressions(
             )
         )
     assignment_floor = min((lineno for lineno, _ in assignments), default=0)
-    for node in ast.walk(function):
+    for node in _walk_current_scope(function):
         if (
             not isinstance(node, ast.Call)
             or not hasattr(node, "lineno")
@@ -558,7 +589,7 @@ def _row_emits_lower_penetrance_category(
                     seen,
                     getattr(return_node, "lineno", before_lineno),
                 )
-                for return_node in ast.walk(called)
+                for return_node in _walk_current_scope(called)
             )
     return False
 
@@ -613,6 +644,50 @@ def store_test_findings():
         return category
 
     rows = [{"category": category}]
+    conn.execute(sa.insert(findings), rows)
+""",
+        encoding="utf-8",
+    )
+    assert _stores_lower_penetrance_category(analysis) is False
+
+    for nested_scope in (
+        """
+    def never_called():
+        conn.execute(
+            sa.insert(findings),
+            [{"category": LOWER_PENETRANCE_RISK_ALLELE_CATEGORY}],
+        )
+""",
+        """
+    def never_called():
+        rows.append({"category": LOWER_PENETRANCE_RISK_ALLELE_CATEGORY})
+""",
+        """
+    callback = lambda: rows.append(
+        {"category": LOWER_PENETRANCE_RISK_ALLELE_CATEGORY}
+    )
+""",
+    ):
+        analysis.write_text(
+            f"""
+def store_test_findings():
+    rows = [{{"category": "monogenic_variant"}}]
+{nested_scope}
+    conn.execute(sa.insert(findings), rows)
+""",
+            encoding="utf-8",
+        )
+        assert _stores_lower_penetrance_category(analysis) is False
+
+    analysis.write_text(
+        """
+def category_for_store():
+    def never_called():
+        return LOWER_PENETRANCE_RISK_ALLELE_CATEGORY
+    return "monogenic_variant"
+
+def store_test_findings():
+    rows = [{"category": category_for_store()}]
     conn.execute(sa.insert(findings), rows)
 """,
         encoding="utf-8",
@@ -772,6 +847,16 @@ def test_shared_module_views_disclose_that_categories_render_together() -> None:
             f"{display_name} must distinguish its stored categories "
             "from its shared UI view (#2052)."
         )
+
+
+def test_pubmed_evidence_payload_excludes_publisher_owned_abstract() -> None:
+    """The retained PubMed snapshot is redistributable citation metadata only (#2052)."""
+    payload = _RISK_ALLELE_EVIDENCE_XML.read_text(encoding="utf-8")
+    assert "<Abstract>" not in payload
+    assert "CopyrightInformation" not in payload
+    assert "All rights reserved" not in payload
+    assert '<PMID Version="1">38054408</PMID>' in payload
+    assert '<PublicationType UI="D016428">Journal Article</PublicationType>' in payload
 
 
 def test_lower_penetrance_category_guard_rejects_high_penetrance_equivalence() -> None:

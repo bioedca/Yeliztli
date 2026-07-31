@@ -35,13 +35,6 @@
         </Pagination>
         <ELocationID EIdType="doi" ValidYN="Y">10.1016/j.gim.2023.101036</ELocationID>
         <ELocationID EIdType="pii" ValidYN="Y">S1098-3600(23)01052-3</ELocationID>
-        <Abstract>
-          <AbstractText Label="PURPOSE">Genetic variants at the low end of the penetrance spectrum have historically been challenging to interpret because their high population frequencies exceed the disease prevalence of the associated condition, leading to a lack of clear segregation between the variant and disease. There is currently substantial variation in the classification of these variants, and no formal classification framework has been widely adopted. The Clinical Genome Resource Low Penetrance/Risk Allele Working Group was formed to address these challenges and promote harmonization within the clinical community.</AbstractText>
-          <AbstractText Label="METHODS">The work presented here is the product of internal and community Likert-scaled surveys in combination with expert consensus within the Working Group.</AbstractText>
-          <AbstractText Label="RESULTS">We formally recognize risk alleles and low-penetrance variants as distinct variant classes from those causing highly penetrant disease that require special considerations regarding their clinical classification and reporting. First, we provide a preferred terminology for these variants. Second, we focus on risk alleles and detail considerations for reviewing relevant studies and present a framework for the classification these variants. Finally, we discuss considerations for clinical reporting of risk alleles.</AbstractText>
-          <AbstractText Label="CONCLUSION">These recommendations support harmonized interpretation, classification, and reporting of variants at the low end of the penetrance spectrum.</AbstractText>
-          <CopyrightInformation>Copyright &#xA9; 2023 American College of Medical Genetics and Genomics. Published by Elsevier Inc. All rights reserved.</CopyrightInformation>
-        </Abstract>
         <AuthorList CompleteYN="Y">
           <Author ValidYN="Y">
             <LastName>Schmidt</LastName>

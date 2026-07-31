@@ -4,8 +4,8 @@
 
 The source below supports the terminology used to distinguish
 lower-penetrance/risk-allele classifications from ordinary high-penetrance
-Mendelian P/LP findings. It is cited only to explain Yeliztli's existing output
-tier; this change does not add or alter variant classification behavior.
+Mendelian P/LP findings. It is cited only to explain Yeliztli's existing stored
+output category; this change does not add or alter variant classification behavior.
 
 ## Source
 
@@ -21,11 +21,17 @@ tier; this change does not add or alter variant classification behavior.
 - Sanitized raw metadata and record payloads:
   `data/science-evidence/2026-07-31-clingen-risk-allele-2052/raw/pubmed-esummary-38054408.json`.
   `data/science-evidence/2026-07-31-clingen-risk-allele-2052/raw/pubmed-efetch-38054408.xml`.
-  Public author contact email addresses in the XML copy are replaced with
-  `[redacted-email]`; the typed record structure is otherwise unchanged.
-- The packet stores bibliographic metadata only, not article full text. NCBI
-  PubMed citation metadata is redistributed subject to NCBI's data-usage
-  policies; the linked article remains under its publisher's license.
+  The publisher-supplied `Abstract` (including its all-rights-reserved
+  `CopyrightInformation`) is removed, and public author contact email addresses
+  are replaced with `[redacted-email]`; the remaining typed record structure is
+  unchanged.
+- The packet stores bibliographic metadata only, not the publisher abstract or
+  article full text. NLM's [Copyright Information & Downloading NLM
+  Data](https://www.nlm.nih.gov/databases/download.html) terms state that no
+  signed license is needed for publicly accessible NLM data, subject to source
+  acknowledgement, non-endorsement, and currentness disclosure (accessed
+  2026-07-31). This packet identifies NLM/PubMed as the source, claims no
+  endorsement, and preserves its access date as a fixed historical snapshot.
 
 ## Evidence route and checks
 
