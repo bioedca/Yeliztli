@@ -114,6 +114,40 @@ test.describe('mobile app navigation layout', () => {
     expect(mainPrecedesNav).toBe(true)
   })
 
+  test('stacks Settings navigation above full-width content on phones (#2014)', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 375, height: 800 })
+    await page.goto('/settings/updates')
+    await waitForReactHydration(page)
+
+    const main = page.locator('#main-content')
+    const settingsNav = page.getByRole('navigation', { name: 'Settings sections' })
+    const navWrapper = settingsNav.locator('..')
+    const layout = navWrapper.locator('..')
+    const content = layout.locator(':scope > div').nth(1)
+    const [mainBox, navBox, layoutBox, contentBox, flexDirection, documentWidth] =
+      await Promise.all([
+        main.boundingBox(),
+        navWrapper.boundingBox(),
+        layout.boundingBox(),
+        content.boundingBox(),
+        layout.evaluate((element) => getComputedStyle(element).flexDirection),
+        page.evaluate(() => document.documentElement.scrollWidth),
+      ])
+
+    expect(mainBox).not.toBeNull()
+    expect(navBox).not.toBeNull()
+    expect(layoutBox).not.toBeNull()
+    expect(contentBox).not.toBeNull()
+    expect(flexDirection).toBe('column')
+    expect(documentWidth).toBeLessThanOrEqual(375)
+    expect(layoutBox!.width).toBeLessThanOrEqual(mainBox!.width + 2)
+    expect(navBox!.width).toBeGreaterThanOrEqual(layoutBox!.width - 2)
+    expect(contentBox!.width).toBeGreaterThanOrEqual(layoutBox!.width - 2)
+    expect(navBox!.y + navBox!.height).toBeLessThanOrEqual(contentBox!.y + 1)
+  })
+
   test('keeps the pre-upload state centered across Variant Explorer (#2010)', async ({
     page,
   }) => {
