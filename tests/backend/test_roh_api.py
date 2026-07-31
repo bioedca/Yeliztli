@@ -399,6 +399,76 @@ class TestEvaluabilityAtTheApi:
         assert data["froh"] is None
         assert "typical result" not in data["finding_text"].lower()
 
+    @pytest.mark.parametrize("stored", ["false", "true", 0, 1, "yes"])
+    def test_non_boolean_evaluable_is_not_a_verdict(
+        self, _env: sa.Engine, client: TestClient, stored: object
+    ) -> None:
+        # A schema-drifted verdict is not a verdict. "false" is a truthy string,
+        # so reading it as an explicit true would skip the count floor and the
+        # structural check and expose a stored FROH from a one-marker sample.
+        import json as _json
+
+        from backend.db.tables import findings
+
+        self._reseed(_env, [{"rsid": "r1", "chrom": "1", "pos": 1_000_000, "genotype": "AA"}])
+        with _env.begin() as conn:
+            conn.execute(
+                sa.insert(findings),
+                {
+                    "module": "roh",
+                    "category": "autozygosity",
+                    "evidence_level": 1,
+                    "finding_text": (
+                        "No long runs of homozygosity were detected (FROH ≈ 0). "
+                        "This is the typical result."
+                    ),
+                    "detail_json": _json.dumps(
+                        {"evaluable": stored, "froh": 0.0, "autosomal_snps_used": 1}
+                    ),
+                },
+            )
+
+        data = client.get("/api/analysis/roh/findings?sample_id=1").json()
+        assert data["evaluable"] is False
+        assert data["indeterminate_reason"] == "detail_unavailable"
+        assert data["froh"] is None
+        assert "typical result" not in data["finding_text"].lower()
+
+    def test_unrecognised_stored_reason_does_not_borrow_another_cause(
+        self, _env: sa.Engine, client: TestClient
+    ) -> None:
+        # unevaluable_text branches on the reason, so a drifted value would fall
+        # through to the marker-region wording and state a cause the data never
+        # supported — for a sample that has ample markers.
+        import json as _json
+
+        from backend.db.tables import findings
+
+        with _env.begin() as conn:
+            conn.execute(
+                sa.insert(findings),
+                {
+                    "module": "roh",
+                    "category": "autozygosity",
+                    "evidence_level": 1,
+                    "finding_text": "stored narrative",
+                    "detail_json": _json.dumps(
+                        {
+                            "evaluable": False,
+                            "indeterminate_reason": "some_future_reason",
+                            "froh": None,
+                            "autosomal_snps_used": 361,
+                        }
+                    ),
+                },
+            )
+
+        data = client.get("/api/analysis/roh/findings?sample_id=1").json()
+        assert data["evaluable"] is False
+        assert data["indeterminate_reason"] == "detail_unavailable"
+        assert "without a coverage gap" not in data["finding_text"]
+        assert "could not be read" in data["finding_text"].lower()
+
     def test_no_recorded_count_on_an_ineligible_sample_is_withheld(
         self, _env: sa.Engine, client: TestClient
     ) -> None:

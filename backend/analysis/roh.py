@@ -87,6 +87,12 @@ INSUFFICIENT_AUTOSOMAL_MARKERS = "insufficient_autosomal_markers"
 NO_SEGMENT_ELIGIBLE_REGION = "no_segment_eligible_region"
 DETAIL_UNAVAILABLE = "detail_unavailable"
 
+# A stored reason is honoured only if it is one of these: the narrative branches
+# on the value, so an unrecognised one would silently take another cause's wording.
+_KNOWN_INDETERMINATE_REASONS = frozenset(
+    {INSUFFICIENT_AUTOSOMAL_MARKERS, NO_SEGMENT_ELIGIBLE_REGION, DETAIL_UNAVAILABLE}
+)
+
 # FROH denominator: the autosomal genome length (~2.77 Gb), McQuillan 2008
 # convention, so FROH is comparable across samples rather than array-relative.
 AUTOSOMAL_GENOME_KB = 2_770_000
@@ -398,8 +404,19 @@ def evaluability_from_detail(
     observed = snps_used
     stored = detail.get("evaluable")
     if stored is not None:
+        # Must be an actual boolean. A schema-drifted `"evaluable": "false"` is
+        # a truthy string, and reading it as a true verdict would skip both the
+        # count floor and the structural check — vouching for a row on the
+        # strength of a value that says the opposite.
+        if not isinstance(stored, bool):
+            return False, snps_used, DETAIL_UNAVAILABLE
         if not stored:
-            reason = detail.get("indeterminate_reason") or INSUFFICIENT_AUTOSOMAL_MARKERS
+            # Only a known reason is honoured. ``unevaluable_text`` branches on
+            # this value, so an unrecognised one would fall through to the
+            # marker-region wording and state a cause the data never supported.
+            reason = detail.get("indeterminate_reason")
+            if reason not in _KNOWN_INDETERMINATE_REASONS:
+                return False, snps_used, DETAIL_UNAVAILABLE
             return False, snps_used, str(reason)
     elif not counted:
         # Legacy row recording no coverage at all: read the sample or say the
