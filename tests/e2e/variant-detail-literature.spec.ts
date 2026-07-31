@@ -129,3 +129,23 @@ test('loads gene literature, links its sources, and expands the abstract', async
   await expect(disclosure).toHaveAttribute('aria-expanded', 'true')
   await expect(page.getByText('A synthetic cached abstract for the browser regression.')).toBeVisible()
 })
+
+test('distinguishes a failed lookup from a genuine empty result', async ({ page }) => {
+  await page.route('**/api/genes/TP53**', (route) =>
+    route.fulfill({
+      json: {
+        ...GENE_DETAIL,
+        literature: [],
+        literature_errors: ['PubMed lookup unavailable.'],
+      },
+    }),
+  )
+  await page.goto('/variants/rs1042522?sample_id=1')
+  await waitForReactHydration(page)
+
+  await page.getByRole('tab', { name: 'Literature' }).click()
+
+  await expect(page.getByText('No cached literature is available.')).toBeVisible()
+  await expect(page.getByText('PubMed lookup unavailable.')).toBeVisible()
+  await expect(page.getByText('No literature found for this gene.')).toHaveCount(0)
+})

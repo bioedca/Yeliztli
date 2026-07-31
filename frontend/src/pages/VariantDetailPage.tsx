@@ -622,7 +622,9 @@ function LiteratureTab({
 
       {data && data.literature.length === 0 && (
         <div className="rounded-lg border bg-card p-6 text-center text-sm text-muted-foreground">
-          No literature found for this gene.
+          {data.literature_errors.length > 0
+            ? "No cached literature is available."
+            : "No literature found for this gene."}
         </div>
       )}
     </div>

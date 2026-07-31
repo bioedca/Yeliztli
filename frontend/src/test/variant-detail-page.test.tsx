@@ -582,6 +582,58 @@ describe("VariantDetailPage (P2-21a)", () => {
     expect(screen.queryByText(/Phase 3/)).not.toBeInTheDocument()
   })
 
+  it.each([
+    {
+      name: "a genuine empty search",
+      literatureErrors: [] as string[],
+      expected: "No literature found for this gene.",
+      absent: "No cached literature is available.",
+    },
+    {
+      name: "a failed search without cached results",
+      literatureErrors: ["PubMed lookup unavailable."],
+      expected: "No cached literature is available.",
+      absent: "No literature found for this gene.",
+    },
+  ])("distinguishes $name", async ({ literatureErrors, expected, absent }) => {
+    mockFetch.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.startsWith("/api/variants/")) {
+        return {
+          ok: true,
+          json: async () => mockVariant,
+        }
+      }
+      if (url.startsWith("/api/genes/")) {
+        return {
+          ok: true,
+          json: async () => ({
+            gene_symbol: "BRCA1",
+            uniprot: null,
+            uniprot_error: null,
+            phenotypes: [],
+            literature: [],
+            literature_errors: literatureErrors,
+            variants: [],
+            population_af: [],
+          }),
+        }
+      }
+      throw new Error(`Unexpected fetch: ${url}`)
+    })
+
+    const user = userEvent.setup()
+    renderPage("rs100")
+
+    await user.click(await screen.findByRole("tab", { name: /literature/i }))
+
+    expect(await screen.findByText(expected)).toBeInTheDocument()
+    expect(screen.queryByText(absent)).not.toBeInTheDocument()
+    if (literatureErrors.length > 0) {
+      expect(screen.getByText(literatureErrors[0])).toBeInTheDocument()
+    }
+  })
+
   it("switches to Genome tab with IGV browser", async () => {
     mockFetch.mockImplementation(async () => ({
       ok: true,
