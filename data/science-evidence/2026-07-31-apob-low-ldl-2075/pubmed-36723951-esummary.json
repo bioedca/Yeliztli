@@ -1,0 +1,253 @@
+{
+  "header": {
+    "type": "esummary",
+    "version": "0.3"
+  },
+  "result": {
+    "uids": [
+      "36723951"
+    ],
+    "36723951": {
+      "uid": "36723951",
+      "pubdate": "2023 Mar 1",
+      "epubdate": "",
+      "source": "JAMA Cardiol",
+      "authors": [
+        {
+          "name": "Dron JS",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Patel AP",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Zhang Y",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Jurgens SJ",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Maamari DJ",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Wang M",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Boerwinkle E",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Morrison AC",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "de Vries PS",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Fornage M",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Hou L",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Lloyd-Jones DM",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Psaty BM",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Tracy RP",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Bis JC",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Vasan RS",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Levy D",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Heard-Costa N",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Rich SS",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Guo X",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Taylor KD",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Gibbs RA",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Rotter JI",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Willer CJ",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Oelsner EC",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Moran AE",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Peloso GM",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Natarajan P",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Khera AV",
+          "authtype": "Author",
+          "clusterid": ""
+        }
+      ],
+      "lastauthor": "Khera AV",
+      "title": "Association of Rare Protein-Truncating DNA Variants in APOB or PCSK9 With Low-density Lipoprotein Cholesterol Level and Risk of Coronary Heart Disease.",
+      "sorttitle": "association of rare protein truncating dna variants in apob or pcsk9 with low density lipoprotein cholesterol level and risk of coronary heart disease",
+      "volume": "8",
+      "issue": "3",
+      "pages": "258-267",
+      "lang": [
+        "eng"
+      ],
+      "nlmuniqueid": "101676033",
+      "issn": "2380-6583",
+      "essn": "2380-6591",
+      "pubtype": [
+        "Journal Article",
+        "Research Support, N.I.H., Extramural",
+        "Research Support, Non-U.S. Gov't"
+      ],
+      "recordstatus": "PubMed - indexed for MEDLINE",
+      "pubstatus": "4",
+      "articleids": [
+        {
+          "idtype": "pubmed",
+          "idtypen": 1,
+          "value": "36723951"
+        },
+        {
+          "idtype": "pmc",
+          "idtypen": 8,
+          "value": "PMC9996405"
+        },
+        {
+          "idtype": "pmcid",
+          "idtypen": 5,
+          "value": "pmc-id: PMC9996405;"
+        },
+        {
+          "idtype": "doi",
+          "idtypen": 3,
+          "value": "10.1001/jamacardio.2022.5271"
+        },
+        {
+          "idtype": "pii",
+          "idtypen": 4,
+          "value": "2801002"
+        }
+      ],
+      "history": [
+        {
+          "pubstatus": "medline",
+          "date": "2023/04/19 06:41"
+        },
+        {
+          "pubstatus": "pubmed",
+          "date": "2023/02/02 06:00"
+        },
+        {
+          "pubstatus": "entrez",
+          "date": "2023/02/01 11:34"
+        },
+        {
+          "pubstatus": "pmc-release",
+          "date": "2024/02/01 00:00"
+        }
+      ],
+      "references": [],
+      "attributes": [
+        "Has Abstract"
+      ],
+      "pmcrefcount": 60,
+      "fulljournalname": "JAMA cardiology",
+      "elocationid": "doi: 10.1001/jamacardio.2022.5271",
+      "doctype": "citation",
+      "srccontriblist": [],
+      "booktitle": "",
+      "medium": "",
+      "edition": "",
+      "publisherlocation": "",
+      "publishername": "",
+      "srcdate": "",
+      "reportnumber": "",
+      "availablefromurl": "",
+      "locationlabel": "",
+      "doccontriblist": [],
+      "docdate": "",
+      "bookname": "",
+      "chapter": "",
+      "sortpubdate": "2023/03/01 00:00",
+      "sortfirstauthor": "Dron JS",
+      "vernaculartitle": ""
+    }
+  }
+}
