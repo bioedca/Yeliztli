@@ -156,17 +156,49 @@ test.describe('mobile app navigation layout', () => {
 
     const sidebar = page.getByRole('complementary', { name: 'Variant table sidebar' })
     const table = page.getByRole('region', { name: 'Variant table' })
+    const nav = page.getByRole('navigation', { name: 'Main navigation' })
     const row = sidebar.locator('..')
-    const [sidebarBox, tableBox, rowBox] = await Promise.all([
+    const [sidebarBox, tableBox, navBox, rowBox] = await Promise.all([
       sidebar.boundingBox(),
       table.boundingBox(),
+      nav.boundingBox(),
       row.boundingBox(),
     ])
 
     expect(sidebarBox).not.toBeNull()
     expect(tableBox).not.toBeNull()
+    expect(navBox).not.toBeNull()
     expect(rowBox).not.toBeNull()
     expect(sidebarBox!.height).toBeLessThanOrEqual(rowBox!.height * 0.4 + 1)
     expect(tableBox!.height).toBeGreaterThanOrEqual(rowBox!.height * 0.5)
+    expect(tableBox!.y).toBeLessThan(navBox!.y)
+  })
+
+  test('keeps the table stacked and full width on portrait tablets (#2010)', async ({
+    page,
+  }) => {
+    await stubVariantExplorer(page)
+    await page.setViewportSize({ width: 768, height: 500 })
+    await page.goto('/variants?sample_id=1')
+    await waitForReactHydration(page)
+
+    await expect(page.getByText('synthetic-layout-variant')).toBeVisible()
+
+    const sidebar = page.getByRole('complementary', { name: 'Variant table sidebar' })
+    const table = page.getByRole('region', { name: 'Variant table' })
+    const row = sidebar.locator('..')
+    const [sidebarBox, tableBox, rowBox, flexDirection] = await Promise.all([
+      sidebar.boundingBox(),
+      table.boundingBox(),
+      row.boundingBox(),
+      row.evaluate((element) => getComputedStyle(element).flexDirection),
+    ])
+
+    expect(sidebarBox).not.toBeNull()
+    expect(tableBox).not.toBeNull()
+    expect(rowBox).not.toBeNull()
+    expect(flexDirection).toBe('column')
+    expect(sidebarBox!.width).toBeGreaterThanOrEqual(rowBox!.width - 2)
+    expect(tableBox!.width).toBeGreaterThanOrEqual(rowBox!.width - 2)
   })
 })

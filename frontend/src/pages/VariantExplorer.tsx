@@ -8,11 +8,13 @@ export default function VariantExplorer() {
   const sampleId = Number.isFinite(parsed) ? parsed : null
 
   return (
-    <div className="flex flex-col h-[calc(100vh-40px)]">
-      <div className="px-4 py-3 border-b border-border">
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="shrink-0 border-b border-border px-4 py-3">
         <h1 className="text-xl font-semibold">Variant Explorer</h1>
       </div>
-      <VariantTable sampleId={sampleId} />
+      <div className="flex min-h-0 flex-1">
+        <VariantTable sampleId={sampleId} />
+      </div>
     </div>
   )
 }
