@@ -16,9 +16,16 @@ describe("gnomadNoFrequencyLabel", () => {
     expect(gnomadNoFrequencyLabel("allele_ambiguous")).not.toBe("Not in gnomAD")
   })
 
-  it("explains why no frequency is shown", () => {
-    expect(gnomadNoFrequencyDetail("allele_ambiguous")).toContain("several alternate alleles")
-    expect(gnomadNoFrequencyDetail("allele_ambiguous")).not.toContain("Not found in gnomAD")
+  it("explains why no frequency is shown without denying carriage", () => {
+    const detail = gnomadNoFrequencyDetail("allele_ambiguous")
+    expect(detail).toContain("several alternate alleles")
+    expect(detail).toContain("no single frequency can be attributed")
+    expect(detail).not.toContain("Not found in gnomAD")
+    // #2214 review: a compound alternate call (`AT` at a G>A / G>T site) carries
+    // BOTH alternates, so "your genotype does not identify which one you carry"
+    // is false for it. The state also covers zero-carried and no-genotype cases,
+    // so the wording has to hold for all of them.
+    expect(detail).not.toContain("does not identify which one you carry")
   })
 
   it("outranks the novel flag, which would also be untrue here", () => {

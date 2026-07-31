@@ -128,8 +128,8 @@ export function gnomadNoFrequencyDetail(
   }
   if (isGnomadAlleleAmbiguous(status)) {
     return (
-      "This rsID covers several alternate alleles in gnomAD and your genotype " +
-      "does not identify which one you carry, so no frequency is shown"
+      "This rsID covers several alternate alleles in gnomAD and no single " +
+      "frequency can be attributed to your call, so none is shown"
     )
   }
   if (isNovel) {
