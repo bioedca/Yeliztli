@@ -7,11 +7,12 @@ const jsonRoute = (payload: unknown, status = 200) => ({
   body: JSON.stringify(payload),
 })
 
+// Explicitly synthetic, non-clinical values used only to exercise layout.
 const watchedVariants = Array.from({ length: 6 }, (_, index) => ({
-  rsid: `rs90${index + 1}`,
+  rsid: `synthetic-watch-${index + 1}`,
   watched_at: `2026-07-${String(index + 1).padStart(2, '0')}T00:00:00Z`,
-  clinvar_significance_at_watch: 'Uncertain significance',
-  clinvar_significance_current: 'Uncertain significance',
+  clinvar_significance_at_watch: null,
+  clinvar_significance_current: null,
   notes: null,
 }))
 
@@ -31,34 +32,31 @@ async function stubVariantExplorer(page: Page) {
       jsonRoute({
         items: [
           {
-            rsid: 'rs2010',
+            rsid: 'synthetic-layout-variant',
             chrom: '1',
-            pos: 2010,
-            genotype: 'AG',
-            ref: 'A',
-            alt: 'G',
-            zygosity: 'het',
-            carriage_status: 'carried',
-            gene_symbol: 'BRCA1',
-            consequence: 'missense_variant',
-            clinvar_significance: 'Uncertain significance',
-            clinvar_review_stars: 1,
-            gnomad_af_global: 0.01,
-            rare_flag: false,
-            cadd_phred: 12.5,
+            pos: 1,
+            genotype: '--',
+            ref: null,
+            alt: null,
+            zygosity: null,
+            gene_symbol: null,
+            consequence: null,
+            clinvar_significance: null,
+            clinvar_review_stars: null,
+            gnomad_af_global: null,
+            rare_flag: null,
+            cadd_phred: null,
             sift_score: null,
             sift_pred: null,
             polyphen2_hsvar_score: null,
             polyphen2_hsvar_pred: null,
             revel: null,
-            annotation_coverage: 0b111111,
-            evidence_conflict: false,
-            ensemble_pathogenic: false,
+            annotation_coverage: 0,
+            evidence_conflict: null,
+            ensemble_pathogenic: null,
             chrom_grch38: null,
             pos_grch38: null,
             tags: [],
-            source: '',
-            concordance: '',
           },
         ],
         next_cursor_chrom: null,
@@ -124,7 +122,7 @@ test.describe('mobile app navigation layout', () => {
     await page.goto('/variants?sample_id=1')
     await waitForReactHydration(page)
 
-    await expect(page.getByText('rs2010')).toBeVisible()
+    await expect(page.getByText('synthetic-layout-variant')).toBeVisible()
 
     const sidebar = page.getByRole('complementary', { name: 'Variant table sidebar' })
     const table = page.getByRole('region', { name: 'Variant table' })
@@ -154,7 +152,7 @@ test.describe('mobile app navigation layout', () => {
     await page.goto('/variants?sample_id=1')
     await waitForReactHydration(page)
 
-    await expect(page.getByText('rs2010')).toBeVisible()
+    await expect(page.getByText('synthetic-layout-variant')).toBeVisible()
 
     const sidebar = page.getByRole('complementary', { name: 'Variant table sidebar' })
     const table = page.getByRole('region', { name: 'Variant table' })
