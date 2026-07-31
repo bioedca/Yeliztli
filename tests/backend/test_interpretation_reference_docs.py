@@ -446,53 +446,250 @@ def _insert_payloads(function: ast.FunctionDef) -> list[tuple[ast.expr, int]]:
     return payloads
 
 
-def _persisted_row_expressions(
-    payload: ast.expr,
+def _merge_collection_states(
+    *states: list[tuple[ast.expr, ...]],
+) -> list[tuple[ast.expr, ...]]:
+    merged: dict[tuple[str, ...], tuple[ast.expr, ...]] = {}
+    for state_group in states:
+        for state in state_group:
+            marker = tuple(ast.dump(value, include_attributes=False) for value in state)
+            merged[marker] = state
+    return list(merged.values())
+
+
+def _collection_expression_states(
+    expression: ast.expr,
     function: ast.FunctionDef,
     seen_names: set[tuple[str, int]],
     before_lineno: int,
-) -> list[ast.expr]:
-    if isinstance(payload, (ast.List, ast.Tuple, ast.Set)):
-        return list(payload.elts)
-    if isinstance(payload, (ast.ListComp, ast.SetComp, ast.GeneratorExp)):
-        return [payload.elt]
-    if not isinstance(payload, ast.Name):
-        return [payload]
-    marker = (payload.id, before_lineno)
+) -> list[tuple[ast.expr, ...]]:
+    if isinstance(expression, (ast.List, ast.Tuple, ast.Set)):
+        return [tuple(expression.elts)]
+    if isinstance(expression, (ast.ListComp, ast.SetComp, ast.GeneratorExp)):
+        return [(expression.elt,)]
+    if not isinstance(expression, ast.Name):
+        return [(expression,)]
+
+    marker = (expression.id, before_lineno)
     if marker in seen_names:
         return []
     seen_names.add(marker)
-
-    rows: list[ast.expr] = []
-    assignments = _reaching_assignments_before(function, payload.id, before_lineno)
-    for assignment_lineno, value in assignments:
-        rows.extend(
-            _persisted_row_expressions(
+    states: list[tuple[ast.expr, ...]] = []
+    for assignment_lineno, value in _reaching_assignments_before(
+        function,
+        expression.id,
+        before_lineno,
+    ):
+        states.extend(
+            _collection_expression_states(
                 value,
                 function,
                 set(seen_names),
                 assignment_lineno,
             )
         )
-    assignment_floor = min((lineno for lineno, _ in assignments), default=0)
-    for node in _walk_current_scope(function):
-        if (
-            not isinstance(node, ast.Call)
-            or not hasattr(node, "lineno")
-            or not assignment_floor < node.lineno < before_lineno
-            or not isinstance(node.func, ast.Attribute)
-            or not isinstance(node.func.value, ast.Name)
-            or node.func.value.id != payload.id
-            or not node.args
-        ):
-            continue
-        if node.func.attr == "append":
-            rows.append(node.args[0])
-        elif node.func.attr == "extend":
-            rows.extend(
-                _persisted_row_expressions(node.args[0], function, seen_names, node.lineno)
+    return _merge_collection_states(states)
+
+
+def _pop_collection_state(
+    state: tuple[ast.expr, ...],
+    index: ast.expr | None,
+) -> list[tuple[ast.expr, ...]]:
+    if not state:
+        return []
+    if index is None:
+        return [state[:-1]]
+    if isinstance(index, ast.Constant) and isinstance(index.value, int):
+        normalized = index.value if index.value >= 0 else len(state) + index.value
+        if not 0 <= normalized < len(state):
+            return []
+        return [state[:normalized] + state[normalized + 1 :]]
+    return [state[:offset] + state[offset + 1 :] for offset in range(len(state))]
+
+
+def _direct_collection_state(
+    statement: ast.stmt,
+    name: str,
+    incoming: list[tuple[ast.expr, ...]],
+    function: ast.FunctionDef,
+) -> list[tuple[ast.expr, ...]] | None:
+    if isinstance(statement, ast.Assign) and any(
+        isinstance(target, ast.Name) and target.id == name for target in statement.targets
+    ):
+        return _collection_expression_states(statement.value, function, set(), statement.lineno)
+    if (
+        isinstance(statement, ast.AnnAssign)
+        and isinstance(statement.target, ast.Name)
+        and statement.target.id == name
+        and statement.value is not None
+    ):
+        return _collection_expression_states(statement.value, function, set(), statement.lineno)
+    if (
+        isinstance(statement, ast.AugAssign)
+        and isinstance(statement.target, ast.Name)
+        and statement.target.id == name
+        and isinstance(statement.op, ast.Add)
+    ):
+        extensions = _collection_expression_states(
+            statement.value,
+            function,
+            set(),
+            statement.lineno,
+        )
+        return [state + extension for state in incoming for extension in extensions]
+
+    if isinstance(statement, ast.Delete):
+        matching_targets = [
+            target
+            for target in statement.targets
+            if isinstance(target, ast.Subscript)
+            and isinstance(target.value, ast.Name)
+            and target.value.id == name
+        ]
+        if not matching_targets:
+            return None
+        state_group = incoming
+        for target in matching_targets:
+            if isinstance(target.slice, ast.Slice):
+                state_group = (
+                    [()] if target.slice.lower is None and target.slice.upper is None else []
+                )
+            else:
+                state_group = [
+                    result
+                    for state in state_group
+                    for result in _pop_collection_state(state, target.slice)
+                ]
+        return state_group
+
+    if not isinstance(statement, ast.Expr) or not isinstance(statement.value, ast.Call):
+        return None
+    call = statement.value
+    if (
+        not isinstance(call.func, ast.Attribute)
+        or not isinstance(call.func.value, ast.Name)
+        or call.func.value.id != name
+    ):
+        return None
+    if call.func.attr == "clear":
+        return [()]
+    if call.func.attr == "pop":
+        index = call.args[0] if call.args else None
+        return [result for state in incoming for result in _pop_collection_state(state, index)]
+    if call.func.attr == "append" and call.args:
+        return [state + (call.args[0],) for state in incoming]
+    if call.func.attr == "extend" and call.args:
+        extensions = _collection_expression_states(
+            call.args[0],
+            function,
+            set(),
+            statement.lineno,
+        )
+        return [state + extension for state in incoming for extension in extensions]
+    return None
+
+
+def _apply_collection_statements(
+    statements: list[ast.stmt],
+    name: str,
+    incoming: list[tuple[ast.expr, ...]],
+    function: ast.FunctionDef,
+) -> list[tuple[ast.expr, ...]]:
+    states = incoming
+    for statement in statements:
+        direct = _direct_collection_state(statement, name, states, function)
+        if direct is not None:
+            states = direct
+        elif isinstance(statement, ast.If):
+            body = _apply_collection_statements(statement.body, name, states, function)
+            orelse = (
+                _apply_collection_statements(statement.orelse, name, states, function)
+                if statement.orelse
+                else states
             )
-    return rows
+            states = _merge_collection_states(body, orelse)
+        elif isinstance(statement, (ast.For, ast.AsyncFor, ast.While)):
+            body = _apply_collection_statements(statement.body, name, states, function)
+            states = _merge_collection_states(states, body)
+            if statement.orelse:
+                states = _apply_collection_statements(statement.orelse, name, states, function)
+        elif isinstance(statement, (ast.With, ast.AsyncWith)):
+            states = _apply_collection_statements(statement.body, name, states, function)
+        elif isinstance(statement, (ast.Try, ast.TryStar)):
+            body = _apply_collection_statements(statement.body, name, states, function)
+            branches = [body]
+            branches.extend(
+                _apply_collection_statements(handler.body, name, states, function)
+                for handler in statement.handlers
+            )
+            states = _merge_collection_states(*branches)
+            if statement.orelse:
+                states = _apply_collection_statements(statement.orelse, name, states, function)
+            if statement.finalbody:
+                states = _apply_collection_statements(statement.finalbody, name, states, function)
+        elif isinstance(statement, ast.Match):
+            branches = [
+                _apply_collection_statements(case.body, name, states, function)
+                for case in statement.cases
+            ]
+            states = _merge_collection_states(states, *branches)
+    return states
+
+
+def _collection_states_reaching_line(
+    statements: list[ast.stmt],
+    name: str,
+    before_lineno: int,
+    incoming: list[tuple[ast.expr, ...]],
+    function: ast.FunctionDef,
+) -> list[tuple[ast.expr, ...]]:
+    states = incoming
+    for statement in statements:
+        if statement.lineno >= before_lineno:
+            break
+        if before_lineno <= getattr(statement, "end_lineno", statement.lineno):
+            for block in _statement_blocks(statement):
+                if _block_contains_line(block, before_lineno):
+                    return _collection_states_reaching_line(
+                        block,
+                        name,
+                        before_lineno,
+                        states,
+                        function,
+                    )
+            return states
+        states = _apply_collection_statements([statement], name, states, function)
+    return states
+
+
+def _persisted_row_expressions(
+    payload: ast.expr,
+    function: ast.FunctionDef,
+    seen_names: set[tuple[str, int]],
+    before_lineno: int,
+) -> list[ast.expr]:
+    if not isinstance(payload, ast.Name):
+        return [
+            value
+            for state in _collection_expression_states(
+                payload,
+                function,
+                seen_names,
+                before_lineno,
+            )
+            for value in state
+        ]
+    marker = (payload.id, before_lineno)
+    if marker in seen_names:
+        return []
+    states = _collection_states_reaching_line(
+        function.body,
+        payload.id,
+        before_lineno,
+        [()],
+        function,
+    )
+    return [value for state in states for value in state]
 
 
 def _subscript_key(expression: ast.expr) -> object | None:
@@ -908,6 +1105,62 @@ def store_test_findings():
         """
 def store_test_findings():
     rows = []
+    rows.append({"category": LOWER_PENETRANCE_RISK_ALLELE_CATEGORY})
+    conn.execute(sa.insert(findings), rows)
+""",
+        encoding="utf-8",
+    )
+    assert _stores_lower_penetrance_category(analysis) is True
+
+    for collection_removal in (
+        "rows.clear()",
+        "rows.pop()",
+        "rows.pop(0)",
+        "del rows[:]",
+    ):
+        analysis.write_text(
+            f"""
+def store_test_findings():
+    rows = []
+    rows.append({{"category": LOWER_PENETRANCE_RISK_ALLELE_CATEGORY}})
+    {collection_removal}
+    conn.execute(sa.insert(findings), rows)
+""",
+            encoding="utf-8",
+        )
+        assert _stores_lower_penetrance_category(analysis) is False
+
+    analysis.write_text(
+        """
+def store_test_findings():
+    rows = [{"category": LOWER_PENETRANCE_RISK_ALLELE_CATEGORY}]
+    if enabled:
+        rows.clear()
+    conn.execute(sa.insert(findings), rows)
+""",
+        encoding="utf-8",
+    )
+    assert _stores_lower_penetrance_category(analysis) is True
+
+    analysis.write_text(
+        """
+def store_test_findings():
+    rows = [{"category": LOWER_PENETRANCE_RISK_ALLELE_CATEGORY}]
+    if enabled:
+        rows.clear()
+    else:
+        rows.pop()
+    conn.execute(sa.insert(findings), rows)
+""",
+        encoding="utf-8",
+    )
+    assert _stores_lower_penetrance_category(analysis) is False
+
+    analysis.write_text(
+        """
+def store_test_findings():
+    rows = [{"category": LOWER_PENETRANCE_RISK_ALLELE_CATEGORY}]
+    rows.clear()
     rows.append({"category": LOWER_PENETRANCE_RISK_ALLELE_CATEGORY})
     conn.execute(sa.insert(findings), rows)
 """,
