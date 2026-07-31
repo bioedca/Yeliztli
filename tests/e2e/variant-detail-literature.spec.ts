@@ -95,6 +95,14 @@ test.beforeEach(async ({ page }) => {
   await page.route('**/api/watches?sample_id=1', (route) => route.fulfill({ json: [] }))
 })
 
+test('asks for a sample before loading variant detail', async ({ page }) => {
+  await page.goto('/variants/rs1042522')
+
+  await expect(
+    page.getByRole('region', { name: 'Select a sample to view variant details.' }),
+  ).toBeVisible()
+})
+
 test('loads gene literature, links its sources, and expands the abstract', async ({ page }) => {
   await page.goto('/variants/rs1042522?sample_id=1')
   await waitForReactHydration(page)

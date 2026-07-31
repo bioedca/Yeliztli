@@ -27,6 +27,7 @@ import { useVariantDetail } from "@/api/variant-detail"
 import { useGeneDetail } from "@/api/gene-detail"
 import PageLoading from "@/components/ui/PageLoading"
 import PageError from "@/components/ui/PageError"
+import PageEmpty from "@/components/ui/PageEmpty"
 import HpoTermList from "@/components/HpoTermList"
 import LiteratureCard from "@/components/gene-detail/LiteratureCard"
 import type {
@@ -821,6 +822,18 @@ export default function VariantDetailPage() {
       tabRefs.current[nextIndex]?.focus()
     }
   }, [])
+
+  if (sampleId == null) {
+    return (
+      <div className="p-6">
+        <PageEmpty
+          icon={Dna}
+          title="Select a sample to view variant details."
+          description="Open a variant from a loaded sample in Variant Explorer."
+        />
+      </div>
+    )
+  }
 
   if (isLoading) {
     return <PageLoading message="Loading variant detail..." />

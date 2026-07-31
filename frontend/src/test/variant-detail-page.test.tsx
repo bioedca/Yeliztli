@@ -191,6 +191,13 @@ afterEach(() => {
 })
 
 describe("VariantDetailPage (P2-21a)", () => {
+  it("asks for a sample before loading variant detail", () => {
+    renderPage("rs100", null)
+
+    expect(screen.getByText("Select a sample to view variant details.")).toBeInTheDocument()
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
   it("shows loading state initially", () => {
     mockFetch.mockImplementation(() => new Promise(() => {})) // never resolves
     renderPage("rs100")
