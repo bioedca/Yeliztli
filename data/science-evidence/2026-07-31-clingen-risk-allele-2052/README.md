@@ -54,6 +54,8 @@ output category; this change does not add or alter variant classification behavi
 - `docs/modules/health-risk/cancer.md`
 - `docs/modules/health-risk/cardiovascular.md`
 - `docs/modules/health-risk/carrier-status.md`
+- `docs/modules/rare-variants.md`
+- `docs/modules/interpretation-reference.md`
 
 The exact sanitized queries and service outcomes are recorded in
 `queries.json`.
