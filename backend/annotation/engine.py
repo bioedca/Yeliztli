@@ -955,8 +955,12 @@ def _merge_annotations(
             and g_alt is not None
             and (str(g_ref), str(g_alt)) != (str(ref), str(alt))
         ):
+            # `rare_flag` / `ultra_rare_flag` are derived from the rejected
+            # frequency but carry no `gnomad_` prefix, so a prefix-only sweep
+            # left the stored row labelled rare on evidence for another allele
+            # (#2214 review).
             for _key in list(row_data):
-                if _key.startswith("gnomad_"):
+                if _key.startswith("gnomad_") or _key in {"rare_flag", "ultra_rare_flag"}:
                     del row_data[_key]
             row_data["gnomad_source_status"] = GNOMAD_SOURCE_ALLELE_AMBIGUOUS
             bitmask &= ~GNOMAD_BIT

@@ -2746,6 +2746,11 @@ class TestGnomadAnnotationLookupIntegration:
         assert row.gnomad_af_global is None
         assert row.gnomad_homozygous_count is None
         assert row.gnomad_source_status == "allele_ambiguous"
+        # The rarity flags are derived from the rejected frequency and carry no
+        # `gnomad_` prefix, so a prefix-only sweep left them behind -- labelling
+        # the G>T row rare on G>A's evidence (#2214 review).
+        assert not row.rare_flag
+        assert not row.ultra_rare_flag
 
     def test_single_alt_rsid_is_annotated_regardless_of_genotype(
         self, sample_engine: sa.Engine, mock_registry: MagicMock, gnomad_engine: sa.Engine
