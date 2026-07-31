@@ -978,6 +978,7 @@ def lookup_gnomad_by_rsids(
     genotype_by_rsid: dict[str, str] | None = None,
     allele_ambiguous_out: set[str] | None = None,
     conflicting_genotype_rsids: set[str] | None = None,
+    conflicting_locus_rsids: set[str] | None = None,
     genotypes_by_rsid: dict[str, set[str]] | None = None,
     locus_by_rsid: dict[str, tuple[str, int]] | None = None,
     locus_unresolved_out: set[str] | None = None,
@@ -1024,6 +1025,7 @@ def lookup_gnomad_by_rsids(
     genotype_by_rsid = genotype_by_rsid or {}
     conflicting_genotype_rsids = conflicting_genotype_rsids or set()
     genotypes_by_rsid = genotypes_by_rsid or {}
+    conflicting_locus_rsids = conflicting_locus_rsids or set()
     locus_by_rsid = locus_by_rsid or {}
     locus_unresolved_out = locus_unresolved_out if locus_unresolved_out is not None else None
     results: dict[str, GnomADAnnotation] = {}
@@ -1053,6 +1055,18 @@ def lookup_gnomad_by_rsids(
                 # scoped to `len(candidates) > 1` -- would then never fire, so a
                 # surviving locus's frequency would still be fanned to aliases
                 # that sit elsewhere.
+                # Aliases at DIFFERENT coordinates come first and always
+                # withhold. One per-rsID result cannot serve two positions, and
+                # resolving globally would narrow the candidate set to one
+                # locus's row and then fan its frequency to the alias sitting
+                # elsewhere -- the cross-locus assignment this PR exists to stop.
+                if len(candidates) > 1 and rsid in conflicting_locus_rsids:
+                    if locus_unresolved_out is not None:
+                        locus_unresolved_out.add(rsid)
+                    elif allele_ambiguous_out is not None:
+                        allele_ambiguous_out.add(rsid)
+                    continue
+
                 if len(candidates) > 1 and rsid in conflicting_genotype_rsids:
                     # Compare what the aliases RESOLVE TO, not their genotype
                     # strings. `AG` and `AA` at a G>A / G>T site are different

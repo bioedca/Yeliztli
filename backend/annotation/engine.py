@@ -507,6 +507,7 @@ def _lookup_gnomad(
     gnomad_engine: sa.Engine,
     allele_ambiguous_out: set[str] | None = None,
     conflicting_genotype_rsids: set[str] | None = None,
+    conflicting_locus_rsids: set[str] | None = None,
     locus_unresolved_out: set[str] | None = None,
     resolved_call_by_query: dict[str, tuple[str, str, int]] | None = None,
     genotypes_by_query: dict[str, set[str]] | None = None,
@@ -584,6 +585,7 @@ def _lookup_gnomad(
             genotype_by_rsid=genotype_by_rsid,
             allele_ambiguous_out=allele_ambiguous_out,
             conflicting_genotype_rsids=conflicting_genotype_rsids,
+            conflicting_locus_rsids=conflicting_locus_rsids,
             genotypes_by_rsid={
                 rsid: genos
                 for rsid in unmatched
@@ -1515,10 +1517,17 @@ def run_annotation(
         if is_no_call(_row.genotype):
             continue
         _calls_by_query.setdefault(_query, set()).add((_row.genotype, _row.chrom, _row.pos))
+    # Two kinds of alias disagreement, handled differently downstream.
+    #   * LOCUS -- the aliases sit at different coordinates. One per-rsID result
+    #     cannot serve them both, so gnomAD must withhold; resolving globally
+    #     would hand one position's frequency to the alias at the other.
+    #   * GENOTYPE -- same locus, different calls. Those may still resolve to
+    #     one ALT (`AG` vs `AA`), so the lookup compares resolved rows.
+    conflicting_locus_rsids = {q for q, loci in _loci_by_query.items() if len(loci) > 1}
     conflicting_genotype_rsids = {
         q
-        for q in set(_calls_by_query) | set(_loci_by_query)
-        if len(_calls_by_query.get(q, ())) > 1 or len(_loci_by_query.get(q, ())) > 1
+        for q, calls in _calls_by_query.items()
+        if len({genotype for genotype, _chrom, _pos in calls}) > 1
     }
     # The typed genotypes behind each query id. The lookup resolves each against
     # the candidate rows and only withholds when they land on DIFFERENT rows --
@@ -1633,6 +1642,7 @@ def run_annotation(
                         gnomad_engine,
                         gnomad_allele_ambiguous,
                         conflicting_genotype_rsids,
+                        conflicting_locus_rsids,
                         gnomad_locus_unresolved,
                         resolved_call_by_query,
                         typed_genotypes_by_query,

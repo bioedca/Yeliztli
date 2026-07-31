@@ -2444,6 +2444,55 @@ class TestGnomadAnnotationLookupIntegration:
             assert row is not None, rsid
             assert row.gnomad_af_global == pytest.approx(0.001), rsid
 
+    def test_equal_genotypes_at_different_loci_with_different_alts_withhold(
+        self,
+        sample_engine: sa.Engine,
+        mock_registry: MagicMock,
+        gnomad_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """#2214 review: global resolution must not precede locus filtering.
+
+        Both aliases call `AG`, but the gnomAD rows are G>A at pos 300 and G>T
+        at pos 900. `AG` carries G>A only, so resolving *globally* collapses the
+        candidates to the pos-300 row -- and `_rekey_to_original` then hands its
+        frequency to the alias sitting at pos 900. A locus disagreement now
+        withholds before any resolution shortcut can run.
+        """
+        with reference_engine.begin() as conn:
+            conn.execute(
+                dbsnp_merges.insert().values(
+                    old_rsid="rs_xloc_old", current_rsid="rs_xloc_cur", build_id=155
+                )
+            )
+        with gnomad_engine.begin() as conn:
+            conn.execute(
+                sa.text(
+                    "INSERT INTO gnomad_af "
+                    "(rsid, chrom, pos, ref, alt, af_global, af_afr, af_amr, af_asj, "
+                    "af_eas, af_eur, af_fin, af_sas, homozygous_count) VALUES "
+                    "('rs_xloc_cur', '1', 300, 'G', 'A', 0.004, 0.004, 0.004, 0.004, "
+                    "0.004, 0.004, 0.004, 0.004, 3), "
+                    "('rs_xloc_cur', '1', 900, 'G', 'T', 0.40, 0.40, 0.40, 0.40, "
+                    "0.40, 0.40, 0.40, 0.40, 800)"
+                )
+            )
+        with sample_engine.begin() as conn:
+            conn.execute(
+                raw_variants.insert(),
+                [
+                    {"rsid": "rs_xloc_old", "chrom": "1", "pos": 300, "genotype": "AG"},
+                    {"rsid": "rs_xloc_cur", "chrom": "1", "pos": 900, "genotype": "AG"},
+                ],
+            )
+
+        run_annotation(sample_engine, mock_registry)
+
+        far_row = self._annotated_row(sample_engine, "rs_xloc_cur")
+        assert far_row is not None
+        # It sits at pos 900; pos 300's 0.004 is not its evidence.
+        assert far_row.gnomad_af_global != pytest.approx(0.004)
+
     def test_single_alt_rsid_is_annotated_regardless_of_genotype(
         self, sample_engine: sa.Engine, mock_registry: MagicMock, gnomad_engine: sa.Engine
     ) -> None:
