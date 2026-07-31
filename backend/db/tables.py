@@ -666,7 +666,11 @@ annotated_variants = sa.Table(
     sa.Column(
         "gnomad_source_status",
         sa.Text,
-        comment="observed | source_uncovered; current AF bundle is gnomAD r2.1.1 exomes",
+        comment=(
+            "observed | source_uncovered | allele_ambiguous | locus_unresolved "
+            "| alias_unresolved | allele_mismatch; "
+            "current AF bundle is gnomAD r2.1.1 exomes"
+        ),
     ),
     sa.Column(
         "gnomad_af_popmax",

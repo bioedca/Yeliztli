@@ -606,8 +606,9 @@ class TestLookupGnomadByRsids:
         assert "rs429358" in results
         assert "rs7412" in results
 
-    def test_duplicate_rsid_uses_conservative_popmax(self, gnomad_engine: sa.Engine):
-        """rsID-only lookup remains deterministic when several ALTs share an rsID."""
+    @staticmethod
+    def _seed_shared_rsid(gnomad_engine: sa.Engine) -> None:
+        """One rsID, two ALTs: a rare G>A and a common G>T."""
         with gnomad_engine.begin() as conn:
             conn.execute(
                 sa.text(
@@ -621,10 +622,41 @@ class TestLookupGnomadByRsids:
                 )
             )
 
+    def test_duplicate_rsid_without_genotype_is_withheld(self, gnomad_engine: sa.Engine):
+        """Without genotype context a shared rsID resolves to no frequency at all.
+
+        This used to return the highest-popmax row "for determinism", which is
+        how a rare carried ALT inherited a common ALT's frequency (#2171). An
+        allele frequency describes one REF/ALT pair, so with no way to tell which
+        pair the sample carries there is no conservative answer to give.
+        """
+        self._seed_shared_rsid(gnomad_engine)
+
         results = lookup_gnomad_by_rsids(["rs_shared"], gnomad_engine)
 
+        assert "rs_shared" not in results
+
+    def test_duplicate_rsid_resolves_to_the_carried_alt(self, gnomad_engine: sa.Engine):
+        """Given the genotype, the lookup is deterministic *and* correct."""
+        self._seed_shared_rsid(gnomad_engine)
+
+        results = lookup_gnomad_by_rsids(
+            ["rs_shared"], gnomad_engine, genotype_by_rsid={"rs_shared": "AG"}
+        )
+
+        assert results["rs_shared"].af_global == pytest.approx(0.001)
+        assert results["rs_shared"].homozygous_count == 1
+
+    def test_duplicate_rsid_with_the_other_carried_alt(self, gnomad_engine: sa.Engine):
+        """The sibling allele on the same axis resolves to its own row, not the rare one."""
+        self._seed_shared_rsid(gnomad_engine)
+
+        results = lookup_gnomad_by_rsids(
+            ["rs_shared"], gnomad_engine, genotype_by_rsid={"rs_shared": "TT"}
+        )
+
         assert results["rs_shared"].af_global == pytest.approx(0.20)
-        assert results["rs_shared"].af_popmax == pytest.approx(0.20)
+        assert results["rs_shared"].homozygous_count == 5
 
 
 # ── Lookup by position tests ────────────────────────────────────────────
