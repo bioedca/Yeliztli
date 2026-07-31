@@ -300,6 +300,68 @@ class TestEvaluabilityAtTheApi:
         assert data["froh"] is None
         assert "typical result" not in data["finding_text"].lower()
 
+    def test_row_with_no_recorded_count_reads_coverage_from_the_sample(
+        self, _env: sa.Engine, client: TestClient
+    ) -> None:
+        # A blob that records no marker count at all must not be treated as a
+        # count of zero — that would manufacture "0 callable autosomal SNP(s)"
+        # for a sample nobody measured. The fixture has 361 markers spanning an
+        # eligible region, so reading the sample yields a real negative.
+        import json as _json
+
+        from backend.db.tables import findings
+
+        with _env.begin() as conn:
+            conn.execute(
+                sa.insert(findings),
+                {
+                    "module": "roh",
+                    "category": "autozygosity",
+                    "evidence_level": 1,
+                    "finding_text": "No long runs of homozygosity were detected (FROH ≈ 0).",
+                    "detail_json": _json.dumps({"froh": 0.0}),
+                },
+            )
+
+        data = client.get("/api/analysis/roh/findings?sample_id=1").json()
+        assert data["evaluable"] is True
+        assert data["autosomal_snps_used"] == 361
+        assert "0 callable autosomal SNP(s)" not in data["finding_text"]
+
+    def test_no_recorded_count_on_an_ineligible_sample_is_withheld(
+        self, _env: sa.Engine, client: TestClient
+    ) -> None:
+        # Same absent count, but the sample genuinely cannot hold a run: the
+        # withheld narrative must quote the count actually read, not zero.
+        import json as _json
+
+        from backend.db.tables import findings
+
+        self._reseed(
+            _env,
+            [
+                {"rsid": f"r{i}", "chrom": "1", "pos": 1_000_000 + i * 1_000, "genotype": "AA"}
+                for i in range(150)
+            ],
+        )
+        with _env.begin() as conn:
+            conn.execute(
+                sa.insert(findings),
+                {
+                    "module": "roh",
+                    "category": "autozygosity",
+                    "evidence_level": 1,
+                    "finding_text": "No long runs of homozygosity were detected (FROH ≈ 0).",
+                    "detail_json": _json.dumps({"froh": 0.0}),
+                },
+            )
+
+        data = client.get("/api/analysis/roh/findings?sample_id=1").json()
+        assert data["evaluable"] is False
+        assert data["indeterminate_reason"] == "no_segment_eligible_region"
+        assert data["autosomal_snps_used"] == 150
+        assert "150 callable autosomal SNP(s)" in data["finding_text"]
+
     def test_unreadable_detail_is_indeterminate_not_typical(
         self, _env: sa.Engine, client: TestClient
     ) -> None:

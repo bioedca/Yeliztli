@@ -345,15 +345,18 @@ def unevaluable_text(autosomal_snps_used: int, reason: str) -> str:
     )
 
 
-def sample_can_emit_a_segment(sample_engine: sa.Engine) -> bool:
-    """Structural eligibility for a sample, read from its raw variants.
+def _sample_coverage(sample_engine: sa.Engine) -> tuple[int, bool]:
+    """Return ``(callable_autosomal_markers, could_emit_a_segment)`` for a sample.
 
-    Lets a *legacy* row — which records a marker count and nothing else — be
-    judged by the same rule as a fresh scan. A sample holds at most one ROH
-    finding (``store_roh_findings`` deletes then inserts on module+category),
-    so this costs one positions query per request, not one per row.
+    Lets a *legacy* row — which records a marker count at best — be judged by
+    the same rule as a fresh scan, and lets a row that records no count at all
+    have one read from the sample rather than assumed. A sample holds at most
+    one ROH finding (``store_roh_findings`` deletes then inserts on
+    module+category), so this costs one positions query per request, not one
+    per row. Both values come from a single read.
     """
-    return _segment_eligible_region_exists(_read_autosomal_states(sample_engine))
+    by_chrom = _read_autosomal_states(sample_engine)
+    return sum(len(v) for v in by_chrom.values()), _segment_eligible_region_exists(by_chrom)
 
 
 def evaluability_from_detail(
@@ -377,8 +380,13 @@ def evaluability_from_detail(
     """
     if not isinstance(detail, dict):
         return False, 0, DETAIL_UNAVAILABLE
-    raw_used = detail.get("autosomal_snps_used", 0)
-    snps_used = raw_used if isinstance(raw_used, int) and not isinstance(raw_used, bool) else 0
+
+    # An absent count is not a count of zero. Defaulting it would manufacture
+    # the claim "0 callable autosomal SNP(s)" for a blob that simply never
+    # recorded coverage — asserting a measurement nothing performed.
+    raw_used = detail.get("autosomal_snps_used")
+    counted = isinstance(raw_used, int) and not isinstance(raw_used, bool) and raw_used >= 0
+    snps_used = raw_used if counted else 0
 
     stored = detail.get("evaluable")
     if stored is not None:
@@ -388,9 +396,19 @@ def evaluability_from_detail(
         return False, snps_used, str(reason)
 
     # Legacy row: no recorded verdict.
+    if not counted:
+        # Nothing about coverage can be read from the blob, so read the sample
+        # or say the state is unavailable — never split the difference.
+        if sample_engine is None:
+            return False, 0, DETAIL_UNAVAILABLE
+        observed, eligible = _sample_coverage(sample_engine)
+        if not eligible:
+            return False, observed, NO_SEGMENT_ELIGIBLE_REGION
+        return True, observed, None
+
     if snps_used < MIN_EVALUABLE_AUTOSOMAL_SNPS:
         return False, snps_used, INSUFFICIENT_AUTOSOMAL_MARKERS
-    if sample_engine is not None and not sample_can_emit_a_segment(sample_engine):
+    if sample_engine is not None and not _sample_coverage(sample_engine)[1]:
         return False, snps_used, NO_SEGMENT_ELIGIBLE_REGION
     return True, snps_used, None
 
