@@ -150,6 +150,7 @@ def _load_findings(
                     row.category,
                     row.finding_text,
                     _parse_json_field(row.detail_json),
+                    engine,
                 ),
                 "phenotype": row.phenotype,
                 # Clean the raw CLNDN blob for display (#918), mirroring the

@@ -85,6 +85,7 @@ MIN_EVALUABLE_AUTOSOMAL_SNPS = MIN_ROH_SNPS
 # ``RohResult.indeterminate_reason`` vocabulary.
 INSUFFICIENT_AUTOSOMAL_MARKERS = "insufficient_autosomal_markers"
 NO_SEGMENT_ELIGIBLE_REGION = "no_segment_eligible_region"
+DETAIL_UNAVAILABLE = "detail_unavailable"
 
 # FROH denominator: the autosomal genome length (~2.77 Gb), McQuillan 2008
 # convention, so FROH is comparable across samples rather than array-relative.
@@ -301,7 +302,7 @@ def detect_roh(sample_engine: sa.Engine) -> RohResult:
     )
 
 
-def unevaluable_text(autosomal_snps_used: int, reason: str = NO_SEGMENT_ELIGIBLE_REGION) -> str:
+def unevaluable_text(autosomal_snps_used: int, reason: str) -> str:
     """Narrative for a sample whose autozygosity could not be assessed.
 
     Kept separate and public so the API can serve it for findings persisted
@@ -309,7 +310,19 @@ def unevaluable_text(autosomal_snps_used: int, reason: str = NO_SEGMENT_ELIGIBLE
     negative this gate withholds. The cause is stated explicitly because the
     two reasons are genuinely different: too few markers overall, versus enough
     markers that are nowhere arranged into a region a run could occupy.
+
+    ``reason`` is deliberately required. It once defaulted, and a caller that
+    resolved the correct reason then omitted it silently paired that reason
+    with the other cause's wording — every call site must state which applies.
     """
+    if reason == DETAIL_UNAVAILABLE:
+        return (
+            "Runs of homozygosity are not being reported: the stored result for "
+            "this sample could not be read, so neither an FROH estimate nor the "
+            "coverage behind it can be shown. Re-running the analysis will "
+            "produce a current result. This says nothing about your genome "
+            "either way."
+        )
     if reason == INSUFFICIENT_AUTOSOMAL_MARKERS:
         cause = (
             f"this sample has {autosomal_snps_used} callable autosomal SNP(s), "
@@ -332,25 +345,54 @@ def unevaluable_text(autosomal_snps_used: int, reason: str = NO_SEGMENT_ELIGIBLE
     )
 
 
-def evaluability_from_detail(detail: dict[str, Any] | None) -> tuple[bool, int, str | None]:
+def sample_can_emit_a_segment(sample_engine: sa.Engine) -> bool:
+    """Structural eligibility for a sample, read from its raw variants.
+
+    Lets a *legacy* row — which records a marker count and nothing else — be
+    judged by the same rule as a fresh scan. A sample holds at most one ROH
+    finding (``store_roh_findings`` deletes then inserts on module+category),
+    so this costs one positions query per request, not one per row.
+    """
+    return _segment_eligible_region_exists(_read_autosomal_states(sample_engine))
+
+
+def evaluability_from_detail(
+    detail: dict[str, Any] | None, sample_engine: sa.Engine | None = None
+) -> tuple[bool, int, str | None]:
     """Return ``(evaluable, autosomal_snps_used, indeterminate_reason)`` for a stored row.
 
-    Findings persisted before the evaluability gate carry no ``evaluable`` key
-    but do record the marker count, so the same rule is re-derived from it.
+    Findings persisted before the evaluability gate carry no ``evaluable`` key.
+    Given ``sample_engine`` the structural rule is recomputed from the sample's
+    own markers, so a legacy row is judged exactly as a fresh scan would be;
+    without it, only the recorded count is available and the weaker count floor
+    applies — sound, but blind to markers that clear the count while sitting in
+    no region a run could occupy.
+
+    Missing or malformed detail is indeterminate, never evaluable: a row whose
+    state cannot be read is not a row that can be vouched for.
+
     Every read path shares this one implementation: the rule must not be
     reimplemented per consumer, or the paths drift apart and a sample reads as
     indeterminate in one place and "typical" in another.
     """
     if not isinstance(detail, dict):
-        return True, 0, None
+        return False, 0, DETAIL_UNAVAILABLE
     raw_used = detail.get("autosomal_snps_used", 0)
     snps_used = raw_used if isinstance(raw_used, int) and not isinstance(raw_used, bool) else 0
+
     stored = detail.get("evaluable")
-    evaluable = bool(stored) if stored is not None else snps_used >= MIN_EVALUABLE_AUTOSOMAL_SNPS
-    if evaluable:
-        return True, snps_used, None
-    reason = detail.get("indeterminate_reason") or INSUFFICIENT_AUTOSOMAL_MARKERS
-    return False, snps_used, str(reason)
+    if stored is not None:
+        if stored:
+            return True, snps_used, None
+        reason = detail.get("indeterminate_reason") or INSUFFICIENT_AUTOSOMAL_MARKERS
+        return False, snps_used, str(reason)
+
+    # Legacy row: no recorded verdict.
+    if snps_used < MIN_EVALUABLE_AUTOSOMAL_SNPS:
+        return False, snps_used, INSUFFICIENT_AUTOSOMAL_MARKERS
+    if sample_engine is not None and not sample_can_emit_a_segment(sample_engine):
+        return False, snps_used, NO_SEGMENT_ELIGIBLE_REGION
+    return True, snps_used, None
 
 
 def normalize_legacy_finding_text(
@@ -358,18 +400,20 @@ def normalize_legacy_finding_text(
     category: str | None,
     finding_text: str | None,
     detail: dict[str, Any] | None,
+    sample_engine: sa.Engine | None = None,
 ) -> str | None:
     """Correct a stored ROH narrative that predates the evaluability gate.
 
     The unified findings API and the report generator render the persisted
     ``finding_text`` verbatim, so without this a pre-gate row keeps presenting
     "No long runs of homozygosity were detected ... This is the typical result"
-    for a sample whose marker count cannot produce a segment at all. Rows from
-    other modules, and evaluable ROH rows, pass through untouched.
+    for a sample the scan could never have assessed. Rows from other modules,
+    and evaluable ROH rows, pass through untouched. Pass ``sample_engine``
+    wherever it is available so legacy rows get the full structural rule.
     """
     if module != MODULE or category != CATEGORY:
         return finding_text
-    evaluable, snps_used, reason = evaluability_from_detail(detail)
+    evaluable, snps_used, reason = evaluability_from_detail(detail, sample_engine)
     if evaluable:
         return finding_text
     return unevaluable_text(snps_used, reason or INSUFFICIENT_AUTOSOMAL_MARKERS)
@@ -379,6 +423,7 @@ def normalize_legacy_detail(
     module: str | None,
     category: str | None,
     detail: dict[str, Any] | None,
+    sample_engine: sa.Engine | None = None,
 ) -> dict[str, Any] | None:
     """Withhold the measured value in a stored ROH ``detail`` blob.
 
@@ -389,11 +434,15 @@ def normalize_legacy_detail(
     """
     if module != MODULE or category != CATEGORY or not isinstance(detail, dict):
         return detail
-    evaluable, snps_used, reason = evaluability_from_detail(detail)
+    evaluable, snps_used, reason = evaluability_from_detail(detail, sample_engine)
     if evaluable:
         return detail
     corrected = dict(detail)
-    corrected["froh"] = None
+    # Every measured quantity is withheld, not just FROH: "0 kb total, 0
+    # segments" beside a withheld FROH is the same measured absence in another
+    # field. The marker count stays because it is observed, not derived.
+    for key in ("froh", "total_roh_kb", "longest_kb", "n_segments"):
+        corrected[key] = None
     corrected["evaluable"] = False
     corrected["indeterminate_reason"] = reason or INSUFFICIENT_AUTOSOMAL_MARKERS
     corrected["autosomal_snps_used"] = snps_used
@@ -402,7 +451,7 @@ def normalize_legacy_detail(
 
 def _finding_text(result: RohResult) -> str:
     if result.indeterminate_reason is not None:
-        return unevaluable_text(result.autosomal_snps_used)
+        return unevaluable_text(result.autosomal_snps_used, result.indeterminate_reason)
     if not result.segments:
         return (
             "No long runs of homozygosity were detected (FROH ≈ 0). This is the "
@@ -425,11 +474,15 @@ def _finding_text(result: RohResult) -> str:
 def store_roh_findings(result: RohResult, sample_engine: sa.Engine) -> int:
     """Persist a single ROH summary finding (idempotent)."""
     longest = sorted(result.segments, key=lambda s: s.length_kb, reverse=True)
+    # An unevaluable scan measured nothing, so no derived quantity is asserted:
+    # persisting 0 kb / 0 segments beside a withheld FROH would state the same
+    # absence in another field. The observed marker count is retained for audit.
+    measured = result.evaluable
     detail: dict[str, Any] = {
         "froh": result.froh,
-        "total_roh_kb": result.total_roh_kb,
-        "longest_kb": result.longest_kb,
-        "n_segments": len(result.segments),
+        "total_roh_kb": result.total_roh_kb if measured else None,
+        "longest_kb": result.longest_kb if measured else None,
+        "n_segments": len(result.segments) if measured else None,
         "autosomal_snps_used": result.autosomal_snps_used,
         "evaluable": result.evaluable,
         "indeterminate_reason": result.indeterminate_reason,

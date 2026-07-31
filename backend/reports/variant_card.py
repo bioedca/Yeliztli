@@ -112,7 +112,7 @@ def _load_single_finding(
         # A shareable card is a user-visible render path too, so a pre-gate ROH
         # row must not carry "typical result" onto one (#2177).
         "finding_text": normalize_legacy_finding_text(
-            row.module, row.category, row.finding_text, detail
+            row.module, row.category, row.finding_text, detail, engine
         ),
         "phenotype": row.phenotype,
         # Clean the raw CLNDN blob for display (#918): drop | separators, the

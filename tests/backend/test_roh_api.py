@@ -166,9 +166,12 @@ class TestRunAndList:
         resp = client.get("/api/analysis/roh/findings?sample_id=1")
         assert resp.status_code == 200
         data = resp.json()
-        assert data["finding_text"] == "summary text"
         assert data["segments"] == []
-        assert data["n_segments"] == 0
+        # The row's state could not be read, so nothing about it is asserted —
+        # neither a metric nor its stored narrative.
+        assert data["n_segments"] is None
+        assert data["finding_text"] != "summary text"
+        assert "could not be read" in data["finding_text"].lower()
         # Metrics could not be read, so none are asserted: the fallback must not
         # invent a reassuring FROH of 0.0 for a row it failed to parse.
         assert data["froh"] is None
@@ -196,6 +199,10 @@ class TestEvaluabilityAtTheApi:
         assert data["froh"] is None
         assert data["evaluable"] is False
         assert data["indeterminate_reason"] == "no_segment_eligible_region"
+        # The narrative states this reason's own cause, not the other one's.
+        assert "without a coverage gap" in data["finding_text"]
+        assert data["total_roh_kb"] is None
+        assert data["n_segments"] is None
         assert data["autosomal_snps_used"] == 1
         assert "not assessed" in data["finding_text"].lower()
         assert "typical result" not in data["finding_text"].lower()
@@ -243,6 +250,84 @@ class TestEvaluabilityAtTheApi:
         assert data["indeterminate_reason"] == "insufficient_autosomal_markers"
         assert "typical result" not in data["finding_text"].lower()
         assert "not assessed" in data["finding_text"].lower()
+        # The narrative must state the cause the reason field names. Asserting
+        # only "not assessed" let the route serve the marker-region wording
+        # beside an insufficient-markers reason — one payload, two causes.
+        assert "30 callable autosomal SNP(s)" in data["finding_text"]
+        assert "without a coverage gap" not in data["finding_text"]
+        # No measured quantity is asserted either.
+        assert data["total_roh_kb"] is None
+        assert data["longest_kb"] is None
+        assert data["n_segments"] is None
+
+    def test_legacy_row_above_the_count_floor_is_rechecked_structurally(
+        self, _env: sa.Engine, client: TestClient
+    ) -> None:
+        # 200 markers clear the count-only floor, but they sit in a 199 kb span
+        # that no run could occupy. The count alone cannot see that, so the
+        # stored verdict is re-derived from the sample's own marker positions.
+        import json as _json
+
+        from backend.db.tables import findings
+
+        self._reseed(
+            _env,
+            [
+                {"rsid": f"r{i}", "chrom": "1", "pos": 1_000_000 + i * 1_000, "genotype": "AA"}
+                for i in range(200)
+            ],
+        )
+        with _env.begin() as conn:
+            conn.execute(
+                sa.insert(findings),
+                {
+                    "module": "roh",
+                    "category": "autozygosity",
+                    "evidence_level": 1,
+                    "finding_text": (
+                        "No long runs of homozygosity were detected (FROH ≈ 0). "
+                        "This is the typical result."
+                    ),
+                    "detail_json": _json.dumps(
+                        {"froh": 0.0, "n_segments": 0, "autosomal_snps_used": 200}
+                    ),
+                },
+            )
+
+        data = client.get("/api/analysis/roh/findings?sample_id=1").json()
+        assert data["evaluable"] is False
+        assert data["indeterminate_reason"] == "no_segment_eligible_region"
+        assert data["froh"] is None
+        assert "typical result" not in data["finding_text"].lower()
+
+    def test_unreadable_detail_is_indeterminate_not_typical(
+        self, _env: sa.Engine, client: TestClient
+    ) -> None:
+        # A row whose stored state cannot be parsed is not a row that can be
+        # vouched for: it must not keep serving its stored negative.
+        from backend.db.tables import findings
+
+        with _env.begin() as conn:
+            conn.execute(
+                sa.insert(findings),
+                {
+                    "module": "roh",
+                    "category": "autozygosity",
+                    "evidence_level": 1,
+                    "finding_text": (
+                        "No long runs of homozygosity were detected (FROH ≈ 0). "
+                        "This is the typical result."
+                    ),
+                    "detail_json": "{not valid json",
+                },
+            )
+
+        data = client.get("/api/analysis/roh/findings?sample_id=1").json()
+        assert data["evaluable"] is False
+        assert data["indeterminate_reason"] == "detail_unavailable"
+        assert data["froh"] is None
+        assert "typical result" not in data["finding_text"].lower()
+        assert "could not be read" in data["finding_text"].lower()
 
     def test_legacy_row_with_adequate_markers_is_untouched(
         self, _env: sa.Engine, client: TestClient

@@ -24,7 +24,7 @@ from fastapi.testclient import TestClient
 from backend.config import Settings
 from backend.db.connection import reset_registry
 from backend.db.sample_schema import create_sample_tables
-from backend.db.tables import findings, reference_metadata, samples
+from backend.db.tables import findings, raw_variants, reference_metadata, samples
 from backend.reports.variant_card import (
     _load_single_finding,
     render_variant_card_html,
@@ -232,23 +232,23 @@ class TestLoadSingleFinding:
         assert result["evidence_level"] == 4
 
     def _insert_legacy_roh(self, sample_engine: sa.Engine, snps_used: int) -> int:
+        # A single mapping, not a one-element list: a list takes executemany
+        # semantics, where inserted_primary_key is not populated.
         with sample_engine.begin() as conn:
             result = conn.execute(
                 sa.insert(findings),
-                [
-                    {
-                        "module": "roh",
-                        "category": "autozygosity",
-                        "evidence_level": 1,
-                        "finding_text": (
-                            "No long runs of homozygosity were detected (FROH ≈ 0). "
-                            "This is the typical result."
-                        ),
-                        "detail_json": json.dumps(
-                            {"froh": 0.0, "n_segments": 0, "autosomal_snps_used": snps_used}
-                        ),
-                    }
-                ],
+                {
+                    "module": "roh",
+                    "category": "autozygosity",
+                    "evidence_level": 1,
+                    "finding_text": (
+                        "No long runs of homozygosity were detected (FROH ≈ 0). "
+                        "This is the typical result."
+                    ),
+                    "detail_json": json.dumps(
+                        {"froh": 0.0, "n_segments": 0, "autosomal_snps_used": snps_used}
+                    ),
+                },
             )
         return int(result.inserted_primary_key[0])
 
@@ -266,8 +266,23 @@ class TestLoadSingleFinding:
         assert "not assessed" in result["finding_text"].lower()
 
     def test_evaluable_roh_card_keeps_its_text(self, sample_with_findings: tuple) -> None:
-        # Counterpart control: a well-covered ROH negative still renders.
+        # Counterpart control: a well-covered ROH negative still renders. The
+        # sample must actually carry an eligible region, since the legacy rule
+        # is re-derived from its markers rather than trusting the stored count.
         _, sample_engine, _ = sample_with_findings
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(raw_variants),
+                [
+                    {
+                        "rsid": f"roh{i}",
+                        "chrom": "1",
+                        "pos": 1_000_000 + i * 20_000,
+                        "genotype": "AG",
+                    }
+                    for i in range(200)
+                ],
+            )
         finding_id = self._insert_legacy_roh(sample_engine, snps_used=600_000)
 
         result = _load_single_finding(sample_engine, finding_id=finding_id)

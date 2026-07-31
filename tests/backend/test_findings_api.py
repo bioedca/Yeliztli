@@ -341,6 +341,23 @@ class TestListFindings:
         assert "typical result" not in response.finding_text.lower()
         assert "not assessed" in response.finding_text.lower()
 
+    def test_roh_row_with_unreadable_detail_is_not_served_as_typical(self):
+        # The generic builders set detail to None when detail_json will not
+        # parse, so this is the path that reaches the non-dict branch — the
+        # dedicated route never does, because its own try/except catches the
+        # decode error first. A row whose state cannot be read must not keep
+        # asserting its stored negative.
+        row = self._roh_row(finding_text="placeholder", detail={})
+        row.finding_text = (
+            "No long runs of homozygosity were detected (FROH ≈ 0). This is the typical result."
+        )
+        row.detail_json = "{not valid json"
+
+        response = _row_to_response(row)
+
+        assert "typical result" not in response.finding_text.lower()
+        assert "could not be read" in response.finding_text.lower()
+
     def test_legacy_roh_detail_withholds_the_measured_zero(self):
         # Correcting only the narrative would hand clients a withheld
         # conclusion next to the exact froh: 0.0 it withholds.
@@ -431,6 +448,26 @@ class TestListFindings:
 
 
 class TestFindingsSummary:
+    def _seed_eligible_markers(self, tmp_data_dir: Path) -> None:
+        """200 markers spanning ~3980 kb on chr1 — a region a run could occupy."""
+        from backend.db.tables import raw_variants
+
+        engine = sa.create_engine(f"sqlite:///{tmp_data_dir / 'samples' / 'sample_1.db'}")
+        with engine.begin() as conn:
+            conn.execute(
+                sa.insert(raw_variants),
+                [
+                    {
+                        "rsid": f"roh{i}",
+                        "chrom": "1",
+                        "pos": 1_000_000 + i * 20_000,
+                        "genotype": "AG",
+                    }
+                    for i in range(200)
+                ],
+            )
+        engine.dispose()
+
     def _seed_legacy_roh(self, tmp_data_dir: Path, snps_used: int) -> None:
         from backend.db.tables import findings as findings_table
 
@@ -469,6 +506,9 @@ class TestFindingsSummary:
 
     def test_summary_preview_keeps_evaluable_roh_text(self, findings_client, tmp_data_dir):
         # Counterpart control: a well-covered ROH negative keeps its preview.
+        # The sample carries a genuinely eligible region, because the legacy
+        # rule is re-derived from its markers, not from the stored count.
+        self._seed_eligible_markers(tmp_data_dir)
         self._seed_legacy_roh(tmp_data_dir, snps_used=600_000)
 
         data = findings_client.get("/api/analysis/findings/summary?sample_id=1").json()

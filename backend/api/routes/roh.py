@@ -17,6 +17,8 @@ from pydantic import BaseModel
 
 from backend.analysis.roh import (
     CATEGORY,
+    DETAIL_UNAVAILABLE,
+    INSUFFICIENT_AUTOSOMAL_MARKERS,
     MODULE,
     evaluability_from_detail,
     unevaluable_text,
@@ -44,9 +46,11 @@ class RohFindingResponse(BaseModel):
     # ``None`` whenever autozygosity could not be assessed. Never 0.0 in that
     # case: an unmeasurable genome must not be served as a measured absence.
     froh: float | None = None
-    total_roh_kb: float = 0.0
-    longest_kb: float = 0.0
-    n_segments: int = 0
+    # Withheld alongside FROH: "0 kb total, 0 segments" is the same measured
+    # absence stated in another field.
+    total_roh_kb: float | None = None
+    longest_kb: float | None = None
+    n_segments: int | None = None
     autosomal_snps_used: int = 0
     evaluable: bool = True
     indeterminate_reason: str | None = None
@@ -87,13 +91,18 @@ def list_findings(
         detail: dict[str, Any] = json.loads(row.detail_json) if row.detail_json else {}
         # One shared rule, also used by the unified findings API and the report
         # generator, so a pre-gate row reclassifies identically on every path.
-        evaluable, snps_used, reason = evaluability_from_detail(detail)
+        evaluable, snps_used, reason = evaluability_from_detail(detail, engine)
         return RohFindingResponse(
-            finding_text=(row.finding_text or "") if evaluable else unevaluable_text(snps_used),
+            # The resolved reason is forwarded, never defaulted: a legacy row
+            # resolves to insufficient_autosomal_markers and must not be served
+            # with the marker-region wording.
+            finding_text=(row.finding_text or "")
+            if evaluable
+            else unevaluable_text(snps_used, reason or INSUFFICIENT_AUTOSOMAL_MARKERS),
             froh=detail.get("froh", 0.0) if evaluable else None,
-            total_roh_kb=detail.get("total_roh_kb", 0.0),
-            longest_kb=detail.get("longest_kb", 0.0),
-            n_segments=detail.get("n_segments", 0),
+            total_roh_kb=detail.get("total_roh_kb", 0.0) if evaluable else None,
+            longest_kb=detail.get("longest_kb", 0.0) if evaluable else None,
+            n_segments=detail.get("n_segments", 0) if evaluable else None,
             autosomal_snps_used=snps_used,
             evaluable=evaluable,
             indeterminate_reason=reason,
@@ -103,11 +112,13 @@ def list_findings(
     except (json.JSONDecodeError, TypeError, ValueError) as exc:
         logger.warning("Failed to build ROH response for finding id=%s: %s", row.id, exc)
         # The metrics could not be read, so none are asserted — in particular
-        # froh stays None rather than defaulting to a reassuring 0.0.
+        # froh stays None rather than defaulting to a reassuring 0.0. The stored
+        # narrative is replaced too: serving "typical result" beside
+        # evaluable=false would state both at once.
         return RohFindingResponse(
-            finding_text=row.finding_text or "",
+            finding_text=unevaluable_text(0, DETAIL_UNAVAILABLE),
             evaluable=False,
-            indeterminate_reason="detail_unavailable",
+            indeterminate_reason=DETAIL_UNAVAILABLE,
         )
 
 

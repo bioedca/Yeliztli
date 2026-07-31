@@ -123,7 +123,7 @@ def _get_sample_engine(sample_id: int) -> sa.Engine:
     return engine
 
 
-def _row_to_response(row: sa.Row) -> FindingResponse:
+def _row_to_response(row: sa.Row, sample_engine: sa.Engine | None = None) -> FindingResponse:
     """Convert a findings table row to a FindingResponse."""
     pmids: list[str] = []
     raw_pmids = row.pmid_citations
@@ -142,7 +142,7 @@ def _row_to_response(row: sa.Row) -> FindingResponse:
             pass
     # A pre-gate ROH blob still carries the measured froh: 0.0 the narrative
     # withholds; correct both or the payload contradicts itself (#2177).
-    detail = normalize_legacy_detail(row.module, row.category, detail)
+    detail = normalize_legacy_detail(row.module, row.category, detail, sample_engine)
 
     provenance: dict | None = None
     raw_provenance = row.provenance
@@ -167,7 +167,7 @@ def _row_to_response(row: sa.Row) -> FindingResponse:
         # "typical" FROH ≈ 0 for a sample whose markers cannot produce a segment
         # (#2177). Rows from other modules pass through unchanged.
         finding_text=normalize_legacy_finding_text(
-            row.module, row.category, row.finding_text, detail
+            row.module, row.category, row.finding_text, detail, sample_engine
         ),
         phenotype=row.phenotype,
         conditions=row.conditions,
@@ -255,7 +255,7 @@ async def list_findings(
     with engine.connect() as conn:
         rows = conn.execute(stmt).fetchall()
 
-    return [_row_to_response(r) for r in rows]
+    return [_row_to_response(r, engine) for r in rows]
 
 
 @router.get("/summary", response_model=FindingsSummaryResponse)
@@ -350,7 +350,7 @@ async def findings_summary(
                 except (json.JSONDecodeError, TypeError):
                     detail_blob = None
             top_by_module[r.module] = normalize_legacy_finding_text(
-                r.module, r.category, r.finding_text, detail_blob
+                r.module, r.category, r.finding_text, detail_blob, engine
             )
 
     for agg in agg_rows:
@@ -366,7 +366,7 @@ async def findings_summary(
         )
 
     # High-confidence: top 5 findings with >=3 stars
-    high_conf = [_row_to_response(r) for r in all_rows if (r.evidence_level or 0) >= 3][:5]
+    high_conf = [_row_to_response(r, engine) for r in all_rows if (r.evidence_level or 0) >= 3][:5]
 
     return FindingsSummaryResponse(
         total_findings=total,

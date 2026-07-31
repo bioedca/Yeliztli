@@ -282,6 +282,28 @@ class TestLoadFindings:
         modules = {r["module"] for r in results}
         assert modules == {"cancer", "pharmacogenomics"}
 
+    def _seed_eligible_markers(self, sample_engine: sa.Engine) -> None:
+        """200 markers spanning ~3980 kb on chr1 — a region a run could occupy.
+
+        The legacy rule is re-derived from the sample's own markers, so a row
+        claiming good coverage must be backed by a sample that actually has it.
+        """
+        from backend.db.tables import raw_variants
+
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(raw_variants),
+                [
+                    {
+                        "rsid": f"roh{i}",
+                        "chrom": "1",
+                        "pos": 1_000_000 + i * 20_000,
+                        "genotype": "AG",
+                    }
+                    for i in range(200)
+                ],
+            )
+
     def _insert_roh(self, sample_engine: sa.Engine, *, text: str, snps_used: int) -> None:
         from backend.db.tables import findings as findings_table
 
@@ -325,6 +347,7 @@ class TestLoadFindings:
         # Counterpart control: a densely covered ROH negative must still read as
         # a genuine negative in the report.
         _, sample_engine, _ = sample_with_findings
+        self._seed_eligible_markers(sample_engine)
         stored = _LEGACY_ROH_TEXT
         self._insert_roh(sample_engine, text=stored, snps_used=600_000)
 
