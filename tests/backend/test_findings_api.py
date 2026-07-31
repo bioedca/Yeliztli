@@ -341,6 +341,56 @@ class TestListFindings:
         assert "typical result" not in response.finding_text.lower()
         assert "not assessed" in response.finding_text.lower()
 
+    def test_evaluable_legacy_roh_row_scans_coverage_once(self, monkeypatch):
+        # Narrative and detail were normalized independently, so each evaluated
+        # the row and an evaluable legacy row triggered TWO full autosomal
+        # scans per request — on the 600-700k-marker samples this module is
+        # written for. Assert the scan count, not just the output.
+        from backend.analysis import roh as roh_module
+
+        calls = {"n": 0}
+        real = roh_module._read_autosomal_states
+
+        def counting(engine):
+            calls["n"] += 1
+            return real(engine)
+
+        monkeypatch.setattr(roh_module, "_read_autosomal_states", counting)
+
+        # The row must be genuinely EVALUABLE for this to bite: when it is
+        # withheld, the first helper returns a corrected blob carrying an
+        # `evaluable` key and the second short-circuits without scanning. The
+        # double scan only occurs on the evaluable path, where the original
+        # blob is returned unchanged.
+        engine = sa.create_engine("sqlite://")
+        create_sample_tables(engine)
+        from backend.db.tables import raw_variants
+
+        with engine.begin() as conn:
+            conn.execute(
+                sa.insert(raw_variants),
+                [
+                    {
+                        "rsid": f"roh{i}",
+                        "chrom": "1",
+                        "pos": 1_000_000 + i * 20_000,
+                        "genotype": "AG",
+                    }
+                    for i in range(200)
+                ],
+            )
+
+        row = self._roh_row(
+            finding_text="No long runs of homozygosity were detected (FROH ≈ 0).",
+            # Legacy shape: a stored metric but no evaluable/count keys, which
+            # is the case that has to consult the sample.
+            detail={"froh": 0.0},
+        )
+        response = _row_to_response(row, engine)
+
+        assert response.detail["froh"] == 0.0  # premise: the row IS evaluable
+        assert calls["n"] == 1
+
     def test_roh_row_with_unreadable_detail_is_not_served_as_typical(self):
         # The generic builders set detail to None when detail_json will not
         # parse, so this is the path that reaches the non-dict branch — the

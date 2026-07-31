@@ -22,7 +22,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 from pydantic import BaseModel
 
-from backend.analysis.roh import normalize_legacy_detail, normalize_legacy_finding_text
+from backend.analysis.roh import normalize_legacy_finding_text, normalize_legacy_row
 from backend.api.dependencies import require_fresh_sample
 from backend.api.gating import gated_modules_to_hide
 from backend.db.connection import get_registry
@@ -141,8 +141,11 @@ def _row_to_response(row: sa.Row, sample_engine: sa.Engine | None = None) -> Fin
         except (json.JSONDecodeError, TypeError):
             pass
     # A pre-gate ROH blob still carries the measured froh: 0.0 the narrative
-    # withholds; correct both or the payload contradicts itself (#2177).
-    detail = normalize_legacy_detail(row.module, row.category, detail, sample_engine)
+    # withholds; correct both from ONE evaluability read, since evaluating
+    # twice means two full autosomal scans for a legacy row (#2177).
+    corrected_text, detail = normalize_legacy_row(
+        row.module, row.category, row.finding_text, detail, sample_engine
+    )
 
     provenance: dict | None = None
     raw_provenance = row.provenance
@@ -163,12 +166,7 @@ def _row_to_response(row: sa.Row, sample_engine: sa.Engine | None = None) -> Fin
         evidence_level=row.evidence_level,
         gene_symbol=row.gene_symbol,
         rsid=row.rsid,
-        # A stored ROH narrative written before the evaluability gate asserts a
-        # "typical" FROH ≈ 0 for a sample whose markers cannot produce a segment
-        # (#2177). Rows from other modules pass through unchanged.
-        finding_text=normalize_legacy_finding_text(
-            row.module, row.category, row.finding_text, detail, sample_engine
-        ),
+        finding_text=corrected_text,
         phenotype=row.phenotype,
         conditions=row.conditions,
         zygosity=row.zygosity,

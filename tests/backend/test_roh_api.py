@@ -327,6 +327,12 @@ class TestEvaluabilityAtTheApi:
         assert data["evaluable"] is True
         assert data["autosomal_snps_used"] == 361
         assert "0 callable autosomal SNP(s)" not in data["finding_text"]
+        # The blob recorded only froh, so the companion metrics must come back
+        # null rather than 0.0 kb / 0 segments — three measurements nothing took.
+        assert data["froh"] == 0.0
+        assert data["total_roh_kb"] is None
+        assert data["longest_kb"] is None
+        assert data["n_segments"] is None
 
     def test_metricless_row_stays_indeterminate_on_a_good_sample(
         self, _env: sa.Engine, client: TestClient
@@ -492,3 +498,7 @@ class TestEvaluabilityAtTheApi:
         assert data["froh"] == 0.0
         assert data["indeterminate_reason"] is None
         assert data["finding_text"].startswith("No long runs")
+        # Recorded metrics are served; unrecorded ones stay null.
+        assert data["n_segments"] == 0
+        assert data["total_roh_kb"] is None
+        assert data["longest_kb"] is None

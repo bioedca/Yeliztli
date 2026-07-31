@@ -99,13 +99,16 @@ def list_findings(
             finding_text=(row.finding_text or "")
             if evaluable
             else unevaluable_text(snps_used, reason or INSUFFICIENT_AUTOSOMAL_MARKERS),
-            # No default: an evaluable row is guaranteed a stored numeric FROH by
-            # evaluability_from_detail, and inventing 0.0 is the very
-            # substitution this change removes.
+            # No defaults anywhere: an evaluable row is guaranteed a stored
+            # numeric FROH by evaluability_from_detail, and the companion
+            # metrics are served only if they were actually recorded. A legacy
+            # blob holding just `froh` must report the rest as null rather than
+            # 0.0 kb / 0 segments, which would state three measurements nothing
+            # took — the same substitution, one field over.
             froh=detail.get("froh") if evaluable else None,
-            total_roh_kb=detail.get("total_roh_kb", 0.0) if evaluable else None,
-            longest_kb=detail.get("longest_kb", 0.0) if evaluable else None,
-            n_segments=detail.get("n_segments", 0) if evaluable else None,
+            total_roh_kb=detail.get("total_roh_kb") if evaluable else None,
+            longest_kb=detail.get("longest_kb") if evaluable else None,
+            n_segments=detail.get("n_segments") if evaluable else None,
             autosomal_snps_used=snps_used,
             evaluable=evaluable,
             indeterminate_reason=reason,

@@ -350,10 +350,14 @@ def _sample_coverage(sample_engine: sa.Engine) -> tuple[int, bool]:
 
     Lets a *legacy* row — which records a marker count at best — be judged by
     the same rule as a fresh scan, and lets a row that records no count at all
-    have one read from the sample rather than assumed. A sample holds at most
-    one ROH finding (``store_roh_findings`` deletes then inserts on
-    module+category), so this costs one positions query per request, not one
-    per row. Both values come from a single read.
+    have one read from the sample rather than assumed.
+
+    Cost: a sample holds at most one ROH finding (``store_roh_findings``
+    deletes then inserts on module+category), so this is bounded by the number
+    of times a caller *evaluates*, not by row count. That is why a consumer
+    needing both the narrative and the detail must go through
+    ``normalize_legacy_row`` — calling the two single-purpose helpers evaluates
+    twice and doubles this scan on exactly the dense samples it is written for.
     """
     by_chrom = _read_autosomal_states(sample_engine)
     return sum(len(v) for v in by_chrom.values()), _segment_eligible_region_exists(by_chrom)
@@ -445,23 +449,16 @@ def normalize_legacy_finding_text(
     return unevaluable_text(snps_used, reason or INSUFFICIENT_AUTOSOMAL_MARKERS)
 
 
-def normalize_legacy_detail(
-    module: str | None,
-    category: str | None,
-    detail: dict[str, Any] | None,
-    sample_engine: sa.Engine | None = None,
+def _withheld_detail(
+    detail: dict[str, Any] | None, snps_used: int, reason: str | None
 ) -> dict[str, Any] | None:
-    """Withhold the measured value in a stored ROH ``detail`` blob.
+    """Blank every measured quantity in a stored ROH ``detail`` blob.
 
     Correcting only the narrative would hand clients a withheld conclusion
     alongside the exact ``froh: 0.0`` it withholds — one payload asserting both.
-    Returns a copy so the caller's parsed blob is not mutated; non-ROH and
-    evaluable rows pass through unchanged.
+    Returns a copy so the caller's parsed blob is not mutated.
     """
-    if module != MODULE or category != CATEGORY or not isinstance(detail, dict):
-        return detail
-    evaluable, snps_used, reason = evaluability_from_detail(detail, sample_engine)
-    if evaluable:
+    if not isinstance(detail, dict):
         return detail
     corrected = dict(detail)
     # Every measured quantity is withheld, not just FROH: "0 kb total, 0
@@ -473,6 +470,31 @@ def normalize_legacy_detail(
     corrected["indeterminate_reason"] = reason or INSUFFICIENT_AUTOSOMAL_MARKERS
     corrected["autosomal_snps_used"] = snps_used
     return corrected
+
+
+def normalize_legacy_row(
+    module: str | None,
+    category: str | None,
+    finding_text: str | None,
+    detail: dict[str, Any] | None,
+    sample_engine: sa.Engine | None = None,
+) -> tuple[str | None, dict[str, Any] | None]:
+    """Correct narrative and detail together, from a single evaluability read.
+
+    A consumer needing both must not call the two single-purpose helpers: each
+    evaluates independently, and for a legacy row that means two full autosomal
+    scans per request on exactly the dense samples this module targets. Doing
+    both here makes the double scan unexpressible rather than merely avoided.
+    """
+    if module != MODULE or category != CATEGORY:
+        return finding_text, detail
+    evaluable, snps_used, reason = evaluability_from_detail(detail, sample_engine)
+    if evaluable:
+        return finding_text, detail
+    return (
+        unevaluable_text(snps_used, reason or INSUFFICIENT_AUTOSOMAL_MARKERS),
+        _withheld_detail(detail, snps_used, reason),
+    )
 
 
 def _finding_text(result: RohResult) -> str:
