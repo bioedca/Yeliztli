@@ -202,6 +202,12 @@ class GnomADAnnotation:
     an_fin: int | None = None
     an_sas: int | None = None
     an_popmax: int | None = None
+    # The REF/ALT this frequency actually describes. Carried so the merge can
+    # refuse to attach it to a row whose allele identity resolved differently
+    # (#2214 review). Optional: callers that build the dataclass directly in
+    # tests do not need to supply it.
+    ref: str | None = None
+    alt: str | None = None
 
 
 def compute_af_popmax_with_an(
@@ -919,6 +925,8 @@ def _annotation_from_row(row: sa.Row) -> GnomADAnnotation:
     rare, ultra_rare = compute_rare_flags(popmax)
     return GnomADAnnotation(
         rsid=row.rsid,
+        ref=getattr(row, "ref", None),
+        alt=getattr(row, "alt", None),
         af_global=row.af_global,
         af_afr=row.af_afr,
         af_amr=row.af_amr,

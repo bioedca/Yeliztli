@@ -464,6 +464,11 @@ def _annot_to_dict(annot: GnomADAnnotation) -> dict:
         "gnomad_an_fin": annot.an_fin,
         "gnomad_an_sas": annot.an_sas,
         "gnomad_source_status": GNOMAD_SOURCE_OBSERVED,
+        # Private (stripped by the upsert allowlist): which allele this
+        # frequency describes, so the merge can refuse to attach it to a row
+        # whose identity resolved to a different ALT (#2214 review).
+        "_gnomad_ref": annot.ref,
+        "_gnomad_alt": annot.alt,
         "gnomad_homozygous_count": annot.homozygous_count,
         "gnomad_af_popmax": annot.af_popmax,
         "gnomad_an_popmax": annot.an_popmax,
@@ -934,6 +939,27 @@ def _merge_annotations(
                 row_data["alt"] = alt = vep_alt
         if ref is not None and alt is not None:
             row_data["zygosity"] = classify_zygosity(raw.genotype, ref, alt)
+
+        # A frequency describes ONE allele. gnomAD may have resolved a different
+        # ALT from the one this row's identity settled on (ClinVar and VEP win
+        # that race), and publishing the two together presents one allele's
+        # frequency, homozygote count and rarity flags as evidence for another --
+        # #2171's defect surviving into the merged row (#2214 review).
+        g_ref = row_data.pop("_gnomad_ref", None)
+        g_alt = row_data.pop("_gnomad_alt", None)
+        if (
+            bitmask & GNOMAD_BIT
+            and ref is not None
+            and alt is not None
+            and g_ref is not None
+            and g_alt is not None
+            and (str(g_ref), str(g_alt)) != (str(ref), str(alt))
+        ):
+            for _key in list(row_data):
+                if _key.startswith("gnomad_"):
+                    del row_data[_key]
+            row_data["gnomad_source_status"] = GNOMAD_SOURCE_ALLELE_AMBIGUOUS
+            bitmask &= ~GNOMAD_BIT
 
         # Always emit a row, even when no source matched (F36). An explicit
         # ``annotation_coverage = 0`` marker distinguishes a variant that was

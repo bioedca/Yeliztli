@@ -2689,6 +2689,64 @@ class TestGnomadAnnotationLookupIntegration:
         assert matched.gnomad_af_global is None
         assert unmatched.gnomad_af_global is None
 
+    def test_frequency_is_dropped_when_the_row_resolves_to_another_allele(
+        self,
+        sample_engine: sa.Engine,
+        mock_registry: MagicMock,
+        gnomad_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """#2214 review: the frequency must describe the allele the row records.
+
+        gnomAD holds G>A and G>T; the sample calls `AG`, so G>A is selected. But
+        ClinVar wins allele identity and lists only G>T, so the stored row used
+        to carry G>A's frequency, homozygote count and rarity flags under a G>T
+        identity -- #2171's defect surviving into the merged row.
+        """
+        with reference_engine.begin() as conn:
+            conn.execute(
+                clinvar_variants.insert().values(
+                    rsid="rs_idmix",
+                    chrom="1",
+                    pos=300,
+                    ref="G",
+                    alt="T",
+                    significance="Pathogenic",
+                    review_stars=2,
+                    accession="VCV999999",
+                    conditions="Test condition",
+                    gene_symbol="GENE1",
+                    variation_id=999999,
+                )
+            )
+        with gnomad_engine.begin() as conn:
+            conn.execute(
+                sa.text(
+                    "INSERT INTO gnomad_af "
+                    "(rsid, chrom, pos, ref, alt, af_global, af_afr, af_amr, af_asj, "
+                    "af_eas, af_eur, af_fin, af_sas, homozygous_count) VALUES "
+                    "('rs_idmix', '1', 300, 'G', 'A', 0.001, 0.001, 0.001, 0.001, "
+                    "0.001, 0.001, 0.001, 0.001, 1), "
+                    "('rs_idmix', '1', 300, 'G', 'T', 0.20, 0.05, 0.04, 0.03, "
+                    "0.02, 0.01, 0.07, 0.08, 500)"
+                )
+            )
+        with sample_engine.begin() as conn:
+            conn.execute(
+                raw_variants.insert().values(rsid="rs_idmix", chrom="1", pos=300, genotype="AG")
+            )
+
+        run_annotation(sample_engine, mock_registry)
+
+        row = self._annotated_row(sample_engine, "rs_idmix")
+        assert row is not None
+        # The row's identity is ClinVar's G>T.
+        assert (row.ref, row.alt) == ("G", "T")
+        # So G>A's 0.001 must not ride along under it.
+        assert row.gnomad_af_global is None
+        assert row.gnomad_homozygous_count is None
+        assert row.gnomad_source_status == "allele_ambiguous"
+
     def test_single_alt_rsid_is_annotated_regardless_of_genotype(
         self, sample_engine: sa.Engine, mock_registry: MagicMock, gnomad_engine: sa.Engine
     ) -> None:
