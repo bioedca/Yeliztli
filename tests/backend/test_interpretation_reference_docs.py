@@ -486,6 +486,168 @@ def _persisted_row_expressions(
     return rows
 
 
+def _subscript_key(expression: ast.expr) -> object | None:
+    if not isinstance(expression, ast.Subscript):
+        return None
+    slice_node = expression.slice
+    if isinstance(slice_node, ast.Constant):
+        return slice_node.value
+    return None
+
+
+def _mapping_category_values(expression: ast.expr) -> list[ast.expr]:
+    if isinstance(expression, ast.Dict):
+        return [
+            value
+            for key, value in zip(expression.keys, expression.values, strict=True)
+            if isinstance(key, ast.Constant) and key.value == "category"
+        ]
+    if (
+        isinstance(expression, ast.Call)
+        and isinstance(expression.func, ast.Name)
+        and expression.func.id == "dict"
+    ):
+        return [keyword.value for keyword in expression.keywords if keyword.arg == "category"]
+    return []
+
+
+def _merge_row_states(
+    *states: list[tuple[int, str, ast.expr | None]],
+) -> list[tuple[int, str, ast.expr | None]]:
+    merged: dict[tuple[int, str, str], tuple[int, str, ast.expr | None]] = {}
+    for state in states:
+        for lineno, kind, value in state:
+            marker = (
+                lineno,
+                kind,
+                ast.dump(value, include_attributes=False) if value is not None else "",
+            )
+            merged[marker] = (lineno, kind, value)
+    return list(merged.values())
+
+
+def _direct_row_state(
+    statement: ast.stmt,
+    name: str,
+) -> list[tuple[int, str, ast.expr | None]] | None:
+    direct = _direct_assignment(statement, name)
+    if direct is not None:
+        return [(lineno, "row", value) for lineno, value in direct]
+
+    if isinstance(statement, (ast.Assign, ast.AnnAssign)):
+        targets = statement.targets if isinstance(statement, ast.Assign) else [statement.target]
+        value = statement.value
+        if value is not None and any(
+            isinstance(target, ast.Subscript)
+            and isinstance(target.value, ast.Name)
+            and target.value.id == name
+            and _subscript_key(target) == "category"
+            for target in targets
+        ):
+            return [(statement.lineno, "category", value)]
+
+    if isinstance(statement, ast.Delete) and any(
+        isinstance(target, ast.Subscript)
+        and isinstance(target.value, ast.Name)
+        and target.value.id == name
+        and _subscript_key(target) == "category"
+        for target in statement.targets
+    ):
+        return [(statement.lineno, "absent", None)]
+
+    if not isinstance(statement, ast.Expr) or not isinstance(statement.value, ast.Call):
+        return None
+    call = statement.value
+    if (
+        not isinstance(call.func, ast.Attribute)
+        or not isinstance(call.func.value, ast.Name)
+        or call.func.value.id != name
+    ):
+        return None
+    if call.func.attr == "clear":
+        return [(statement.lineno, "absent", None)]
+    if (
+        call.func.attr == "pop"
+        and call.args
+        and isinstance(call.args[0], ast.Constant)
+        and call.args[0].value == "category"
+    ):
+        return [(statement.lineno, "absent", None)]
+    if call.func.attr != "update":
+        return None
+
+    values = [keyword.value for keyword in call.keywords if keyword.arg == "category"]
+    for argument in call.args:
+        values.extend(_mapping_category_values(argument))
+    if not values:
+        return None
+    return [(statement.lineno, "category", value) for value in values]
+
+
+def _apply_row_statements(
+    statements: list[ast.stmt],
+    name: str,
+    incoming: list[tuple[int, str, ast.expr | None]],
+) -> list[tuple[int, str, ast.expr | None]]:
+    state = incoming
+    for statement in statements:
+        direct = _direct_row_state(statement, name)
+        if direct is not None:
+            state = direct
+        elif isinstance(statement, ast.If):
+            body = _apply_row_statements(statement.body, name, state)
+            orelse = (
+                _apply_row_statements(statement.orelse, name, state) if statement.orelse else state
+            )
+            state = _merge_row_states(body, orelse)
+        elif isinstance(statement, (ast.For, ast.AsyncFor, ast.While)):
+            body = _apply_row_statements(statement.body, name, state)
+            state = _merge_row_states(state, body)
+            if statement.orelse:
+                state = _apply_row_statements(statement.orelse, name, state)
+        elif isinstance(statement, (ast.With, ast.AsyncWith)):
+            state = _apply_row_statements(statement.body, name, state)
+        elif isinstance(statement, (ast.Try, ast.TryStar)):
+            body = _apply_row_statements(statement.body, name, state)
+            branches = [body]
+            branches.extend(
+                _apply_row_statements(handler.body, name, state) for handler in statement.handlers
+            )
+            state = _merge_row_states(*branches)
+            if statement.orelse:
+                state = _apply_row_statements(statement.orelse, name, state)
+            if statement.finalbody:
+                state = _apply_row_statements(statement.finalbody, name, state)
+        elif isinstance(statement, ast.Match):
+            branches = [_apply_row_statements(case.body, name, state) for case in statement.cases]
+            state = _merge_row_states(state, *branches)
+    return state
+
+
+def _row_states_reaching_line(
+    statements: list[ast.stmt],
+    name: str,
+    before_lineno: int,
+    incoming: list[tuple[int, str, ast.expr | None]],
+) -> list[tuple[int, str, ast.expr | None]]:
+    state = incoming
+    for statement in statements:
+        if statement.lineno >= before_lineno:
+            break
+        if before_lineno <= getattr(statement, "end_lineno", statement.lineno):
+            for block in _statement_blocks(statement):
+                if _block_contains_line(block, before_lineno):
+                    return _row_states_reaching_line(
+                        block,
+                        name,
+                        before_lineno,
+                        state,
+                    )
+            return state
+        state = _apply_row_statements([statement], name, state)
+    return state
+
+
 def _row_emits_lower_penetrance_category(
     expression: ast.expr,
     function: ast.FunctionDef,
@@ -504,32 +666,42 @@ def _row_emits_lower_penetrance_category(
 
     if isinstance(expression, ast.Dict):
         return any(
-            isinstance(key, ast.Constant)
-            and key.value == "category"
-            and _expression_emits_lower_penetrance_category(
+            _expression_emits_lower_penetrance_category(
                 value,
                 function,
                 functions,
                 set(),
                 getattr(value, "lineno", before_lineno),
             )
-            for key, value in zip(expression.keys, expression.values, strict=True)
+            for value in _mapping_category_values(expression)
         )
     if isinstance(expression, ast.Name):
-        return any(
-            _row_emits_lower_penetrance_category(
+        states = _row_states_reaching_line(
+            function.body,
+            expression.id,
+            before_lineno,
+            [],
+        )
+        for state_lineno, kind, value in states:
+            if value is None:
+                continue
+            if kind == "category" and _expression_emits_lower_penetrance_category(
+                value,
+                function,
+                functions,
+                set(),
+                state_lineno,
+            ):
+                return True
+            if kind == "row" and _row_emits_lower_penetrance_category(
                 value,
                 function,
                 functions,
                 set(seen),
-                assignment_lineno,
-            )
-            for assignment_lineno, value in _reaching_assignments_before(
-                function,
-                expression.id,
-                before_lineno,
-            )
-        )
+                state_lineno,
+            ):
+                return True
+        return False
     if isinstance(expression, (ast.List, ast.Tuple, ast.Set)):
         return any(
             _row_emits_lower_penetrance_category(
@@ -738,6 +910,39 @@ def store_test_findings():
         encoding="utf-8",
     )
     assert _stores_lower_penetrance_category(analysis) is True
+
+    for category_write in (
+        'row["category"] = LOWER_PENETRANCE_RISK_ALLELE_CATEGORY',
+        "row.update(category=LOWER_PENETRANCE_RISK_ALLELE_CATEGORY)",
+        'row.update({"category": LOWER_PENETRANCE_RISK_ALLELE_CATEGORY})',
+    ):
+        analysis.write_text(
+            f"""
+def store_test_findings():
+    row = {{}}
+    {category_write}
+    conn.execute(sa.insert(findings), [row])
+""",
+            encoding="utf-8",
+        )
+        assert _stores_lower_penetrance_category(analysis) is True
+
+    for category_removal in (
+        'row["category"] = "monogenic_variant"',
+        'row.pop("category")',
+        "row.clear()",
+        'del row["category"]',
+    ):
+        analysis.write_text(
+            f"""
+def store_test_findings():
+    row = {{"category": LOWER_PENETRANCE_RISK_ALLELE_CATEGORY}}
+    {category_removal}
+    conn.execute(sa.insert(findings), [row])
+""",
+            encoding="utf-8",
+        )
+        assert _stores_lower_penetrance_category(analysis) is False
 
     analysis.write_text(
         """
