@@ -347,7 +347,7 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex h-full min-w-0 flex-col">
       <ChromosomeNav
         chromosomeCounts={chromCounts}
         isLoading={chromCountsLoading}
@@ -382,10 +382,14 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
         onConcordanceFilter={setConcordanceFilter}
       />
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 flex-col overflow-hidden [@media(max-height:400px)]:min-h-56 lg:flex-row">
         {/* Left sidebar: Watching section (P4-21k) */}
-        {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- scrollable region must be keyboard-accessible (axe: scrollable-region-focusable) */}
-        <aside className="w-64 shrink-0 border-r border-border overflow-y-auto bg-card" aria-label="Variant table sidebar" tabIndex={0}>
+        <aside
+          className="max-h-[min(10rem,40%)] w-full max-w-full shrink-0 overflow-y-auto bg-card lg:max-h-none lg:w-64 lg:border-r lg:border-border"
+          aria-label="Variant table sidebar"
+          // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- scrollable region must be keyboard-accessible (axe: scrollable-region-focusable)
+          tabIndex={0}
+        >
           <WatchingSidebar
             sampleId={sampleId}
             onSelectVariant={setSelectedRsid}
@@ -394,8 +398,13 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
         </aside>
 
         {/* Main table area */}
-        {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- scrollable region must be keyboard-accessible (axe: scrollable-region-focusable) */}
-        <section ref={tableContainerRef} className="flex-1 overflow-auto" aria-label="Variant table" tabIndex={0}>
+        <section
+          ref={tableContainerRef}
+          className="min-h-0 min-w-0 flex-1 overflow-auto"
+          aria-label="Variant table"
+          // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- scrollable region must be keyboard-accessible (axe: scrollable-region-focusable)
+          tabIndex={0}
+        >
           <table className="w-full text-sm border-collapse">
             <thead className="sticky top-0 z-10 bg-card border-b border-border">
               {table.getHeaderGroups().map((headerGroup) => (
