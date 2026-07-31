@@ -5,10 +5,30 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import sqlalchemy as sa
+
+from backend.analysis.bche import assess_bche
+from backend.analysis.g6pd import assess_g6pd
+from backend.analysis.run_all import _get_modules
+from backend.db.sample_schema import create_sample_tables
+from backend.db.tables import findings
+
 DOCS_ROOT = Path(__file__).resolve().parent.parent.parent / "docs"
 READING_RESULTS = DOCS_ROOT / "getting-started" / "reading-your-results.md"
 MODULES_INDEX = DOCS_ROOT / "modules" / "index.md"
 SPECIALIZED_FINDINGS = DOCS_ROOT / "modules" / "specialized.md"
+
+AUTOMATIC_SPECIALIZED_MODULES = {
+    "hemochromatosis",
+    "thrombophilia",
+    "alpha1",
+    "amd",
+    "apol1",
+    "gout",
+    "lhon",
+    "mt_rnr1",
+}
+ON_DEMAND_CONTEXT_MODULES = {"g6pd", "bche"}
 
 SUPPORTED_FILTER_PATTERN = re.compile(
     r"\bfilter findings across every module at once by module and minimum "
@@ -79,7 +99,11 @@ def test_specialized_docs_distinguish_automatic_findings_from_api_context() -> N
         " ",
         _markdown_section(MODULES_INDEX, "# Module reference"),
     )
+    runner_modules = {name for name, _runner in _get_modules()}
 
+    assert len(AUTOMATIC_SPECIALIZED_MODULES) == 8
+    assert AUTOMATIC_SPECIALIZED_MODULES <= runner_modules
+    assert runner_modules.isdisjoint(ON_DEMAND_CONTEXT_MODULES)
     assert "Findings-producing modules load curated panels of variants" in module_overview
     assert (
         "Read-only, on-demand API context modules such as G6PD and BChE "
@@ -108,3 +132,26 @@ def test_specialized_docs_distinguish_automatic_findings_from_api_context() -> N
         assert "not part of the standard analysis" in section
         assert "does not store a Findings Explorer entry" in section
         assert endpoint in section
+
+
+def test_on_demand_context_assessments_leave_findings_unchanged() -> None:
+    engine = sa.create_engine("sqlite://")
+    create_sample_tables(engine)
+
+    with engine.begin() as connection:
+        connection.execute(
+            findings.insert().values(
+                module="sentinel",
+                finding_text="Existing finding",
+            )
+        )
+        before = [dict(row) for row in connection.execute(sa.select(findings)).mappings().all()]
+
+    assert assess_g6pd(engine)["context_only"] is True
+    assert assess_bche(engine)["context_only"] is True
+
+    with engine.connect() as connection:
+        after = [dict(row) for row in connection.execute(sa.select(findings)).mappings().all()]
+
+    assert after == before
+    engine.dispose()
