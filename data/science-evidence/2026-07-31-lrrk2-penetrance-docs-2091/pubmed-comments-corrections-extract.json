@@ -10,7 +10,20 @@
   "metadata_snapshot": {
     "path": "data/science-evidence/2026-07-31-lrrk2-penetrance-docs-2091/pubmed-esummary.json",
     "request": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id=26062626%2C28639421%2C38804604%2C40926580&retmode=json",
-    "sha256": "2dafe96323e4695693bbc6d5617adaaed7b6de9e79aebd31ec22dfdce03d2eb1"
+    "sha256": "6c924c787b5a81195a5e36ee1c1f80833819bcfa43f9e9640329f8e4b8f34e43",
+    "removed_metadata": [
+      "authors",
+      "history",
+      "articleids",
+      "all unused ESummary fields"
+    ]
+  },
+  "claim_evidence_snapshot": {
+    "path": "data/science-evidence/2026-07-31-lrrk2-penetrance-docs-2091/pubmed-claim-excerpts.json",
+    "request": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=26062626%2C28639421%2C38804604%2C40926580&retmode=xml",
+    "raw_response_sha256": "0af32064bac933bfc8a33a2755c5ba81b2f9a1620345324facb7d706eecd38d0",
+    "sha256": "68f47eda8b890d8965dfebcb5719ebd2e21a0060d7962b3b1b612f2ed13d9a71",
+    "selection": "Exact claim-bearing AbstractText sentences only; author, affiliation, participant-level, and unrelated abstract content omitted."
   },
   "extraction_path": "PubmedArticle/MedlineCitation/CommentsCorrectionsList",
   "source_snapshot": {

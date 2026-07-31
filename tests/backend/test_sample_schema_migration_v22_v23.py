@@ -153,7 +153,7 @@ def test_v23_repairs_exact_legacy_efavirenz_alerts_in_place(
         )
         version = conn.execute(sa.text("PRAGMA user_version")).scalar_one()
 
-    assert version == SAMPLE_SCHEMA_VERSION == 23
+    assert version == SAMPLE_SCHEMA_VERSION == 24
     assert [row["id"] for row in migrated] == [101, 102]
     for row, (_, phenotype, diplotype, suffix) in zip(
         migrated,
@@ -273,7 +273,7 @@ def test_v23_leaves_malformed_current_custom_and_near_miss_alerts_untouched(
         version = conn.execute(sa.text("PRAGMA user_version")).scalar_one()
 
     assert after == before
-    assert version == 23
+    assert version == 24
 
 
 def test_v23_removes_only_exact_legacy_diff_entries_and_recomputes_counts(
@@ -378,7 +378,7 @@ def test_v23_leaves_malformed_diff_json_untouched(sample_engine: sa.Engine) -> N
             ).scalar_one()
             == "{not-json"
         )
-        assert conn.execute(sa.text("PRAGMA user_version")).scalar_one() == 23
+        assert conn.execute(sa.text("PRAGMA user_version")).scalar_one() == 24
 
 
 def test_v23_repairs_legacy_alert_when_provenance_column_is_absent() -> None:
@@ -431,7 +431,7 @@ def test_v23_repairs_legacy_alert_when_provenance_column_is_absent() -> None:
         CURRENT_RECOMMENDATIONS[phenotype],
     )
     assert json.loads(row.detail_json)["recommendation"] == CURRENT_RECOMMENDATIONS[phenotype]
-    assert version == 23
+    assert version == 24
 
 
 def test_v23_locks_before_reading_or_writing_findings_and_diff(

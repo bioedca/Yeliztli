@@ -79,6 +79,8 @@ class TestDisclaimer:
         normalized = data["text"].replace("–", "-")
         assert "24-49%" in normalized
         assert "25-42.5%" in normalized
+        assert "by age 80" in normalized.lower()
+        assert "most carriers never develop" not in normalized.lower()
 
 
 class TestGateFlow:

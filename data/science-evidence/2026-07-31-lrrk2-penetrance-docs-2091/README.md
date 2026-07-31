@@ -85,26 +85,35 @@ linked corrections, retractions, expressions of concern, and related notices.
 The element was absent from all four records. This records PubMed's state on
 the access date, not a guarantee that no later notice will appear.
 
-The source-structured snapshot preserves every `MedlineCitation` record and
-source element except the publisher-text containers `Abstract`,
-`OtherAbstract`, `ReferenceList`, and `CoiStatement`, and one author email
-address was removed from an affiliation string. It explicitly retains
-`CommentsCorrectionsList` whenever present. The exact request, hashes,
-sanitizer removals, revision dates, and extracted notice results are recorded
-in:
+The corrections snapshot preserves every `MedlineCitation` record and source
+element except the publisher-text containers `Abstract`, `OtherAbstract`,
+`ReferenceList`, and `CoiStatement`, and one author email address was removed
+from an affiliation string. It explicitly retains `CommentsCorrectionsList`
+whenever present. A separate minimal claim snapshot retains the exact
+claim-bearing sentence from each source's `AbstractText` element and omits all
+author, affiliation, participant-level, and unrelated abstract content. Both
+snapshots derive from the same EFetch response, whose raw SHA-256 is recorded.
+The exact request, hashes, sanitizer removals, revision dates, source XPath
+locations, and extracted notice results are recorded in:
 `data/science-evidence/2026-07-31-lrrk2-penetrance-docs-2091/pubmed-comments-corrections-extract.json`.
 
 ## Payload format and usage
 
-- `pubmed-esummary.json` is the raw public NCBI E-utilities citation-metadata
-  response.
+- `pubmed-esummary.json` is a minimal sanitized derivative of the public NCBI
+  E-utilities citation-metadata response. It retains only each record's PMID,
+  DOI, title, journal abbreviation, and publication date; author, history,
+  identifier-array, and other unused response metadata are omitted.
+- `pubmed-claim-excerpts.json` retains four exact, source-native
+  claim-bearing `AbstractText` sentences, with PMID, DOI, source XPath, request,
+  and raw-response hash. These sentences are the durable source evidence for
+  the four age-80 estimates mapped above.
 - `pubmed-efetch-sanitized.xml` is the auditable source snapshot used for the
   corrections/retractions check.
 
 The live PubMed service exposes no frozen database build identifier, so the
 access date is the packet's retrieval-version boundary. The packet contains no
-article full text, author email addresses, participant-level data, genotypes,
-credentials, or restricted information.
+article full text or full abstract, author email addresses, participant-level
+data, genotypes, credentials, or restricted information.
 
 NCBI's [Website and Data Usage Policies and Disclaimers](https://www.ncbi.nlm.nih.gov/home/about/policies/)
 (accessed 2026-07-31) state that U.S.-government-created site information is

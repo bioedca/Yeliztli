@@ -1,0 +1,34 @@
+{
+  "source": "NCBI PubMed EFetch",
+  "accessed": "2026-07-31",
+  "response_format": "xml",
+  "request": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=26062626%2C28639421%2C38804604%2C40926580&retmode=xml",
+  "raw_response_sha256": "0af32064bac933bfc8a33a2755c5ba81b2f9a1620345324facb7d706eecd38d0",
+  "extraction_method": "Exact claim-bearing sentences copied without paraphrase from the named AbstractText element; all author, affiliation, participant-level, and unrelated abstract content omitted.",
+  "records": [
+    {
+      "pmid": "26062626",
+      "doi": "10.1212/WNL.0000000000001708",
+      "source_xpath": "PubmedArticle/MedlineCitation/Article/Abstract/AbstractText[@Label='RESULTS']",
+      "source_text": "Risk of PD in relatives predicted to carry an LRRK2 G2019S mutation was 0.26 (95% confidence interval [CI] 0.18-0.36) to age 80 years, and was almost 3-fold higher than in relatives predicted to be noncarriers (hazard ratio [HR] 2.89, 95% CI 1.73-4.55, p < 0.001)."
+    },
+    {
+      "pmid": "28639421",
+      "doi": "10.1002/mds.27059",
+      "source_xpath": "PubmedArticle/MedlineCitation/Article/Abstract/AbstractText[@Label='RESULTS']",
+      "source_text": "Risk of PD in non-Ashkenazi Jewish relatives who carry a LRRK2 p.G2019S mutation was 42.5% (95% confidence interval [CI]: 26.3%-65.8%) to age 80, which is not significantly higher than the previously estimated 25% (95% CI: 16.7%-34.2%) in Ashkenazi Jewish carrier relatives."
+    },
+    {
+      "pmid": "38804604",
+      "doi": "10.1093/brain/awae073",
+      "source_xpath": "PubmedArticle/MedlineCitation/Article/Abstract/AbstractText",
+      "source_text": "The cumulative incidence of PD in G2019S carriers by age 80 was 49%."
+    },
+    {
+      "pmid": "40926580",
+      "doi": "10.1002/acn3.70176",
+      "source_xpath": "PubmedArticle/MedlineCitation/Article/Abstract/AbstractText[@Label='RESULTS']",
+      "source_text": "By the age of 80 years, the cumulative incidence of PD was 30% for dual carriers, 24% for LRRK2 p.G2019S carriers, 4% for GBA1 p.N409S carriers, and 2% for noncarriers."
+    }
+  ]
+}
