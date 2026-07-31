@@ -407,6 +407,7 @@ class TestParseGuidelinesCSV:
                 "WHERE gene = 'CYP2B6' AND drug = 'efavirenz' "
                 "AND phenotype IN ('Intermediate Metabolizer', 'Poor Metabolizer')"
             ).fetchall()
+        assert len(mini_rows) == len(expected)
         assert dict(mini_rows) == expected
 
     def test_empty_csv(self, tmp_path: Path):

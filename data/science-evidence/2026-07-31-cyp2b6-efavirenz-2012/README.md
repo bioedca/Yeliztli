@@ -25,7 +25,8 @@ authority-snapshot and CPIC-classification conformance work.
 ## Queries and raw payloads
 
 1. `GET https://api.cpicpgx.org/v1/drug?name=eq.efavirenz&select=drugid,name`
-   returned `RxNorm:195085`.
+   returned `RxNorm:195085`. The complete response is at
+   `data/science-evidence/2026-07-31-cyp2b6-efavirenz-2012/raw/cpic_efavirenz_drug_lookup.json`.
 2. `GET https://api.cpicpgx.org/v1/recommendation?drugid=eq.RxNorm%3A195085&select=guidelineid,lookupkey,drugrecommendation,classification,phenotypes`
    returned guideline ID `104245` and the recommendations above. The complete
    selected response is at
