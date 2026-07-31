@@ -85,6 +85,10 @@ class PubMedArticle:
     query: str | None = None
     fetched_at: datetime | None = None
     is_stale: bool = False
+    _cache_title: str | None = field(default=None, repr=False, compare=False)
+    _cache_abstract: str | None = field(default=None, repr=False, compare=False)
+    _cache_authors: list[str] | None = field(default=None, repr=False, compare=False)
+    _cache_journal: str | None = field(default=None, repr=False, compare=False)
 
     def to_dict(self) -> dict:
         """Serialize to dictionary for API responses."""
@@ -338,10 +342,20 @@ class PubMedFetcher:
                         literature_cache.update()
                         .where(literature_cache.c.id == existing.id)
                         .values(
-                            title=article.title,
-                            abstract=article.abstract,
-                            authors=json.dumps(article.authors),
-                            journal=article.journal,
+                            title=article._cache_title
+                            if article._cache_title is not None
+                            else article.title,
+                            abstract=article._cache_abstract
+                            if article._cache_abstract is not None
+                            else article.abstract,
+                            authors=json.dumps(
+                                article._cache_authors
+                                if article._cache_authors is not None
+                                else article.authors
+                            ),
+                            journal=article._cache_journal
+                            if article._cache_journal is not None
+                            else article.journal,
                             year=article.year,
                             fetched_at=now,
                         )
@@ -352,10 +366,20 @@ class PubMedFetcher:
                             pmid=article.pmid,
                             gene=article_gene,
                             query=article.query,
-                            title=article.title,
-                            abstract=article.abstract,
-                            authors=json.dumps(article.authors),
-                            journal=article.journal,
+                            title=article._cache_title
+                            if article._cache_title is not None
+                            else article.title,
+                            abstract=article._cache_abstract
+                            if article._cache_abstract is not None
+                            else article.abstract,
+                            authors=json.dumps(
+                                article._cache_authors
+                                if article._cache_authors is not None
+                                else article.authors
+                            ),
+                            journal=article._cache_journal
+                            if article._cache_journal is not None
+                            else article.journal,
                             year=article.year,
                             fetched_at=now,
                         )
@@ -500,25 +524,33 @@ def _parse_entrez_record(
 
         article_data = medline.get("Article", {})
 
-        # Title
-        title = _plain_pubmed_text(article_data.get("ArticleTitle", ""))
+        # Preserve the Entrez-escaped source in the cache so text is normalized
+        # exactly once on both the network and cache paths.
+        cache_title = str(article_data.get("ArticleTitle", ""))
+        title = _plain_pubmed_text(cache_title)
 
         # Abstract
         abstract_parts = article_data.get("Abstract", {}).get("AbstractText", [])
-        abstract = " ".join(_plain_pubmed_text(part) for part in abstract_parts)
+        cache_abstract = " ".join(str(part) for part in abstract_parts)
+        abstract = _plain_pubmed_text(cache_abstract)
 
         # Authors
         authors: list[str] = []
+        cache_authors: list[str] = []
         author_list = article_data.get("AuthorList", [])
         for author in author_list:
-            last = _plain_pubmed_text(author.get("LastName", ""))
-            initials = _plain_pubmed_text(author.get("Initials", ""))
+            cache_last = str(author.get("LastName", ""))
+            cache_initials = str(author.get("Initials", ""))
+            last = _plain_pubmed_text(cache_last)
+            initials = _plain_pubmed_text(cache_initials)
             if last:
                 authors.append(f"{last} {initials}".strip())
+                cache_authors.append(f"{cache_last} {cache_initials}".strip())
 
         # Journal
         journal_info = article_data.get("Journal", {})
-        journal = _plain_pubmed_text(journal_info.get("Title", ""))
+        cache_journal = str(journal_info.get("Title", ""))
+        journal = _plain_pubmed_text(cache_journal)
 
         # Year
         year = None
@@ -538,6 +570,10 @@ def _parse_entrez_record(
             journal=journal,
             year=year,
             gene=gene,
+            _cache_title=cache_title,
+            _cache_abstract=cache_abstract,
+            _cache_authors=cache_authors,
+            _cache_journal=cache_journal,
         )
 
     except Exception:

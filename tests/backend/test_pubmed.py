@@ -181,6 +181,35 @@ class TestFetchAndCache:
         assert result.articles[0].pmid == "22222222"
         assert result.articles[0].title == "MTHFR and folate"
 
+    def test_network_and_cache_paths_preserve_literal_tag_text(
+        self, fetcher: PubMedFetcher
+    ) -> None:
+        """A literal tag spelling is not reinterpreted after caching."""
+        mock_records = {
+            "PubmedArticle": [
+                _make_entrez_record(
+                    pmid="33333333",
+                    title="Literal &lt;i&gt; beside <i>TP53</i>",
+                    abstract="Literal &amp;lt; beside x&lt;y.",
+                ),
+            ]
+        }
+
+        with patch("backend.utils.pubmed.Entrez", autospec=True) as mock_entrez:
+            mock_handle = MagicMock()
+            mock_entrez.efetch.return_value = mock_handle
+            mock_entrez.read.return_value = mock_records
+
+            network_result = fetcher.fetch_by_pmids(["33333333"], gene="TP53")
+            cached_result = fetcher.fetch_by_pmids(["33333333"], gene="TP53")
+
+        assert network_result.articles[0].title == "Literal <i> beside TP53"
+        assert cached_result.articles[0].title == network_result.articles[0].title
+        assert network_result.articles[0].abstract == "Literal &lt; beside x<y."
+        assert cached_result.articles[0].abstract == network_result.articles[0].abstract
+        assert cached_result.from_cache == 1
+        mock_entrez.efetch.assert_called_once()
+
     def test_mixed_cached_and_new(
         self, fetcher: PubMedFetcher, reference_engine: sa.Engine
     ) -> None:
