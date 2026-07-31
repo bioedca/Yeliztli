@@ -310,9 +310,28 @@ class TestLoadFindings:
     def test_rejects_a_selection_over_the_report_limit(self, sample_with_findings: tuple) -> None:
         _, sample_engine, _ = sample_with_findings
         _insert_report_findings(sample_engine, MAX_REPORT_FINDINGS + 1)
+        finding_selects: list[str] = []
 
-        with pytest.raises(ReportTooLargeError, match="maximum of 1,000 findings"):
-            _load_findings(sample_engine, modules=["rare_variants"])
+        def capture_finding_select(
+            _conn,
+            _cursor,
+            statement: str,
+            _parameters,
+            _context,
+            _executemany,
+        ) -> None:
+            if "FROM findings" in statement:
+                finding_selects.append(statement)
+
+        sa.event.listen(sample_engine, "before_cursor_execute", capture_finding_select)
+        try:
+            with pytest.raises(ReportTooLargeError, match="maximum of 1,000 findings"):
+                _load_findings(sample_engine, modules=["rare_variants"])
+        finally:
+            sa.event.remove(sample_engine, "before_cursor_execute", capture_finding_select)
+
+        assert len(finding_selects) == 1
+        assert "ORDER BY" not in finding_selects[0].upper()
 
     def test_withholds_unqualified_local_ancestry(self, sample_with_findings: tuple) -> None:
         _, sample_engine, _ = sample_with_findings

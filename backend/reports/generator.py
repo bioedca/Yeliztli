@@ -121,21 +121,37 @@ def _load_findings(
     if hidden_modules:
         clauses.append(findings.c.module.not_in(hidden_modules))
 
-    stmt = sa.select(findings)
-    if clauses:
-        stmt = stmt.where(sa.and_(*clauses))
-
-    stmt = stmt.order_by(
-        sa.desc(sa.func.coalesce(findings.c.evidence_level, 0)),
-        findings.c.module,
-        findings.c.id,
+    where_clause = sa.and_(*clauses)
+    bounded_selection = (
+        sa.select(sa.literal(1).label("selected"))
+        .where(where_clause)
+        .limit(MAX_REPORT_FINDINGS + 1)
+        .subquery()
     )
-    # Fetch at most one row beyond the supported boundary. This both proves that
-    # the selection is oversized and prevents an unbounded report request from
-    # materializing every matching finding before it can be rejected.
-    stmt = stmt.limit(MAX_REPORT_FINDINGS + 1)
+
+    stmt = (
+        sa.select(findings)
+        .where(where_clause)
+        .order_by(
+            sa.desc(sa.func.coalesce(findings.c.evidence_level, 0)),
+            findings.c.module,
+            findings.c.id,
+        )
+        .limit(MAX_REPORT_FINDINGS + 1)
+    )
 
     with engine.connect() as conn:
+        # Prove the selection is bounded before SQLite evaluates the report's
+        # presentation ordering. Without this unordered preflight, an oversized
+        # request can still sort every matching row before LIMIT returns 1,001.
+        selection_count = conn.scalar(sa.select(sa.func.count()).select_from(bounded_selection))
+        if int(selection_count or 0) > MAX_REPORT_FINDINGS:
+            raise ReportTooLargeError(
+                "Report selection exceeds the maximum of "
+                f"{MAX_REPORT_FINDINGS:,} findings; select fewer modules."
+            )
+
+        # Keep LIMIT + 1 on the ordered load as a defense-in-depth recheck.
         rows = conn.execute(stmt).fetchall()
 
     if len(rows) > MAX_REPORT_FINDINGS:
