@@ -32,6 +32,21 @@ _SRC = _REPO / "frontend" / "src" / "lib" / "pathwayCoverage.ts"
 _RARE_VARIANT_PANEL = (
     _REPO / "frontend" / "src" / "components" / "rare-variants" / "VariantDetailPanel.tsx"
 )
+_LOWER_PENETRANCE_MODULES = {
+    "cancer.py": (
+        "Cancer",
+        _REPO / "docs" / "modules" / "health-risk" / "cancer.md",
+    ),
+    "cardiovascular.py": (
+        "Cardiovascular",
+        _REPO / "docs" / "modules" / "health-risk" / "cardiovascular.md",
+    ),
+    "carrier_status.py": (
+        "Carrier status",
+        _REPO / "docs" / "modules" / "health-risk" / "carrier-status.md",
+    ),
+    "rare_variant_finder.py": ("Rare variants", _RARE_VARIANTS_DOC),
+}
 
 # The coverage-qualified level-badge strings pathwayLevelDisplayLabel can emit.
 _COVERAGE_BADGES = ("Tested Standard", "Not Assessed")
@@ -58,6 +73,51 @@ _ENSEMBLE_EXAMPLES = (
     (2, 4, False),
     (3, 4, True),
 )
+
+
+def test_lower_penetrance_output_table_matches_analysis_modules() -> None:
+    """Every analysis module storing the distinct tier stays in the reference table (#2052)."""
+    analysis_dir = _REPO / "backend" / "analysis"
+    implementation_modules = {
+        path.name
+        for path in analysis_dir.glob("*.py")
+        if path.name != "clinvar_significance.py"
+        and "LOWER_PENETRANCE_RISK_ALLELE_CATEGORY" in path.read_text(encoding="utf-8")
+    }
+    assert implementation_modules == set(_LOWER_PENETRANCE_MODULES), (
+        "Update _LOWER_PENETRANCE_MODULES and the interpretation-reference output table "
+        "when an analysis starts or stops storing the distinct ClinVar tier (#2052)."
+    )
+
+    doc = _DOC.read_text(encoding="utf-8")
+    row = next(
+        line
+        for line in doc.splitlines()
+        if line.startswith("| ClinVar lower-penetrance/risk-allele variants |")
+    )
+    documented_modules = {module.strip() for module in row.split("|")[2].split(",")}
+    expected_modules = {display_name for display_name, _ in _LOWER_PENETRANCE_MODULES.values()}
+    assert documented_modules == expected_modules, (
+        "The ClinVar lower-penetrance/risk-allele output row must list every analysis "
+        f"module that stores the tier; expected {sorted(expected_modules)}, found "
+        f"{sorted(documented_modules)} (#2052)."
+    )
+
+
+def test_lower_penetrance_tier_is_documented_on_each_module_page() -> None:
+    """Each module returning the distinct tier names it in 'What you'll see' (#2052)."""
+    missing: list[str] = []
+    for display_name, path in _LOWER_PENETRANCE_MODULES.values():
+        doc = path.read_text(encoding="utf-8")
+        what_youll_see = doc.split("## What you'll see", 1)[1].split("\n## ", 1)[0]
+        normalized = " ".join(what_youll_see.lower().replace("risk-allele", "risk allele").split())
+        if "lower-penetrance/risk allele" not in normalized:
+            missing.append(display_name)
+
+    assert not missing, (
+        "Module pages returning the distinct ClinVar lower-penetrance/risk-allele tier "
+        f"must describe it under 'What you'll see'; missing {missing} (#2052)."
+    )
 
 
 def test_coverage_badges_are_documented() -> None:

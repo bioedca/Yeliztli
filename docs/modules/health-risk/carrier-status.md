@@ -21,6 +21,9 @@ pattern, each with ClinVar significance, review stars, an evidence rating, the a
 condition, and reproductive context. A single recessive variant means you are typically an
 **unaffected carrier**, so these findings are framed around reproductive risk and partner testing.
 
+ClinVar lower-penetrance/risk-allele findings are reported in a separate tier rather than
+being presented as high-penetrance P/LP carrier findings.
+
 For **autosomal-recessive** genes, the module also surfaces **biallelic** patterns as
 **affected-status** findings — worded as a disease-state result rather than a "typically
 unaffected" carrier, with copy-number caveats and a prompt to confirm with clinical-grade

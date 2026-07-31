@@ -19,6 +19,8 @@ A **28-gene** hereditary-cancer panel, including *BRCA1*, *BRCA2*, *TP53*, *PALB
   pattern, and an evidence rating. For recessive genes, you're told whether you're a
   *carrier* versus *affected*. *BRCA1/BRCA2* findings cross-reference the
   [carrier module](carrier-status.md), where they also appear in a reproductive context.
+  ClinVar lower-penetrance/risk-allele findings are reported in a separate tier rather than
+  being presented as high-penetrance P/LP cancer-predisposition variants.
 - **Polygenic scores** — shown as a **population percentile**, never as a raw score,
   confidence interval, or absolute risk. This statement is specific to cancer PRS output:
   PRS percentiles are explicitly research-use-only and are kept separate from the optional
