@@ -56,6 +56,38 @@ _LEGACY_CYP2C9_PHENYTOIN_FINGERPRINT = Counter(
     }
 )
 
+_CYP2B6_EFAVIRENZ_GUIDELINE_URL = (
+    "https://cpicpgx.org/guidelines/cpic-guideline-for-efavirenz-based-on-cyp2b6-genotype/"
+)
+_CYP2B6_EFAVIRENZ_REDUCED_DOSE_PHENOTYPES = frozenset(
+    {"Intermediate Metabolizer", "Poor Metabolizer"}
+)
+_CANONICAL_CYP2B6_EFAVIRENZ_RECOMMENDATIONS = {
+    "Intermediate Metabolizer": (
+        "Consider initiating efavirenz with decreased dose of 400 mg/day."
+    ),
+    "Poor Metabolizer": (
+        "Consider initiating efavirenz with decreased dose of 400 or 200 mg/day."
+    ),
+}
+_LEGACY_CYP2B6_EFAVIRENZ_FINGERPRINTS = {
+    "Intermediate Metabolizer": (
+        None,
+        "Use label-recommended dosing; consider a reduced dose if CNS side effects occur.",
+        "A",
+        _CYP2B6_EFAVIRENZ_GUIDELINE_URL,
+    ),
+    "Poor Metabolizer": (
+        None,
+        (
+            "Consider initiating at a decreased dose (e.g., 400 mg/day); higher plasma "
+            "exposure raises CNS-toxicity risk."
+        ),
+        "A",
+        _CYP2B6_EFAVIRENZ_GUIDELINE_URL,
+    ),
+}
+
 _TPMT_THIOPURINE_GUIDELINE_URL = (
     "https://cpicpgx.org/guidelines/guideline-for-thiopurines-and-tpmt/"
 )
@@ -228,6 +260,118 @@ def _refresh_legacy_cyp2c9_phenytoin_guidelines(engine: sa.Engine) -> bool:
         "legacy_cyp2c9_phenytoin_guidelines_refreshed",
         removed_rows=len(rows),
         inserted_rows=len(canonical_rows),
+    )
+    return True
+
+
+def _refresh_legacy_cyp2b6_efavirenz_guidelines(engine: sa.Engine) -> bool:
+    """Upgrade each unambiguous exact released CYP2B6 recommendation.
+
+    Existing reference databases are not reloaded when bundled CPIC CSVs
+    change. Each phenotype is fingerprinted independently so a missing or
+    customized companion cannot leave an exact released row stale. A phenotype
+    with duplicate, mixed, current, future, or custom content is untouched,
+    and existing row IDs are retained.
+    """
+    inspector = sa.inspect(engine)
+    if "cpic_guidelines" not in inspector.get_table_names():
+        return False
+    columns = {column["name"] for column in inspector.get_columns("cpic_guidelines")}
+    required = {
+        "id",
+        "gene",
+        "drug",
+        "phenotype",
+        "activity_score",
+        "recommendation",
+        "classification",
+        "guideline_url",
+    }
+    if not required <= columns:
+        return False
+
+    from backend.db.tables import cpic_guidelines
+
+    target = sa.and_(
+        cpic_guidelines.c.gene == "CYP2B6",
+        sa.func.lower(cpic_guidelines.c.drug) == "efavirenz",
+        cpic_guidelines.c.phenotype.in_(_CYP2B6_EFAVIRENZ_REDUCED_DOSE_PHENOTYPES),
+    )
+
+    with engine.connect() as conn:
+        conn.exec_driver_sql("BEGIN IMMEDIATE")
+        try:
+            rows = conn.execute(
+                sa.select(
+                    cpic_guidelines.c.id,
+                    cpic_guidelines.c.phenotype,
+                    cpic_guidelines.c.activity_score,
+                    cpic_guidelines.c.recommendation,
+                    cpic_guidelines.c.classification,
+                    cpic_guidelines.c.guideline_url,
+                ).where(target)
+            ).fetchall()
+            rows_by_phenotype = {
+                phenotype: [row for row in rows if row.phenotype == phenotype]
+                for phenotype in _CYP2B6_EFAVIRENZ_REDUCED_DOSE_PHENOTYPES
+            }
+            legacy_rows = [
+                phenotype_rows[0]
+                for phenotype, phenotype_rows in rows_by_phenotype.items()
+                if len(phenotype_rows) == 1
+                and (
+                    phenotype_rows[0].activity_score,
+                    phenotype_rows[0].recommendation,
+                    phenotype_rows[0].classification,
+                    phenotype_rows[0].guideline_url,
+                )
+                == _LEGACY_CYP2B6_EFAVIRENZ_FINGERPRINTS[phenotype]
+            ]
+            if not legacy_rows:
+                conn.rollback()
+                return False
+
+            from backend.annotation.cpic import CPIC_DATA_DIR, parse_cpic_guidelines_csv
+
+            bundled_rows, _ = parse_cpic_guidelines_csv(CPIC_DATA_DIR / "cpic_guidelines.csv")
+            canonical_rows = [
+                row
+                for row in bundled_rows
+                if row["gene"] == "CYP2B6"
+                and row["drug"].lower() == "efavirenz"
+                and row["phenotype"] in _CYP2B6_EFAVIRENZ_REDUCED_DOSE_PHENOTYPES
+            ]
+            canonical_by_phenotype = {row["phenotype"]: row for row in canonical_rows}
+            if (
+                len(canonical_rows) != 2
+                or set(canonical_by_phenotype) != _CYP2B6_EFAVIRENZ_REDUCED_DOSE_PHENOTYPES
+                or any(
+                    row["activity_score"] is not None
+                    or row["recommendation"]
+                    != _CANONICAL_CYP2B6_EFAVIRENZ_RECOMMENDATIONS[row["phenotype"]]
+                    or row["classification"] != "A"
+                    or row["guideline_url"] != _CYP2B6_EFAVIRENZ_GUIDELINE_URL
+                    for row in canonical_rows
+                )
+            ):
+                raise RuntimeError(
+                    "Bundled CYP2B6/efavirenz reduced-dose guidelines are not canonical"
+                )
+
+            for legacy_row in sorted(legacy_rows, key=lambda row: row.phenotype):
+                conn.execute(
+                    sa.update(cpic_guidelines)
+                    .where(cpic_guidelines.c.id == legacy_row.id)
+                    .values(canonical_by_phenotype[legacy_row.phenotype])
+                )
+            conn.commit()
+        except BaseException:
+            conn.rollback()
+            raise
+
+    logger.warning(
+        "legacy_cyp2b6_efavirenz_guidelines_refreshed",
+        updated_rows=len(legacy_rows),
     )
     return True
 
@@ -479,6 +623,9 @@ def ensure_reference_schema_current(engine: sa.Engine) -> bool:
             )
 
         if _refresh_legacy_cyp2c9_phenytoin_guidelines(engine):
+            changed = True
+
+        if _refresh_legacy_cyp2b6_efavirenz_guidelines(engine):
             changed = True
 
         if _refresh_legacy_tpmt_poor_metabolizer_guidelines(engine):

@@ -1,0 +1,61 @@
+{
+  "source": "NCBI Entrez ESummary",
+  "database": "pubmed",
+  "accessed": "2026-07-31",
+  "ids": [
+    "31006110",
+    "19433561",
+    "21447868",
+    "26044067"
+  ],
+  "records": {
+    "31006110": {
+      "title": "Clinical Pharmacogenetics Implementation Consortium (CPIC) Guideline for CYP2B6 and Efavirenz-Containing Antiretroviral Therapy.",
+      "journal": "Clinical pharmacology and therapeutics",
+      "publication_date": "2019 Oct",
+      "publication_types": [
+        "Journal Article",
+        "Practice Guideline"
+      ],
+      "pmcid": "PMC6739160",
+      "doi": "10.1002/cpt.1477",
+      "record_status": "PubMed - indexed for MEDLINE"
+    },
+    "19433561": {
+      "title": "Influence of the cytochrome P450 2B6 genotype on population pharmacokinetics of efavirenz in human immunodeficiency virus patients.",
+      "journal": "Antimicrobial agents and chemotherapy",
+      "publication_date": "2009 Jul",
+      "publication_types": [
+        "Journal Article"
+      ],
+      "pmcid": "PMC2704695",
+      "doi": "10.1128/AAC.01537-08",
+      "record_status": "PubMed - indexed for MEDLINE"
+    },
+    "21447868": {
+      "title": "Successful efavirenz dose reduction guided by therapeutic drug monitoring.",
+      "journal": "Antiviral therapy",
+      "publication_date": "2011",
+      "publication_types": [
+        "Clinical Trial",
+        "Journal Article",
+        "Multicenter Study"
+      ],
+      "doi": "10.3851/IMP1742",
+      "record_status": "PubMed - indexed for MEDLINE"
+    },
+    "26044067": {
+      "title": "Pharmacokinetic and Pharmacodynamic Comparison of Once-Daily Efavirenz (400 mg vs. 600 mg) in Treatment-Naive HIV-Infected Patients: Results of the ENCORE1 Study.",
+      "journal": "Clinical pharmacology and therapeutics",
+      "publication_date": "2015 Oct",
+      "publication_types": [
+        "Comparative Study",
+        "Journal Article",
+        "Randomized Controlled Trial"
+      ],
+      "pmcid": "PMC4744681",
+      "doi": "10.1002/cpt.156",
+      "record_status": "PubMed - indexed for MEDLINE"
+    }
+  }
+}

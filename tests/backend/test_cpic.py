@@ -368,25 +368,47 @@ class TestParseGuidelinesCSV:
         assert first["classification"] == "A"
         assert "cpicpgx.org" in first["guideline_url"]
 
-    def test_cyp2b6_efavirenz_poor_metabolizer_row_preserves_fields(self):
-        rows, _ = parse_cpic_guidelines_csv(SEED_DIR / "cpic_guidelines_seed.csv")
+    def test_cyp2b6_efavirenz_reduced_dose_rows_preserve_cpic_text(self):
+        expected = {
+            "Intermediate Metabolizer": (
+                "Consider initiating efavirenz with decreased dose of 400 mg/day."
+            ),
+            "Poor Metabolizer": (
+                "Consider initiating efavirenz with decreased dose of 400 or 200 mg/day."
+            ),
+        }
 
-        row = next(
-            row
-            for row in rows
-            if row["gene"] == "CYP2B6"
-            and row["drug"] == "efavirenz"
-            and row["phenotype"] == "Poor Metabolizer"
-        )
+        for csv_path in (
+            CPIC_DATA_DIR / "cpic_guidelines.csv",
+            SEED_DIR / "cpic_guidelines_seed.csv",
+        ):
+            rows, _ = parse_cpic_guidelines_csv(csv_path)
+            efavirenz_rows = {
+                row["phenotype"]: row
+                for row in rows
+                if row["gene"] == "CYP2B6"
+                and row["drug"] == "efavirenz"
+                and row["phenotype"] in expected
+            }
 
-        assert row["recommendation"] == (
-            "Consider initiating at a decreased dose (e.g., 400 mg/day); "
-            "higher plasma exposure raises CNS-toxicity risk."
-        )
-        assert row["classification"] == "A"
-        assert row["guideline_url"] == (
-            "https://cpicpgx.org/guidelines/cpic-guideline-for-efavirenz-based-on-cyp2b6-genotype/"
-        )
+            assert {
+                phenotype: row["recommendation"] for phenotype, row in efavirenz_rows.items()
+            } == expected
+            for row in efavirenz_rows.values():
+                assert row["classification"] == "A"
+                assert row["guideline_url"] == (
+                    "https://cpicpgx.org/guidelines/"
+                    "cpic-guideline-for-efavirenz-based-on-cyp2b6-genotype/"
+                )
+
+        with sqlite3.connect(FIXTURES_DIR / "mini_reference.db") as conn:
+            mini_rows = conn.execute(
+                "SELECT phenotype, recommendation FROM cpic_guidelines "
+                "WHERE gene = 'CYP2B6' AND drug = 'efavirenz' "
+                "AND phenotype IN ('Intermediate Metabolizer', 'Poor Metabolizer')"
+            ).fetchall()
+        assert len(mini_rows) == len(expected)
+        assert dict(mini_rows) == expected
 
     def test_empty_csv(self, tmp_path: Path):
         csv_path = tmp_path / "empty.csv"
