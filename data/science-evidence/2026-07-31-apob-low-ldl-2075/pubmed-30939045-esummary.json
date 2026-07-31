@@ -1,0 +1,238 @@
+{
+  "header": {
+    "type": "esummary",
+    "version": "0.3"
+  },
+  "result": {
+    "uids": [
+      "30939045"
+    ],
+    "30939045": {
+      "uid": "30939045",
+      "pubdate": "2019 May",
+      "epubdate": "",
+      "source": "Circ Genom Precis Med",
+      "authors": [
+        {
+          "name": "Peloso GM",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Nomura A",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Khera AV",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Chaffin M",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Won HH",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Ardissino D",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Danesh J",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Schunkert H",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Wilson JG",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Samani N",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Erdmann J",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "McPherson R",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Watkins H",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Saleheen D",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "McCarthy S",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Teslovich TM",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Leader JB",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Lester Kirchner H",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Marrugat J",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Nohara A",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Kawashiri MA",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Tada H",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Dewey FE",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Carey DJ",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Baras A",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Kathiresan S",
+          "authtype": "Author",
+          "clusterid": ""
+        }
+      ],
+      "lastauthor": "Kathiresan S",
+      "title": "Rare Protein-Truncating Variants in APOB, Lower Low-Density Lipoprotein Cholesterol, and Protection Against Coronary Heart Disease.",
+      "sorttitle": "rare protein truncating variants in apob lower low density lipoprotein cholesterol and protection against coronary heart disease",
+      "volume": "12",
+      "issue": "5",
+      "pages": "e002376",
+      "lang": [
+        "eng"
+      ],
+      "nlmuniqueid": "101714113",
+      "issn": "1942-325X",
+      "essn": "2574-8300",
+      "pubtype": [
+        "Journal Article",
+        "Research Support, N.I.H., Extramural",
+        "Research Support, Non-U.S. Gov't"
+      ],
+      "recordstatus": "PubMed - indexed for MEDLINE",
+      "pubstatus": "4",
+      "articleids": [
+        {
+          "idtype": "pubmed",
+          "idtypen": 1,
+          "value": "30939045"
+        },
+        {
+          "idtype": "mid",
+          "idtypen": 8,
+          "value": "NIHMS1562738"
+        },
+        {
+          "idtype": "pmc",
+          "idtypen": 8,
+          "value": "PMC7044908"
+        },
+        {
+          "idtype": "pmcid",
+          "idtypen": 5,
+          "value": "pmc-id: PMC7044908;manuscript-id: NIHMS1562738;"
+        },
+        {
+          "idtype": "doi",
+          "idtypen": 3,
+          "value": "10.1161/CIRCGEN.118.002376"
+        }
+      ],
+      "history": [
+        {
+          "pubstatus": "pubmed",
+          "date": "2019/04/03 06:00"
+        },
+        {
+          "pubstatus": "medline",
+          "date": "2020/07/09 06:00"
+        },
+        {
+          "pubstatus": "entrez",
+          "date": "2019/04/03 06:00"
+        },
+        {
+          "pubstatus": "pmc-release",
+          "date": "2020/11/13 00:00"
+        }
+      ],
+      "references": [],
+      "attributes": [
+        "Has Abstract"
+      ],
+      "pmcrefcount": 13,
+      "fulljournalname": "Circulation. Genomic and precision medicine",
+      "elocationid": "doi: 10.1161/CIRCGEN.118.002376",
+      "doctype": "citation",
+      "srccontriblist": [],
+      "booktitle": "",
+      "medium": "",
+      "edition": "",
+      "publisherlocation": "",
+      "publishername": "",
+      "srcdate": "",
+      "reportnumber": "",
+      "availablefromurl": "",
+      "locationlabel": "",
+      "doccontriblist": [],
+      "docdate": "",
+      "bookname": "",
+      "chapter": "",
+      "sortpubdate": "2019/05/01 00:00",
+      "sortfirstauthor": "Peloso GM",
+      "vernaculartitle": ""
+    }
+  }
+}
