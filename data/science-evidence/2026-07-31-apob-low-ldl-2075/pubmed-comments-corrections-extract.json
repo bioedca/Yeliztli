@@ -1,0 +1,29 @@
+{
+  "source": "NCBI PubMed EFetch",
+  "accessed": "2026-07-31",
+  "response_format": "xml",
+  "response_dtd": {
+    "name": "PubMedArticle",
+    "date": "2025-01-01",
+    "url": "https://dtd.nlm.nih.gov/ncbi/pubmed/out/pubmed_250101.dtd"
+  },
+  "extraction_path": "PubmedArticle/MedlineCitation/CommentsCorrectionsList",
+  "records": [
+    {
+      "pmid": "30939045",
+      "doi": "10.1161/CIRCGEN.118.002376",
+      "request": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=30939045&retmode=xml",
+      "date_revised": "2025-05-30",
+      "comments_corrections_list_present": false,
+      "comments_corrections": []
+    },
+    {
+      "pmid": "36723951",
+      "doi": "10.1001/jamacardio.2022.5271",
+      "request": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=36723951&retmode=xml",
+      "date_revised": "2025-05-30",
+      "comments_corrections_list_present": false,
+      "comments_corrections": []
+    }
+  ]
+}

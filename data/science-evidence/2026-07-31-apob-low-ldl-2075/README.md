@@ -36,10 +36,8 @@ NCBI Entrez:
 
 - `esummary`, database `pubmed`, ID `30939045`, JSON
 - `esummary`, database `pubmed`, ID `36723951`, JSON
-- `esearch`, database `pubmed`, DOI `10.1161/CIRCGEN.118.002376`, correction/retraction
-  publication types, JSON
-- `esearch`, database `pubmed`, DOI `10.1001/jamacardio.2022.5271`,
-  correction/retraction publication types, JSON
+- `efetch`, database `pubmed`, IDs `30939045,36723951`, XML; inspect
+  `MedlineCitation/CommentsCorrectionsList`
 
 ## Primary sources and claim mapping
 
@@ -69,30 +67,31 @@ rather than relying on the other paper's conclusion.
 
 ## Corrections and retractions
 
-Reproducible PubMed ESearch requests run on 2026-07-31:
+PubMed EFetch records for `PMID:30939045` and `PMID:36723951` were retrieved on
+2026-07-31 and inspected at `MedlineCitation/CommentsCorrectionsList`, which is where PubMed
+records linked corrections, retractions, expressions of concern, and related notices. The
+element was absent from both records. This linked-record check avoids the false-negative risk
+of combining an original article's DOI with a notice publication type when the notice has its
+own identifier.
 
-- Source `DOI:10.1161/CIRCGEN.118.002376` was searched for records whose publication type
-  is Correction, Published Erratum, Retraction of Publication, Retracted Publication, or
-  Expression of Concern. PubMed returned `count=0` and an empty ID list. Raw response:
-  `data/science-evidence/2026-07-31-apob-low-ldl-2075/pubmed-30939045-correction-retraction-esearch.json`.
-- Source `DOI:10.1001/jamacardio.2022.5271` was searched with the same publication-type
-  filter. PubMed returned `count=0` and an empty ID list. Raw response:
-  `data/science-evidence/2026-07-31-apob-low-ldl-2075/pubmed-36723951-correction-retraction-esearch.json`.
-
-The saved responses retain PubMed's normalized query, warnings, result count, and ID list.
-PubMed recognized Published Erratum, Retracted Publication, and Expression of Concern in the
-normalized query; its response reports the unrecognized phrases transparently. Supplemental
-public web searches using each DOI plus `correction OR erratum OR retraction` also surfaced no
-notice. These results record what was indexed and returned on 2026-07-31, not a guarantee that
-no later notice exists.
+The sanitized extraction records each PMID, DOI, PubMed revision date, EFetch request, XML DTD,
+and the absent element:
+`data/science-evidence/2026-07-31-apob-low-ldl-2075/pubmed-comments-corrections-extract.json`.
+Supplemental public web searches using each DOI plus
+`correction OR erratum OR retraction` also surfaced no notice. These results record what
+PubMed indexed and returned on 2026-07-31, not a guarantee that no later notice exists.
 
 ## Payload format and usage
 
-The raw files are NCBI E-utilities PubMed ESummary and ESearch JSON responses captured on
-2026-07-31. Every response identifies JSON schema version `0.3`; the live PubMed service does
+The two ESummary files are raw NCBI E-utilities PubMed JSON responses captured on
+2026-07-31 and identify JSON schema version `0.3`. The correction/retraction file is a
+sanitized field extraction from official EFetch XML using the PubMed DTD dated 2025-01-01;
+the full XML is intentionally not redistributed because it includes publisher-controlled
+abstract text. The extract preserves the exact requests, record identifiers, revision dates,
+and linked-notice field result needed to reproduce the check. The live PubMed service does
 not expose a frozen database build identifier, so the access date is the packet's retrieval
-version boundary. They contain citation/search metadata only, not abstracts, article full
-text, participant-level data, genotypes, credentials, or restricted material.
+version boundary. The packet contains citation/link metadata only, not abstracts, article
+full text, participant-level data, genotypes, credentials, or restricted material.
 
 NCBI's [Website and Data Usage Policies and Disclaimers](https://www.ncbi.nlm.nih.gov/home/about/policies/)
 (accessed 2026-07-31) state that U.S.-government-created site information is public domain and
@@ -100,7 +99,7 @@ may be copied with acknowledgment, while contributed or licensed material may re
 protected; NLM does not claim copyright in PubMed abstracts, but publishers or authors may.
 The [E-utilities usage requirements](https://www.ncbi.nlm.nih.gov/books/NBK25497/)
 (accessed 2026-07-31) require the NCBI disclaimer/copyright notice to remain evident when
-E-utilities are used in software. This packet therefore redistributes only the citation/search
+E-utilities are used in software. This packet therefore redistributes only the citation/link
 metadata returned by the API, preserves NCBI and publisher attribution, excludes abstracts and
 full text, and asserts no blanket license over publisher-contributed material. The repository
 documentation paraphrases the mapped claims and links to the primary sources.

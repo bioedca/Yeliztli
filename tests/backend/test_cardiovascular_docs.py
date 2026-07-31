@@ -89,20 +89,25 @@ def test_apob_evidence_packet_retains_reproducible_public_payloads() -> None:
     assert "https://www.ncbi.nlm.nih.gov/home/about/policies/" in manifest
     assert "https://www.ncbi.nlm.nih.gov/books/NBK25497/" in manifest
 
+    correction_path = EVIDENCE_DIR / "pubmed-comments-corrections-extract.json"
+    correction_payload = json.loads(correction_path.read_text(encoding="utf-8"))
+    correction_records = {record["pmid"]: record for record in correction_payload["records"]}
+
+    assert str(correction_path.relative_to(REPO_ROOT)) in manifest
+    assert correction_payload["source"] == "NCBI PubMed EFetch"
+    assert correction_payload["response_dtd"]["date"] == "2025-01-01"
+    assert (
+        correction_payload["extraction_path"]
+        == "PubmedArticle/MedlineCitation/CommentsCorrectionsList"
+    )
+
     for pmid in ("30939045", "36723951"):
         path = EVIDENCE_DIR / f"pubmed-{pmid}-esummary.json"
         payload = json.loads(path.read_text(encoding="utf-8"))
+        correction_record = correction_records[pmid]
 
         assert str(path.relative_to(REPO_ROOT)) in manifest
         assert payload["header"] == {"type": "esummary", "version": "0.3"}
         assert payload["result"]["uids"] == [pmid]
-
-        search_path = EVIDENCE_DIR / f"pubmed-{pmid}-correction-retraction-esearch.json"
-        search_payload = json.loads(search_path.read_text(encoding="utf-8"))
-        search_result = search_payload["esearchresult"]
-
-        assert str(search_path.relative_to(REPO_ROOT)) in manifest
-        assert search_payload["header"] == {"type": "esearch", "version": "0.3"}
-        assert search_result["count"] == "0"
-        assert search_result["idlist"] == []
-        assert "No items found." in search_result["warninglist"]["outputmessages"]
+        assert correction_record["comments_corrections_list_present"] is False
+        assert correction_record["comments_corrections"] == []
