@@ -114,6 +114,26 @@ test.describe('mobile app navigation layout', () => {
     expect(mainPrecedesNav).toBe(true)
   })
 
+  test('keeps the pre-upload state centered across Variant Explorer (#2010)', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 800 })
+    await page.goto('/variants')
+    await waitForReactHydration(page)
+
+    const main = page.locator('#main-content')
+    const emptyState = page.getByRole('status', { name: 'Upload a file to get started' })
+    const [mainBox, emptyBox] = await Promise.all([
+      main.boundingBox(),
+      emptyState.boundingBox(),
+    ])
+
+    expect(mainBox).not.toBeNull()
+    expect(emptyBox).not.toBeNull()
+    expect(emptyBox!.width).toBeGreaterThanOrEqual(mainBox!.width - 2)
+    expect(Math.abs(emptyBox!.x + emptyBox!.width / 2 - (mainBox!.x + mainBox!.width / 2))).toBeLessThanOrEqual(1)
+  })
+
   test('keeps the Variant Explorer table usable beside Watching on phones (#2010)', async ({
     page,
   }) => {

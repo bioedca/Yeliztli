@@ -12,7 +12,7 @@ export default function VariantExplorer() {
       <div className="shrink-0 border-b border-border px-4 py-3">
         <h1 className="text-xl font-semibold">Variant Explorer</h1>
       </div>
-      <div className="flex min-h-0 min-w-0 flex-1">
+      <div className="min-h-0 min-w-0 flex-1">
         <VariantTable sampleId={sampleId} />
       </div>
     </div>
