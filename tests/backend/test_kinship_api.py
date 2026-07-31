@@ -159,10 +159,13 @@ class TestDisclaimer:
         assert "no evidence" not in text
         # It must also not promise indeterminate for a merely small denominator,
         # which the implementation does not do.
-        # A divisor that EXCEEDS the shared count is not the worry; a small one
-        # is, so the caution is framed on smallness rather than divergence.
-        assert "small next to the shared-SNP count" in text
-        assert "caution" in text
+        # #2215 review, fifth pass on this paragraph: comparing the divisor with
+        # the shared count does NOT establish how much evidence the estimate
+        # rests on -- opposite-homozygous sites feed the ibs0 term while adding
+        # nothing to the divisor. State the arithmetic; offer no reading rule.
+        assert "does not offer a rule for reading" in text
+        assert "rests on little evidence" not in text
+        assert "far apart" not in text
 
 
 class TestRunAndList:
