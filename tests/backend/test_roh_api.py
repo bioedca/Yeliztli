@@ -169,3 +169,114 @@ class TestRunAndList:
         assert data["finding_text"] == "summary text"
         assert data["segments"] == []
         assert data["n_segments"] == 0
+        # Metrics could not be read, so none are asserted: the fallback must not
+        # invent a reassuring FROH of 0.0 for a row it failed to parse.
+        assert data["froh"] is None
+        assert data["evaluable"] is False
+        assert data["indeterminate_reason"] == "detail_unavailable"
+
+
+class TestEvaluabilityAtTheApi:
+    """#2177 — the withheld state has to survive the API boundary."""
+
+    def _reseed(self, engine: sa.Engine, rows: list[dict]) -> None:
+        with engine.begin() as conn:
+            conn.execute(sa.delete(raw_variants))
+            if rows:
+                conn.execute(sa.insert(raw_variants), rows)
+
+    def test_unevaluable_sample_withholds_froh(self, _env: sa.Engine, client: TestClient) -> None:
+        self._reseed(
+            _env,
+            [{"rsid": "r1", "chrom": "1", "pos": 1_000_000, "genotype": "AA"}],
+        )
+        assert client.post("/api/analysis/roh/run?sample_id=1").status_code == 200
+
+        data = client.get("/api/analysis/roh/findings?sample_id=1").json()
+        assert data["froh"] is None
+        assert data["evaluable"] is False
+        assert data["indeterminate_reason"] == "insufficient_autosomal_markers"
+        assert data["autosomal_snps_used"] == 1
+        assert "not assessed" in data["finding_text"].lower()
+        assert "typical result" not in data["finding_text"].lower()
+
+    def test_legacy_row_without_the_gate_is_not_served_as_zero(
+        self, _env: sa.Engine, client: TestClient
+    ) -> None:
+        # A finding persisted before this gate existed records the marker count
+        # but no evaluability keys, and its stored text asserts the very
+        # negative the gate withholds. Re-deriving from the stored count is what
+        # stops the defect surviving in samples that are never re-analysed.
+        import json as _json
+
+        from backend.db.tables import findings
+
+        with _env.begin() as conn:
+            conn.execute(
+                sa.insert(findings),
+                [
+                    {
+                        "module": "roh",
+                        "category": "autozygosity",
+                        "evidence_level": 1,
+                        "finding_text": (
+                            "No long runs of homozygosity were detected (FROH ≈ 0). "
+                            "This is the typical result."
+                        ),
+                        "detail_json": _json.dumps(
+                            {
+                                "froh": 0.0,
+                                "total_roh_kb": 0.0,
+                                "longest_kb": 0.0,
+                                "n_segments": 0,
+                                "autosomal_snps_used": 30,
+                                "segments": [],
+                            }
+                        ),
+                    }
+                ],
+            )
+
+        data = client.get("/api/analysis/roh/findings?sample_id=1").json()
+        assert data["froh"] is None
+        assert data["evaluable"] is False
+        assert data["indeterminate_reason"] == "insufficient_autosomal_markers"
+        assert "typical result" not in data["finding_text"].lower()
+        assert "not assessed" in data["finding_text"].lower()
+
+    def test_legacy_row_with_adequate_markers_is_untouched(
+        self, _env: sa.Engine, client: TestClient
+    ) -> None:
+        # The counterpart control: a well-covered legacy row must keep serving
+        # its stored negative, so the re-derivation cannot quietly withhold
+        # every finding written before the gate.
+        import json as _json
+
+        from backend.db.tables import findings
+
+        with _env.begin() as conn:
+            conn.execute(
+                sa.insert(findings),
+                [
+                    {
+                        "module": "roh",
+                        "category": "autozygosity",
+                        "evidence_level": 1,
+                        "finding_text": "No long runs of homozygosity were detected (FROH ≈ 0).",
+                        "detail_json": _json.dumps(
+                            {
+                                "froh": 0.0,
+                                "n_segments": 0,
+                                "autosomal_snps_used": 600_000,
+                                "segments": [],
+                            }
+                        ),
+                    }
+                ],
+            )
+
+        data = client.get("/api/analysis/roh/findings?sample_id=1").json()
+        assert data["evaluable"] is True
+        assert data["froh"] == 0.0
+        assert data["indeterminate_reason"] is None
+        assert data["finding_text"].startswith("No long runs")

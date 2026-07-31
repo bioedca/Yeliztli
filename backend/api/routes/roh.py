@@ -15,7 +15,13 @@ import sqlalchemy as sa
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 
-from backend.analysis.roh import CATEGORY, MODULE
+from backend.analysis.roh import (
+    CATEGORY,
+    INSUFFICIENT_AUTOSOMAL_MARKERS,
+    MIN_EVALUABLE_AUTOSOMAL_SNPS,
+    MODULE,
+    unevaluable_text,
+)
 from backend.api.dependencies import require_fresh_sample
 from backend.api.routes.risk_common import resolve_sample_engine
 from backend.db.tables import findings
@@ -36,11 +42,15 @@ class RohSegmentResponse(BaseModel):
 
 class RohFindingResponse(BaseModel):
     finding_text: str
-    froh: float = 0.0
+    # ``None`` whenever autozygosity could not be assessed. Never 0.0 in that
+    # case: an unmeasurable genome must not be served as a measured absence.
+    froh: float | None = None
     total_roh_kb: float = 0.0
     longest_kb: float = 0.0
     n_segments: int = 0
     autosomal_snps_used: int = 0
+    evaluable: bool = True
+    indeterminate_reason: str | None = None
     segments: list[RohSegmentResponse] = []
     segments_truncated: bool = False
 
@@ -76,19 +86,36 @@ def list_findings(
     # finding_text with zeroed metrics.
     try:
         detail: dict[str, Any] = json.loads(row.detail_json) if row.detail_json else {}
+        snps_used = detail.get("autosomal_snps_used", 0)
+        # Rows written before the evaluability gate carry no ``evaluable`` key
+        # but do record the marker count, so the same rule is re-derived here.
+        # Without this, a stored pre-gate finding would keep serving FROH=0.0
+        # and its "typical result" narrative for every unevaluable sample.
+        evaluable = bool(detail.get("evaluable", snps_used >= MIN_EVALUABLE_AUTOSOMAL_SNPS))
+        reason = detail.get("indeterminate_reason") or (
+            None if evaluable else INSUFFICIENT_AUTOSOMAL_MARKERS
+        )
         return RohFindingResponse(
-            finding_text=row.finding_text or "",
-            froh=detail.get("froh", 0.0),
+            finding_text=(row.finding_text or "") if evaluable else unevaluable_text(snps_used),
+            froh=detail.get("froh", 0.0) if evaluable else None,
             total_roh_kb=detail.get("total_roh_kb", 0.0),
             longest_kb=detail.get("longest_kb", 0.0),
             n_segments=detail.get("n_segments", 0),
-            autosomal_snps_used=detail.get("autosomal_snps_used", 0),
+            autosomal_snps_used=snps_used,
+            evaluable=evaluable,
+            indeterminate_reason=reason,
             segments=[RohSegmentResponse(**s) for s in detail.get("segments", [])],
             segments_truncated=detail.get("segments_truncated", False),
         )
     except (json.JSONDecodeError, TypeError, ValueError) as exc:
         logger.warning("Failed to build ROH response for finding id=%s: %s", row.id, exc)
-        return RohFindingResponse(finding_text=row.finding_text or "")
+        # The metrics could not be read, so none are asserted — in particular
+        # froh stays None rather than defaulting to a reassuring 0.0.
+        return RohFindingResponse(
+            finding_text=row.finding_text or "",
+            evaluable=False,
+            indeterminate_reason="detail_unavailable",
+        )
 
 
 @router.post("/run", dependencies=[Depends(require_fresh_sample)])

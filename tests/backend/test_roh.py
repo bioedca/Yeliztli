@@ -18,6 +18,8 @@ import sqlalchemy as sa
 
 from backend.analysis.roh import (
     AUTOSOMAL_GENOME_KB,
+    INSUFFICIENT_AUTOSOMAL_MARKERS,
+    MIN_EVALUABLE_AUTOSOMAL_SNPS,
     MODULE,
     _genotype_state,
     detect_roh,
@@ -112,9 +114,16 @@ class TestDetection:
         assert result.froh == pytest.approx(0.00072, abs=5e-6)
 
     def test_short_run_not_detected(self, sample_engine: sa.Engine) -> None:
-        # 50 hom SNPs over ~490 kb — below both thresholds.
-        _seed(sample_engine, _run("1", 1_000_000, 50))
+        # 50 hom SNPs over ~490 kb — below both segment thresholds. The sample
+        # is kept evaluable by heterozygous calls elsewhere (which cannot
+        # themselves form a run), so this asserts the short run is rejected on
+        # its own merits rather than because the sample was unevaluable.
+        _seed(
+            sample_engine,
+            _run("1", 1_000_000, 50) + _run("2", 1_000_000, 100, genotype="AG", rs_prefix="h"),
+        )
         result = detect_roh(sample_engine)
+        assert result.evaluable
         assert result.segments == []
         assert result.froh == 0.0
 
@@ -193,6 +202,95 @@ class TestDetection:
         assert result.segments == []
 
 
+class TestEvaluability:
+    """#2177 — an empty scan over too few markers is not evidence of no ROH.
+
+    Below ``MIN_EVALUABLE_AUTOSOMAL_SNPS`` the detector cannot emit a segment
+    under any genome, so ``FROH = 0`` would be an artifact of the scan. These
+    lock the withheld states *and* the boundary at which a real negative
+    resumes being reported.
+    """
+
+    def test_no_autosomal_markers_is_indeterminate(self, sample_engine: sa.Engine) -> None:
+        result = detect_roh(sample_engine)
+        assert result.autosomal_snps_used == 0
+        assert result.froh is None
+        assert not result.evaluable
+        assert result.indeterminate_reason == INSUFFICIENT_AUTOSOMAL_MARKERS
+
+    def test_single_callable_marker_is_indeterminate(self, sample_engine: sa.Engine) -> None:
+        _seed(sample_engine, _run("1", 1_000_000, 1))
+        result = detect_roh(sample_engine)
+        assert result.autosomal_snps_used == 1
+        assert result.froh is None
+        assert result.indeterminate_reason == INSUFFICIENT_AUTOSOMAL_MARKERS
+
+    def test_single_autosomal_no_call_is_indeterminate(self, sample_engine: sa.Engine) -> None:
+        _seed(sample_engine, _run("1", 1_000_000, 1, genotype="--"))
+        result = detect_roh(sample_engine)
+        assert result.autosomal_snps_used == 0
+        assert result.froh is None
+        assert result.indeterminate_reason == INSUFFICIENT_AUTOSOMAL_MARKERS
+
+    def test_just_below_floor_is_indeterminate(self, sample_engine: sa.Engine) -> None:
+        _seed(sample_engine, _run("1", 1_000_000, MIN_EVALUABLE_AUTOSOMAL_SNPS - 1))
+        result = detect_roh(sample_engine)
+        assert result.autosomal_snps_used == MIN_EVALUABLE_AUTOSOMAL_SNPS - 1
+        assert result.froh is None
+
+    def test_at_floor_reports_a_real_negative(self, sample_engine: sa.Engine) -> None:
+        # The discriminating control: exactly at the floor the sample becomes
+        # evaluable again, and a genuine "no ROH" negative must still be
+        # reported as FROH = 0 rather than swallowed by the gate.
+        _seed(sample_engine, _run("1", 1_000_000, MIN_EVALUABLE_AUTOSOMAL_SNPS, spacing=1_000))
+        result = detect_roh(sample_engine)
+        assert result.autosomal_snps_used == MIN_EVALUABLE_AUTOSOMAL_SNPS
+        assert result.evaluable
+        assert result.indeterminate_reason is None
+        assert result.froh == 0.0
+        assert result.segments == []
+
+    def test_heterozygosity_rich_sample_stays_a_real_negative(
+        self, sample_engine: sa.Engine
+    ) -> None:
+        # Withholding must not swallow the clearest true negative there is: a
+        # densely typed, heterozygous sample has ample evidence *against*
+        # autozygosity even though it contains no homozygous run at all.
+        _seed(sample_engine, _run("1", 1_000_000, 400, genotype="AG"))
+        result = detect_roh(sample_engine)
+        assert result.evaluable
+        assert result.froh == 0.0
+
+    def test_markers_are_counted_across_autosomes(self, sample_engine: sa.Engine) -> None:
+        # The floor is genome-wide, not per-chromosome: 60 + 60 markers on two
+        # autosomes clear it even though neither chromosome does alone.
+        _seed(
+            sample_engine,
+            _run("1", 1_000_000, 60, genotype="AG")
+            + _run("2", 1_000_000, 60, genotype="AG", rs_prefix="b"),
+        )
+        result = detect_roh(sample_engine)
+        assert result.autosomal_snps_used == 120
+        assert result.evaluable
+
+    def test_non_autosomal_and_no_call_rows_do_not_reach_the_floor(
+        self, sample_engine: sa.Engine
+    ) -> None:
+        # Only callable autosomal calls count, so a sample padded with X calls
+        # and no-calls stays indeterminate rather than being lifted over the
+        # floor by markers the scan never reads.
+        _seed(
+            sample_engine,
+            _run("1", 1_000_000, 50)
+            + _run("X", 1_000_000, 200, rs_prefix="x")
+            + _run("2", 5_000_000, 200, genotype="--", rs_prefix="n"),
+        )
+        result = detect_roh(sample_engine)
+        assert result.autosomal_snps_used == 50
+        assert result.froh is None
+        assert result.indeterminate_reason == INSUFFICIENT_AUTOSOMAL_MARKERS
+
+
 class TestStorage:
     def test_stores_single_summary_finding(self, sample_engine: sa.Engine) -> None:
         _seed(sample_engine, _run("1", 1_000_000, 200))
@@ -211,6 +309,33 @@ class TestStorage:
         assert "not a diagnosis" in corpus
         assert "parents are related" in corpus
 
+    def test_unevaluable_sample_persists_a_withheld_finding(
+        self, sample_engine: sa.Engine
+    ) -> None:
+        # The persisted finding_text is what generated reports render, so the
+        # withheld state has to be correct in the row, not only in the API.
+        _seed(sample_engine, _run("1", 1_000_000, 1))
+        result = detect_roh(sample_engine)
+        assert store_roh_findings(result, sample_engine) == 1
+        with sample_engine.connect() as conn:
+            row = conn.execute(sa.select(findings).where(findings.c.module == MODULE)).fetchone()
+
+        text = row.finding_text.lower()
+        assert "not assessed" in text
+        # The three claims the defect made, none of which the data support.
+        assert "typical result" not in text
+        assert "no long runs of homozygosity were detected" not in text
+        assert "froh ≈ 0" not in text
+        # It must also not read as a clean bill of health by implication.
+        assert "does not indicate that long runs of homozygosity are absent" in text
+
+        detail = json.loads(row.detail_json)
+        assert detail["evaluable"] is False
+        assert detail["indeterminate_reason"] == INSUFFICIENT_AUTOSOMAL_MARKERS
+        assert detail["froh"] is None
+        # The observed count is retained for audit even though FROH is withheld.
+        assert detail["autosomal_snps_used"] == 1
+
     def test_store_is_idempotent(self, sample_engine: sa.Engine) -> None:
         _seed(sample_engine, _run("1", 1_000_000, 200))
         result = detect_roh(sample_engine)
@@ -225,10 +350,20 @@ class TestStorage:
     def test_empty_result_still_stores_informational_finding(
         self, sample_engine: sa.Engine
     ) -> None:
-        _seed(sample_engine, _run("1", 1_000_000, 30))  # too short → no segments
+        # An *evaluable* sample with no qualifying run: 200 alternating calls
+        # are enough markers to assess, and carry no long homozygous stretch.
+        rows = _run("1", 1_000_000, 200)
+        for index in range(1, 200, 2):
+            rows[index]["genotype"] = "AG"
+        _seed(sample_engine, rows)
         result = detect_roh(sample_engine)
+        assert result.evaluable
         assert result.segments == []
+        assert result.froh == 0.0
         assert store_roh_findings(result, sample_engine) == 1
         with sample_engine.connect() as conn:
             row = conn.execute(sa.select(findings).where(findings.c.module == MODULE)).fetchone()
         assert "froh" in row.finding_text.lower()
+        # A genuine negative keeps its reassuring framing — the gate must not
+        # convert every empty result into "not assessed".
+        assert "typical result" in row.finding_text.lower()

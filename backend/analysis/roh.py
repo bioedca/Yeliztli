@@ -30,6 +30,11 @@ Method (parameters documented and tuned for a dense ~600–700k-marker array):
   - ``FROH = Σ segment length / AUTOSOMAL_GENOME_KB`` (a fixed ~2.77 Gb
     denominator, the convention from McQuillan 2008, so FROH is comparable
     across samples rather than array-relative).
+  - Before any of that, the sample must be *evaluable*: a scan over fewer than
+    ``MIN_EVALUABLE_AUTOSOMAL_SNPS`` callable autosomal SNPs cannot emit a
+    segment under any genome, so its empty result is withheld as indeterminate
+    instead of being reported as ``FROH = 0``. See that constant for why this
+    is a provable floor rather than a coverage-adequacy threshold.
 
 This is a **route-triggered** metric (``POST /api/analysis/roh/run``), not part of
 the auto-run :mod:`backend.analysis.run_all` pipeline: it is a full-genome scan
@@ -62,6 +67,22 @@ MAX_GAP_KB = 1000  # a gap > this between adjacent typed SNPs breaks a run
 HET_WINDOW_SNPS = 50  # typed-SNP neighborhood used for local error tolerance
 HET_WINDOW_TOLERANCE = 1  # heterozygous calls allowed per local neighborhood
 
+# Below this many *callable* autosomal SNPs the scan cannot emit a segment at
+# all: every reported segment must contain >= MIN_ROH_SNPS homozygous calls
+# (see ``_scan_chromosome``), and a segment's homozygous calls are necessarily a
+# subset of the sample's callable autosomal calls. "No ROH found" is therefore
+# forced by construction for such an input and says nothing about the genome —
+# a zero here is an artifact of the detector, not an observation.
+#
+# This is deliberately only a floor on what is *provably* uninformative. It is
+# NOT a claim that any larger count constitutes adequate coverage: a validated,
+# platform-aware density/distribution gate is a separate, calibration-dependent
+# question (issue #2220) and must not be inferred from this constant.
+MIN_EVALUABLE_AUTOSOMAL_SNPS = MIN_ROH_SNPS
+
+# ``RohResult.indeterminate_reason`` vocabulary.
+INSUFFICIENT_AUTOSOMAL_MARKERS = "insufficient_autosomal_markers"
+
 # FROH denominator: the autosomal genome length (~2.77 Gb), McQuillan 2008
 # convention, so FROH is comparable across samples rather than array-relative.
 AUTOSOMAL_GENOME_KB = 2_770_000
@@ -91,13 +112,24 @@ class RohSegment:
 
 @dataclass
 class RohResult:
-    """The autozygosity assessment for one sample."""
+    """The autozygosity assessment for one sample.
+
+    ``froh`` is ``None`` — never ``0.0`` — when the sample could not be
+    assessed, so an unmeasurable genome is never reported as a measured absence
+    of autozygosity. ``indeterminate_reason`` is set exactly when ``froh`` is
+    ``None``.
+    """
 
     segments: list[RohSegment] = field(default_factory=list)
-    froh: float = 0.0
+    froh: float | None = 0.0
     total_roh_kb: float = 0.0
     longest_kb: float = 0.0
     autosomal_snps_used: int = 0
+    indeterminate_reason: str | None = None
+
+    @property
+    def evaluable(self) -> bool:
+        return self.indeterminate_reason is None
 
 
 def _genotype_state(genotype: str | None) -> str:
@@ -190,6 +222,26 @@ def detect_roh(sample_engine: sa.Engine) -> RohResult:
     by_chrom = _read_autosomal_states(sample_engine)
     autosomal_snps = sum(len(v) for v in by_chrom.values())
 
+    # Evaluability is decided before any segment interpretation: with too few
+    # callable autosomal markers the scan below is structurally incapable of
+    # emitting a segment, so its empty result would be a foregone conclusion
+    # rather than evidence that the genome carries no long homozygous runs.
+    if autosomal_snps < MIN_EVALUABLE_AUTOSOMAL_SNPS:
+        logger.info(
+            "roh_not_evaluable",
+            autosomal_snps=autosomal_snps,
+            required=MIN_EVALUABLE_AUTOSOMAL_SNPS,
+            reason=INSUFFICIENT_AUTOSOMAL_MARKERS,
+        )
+        return RohResult(
+            segments=[],
+            froh=None,
+            total_roh_kb=0.0,
+            longest_kb=0.0,
+            autosomal_snps_used=autosomal_snps,
+            indeterminate_reason=INSUFFICIENT_AUTOSOMAL_MARKERS,
+        )
+
     segments: list[RohSegment] = []
     for chrom in sorted(by_chrom, key=lambda c: int(c)):
         segments.extend(_scan_chromosome(chrom, by_chrom[chrom]))
@@ -214,7 +266,28 @@ def detect_roh(sample_engine: sa.Engine) -> RohResult:
     )
 
 
+def unevaluable_text(autosomal_snps_used: int) -> str:
+    """Narrative for a sample whose autozygosity could not be assessed.
+
+    Kept separate and public so the API can serve it for findings persisted
+    before the evaluability gate existed, whose stored text asserts the very
+    negative this gate withholds.
+    """
+    return (
+        f"Runs of homozygosity were not assessed: this sample has "
+        f"{autosomal_snps_used} callable autosomal SNP(s), and any single "
+        f"reported run must itself contain at least {MIN_ROH_SNPS} homozygous "
+        f"SNPs, so no run could have been reported whatever the genome "
+        f"contains. No FROH estimate is given, because none can be measured "
+        f"from this input. This reflects the coverage of the data analysed, "
+        f"not a finding about your genome — it does not indicate that long "
+        f"runs of homozygosity are absent."
+    )
+
+
 def _finding_text(result: RohResult) -> str:
+    if result.indeterminate_reason is not None:
+        return unevaluable_text(result.autosomal_snps_used)
     if not result.segments:
         return (
             "No long runs of homozygosity were detected (FROH ≈ 0). This is the "
@@ -243,6 +316,8 @@ def store_roh_findings(result: RohResult, sample_engine: sa.Engine) -> int:
         "longest_kb": result.longest_kb,
         "n_segments": len(result.segments),
         "autosomal_snps_used": result.autosomal_snps_used,
+        "evaluable": result.evaluable,
+        "indeterminate_reason": result.indeterminate_reason,
         "params": {
             "min_roh_kb": MIN_ROH_KB,
             "min_roh_snps": MIN_ROH_SNPS,
@@ -250,6 +325,7 @@ def store_roh_findings(result: RohResult, sample_engine: sa.Engine) -> int:
             "het_window_snps": HET_WINDOW_SNPS,
             "het_window_tolerance": HET_WINDOW_TOLERANCE,
             "froh_denominator_kb": AUTOSOMAL_GENOME_KB,
+            "min_evaluable_autosomal_snps": MIN_EVALUABLE_AUTOSOMAL_SNPS,
         },
         "segments": [
             {
