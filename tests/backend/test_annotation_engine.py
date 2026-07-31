@@ -2493,6 +2493,99 @@ class TestGnomadAnnotationLookupIntegration:
         # It sits at pos 900; pos 300's 0.004 is not its evidence.
         assert far_row.gnomad_af_global != pytest.approx(0.004)
 
+    def test_alias_locus_conflict_withholds_even_for_a_single_row(
+        self,
+        sample_engine: sa.Engine,
+        mock_registry: MagicMock,
+        gnomad_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """#2214 review: the locus conflict is not about how many rows gnomAD has.
+
+        Aliases at pos 300 and pos 900 cannot share one per-rsID result whatever
+        gnomAD holds. Scoping the guard to `len(candidates) > 1` skipped it when
+        only one row existed, and that row's frequency went to both calls.
+        """
+        with reference_engine.begin() as conn:
+            conn.execute(
+                dbsnp_merges.insert().values(
+                    old_rsid="rs_one_row_old", current_rsid="rs_one_row", build_id=155
+                )
+            )
+        with gnomad_engine.begin() as conn:
+            conn.execute(
+                sa.text(
+                    "INSERT INTO gnomad_af "
+                    "(rsid, chrom, pos, ref, alt, af_global, af_afr, af_amr, af_asj, "
+                    "af_eas, af_eur, af_fin, af_sas, homozygous_count) VALUES "
+                    "('rs_one_row', '1', 300, 'G', 'A', 0.006, 0.006, 0.006, 0.006, "
+                    "0.006, 0.006, 0.006, 0.006, 5)"
+                )
+            )
+        with sample_engine.begin() as conn:
+            conn.execute(
+                raw_variants.insert(),
+                [
+                    {"rsid": "rs_one_row_old", "chrom": "1", "pos": 300, "genotype": "AG"},
+                    {"rsid": "rs_one_row", "chrom": "1", "pos": 900, "genotype": "AG"},
+                ],
+            )
+
+        run_annotation(sample_engine, mock_registry)
+
+        far_row = self._annotated_row(sample_engine, "rs_one_row")
+        assert far_row is not None
+        assert far_row.gnomad_af_global != pytest.approx(0.006)
+
+    def test_genotype_conflict_resolves_within_the_sample_locus(
+        self,
+        sample_engine: sa.Engine,
+        mock_registry: MagicMock,
+        gnomad_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """#2214 review: resolve AFTER narrowing, never before.
+
+        Same-locus aliases `AG`/`AA` at pos 300, with gnomAD holding G>T at 300
+        and G>A at 900. Resolving first picks the pos-900 row (the only one
+        either genotype carries), collapses the candidates to it, and then slips
+        past the multi-locus check because only one row remains -- publishing
+        900's frequency for a call at 300.
+        """
+        with reference_engine.begin() as conn:
+            conn.execute(
+                dbsnp_merges.insert().values(
+                    old_rsid="rs_narrow_old", current_rsid="rs_narrow", build_id=155
+                )
+            )
+        with gnomad_engine.begin() as conn:
+            conn.execute(
+                sa.text(
+                    "INSERT INTO gnomad_af "
+                    "(rsid, chrom, pos, ref, alt, af_global, af_afr, af_amr, af_asj, "
+                    "af_eas, af_eur, af_fin, af_sas, homozygous_count) VALUES "
+                    "('rs_narrow', '1', 300, 'G', 'T', 0.30, 0.30, 0.30, 0.30, "
+                    "0.30, 0.30, 0.30, 0.30, 600), "
+                    "('rs_narrow', '1', 900, 'G', 'A', 0.002, 0.002, 0.002, 0.002, "
+                    "0.002, 0.002, 0.002, 0.002, 1)"
+                )
+            )
+        with sample_engine.begin() as conn:
+            conn.execute(
+                raw_variants.insert(),
+                [
+                    {"rsid": "rs_narrow_old", "chrom": "1", "pos": 300, "genotype": "AG"},
+                    {"rsid": "rs_narrow", "chrom": "1", "pos": 300, "genotype": "AA"},
+                ],
+            )
+
+        run_annotation(sample_engine, mock_registry)
+
+        row = self._annotated_row(sample_engine, "rs_narrow")
+        assert row is not None
+        # pos 900's 0.002 is not evidence for a call at pos 300.
+        assert row.gnomad_af_global != pytest.approx(0.002)
+
     def test_single_alt_rsid_is_annotated_regardless_of_genotype(
         self, sample_engine: sa.Engine, mock_registry: MagicMock, gnomad_engine: sa.Engine
     ) -> None:

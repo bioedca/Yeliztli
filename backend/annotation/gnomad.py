@@ -1049,58 +1049,28 @@ def lookup_gnomad_by_rsids(
                 rows_by_rsid.setdefault(row.rsid, []).append(row)
 
             for rsid, candidates in rows_by_rsid.items():
-                # Order matters: the alias-conflict guard is evaluated on the RAW
-                # candidate set, before any locus narrowing. Filtering first can
-                # reduce a multi-row site to one row, and the guard below --
-                # scoped to `len(candidates) > 1` -- would then never fire, so a
-                # surviving locus's frequency would still be fanned to aliases
-                # that sit elsewhere.
-                # Aliases at DIFFERENT coordinates come first and always
-                # withhold. One per-rsID result cannot serve two positions, and
-                # resolving globally would narrow the candidate set to one
-                # locus's row and then fan its frequency to the alias sitting
-                # elsewhere -- the cross-locus assignment this PR exists to stop.
-                if len(candidates) > 1 and rsid in conflicting_locus_rsids:
+                # Three steps, and the ORDER is the correctness argument. Earlier
+                # revisions of this block resolved genotypes before narrowing by
+                # locus; that collapses the candidate set to one row, which then
+                # slips past the `len(candidates) > 1` scoping below and
+                # publishes another coordinate's frequency (#2214 review).
+                #
+                # 1. Do the SAMPLE's aliases sit at different coordinates?
+                #    One per-rsID result cannot serve two positions, whatever
+                #    gnomAD holds -- so this is NOT scoped by candidate count.
+                if rsid in conflicting_locus_rsids:
                     if locus_unresolved_out is not None:
                         locus_unresolved_out.add(rsid)
                     elif allele_ambiguous_out is not None:
                         allele_ambiguous_out.add(rsid)
                     continue
 
-                if len(candidates) > 1 and rsid in conflicting_genotype_rsids:
-                    # Compare what the aliases RESOLVE TO, not their genotype
-                    # strings. `AG` and `AA` at a G>A / G>T site are different
-                    # zygosities of the same allele: both select G>A, so there is
-                    # nothing to withhold. Comparing raw strings called that a
-                    # conflict and dropped a valid frequency (#2214 review).
-                    resolved = {
-                        _pick_gnomad_row(candidates, genotype)
-                        for genotype in genotypes_by_rsid.get(rsid, set())
-                    }
-                    if len(resolved) != 1 or None in resolved:
-                        # Why they disagree decides which explanation is true: a
-                        # single REF/ALT across candidates means the aliases
-                        # differ on POSITION, not on allele.
-                        if (
-                            len({(r.ref, r.alt) for r in candidates}) == 1
-                            and locus_unresolved_out is not None
-                        ):
-                            locus_unresolved_out.add(rsid)
-                        elif allele_ambiguous_out is not None:
-                            allele_ambiguous_out.add(rsid)
-                        continue
-                    candidates = [next(iter(resolved))]
-
-                # One rsID can be catalogued at more than one coordinate. Picking
-                # by genotype alone would let an ALT carried at a *different*
-                # locus supply this locus's frequency and homozygote count, which
-                # is #2171's defect across positions rather than across ALTs.
+                # 2. Narrow gnomAD's rows to the sample's own locus. An ALT
+                #    carried at a different position must never supply this
+                #    position's frequency.
                 if len({(r.chrom, r.pos) for r in candidates}) > 1:
                     locus = locus_by_rsid.get(rsid)
-                    same_locus = [r for r in candidates if locus and (r.chrom, r.pos) == locus]
-                    # No row at the sample's own locus means gnomAD has no
-                    # frequency for this call; withhold rather than borrow one.
-                    candidates = same_locus
+                    candidates = [r for r in candidates if locus and (r.chrom, r.pos) == locus]
                     if not candidates:
                         # Rows exist, just not at this sample's coordinate.
                         if locus_unresolved_out is not None:
@@ -1108,6 +1078,22 @@ def lookup_gnomad_by_rsids(
                         elif allele_ambiguous_out is not None:
                             allele_ambiguous_out.add(rsid)
                         continue
+
+                # 3. Only now compare alleles. Every remaining candidate is at the
+                #    sample's locus, so a disagreement here really is allelic --
+                #    and `AG` vs `AA` is not one, since both resolve to the same
+                #    row. Comparing genotype STRINGS withheld that valid case.
+                if len(candidates) > 1 and rsid in conflicting_genotype_rsids:
+                    resolved = {
+                        _pick_gnomad_row(candidates, genotype)
+                        for genotype in genotypes_by_rsid.get(rsid, set())
+                    }
+                    if len(resolved) != 1 or None in resolved:
+                        if allele_ambiguous_out is not None:
+                            allele_ambiguous_out.add(rsid)
+                        continue
+                    candidates = [next(iter(resolved))]
+
                 picked = _pick_gnomad_row(candidates, genotype_by_rsid.get(rsid))
                 if picked is not None:
                     results[rsid] = _annotation_from_row(picked)
