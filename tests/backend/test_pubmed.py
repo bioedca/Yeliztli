@@ -9,12 +9,14 @@ Covers:
 
 from __future__ import annotations
 
+import io
 import json
 from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock, patch
 
 import pytest
 import sqlalchemy as sa
+from Bio import Entrez
 
 from backend.db.tables import literature_cache, reference_metadata
 from backend.utils.pubmed import (
@@ -558,6 +560,49 @@ class TestParseEntrezRecord:
         assert article.title == "Expression x<y with TP53"
         assert article.abstract == "Dose <5 mg and x<y while 2 remains formatted."
 
+    def test_production_xml_decodes_metadata_and_strips_mathml(self) -> None:
+        """The real Entrez parser shape is normalized across every emitted field."""
+        xml = (
+            b'<?xml version="1.0" encoding="UTF-8"?>'
+            b"<!DOCTYPE PubmedArticleSet PUBLIC "
+            b'"-//NLM//DTD PubMedArticle, 1st January 2019//EN" '
+            b'"https://dtd.nlm.nih.gov/ncbi/pubmed/out/pubmed_190101.dtd">'
+            b"<PubmedArticleSet><PubmedArticle>"
+            b'<MedlineCitation Status="MEDLINE" Owner="NLM">'
+            b'<PMID Version="1">123</PMID><Article PubModel="Print"><Journal>'
+            b'<JournalIssue CitedMedium="Internet"><PubDate><Year>2024</Year>'
+            b"</PubDate></JournalIssue><Title>Research &amp; Practice</Title>"
+            b"</Journal><ArticleTitle>Value <i>TP53</i> and "
+            b'<mml:math xmlns:mml="http://www.w3.org/1998/Math/MathML">'
+            b"<mml:msup><mml:mi>x</mml:mi><mml:mn>2</mml:mn></mml:msup>"
+            b"</mml:math>.</ArticleTitle><Abstract>"
+            b"<AbstractText>Level &lt;5.</AbstractText></Abstract>"
+            b'<AuthorList CompleteYN="Y"><Author ValidYN="Y">'
+            b"<LastName>Smith &amp; Jones</LastName><Initials>AB</Initials>"
+            b"</Author></AuthorList><Language>eng</Language>"
+            b'<PublicationTypeList><PublicationType UI="D016428">'
+            b"Journal Article</PublicationType></PublicationTypeList></Article>"
+            b"<MedlineJournalInfo><Country>US</Country><MedlineTA>J</MedlineTA>"
+            b"<NlmUniqueID>1</NlmUniqueID></MedlineJournalInfo>"
+            b"<CitationSubset>IM</CitationSubset></MedlineCitation><PubmedData>"
+            b'<History><PubMedPubDate PubStatus="pubmed"><Year>2024</Year>'
+            b"</PubMedPubDate></History><PublicationStatus>epublish"
+            b"</PublicationStatus><ArticleIdList>"
+            b'<ArticleId IdType="pubmed">123</ArticleId></ArticleIdList>'
+            b"</PubmedData></PubmedArticle></PubmedArticleSet>"
+        )
+        record = Entrez.read(io.BytesIO(xml), escape=True)["PubmedArticle"][0]
+
+        article = _parse_entrez_record(record)
+
+        assert article is not None
+        assert article.title == "Value TP53 and x2."
+        assert article.abstract == "Level <5."
+        assert article.authors == ["Smith & Jones AB"]
+        assert article.journal == "Research & Practice"
+        assert "<math" not in article.title
+        assert "<msup>" not in article.title
+
 
 class TestRowToArticle:
     """Unit tests for _row_to_article helper."""
@@ -608,8 +653,8 @@ class TestRowToArticle:
                     "abstract": (
                         "The <i>TP53</i> gene has <sub>important</sub> functions when x<y."
                     ),
-                    "authors": json.dumps(["Author A"]),
-                    "journal": "J Test",
+                    "authors": json.dumps(["Smith &amp; Jones AB"]),
+                    "journal": "Research &amp; Practice",
                     "year": 2023,
                     "fetched_at": datetime.now(UTC),
                 }
@@ -624,6 +669,8 @@ class TestRowToArticle:
         article = _row_to_article(row)
         assert article.title == "The Role of TP53 in Adaptation & Evolution."
         assert article.abstract == "The TP53 gene has important functions when x<y."
+        assert article.authors == ["Smith & Jones AB"]
+        assert article.journal == "Research & Practice"
         assert "<" not in article.title
         assert "<i>" not in article.abstract
         assert "<sub>" not in article.abstract

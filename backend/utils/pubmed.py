@@ -42,11 +42,23 @@ _PUBMED_FORMATTING_TAG_RE = re.compile(
     r"(?:\s[^<>]*?)?\s*/?>",
     re.IGNORECASE,
 )
+_PUBMED_MATHML_RE = re.compile(
+    r"<(?:mml:)?math\b[^<>]*(?:/>|>.*?</(?:mml:)?math\s*>)",
+    re.IGNORECASE | re.DOTALL,
+)
+_XML_TAG_RE = re.compile(
+    r"</?[A-Za-z][\w:.-]*(?:\s[^<>]*?)?\s*/?>",
+    re.IGNORECASE,
+)
 
 
 def _plain_pubmed_text(value: object) -> str:
     """Remove PubMed formatting tags while preserving literal comparisons."""
-    without_tags = _PUBMED_FORMATTING_TAG_RE.sub("", str(value))
+    without_mathml = _PUBMED_MATHML_RE.sub(
+        lambda match: _XML_TAG_RE.sub("", match.group(0)),
+        str(value),
+    )
+    without_tags = _PUBMED_FORMATTING_TAG_RE.sub("", without_mathml)
     return unescape(without_tags)
 
 
@@ -454,8 +466,8 @@ def _row_to_article(row: sa.Row) -> PubMedArticle:
         pmid=row.pmid,
         title=_plain_pubmed_text(row.title or ""),
         abstract=_plain_pubmed_text(row.abstract or ""),
-        authors=authors,
-        journal=row.journal or "",
+        authors=[_plain_pubmed_text(author) for author in authors],
+        journal=_plain_pubmed_text(row.journal or ""),
         year=row.year,
         gene=row.gene,
         query=row.query,
@@ -490,14 +502,14 @@ def _parse_entrez_record(
         authors: list[str] = []
         author_list = article_data.get("AuthorList", [])
         for author in author_list:
-            last = author.get("LastName", "")
-            initials = author.get("Initials", "")
+            last = _plain_pubmed_text(author.get("LastName", ""))
+            initials = _plain_pubmed_text(author.get("Initials", ""))
             if last:
                 authors.append(f"{last} {initials}".strip())
 
         # Journal
         journal_info = article_data.get("Journal", {})
-        journal = str(journal_info.get("Title", ""))
+        journal = _plain_pubmed_text(journal_info.get("Title", ""))
 
         # Year
         year = None
