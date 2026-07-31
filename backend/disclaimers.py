@@ -657,9 +657,18 @@ band, the two are separated using the IBS0 proportion (a heuristic); treat that 
 specific label as provisional.
 
 4. **Cross-vendor comparisons are weaker.** Samples from different vendors share \
-fewer positions and can differ in strand convention, which reduces accuracy. The \
-number of shared SNPs used is reported with each estimate so you can judge \
-confidence.
+fewer positions and can differ in strand convention, which reduces accuracy. Each \
+estimate reports the number of shared SNPs alongside the divisor the method \
+actually uses: a count of **heterozygous calls** across the two samples, where a \
+position heterozygous in both contributes two. It is a different quantity from \
+the shared-SNP count, not a subset of it, and can be larger or much smaller. \
+Positions where both samples are identically homozygous add to the shared total \
+while adding nothing to that divisor, and opposite-homozygous positions affect \
+the estimate through a different term again. When the divisor is **zero** the \
+estimate is undefined and is reported as indeterminate; a small but nonzero \
+divisor is still reported as a relationship. Both counts are shown so you can \
+see what the estimate rests on — this section does not offer a rule for reading \
+them against each other.
 
 5. **A near-duplicate result usually means a duplicate file.** A kinship near 0.5 \
 most often means the same person was uploaded twice (or identical twins) — worth \
