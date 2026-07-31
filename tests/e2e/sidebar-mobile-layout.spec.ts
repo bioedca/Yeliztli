@@ -145,4 +145,30 @@ test.describe('mobile app navigation layout', () => {
     expect(tableBox!.width).toBeGreaterThanOrEqual(rowBox!.width - 2)
     expect(sidebarBox!.y + sidebarBox!.height).toBeLessThanOrEqual(tableBox!.y + 1)
   })
+
+  test('preserves table height below Watching on short landscape phones (#2010)', async ({
+    page,
+  }) => {
+    await stubVariantExplorer(page)
+    await page.setViewportSize({ width: 568, height: 320 })
+    await page.goto('/variants?sample_id=1')
+    await waitForReactHydration(page)
+
+    await expect(page.getByText('rs2010')).toBeVisible()
+
+    const sidebar = page.getByRole('complementary', { name: 'Variant table sidebar' })
+    const table = page.getByRole('region', { name: 'Variant table' })
+    const row = sidebar.locator('..')
+    const [sidebarBox, tableBox, rowBox] = await Promise.all([
+      sidebar.boundingBox(),
+      table.boundingBox(),
+      row.boundingBox(),
+    ])
+
+    expect(sidebarBox).not.toBeNull()
+    expect(tableBox).not.toBeNull()
+    expect(rowBox).not.toBeNull()
+    expect(sidebarBox!.height).toBeLessThanOrEqual(rowBox!.height * 0.4 + 1)
+    expect(tableBox!.height).toBeGreaterThanOrEqual(rowBox!.height * 0.5)
+  })
 })

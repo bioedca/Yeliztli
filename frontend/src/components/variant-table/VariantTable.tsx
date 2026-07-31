@@ -385,7 +385,7 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
       <div className="flex flex-1 flex-col overflow-hidden md:flex-row">
         {/* Left sidebar: Watching section (P4-21k) */}
         <aside
-          className="max-h-40 w-full max-w-full shrink-0 overflow-y-auto bg-card md:max-h-none md:w-64 md:border-r md:border-border"
+          className="max-h-[min(10rem,40%)] w-full max-w-full shrink-0 overflow-y-auto bg-card md:max-h-none md:w-64 md:border-r md:border-border"
           aria-label="Variant table sidebar"
           // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- scrollable region must be keyboard-accessible (axe: scrollable-region-focusable)
           tabIndex={0}
