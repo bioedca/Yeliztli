@@ -1157,6 +1157,50 @@ class TestStoreRareVariantFindings:
         assert "Not in gnomAD" not in row.finding_text
         assert json.loads(row.detail_json)["gnomad_source_status"] == "source_uncovered"
 
+    def test_allele_ambiguous_finding_text_does_not_say_not_in_gnomad(
+        self, sample_engine: sa.Engine
+    ) -> None:
+        """#2214 review: the false sentence must not be PERSISTED either.
+
+        Fixing the UI label alone leaves `finding_text` -- which reports and
+        finding cards render from the stored row -- still asserting "Not in
+        gnomAD" about a variant gnomAD lists under several ALTs (#2171).
+        """
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                [
+                    _v(
+                        rsid="rs_ambiguous",
+                        chrom="1",
+                        pos=300,
+                        genotype="AG",
+                        zygosity="het",
+                        gene_symbol="GENE1",
+                        consequence="missense_variant",
+                        gnomad_af_global=None,
+                        gnomad_source_status="allele_ambiguous",
+                        clinvar_significance="Pathogenic",
+                        clinvar_review_stars=2,
+                        annotation_coverage=0b000011,
+                    )
+                ],
+            )
+
+        result = find_rare_variants(RareVariantFilter(), sample_engine)
+        store_rare_variant_findings(result, sample_engine)
+
+        with sample_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(findings.c.finding_text, findings.c.detail_json).where(
+                    findings.c.rsid == "rs_ambiguous"
+                )
+            ).one()
+        assert "Allele not resolved in gnomAD" in row.finding_text
+        assert "Not in gnomAD" not in row.finding_text
+        assert "Novel" not in row.finding_text
+        assert json.loads(row.detail_json)["gnomad_source_status"] == "allele_ambiguous"
+
     def test_clears_previous_findings_on_rerun(self, sample_with_rare_variants: sa.Engine) -> None:
         filters = RareVariantFilter()
         result = find_rare_variants(filters, sample_with_rare_variants)
