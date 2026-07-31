@@ -194,7 +194,11 @@ def king_kinship(genos_i: dict[str, str], genos_j: dict[str, str]) -> KinshipSta
         indeterminate_reason = "no_heterozygous_information"
     else:
         raw_phi = (hethet - 2 * ibs0) / denom
-    if n_shared < MIN_SHARED_SNPS:
+    # Only when a coefficient actually exists is "too few shared SNPs" the
+    # operative reason. With a zero denominator the estimate is undefined
+    # regardless of how many SNPs were shared, and overwriting that reported a
+    # weaker cause than the truth (#2215 review).
+    if n_shared < MIN_SHARED_SNPS and raw_phi is not None:
         indeterminate_reason = "insufficient_shared_snps"
 
     # Classify the FULL-PRECISION coefficient and round only what is stored.
@@ -245,7 +249,7 @@ def _pair_text(pair: KinshipPair) -> str:
         f"Estimated relationship to '{pair.other_sample_name}': {label} "
         f"(KING kinship φ={phi_text}, IBS0 proportion {s.ibs0_proportion:.4f}, "
         f"{s.n_shared:,} shared autosomal SNPs, "
-        f"{s.informative_denominator:,} informative calls)."
+        f"{s.informative_denominator:,} heterozygous calls in the divisor)."
     )
     if s.relationship == "indeterminate":
         # "could not be computed" is only true for a zero denominator. With too

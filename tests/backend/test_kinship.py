@@ -314,7 +314,11 @@ class TestPairTextWithUndefinedPhi:
         text = _pair_text(pair)
 
         assert "undefined" in text
-        assert "informative calls" in text
+        # het_i + het_j counts heterozygous CALLS in the divisor -- not shared
+        # SNPs that "informed" the estimate, since opposite-homozygous sites move
+        # the ibs0 numerator while adding nothing here (#2215 review).
+        assert "heterozygous calls in the divisor" in text
+        assert "informative calls" not in text
 
     def test_defined_phi_still_renders_the_number(self) -> None:
         """Discriminating control: the normal path keeps its formatted value."""
@@ -353,6 +357,31 @@ class TestIndeterminateWording:
 
         assert "could not be computed" in text
         assert "too few SNPs are shared" not in text
+
+
+class TestIndeterminateReasonPrecedence:
+    def test_zero_denominator_outranks_too_few_snps(self) -> None:
+        """#2215 review: an undefined estimate is not merely under-powered.
+
+        A pair that is BOTH below MIN_SHARED_SNPS and has zero heterozygous
+        calls used to report only `insufficient_shared_snps`, even though `phi`
+        is None -- naming a weaker cause than the truth. Adding SNPs would not
+        help; there is no divisor.
+        """
+        gi, gj = _build([(10, "AA", "AA")])
+        s = king_kinship(gi, gj)
+
+        assert s.phi is None
+        assert s.informative_denominator == 0
+        assert s.indeterminate_reason == "no_heterozygous_information"
+
+    def test_too_few_snps_still_reported_when_a_value_exists(self) -> None:
+        """Discriminating control: the other reason must survive where it applies."""
+        gi, gj = _build([(10, "AG", "AG"), (10, "AA", "AA")])
+        s = king_kinship(gi, gj)
+
+        assert s.phi is not None
+        assert s.indeterminate_reason == "insufficient_shared_snps"
 
 
 class TestUnevaluableSummary:
