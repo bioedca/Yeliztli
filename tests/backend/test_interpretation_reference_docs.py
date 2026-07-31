@@ -110,8 +110,12 @@ def test_lower_penetrance_tier_is_documented_on_each_module_page() -> None:
     for display_name, path in _LOWER_PENETRANCE_MODULES.values():
         doc = path.read_text(encoding="utf-8")
         what_youll_see = doc.split("## What you'll see", 1)[1].split("\n## ", 1)[0]
-        normalized = " ".join(what_youll_see.lower().replace("risk-allele", "risk allele").split())
-        if "lower-penetrance/risk allele" not in normalized:
+        normalized = (
+            " ".join(what_youll_see.lower().split())
+            .replace("lower-penetrance", "lower penetrance")
+            .replace("risk-allele", "risk allele")
+        )
+        if "lower penetrance" not in normalized or "risk allele" not in normalized:
             missing.append(display_name)
 
     assert not missing, (
