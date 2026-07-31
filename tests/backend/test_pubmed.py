@@ -129,6 +129,7 @@ class TestFetchAndCache:
 
             result = fetcher.fetch_by_pmids(["11111111"], gene="BRCA1")
 
+        mock_entrez.read.assert_called_once_with(mock_handle, escape=True)
         assert len(result.articles) == 1
         assert result.from_network == 1
         assert result.articles[0].pmid == "11111111"
@@ -528,6 +529,35 @@ class TestParseEntrezRecord:
         assert "Part 2." in article.abstract
         assert "Part 3." in article.abstract
 
+    def test_parse_strips_pubmed_markup_from_title_and_abstract(self) -> None:
+        """Third-party PubMed markup is reduced to safe readable text."""
+        record = _make_entrez_record(
+            pmid="36766853",
+            title="The Role of <i>TP53</i> in Adaptation &amp; Evolution.",
+            abstract="The <i>TP53</i> gene has <sup>many</sup> functions.",
+        )
+
+        article = _parse_entrez_record(record)
+
+        assert article is not None
+        assert article.title == "The Role of TP53 in Adaptation & Evolution."
+        assert article.abstract == "The TP53 gene has many functions."
+        assert "<" not in article.title
+        assert "<" not in article.abstract
+
+    def test_parse_preserves_escaped_literal_comparisons(self) -> None:
+        """Entrez-escaped scientific comparisons survive markup removal."""
+        record = _make_entrez_record(
+            title="Expression x&lt;y with <i>TP53</i>",
+            abstract="Dose &lt;5 mg and x&lt;y while <sup>2</sup> remains formatted.",
+        )
+
+        article = _parse_entrez_record(record)
+
+        assert article is not None
+        assert article.title == "Expression x<y with TP53"
+        assert article.abstract == "Dose <5 mg and x<y while 2 remains formatted."
+
 
 class TestRowToArticle:
     """Unit tests for _row_to_article helper."""
@@ -563,6 +593,40 @@ class TestRowToArticle:
         assert article.authors == ["Smith J", "Doe A"]
         assert article.journal == "Science"
         assert article.year == 2023
+
+    def test_row_conversion_strips_markup_from_legacy_cache(
+        self, reference_engine: sa.Engine
+    ) -> None:
+        """Existing cached PubMed markup is cleaned before it reaches consumers."""
+        _seed_cache(
+            reference_engine,
+            [
+                {
+                    "pmid": "36766853",
+                    "gene": "TP53",
+                    "title": "The Role of <i>TP53</i> in Adaptation &amp; Evolution.",
+                    "abstract": (
+                        "The <i>TP53</i> gene has <sub>important</sub> functions when x<y."
+                    ),
+                    "authors": json.dumps(["Author A"]),
+                    "journal": "J Test",
+                    "year": 2023,
+                    "fetched_at": datetime.now(UTC),
+                }
+            ],
+        )
+
+        with reference_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(literature_cache).where(literature_cache.c.pmid == "36766853")
+            ).first()
+
+        article = _row_to_article(row)
+        assert article.title == "The Role of TP53 in Adaptation & Evolution."
+        assert article.abstract == "The TP53 gene has important functions when x<y."
+        assert "<" not in article.title
+        assert "<i>" not in article.abstract
+        assert "<sub>" not in article.abstract
 
 
 class TestArticleSerialization:

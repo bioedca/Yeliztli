@@ -18,8 +18,10 @@ Usage::
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
+from html import unescape
 
 import sqlalchemy as sa
 import structlog
@@ -34,6 +36,18 @@ DEFAULT_TTL_DAYS = 7
 
 # Maximum PMIDs per efetch request (NCBI recommendation)
 _EFETCH_BATCH_SIZE = 200
+
+_PUBMED_FORMATTING_TAG_RE = re.compile(
+    r"</?(?:b|i|u|sup|sub|DispFormula|mml:[A-Za-z][\w.-]*)"
+    r"(?:\s[^<>]*?)?\s*/?>",
+    re.IGNORECASE,
+)
+
+
+def _plain_pubmed_text(value: object) -> str:
+    """Remove PubMed formatting tags while preserving literal comparisons."""
+    without_tags = _PUBMED_FORMATTING_TAG_RE.sub("", str(value))
+    return unescape(without_tags)
 
 
 @dataclass
@@ -361,7 +375,7 @@ class PubMedFetcher:
                     retmode="xml",
                 )
                 try:
-                    records = Entrez.read(handle)
+                    records = Entrez.read(handle, escape=True)
                 finally:
                     handle.close()
 
@@ -438,8 +452,8 @@ def _row_to_article(row: sa.Row) -> PubMedArticle:
 
     return PubMedArticle(
         pmid=row.pmid,
-        title=row.title or "",
-        abstract=row.abstract or "",
+        title=_plain_pubmed_text(row.title or ""),
+        abstract=_plain_pubmed_text(row.abstract or ""),
         authors=authors,
         journal=row.journal or "",
         year=row.year,
@@ -466,11 +480,11 @@ def _parse_entrez_record(
         article_data = medline.get("Article", {})
 
         # Title
-        title = str(article_data.get("ArticleTitle", ""))
+        title = _plain_pubmed_text(article_data.get("ArticleTitle", ""))
 
         # Abstract
         abstract_parts = article_data.get("Abstract", {}).get("AbstractText", [])
-        abstract = " ".join(str(part) for part in abstract_parts)
+        abstract = " ".join(_plain_pubmed_text(part) for part in abstract_parts)
 
         # Authors
         authors: list[str] = []
