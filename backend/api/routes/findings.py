@@ -193,7 +193,11 @@ def _row_to_response(row: sa.Row, sample_engine: sa.Engine | None = None) -> Fin
 
 
 @router.get("", response_model=list[FindingResponse])
-async def list_findings(
+# Declared sync, not async: these read a sample DB synchronously, and an ROH row
+# triggers a coverage scan measured at 0.6-1.6 s for a dense array. On an
+# `async def` path operation that runs ON the event loop and stalls every other
+# request; as plain `def`, FastAPI offloads it to a threadpool.
+def list_findings(
     sample_id: int = Query(..., description="Sample ID"),
     module: str | None = Query(None, description="Filter by module"),
     category: str | None = Query(None, description="Filter by category"),
@@ -257,7 +261,7 @@ async def list_findings(
 
 
 @router.get("/summary", response_model=FindingsSummaryResponse)
-async def findings_summary(
+def findings_summary(
     sample_id: int = Query(..., description="Sample ID"),
 ) -> FindingsSummaryResponse:
     """Per-module finding summary with counts and top findings."""
@@ -378,7 +382,7 @@ async def findings_summary(
 
 
 @router.get("/{finding_id}/svg")
-async def get_finding_svg(
+def get_finding_svg(
     finding_id: int,
     sample_id: int = Query(..., description="Sample ID"),
 ) -> Response:

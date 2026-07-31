@@ -25,6 +25,7 @@ from typing import Any
 import sqlalchemy as sa
 import structlog
 from jinja2 import Environment, FileSystemLoader, select_autoescape
+from starlette.concurrency import run_in_threadpool
 
 from backend.analysis.clinvar_conditions import format_clinvar_conditions_text
 from backend.analysis.pathway_coverage import pathway_level_display_label
@@ -283,7 +284,9 @@ async def generate_variant_card_pdf(
     RuntimeError
         If Playwright browsers are not installed.
     """
-    html = render_variant_card_html(sample_id, finding_id)
+    # Offloaded: this render performs the ROH coverage scan, and running it
+    # inline would block the event loop before the first await below.
+    html = await run_in_threadpool(render_variant_card_html, sample_id, finding_id)
     pdf_bytes = await _html_to_pdf_single_page(html)
     logger.info(
         "variant_card_pdf_generated",
@@ -319,7 +322,9 @@ async def generate_variant_card_png(
     RuntimeError
         If Playwright browsers are not installed.
     """
-    html = render_variant_card_html(sample_id, finding_id)
+    # Offloaded for the same reason as the PDF path: this render performs the
+    # ROH coverage scan and would block the loop before the await below.
+    html = await run_in_threadpool(render_variant_card_html, sample_id, finding_id)
     png_bytes = await _html_to_png(html)
     logger.info(
         "variant_card_png_generated",

@@ -653,7 +653,7 @@ class TestFindingsSummary:
             )
             monkeypatch.setattr(findings_route, "gated_modules_to_hide", lambda engine: set())
 
-            summary = await findings_route.findings_summary(sample_id=1)
+            summary = findings_route.findings_summary(sample_id=1)
             high_conf = summary.high_confidence_findings
 
             assert len(high_conf) == 5
@@ -743,7 +743,7 @@ class TestLAIPolicyQuarantine:
             )
             monkeypatch.setattr(findings_route, "gated_modules_to_hide", lambda engine: set())
 
-            listed = await findings_route.list_findings(
+            listed = findings_route.list_findings(
                 sample_id=1,
                 module=None,
                 category=None,
@@ -753,7 +753,7 @@ class TestLAIPolicyQuarantine:
             )
             assert [finding.finding_text for finding in listed] == ["Qualified Tier 1 ancestry"]
 
-            summary = await findings_route.findings_summary(sample_id=1)
+            summary = findings_route.findings_summary(sample_id=1)
             assert summary.total_findings == 1
             assert summary.modules[0].top_finding_text == "Qualified Tier 1 ancestry"
             assert [item.model_dump() for item in summary.evidence_level_counts] == [
@@ -762,7 +762,7 @@ class TestLAIPolicyQuarantine:
             assert not summary.high_confidence_findings
 
             with pytest.raises(HTTPException) as caught:
-                await findings_route.get_finding_svg(finding_id=2, sample_id=1)
+                findings_route.get_finding_svg(finding_id=2, sample_id=1)
             assert caught.value.status_code == 404
         finally:
             sample_engine.dispose()

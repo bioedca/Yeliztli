@@ -26,6 +26,7 @@ from typing import Any
 import sqlalchemy as sa
 import structlog
 from jinja2 import Environment, FileSystemLoader, select_autoescape
+from starlette.concurrency import run_in_threadpool
 
 from backend.analysis.clinvar_conditions import format_clinvar_conditions_text
 from backend.analysis.pathway_coverage import pathway_level_display_label
@@ -342,7 +343,9 @@ async def generate_report_pdf(
     RuntimeError
         If Playwright browsers are not installed.
     """
-    html = render_report_html(sample_id, modules=modules, title=title)
+    # Offloaded: this render performs the ROH coverage scan, and running it
+    # inline would block the event loop before the first await below.
+    html = await run_in_threadpool(render_report_html, sample_id, modules=modules, title=title)
     pdf_bytes = await _html_to_pdf(html)
     logger.info(
         "report_generated",

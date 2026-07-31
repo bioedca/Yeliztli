@@ -425,6 +425,15 @@ def evaluability_from_detail(
             reason = detail.get("indeterminate_reason")
             if reason not in _KNOWN_INDETERMINATE_REASONS:
                 return False, snps_used, DETAIL_UNAVAILABLE
+            # The coverage-dependent reasons quote the marker count in their
+            # narrative, so honouring one without a recorded count would assert
+            # "0 callable autosomal SNP(s)" for a sample nobody counted. Read
+            # the sample, or fall back to a reason that claims nothing.
+            if reason != DETAIL_UNAVAILABLE and not counted:
+                if sample_engine is None:
+                    return False, 0, DETAIL_UNAVAILABLE
+                observed, _eligible = _sample_coverage(sample_engine)
+                return False, observed, str(reason)
             return False, snps_used, str(reason)
         # An explicit `true` is not self-certifying either: it falls through to
         # the same coverage gates below. Our own writer computes the verdict

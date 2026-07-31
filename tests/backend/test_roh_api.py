@@ -564,6 +564,50 @@ class TestEvaluabilityAtTheApi:
         assert data["froh"] == 0.0
         assert data["indeterminate_reason"] is None
 
+    def test_false_verdict_without_a_count_reads_the_sample(
+        self, _env: sa.Engine, client: TestClient
+    ) -> None:
+        # An explicit `false` with a coverage-dependent reason but no recorded
+        # count must not quote zero: the reason's narrative names the marker
+        # count, so the count is read from the sample instead of assumed.
+        import json as _json
+
+        from backend.db.tables import findings
+
+        self._reseed(
+            _env,
+            [
+                {"rsid": f"r{i}", "chrom": "1", "pos": 1_000_000 + i * 1_000, "genotype": "AA"}
+                for i in range(150)
+            ],
+        )
+        with _env.begin() as conn:
+            conn.execute(
+                sa.insert(findings),
+                {
+                    "module": "roh",
+                    "category": "autozygosity",
+                    "evidence_level": 1,
+                    "finding_text": "stored narrative",
+                    "detail_json": _json.dumps(
+                        {
+                            "evaluable": False,
+                            "indeterminate_reason": "no_segment_eligible_region",
+                            "froh": None,
+                        }
+                    ),
+                },
+            )
+
+        data = client.get("/api/analysis/roh/findings?sample_id=1").json()
+        assert data["evaluable"] is False
+        assert data["indeterminate_reason"] == "no_segment_eligible_region"
+        # The count came from the sample, not from a default.
+        assert data["autosomal_snps_used"] == 150
+        assert "(150 callable autosomal SNP(s)" in data["finding_text"]
+        # Parenthesised so this cannot be satisfied by the trailing "0" of "150".
+        assert "(0 callable autosomal SNP(s)" not in data["finding_text"]
+
     def test_unrecognised_stored_reason_does_not_borrow_another_cause(
         self, _env: sa.Engine, client: TestClient
     ) -> None:
