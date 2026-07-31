@@ -546,11 +546,16 @@ function LiteratureTab({
   variant: VariantDetail
   sampleId: number | null
 }) {
+  const geneSymbol = variant.gene_symbol
+    ?? variant.transcripts.find((transcript) => (
+      transcript.mane_select && transcript.gene_symbol
+    ))?.gene_symbol
+    ?? variant.transcripts.find((transcript) => transcript.gene_symbol)?.gene_symbol
+    ?? null
   const { data, isLoading, isError, error, refetch } = useGeneDetail(
-    variant.gene_symbol,
+    geneSymbol,
     sampleId,
   )
-  const geneSymbol = variant.gene_symbol
 
   if (!geneSymbol) {
     return (

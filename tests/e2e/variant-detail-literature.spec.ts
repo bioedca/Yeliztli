@@ -130,6 +130,48 @@ test('loads gene literature, links its sources, and expands the abstract', async
   await expect(page.getByText('A synthetic cached abstract for the browser regression.')).toBeVisible()
 })
 
+test('uses a transcript gene when the top-level gene is absent', async ({ page }) => {
+  await page.route('**/api/variants/rs1042522**', (route) =>
+    route.fulfill({
+      json: {
+        ...VARIANT_DETAIL,
+        gene_symbol: null,
+        transcripts: [
+          {
+            transcript_id: 'NM_OTHER',
+            gene_symbol: 'OTHER',
+            consequence: 'intron_variant',
+            hgvs_coding: null,
+            hgvs_protein: null,
+            strand: '+',
+            exon_number: null,
+            intron_number: 1,
+            mane_select: false,
+          },
+          {
+            transcript_id: 'NM_000546',
+            gene_symbol: 'TP53',
+            consequence: 'missense_variant',
+            hgvs_coding: 'c.215C>G',
+            hgvs_protein: 'p.Pro72Arg',
+            strand: '+',
+            exon_number: 4,
+            intron_number: null,
+            mane_select: true,
+          },
+        ],
+      },
+    }),
+  )
+  await page.goto('/variants/rs1042522?sample_id=1')
+  await waitForReactHydration(page)
+
+  await page.getByRole('tab', { name: 'Literature' }).click()
+
+  await expect(page.getByText('Synthetic TP53 literature title')).toBeVisible()
+  await expect(page.getByText(/No gene is associated/)).toHaveCount(0)
+})
+
 test('distinguishes a failed lookup from a genuine empty result', async ({ page }) => {
   await page.route('**/api/genes/TP53**', (route) =>
     route.fulfill({

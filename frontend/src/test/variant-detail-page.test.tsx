@@ -582,6 +582,53 @@ describe("VariantDetailPage (P2-21a)", () => {
     expect(screen.queryByText(/Phase 3/)).not.toBeInTheDocument()
   })
 
+  it("uses the MANE transcript gene when the top-level gene is absent", async () => {
+    const transcriptOnlyVariant: VariantDetail = {
+      ...mockVariant,
+      gene_symbol: null,
+      transcripts: [
+        { ...mockVariant.transcripts[1], gene_symbol: "OTHER" },
+        mockVariant.transcripts[0],
+      ],
+    }
+    mockFetch.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.startsWith("/api/variants/")) {
+        return {
+          ok: true,
+          json: async () => transcriptOnlyVariant,
+        }
+      }
+      if (url.startsWith("/api/genes/")) {
+        return {
+          ok: true,
+          json: async () => ({
+            gene_symbol: "BRCA1",
+            uniprot: null,
+            uniprot_error: null,
+            phenotypes: [],
+            literature: [],
+            literature_errors: [],
+            variants: [],
+            population_af: [],
+          }),
+        }
+      }
+      throw new Error(`Unexpected fetch: ${url}`)
+    })
+
+    const user = userEvent.setup()
+    renderPage("rs100")
+
+    await user.click(await screen.findByRole("tab", { name: /literature/i }))
+
+    expect(
+      await screen.findByRole("link", { name: "View full gene detail for BRCA1" }),
+    ).toHaveAttribute("href", "/genes/BRCA1?sample_id=1")
+    expect(mockFetch).toHaveBeenCalledWith("/api/genes/BRCA1?sample_id=1")
+    expect(screen.queryByText(/No gene is associated/)).not.toBeInTheDocument()
+  })
+
   it.each([
     {
       name: "a genuine empty search",
