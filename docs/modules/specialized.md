@@ -2,9 +2,11 @@
 
 --8<-- "health-disclaimer.md"
 
-These condition-specific modules run automatically but don't have their own dashboard page —
-their findings appear in the **Findings Explorer**. Each looks at a small, well-defined set of
-variants.
+Eight of these condition-specific modules run automatically but don't have their own dashboard
+page — their findings appear in the **Findings Explorer**. Each looks at a small, well-defined
+set of variants. G6PD and BChE are read-only, on-demand API context modules. Neither is part of
+the standard analysis or stores a Findings Explorer entry; their sections below explain how to
+request the API summaries directly.
 
 ## Hereditary haemochromatosis
 
@@ -71,6 +73,10 @@ An **X-linked**, sex-aware pharmacogenomic context module: it assigns a phenotyp
 variable / deficient / indeterminate) and lists high-risk oxidative drugs (e.g. rasburicase,
 primaquine, dapsone). Array coverage of these variants varies.
 
+G6PD is not part of the standard analysis and does not store a Findings Explorer entry. Request
+its summary directly with `GET /api/analysis/g6pd?sample_id=<id>`; the app has no dedicated G6PD
+page.
+
 **A negative result depends on how much of the panel was actually read.** If *any* of the
 curated deficiency variants could not be called, the result is reported as *indeterminate*
 with medication risk **undetermined**, rather than as a normal, risk-clearing result — a
@@ -85,9 +91,11 @@ presence.
 
 **Gene/variants:** *BCHE* rs1799807 (atypical), rs1803274 (K-variant).
 Context-only background on sensitivity to the anaesthetic muscle-relaxants succinylcholine and
-mivacurium. It types only two of many *BCHE* variants and **does not store findings** — it's
-purely interpretive background; true BChE deficiency is confirmed by an enzyme-activity assay
-with your anaesthesia team.
+mivacurium. BChE is not part of the standard analysis and does not store a Findings Explorer
+entry. Request its summary directly with `GET /api/analysis/bche?sample_id=<id>`; the app has no
+dedicated BChE page. It types only two of many *BCHE* variants and is purely interpretive
+background; true BChE deficiency is confirmed by an enzyme-activity assay with your anaesthesia
+team.
 
 [^cpic-g6pd]: [Expanded Clinical Pharmacogenetics Implementation Consortium Guideline for Medication Use in the Context of G6PD Genotype](https://doi.org/10.1002/cpt.2735) (Gammal et al., 2023, *Clinical Pharmacology & Therapeutics* 113(5):973-985; [PMID 36049896](https://pubmed.ncbi.nlm.nih.gov/36049896/); [PMCID PMC10281211](https://pmc.ncbi.nlm.nih.gov/articles/PMC10281211/); accessed 2026-07-30) provides G6PD genotype as *part of* the diagnosis of G6PD deficiency and directs that high-risk medications be avoided in deficient individuals.
 [^g6pd-limited-panel]: [Functional analysis of G6PD variants associated with low G6PD activity in the All of Us Research Program](https://doi.org/10.1093/genetics/iyae170) (Powell et al., 2024, *Genetics* 228(4); [PMID 39607789](https://pubmed.ncbi.nlm.nih.gov/39607789/); [PMCID PMC11631396](https://pmc.ncbi.nlm.nih.gov/articles/PMC11631396/); accessed 2026-07-30) reports that 13% of All of Us participants carrying deficiency-causing variants would be missed by genotyping only `c.202G>A`, and that over 800 G6PD variants remain of uncertain significance.
