@@ -292,6 +292,33 @@ describe("VariantDetailSidePanel (P2-21)", () => {
     })
   })
 
+  // #2214 review: assert through the RENDERED panel, not the helper -- a
+  // consumer that stopped calling it would leave the helper specs green while
+  // showing a bare dash again.
+  it.each([
+    ["allele_ambiguous", "Allele unresolved"],
+    ["locus_unresolved", "Position unmatched"],
+    ["alias_unresolved", "Shared rsID"],
+    ["allele_mismatch", "Other allele"],
+  ])("renders %s as %s rather than a dash", async (status, label) => {
+    mockFetch.mockImplementation(async () => ({
+      ok: true,
+      json: async () => ({
+        ...mockVariantDetail,
+        gnomad_af_global: null,
+        gnomad_source_status: status,
+      }),
+    }))
+
+    render(
+      <VariantDetailSidePanel rsid="rs100" sampleId={1} onClose={() => {}} />,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText(label)).toBeInTheDocument()
+    })
+  })
+
   it.each(SIFT_DISPLAY_CASES)("maps SIFT %s in its labeled prediction row (#1753)", async (
     _caseName,
     input,

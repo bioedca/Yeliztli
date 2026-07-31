@@ -703,6 +703,53 @@ describe("VariantDetailPage (P2-21a)", () => {
     expect(screen.getByText("Not assessed by current gnomAD exome source")).toBeInTheDocument()
   })
 
+  // #2214 review: the helper-level specs stay green if a consumer stops calling
+  // the helper. This page has TWO call sites -- the short label in the Overview
+  // "Key Scores" row and the long explanation in the Population tab -- so assert
+  // both rendered surfaces.
+  it.each([
+    ["allele_ambiguous", "Allele unresolved", "no single frequency can be attributed"],
+    ["locus_unresolved", "Position unmatched", "other genomic positions"],
+    ["alias_unresolved", "Shared rsID", "More than one call in your file"],
+    ["allele_mismatch", "Other allele", "different alternate allele"],
+  ])("labels %s as %s with its own explanation", async (status, shortLabel, detailText) => {
+    const withheldVariant: VariantDetail = {
+      ...mockVariant,
+      gnomad_af_global: null,
+      gnomad_af_afr: null,
+      gnomad_af_amr: null,
+      gnomad_af_asj: null,
+      gnomad_af_eas: null,
+      gnomad_af_eur: null,
+      gnomad_af_fin: null,
+      gnomad_af_sas: null,
+      gnomad_source_status: status,
+      gnomad_homozygous_count: null,
+      rare_flag: false,
+      ultra_rare_flag: false,
+    }
+
+    mockFetch.mockImplementation(async () => ({
+      ok: true,
+      json: async () => withheldVariant,
+    }))
+
+    const user = userEvent.setup()
+    renderPage("rs1799963")
+
+    await waitFor(() => {
+      expect(screen.getByRole("tab", { name: /population/i })).toBeInTheDocument()
+    })
+
+    // Overview: the compact AF cell must not be a bare dash.
+    expect(screen.getByText(shortLabel)).toBeInTheDocument()
+
+    // Population: the explanation must name this state's own cause.
+    await user.click(screen.getByRole("tab", { name: /population/i }))
+    expect(screen.getByText(new RegExp(detailText, "i"))).toBeInTheDocument()
+    expect(screen.queryByText("Not found in gnomAD")).not.toBeInTheDocument()
+  })
+
   it("handles variant with no ClinVar data in Clinical tab", async () => {
     const noClinVar: VariantDetail = {
       ...mockVariant,
