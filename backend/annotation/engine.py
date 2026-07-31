@@ -33,7 +33,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from backend.analysis.insilico_tiers import is_missense_consequence
-from backend.analysis.zygosity import classify_zygosity
+from backend.analysis.zygosity import classify_zygosity, is_no_call
 from backend.annotation.alphamissense import lookup_alphamissense_by_positions
 from backend.annotation.dbnsfp import (
     DbNSFPAnnotation,
@@ -116,6 +116,25 @@ _MAX_WORKERS = 4
 
 GNOMAD_SOURCE_OBSERVED = "observed"
 GNOMAD_SOURCE_UNCOVERED = "source_uncovered"
+# gnomAD lists this rsID across several ALTs and no single frequency can be
+# attributed to the call -- it carries more than one of them, carries none, or
+# the alleles cannot be matched -- so none is published (#2171).
+# Distinct from "absent": without it the UI says "Not in gnomAD" about a variant
+# gnomAD does catalogue.
+GNOMAD_SOURCE_ALLELE_AMBIGUOUS = "allele_ambiguous"
+# gnomAD lists this rsID, but only at coordinates other than the sample's. The
+# alleles may well be identical; what failed is coordinate concordance, so this
+# is NOT allele ambiguity and often signals a build/mapping mismatch (#2214).
+GNOMAD_SOURCE_LOCUS_UNRESOLVED = "locus_unresolved"
+# Several of the sample's own calls collapse onto this rsID at different
+# positions, and gnomAD does list each of them. Nothing is wrong with the
+# alleles or the coordinates -- the limit is that one per-rsID result cannot
+# carry a frequency for two different calls (#2214).
+GNOMAD_SOURCE_ALIAS_UNRESOLVED = "alias_unresolved"
+# The genotype DID identify a gnomAD allele, but this row's identity resolved to
+# a different one (ClinVar/VEP win that race), so the frequency describes another
+# variant. Nothing about the genotype is ambiguous -- the sources disagree (#2214).
+GNOMAD_SOURCE_ALLELE_MISMATCH = "allele_mismatch"
 
 _GNOMAD_EXOME_UNCOVERED_CONSEQUENCES: frozenset[str] = frozenset(
     {
@@ -450,6 +469,11 @@ def _annot_to_dict(annot: GnomADAnnotation) -> dict:
         "gnomad_an_fin": annot.an_fin,
         "gnomad_an_sas": annot.an_sas,
         "gnomad_source_status": GNOMAD_SOURCE_OBSERVED,
+        # Private (stripped by the upsert allowlist): which allele this
+        # frequency describes, so the merge can refuse to attach it to a row
+        # whose identity resolved to a different ALT (#2214 review).
+        "_gnomad_ref": annot.ref,
+        "_gnomad_alt": annot.alt,
         "gnomad_homozygous_count": annot.homozygous_count,
         "gnomad_af_popmax": annot.af_popmax,
         "gnomad_an_popmax": annot.an_popmax,
@@ -465,16 +489,31 @@ def _consequence_terms(consequence: str | None) -> set[str]:
     return {term.strip() for term in consequence.split("&") if term.strip()}
 
 
-def _gnomad_source_status(row_data: dict, *, matched: bool) -> str | None:
+def _gnomad_source_status(
+    row_data: dict,
+    *,
+    matched: bool,
+    allele_ambiguous: bool = False,
+    locus_unresolved: bool = False,
+    alias_unresolved: bool = False,
+) -> str | None:
     """Return the status for the currently selected gnomAD AF source.
 
     The bundled AF source is gnomAD r2.1.1 exomes. A matched row is observed in
     that source. An unmatched non-coding VEP consequence is outside the selected
     exome source's intended assessment scope, so callers should not present it
-    as simply absent from gnomAD.
+    as simply absent from gnomAD. A shared rsID whose carried ALT could not be
+    resolved is likewise *present but unreportable* rather than absent (#2171) --
+    reporting it as absent would be a false statement about gnomAD's contents.
     """
     if matched:
         return GNOMAD_SOURCE_OBSERVED
+    if alias_unresolved:
+        return GNOMAD_SOURCE_ALIAS_UNRESOLVED
+    if locus_unresolved:
+        return GNOMAD_SOURCE_LOCUS_UNRESOLVED
+    if allele_ambiguous:
+        return GNOMAD_SOURCE_ALLELE_AMBIGUOUS
     if _consequence_terms(row_data.get("consequence")) & _GNOMAD_EXOME_UNCOVERED_CONSEQUENCES:
         return GNOMAD_SOURCE_UNCOVERED
     return None
@@ -484,6 +523,15 @@ def _lookup_gnomad(
     rsids: list[str],
     raw_by_rsid: dict[str, sa.Row],
     gnomad_engine: sa.Engine,
+    allele_ambiguous_out: set[str] | None = None,
+    conflicting_genotype_rsids: set[str] | None = None,
+    conflicting_locus_rsids: set[str] | None = None,
+    locus_unresolved_out: set[str] | None = None,
+    alias_unresolved_out: set[str] | None = None,
+    alias_loci_by_rsid: dict[str, set[tuple[str, int]]] | None = None,
+    candidate_loci_out: dict[str, set[tuple[str, int]]] | None = None,
+    resolved_call_by_query: dict[str, tuple[str, str, int]] | None = None,
+    genotypes_by_query: dict[str, set[str]] | None = None,
 ) -> dict[str, dict]:
     """Look up gnomAD allele frequencies by exact allele, then rsid.
 
@@ -529,9 +577,47 @@ def _lookup_gnomad(
                 results[rsid] = _annot_to_dict(annot)
 
     # Fallback: rsid-based lookup for rows without exact allele coordinates.
+    # Production ``raw_variants`` has no ref/alt columns, so this is the path
+    # every real annotation run takes and the exact-coordinate branch above is
+    # only reachable from callers that synthesise allele identity. Pass the
+    # genotypes so a shared rsID resolves to the ALT the sample actually carries
+    # rather than to whichever ALT happens to be most common (#2171).
     unmatched = [r for r in rsids if r not in results and r not in rsids_with_exact_coords]
     if unmatched:
-        rsid_matches = lookup_gnomad_by_rsids(unmatched, gnomad_engine)
+        resolved_call_by_query = resolved_call_by_query or {}
+        # Prefer the sample's single TYPED call for this query id over whatever
+        # row `raw_by_query` happened to keep: its self-map tie-break can retain
+        # a no-call even when a typed alias exists, which would select on the
+        # no-call and withhold from the typed call -- and differently depending
+        # on `batch_size` (#2214 review).
+        genotype_by_rsid: dict[str, str] = {}
+        locus_by_rsid: dict[str, tuple[str, int]] = {}
+        for rsid in unmatched:
+            resolved = resolved_call_by_query.get(rsid)
+            if resolved is not None:
+                genotype_by_rsid[rsid] = resolved[0]
+                locus_by_rsid[rsid] = (resolved[1], resolved[2])
+            elif rsid in raw_by_rsid:
+                genotype_by_rsid[rsid] = raw_by_rsid[rsid].genotype
+                locus_by_rsid[rsid] = (raw_by_rsid[rsid].chrom, raw_by_rsid[rsid].pos)
+        rsid_matches = lookup_gnomad_by_rsids(
+            unmatched,
+            gnomad_engine,
+            genotype_by_rsid=genotype_by_rsid,
+            allele_ambiguous_out=allele_ambiguous_out,
+            conflicting_genotype_rsids=conflicting_genotype_rsids,
+            conflicting_locus_rsids=conflicting_locus_rsids,
+            genotypes_by_rsid={
+                rsid: genos
+                for rsid in unmatched
+                if (genos := (genotypes_by_query or {}).get(rsid))
+            },
+            locus_by_rsid=locus_by_rsid,
+            locus_unresolved_out=locus_unresolved_out,
+            alias_unresolved_out=alias_unresolved_out,
+            alias_loci_by_rsid=alias_loci_by_rsid,
+            candidate_loci_out=candidate_loci_out,
+        )
         for rsid, annot in rsid_matches.items():
             results[rsid] = _annot_to_dict(annot)
 
@@ -763,6 +849,9 @@ def _merge_annotations(
     gene_phenotype_data: dict[str, dict] | None = None,
     alphamissense_data: dict[str, dict] | None = None,
     merged_rsid_map: dict[str, str] | None = None,
+    gnomad_allele_ambiguous: set[str] | None = None,
+    gnomad_locus_unresolved: set[str] | None = None,
+    gnomad_alias_unresolved: set[str] | None = None,
 ) -> list[dict]:
     """Merge all annotation sources into upsert-ready dicts.
 
@@ -827,7 +916,13 @@ def _merge_annotations(
             row_data.update(gene_phenotype_data[rsid])
             bitmask |= GENE_PHENOTYPE_BIT
 
-        gnomad_status = _gnomad_source_status(row_data, matched=rsid in gnomad_data)
+        gnomad_status = _gnomad_source_status(
+            row_data,
+            matched=rsid in gnomad_data,
+            allele_ambiguous=rsid in (gnomad_allele_ambiguous or ()),
+            locus_unresolved=rsid in (gnomad_locus_unresolved or ()),
+            alias_unresolved=rsid in (gnomad_alias_unresolved or ()),
+        )
         if gnomad_status is not None:
             row_data["gnomad_source_status"] = gnomad_status
 
@@ -849,6 +944,31 @@ def _merge_annotations(
                 row_data["alt"] = alt = vep_alt
         if ref is not None and alt is not None:
             row_data["zygosity"] = classify_zygosity(raw.genotype, ref, alt)
+
+        # A frequency describes ONE allele. gnomAD may have resolved a different
+        # ALT from the one this row's identity settled on (ClinVar and VEP win
+        # that race), and publishing the two together presents one allele's
+        # frequency, homozygote count and rarity flags as evidence for another --
+        # #2171's defect surviving into the merged row (#2214 review).
+        g_ref = row_data.pop("_gnomad_ref", None)
+        g_alt = row_data.pop("_gnomad_alt", None)
+        if (
+            bitmask & GNOMAD_BIT
+            and ref is not None
+            and alt is not None
+            and g_ref is not None
+            and g_alt is not None
+            and (str(g_ref), str(g_alt)) != (str(ref), str(alt))
+        ):
+            # `rare_flag` / `ultra_rare_flag` are derived from the rejected
+            # frequency but carry no `gnomad_` prefix, so a prefix-only sweep
+            # left the stored row labelled rare on evidence for another allele
+            # (#2214 review).
+            for _key in list(row_data):
+                if _key.startswith("gnomad_") or _key in {"rare_flag", "ultra_rare_flag"}:
+                    del row_data[_key]
+            row_data["gnomad_source_status"] = GNOMAD_SOURCE_ALLELE_MISMATCH
+            bitmask &= ~GNOMAD_BIT
 
         # Always emit a row, even when no source matched (F36). An explicit
         # ``annotation_coverage = 0`` marker distinguishes a variant that was
@@ -1423,6 +1543,59 @@ def run_annotation(
         old: rec.current_rsid for old, rec in merge_records.items() if rec.current_rsid
     }
 
+    # Which queried rsIDs are served by sample rows carrying DIFFERENT genotypes
+    # (a deprecated rsID plus its replacement, or two deprecated IDs sharing one
+    # current ID). Computed across the whole sample, deliberately not per batch:
+    # aliases can land in different batches, and a per-batch view would see no
+    # conflict there while seeing one when they happen to share a batch -- making
+    # the stored frequency and status depend on `batch_size` and row order (#2171).
+    # Keyed on (genotype, chrom, pos), not genotype alone: aliases can agree on
+    # the genotype while sitting at different GRCh37 loci, and `raw_by_query`
+    # keeps only one of them. Without the coordinate in the key that case goes
+    # undetected, so one alias receives the other locus's frequency -- and which
+    # locus wins still depends on `batch_size`.
+    # Two separate questions, because a no-call answers only one of them.
+    #   * Which ALLELE is carried -- a no-call says nothing, so counting it as a
+    #     distinct call would withhold the *valid* call's frequency.
+    #   * Which LOCUS the row occupies -- a no-call still sits at a coordinate,
+    #     so dropping it entirely let its position vanish from the map and a
+    #     typed alias's frequency get fanned back to it across loci (#2214).
+    _calls_by_query: dict[str, set[tuple[str, str, int]]] = {}
+    _loci_by_query: dict[str, set[tuple[str, int]]] = {}
+    for _row in raw_rows:
+        _query = current_by_old.get(_row.rsid, _row.rsid)
+        _loci_by_query.setdefault(_query, set()).add((_row.chrom, _row.pos))
+        if is_no_call(_row.genotype):
+            continue
+        _calls_by_query.setdefault(_query, set()).add((_row.genotype, _row.chrom, _row.pos))
+    # Two kinds of alias disagreement, handled differently downstream.
+    #   * LOCUS -- the aliases sit at different coordinates. One per-rsID result
+    #     cannot serve them both, so gnomAD must withhold; resolving globally
+    #     would hand one position's frequency to the alias at the other.
+    #   * GENOTYPE -- same locus, different calls. Those may still resolve to
+    #     one ALT (`AG` vs `AA`), so the lookup compares resolved rows.
+    conflicting_locus_rsids = {q for q, loci in _loci_by_query.items() if len(loci) > 1}
+    conflicting_genotype_rsids = {
+        q
+        for q, calls in _calls_by_query.items()
+        if len({genotype for genotype, _chrom, _pos in calls}) > 1
+    }
+    # The typed genotypes behind each query id. The lookup resolves each against
+    # the candidate rows and only withholds when they land on DIFFERENT rows --
+    # different zygosities of one allele (`AG` vs `AA`) are not a conflict.
+    typed_genotypes_by_query: dict[str, set[str]] = {
+        q: {genotype for genotype, _chrom, _pos in calls} for q, calls in _calls_by_query.items()
+    }
+    # The one typed call behind a query id, when there is exactly one. `raw_by_query`
+    # keeps whichever row won its self-map tie-break, which may be a no-call even
+    # though a typed alias exists -- gnomAD would then select on the no-call and
+    # withhold from the typed call too, differently depending on `batch_size`.
+    resolved_call_by_query: dict[str, tuple[str, str, int]] = {
+        q: next(iter(calls))
+        for q, calls in _calls_by_query.items()
+        if len(calls) == 1 and len(_loci_by_query.get(q, ())) == 1
+    }
+
     # 4. Process in batches
     # Reuse a single ThreadPoolExecutor across all batches to avoid
     # repeated thread creation/teardown overhead (P4-22 optimization).
@@ -1466,6 +1639,23 @@ def run_annotation(
             vep_data: dict[str, dict] = {}
             clinvar_data: dict[str, dict] = {}
             gnomad_data: dict[str, dict] = {}
+            # Filled by the gnomAD worker with rsIDs that HAD candidate rows but
+            # whose carried ALT could not be resolved (#2171). Kept out of
+            # `gnomad_data` deliberately: an entry there would set GNOMAD_BIT and
+            # claim coverage this row does not have.
+            gnomad_allele_ambiguous: set[str] = set()
+            # Rows exist for this rsID but at other coordinates only. Distinct
+            # from allele ambiguity: the alleles may be identical and it is the
+            # COORDINATE that failed to agree, so the "several alternate alleles"
+            # explanation would be false (#2214 review).
+            gnomad_locus_unresolved: set[str] = set()
+            # The sample's own calls collapse onto one rsID at positions gnomAD
+            # DOES list. Neither the alleles nor the coordinates are at fault.
+            gnomad_alias_unresolved: set[str] = set()
+            # Which coordinates gnomAD actually holds per conflicting query, so
+            # the re-keying below can give each ORIGINAL rsID the reason its own
+            # position encountered.
+            gnomad_candidate_loci: dict[str, set[tuple[str, int]]] = {}
             dbnsfp_data: dict[str, dict] = {}
             alphamissense_data: dict[str, dict] = {}
 
@@ -1508,6 +1698,15 @@ def run_annotation(
                         query_rsids,
                         raw_by_query,
                         gnomad_engine,
+                        gnomad_allele_ambiguous,
+                        conflicting_genotype_rsids,
+                        conflicting_locus_rsids,
+                        gnomad_locus_unresolved,
+                        gnomad_alias_unresolved,
+                        _loci_by_query,
+                        gnomad_candidate_loci,
+                        resolved_call_by_query,
+                        typed_genotypes_by_query,
                         source_timings=source_timings,
                         source_name="gnomad",
                     )
@@ -1553,6 +1752,33 @@ def run_annotation(
                 vep_data = _rekey_to_original(vep_data, lookup_key)
                 clinvar_data = _rekey_to_original(clinvar_data, lookup_key)
                 gnomad_data = _rekey_to_original(gnomad_data, lookup_key)
+                # Same F18 re-keying for the ambiguity set. `lookup_key` maps
+                # original -> current, so it must be walked in that direction
+                # exactly as `_rekey_to_original` does; a `.get(current)` lookup
+                # silently misses (the keys are originals) and the status would
+                # be dropped for every deprecated rsid.
+                gnomad_allele_ambiguous = {
+                    original
+                    for original, query in lookup_key.items()
+                    if query in gnomad_allele_ambiguous
+                }
+                # Split per ORIGINAL, not per query. Aliases can straddle two
+                # coordinates where gnomAD holds only one of them: the alias that
+                # matched hit the shared-rsID limitation, while the one that did
+                # not really encountered a position/build mismatch. Fanning a
+                # single query-level status to both hides that (#2214 review).
+                _conflicted = gnomad_locus_unresolved | gnomad_alias_unresolved
+                _alias, _locus = set(), set()
+                for original, query in lookup_key.items():
+                    if query not in _conflicted:
+                        continue
+                    raw = raw_by_rsid.get(original)
+                    own_locus = (raw.chrom, raw.pos) if raw is not None else None
+                    if own_locus in gnomad_candidate_loci.get(query, set()):
+                        _alias.add(original)
+                    else:
+                        _locus.add(original)
+                gnomad_locus_unresolved, gnomad_alias_unresolved = _locus, _alias
                 dbnsfp_data = _rekey_to_original(dbnsfp_data, lookup_key)
 
             # Accumulate per-source timings
@@ -1671,6 +1897,9 @@ def run_annotation(
                 gene_phenotype_data,
                 alphamissense_data=alphamissense_data,
                 merged_rsid_map=current_by_old,
+                gnomad_allele_ambiguous=gnomad_allele_ambiguous,
+                gnomad_locus_unresolved=gnomad_locus_unresolved,
+                gnomad_alias_unresolved=gnomad_alias_unresolved,
             )
 
             # 6b. Ensemble pathogenicity flag (P2-13)
