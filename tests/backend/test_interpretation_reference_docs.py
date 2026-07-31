@@ -92,50 +92,59 @@ def _function_assignments(function: ast.FunctionDef) -> dict[str, list[ast.expr]
 def _documents_distinct_lower_penetrance_tier(text: str) -> bool:
     normalized = (
         " ".join(text.lower().split())
+        .replace("**", "")
         .replace("lower-penetrance", "lower penetrance")
         .replace("risk-allele", "risk allele")
         .replace("high-penetrance", "high penetrance")
     )
-    negated_distinct_tier_language = (
-        "not a separate tier" in normalized
-        or "not reported separately" in normalized
-        or "isn't a separate tier" in normalized
-        or "is not a separate tier" in normalized
+    canonical_distinct_tier_language = (
+        "lower penetrance/risk allele findings are reported in a separate tier "
+        "rather than being presented as high penetrance p/lp"
+        in normalized
+        or "lower penetrance/risk allele findings are reported in a separate tier "
+        "instead of being presented as high penetrance p/lp"
+        in normalized
+        or "clinvar lower penetrance/risk allele — clinvar risk assertions "
+        "reported separately from high penetrance pathogenic variants"
+        in normalized
     )
-    has_distinct_tier_language = (
-        "separate tier" in normalized or "reported separately" in normalized
-    )
-    has_high_penetrance_contrast = (
-        "high penetrance p/lp" in normalized or "high penetrance pathogenic" in normalized
-    )
-    return (
-        "lower penetrance" in normalized
-        and "risk allele" in normalized
-        and has_distinct_tier_language
-        and not negated_distinct_tier_language
-        and has_high_penetrance_contrast
-    )
+    return canonical_distinct_tier_language
 
 
 def _expression_emits_lower_penetrance_category(
     expression: ast.expr,
     function: ast.FunctionDef,
     functions: dict[str, ast.FunctionDef],
-    seen: set[tuple[str, str]],
+    seen: set[tuple[str, str, int]],
+    before_lineno: int,
 ) -> bool:
-    marker = (function.name, ast.dump(expression, include_attributes=False))
+    marker = (
+        function.name,
+        ast.dump(expression, include_attributes=False),
+        before_lineno,
+    )
     if marker in seen:
         return False
     seen.add(marker)
 
-    assignments = _function_assignments(function)
     for node in ast.walk(expression):
         if isinstance(node, ast.Name) and node.id == "LOWER_PENETRANCE_RISK_ALLELE_CATEGORY":
             return True
         if isinstance(node, ast.Name):
+            use_lineno = getattr(node, "lineno", before_lineno)
             if any(
-                _expression_emits_lower_penetrance_category(value, function, functions, seen)
-                for value in assignments.get(node.id, [])
+                _expression_emits_lower_penetrance_category(
+                    value,
+                    function,
+                    functions,
+                    seen,
+                    assignment_lineno,
+                )
+                for assignment_lineno, value in _assignments_before(
+                    function,
+                    node.id,
+                    use_lineno,
+                )
             ):
                 return True
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
@@ -144,7 +153,11 @@ def _expression_emits_lower_penetrance_category(
                 isinstance(return_node, ast.Return)
                 and return_node.value is not None
                 and _expression_emits_lower_penetrance_category(
-                    return_node.value, called, functions, seen
+                    return_node.value,
+                    called,
+                    functions,
+                    seen,
+                    getattr(return_node, "lineno", before_lineno),
                 )
                 for return_node in ast.walk(called)
             ):
@@ -220,14 +233,38 @@ def _insert_payloads(function: ast.FunctionDef) -> list[tuple[ast.expr, int]]:
             or node.func.attr != "execute"
         ):
             continue
-        for index, argument in enumerate(node.args):
-            if _is_findings_insert_expression(argument, function, set()):
-                payloads.extend(
-                    (payload, node.lineno)
-                    for payload in _values_bound_payloads(argument, function)
-                )
-                payloads.extend((payload, node.lineno) for payload in node.args[index + 1 :])
-                break
+        statement_index = next(
+            (
+                index
+                for index, argument in enumerate(node.args)
+                if _is_findings_insert_expression(argument, function, set())
+            ),
+            None,
+        )
+        statement = node.args[statement_index] if statement_index is not None else None
+        if statement is None:
+            statement = next(
+                (
+                    keyword.value
+                    for keyword in node.keywords
+                    if keyword.arg == "statement"
+                    and _is_findings_insert_expression(keyword.value, function, set())
+                ),
+                None,
+            )
+        if statement is None:
+            continue
+
+        payloads.extend(
+            (payload, node.lineno) for payload in _values_bound_payloads(statement, function)
+        )
+        if statement_index is not None:
+            payloads.extend((payload, node.lineno) for payload in node.args[statement_index + 1 :])
+        payloads.extend(
+            (keyword.value, node.lineno)
+            for keyword in node.keywords
+            if keyword.arg == "parameters"
+        )
     return payloads
 
 
@@ -236,6 +273,18 @@ def _latest_assignment_before(
     name: str,
     before_lineno: int,
 ) -> tuple[int, ast.expr] | None:
+    return max(
+        _assignments_before(function, name, before_lineno),
+        default=None,
+        key=lambda item: item[0],
+    )
+
+
+def _assignments_before(
+    function: ast.FunctionDef,
+    name: str,
+    before_lineno: int,
+) -> list[tuple[int, ast.expr]]:
     assignments: list[tuple[int, ast.expr]] = []
     for node in ast.walk(function):
         if not hasattr(node, "lineno") or node.lineno >= before_lineno:
@@ -250,7 +299,7 @@ def _latest_assignment_before(
             and node.value is not None
         ):
             assignments.append((node.lineno, node.value))
-    return max(assignments, default=None, key=lambda item: item[0])
+    return assignments
 
 
 def _persisted_row_expressions(
@@ -298,9 +347,14 @@ def _row_emits_lower_penetrance_category(
     expression: ast.expr,
     function: ast.FunctionDef,
     functions: dict[str, ast.FunctionDef],
-    seen: set[tuple[str, str]],
+    seen: set[tuple[str, str, int]],
+    before_lineno: int,
 ) -> bool:
-    marker = (function.name, ast.dump(expression, include_attributes=False))
+    marker = (
+        function.name,
+        ast.dump(expression, include_attributes=False),
+        before_lineno,
+    )
     if marker in seen:
         return False
     seen.add(marker)
@@ -309,31 +363,82 @@ def _row_emits_lower_penetrance_category(
         return any(
             isinstance(key, ast.Constant)
             and key.value == "category"
-            and _expression_emits_lower_penetrance_category(value, function, functions, set())
+            and _expression_emits_lower_penetrance_category(
+                value,
+                function,
+                functions,
+                set(),
+                getattr(value, "lineno", before_lineno),
+            )
             for key, value in zip(expression.keys, expression.values, strict=True)
         )
     if isinstance(expression, ast.Name):
-        return any(
-            _row_emits_lower_penetrance_category(value, function, functions, seen)
-            for value in _function_assignments(function).get(expression.id, [])
+        assignment = _latest_assignment_before(function, expression.id, before_lineno)
+        return assignment is not None and _row_emits_lower_penetrance_category(
+            assignment[1],
+            function,
+            functions,
+            seen,
+            assignment[0],
         )
     if isinstance(expression, (ast.List, ast.Tuple, ast.Set)):
         return any(
-            _row_emits_lower_penetrance_category(element, function, functions, seen)
+            _row_emits_lower_penetrance_category(
+                element,
+                function,
+                functions,
+                seen,
+                getattr(element, "lineno", before_lineno),
+            )
             for element in expression.elts
         )
     if isinstance(expression, ast.IfExp):
         return _row_emits_lower_penetrance_category(
-            expression.body, function, functions, seen
-        ) or _row_emits_lower_penetrance_category(expression.orelse, function, functions, seen)
+            expression.body,
+            function,
+            functions,
+            seen,
+            getattr(expression.body, "lineno", before_lineno),
+        ) or _row_emits_lower_penetrance_category(
+            expression.orelse,
+            function,
+            functions,
+            seen,
+            getattr(expression.orelse, "lineno", before_lineno),
+        )
     if isinstance(expression, ast.Call) and isinstance(expression.func, ast.Name):
+        if expression.func.id == "dict":
+            return any(
+                keyword.arg == "category"
+                and _expression_emits_lower_penetrance_category(
+                    keyword.value,
+                    function,
+                    functions,
+                    set(),
+                    getattr(keyword.value, "lineno", before_lineno),
+                )
+                for keyword in expression.keywords
+            ) or any(
+                _row_emits_lower_penetrance_category(
+                    argument,
+                    function,
+                    functions,
+                    seen,
+                    getattr(argument, "lineno", before_lineno),
+                )
+                for argument in expression.args
+            )
         called = functions.get(expression.func.id)
         if called is not None:
             return any(
                 isinstance(return_node, ast.Return)
                 and return_node.value is not None
                 and _row_emits_lower_penetrance_category(
-                    return_node.value, called, functions, seen
+                    return_node.value,
+                    called,
+                    functions,
+                    seen,
+                    getattr(return_node, "lineno", before_lineno),
                 )
                 for return_node in ast.walk(called)
             )
@@ -348,7 +453,13 @@ def _stores_lower_penetrance_category(path: Path) -> bool:
             continue
         for payload, execute_lineno in _insert_payloads(function):
             if any(
-                _row_emits_lower_penetrance_category(row, function, functions, set())
+                _row_emits_lower_penetrance_category(
+                    row,
+                    function,
+                    functions,
+                    set(),
+                    getattr(row, "lineno", execute_lineno),
+                )
                 for row in _persisted_row_expressions(payload, function, set(), execute_lineno)
             ):
                 return True
@@ -383,6 +494,28 @@ def store_test_findings():
         encoding="utf-8",
     )
     assert _stores_lower_penetrance_category(analysis) is True
+
+    analysis.write_text(
+        """
+def store_test_findings():
+    rows = [dict(category=LOWER_PENETRANCE_RISK_ALLELE_CATEGORY)]
+    conn.execute(sa.insert(findings), parameters=rows)
+""",
+        encoding="utf-8",
+    )
+    assert _stores_lower_penetrance_category(analysis) is True
+
+    analysis.write_text(
+        """
+def store_test_findings():
+    category = "monogenic_variant"
+    row = {"category": category}
+    category = LOWER_PENETRANCE_RISK_ALLELE_CATEGORY
+    conn.execute(statement=sa.insert(findings), parameters=[row])
+""",
+        encoding="utf-8",
+    )
+    assert _stores_lower_penetrance_category(analysis) is False
 
     analysis.write_text(
         """
@@ -452,6 +585,14 @@ def test_lower_penetrance_tier_guard_rejects_high_penetrance_equivalence() -> No
     assert not _documents_distinct_lower_penetrance_tier(
         "Lower-penetrance/risk-allele findings are not reported separately from "
         "high-penetrance P/LP findings."
+    )
+    assert not _documents_distinct_lower_penetrance_tier(
+        "Lower-penetrance/risk-allele findings are never reported in a separate tier from "
+        "high-penetrance P/LP findings."
+    )
+    assert not _documents_distinct_lower_penetrance_tier(
+        "Lower-penetrance/risk-allele findings are no longer reported in a separate tier "
+        "from high-penetrance P/LP findings."
     )
 
 
