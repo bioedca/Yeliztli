@@ -42,23 +42,32 @@ _PUBMED_FORMATTING_TAG_RE = re.compile(
     r"(?:\s[^<>]*?)?\s*/?>",
     re.IGNORECASE,
 )
+_PUBMED_SUPERSCRIPT_RE = re.compile(
+    r"<sup(?:\s[^<>]*?)?>(.*?)</sup\s*>",
+    re.IGNORECASE | re.DOTALL,
+)
+_PUBMED_SUBSCRIPT_RE = re.compile(
+    r"<sub(?:\s[^<>]*?)?>(.*?)</sub\s*>",
+    re.IGNORECASE | re.DOTALL,
+)
 _PUBMED_MATHML_RE = re.compile(
     r"<(?:mml:)?math\b[^<>]*(?:/>|>.*?</(?:mml:)?math\s*>)",
     re.IGNORECASE | re.DOTALL,
-)
-_XML_TAG_RE = re.compile(
-    r"</?[A-Za-z][\w:.-]*(?:\s[^<>]*?)?\s*/?>",
-    re.IGNORECASE,
 )
 
 
 def _plain_pubmed_text(value: object) -> str:
     """Remove PubMed formatting tags while preserving literal comparisons."""
-    without_mathml = _PUBMED_MATHML_RE.sub(
-        lambda match: _XML_TAG_RE.sub("", match.group(0)),
-        str(value),
+    without_mathml = _PUBMED_MATHML_RE.sub("[formula]", str(value))
+    with_scripts = _PUBMED_SUPERSCRIPT_RE.sub(
+        lambda match: f"^({match.group(1)})",
+        without_mathml,
     )
-    without_tags = _PUBMED_FORMATTING_TAG_RE.sub("", without_mathml)
+    with_scripts = _PUBMED_SUBSCRIPT_RE.sub(
+        lambda match: f"_({match.group(1)})",
+        with_scripts,
+    )
+    without_tags = _PUBMED_FORMATTING_TAG_RE.sub("", with_scripts)
     return unescape(without_tags)
 
 

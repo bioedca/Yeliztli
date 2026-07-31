@@ -535,15 +535,15 @@ class TestParseEntrezRecord:
         """Third-party PubMed markup is reduced to safe readable text."""
         record = _make_entrez_record(
             pmid="36766853",
-            title="The Role of <i>TP53</i> in Adaptation &amp; Evolution.",
-            abstract="The <i>TP53</i> gene has <sup>many</sup> functions.",
+            title="<i>TP53</i> and CO<sub>2</sub> in Adaptation &amp; Evolution.",
+            abstract="The assay measured 10<sup>6</sup> cells.",
         )
 
         article = _parse_entrez_record(record)
 
         assert article is not None
-        assert article.title == "The Role of TP53 in Adaptation & Evolution."
-        assert article.abstract == "The TP53 gene has many functions."
+        assert article.title == "TP53 and CO_(2) in Adaptation & Evolution."
+        assert article.abstract == "The assay measured 10^(6) cells."
         assert "<" not in article.title
         assert "<" not in article.abstract
 
@@ -558,7 +558,7 @@ class TestParseEntrezRecord:
 
         assert article is not None
         assert article.title == "Expression x<y with TP53"
-        assert article.abstract == "Dose <5 mg and x<y while 2 remains formatted."
+        assert article.abstract == "Dose <5 mg and x<y while ^(2) remains formatted."
 
     def test_production_xml_decodes_metadata_and_strips_mathml(self) -> None:
         """The real Entrez parser shape is normalized across every emitted field."""
@@ -574,7 +574,7 @@ class TestParseEntrezRecord:
             b"</PubDate></JournalIssue><Title>Research &amp; Practice</Title>"
             b"</Journal><ArticleTitle>Value <i>TP53</i> and "
             b'<mml:math xmlns:mml="http://www.w3.org/1998/Math/MathML">'
-            b"<mml:msup><mml:mi>x</mml:mi><mml:mn>2</mml:mn></mml:msup>"
+            b"<mml:mfrac><mml:mn>1</mml:mn><mml:mn>2</mml:mn></mml:mfrac>"
             b"</mml:math>.</ArticleTitle><Abstract>"
             b"<AbstractText>Level &lt;5.</AbstractText></Abstract>"
             b'<AuthorList CompleteYN="Y"><Author ValidYN="Y">'
@@ -596,12 +596,12 @@ class TestParseEntrezRecord:
         article = _parse_entrez_record(record)
 
         assert article is not None
-        assert article.title == "Value TP53 and x2."
+        assert article.title == "Value TP53 and [formula]."
         assert article.abstract == "Level <5."
         assert article.authors == ["Smith & Jones AB"]
         assert article.journal == "Research & Practice"
         assert "<math" not in article.title
-        assert "<msup>" not in article.title
+        assert "<mfrac>" not in article.title
 
 
 class TestRowToArticle:
@@ -649,10 +649,8 @@ class TestRowToArticle:
                 {
                     "pmid": "36766853",
                     "gene": "TP53",
-                    "title": "The Role of <i>TP53</i> in Adaptation &amp; Evolution.",
-                    "abstract": (
-                        "The <i>TP53</i> gene has <sub>important</sub> functions when x<y."
-                    ),
+                    "title": "<i>TP53</i> and CO<sub>2</sub> in Adaptation &amp; Evolution.",
+                    "abstract": "The assay measured 10<sup>6</sup> cells when x<y.",
                     "authors": json.dumps(["Smith &amp; Jones AB"]),
                     "journal": "Research &amp; Practice",
                     "year": 2023,
@@ -667,8 +665,8 @@ class TestRowToArticle:
             ).first()
 
         article = _row_to_article(row)
-        assert article.title == "The Role of TP53 in Adaptation & Evolution."
-        assert article.abstract == "The TP53 gene has important functions when x<y."
+        assert article.title == "TP53 and CO_(2) in Adaptation & Evolution."
+        assert article.abstract == "The assay measured 10^(6) cells when x<y."
         assert article.authors == ["Smith & Jones AB"]
         assert article.journal == "Research & Practice"
         assert "<" not in article.title
