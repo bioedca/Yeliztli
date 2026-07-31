@@ -74,9 +74,15 @@ element was absent from both records. This linked-record check avoids the false-
 of combining an original article's DOI with a notice publication type when the notice has its
 own identifier.
 
-The sanitized extraction records each PMID, DOI, PubMed revision date, EFetch request, XML DTD,
-and the absent element:
+The source-structured snapshot preserves both `MedlineCitation` records and every source
+element except the publisher-text containers `Abstract`, `OtherAbstract`, `ReferenceList`,
+and `CoiStatement`; its sanitizer explicitly retains `CommentsCorrectionsList` whenever
+present.
+The raw-response SHA-256, sanitized SHA-256, removal counts, request, and snapshot path are
+recorded in:
 `data/science-evidence/2026-07-31-apob-low-ldl-2075/pubmed-comments-corrections-extract.json`.
+The auditable sanitized source payload is:
+`data/science-evidence/2026-07-31-apob-low-ldl-2075/pubmed-efetch-sanitized.xml`.
 Supplemental public web searches using each DOI plus
 `correction OR erratum OR retraction` also surfaced no notice. These results record what
 PubMed indexed and returned on 2026-07-31, not a guarantee that no later notice exists.
@@ -85,9 +91,12 @@ PubMed indexed and returned on 2026-07-31, not a guarantee that no later notice 
 
 The two ESummary files are raw NCBI E-utilities PubMed JSON responses captured on
 2026-07-31 and identify JSON schema version `0.3`. The correction/retraction file is a
-sanitized field extraction from official EFetch XML using the PubMed DTD dated 2025-01-01;
-the full XML is intentionally not redistributed because it includes publisher-controlled
-abstract text. The extract preserves the exact requests, record identifiers, revision dates,
+sanitized source snapshot plus field extraction from official EFetch XML using the PubMed DTD
+dated 2025-01-01. The `Abstract`, `OtherAbstract`, `ReferenceList`, and `CoiStatement`
+publisher-text containers are not redistributed. All remaining source XML structure is
+retained, so the absence of `CommentsCorrectionsList` is auditable against the immutable
+snapshot rather than a later live response. The extract
+preserves the exact requests, record identifiers, revision dates, hashes, sanitizer removals,
 and linked-notice field result needed to reproduce the check. The live PubMed service does
 not expose a frozen database build identifier, so the access date is the packet's retrieval
 version boundary. The packet contains citation/link metadata only, not abstracts, article

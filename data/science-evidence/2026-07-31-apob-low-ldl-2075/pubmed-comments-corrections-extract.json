@@ -8,10 +8,26 @@
     "url": "https://dtd.nlm.nih.gov/ncbi/pubmed/out/pubmed_250101.dtd"
   },
   "extraction_path": "PubmedArticle/MedlineCitation/CommentsCorrectionsList",
+  "source_snapshot": {
+    "path": "data/science-evidence/2026-07-31-apob-low-ldl-2075/pubmed-efetch-sanitized.xml",
+    "request": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=30939045%2C36723951&retmode=xml",
+    "raw_sha256": "4bb34a3edc93a349fcc6b07c4f5bff1665d87cfdffe84cf01b7161cd170484df",
+    "sanitized_sha256": "a47b8b6058f116067a3d56d2bf332812508c6dced6253fc92ebb6902fba533f4",
+    "removed_elements": {
+      "Abstract": 2,
+      "OtherAbstract": 0,
+      "ReferenceList": 2,
+      "CoiStatement": 1
+    },
+    "preserved_if_present": [
+      "CommentsCorrectionsList"
+    ]
+  },
   "records": [
     {
       "pmid": "30939045",
       "doi": "10.1161/CIRCGEN.118.002376",
+      "citation": "PMID:30939045; DOI:10.1161/CIRCGEN.118.002376 (accessed 2026-07-31)",
       "request": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=30939045&retmode=xml",
       "date_revised": "2025-05-30",
       "comments_corrections_list_present": false,
@@ -20,6 +36,7 @@
     {
       "pmid": "36723951",
       "doi": "10.1001/jamacardio.2022.5271",
+      "citation": "PMID:36723951; DOI:10.1001/jamacardio.2022.5271 (accessed 2026-07-31)",
       "request": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=36723951&retmode=xml",
       "date_revised": "2025-05-30",
       "comments_corrections_list_present": false,
