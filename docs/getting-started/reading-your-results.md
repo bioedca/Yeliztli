@@ -40,8 +40,9 @@ has its own isolated results.
 
 ## Findings and evidence ratings
 
-Every analysis module produces **findings**, and each finding carries an **evidence rating**
-(★ to ★★★★) so you can tell well-established results from speculative ones at a glance:
+Findings-producing analysis modules emit **findings**, and each finding carries an
+**evidence rating** (★ to ★★★★) so you can tell well-established results from speculative
+ones at a glance:
 
 | Rating | Roughly means |
 |--------|---------------|
