@@ -145,24 +145,141 @@ def _expression_emits_lower_penetrance_category(
     return False
 
 
+def _is_findings_insert_expression(
+    expression: ast.expr,
+    function: ast.FunctionDef,
+    seen: set[str],
+) -> bool:
+    marker = ast.dump(expression, include_attributes=False)
+    if marker in seen:
+        return False
+    seen.add(marker)
+
+    if isinstance(expression, ast.Name):
+        return any(
+            _is_findings_insert_expression(value, function, seen)
+            for value in _function_assignments(function).get(expression.id, [])
+        )
+    if not isinstance(expression, ast.Call):
+        return False
+
+    if isinstance(expression.func, ast.Attribute) and expression.func.attr == "insert":
+        if isinstance(expression.func.value, ast.Name) and expression.func.value.id == "findings":
+            return True
+        return bool(
+            expression.args
+            and isinstance(expression.args[0], ast.Name)
+            and expression.args[0].id == "findings"
+        )
+    return False
+
+
+def _insert_payloads(function: ast.FunctionDef) -> list[ast.expr]:
+    payloads: list[ast.expr] = []
+    for node in ast.walk(function):
+        if (
+            not isinstance(node, ast.Call)
+            or not isinstance(node.func, ast.Attribute)
+            or node.func.attr != "execute"
+        ):
+            continue
+        for index, argument in enumerate(node.args):
+            if _is_findings_insert_expression(argument, function, set()):
+                payloads.extend(node.args[index + 1 :])
+                break
+    return payloads
+
+
+def _persisted_row_expressions(
+    payload: ast.expr,
+    function: ast.FunctionDef,
+    seen_names: set[str],
+) -> list[ast.expr]:
+    if isinstance(payload, (ast.List, ast.Tuple, ast.Set)):
+        return list(payload.elts)
+    if not isinstance(payload, ast.Name):
+        return [payload]
+    if payload.id in seen_names:
+        return []
+    seen_names.add(payload.id)
+
+    rows: list[ast.expr] = []
+    for value in _function_assignments(function).get(payload.id, []):
+        rows.extend(_persisted_row_expressions(value, function, seen_names))
+    for node in ast.walk(function):
+        if (
+            not isinstance(node, ast.Call)
+            or not isinstance(node.func, ast.Attribute)
+            or not isinstance(node.func.value, ast.Name)
+            or node.func.value.id != payload.id
+            or not node.args
+        ):
+            continue
+        if node.func.attr == "append":
+            rows.append(node.args[0])
+        elif node.func.attr == "extend":
+            rows.extend(_persisted_row_expressions(node.args[0], function, seen_names))
+    return rows
+
+
+def _row_emits_lower_penetrance_category(
+    expression: ast.expr,
+    function: ast.FunctionDef,
+    functions: dict[str, ast.FunctionDef],
+    seen: set[tuple[str, str]],
+) -> bool:
+    marker = (function.name, ast.dump(expression, include_attributes=False))
+    if marker in seen:
+        return False
+    seen.add(marker)
+
+    if isinstance(expression, ast.Dict):
+        return any(
+            isinstance(key, ast.Constant)
+            and key.value == "category"
+            and _expression_emits_lower_penetrance_category(value, function, functions, set())
+            for key, value in zip(expression.keys, expression.values, strict=True)
+        )
+    if isinstance(expression, ast.Name):
+        return any(
+            _row_emits_lower_penetrance_category(value, function, functions, seen)
+            for value in _function_assignments(function).get(expression.id, [])
+        )
+    if isinstance(expression, (ast.List, ast.Tuple, ast.Set)):
+        return any(
+            _row_emits_lower_penetrance_category(element, function, functions, seen)
+            for element in expression.elts
+        )
+    if isinstance(expression, ast.IfExp):
+        return _row_emits_lower_penetrance_category(
+            expression.body, function, functions, seen
+        ) or _row_emits_lower_penetrance_category(expression.orelse, function, functions, seen)
+    if isinstance(expression, ast.Call) and isinstance(expression.func, ast.Name):
+        called = functions.get(expression.func.id)
+        if called is not None:
+            return any(
+                isinstance(return_node, ast.Return)
+                and return_node.value is not None
+                and _row_emits_lower_penetrance_category(
+                    return_node.value, called, functions, seen
+                )
+                for return_node in ast.walk(called)
+            )
+    return False
+
+
 def _stores_lower_penetrance_category(path: Path) -> bool:
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     functions = {node.name: node for node in tree.body if isinstance(node, ast.FunctionDef)}
     for function in functions.values():
         if not (function.name.startswith("store_") and function.name.endswith("_findings")):
             continue
-        for node in ast.walk(function):
-            if not isinstance(node, ast.Dict):
-                continue
-            for key, value in zip(node.keys, node.values, strict=True):
-                if (
-                    isinstance(key, ast.Constant)
-                    and key.value == "category"
-                    and _expression_emits_lower_penetrance_category(
-                        value, function, functions, set()
-                    )
-                ):
-                    return True
+        for payload in _insert_payloads(function):
+            if any(
+                _row_emits_lower_penetrance_category(row, function, functions, set())
+                for row in _persisted_row_expressions(payload, function, set())
+            ):
+                return True
     return False
 
 
@@ -174,7 +291,10 @@ def query_categories():
     return {"category": LOWER_PENETRANCE_RISK_ALLELE_CATEGORY}
 
 def store_test_findings():
-    return {"category": "monogenic_variant"}
+    cleanup_filter = {"category": LOWER_PENETRANCE_RISK_ALLELE_CATEGORY}
+    rows = []
+    rows.append({"category": "monogenic_variant"})
+    conn.execute(sa.insert(findings), rows)
 """,
         encoding="utf-8",
     )
@@ -183,7 +303,9 @@ def store_test_findings():
     analysis.write_text(
         """
 def store_test_findings():
-    return {"category": LOWER_PENETRANCE_RISK_ALLELE_CATEGORY}
+    rows = []
+    rows.append({"category": LOWER_PENETRANCE_RISK_ALLELE_CATEGORY})
+    conn.execute(sa.insert(findings), rows)
 """,
         encoding="utf-8",
     )
