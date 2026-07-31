@@ -658,13 +658,15 @@ specific label as provisional.
 
 4. **Cross-vendor comparisons are weaker.** Samples from different vendors share \
 fewer positions and can differ in strand convention, which reduces accuracy. Each \
-estimate reports both the number of shared SNPs and the number of those that \
-actually informed it — the method divides by a count of heterozygous calls, so \
-positions where both samples are identically homozygous add to the shared total \
-without adding evidence. When the informative count is **zero** the estimate is \
-undefined and is reported as indeterminate. A small informative count is still \
-reported as a relationship, so when the two numbers are far apart treat the \
-result with caution.
+estimate reports the number of shared SNPs alongside the divisor the method \
+actually uses: a count of **heterozygous calls** across the two samples, where a \
+position heterozygous in both contributes two. It is a different quantity from \
+the shared-SNP count, not a subset of it, and can be larger or much smaller. \
+Positions where both samples are identically homozygous add to the shared total \
+while adding nothing to that divisor. When the divisor is **zero** the estimate \
+is undefined and is reported as indeterminate. A small divisor is still reported \
+as a relationship, so a divisor that is small next to the shared-SNP count means \
+the result rests on little evidence and should be treated with caution.
 
 5. **A near-duplicate result usually means a duplicate file.** A kinship near 0.5 \
 most often means the same person was uploaded twice (or identical twins) — worth \

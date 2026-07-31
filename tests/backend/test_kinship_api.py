@@ -144,7 +144,12 @@ class TestDisclaimer:
         text = client.get("/api/analysis/kinship/disclaimer").json()["text"]
 
         assert "so you can judge \nconfidence" not in text
-        assert "actually informed it" in text
+        # The divisor is a count of heterozygous CALLS (two per both-het
+        # position), not a subset of the shared SNPs -- it can exceed the shared
+        # count, so describing it as "those that informed it" was wrong (#2215).
+        assert "heterozygous calls" in text
+        assert "not a subset of it" in text
+        assert "actually informed it" not in text
         assert "indeterminate" in text
         # #2215 review: the disclaimer must not make claims about the state of
         # external validation. Saying "no validated minimum has been established"
@@ -154,7 +159,10 @@ class TestDisclaimer:
         assert "no evidence" not in text
         # It must also not promise indeterminate for a merely small denominator,
         # which the implementation does not do.
-        assert "far apart" in text and "caution" in text
+        # A divisor that EXCEEDS the shared count is not the worry; a small one
+        # is, so the caution is framed on smallness rather than divergence.
+        assert "small next to the shared-SNP count" in text
+        assert "caution" in text
 
 
 class TestRunAndList:
