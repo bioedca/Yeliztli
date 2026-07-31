@@ -364,6 +364,14 @@ def _sample_coverage(sample_engine: sa.Engine) -> tuple[int, bool]:
     needing both the narrative and the detail must go through
     ``normalize_legacy_row`` — calling the two single-purpose helpers evaluates
     twice and doubles this scan on exactly the dense samples it is written for.
+
+    Measured at ~0.6–1.6 s for a 594k-marker sample on a workstation roughly
+    2.4x slower than CI. Since *every* verdict is revalidated — including an
+    explicit stored ``evaluable: true`` — that is paid once per read of a
+    sample's ROH finding. Correctness over latency is deliberate here: a stored
+    verdict honoured on its own say-so is how this module reported FROH = 0
+    from markers that could never produce one (#2177). If the cost bites, the
+    fix is a cheaper eligibility probe, not trusting the blob again.
     """
     by_chrom = _read_autosomal_states(sample_engine)
     return sum(len(v) for v in by_chrom.values()), _segment_eligible_region_exists(by_chrom)
@@ -418,7 +426,12 @@ def evaluability_from_detail(
             if reason not in _KNOWN_INDETERMINATE_REASONS:
                 return False, snps_used, DETAIL_UNAVAILABLE
             return False, snps_used, str(reason)
-    elif not counted:
+        # An explicit `true` is not self-certifying either: it falls through to
+        # the same coverage gates below. Our own writer computes the verdict
+        # structurally, so a fresh row re-passes them — but a row whose sample
+        # changed underneath it, or that some other writer produced, would
+        # otherwise have its stored zero honoured on its own say-so.
+    if not counted:
         # Legacy row recording no coverage at all: read the sample or say the
         # state is unavailable — never split the difference.
         if sample_engine is None:

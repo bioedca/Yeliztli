@@ -434,6 +434,69 @@ class TestEvaluabilityAtTheApi:
         assert data["froh"] is None
         assert "typical result" not in data["finding_text"].lower()
 
+    def test_explicit_true_verdict_is_revalidated_against_coverage(
+        self, _env: sa.Engine, client: TestClient
+    ) -> None:
+        # An explicit `evaluable: true` with a numeric froh is not
+        # self-certifying: a row whose sample cannot support a scan must be
+        # withheld even though its verdict and metric are both well-formed.
+        import json as _json
+
+        from backend.db.tables import findings
+
+        self._reseed(_env, [{"rsid": "r1", "chrom": "1", "pos": 1_000_000, "genotype": "AA"}])
+        with _env.begin() as conn:
+            conn.execute(
+                sa.insert(findings),
+                {
+                    "module": "roh",
+                    "category": "autozygosity",
+                    "evidence_level": 1,
+                    "finding_text": (
+                        "No long runs of homozygosity were detected (FROH ≈ 0). "
+                        "This is the typical result."
+                    ),
+                    "detail_json": _json.dumps(
+                        {"evaluable": True, "froh": 0.0, "autosomal_snps_used": 1}
+                    ),
+                },
+            )
+
+        data = client.get("/api/analysis/roh/findings?sample_id=1").json()
+        assert data["evaluable"] is False
+        assert data["indeterminate_reason"] == "insufficient_autosomal_markers"
+        assert data["froh"] is None
+        assert "typical result" not in data["finding_text"].lower()
+
+    def test_explicit_true_verdict_survives_on_a_covered_sample(
+        self, _env: sa.Engine, client: TestClient
+    ) -> None:
+        # The counterpart control: revalidation must not withhold a fresh,
+        # correctly-written row. The fixture's 361 markers span an eligible
+        # region, so the stored verdict stands and its metric is served.
+        import json as _json
+
+        from backend.db.tables import findings
+
+        with _env.begin() as conn:
+            conn.execute(
+                sa.insert(findings),
+                {
+                    "module": "roh",
+                    "category": "autozygosity",
+                    "evidence_level": 1,
+                    "finding_text": "No long runs of homozygosity were detected (FROH ≈ 0).",
+                    "detail_json": _json.dumps(
+                        {"evaluable": True, "froh": 0.0, "autosomal_snps_used": 361}
+                    ),
+                },
+            )
+
+        data = client.get("/api/analysis/roh/findings?sample_id=1").json()
+        assert data["evaluable"] is True
+        assert data["froh"] == 0.0
+        assert data["indeterminate_reason"] is None
+
     def test_unrecognised_stored_reason_does_not_borrow_another_cause(
         self, _env: sa.Engine, client: TestClient
     ) -> None:
