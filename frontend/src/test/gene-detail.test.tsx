@@ -177,6 +177,42 @@ function renderGeneDetailPage() {
 // ── GeneDetailPage tests ──────────────────────────────────────────
 
 describe("GeneDetailPage", () => {
+  it("renders normalized cached PubMed text in the literature card", async () => {
+    const user = userEvent.setup()
+    mockGeneDetail({
+      gene_symbol: "BRCA1",
+      uniprot: null,
+      uniprot_error: null,
+      phenotypes: [],
+      literature: [
+        {
+          pmid: "36766853",
+          title: "TP53 and CO_(2)",
+          abstract: "The assay measured 10^(6) cells.",
+          authors: ["Smith & Jones AB"],
+          journal: "Research & Practice",
+          year: 2023,
+          is_stale: false,
+        },
+      ],
+      literature_errors: [],
+      population_af: [],
+      variants: [],
+    })
+
+    renderGeneDetailPage()
+
+    const card = screen.getByTestId("pubmed-36766853")
+    expect(within(card).getByRole("heading", { name: "TP53 and CO_(2)" })).toBeVisible()
+    expect(card).toHaveTextContent("Smith & Jones AB · Research & Practice (2023)")
+    expect(card).not.toHaveTextContent("<i>")
+    expect(card).not.toHaveTextContent("<sub>")
+
+    await user.click(within(card).getByRole("button", { name: "Show abstract" }))
+    expect(card).toHaveTextContent("The assay measured 10^(6) cells.")
+    expect(card).not.toHaveTextContent("<sup>")
+  })
+
   it("renders phenotype labels with their HPO accessions", () => {
     mockGeneDetail({
       gene_symbol: "BRCA1",

@@ -1,0 +1,323 @@
+{
+  "header": {
+    "type": "esummary",
+    "version": "0.3"
+  },
+  "result": {
+    "uids": [
+      "26622191",
+      "17918089"
+    ],
+    "26622191": {
+      "uid": "26622191",
+      "pubdate": "2015",
+      "epubdate": "2015 Oct 3",
+      "source": "Pharmgenomics Pers Med",
+      "authors": [
+        {
+          "name": "Damronglerd P",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Sukasem C",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Thipmontree W",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Puangpetch A",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Kiertiburanakul S",
+          "authtype": "Author",
+          "clusterid": ""
+        }
+      ],
+      "lastauthor": "Kiertiburanakul S",
+      "title": "A pharmacogenomic prospective randomized controlled trial of CYP2B6 polymorphisms and efavirenz dose adjustment among HIV-infected Thai patients: a pilot study.",
+      "sorttitle": "pharmacogenomic prospective randomized controlled trial of cyp2b6 polymorphisms and efavirenz dose adjustment among hiv infected thai patients a pilot study",
+      "volume": "8",
+      "issue": "",
+      "pages": "155-62",
+      "lang": [
+        "eng"
+      ],
+      "nlmuniqueid": "101514107",
+      "issn": "1178-7066",
+      "essn": "1178-7066",
+      "pubtype": [
+        "Journal Article"
+      ],
+      "recordstatus": "PubMed",
+      "pubstatus": "258",
+      "articleids": [
+        {
+          "idtype": "pubmed",
+          "idtypen": 1,
+          "value": "26622191"
+        },
+        {
+          "idtype": "pmc",
+          "idtypen": 8,
+          "value": "PMC4638311"
+        },
+        {
+          "idtype": "pmcid",
+          "idtypen": 5,
+          "value": "pmc-id: PMC4638311;"
+        },
+        {
+          "idtype": "doi",
+          "idtypen": 3,
+          "value": "10.2147/PGPM.S86446"
+        },
+        {
+          "idtype": "pii",
+          "idtypen": 4,
+          "value": "pgpm-8-155"
+        }
+      ],
+      "history": [
+        {
+          "pubstatus": "entrez",
+          "date": "2015/12/02 06:00"
+        },
+        {
+          "pubstatus": "pubmed",
+          "date": "2015/12/02 06:00"
+        },
+        {
+          "pubstatus": "medline",
+          "date": "2015/12/02 06:01"
+        },
+        {
+          "pubstatus": "pmc-release",
+          "date": "2015/10/03 00:00"
+        }
+      ],
+      "references": [],
+      "attributes": [
+        "Has Abstract"
+      ],
+      "pmcrefcount": 31,
+      "fulljournalname": "Pharmacogenomics and personalized medicine",
+      "elocationid": "doi: 10.2147/PGPM.S86446",
+      "doctype": "citation",
+      "srccontriblist": [],
+      "booktitle": "",
+      "medium": "",
+      "edition": "",
+      "publisherlocation": "",
+      "publishername": "",
+      "srcdate": "",
+      "reportnumber": "",
+      "availablefromurl": "",
+      "locationlabel": "",
+      "doccontriblist": [],
+      "docdate": "",
+      "bookname": "",
+      "chapter": "",
+      "sortpubdate": "2015/10/03 00:00",
+      "sortfirstauthor": "Damronglerd P",
+      "vernaculartitle": ""
+    },
+    "17918089": {
+      "uid": "17918089",
+      "pubdate": "2007 Nov 1",
+      "epubdate": "2007 Sep 24",
+      "source": "Clin Infect Dis",
+      "authors": [
+        {
+          "name": "Gatanaga H",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Hayashida T",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Tsuchiya K",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Yoshino M",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Kuwahara T",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Tsukada H",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Fujimoto K",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Sato I",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Ueda M",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Horiba M",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Hamaguchi M",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Yamamoto M",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Takata N",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Kimura A",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Koike T",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Gejyo F",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Matsushita S",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Shirasaka T",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Kimura S",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Oka S",
+          "authtype": "Author",
+          "clusterid": ""
+        }
+      ],
+      "lastauthor": "Oka S",
+      "title": "Successful efavirenz dose reduction in HIV type 1-infected individuals with cytochrome P450 2B6 *6 and *26.",
+      "sorttitle": "successful efavirenz dose reduction in hiv type 1 infected individuals with cytochrome p450 2b6 6 and 26",
+      "volume": "45",
+      "issue": "9",
+      "pages": "1230-7",
+      "lang": [
+        "eng"
+      ],
+      "nlmuniqueid": "9203213",
+      "issn": "1058-4838",
+      "essn": "1537-6591",
+      "pubtype": [
+        "Clinical Trial",
+        "Journal Article",
+        "Research Support, Non-U.S. Gov't"
+      ],
+      "recordstatus": "PubMed - indexed for MEDLINE",
+      "pubstatus": "256",
+      "articleids": [
+        {
+          "idtype": "pubmed",
+          "idtypen": 1,
+          "value": "17918089"
+        },
+        {
+          "idtype": "doi",
+          "idtypen": 3,
+          "value": "10.1086/522175"
+        },
+        {
+          "idtype": "pii",
+          "idtypen": 4,
+          "value": "CID51029"
+        }
+      ],
+      "history": [
+        {
+          "pubstatus": "received",
+          "date": "2007/04/10 00:00"
+        },
+        {
+          "pubstatus": "accepted",
+          "date": "2007/07/06 00:00"
+        },
+        {
+          "pubstatus": "pubmed",
+          "date": "2007/10/06 09:00"
+        },
+        {
+          "pubstatus": "medline",
+          "date": "2007/11/14 09:00"
+        },
+        {
+          "pubstatus": "entrez",
+          "date": "2007/10/06 09:00"
+        }
+      ],
+      "references": [],
+      "attributes": [
+        "Has Abstract"
+      ],
+      "pmcrefcount": "",
+      "fulljournalname": "Clinical infectious diseases : an official publication of the Infectious Diseases Society of America",
+      "elocationid": "",
+      "doctype": "citation",
+      "srccontriblist": [],
+      "booktitle": "",
+      "medium": "",
+      "edition": "",
+      "publisherlocation": "",
+      "publishername": "",
+      "srcdate": "",
+      "reportnumber": "",
+      "availablefromurl": "",
+      "locationlabel": "",
+      "doccontriblist": [],
+      "docdate": "",
+      "bookname": "",
+      "chapter": "",
+      "sortpubdate": "2007/11/01 00:00",
+      "sortfirstauthor": "Gatanaga H",
+      "vernaculartitle": ""
+    }
+  }
+}

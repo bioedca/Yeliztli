@@ -1,0 +1,1363 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE PubmedArticleSet PUBLIC "-//NLM//DTD PubMedArticle, 1st January 2025//EN" "https://dtd.nlm.nih.gov/ncbi/pubmed/out/pubmed_250101.dtd">
+<!-- Raw EFetch SHA-256: 4bb34a3edc93a349fcc6b07c4f5bff1665d87cfdffe84cf01b7161cd170484df. Removed only publisher-text containers: Abstract=2, OtherAbstract=0, ReferenceList=2, CoiStatement=1. CommentsCorrectionsList is explicitly preserved when present; it was absent from both source MedlineCitation records. -->
+<PubmedArticleSet>
+  <PubmedArticle>
+    <MedlineCitation Status="MEDLINE" Owner="NLM" IndexingMethod="Manual">
+      <PMID Version="1">30939045</PMID>
+      <DateCompleted>
+        <Year>2020</Year>
+        <Month>07</Month>
+        <Day>08</Day>
+      </DateCompleted>
+      <DateRevised>
+        <Year>2025</Year>
+        <Month>05</Month>
+        <Day>30</Day>
+      </DateRevised>
+      <Article PubModel="Print">
+        <Journal>
+          <ISSN IssnType="Electronic">2574-8300</ISSN>
+          <JournalIssue CitedMedium="Internet">
+            <Volume>12</Volume>
+            <Issue>5</Issue>
+            <PubDate>
+              <Year>2019</Year>
+              <Month>May</Month>
+            </PubDate>
+          </JournalIssue>
+          <Title>Circulation. Genomic and precision medicine</Title>
+          <ISOAbbreviation>Circ Genom Precis Med</ISOAbbreviation>
+        </Journal>
+        <ArticleTitle>Rare Protein-Truncating Variants in APOB, Lower Low-Density Lipoprotein Cholesterol, and Protection Against Coronary Heart Disease.</ArticleTitle>
+        <Pagination>
+          <StartPage>e002376</StartPage>
+          <MedlinePgn>e002376</MedlinePgn>
+        </Pagination>
+        <ELocationID EIdType="doi" ValidYN="Y">10.1161/CIRCGEN.118.002376</ELocationID>
+        <AuthorList CompleteYN="Y">
+          <Author ValidYN="Y">
+            <LastName>Peloso</LastName>
+            <ForeName>Gina M</ForeName>
+            <Initials>GM</Initials>
+            <AffiliationInfo>
+              <Affiliation>Department of Biostatistics, Boston University School of Public Health, MA (G.M.P.).</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Nomura</LastName>
+            <ForeName>Akihiro</ForeName>
+            <Initials>A</Initials>
+            <AffiliationInfo>
+              <Affiliation>Department of Cardiovascular and Internal Medicine, Kanazawa University Graduate School of Medicine, Kanazawa, Japan (A. Nomura, A. Nohara, M.K., H.T.).</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Khera</LastName>
+            <ForeName>Amit V</ForeName>
+            <Initials>AV</Initials>
+            <AffiliationInfo>
+              <Affiliation>Program in Medical and Population Genetics, Broad Institute, Cambridge, MA (A.V.K., M.C., S.K.).</Affiliation>
+            </AffiliationInfo>
+            <AffiliationInfo>
+              <Affiliation>Cardiovascular Research Center (A.V.K., S.K.), Center for Genomic Medicine (A.V.K., S.K.), and Department of Medicine (A.V.K., S.K.), Massachusetts General Hospital, Boston, MA.</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Chaffin</LastName>
+            <ForeName>Mark</ForeName>
+            <Initials>M</Initials>
+            <AffiliationInfo>
+              <Affiliation>Program in Medical and Population Genetics, Broad Institute, Cambridge, MA (A.V.K., M.C., S.K.).</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Won</LastName>
+            <ForeName>Hong-Hee</ForeName>
+            <Initials>HH</Initials>
+            <AffiliationInfo>
+              <Affiliation>Samsung Advanced Institute for Health Sciences and Technology, Sungkyunkwan University, Samsung Medical Center, Seoul, Republic of Korea (H.-H.W.).</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Ardissino</LastName>
+            <ForeName>Diego</ForeName>
+            <Initials>D</Initials>
+            <AffiliationInfo>
+              <Affiliation>Cardiology, Azienda Ospedaliero-Universitaria di Parma, University of Parma, Parma, Italy (D.A.).</Affiliation>
+            </AffiliationInfo>
+            <AffiliationInfo>
+              <Affiliation>ASTC: Associazione per lo Studio Della Trombosi in Cardiologia, Pavia, Italy (D.A.).</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Danesh</LastName>
+            <ForeName>John</ForeName>
+            <Initials>J</Initials>
+            <AffiliationInfo>
+              <Affiliation>MRC/BHF Cardiovascular Epidemiology Unit, Department of Public Health and Primary Care (J.D.), University of Cambridge, Cambridge, United Kingdom.</Affiliation>
+            </AffiliationInfo>
+            <AffiliationInfo>
+              <Affiliation>The National Institute for Health Research Blood and Transplant Research Unit (NIHR BTRU) in Donor Health &amp; Genomics (J.D.), University of Cambridge, Cambridge, United Kingdom.</Affiliation>
+            </AffiliationInfo>
+            <AffiliationInfo>
+              <Affiliation>Wellcome Trust Sanger Institute, Genome Campus, Hinxton, United Kingdom (J.D.).</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Schunkert</LastName>
+            <ForeName>Heribert</ForeName>
+            <Initials>H</Initials>
+            <AffiliationInfo>
+              <Affiliation>Deutsches Herzzentrum München, Technische Universität München, Deutsches Zentrum für Herz-Kreislauf-Forschung, München, Germany (H.S.).</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Wilson</LastName>
+            <ForeName>James G</ForeName>
+            <Initials>JG</Initials>
+            <AffiliationInfo>
+              <Affiliation>Department of Physiology and Biophysics, University of Mississippi Medical Center, Jackson, MS (J.G.W.).</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Samani</LastName>
+            <ForeName>Nilesh</ForeName>
+            <Initials>N</Initials>
+            <AffiliationInfo>
+              <Affiliation>Department of Cardiovascular Sciences, University of Leicester, Leicester, United Kingdom (N.S.).</Affiliation>
+            </AffiliationInfo>
+            <AffiliationInfo>
+              <Affiliation>NIHR Leicester Biomedical Research Center, Glenfield Hospital, Leicester, United Kingdom (N.S.).</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Erdmann</LastName>
+            <ForeName>Jeanette</ForeName>
+            <Initials>J</Initials>
+            <AffiliationInfo>
+              <Affiliation>Institute for Integrative and Experimental Genomics, University of Lübeck, Germany (J.E.).</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>McPherson</LastName>
+            <ForeName>Ruth</ForeName>
+            <Initials>R</Initials>
+            <AffiliationInfo>
+              <Affiliation>University of Ottawa Heart Institute, Ottawa, Canada (R.M.).</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Watkins</LastName>
+            <ForeName>Hugh</ForeName>
+            <Initials>H</Initials>
+            <AffiliationInfo>
+              <Affiliation>Cardiovascular Medicine, Radcliffe Department of Medicine and Wellcome Trust Center for Human Genetics, University of Oxford, Oxford, United Kingdom (H.W.).</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Saleheen</LastName>
+            <ForeName>Danish</ForeName>
+            <Initials>D</Initials>
+            <AffiliationInfo>
+              <Affiliation>Department of Biostatistics and Epidemiology, Perelman School of Medicine, University of Pennsylvania, Philadelphia, PA (D.S.).</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>McCarthy</LastName>
+            <ForeName>Shane</ForeName>
+            <Initials>S</Initials>
+            <AffiliationInfo>
+              <Affiliation>Regeneron Genetics Center, Tarrytown, NY (S.M., T.M.T., F.E.D., A.B.).</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Teslovich</LastName>
+            <ForeName>Tanya M</ForeName>
+            <Initials>TM</Initials>
+            <AffiliationInfo>
+              <Affiliation>Regeneron Genetics Center, Tarrytown, NY (S.M., T.M.T., F.E.D., A.B.).</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Leader</LastName>
+            <ForeName>Joseph B</ForeName>
+            <Initials>JB</Initials>
+            <AffiliationInfo>
+              <Affiliation>Geisinger Health System, Danville, PA (J.B.L., H.L.K., D.J.C.).</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Lester Kirchner</LastName>
+            <ForeName>H</ForeName>
+            <Initials>H</Initials>
+            <AffiliationInfo>
+              <Affiliation>Geisinger Health System, Danville, PA (J.B.L., H.L.K., D.J.C.).</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Marrugat</LastName>
+            <ForeName>Jaume</ForeName>
+            <Initials>J</Initials>
+            <AffiliationInfo>
+              <Affiliation>Registre Gironí del Cor group, IMIM (Hospital del Mar Research Institute), Barcelona, Spain (J.M.). CIBER Enfermedades Cardiovasculares (CIBERCV), Barcelona, Spain (J.M.).</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Nohara</LastName>
+            <ForeName>Atsushi</ForeName>
+            <Initials>A</Initials>
+            <AffiliationInfo>
+              <Affiliation>Department of Cardiovascular and Internal Medicine, Kanazawa University Graduate School of Medicine, Kanazawa, Japan (A. Nomura, A. Nohara, M.K., H.T.).</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Kawashiri</LastName>
+            <ForeName>Masa-Aki</ForeName>
+            <Initials>MA</Initials>
+            <AffiliationInfo>
+              <Affiliation>Department of Cardiovascular and Internal Medicine, Kanazawa University Graduate School of Medicine, Kanazawa, Japan (A. Nomura, A. Nohara, M.K., H.T.).</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Tada</LastName>
+            <ForeName>Hayato</ForeName>
+            <Initials>H</Initials>
+            <AffiliationInfo>
+              <Affiliation>Department of Cardiovascular and Internal Medicine, Kanazawa University Graduate School of Medicine, Kanazawa, Japan (A. Nomura, A. Nohara, M.K., H.T.).</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Dewey</LastName>
+            <ForeName>Frederick E</ForeName>
+            <Initials>FE</Initials>
+            <AffiliationInfo>
+              <Affiliation>Regeneron Genetics Center, Tarrytown, NY (S.M., T.M.T., F.E.D., A.B.).</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Carey</LastName>
+            <ForeName>David J</ForeName>
+            <Initials>DJ</Initials>
+            <AffiliationInfo>
+              <Affiliation>Geisinger Health System, Danville, PA (J.B.L., H.L.K., D.J.C.).</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Baras</LastName>
+            <ForeName>Aris</ForeName>
+            <Initials>A</Initials>
+            <AffiliationInfo>
+              <Affiliation>Regeneron Genetics Center, Tarrytown, NY (S.M., T.M.T., F.E.D., A.B.).</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Kathiresan</LastName>
+            <ForeName>Sekar</ForeName>
+            <Initials>S</Initials>
+            <AffiliationInfo>
+              <Affiliation>Program in Medical and Population Genetics, Broad Institute, Cambridge, MA (A.V.K., M.C., S.K.).</Affiliation>
+            </AffiliationInfo>
+            <AffiliationInfo>
+              <Affiliation>Cardiovascular Research Center (A.V.K., S.K.), Center for Genomic Medicine (A.V.K., S.K.), and Department of Medicine (A.V.K., S.K.), Massachusetts General Hospital, Boston, MA.</Affiliation>
+            </AffiliationInfo>
+          </Author>
+        </AuthorList>
+        <Language>eng</Language>
+        <GrantList CompleteYN="Y">
+          <Grant>
+            <GrantID>MR/L003120/1</GrantID>
+            <Acronym>MRC_</Acronym>
+            <Agency>Medical Research Council</Agency>
+            <Country>United Kingdom</Country>
+          </Grant>
+          <Grant>
+            <GrantID>RG/18/13/33946</GrantID>
+            <Acronym>BHF_</Acronym>
+            <Agency>British Heart Foundation</Agency>
+            <Country>United Kingdom</Country>
+          </Grant>
+          <Grant>
+            <GrantID>R03 HL141439</GrantID>
+            <Acronym>HL</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <Acronym>DH_</Acronym>
+            <Agency>Department of Health</Agency>
+            <Country>United Kingdom</Country>
+          </Grant>
+          <Grant>
+            <GrantID>CS/14/2/30841</GrantID>
+            <Acronym>BHF_</Acronym>
+            <Agency>British Heart Foundation</Agency>
+            <Country>United Kingdom</Country>
+          </Grant>
+          <Grant>
+            <GrantID>RG/18/10/33842</GrantID>
+            <Acronym>BHF_</Acronym>
+            <Agency>British Heart Foundation</Agency>
+            <Country>United Kingdom</Country>
+          </Grant>
+          <Grant>
+            <GrantID>RG/13/13/30194</GrantID>
+            <Acronym>BHF_</Acronym>
+            <Agency>British Heart Foundation</Agency>
+            <Country>United Kingdom</Country>
+          </Grant>
+          <Grant>
+            <GrantID>K08 HG010155</GrantID>
+            <Acronym>HG</Acronym>
+            <Agency>NHGRI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>K01 HL125751</GrantID>
+            <Acronym>HL</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>R01 HL142711</GrantID>
+            <Acronym>HL</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+        </GrantList>
+        <PublicationTypeList>
+          <PublicationType UI="D016428">Journal Article</PublicationType>
+          <PublicationType UI="D052061">Research Support, N.I.H., Extramural</PublicationType>
+          <PublicationType UI="D013485">Research Support, Non-U.S. Gov't</PublicationType>
+        </PublicationTypeList>
+      </Article>
+      <MedlineJournalInfo>
+        <Country>United States</Country>
+        <MedlineTA>Circ Genom Precis Med</MedlineTA>
+        <NlmUniqueID>101714113</NlmUniqueID>
+        <ISSNLinking>2574-8300</ISSNLinking>
+      </MedlineJournalInfo>
+      <ChemicalList>
+        <Chemical>
+          <RegistryNumber>0</RegistryNumber>
+          <NameOfSubstance UI="D001055">Apolipoproteins B</NameOfSubstance>
+        </Chemical>
+        <Chemical>
+          <RegistryNumber>0</RegistryNumber>
+          <NameOfSubstance UI="D008078">Cholesterol, LDL</NameOfSubstance>
+        </Chemical>
+        <Chemical>
+          <RegistryNumber>0</RegistryNumber>
+          <NameOfSubstance UI="D014280">Triglycerides</NameOfSubstance>
+        </Chemical>
+      </ChemicalList>
+      <CitationSubset>IM</CitationSubset>
+      <MeshHeadingList>
+        <MeshHeading>
+          <DescriptorName UI="D000328" MajorTopicYN="N">Adult</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D000368" MajorTopicYN="N">Aged</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D001055" MajorTopicYN="N">Apolipoproteins B</DescriptorName>
+          <QualifierName UI="Q000097" MajorTopicYN="N">blood</QualifierName>
+          <QualifierName UI="Q000235" MajorTopicYN="Y">genetics</QualifierName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D016022" MajorTopicYN="N">Case-Control Studies</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D008078" MajorTopicYN="N">Cholesterol, LDL</DescriptorName>
+          <QualifierName UI="Q000097" MajorTopicYN="Y">blood</QualifierName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D003327" MajorTopicYN="N">Coronary Disease</DescriptorName>
+          <QualifierName UI="Q000097" MajorTopicYN="N">blood</QualifierName>
+          <QualifierName UI="Q000453" MajorTopicYN="Y">epidemiology</QualifierName>
+          <QualifierName UI="Q000235" MajorTopicYN="Y">genetics</QualifierName>
+          <QualifierName UI="Q000517" MajorTopicYN="N">prevention &amp; control</QualifierName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D005260" MajorTopicYN="N">Female</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D014644" MajorTopicYN="N">Genetic Variation</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D006801" MajorTopicYN="N">Humans</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D007564" MajorTopicYN="N" Type="Geographic">Japan</DescriptorName>
+          <QualifierName UI="Q000453" MajorTopicYN="N">epidemiology</QualifierName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D008297" MajorTopicYN="N">Male</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D008875" MajorTopicYN="N">Middle Aged</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D009154" MajorTopicYN="N">Mutation</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D010375" MajorTopicYN="N">Pedigree</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D020641" MajorTopicYN="N">Polymorphism, Single Nucleotide</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D012307" MajorTopicYN="N">Risk Factors</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D014280" MajorTopicYN="N">Triglycerides</DescriptorName>
+          <QualifierName UI="Q000097" MajorTopicYN="N">blood</QualifierName>
+        </MeshHeading>
+      </MeshHeadingList>
+      <KeywordList Owner="NOTNLM">
+        <Keyword MajorTopicYN="N">cholesterol</Keyword>
+        <Keyword MajorTopicYN="N">genetics</Keyword>
+        <Keyword MajorTopicYN="N">human</Keyword>
+        <Keyword MajorTopicYN="N">hypobetalipoproteinemia</Keyword>
+        <Keyword MajorTopicYN="N">triglycerides</Keyword>
+      </KeywordList>
+    </MedlineCitation>
+    <PubmedData>
+      <History>
+        <PubMedPubDate PubStatus="pubmed">
+          <Year>2019</Year>
+          <Month>4</Month>
+          <Day>3</Day>
+          <Hour>6</Hour>
+          <Minute>0</Minute>
+        </PubMedPubDate>
+        <PubMedPubDate PubStatus="medline">
+          <Year>2020</Year>
+          <Month>7</Month>
+          <Day>9</Day>
+          <Hour>6</Hour>
+          <Minute>0</Minute>
+        </PubMedPubDate>
+        <PubMedPubDate PubStatus="entrez">
+          <Year>2019</Year>
+          <Month>4</Month>
+          <Day>3</Day>
+          <Hour>6</Hour>
+          <Minute>0</Minute>
+        </PubMedPubDate>
+        <PubMedPubDate PubStatus="pmc-release">
+          <Year>2020</Year>
+          <Month>11</Month>
+          <Day>13</Day>
+        </PubMedPubDate>
+      </History>
+      <PublicationStatus>ppublish</PublicationStatus>
+      <ArticleIdList>
+        <ArticleId IdType="pubmed">30939045</ArticleId>
+        <ArticleId IdType="mid">NIHMS1562738</ArticleId>
+        <ArticleId IdType="pmc">PMC7044908</ArticleId>
+        <ArticleId IdType="doi">10.1161/CIRCGEN.118.002376</ArticleId>
+      </ArticleIdList>
+    </PubmedData>
+  </PubmedArticle>
+  <PubmedArticle>
+    <MedlineCitation Status="MEDLINE" Owner="NLM" IndexingMethod="Curated">
+      <PMID Version="1">36723951</PMID>
+      <DateCompleted>
+        <Year>2023</Year>
+        <Month>04</Month>
+        <Day>20</Day>
+      </DateCompleted>
+      <DateRevised>
+        <Year>2025</Year>
+        <Month>05</Month>
+        <Day>30</Day>
+      </DateRevised>
+      <Article PubModel="Print">
+        <Journal>
+          <ISSN IssnType="Electronic">2380-6591</ISSN>
+          <JournalIssue CitedMedium="Internet">
+            <Volume>8</Volume>
+            <Issue>3</Issue>
+            <PubDate>
+              <Year>2023</Year>
+              <Month>Mar</Month>
+              <Day>01</Day>
+            </PubDate>
+          </JournalIssue>
+          <Title>JAMA cardiology</Title>
+          <ISOAbbreviation>JAMA Cardiol</ISOAbbreviation>
+        </Journal>
+        <ArticleTitle>Association of Rare Protein-Truncating DNA Variants in APOB or PCSK9 With Low-density Lipoprotein Cholesterol Level and Risk of Coronary Heart Disease.</ArticleTitle>
+        <Pagination>
+          <StartPage>258</StartPage>
+          <EndPage>267</EndPage>
+          <MedlinePgn>258-267</MedlinePgn>
+        </Pagination>
+        <ELocationID EIdType="doi" ValidYN="Y">10.1001/jamacardio.2022.5271</ELocationID>
+        <AuthorList CompleteYN="Y">
+          <Author ValidYN="Y">
+            <LastName>Dron</LastName>
+            <ForeName>Jacqueline S</ForeName>
+            <Initials>JS</Initials>
+            <AffiliationInfo>
+              <Affiliation>Center for Genomic Medicine, Department of Medicine, Massachusetts General Hospital, Boston.</Affiliation>
+            </AffiliationInfo>
+            <AffiliationInfo>
+              <Affiliation>Cardiovascular Disease Initiative, The Broad Institute of MIT and Harvard, Cambridge, Massachusetts.</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Patel</LastName>
+            <ForeName>Aniruddh P</ForeName>
+            <Initials>AP</Initials>
+            <AffiliationInfo>
+              <Affiliation>Center for Genomic Medicine, Department of Medicine, Massachusetts General Hospital, Boston.</Affiliation>
+            </AffiliationInfo>
+            <AffiliationInfo>
+              <Affiliation>Cardiovascular Disease Initiative, The Broad Institute of MIT and Harvard, Cambridge, Massachusetts.</Affiliation>
+            </AffiliationInfo>
+            <AffiliationInfo>
+              <Affiliation>Department of Medicine, Harvard Medical School, Boston, Massachusetts.</Affiliation>
+            </AffiliationInfo>
+            <AffiliationInfo>
+              <Affiliation>Cardiology Division, Department of Medicine, Massachusetts General Hospital, Boston.</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Zhang</LastName>
+            <ForeName>Yiyi</ForeName>
+            <Initials>Y</Initials>
+            <AffiliationInfo>
+              <Affiliation>Division of General Medicine, Columbia University, New York, New York.</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Jurgens</LastName>
+            <ForeName>Sean J</ForeName>
+            <Initials>SJ</Initials>
+            <AffiliationInfo>
+              <Affiliation>Cardiovascular Disease Initiative, The Broad Institute of MIT and Harvard, Cambridge, Massachusetts.</Affiliation>
+            </AffiliationInfo>
+            <AffiliationInfo>
+              <Affiliation>Department of Experimental Cardiology, Amsterdam UMC, Amsterdam, the Netherlands.</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Maamari</LastName>
+            <ForeName>Dimitri J</ForeName>
+            <Initials>DJ</Initials>
+            <AffiliationInfo>
+              <Affiliation>Center for Genomic Medicine, Department of Medicine, Massachusetts General Hospital, Boston.</Affiliation>
+            </AffiliationInfo>
+            <AffiliationInfo>
+              <Affiliation>Cardiovascular Disease Initiative, The Broad Institute of MIT and Harvard, Cambridge, Massachusetts.</Affiliation>
+            </AffiliationInfo>
+            <AffiliationInfo>
+              <Affiliation>Department of Medicine, Harvard Medical School, Boston, Massachusetts.</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Wang</LastName>
+            <ForeName>Minxian</ForeName>
+            <Initials>M</Initials>
+            <AffiliationInfo>
+              <Affiliation>CAS Key Laboratory of Genome Sciences and Information, Beijing Institute of Genomics, Chinese Academy of Sciences and China National Center for Bioinformation, Beijing, China.</Affiliation>
+            </AffiliationInfo>
+            <AffiliationInfo>
+              <Affiliation>University of Chinese Academy of Sciences, Beijing, China.</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Boerwinkle</LastName>
+            <ForeName>Eric</ForeName>
+            <Initials>E</Initials>
+            <AffiliationInfo>
+              <Affiliation>Human Genetics Center, Department of Epidemiology, Human Genetics, and Environmental Sciences, School of Public Health, The University of Texas Health Science Center at Houston.</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Morrison</LastName>
+            <ForeName>Alanna C</ForeName>
+            <Initials>AC</Initials>
+            <AffiliationInfo>
+              <Affiliation>Human Genetics Center, Department of Epidemiology, Human Genetics, and Environmental Sciences, School of Public Health, The University of Texas Health Science Center at Houston.</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>de Vries</LastName>
+            <ForeName>Paul S</ForeName>
+            <Initials>PS</Initials>
+            <AffiliationInfo>
+              <Affiliation>Human Genetics Center, Department of Epidemiology, Human Genetics, and Environmental Sciences, School of Public Health, The University of Texas Health Science Center at Houston.</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Fornage</LastName>
+            <ForeName>Myriam</ForeName>
+            <Initials>M</Initials>
+            <AffiliationInfo>
+              <Affiliation>Human Genetics Center, Department of Epidemiology, Human Genetics, and Environmental Sciences, School of Public Health, The University of Texas Health Science Center at Houston.</Affiliation>
+            </AffiliationInfo>
+            <AffiliationInfo>
+              <Affiliation>Institute of Molecular Medicine, McGovern Medical School, University of Texas Health Science Center at Houston.</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Hou</LastName>
+            <ForeName>Lifang</ForeName>
+            <Initials>L</Initials>
+            <AffiliationInfo>
+              <Affiliation>Department of Preventive Medicine, Northwestern University Feinberg School of Medicine, Chicago, Illinois.</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Lloyd-Jones</LastName>
+            <ForeName>Donald M</ForeName>
+            <Initials>DM</Initials>
+            <AffiliationInfo>
+              <Affiliation>Department of Preventive Medicine, Northwestern University Feinberg School of Medicine, Chicago, Illinois.</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Psaty</LastName>
+            <ForeName>Bruce M</ForeName>
+            <Initials>BM</Initials>
+            <AffiliationInfo>
+              <Affiliation>Cardiovascular Health Research Unit, Department of Medicine, University of Washington, Seattle.</Affiliation>
+            </AffiliationInfo>
+            <AffiliationInfo>
+              <Affiliation>Department of Epidemiology, University of Washington, Seattle.</Affiliation>
+            </AffiliationInfo>
+            <AffiliationInfo>
+              <Affiliation>Department of Health Systems and Population Health, University of Washington, Seattle.</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Tracy</LastName>
+            <ForeName>Russell P</ForeName>
+            <Initials>RP</Initials>
+            <AffiliationInfo>
+              <Affiliation>Department of Pathology and Laboratory Medicine, Larner College of Medicine at the University of Vermont, Colchester, Vermont.</Affiliation>
+            </AffiliationInfo>
+            <AffiliationInfo>
+              <Affiliation>Department of Biochemistry, Larner College of Medicine at the University of Vermont, Colchester, Vermont.</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Bis</LastName>
+            <ForeName>Joshua C</ForeName>
+            <Initials>JC</Initials>
+            <AffiliationInfo>
+              <Affiliation>Cardiovascular Health Research Unit, Department of Medicine, University of Washington, Seattle.</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Vasan</LastName>
+            <ForeName>Ramachandran S</ForeName>
+            <Initials>RS</Initials>
+            <AffiliationInfo>
+              <Affiliation>Sections of Preventive Medicine and Epidemiology, Cardiovascular Medicine, Department of Medicine, Boston University School of Medicine, Boston, Massachusetts.</Affiliation>
+            </AffiliationInfo>
+            <AffiliationInfo>
+              <Affiliation>Department of Epidemiology, Boston University School of Public Health, Boston, Massachusetts.</Affiliation>
+            </AffiliationInfo>
+            <AffiliationInfo>
+              <Affiliation>Framingham Heart Study, Framingham, Massachusetts.</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Levy</LastName>
+            <ForeName>Daniel</ForeName>
+            <Initials>D</Initials>
+            <AffiliationInfo>
+              <Affiliation>Framingham Heart Study, Framingham, Massachusetts.</Affiliation>
+            </AffiliationInfo>
+            <AffiliationInfo>
+              <Affiliation>Population Sciences Branch, National Heart, Lung, and Blood Institute, Bethesda, Maryland.</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Heard-Costa</LastName>
+            <ForeName>Nancy</ForeName>
+            <Initials>N</Initials>
+            <AffiliationInfo>
+              <Affiliation>Framingham Heart Study, Framingham, Massachusetts.</Affiliation>
+            </AffiliationInfo>
+            <AffiliationInfo>
+              <Affiliation>Department of Neurology, Boston University School of Medicine, Boston, Massachusetts.</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Rich</LastName>
+            <ForeName>Stephen S</ForeName>
+            <Initials>SS</Initials>
+            <AffiliationInfo>
+              <Affiliation>Center for Public Health Genomics, University of Virginia, Charlottesville.</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Guo</LastName>
+            <ForeName>Xiuqing</ForeName>
+            <Initials>X</Initials>
+            <AffiliationInfo>
+              <Affiliation>The Institute for Translational Genomics and Population Sciences, Department of Pediatrics, The Lundquist Institute for Biomedical Innovation at Harbor-UCLA Medical Center, Torrance, California.</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Taylor</LastName>
+            <ForeName>Kent D</ForeName>
+            <Initials>KD</Initials>
+            <AffiliationInfo>
+              <Affiliation>The Institute for Translational Genomics and Population Sciences, Department of Pediatrics, The Lundquist Institute for Biomedical Innovation at Harbor-UCLA Medical Center, Torrance, California.</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Gibbs</LastName>
+            <ForeName>Richard A</ForeName>
+            <Initials>RA</Initials>
+            <AffiliationInfo>
+              <Affiliation>Human Genome Sequencing Center, Baylor College of Medicine, Houston, Texas.</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Rotter</LastName>
+            <ForeName>Jerome I</ForeName>
+            <Initials>JI</Initials>
+            <AffiliationInfo>
+              <Affiliation>The Institute for Translational Genomics and Population Sciences, Department of Pediatrics, The Lundquist Institute for Biomedical Innovation at Harbor-UCLA Medical Center, Torrance, California.</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Willer</LastName>
+            <ForeName>Cristen J</ForeName>
+            <Initials>CJ</Initials>
+            <AffiliationInfo>
+              <Affiliation>Internal Medicine, University of Michigan, Ann Arbor.</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Oelsner</LastName>
+            <ForeName>Elizabeth C</ForeName>
+            <Initials>EC</Initials>
+            <AffiliationInfo>
+              <Affiliation>Division of General Medicine, Columbia University, New York, New York.</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Moran</LastName>
+            <ForeName>Andrew E</ForeName>
+            <Initials>AE</Initials>
+            <AffiliationInfo>
+              <Affiliation>Division of General Medicine, Columbia University, New York, New York.</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Peloso</LastName>
+            <ForeName>Gina M</ForeName>
+            <Initials>GM</Initials>
+            <AffiliationInfo>
+              <Affiliation>Department of Biostatistics, Boston University School of Public Health, Boston, Massachusetts.</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Natarajan</LastName>
+            <ForeName>Pradeep</ForeName>
+            <Initials>P</Initials>
+            <AffiliationInfo>
+              <Affiliation>Cardiovascular Disease Initiative, The Broad Institute of MIT and Harvard, Cambridge, Massachusetts.</Affiliation>
+            </AffiliationInfo>
+            <AffiliationInfo>
+              <Affiliation>Department of Medicine, Harvard Medical School, Boston, Massachusetts.</Affiliation>
+            </AffiliationInfo>
+            <AffiliationInfo>
+              <Affiliation>Cardiology Division, Department of Medicine, Massachusetts General Hospital, Boston.</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Khera</LastName>
+            <ForeName>Amit V</ForeName>
+            <Initials>AV</Initials>
+            <AffiliationInfo>
+              <Affiliation>Center for Genomic Medicine, Department of Medicine, Massachusetts General Hospital, Boston.</Affiliation>
+            </AffiliationInfo>
+            <AffiliationInfo>
+              <Affiliation>Cardiovascular Disease Initiative, The Broad Institute of MIT and Harvard, Cambridge, Massachusetts.</Affiliation>
+            </AffiliationInfo>
+            <AffiliationInfo>
+              <Affiliation>Department of Medicine, Harvard Medical School, Boston, Massachusetts.</Affiliation>
+            </AffiliationInfo>
+            <AffiliationInfo>
+              <Affiliation>Verve Therapeutics, Boston, Massachusetts.</Affiliation>
+            </AffiliationInfo>
+          </Author>
+        </AuthorList>
+        <Language>eng</Language>
+        <GrantList CompleteYN="Y">
+          <Grant>
+            <GrantID>N01HC85080</GrantID>
+            <Acronym>HL</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>HHSN268201800006I</GrantID>
+            <Acronym>HL</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>HHSN268201200036C</GrantID>
+            <Acronym>HL</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>U01 HG011719</GrantID>
+            <Acronym>HG</Acronym>
+            <Agency>NHGRI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>75N92022D00004</GrantID>
+            <Acronym>HL</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>N01 HC095166</GrantID>
+            <Acronym>HC</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>HHSN268201800004I</GrantID>
+            <Acronym>HL</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>N01 HC095163</GrantID>
+            <Acronym>HC</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>R01 HL142711</GrantID>
+            <Acronym>HL</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>HHSN268201800003I</GrantID>
+            <Acronym>HL</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>75N92020D00007</GrantID>
+            <Acronym>HL</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>75N92022D00002</GrantID>
+            <Acronym>HL</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>OT3 HL142479</GrantID>
+            <Acronym>HL</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>R01 HL071251</GrantID>
+            <Acronym>HL</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>R01 AG023629</GrantID>
+            <Acronym>AG</Acronym>
+            <Agency>NIA NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>N01 HC095168</GrantID>
+            <Acronym>HC</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>HHSN268201800001C</GrantID>
+            <Acronym>HL</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>U01 HL080295</GrantID>
+            <Acronym>HL</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>75N92020D00001</GrantID>
+            <Acronym>HL</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>K08 HG010155</GrantID>
+            <Acronym>HG</Acronym>
+            <Agency>NHGRI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>UL1 TR001881</GrantID>
+            <Acronym>TR</Acronym>
+            <Agency>NCATS NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>MC_QA137853</GrantID>
+            <Acronym>MRC_</Acronym>
+            <Agency>Medical Research Council</Agency>
+            <Country>United Kingdom</Country>
+          </Grant>
+          <Grant>
+            <GrantID>75N92020D00005</GrantID>
+            <Acronym>HL</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>R01 HL071259</GrantID>
+            <Acronym>HL</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>75N92021D00006</GrantID>
+            <Acronym>HL</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>HHSN268201500014C</GrantID>
+            <Acronym>HL</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>R01 HL141823</GrantID>
+            <Acronym>HL</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>N01 HC095162</GrantID>
+            <Acronym>HC</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>R01 HL071051</GrantID>
+            <Acronym>HL</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>75N92020D00004</GrantID>
+            <Acronym>HL</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>N01HC85082</GrantID>
+            <Acronym>HL</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>UL1 TR001420</GrantID>
+            <Acronym>TR</Acronym>
+            <Agency>NCATS NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>N01 HC095165</GrantID>
+            <Acronym>HC</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>HHSN268201800005I</GrantID>
+            <Acronym>HL</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>N02 HL64278</GrantID>
+            <Acronym>HL</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>OT3 HL147154</GrantID>
+            <Acronym>HL</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>HHSN268201800007I</GrantID>
+            <Acronym>HL</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>R01 HL105756</GrantID>
+            <Acronym>HL</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>R01 HL071205</GrantID>
+            <Acronym>HL</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>N01HC55222</GrantID>
+            <Acronym>HL</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>75N92022D00003</GrantID>
+            <Acronym>HL</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>N01 HC095169</GrantID>
+            <Acronym>HC</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>R01 HL146860</GrantID>
+            <Acronym>HL</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>N01HC85079</GrantID>
+            <Acronym>HL</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>R01 HL071258</GrantID>
+            <Acronym>HL</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>N01HC85083</GrantID>
+            <Acronym>HL</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>N01 HC095159</GrantID>
+            <Acronym>HC</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>N01HC85086</GrantID>
+            <Acronym>HL</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>HHSN268201600031C</GrantID>
+            <Acronym>HL</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>75N92020D00002</GrantID>
+            <Acronym>HL</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>OT3 HL142481</GrantID>
+            <Acronym>HL</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>N01 HC095161</GrantID>
+            <Acronym>HC</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>75N92020D00003</GrantID>
+            <Acronym>HL</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>U54 HG003067</GrantID>
+            <Acronym>HG</Acronym>
+            <Agency>NHGRI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>UL1 RR033176</GrantID>
+            <Acronym>RR</Acronym>
+            <Agency>NCRR NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>U54 HG003273</GrantID>
+            <Acronym>HG</Acronym>
+            <Agency>NHGRI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>HHSN268201500003I</GrantID>
+            <Acronym>HL</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>R01 HL092577</GrantID>
+            <Acronym>HL</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>OT3 HL142478</GrantID>
+            <Acronym>HL</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>R01 HL127564</GrantID>
+            <Acronym>HL</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>75N92020D00006</GrantID>
+            <Acronym>HL</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>UL1 TR001079</GrantID>
+            <Acronym>TR</Acronym>
+            <Agency>NCATS NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>U01 HL130114</GrantID>
+            <Acronym>HL</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>MC_PC_17228</GrantID>
+            <Acronym>MRC_</Acronym>
+            <Agency>Medical Research Council</Agency>
+            <Country>United Kingdom</Country>
+          </Grant>
+          <Grant>
+            <GrantID>75N92022D00001</GrantID>
+            <Acronym>HL</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>HHSN268200800007C</GrantID>
+            <Acronym>HL</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>UL1 TR000040</GrantID>
+            <Acronym>TR</Acronym>
+            <Agency>NCATS NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>N01HC85081</GrantID>
+            <Acronym>HL</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>75N92022D00005</GrantID>
+            <Acronym>HL</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>N01 HC095167</GrantID>
+            <Acronym>HC</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>R01 HL071250</GrantID>
+            <Acronym>HL</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>HHSN268201500015C</GrantID>
+            <Acronym>HL</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>N01 HC095164</GrantID>
+            <Acronym>HC</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>N01 HC095160</GrantID>
+            <Acronym>HC</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>OT3 HL142480</GrantID>
+            <Acronym>HL</Acronym>
+            <Agency>NHLBI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+        </GrantList>
+        <PublicationTypeList>
+          <PublicationType UI="D016428">Journal Article</PublicationType>
+          <PublicationType UI="D052061">Research Support, N.I.H., Extramural</PublicationType>
+          <PublicationType UI="D013485">Research Support, Non-U.S. Gov't</PublicationType>
+        </PublicationTypeList>
+      </Article>
+      <MedlineJournalInfo>
+        <Country>United States</Country>
+        <MedlineTA>JAMA Cardiol</MedlineTA>
+        <NlmUniqueID>101676033</NlmUniqueID>
+      </MedlineJournalInfo>
+      <ChemicalList>
+        <Chemical>
+          <RegistryNumber>0</RegistryNumber>
+          <NameOfSubstance UI="D001055">Apolipoproteins B</NameOfSubstance>
+        </Chemical>
+        <Chemical>
+          <RegistryNumber>0</RegistryNumber>
+          <NameOfSubstance UI="D008078">Cholesterol, LDL</NameOfSubstance>
+        </Chemical>
+        <Chemical>
+          <RegistryNumber>9007-49-2</RegistryNumber>
+          <NameOfSubstance UI="D004247">DNA</NameOfSubstance>
+        </Chemical>
+        <Chemical>
+          <RegistryNumber>EC 3.4.21.-</RegistryNumber>
+          <NameOfSubstance UI="C472125">PCSK9 protein, human</NameOfSubstance>
+        </Chemical>
+        <Chemical>
+          <RegistryNumber>EC 3.4.21.-</RegistryNumber>
+          <NameOfSubstance UI="D000071449">Proprotein Convertase 9</NameOfSubstance>
+        </Chemical>
+      </ChemicalList>
+      <CitationSubset>IM</CitationSubset>
+      <MeshHeadingList>
+        <MeshHeading>
+          <DescriptorName UI="D005260" MajorTopicYN="N">Female</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D006801" MajorTopicYN="N">Humans</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D008297" MajorTopicYN="N">Male</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D008875" MajorTopicYN="N">Middle Aged</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D001055" MajorTopicYN="N">Apolipoproteins B</DescriptorName>
+          <QualifierName UI="Q000235" MajorTopicYN="N">genetics</QualifierName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D008078" MajorTopicYN="N">Cholesterol, LDL</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D003327" MajorTopicYN="Y">Coronary Disease</DescriptorName>
+          <QualifierName UI="Q000453" MajorTopicYN="N">epidemiology</QualifierName>
+          <QualifierName UI="Q000235" MajorTopicYN="N">genetics</QualifierName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D004247" MajorTopicYN="N">DNA</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D000071449" MajorTopicYN="Y">Proprotein Convertase 9</DescriptorName>
+          <QualifierName UI="Q000235" MajorTopicYN="N">genetics</QualifierName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D011446" MajorTopicYN="N">Prospective Studies</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D000328" MajorTopicYN="N">Adult</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D000368" MajorTopicYN="N">Aged</DescriptorName>
+        </MeshHeading>
+      </MeshHeadingList>
+    </MedlineCitation>
+    <PubmedData>
+      <History>
+        <PubMedPubDate PubStatus="medline">
+          <Year>2023</Year>
+          <Month>4</Month>
+          <Day>19</Day>
+          <Hour>6</Hour>
+          <Minute>41</Minute>
+        </PubMedPubDate>
+        <PubMedPubDate PubStatus="pubmed">
+          <Year>2023</Year>
+          <Month>2</Month>
+          <Day>2</Day>
+          <Hour>6</Hour>
+          <Minute>0</Minute>
+        </PubMedPubDate>
+        <PubMedPubDate PubStatus="entrez">
+          <Year>2023</Year>
+          <Month>2</Month>
+          <Day>1</Day>
+          <Hour>11</Hour>
+          <Minute>34</Minute>
+        </PubMedPubDate>
+        <PubMedPubDate PubStatus="pmc-release">
+          <Year>2024</Year>
+          <Month>2</Month>
+          <Day>1</Day>
+        </PubMedPubDate>
+      </History>
+      <PublicationStatus>ppublish</PublicationStatus>
+      <ArticleIdList>
+        <ArticleId IdType="pubmed">36723951</ArticleId>
+        <ArticleId IdType="pmc">PMC9996405</ArticleId>
+        <ArticleId IdType="doi">10.1001/jamacardio.2022.5271</ArticleId>
+        <ArticleId IdType="pii">2801002</ArticleId>
+      </ArticleIdList>
+    </PubmedData>
+  </PubmedArticle>
+</PubmedArticleSet>

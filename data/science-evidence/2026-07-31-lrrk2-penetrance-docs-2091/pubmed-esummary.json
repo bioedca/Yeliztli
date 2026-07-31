@@ -1,0 +1,35 @@
+{
+  "source": "NCBI PubMed ESummary",
+  "accessed": "2026-07-31",
+  "response_format": "json",
+  "records": [
+    {
+      "pmid": "26062626",
+      "doi": "10.1212/WNL.0000000000001708",
+      "title": "Age-specific penetrance of LRRK2 G2019S in the Michael J. Fox Ashkenazi Jewish LRRK2 Consortium.",
+      "journal": "Neurology",
+      "pubdate": "2015 Jul 7"
+    },
+    {
+      "pmid": "28639421",
+      "doi": "10.1002/mds.27059",
+      "title": "Penetrance estimate of LRRK2 p.G2019S mutation in individuals of non-Ashkenazi Jewish ancestry.",
+      "journal": "Mov Disord",
+      "pubdate": "2017 Oct"
+    },
+    {
+      "pmid": "38804604",
+      "doi": "10.1093/brain/awae073",
+      "title": "Genetic analysis and natural history of Parkinson's disease due to the LRRK2 G2019S variant.",
+      "journal": "Brain",
+      "pubdate": "2024 Jun 3"
+    },
+    {
+      "pmid": "40926580",
+      "doi": "10.1002/acn3.70176",
+      "title": "Genetic Modifiers of Parkinson's Disease: A Case-Control Study.",
+      "journal": "Ann Clin Transl Neurol",
+      "pubdate": "2025 Dec"
+    }
+  ]
+}
