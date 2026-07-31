@@ -64,6 +64,21 @@ class G6pdResponse(BaseModel):
     phenotype: str
     detail: str
     at_risk: bool
+    # Three-state medication risk (#2172): "elevated", "no_tested_allele_detected",
+    # or "undetermined". `at_risk` alone is two-state and cannot distinguish "the
+    # panel was read and nothing was found" from "the panel was barely read" — both
+    # render as False with an empty drug list, which is how a single callable locus
+    # used to clear the oxidative-drug warning.
+    medication_risk: str
+    # Coverage behind a negative result (#2172). Deliberately NOT array-scoped:
+    # `resolvable_records` counts the CURATED strand-resolvable deficiency
+    # variants, not what a particular platform types — this module never reads
+    # the sample's file_format, so an array-scoped count would be wrong for
+    # 23andMe v3/v4. Per-locus array typeability stays on `gsa_v3_typed`.
+    panel_records: int
+    resolvable_records: int
+    called_resolvable_records: int
+    coverage_sufficient: bool
     a_plus_nondeficient_present: bool
     high_risk_drugs: list[str] = []
     context_only: bool
