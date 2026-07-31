@@ -519,6 +519,7 @@ def _lookup_gnomad(
     locus_unresolved_out: set[str] | None = None,
     alias_unresolved_out: set[str] | None = None,
     alias_loci_by_rsid: dict[str, set[tuple[str, int]]] | None = None,
+    candidate_loci_out: dict[str, set[tuple[str, int]]] | None = None,
     resolved_call_by_query: dict[str, tuple[str, str, int]] | None = None,
     genotypes_by_query: dict[str, set[str]] | None = None,
 ) -> dict[str, dict]:
@@ -605,6 +606,7 @@ def _lookup_gnomad(
             locus_unresolved_out=locus_unresolved_out,
             alias_unresolved_out=alias_unresolved_out,
             alias_loci_by_rsid=alias_loci_by_rsid,
+            candidate_loci_out=candidate_loci_out,
         )
         for rsid, annot in rsid_matches.items():
             results[rsid] = _annot_to_dict(annot)
@@ -1615,6 +1617,10 @@ def run_annotation(
             # The sample's own calls collapse onto one rsID at positions gnomAD
             # DOES list. Neither the alleles nor the coordinates are at fault.
             gnomad_alias_unresolved: set[str] = set()
+            # Which coordinates gnomAD actually holds per conflicting query, so
+            # the re-keying below can give each ORIGINAL rsID the reason its own
+            # position encountered.
+            gnomad_candidate_loci: dict[str, set[tuple[str, int]]] = {}
             dbnsfp_data: dict[str, dict] = {}
             alphamissense_data: dict[str, dict] = {}
 
@@ -1663,6 +1669,7 @@ def run_annotation(
                         gnomad_locus_unresolved,
                         gnomad_alias_unresolved,
                         _loci_by_query,
+                        gnomad_candidate_loci,
                         resolved_call_by_query,
                         typed_genotypes_by_query,
                         source_timings=source_timings,
@@ -1720,16 +1727,23 @@ def run_annotation(
                     for original, query in lookup_key.items()
                     if query in gnomad_allele_ambiguous
                 }
-                gnomad_locus_unresolved = {
-                    original
-                    for original, query in lookup_key.items()
-                    if query in gnomad_locus_unresolved
-                }
-                gnomad_alias_unresolved = {
-                    original
-                    for original, query in lookup_key.items()
-                    if query in gnomad_alias_unresolved
-                }
+                # Split per ORIGINAL, not per query. Aliases can straddle two
+                # coordinates where gnomAD holds only one of them: the alias that
+                # matched hit the shared-rsID limitation, while the one that did
+                # not really encountered a position/build mismatch. Fanning a
+                # single query-level status to both hides that (#2214 review).
+                _conflicted = gnomad_locus_unresolved | gnomad_alias_unresolved
+                _alias, _locus = set(), set()
+                for original, query in lookup_key.items():
+                    if query not in _conflicted:
+                        continue
+                    raw = raw_by_rsid.get(original)
+                    own_locus = (raw.chrom, raw.pos) if raw is not None else None
+                    if own_locus in gnomad_candidate_loci.get(query, set()):
+                        _alias.add(original)
+                    else:
+                        _locus.add(original)
+                gnomad_locus_unresolved, gnomad_alias_unresolved = _locus, _alias
                 dbnsfp_data = _rekey_to_original(dbnsfp_data, lookup_key)
 
             # Accumulate per-source timings

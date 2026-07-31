@@ -984,6 +984,7 @@ def lookup_gnomad_by_rsids(
     locus_unresolved_out: set[str] | None = None,
     alias_unresolved_out: set[str] | None = None,
     alias_loci_by_rsid: dict[str, set[tuple[str, int]]] | None = None,
+    candidate_loci_out: dict[str, set[tuple[str, int]]] | None = None,
 ) -> dict[str, GnomADAnnotation]:
     """Look up gnomAD allele frequencies for a batch of rsids.
 
@@ -1067,9 +1068,16 @@ def lookup_gnomad_by_rsids(
                     # sample's own positions, nothing is wrong with the alleles or
                     # the coordinates -- the limit is that one per-rsID result
                     # cannot carry a frequency for two calls (#2214 review).
+                    # Record WHICH coordinates gnomAD holds. The reason differs
+                    # per original rsID -- an alias whose own position matched
+                    # hits the shared-rsID limitation, while one whose position
+                    # did not really is a position/build mismatch -- and only the
+                    # caller knows each original's coordinate (#2214 review).
+                    cand_loci = {(r.chrom, r.pos) for r in candidates}
+                    if candidate_loci_out is not None:
+                        candidate_loci_out[rsid] = cand_loci
                     sample_loci = alias_loci_by_rsid.get(rsid, set())
-                    matched_here = sample_loci & {(r.chrom, r.pos) for r in candidates}
-                    if matched_here and alias_unresolved_out is not None:
+                    if (sample_loci & cand_loci) and alias_unresolved_out is not None:
                         alias_unresolved_out.add(rsid)
                     elif locus_unresolved_out is not None:
                         locus_unresolved_out.add(rsid)

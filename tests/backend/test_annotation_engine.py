@@ -2636,6 +2636,59 @@ class TestGnomadAnnotationLookupIntegration:
         assert row.gnomad_source_status == "alias_unresolved"
         assert row.gnomad_source_status != "locus_unresolved"
 
+    def test_partially_matched_aliases_get_their_own_reason(
+        self,
+        sample_engine: sa.Engine,
+        mock_registry: MagicMock,
+        gnomad_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """#2214 review: the withhold reason is per ORIGINAL, not per query.
+
+        Aliases at pos 300 and pos 900 where gnomAD holds a row only at 300: the
+        pos-300 call hit the shared-rsID limitation, but the pos-900 call really
+        did encounter a position mismatch. Fanning one query-level status to both
+        told the pos-900 call it was a generic shared-rsID case and hid the
+        build/mapping problem its own coordinate met.
+        """
+        with reference_engine.begin() as conn:
+            conn.execute(
+                dbsnp_merges.insert().values(
+                    old_rsid="rs_part_old", current_rsid="rs_part_cur", build_id=155
+                )
+            )
+        with gnomad_engine.begin() as conn:
+            conn.execute(
+                sa.text(
+                    "INSERT INTO gnomad_af "
+                    "(rsid, chrom, pos, ref, alt, af_global, af_afr, af_amr, af_asj, "
+                    "af_eas, af_eur, af_fin, af_sas, homozygous_count) VALUES "
+                    "('rs_part_cur', '1', 300, 'G', 'A', 0.004, 0.004, 0.004, 0.004, "
+                    "0.004, 0.004, 0.004, 0.004, 3)"
+                )
+            )
+        with sample_engine.begin() as conn:
+            conn.execute(
+                raw_variants.insert(),
+                [
+                    # Its coordinate IS listed -> shared-rsID limitation.
+                    {"rsid": "rs_part_old", "chrom": "1", "pos": 300, "genotype": "AG"},
+                    # Its coordinate is NOT listed -> genuine position mismatch.
+                    {"rsid": "rs_part_cur", "chrom": "1", "pos": 900, "genotype": "AG"},
+                ],
+            )
+
+        run_annotation(sample_engine, mock_registry)
+
+        matched = self._annotated_row(sample_engine, "rs_part_old")
+        unmatched = self._annotated_row(sample_engine, "rs_part_cur")
+        assert matched is not None and unmatched is not None
+        assert matched.gnomad_source_status == "alias_unresolved"
+        assert unmatched.gnomad_source_status == "locus_unresolved"
+        # Neither may borrow the other's frequency.
+        assert matched.gnomad_af_global is None
+        assert unmatched.gnomad_af_global is None
+
     def test_single_alt_rsid_is_annotated_regardless_of_genotype(
         self, sample_engine: sa.Engine, mock_registry: MagicMock, gnomad_engine: sa.Engine
     ) -> None:
