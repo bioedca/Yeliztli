@@ -4,8 +4,9 @@ function isGnomadSourceUncovered(status: GnomadSourceStatus | null | undefined):
   return status === "source_uncovered"
 }
 
-/** gnomAD lists this rsID across several alternate alleles, but the genotype does
- * not identify which one is carried, so no frequency is published (#2171).
+/** gnomAD lists this rsID across several alternate alleles and no single frequency
+ * can be attributed to the call -- it carries more than one of them, carries none,
+ * or the alleles cannot be matched -- so none is published (#2171).
  *
  * This is NOT absence: saying "Not in gnomAD" about a variant gnomAD catalogues
  * is a false statement, and it is the reason this status exists rather than the

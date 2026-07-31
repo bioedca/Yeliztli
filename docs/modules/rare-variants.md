@@ -47,6 +47,7 @@ details, CADD/REVEL scores, zygosity, and inheritance. You can export results to
 - Y-chromosome findings are dropped for XX samples.
 - "Novel" requires absence from gnomAD **and** dbSNP/ClinVar — a gnomAD gap alone isn't enough.
 - A frequency belongs to one specific allele, not to an rsID. Where an rsID covers several
-  alternate alleles and your genotype does not identify which one you carry, no gnomAD
-  frequency is shown rather than another allele's — so the variant is treated as having no
+  alternate alleles and no single frequency can be attributed to your call — because the call
+  carries more than one of them, carries none, or the alleles cannot be matched — no gnomAD
+  frequency is shown rather than another allele's, so the variant is treated as having no
   gnomAD AF and appears only when you include those.

@@ -116,8 +116,9 @@ _MAX_WORKERS = 4
 
 GNOMAD_SOURCE_OBSERVED = "observed"
 GNOMAD_SOURCE_UNCOVERED = "source_uncovered"
-# gnomAD lists this rsID, but across several ALTs and the sample genotype does
-# not identify which one is carried, so no frequency is published (#2171).
+# gnomAD lists this rsID across several ALTs and no single frequency can be
+# attributed to the call -- it carries more than one of them, carries none, or
+# the alleles cannot be matched -- so none is published (#2171).
 # Distinct from "absent": without it the UI says "Not in gnomAD" about a variant
 # gnomAD does catalogue.
 GNOMAD_SOURCE_ALLELE_AMBIGUOUS = "allele_ambiguous"
