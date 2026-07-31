@@ -24,6 +24,17 @@ function isGnomadSourceUncovered(status: GnomadSourceStatus | null | undefined):
  * explanations would be false: the limit is that one per-rsID result cannot
  * carry a frequency for two different calls.
  */
+/** gnomAD's frequency is for a different alternate allele than the one this row
+ * records (#2214 review).
+ *
+ * The genotype DID identify an allele, so the allele-ambiguity wording would be
+ * false: the disagreement is between the frequency source and the source that
+ * supplied this variant's identity.
+ */
+function isGnomadAlleleMismatch(status: GnomadSourceStatus | null | undefined): boolean {
+  return status === "allele_mismatch"
+}
+
 function isGnomadAliasUnresolved(status: GnomadSourceStatus | null | undefined): boolean {
   return status === "alias_unresolved"
 }
@@ -50,6 +61,9 @@ export function gnomadNoFrequencyShortLabel(
   if (isGnomadSourceUncovered(status)) {
     return "Not assessed"
   }
+  if (isGnomadAlleleMismatch(status)) {
+    return "Other allele"
+  }
   if (isGnomadAliasUnresolved(status)) {
     return "Shared rsID"
   }
@@ -68,6 +82,9 @@ export function gnomadNoFrequencyLabel(
 ): string {
   if (isGnomadSourceUncovered(status)) {
     return "Not assessed by current gnomAD exome source"
+  }
+  if (isGnomadAlleleMismatch(status)) {
+    return "gnomAD frequency is for a different allele"
   }
   if (isGnomadAliasUnresolved(status)) {
     return "Shared rsID across positions"
@@ -90,6 +107,12 @@ export function gnomadNoFrequencyDetail(
 ): string {
   if (isGnomadSourceUncovered(status)) {
     return "Not assessed by current gnomAD exome source"
+  }
+  if (isGnomadAlleleMismatch(status)) {
+    return (
+      "gnomAD's frequency for this rsID describes a different alternate allele " +
+      "from the one recorded for this variant, so it is not shown"
+    )
   }
   if (isGnomadAliasUnresolved(status)) {
     return (

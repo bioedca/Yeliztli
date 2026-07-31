@@ -130,6 +130,10 @@ GNOMAD_SOURCE_LOCUS_UNRESOLVED = "locus_unresolved"
 # alleles or the coordinates -- the limit is that one per-rsID result cannot
 # carry a frequency for two different calls (#2214).
 GNOMAD_SOURCE_ALIAS_UNRESOLVED = "alias_unresolved"
+# The genotype DID identify a gnomAD allele, but this row's identity resolved to
+# a different one (ClinVar/VEP win that race), so the frequency describes another
+# variant. Nothing about the genotype is ambiguous -- the sources disagree (#2214).
+GNOMAD_SOURCE_ALLELE_MISMATCH = "allele_mismatch"
 
 _GNOMAD_EXOME_UNCOVERED_CONSEQUENCES: frozenset[str] = frozenset(
     {
@@ -962,7 +966,7 @@ def _merge_annotations(
             for _key in list(row_data):
                 if _key.startswith("gnomad_") or _key in {"rare_flag", "ultra_rare_flag"}:
                     del row_data[_key]
-            row_data["gnomad_source_status"] = GNOMAD_SOURCE_ALLELE_AMBIGUOUS
+            row_data["gnomad_source_status"] = GNOMAD_SOURCE_ALLELE_MISMATCH
             bitmask &= ~GNOMAD_BIT
 
         # Always emit a row, even when no source matched (F36). An explicit

@@ -2745,7 +2745,11 @@ class TestGnomadAnnotationLookupIntegration:
         # So G>A's 0.001 must not ride along under it.
         assert row.gnomad_af_global is None
         assert row.gnomad_homozygous_count is None
-        assert row.gnomad_source_status == "allele_ambiguous"
+        # The genotype DID identify gnomAD's allele; the sources disagree. Saying
+        # "your genotype cannot identify which allele you carry" would be false
+        # (#2214 review), so this is its own status.
+        assert row.gnomad_source_status == "allele_mismatch"
+        assert row.gnomad_source_status != "allele_ambiguous"
         # The rarity flags are derived from the rejected frequency and carry no
         # `gnomad_` prefix, so a prefix-only sweep left them behind -- labelling
         # the G>T row rare on G>A's evidence (#2214 review).

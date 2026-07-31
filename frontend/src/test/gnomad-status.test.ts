@@ -114,3 +114,28 @@ describe("alias_unresolved", () => {
     expect(gnomadNoFrequencyShortLabel("source_uncovered")).toBe("Not assessed")
   })
 })
+
+describe("allele_mismatch", () => {
+  // #2214 review: the genotype DID identify an allele -- gnomAD's frequency
+  // simply describes a different one from the row's recorded identity. The
+  // allele-ambiguity wording would blame the genotype for a source conflict.
+  it("does not blame the genotype", () => {
+    const detail = gnomadNoFrequencyDetail("allele_mismatch")
+    expect(detail).toContain("different alternate allele")
+    expect(detail).not.toContain("does not identify which one you carry")
+  })
+
+  it("has its own labels", () => {
+    expect(gnomadNoFrequencyLabel("allele_mismatch")).toBe(
+      "gnomAD frequency is for a different allele",
+    )
+    expect(gnomadNoFrequencyShortLabel("allele_mismatch")).toBe("Other allele")
+  })
+
+  it("leaves the four sibling states alone", () => {
+    expect(gnomadNoFrequencyShortLabel("allele_ambiguous")).toBe("Allele unresolved")
+    expect(gnomadNoFrequencyShortLabel("locus_unresolved")).toBe("Position unmatched")
+    expect(gnomadNoFrequencyShortLabel("alias_unresolved")).toBe("Shared rsID")
+    expect(gnomadNoFrequencyShortLabel("source_uncovered")).toBe("Not assessed")
+  })
+})
