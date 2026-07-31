@@ -96,6 +96,12 @@ def _documents_distinct_lower_penetrance_tier(text: str) -> bool:
         .replace("risk-allele", "risk allele")
         .replace("high-penetrance", "high penetrance")
     )
+    negated_distinct_tier_language = (
+        "not a separate tier" in normalized
+        or "not reported separately" in normalized
+        or "isn't a separate tier" in normalized
+        or "is not a separate tier" in normalized
+    )
     has_distinct_tier_language = (
         "separate tier" in normalized or "reported separately" in normalized
     )
@@ -106,6 +112,7 @@ def _documents_distinct_lower_penetrance_tier(text: str) -> bool:
         "lower penetrance" in normalized
         and "risk allele" in normalized
         and has_distinct_tier_language
+        and not negated_distinct_tier_language
         and has_high_penetrance_contrast
     )
 
@@ -163,6 +170,8 @@ def _is_findings_insert_expression(
     if not isinstance(expression, ast.Call):
         return False
 
+    if isinstance(expression.func, ast.Attribute) and expression.func.attr == "values":
+        return _is_findings_insert_expression(expression.func.value, function, seen)
     if isinstance(expression.func, ast.Attribute) and expression.func.attr == "insert":
         if isinstance(expression.func.value, ast.Name) and expression.func.value.id == "findings":
             return True
@@ -174,8 +183,36 @@ def _is_findings_insert_expression(
     return False
 
 
-def _insert_payloads(function: ast.FunctionDef) -> list[ast.expr]:
-    payloads: list[ast.expr] = []
+def _values_bound_payloads(
+    expression: ast.expr,
+    function: ast.FunctionDef,
+) -> list[ast.expr]:
+    if isinstance(expression, ast.Name):
+        payloads: list[ast.expr] = []
+        for value in _function_assignments(function).get(expression.id, []):
+            payloads.extend(_values_bound_payloads(value, function))
+        return payloads
+    if (
+        not isinstance(expression, ast.Call)
+        or not isinstance(expression.func, ast.Attribute)
+        or expression.func.attr != "values"
+        or not _is_findings_insert_expression(expression.func.value, function, set())
+    ):
+        return []
+
+    payloads = list(expression.args)
+    if expression.keywords:
+        payloads.append(
+            ast.Dict(
+                keys=[ast.Constant(keyword.arg) for keyword in expression.keywords],
+                values=[keyword.value for keyword in expression.keywords],
+            )
+        )
+    return payloads
+
+
+def _insert_payloads(function: ast.FunctionDef) -> list[tuple[ast.expr, int]]:
+    payloads: list[tuple[ast.expr, int]] = []
     for node in ast.walk(function):
         if (
             not isinstance(node, ast.Call)
@@ -185,30 +222,63 @@ def _insert_payloads(function: ast.FunctionDef) -> list[ast.expr]:
             continue
         for index, argument in enumerate(node.args):
             if _is_findings_insert_expression(argument, function, set()):
-                payloads.extend(node.args[index + 1 :])
+                payloads.extend(
+                    (payload, node.lineno)
+                    for payload in _values_bound_payloads(argument, function)
+                )
+                payloads.extend((payload, node.lineno) for payload in node.args[index + 1 :])
                 break
     return payloads
+
+
+def _latest_assignment_before(
+    function: ast.FunctionDef,
+    name: str,
+    before_lineno: int,
+) -> tuple[int, ast.expr] | None:
+    assignments: list[tuple[int, ast.expr]] = []
+    for node in ast.walk(function):
+        if not hasattr(node, "lineno") or node.lineno >= before_lineno:
+            continue
+        if isinstance(node, ast.Assign):
+            if any(isinstance(target, ast.Name) and target.id == name for target in node.targets):
+                assignments.append((node.lineno, node.value))
+        elif (
+            isinstance(node, ast.AnnAssign)
+            and isinstance(node.target, ast.Name)
+            and node.target.id == name
+            and node.value is not None
+        ):
+            assignments.append((node.lineno, node.value))
+    return max(assignments, default=None, key=lambda item: item[0])
 
 
 def _persisted_row_expressions(
     payload: ast.expr,
     function: ast.FunctionDef,
-    seen_names: set[str],
+    seen_names: set[tuple[str, int]],
+    before_lineno: int,
 ) -> list[ast.expr]:
     if isinstance(payload, (ast.List, ast.Tuple, ast.Set)):
         return list(payload.elts)
     if not isinstance(payload, ast.Name):
         return [payload]
-    if payload.id in seen_names:
+    marker = (payload.id, before_lineno)
+    if marker in seen_names:
         return []
-    seen_names.add(payload.id)
+    seen_names.add(marker)
 
     rows: list[ast.expr] = []
-    for value in _function_assignments(function).get(payload.id, []):
-        rows.extend(_persisted_row_expressions(value, function, seen_names))
+    assignment = _latest_assignment_before(function, payload.id, before_lineno)
+    assignment_lineno = 0
+    if assignment is not None:
+        assignment_lineno, value = assignment
+        rows.extend(_persisted_row_expressions(value, function, seen_names, assignment_lineno))
     for node in ast.walk(function):
         if (
             not isinstance(node, ast.Call)
+            or not hasattr(node, "lineno")
+            or not assignment_lineno < node.lineno < before_lineno
             or not isinstance(node.func, ast.Attribute)
             or not isinstance(node.func.value, ast.Name)
             or node.func.value.id != payload.id
@@ -218,7 +288,9 @@ def _persisted_row_expressions(
         if node.func.attr == "append":
             rows.append(node.args[0])
         elif node.func.attr == "extend":
-            rows.extend(_persisted_row_expressions(node.args[0], function, seen_names))
+            rows.extend(
+                _persisted_row_expressions(node.args[0], function, seen_names, node.lineno)
+            )
     return rows
 
 
@@ -274,10 +346,10 @@ def _stores_lower_penetrance_category(path: Path) -> bool:
     for function in functions.values():
         if not (function.name.startswith("store_") and function.name.endswith("_findings")):
             continue
-        for payload in _insert_payloads(function):
+        for payload, execute_lineno in _insert_payloads(function):
             if any(
                 _row_emits_lower_penetrance_category(row, function, functions, set())
-                for row in _persisted_row_expressions(payload, function, set())
+                for row in _persisted_row_expressions(payload, function, set(), execute_lineno)
             ):
                 return True
     return False
@@ -293,7 +365,8 @@ def query_categories():
 def store_test_findings():
     cleanup_filter = {"category": LOWER_PENETRANCE_RISK_ALLELE_CATEGORY}
     rows = []
-    rows.append({"category": "monogenic_variant"})
+    rows.append({"category": LOWER_PENETRANCE_RISK_ALLELE_CATEGORY})
+    rows = [{"category": "monogenic_variant"}]
     conn.execute(sa.insert(findings), rows)
 """,
         encoding="utf-8",
@@ -306,6 +379,19 @@ def store_test_findings():
     rows = []
     rows.append({"category": LOWER_PENETRANCE_RISK_ALLELE_CATEGORY})
     conn.execute(sa.insert(findings), rows)
+""",
+        encoding="utf-8",
+    )
+    assert _stores_lower_penetrance_category(analysis) is True
+
+    analysis.write_text(
+        """
+def store_test_findings():
+    conn.execute(
+        findings.insert().values(
+            category=LOWER_PENETRANCE_RISK_ALLELE_CATEGORY,
+        )
+    )
 """,
         encoding="utf-8",
     )
@@ -358,6 +444,14 @@ def test_lower_penetrance_tier_guard_rejects_high_penetrance_equivalence() -> No
     """Keyword-only text cannot satisfy the distinct-tier documentation guard (#2052)."""
     assert not _documents_distinct_lower_penetrance_tier(
         "Lower-penetrance/risk-allele findings use the same tier as high-penetrance P/LP findings."
+    )
+    assert not _documents_distinct_lower_penetrance_tier(
+        "Lower-penetrance/risk-allele findings are not a separate tier from "
+        "high-penetrance P/LP findings."
+    )
+    assert not _documents_distinct_lower_penetrance_tier(
+        "Lower-penetrance/risk-allele findings are not reported separately from "
+        "high-penetrance P/LP findings."
     )
 
 

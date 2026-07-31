@@ -26,6 +26,20 @@
       },
       "status": "success",
       "raw_payload": "data/science-evidence/2026-07-31-clingen-risk-allele-2052/raw/pubmed-esummary-38054408.json"
+    },
+    {
+      "service": "NCBI Entrez",
+      "endpoint": "elink",
+      "purpose": "Dedicated PubMed correction, erratum, retraction, expression-of-concern, and update relationship check",
+      "params": {
+        "dbfrom": "pubmed",
+        "db": "pubmed",
+        "id": "38054408",
+        "retmode": "json"
+      },
+      "status": "success",
+      "result": "No correction, erratum, retraction, expression-of-concern, or update relationship was returned.",
+      "raw_payload": "data/science-evidence/2026-07-31-clingen-risk-allele-2052/raw/pubmed-elink-38054408.json"
     }
   ]
 }
