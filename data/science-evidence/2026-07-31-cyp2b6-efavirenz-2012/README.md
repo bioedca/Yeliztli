@@ -49,10 +49,10 @@ versioned retrieval identity.
 
 | Claim | Sources | Mapping |
 | --- | --- | --- |
-| CPIC currently says to initiate 400 mg/day for Intermediate and 400 or 200 mg/day for Poor Metabolizers. | CPIC API guideline `104245`; PMID:31006110; DOI:10.1002/cpt.1477 | The API is the current normative record. The published guideline independently fixes its publication identity, but is the same CPIC assertion and is not counted as an independent clinical dataset. |
-| A 400 mg Intermediate and 200 mg Poor regimen is pharmacokinetically supported. | PMID:19433561; DOI:10.1128/AAC.01537-08 | A population-PK study of 131 patients (32 genotyped) directly derived those two genotype-stratified doses for target exposure. |
-| Reductions to 400 or 200 mg can retain target exposure and virologic suppression. | PMID:21447868; DOI:10.3851/IMP1742 | A separate multicenter therapeutic-drug-monitoring cohort reduced high-exposure patients to 400 or 200 mg and reported maintained suppression at six months. |
-| 400 mg was not virologically inferior to 600 mg and produced fewer efavirenz-related/CNS adverse events. | PMID:26044067; DOI:10.1002/cpt.156 | ENCORE1 was a separate randomized cohort and supports the 400 mg efficacy/safety premise used by CPIC. |
+| CPIC currently says to initiate 400 mg/day for Intermediate and 400 or 200 mg/day for Poor Metabolizers. | CPIC API guideline `104245` (accessed 2026-07-31); PMID:31006110 (accessed 2026-07-31); DOI:10.1002/cpt.1477 (accessed 2026-07-31) | The API is the current normative record. The published guideline independently fixes its publication identity, but is the same CPIC assertion and is not counted as an independent clinical dataset. |
+| A 400 mg Intermediate and 200 mg Poor regimen is pharmacokinetically supported. | PMID:19433561 (accessed 2026-07-31); DOI:10.1128/AAC.01537-08 (accessed 2026-07-31) | A population-PK study of 131 patients (32 genotyped) directly derived those two genotype-stratified doses for target exposure. |
+| Reductions to 400 or 200 mg can retain target exposure and virologic suppression. | PMID:21447868 (accessed 2026-07-31); DOI:10.3851/IMP1742 (accessed 2026-07-31) | A separate multicenter therapeutic-drug-monitoring cohort reduced high-exposure patients to 400 or 200 mg and reported maintained suppression at six months. |
+| 400 mg was not virologically inferior to 600 mg and produced fewer efavirenz-related/CNS adverse events. | PMID:26044067 (accessed 2026-07-31); DOI:10.1002/cpt.156 (accessed 2026-07-31) | ENCORE1 was a separate randomized cohort and supports the 400 mg efficacy/safety premise used by CPIC. |
 
 PMID:19433561 and PMID:21447868 have different investigators, study designs,
 participants, and source datasets; neither reuses the other's cohort.

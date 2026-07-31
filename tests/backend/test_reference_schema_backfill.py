@@ -62,6 +62,43 @@ _LEGACY_PHENYTOIN_ROWS = [
     },
 ]
 
+_EFAVIRENZ_URL = (
+    "https://cpicpgx.org/guidelines/cpic-guideline-for-efavirenz-based-on-cyp2b6-genotype/"
+)
+_LEGACY_EFAVIRENZ_ROWS = [
+    {
+        "gene": "CYP2B6",
+        "drug": "efavirenz",
+        "phenotype": "Intermediate Metabolizer",
+        "activity_score": None,
+        "recommendation": (
+            "Use label-recommended dosing; consider a reduced dose if CNS side effects occur."
+        ),
+        "classification": "A",
+        "guideline_url": _EFAVIRENZ_URL,
+    },
+    {
+        "gene": "CYP2B6",
+        "drug": "efavirenz",
+        "phenotype": "Poor Metabolizer",
+        "activity_score": None,
+        "recommendation": (
+            "Consider initiating at a decreased dose (e.g., 400 mg/day); higher plasma "
+            "exposure raises CNS-toxicity risk."
+        ),
+        "classification": "A",
+        "guideline_url": _EFAVIRENZ_URL,
+    },
+]
+_CANONICAL_EFAVIRENZ_RECOMMENDATIONS = {
+    "Intermediate Metabolizer": (
+        "Consider initiating efavirenz with decreased dose of 400 mg/day."
+    ),
+    "Poor Metabolizer": (
+        "Consider initiating efavirenz with decreased dose of 400 or 200 mg/day."
+    ),
+}
+
 _TPMT_URL = "https://cpicpgx.org/guidelines/guideline-for-thiopurines-and-tpmt/"
 _LEGACY_TPMT_POOR_METABOLIZER_BASE = [
     {
@@ -613,6 +650,290 @@ def test_activity_score_column_and_legacy_phenytoin_content_upgrade_together(
             .all()
         )
     assert scores == [2.0, 1.5, 1.0, 0.5, 0.0]
+
+
+def test_refreshes_only_exact_legacy_cyp2b6_efavirenz_pair(tmp_path: Path) -> None:
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'ref.db'}")
+    reference_metadata.create_all(engine, checkfirst=True)
+    preserved_rows = [
+        {
+            "gene": "CYP2B6",
+            "drug": "efavirenz",
+            "phenotype": "Normal Metabolizer",
+            "activity_score": None,
+            "recommendation": "Preserve normal-metabolizer guidance.",
+            "classification": "A",
+            "guideline_url": _EFAVIRENZ_URL,
+        },
+        {
+            "gene": "CYP2D6",
+            "drug": "codeine",
+            "phenotype": "Poor Metabolizer",
+            "activity_score": None,
+            "recommendation": "Preserve unrelated guidance.",
+            "classification": "A",
+            "guideline_url": "https://example.test/codeine",
+        },
+    ]
+    with engine.begin() as conn:
+        conn.execute(cpic_guidelines.insert(), [*_LEGACY_EFAVIRENZ_ROWS, *preserved_rows])
+        conn.execute(
+            database_versions.insert(),
+            {
+                "db_name": "cpic",
+                "version": "v1.58.0",
+                "checksum_sha256": "legacy-checksum",
+            },
+        )
+    with engine.connect() as conn:
+        legacy_ids = dict(
+            conn.execute(
+                sa.select(cpic_guidelines.c.phenotype, cpic_guidelines.c.id).where(
+                    cpic_guidelines.c.gene == "CYP2B6",
+                    cpic_guidelines.c.drug == "efavirenz",
+                    cpic_guidelines.c.phenotype.in_(_CANONICAL_EFAVIRENZ_RECOMMENDATIONS),
+                )
+            ).fetchall()
+        )
+        version_before = (
+            conn.execute(sa.select(database_versions).where(database_versions.c.db_name == "cpic"))
+            .mappings()
+            .one()
+        )
+
+    assert ensure_reference_schema_current(engine) is True
+
+    with engine.connect() as conn:
+        upgraded = conn.execute(
+            sa.select(
+                cpic_guidelines.c.id,
+                cpic_guidelines.c.phenotype,
+                cpic_guidelines.c.recommendation,
+            ).where(
+                cpic_guidelines.c.gene == "CYP2B6",
+                cpic_guidelines.c.drug == "efavirenz",
+                cpic_guidelines.c.phenotype.in_(_CANONICAL_EFAVIRENZ_RECOMMENDATIONS),
+            )
+        ).fetchall()
+        preserved = conn.execute(
+            sa.select(
+                cpic_guidelines.c.gene,
+                cpic_guidelines.c.phenotype,
+                cpic_guidelines.c.recommendation,
+            ).where(
+                sa.or_(
+                    cpic_guidelines.c.drug == "codeine",
+                    cpic_guidelines.c.phenotype == "Normal Metabolizer",
+                )
+            )
+        ).fetchall()
+        version_after = (
+            conn.execute(sa.select(database_versions).where(database_versions.c.db_name == "cpic"))
+            .mappings()
+            .one()
+        )
+
+    assert {row.phenotype: row.id for row in upgraded} == legacy_ids
+    assert {
+        row.phenotype: row.recommendation for row in upgraded
+    } == _CANONICAL_EFAVIRENZ_RECOMMENDATIONS
+    assert set(preserved) == {
+        ("CYP2B6", "Normal Metabolizer", "Preserve normal-metabolizer guidance."),
+        ("CYP2D6", "Poor Metabolizer", "Preserve unrelated guidance."),
+    }
+    assert dict(version_after) == dict(version_before)
+    assert ensure_reference_schema_current(engine) is False
+
+
+@pytest.mark.parametrize(
+    "near_miss",
+    [
+        pytest.param(_LEGACY_EFAVIRENZ_ROWS[:1], id="partial"),
+        pytest.param(
+            [*_LEGACY_EFAVIRENZ_ROWS, _LEGACY_EFAVIRENZ_ROWS[0]],
+            id="duplicate",
+        ),
+        pytest.param(
+            [
+                {
+                    **_LEGACY_EFAVIRENZ_ROWS[0],
+                    "recommendation": "Custom intermediate-metabolizer guidance.",
+                },
+                _LEGACY_EFAVIRENZ_ROWS[1],
+            ],
+            id="custom",
+        ),
+        pytest.param(
+            [
+                {
+                    **row,
+                    "recommendation": _CANONICAL_EFAVIRENZ_RECOMMENDATIONS[row["phenotype"]],
+                }
+                for row in _LEGACY_EFAVIRENZ_ROWS
+            ],
+            id="current",
+        ),
+    ],
+)
+def test_does_not_overwrite_or_load_bundle_for_near_miss_efavirenz_pairs(
+    tmp_path: Path,
+    monkeypatch,
+    near_miss: list[dict],
+) -> None:
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'ref.db'}")
+    reference_metadata.create_all(engine, checkfirst=True)
+    with engine.begin() as conn:
+        conn.execute(cpic_guidelines.insert(), near_miss)
+    with engine.connect() as conn:
+        before = [
+            dict(row)
+            for row in conn.execute(
+                sa.select(cpic_guidelines).order_by(cpic_guidelines.c.id)
+            ).mappings()
+        ]
+
+    from backend.annotation import cpic as cpic_module
+
+    def fail_if_parsed(_path):
+        raise AssertionError("nonlegacy CYP2B6/efavirenz content must not load the bundle")
+
+    monkeypatch.setattr(cpic_module, "parse_cpic_guidelines_csv", fail_if_parsed)
+
+    assert ensure_reference_schema_current(engine) is False
+    with engine.connect() as conn:
+        after = [
+            dict(row)
+            for row in conn.execute(
+                sa.select(cpic_guidelines).order_by(cpic_guidelines.c.id)
+            ).mappings()
+        ]
+    assert after == before
+
+
+def test_invalid_bundled_efavirenz_pair_rolls_back_legacy_rows(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'ref.db'}")
+    reference_metadata.create_all(engine, checkfirst=True)
+    with engine.begin() as conn:
+        conn.execute(cpic_guidelines.insert(), _LEGACY_EFAVIRENZ_ROWS)
+    with engine.connect() as conn:
+        before = [
+            dict(row)
+            for row in conn.execute(
+                sa.select(cpic_guidelines).order_by(cpic_guidelines.c.id)
+            ).mappings()
+        ]
+
+    invalid_canonical = [
+        {
+            **row,
+            "recommendation": _CANONICAL_EFAVIRENZ_RECOMMENDATIONS[row["phenotype"]],
+        }
+        for row in _LEGACY_EFAVIRENZ_ROWS
+    ]
+    invalid_canonical[0] = {
+        **invalid_canonical[0],
+        "recommendation": "Unreviewed bundled recommendation.",
+    }
+
+    from backend.annotation import cpic as cpic_module
+
+    def parse_invalid_bundle(_path):
+        return invalid_canonical, None
+
+    monkeypatch.setattr(cpic_module, "parse_cpic_guidelines_csv", parse_invalid_bundle)
+
+    with pytest.raises(
+        RuntimeError,
+        match="Bundled CYP2B6/efavirenz reduced-dose guidelines are not canonical",
+    ):
+        ensure_reference_schema_current(engine)
+
+    with engine.connect() as conn:
+        after = [
+            dict(row)
+            for row in conn.execute(
+                sa.select(cpic_guidelines).order_by(cpic_guidelines.c.id)
+            ).mappings()
+        ]
+    assert after == before
+
+
+def test_efavirenz_refresh_rolls_back_if_a_canonical_write_fails(tmp_path: Path) -> None:
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'ref.db'}")
+    reference_metadata.create_all(engine, checkfirst=True)
+    with engine.begin() as conn:
+        conn.execute(cpic_guidelines.insert(), _LEGACY_EFAVIRENZ_ROWS)
+    with engine.connect() as conn:
+        before = [
+            dict(row)
+            for row in conn.execute(
+                sa.select(cpic_guidelines).order_by(cpic_guidelines.c.id)
+            ).mappings()
+        ]
+
+    update_count = 0
+
+    def fail_second_update(_conn, _cursor, statement, _parameters, _context, _executemany):
+        nonlocal update_count
+        if " ".join(statement.split()).upper().startswith("UPDATE CPIC_GUIDELINES"):
+            update_count += 1
+            if update_count == 2:
+                raise RuntimeError("simulated efavirenz write failure")
+
+    sa.event.listen(engine, "before_cursor_execute", fail_second_update)
+    try:
+        with pytest.raises(RuntimeError, match="simulated efavirenz write failure"):
+            ensure_reference_schema_current(engine)
+    finally:
+        sa.event.remove(engine, "before_cursor_execute", fail_second_update)
+
+    with engine.connect() as conn:
+        after = [
+            dict(row)
+            for row in conn.execute(
+                sa.select(cpic_guidelines).order_by(cpic_guidelines.c.id)
+            ).mappings()
+        ]
+    assert update_count == 2
+    assert after == before
+
+
+def test_efavirenz_refresh_locks_for_write_before_pair_fingerprint(tmp_path: Path) -> None:
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'ref.db'}")
+    reference_metadata.create_all(engine, checkfirst=True)
+    with engine.begin() as conn:
+        conn.execute(cpic_guidelines.insert(), _LEGACY_EFAVIRENZ_ROWS)
+
+    statements: list[str] = []
+
+    def record_statement(_conn, _cursor, statement, _parameters, _context, _executemany):
+        statements.append(" ".join(statement.split()).upper())
+
+    sa.event.listen(engine, "before_cursor_execute", record_statement)
+    try:
+        assert ensure_reference_schema_current(engine) is True
+    finally:
+        sa.event.remove(engine, "before_cursor_execute", record_statement)
+
+    fingerprint_index = next(
+        index
+        for index, statement in enumerate(statements)
+        if statement.startswith("SELECT CPIC_GUIDELINES.ID, CPIC_GUIDELINES.PHENOTYPE")
+    )
+    begin_index = max(
+        index
+        for index, statement in enumerate(statements[:fingerprint_index])
+        if statement == "BEGIN IMMEDIATE"
+    )
+    update_index = next(
+        index
+        for index, statement in enumerate(statements[fingerprint_index:], fingerprint_index)
+        if statement.startswith("UPDATE CPIC_GUIDELINES")
+    )
+    assert begin_index < fingerprint_index < update_index
 
 
 def _bundled_tpmt_poor_metabolizer_rows() -> list[dict]:
