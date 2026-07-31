@@ -360,6 +360,39 @@ class TestEvaluabilityAtTheApi:
         assert data["froh"] is None
         assert "typical result" not in data["finding_text"].lower()
 
+    def test_explicit_evaluable_true_without_a_metric_is_withheld(
+        self, _env: sa.Engine, client: TestClient
+    ) -> None:
+        # A stored verdict is not self-certifying: `evaluable: true` beside a
+        # null FROH would publish the contradictory pair evaluable=true /
+        # froh=null, so the row is unavailable until re-run.
+        import json as _json
+
+        from backend.db.tables import findings
+
+        with _env.begin() as conn:
+            conn.execute(
+                sa.insert(findings),
+                {
+                    "module": "roh",
+                    "category": "autozygosity",
+                    "evidence_level": 1,
+                    "finding_text": (
+                        "No long runs of homozygosity were detected (FROH ≈ 0). "
+                        "This is the typical result."
+                    ),
+                    "detail_json": _json.dumps(
+                        {"evaluable": True, "froh": None, "autosomal_snps_used": 600_000}
+                    ),
+                },
+            )
+
+        data = client.get("/api/analysis/roh/findings?sample_id=1").json()
+        assert data["evaluable"] is False
+        assert data["indeterminate_reason"] == "detail_unavailable"
+        assert data["froh"] is None
+        assert "typical result" not in data["finding_text"].lower()
+
     def test_no_recorded_count_on_an_ineligible_sample_is_withheld(
         self, _env: sa.Engine, client: TestClient
     ) -> None:

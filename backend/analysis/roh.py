@@ -388,36 +388,37 @@ def evaluability_from_detail(
     counted = isinstance(raw_used, int) and not isinstance(raw_used, bool) and raw_used >= 0
     snps_used = raw_used if counted else 0
 
+    raw_froh = detail.get("froh")
+    has_metric = isinstance(raw_froh, int | float) and not isinstance(raw_froh, bool)
+
+    observed = snps_used
     stored = detail.get("evaluable")
     if stored is not None:
-        if stored:
-            return True, snps_used, None
-        reason = detail.get("indeterminate_reason") or INSUFFICIENT_AUTOSOMAL_MARKERS
-        return False, snps_used, str(reason)
-
-    # Legacy row: no recorded verdict. Reading the sample can establish whether
-    # a scan *could* have run, but it cannot reconstruct a result that was never
-    # stored — so a row carrying no FROH is unavailable however good its
-    # coverage looks, and must be re-run rather than have a zero invented for it.
-    raw_froh = detail.get("froh")
-    if not isinstance(raw_froh, int | float) or isinstance(raw_froh, bool):
-        return False, snps_used, DETAIL_UNAVAILABLE
-
-    if not counted:
-        # Nothing about coverage can be read from the blob, so read the sample
-        # or say the state is unavailable — never split the difference.
+        if not stored:
+            reason = detail.get("indeterminate_reason") or INSUFFICIENT_AUTOSOMAL_MARKERS
+            return False, snps_used, str(reason)
+    elif not counted:
+        # Legacy row recording no coverage at all: read the sample or say the
+        # state is unavailable — never split the difference.
         if sample_engine is None:
             return False, 0, DETAIL_UNAVAILABLE
         observed, eligible = _sample_coverage(sample_engine)
         if not eligible:
             return False, observed, NO_SEGMENT_ELIGIBLE_REGION
-        return True, observed, None
+    else:
+        if snps_used < MIN_EVALUABLE_AUTOSOMAL_SNPS:
+            return False, snps_used, INSUFFICIENT_AUTOSOMAL_MARKERS
+        if sample_engine is not None and not _sample_coverage(sample_engine)[1]:
+            return False, snps_used, NO_SEGMENT_ELIGIBLE_REGION
 
-    if snps_used < MIN_EVALUABLE_AUTOSOMAL_SNPS:
-        return False, snps_used, INSUFFICIENT_AUTOSOMAL_MARKERS
-    if sample_engine is not None and not _sample_coverage(sample_engine)[1]:
-        return False, snps_used, NO_SEGMENT_ELIGIBLE_REGION
-    return True, snps_used, None
+    # The only exit that vouches for a row, so the invariant is stated once: a
+    # verdict is usable only when a result accompanies it. Neither an explicit
+    # stored `evaluable: true` nor a re-read of the sample's coverage can
+    # reconstruct a measurement that was never recorded — establishing that a
+    # scan *could* have run is not the same as having its result.
+    if not has_metric:
+        return False, observed, DETAIL_UNAVAILABLE
+    return True, observed, None
 
 
 def normalize_legacy_finding_text(
