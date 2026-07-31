@@ -39,6 +39,14 @@
       "status": "success",
       "result": "The PubMed XML record has no CommentsCorrectionsList element; its publication types are Journal Article and Research Support, N.I.H., Extramural.",
       "raw_payload": "data/science-evidence/2026-07-31-clingen-risk-allele-2052/raw/pubmed-efetch-38054408.xml"
+    },
+    {
+      "service": "National Library of Medicine",
+      "endpoint": "GET https://www.nlm.nih.gov/databases/download.html",
+      "purpose": "Authoritative copyright and redistribution terms for the stored PubMed metadata",
+      "status": "success",
+      "result": "NLM does not require a signed license for publicly accessible data and requires source acknowledgement, non-endorsement, and currentness disclosure.",
+      "raw_payload": "data/science-evidence/2026-07-31-clingen-risk-allele-2052/raw/nlm-copyright-download-terms-2026-07-31.html"
     }
   ]
 }

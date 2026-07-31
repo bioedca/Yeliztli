@@ -25,6 +25,11 @@ output category; this change does not add or alter variant classification behavi
   `CopyrightInformation`) is removed, and public author contact email addresses
   are replaced with `[redacted-email]`; the remaining typed record structure is
   unchanged.
+- Sanitized raw NLM terms snapshot:
+  `data/science-evidence/2026-07-31-clingen-risk-allele-2052/raw/nlm-copyright-download-terms-2026-07-31.html`.
+  Site chrome, scripts, analytics, styling, and unrelated download links are
+  removed; the copyright and terms text relevant to this packet is retained
+  verbatim.
 - The packet stores bibliographic metadata only, not the publisher abstract or
   article full text. NLM's [Copyright Information & Downloading NLM
   Data](https://www.nlm.nih.gov/databases/download.html) terms state that no

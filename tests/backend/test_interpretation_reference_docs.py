@@ -12,6 +12,7 @@ reference so a coverage-qualified badge can't ship undocumented again.
 from __future__ import annotations
 
 import ast
+import json
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -30,13 +31,12 @@ _DOC = _REPO / "docs" / "modules" / "interpretation-reference.md"
 _RARE_VARIANTS_DOC = _REPO / "docs" / "modules" / "rare-variants.md"
 _VARIANT_DETAIL_DOC = _REPO / "docs" / "features" / "variant-detail.md"
 _VARIANT_EXPLORER_DOC = _REPO / "docs" / "features" / "variant-explorer.md"
-_RISK_ALLELE_EVIDENCE_XML = (
-    _REPO
-    / "data"
-    / "science-evidence"
-    / "2026-07-31-clingen-risk-allele-2052"
-    / "raw"
-    / "pubmed-efetch-38054408.xml"
+_RISK_ALLELE_EVIDENCE_DIR = (
+    _REPO / "data" / "science-evidence" / "2026-07-31-clingen-risk-allele-2052"
+)
+_RISK_ALLELE_EVIDENCE_XML = _RISK_ALLELE_EVIDENCE_DIR / "raw" / "pubmed-efetch-38054408.xml"
+_RISK_ALLELE_NLM_TERMS = (
+    _RISK_ALLELE_EVIDENCE_DIR / "raw" / "nlm-copyright-download-terms-2026-07-31.html"
 )
 _SRC = _REPO / "frontend" / "src" / "lib" / "pathwayCoverage.ts"
 _RARE_VARIANT_PANEL = (
@@ -857,6 +857,33 @@ def test_pubmed_evidence_payload_excludes_publisher_owned_abstract() -> None:
     assert "All rights reserved" not in payload
     assert '<PMID Version="1">38054408</PMID>' in payload
     assert '<PublicationType UI="D016428">Journal Article</PublicationType>' in payload
+
+
+def test_nlm_license_source_is_preserved_with_the_evidence_packet() -> None:
+    """The packet must retain the authoritative terms supporting redistribution (#2052)."""
+    relative_path = (
+        "data/science-evidence/2026-07-31-clingen-risk-allele-2052/raw/"
+        "nlm-copyright-download-terms-2026-07-31.html"
+    )
+    payload = _RISK_ALLELE_NLM_TERMS.read_text(encoding="utf-8")
+    assert 'content="https://www.nlm.nih.gov/databases/download.html"' in payload
+    assert 'content="2026-07-31"' in payload
+    assert "Although a signed license agreement is not needed" in payload
+    assert "acknowledge NLM as the source of the data" in payload
+    assert "not indicate or imply that NLM has endorsed" in payload
+    assert "do not reflect the most current/accurate data available from NLM" in payload
+    assert "<script" not in payload
+
+    readme = (_RISK_ALLELE_EVIDENCE_DIR / "README.md").read_text(encoding="utf-8")
+    assert relative_path in readme
+
+    queries = json.loads((_RISK_ALLELE_EVIDENCE_DIR / "queries.json").read_text(encoding="utf-8"))
+    source = next(
+        query for query in queries["queries"] if query["service"] == "National Library of Medicine"
+    )
+    assert source["endpoint"] == "GET https://www.nlm.nih.gov/databases/download.html"
+    assert source["status"] == "success"
+    assert source["raw_payload"] == relative_path
 
 
 def test_lower_penetrance_category_guard_rejects_high_penetrance_equivalence() -> None:
