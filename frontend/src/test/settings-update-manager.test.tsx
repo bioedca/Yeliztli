@@ -288,13 +288,54 @@ describe('Settings page', () => {
     expect(screen.getAllByText('System Health').length).toBeGreaterThanOrEqual(2)
   })
 
-  it('shows About page with version info', () => {
+  it('shows About page with source and bundled-data license attribution', () => {
     setupFetchMocks()
     renderSettings(['/settings/about'])
     // "About" in nav + "About Yeliztli" in heading
     expect(screen.getByText('About')).toBeDefined()
     expect(screen.getByText('About Yeliztli')).toBeDefined()
     expect(screen.getByText('Current Version')).toBeDefined()
+    expect(screen.getByText(/Yeliztli source code/i)).toHaveTextContent('MIT License')
+    expect(screen.getByText(/Bundled reference data/i)).toHaveTextContent(
+      'CC0 / CC-BY-4.0 / CC-BY-SA-4.0',
+    )
+
+    fireEvent.click(screen.getByText('Read the full MIT source license'))
+    expect(
+      (screen.getByLabelText('Full MIT source license') as HTMLTextAreaElement).value,
+    ).toContain('Permission is hereby granted, free of charge')
+
+    fireEvent.click(screen.getByText('Read the full third-party data attribution'))
+    const attribution = (
+      screen.getByLabelText('Full third-party data attribution') as HTMLTextAreaElement
+    ).value
+    expect(attribution).toContain('AlphaMissense')
+    expect(attribution).toContain('CC-BY-4.0')
+    expect(attribution).toContain('PharmGKB')
+    expect(attribution).toContain('CC-BY-SA 4.0')
+
+    expect(screen.getByRole('link', { name: 'MIT source license (LICENSE)' })).toHaveAttribute(
+      'href',
+      'https://github.com/bioedca/Yeliztli/blob/main/LICENSE',
+    )
+    expect(
+      screen.getByRole('link', { name: 'Third-party data attribution (NOTICE)' }),
+    ).toHaveAttribute(
+      'href',
+      'https://github.com/bioedca/Yeliztli/blob/main/NOTICE',
+    )
+    expect(
+      screen.getByRole('link', { name: 'Data sources and attribution documentation' }),
+    ).toHaveAttribute(
+      'href',
+      'https://bioedca.github.io/Yeliztli/attribution/',
+    )
+    expect(
+      screen.getByRole('link', { name: 'External inputs licensing policy' }),
+    ).toHaveAttribute(
+      'href',
+      'https://bioedca.github.io/Yeliztli/external-inputs-strategy/',
+    )
   })
 })
 
