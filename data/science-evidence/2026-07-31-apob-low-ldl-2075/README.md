@@ -83,9 +83,8 @@ recorded in:
 `data/science-evidence/2026-07-31-apob-low-ldl-2075/pubmed-comments-corrections-extract.json`.
 The auditable sanitized source payload is:
 `data/science-evidence/2026-07-31-apob-low-ldl-2075/pubmed-efetch-sanitized.xml`.
-Supplemental public web searches using each DOI plus
-`correction OR erratum OR retraction` also surfaced no notice. These results record what
-PubMed indexed and returned on 2026-07-31, not a guarantee that no later notice exists.
+These results record what PubMed indexed and returned on 2026-07-31, not a guarantee that
+no later notice exists.
 
 ## Payload format and usage
 
