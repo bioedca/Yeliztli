@@ -538,7 +538,7 @@ describe("VariantDetailPage (P2-21a)", () => {
                 is_stale: false,
               },
             ],
-            literature_errors: [],
+            literature_errors: ["PubMed lookup unavailable; cached results shown."],
             variants: [],
             population_af: [],
           }),
@@ -568,6 +568,9 @@ describe("VariantDetailPage (P2-21a)", () => {
       "href",
       "/genes/BRCA1?sample_id=1",
     )
+    expect(
+      screen.getByText("PubMed lookup unavailable; cached results shown."),
+    ).toBeInTheDocument()
     expect(mockFetch).toHaveBeenCalledWith("/api/genes/BRCA1?sample_id=1")
     expect(screen.queryByText(/Phase 3/)).not.toBeInTheDocument()
   })

@@ -605,14 +605,23 @@ function LiteratureTab({
         </div>
       )}
 
+      {data && data.literature_errors.length > 0 && (
+        <div
+          role="status"
+          className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-300"
+        >
+          <p className="font-medium">Literature results may be incomplete.</p>
+          {data.literature_errors.map((message) => (
+            <p key={message} className="mt-1">
+              {message}
+            </p>
+          ))}
+        </div>
+      )}
+
       {data && data.literature.length === 0 && (
         <div className="rounded-lg border bg-card p-6 text-center text-sm text-muted-foreground">
           No literature found for this gene.
-          {data.literature_errors.length > 0 && (
-            <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
-              {data.literature_errors[0]}
-            </p>
-          )}
         </div>
       )}
     </div>

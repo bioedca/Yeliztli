@@ -79,7 +79,7 @@ const GENE_DETAIL = {
       is_stale: false,
     },
   ],
-  literature_errors: [],
+  literature_errors: ['PubMed lookup unavailable; cached results shown.'],
   variants: [],
   population_af: [],
 }
@@ -103,6 +103,7 @@ test('loads gene literature, links its sources, and expands the abstract', async
 
   await expect(page.getByRole('heading', { name: 'Literature (1)' })).toBeVisible()
   await expect(page.getByText('Synthetic TP53 literature title')).toBeVisible()
+  await expect(page.getByText('PubMed lookup unavailable; cached results shown.')).toBeVisible()
   await expect(page.getByRole('link', { name: 'Open PubMed 12345678' })).toHaveAttribute(
     'href',
     'https://pubmed.ncbi.nlm.nih.gov/12345678/',
