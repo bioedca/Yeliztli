@@ -17,6 +17,17 @@ function isGnomadSourceUncovered(status: GnomadSourceStatus | null | undefined):
  * COORDINATE that disagrees, so the "several alternate alleles" wording would be
  * false here and would hide a build/mapping mismatch.
  */
+/** Several of the sample's own calls collapse onto this rsID at positions gnomAD
+ * DOES list (#2214 review).
+ *
+ * Neither the alleles nor the coordinates are at fault, so both of the other
+ * explanations would be false: the limit is that one per-rsID result cannot
+ * carry a frequency for two different calls.
+ */
+function isGnomadAliasUnresolved(status: GnomadSourceStatus | null | undefined): boolean {
+  return status === "alias_unresolved"
+}
+
 function isGnomadLocusUnresolved(status: GnomadSourceStatus | null | undefined): boolean {
   return status === "locus_unresolved"
 }
@@ -39,6 +50,9 @@ export function gnomadNoFrequencyShortLabel(
   if (isGnomadSourceUncovered(status)) {
     return "Not assessed"
   }
+  if (isGnomadAliasUnresolved(status)) {
+    return "Shared rsID"
+  }
   if (isGnomadLocusUnresolved(status)) {
     return "Position unmatched"
   }
@@ -54,6 +68,9 @@ export function gnomadNoFrequencyLabel(
 ): string {
   if (isGnomadSourceUncovered(status)) {
     return "Not assessed by current gnomAD exome source"
+  }
+  if (isGnomadAliasUnresolved(status)) {
+    return "Shared rsID across positions"
   }
   if (isGnomadLocusUnresolved(status)) {
     return "Position not matched in gnomAD"
@@ -73,6 +90,12 @@ export function gnomadNoFrequencyDetail(
 ): string {
   if (isGnomadSourceUncovered(status)) {
     return "Not assessed by current gnomAD exome source"
+  }
+  if (isGnomadAliasUnresolved(status)) {
+    return (
+      "More than one call in your file uses this rsID at different positions, " +
+      "so a single frequency cannot describe them all"
+    )
   }
   if (isGnomadLocusUnresolved(status)) {
     return (

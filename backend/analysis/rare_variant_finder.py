@@ -510,6 +510,9 @@ def store_rare_variant_findings(
             af_text = f"AF={v.gnomad_af_global:.6f}"
         elif v.gnomad_source_status == "source_uncovered":
             af_text = "Not assessed by current gnomAD exome source"
+        elif v.gnomad_source_status == "alias_unresolved":
+            # Several calls share this rsID at different positions (#2214).
+            af_text = "Shared rsID across positions"
         elif v.gnomad_source_status == "locus_unresolved":
             # Rows exist for the rsID, just not at this coordinate (#2214).
             af_text = "Position not matched in gnomAD"

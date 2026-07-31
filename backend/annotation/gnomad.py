@@ -982,6 +982,8 @@ def lookup_gnomad_by_rsids(
     genotypes_by_rsid: dict[str, set[str]] | None = None,
     locus_by_rsid: dict[str, tuple[str, int]] | None = None,
     locus_unresolved_out: set[str] | None = None,
+    alias_unresolved_out: set[str] | None = None,
+    alias_loci_by_rsid: dict[str, set[tuple[str, int]]] | None = None,
 ) -> dict[str, GnomADAnnotation]:
     """Look up gnomAD allele frequencies for a batch of rsids.
 
@@ -1026,6 +1028,7 @@ def lookup_gnomad_by_rsids(
     conflicting_genotype_rsids = conflicting_genotype_rsids or set()
     genotypes_by_rsid = genotypes_by_rsid or {}
     conflicting_locus_rsids = conflicting_locus_rsids or set()
+    alias_loci_by_rsid = alias_loci_by_rsid or {}
     locus_by_rsid = locus_by_rsid or {}
     locus_unresolved_out = locus_unresolved_out if locus_unresolved_out is not None else None
     results: dict[str, GnomADAnnotation] = {}
@@ -1059,7 +1062,16 @@ def lookup_gnomad_by_rsids(
                 #    One per-rsID result cannot serve two positions, whatever
                 #    gnomAD holds -- so this is NOT scoped by candidate count.
                 if rsid in conflicting_locus_rsids:
-                    if locus_unresolved_out is not None:
+                    # Withholding is right either way, but the REASON differs and
+                    # the user-facing text states it. If gnomAD lists a row at the
+                    # sample's own positions, nothing is wrong with the alleles or
+                    # the coordinates -- the limit is that one per-rsID result
+                    # cannot carry a frequency for two calls (#2214 review).
+                    sample_loci = alias_loci_by_rsid.get(rsid, set())
+                    matched_here = sample_loci & {(r.chrom, r.pos) for r in candidates}
+                    if matched_here and alias_unresolved_out is not None:
+                        alias_unresolved_out.add(rsid)
+                    elif locus_unresolved_out is not None:
                         locus_unresolved_out.add(rsid)
                     elif allele_ambiguous_out is not None:
                         allele_ambiguous_out.add(rsid)

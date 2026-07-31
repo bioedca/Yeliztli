@@ -91,3 +91,26 @@ describe("locus_unresolved", () => {
     expect(gnomadNoFrequencyDetail("allele_ambiguous")).toContain("alternate alleles")
   })
 })
+
+describe("alias_unresolved", () => {
+  // #2214 review: gnomAD lists a row at each of the sample's positions, so both
+  // the allele and the position explanations would be false statements.
+  it("does not blame the position or the allele", () => {
+    const detail = gnomadNoFrequencyDetail("alias_unresolved")
+    expect(detail).toContain("More than one call in your file")
+    expect(detail).not.toContain("other genomic positions")
+    expect(detail).not.toContain("alternate alleles")
+  })
+
+  it("has its own labels", () => {
+    expect(gnomadNoFrequencyLabel("alias_unresolved")).toBe("Shared rsID across positions")
+    expect(gnomadNoFrequencyShortLabel("alias_unresolved")).toBe("Shared rsID")
+  })
+
+  it("leaves the sibling states alone", () => {
+    // Discriminating control: four withhold reasons must stay distinguishable.
+    expect(gnomadNoFrequencyShortLabel("locus_unresolved")).toBe("Position unmatched")
+    expect(gnomadNoFrequencyShortLabel("allele_ambiguous")).toBe("Allele unresolved")
+    expect(gnomadNoFrequencyShortLabel("source_uncovered")).toBe("Not assessed")
+  })
+})

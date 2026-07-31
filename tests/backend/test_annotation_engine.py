@@ -2236,10 +2236,11 @@ class TestGnomadAnnotationLookupIntegration:
         assert old_row is not None
         # It sits at pos 300; it must not inherit pos 900's 0.40.
         assert old_row.gnomad_af_global != pytest.approx(0.40)
-        # Both candidates are G>A, so no allele is in question -- the aliases
-        # disagree on POSITION. Reporting allele ambiguity would invent a cause
-        # and hide a likely build/mapping mismatch (#2214 review).
-        assert old_row.gnomad_source_status == "locus_unresolved"
+        # gnomAD lists a row at BOTH of the sample's positions, so neither the
+        # alleles nor the coordinates are at fault: the limit is that one
+        # per-rsID result cannot carry a frequency for two calls. Saying
+        # "listed only at other positions" would be false here (#2214 review).
+        assert old_row.gnomad_source_status == "alias_unresolved"
 
     def test_no_call_alias_does_not_suppress_a_valid_call(
         self,
@@ -2585,6 +2586,55 @@ class TestGnomadAnnotationLookupIntegration:
         assert row is not None
         # pos 900's 0.002 is not evidence for a call at pos 300.
         assert row.gnomad_af_global != pytest.approx(0.002)
+
+    def test_alias_conflict_with_rows_at_both_loci_is_not_a_position_miss(
+        self,
+        sample_engine: sa.Engine,
+        mock_registry: MagicMock,
+        gnomad_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """#2214 review: withholding is right, but the stated reason must be true.
+
+        gnomAD lists a row at BOTH of the sample's positions, so "listed only at
+        other genomic positions" is false and would send someone hunting a build
+        mismatch that does not exist. The real limit is that one per-rsID result
+        cannot carry a frequency for two calls.
+        """
+        with reference_engine.begin() as conn:
+            conn.execute(
+                dbsnp_merges.insert().values(
+                    old_rsid="rs_both_old", current_rsid="rs_both_cur", build_id=155
+                )
+            )
+        with gnomad_engine.begin() as conn:
+            conn.execute(
+                sa.text(
+                    "INSERT INTO gnomad_af "
+                    "(rsid, chrom, pos, ref, alt, af_global, af_afr, af_amr, af_asj, "
+                    "af_eas, af_eur, af_fin, af_sas, homozygous_count) VALUES "
+                    "('rs_both_cur', '1', 300, 'G', 'A', 0.004, 0.004, 0.004, 0.004, "
+                    "0.004, 0.004, 0.004, 0.004, 3), "
+                    "('rs_both_cur', '1', 900, 'G', 'A', 0.40, 0.40, 0.40, 0.40, "
+                    "0.40, 0.40, 0.40, 0.40, 800)"
+                )
+            )
+        with sample_engine.begin() as conn:
+            conn.execute(
+                raw_variants.insert(),
+                [
+                    {"rsid": "rs_both_old", "chrom": "1", "pos": 300, "genotype": "AG"},
+                    {"rsid": "rs_both_cur", "chrom": "1", "pos": 900, "genotype": "AG"},
+                ],
+            )
+
+        run_annotation(sample_engine, mock_registry)
+
+        row = self._annotated_row(sample_engine, "rs_both_old")
+        assert row is not None
+        assert row.gnomad_af_global is None
+        assert row.gnomad_source_status == "alias_unresolved"
+        assert row.gnomad_source_status != "locus_unresolved"
 
     def test_single_alt_rsid_is_annotated_regardless_of_genotype(
         self, sample_engine: sa.Engine, mock_registry: MagicMock, gnomad_engine: sa.Engine
