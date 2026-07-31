@@ -57,13 +57,14 @@ all of them are user-initiated, so here is the complete accounting.
   payload, but the regions you choose to inspect are themselves sensitive. This fallback happens
   only while the Genome Browser is open, and the **first** time it is needed Yeliztli shows a
   one-time in-app notice before any third-party reference data is requested.
-- **Gene Detail UniProt lookup.** Opening a Gene Detail page (`/genes/{symbol}`) checks the
+- **Gene Detail and Variant Literature UniProt lookup.** Opening a Gene Detail page
+  (`/genes/{symbol}`), or loading the **Literature** tab on a Variant Detail page, checks the
   local UniProt cache and, on a cache miss or stale cache entry, fetches reviewed human protein
-  annotations from `rest.uniprot.org/uniprotkb`. The request includes the gene symbol you are
-  viewing and reveals that inspection, your IP address, and request timing to UniProt/EBI. It
-  does **not** send genotypes, variants, sample IDs, or findings. Results are cached locally in
-  `reference.db` for 30 days. If offline or blocked, the page shows stale cached protein data
-  when available, or a message that protein data is unavailable.
+  annotations from `rest.uniprot.org/uniprotkb`. Both surfaces use the same gene-detail service.
+  The request includes the gene symbol you are viewing and reveals that inspection, your IP
+  address, and request timing to UniProt/EBI. It does **not** send genotypes, variants, sample
+  IDs, or findings. Results are cached locally in `reference.db` for 30 days. If offline or
+  blocked, stale cached protein data can still be used when available.
 
 ### User-initiated
 
@@ -72,9 +73,10 @@ all of them are user-initiated, so here is the complete accounting.
   bundle, and so on — from their public sources. These are one-way downloads of public data;
   nothing about your sample is sent.
 - **Optional citation/enrichment lookups.** If you supply a PubMed contact email or an OMIM
-  API key, Yeliztli can fetch literature and gene–disease metadata to enrich findings. These
-  requests reference public identifiers (PMIDs, gene symbols), **not** your genotypes, and the
-  features work without them.
+  API key, Yeliztli can fetch literature and gene–disease metadata. Opening Gene Detail or the
+  Variant Detail **Literature** tab can initiate the gene-level PubMed lookup. These requests
+  reference public identifiers (PMIDs, gene symbols), **not** your genotypes, and the features
+  work without them.
 
 ## Going fully offline
 
@@ -96,9 +98,10 @@ PubMed contact email, not supplying an OMIM key, and not starting reference down
   makes no reference/RefSeq request to IGV.js hosts. If any file is missing or validation fails,
   the Genome Browser keeps the disclosure-gated hosted `hg19` fallback; if you do not open the
   Genome Browser, it makes no connection.
-- There is no API-key switch for the Gene Detail UniProt lookup. To avoid that outbound request,
-  do not open Gene Detail pages for genes that are not already cached, or block Yeliztli's
-  network access. Cached UniProt entries already in `reference.db` can still be shown offline.
+- There is no API-key switch for the shared Gene Detail UniProt lookup. To avoid that outbound
+  request, do not open Gene Detail pages or Variant Detail **Literature** tabs for genes that are
+  not already cached, or block Yeliztli's network access. Cached UniProt entries already in
+  `reference.db` can still be shown offline.
 
 For a hard guarantee that **nothing** leaves the machine, **block Yeliztli's network access at the
 operating-system or firewall level** after setup — that suppresses all of the automatic checks
