@@ -22,7 +22,7 @@
     "path": "data/science-evidence/2026-07-31-lrrk2-penetrance-docs-2091/pubmed-claim-excerpts.json",
     "request": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=26062626%2C28639421%2C38804604%2C40926580&retmode=xml",
     "raw_response_sha256": "0af32064bac933bfc8a33a2755c5ba81b2f9a1620345324facb7d706eecd38d0",
-    "sha256": "68f47eda8b890d8965dfebcb5719ebd2e21a0060d7962b3b1b612f2ed13d9a71",
+    "sha256": "f82aac09667ee55eccea3a07e34713ce916a704c5dcd7605ab9c67de93dd34ae",
     "selection": "Exact claim-bearing AbstractText sentences only; author, affiliation, participant-level, and unrelated abstract content omitted."
   },
   "extraction_path": "PubmedArticle/MedlineCitation/CommentsCorrectionsList",

@@ -54,7 +54,7 @@ _EXPECTED_EVIDENCE = {
 }
 _EXPECTED_METADATA_SHA256 = "6c924c787b5a81195a5e36ee1c1f80833819bcfa43f9e9640329f8e4b8f34e43"
 _EXPECTED_SOURCE_SHA256 = "5661b8aaf49fb8ac3551a6bc0464c00a4e7db2b12949db70708c6be60e119d8b"
-_EXPECTED_CLAIM_SHA256 = "68f47eda8b890d8965dfebcb5719ebd2e21a0060d7962b3b1b612f2ed13d9a71"
+_EXPECTED_CLAIM_SHA256 = "f82aac09667ee55eccea3a07e34713ce916a704c5dcd7605ab9c67de93dd34ae"
 
 
 def _normalized_ranges(text: str) -> str:
@@ -203,6 +203,15 @@ class TestPenetranceCommunication:
             == extract["claim_evidence_snapshot"]["raw_response_sha256"]
             == extract["source_snapshot"]["raw_sha256"]
         )
+        assert claim_payload["raw_response_retained"] is False
+        assert claim_payload["retained_sanitized_snapshot"] == {
+            "path": extract["source_snapshot"]["path"],
+            "sha256": extract["source_snapshot"]["sanitized_sha256"],
+        }
+        assert (
+            claim_payload["raw_response_sha256"]
+            != claim_payload["retained_sanitized_snapshot"]["sha256"]
+        )
         assert (
             re.search(
                 r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}",
@@ -241,6 +250,8 @@ class TestPenetranceCommunication:
             "response_format",
             "request",
             "raw_response_sha256",
+            "raw_response_retained",
+            "retained_sanitized_snapshot",
             "extraction_method",
             "records",
         }
