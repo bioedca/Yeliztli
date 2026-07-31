@@ -382,7 +382,7 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
         onConcordanceFilter={setConcordanceFilter}
       />
 
-      <div className="flex flex-1 flex-col overflow-hidden lg:flex-row">
+      <div className="flex flex-1 flex-col overflow-hidden [@media(max-height:400px)]:min-h-56 lg:flex-row">
         {/* Left sidebar: Watching section (P4-21k) */}
         <aside
           className="max-h-[min(10rem,40%)] w-full max-w-full shrink-0 overflow-y-auto bg-card lg:max-h-none lg:w-64 lg:border-r lg:border-border"

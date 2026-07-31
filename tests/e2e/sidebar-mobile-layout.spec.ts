@@ -131,7 +131,9 @@ test.describe('mobile app navigation layout', () => {
     expect(mainBox).not.toBeNull()
     expect(emptyBox).not.toBeNull()
     expect(emptyBox!.width).toBeGreaterThanOrEqual(mainBox!.width - 2)
-    expect(Math.abs(emptyBox!.x + emptyBox!.width / 2 - (mainBox!.x + mainBox!.width / 2))).toBeLessThanOrEqual(1)
+    expect(
+      Math.abs(emptyBox!.x + emptyBox!.width / 2 - (mainBox!.x + mainBox!.width / 2)),
+    ).toBeLessThanOrEqual(1)
   })
 
   test('keeps the Variant Explorer table usable beside Watching on phones (#2010)', async ({
@@ -150,13 +152,13 @@ test.describe('mobile app navigation layout', () => {
     const row = sidebar.locator('..')
     const [sidebarBox, tableBox, mainBox, rowBox, flexDirection, documentWidth] =
       await Promise.all([
-      sidebar.boundingBox(),
-      table.boundingBox(),
-      main.boundingBox(),
-      row.boundingBox(),
-      row.evaluate((element) => getComputedStyle(element).flexDirection),
-      page.evaluate(() => document.documentElement.scrollWidth),
-    ])
+        sidebar.boundingBox(),
+        table.boundingBox(),
+        main.boundingBox(),
+        row.boundingBox(),
+        row.evaluate((element) => getComputedStyle(element).flexDirection),
+        page.evaluate(() => document.documentElement.scrollWidth),
+      ])
 
     expect(sidebarBox).not.toBeNull()
     expect(tableBox).not.toBeNull()
@@ -184,21 +186,31 @@ test.describe('mobile app navigation layout', () => {
     const sidebar = page.getByRole('complementary', { name: 'Variant table sidebar' })
     const table = page.getByRole('region', { name: 'Variant table' })
     const nav = page.getByRole('navigation', { name: 'Main navigation' })
+    const variant = page.getByText('synthetic-layout-variant', { exact: true })
     const row = sidebar.locator('..')
-    const [sidebarBox, tableBox, navBox, rowBox] = await Promise.all([
+
+    await variant.scrollIntoViewIfNeeded()
+
+    const [sidebarBox, tableBox, navBox, rowBox, variantBox] = await Promise.all([
       sidebar.boundingBox(),
       table.boundingBox(),
       nav.boundingBox(),
       row.boundingBox(),
+      variant.boundingBox(),
     ])
 
     expect(sidebarBox).not.toBeNull()
     expect(tableBox).not.toBeNull()
     expect(navBox).not.toBeNull()
     expect(rowBox).not.toBeNull()
+    expect(variantBox).not.toBeNull()
     expect(sidebarBox!.height).toBeLessThanOrEqual(rowBox!.height * 0.4 + 1)
     expect(tableBox!.height).toBeGreaterThanOrEqual(rowBox!.height * 0.5)
+    expect(tableBox!.height).toBeGreaterThanOrEqual(100)
     expect(tableBox!.y).toBeLessThan(navBox!.y)
+    expect(variantBox!.y).toBeGreaterThanOrEqual(tableBox!.y - 1)
+    expect(variantBox!.y + variantBox!.height).toBeLessThanOrEqual(navBox!.y + 1)
+    await expect(variant).toBeInViewport({ ratio: 0.5 })
   })
 
   test('keeps the table stacked and full width on portrait tablets (#2010)', async ({
@@ -217,13 +229,13 @@ test.describe('mobile app navigation layout', () => {
     const row = sidebar.locator('..')
     const [sidebarBox, tableBox, mainBox, rowBox, flexDirection, documentWidth] =
       await Promise.all([
-      sidebar.boundingBox(),
-      table.boundingBox(),
-      main.boundingBox(),
-      row.boundingBox(),
-      row.evaluate((element) => getComputedStyle(element).flexDirection),
-      page.evaluate(() => document.documentElement.scrollWidth),
-    ])
+        sidebar.boundingBox(),
+        table.boundingBox(),
+        main.boundingBox(),
+        row.boundingBox(),
+        row.evaluate((element) => getComputedStyle(element).flexDirection),
+        page.evaluate(() => document.documentElement.scrollWidth),
+      ])
 
     expect(sidebarBox).not.toBeNull()
     expect(tableBox).not.toBeNull()
