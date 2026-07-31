@@ -395,7 +395,14 @@ def evaluability_from_detail(
         reason = detail.get("indeterminate_reason") or INSUFFICIENT_AUTOSOMAL_MARKERS
         return False, snps_used, str(reason)
 
-    # Legacy row: no recorded verdict.
+    # Legacy row: no recorded verdict. Reading the sample can establish whether
+    # a scan *could* have run, but it cannot reconstruct a result that was never
+    # stored — so a row carrying no FROH is unavailable however good its
+    # coverage looks, and must be re-run rather than have a zero invented for it.
+    raw_froh = detail.get("froh")
+    if not isinstance(raw_froh, int | float) or isinstance(raw_froh, bool):
+        return False, snps_used, DETAIL_UNAVAILABLE
+
     if not counted:
         # Nothing about coverage can be read from the blob, so read the sample
         # or say the state is unavailable — never split the difference.

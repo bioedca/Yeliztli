@@ -99,7 +99,10 @@ def list_findings(
             finding_text=(row.finding_text or "")
             if evaluable
             else unevaluable_text(snps_used, reason or INSUFFICIENT_AUTOSOMAL_MARKERS),
-            froh=detail.get("froh", 0.0) if evaluable else None,
+            # No default: an evaluable row is guaranteed a stored numeric FROH by
+            # evaluability_from_detail, and inventing 0.0 is the very
+            # substitution this change removes.
+            froh=detail.get("froh") if evaluable else None,
             total_roh_kb=detail.get("total_roh_kb", 0.0) if evaluable else None,
             longest_kb=detail.get("longest_kb", 0.0) if evaluable else None,
             n_segments=detail.get("n_segments", 0) if evaluable else None,

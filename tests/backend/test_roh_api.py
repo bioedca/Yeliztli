@@ -328,6 +328,38 @@ class TestEvaluabilityAtTheApi:
         assert data["autosomal_snps_used"] == 361
         assert "0 callable autosomal SNP(s)" not in data["finding_text"]
 
+    def test_metricless_row_stays_indeterminate_on_a_good_sample(
+        self, _env: sa.Engine, client: TestClient
+    ) -> None:
+        # Reading the sample can show that a scan COULD have run; it cannot
+        # reconstruct a result that was never stored. The fixture has ample
+        # eligible coverage, yet a row carrying no FROH must still be withheld
+        # rather than have a zero invented for it.
+        import json as _json
+
+        from backend.db.tables import findings
+
+        with _env.begin() as conn:
+            conn.execute(
+                sa.insert(findings),
+                {
+                    "module": "roh",
+                    "category": "autozygosity",
+                    "evidence_level": 1,
+                    "finding_text": (
+                        "No long runs of homozygosity were detected (FROH ≈ 0). "
+                        "This is the typical result."
+                    ),
+                    "detail_json": _json.dumps({}),
+                },
+            )
+
+        data = client.get("/api/analysis/roh/findings?sample_id=1").json()
+        assert data["evaluable"] is False
+        assert data["indeterminate_reason"] == "detail_unavailable"
+        assert data["froh"] is None
+        assert "typical result" not in data["finding_text"].lower()
+
     def test_no_recorded_count_on_an_ineligible_sample_is_withheld(
         self, _env: sa.Engine, client: TestClient
     ) -> None:
