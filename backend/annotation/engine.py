@@ -509,6 +509,7 @@ def _lookup_gnomad(
     conflicting_genotype_rsids: set[str] | None = None,
     locus_unresolved_out: set[str] | None = None,
     resolved_call_by_query: dict[str, tuple[str, str, int]] | None = None,
+    genotypes_by_query: dict[str, set[str]] | None = None,
 ) -> dict[str, dict]:
     """Look up gnomAD allele frequencies by exact allele, then rsid.
 
@@ -583,6 +584,11 @@ def _lookup_gnomad(
             genotype_by_rsid=genotype_by_rsid,
             allele_ambiguous_out=allele_ambiguous_out,
             conflicting_genotype_rsids=conflicting_genotype_rsids,
+            genotypes_by_rsid={
+                rsid: genos
+                for rsid in unmatched
+                if (genos := (genotypes_by_query or {}).get(rsid))
+            },
             locus_by_rsid=locus_by_rsid,
             locus_unresolved_out=locus_unresolved_out,
         )
@@ -1514,6 +1520,12 @@ def run_annotation(
         for q in set(_calls_by_query) | set(_loci_by_query)
         if len(_calls_by_query.get(q, ())) > 1 or len(_loci_by_query.get(q, ())) > 1
     }
+    # The typed genotypes behind each query id. The lookup resolves each against
+    # the candidate rows and only withholds when they land on DIFFERENT rows --
+    # different zygosities of one allele (`AG` vs `AA`) are not a conflict.
+    typed_genotypes_by_query: dict[str, set[str]] = {
+        q: {genotype for genotype, _chrom, _pos in calls} for q, calls in _calls_by_query.items()
+    }
     # The one typed call behind a query id, when there is exactly one. `raw_by_query`
     # keeps whichever row won its self-map tie-break, which may be a no-call even
     # though a typed alias exists -- gnomAD would then select on the no-call and
@@ -1623,6 +1635,7 @@ def run_annotation(
                         conflicting_genotype_rsids,
                         gnomad_locus_unresolved,
                         resolved_call_by_query,
+                        typed_genotypes_by_query,
                         source_timings=source_timings,
                         source_name="gnomad",
                     )

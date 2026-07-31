@@ -978,6 +978,7 @@ def lookup_gnomad_by_rsids(
     genotype_by_rsid: dict[str, str] | None = None,
     allele_ambiguous_out: set[str] | None = None,
     conflicting_genotype_rsids: set[str] | None = None,
+    genotypes_by_rsid: dict[str, set[str]] | None = None,
     locus_by_rsid: dict[str, tuple[str, int]] | None = None,
     locus_unresolved_out: set[str] | None = None,
 ) -> dict[str, GnomADAnnotation]:
@@ -1022,6 +1023,7 @@ def lookup_gnomad_by_rsids(
 
     genotype_by_rsid = genotype_by_rsid or {}
     conflicting_genotype_rsids = conflicting_genotype_rsids or set()
+    genotypes_by_rsid = genotypes_by_rsid or {}
     locus_by_rsid = locus_by_rsid or {}
     locus_unresolved_out = locus_unresolved_out if locus_unresolved_out is not None else None
     results: dict[str, GnomADAnnotation] = {}
@@ -1052,19 +1054,28 @@ def lookup_gnomad_by_rsids(
                 # surviving locus's frequency would still be fanned to aliases
                 # that sit elsewhere.
                 if len(candidates) > 1 and rsid in conflicting_genotype_rsids:
-                    # Why the aliases conflict decides which explanation is true.
-                    # If every candidate shares one REF/ALT, no allele is in
-                    # question -- the aliases disagree on POSITION, and claiming
-                    # "several alternate alleles" would invent a cause here just
-                    # as it did for a plain coordinate miss (#2214 review).
-                    if (
-                        len({(r.ref, r.alt) for r in candidates}) == 1
-                        and locus_unresolved_out is not None
-                    ):
-                        locus_unresolved_out.add(rsid)
-                    elif allele_ambiguous_out is not None:
-                        allele_ambiguous_out.add(rsid)
-                    continue
+                    # Compare what the aliases RESOLVE TO, not their genotype
+                    # strings. `AG` and `AA` at a G>A / G>T site are different
+                    # zygosities of the same allele: both select G>A, so there is
+                    # nothing to withhold. Comparing raw strings called that a
+                    # conflict and dropped a valid frequency (#2214 review).
+                    resolved = {
+                        _pick_gnomad_row(candidates, genotype)
+                        for genotype in genotypes_by_rsid.get(rsid, set())
+                    }
+                    if len(resolved) != 1 or None in resolved:
+                        # Why they disagree decides which explanation is true: a
+                        # single REF/ALT across candidates means the aliases
+                        # differ on POSITION, not on allele.
+                        if (
+                            len({(r.ref, r.alt) for r in candidates}) == 1
+                            and locus_unresolved_out is not None
+                        ):
+                            locus_unresolved_out.add(rsid)
+                        elif allele_ambiguous_out is not None:
+                            allele_ambiguous_out.add(rsid)
+                        continue
+                    candidates = [next(iter(resolved))]
 
                 # One rsID can be catalogued at more than one coordinate. Picking
                 # by genotype alone would let an ALT carried at a *different*

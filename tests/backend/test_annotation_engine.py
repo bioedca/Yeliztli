@@ -2406,6 +2406,44 @@ class TestGnomadAnnotationLookupIntegration:
         # frequency just because the typed alias resolved there.
         assert nc_row.gnomad_af_global != pytest.approx(0.004)
 
+    def test_aliases_resolving_to_one_alt_keep_their_frequency(
+        self,
+        sample_engine: sa.Engine,
+        mock_registry: MagicMock,
+        gnomad_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """#2214 review: different zygosities of ONE allele are not a conflict.
+
+        `AG` and `AA` at a G>A / G>T site are het and hom for the same allele:
+        both unambiguously select G>A. Comparing genotype *strings* called that
+        a conflict and withheld a perfectly resolvable frequency -- and with
+        `include_novel=False` that drops the carried variant. The guard now
+        compares what the calls RESOLVE TO.
+        """
+        with reference_engine.begin() as conn:
+            conn.execute(
+                dbsnp_merges.insert().values(
+                    old_rsid="rs_samealt_old", current_rsid="rs_shared_prod", build_id=155
+                )
+            )
+        self._shared_rsid_gnomad_rows(gnomad_engine)
+        with sample_engine.begin() as conn:
+            conn.execute(
+                raw_variants.insert(),
+                [
+                    {"rsid": "rs_samealt_old", "chrom": "1", "pos": 300, "genotype": "AG"},
+                    {"rsid": "rs_shared_prod", "chrom": "1", "pos": 300, "genotype": "AA"},
+                ],
+            )
+
+        run_annotation(sample_engine, mock_registry)
+
+        for rsid in ("rs_samealt_old", "rs_shared_prod"):
+            row = self._annotated_row(sample_engine, rsid)
+            assert row is not None, rsid
+            assert row.gnomad_af_global == pytest.approx(0.001), rsid
+
     def test_single_alt_rsid_is_annotated_regardless_of_genotype(
         self, sample_engine: sa.Engine, mock_registry: MagicMock, gnomad_engine: sa.Engine
     ) -> None:
