@@ -89,6 +89,27 @@ def _function_assignments(function: ast.FunctionDef) -> dict[str, list[ast.expr]
     return assignments
 
 
+def _documents_distinct_lower_penetrance_tier(text: str) -> bool:
+    normalized = (
+        " ".join(text.lower().split())
+        .replace("lower-penetrance", "lower penetrance")
+        .replace("risk-allele", "risk allele")
+        .replace("high-penetrance", "high penetrance")
+    )
+    has_distinct_tier_language = (
+        "separate tier" in normalized or "reported separately" in normalized
+    )
+    has_high_penetrance_contrast = (
+        "high penetrance p/lp" in normalized or "high penetrance pathogenic" in normalized
+    )
+    return (
+        "lower penetrance" in normalized
+        and "risk allele" in normalized
+        and has_distinct_tier_language
+        and has_high_penetrance_contrast
+    )
+
+
 def _expression_emits_lower_penetrance_category(
     expression: ast.expr,
     function: ast.FunctionDef,
@@ -201,17 +222,20 @@ def test_lower_penetrance_tier_is_documented_on_each_module_page() -> None:
     for display_name, path in _LOWER_PENETRANCE_MODULES.values():
         doc = path.read_text(encoding="utf-8")
         what_youll_see = doc.split("## What you'll see", 1)[1].split("\n## ", 1)[0]
-        normalized = (
-            " ".join(what_youll_see.lower().split())
-            .replace("lower-penetrance", "lower penetrance")
-            .replace("risk-allele", "risk allele")
-        )
-        if "lower penetrance" not in normalized or "risk allele" not in normalized:
+        if not _documents_distinct_lower_penetrance_tier(what_youll_see):
             missing.append(display_name)
 
     assert not missing, (
         "Module pages returning the distinct ClinVar lower-penetrance/risk-allele tier "
-        f"must describe it under 'What you'll see'; missing {missing} (#2052)."
+        "must describe it under 'What you'll see' as a separate tier from "
+        f"high-penetrance P/LP findings; missing {missing} (#2052)."
+    )
+
+
+def test_lower_penetrance_tier_guard_rejects_high_penetrance_equivalence() -> None:
+    """Keyword-only text cannot satisfy the distinct-tier documentation guard (#2052)."""
+    assert not _documents_distinct_lower_penetrance_tier(
+        "Lower-penetrance/risk-allele findings use the same tier as high-penetrance P/LP findings."
     )
 
 
