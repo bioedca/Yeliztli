@@ -242,6 +242,12 @@ def _pair_text(pair: KinshipPair) -> str:
         f"{s.n_shared:,} shared autosomal SNPs, "
         f"{s.informative_denominator:,} informative calls)."
     )
+    if s.relationship == "indeterminate":
+        base += (
+            " This is NOT a finding of unrelatedness: the estimate could not be "
+            "computed from the data available, so no relationship is claimed "
+            "either way."
+        )
     if s.relationship == "duplicate_or_mz_twin":
         base += (
             " A kinship near 0.5 means these two files are either the same person "
@@ -284,16 +290,17 @@ def assess_kinship(
 def store_kinship_findings(result: KinshipResult, sample_engine: sa.Engine) -> int:
     """Persist one finding per non-unrelated pair (idempotent).
 
-    Unrelated / indeterminate pairs are not stored as findings (only related
-    pairs and duplicates are actionable); when nothing is related, a single
-    informational summary is stored instead.
+    Unrelated pairs are not stored (a genuine negative needs no card). An
+    **indeterminate** pair IS stored, with its own per-pair detail: it is not a
+    negative, and folding it into the aggregate summary discarded exactly the
+    evidence -- `informative_denominator`, `indeterminate_reason` -- that
+    explains why it could not be estimated (#2170). When nothing at all is
+    reportable, a single informational summary is stored instead.
     """
-    related = [
-        p for p in result.pairs if p.stats.relationship not in {"unrelated", "indeterminate"}
-    ]
+    reportable = [p for p in result.pairs if p.stats.relationship != "unrelated"]
     rows: list[dict[str, Any]] = []
-    if related:
-        for pair in related:
+    if reportable:
+        for pair in reportable:
             s = pair.stats
             rows.append(
                 {
@@ -340,55 +347,23 @@ def store_kinship_findings(result: KinshipResult, sample_engine: sa.Engine) -> i
             }
         )
     else:
-        # An unevaluable comparison is not a negative result. Reporting "no
-        # related samples detected" for a pair whose KING estimate was never
-        # defined -- or rested on too few shared SNPs -- is false reassurance
-        # about a duplicate/sample-swap check (#2170).
-        unevaluable = [p for p in result.pairs if p.stats.relationship == "indeterminate"]
-        evaluated = result.samples_compared - len(unevaluable)
-        if unevaluable and evaluated <= 0:
-            finding_text = (
-                f"Relatedness could not be estimated for any of your "
-                f"{result.samples_compared} other local sample(s): the comparison did not "
-                f"carry enough usable information. This is not a finding of "
-                f"unrelatedness. This is a within-account QC estimate (duplicate / "
-                f"sample-swap and relatedness check), not a clinical or legal "
-                f"relationship test."
-            )
-            conditions = "Relatedness: not evaluable"
-        elif unevaluable:
-            finding_text = (
-                f"No related samples detected among the {evaluated} of your "
-                f"{result.samples_compared} other local sample(s) that could be "
-                f"evaluated; {len(unevaluable)} could not be estimated and are not "
-                f"counted as unrelated. This is a within-account QC estimate "
-                f"(duplicate / sample-swap and relatedness check), not a clinical or "
-                f"legal relationship test."
-            )
-            conditions = "Relatedness: none detected among evaluable samples"
-        else:
-            finding_text = (
-                f"No related samples detected among your {result.samples_compared} "
-                f"other local sample(s). This is a within-account QC estimate "
-                f"(duplicate / sample-swap and relatedness check), not a clinical or "
-                f"legal relationship test."
-            )
-            conditions = "Relatedness: none detected"
+        # Every pair was evaluable and none was related. Indeterminate pairs no
+        # longer reach here -- they are stored individually above, so their
+        # per-pair evidence survives instead of collapsing into these counts.
         rows.append(
             {
                 "module": MODULE,
                 "category": CATEGORY,
                 "evidence_level": 1,
-                "finding_text": finding_text,
-                "conditions": conditions,
-                "clinvar_significance": None,
-                "detail_json": json.dumps(
-                    {
-                        "samples_compared": result.samples_compared,
-                        "samples_evaluated": max(evaluated, 0),
-                        "samples_not_evaluable": len(unevaluable),
-                    }
+                "finding_text": (
+                    f"No related samples detected among your {result.samples_compared} "
+                    f"other local sample(s). This is a within-account QC estimate "
+                    f"(duplicate / sample-swap and relatedness check), not a clinical or "
+                    f"legal relationship test."
                 ),
+                "conditions": "Relatedness: none detected",
+                "clinvar_significance": None,
+                "detail_json": json.dumps({"samples_compared": result.samples_compared}),
             }
         )
 
@@ -400,7 +375,7 @@ def store_kinship_findings(result: KinshipResult, sample_engine: sa.Engine) -> i
     logger.info(
         "kinship_stored",
         target=result.target_sample_id,
-        related=len(related),
+        reportable=len(reportable),
         compared=result.samples_compared,
     )
     return len(rows)

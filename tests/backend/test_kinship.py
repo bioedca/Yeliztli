@@ -300,37 +300,62 @@ class TestUnevaluableSummary:
     reassurance from a duplicate/sample-swap check.
     """
 
-    def test_all_unevaluable_is_not_reported_as_no_related_samples(
+    def test_unevaluable_pair_gets_its_own_row_with_evidence(
         self, sample_engine: sa.Engine
     ) -> None:
+        """#2215 review: the aggregate summary discarded the per-pair evidence.
+
+        `informative_denominator` and `indeterminate_reason` exist to explain why
+        a comparison could not be estimated, but folding indeterminate pairs into
+        the counts-only summary meant `/findings` returned null for exactly that
+        case. Each unevaluable pair now carries its own row.
+        """
         result = KinshipResult(
             target_sample_id=1,
             pairs=[_pair("B", "indeterminate", "no_heterozygous_information")],
             samples_compared=1,
         )
 
-        text = _stored_text(result, sample_engine)
+        store_kinship_findings(result, sample_engine)
 
-        assert "No related samples detected" not in text
-        assert "could not be estimated" in text
-        assert "not a finding of unrelatedness" in text
+        with sample_engine.connect() as conn:
+            rows = conn.execute(
+                sa.select(findings).where(
+                    findings.c.module == MODULE, findings.c.category == CATEGORY
+                )
+            ).fetchall()
+        assert len(rows) == 1
+        detail = json.loads(rows[0].detail_json)
+        assert detail["relationship"] == "indeterminate"
+        assert detail["phi"] is None
+        assert detail["informative_denominator"] == 0
+        assert detail["indeterminate_reason"] == "no_heterozygous_information"
+        assert "No related samples detected" not in rows[0].finding_text
+        assert "NOT a finding of unrelatedness" in rows[0].finding_text
 
-    def test_mixed_evaluable_and_unevaluable_counts_them_separately(
-        self, sample_engine: sa.Engine
-    ) -> None:
+    def test_related_and_unevaluable_pairs_are_both_filed(self, sample_engine: sa.Engine) -> None:
+        """A mixed set files one row each, so neither hides the other."""
         result = KinshipResult(
             target_sample_id=1,
             pairs=[
-                _pair("B", "unrelated"),
+                _pair("B", "duplicate_or_mz_twin"),
                 _pair("C", "indeterminate", "insufficient_shared_snps"),
             ],
             samples_compared=2,
         )
 
-        text = _stored_text(result, sample_engine)
+        store_kinship_findings(result, sample_engine)
 
-        assert "1 of your 2 other local sample(s) that could be evaluated" in text
-        assert "1 could not be estimated and are not counted as unrelated" in text
+        with sample_engine.connect() as conn:
+            rows = conn.execute(
+                sa.select(findings).where(
+                    findings.c.module == MODULE, findings.c.category == CATEGORY
+                )
+            ).fetchall()
+        by_rel = {json.loads(r.detail_json).get("relationship") for r in rows}
+        assert by_rel == {"duplicate_or_mz_twin", "indeterminate"}
+        # The aggregate "none detected" summary must not also appear.
+        assert all("No related samples detected" not in r.finding_text for r in rows)
 
     def test_all_evaluable_keeps_the_plain_negative(self, sample_engine: sa.Engine) -> None:
         """Discriminating control: a real negative must still read as one."""

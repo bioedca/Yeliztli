@@ -661,9 +661,10 @@ fewer positions and can differ in strand convention, which reduces accuracy. Eac
 estimate reports both the number of shared SNPs and the number of those that \
 actually informed it — the method divides by a count of heterozygous calls, so \
 positions where both samples are identically homozygous add to the shared total \
-without adding evidence. When the two numbers are far apart, or the informative \
-count is zero, the estimate is reported as indeterminate rather than as a \
-relationship.
+without adding evidence. When the informative count is **zero** the estimate is \
+undefined and is reported as indeterminate. A small informative count is still \
+reported as a relationship, so when the two numbers are far apart treat the \
+result with caution: no validated minimum has been established yet.
 
 5. **A near-duplicate result usually means a duplicate file.** A kinship near 0.5 \
 most often means the same person was uploaded twice (or identical twins) — worth \
