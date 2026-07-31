@@ -7,11 +7,17 @@ from pathlib import Path
 
 import sqlalchemy as sa
 
-from backend.analysis.bche import assess_bche
-from backend.analysis.g6pd import assess_g6pd
+from backend.analysis.bche import (
+    BCHE_ATYPICAL_ALT,
+    BCHE_ATYPICAL_RSID,
+    BCHE_K_REF,
+    BCHE_K_RSID,
+    assess_bche,
+)
+from backend.analysis.g6pd import G6PD_A_MINUS_DEF, G6PD_A_MINUS_RSID, assess_g6pd
 from backend.analysis.run_all import _get_modules
 from backend.db.sample_schema import create_sample_tables
-from backend.db.tables import findings
+from backend.db.tables import findings, raw_variants
 
 DOCS_ROOT = Path(__file__).resolve().parent.parent.parent / "docs"
 READING_RESULTS = DOCS_ROOT / "getting-started" / "reading-your-results.md"
@@ -77,8 +83,14 @@ def _markdown_section(path: Path, heading: str) -> str:
 def test_findings_explorer_docs_match_current_filter_surface() -> None:
     section = _findings_explorer_section()
     normalized = re.sub(r"\s+", " ", section)
+    evidence_section = _markdown_section(
+        READING_RESULTS,
+        "## Findings and evidence ratings",
+    )
 
     assert SUPPORTED_FILTER_PATTERN.search(normalized)
+    assert "Findings-producing analysis modules emit **findings**" in evidence_section
+    assert "Every analysis module produces **findings**" not in evidence_section
 
     unsupported_claims = [
         claim
@@ -140,6 +152,29 @@ def test_on_demand_context_assessments_leave_findings_unchanged() -> None:
 
     with engine.begin() as connection:
         connection.execute(
+            raw_variants.insert(),
+            [
+                {
+                    "rsid": G6PD_A_MINUS_RSID,
+                    "chrom": "X",
+                    "pos": 1,
+                    "genotype": G6PD_A_MINUS_DEF * 2,
+                },
+                {
+                    "rsid": BCHE_ATYPICAL_RSID,
+                    "chrom": "3",
+                    "pos": 2,
+                    "genotype": BCHE_ATYPICAL_ALT * 2,
+                },
+                {
+                    "rsid": BCHE_K_RSID,
+                    "chrom": "3",
+                    "pos": 3,
+                    "genotype": BCHE_K_REF * 2,
+                },
+            ],
+        )
+        connection.execute(
             findings.insert().values(
                 module="sentinel",
                 finding_text="Existing finding",
@@ -147,8 +182,15 @@ def test_on_demand_context_assessments_leave_findings_unchanged() -> None:
         )
         before = [dict(row) for row in connection.execute(sa.select(findings)).mappings().all()]
 
-    assert assess_g6pd(engine)["context_only"] is True
-    assert assess_bche(engine)["context_only"] is True
+    g6pd_result = assess_g6pd(engine)
+    bche_result = assess_bche(engine)
+
+    assert g6pd_result["context_only"] is True
+    assert g6pd_result["any_called"] is True
+    assert g6pd_result["at_risk"] is True
+    assert bche_result["context_only"] is True
+    assert bche_result["any_called"] is True
+    assert bche_result["risk_category"] == "high"
 
     with engine.connect() as connection:
         after = [dict(row) for row in connection.execute(sa.select(findings)).mappings().all()]
