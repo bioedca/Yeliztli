@@ -146,6 +146,15 @@ class TestDisclaimer:
         assert "so you can judge \nconfidence" not in text
         assert "actually informed it" in text
         assert "indeterminate" in text
+        # #2215 review: the disclaimer must not make claims about the state of
+        # external validation. Saying "no validated minimum has been established"
+        # is a substantive statistical assertion with no source behind it, and it
+        # was being used to justify publishing labels for tiny denominators.
+        assert "validated minimum" not in text
+        assert "no evidence" not in text
+        # It must also not promise indeterminate for a merely small denominator,
+        # which the implementation does not do.
+        assert "far apart" in text and "caution" in text
 
 
 class TestRunAndList:

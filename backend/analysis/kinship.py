@@ -189,19 +189,24 @@ def king_kinship(genos_i: dict[str, str], genos_j: dict[str, str]) -> KinshipSta
     # report it as such rather than forcing 0.0, which classified as "unrelated"
     # and read as a confident negative (#2170).
     indeterminate_reason: str | None = None
+    raw_phi: float | None = None
     if denom <= 0:
-        phi = None
         indeterminate_reason = "no_heterozygous_information"
     else:
-        phi = round((hethet - 2 * ibs0) / denom, 4)
+        raw_phi = (hethet - 2 * ibs0) / denom
     if n_shared < MIN_SHARED_SNPS:
         indeterminate_reason = "insufficient_shared_snps"
 
+    # Classify the FULL-PRECISION coefficient and round only what is stored.
+    # Rounding first lets a value within 0.00005 of a band edge cross it --
+    # 0.17696 would round to 0.1770 and be labelled first-degree rather than
+    # second-degree (#2215 review).
     relationship = (
         "indeterminate"
-        if indeterminate_reason is not None or phi is None
-        else _classify(phi, ibs0_proportion)
+        if indeterminate_reason is not None or raw_phi is None
+        else _classify(raw_phi, ibs0_proportion)
     )
+    phi = None if raw_phi is None else round(raw_phi, 4)
     return KinshipStats(
         phi=phi,
         ibs0=ibs0,
@@ -243,11 +248,21 @@ def _pair_text(pair: KinshipPair) -> str:
         f"{s.informative_denominator:,} informative calls)."
     )
     if s.relationship == "indeterminate":
-        base += (
-            " This is NOT a finding of unrelatedness: the estimate could not be "
-            "computed from the data available, so no relationship is claimed "
-            "either way."
-        )
+        # "could not be computed" is only true for a zero denominator. With too
+        # few shared SNPs the coefficient IS computed and shown, it is simply not
+        # reportable -- claiming otherwise contradicts the number beside it.
+        if s.indeterminate_reason == "insufficient_shared_snps":
+            base += (
+                " This is NOT a finding of unrelatedness: too few SNPs are shared "
+                "for the estimate to be reportable, so no relationship is claimed "
+                "either way."
+            )
+        else:
+            base += (
+                " This is NOT a finding of unrelatedness: the estimate could not be "
+                "computed from the data available, so no relationship is claimed "
+                "either way."
+            )
     if s.relationship == "duplicate_or_mz_twin":
         base += (
             " A kinship near 0.5 means these two files are either the same person "

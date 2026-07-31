@@ -12,10 +12,12 @@ from __future__ import annotations
 
 import json
 
+import pytest
 import sqlalchemy as sa
 
 from backend.analysis.kinship import (
     CATEGORY,
+    FIRST_DEGREE_MIN,
     MIN_SHARED_SNPS,
     MODULE,
     KinshipPair,
@@ -270,6 +272,39 @@ def _stored_text(result: KinshipResult, sample_engine: sa.Engine) -> str:
     return row.finding_text
 
 
+class TestBandEdgeRounding:
+    def test_classification_uses_the_unrounded_coefficient(self) -> None:
+        """#2215 review: rounding before classifying can promote across a band.
+
+        `FIRST_DEGREE_MIN` is 0.177. This fixture is built to land in the gap:
+        the raw coefficient is 0.17696 (second-degree) but rounds to 0.1770,
+        which classifies as first-degree. Classifying the rounded value would
+        relabel a 2nd-degree relative as 1st-degree.
+        """
+        gi, gj = _build(
+            [
+                (17696, "AG", "AG"),  # both het -> hethet
+                (32304, "AG", "AA"),  # i het only
+                (32304, "AA", "AG"),  # j het only
+            ]
+        )
+        s = king_kinship(gi, gj)
+
+        raw = (s.hethet - 2 * s.ibs0) / (s.het_i + s.het_j)
+        assert raw == pytest.approx(0.17696)
+        # The gap is real for this fixture, not incidental.
+        assert raw < FIRST_DEGREE_MIN <= round(raw, 4)
+        assert s.relationship == "second_degree"
+        assert s.phi == pytest.approx(0.177)
+
+    def test_stored_phi_is_still_rounded(self) -> None:
+        """The rounding itself must not disappear -- only move after classifying."""
+        gi, gj = _build([(1500, "AG", "AG"), (1500, "AA", "AA")])
+        s = king_kinship(gi, gj)
+        assert s.phi is not None
+        assert s.phi == round(s.phi, 4)
+
+
 class TestPairTextWithUndefinedPhi:
     def test_undefined_phi_renders_a_word_not_a_crash(self) -> None:
         """#2170: `phi` is Optional now, so the `:.3f` format would raise."""
@@ -289,6 +324,35 @@ class TestPairTextWithUndefinedPhi:
 
         assert "0.010" in text
         assert "undefined" not in text
+
+
+class TestIndeterminateWording:
+    def test_too_few_snps_does_not_claim_the_estimate_was_uncomputable(self) -> None:
+        """#2215 review: the sentence must match the reason.
+
+        With too few shared SNPs the coefficient IS computed and displayed, so
+        saying it "could not be computed" contradicts the number beside it. Only
+        a zero denominator makes that literally true.
+        """
+        pair = _pair("B", "indeterminate", "insufficient_shared_snps")
+        # This pair has a real phi -- the estimate exists, it is not reportable.
+        object.__setattr__(pair.stats, "phi", 0.03)
+
+        text = _pair_text(pair)
+
+        assert "too few SNPs are shared" in text
+        assert "could not be computed" not in text
+        assert "NOT a finding of unrelatedness" in text
+
+    def test_zero_denominator_still_says_uncomputable(self) -> None:
+        """Discriminating control: the original wording must survive where true."""
+        pair = _pair("B", "indeterminate", "no_heterozygous_information")
+        assert pair.stats.phi is None
+
+        text = _pair_text(pair)
+
+        assert "could not be computed" in text
+        assert "too few SNPs are shared" not in text
 
 
 class TestUnevaluableSummary:

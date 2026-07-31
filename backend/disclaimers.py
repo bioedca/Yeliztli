@@ -664,7 +664,7 @@ positions where both samples are identically homozygous add to the shared total 
 without adding evidence. When the informative count is **zero** the estimate is \
 undefined and is reported as indeterminate. A small informative count is still \
 reported as a relationship, so when the two numbers are far apart treat the \
-result with caution: no validated minimum has been established yet.
+result with caution.
 
 5. **A near-duplicate result usually means a duplicate file.** A kinship near 0.5 \
 most often means the same person was uploaded twice (or identical twins) — worth \
