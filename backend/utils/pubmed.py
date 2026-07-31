@@ -18,8 +18,11 @@ Usage::
 from __future__ import annotations
 
 import json
+import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
+from html import unescape
 
 import sqlalchemy as sa
 import structlog
@@ -34,6 +37,93 @@ DEFAULT_TTL_DAYS = 7
 
 # Maximum PMIDs per efetch request (NCBI recommendation)
 _EFETCH_BATCH_SIZE = 200
+
+_PUBMED_CACHE_ESCAPED_PREFIX = "__YELIZTLI_PUBMED_ESCAPED_V1__:"
+_PUBMED_CACHE_PLAIN_PREFIX = "__YELIZTLI_PUBMED_PLAIN_V1__:"
+_PUBMED_PAIRED_FORMATTING_RES = tuple(
+    re.compile(
+        rf"<{tag}\b(?:\s[^<>]*?)?\s*>"
+        rf"(?P<text>(?:(?!<{tag}\b).)*?)"
+        rf"</{tag}\s*>",
+        re.IGNORECASE | re.DOTALL,
+    )
+    for tag in ("b", "i", "u", "DispFormula")
+)
+_PUBMED_SUPERSCRIPT_RE = re.compile(
+    r"<sup\b(?:\s[^<>]*?)?\s*>"
+    r"(?P<text>(?:(?!<sup\b).)*?)"
+    r"</sup\s*>",
+    re.IGNORECASE | re.DOTALL,
+)
+_PUBMED_SUBSCRIPT_RE = re.compile(
+    r"<sub\b(?:\s[^<>]*?)?\s*>"
+    r"(?P<text>(?:(?!<sub\b).)*?)"
+    r"</sub\s*>",
+    re.IGNORECASE | re.DOTALL,
+)
+_PUBMED_MATHML_RE = re.compile(
+    r"<(?:mml:)?math\b[^<>]*(?:/>|>.*?</(?:mml:)?math\s*>)",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def _replace_pubmed_pairs(
+    value: str,
+    pattern: re.Pattern[str],
+    replacement: str | Callable[[re.Match[str]], str],
+) -> str:
+    """Replace innermost formatting pairs, including same-tag nesting."""
+    while True:
+        updated = pattern.sub(replacement, value)
+        if updated == value:
+            return value
+        value = updated
+
+
+def _strip_pubmed_markup(value: object) -> str:
+    """Remove only complete PubMed formatting pairs from source text."""
+    without_mathml = _PUBMED_MATHML_RE.sub("[formula]", str(value))
+    with_scripts = _replace_pubmed_pairs(
+        without_mathml,
+        _PUBMED_SUPERSCRIPT_RE,
+        lambda match: f"^({match.group('text')})",
+    )
+    with_scripts = _replace_pubmed_pairs(
+        with_scripts,
+        _PUBMED_SUBSCRIPT_RE,
+        lambda match: f"_({match.group('text')})",
+    )
+    without_tags = with_scripts
+    for pattern in _PUBMED_PAIRED_FORMATTING_RES:
+        without_tags = _replace_pubmed_pairs(without_tags, pattern, r"\g<text>")
+    return without_tags
+
+
+def _plain_pubmed_text(value: object) -> str:
+    """Normalize one Entrez-escaped value into plain display text."""
+    return unescape(_strip_pubmed_markup(value))
+
+
+def _legacy_pubmed_text(value: object) -> str:
+    """Clean pre-v1 cache text, whose XML entities were already decoded."""
+    return _strip_pubmed_markup(value)
+
+
+def _cached_pubmed_text(value: object) -> str:
+    """Decode an explicitly versioned value or safely clean a legacy row."""
+    text = str(value)
+    if text.startswith(_PUBMED_CACHE_ESCAPED_PREFIX):
+        return _plain_pubmed_text(text.removeprefix(_PUBMED_CACHE_ESCAPED_PREFIX))
+    if text.startswith(_PUBMED_CACHE_PLAIN_PREFIX):
+        return text.removeprefix(_PUBMED_CACHE_PLAIN_PREFIX)
+    return _legacy_pubmed_text(text)
+
+
+def _pubmed_cache_value(source: str | None, display: str) -> str:
+    """Version cache text so its decoding contract is never inferred."""
+    if source is not None:
+        return f"{_PUBMED_CACHE_ESCAPED_PREFIX}{source}"
+    return f"{_PUBMED_CACHE_PLAIN_PREFIX}{_legacy_pubmed_text(display)}"
 
 
 @dataclass
@@ -50,6 +140,10 @@ class PubMedArticle:
     query: str | None = None
     fetched_at: datetime | None = None
     is_stale: bool = False
+    _cache_title: str | None = field(default=None, repr=False, compare=False)
+    _cache_abstract: str | None = field(default=None, repr=False, compare=False)
+    _cache_authors: list[str] | None = field(default=None, repr=False, compare=False)
+    _cache_journal: str | None = field(default=None, repr=False, compare=False)
 
     def to_dict(self) -> dict:
         """Serialize to dictionary for API responses."""
@@ -288,6 +382,31 @@ class PubMedFetcher:
         with self._engine.begin() as conn:
             for article in articles:
                 article_gene = article.gene or gene
+                cache_values = {
+                    "title": _pubmed_cache_value(article._cache_title, article.title),
+                    "abstract": _pubmed_cache_value(
+                        article._cache_abstract,
+                        article.abstract,
+                    ),
+                    "authors": json.dumps(
+                        [
+                            _pubmed_cache_value(source, display)
+                            for source, display in zip(
+                                article._cache_authors
+                                if article._cache_authors is not None
+                                else [None] * len(article.authors),
+                                article.authors,
+                                strict=True,
+                            )
+                        ]
+                    ),
+                    "journal": _pubmed_cache_value(
+                        article._cache_journal,
+                        article.journal,
+                    ),
+                    "year": article.year,
+                    "fetched_at": now,
+                }
                 # Try to update existing entry first
                 existing = conn.execute(
                     sa.select(literature_cache.c.id).where(
@@ -302,14 +421,7 @@ class PubMedFetcher:
                     conn.execute(
                         literature_cache.update()
                         .where(literature_cache.c.id == existing.id)
-                        .values(
-                            title=article.title,
-                            abstract=article.abstract,
-                            authors=json.dumps(article.authors),
-                            journal=article.journal,
-                            year=article.year,
-                            fetched_at=now,
-                        )
+                        .values(**cache_values)
                     )
                 else:
                     conn.execute(
@@ -317,12 +429,7 @@ class PubMedFetcher:
                             pmid=article.pmid,
                             gene=article_gene,
                             query=article.query,
-                            title=article.title,
-                            abstract=article.abstract,
-                            authors=json.dumps(article.authors),
-                            journal=article.journal,
-                            year=article.year,
-                            fetched_at=now,
+                            **cache_values,
                         )
                     )
 
@@ -361,7 +468,7 @@ class PubMedFetcher:
                     retmode="xml",
                 )
                 try:
-                    records = Entrez.read(handle)
+                    records = Entrez.read(handle, escape=True)
                 finally:
                     handle.close()
 
@@ -438,10 +545,10 @@ def _row_to_article(row: sa.Row) -> PubMedArticle:
 
     return PubMedArticle(
         pmid=row.pmid,
-        title=row.title or "",
-        abstract=row.abstract or "",
-        authors=authors,
-        journal=row.journal or "",
+        title=_cached_pubmed_text(row.title or ""),
+        abstract=_cached_pubmed_text(row.abstract or ""),
+        authors=[_cached_pubmed_text(author) for author in authors],
+        journal=_cached_pubmed_text(row.journal or ""),
         year=row.year,
         gene=row.gene,
         query=row.query,
@@ -465,25 +572,33 @@ def _parse_entrez_record(
 
         article_data = medline.get("Article", {})
 
-        # Title
-        title = str(article_data.get("ArticleTitle", ""))
+        # Preserve the Entrez-escaped source in the cache so text is normalized
+        # exactly once on both the network and cache paths.
+        cache_title = str(article_data.get("ArticleTitle", ""))
+        title = _plain_pubmed_text(cache_title)
 
         # Abstract
         abstract_parts = article_data.get("Abstract", {}).get("AbstractText", [])
-        abstract = " ".join(str(part) for part in abstract_parts)
+        cache_abstract = " ".join(str(part) for part in abstract_parts)
+        abstract = _plain_pubmed_text(cache_abstract)
 
         # Authors
         authors: list[str] = []
+        cache_authors: list[str] = []
         author_list = article_data.get("AuthorList", [])
         for author in author_list:
-            last = author.get("LastName", "")
-            initials = author.get("Initials", "")
+            cache_last = str(author.get("LastName", ""))
+            cache_initials = str(author.get("Initials", ""))
+            last = _plain_pubmed_text(cache_last)
+            initials = _plain_pubmed_text(cache_initials)
             if last:
                 authors.append(f"{last} {initials}".strip())
+                cache_authors.append(f"{cache_last} {cache_initials}".strip())
 
         # Journal
         journal_info = article_data.get("Journal", {})
-        journal = str(journal_info.get("Title", ""))
+        cache_journal = str(journal_info.get("Title", ""))
+        journal = _plain_pubmed_text(cache_journal)
 
         # Year
         year = None
@@ -503,6 +618,10 @@ def _parse_entrez_record(
             journal=journal,
             year=year,
             gene=gene,
+            _cache_title=cache_title,
+            _cache_abstract=cache_abstract,
+            _cache_authors=cache_authors,
+            _cache_journal=cache_journal,
         )
 
     except Exception:
