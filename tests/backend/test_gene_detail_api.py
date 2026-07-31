@@ -756,8 +756,8 @@ class TestGeneLiterature:
                     gene="BRCA1",
                     title="<i>TP53</i> and CO<sub>2</sub>",
                     abstract="The assay measured 10<sup>6</sup> cells.",
-                    authors=json.dumps(["Smith &amp; Jones AB"]),
-                    journal="Research &amp; Practice",
+                    authors=json.dumps(["Smith & Jones AB"]),
+                    journal="Research & Practice",
                     year=2023,
                     fetched_at=datetime.now(UTC),
                 )

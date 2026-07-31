@@ -147,7 +147,7 @@ class TestFetchAndCache:
             ).fetchall()
         assert len(rows) == 1
         assert rows[0].gene == "BRCA1"
-        assert rows[0].title == "BRCA1 mutations"
+        assert rows[0].title == "__YELIZTLI_PUBMED_ESCAPED_V1__:BRCA1 mutations"
 
     def test_second_call_returns_cached(
         self, fetcher: PubMedFetcher, reference_engine: sa.Engine
@@ -678,10 +678,10 @@ class TestRowToArticle:
                 {
                     "pmid": "36766853",
                     "gene": "TP53",
-                    "title": "<i>TP53</i> and CO<sub>2</sub> in Adaptation &amp; Evolution.",
+                    "title": "Literal <i> beside <i>TP53</i> and CO<sub>2</sub>",
                     "abstract": "The assay measured 10<sup>6</sup> cells when x<y.",
-                    "authors": json.dumps(["Smith &amp; Jones AB"]),
-                    "journal": "Research &amp; Practice",
+                    "authors": json.dumps(["Smith & Jones AB"]),
+                    "journal": "Research & Practice",
                     "year": 2023,
                     "fetched_at": datetime.now(UTC),
                 }
@@ -694,13 +694,13 @@ class TestRowToArticle:
             ).first()
 
         article = _row_to_article(row)
-        assert article.title == "TP53 and CO_(2) in Adaptation & Evolution."
+        assert article.title == "Literal <i> beside TP53 and CO_(2)"
         assert article.abstract == "The assay measured 10^(6) cells when x<y."
         assert article.authors == ["Smith & Jones AB"]
         assert article.journal == "Research & Practice"
-        assert "<" not in article.title
-        assert "<i>" not in article.abstract
-        assert "<sub>" not in article.abstract
+        assert article.title.count("<i>") == 1
+        assert "</i>" not in article.title
+        assert "<sub>" not in article.title
 
 
 class TestArticleSerialization:
