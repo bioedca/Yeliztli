@@ -294,6 +294,79 @@ class TestListFindings:
         assert response.detail["percentile"] is None
         assert response.detail["z_score"] is None
 
+    def _roh_row(self, *, finding_text: str, detail: dict):
+        return SimpleNamespace(
+            id=101,
+            module="roh",
+            category="autozygosity",
+            evidence_level=1,
+            gene_symbol=None,
+            rsid=None,
+            finding_text=finding_text,
+            phenotype=None,
+            conditions=None,
+            zygosity=None,
+            clinvar_significance=None,
+            diplotype=None,
+            metabolizer_status=None,
+            drug=None,
+            haplogroup=None,
+            prs_score=None,
+            prs_percentile=None,
+            pathway=None,
+            pathway_level=None,
+            svg_path=None,
+            pmid_citations=None,
+            detail_json=json.dumps(detail),
+            provenance=None,
+            related_module=None,
+            related_finding_id=None,
+            created_at=None,
+        )
+
+    def test_legacy_roh_typical_text_is_corrected_in_generic_api(self):
+        # #2177 — the unified findings explorer renders finding_text verbatim,
+        # so a row persisted before the ROH evaluability gate would otherwise
+        # keep presenting a "typical" negative for an unevaluable sample.
+        response = _row_to_response(
+            self._roh_row(
+                finding_text=(
+                    "No long runs of homozygosity were detected (FROH ≈ 0). "
+                    "This is the typical result."
+                ),
+                detail={"froh": 0.0, "n_segments": 0, "autosomal_snps_used": 30},
+            )
+        )
+
+        assert "typical result" not in response.finding_text.lower()
+        assert "not assessed" in response.finding_text.lower()
+
+    def test_evaluable_roh_text_is_untouched_in_generic_api(self):
+        # Counterpart control: a well-covered ROH row keeps its stored text, so
+        # the correction cannot silently rewrite every finding in the explorer.
+        stored = "No long runs of homozygosity were detected (FROH ≈ 0)."
+        response = _row_to_response(
+            self._roh_row(
+                finding_text=stored,
+                detail={"froh": 0.0, "n_segments": 0, "autosomal_snps_used": 600_000},
+            )
+        )
+
+        assert response.finding_text == stored
+
+    def test_non_roh_finding_text_is_never_rewritten(self):
+        # The normalizer is module-scoped: a low-marker-count detail blob on
+        # another module must not trigger ROH wording.
+        stored = "Sparse coverage note for an unrelated module."
+        row = self._roh_row(
+            finding_text=stored,
+            detail={"autosomal_snps_used": 1},
+        )
+        row.module = "cancer"
+        row.category = "prs"
+
+        assert _row_to_response(row).finding_text == stored
+
     def test_finding_has_parsed_provenance(self, findings_client):
         resp = findings_client.get("/api/analysis/findings?sample_id=1&module=cancer")
         prov = resp.json()[0]["provenance"]

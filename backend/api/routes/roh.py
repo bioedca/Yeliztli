@@ -17,9 +17,8 @@ from pydantic import BaseModel
 
 from backend.analysis.roh import (
     CATEGORY,
-    INSUFFICIENT_AUTOSOMAL_MARKERS,
-    MIN_EVALUABLE_AUTOSOMAL_SNPS,
     MODULE,
+    evaluability_from_detail,
     unevaluable_text,
 )
 from backend.api.dependencies import require_fresh_sample
@@ -86,15 +85,9 @@ def list_findings(
     # finding_text with zeroed metrics.
     try:
         detail: dict[str, Any] = json.loads(row.detail_json) if row.detail_json else {}
-        snps_used = detail.get("autosomal_snps_used", 0)
-        # Rows written before the evaluability gate carry no ``evaluable`` key
-        # but do record the marker count, so the same rule is re-derived here.
-        # Without this, a stored pre-gate finding would keep serving FROH=0.0
-        # and its "typical result" narrative for every unevaluable sample.
-        evaluable = bool(detail.get("evaluable", snps_used >= MIN_EVALUABLE_AUTOSOMAL_SNPS))
-        reason = detail.get("indeterminate_reason") or (
-            None if evaluable else INSUFFICIENT_AUTOSOMAL_MARKERS
-        )
+        # One shared rule, also used by the unified findings API and the report
+        # generator, so a pre-gate row reclassifies identically on every path.
+        evaluable, snps_used, reason = evaluability_from_detail(detail)
         return RohFindingResponse(
             finding_text=(row.finding_text or "") if evaluable else unevaluable_text(snps_used),
             froh=detail.get("froh", 0.0) if evaluable else None,

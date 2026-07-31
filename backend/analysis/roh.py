@@ -285,6 +285,47 @@ def unevaluable_text(autosomal_snps_used: int) -> str:
     )
 
 
+def evaluability_from_detail(detail: dict[str, Any] | None) -> tuple[bool, int, str | None]:
+    """Return ``(evaluable, autosomal_snps_used, indeterminate_reason)`` for a stored row.
+
+    Findings persisted before the evaluability gate carry no ``evaluable`` key
+    but do record the marker count, so the same rule is re-derived from it.
+    Every read path shares this one implementation: the rule must not be
+    reimplemented per consumer, or the paths drift apart and a sample reads as
+    indeterminate in one place and "typical" in another.
+    """
+    if not isinstance(detail, dict):
+        return True, 0, None
+    raw_used = detail.get("autosomal_snps_used", 0)
+    snps_used = raw_used if isinstance(raw_used, int) and not isinstance(raw_used, bool) else 0
+    stored = detail.get("evaluable")
+    evaluable = bool(stored) if stored is not None else snps_used >= MIN_EVALUABLE_AUTOSOMAL_SNPS
+    if evaluable:
+        return True, snps_used, None
+    reason = detail.get("indeterminate_reason") or INSUFFICIENT_AUTOSOMAL_MARKERS
+    return False, snps_used, str(reason)
+
+
+def normalize_legacy_finding_text(
+    module: str | None,
+    category: str | None,
+    finding_text: str | None,
+    detail: dict[str, Any] | None,
+) -> str | None:
+    """Correct a stored ROH narrative that predates the evaluability gate.
+
+    The unified findings API and the report generator render the persisted
+    ``finding_text`` verbatim, so without this a pre-gate row keeps presenting
+    "No long runs of homozygosity were detected ... This is the typical result"
+    for a sample whose marker count cannot produce a segment at all. Rows from
+    other modules, and evaluable ROH rows, pass through untouched.
+    """
+    if module != MODULE or category != CATEGORY:
+        return finding_text
+    evaluable, snps_used, _reason = evaluability_from_detail(detail)
+    return finding_text if evaluable else unevaluable_text(snps_used)
+
+
 def _finding_text(result: RohResult) -> str:
     if result.indeterminate_reason is not None:
         return unevaluable_text(result.autosomal_snps_used)

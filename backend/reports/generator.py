@@ -29,6 +29,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from backend.analysis.clinvar_conditions import format_clinvar_conditions_text
 from backend.analysis.pathway_coverage import pathway_level_display_label
+from backend.analysis.roh import normalize_legacy_finding_text
 from backend.api.gating import gated_modules_to_hide
 from backend.db.connection import get_registry
 from backend.db.tables import findings, samples
@@ -141,7 +142,15 @@ def _load_findings(
                 "evidence_level": row.evidence_level,
                 "gene_symbol": row.gene_symbol,
                 "rsid": row.rsid,
-                "finding_text": row.finding_text,
+                # A stored ROH narrative written before the evaluability gate
+                # asserts a "typical" FROH ≈ 0 for a sample whose markers cannot
+                # produce a segment (#2177); other modules are untouched.
+                "finding_text": normalize_legacy_finding_text(
+                    row.module,
+                    row.category,
+                    row.finding_text,
+                    _parse_json_field(row.detail_json),
+                ),
                 "phenotype": row.phenotype,
                 # Clean the raw CLNDN blob for display (#918), mirroring the
                 # frontend helper (#917); raw value stays in the DB. (The current

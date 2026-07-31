@@ -22,6 +22,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 from pydantic import BaseModel
 
+from backend.analysis.roh import normalize_legacy_finding_text
 from backend.api.dependencies import require_fresh_sample
 from backend.api.gating import gated_modules_to_hide
 from backend.db.connection import get_registry
@@ -159,7 +160,12 @@ def _row_to_response(row: sa.Row) -> FindingResponse:
         evidence_level=row.evidence_level,
         gene_symbol=row.gene_symbol,
         rsid=row.rsid,
-        finding_text=row.finding_text,
+        # A stored ROH narrative written before the evaluability gate asserts a
+        # "typical" FROH ≈ 0 for a sample whose markers cannot produce a segment
+        # (#2177). Rows from other modules pass through unchanged.
+        finding_text=normalize_legacy_finding_text(
+            row.module, row.category, row.finding_text, detail
+        ),
         phenotype=row.phenotype,
         conditions=row.conditions,
         zygosity=row.zygosity,
