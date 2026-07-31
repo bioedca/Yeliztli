@@ -112,8 +112,10 @@ def list_findings(
             autosomal_snps_used=snps_used,
             evaluable=evaluable,
             indeterminate_reason=reason,
-            segments=[RohSegmentResponse(**s) for s in detail.get("segments", [])],
-            segments_truncated=detail.get("segments_truncated", False),
+            segments=[RohSegmentResponse(**s) for s in detail.get("segments", [])]
+            if evaluable
+            else [],
+            segments_truncated=bool(detail.get("segments_truncated", False)) and evaluable,
         )
     except (json.JSONDecodeError, TypeError, ValueError) as exc:
         logger.warning("Failed to build ROH response for finding id=%s: %s", row.id, exc)

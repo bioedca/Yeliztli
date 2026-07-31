@@ -496,6 +496,11 @@ def _withheld_detail(
     # field. The marker count stays because it is observed, not derived.
     for key in ("froh", "total_roh_kb", "longest_kb", "n_segments"):
         corrected[key] = None
+    # The segment list is the strongest assertion in the blob — concrete
+    # chromosomes and coordinates — so it goes too. Withholding the summary
+    # while shipping the detail states the finding in another form.
+    corrected["segments"] = []
+    corrected["segments_truncated"] = False
     corrected["evaluable"] = False
     corrected["indeterminate_reason"] = reason or INSUFFICIENT_AUTOSOMAL_MARKERS
     corrected["autosomal_snps_used"] = snps_used

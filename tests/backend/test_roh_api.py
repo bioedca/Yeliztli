@@ -468,6 +468,73 @@ class TestEvaluabilityAtTheApi:
         assert data["froh"] is None
         assert "typical result" not in data["finding_text"].lower()
 
+    def test_withheld_response_asserts_no_measurement_at_all(
+        self, _env: sa.Engine, client: TestClient
+    ) -> None:
+        # A row carrying real segments whose sample can no longer support a
+        # scan. Pins the WHOLE withheld contract rather than one field at a
+        # time: every measured quantity has been withheld field-by-field over
+        # several rounds, so this asserts the complete shape and will fail if a
+        # future measured field is added without being withheld too.
+        import json as _json
+
+        from backend.db.tables import findings
+
+        self._reseed(_env, [{"rsid": "r1", "chrom": "1", "pos": 1_000_000, "genotype": "AA"}])
+        with _env.begin() as conn:
+            conn.execute(
+                sa.insert(findings),
+                {
+                    "module": "roh",
+                    "category": "autozygosity",
+                    "evidence_level": 1,
+                    "finding_text": "No long runs of homozygosity were detected (FROH ≈ 0).",
+                    "detail_json": _json.dumps(
+                        {
+                            "evaluable": True,
+                            "froh": 0.004,
+                            "total_roh_kb": 11080.0,
+                            "longest_kb": 6200.0,
+                            "n_segments": 2,
+                            "autosomal_snps_used": 1,
+                            "segments": [
+                                {
+                                    "chrom": "4",
+                                    "start": 1_000_000,
+                                    "end": 7_200_000,
+                                    "length_kb": 6200.0,
+                                    "n_snps": 620,
+                                },
+                                {
+                                    "chrom": "9",
+                                    "start": 2_000_000,
+                                    "end": 6_880_000,
+                                    "length_kb": 4880.0,
+                                    "n_snps": 488,
+                                },
+                            ],
+                            "segments_truncated": True,
+                        }
+                    ),
+                },
+            )
+
+        data = client.get("/api/analysis/roh/findings?sample_id=1").json()
+
+        assert data["evaluable"] is False
+        assert data["indeterminate_reason"] == "insufficient_autosomal_markers"
+        # Nothing measured survives — not the summary, and not the segment list
+        # naming specific chromosomes and coordinates.
+        assert data["froh"] is None
+        assert data["total_roh_kb"] is None
+        assert data["longest_kb"] is None
+        assert data["n_segments"] is None
+        assert data["segments"] == []
+        assert data["segments_truncated"] is False
+        # The observed marker count is retained: it is measured, not derived.
+        assert data["autosomal_snps_used"] == 1
+        assert "typical result" not in data["finding_text"].lower()
+
     def test_explicit_true_verdict_survives_on_a_covered_sample(
         self, _env: sa.Engine, client: TestClient
     ) -> None:

@@ -422,6 +422,36 @@ class TestListFindings:
         assert response.detail["evaluable"] is False
         assert response.detail["indeterminate_reason"] == "insufficient_autosomal_markers"
 
+    def test_withheld_roh_detail_drops_its_segments(self):
+        # The generic findings path has the same contradiction to avoid: a
+        # withheld detail blob must not keep concrete segment records beside
+        # its nulled summary.
+        response = _row_to_response(
+            self._roh_row(
+                finding_text="No long runs of homozygosity were detected (FROH ≈ 0).",
+                detail={
+                    "froh": 0.004,
+                    "n_segments": 1,
+                    "autosomal_snps_used": 30,
+                    "segments": [
+                        {
+                            "chrom": "4",
+                            "start": 1_000_000,
+                            "end": 7_200_000,
+                            "length_kb": 6200.0,
+                            "n_snps": 620,
+                        }
+                    ],
+                    "segments_truncated": True,
+                },
+            )
+        )
+
+        assert response.detail["froh"] is None
+        assert response.detail["n_segments"] is None
+        assert response.detail["segments"] == []
+        assert response.detail["segments_truncated"] is False
+
     def test_evaluable_roh_detail_keeps_its_measured_value(self):
         response = _row_to_response(
             self._roh_row(
