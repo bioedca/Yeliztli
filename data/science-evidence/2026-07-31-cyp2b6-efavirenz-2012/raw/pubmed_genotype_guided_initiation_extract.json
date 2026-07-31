@@ -1,0 +1,33 @@
+{
+  "source": "NCBI Entrez EFetch selected PubMed abstract fields",
+  "database": "pubmed",
+  "accessed": "2026-07-31",
+  "ids": [
+    "26622191",
+    "17918089"
+  ],
+  "records": {
+    "26622191": {
+      "title": "A pharmacogenomic prospective randomized controlled trial of CYP2B6 polymorphisms and efavirenz dose adjustment among HIV-infected Thai patients: a pilot study.",
+      "doi": "10.2147/PGPM.S86446",
+      "pmcid": "PMC4638311",
+      "design": "24-week prospective randomized controlled trial",
+      "participants": 24,
+      "timing": "CYP2B6 genotyping was assigned before the initial antiretroviral dose.",
+      "guided_regimen": {
+        "CYP2B6 *6/*6": "400 mg/day efavirenz from initiation",
+        "other genotypes": "600 mg/day efavirenz from initiation"
+      },
+      "reported_result": "The poor-metabolizer participant receiving 400 mg/day had a lower mean efavirenz concentration than the poor-metabolizer participant receiving 600 mg/day (1.916 versus 3.915 micrograms/mL)."
+    },
+    "17918089": {
+      "title": "Successful efavirenz dose reduction in HIV type 1-infected individuals with cytochrome P450 2B6 *6 and *26.",
+      "doi": "10.1086/522175",
+      "design": "multicenter genotype-guided clinical study",
+      "participants_genotyped": 456,
+      "timing": "Five efavirenz-naive CYP2B6 *6/*6 or *6/*26 carriers began efavirenz at 400 mg/day.",
+      "monitored_adjustment": "Two of the five still had high efavirenz concentrations at 400 mg/day and were reduced to 200 mg/day.",
+      "reported_result": "The two participants reduced from an initial 400 mg/day to 200 mg/day retained HIV-1 suppression."
+    }
+  }
+}

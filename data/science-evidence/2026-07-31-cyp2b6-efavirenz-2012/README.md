@@ -34,11 +34,18 @@ authority-snapshot and CPIC-classification conformance work.
    `31006110,19433561,21447868,26044067`, `retmode=json`. A sanitized copy of
    the identifying response fields is at
    `data/science-evidence/2026-07-31-cyp2b6-efavirenz-2012/raw/pubmed_esummary_sanitized.json`.
-4. Retraction/correction query:
+4. NCBI Entrez `esummary` and `efetch`, database `pubmed`, IDs
+   `26622191,17918089`. The public metadata response and a sanitized extract of
+   the abstract fields that bear on genotype-guided initiation are at
+   `data/science-evidence/2026-07-31-cyp2b6-efavirenz-2012/raw/pubmed_genotype_guided_initiation_esummary.json`
+   and
+   `data/science-evidence/2026-07-31-cyp2b6-efavirenz-2012/raw/pubmed_genotype_guided_initiation_extract.json`.
+5. Retraction/correction queries:
    `(31006110[pmid] OR 19433561[pmid] OR 21447868[pmid] OR
    26044067[pmid]) AND (retracted publication[pt] OR retraction of
    publication[pt] OR published erratum[pt] OR corrected and republished
-   article[pt])`. Entrez returned zero records.
+   article[pt])` and the same publication-type filter for
+   `(26622191[pmid] OR 17918089[pmid])`. Entrez returned zero records for both.
 
 The CPIC endpoint is API v1 and returned PostgREST records keyed by guideline
 ID `104245`; the selected response does not expose a separate data-release
@@ -51,17 +58,24 @@ versioned retrieval identity.
 | --- | --- | --- |
 | CPIC currently says to initiate 400 mg/day for Intermediate and 400 or 200 mg/day for Poor Metabolizers. | CPIC API guideline `104245` (accessed 2026-07-31); PMID:31006110 (accessed 2026-07-31); DOI:10.1002/cpt.1477 (accessed 2026-07-31) | The API is the current normative record. The published guideline independently fixes its publication identity, but is the same CPIC assertion and is not counted as an independent clinical dataset. |
 | A 400 mg Intermediate and 200 mg Poor regimen is pharmacokinetically supported. | PMID:19433561 (accessed 2026-07-31); DOI:10.1128/AAC.01537-08 (accessed 2026-07-31) | A population-PK study of 131 patients (32 genotyped) directly derived those two genotype-stratified doses for target exposure. |
+| Reduced-dose efavirenz can be selected before treatment from a poor-metabolizer genotype rather than only after side effects. | PMID:17918089 (accessed 2026-07-31); DOI:10.1086/522175 (accessed 2026-07-31) | A Japanese multicenter study genotyped 456 patients. Five efavirenz-naive CYP2B6 \*6/\*6 or \*6/\*26 carriers began at 400 mg/day; two with persistently high concentrations were then reduced to 200 mg/day and retained HIV-1 suppression. |
+| A separate prospective randomized cohort supports genotype selection before the initial ART dose. | PMID:26622191 (accessed 2026-07-31); DOI:10.2147/PGPM.S86446 (accessed 2026-07-31) | In a 24-patient Thai pilot, assignment to CYP2B6 testing occurred before ART initiation; the guided arm initiated \*6/\*6 carriers at 400 mg/day and other genotypes at 600 mg/day. Only two poor metabolizers were enrolled, so this is timing evidence, not a precise effect-size estimate. |
 | Reductions to 400 or 200 mg can retain target exposure and virologic suppression. | PMID:21447868 (accessed 2026-07-31); DOI:10.3851/IMP1742 (accessed 2026-07-31) | A separate multicenter therapeutic-drug-monitoring cohort reduced high-exposure patients to 400 or 200 mg and reported maintained suppression at six months. |
 | 400 mg was not virologically inferior to 600 mg and produced fewer efavirenz-related/CNS adverse events. | PMID:26044067 (accessed 2026-07-31); DOI:10.1002/cpt.156 (accessed 2026-07-31) | ENCORE1 was a separate randomized cohort and supports the 400 mg efficacy/safety premise used by CPIC. |
 
-PMID:19433561 and PMID:21447868 have different investigators, study designs,
-participants, and source datasets; neither reuses the other's cohort.
-PMID:26044067 is a third, randomized ENCORE1 dataset. These independent sources
-agree on the feasibility of lower dosing and do not share a cohort or
-patient-level upstream assertion. The therapeutic-drug-monitoring study does
-not itself establish preemptive phenotype-specific timing. CPIC synthesizes
-these results with additional evidence and is the authority for that exact
-timing and phenotype-specific wording.
+PMID:17918089 and PMID:26622191 independently establish that CYP2B6 genotype
+can select a reduced efavirenz dose before treatment rather than only in
+reaction to side effects. They used different investigators, countries,
+participants, designs, and source datasets. PMID:19433561 independently maps
+the Intermediate and Poor phenotypes to 400 and 200 mg/day for target exposure;
+PMID:26044067 independently establishes that initiating 400 rather than 600
+mg/day does not reduce virologic efficacy. PMID:21447868 supplies a further
+independent monitored 400/200 mg reduction cohort. None reuses another's
+participants or patient-level upstream assertion. The direct initiation
+cohorts are small and do not by themselves establish the entire CPIC phenotype
+matrix; CPIC remains the authority for the exact moderate, consider-initiating
+wording, while the independent cohorts and PK/noninferiority studies agree on
+its timing, dose, exposure, and efficacy premises.
 
 ## Availability and licensing
 
@@ -70,9 +84,8 @@ timing and phenotype-specific wording.
   both returned `INVALID_ARGUMENT`.
 - Scite lookup for DOI `10.1002/cpt.1477` with the targeted recommendation
   terms returned `INVALID_ARGUMENT`.
-- NCBI Entrez and CPIC's public API were available. PubMed records were indexed
-  for MEDLINE and had no retraction/correction/erratum publication-type hit on
-  the access date.
+- NCBI Entrez and CPIC's public API were available. The six PubMed records had
+  no retraction/correction/erratum publication-type hit on the access date.
 - The CPIC API response does not state a license. It is retained here only as a
   minimal factual provenance record with source attribution; no license beyond
   the source's terms is asserted.
