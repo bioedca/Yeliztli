@@ -26,6 +26,7 @@ from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import (
     annotated_variants,
     gene_phenotype,
+    literature_cache,
     reference_metadata,
     samples,
     uniprot_cache,
@@ -734,6 +735,49 @@ class TestUniProtCacheStorage:
 
 class TestGeneLiterature:
     """Tests for PubMed literature in gene detail."""
+
+    def test_cached_markup_is_normalized_in_api_response(
+        self,
+        gene_detail_client: TestClient,
+        tmp_data_dir: Path,
+    ) -> None:
+        """Legacy cached markup is normalized through the real gene-detail route."""
+        settings = Settings(
+            data_dir=tmp_data_dir,
+            wal_mode=False,
+            pubmed_email="",
+            pubmed_api_key="",
+        )
+        ref_engine = sa.create_engine(f"sqlite:///{settings.reference_db_path}")
+        with ref_engine.begin() as conn:
+            conn.execute(
+                literature_cache.insert().values(
+                    pmid="36766853",
+                    gene="BRCA1",
+                    title="<i>TP53</i> and CO<sub>2</sub>",
+                    abstract="The assay measured 10<sup>6</sup> cells.",
+                    authors=json.dumps(["Smith &amp; Jones AB"]),
+                    journal="Research &amp; Practice",
+                    year=2023,
+                    fetched_at=datetime.now(UTC),
+                )
+            )
+
+        with (
+            patch("backend.api.routes.genes._fetch_uniprot_from_cache", return_value=None),
+            patch("backend.api.routes.genes._fetch_uniprot_from_api", return_value=None),
+            patch("backend.api.routes.genes._get_stale_uniprot", return_value=None),
+            patch("backend.api.routes.genes.get_settings", return_value=settings),
+        ):
+            resp = gene_detail_client.get("/api/genes/BRCA1?sample_id=1")
+
+        ref_engine.dispose()
+        assert resp.status_code == 200
+        article = resp.json()["literature"][0]
+        assert article["title"] == "TP53 and CO_(2)"
+        assert article["abstract"] == "The assay measured 10^(6) cells."
+        assert article["authors"] == ["Smith & Jones AB"]
+        assert article["journal"] == "Research & Practice"
 
     def test_literature_included_in_response(self, gene_detail_client: TestClient) -> None:
         """Literature articles appear in gene detail response."""
