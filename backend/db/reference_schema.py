@@ -70,25 +70,23 @@ _CANONICAL_CYP2B6_EFAVIRENZ_RECOMMENDATIONS = {
         "Consider initiating efavirenz with decreased dose of 400 or 200 mg/day."
     ),
 }
-_LEGACY_CYP2B6_EFAVIRENZ_FINGERPRINT = Counter(
-    {
+_LEGACY_CYP2B6_EFAVIRENZ_FINGERPRINTS = {
+    "Intermediate Metabolizer": (
+        None,
+        "Use label-recommended dosing; consider a reduced dose if CNS side effects occur.",
+        "A",
+        _CYP2B6_EFAVIRENZ_GUIDELINE_URL,
+    ),
+    "Poor Metabolizer": (
+        None,
         (
-            "Intermediate Metabolizer",
-            None,
-            "Use label-recommended dosing; consider a reduced dose if CNS side effects occur.",
-            "A",
-            _CYP2B6_EFAVIRENZ_GUIDELINE_URL,
-        ): 1,
-        (
-            "Poor Metabolizer",
-            None,
             "Consider initiating at a decreased dose (e.g., 400 mg/day); higher plasma "
-            "exposure raises CNS-toxicity risk.",
-            "A",
-            _CYP2B6_EFAVIRENZ_GUIDELINE_URL,
-        ): 1,
-    }
-)
+            "exposure raises CNS-toxicity risk."
+        ),
+        "A",
+        _CYP2B6_EFAVIRENZ_GUIDELINE_URL,
+    ),
+}
 
 _TPMT_THIOPURINE_GUIDELINE_URL = (
     "https://cpicpgx.org/guidelines/guideline-for-thiopurines-and-tpmt/"
@@ -267,12 +265,13 @@ def _refresh_legacy_cyp2c9_phenytoin_guidelines(engine: sa.Engine) -> bool:
 
 
 def _refresh_legacy_cyp2b6_efavirenz_guidelines(engine: sa.Engine) -> bool:
-    """Upgrade only the exact released CYP2B6 reduced-dose recommendation pair.
+    """Upgrade each unambiguous exact released CYP2B6 recommendation.
 
     Existing reference databases are not reloaded when bundled CPIC CSVs
-    change. The complete two-row legacy fingerprint makes this repair
-    fail-closed: partial, duplicated, mixed, current, future, or custom content
-    is untouched, and existing row IDs are retained.
+    change. Each phenotype is fingerprinted independently so a missing or
+    customized companion cannot leave an exact released row stale. A phenotype
+    with duplicate, mixed, current, future, or custom content is untouched,
+    and existing row IDs are retained.
     """
     inspector = sa.inspect(engine)
     if "cpic_guidelines" not in inspector.get_table_names():
@@ -312,17 +311,23 @@ def _refresh_legacy_cyp2b6_efavirenz_guidelines(engine: sa.Engine) -> bool:
                     cpic_guidelines.c.guideline_url,
                 ).where(target)
             ).fetchall()
-            observed = Counter(
-                (
-                    row.phenotype,
-                    row.activity_score,
-                    row.recommendation,
-                    row.classification,
-                    row.guideline_url,
+            rows_by_phenotype = {
+                phenotype: [row for row in rows if row.phenotype == phenotype]
+                for phenotype in _CYP2B6_EFAVIRENZ_REDUCED_DOSE_PHENOTYPES
+            }
+            legacy_rows = [
+                phenotype_rows[0]
+                for phenotype, phenotype_rows in rows_by_phenotype.items()
+                if len(phenotype_rows) == 1
+                and (
+                    phenotype_rows[0].activity_score,
+                    phenotype_rows[0].recommendation,
+                    phenotype_rows[0].classification,
+                    phenotype_rows[0].guideline_url,
                 )
-                for row in rows
-            )
-            if observed != _LEGACY_CYP2B6_EFAVIRENZ_FINGERPRINT:
+                == _LEGACY_CYP2B6_EFAVIRENZ_FINGERPRINTS[phenotype]
+            ]
+            if not legacy_rows:
                 conn.rollback()
                 return False
 
@@ -353,12 +358,11 @@ def _refresh_legacy_cyp2b6_efavirenz_guidelines(engine: sa.Engine) -> bool:
                     "Bundled CYP2B6/efavirenz reduced-dose guidelines are not canonical"
                 )
 
-            existing_ids = {row.phenotype: row.id for row in rows}
-            for phenotype in sorted(_CYP2B6_EFAVIRENZ_REDUCED_DOSE_PHENOTYPES):
+            for legacy_row in sorted(legacy_rows, key=lambda row: row.phenotype):
                 conn.execute(
                     sa.update(cpic_guidelines)
-                    .where(cpic_guidelines.c.id == existing_ids[phenotype])
-                    .values(canonical_by_phenotype[phenotype])
+                    .where(cpic_guidelines.c.id == legacy_row.id)
+                    .values(canonical_by_phenotype[legacy_row.phenotype])
                 )
             conn.commit()
         except BaseException:
@@ -367,7 +371,7 @@ def _refresh_legacy_cyp2b6_efavirenz_guidelines(engine: sa.Engine) -> bool:
 
     logger.warning(
         "legacy_cyp2b6_efavirenz_guidelines_refreshed",
-        updated_rows=len(rows),
+        updated_rows=len(legacy_rows),
     )
     return True
 

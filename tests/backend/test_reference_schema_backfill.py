@@ -746,12 +746,17 @@ def test_refreshes_only_exact_legacy_cyp2b6_efavirenz_pair(tmp_path: Path) -> No
 
 
 @pytest.mark.parametrize(
-    "near_miss",
+    ("rows", "updated_phenotypes"),
     [
-        pytest.param(_LEGACY_EFAVIRENZ_ROWS[:1], id="partial"),
+        pytest.param(
+            _LEGACY_EFAVIRENZ_ROWS[:1],
+            {"Intermediate Metabolizer"},
+            id="missing-companion",
+        ),
         pytest.param(
             [*_LEGACY_EFAVIRENZ_ROWS, _LEGACY_EFAVIRENZ_ROWS[0]],
-            id="duplicate",
+            {"Poor Metabolizer"},
+            id="duplicate-companion",
         ),
         pytest.param(
             [
@@ -761,29 +766,33 @@ def test_refreshes_only_exact_legacy_cyp2b6_efavirenz_pair(tmp_path: Path) -> No
                 },
                 _LEGACY_EFAVIRENZ_ROWS[1],
             ],
-            id="custom",
+            {"Poor Metabolizer"},
+            id="custom-companion",
         ),
         pytest.param(
             [
                 {
-                    **row,
-                    "recommendation": _CANONICAL_EFAVIRENZ_RECOMMENDATIONS[row["phenotype"]],
-                }
-                for row in _LEGACY_EFAVIRENZ_ROWS
+                    **_LEGACY_EFAVIRENZ_ROWS[0],
+                    "recommendation": _CANONICAL_EFAVIRENZ_RECOMMENDATIONS[
+                        "Intermediate Metabolizer"
+                    ],
+                },
+                _LEGACY_EFAVIRENZ_ROWS[1],
             ],
-            id="current",
+            {"Poor Metabolizer"},
+            id="current-companion",
         ),
     ],
 )
-def test_does_not_overwrite_or_load_bundle_for_near_miss_efavirenz_pairs(
+def test_refreshes_each_unambiguous_legacy_efavirenz_row_independently(
     tmp_path: Path,
-    monkeypatch,
-    near_miss: list[dict],
+    rows: list[dict],
+    updated_phenotypes: set[str],
 ) -> None:
     engine = sa.create_engine(f"sqlite:///{tmp_path / 'ref.db'}")
     reference_metadata.create_all(engine, checkfirst=True)
     with engine.begin() as conn:
-        conn.execute(cpic_guidelines.insert(), near_miss)
+        conn.execute(cpic_guidelines.insert(), rows)
     with engine.connect() as conn:
         before = [
             dict(row)
@@ -792,14 +801,7 @@ def test_does_not_overwrite_or_load_bundle_for_near_miss_efavirenz_pairs(
             ).mappings()
         ]
 
-    from backend.annotation import cpic as cpic_module
-
-    def fail_if_parsed(_path):
-        raise AssertionError("nonlegacy CYP2B6/efavirenz content must not load the bundle")
-
-    monkeypatch.setattr(cpic_module, "parse_cpic_guidelines_csv", fail_if_parsed)
-
-    assert ensure_reference_schema_current(engine) is False
+    assert ensure_reference_schema_current(engine) is True
     with engine.connect() as conn:
         after = [
             dict(row)
@@ -807,7 +809,42 @@ def test_does_not_overwrite_or_load_bundle_for_near_miss_efavirenz_pairs(
                 sa.select(cpic_guidelines).order_by(cpic_guidelines.c.id)
             ).mappings()
         ]
-    assert after == before
+
+    for old_row, new_row in zip(before, after, strict=True):
+        if (
+            old_row["phenotype"] in updated_phenotypes
+            and old_row["recommendation"]
+            != _CANONICAL_EFAVIRENZ_RECOMMENDATIONS[old_row["phenotype"]]
+        ):
+            assert new_row == {
+                **old_row,
+                "recommendation": _CANONICAL_EFAVIRENZ_RECOMMENDATIONS[old_row["phenotype"]],
+            }
+        else:
+            assert new_row == old_row
+
+
+def test_does_not_load_bundle_for_current_efavirenz_rows(tmp_path: Path, monkeypatch) -> None:
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'ref.db'}")
+    reference_metadata.create_all(engine, checkfirst=True)
+    current_rows = [
+        {
+            **row,
+            "recommendation": _CANONICAL_EFAVIRENZ_RECOMMENDATIONS[row["phenotype"]],
+        }
+        for row in _LEGACY_EFAVIRENZ_ROWS
+    ]
+    with engine.begin() as conn:
+        conn.execute(cpic_guidelines.insert(), current_rows)
+
+    from backend.annotation import cpic as cpic_module
+
+    def fail_if_parsed(_path):
+        raise AssertionError("current CYP2B6/efavirenz content must not load the bundle")
+
+    monkeypatch.setattr(cpic_module, "parse_cpic_guidelines_csv", fail_if_parsed)
+
+    assert ensure_reference_schema_current(engine) is False
 
 
 def test_invalid_bundled_efavirenz_pair_rolls_back_legacy_rows(
