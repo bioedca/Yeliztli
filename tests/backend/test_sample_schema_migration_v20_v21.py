@@ -129,7 +129,7 @@ def test_v21_quarantines_only_cyp2c9_phenytoin_alert_and_diff_identity(
         )
         version = conn.execute(sa.text("PRAGMA user_version")).scalar_one()
 
-    assert version == SAMPLE_SCHEMA_VERSION == 23
+    assert version == SAMPLE_SCHEMA_VERSION == 24
     assert remaining == [
         ("pharmacogenomics", "prescribing_alert", "CYP2C9", "warfarin"),
         ("pharmacogenomics", "prescribing_alert", "CYP2D6", "phenytoin"),
@@ -623,7 +623,7 @@ def test_v21_tolerates_malformed_finding_diff_json(sample_engine: sa.Engine) -> 
         ).scalar_one()
         version = conn.execute(sa.text("PRAGMA user_version")).scalar_one()
     assert value == "{not-json"
-    assert version == 23
+    assert version == 24
 
 
 def test_prompt_publication_rejects_sample_deleted_after_registry_lookup(tmp_path: Path) -> None:
@@ -1027,4 +1027,4 @@ def test_v21_tolerates_partial_legacy_findings_table(tmp_path) -> None:
 
     assert ensure_sample_schema_current(engine) is True
     with engine.connect() as conn:
-        assert conn.execute(sa.text("PRAGMA user_version")).scalar_one() == 23
+        assert conn.execute(sa.text("PRAGMA user_version")).scalar_one() == 24
