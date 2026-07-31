@@ -72,9 +72,12 @@ These stay hidden until you explicitly choose to view them.
 
 ## Specialized findings
 
-Ten more condition-specific modules run automatically and surface in the **Findings
+Eight of these condition-specific modules run automatically and surface in the **Findings
 Explorer** — haemochromatosis, thrombophilia, alpha-1 antitrypsin, AMD, APOL1 kidney risk,
-gout, LHON, MT-RNR1, G6PD, and BChE. See **[Specialized findings](specialized.md)**.
+gout, LHON, and MT-RNR1. G6PD and BChE are read-only, on-demand API context modules.
+Neither is part of the standard analysis or stores a Findings Explorer entry. See
+**[Specialized findings](specialized.md)** for their direct API endpoints and interpretation
+limits.
 
 ## Quality control
 
