@@ -11,6 +11,7 @@ reference so a coverage-qualified badge can't ship undocumented again.
 
 from __future__ import annotations
 
+import ast
 from pathlib import Path
 
 from backend.annotation.dbnsfp import ENSEMBLE_MIN_AXES, is_ensemble_pathogenic_from_counts
@@ -75,14 +76,102 @@ _ENSEMBLE_EXAMPLES = (
 )
 
 
+def _function_assignments(function: ast.FunctionDef) -> dict[str, list[ast.expr]]:
+    assignments: dict[str, list[ast.expr]] = {}
+    for node in ast.walk(function):
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    assignments.setdefault(target.id, []).append(node.value)
+        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+            if node.value is not None:
+                assignments.setdefault(node.target.id, []).append(node.value)
+    return assignments
+
+
+def _expression_emits_lower_penetrance_category(
+    expression: ast.expr,
+    function: ast.FunctionDef,
+    functions: dict[str, ast.FunctionDef],
+    seen: set[tuple[str, str]],
+) -> bool:
+    marker = (function.name, ast.dump(expression, include_attributes=False))
+    if marker in seen:
+        return False
+    seen.add(marker)
+
+    assignments = _function_assignments(function)
+    for node in ast.walk(expression):
+        if isinstance(node, ast.Name) and node.id == "LOWER_PENETRANCE_RISK_ALLELE_CATEGORY":
+            return True
+        if isinstance(node, ast.Name):
+            if any(
+                _expression_emits_lower_penetrance_category(value, function, functions, seen)
+                for value in assignments.get(node.id, [])
+            ):
+                return True
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+            called = functions.get(node.func.id)
+            if called is not None and any(
+                isinstance(return_node, ast.Return)
+                and return_node.value is not None
+                and _expression_emits_lower_penetrance_category(
+                    return_node.value, called, functions, seen
+                )
+                for return_node in ast.walk(called)
+            ):
+                return True
+    return False
+
+
+def _stores_lower_penetrance_category(path: Path) -> bool:
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    functions = {node.name: node for node in tree.body if isinstance(node, ast.FunctionDef)}
+    for function in functions.values():
+        for node in ast.walk(function):
+            if not isinstance(node, ast.Dict):
+                continue
+            for key, value in zip(node.keys, node.values, strict=True):
+                if (
+                    isinstance(key, ast.Constant)
+                    and key.value == "category"
+                    and _expression_emits_lower_penetrance_category(
+                        value, function, functions, set()
+                    )
+                ):
+                    return True
+    return False
+
+
+def test_category_emission_detector_ignores_query_only_references(tmp_path: Path) -> None:
+    analysis = tmp_path / "analysis.py"
+    analysis.write_text(
+        """
+def query_categories():
+    return [LOWER_PENETRANCE_RISK_ALLELE_CATEGORY]
+
+def store_finding():
+    return {"category": "monogenic_variant"}
+""",
+        encoding="utf-8",
+    )
+    assert _stores_lower_penetrance_category(analysis) is False
+
+    analysis.write_text(
+        """
+def store_finding():
+    return {"category": LOWER_PENETRANCE_RISK_ALLELE_CATEGORY}
+""",
+        encoding="utf-8",
+    )
+    assert _stores_lower_penetrance_category(analysis) is True
+
+
 def test_lower_penetrance_output_table_matches_analysis_modules() -> None:
     """Every analysis module storing the distinct tier stays in the reference table (#2052)."""
     analysis_dir = _REPO / "backend" / "analysis"
     implementation_modules = {
-        path.name
-        for path in analysis_dir.glob("*.py")
-        if path.name != "clinvar_significance.py"
-        and "LOWER_PENETRANCE_RISK_ALLELE_CATEGORY" in path.read_text(encoding="utf-8")
+        path.name for path in analysis_dir.glob("*.py") if _stores_lower_penetrance_category(path)
     }
     assert implementation_modules == set(_LOWER_PENETRANCE_MODULES), (
         "Update _LOWER_PENETRANCE_MODULES and the interpretation-reference output table "
