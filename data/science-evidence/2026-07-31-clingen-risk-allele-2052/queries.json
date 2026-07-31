@@ -18,6 +18,8 @@
     },
     {
       "service": "NCBI Entrez",
+      "route": "life-science-research:ncbi-entrez-skill",
+      "runner": "scripts/ncbi_entrez.py",
       "endpoint": "esummary",
       "params": {
         "db": "pubmed",
@@ -25,6 +27,7 @@
         "retmode": "json"
       },
       "status": "success",
+      "result": "The bundled skill runner returned ok=true, source=ncbi-entrez, no warnings, and the expected article title for PMID:38054408.",
       "raw_payload": "data/science-evidence/2026-07-31-clingen-risk-allele-2052/raw/pubmed-esummary-38054408.json"
     },
     {

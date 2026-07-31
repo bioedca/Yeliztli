@@ -48,6 +48,11 @@ output category; this change does not add or alter variant classification behavi
   quota was exhausted; the service reported an August 1 reset.
 - Scite DOI lookup attempted first: unavailable because the monthly MCP quota
   was exhausted; the service reported a 2026-08-03 UTC reset.
+- Narrow Life Science Research fallback:
+  `life-science-research:ncbi-entrez-skill` ran its bundled
+  `scripts/ncbi_entrez.py` client with the recorded PubMed `esummary` request.
+  It returned `ok=true`, source `ncbi-entrez`, no warnings, and the expected
+  title for PMID:38054408 (accessed 2026-07-31).
 - NCBI Entrez verified the title, journal, publication date, PMID, DOI, and
   collective author.
 - Correction/retraction screening: the captured PubMed EFetch XML has no typed
