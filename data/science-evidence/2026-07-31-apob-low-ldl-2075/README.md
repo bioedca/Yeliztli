@@ -36,6 +36,10 @@ NCBI Entrez:
 
 - `esummary`, database `pubmed`, ID `30939045`, JSON
 - `esummary`, database `pubmed`, ID `36723951`, JSON
+- `esearch`, database `pubmed`, DOI `10.1161/CIRCGEN.118.002376`, correction/retraction
+  publication types, JSON
+- `esearch`, database `pubmed`, DOI `10.1001/jamacardio.2022.5271`,
+  correction/retraction publication types, JSON
 
 ## Primary sources and claim mapping
 
@@ -65,21 +69,38 @@ rather than relying on the other paper's conclusion.
 
 ## Corrections and retractions
 
-Targeted public web searches run on 2026-07-31:
+Reproducible PubMed ESearch requests run on 2026-07-31:
 
-- `"10.1161/CIRCGEN.118.002376" correction OR erratum OR retraction`
-- `"10.1001/jamacardio.2022.5271" correction OR erratum OR retraction`
+- Source `DOI:10.1161/CIRCGEN.118.002376` was searched for records whose publication type
+  is Correction, Published Erratum, Retraction of Publication, Retracted Publication, or
+  Expression of Concern. PubMed returned `count=0` and an empty ID list. Raw response:
+  `data/science-evidence/2026-07-31-apob-low-ldl-2075/pubmed-30939045-correction-retraction-esearch.json`.
+- Source `DOI:10.1001/jamacardio.2022.5271` was searched with the same publication-type
+  filter. PubMed returned `count=0` and an empty ID list. Raw response:
+  `data/science-evidence/2026-07-31-apob-low-ldl-2075/pubmed-36723951-correction-retraction-esearch.json`.
 
-Both searches returned the primary article or citation pages and surfaced no
-correction, erratum, expression of concern, or retraction notice. The saved
-PubMed ESummary records likewise contain neither a correction/retraction
-publication type nor such a linked record. This records the searches and
-returned metadata as of 2026-07-31, not a guarantee that no later notice exists.
+The saved responses retain PubMed's normalized query, warnings, result count, and ID list.
+PubMed recognized Published Erratum, Retracted Publication, and Expression of Concern in the
+normalized query; its response reports the unrecognized phrases transparently. Supplemental
+public web searches using each DOI plus `correction OR erratum OR retraction` also surfaced no
+notice. These results record what was indexed and returned on 2026-07-31, not a guarantee that
+no later notice exists.
 
 ## Payload format and usage
 
-The raw files are NCBI E-utilities ESummary JSON responses captured on
-2026-07-31. They contain public PubMed citation metadata only, not article full
+The raw files are NCBI E-utilities PubMed ESummary and ESearch JSON responses captured on
+2026-07-31. Every response identifies JSON schema version `0.3`; the live PubMed service does
+not expose a frozen database build identifier, so the access date is the packet's retrieval
+version boundary. They contain citation/search metadata only, not abstracts, article full
 text, participant-level data, genotypes, credentials, or restricted material.
-Use is subject to NCBI's public data and usage policies. The repository
+
+NCBI's [Website and Data Usage Policies and Disclaimers](https://www.ncbi.nlm.nih.gov/home/about/policies/)
+(accessed 2026-07-31) state that U.S.-government-created site information is public domain and
+may be copied with acknowledgment, while contributed or licensed material may remain
+protected; NLM does not claim copyright in PubMed abstracts, but publishers or authors may.
+The [E-utilities usage requirements](https://www.ncbi.nlm.nih.gov/books/NBK25497/)
+(accessed 2026-07-31) require the NCBI disclaimer/copyright notice to remain evident when
+E-utilities are used in software. This packet therefore redistributes only the citation/search
+metadata returned by the API, preserves NCBI and publisher attribution, excludes abstracts and
+full text, and asserts no blanket license over publisher-contributed material. The repository
 documentation paraphrases the mapped claims and links to the primary sources.

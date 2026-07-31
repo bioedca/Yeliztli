@@ -32,11 +32,13 @@ array actually covers.
 
 - It doesn't detect FH variants on its own — it summarises the cardiovascular module's
   findings plus the single APOB variant and the polygenic score.
-- **APOB is bidirectional.** Protein-truncating *APOB* variants linked to familial
-  hypobetalipoproteinemia are reported under Other lipid metabolism and excluded from FH
-  status. Other *APOB* findings follow the cardiovascular module's existing FH criteria,
-  including its ClinVar condition-label and lower-penetrance/risk-allele filters. Human
-  genetic studies associate protein-truncating variants with low LDL cholesterol
+- **APOB is bidirectional.** *APOB* findings with low-LDL-only ClinVar labels—and
+  protein-truncating *APOB* variants linked to familial hypobetalipoproteinemia even when
+  ClinVar labels aggregate both directions—are reported under Other lipid metabolism and
+  excluded from FH status. Other *APOB* findings follow the cardiovascular module's existing
+  FH criteria, including its ClinVar condition-label and lower-penetrance/risk-allele
+  filters. Human genetic studies associate protein-truncating variants with low LDL
+  cholesterol
   ([PMID:30939045](https://pubmed.ncbi.nlm.nih.gov/30939045/);
   [DOI:10.1161/CIRCGEN.118.002376](https://doi.org/10.1161/CIRCGEN.118.002376)
   (accessed 2026-07-31); [PMID:36723951](https://pubmed.ncbi.nlm.nih.gov/36723951/);
