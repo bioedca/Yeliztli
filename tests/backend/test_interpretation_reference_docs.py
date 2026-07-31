@@ -128,6 +128,8 @@ def _stores_lower_penetrance_category(path: Path) -> bool:
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     functions = {node.name: node for node in tree.body if isinstance(node, ast.FunctionDef)}
     for function in functions.values():
+        if not (function.name.startswith("store_") and function.name.endswith("_findings")):
+            continue
         for node in ast.walk(function):
             if not isinstance(node, ast.Dict):
                 continue
@@ -148,9 +150,9 @@ def test_category_emission_detector_ignores_query_only_references(tmp_path: Path
     analysis.write_text(
         """
 def query_categories():
-    return [LOWER_PENETRANCE_RISK_ALLELE_CATEGORY]
+    return {"category": LOWER_PENETRANCE_RISK_ALLELE_CATEGORY}
 
-def store_finding():
+def store_test_findings():
     return {"category": "monogenic_variant"}
 """,
         encoding="utf-8",
@@ -159,7 +161,7 @@ def store_finding():
 
     analysis.write_text(
         """
-def store_finding():
+def store_test_findings():
     return {"category": LOWER_PENETRANCE_RISK_ALLELE_CATEGORY}
 """,
         encoding="utf-8",

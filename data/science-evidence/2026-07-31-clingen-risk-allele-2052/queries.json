@@ -1,0 +1,31 @@
+{
+  "accessed": "2026-07-31",
+  "citation": "PMID:38054408; DOI:10.1016/j.gim.2023.101036 (accessed 2026-07-31)",
+  "claim": "ClinGen provides distinct evidence-curation, classification, and reporting recommendations for risk alleles and low-penetrance variants.",
+  "queries": [
+    {
+      "service": "Consensus",
+      "query": "PMID 38054408 ClinGen low penetrance risk allele terminology working group year:2023-2024",
+      "status": "unavailable",
+      "reason": "Monthly 250-search quota exhausted; service reported an August 1 reset."
+    },
+    {
+      "service": "Scite",
+      "doi": "10.1016/j.gim.2023.101036",
+      "term": "low penetrance risk allele terminology classification reporting",
+      "status": "unavailable",
+      "reason": "Monthly MCP quota exhausted; service reported a 2026-08-03 UTC reset."
+    },
+    {
+      "service": "NCBI Entrez",
+      "endpoint": "esummary",
+      "params": {
+        "db": "pubmed",
+        "id": "38054408",
+        "retmode": "json"
+      },
+      "status": "success",
+      "raw_payload": "data/science-evidence/2026-07-31-clingen-risk-allele-2052/raw/pubmed-esummary-38054408.json"
+    }
+  ]
+}

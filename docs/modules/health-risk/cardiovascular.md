@@ -17,7 +17,7 @@ inherited heart and lipid conditions, and summarises familial-hypercholesterolem
 - **Per-variant findings** — ClinVar Pathogenic/Likely-Pathogenic variants with review stars,
   accession, inheritance pattern, an evidence rating, and the relevant cardiovascular
   category. ClinVar lower-penetrance/risk-allele findings are reported in a separate tier
-  instead of being presented as high-penetrance P/LP variants.
+  instead of being presented as high-penetrance P/LP variants.[^clingen-risk-allele]
 - **An FH status summary** — Positive or Negative, listing the affected genes and the
   strongest evidence found.
 
@@ -30,3 +30,9 @@ many copies you carry.
   full gene sequences.
 - The dedicated [familial-hypercholesterolemia](familial-hypercholesterolemia.md) view builds
   on these findings and adds an LDL-C polygenic score for a fuller FH picture.
+
+[^clingen-risk-allele]: Schmidt RJ, et al. [Recommendations for risk allele evidence
+    curation, classification, and reporting from the ClinGen Low Penetrance/Risk Allele
+    Working Group](https://doi.org/10.1016/j.gim.2023.101036). *Genetics in Medicine*.
+    2024;26(3):101036. PMID:38054408; DOI:10.1016/j.gim.2023.101036
+    (accessed 2026-07-31).
