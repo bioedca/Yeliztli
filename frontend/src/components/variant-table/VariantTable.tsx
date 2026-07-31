@@ -347,7 +347,7 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex h-full min-w-0 flex-col">
       <ChromosomeNav
         chromosomeCounts={chromCounts}
         isLoading={chromCountsLoading}

@@ -126,18 +126,25 @@ test.describe('mobile app navigation layout', () => {
 
     const sidebar = page.getByRole('complementary', { name: 'Variant table sidebar' })
     const table = page.getByRole('region', { name: 'Variant table' })
+    const main = page.locator('#main-content')
     const row = sidebar.locator('..')
-    const [sidebarBox, tableBox, rowBox, flexDirection] = await Promise.all([
+    const [sidebarBox, tableBox, mainBox, rowBox, flexDirection, documentWidth] =
+      await Promise.all([
       sidebar.boundingBox(),
       table.boundingBox(),
+      main.boundingBox(),
       row.boundingBox(),
       row.evaluate((element) => getComputedStyle(element).flexDirection),
+      page.evaluate(() => document.documentElement.scrollWidth),
     ])
 
     expect(sidebarBox).not.toBeNull()
     expect(tableBox).not.toBeNull()
+    expect(mainBox).not.toBeNull()
     expect(rowBox).not.toBeNull()
     expect(flexDirection).toBe('column')
+    expect(rowBox!.width).toBeLessThanOrEqual(mainBox!.width + 2)
+    expect(documentWidth).toBeLessThanOrEqual(375)
     expect(sidebarBox!.width).toBeGreaterThanOrEqual(rowBox!.width - 2)
     expect(sidebarBox!.height).toBeLessThanOrEqual(160)
     expect(tableBox!.width).toBeGreaterThanOrEqual(rowBox!.width - 2)
@@ -186,18 +193,25 @@ test.describe('mobile app navigation layout', () => {
 
     const sidebar = page.getByRole('complementary', { name: 'Variant table sidebar' })
     const table = page.getByRole('region', { name: 'Variant table' })
+    const main = page.locator('#main-content')
     const row = sidebar.locator('..')
-    const [sidebarBox, tableBox, rowBox, flexDirection] = await Promise.all([
+    const [sidebarBox, tableBox, mainBox, rowBox, flexDirection, documentWidth] =
+      await Promise.all([
       sidebar.boundingBox(),
       table.boundingBox(),
+      main.boundingBox(),
       row.boundingBox(),
       row.evaluate((element) => getComputedStyle(element).flexDirection),
+      page.evaluate(() => document.documentElement.scrollWidth),
     ])
 
     expect(sidebarBox).not.toBeNull()
     expect(tableBox).not.toBeNull()
+    expect(mainBox).not.toBeNull()
     expect(rowBox).not.toBeNull()
     expect(flexDirection).toBe('column')
+    expect(rowBox!.width).toBeLessThanOrEqual(mainBox!.width + 2)
+    expect(documentWidth).toBeLessThanOrEqual(768)
     expect(sidebarBox!.width).toBeGreaterThanOrEqual(rowBox!.width - 2)
     expect(tableBox!.width).toBeGreaterThanOrEqual(rowBox!.width - 2)
   })
