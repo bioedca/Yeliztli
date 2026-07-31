@@ -3,7 +3,7 @@
  *
  * Route: /variants/:rsid?sample_id=N
  *
- * Tabs: Overview | Population | Protein (stub) | Clinical | Literature (stub) | Genome
+ * Tabs: Overview | Population | Protein (stub) | Clinical | Literature | Genome
  */
 
 import { useState, useMemo, useRef, useCallback } from "react"
@@ -24,9 +24,11 @@ import {
 } from "lucide-react"
 
 import { useVariantDetail } from "@/api/variant-detail"
+import { useGeneDetail } from "@/api/gene-detail"
 import PageLoading from "@/components/ui/PageLoading"
 import PageError from "@/components/ui/PageError"
 import HpoTermList from "@/components/HpoTermList"
+import LiteratureCard from "@/components/gene-detail/LiteratureCard"
 import type {
   VariantDetail,
   TranscriptAnnotation,
@@ -533,25 +535,85 @@ function ClinicalTab({ variant }: { variant: VariantDetail }) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Tab: Literature (stub)                                             */
+/*  Tab: Literature                                                    */
 /* ------------------------------------------------------------------ */
 
-function LiteratureTab({ variant }: { variant: VariantDetail }) {
+function LiteratureTab({
+  variant,
+  sampleId,
+}: {
+  variant: VariantDetail
+  sampleId: number | null
+}) {
+  const { data, isLoading, isError, error, refetch } = useGeneDetail(
+    variant.gene_symbol,
+    sampleId,
+  )
+  const geneSymbol = variant.gene_symbol
+
+  if (!geneSymbol) {
+    return (
+      <div
+        className="rounded-lg border bg-card p-6 text-center text-sm text-muted-foreground"
+        data-testid="tab-literature"
+      >
+        No gene is associated with this variant, so gene-level literature is unavailable.
+      </div>
+    )
+  }
+
+  const geneDetailUrl = sampleId == null
+    ? `/genes/${encodeURIComponent(geneSymbol)}`
+    : `/genes/${encodeURIComponent(geneSymbol)}?sample_id=${sampleId}`
+
   return (
-    <div className="text-center py-12" data-testid="tab-literature">
-      <BookOpen className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
-      <h3 className="text-lg font-medium text-foreground mb-2">Literature</h3>
-      <p className="text-sm text-muted-foreground max-w-md mx-auto mb-4">
-        PubMed literature search with cache-first fetching will be available in Phase 3.
-        Abstracts will be keyed by gene and phenotype.
-      </p>
-      {variant.gene_symbol && (
-        <p className="text-sm text-muted-foreground">
-          Search will cover: <span className="font-medium text-foreground">{variant.gene_symbol}</span>
-          {variant.disease_name && (
-            <> + <span className="font-medium text-foreground">{variant.disease_name}</span></>
+    <div className="space-y-4" data-testid="tab-literature">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 className="flex items-center gap-2 text-lg font-medium text-foreground">
+            <BookOpen className="h-5 w-5 text-muted-foreground" />
+            Literature{data ? ` (${data.literature.length})` : ""}
+          </h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Gene-level PubMed literature for{" "}
+            <span className="font-medium text-foreground">{geneSymbol}</span>.
+          </p>
+        </div>
+        <Link
+          to={geneDetailUrl}
+          aria-label={`View full gene detail for ${geneSymbol}`}
+          className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
+        >
+          View full gene detail <ExternalLink className="h-3.5 w-3.5" />
+        </Link>
+      </div>
+
+      {isLoading && <PageLoading message={`Loading literature for ${geneSymbol}...`} />}
+
+      {isError && (
+        <PageError
+          message={error instanceof Error ? error.message : "Literature could not be loaded."}
+          onRetry={() => refetch()}
+        />
+      )}
+
+      {data && data.literature.length > 0 && (
+        <div className="space-y-2">
+          {data.literature.map((article) => (
+            <LiteratureCard key={article.pmid} article={article} />
+          ))}
+        </div>
+      )}
+
+      {data && data.literature.length === 0 && (
+        <div className="rounded-lg border bg-card p-6 text-center text-sm text-muted-foreground">
+          No literature found for this gene.
+          {data.literature_errors.length > 0 && (
+            <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+              {data.literature_errors[0]}
+            </p>
           )}
-        </p>
+        </div>
       )}
     </div>
   )
@@ -859,7 +921,9 @@ export default function VariantDetailPage() {
         {activeTab === "population" && <PopulationTab variant={variant} />}
         {activeTab === "protein" && <ProteinTab variant={variant} sampleId={sampleId} />}
         {activeTab === "clinical" && <ClinicalTab variant={variant} />}
-        {activeTab === "literature" && <LiteratureTab variant={variant} />}
+        {activeTab === "literature" && (
+          <LiteratureTab variant={variant} sampleId={sampleId} />
+        )}
         {activeTab === "genome" && <GenomeTab variant={variant} sampleId={sampleId} />}
       </div>
     </div>

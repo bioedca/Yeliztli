@@ -510,11 +510,42 @@ describe("VariantDetailPage (P2-21a)", () => {
     expect(screen.getByText("HP:0002894")).toBeInTheDocument()
   })
 
-  it("shows Literature stub tab", async () => {
-    mockFetch.mockImplementation(async () => ({
-      ok: true,
-      json: async () => mockVariant,
-    }))
+  it("loads the gene's PubMed literature in the Literature tab", async () => {
+    mockFetch.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.startsWith("/api/variants/")) {
+        return {
+          ok: true,
+          json: async () => mockVariant,
+        }
+      }
+      if (url.startsWith("/api/genes/")) {
+        return {
+          ok: true,
+          json: async () => ({
+            gene_symbol: "BRCA1",
+            uniprot: null,
+            uniprot_error: null,
+            phenotypes: [],
+            literature: [
+              {
+                pmid: "12345678",
+                title: "BRCA1 literature title",
+                abstract: "A cached BRCA1 abstract.",
+                authors: ["Ada Author", "Ben Biologist"],
+                journal: "Genetics",
+                year: 2026,
+                is_stale: false,
+              },
+            ],
+            literature_errors: [],
+            variants: [],
+            population_af: [],
+          }),
+        }
+      }
+      throw new Error(`Unexpected fetch: ${url}`)
+    })
 
     const user = userEvent.setup()
     renderPage("rs100")
@@ -525,7 +556,20 @@ describe("VariantDetailPage (P2-21a)", () => {
 
     await user.click(screen.getByRole("tab", { name: /literature/i }))
     expect(screen.getByTestId("tab-literature")).toBeInTheDocument()
-    expect(screen.getByText(/Phase 3/)).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByTestId("pubmed-12345678")).toBeInTheDocument()
+    })
+    expect(screen.getByText("BRCA1 literature title")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Open PubMed 12345678" })).toHaveAttribute(
+      "href",
+      "https://pubmed.ncbi.nlm.nih.gov/12345678/",
+    )
+    expect(screen.getByRole("link", { name: "View full gene detail for BRCA1" })).toHaveAttribute(
+      "href",
+      "/genes/BRCA1?sample_id=1",
+    )
+    expect(mockFetch).toHaveBeenCalledWith("/api/genes/BRCA1?sample_id=1")
+    expect(screen.queryByText(/Phase 3/)).not.toBeInTheDocument()
   })
 
   it("switches to Genome tab with IGV browser", async () => {
