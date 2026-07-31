@@ -1,6 +1,6 @@
 /** React Query hooks and utilities for the report builder API (P4-10). */
 
-import { useMutation } from "@tanstack/react-query"
+import { useMutation, useQuery } from "@tanstack/react-query"
 
 export interface ReportRequest {
   sample_id: number
@@ -51,6 +51,32 @@ export async function fetchReportPreview(request: ReportRequest): Promise<string
 export interface FhirExportRequest {
   sample_id: number
   include_all?: boolean
+}
+
+export interface FhirExportEligibility {
+  exportable: boolean
+  max_observations: number
+  observation_count: number | null
+  reason: "too_large" | "no_annotated_variants" | null
+}
+
+/** Verify the actual FHIR Observation selection before enabling export. */
+export function useFhirExportEligibility(sampleId: number | null) {
+  return useQuery<FhirExportEligibility>({
+    queryKey: ["fhir-export-eligibility", sampleId],
+    enabled: sampleId != null,
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        sample_id: String(sampleId),
+        include_all: "true",
+      })
+      const res = await fetch(`/api/export/fhir/eligibility?${params}`)
+      if (!res.ok) {
+        throw new Error(`FHIR export eligibility failed: ${res.status}`)
+      }
+      return res.json()
+    },
+  })
 }
 
 /**

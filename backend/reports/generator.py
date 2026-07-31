@@ -41,6 +41,12 @@ logger = structlog.get_logger(__name__)
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 VERSION = "0.1.0"
+MAX_REPORT_FINDINGS = 1_000
+
+
+class ReportTooLargeError(ValueError):
+    """Raised before rendering when a report selection exceeds its safe bound."""
+
 
 # Module display order (determines section order in report)
 MODULE_ORDER = [
@@ -124,9 +130,19 @@ def _load_findings(
         findings.c.module,
         findings.c.id,
     )
+    # Fetch at most one row beyond the supported boundary. This both proves that
+    # the selection is oversized and prevents an unbounded report request from
+    # materializing every matching finding before it can be rejected.
+    stmt = stmt.limit(MAX_REPORT_FINDINGS + 1)
 
     with engine.connect() as conn:
         rows = conn.execute(stmt).fetchall()
+
+    if len(rows) > MAX_REPORT_FINDINGS:
+        raise ReportTooLargeError(
+            "Report selection exceeds the maximum of "
+            f"{MAX_REPORT_FINDINGS:,} findings; select fewer modules."
+        )
 
     result = []
     for row in rows:

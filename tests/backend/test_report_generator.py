@@ -38,6 +38,8 @@ from backend.disclaimers import (
     CARRIER_STATUS_DISCLAIMER_TITLE,
 )
 from backend.reports.generator import (
+    MAX_REPORT_FINDINGS,
+    ReportTooLargeError,
     _group_findings_into_sections,
     _load_findings,
     _read_svg_content,
@@ -220,6 +222,26 @@ def _insert_gated_report_findings(sample_engine: sa.Engine) -> None:
             conn.execute(findings.insert().values(**finding))
 
 
+def _insert_report_findings(
+    sample_engine: sa.Engine,
+    count: int,
+    *,
+    module: str = "rare_variants",
+) -> None:
+    """Bulk-seed synthetic reportable findings for size-boundary tests."""
+    rows = [
+        {
+            "module": module,
+            "category": "rare_variant",
+            "evidence_level": 1,
+            "finding_text": f"Synthetic report finding {index}",
+        }
+        for index in range(count)
+    ]
+    with sample_engine.begin() as conn:
+        conn.execute(findings.insert(), rows)
+
+
 def _acknowledge_gate(sample_engine: sa.Engine, gate_table: sa.Table) -> None:
     with sample_engine.begin() as conn:
         conn.execute(gate_table.insert().values(id=1, acknowledged=True))
@@ -275,6 +297,22 @@ class TestLoadFindings:
         assert len(results) == 4
         modules = {r["module"] for r in results}
         assert modules == {"cancer", "pharmacogenomics"}
+
+    def test_allows_a_selection_at_the_report_limit(self, sample_with_findings: tuple) -> None:
+        _, sample_engine, _ = sample_with_findings
+        _insert_report_findings(sample_engine, MAX_REPORT_FINDINGS)
+
+        results = _load_findings(sample_engine, modules=["rare_variants"])
+
+        assert len(results) == MAX_REPORT_FINDINGS
+        assert all(result["module"] == "rare_variants" for result in results)
+
+    def test_rejects_a_selection_over_the_report_limit(self, sample_with_findings: tuple) -> None:
+        _, sample_engine, _ = sample_with_findings
+        _insert_report_findings(sample_engine, MAX_REPORT_FINDINGS + 1)
+
+        with pytest.raises(ReportTooLargeError, match="maximum of 1,000 findings"):
+            _load_findings(sample_engine, modules=["rare_variants"])
 
     def test_withholds_unqualified_local_ancestry(self, sample_with_findings: tuple) -> None:
         _, sample_engine, _ = sample_with_findings
@@ -830,6 +868,47 @@ class TestReportAPI:
 
         assert resp.status_code == 200
         assert resp.content == fake_pdf
+
+    def test_generate_rejects_oversized_selection_before_pdf_rendering(
+        self,
+        report_client: TestClient,
+        sample_with_findings: tuple,
+    ) -> None:
+        _, sample_engine, _ = sample_with_findings
+        _insert_report_findings(sample_engine, MAX_REPORT_FINDINGS + 1)
+
+        with patch(
+            "backend.reports.generator._html_to_pdf",
+            new_callable=AsyncMock,
+        ) as html_to_pdf:
+            resp = report_client.post(
+                "/api/reports/generate",
+                json={"sample_id": 1, "modules": ["rare_variants"]},
+            )
+
+        assert resp.status_code == 413
+        assert resp.json()["detail"] == (
+            "Report selection exceeds the maximum of 1,000 findings; select fewer modules."
+        )
+        html_to_pdf.assert_not_awaited()
+
+    def test_preview_rejects_oversized_selection_before_html_rendering(
+        self,
+        report_client: TestClient,
+        sample_with_findings: tuple,
+    ) -> None:
+        _, sample_engine, _ = sample_with_findings
+        _insert_report_findings(sample_engine, MAX_REPORT_FINDINGS + 1)
+
+        resp = report_client.post(
+            "/api/reports/preview",
+            json={"sample_id": 1, "modules": ["rare_variants"]},
+        )
+
+        assert resp.status_code == 413
+        assert resp.json()["detail"] == (
+            "Report selection exceeds the maximum of 1,000 findings; select fewer modules."
+        )
 
     def test_generate_nonexistent_sample(self, report_client: TestClient) -> None:
         resp = report_client.post(

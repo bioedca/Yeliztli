@@ -49,7 +49,7 @@ const LARGE_REPORT_SUMMARY = {
   high_confidence_findings: [],
 }
 
-test.describe('Report Builder module labels and preview guard (#1497, #1559)', () => {
+test.describe('Report Builder module labels and export guard (#1497, #1559, #1990)', () => {
   test('uses canonical registry labels before humanizing module keys', async ({ page }) => {
     await page.route('**/api/analysis/findings/summary**', async (route) => {
       await route.fulfill({
@@ -69,13 +69,27 @@ test.describe('Report Builder module labels and preview guard (#1497, #1559)', (
     await expect(page.getByRole('button', { name: 'Research Panel: 2 findings' })).toBeVisible()
   })
 
-  test('disables inline preview for large default report selections', async ({ page }) => {
+  test('blocks every report action until a large default selection is reduced', async ({ page }) => {
     let previewRequests = 0
+    let pdfRequests = 0
+    let fhirRequests = 0
     await page.route('**/api/analysis/findings/summary**', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify(LARGE_REPORT_SUMMARY),
+      })
+    })
+    await page.route('**/api/export/fhir/eligibility**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          exportable: false,
+          max_observations: 1000,
+          observation_count: null,
+          reason: 'too_large',
+        }),
       })
     })
 
@@ -87,6 +101,14 @@ test.describe('Report Builder module labels and preview guard (#1497, #1559)', (
         body: '<html><body>Should not render</body></html>',
       })
     })
+    await page.route('**/api/reports/generate', async (route) => {
+      pdfRequests += 1
+      await route.fulfill({ status: 200, contentType: 'application/pdf', body: 'not reached' })
+    })
+    await page.route('**/api/export/fhir', async (route) => {
+      fhirRequests += 1
+      await route.fulfill({ status: 200, contentType: 'application/fhir+json', body: '{}' })
+    })
 
     await page.goto('/reports?sample_id=1')
     await waitForReactHydration(page)
@@ -95,9 +117,20 @@ test.describe('Report Builder module labels and preview guard (#1497, #1559)', (
     await expect(page.getByRole('button', { name: 'Carrier Status: 1 findings' })).toBeVisible()
 
     await expect(page.getByRole('button', { name: 'Preview report' })).toBeDisabled()
-    await expect(page.getByText(/Inline preview is disabled for reports with more than/)).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Download PDF report' })).toBeEnabled()
+    await expect(page.getByText(/Report actions are disabled for selections with more than/)).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Download PDF report' })).toBeDisabled()
+    await expect(page.getByRole('button', { name: 'Export FHIR R4 Bundle' })).toBeDisabled()
     await expect(page.locator('iframe[title="Report preview"]')).toHaveCount(0)
     expect(previewRequests).toBe(0)
+    expect(pdfRequests).toBe(0)
+    expect(fhirRequests).toBe(0)
+
+    await page.getByRole('button', { name: /Rare Variant Finder: 66,?770 findings/ }).click()
+
+    await expect(page.getByText(/Report actions are disabled for selections with more than/)).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Preview report' })).toBeEnabled()
+    await expect(page.getByRole('button', { name: 'Download PDF report' })).toBeEnabled()
+    await expect(page.getByRole('button', { name: 'Export FHIR R4 Bundle' })).toBeDisabled()
+    await expect(page.getByText(/FHIR export is disabled because it would create more than/)).toBeVisible()
   })
 })

@@ -23,7 +23,12 @@ import {
 import { cn } from "@/lib/utils"
 import { parseSampleId } from "@/lib/format"
 import { useFindingsSummary } from "@/api/findings"
-import { useGenerateReport, useExportFhir, fetchReportPreview } from "@/api/reports"
+import {
+  useGenerateReport,
+  useExportFhir,
+  useFhirExportEligibility,
+  fetchReportPreview,
+} from "@/api/reports"
 import { useDialogFocus } from "@/hooks/useDialogFocus"
 import EvidenceStars from "@/components/ui/EvidenceStars"
 import PageLoading from "@/components/ui/PageLoading"
@@ -32,7 +37,7 @@ import PageEmpty from "@/components/ui/PageEmpty"
 import { MODULE_META } from "@/lib/modules"
 import type { FindingSummaryItem } from "@/types/findings"
 
-export const MAX_INLINE_PREVIEW_FINDINGS = 1_000
+export const MAX_REPORT_FINDINGS = 1_000
 export const MAX_INLINE_PREVIEW_HTML_CHARS = 2_000_000
 
 /** Human-readable labels for finding module keys. Note the key is "carrier"
@@ -102,16 +107,16 @@ function formatCount(value: number): string {
   return value.toLocaleString()
 }
 
-function getInlinePreviewTooLargeMessage(totalFindings: number): string {
-  return `Inline preview is disabled for reports with more than ${formatCount(
-    MAX_INLINE_PREVIEW_FINDINGS,
-  )} findings. This selection has ${formatCount(totalFindings)} findings; download the PDF or select fewer modules.`
+function getReportTooLargeMessage(totalFindings: number): string {
+  return `Report actions are disabled for selections with more than ${formatCount(
+    MAX_REPORT_FINDINGS,
+  )} findings. This selection has ${formatCount(totalFindings)} findings; select fewer modules.`
 }
 
 function getPreviewHtmlTooLargeMessage(htmlLength: number): string {
   return `The rendered preview is too large to display safely (${formatCount(
     htmlLength,
-  )} characters). Download the PDF or select fewer modules.`
+  )} characters). Select fewer modules.`
 }
 
 export default function ReportBuilder() {
@@ -131,6 +136,7 @@ export default function ReportBuilder() {
   const summaryQuery = useFindingsSummary(sampleId)
   const generateMutation = useGenerateReport()
   const fhirMutation = useExportFhir()
+  const fhirEligibilityQuery = useFhirExportEligibility(sampleId)
 
   // Every module that actually has findings, ordered by MODULE_ORDER where known
   // and appended (alphabetically) otherwise. Driving this off the summary data —
@@ -181,17 +187,37 @@ export default function ReportBuilder() {
       .filter((m) => selectedModules.has(m.module))
       .reduce((sum, m) => sum + m.count, 0)
   }, [availableModules, selectedModules])
-  const isInlinePreviewTooLarge = totalFindings > MAX_INLINE_PREVIEW_FINDINGS
-  const largePreviewMessage = isInlinePreviewTooLarge
-    ? getInlinePreviewTooLargeMessage(totalFindings)
+  const isReportTooLarge = totalFindings > MAX_REPORT_FINDINGS
+  const largeReportMessage = isReportTooLarge
+    ? getReportTooLargeMessage(totalFindings)
     : null
-  const canPreview = selectedCount > 0 && !previewLoading && !isInlinePreviewTooLarge
+  const hasExportableSelection = selectedCount > 0 && !isReportTooLarge
+  const canPreview = hasExportableSelection && !previewLoading
+  const canDownload = hasExportableSelection && !generateMutation.isPending
+  const canExportFhir =
+    !fhirEligibilityQuery.isFetching &&
+    !fhirEligibilityQuery.isError &&
+    fhirEligibilityQuery.data?.exportable === true &&
+    !fhirMutation.isPending
+  const fhirEligibilityMessage = fhirEligibilityQuery.isError
+    ? "FHIR export is disabled because its size could not be verified."
+    : fhirEligibilityQuery.isFetching
+      ? "FHIR export is disabled while its size is being verified."
+      : fhirEligibilityQuery.data?.reason === "too_large"
+        ? `FHIR export is disabled because it would create more than ${formatCount(
+            fhirEligibilityQuery.data.max_observations,
+          )} Observations.`
+        : fhirEligibilityQuery.data?.reason === "no_annotated_variants"
+          ? "FHIR export is disabled because this sample has no annotated variants. Run annotation first."
+          : fhirEligibilityQuery.data?.exportable === false
+            ? "FHIR export is disabled because its eligibility could not be confirmed."
+            : null
 
   const handlePreview = useCallback(async () => {
     if (!sampleId || selectedCount === 0) return
-    if (isInlinePreviewTooLarge) {
+    if (isReportTooLarge) {
       setPreviewHtml(null)
-      setPreviewError(getInlinePreviewTooLargeMessage(totalFindings))
+      setPreviewError(getReportTooLargeMessage(totalFindings))
       return
     }
     setPreviewLoading(true)
@@ -213,10 +239,10 @@ export default function ReportBuilder() {
     } finally {
       setPreviewLoading(false)
     }
-  }, [sampleId, selectedModules, selectedCount, isInlinePreviewTooLarge, totalFindings, reportTitle])
+  }, [sampleId, selectedModules, selectedCount, isReportTooLarge, totalFindings, reportTitle])
 
   const handleDownload = useCallback(() => {
-    if (!sampleId || selectedCount === 0) return
+    if (!sampleId || selectedCount === 0 || isReportTooLarge) return
     generateMutation.mutate(
       {
         sample_id: sampleId,
@@ -236,10 +262,17 @@ export default function ReportBuilder() {
         },
       },
     )
-  }, [sampleId, selectedModules, selectedCount, reportTitle, generateMutation])
+  }, [
+    sampleId,
+    selectedModules,
+    selectedCount,
+    isReportTooLarge,
+    reportTitle,
+    generateMutation,
+  ])
 
   const handleFhirExport = useCallback(() => {
-    if (!sampleId) return
+    if (!sampleId || !canExportFhir) return
     fhirMutation.mutate(
       { sample_id: sampleId, include_all: true },
       {
@@ -255,7 +288,7 @@ export default function ReportBuilder() {
         },
       },
     )
-  }, [sampleId, fhirMutation])
+  }, [sampleId, canExportFhir, fhirMutation])
 
   const closePreview = useCallback(() => {
     setPreviewHtml(null)
@@ -470,10 +503,10 @@ export default function ReportBuilder() {
                 Preview
               </button>
 
-              {largePreviewMessage && (
+              {largeReportMessage && (
                 <div className="rounded-md border border-amber-400/60 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-500/50 dark:bg-amber-950/40 dark:text-amber-100">
                   <AlertCircle className="mr-1 inline-block h-3 w-3" />
-                  {largePreviewMessage}
+                  {largeReportMessage}
                 </div>
               )}
 
@@ -481,10 +514,10 @@ export default function ReportBuilder() {
               <button
                 type="button"
                 onClick={handleDownload}
-                disabled={selectedCount === 0 || generateMutation.isPending}
+                disabled={!canDownload}
                 className={cn(
                   "flex w-full items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-colors",
-                  selectedCount === 0
+                  !canDownload
                     ? "cursor-not-allowed bg-primary/50 text-primary-foreground/50"
                     : "bg-primary text-primary-foreground hover:bg-primary/90",
                 )}
@@ -502,10 +535,10 @@ export default function ReportBuilder() {
               <button
                 type="button"
                 onClick={handleFhirExport}
-                disabled={fhirMutation.isPending}
+                disabled={!canExportFhir}
                 className={cn(
                   "flex w-full items-center justify-center gap-2 rounded-md border px-4 py-2.5 text-sm font-medium transition-colors",
-                  fhirMutation.isPending
+                  !canExportFhir
                     ? "cursor-not-allowed opacity-50"
                     : "hover:bg-accent",
                 )}
@@ -518,6 +551,13 @@ export default function ReportBuilder() {
                 )}
                 {fhirMutation.isPending ? "Exporting…" : "Export FHIR R4"}
               </button>
+
+              {fhirEligibilityMessage && (
+                <div className="rounded-md border border-amber-400/60 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-500/50 dark:bg-amber-950/40 dark:text-amber-100">
+                  <AlertCircle className="mr-1 inline-block h-3 w-3" />
+                  {fhirEligibilityMessage}
+                </div>
+              )}
 
               {/* Error messages */}
               {fhirMutation.isError && (
@@ -599,10 +639,12 @@ export default function ReportBuilder() {
                   closePreview()
                   handleDownload()
                 }}
-                disabled={generateMutation.isPending}
+                disabled={!canDownload}
                 className={cn(
                   "flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium",
-                  "bg-primary text-primary-foreground hover:bg-primary/90",
+                  canDownload
+                    ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                    : "cursor-not-allowed bg-primary/50 text-primary-foreground/50",
                 )}
               >
                 <Download className="h-4 w-4" />
