@@ -195,7 +195,7 @@ class TestEvaluabilityAtTheApi:
         data = client.get("/api/analysis/roh/findings?sample_id=1").json()
         assert data["froh"] is None
         assert data["evaluable"] is False
-        assert data["indeterminate_reason"] == "insufficient_autosomal_markers"
+        assert data["indeterminate_reason"] == "no_segment_eligible_region"
         assert data["autosomal_snps_used"] == 1
         assert "not assessed" in data["finding_text"].lower()
         assert "typical result" not in data["finding_text"].lower()

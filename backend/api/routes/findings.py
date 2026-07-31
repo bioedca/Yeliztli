@@ -22,7 +22,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 from pydantic import BaseModel
 
-from backend.analysis.roh import normalize_legacy_finding_text
+from backend.analysis.roh import normalize_legacy_detail, normalize_legacy_finding_text
 from backend.api.dependencies import require_fresh_sample
 from backend.api.gating import gated_modules_to_hide
 from backend.db.connection import get_registry
@@ -140,6 +140,9 @@ def _row_to_response(row: sa.Row) -> FindingResponse:
             detail = json.loads(raw_detail)
         except (json.JSONDecodeError, TypeError):
             pass
+    # A pre-gate ROH blob still carries the measured froh: 0.0 the narrative
+    # withholds; correct both or the payload contradicts itself (#2177).
+    detail = normalize_legacy_detail(row.module, row.category, detail)
 
     provenance: dict | None = None
     raw_provenance = row.provenance
@@ -337,7 +340,18 @@ async def findings_summary(
     top_by_module: dict[str, str] = {}
     for r in all_rows:
         if r.module not in top_by_module:
-            top_by_module[r.module] = r.finding_text
+            # ReportBuilder renders this preview, so an uncorrected pre-gate ROH
+            # row would keep showing "typical result" on the module card while
+            # the list and dedicated endpoints report the estimate withheld.
+            detail_blob: dict | None = None
+            if r.detail_json:
+                try:
+                    detail_blob = json.loads(r.detail_json)
+                except (json.JSONDecodeError, TypeError):
+                    detail_blob = None
+            top_by_module[r.module] = normalize_legacy_finding_text(
+                r.module, r.category, r.finding_text, detail_blob
+            )
 
     for agg in agg_rows:
         total += agg.cnt

@@ -18,9 +18,9 @@ import sqlalchemy as sa
 
 from backend.analysis.roh import (
     AUTOSOMAL_GENOME_KB,
-    INSUFFICIENT_AUTOSOMAL_MARKERS,
-    MIN_EVALUABLE_AUTOSOMAL_SNPS,
+    MIN_ROH_SNPS,
     MODULE,
+    NO_SEGMENT_ELIGIBLE_REGION,
     _genotype_state,
     detect_roh,
     store_roh_findings,
@@ -115,12 +115,14 @@ class TestDetection:
 
     def test_short_run_not_detected(self, sample_engine: sa.Engine) -> None:
         # 50 hom SNPs over ~490 kb — below both segment thresholds. The sample
-        # is kept evaluable by heterozygous calls elsewhere (which cannot
-        # themselves form a run), so this asserts the short run is rejected on
-        # its own merits rather than because the sample was unevaluable.
+        # is kept evaluable by a chr2 region that *could* hold a run (100 markers
+        # spanning 1980 kb) but is entirely heterozygous, so this asserts the
+        # short run is rejected on its own merits rather than because the sample
+        # was unevaluable.
         _seed(
             sample_engine,
-            _run("1", 1_000_000, 50) + _run("2", 1_000_000, 100, genotype="AG", rs_prefix="h"),
+            _run("1", 1_000_000, 50)
+            + _run("2", 1_000_000, 100, spacing=20_000, genotype="AG", rs_prefix="h"),
         )
         result = detect_roh(sample_engine)
         assert result.evaluable
@@ -205,10 +207,10 @@ class TestDetection:
 class TestEvaluability:
     """#2177 — an empty scan over too few markers is not evidence of no ROH.
 
-    Below ``MIN_EVALUABLE_AUTOSOMAL_SNPS`` the detector cannot emit a segment
-    under any genome, so ``FROH = 0`` would be an artifact of the scan. These
-    lock the withheld states *and* the boundary at which a real negative
-    resumes being reported.
+    When no region could satisfy the per-chromosome segment rules the detector
+    cannot emit anything under any genome, so ``FROH = 0`` would be an artifact
+    of the scan. These lock the withheld states *and* the boundary at which a
+    real negative resumes being reported.
     """
 
     def test_no_autosomal_markers_is_indeterminate(self, sample_engine: sa.Engine) -> None:
@@ -216,39 +218,76 @@ class TestEvaluability:
         assert result.autosomal_snps_used == 0
         assert result.froh is None
         assert not result.evaluable
-        assert result.indeterminate_reason == INSUFFICIENT_AUTOSOMAL_MARKERS
+        assert result.indeterminate_reason == NO_SEGMENT_ELIGIBLE_REGION
 
     def test_single_callable_marker_is_indeterminate(self, sample_engine: sa.Engine) -> None:
         _seed(sample_engine, _run("1", 1_000_000, 1))
         result = detect_roh(sample_engine)
         assert result.autosomal_snps_used == 1
         assert result.froh is None
-        assert result.indeterminate_reason == INSUFFICIENT_AUTOSOMAL_MARKERS
+        assert result.indeterminate_reason == NO_SEGMENT_ELIGIBLE_REGION
 
     def test_single_autosomal_no_call_is_indeterminate(self, sample_engine: sa.Engine) -> None:
         _seed(sample_engine, _run("1", 1_000_000, 1, genotype="--"))
         result = detect_roh(sample_engine)
         assert result.autosomal_snps_used == 0
         assert result.froh is None
-        assert result.indeterminate_reason == INSUFFICIENT_AUTOSOMAL_MARKERS
+        assert result.indeterminate_reason == NO_SEGMENT_ELIGIBLE_REGION
 
     def test_just_below_floor_is_indeterminate(self, sample_engine: sa.Engine) -> None:
-        _seed(sample_engine, _run("1", 1_000_000, MIN_EVALUABLE_AUTOSOMAL_SNPS - 1))
+        _seed(sample_engine, _run("1", 1_000_000, MIN_ROH_SNPS - 1))
         result = detect_roh(sample_engine)
-        assert result.autosomal_snps_used == MIN_EVALUABLE_AUTOSOMAL_SNPS - 1
+        assert result.autosomal_snps_used == MIN_ROH_SNPS - 1
         assert result.froh is None
 
-    def test_at_floor_reports_a_real_negative(self, sample_engine: sa.Engine) -> None:
-        # The discriminating control: exactly at the floor the sample becomes
-        # evaluable again, and a genuine "no ROH" negative must still be
-        # reported as FROH = 0 rather than swallowed by the gate.
-        _seed(sample_engine, _run("1", 1_000_000, MIN_EVALUABLE_AUTOSOMAL_SNPS, spacing=1_000))
+    def test_at_structural_minimum_reports_a_real_negative(self, sample_engine: sa.Engine) -> None:
+        # The discriminating control: a region that *could* hold a run — 100
+        # markers spanning >= MIN_ROH_KB with no oversized gap — is evaluable,
+        # and a genuine "no ROH" negative must still be reported as FROH = 0
+        # rather than swallowed by the gate. Alternating calls keep it negative.
+        rows = _run("1", 1_000_000, MIN_ROH_SNPS, spacing=20_000)  # spans 1980 kb
+        for index in range(1, len(rows), 2):
+            rows[index]["genotype"] = "AG"
+        _seed(sample_engine, rows)
         result = detect_roh(sample_engine)
-        assert result.autosomal_snps_used == MIN_EVALUABLE_AUTOSOMAL_SNPS
         assert result.evaluable
         assert result.indeterminate_reason is None
         assert result.froh == 0.0
         assert result.segments == []
+
+    def test_enough_markers_packed_too_tightly_is_indeterminate(
+        self, sample_engine: sa.Engine
+    ) -> None:
+        # 100 markers clear any count-only floor but span just 99 kb, far under
+        # MIN_ROH_KB, so no run could ever be reported from them.
+        _seed(sample_engine, _run("1", 1_000_000, MIN_ROH_SNPS, spacing=1_000))
+        result = detect_roh(sample_engine)
+        assert result.autosomal_snps_used == MIN_ROH_SNPS
+        assert result.froh is None
+        assert result.indeterminate_reason == NO_SEGMENT_ELIGIBLE_REGION
+
+    def test_markers_split_across_autosomes_cannot_emit(self, sample_engine: sa.Engine) -> None:
+        # 60 + 60 markers clear a genome-wide count floor, but a segment lives
+        # inside ONE chromosome and needs MIN_ROH_SNPS of them, so neither
+        # autosome can ever produce one.
+        _seed(
+            sample_engine,
+            _run("1", 1_000_000, 60, spacing=50_000)
+            + _run("2", 1_000_000, 60, spacing=50_000, rs_prefix="b"),
+        )
+        result = detect_roh(sample_engine)
+        assert result.autosomal_snps_used == 120
+        assert result.froh is None
+        assert result.indeterminate_reason == NO_SEGMENT_ELIGIBLE_REGION
+
+    def test_oversized_gaps_prevent_an_eligible_region(self, sample_engine: sa.Engine) -> None:
+        # 200 markers on one autosome, but every neighbour pair is separated by
+        # more than MAX_GAP_KB, so no run can span two of them at all.
+        _seed(sample_engine, _run("1", 1_000_000, 200, spacing=2_000_000))
+        result = detect_roh(sample_engine)
+        assert result.autosomal_snps_used == 200
+        assert result.froh is None
+        assert result.indeterminate_reason == NO_SEGMENT_ELIGIBLE_REGION
 
     def test_heterozygosity_rich_sample_stays_a_real_negative(
         self, sample_engine: sa.Engine
@@ -261,16 +300,17 @@ class TestEvaluability:
         assert result.evaluable
         assert result.froh == 0.0
 
-    def test_markers_are_counted_across_autosomes(self, sample_engine: sa.Engine) -> None:
-        # The floor is genome-wide, not per-chromosome: 60 + 60 markers on two
-        # autosomes clear it even though neither chromosome does alone.
+    def test_eligibility_is_per_chromosome_not_genome_wide(self, sample_engine: sa.Engine) -> None:
+        # One autosome that could hold a run makes the sample evaluable even
+        # though a second autosome could not — eligibility is existential over
+        # chromosomes, so a sparse chromosome never suppresses a usable one.
         _seed(
             sample_engine,
-            _run("1", 1_000_000, 60, genotype="AG")
-            + _run("2", 1_000_000, 60, genotype="AG", rs_prefix="b"),
+            _run("1", 1_000_000, MIN_ROH_SNPS, spacing=20_000, genotype="AG")
+            + _run("2", 1_000_000, 5, spacing=20_000, genotype="AG", rs_prefix="b"),
         )
         result = detect_roh(sample_engine)
-        assert result.autosomal_snps_used == 120
+        assert result.autosomal_snps_used == MIN_ROH_SNPS + 5
         assert result.evaluable
 
     def test_non_autosomal_and_no_call_rows_do_not_reach_the_floor(
@@ -288,7 +328,7 @@ class TestEvaluability:
         result = detect_roh(sample_engine)
         assert result.autosomal_snps_used == 50
         assert result.froh is None
-        assert result.indeterminate_reason == INSUFFICIENT_AUTOSOMAL_MARKERS
+        assert result.indeterminate_reason == NO_SEGMENT_ELIGIBLE_REGION
 
 
 class TestStorage:
@@ -331,7 +371,7 @@ class TestStorage:
 
         detail = json.loads(row.detail_json)
         assert detail["evaluable"] is False
-        assert detail["indeterminate_reason"] == INSUFFICIENT_AUTOSOMAL_MARKERS
+        assert detail["indeterminate_reason"] == NO_SEGMENT_ELIGIBLE_REGION
         assert detail["froh"] is None
         # The observed count is retained for audit even though FROH is withheld.
         assert detail["autosomal_snps_used"] == 1

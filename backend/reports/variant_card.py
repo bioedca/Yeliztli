@@ -28,6 +28,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from backend.analysis.clinvar_conditions import format_clinvar_conditions_text
 from backend.analysis.pathway_coverage import pathway_level_display_label
+from backend.analysis.roh import normalize_legacy_finding_text
 from backend.api.gating import gated_modules_to_hide
 from backend.db.tables import findings
 from backend.reports.generator import _get_sample_info, _read_svg_content
@@ -108,7 +109,11 @@ def _load_single_finding(
         "evidence_level": row.evidence_level,
         "gene_symbol": row.gene_symbol,
         "rsid": row.rsid,
-        "finding_text": row.finding_text,
+        # A shareable card is a user-visible render path too, so a pre-gate ROH
+        # row must not carry "typical result" onto one (#2177).
+        "finding_text": normalize_legacy_finding_text(
+            row.module, row.category, row.finding_text, detail
+        ),
         "phenotype": row.phenotype,
         # Clean the raw CLNDN blob for display (#918): drop | separators, the
         # not provided/not specified placeholders, and drug-response entries.

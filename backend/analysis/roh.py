@@ -30,11 +30,13 @@ Method (parameters documented and tuned for a dense ~600–700k-marker array):
   - ``FROH = Σ segment length / AUTOSOMAL_GENOME_KB`` (a fixed ~2.77 Gb
     denominator, the convention from McQuillan 2008, so FROH is comparable
     across samples rather than array-relative).
-  - Before any of that, the sample must be *evaluable*: a scan over fewer than
-    ``MIN_EVALUABLE_AUTOSOMAL_SNPS`` callable autosomal SNPs cannot emit a
-    segment under any genome, so its empty result is withheld as indeterminate
-    instead of being reported as ``FROH = 0``. See that constant for why this
-    is a provable floor rather than a coverage-adequacy threshold.
+  - Before any of that, the sample must be *evaluable*: unless some autosome
+    carries a gap-free block of ``MIN_ROH_SNPS`` typed markers spanning
+    ``MIN_ROH_KB``, no genotype arrangement could produce a segment, so the
+    empty result is withheld as indeterminate rather than reported as
+    ``FROH = 0``. See ``_segment_eligible_region_exists`` for why a genome-wide
+    marker total is not sufficient, and why this is a provable floor rather
+    than a coverage-adequacy threshold.
 
 This is a **route-triggered** metric (``POST /api/analysis/roh/run``), not part of
 the auto-run :mod:`backend.analysis.run_all` pipeline: it is a full-genome scan
@@ -67,21 +69,22 @@ MAX_GAP_KB = 1000  # a gap > this between adjacent typed SNPs breaks a run
 HET_WINDOW_SNPS = 50  # typed-SNP neighborhood used for local error tolerance
 HET_WINDOW_TOLERANCE = 1  # heterozygous calls allowed per local neighborhood
 
-# Below this many *callable* autosomal SNPs the scan cannot emit a segment at
-# all: every reported segment must contain >= MIN_ROH_SNPS homozygous calls
-# (see ``_scan_chromosome``), and a segment's homozygous calls are necessarily a
-# subset of the sample's callable autosomal calls. "No ROH found" is therefore
-# forced by construction for such an input and says nothing about the genome —
-# a zero here is an artifact of the detector, not an observation.
+# Weakest count-only floor: a segment needs >= MIN_ROH_SNPS homozygous calls,
+# which are necessarily a subset of the sample's callable autosomal calls, so
+# below this total no segment can exist. Fresh detection uses the stronger
+# structural test in ``_segment_eligible_region_exists``; this constant remains
+# because a *persisted* legacy row records only the marker count, and that is
+# the strongest sound inference available from a count alone.
 #
-# This is deliberately only a floor on what is *provably* uninformative. It is
-# NOT a claim that any larger count constitutes adequate coverage: a validated,
+# Both are floors on what is *provably* uninformative, never claims that a
+# larger count or region constitutes adequate coverage: a validated,
 # platform-aware density/distribution gate is a separate, calibration-dependent
-# question (issue #2220) and must not be inferred from this constant.
+# question (issue #2220) and must not be inferred from either.
 MIN_EVALUABLE_AUTOSOMAL_SNPS = MIN_ROH_SNPS
 
 # ``RohResult.indeterminate_reason`` vocabulary.
 INSUFFICIENT_AUTOSOMAL_MARKERS = "insufficient_autosomal_markers"
+NO_SEGMENT_ELIGIBLE_REGION = "no_segment_eligible_region"
 
 # FROH denominator: the autosomal genome length (~2.77 Gb), McQuillan 2008
 # convention, so FROH is comparable across samples rather than array-relative.
@@ -171,6 +174,37 @@ def _read_autosomal_states(sample_engine: sa.Engine) -> dict[str, list[tuple[int
     return by_chrom
 
 
+def _segment_eligible_region_exists(by_chrom: dict[str, list[tuple[int, str]]]) -> bool:
+    """Could *any* chromosome yield a segment under *some* genotype arrangement?
+
+    This reads marker positions only and never the calls, so it cannot suppress
+    a genuine negative: it asks whether the scan is capable of reporting a run
+    at all, not whether this person has one.
+
+    A reported segment must lie within one chromosome, contain at least
+    ``MIN_ROH_SNPS`` homozygous SNPs, span at least ``MIN_ROH_KB`` between its
+    homozygous endpoints, and never cross a gap wider than ``MAX_GAP_KB``
+    (``_scan_chromosome``). Every segment therefore lies inside a single
+    gap-free block of typed markers, whose marker count and span bound the
+    segment's own from above. When no block clears both thresholds, no genotype
+    assignment whatsoever can produce a segment — so a genome-wide marker total
+    is not sufficient: 60 markers on each of two autosomes, or 100 markers
+    packed into 99 kb, clear any count-only floor while remaining incapable of
+    ever yielding a run.
+    """
+    for snps in by_chrom.values():
+        start = 0
+        for i in range(1, len(snps) + 1):
+            at_end = i == len(snps)
+            if not at_end and snps[i][0] - snps[i - 1][0] <= MAX_GAP_KB * 1000:
+                continue
+            block = snps[start:i]
+            if len(block) >= MIN_ROH_SNPS and (block[-1][0] - block[0][0]) / 1000.0 >= MIN_ROH_KB:
+                return True
+            start = i
+    return False
+
+
 def _scan_chromosome(chrom: str, snps: list[tuple[int, str]]) -> list[RohSegment]:
     """Detect non-overlapping ROH with a local heterozygote-density guard.
 
@@ -222,16 +256,17 @@ def detect_roh(sample_engine: sa.Engine) -> RohResult:
     by_chrom = _read_autosomal_states(sample_engine)
     autosomal_snps = sum(len(v) for v in by_chrom.values())
 
-    # Evaluability is decided before any segment interpretation: with too few
-    # callable autosomal markers the scan below is structurally incapable of
-    # emitting a segment, so its empty result would be a foregone conclusion
+    # Evaluability is decided before any segment interpretation: if no region
+    # could satisfy the segment rules, the scan below is structurally incapable
+    # of emitting anything, so its empty result would be a foregone conclusion
     # rather than evidence that the genome carries no long homozygous runs.
-    if autosomal_snps < MIN_EVALUABLE_AUTOSOMAL_SNPS:
+    if not _segment_eligible_region_exists(by_chrom):
         logger.info(
             "roh_not_evaluable",
             autosomal_snps=autosomal_snps,
-            required=MIN_EVALUABLE_AUTOSOMAL_SNPS,
-            reason=INSUFFICIENT_AUTOSOMAL_MARKERS,
+            min_roh_snps=MIN_ROH_SNPS,
+            min_roh_kb=MIN_ROH_KB,
+            reason=NO_SEGMENT_ELIGIBLE_REGION,
         )
         return RohResult(
             segments=[],
@@ -239,7 +274,7 @@ def detect_roh(sample_engine: sa.Engine) -> RohResult:
             total_roh_kb=0.0,
             longest_kb=0.0,
             autosomal_snps_used=autosomal_snps,
-            indeterminate_reason=INSUFFICIENT_AUTOSOMAL_MARKERS,
+            indeterminate_reason=NO_SEGMENT_ELIGIBLE_REGION,
         )
 
     segments: list[RohSegment] = []
@@ -266,22 +301,34 @@ def detect_roh(sample_engine: sa.Engine) -> RohResult:
     )
 
 
-def unevaluable_text(autosomal_snps_used: int) -> str:
+def unevaluable_text(autosomal_snps_used: int, reason: str = NO_SEGMENT_ELIGIBLE_REGION) -> str:
     """Narrative for a sample whose autozygosity could not be assessed.
 
     Kept separate and public so the API can serve it for findings persisted
     before the evaluability gate existed, whose stored text asserts the very
-    negative this gate withholds.
+    negative this gate withholds. The cause is stated explicitly because the
+    two reasons are genuinely different: too few markers overall, versus enough
+    markers that are nowhere arranged into a region a run could occupy.
     """
+    if reason == INSUFFICIENT_AUTOSOMAL_MARKERS:
+        cause = (
+            f"this sample has {autosomal_snps_used} callable autosomal SNP(s), "
+            f"fewer than the {MIN_ROH_SNPS} homozygous SNPs any single reported "
+            f"run must itself contain"
+        )
+    else:
+        cause = (
+            f"no autosome carries {MIN_ROH_SNPS} typed markers spanning "
+            f"{MIN_ROH_KB} kb without a coverage gap, which is the smallest "
+            f"region a reported run could occupy ({autosomal_snps_used} "
+            f"callable autosomal SNP(s) in total)"
+        )
     return (
-        f"Runs of homozygosity were not assessed: this sample has "
-        f"{autosomal_snps_used} callable autosomal SNP(s), and any single "
-        f"reported run must itself contain at least {MIN_ROH_SNPS} homozygous "
-        f"SNPs, so no run could have been reported whatever the genome "
-        f"contains. No FROH estimate is given, because none can be measured "
-        f"from this input. This reflects the coverage of the data analysed, "
-        f"not a finding about your genome — it does not indicate that long "
-        f"runs of homozygosity are absent."
+        f"Runs of homozygosity were not assessed: {cause}, so no run could have "
+        f"been reported whatever the genome contains. No FROH estimate is given, "
+        f"because none can be measured from this input. This reflects the "
+        f"coverage of the data analysed, not a finding about your genome — it "
+        f"does not indicate that long runs of homozygosity are absent."
     )
 
 
@@ -322,8 +369,35 @@ def normalize_legacy_finding_text(
     """
     if module != MODULE or category != CATEGORY:
         return finding_text
-    evaluable, snps_used, _reason = evaluability_from_detail(detail)
-    return finding_text if evaluable else unevaluable_text(snps_used)
+    evaluable, snps_used, reason = evaluability_from_detail(detail)
+    if evaluable:
+        return finding_text
+    return unevaluable_text(snps_used, reason or INSUFFICIENT_AUTOSOMAL_MARKERS)
+
+
+def normalize_legacy_detail(
+    module: str | None,
+    category: str | None,
+    detail: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    """Withhold the measured value in a stored ROH ``detail`` blob.
+
+    Correcting only the narrative would hand clients a withheld conclusion
+    alongside the exact ``froh: 0.0`` it withholds — one payload asserting both.
+    Returns a copy so the caller's parsed blob is not mutated; non-ROH and
+    evaluable rows pass through unchanged.
+    """
+    if module != MODULE or category != CATEGORY or not isinstance(detail, dict):
+        return detail
+    evaluable, snps_used, reason = evaluability_from_detail(detail)
+    if evaluable:
+        return detail
+    corrected = dict(detail)
+    corrected["froh"] = None
+    corrected["evaluable"] = False
+    corrected["indeterminate_reason"] = reason or INSUFFICIENT_AUTOSOMAL_MARKERS
+    corrected["autosomal_snps_used"] = snps_used
+    return corrected
 
 
 def _finding_text(result: RohResult) -> str:

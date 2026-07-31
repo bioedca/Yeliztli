@@ -341,6 +341,31 @@ class TestListFindings:
         assert "typical result" not in response.finding_text.lower()
         assert "not assessed" in response.finding_text.lower()
 
+    def test_legacy_roh_detail_withholds_the_measured_zero(self):
+        # Correcting only the narrative would hand clients a withheld
+        # conclusion next to the exact froh: 0.0 it withholds.
+        response = _row_to_response(
+            self._roh_row(
+                finding_text="No long runs of homozygosity were detected (FROH ≈ 0).",
+                detail={"froh": 0.0, "n_segments": 0, "autosomal_snps_used": 30},
+            )
+        )
+
+        assert response.detail["froh"] is None
+        assert response.detail["evaluable"] is False
+        assert response.detail["indeterminate_reason"] == "insufficient_autosomal_markers"
+
+    def test_evaluable_roh_detail_keeps_its_measured_value(self):
+        response = _row_to_response(
+            self._roh_row(
+                finding_text="No long runs of homozygosity were detected (FROH ≈ 0).",
+                detail={"froh": 0.0, "n_segments": 0, "autosomal_snps_used": 600_000},
+            )
+        )
+
+        assert response.detail["froh"] == 0.0
+        assert "indeterminate_reason" not in response.detail
+
     def test_evaluable_roh_text_is_untouched_in_generic_api(self):
         # Counterpart control: a well-covered ROH row keeps its stored text, so
         # the correction cannot silently rewrite every finding in the explorer.
@@ -406,6 +431,51 @@ class TestListFindings:
 
 
 class TestFindingsSummary:
+    def _seed_legacy_roh(self, tmp_data_dir: Path, snps_used: int) -> None:
+        from backend.db.tables import findings as findings_table
+
+        engine = sa.create_engine(f"sqlite:///{tmp_data_dir / 'samples' / 'sample_1.db'}")
+        with engine.begin() as conn:
+            conn.execute(
+                sa.insert(findings_table),
+                [
+                    {
+                        "module": "roh",
+                        "category": "autozygosity",
+                        "evidence_level": 1,
+                        "finding_text": (
+                            "No long runs of homozygosity were detected (FROH ≈ 0). "
+                            "This is the typical result."
+                        ),
+                        "detail_json": json.dumps(
+                            {"froh": 0.0, "n_segments": 0, "autosomal_snps_used": snps_used}
+                        ),
+                    }
+                ],
+            )
+        engine.dispose()
+
+    def test_summary_preview_corrects_legacy_roh_text(self, findings_client, tmp_data_dir):
+        # #2177 — ReportBuilder renders top_finding_text on the module card, so
+        # an uncorrected preview keeps showing "typical result" while the list
+        # and dedicated endpoints report the estimate withheld.
+        self._seed_legacy_roh(tmp_data_dir, snps_used=30)
+
+        data = findings_client.get("/api/analysis/findings/summary?sample_id=1").json()
+        roh = next(m for m in data["modules"] if m["module"] == "roh")
+
+        assert "typical result" not in roh["top_finding_text"].lower()
+        assert "not assessed" in roh["top_finding_text"].lower()
+
+    def test_summary_preview_keeps_evaluable_roh_text(self, findings_client, tmp_data_dir):
+        # Counterpart control: a well-covered ROH negative keeps its preview.
+        self._seed_legacy_roh(tmp_data_dir, snps_used=600_000)
+
+        data = findings_client.get("/api/analysis/findings/summary?sample_id=1").json()
+        roh = next(m for m in data["modules"] if m["module"] == "roh")
+
+        assert "typical result" in roh["top_finding_text"].lower()
+
     def test_summary_returns_all_modules(self, findings_client):
         resp = findings_client.get("/api/analysis/findings/summary?sample_id=1")
         assert resp.status_code == 200
