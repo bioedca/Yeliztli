@@ -1,0 +1,825 @@
+{
+  "header": {
+    "type": "esummary",
+    "version": "0.3"
+  },
+  "result": {
+    "uids": [
+      "26062626",
+      "28639421",
+      "38804604",
+      "40926580"
+    ],
+    "26062626": {
+      "uid": "26062626",
+      "pubdate": "2015 Jul 7",
+      "epubdate": "2015 Jun 10",
+      "source": "Neurology",
+      "authors": [
+        {
+          "name": "Marder K",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Wang Y",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Alcalay RN",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Mejia-Santana H",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Tang MX",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Lee A",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Raymond D",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Mirelman A",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Saunders-Pullman R",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Clark L",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Ozelius L",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Orr-Urtreger A",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Giladi N",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Bressman S",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "LRRK2 Ashkenazi Jewish Consortium",
+          "authtype": "CollectiveName",
+          "clusterid": ""
+        }
+      ],
+      "lastauthor": "Bressman S",
+      "title": "Age-specific penetrance of LRRK2 G2019S in the Michael J. Fox Ashkenazi Jewish LRRK2 Consortium.",
+      "sorttitle": "age specific penetrance of lrrk2 g2019s in the michael j fox ashkenazi jewish lrrk2 consortium",
+      "volume": "85",
+      "issue": "1",
+      "pages": "89-95",
+      "lang": [
+        "eng"
+      ],
+      "nlmuniqueid": "0401060",
+      "issn": "0028-3878",
+      "essn": "1526-632X",
+      "pubtype": [
+        "Journal Article"
+      ],
+      "recordstatus": "PubMed - indexed for MEDLINE",
+      "pubstatus": "256",
+      "articleids": [
+        {
+          "idtype": "pubmed",
+          "idtypen": 1,
+          "value": "26062626"
+        },
+        {
+          "idtype": "pmc",
+          "idtypen": 8,
+          "value": "PMC4501942"
+        },
+        {
+          "idtype": "pmcid",
+          "idtypen": 5,
+          "value": "pmc-id: PMC4501942;"
+        },
+        {
+          "idtype": "doi",
+          "idtypen": 3,
+          "value": "10.1212/WNL.0000000000001708"
+        },
+        {
+          "idtype": "pii",
+          "idtypen": 4,
+          "value": "WNL.0000000000001708"
+        }
+      ],
+      "history": [
+        {
+          "pubstatus": "received",
+          "date": "2014/11/01 00:00"
+        },
+        {
+          "pubstatus": "accepted",
+          "date": "2015/03/12 00:00"
+        },
+        {
+          "pubstatus": "entrez",
+          "date": "2015/06/12 06:00"
+        },
+        {
+          "pubstatus": "pubmed",
+          "date": "2015/06/13 06:00"
+        },
+        {
+          "pubstatus": "medline",
+          "date": "2015/09/19 06:00"
+        },
+        {
+          "pubstatus": "pmc-release",
+          "date": "2016/07/07 00:00"
+        }
+      ],
+      "references": [],
+      "attributes": [
+        "Has Abstract"
+      ],
+      "pmcrefcount": 32,
+      "fulljournalname": "Neurology",
+      "elocationid": "doi: 10.1212/WNL.0000000000001708",
+      "doctype": "citation",
+      "srccontriblist": [],
+      "booktitle": "",
+      "medium": "",
+      "edition": "",
+      "publisherlocation": "",
+      "publishername": "",
+      "srcdate": "",
+      "reportnumber": "",
+      "availablefromurl": "",
+      "locationlabel": "",
+      "doccontriblist": [],
+      "docdate": "",
+      "bookname": "",
+      "chapter": "",
+      "sortpubdate": "2015/07/07 00:00",
+      "sortfirstauthor": "Marder K",
+      "vernaculartitle": ""
+    },
+    "28639421": {
+      "uid": "28639421",
+      "pubdate": "2017 Oct",
+      "epubdate": "2017 Jun 22",
+      "source": "Mov Disord",
+      "authors": [
+        {
+          "name": "Lee AJ",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Wang Y",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Alcalay RN",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Mejia-Santana H",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Saunders-Pullman R",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Bressman S",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Corvol JC",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Brice A",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Lesage S",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Mangone G",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Tolosa E",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Pont-Sunyer C",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Vilas D",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Sch\u00fcle B",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Kausar F",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Foroud T",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Berg D",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Brockmann K",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Goldwurm S",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Siri C",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Asselta R",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Ruiz-Martinez J",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Mondrag\u00f3n E",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Marras C",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Ghate T",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Giladi N",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Mirelman A",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Marder K",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Michael J. Fox LRRK2 Cohort Consortium",
+          "authtype": "CollectiveName",
+          "clusterid": ""
+        }
+      ],
+      "lastauthor": "Marder K",
+      "title": "Penetrance estimate of LRRK2 p.G2019S mutation in individuals of non-Ashkenazi Jewish ancestry.",
+      "sorttitle": "penetrance estimate of lrrk2 p g2019s mutation in individuals of non ashkenazi jewish ancestry",
+      "volume": "32",
+      "issue": "10",
+      "pages": "1432-1438",
+      "lang": [
+        "eng"
+      ],
+      "nlmuniqueid": "8610688",
+      "issn": "0885-3185",
+      "essn": "1531-8257",
+      "pubtype": [
+        "Journal Article"
+      ],
+      "recordstatus": "PubMed - indexed for MEDLINE",
+      "pubstatus": "256",
+      "articleids": [
+        {
+          "idtype": "pubmed",
+          "idtypen": 1,
+          "value": "28639421"
+        },
+        {
+          "idtype": "mid",
+          "idtypen": 8,
+          "value": "NIHMS875707"
+        },
+        {
+          "idtype": "pmc",
+          "idtypen": 8,
+          "value": "PMC5656509"
+        },
+        {
+          "idtype": "pmcid",
+          "idtypen": 5,
+          "value": "pmc-id: PMC5656509;manuscript-id: NIHMS875707;"
+        },
+        {
+          "idtype": "doi",
+          "idtypen": 3,
+          "value": "10.1002/mds.27059"
+        }
+      ],
+      "history": [
+        {
+          "pubstatus": "received",
+          "date": "2016/12/14 00:00"
+        },
+        {
+          "pubstatus": "revised",
+          "date": "2017/05/05 00:00"
+        },
+        {
+          "pubstatus": "accepted",
+          "date": "2017/05/07 00:00"
+        },
+        {
+          "pubstatus": "pubmed",
+          "date": "2017/06/24 06:00"
+        },
+        {
+          "pubstatus": "medline",
+          "date": "2018/06/13 06:00"
+        },
+        {
+          "pubstatus": "entrez",
+          "date": "2017/06/23 06:00"
+        },
+        {
+          "pubstatus": "pmc-release",
+          "date": "2018/10/01 00:00"
+        }
+      ],
+      "references": [],
+      "attributes": [
+        "Has Abstract"
+      ],
+      "pmcrefcount": 20,
+      "fulljournalname": "Movement disorders : official journal of the Movement Disorder Society",
+      "elocationid": "doi: 10.1002/mds.27059",
+      "doctype": "citation",
+      "srccontriblist": [],
+      "booktitle": "",
+      "medium": "",
+      "edition": "",
+      "publisherlocation": "",
+      "publishername": "",
+      "srcdate": "",
+      "reportnumber": "",
+      "availablefromurl": "",
+      "locationlabel": "",
+      "doccontriblist": [],
+      "docdate": "",
+      "bookname": "",
+      "chapter": "",
+      "sortpubdate": "2017/10/01 00:00",
+      "sortfirstauthor": "Lee AJ",
+      "vernaculartitle": ""
+    },
+    "38804604": {
+      "uid": "38804604",
+      "pubdate": "2024 Jun 3",
+      "epubdate": "",
+      "source": "Brain",
+      "authors": [
+        {
+          "name": "Kmiecik MJ",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Micheletti S",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Coker D",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Heilbron K",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Shi J",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Stagaman K",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Filshtein Sonmez T",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Fontanillas P",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Shringarpure S",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Wetzel M",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Rowbotham HM",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Cannon P",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Shelton JF",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Hinds DA",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Tung JY",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "23andMe Research Team",
+          "authtype": "CollectiveName",
+          "clusterid": ""
+        },
+        {
+          "name": "Holmes MV",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Aslibekyan S",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Norcliffe-Kaufmann L",
+          "authtype": "Author",
+          "clusterid": ""
+        }
+      ],
+      "lastauthor": "Norcliffe-Kaufmann L",
+      "title": "Genetic analysis and natural history of Parkinson's disease due to the LRRK2 G2019S variant.",
+      "sorttitle": "genetic analysis and natural history of parkinson s disease due to the lrrk2 g2019s variant",
+      "volume": "147",
+      "issue": "6",
+      "pages": "1996-2008",
+      "lang": [
+        "eng"
+      ],
+      "nlmuniqueid": "0372537",
+      "issn": "0006-8950",
+      "essn": "1460-2156",
+      "pubtype": [
+        "Journal Article"
+      ],
+      "recordstatus": "PubMed - indexed for MEDLINE",
+      "pubstatus": "4",
+      "articleids": [
+        {
+          "idtype": "pubmed",
+          "idtypen": 1,
+          "value": "38804604"
+        },
+        {
+          "idtype": "pmc",
+          "idtypen": 8,
+          "value": "PMC11146432"
+        },
+        {
+          "idtype": "pmcid",
+          "idtypen": 5,
+          "value": "pmc-id: PMC11146432;"
+        },
+        {
+          "idtype": "doi",
+          "idtypen": 3,
+          "value": "10.1093/brain/awae073"
+        },
+        {
+          "idtype": "pii",
+          "idtypen": 4,
+          "value": "7676517"
+        }
+      ],
+      "history": [
+        {
+          "pubstatus": "received",
+          "date": "2023/10/11 00:00"
+        },
+        {
+          "pubstatus": "revised",
+          "date": "2024/01/26 00:00"
+        },
+        {
+          "pubstatus": "accepted",
+          "date": "2024/02/06 00:00"
+        },
+        {
+          "pubstatus": "medline",
+          "date": "2024/06/03 12:44"
+        },
+        {
+          "pubstatus": "pubmed",
+          "date": "2024/05/28 12:44"
+        },
+        {
+          "pubstatus": "entrez",
+          "date": "2024/05/28 08:03"
+        },
+        {
+          "pubstatus": "pmc-release",
+          "date": "2024/05/28 00:00"
+        }
+      ],
+      "references": [],
+      "attributes": [
+        "Has Abstract"
+      ],
+      "pmcrefcount": 72,
+      "fulljournalname": "Brain : a journal of neurology",
+      "elocationid": "doi: 10.1093/brain/awae073",
+      "doctype": "citation",
+      "srccontriblist": [],
+      "booktitle": "",
+      "medium": "",
+      "edition": "",
+      "publisherlocation": "",
+      "publishername": "",
+      "srcdate": "",
+      "reportnumber": "",
+      "availablefromurl": "",
+      "locationlabel": "",
+      "doccontriblist": [],
+      "docdate": "",
+      "bookname": "",
+      "chapter": "",
+      "sortpubdate": "2024/06/03 00:00",
+      "sortfirstauthor": "Kmiecik MJ",
+      "vernaculartitle": ""
+    },
+    "40926580": {
+      "uid": "40926580",
+      "pubdate": "2025 Dec",
+      "epubdate": "2025 Sep 10",
+      "source": "Ann Clin Transl Neurol",
+      "authors": [
+        {
+          "name": "Kmiecik MJ",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Holmes MV",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Fontanillas P",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Riboldi GM",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Schneider RB",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Shi J",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Guan A",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Tat S",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Micheletti S",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Stagaman K",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Gottesman J",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Hinds DA",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Tung JY",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "23andMe Research Team",
+          "authtype": "CollectiveName",
+          "clusterid": ""
+        },
+        {
+          "name": "Aslibekyan S",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Norcliffe-Kaufmann L",
+          "authtype": "Author",
+          "clusterid": ""
+        }
+      ],
+      "lastauthor": "Norcliffe-Kaufmann L",
+      "title": "Genetic Modifiers of Parkinson's Disease: A Case-Control Study.",
+      "sorttitle": "genetic modifiers of parkinson s disease a case control study",
+      "volume": "12",
+      "issue": "12",
+      "pages": "2482-2494",
+      "lang": [
+        "eng"
+      ],
+      "nlmuniqueid": "101623278",
+      "issn": "",
+      "essn": "2328-9503",
+      "pubtype": [
+        "Journal Article",
+        "Observational Study"
+      ],
+      "recordstatus": "PubMed - indexed for MEDLINE",
+      "pubstatus": "256",
+      "articleids": [
+        {
+          "idtype": "pubmed",
+          "idtypen": 1,
+          "value": "40926580"
+        },
+        {
+          "idtype": "pmc",
+          "idtypen": 8,
+          "value": "PMC12698958"
+        },
+        {
+          "idtype": "pmcid",
+          "idtypen": 5,
+          "value": "pmc-id: PMC12698958;"
+        },
+        {
+          "idtype": "doi",
+          "idtypen": 3,
+          "value": "10.1002/acn3.70176"
+        }
+      ],
+      "history": [
+        {
+          "pubstatus": "received",
+          "date": "2025/07/14 00:00"
+        },
+        {
+          "pubstatus": "accepted",
+          "date": "2025/08/09 00:00"
+        },
+        {
+          "pubstatus": "medline",
+          "date": "2025/12/12 07:19"
+        },
+        {
+          "pubstatus": "pubmed",
+          "date": "2025/09/10 06:29"
+        },
+        {
+          "pubstatus": "entrez",
+          "date": "2025/09/10 03:13"
+        },
+        {
+          "pubstatus": "pmc-release",
+          "date": "2025/09/10 00:00"
+        }
+      ],
+      "references": [],
+      "attributes": [
+        "Has Abstract"
+      ],
+      "pmcrefcount": 75,
+      "fulljournalname": "Annals of clinical and translational neurology",
+      "elocationid": "doi: 10.1002/acn3.70176",
+      "doctype": "citation",
+      "srccontriblist": [],
+      "booktitle": "",
+      "medium": "",
+      "edition": "",
+      "publisherlocation": "",
+      "publishername": "",
+      "srcdate": "",
+      "reportnumber": "",
+      "availablefromurl": "",
+      "locationlabel": "",
+      "doccontriblist": [],
+      "docdate": "",
+      "bookname": "",
+      "chapter": "",
+      "sortpubdate": "2025/12/01 00:00",
+      "sortfirstauthor": "Kmiecik MJ",
+      "vernaculartitle": ""
+    }
+  }
+}

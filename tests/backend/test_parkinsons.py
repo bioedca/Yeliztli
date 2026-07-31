@@ -10,6 +10,12 @@ treatment ("not a diagnosis and not a prediction"); GBA1 is absent from the pane
 
 from __future__ import annotations
 
+import hashlib
+import json
+import re
+import xml.etree.ElementTree as ET
+from pathlib import Path
+
 import pytest
 import sqlalchemy as sa
 
@@ -19,6 +25,33 @@ from backend.analysis.parkinsons import (
     store_parkinsons_findings,
 )
 from backend.db.tables import findings, raw_variants
+from backend.disclaimers import PARKINSONS_GATE_TEXT
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_DOC_PATH = _REPO_ROOT / "docs" / "modules" / "gated" / "parkinsons.md"
+_EVIDENCE_DIR = _REPO_ROOT / "data" / "science-evidence" / "2026-07-31-lrrk2-penetrance-docs-2091"
+_EXPECTED_EVIDENCE = {
+    "26062626": {
+        "doi": "10.1212/WNL.0000000000001708",
+        "age_80_estimate": "26% (95% CI 18-36%)",
+    },
+    "28639421": {
+        "doi": "10.1002/mds.27059",
+        "age_80_estimate": "42.5% (95% CI 26.3-65.8%)",
+    },
+    "38804604": {
+        "doi": "10.1093/brain/awae073",
+        "age_80_estimate": "49%",
+    },
+    "40926580": {
+        "doi": "10.1002/acn3.70176",
+        "age_80_estimate": "24%",
+    },
+}
+
+
+def _normalized_ranges(text: str) -> str:
+    return text.replace("–", "-").replace("—", "-")
 
 
 @pytest.fixture()
@@ -84,6 +117,94 @@ class TestEthicalFraming:
         assert "not a diagnosis and not a prediction" in corpus
         assert "no proven way to prevent" in corpus
         assert "penetrance" in corpus
+
+
+class TestPenetranceCommunication:
+    def test_user_facing_surfaces_match_panel_age_80_estimates(self, panel) -> None:
+        model = panel.genotype_models[0]
+        docs = _DOC_PATH.read_text(encoding="utf-8")
+        surfaces = {
+            "panel description": panel.description,
+            "finding": model.finding_text,
+            "consent gate": PARKINSONS_GATE_TEXT,
+            "module docs": docs,
+        }
+
+        for name, text in surfaces.items():
+            normalized = _normalized_ranges(text)
+            assert "24-49%" in normalized, f"{name} dropped the recent-cohort range"
+            assert "25-42.5%" in normalized, f"{name} dropped the kin-cohort range"
+
+        cited_pmids = set(re.findall(r"pubmed\.ncbi\.nlm\.nih\.gov/(\d+)", docs))
+        assert cited_pmids == set(model.pmids)
+        assert docs.count("(accessed 2026-07-31)") == len(model.pmids)
+
+    def test_evidence_snapshot_is_sanitized_and_matches_manifest(self) -> None:
+        extract = json.loads(
+            (_EVIDENCE_DIR / "pubmed-comments-corrections-extract.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        metadata = _REPO_ROOT / extract["metadata_snapshot"]["path"]
+        metadata_bytes = metadata.read_bytes()
+        metadata_payload = json.loads(metadata_bytes)
+        snapshot = _REPO_ROOT / extract["source_snapshot"]["path"]
+        snapshot_bytes = snapshot.read_bytes()
+        snapshot_text = snapshot_bytes.decode("utf-8")
+        root = ET.fromstring(snapshot_text)
+        extracted_records = {record["pmid"]: record for record in extract["records"]}
+        source_articles = {
+            article.findtext("MedlineCitation/PMID"): article
+            for article in root.findall("./PubmedArticle")
+        }
+
+        assert (
+            hashlib.sha256(metadata_bytes).hexdigest() == (extract["metadata_snapshot"]["sha256"])
+        )
+        assert (
+            hashlib.sha256(snapshot_bytes).hexdigest()
+            == (extract["source_snapshot"]["sanitized_sha256"])
+        )
+        assert extract["source_snapshot"]["removed_metadata"] == {"author_email_addresses": 1}
+        assert (
+            re.search(
+                r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}",
+                snapshot_text,
+            )
+            is None
+        )
+        assert root.findall(".//Abstract") == []
+        assert root.findall(".//OtherAbstract") == []
+        assert root.findall(".//ReferenceList") == []
+        assert root.findall(".//CoiStatement") == []
+        assert root.findall(".//CommentsCorrectionsList") == []
+        assert set(extracted_records) == set(_EXPECTED_EVIDENCE)
+        assert set(source_articles) == set(_EXPECTED_EVIDENCE)
+        assert metadata_payload["header"] == {"type": "esummary", "version": "0.3"}
+        assert metadata_payload["result"]["uids"] == list(_EXPECTED_EVIDENCE)
+
+        for pmid, expected in _EXPECTED_EVIDENCE.items():
+            extracted = extracted_records[pmid]
+            summary = metadata_payload["result"][pmid]
+            source_dois = {
+                article_id.text
+                for article_id in source_articles[pmid].findall(
+                    "PubmedData/ArticleIdList/ArticleId"
+                )
+                if article_id.attrib.get("IdType") == "doi"
+            }
+
+            assert extracted["doi"] == expected["doi"]
+            assert extracted["age_80_estimate"] == expected["age_80_estimate"]
+            assert extracted["comments_corrections_list_present"] is False
+            assert extracted["comments_corrections"] == []
+            assert summary["uid"] == pmid
+            assert {
+                identifier["value"]
+                for identifier in summary["articleids"]
+                if identifier["idtype"] == "doi"
+            } == {expected["doi"]}
+            assert source_dois == {expected["doi"]}
 
 
 class TestStorage:

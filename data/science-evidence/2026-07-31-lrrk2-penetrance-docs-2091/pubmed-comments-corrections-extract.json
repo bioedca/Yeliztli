@@ -1,0 +1,76 @@
+{
+  "source": "NCBI PubMed EFetch",
+  "accessed": "2026-07-31",
+  "response_format": "xml",
+  "response_dtd": {
+    "name": "PubMedArticle",
+    "date": "2025-01-01",
+    "url": "https://dtd.nlm.nih.gov/ncbi/pubmed/out/pubmed_250101.dtd"
+  },
+  "metadata_snapshot": {
+    "path": "data/science-evidence/2026-07-31-lrrk2-penetrance-docs-2091/pubmed-esummary.json",
+    "request": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id=26062626%2C28639421%2C38804604%2C40926580&retmode=json",
+    "sha256": "2dafe96323e4695693bbc6d5617adaaed7b6de9e79aebd31ec22dfdce03d2eb1"
+  },
+  "extraction_path": "PubmedArticle/MedlineCitation/CommentsCorrectionsList",
+  "source_snapshot": {
+    "path": "data/science-evidence/2026-07-31-lrrk2-penetrance-docs-2091/pubmed-efetch-sanitized.xml",
+    "request": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=26062626%2C28639421%2C38804604%2C40926580&retmode=xml",
+    "raw_sha256": "0af32064bac933bfc8a33a2755c5ba81b2f9a1620345324facb7d706eecd38d0",
+    "sanitized_sha256": "5661b8aaf49fb8ac3551a6bc0464c00a4e7db2b12949db70708c6be60e119d8b",
+    "removed_elements": {
+      "Abstract": 4,
+      "OtherAbstract": 0,
+      "ReferenceList": 4,
+      "CoiStatement": 3
+    },
+    "removed_metadata": {
+      "author_email_addresses": 1
+    },
+    "preserved_if_present": [
+      "CommentsCorrectionsList"
+    ]
+  },
+  "records": [
+    {
+      "pmid": "26062626",
+      "doi": "10.1212/WNL.0000000000001708",
+      "citation": "PMID:26062626; DOI:10.1212/WNL.0000000000001708 (accessed 2026-07-31)",
+      "date_revised": "2026-05-18",
+      "cohort": "Ashkenazi-Jewish carrier relatives, kin-cohort analysis",
+      "age_80_estimate": "26% (95% CI 18-36%)",
+      "comments_corrections_list_present": false,
+      "comments_corrections": []
+    },
+    {
+      "pmid": "28639421",
+      "doi": "10.1002/mds.27059",
+      "citation": "PMID:28639421; DOI:10.1002/mds.27059 (accessed 2026-07-31)",
+      "date_revised": "2022-04-08",
+      "cohort": "non-Ashkenazi carrier relatives, kin-cohort analysis",
+      "age_80_estimate": "42.5% (95% CI 26.3-65.8%)",
+      "comments_corrections_list_present": false,
+      "comments_corrections": []
+    },
+    {
+      "pmid": "38804604",
+      "doi": "10.1093/brain/awae073",
+      "citation": "PMID:38804604; DOI:10.1093/brain/awae073 (accessed 2026-07-31)",
+      "date_revised": "2026-05-18",
+      "cohort": "prospective longitudinal 23andMe Research Cohort",
+      "age_80_estimate": "49%",
+      "comments_corrections_list_present": false,
+      "comments_corrections": []
+    },
+    {
+      "pmid": "40926580",
+      "doi": "10.1002/acn3.70176",
+      "citation": "PMID:40926580; DOI:10.1002/acn3.70176 (accessed 2026-07-31)",
+      "date_revised": "2026-07-01",
+      "cohort": "23andMe and Fox Insight Genetic Substudy",
+      "age_80_estimate": "24%",
+      "comments_corrections_list_present": false,
+      "comments_corrections": []
+    }
+  ]
+}

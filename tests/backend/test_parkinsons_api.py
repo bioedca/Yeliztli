@@ -76,6 +76,9 @@ class TestDisclaimer:
         assert data["decline_label"]
         assert "no proven way to prevent" in data["text"].lower()
         assert "gbap1" in data["text"].lower()  # GBA1 suppression explained
+        normalized = data["text"].replace("–", "-")
+        assert "24-49%" in normalized
+        assert "25-42.5%" in normalized
 
 
 class TestGateFlow:
