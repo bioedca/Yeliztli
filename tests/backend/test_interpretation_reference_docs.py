@@ -353,9 +353,9 @@ def _values_bound_payloads(
     expression: ast.expr,
     function: ast.FunctionDef,
     before_lineno: int,
-) -> list[ast.expr]:
+) -> list[tuple[ast.expr, int]]:
     if isinstance(expression, ast.Name):
-        payloads: list[ast.expr] = []
+        payloads: list[tuple[ast.expr, int]] = []
         for assignment_lineno, value in _reaching_assignments_before(
             function,
             expression.id,
@@ -376,12 +376,24 @@ def _values_bound_payloads(
     ):
         return []
 
-    payloads = list(expression.args)
-    if expression.keywords:
+    values_lineno = expression.lineno
+    payloads = [
+        *((argument, values_lineno) for argument in expression.args),
+        *(
+            (keyword.value, values_lineno)
+            for keyword in expression.keywords
+            if keyword.arg is None
+        ),
+    ]
+    named_keywords = [keyword for keyword in expression.keywords if keyword.arg is not None]
+    if named_keywords:
         payloads.append(
-            ast.Dict(
-                keys=[ast.Constant(keyword.arg) for keyword in expression.keywords],
-                values=[keyword.value for keyword in expression.keywords],
+            (
+                ast.Dict(
+                    keys=[ast.Constant(keyword.arg) for keyword in named_keywords],
+                    values=[keyword.value for keyword in named_keywords],
+                ),
+                values_lineno,
             )
         )
     return payloads
@@ -423,10 +435,7 @@ def _insert_payloads(function: ast.FunctionDef) -> list[tuple[ast.expr, int]]:
         if statement is None:
             continue
 
-        payloads.extend(
-            (payload, node.lineno)
-            for payload in _values_bound_payloads(statement, function, node.lineno)
-        )
+        payloads.extend(_values_bound_payloads(statement, function, node.lineno))
         if statement_index is not None:
             payloads.extend((payload, node.lineno) for payload in node.args[statement_index + 1 :])
         payloads.extend(
@@ -772,16 +781,21 @@ def _stores_lower_penetrance_category(path: Path) -> bool:
     for function in functions.values():
         if not (function.name.startswith("store_") and function.name.endswith("_findings")):
             continue
-        for payload, execute_lineno in _insert_payloads(function):
+        for payload, observation_lineno in _insert_payloads(function):
             if any(
                 _row_emits_lower_penetrance_category(
                     row,
                     function,
                     functions,
                     set(),
-                    getattr(row, "lineno", execute_lineno),
+                    observation_lineno,
                 )
-                for row in _persisted_row_expressions(payload, function, set(), execute_lineno)
+                for row in _persisted_row_expressions(
+                    payload,
+                    function,
+                    set(),
+                    observation_lineno,
+                )
             ):
                 return True
     return False
@@ -920,8 +934,10 @@ def store_test_findings():
             f"""
 def store_test_findings():
     row = {{}}
+    rows = []
+    rows.append(row)
     {category_write}
-    conn.execute(sa.insert(findings), [row])
+    conn.execute(sa.insert(findings), rows)
 """,
             encoding="utf-8",
         )
@@ -937,12 +953,58 @@ def store_test_findings():
             f"""
 def store_test_findings():
     row = {{"category": LOWER_PENETRANCE_RISK_ALLELE_CATEGORY}}
+    rows = []
+    rows.append(row)
     {category_removal}
-    conn.execute(sa.insert(findings), [row])
+    conn.execute(sa.insert(findings), rows)
 """,
             encoding="utf-8",
         )
         assert _stores_lower_penetrance_category(analysis) is False
+
+    analysis.write_text(
+        """
+def store_test_findings():
+    row = {"category": LOWER_PENETRANCE_RISK_ALLELE_CATEGORY}
+    conn.execute(findings.insert().values(**row))
+""",
+        encoding="utf-8",
+    )
+    assert _stores_lower_penetrance_category(analysis) is True
+
+    analysis.write_text(
+        """
+def store_test_findings():
+    row = {"category": "monogenic_variant"}
+    conn.execute(findings.insert().values(**row))
+""",
+        encoding="utf-8",
+    )
+    assert _stores_lower_penetrance_category(analysis) is False
+
+    analysis.write_text(
+        """
+def store_test_findings():
+    row = {"category": LOWER_PENETRANCE_RISK_ALLELE_CATEGORY}
+    statement = findings.insert().values(**row)
+    row["category"] = "monogenic_variant"
+    conn.execute(statement)
+""",
+        encoding="utf-8",
+    )
+    assert _stores_lower_penetrance_category(analysis) is True
+
+    analysis.write_text(
+        """
+def store_test_findings():
+    row = {"category": "monogenic_variant"}
+    statement = findings.insert().values(**row)
+    row["category"] = LOWER_PENETRANCE_RISK_ALLELE_CATEGORY
+    conn.execute(statement)
+""",
+        encoding="utf-8",
+    )
+    assert _stores_lower_penetrance_category(analysis) is False
 
     analysis.write_text(
         """
