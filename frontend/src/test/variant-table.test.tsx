@@ -571,6 +571,27 @@ describe("VariantTable", () => {
       expect(screen.getByText("Not assessed")).toBeInTheDocument()
     })
   })
+
+  // #2214 review: the helper-level specs pass even if a consumer stops calling
+  // the helper, which would silently restore the blank cell. These assert
+  // through the RENDERED table so a dropped call is caught where it matters.
+  it.each([
+    ["allele_ambiguous", "Allele unresolved"],
+    ["locus_unresolved", "Position unmatched"],
+    ["alias_unresolved", "Shared rsID"],
+    ["allele_mismatch", "Other allele"],
+  ])("renders %s as %s instead of a blank AF cell", async (status, label) => {
+    const page = makeVariantPage(1)
+    page.items[0].gnomad_af_global = null
+    page.items[0].gnomad_source_status = status
+    setupFetchMock(page, makeCountResponse(1))
+
+    render(<VariantTable sampleId={1} />)
+
+    await waitFor(() => {
+      expect(screen.getByText(label)).toBeInTheDocument()
+    })
+  })
 })
 
 describe("VariantToolbar", () => {

@@ -10,7 +10,7 @@ import {
   type SourceTag,
   type VariantRow,
 } from "@/types/variants"
-import { isGnomadSourceUncovered } from "@/lib/gnomad-status"
+import { gnomadNoFrequencyShortLabel } from "@/lib/gnomad-status"
 import {
   polyphen2Display,
   siftDisplay,
@@ -178,9 +178,7 @@ export const allColumns = [
     cell: (info) => {
       const val = info.getValue()
       if (val == null) {
-        return isGnomadSourceUncovered(info.row.original.gnomad_source_status)
-          ? "Not assessed"
-          : ""
+        return gnomadNoFrequencyShortLabel(info.row.original.gnomad_source_status) ?? ""
       }
       return val < 0.0001 ? val.toExponential(2) : val.toFixed(4)
     },
