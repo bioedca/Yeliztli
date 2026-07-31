@@ -76,19 +76,6 @@ _ENSEMBLE_EXAMPLES = (
 )
 
 
-def _function_assignments(function: ast.FunctionDef) -> dict[str, list[ast.expr]]:
-    assignments: dict[str, list[ast.expr]] = {}
-    for node in ast.walk(function):
-        if isinstance(node, ast.Assign):
-            for target in node.targets:
-                if isinstance(target, ast.Name):
-                    assignments.setdefault(target.id, []).append(node.value)
-        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
-            if node.value is not None:
-                assignments.setdefault(node.target.id, []).append(node.value)
-    return assignments
-
-
 def _documents_distinct_lower_penetrance_tier(text: str) -> bool:
     normalized = (
         " ".join(text.lower().split())
@@ -109,6 +96,134 @@ def _documents_distinct_lower_penetrance_tier(text: str) -> bool:
         in normalized
     )
     return canonical_distinct_tier_language
+
+
+def _merge_assignment_states(
+    *states: list[tuple[int, ast.expr]],
+) -> list[tuple[int, ast.expr]]:
+    merged: dict[tuple[int, str], tuple[int, ast.expr]] = {}
+    for state in states:
+        for lineno, value in state:
+            marker = (lineno, ast.dump(value, include_attributes=False))
+            merged[marker] = (lineno, value)
+    return list(merged.values())
+
+
+def _direct_assignment(
+    statement: ast.stmt,
+    name: str,
+) -> list[tuple[int, ast.expr]] | None:
+    if isinstance(statement, ast.Assign) and any(
+        isinstance(target, ast.Name) and target.id == name for target in statement.targets
+    ):
+        return [(statement.lineno, statement.value)]
+    if (
+        isinstance(statement, ast.AnnAssign)
+        and isinstance(statement.target, ast.Name)
+        and statement.target.id == name
+        and statement.value is not None
+    ):
+        return [(statement.lineno, statement.value)]
+    if (
+        isinstance(statement, ast.AugAssign)
+        and isinstance(statement.target, ast.Name)
+        and statement.target.id == name
+    ):
+        return []
+    return None
+
+
+def _apply_statements(
+    statements: list[ast.stmt],
+    name: str,
+    incoming: list[tuple[int, ast.expr]],
+) -> list[tuple[int, ast.expr]]:
+    state = incoming
+    for statement in statements:
+        direct = _direct_assignment(statement, name)
+        if direct is not None:
+            state = direct
+        elif isinstance(statement, ast.If):
+            body = _apply_statements(statement.body, name, state)
+            orelse = (
+                _apply_statements(statement.orelse, name, state) if statement.orelse else state
+            )
+            state = _merge_assignment_states(body, orelse)
+        elif isinstance(statement, (ast.For, ast.AsyncFor, ast.While)):
+            body = _apply_statements(statement.body, name, state)
+            state = _merge_assignment_states(state, body)
+            if statement.orelse:
+                state = _apply_statements(statement.orelse, name, state)
+        elif isinstance(statement, (ast.With, ast.AsyncWith)):
+            state = _apply_statements(statement.body, name, state)
+        elif isinstance(statement, (ast.Try, ast.TryStar)):
+            body = _apply_statements(statement.body, name, state)
+            branches = [body]
+            branches.extend(
+                _apply_statements(handler.body, name, state) for handler in statement.handlers
+            )
+            state = _merge_assignment_states(*branches)
+            if statement.orelse:
+                state = _apply_statements(statement.orelse, name, state)
+            if statement.finalbody:
+                state = _apply_statements(statement.finalbody, name, state)
+        elif isinstance(statement, ast.Match):
+            branches = [_apply_statements(case.body, name, state) for case in statement.cases]
+            state = _merge_assignment_states(state, *branches)
+    return state
+
+
+def _statement_blocks(statement: ast.stmt) -> list[list[ast.stmt]]:
+    if isinstance(statement, ast.If):
+        return [statement.body, statement.orelse]
+    if isinstance(statement, (ast.For, ast.AsyncFor, ast.While)):
+        return [statement.body, statement.orelse]
+    if isinstance(statement, (ast.With, ast.AsyncWith)):
+        return [statement.body]
+    if isinstance(statement, (ast.Try, ast.TryStar)):
+        return [
+            statement.body,
+            *(handler.body for handler in statement.handlers),
+            statement.orelse,
+            statement.finalbody,
+        ]
+    if isinstance(statement, ast.Match):
+        return [case.body for case in statement.cases]
+    return []
+
+
+def _block_contains_line(statements: list[ast.stmt], lineno: int) -> bool:
+    return any(
+        statement.lineno <= lineno <= getattr(statement, "end_lineno", statement.lineno)
+        for statement in statements
+    )
+
+
+def _assignments_reaching_line(
+    statements: list[ast.stmt],
+    name: str,
+    before_lineno: int,
+    incoming: list[tuple[int, ast.expr]],
+) -> list[tuple[int, ast.expr]]:
+    state = incoming
+    for statement in statements:
+        if statement.lineno >= before_lineno:
+            break
+        if before_lineno <= getattr(statement, "end_lineno", statement.lineno):
+            for block in _statement_blocks(statement):
+                if _block_contains_line(block, before_lineno):
+                    return _assignments_reaching_line(block, name, before_lineno, state)
+            return state
+        state = _apply_statements([statement], name, state)
+    return state
+
+
+def _reaching_assignments_before(
+    function: ast.FunctionDef,
+    name: str,
+    before_lineno: int,
+) -> list[tuple[int, ast.expr]]:
+    return _assignments_reaching_line(function.body, name, before_lineno, [])
 
 
 def _expression_emits_lower_penetrance_category(
@@ -140,7 +255,7 @@ def _expression_emits_lower_penetrance_category(
                     seen,
                     assignment_lineno,
                 )
-                for assignment_lineno, value in _assignments_before(
+                for assignment_lineno, value in _reaching_assignments_before(
                     function,
                     node.id,
                     use_lineno,
@@ -168,23 +283,33 @@ def _expression_emits_lower_penetrance_category(
 def _is_findings_insert_expression(
     expression: ast.expr,
     function: ast.FunctionDef,
-    seen: set[str],
+    seen: set[tuple[str, int]],
+    before_lineno: int,
 ) -> bool:
-    marker = ast.dump(expression, include_attributes=False)
+    marker = (ast.dump(expression, include_attributes=False), before_lineno)
     if marker in seen:
         return False
     seen.add(marker)
 
     if isinstance(expression, ast.Name):
         return any(
-            _is_findings_insert_expression(value, function, seen)
-            for value in _function_assignments(function).get(expression.id, [])
+            _is_findings_insert_expression(value, function, seen, assignment_lineno)
+            for assignment_lineno, value in _reaching_assignments_before(
+                function,
+                expression.id,
+                before_lineno,
+            )
         )
     if not isinstance(expression, ast.Call):
         return False
 
     if isinstance(expression.func, ast.Attribute) and expression.func.attr == "values":
-        return _is_findings_insert_expression(expression.func.value, function, seen)
+        return _is_findings_insert_expression(
+            expression.func.value,
+            function,
+            seen,
+            getattr(expression.func.value, "lineno", before_lineno),
+        )
     if isinstance(expression.func, ast.Attribute) and expression.func.attr == "insert":
         if isinstance(expression.func.value, ast.Name) and expression.func.value.id == "findings":
             return True
@@ -199,17 +324,27 @@ def _is_findings_insert_expression(
 def _values_bound_payloads(
     expression: ast.expr,
     function: ast.FunctionDef,
+    before_lineno: int,
 ) -> list[ast.expr]:
     if isinstance(expression, ast.Name):
         payloads: list[ast.expr] = []
-        for value in _function_assignments(function).get(expression.id, []):
-            payloads.extend(_values_bound_payloads(value, function))
+        for assignment_lineno, value in _reaching_assignments_before(
+            function,
+            expression.id,
+            before_lineno,
+        ):
+            payloads.extend(_values_bound_payloads(value, function, assignment_lineno))
         return payloads
     if (
         not isinstance(expression, ast.Call)
         or not isinstance(expression.func, ast.Attribute)
         or expression.func.attr != "values"
-        or not _is_findings_insert_expression(expression.func.value, function, set())
+        or not _is_findings_insert_expression(
+            expression.func.value,
+            function,
+            set(),
+            getattr(expression.func.value, "lineno", before_lineno),
+        )
     ):
         return []
 
@@ -237,7 +372,7 @@ def _insert_payloads(function: ast.FunctionDef) -> list[tuple[ast.expr, int]]:
             (
                 index
                 for index, argument in enumerate(node.args)
-                if _is_findings_insert_expression(argument, function, set())
+                if _is_findings_insert_expression(argument, function, set(), node.lineno)
             ),
             None,
         )
@@ -248,7 +383,12 @@ def _insert_payloads(function: ast.FunctionDef) -> list[tuple[ast.expr, int]]:
                     keyword.value
                     for keyword in node.keywords
                     if keyword.arg == "statement"
-                    and _is_findings_insert_expression(keyword.value, function, set())
+                    and _is_findings_insert_expression(
+                        keyword.value,
+                        function,
+                        set(),
+                        node.lineno,
+                    )
                 ),
                 None,
             )
@@ -256,7 +396,8 @@ def _insert_payloads(function: ast.FunctionDef) -> list[tuple[ast.expr, int]]:
             continue
 
         payloads.extend(
-            (payload, node.lineno) for payload in _values_bound_payloads(statement, function)
+            (payload, node.lineno)
+            for payload in _values_bound_payloads(statement, function, node.lineno)
         )
         if statement_index is not None:
             payloads.extend((payload, node.lineno) for payload in node.args[statement_index + 1 :])
@@ -274,32 +415,10 @@ def _latest_assignment_before(
     before_lineno: int,
 ) -> tuple[int, ast.expr] | None:
     return max(
-        _assignments_before(function, name, before_lineno),
+        _reaching_assignments_before(function, name, before_lineno),
         default=None,
         key=lambda item: item[0],
     )
-
-
-def _assignments_before(
-    function: ast.FunctionDef,
-    name: str,
-    before_lineno: int,
-) -> list[tuple[int, ast.expr]]:
-    assignments: list[tuple[int, ast.expr]] = []
-    for node in ast.walk(function):
-        if not hasattr(node, "lineno") or node.lineno >= before_lineno:
-            continue
-        if isinstance(node, ast.Assign):
-            if any(isinstance(target, ast.Name) and target.id == name for target in node.targets):
-                assignments.append((node.lineno, node.value))
-        elif (
-            isinstance(node, ast.AnnAssign)
-            and isinstance(node.target, ast.Name)
-            and node.target.id == name
-            and node.value is not None
-        ):
-            assignments.append((node.lineno, node.value))
-    return assignments
 
 
 def _persisted_row_expressions(
@@ -310,6 +429,8 @@ def _persisted_row_expressions(
 ) -> list[ast.expr]:
     if isinstance(payload, (ast.List, ast.Tuple, ast.Set)):
         return list(payload.elts)
+    if isinstance(payload, (ast.ListComp, ast.SetComp, ast.GeneratorExp)):
+        return [payload.elt]
     if not isinstance(payload, ast.Name):
         return [payload]
     marker = (payload.id, before_lineno)
@@ -487,6 +608,23 @@ def store_test_findings():
     analysis.write_text(
         """
 def store_test_findings():
+    category = LOWER_PENETRANCE_RISK_ALLELE_CATEGORY
+    category = "monogenic_variant"
+
+    def unrelated_helper():
+        category = LOWER_PENETRANCE_RISK_ALLELE_CATEGORY
+        return category
+
+    rows = [{"category": category}]
+    conn.execute(sa.insert(findings), rows)
+""",
+        encoding="utf-8",
+    )
+    assert _stores_lower_penetrance_category(analysis) is False
+
+    analysis.write_text(
+        """
+def store_test_findings():
     rows = []
     rows.append({"category": LOWER_PENETRANCE_RISK_ALLELE_CATEGORY})
     conn.execute(sa.insert(findings), rows)
@@ -516,6 +654,34 @@ def store_test_findings():
         encoding="utf-8",
     )
     assert _stores_lower_penetrance_category(analysis) is False
+
+    analysis.write_text(
+        """
+def store_test_findings():
+    statement = findings.insert().values(category="monogenic_variant")
+    conn.execute(statement)
+    statement = findings.insert().values(
+        category=LOWER_PENETRANCE_RISK_ALLELE_CATEGORY,
+    )
+""",
+        encoding="utf-8",
+    )
+    assert _stores_lower_penetrance_category(analysis) is False
+
+    for comprehension in (
+        '[{"category": LOWER_PENETRANCE_RISK_ALLELE_CATEGORY} for value in values]',
+        "{dict(category=LOWER_PENETRANCE_RISK_ALLELE_CATEGORY) for value in values}",
+        '({"category": LOWER_PENETRANCE_RISK_ALLELE_CATEGORY} for value in values)',
+    ):
+        analysis.write_text(
+            f"""
+def store_test_findings():
+    rows = {comprehension}
+    conn.execute(sa.insert(findings), rows)
+""",
+            encoding="utf-8",
+        )
+        assert _stores_lower_penetrance_category(analysis) is True
 
     analysis.write_text(
         """
