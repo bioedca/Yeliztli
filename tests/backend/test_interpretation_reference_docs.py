@@ -76,7 +76,7 @@ _ENSEMBLE_EXAMPLES = (
 )
 
 
-def _documents_distinct_lower_penetrance_tier(text: str) -> bool:
+def _documents_distinct_lower_penetrance_category(text: str) -> bool:
     normalized = (
         " ".join(text.lower().split())
         .replace("**", "")
@@ -84,18 +84,15 @@ def _documents_distinct_lower_penetrance_tier(text: str) -> bool:
         .replace("risk-allele", "risk allele")
         .replace("high-penetrance", "high penetrance")
     )
-    canonical_distinct_tier_language = (
-        "lower penetrance/risk allele findings are reported in a separate tier "
-        "rather than being presented as high penetrance p/lp"
+    canonical_distinct_category_language = (
+        "lower penetrance/risk allele findings are stored under a distinct findings category "
+        "from high penetrance p/lp"
         in normalized
-        or "lower penetrance/risk allele findings are reported in a separate tier "
-        "instead of being presented as high penetrance p/lp"
-        in normalized
-        or "clinvar lower penetrance/risk allele — clinvar risk assertions "
-        "reported separately from high penetrance pathogenic variants"
+        or "clinvar lower penetrance/risk allele — clinvar risk assertions are stored under "
+        "a distinct findings category from high penetrance p/lp"
         in normalized
     )
-    return canonical_distinct_tier_language
+    return canonical_distinct_category_language
 
 
 def _merge_assignment_states(
@@ -409,18 +406,6 @@ def _insert_payloads(function: ast.FunctionDef) -> list[tuple[ast.expr, int]]:
     return payloads
 
 
-def _latest_assignment_before(
-    function: ast.FunctionDef,
-    name: str,
-    before_lineno: int,
-) -> tuple[int, ast.expr] | None:
-    return max(
-        _reaching_assignments_before(function, name, before_lineno),
-        default=None,
-        key=lambda item: item[0],
-    )
-
-
 def _persisted_row_expressions(
     payload: ast.expr,
     function: ast.FunctionDef,
@@ -439,16 +424,22 @@ def _persisted_row_expressions(
     seen_names.add(marker)
 
     rows: list[ast.expr] = []
-    assignment = _latest_assignment_before(function, payload.id, before_lineno)
-    assignment_lineno = 0
-    if assignment is not None:
-        assignment_lineno, value = assignment
-        rows.extend(_persisted_row_expressions(value, function, seen_names, assignment_lineno))
+    assignments = _reaching_assignments_before(function, payload.id, before_lineno)
+    for assignment_lineno, value in assignments:
+        rows.extend(
+            _persisted_row_expressions(
+                value,
+                function,
+                set(seen_names),
+                assignment_lineno,
+            )
+        )
+    assignment_floor = min((lineno for lineno, _ in assignments), default=0)
     for node in ast.walk(function):
         if (
             not isinstance(node, ast.Call)
             or not hasattr(node, "lineno")
-            or not assignment_lineno < node.lineno < before_lineno
+            or not assignment_floor < node.lineno < before_lineno
             or not isinstance(node.func, ast.Attribute)
             or not isinstance(node.func.value, ast.Name)
             or node.func.value.id != payload.id
@@ -494,13 +485,19 @@ def _row_emits_lower_penetrance_category(
             for key, value in zip(expression.keys, expression.values, strict=True)
         )
     if isinstance(expression, ast.Name):
-        assignment = _latest_assignment_before(function, expression.id, before_lineno)
-        return assignment is not None and _row_emits_lower_penetrance_category(
-            assignment[1],
-            function,
-            functions,
-            seen,
-            assignment[0],
+        return any(
+            _row_emits_lower_penetrance_category(
+                value,
+                function,
+                functions,
+                set(seen),
+                assignment_lineno,
+            )
+            for assignment_lineno, value in _reaching_assignments_before(
+                function,
+                expression.id,
+                before_lineno,
+            )
         )
     if isinstance(expression, (ast.List, ast.Tuple, ast.Set)):
         return any(
@@ -622,6 +619,30 @@ def store_test_findings():
     )
     assert _stores_lower_penetrance_category(analysis) is False
 
+    for branch_body in (
+        """
+    if enabled:
+        rows = [{"category": LOWER_PENETRANCE_RISK_ALLELE_CATEGORY}]
+    else:
+        rows = [{"category": "monogenic_variant"}]
+""",
+        """
+    if enabled:
+        rows = [{"category": "monogenic_variant"}]
+    else:
+        rows = [{"category": LOWER_PENETRANCE_RISK_ALLELE_CATEGORY}]
+""",
+    ):
+        analysis.write_text(
+            f"""
+def store_test_findings():
+{branch_body}
+    conn.execute(sa.insert(findings), rows)
+""",
+            encoding="utf-8",
+        )
+        assert _stores_lower_penetrance_category(analysis) is True
+
     analysis.write_text(
         """
 def store_test_findings():
@@ -723,40 +744,54 @@ def test_lower_penetrance_output_table_matches_analysis_modules() -> None:
     )
 
 
-def test_lower_penetrance_tier_is_documented_on_each_module_page() -> None:
-    """Each module returning the distinct tier names it in 'What you'll see' (#2052)."""
+def test_lower_penetrance_category_is_documented_on_each_module_page() -> None:
+    """Each module names the distinct stored category in 'What you'll see' (#2052)."""
     missing: list[str] = []
     for display_name, path in _LOWER_PENETRANCE_MODULES.values():
         doc = path.read_text(encoding="utf-8")
         what_youll_see = doc.split("## What you'll see", 1)[1].split("\n## ", 1)[0]
-        if not _documents_distinct_lower_penetrance_tier(what_youll_see):
+        if not _documents_distinct_lower_penetrance_category(what_youll_see):
             missing.append(display_name)
 
     assert not missing, (
-        "Module pages returning the distinct ClinVar lower-penetrance/risk-allele tier "
-        "must describe it under 'What you'll see' as a separate tier from "
+        "Module pages returning the distinct ClinVar lower-penetrance/risk-allele category "
+        "must describe it under 'What you'll see' as a distinct stored category from "
         f"high-penetrance P/LP findings; missing {missing} (#2052)."
     )
 
 
-def test_lower_penetrance_tier_guard_rejects_high_penetrance_equivalence() -> None:
-    """Keyword-only text cannot satisfy the distinct-tier documentation guard (#2052)."""
-    assert not _documents_distinct_lower_penetrance_tier(
+def test_shared_module_views_disclose_that_categories_render_together() -> None:
+    """Storage-category wording must not imply a user-visible tier in shared views (#2052)."""
+    for display_name, path in _LOWER_PENETRANCE_MODULES.values():
+        if display_name == "Rare variants":
+            continue
+        doc = path.read_text(encoding="utf-8")
+        what_youll_see = doc.split("## What you'll see", 1)[1].split("\n## ", 1)[0]
+        normalized = " ".join(what_youll_see.lower().split())
+        assert "the current page displays both categories together" in normalized, (
+            f"{display_name} must distinguish its stored categories "
+            "from its shared UI view (#2052)."
+        )
+
+
+def test_lower_penetrance_category_guard_rejects_high_penetrance_equivalence() -> None:
+    """Keyword-only text cannot satisfy the stored-category documentation guard (#2052)."""
+    assert not _documents_distinct_lower_penetrance_category(
         "Lower-penetrance/risk-allele findings use the same tier as high-penetrance P/LP findings."
     )
-    assert not _documents_distinct_lower_penetrance_tier(
+    assert not _documents_distinct_lower_penetrance_category(
         "Lower-penetrance/risk-allele findings are not a separate tier from "
         "high-penetrance P/LP findings."
     )
-    assert not _documents_distinct_lower_penetrance_tier(
+    assert not _documents_distinct_lower_penetrance_category(
         "Lower-penetrance/risk-allele findings are not reported separately from "
         "high-penetrance P/LP findings."
     )
-    assert not _documents_distinct_lower_penetrance_tier(
+    assert not _documents_distinct_lower_penetrance_category(
         "Lower-penetrance/risk-allele findings are never reported in a separate tier from "
         "high-penetrance P/LP findings."
     )
-    assert not _documents_distinct_lower_penetrance_tier(
+    assert not _documents_distinct_lower_penetrance_category(
         "Lower-penetrance/risk-allele findings are no longer reported in a separate tier "
         "from high-penetrance P/LP findings."
     )

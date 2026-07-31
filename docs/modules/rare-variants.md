@@ -29,8 +29,8 @@ zygosity. CADD and REVEL scores are shown in the result details when available.
 Findings sorted by clinical relevance, in these categories:
 
 - **ClinVar pathogenic** — known Pathogenic/Likely-Pathogenic variants.
-- **ClinVar lower-penetrance/risk allele** — ClinVar risk assertions reported separately from
-  high-penetrance pathogenic variants.
+- **ClinVar lower-penetrance/risk allele** — ClinVar risk assertions are stored under a distinct
+  findings category from high-penetrance P/LP variants.
 - **[Ensemble pathogenic](interpretation-reference.md#ensemble-pathogenic)** — a supporting
   computational flag based on a strict majority of the prediction axes with data; the reference
   explains the axes, thresholds, and displayed fraction.
