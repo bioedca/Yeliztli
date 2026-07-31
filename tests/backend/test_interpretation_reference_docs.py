@@ -160,6 +160,20 @@ def test_pubmed_evidence_payload_excludes_publisher_owned_abstract() -> None:
     assert "All rights reserved" not in payload
     assert '<PMID Version="1">38054408</PMID>' in payload
     assert '<PublicationType UI="D016428">Journal Article</PublicationType>' in payload
+    assert "<Citation>ssing heritability of complex diseases." in payload
+
+    readme = (_RISK_ALLELE_EVIDENCE_DIR / "README.md").read_text(encoding="utf-8")
+    assert "source-native EFetch response" in readme
+    assert "not used to support this packet's claim" in " ".join(readme.split())
+
+    queries = json.loads((_RISK_ALLELE_EVIDENCE_DIR / "queries.json").read_text(encoding="utf-8"))
+    source = next(
+        query
+        for query in queries["queries"]
+        if query["service"] == "NCBI Entrez" and query["endpoint"] == "efetch"
+    )
+    assert "source-native response starts its first ReferenceList/Citation" in source["result"]
+    assert "retained verbatim and is not used for the claim" in source["result"]
 
 
 def test_nlm_license_source_is_preserved_with_the_evidence_packet() -> None:

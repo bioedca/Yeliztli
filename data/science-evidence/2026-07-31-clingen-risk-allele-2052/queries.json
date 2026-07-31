@@ -37,7 +37,7 @@
         "retmode": "xml"
       },
       "status": "success",
-      "result": "The PubMed XML record has no CommentsCorrectionsList element; its publication types are Journal Article and Research Support, N.I.H., Extramural.",
+      "result": "The PubMed XML record has no CommentsCorrectionsList element; its publication types are Journal Article and Research Support, N.I.H., Extramural. The source-native response starts its first ReferenceList/Citation at 'ssing heritability of complex diseases'; a fresh response on 2026-07-31 reproduced that upstream truncation, which is retained verbatim and is not used for the claim.",
       "raw_payload": "data/science-evidence/2026-07-31-clingen-risk-allele-2052/raw/pubmed-efetch-38054408.xml"
     },
     {

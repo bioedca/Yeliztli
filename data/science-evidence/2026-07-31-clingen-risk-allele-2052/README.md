@@ -24,7 +24,11 @@ output category; this change does not add or alter variant classification behavi
   The publisher-supplied `Abstract` (including its all-rights-reserved
   `CopyrightInformation`) is removed, and public author contact email addresses
   are replaced with `[redacted-email]`; the remaining typed record structure is
-  unchanged.
+  unchanged. The source-native EFetch response itself starts its first
+  `ReferenceList/Citation` at `ssing heritability of complex diseases`; a fresh
+  response on the access date reproduced that upstream truncation. It is retained
+  verbatim, is not repaired from another source, and is not used to support this
+  packet's claim.
 - Sanitized raw NLM terms snapshot:
   `data/science-evidence/2026-07-31-clingen-risk-allele-2052/raw/nlm-copyright-download-terms-2026-07-31.html`.
   Site chrome, scripts, analytics, styling, and unrelated download links are
