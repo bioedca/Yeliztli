@@ -1,13 +1,15 @@
 # Module reference
 
-Yeliztli runs many analysis **modules** over your data. Each one loads a curated panel of
-variants, extracts the ones you carry, and stores **findings** with an
+Yeliztli runs many analysis **modules** over your data. Findings-producing modules load curated
+panels of variants, extract the ones you carry, and store **findings** with an
 [evidence rating](../getting-started/reading-your-results.md#findings-and-evidence-ratings).
+Read-only, on-demand API context modules such as G6PD and BChE instead return summaries without
+storing findings.
 For how to read each kind of output — evidence stars, categorical levels, diplotypes,
 polygenic percentiles, and the recurring caveats — see the
 [interpretation reference](interpretation-reference.md).
 
-Modules come in three kinds:
+Modules come in four kinds:
 
 - **Modules with their own page** in the app — you can open them from the dashboard and see a
   tailored view.
@@ -15,6 +17,8 @@ Modules come in three kinds:
   the unified **Findings Explorer** (these are documented together under
   [Specialized findings](specialized.md)).
 - **Disclosure-gated modules** — sensitive results that stay hidden until you opt in.
+- **On-demand API context modules** — G6PD and BChE return read-only summaries without
+  persisting a finding or adding a Findings Explorer entry.
 
 !!! warning "How to read any module"
     Every module analyses **consumer genotyping-array** data and is **research/educational

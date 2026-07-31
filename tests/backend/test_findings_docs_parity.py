@@ -74,6 +74,18 @@ def test_specialized_docs_distinguish_automatic_findings_from_api_context() -> N
     storage_contract = (
         "Neither is part of the standard analysis or stores a Findings Explorer entry"
     )
+    module_overview = re.sub(
+        r"\s+",
+        " ",
+        _markdown_section(MODULES_INDEX, "# Module reference"),
+    )
+
+    assert "Findings-producing modules load curated panels of variants" in module_overview
+    assert (
+        "Read-only, on-demand API context modules such as G6PD and BChE "
+        "instead return summaries without storing findings"
+    ) in module_overview
+    assert "Modules come in four kinds" in module_overview
 
     for path, heading in (
         (MODULES_INDEX, "## Specialized findings"),
