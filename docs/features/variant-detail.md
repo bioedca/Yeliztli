@@ -21,10 +21,11 @@ summary, then **Open full detail** for the full page, organised into tabs:
    PrimateAI, plus an [ensemble-pathogenic flag](../modules/interpretation-reference.md#ensemble-pathogenic)),
    GTEx eQTL and SpliceAI context badges, and
    gene–disease associations (MONDO/HPO, plus OMIM if you've added a key).
-5. **Literature** — *planned; not yet implemented.* A per-variant PubMed literature search
-   (keyed by gene and phenotype) is slated for a future release; today this tab shows a
-   placeholder only. (PubMed literature *is* used elsewhere — for clinical **findings** — but is
-   not wired into this tab.)
+5. **Literature** — the gene-level, cache-backed PubMed results returned by the same service as
+   **[Gene Detail](gene-detail.md)**. Each card links to PubMed and shows the article title,
+   authors, journal, year, and an expandable abstract when one is available. A link opens the
+   full Gene Detail page for the variant's gene. These are gene-level results, not a
+   variant-specific evidence search.
 6. **Genome** — an embedded IGV view of a ~10 kb window around the variant with the default
    annotation tracks, plus a link into the full **[Genome Browser](genome-browser.md)**.
 
