@@ -245,4 +245,40 @@ test.describe('Stale sample re-annotation gate (#1973)', () => {
       })),
     ).toEqual([])
   })
+
+  test('gates a non-Dashboard sample route before it can render stale data', async ({ page }) => {
+    const state = gateState()
+    await mockDashboard(page, state)
+
+    await page.goto(`/findings?sample_id=${SAMPLE_ID}`)
+
+    const gate = page.getByTestId('stale-sample-gate')
+    await expect(gate).toBeVisible()
+    await expect(gate).toContainText('Sample requires re-annotation')
+    await expect(gate).not.toContainText(JSON.stringify(STALE_PAYLOAD))
+    expect(page.url()).toContain(`/findings?sample_id=${SAMPLE_ID}`)
+
+    await gate.getByTestId('stale-reannotate-cta').click()
+    await expect(gate.getByRole('progressbar')).toBeVisible()
+    expect(state.postCalls).toBe(1)
+  })
+
+  test('uses the direct concordance sample instead of a conflicting query parameter', async ({ page }) => {
+    const state = gateState()
+    let wrongSampleProbed = false
+    await mockDashboard(page, state)
+    await page.route(/\/api\/variants\/count\?sample_id=99$/, (route) => {
+      wrongSampleProbed = true
+      return route.fulfill(jsonRoute({ total: 99 }))
+    })
+
+    await page.goto(`/samples/${SAMPLE_ID}/concordance?sample_id=99`)
+
+    const gate = page.getByTestId('stale-sample-gate')
+    await expect(gate).toBeVisible()
+    await gate.getByTestId('stale-reannotate-cta').click()
+    await expect(gate.getByRole('progressbar')).toBeVisible()
+    expect(state.postCalls).toBe(1)
+    expect(wrongSampleProbed).toBe(false)
+  })
 })

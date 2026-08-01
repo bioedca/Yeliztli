@@ -157,7 +157,7 @@ function AboutPage() {
         ) : appUpdate?.error ? (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <AlertCircle className="h-4 w-4 shrink-0" />
-            <span>Could not check for updates: {appUpdate.error}</span>
+            <span>Could not check for updates.</span>
           </div>
         ) : (
           <div className="flex items-center gap-2 text-sm text-green-700 dark:text-green-400">

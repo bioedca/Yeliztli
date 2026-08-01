@@ -167,13 +167,18 @@ describe("IgvBrowser", () => {
   it("shows error state when browser creation fails", async () => {
     mockCreateBrowser.mockReset()
     mockCreateBrowser.mockRejectedValue(new Error("Network error"))
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {})
     render(<IgvBrowser />)
     await waitFor(() => {
       expect(screen.getByRole("alert")).toBeInTheDocument()
     })
     expect(screen.getByText("Failed to load genome browser")).toBeInTheDocument()
-    expect(screen.getByText("Network error")).toBeInTheDocument()
+    expect(
+      screen.getByText("Unable to load the genome browser. Please retry."),
+    ).toBeInTheDocument()
+    expect(screen.queryByText("Network error")).not.toBeInTheDocument()
     expect(screen.getByText("Retry")).toBeInTheDocument()
+    consoleError.mockRestore()
   })
 
   it("retries browser creation on retry button click", async () => {

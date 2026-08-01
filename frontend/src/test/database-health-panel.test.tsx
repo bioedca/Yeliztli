@@ -293,35 +293,47 @@ describe('DatabaseHealthPanel — needs-attention banner', () => {
 // ── Tests: integrity / last_error detail text ────────────────────────
 
 describe('DatabaseHealthPanel — detail text', () => {
-  it('renders integrity-failed detail text', async () => {
+  it('renders safe copy instead of integrity-failed detail text', async () => {
+    const rawDiagnostic = 'dbnsfp_scores table is empty'
     setupHealth([
       makeDb({
         name: 'dbnsfp',
         display_name: 'dbNSFP',
         state: 'corrupt',
         integrity_ok: false,
-        integrity_detail: 'dbnsfp_scores table is empty',
+        integrity_detail: rawDiagnostic,
         can_clean: true,
       }),
     ])
     renderPanel()
-    expect(await screen.findByText('dbnsfp_scores table is empty')).toBeInTheDocument()
+    expect(
+      await screen.findByText(
+        'Database integrity needs attention. Re-check or clean and re-download the database.',
+      ),
+    ).toBeInTheDocument()
+    expect(document.body).not.toHaveTextContent(rawDiagnostic)
   })
 
-  it('renders last_error detail text for a failed DB', async () => {
+  it('renders safe copy instead of last_error detail text for a failed DB', async () => {
+    const rawDiagnostic = 'HTTP 503 from upstream'
     setupHealth([
       makeDb({
         name: 'cpic',
         display_name: 'CPIC',
         state: 'failed',
         integrity_ok: null,
-        last_error: 'HTTP 503 from upstream',
+        last_error: rawDiagnostic,
         can_clean: true,
         can_verify: false,
       }),
     ])
     renderPanel()
-    expect(await screen.findByText('HTTP 503 from upstream')).toBeInTheDocument()
+    expect(
+      await screen.findByText(
+        'Database integrity needs attention. Re-check or clean and re-download the database.',
+      ),
+    ).toBeInTheDocument()
+    expect(document.body).not.toHaveTextContent(rawDiagnostic)
   })
 })
 
@@ -436,7 +448,8 @@ describe('DatabaseHealthPanel — Verify', () => {
     expect(await screen.findByText('Integrity OK')).toBeInTheDocument()
   })
 
-  it('shows a failure result when verify reports not ok', async () => {
+  it('shows safe copy when verify reports not ok', async () => {
+    const rawDiagnostic = 'malformed database disk image'
     mockFetch.mockImplementation((url: string, init?: RequestInit) => {
       if (typeof url === 'string') {
         if (url.includes('/api/databases/health') && (!init || init.method == null)) {
@@ -455,7 +468,7 @@ describe('DatabaseHealthPanel — Verify', () => {
             json: async () => ({
               db_name: 'clinvar',
               ok: false,
-              detail: 'malformed database disk image',
+              detail: rawDiagnostic,
               depth: 'deep',
             }),
           })
@@ -468,7 +481,12 @@ describe('DatabaseHealthPanel — Verify', () => {
     const verifyBtn = await screen.findByRole('button', { name: /Verify/i })
     fireEvent.click(verifyBtn)
 
-    expect(await screen.findByText('Failed: malformed database disk image')).toBeInTheDocument()
+    expect(
+      await screen.findByText(
+        'Integrity check failed. Re-check or clean and re-download the database.',
+      ),
+    ).toBeInTheDocument()
+    expect(document.body).not.toHaveTextContent(rawDiagnostic)
   })
 })
 
@@ -600,18 +618,24 @@ describe('DatabaseHealthPanel — Clean', () => {
 
 describe('DatabaseHealthPanel — fetch failure', () => {
   it('renders an error message when the health fetch fails', async () => {
+    const rawDiagnostic = 'sqlite:///private/data/reference.db: permission denied'
     mockFetch.mockImplementation((url: string) => {
       if (typeof url === 'string' && url.includes('/api/databases/health')) {
         return Promise.resolve({
           ok: false,
           status: 500,
-          text: async () => 'boom',
-          json: async () => ({}),
+          text: async () => rawDiagnostic,
+          json: async () => {
+            throw new Error('not JSON')
+          },
         })
       }
       return Promise.resolve({ ok: true, status: 200, json: async () => ({}) })
     })
     renderPanel()
-    expect(await screen.findByText(/Database health fetch failed: 500/)).toBeInTheDocument()
+    expect(
+      await screen.findByText('Database health fetch failed. Please try again.'),
+    ).toBeInTheDocument()
+    expect(document.body).not.toHaveTextContent(rawDiagnostic)
   })
 })

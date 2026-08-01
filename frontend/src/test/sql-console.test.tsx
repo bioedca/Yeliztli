@@ -295,7 +295,12 @@ describe("SqlConsole", () => {
     await waitFor(() => {
       expect(screen.getByTestId("sql-error")).toBeInTheDocument()
     })
-    expect(screen.getByText(/write operations are not allowed/i)).toBeInTheDocument()
+    expect(
+      screen.getByText("SQL execution failed. Please try again."),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText(/write operations are not allowed/i),
+    ).not.toBeInTheDocument()
   })
 
   it("shows truncation warning when results are truncated", async () => {

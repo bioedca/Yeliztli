@@ -227,7 +227,9 @@ export default function AnnotationPanel({ sampleId, variantCount }: AnnotationPa
       {/* Status message */}
       <div className="mt-2 flex items-center justify-between">
         <p className="text-xs text-muted-foreground truncate">
-          {progress?.message ?? "Queued for annotation..."}
+          {progress?.status === "failed"
+            ? "Annotation failed."
+            : progress?.message ?? "Queued for annotation..."}
         </p>
         <span className="text-xs text-muted-foreground tabular-nums ml-2 shrink-0">
           {(progress?.progress_pct ?? 0).toFixed(1)}%
@@ -237,7 +239,7 @@ export default function AnnotationPanel({ sampleId, variantCount }: AnnotationPa
       {/* Error message */}
       {progress?.error && (
         <p className="mt-2 text-xs text-destructive" role="alert">
-          {progress.error}
+          Annotation failed. Please try again.
         </p>
       )}
     </div>

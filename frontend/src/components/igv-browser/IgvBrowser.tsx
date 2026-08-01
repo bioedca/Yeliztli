@@ -367,9 +367,11 @@ const IgvBrowser = forwardRef<IgvBrowserHandle, IgvBrowserProps>(
         })
         .catch((err: unknown) => {
           if (cancelled) return
-          const message =
-            err instanceof Error ? err.message : "Failed to initialize IGV browser"
-          dispatch({ type: "error", message })
+          console.error("Failed to initialize IGV browser", err)
+          dispatch({
+            type: "error",
+            message: "Unable to load the genome browser. Please retry.",
+          })
         })
 
       return () => {

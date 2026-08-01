@@ -143,6 +143,127 @@ describe('StaleSampleGate', () => {
     expect(mockFetch).not.toHaveBeenCalled()
   })
 
+  it('derives the sample from a direct concordance-report route and posts its CTA', async () => {
+    mockFetch.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = requestUrl(input)
+      if (url === STALE_PAYLOAD.reannotate_url && init?.method === 'POST') {
+        return apiResponse(202, {
+          job_id: ACTIVE_JOB.job_id,
+          sample_id: 42,
+          status: 'pending',
+        })
+      }
+      if (isActiveJobRequest(url)) {
+        return apiResponse(404, { detail: 'No active job' })
+      }
+      if (isStalenessRequest(url)) {
+        return apiResponse(423, { detail: STALE_PAYLOAD })
+      }
+      return apiResponse(200, {})
+    })
+
+    render(
+      <StaleSampleGate>
+        <div data-testid="protected-content">concordance report</div>
+      </StaleSampleGate>,
+      { wrapper: createWrapper(['/samples/42/concordance']) },
+    )
+
+    expect(await screen.findByTestId('stale-sample-gate')).toBeInTheDocument()
+    expect(mockFetch).toHaveBeenCalledWith('/api/variants/count?sample_id=42')
+    expect(screen.queryByTestId('protected-content')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByTestId('stale-reannotate-cta'))
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith(
+        STALE_PAYLOAD.reannotate_url,
+        expect.objectContaining({ method: 'POST' }),
+      )
+    })
+  })
+
+  it('prefers the direct concordance sample over a conflicting query parameter', async () => {
+    mockFetch.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = requestUrl(input)
+      if (url === '/api/annotation/42' && init?.method === 'POST') {
+        return apiResponse(202, {
+          job_id: ACTIVE_JOB.job_id,
+          sample_id: 42,
+          status: 'pending',
+        })
+      }
+      if (isActiveJobRequest(url)) {
+        return apiResponse(404, { detail: 'No active job' })
+      }
+      if (url === '/api/variants/count?sample_id=42') {
+        return apiResponse(423, { detail: STALE_PAYLOAD })
+      }
+      return apiResponse(200, {})
+    })
+
+    render(
+      <StaleSampleGate>
+        <div data-testid="protected-content">concordance report</div>
+      </StaleSampleGate>,
+      { wrapper: createWrapper(['/samples/42/concordance?sample_id=99']) },
+    )
+
+    fireEvent.click(await screen.findByTestId('stale-reannotate-cta'))
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/api/annotation/42',
+        expect.objectContaining({ method: 'POST' }),
+      )
+    })
+    expect(mockFetch).toHaveBeenCalledWith('/api/variants/count?sample_id=42')
+    expect(
+      mockFetch.mock.calls.some(
+        ([input]) => requestUrl(input as RequestInfo | URL).includes('sample_id=99'),
+      ),
+    ).toBe(false)
+  })
+
+  it('uses the canonical same-origin endpoint instead of an advertised cross-origin URL', async () => {
+    const unsafePayload = {
+      ...STALE_PAYLOAD,
+      reannotate_url: 'https://untrusted.example/annotation/42',
+    }
+    mockFetch.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = requestUrl(input)
+      if (url === '/api/annotation/42' && init?.method === 'POST') {
+        return apiResponse(202, {
+          job_id: ACTIVE_JOB.job_id,
+          sample_id: 42,
+          status: 'pending',
+        })
+      }
+      if (isActiveJobRequest(url)) {
+        return apiResponse(404, { detail: 'No active job' })
+      }
+      if (isStalenessRequest(url)) {
+        return apiResponse(423, { detail: unsafePayload })
+      }
+      return apiResponse(200, {})
+    })
+
+    render(
+      <StaleSampleGate>
+        <div>hidden</div>
+      </StaleSampleGate>,
+      { wrapper: createWrapper() },
+    )
+
+    fireEvent.click(await screen.findByTestId('stale-reannotate-cta'))
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/api/annotation/42',
+        expect.objectContaining({ method: 'POST' }),
+      )
+    })
+    expect(
+      mockFetch.mock.calls.some(([input]) => requestUrl(input as RequestInfo | URL) === unsafePayload.reannotate_url),
+    ).toBe(false)
+  })
+
   it('polls 423 to 200 after POST and lifts the gate without a remount', async () => {
     let started = false
     let postStartStalenessChecks = 0
@@ -332,8 +453,9 @@ describe('StaleSampleGate', () => {
     fireEvent.click(await screen.findByTestId('stale-reannotate-cta'))
 
     expect(await screen.findByTestId('stale-error')).toHaveTextContent(
-      /annotator unavailable/i,
+      /unable to start re-annotation\. please try again\./i,
     )
+    expect(document.body).not.toHaveTextContent('annotator unavailable')
     expect(screen.getByTestId('stale-sample-gate')).toBeInTheDocument()
     expect(screen.getByTestId('stale-reannotate-cta')).toBeEnabled()
   })

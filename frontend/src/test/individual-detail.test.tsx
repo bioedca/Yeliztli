@@ -655,6 +655,64 @@ describe("IndividualDetail page", () => {
     expect(summaryCalls.get(41)).toBe(2)
   })
 
+  it("offers re-annotation for a stale linked sample instead of a dead retry", async () => {
+    const individual: MockIndividual = {
+      id: 17,
+      display_name: "Gina",
+      aggregated_findings_count: 1,
+      linked_samples: [
+        {
+          id: 61,
+          name: "gina_23andme.txt",
+          file_format: "23andme_v5",
+          vendor: "23andme",
+          variantCount: 600000,
+          highConfidenceFindings: [],
+        },
+      ],
+    }
+    const rawDiagnostic = "sqlite:///private/data/gina.db: stale bundle"
+    mockFetch.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString()
+      if (url === "/api/individuals/17") {
+        return Promise.resolve(jsonResponse(individualPayload(individual)))
+      }
+      if (url === "/api/variants/count?sample_id=61") {
+        return Promise.resolve(jsonResponse({ detail: rawDiagnostic }, 423))
+      }
+      if (url === "/api/analysis/findings/summary?sample_id=61") {
+        return Promise.resolve(jsonResponse({ detail: rawDiagnostic }, 423))
+      }
+      if (url === "/api/annotation/61" && init?.method === "POST") {
+        return Promise.resolve(
+          jsonResponse({ job_id: "annotation-61", sample_id: 61, status: "pending" }, 202),
+        )
+      }
+      return Promise.resolve(jsonResponse({ detail: "not mocked" }, 500))
+    })
+
+    render(<IndividualDetail />, {
+      wrapper: createWrapper(["/individuals/17"]),
+    })
+
+    const staleGate = await screen.findByTestId("individual-stale-sample-gate")
+    expect(staleGate).toHaveTextContent("gina_23andme.txt")
+    expect(staleGate).toHaveTextContent("Re-annotate")
+    expect(screen.getByTestId("linked-sample-reannotate-61")).toHaveTextContent(
+      "Re-annotation required",
+    )
+    expect(document.body).not.toHaveTextContent(rawDiagnostic)
+    expect(screen.queryByRole("button", { name: /^retry$/i })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId("individual-reannotate-61"))
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/annotation/61",
+        expect.objectContaining({ method: "POST" }),
+      )
+    })
+  })
+
   it("surfaces a named partial failure without hiding successful findings", async () => {
     installMocks({
       id: 16,

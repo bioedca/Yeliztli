@@ -1,6 +1,12 @@
 /** React Query hooks for sample management and file ingestion (P1-13, P1-16). */
 
 import {
+  getApiErrorDetail,
+  readApiResponseBody,
+  throwApiError,
+} from "@/api/errors"
+
+import {
   keepPreviousData,
   useQuery,
   useMutation,
@@ -56,19 +62,13 @@ export function useIngestFile() {
         body: formData,
       })
       if (!res.ok) {
-        const body = await res.json().catch(() => null)
+        const body = await readApiResponseBody(res)
         // AncestryDNA + pre-v2.0.0 VEP bundle → structured 409 gate payload.
-        if (res.status === 409 && isBundleGatePayload(body?.detail)) {
-          throw new BundleGateError(body.detail as BundleGatePayload)
+        const detail = getApiErrorDetail(body)
+        if (res.status === 409 && isBundleGatePayload(detail)) {
+          throw new BundleGateError(detail as BundleGatePayload)
         }
-        // FastAPI surfaces other errors as { detail: "<string>" }. Never let a
-        // non-string detail (e.g. a structured payload) escape as the message,
-        // or rendering it as a React child throws.
-        const detail =
-          typeof body?.detail === "string"
-            ? body.detail
-            : `Upload failed: ${res.status}`
-        throw new Error(detail)
+        await throwApiError(res, "Unable to upload the sample. Please try again.")
       }
       return await res.json()
     },
@@ -94,8 +94,7 @@ export function useUpdateSample() {
         body: JSON.stringify(data),
       })
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(text || "Failed to update sample")
+        await throwApiError(res, "Failed to update sample")
       }
       return await res.json()
     },
@@ -116,8 +115,7 @@ export function useDeleteSample() {
         method: "DELETE",
       })
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(text || "Failed to delete sample")
+        await throwApiError(res, "Failed to delete sample")
       }
     },
     onSuccess: () => {
@@ -159,32 +157,8 @@ async function parseSamplesError(
   res: Response,
   fallback: string,
 ): Promise<never> {
-  let body: unknown = null
-  try {
-    body = await res.clone().json()
-  } catch {
-    try {
-      body = await res.text()
-    } catch {
-      body = null
-    }
-  }
-  let message = fallback
-  if (body && typeof body === "object" && "detail" in (body as object)) {
-    const detail = (body as { detail?: unknown }).detail
-    if (typeof detail === "string") message = detail
-    else if (
-      detail &&
-      typeof detail === "object" &&
-      "message" in (detail as object) &&
-      typeof (detail as { message?: unknown }).message === "string"
-    ) {
-      message = (detail as { message: string }).message
-    }
-  } else if (typeof body === "string" && body.length > 0) {
-    message = body
-  }
-  throw new SamplesApiError(res.status, message, body)
+  const body = await readApiResponseBody(res)
+  throw new SamplesApiError(res.status, fallback, body)
 }
 
 /** Fetch the merged sample's provenance row (Plan §10.6). 404 when the

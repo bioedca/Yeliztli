@@ -80,7 +80,13 @@ describe("FileUpload", () => {
       expect(screen.getByText(/upload failed/i)).toBeInTheDocument()
     })
 
-    expect(screen.getByText(/try again/i)).toBeInTheDocument()
+    expect(
+      screen.getByText("Unable to upload the sample. Please try again."),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText(/not a valid 23andme file/i),
+    ).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /try again/i })).toBeInTheDocument()
   })
 
   it("resets to idle after clicking try again", async () => {
@@ -101,7 +107,7 @@ describe("FileUpload", () => {
       expect(screen.getByText(/upload failed/i)).toBeInTheDocument()
     })
 
-    fireEvent.click(screen.getByText(/try again/i))
+    fireEvent.click(screen.getByRole("button", { name: /try again/i }))
     expect(
       screen.getByText(/drop your 23andMe or AncestryDNA file here/i),
     ).toBeInTheDocument()

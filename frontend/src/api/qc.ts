@@ -1,3 +1,5 @@
+import { throwApiError } from "@/api/errors"
+
 import { useQuery } from '@tanstack/react-query'
 import type { QCMetrics } from '@/types/qc'
 
@@ -11,8 +13,7 @@ export function useQCMetrics(sampleId: number | null) {
       const params = new URLSearchParams({ sample_id: String(sampleId!) })
       const res = await fetch(`/api/analysis/qc/metrics?${params}`)
       if (!res.ok) {
-        const text = await res.text().catch(() => '')
-        throw new Error(`QC metrics failed: ${res.status}${text ? ` - ${text}` : ''}`)
+        await throwApiError(res, `QC metrics failed. Please try again.`)
       }
       return res.json()
     },

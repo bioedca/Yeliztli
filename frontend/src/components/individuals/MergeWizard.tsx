@@ -584,7 +584,11 @@ function ConfirmStep({
                 />
               </div>
               <p className="text-xs text-muted-foreground">
-                {progressMessage ?? "Annotating merged sample…"}
+                {progressStatus === "failed"
+                  ? "Annotation failed. Open the sample dashboard to retry."
+                  : progressStatus === "cancelled"
+                    ? "Annotation was cancelled."
+                    : progressMessage ?? "Annotating merged sample…"}
               </p>
             </>
           )}

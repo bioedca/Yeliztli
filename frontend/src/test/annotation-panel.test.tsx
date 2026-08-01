@@ -148,17 +148,19 @@ describe("AnnotationPanel", () => {
       })
     })
 
-    it("shows error when start fails", async () => {
-      mockStartAnnotationError("Annotation already in progress for sample 1")
+    it("shows safe copy when start fails", async () => {
+      const rawDiagnostic = "Annotation already in progress for sample 1"
+      mockStartAnnotationError(rawDiagnostic)
       render(<AnnotationPanel sampleId={1} variantCount={1000} />)
 
       fireEvent.click(screen.getByText("Run Annotation"))
 
       await waitFor(() => {
         expect(
-          screen.getByText(/Annotation already in progress/)
+          screen.getByText("Unable to start annotation. Please try again.")
         ).toBeInTheDocument()
       })
+      expect(document.body).not.toHaveTextContent(rawDiagnostic)
     })
   })
 
@@ -240,7 +242,7 @@ describe("AnnotationPanel", () => {
       })
     })
 
-    it("shows Annotation Failed with error message", async () => {
+    it("shows safe failure copy instead of the job diagnostic", async () => {
       mockStartAnnotation()
       render(<AnnotationPanel sampleId={1} variantCount={1000} />)
 
@@ -253,15 +255,19 @@ describe("AnnotationPanel", () => {
           job_id: "test-job-123",
           status: "failed",
           progress_pct: 30.0,
-          message: "Annotation failed",
+          message: "sqlite:///private/data/sample.db: permission denied",
           error: "Database connection lost",
         })
       })
 
       await waitFor(() => {
         expect(screen.getByText("Annotation Failed")).toBeInTheDocument()
-        expect(screen.getByText("Database connection lost")).toBeInTheDocument()
+        expect(
+          screen.getByText("Annotation failed. Please try again."),
+        ).toBeInTheDocument()
       })
+      expect(document.body).not.toHaveTextContent("Database connection lost")
+      expect(document.body).not.toHaveTextContent("sqlite:///private/data/sample.db")
     })
 
     it("closes EventSource on terminal state", async () => {

@@ -4,8 +4,8 @@
  * URL-scoped sample. When the route returns HTTP 423 the gate parses the
  * payload (`installed_version`, `required_version`, `update_url`,
  * `reannotate_url` — Plan §7.5) and renders a full-page banner whose single
- * CTA fires `POST` against the payload's `reannotate_url` (the existing
- * `POST /api/annotation/{sample_id}` escape hatch). While re-annotation is
+ * CTA uses the canonical `POST /api/annotation/{sample_id}` escape hatch,
+ * rather than trusting an advertised action URL. While re-annotation is
  * active, the gate reconnects through `/api/annotation/active/{sample_id}`
  * and polls the staleness probe until the backend authoritatively unlocks it.
  * Any other status — 2xx, 4xx other than 423, network error — lets `children`
@@ -14,7 +14,7 @@
  */
 
 import { useEffect, useRef, type ReactNode } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useMatch, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle, RefreshCw } from 'lucide-react'
 import {
@@ -40,7 +40,6 @@ interface StaleSampleGateProps {
 
 interface ReannotationRequest {
   sampleId: number
-  url: string
 }
 
 class ReannotationRequestError extends Error {
@@ -56,16 +55,44 @@ class ReannotationRequestError extends Error {
 const sampleStalenessQueryKey = (sampleId: number | null) =>
   ['sample-staleness', sampleId] as const
 
+function reannotationUrl(sampleId: number): string {
+  return `/api/annotation/${sampleId}`
+}
+
+function isStalenessPayload(value: unknown): value is StalenessPayload {
+  if (!value || typeof value !== 'object') return false
+  const payload = value as Record<string, unknown>
+  return (
+    typeof payload.installed_version === 'string' &&
+    typeof payload.required_version === 'string' &&
+    typeof payload.update_url === 'string' &&
+    typeof payload.reannotate_url === 'string'
+  )
+}
+
 async function probeStaleness(sampleId: number): Promise<StalenessPayload | null> {
   const res = await fetch(`/api/variants/count?sample_id=${sampleId}`)
   if (res.status !== 423) return null
-  const body = (await res.json().catch(() => null)) as { detail?: StalenessPayload } | null
-  return body?.detail ?? null
+  const body = (await res.json().catch(() => null)) as { detail?: unknown } | null
+  if (isStalenessPayload(body?.detail)) return body.detail
+
+  // Keep the stale route fenced even if an intermediary strips the structured
+  // payload. The action endpoint is stable, and this avoids rendering an
+  // arbitrary 423 response to the user.
+  return {
+    installed_version: 'an earlier version',
+    required_version: 'the current version',
+    update_url: '',
+    reannotate_url: `/api/annotation/${sampleId}`,
+  }
 }
 
 export default function StaleSampleGate({ children }: StaleSampleGateProps) {
   const [searchParams] = useSearchParams()
-  const activeSampleId = parseSampleId(searchParams.get('sample_id'))
+  const concordanceMatch = useMatch('/samples/:id/concordance')
+  const activeSampleId =
+    parseSampleId(concordanceMatch?.params.id ?? null) ??
+    parseSampleId(searchParams.get('sample_id'))
   const queryClient = useQueryClient()
   const activeJobQuery = useActiveAnnotationJob(activeSampleId)
   const activeJob = activeJobQuery.data ?? null
@@ -99,14 +126,12 @@ export default function StaleSampleGate({ children }: StaleSampleGateProps) {
     ReannotationRequestError,
     ReannotationRequest
   >({
-    mutationFn: async ({ url }) => {
-      const res = await fetch(url, { method: 'POST' })
+    mutationFn: async ({ sampleId }) => {
+      const res = await fetch(reannotationUrl(sampleId), { method: 'POST' })
       if (!res.ok) {
-        const body = await res.json().catch(() => null)
-        const detail = (body as { detail?: unknown } | null)?.detail
         throw new ReannotationRequestError(
           res.status,
-          typeof detail === 'string' ? detail : `Re-annotation failed: ${res.status}`,
+          'Unable to start re-annotation. Please try again.',
         )
       }
       return res.json() as Promise<AnnotationJobResult>
@@ -287,7 +312,6 @@ export default function StaleSampleGate({ children }: StaleSampleGateProps) {
               if (activeSampleId == null) return
               reannotate.mutate({
                 sampleId: activeSampleId,
-                url: stale.reannotate_url,
               })
             }}
             className={cn(

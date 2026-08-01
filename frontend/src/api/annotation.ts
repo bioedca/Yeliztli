@@ -12,6 +12,7 @@ import {
   useQueryClient,
   type QueryClient,
 } from "@tanstack/react-query"
+import { throwApiError } from "@/api/errors"
 import { qcMetricsQueryKey } from "@/api/qc"
 
 // ── Types ──────────────────────────────────────────────────────────────
@@ -40,9 +41,7 @@ export function useStartAnnotation() {
         method: "POST",
       })
       if (!res.ok) {
-        const body = await res.json().catch(() => null)
-        const detail = body?.detail || `Start annotation failed: ${res.status}`
-        throw new Error(detail)
+        await throwApiError(res, "Unable to start annotation. Please try again.")
       }
       return await res.json()
     },
@@ -62,9 +61,7 @@ export function useCancelAnnotation() {
         method: "POST",
       })
       if (!res.ok) {
-        const body = await res.json().catch(() => null)
-        const detail = body?.detail || `Cancel failed: ${res.status}`
-        throw new Error(detail)
+        await throwApiError(res, "Unable to cancel annotation. Please try again.")
       }
       return await res.json()
     },
@@ -92,7 +89,9 @@ export function useActiveAnnotationJob(sampleId: number | null) {
       if (sampleId == null) return null
       const res = await fetch(`/api/annotation/active/${sampleId}`)
       if (res.status === 404) return null
-      if (!res.ok) throw new Error(`Failed to check active job: ${res.status}`)
+      if (!res.ok) {
+        await throwApiError(res, "Unable to check annotation status. Please try again.")
+      }
       return await res.json()
     },
     enabled: sampleId != null,

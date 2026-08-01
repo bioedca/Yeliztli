@@ -178,7 +178,7 @@ export default function ExportBackup() {
             </p>
             {jobStatus.data.error && (
               <p className="text-xs text-red-700 dark:text-red-400 mt-0.5">
-                {jobStatus.data.error}
+                Please try again.
               </p>
             )}
           </div>

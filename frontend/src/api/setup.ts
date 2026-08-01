@@ -1,6 +1,11 @@
 /** API hooks for the setup wizard. */
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  getApiErrorDetail,
+  readApiResponseBody,
+  throwApiError,
+} from '@/api/errors'
 import type {
   AcceptDisclaimerResult,
   BundleGatePayload,
@@ -82,19 +87,19 @@ const DETECT_EXISTING_KEY = ['setup', 'detect-existing'] as const
 
 async function fetchSetupStatus(): Promise<SetupStatus> {
   const res = await fetch('/api/setup/status')
-  if (!res.ok) throw new Error(`Setup status failed: ${res.status}`)
+  if (!res.ok) await throwApiError(res, 'Unable to load setup status. Please try again.')
   return res.json()
 }
 
 async function fetchDisclaimer(): Promise<DisclaimerData> {
   const res = await fetch('/api/setup/disclaimer')
-  if (!res.ok) throw new Error(`Disclaimer fetch failed: ${res.status}`)
+  if (!res.ok) await throwApiError(res, 'Unable to load the disclaimer. Please try again.')
   return res.json()
 }
 
 async function postAcceptDisclaimer(): Promise<AcceptDisclaimerResult> {
   const res = await fetch('/api/setup/accept-disclaimer', { method: 'POST' })
-  if (!res.ok) throw new Error(`Accept disclaimer failed: ${res.status}`)
+  if (!res.ok) await throwApiError(res, 'Unable to accept the disclaimer. Please try again.')
   return res.json()
 }
 
@@ -131,7 +136,7 @@ export function useAcceptDisclaimer() {
 
 async function fetchDetectExisting(): Promise<DetectExistingResult> {
   const res = await fetch('/api/setup/detect-existing')
-  if (!res.ok) throw new Error(`Detect existing failed: ${res.status}`)
+  if (!res.ok) await throwApiError(res, 'Unable to check existing data. Please try again.')
   return res.json()
 }
 
@@ -143,16 +148,14 @@ async function postImportBackup(file: File): Promise<ImportBackupResult> {
     body: formData,
   })
   if (!res.ok) {
-    const body = await res.json().catch(() => null)
-    if (res.status === 409 && isBundleVersionMismatchPayload(body?.detail)) {
+    const body = await readApiResponseBody(res)
+    const detail = getApiErrorDetail(body)
+    if (res.status === 409 && isBundleVersionMismatchPayload(detail)) {
       throw new BundleVersionMismatchError(
-        body.detail as BundleVersionMismatchPayload,
+        detail as BundleVersionMismatchPayload,
       )
     }
-    const detail =
-      (typeof body?.detail === 'string' ? body.detail : null) ||
-      `Import failed: ${res.status}`
-    throw new Error(detail)
+    await throwApiError(res, 'Unable to import the backup. Please try again.')
   }
   return res.json()
 }
@@ -182,7 +185,7 @@ const STORAGE_INFO_KEY = ['setup', 'storage-info'] as const
 
 async function fetchStorageInfo(): Promise<StorageInfoResult> {
   const res = await fetch('/api/setup/storage-info')
-  if (!res.ok) throw new Error(`Storage info failed: ${res.status}`)
+  if (!res.ok) await throwApiError(res, 'Unable to load storage information. Please try again.')
   return res.json()
 }
 
@@ -193,9 +196,7 @@ async function postSetStoragePath(path: string): Promise<SetStoragePathResult> {
     body: JSON.stringify({ path }),
   })
   if (!res.ok) {
-    const body = await res.json().catch(() => null)
-    const detail = body?.detail || `Set storage path failed: ${res.status}`
-    throw new Error(detail)
+    await throwApiError(res, 'Unable to save the storage path. Please try again.')
   }
   return res.json()
 }
@@ -225,7 +226,7 @@ const CREDENTIALS_KEY = ['setup', 'credentials'] as const
 
 async function fetchCredentials(): Promise<CredentialsData> {
   const res = await fetch('/api/setup/credentials')
-  if (!res.ok) throw new Error(`Credentials fetch failed: ${res.status}`)
+  if (!res.ok) await throwApiError(res, 'Unable to load credentials. Please try again.')
   return res.json()
 }
 
@@ -236,9 +237,7 @@ async function postSaveCredentials(data: CredentialsData): Promise<SaveCredentia
     body: JSON.stringify(data),
   })
   if (!res.ok) {
-    const body = await res.json().catch(() => null)
-    const detail = body?.detail || `Save credentials failed: ${res.status}`
-    throw new Error(detail)
+    await throwApiError(res, 'Unable to save credentials. Please try again.')
   }
   return res.json()
 }
@@ -267,7 +266,7 @@ export const DATABASE_LIST_KEY = ['setup', 'databases'] as const
 
 async function fetchDatabaseList(): Promise<DatabaseListResult> {
   const res = await fetch('/api/databases')
-  if (!res.ok) throw new Error(`Database list failed: ${res.status}`)
+  if (!res.ok) await throwApiError(res, 'Unable to load databases. Please try again.')
   return res.json()
 }
 
@@ -280,9 +279,7 @@ async function postTriggerDownload(
     body: JSON.stringify({ databases: databases ?? null }),
   })
   if (!res.ok) {
-    const body = await res.json().catch(() => null)
-    const detail = body?.detail || `Download trigger failed: ${res.status}`
-    throw new Error(detail)
+    await throwApiError(res, 'Unable to start the download. Please try again.')
   }
   return res.json()
 }
@@ -313,14 +310,12 @@ async function postIngestFile(file: File): Promise<IngestResult> {
     body: formData,
   })
   if (!res.ok) {
-    const body = await res.json().catch(() => null)
-    if (res.status === 409 && isBundleGatePayload(body?.detail)) {
-      throw new BundleGateError(body.detail as BundleGatePayload)
+    const body = await readApiResponseBody(res)
+    const detail = getApiErrorDetail(body)
+    if (res.status === 409 && isBundleGatePayload(detail)) {
+      throw new BundleGateError(detail as BundleGatePayload)
     }
-    const detail =
-      (typeof body?.detail === 'string' ? body.detail : null) ||
-      `Upload failed: ${res.status}`
-    throw new Error(detail)
+    await throwApiError(res, 'Unable to upload the sample. Please try again.')
   }
   return res.json()
 }

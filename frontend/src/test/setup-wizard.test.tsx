@@ -856,6 +856,7 @@ describe('CredentialsStep', () => {
   })
 
   it('shows error on save failure', async () => {
+    const rawDiagnostic = 'Config write failed'
     mockFetch
       .mockResolvedValueOnce({
         ok: true,
@@ -864,7 +865,7 @@ describe('CredentialsStep', () => {
       .mockResolvedValueOnce({
         ok: false,
         status: 500,
-        json: () => Promise.resolve({ detail: 'Config write failed' }),
+        json: () => Promise.resolve({ detail: rawDiagnostic }),
       })
 
     render(<CredentialsStep onNext={vi.fn()} onBack={vi.fn()} />)
@@ -879,8 +880,11 @@ describe('CredentialsStep', () => {
     fireEvent.click(screen.getByRole('button', { name: /continue/i }))
 
     await waitFor(() => {
-      expect(screen.getByText('Config write failed')).toBeInTheDocument()
+      expect(
+        screen.getByText('Unable to save credentials. Please try again.'),
+      ).toBeInTheDocument()
     })
+    expect(document.body).not.toHaveTextContent(rawDiagnostic)
   })
 
   it('has external links with noopener noreferrer', async () => {
@@ -1297,9 +1301,10 @@ describe('DatabasesStep', () => {
   })
 
   it('shows download error when trigger fails', async () => {
+    const rawDiagnostic = 'Download service unavailable'
     routeDatabasesFetch({
       list: mockDatabaseList(),
-      download: { ok: false, status: 500, body: { detail: 'Download service unavailable' } },
+      download: { ok: false, status: 500, body: { detail: rawDiagnostic } },
     })
 
     render(<DatabasesStep onNext={vi.fn()} onBack={vi.fn()} />)
@@ -1311,8 +1316,11 @@ describe('DatabasesStep', () => {
     fireEvent.click(screen.getByText('Download Selected'))
 
     await waitFor(() => {
-      expect(screen.getByText('Download service unavailable')).toBeInTheDocument()
+      expect(
+        screen.getByText('Unable to start the download. Please try again.'),
+      ).toBeInTheDocument()
     })
+    expect(document.body).not.toHaveTextContent(rawDiagnostic)
   })
 
   it('shows a Resume button for a resumable partial and resumes on click', async () => {
@@ -1999,7 +2007,8 @@ describe('DatabasesStep', () => {
     render(<DatabasesStep onNext={vi.fn()} onBack={vi.fn()} />)
     expect(
       await screen.findByTestId('db-integrity-failed-clinvar'),
-    ).toHaveTextContent('malformed image')
+    ).toHaveTextContent('Integrity failed — re-check or clean and re-download')
+    expect(document.body).not.toHaveTextContent('malformed image')
     expect(screen.getByTestId('db-clean-clinvar')).toBeInTheDocument()
   })
 
@@ -2083,7 +2092,8 @@ describe('DatabasesStep', () => {
 
     expect(
       await screen.findByTestId('db-integrity-failed-gnomad'),
-    ).toHaveTextContent('gnomad_af table is empty')
+    ).toHaveTextContent('Integrity failed — re-check or clean and re-download')
+    expect(document.body).not.toHaveTextContent('gnomad_af table is empty')
     expect(screen.getByTestId('db-clean-gnomad')).toBeInTheDocument()
     expect(screen.queryByText('Included')).not.toBeInTheDocument()
     expect(screen.queryByText('Download required')).not.toBeInTheDocument()
@@ -2236,8 +2246,9 @@ describe('DatabasesStep', () => {
       )
     })
     expect(await screen.findByTestId('db-error-clinvar')).toHaveTextContent(
-      'Connection reset',
+      'The download failed. Retry the download or check your connection.',
     )
+    expect(document.body).not.toHaveTextContent('Connection reset')
     expect(screen.getByTestId('db-fail-resume-clinvar')).toBeInTheDocument()
     expect(screen.queryByText('Download required')).not.toBeInTheDocument()
     vi.unstubAllGlobals()
@@ -2572,12 +2583,13 @@ describe('UploadStep', () => {
   })
 
   it('shows error state on upload failure', async () => {
+    const rawDiagnostic = 'Not a valid 23andMe file'
     mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 422,
       json: () =>
         Promise.resolve({
-          detail: 'Not a valid 23andMe file',
+          detail: rawDiagnostic,
         }),
     })
 
@@ -2595,9 +2607,10 @@ describe('UploadStep', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText('Not a valid 23andMe file'),
+        screen.getByText('Unable to upload the sample. Please try again.'),
       ).toBeInTheDocument()
     })
+    expect(document.body).not.toHaveTextContent(rawDiagnostic)
   })
 
   it('shows parsing state while uploading', async () => {
