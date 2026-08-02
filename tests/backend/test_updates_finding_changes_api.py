@@ -340,6 +340,72 @@ def test_get_finding_changes_skips_malformed_persisted_entries(_env: DBRegistry)
     assert "relabeled guidance" not in json.dumps(body).lower()
 
 
+def test_get_finding_changes_hides_legacy_text_in_validated_entries(_env: DBRegistry) -> None:
+    """Valid historic diff shells receive the shared recursive payload gate."""
+    legacy_text = {
+        "module": "medication_review",
+        "category": "legacy_note",
+        "gene_symbol": "CYP2C19",
+        "rsid": None,
+        "drug": "clopidogrel",
+        "diplotype": None,
+        "finding_text": "CYP2D6 tamoxifen dose guidance",
+        "changes": [],
+    }
+    legacy_change = {
+        "module": "medication_review",
+        "category": "legacy_note",
+        "gene_symbol": "CYP2C19",
+        "rsid": None,
+        "drug": "clopidogrel",
+        "diplotype": None,
+        "finding_text": "Routine medication-review update",
+        "changes": [
+            {
+                "field": "phenotype",
+                "before": "No visible change",
+                "after": "CYP2D6 tamoxifen dose guidance",
+            }
+        ],
+    }
+    cross_field_change = {
+        "module": "medication_review",
+        "category": "legacy_note",
+        "gene_symbol": "CYP2D6",
+        "rsid": None,
+        "drug": "codeine",
+        "diplotype": None,
+        "finding_text": "Routine medication-review update",
+        "changes": [
+            {
+                "field": "recommendation",
+                "before": "No visible change",
+                "after": "tamoxifen dose guidance",
+            }
+        ],
+    }
+    legacy_diff = {
+        **_DIFF_WITH_CHANGES,
+        "changed": [
+            _DIFF_WITH_CHANGES["changed"][0],
+            legacy_text,
+            legacy_change,
+            cross_field_change,
+        ],
+        "added": [],
+        "removed": [],
+        "counts": {"changed": 4, "added": 0, "removed": 0},
+    }
+    _replace_stored_finding_diff(_env, json.dumps(legacy_diff))
+
+    body = _get_finding_changes(1)
+
+    assert body["available"] is True
+    assert body["counts"] == {"changed": 1, "added": 0, "removed": 0}
+    assert [entry["gene_symbol"] for entry in body["changed"]] == ["BRCA1"]
+    assert "tamoxifen" not in json.dumps(body).lower()
+
+
 def test_get_finding_changes_rejects_ambiguous_persisted_diff(_env: DBRegistry) -> None:
     """#2019: duplicate JSON keys cannot relabel held guidance for display."""
     held_entry = {

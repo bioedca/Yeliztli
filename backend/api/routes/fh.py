@@ -13,13 +13,17 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any
+from typing import Any, Literal
 
 import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from backend.analysis.fh import FH_CRITERIA_CONTEXT, detect_fh_monogenic
+from backend.analysis.pharmacogenomics import (
+    is_patient_presentable_finding_payload,
+    is_patient_presentable_response_payload,
+)
 from backend.api.dependencies import require_fresh_sample
 from backend.db.connection import get_registry
 from backend.db.tables import findings, samples
@@ -76,6 +80,7 @@ class FhLdlPrsResponse(BaseModel):
 class FhAssessmentResponse(BaseModel):
     """Composed FH view."""
 
+    assessment_status: Literal["available", "unavailable"] = "available"
     has_monogenic: bool
     monogenic: list[FhMonogenicResponse] = []
     apob_fdb: ApobFdbResponse | None = None
@@ -137,6 +142,11 @@ def get_fh_assessment(
             sa.select(findings).where(findings.c.module == "fh", findings.c.category == "prs")
         ).fetchone()
 
+    if fdb_row is not None and not is_patient_presentable_finding_payload(fdb_row._mapping):
+        fdb_row = None
+    if prs_row is not None and not is_patient_presentable_finding_payload(prs_row._mapping):
+        prs_row = None
+
     monogenic = [
         FhMonogenicResponse(
             gene=v.gene,
@@ -182,13 +192,27 @@ def get_fh_assessment(
             evidence_level=prs_row.evidence_level or 1,
         )
 
-    return FhAssessmentResponse(
+    response = FhAssessmentResponse(
         has_monogenic=len(monogenic) > 0,
         monogenic=monogenic,
         apob_fdb=apob_fdb,
         ldl_prs=ldl_prs,
         criteria_context=FH_CRITERIA_CONTEXT,
     )
+    dynamic_payload = {
+        "monogenic": [item.model_dump(mode="json") for item in response.monogenic],
+        "apob_fdb": response.apob_fdb.model_dump(mode="json") if response.apob_fdb else None,
+        "ldl_prs": response.ldl_prs.model_dump(mode="json") if response.ldl_prs else None,
+    }
+    if not is_patient_presentable_response_payload(dynamic_payload):
+        # Do not turn an unsafe combination into a clinical negative. The
+        # assessment stays structurally valid but withholds all dynamic results
+        # until the source records can be reviewed independently.
+        return FhAssessmentResponse(
+            assessment_status="unavailable",
+            has_monogenic=False,
+        )
+    return response
 
 
 @router.post("/run")

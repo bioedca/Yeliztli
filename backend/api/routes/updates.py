@@ -13,7 +13,10 @@ from typing import Any, Literal
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, ValidationError
 
-from backend.analysis.pharmacogenomics import is_withheld_prescribing_alert_finding
+from backend.analysis.pharmacogenomics import (
+    is_patient_presentable_finding_payload,
+    is_patient_presentable_response_payload,
+)
 from backend.db.build_guard import is_cross_process_build_claimed
 from backend.db.connection import get_registry
 from backend.db.database_registry import DATABASES, get_build_fn, get_database_status
@@ -209,11 +212,9 @@ def _filter_nonpresentable_findings_from_diff(
                 presentable = model.model_validate(entry).model_dump()
             except ValidationError:
                 continue
-            if presentable["module"] in hidden or is_withheld_prescribing_alert_finding(
-                presentable["module"],
-                presentable["category"],
-                presentable["gene_symbol"],
-                presentable["drug"],
+            if presentable["module"] in hidden or not is_patient_presentable_finding_payload(
+                presentable,
+                presentable.get("changes", []),
             ):
                 continue
             result.append(presentable)
@@ -235,6 +236,29 @@ def _filter_nonpresentable_findings_from_diff(
         "added": len(added),
         "removed": len(removed),
     }
+
+    # A release delta and a visible finding are rendered in one update banner.
+    # Recheck the normalized aggregate so split legacy text cannot reappear
+    # after each finding row has passed its own gate.
+    def finding_evidence(entry: dict[str, Any]) -> dict[str, Any]:
+        result = {
+            key: value
+            for key, value in entry.items()
+            if key != "gene_symbol" and not (key == "drug" and value is None)
+        }
+        if entry.get("gene_symbol"):
+            result["gene"] = entry["gene_symbol"]
+        return result
+
+    if not is_patient_presentable_response_payload(
+        {
+            "release_deltas": release_deltas,
+            "changed": [finding_evidence(entry) for entry in changed],
+            "added": [finding_evidence(entry) for entry in added],
+            "removed": [finding_evidence(entry) for entry in removed],
+        }
+    ):
+        return None
     return filtered
 
 

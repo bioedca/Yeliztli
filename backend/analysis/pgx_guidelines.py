@@ -34,7 +34,10 @@ from typing import Any
 
 import sqlalchemy as sa
 
-from backend.analysis.pharmacogenomics import patient_visible_finding_clause
+from backend.analysis.pharmacogenomics import (
+    is_patient_presentable_finding_payload,
+    patient_visible_finding_clause,
+)
 from backend.disclaimers import PGX_SOURCES_CONTEXT_ONLY
 
 # PharmGKB clinical-annotation LoE framework (primary citation for the LoE column).
@@ -86,10 +89,14 @@ def assess_sample_pgx_guidelines(sample_engine: sa.Engine) -> dict[str, Any]:
     stmt = (
         sa.select(
             findings.c.id,
+            findings.c.module,
+            findings.c.category,
             findings.c.gene_symbol,
             findings.c.drug,
             findings.c.metabolizer_status,
             findings.c.finding_text,
+            findings.c.detail_json,
+            findings.c.provenance,
         )
         .where(
             findings.c.category == "prescribing_alert",
@@ -102,6 +109,8 @@ def assess_sample_pgx_guidelines(sample_engine: sa.Engine) -> dict[str, Any]:
 
     out: list[dict[str, Any]] = []
     for row in rows:
+        if not is_patient_presentable_finding_payload(row._mapping):
+            continue
         sources = lookup_guideline_sources(row.gene_symbol, row.drug)
         out.append(
             {

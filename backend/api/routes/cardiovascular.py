@@ -22,6 +22,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from backend.analysis.clinvar_significance import LOWER_PENETRANCE_RISK_ALLELE_CATEGORY
+from backend.analysis.pharmacogenomics import (
+    is_patient_presentable_finding_payload,
+    is_patient_presentable_response_payload,
+)
 from backend.api.dependencies import require_fresh_sample
 from backend.db.connection import get_registry
 from backend.db.tables import findings, samples
@@ -81,7 +85,7 @@ class FHVariantSummary(BaseModel):
 class FHStatusResponse(BaseModel):
     """FH status determination for a sample (P3-20)."""
 
-    status: str  # Positive or Negative
+    status: str  # Positive, Negative, or Unavailable
     summary_text: str
     affected_genes: list[str] = []
     variant_count: int = 0
@@ -152,6 +156,8 @@ def _fetch_cardiovascular_findings(
 
     result: list[dict[str, Any]] = []
     for row in rows:
+        if not is_patient_presentable_finding_payload(row._mapping):
+            continue
         detail: dict[str, Any] = {}
         if row.detail_json:
             try:
@@ -191,6 +197,16 @@ def _fetch_cardiovascular_findings(
     return result
 
 
+def _cardiovascular_variants_response(
+    items: list[CardiovascularVariantResponse],
+) -> CardiovascularVariantsListResponse:
+    """Return a final, aggregate-gated cardiovascular-variant response."""
+    response = CardiovascularVariantsListResponse(items=items, total=len(items))
+    if not is_patient_presentable_response_payload(response.model_dump(mode="json")):
+        return CardiovascularVariantsListResponse(items=[], total=0)
+    return response
+
+
 # ── Endpoints ────────────────────────────────────────────────────
 
 
@@ -220,7 +236,7 @@ def list_cardiovascular_variants(
     sample_engine = _get_sample_engine(sample_id)
     raw = _fetch_cardiovascular_findings(sample_engine)
     items = [CardiovascularVariantResponse(**f) for f in raw]
-    return CardiovascularVariantsListResponse(items=items, total=len(items))
+    return _cardiovascular_variants_response(items)
 
 
 @router.get("/gene/{gene_symbol}", dependencies=[Depends(require_fresh_sample)])
@@ -235,7 +251,7 @@ def cardiovascular_gene_detail(
     sample_engine = _get_sample_engine(sample_id)
     raw = _fetch_cardiovascular_findings(sample_engine, gene_filter=gene_symbol)
     items = [CardiovascularVariantResponse(**f) for f in raw]
-    return CardiovascularVariantsListResponse(items=items, total=len(items))
+    return _cardiovascular_variants_response(items)
 
 
 @router.get("/fh-status", dependencies=[Depends(require_fresh_sample)])
@@ -266,6 +282,13 @@ def get_fh_status(
             summary_text=(
                 "No FH-causing pathogenic or likely pathogenic variants identified in "
                 "LDLR, PCSK9, or APOB."
+            ),
+        )
+    if not is_patient_presentable_finding_payload(row._mapping):
+        return FHStatusResponse(
+            status="Unavailable",
+            summary_text=(
+                "FH status is unavailable because the stored result could not be safely presented."
             ),
         )
 

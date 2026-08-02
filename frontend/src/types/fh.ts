@@ -38,6 +38,7 @@ interface FhLdlPrs {
 }
 
 export interface FhAssessment {
+  assessment_status: "available" | "unavailable"
   has_monogenic: boolean
   monogenic: FhMonogenic[]
   apob_fdb: ApobFdb | null

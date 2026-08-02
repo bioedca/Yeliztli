@@ -51,7 +51,8 @@ import enum
 import json
 import re
 import sqlite3
-from collections.abc import Callable
+import unicodedata
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -158,7 +159,164 @@ _SQLITE_PYTHON_STRIP_CHARS = (
 # or serialized finding diffs, so neither may be read through the interactive
 # console/export while a pair is clinically withheld.
 _RAW_SQL_AUDIT_ONLY_TABLES: frozenset[str] = frozenset({"annotation_state", "findings"})
-_PRESCRIBING_IDENTIFIER_KEYS = frozenset({"gene", "drug"})
+_PRESCRIBING_GENE_KEYS = frozenset({"gene", "gene_symbol"})
+_PRESCRIBING_DRUG_KEYS = frozenset({"drug"})
+_PRESCRIBING_IDENTIFIER_KEYS = _PRESCRIBING_GENE_KEYS | _PRESCRIBING_DRUG_KEYS
+
+
+@dataclass
+class _PrescribingEvidence:
+    """Text evidence plus boundaries for independently classified records.
+
+    A free-text fragment may be ambiguous with any complete record in the same
+    patient-visible response. Complete records themselves stay independent so
+    two unrelated, safe records cannot manufacture a held pair by adjacency.
+    """
+
+    free_text: list[str] = field(default_factory=list)
+    complete_records: list[list[str]] = field(default_factory=list)
+
+
+_DEFAULT_IGNORABLE_CODEPOINT_RANGES: tuple[tuple[int, int], ...] = (
+    (0x00AD, 0x00AD),
+    (0x034F, 0x034F),
+    (0x061C, 0x061C),
+    (0x115F, 0x1160),
+    (0x17B4, 0x17B5),
+    (0x180B, 0x180F),
+    (0x200B, 0x200F),
+    (0x202A, 0x202E),
+    (0x2060, 0x206F),
+    (0x3164, 0x3164),
+    (0xFE00, 0xFE0F),
+    (0xFEFF, 0xFEFF),
+    (0xFFA0, 0xFFA0),
+    (0xFFF0, 0xFFF8),
+    (0x1BCA0, 0x1BCA3),
+    (0x1D173, 0x1D17A),
+    (0xE0000, 0xE0001),
+    (0xE0020, 0xE007F),
+    (0xE0100, 0xE01EF),
+)
+_SERIALIZED_FINDING_PAYLOAD_FIELDS = frozenset({"detail_json", "provenance", "pmid_citations"})
+
+
+def _is_default_ignorable_character(character: str) -> bool:
+    """Whether a character can visually split a prescribing identifier."""
+    code_point = ord(character)
+    return unicodedata.category(character) == "Cf" or any(
+        start <= code_point <= end for start, end in _DEFAULT_IGNORABLE_CODEPOINT_RANGES
+    )
+
+
+def _normalize_prescribing_text(value: str) -> str:
+    """Normalize text before comparing or rendering-boundary matching.
+
+    NFKC collapses compatibility forms. Default-ignorable characters, control
+    characters, and combining marks cannot split a held identifier into a
+    superficially different token.
+    """
+    normalized_characters: list[str] = []
+    for character in unicodedata.normalize("NFD", unicodedata.normalize("NFKC", value)):
+        if _is_default_ignorable_character(character) or unicodedata.category(character) == "Cc":
+            # Keep an identifier boundary instead of fusing independently
+            # rendered words such as ``CYP2D6\u200btamoxifen``.
+            normalized_characters.append(" ")
+        elif not unicodedata.category(character).startswith("M"):
+            normalized_characters.append(character)
+    return "".join(normalized_characters)
+
+
+def _normalize_prescribing_label(value: str) -> str:
+    """Return a display-label comparison form without changing its structure."""
+    return _normalize_prescribing_text(value).strip().casefold()
+
+
+def _has_prescribing_identifier(value: object) -> bool:
+    """Whether a direct identifier field is present and non-blank."""
+    return isinstance(value, str) and bool(_normalize_prescribing_text(value).strip())
+
+
+def _identifier_match_characters(identifier: str) -> str:
+    """Return the ASCII alphanumeric core used for identifier matching."""
+    return "".join(
+        character
+        for character in _normalize_prescribing_text(identifier)
+        if character.isascii() and character.isalnum()
+    )
+
+
+def _identifier_character_matches(actual: str, expected: str) -> bool:
+    """Match one identifier position without regex backtracking.
+
+    Non-ASCII *alphanumeric* characters are treated as ambiguous lookalikes.
+    Punctuation stays a separator instead of also being a wildcard match, which
+    keeps this check deterministic for untrusted stored text.
+    """
+    if actual.isascii():
+        return actual.casefold() == expected.casefold()
+    return actual.isalnum()
+
+
+def _text_mentions_identifier_characters(
+    value: str,
+    expected: str,
+    *,
+    require_left_boundary: bool = True,
+    require_right_boundary: bool = True,
+) -> bool:
+    """Match an ASCII identifier core through separators and lookalikes in O(n)."""
+    if not expected:
+        return False
+    normalized = _normalize_prescribing_text(value)
+    for start, character in enumerate(normalized):
+        if not _identifier_character_matches(character, expected[0]):
+            continue
+        if (
+            require_left_boundary
+            and start
+            and normalized[start - 1].isascii()
+            and normalized[start - 1].isalnum()
+        ):
+            continue
+
+        cursor = start + 1
+        for expected_character in expected[1:]:
+            while cursor < len(normalized) and not normalized[cursor].isalnum():
+                cursor += 1
+            if cursor == len(normalized) or not _identifier_character_matches(
+                normalized[cursor], expected_character
+            ):
+                break
+            cursor += 1
+        else:
+            if (
+                not require_right_boundary
+                or cursor == len(normalized)
+                or not (normalized[cursor].isascii() and normalized[cursor].isalnum())
+            ):
+                return True
+    return False
+
+
+def _text_mentions_identifier(value: str, identifier: str) -> bool:
+    """Match an identifier through separators and Unicode lookalikes in O(n).
+
+    This deliberately avoids a wildcard regular expression: a non-ASCII
+    punctuation mark must have exactly one role (a separator), while a
+    non-ASCII alphanumeric character is an ambiguous identifier character.
+    """
+    return _text_mentions_identifier_characters(value, _identifier_match_characters(identifier))
+
+
+def _text_mentions_identifier_sequence(value: str, *identifiers: str) -> bool:
+    """Match a held identifier sequence even when legacy text fuses its terms."""
+    return _text_mentions_identifier_characters(
+        value,
+        "".join(_identifier_match_characters(identifier) for identifier in identifiers),
+        require_left_boundary=False,
+        require_right_boundary=False,
+    )
 
 
 def is_prescribing_alert_withheld(gene: object, drug: object) -> bool:
@@ -170,41 +328,305 @@ def is_prescribing_alert_withheld(gene: object, drug: object) -> bool:
     """
     if not isinstance(gene, str) or not isinstance(drug, str):
         return False
-    return (gene.strip().upper(), drug.strip().casefold()) in WITHHELD_PRESCRIBING_ALERT_PAIRS
+    return any(
+        _text_mentions_identifier(gene, held_gene) and _text_mentions_identifier(drug, held_drug)
+        for held_gene, held_drug in WITHHELD_PRESCRIBING_ALERT_PAIRS
+    )
+
+
+def _strings_mention_held_pair(values: list[str]) -> bool:
+    """Whether a collection of rendered text can form a held pair."""
+    return any(
+        (
+            any(_text_mentions_identifier(item, gene) for item in values)
+            and any(_text_mentions_identifier(item, drug) for item in values)
+        )
+        or any(_text_mentions_identifier_sequence(item, gene, drug) for item in values)
+        for gene, drug in WITHHELD_PRESCRIBING_ALERT_PAIRS
+    )
+
+
+def _evidence_has_held_pair(evidence: _PrescribingEvidence) -> bool:
+    """Evaluate free text against itself and each independent record only."""
+    return _strings_mention_held_pair(evidence.free_text) or any(
+        _strings_mention_held_pair([*evidence.free_text, *record_text])
+        for record_text in evidence.complete_records
+    )
+
+
+def _append_evidence(target: _PrescribingEvidence, source: _PrescribingEvidence) -> None:
+    """Merge evidence while preserving each complete-record boundary."""
+    target.free_text.extend(source.free_text)
+    target.complete_records.extend(source.complete_records)
+
+
+def _collect_prescribing_evidence(
+    value: object,
+    *,
+    _depth: int = 0,
+) -> _PrescribingEvidence | None:
+    """Collect recursively rendered evidence, rejecting ambiguous structures.
+
+    ``None`` is a fail-closed result. Exact ``gene``/``drug`` mappings are
+    complete records only when both values are non-empty identifiers. This keeps
+    legitimate compound names such as ``TPMT/NUDT15`` intact while still
+    withholding an obfuscated held pair. All other direct text remains free
+    evidence that can be matched against each nested complete record in the
+    same serialized response.
+    """
+    if _depth > 128:
+        return None
+    if isinstance(value, str):
+        return _PrescribingEvidence(free_text=[value])
+    if isinstance(value, (list, tuple)):
+        evidence = _PrescribingEvidence()
+        for item in value:
+            child = _collect_prescribing_evidence(item, _depth=_depth + 1)
+            if child is None:
+                return None
+            _append_evidence(evidence, child)
+        return None if _evidence_has_held_pair(evidence) else evidence
+    if not isinstance(value, Mapping):
+        return _PrescribingEvidence()
+
+    for key in value:
+        if not isinstance(key, str):
+            return None
+        normalized_key = _normalize_prescribing_label(key)
+        if normalized_key in _PRESCRIBING_IDENTIFIER_KEYS and key != normalized_key:
+            return None
+
+    gene_keys = [key for key in _PRESCRIBING_GENE_KEYS if key in value]
+    drug_keys = [key for key in _PRESCRIBING_DRUG_KEYS if key in value]
+    if len(gene_keys) > 1 or len(drug_keys) > 1:
+        return None
+    gene_key = gene_keys[0] if gene_keys else None
+    drug_key = drug_keys[0] if drug_keys else None
+    has_gene = gene_key is not None
+    has_drug = drug_key is not None
+    direct_gene = value.get(gene_key) if gene_key else None
+    direct_drug = value.get(drug_key) if drug_key else None
+    if has_gene and not _has_prescribing_identifier(direct_gene):
+        return None
+    if has_drug and not _has_prescribing_identifier(direct_drug):
+        return None
+
+    complete_record = has_gene and has_drug
+    if complete_record and is_prescribing_alert_withheld(direct_gene, direct_drug):
+        return None
+
+    direct_free_text: list[str] = []
+    record_text: list[str] = []
+    for key, item in value.items():
+        if complete_record and key in {gene_key, drug_key}:
+            record_text.append(key)
+            if isinstance(item, str):
+                record_text.append(item)
+            continue
+        if (
+            complete_record
+            and isinstance(item, str)
+            and (
+                _text_mentions_identifier(item, direct_gene)
+                or _text_mentions_identifier(item, direct_drug)
+            )
+        ):
+            # A nested complete record owns a narrative that repeats one of
+            # its own identifiers, just as a row-schema record does below.
+            # This preserves independent safe-record boundaries while a
+            # narrative that mentions a held drug still fails within the same
+            # record.
+            record_text.extend((key, item))
+            continue
+        direct_free_text.append(key)
+        if isinstance(item, str):
+            direct_free_text.append(item)
+
+    evidence = _PrescribingEvidence(free_text=direct_free_text)
+    for item in value.values():
+        if not isinstance(item, (Mapping, list, tuple)):
+            continue
+        child = _collect_prescribing_evidence(item, _depth=_depth + 1)
+        if child is None:
+            return None
+        if complete_record:
+            owned_free_text: list[str] = []
+            unowned_free_text: list[str] = []
+            for text in child.free_text:
+                if _text_mentions_identifier(text, direct_gene) or _text_mentions_identifier(
+                    text, direct_drug
+                ):
+                    owned_free_text.append(text)
+                else:
+                    unowned_free_text.append(text)
+            # Nested detail fields that repeat their owning record's gene or
+            # drug remain part of that record, so independently safe response
+            # rows do not become a pair merely through serialization. Other
+            # child fragments stay free and can still expose a true split pair.
+            record_text.extend(owned_free_text)
+            child.free_text = unowned_free_text
+        _append_evidence(evidence, child)
+
+    if complete_record:
+        evidence.complete_records.insert(0, record_text)
+    return None if _evidence_has_held_pair(evidence) else evidence
 
 
 def contains_unpresentable_prescribing_identifier(value: object) -> bool:
-    """Whether structured data contains held or ambiguously named identifiers.
+    """Whether structured data contains held or ambiguously named identifiers."""
+    try:
+        evidence = _collect_prescribing_evidence(value)
+    except RecursionError:
+        return True
+    return evidence is None or _evidence_has_held_pair(evidence)
 
-    Legacy payloads can obscure a held pair with whitespace/case-mutated keys.
-    Treat those shapes as unpresentable so logging and API boundaries cannot
-    expose unclassified clinical guidance.
+
+def is_patient_presentable_response_payload(value: object) -> bool:
+    """Whether a fully assembled dynamic patient response is safe to serialize.
+
+    Apply this after joining independently safe source records. The generic
+    collector preserves complete ``gene``/``drug`` record boundaries, while
+    still rejecting a held pair assembled across free fragments from multiple
+    sources.
     """
-    if isinstance(value, dict):
-        for key in value:
-            if (
-                isinstance(key, str)
-                and key.strip().casefold() in _PRESCRIBING_IDENTIFIER_KEYS
-                and key not in _PRESCRIBING_IDENTIFIER_KEYS
-            ):
-                return True
-        if "gene" in value and "drug" in value:
-            gene = value.get("gene")
-            drug = value.get("drug")
-            if (
-                not isinstance(gene, str)
-                or not gene.strip()
-                or not isinstance(drug, str)
-                or not drug.strip()
-                or is_prescribing_alert_withheld(gene, drug)
-            ):
-                return True
-        return any(
-            contains_unpresentable_prescribing_identifier(nested) for nested in value.values()
-        )
+    return not contains_unpresentable_prescribing_identifier(value)
+
+
+def _reject_duplicate_json_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    """Build an unambiguous JSON object or reject a duplicate key."""
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON key: {key}")
+        result[key] = value
+    return result
+
+
+def _reject_non_json_constant(value: str) -> None:
+    """Reject JavaScript-style constants that strict JSON does not permit."""
+    raise ValueError(f"non-JSON constant: {value}")
+
+
+def _parse_unambiguous_json_value(value: object) -> object | None:
+    """Parse JSON without silently overwriting duplicate object keys."""
+    if isinstance(value, Mapping):
+        return dict(value)
     if isinstance(value, (list, tuple)):
-        return any(contains_unpresentable_prescribing_identifier(item) for item in value)
-    return False
+        return list(value)
+    if not isinstance(value, str):
+        return None
+    try:
+        return json.loads(
+            value,
+            object_pairs_hook=_reject_duplicate_json_keys,
+            parse_constant=_reject_non_json_constant,
+        )
+    except (TypeError, ValueError, RecursionError):
+        return None
+
+
+def _parse_unambiguous_finding_payload(value: object) -> dict[str, object] | None:
+    """Parse one object-shaped finding payload without ambiguity."""
+    parsed = _parse_unambiguous_json_value(value)
+    return parsed if isinstance(parsed, dict) else None
+
+
+def _collect_finding_scalar_evidence(
+    finding: Mapping[str, object],
+) -> _PrescribingEvidence | None:
+    """Collect scalar finding evidence without misclassifying the row schema."""
+    scalar_values = [
+        value
+        for key, value in finding.items()
+        if isinstance(key, str)
+        and key not in _SERIALIZED_FINDING_PAYLOAD_FIELDS
+        and key not in {"gene_symbol", "drug"}
+        and isinstance(value, str)
+    ]
+    evidence = _PrescribingEvidence()
+    gene = finding.get("gene_symbol")
+    drug = finding.get("drug")
+    has_gene = _has_prescribing_identifier(gene)
+    has_drug = _has_prescribing_identifier(drug)
+
+    if has_gene and has_drug:
+        if is_prescribing_alert_withheld(gene, drug):
+            return None
+        # A row's own narrative belongs to its complete gene/drug record when
+        # it repeats either identifier. Keep that evidence boundary so a normal
+        # CYP2D6/codeine result cannot be cross-matched with a separate,
+        # independently safe CYP2C19/tamoxifen record in the same response.
+        record_text = [gene, drug]
+        for value in scalar_values:
+            if _text_mentions_identifier(value, gene) or _text_mentions_identifier(value, drug):
+                record_text.append(value)
+            else:
+                evidence.free_text.append(value)
+        evidence.complete_records.append(record_text)
+    else:
+        evidence.free_text.extend(scalar_values)
+        if isinstance(gene, str):
+            evidence.free_text.append(gene)
+        if isinstance(drug, str):
+            evidence.free_text.append(drug)
+
+    return None if _evidence_has_held_pair(evidence) else evidence
+
+
+def is_patient_presentable_finding_payload(
+    finding: Mapping[str, object],
+    *additional_payloads: object,
+) -> bool:
+    """Whether a complete finding record is safe for patient-facing output.
+
+    The SQL predicate handles canonical scalar columns efficiently, but legacy
+    rows can retain identifiers and clinical prose in scalar fields or JSON
+    payloads. Parse every serialized value strictly, then evaluate the complete
+    patient-visible response together before any sink serializes or renders it.
+    """
+    if is_withheld_prescribing_alert_finding(
+        finding.get("module"),
+        finding.get("category"),
+        finding.get("gene_symbol"),
+        finding.get("drug"),
+    ):
+        return False
+
+    try:
+        evidence = _collect_finding_scalar_evidence(finding)
+        if evidence is None:
+            return False
+
+        for payload_field in ("detail_json", "provenance"):
+            raw_payload = finding.get(payload_field)
+            if raw_payload is None or raw_payload == "":
+                continue
+            payload = _parse_unambiguous_finding_payload(raw_payload)
+            if payload is None:
+                return False
+            payload_evidence = _collect_prescribing_evidence(payload)
+            if payload_evidence is None:
+                return False
+            _append_evidence(evidence, payload_evidence)
+
+        raw_pmids = finding.get("pmid_citations")
+        if raw_pmids is not None and raw_pmids != "":
+            pmids = _parse_unambiguous_json_value(raw_pmids)
+            if not isinstance(pmids, list) or not all(isinstance(pmid, str) for pmid in pmids):
+                return False
+            pmid_evidence = _collect_prescribing_evidence(pmids)
+            if pmid_evidence is None:
+                return False
+            _append_evidence(evidence, pmid_evidence)
+
+        for payload in additional_payloads:
+            payload_evidence = _collect_prescribing_evidence(payload)
+            if payload_evidence is None:
+                return False
+            _append_evidence(evidence, payload_evidence)
+    except RecursionError:
+        return False
+    return not _evidence_has_held_pair(evidence)
 
 
 def is_withheld_prescribing_alert_finding(
@@ -226,13 +648,8 @@ def is_withheld_prescribing_alert_finding(
         return True
     return (
         isinstance(category, str)
-        and category.strip().casefold() == "prescribing_alert"
-        and (
-            not isinstance(gene, str)
-            or not gene.strip()
-            or not isinstance(drug, str)
-            or not drug.strip()
-        )
+        and _normalize_prescribing_label(category) == "prescribing_alert"
+        and (not _has_prescribing_identifier(gene) or not _has_prescribing_identifier(drug))
     )
 
 

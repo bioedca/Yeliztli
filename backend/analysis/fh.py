@@ -30,6 +30,7 @@ import sqlalchemy as sa
 import structlog
 
 from backend.analysis.pgs_bridge import build_trait_weight_set, load_pgs_registry
+from backend.analysis.pharmacogenomics import is_patient_presentable_finding_payload
 from backend.analysis.prs import PRSResult, run_prs, store_prs_findings
 from backend.db.tables import annotated_variants, findings
 
@@ -162,7 +163,7 @@ def detect_fh_monogenic(sample_engine: sa.Engine) -> list[FhMonogenicVariant]:
             evidence_level=r.evidence_level or 0,
         )
         for r in rows
-        if _is_fh_monogenic_finding(r)
+        if is_patient_presentable_finding_payload(r._mapping) and _is_fh_monogenic_finding(r)
     ]
 
 

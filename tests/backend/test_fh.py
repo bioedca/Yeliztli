@@ -10,7 +10,9 @@ Covers:
 from __future__ import annotations
 
 import json
+from types import SimpleNamespace
 
+import pytest
 import sqlalchemy as sa
 
 from backend.analysis.fh import (
@@ -25,6 +27,7 @@ from backend.annotation.pgs_catalog import (
     pgs_score_metadata,
     pgs_score_weights,
 )
+from backend.api.routes import fh as fh_route
 from backend.db.tables import annotated_variants, findings
 
 
@@ -178,7 +181,7 @@ class TestMonogenicDetection:
         mono = detect_fh_monogenic(sample_engine)
         assert [m.gene for m in mono] == ["APOB"]
 
-    def test_malformed_detail_json_falls_back_to_fh_gene_detection(
+    def test_malformed_detail_json_is_withheld_from_fh_detection(
         self, sample_engine: sa.Engine
     ) -> None:
         with sample_engine.begin() as conn:
@@ -198,8 +201,10 @@ class TestMonogenicDetection:
                 ],
             )
 
-        mono = detect_fh_monogenic(sample_engine)
-        assert [m.gene for m in mono] == ["LDLR"]
+        # A malformed or schema-drifted payload is no longer safe to carry into
+        # the patient-facing FH assessment, even when its scalar fields look
+        # like an otherwise reportable carrier finding.
+        assert detect_fh_monogenic(sample_engine) == []
 
 
 class TestApobFdb:
@@ -393,3 +398,40 @@ class TestAssessAndStore:
             ).fetchall()
         assert prs == []  # stale PRS gone
         assert len(fdb) == 1 and fdb[0].gene_symbol == "APOB"  # carrier finding intact
+
+
+class TestFhAssessmentPresentation:
+    def test_withheld_legacy_payload_is_unavailable_not_a_false_negative(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        sample_engine: sa.Engine,
+    ) -> None:
+        """A cross-record held pair cannot become a negative FH assessment."""
+        monogenic = [
+            SimpleNamespace(
+                gene="CYP2D6",
+                rsid=None,
+                clinvar_significance=None,
+                zygosity=None,
+                evidence_level=1,
+            ),
+            SimpleNamespace(
+                gene="tamoxifen",
+                rsid=None,
+                clinvar_significance=None,
+                zygosity=None,
+                evidence_level=1,
+            ),
+        ]
+        monkeypatch.setattr(fh_route, "_get_sample_engine", lambda _sample_id: sample_engine)
+        monkeypatch.setattr(fh_route, "detect_fh_monogenic", lambda _engine: monogenic)
+
+        response = fh_route.get_fh_assessment(sample_id=1)
+
+        assert response.assessment_status == "unavailable"
+        assert response.has_monogenic is False
+        assert response.monogenic == []
+        assert response.apob_fdb is None
+        assert response.ldl_prs is None
+        assert "cyp2d6" not in response.model_dump_json().lower()
+        assert "tamoxifen" not in response.model_dump_json().lower()

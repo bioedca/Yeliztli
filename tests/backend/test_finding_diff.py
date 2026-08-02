@@ -555,6 +555,24 @@ class TestSnapshotFindings:
                     "drug": "tamoxifen",
                     "finding_text": "Blank-gene clinical advice.",
                 },
+                {
+                    # A scalar-safe legacy shell must not create an update
+                    # notification when its nested payload carries a held pair.
+                    "module": "pharmacogenomics",
+                    "category": "prescribing_alert",
+                    "gene_symbol": "CYP2C19",
+                    "drug": "clopidogrel",
+                    "finding_text": "Nested tamoxifen clinical advice.",
+                    "detail_json": json.dumps(
+                        {
+                            "legacy": {
+                                "gene": "CYP2D6",
+                                "drug": "tamoxifen",
+                                "recommendation": "Must not appear in a finding diff.",
+                            }
+                        }
+                    ),
+                },
             ],
         )
 

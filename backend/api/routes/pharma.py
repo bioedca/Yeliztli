@@ -22,6 +22,8 @@ from pydantic import BaseModel
 
 from backend.analysis.pharmacogenomics import (
     classify_actionability,
+    is_patient_presentable_finding_payload,
+    is_patient_presentable_response_payload,
     is_prescribing_alert_withheld,
     patient_visible_finding_clause,
 )
@@ -261,6 +263,8 @@ def _fetch_sample_findings(sample_engine: sa.Engine, drug_name: str) -> dict[str
 
     result: dict[str, dict[str, Any]] = {}
     for row in rows:
+        if not is_patient_presentable_finding_payload(row._mapping):
+            continue
         gene = row.gene_symbol
         detail: dict[str, Any] = {}
         if row.detail_json:
@@ -485,10 +489,23 @@ def drug_lookup(
                 )
             )
 
-    return DrugLookupResponse(
+    response = DrugLookupResponse(
         drug=canonical_drug,
         gene_effects=gene_effects,
     )
+    # A tamoxifen lookup intentionally exposes a neutral ``withheld`` state,
+    # rather than guidance, so retain that established association contract.
+    # Other drug responses join source findings into one patient-facing DTO and
+    # must fail closed if their decoded fields form a held pair.
+    if not any(effect.recommendation_status == "withheld" for effect in response.gene_effects):
+        dynamic_records = []
+        for effect in response.gene_effects:
+            record = effect.model_dump(mode="json", exclude_none=True)
+            record["drug"] = canonical_drug
+            dynamic_records.append(record)
+        if not is_patient_presentable_response_payload(dynamic_records):
+            return DrugLookupResponse(drug=canonical_drug, gene_effects=[])
+    return response
 
 
 @router.get("/genes", dependencies=[Depends(require_fresh_sample)])
@@ -521,6 +538,8 @@ def gene_results(
     # 2. Group by gene_symbol — first finding per gene wins
     gene_map: dict[str, dict[str, Any]] = {}
     for row in rows:
+        if not is_patient_presentable_finding_payload(row._mapping):
+            continue
         gene = row.gene_symbol
         if gene is None:
             continue
@@ -545,6 +564,7 @@ def gene_results(
             "evidence_level": row.evidence_level,
             "involved_rsids": detail.get("involved_rsids", []),
             "gene_caveat": detail.get("gene_caveat"),
+            "source_drug": row.drug,
         }
 
     # 3. Fetch drugs for each gene from CPIC guidelines
@@ -591,6 +611,20 @@ def gene_results(
             )
         )
 
+    dynamic_records: list[dict[str, Any]] = []
+    drug_associations: list[dict[str, str]] = []
+    for item in items:
+        record = item.model_dump(mode="json", exclude_none=True)
+        record.pop("drugs", None)
+        source_drug = gene_map[item.gene]["source_drug"]
+        if source_drug:
+            record["drug"] = source_drug
+        dynamic_records.append(record)
+        drug_associations.extend({"gene": item.gene, "drug": drug} for drug in item.drugs)
+    if not is_patient_presentable_response_payload(
+        {"records": dynamic_records, "drug_associations": drug_associations}
+    ):
+        return GeneSummaryResponse(items=[], total=0)
     return GeneSummaryResponse(items=items, total=len(items))
 
 
@@ -631,9 +665,12 @@ def medication_safety_report(
     # 2. Walk findings once, building per-gene coverage summaries and grouping
     #    gene effects by drug.
     gene_summaries: dict[str, GeneCoverageSummary] = {}
+    gene_summary_drugs: dict[str, str] = {}
     drug_groups: dict[str, dict[str, Any]] = {}
 
     for row in rows:
+        if not is_patient_presentable_finding_payload(row._mapping):
+            continue
         gene = row.gene_symbol
         drug = row.drug
         if gene is None or drug is None:
@@ -669,6 +706,7 @@ def medication_safety_report(
                 gene_caveat=detail.get("gene_caveat"),
                 indeterminate_alleles=detail.get("indeterminate_alleles", []),
             )
+            gene_summary_drugs[gene] = drug
 
         recommendation = detail.get("recommendation")
         effect = ReportGeneEffect(
@@ -714,7 +752,7 @@ def medication_safety_report(
     gene_coverage = [gene_summaries[g] for g in sorted(gene_summaries)]
     actionable_drug_count = sum(1 for d in drug_entries if d.actionable)
 
-    return MedicationSafetyReportResponse(
+    response = MedicationSafetyReportResponse(
         reference_bias_disclosure=MEDICATION_SAFETY_REFERENCE_BIAS,
         genes_assessed=len(gene_coverage),
         drugs_assessed=len(drug_entries),
@@ -722,3 +760,28 @@ def medication_safety_report(
         gene_coverage=gene_coverage,
         drugs=drug_entries,
     )
+    # The report joins independently safe findings into coverage and drug
+    # sections. Evaluate only that dynamic finding-derived content; the static
+    # reference-bias disclosure intentionally discusses pharmacogenes and is
+    # not patient-specific prescribing evidence.
+    dynamic_records: list[dict[str, Any]] = []
+    for item in response.gene_coverage:
+        record = item.model_dump(mode="json", exclude_none=True)
+        record["drug"] = gene_summary_drugs[item.gene]
+        dynamic_records.append(record)
+    for drug_entry in response.drugs:
+        for effect in drug_entry.gene_effects:
+            record = effect.model_dump(mode="json", exclude_none=True)
+            record["drug"] = drug_entry.drug
+            dynamic_records.append(record)
+
+    if not is_patient_presentable_response_payload(dynamic_records):
+        return MedicationSafetyReportResponse(
+            reference_bias_disclosure=MEDICATION_SAFETY_REFERENCE_BIAS,
+            genes_assessed=0,
+            drugs_assessed=0,
+            actionable_drug_count=0,
+            gene_coverage=[],
+            drugs=[],
+        )
+    return response

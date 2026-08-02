@@ -40,7 +40,7 @@ from typing import Any
 import sqlalchemy as sa
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
-from backend.analysis.pharmacogenomics import is_withheld_prescribing_alert_finding
+from backend.analysis.pharmacogenomics import is_patient_presentable_finding_payload
 from backend.analysis.provenance import read_release_snapshot
 from backend.db.tables import annotation_state, findings
 from backend.services.reference_versions import ReferenceVersionSnapshot
@@ -165,14 +165,9 @@ def snapshot_findings(sample_engine: sa.Engine) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
     for row in rows:
         mapping = row._mapping
-        if is_withheld_prescribing_alert_finding(
-            mapping["module"],
-            mapping["category"],
-            mapping["gene_symbol"],
-            mapping["drug"],
-        ):
+        if not is_patient_presentable_finding_payload(mapping):
             # Keep the source-faithful row in storage, but do not create a new
-            # patient-facing change notice for a clinically withheld pair.
+            # patient-facing change notice for a clinically withheld payload.
             continue
         record: dict[str, Any] = {name: mapping[name] for name in _SNAPSHOT_COLUMNS}
         # PRS findings carry their distinguishing trait only in detail_json (#1283).

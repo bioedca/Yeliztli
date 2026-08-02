@@ -174,6 +174,27 @@ _STALE_TAMOXIFEN_FINDING = {
 }
 
 
+_NESTED_TAMOXIFEN_PAYLOAD_SHELL = {
+    # The outer row is a normal clopidogrel result. Its patient-facing detail
+    # must not smuggle a separate CYP2D6/tamoxifen recommendation into PGx APIs.
+    "module": "pharmacogenomics",
+    "category": "prescribing_alert",
+    "evidence_level": 4,
+    "gene_symbol": "CYP2C19",
+    "diplotype": "*1/*2",
+    "metabolizer_status": "Intermediate Metabolizer",
+    "drug": "clopidogrel",
+    "finding_text": "CYP2C19 *1/*2: Intermediate Metabolizer -- clopidogrel.",
+    "detail_json": json.dumps(
+        {
+            " Gene ": "CYP2D6",
+            "DRUG": "tamoxifen",
+            "recommendation": "Escalate tamoxifen dose must not reach a PGx response.",
+        }
+    ),
+}
+
+
 _TAMOXIFEN_FIRST_WITHHELD_FINDING = {
     **_STALE_TAMOXIFEN_FINDING,
     "diplotype": "*4/*4",
@@ -401,6 +422,18 @@ def tamoxifen_first_withheld_client(
 
 
 @pytest.fixture
+def nested_tamoxifen_payload_client(
+    tmp_data_dir: Path,
+) -> Generator[tuple[TestClient, int], None, None]:
+    """A scalar-safe shell must not supply nested held guidance."""
+    yield from _setup_client(
+        tmp_data_dir,
+        CPIC_GUIDELINES_DATA,
+        [SAMPLE_FINDINGS[1], _NESTED_TAMOXIFEN_PAYLOAD_SHELL],
+    )
+
+
+@pytest.fixture
 def ugt1a1_conservative_sample(tmp_data_dir: Path) -> Generator[int, None, None]:
     """Registry-backed sample with conservative UGT1A1 alert rows."""
     settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
@@ -551,6 +584,22 @@ class TestDrugLookup:
         assert effect["diplotype"] is None
         assert effect["metabolizer_status"] is None
         assert effect["call_confidence"] is None
+
+    def test_nested_held_payload_is_not_a_drug_result(
+        self,
+        nested_tamoxifen_payload_client: tuple[TestClient, int],
+    ):
+        """#2019: scalar-safe PGx shells cannot expose nested target guidance."""
+        tc, sample_id = nested_tamoxifen_payload_client
+
+        response = tc.get(f"/api/analysis/pharma/drug/clopidogrel?sample_id={sample_id}")
+
+        assert response.status_code == 200
+        effect = response.json()["gene_effects"][0]
+        assert effect["recommendation"] is None
+        assert effect["not_assessed"] is True
+        assert "tamoxifen" not in response.text.lower()
+        assert "escalate" not in response.text.lower()
 
     def test_case_insensitive(self, client: tuple[TestClient, int]):
         tc, sample_id = client
@@ -1020,6 +1069,21 @@ class TestMedicationSafetyReport:
         # The independent CYP2D6/codeine result remains available; filtering is
         # constrained to the held gene-drug pair rather than the whole gene.
         assert "codeine" in [entry["drug"] for entry in data["drugs"]]
+
+    def test_nested_held_payload_cannot_leak_through_report(
+        self,
+        nested_tamoxifen_payload_client: tuple[TestClient, int],
+    ):
+        """#2019: report aggregation ignores unsafe nested PGx payloads."""
+        tc, sample_id = nested_tamoxifen_payload_client
+
+        response = tc.get(f"/api/analysis/pharma/report?sample_id={sample_id}")
+
+        assert response.status_code == 200
+        assert "tamoxifen" not in response.text.lower()
+        assert "escalate" not in response.text.lower()
+        assert "clopidogrel" not in [entry["drug"] for entry in response.json()["drugs"]]
+        assert "codeine" in [entry["drug"] for entry in response.json()["drugs"]]
 
     def test_disclosure_present(self, report_client: tuple[TestClient, int]):
         tc, sample_id = report_client

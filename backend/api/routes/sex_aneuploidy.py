@@ -22,6 +22,7 @@ import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
+from backend.analysis.pharmacogenomics import is_patient_presentable_finding_payload
 from backend.analysis.sex_aneuploidy import (
     CATEGORY,
     MODULE,
@@ -160,7 +161,7 @@ def list_findings(sample_id: int = Query(..., description="Sample ID")) -> Scree
         row = conn.execute(
             sa.select(findings).where(findings.c.module == MODULE, findings.c.category == CATEGORY)
         ).fetchone()
-    if row is None:
+    if row is None or not is_patient_presentable_finding_payload(row._mapping):
         return ScreenFindingResponse(computed=False)
     detail: dict[str, Any] = {}
     if row.detail_json:

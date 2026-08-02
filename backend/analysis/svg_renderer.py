@@ -40,13 +40,13 @@ from __future__ import annotations
 
 import json
 import math
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 
 import structlog
 
 from backend.analysis.pathway_coverage import pathway_level_display_label
-from backend.analysis.pharmacogenomics import is_withheld_prescribing_alert_finding
+from backend.analysis.pharmacogenomics import is_patient_presentable_finding_payload
 
 logger = structlog.get_logger(__name__)
 
@@ -107,13 +107,8 @@ def render_finding_svg(finding: dict[str, Any]) -> str | None:
     category = finding.get("category", "")
 
     # Held source rows may remain on disk for audit provenance, but must never
-    # receive a freshly generated patient-facing pharmacogenomics card.
-    if is_withheld_prescribing_alert_finding(
-        module,
-        category,
-        finding.get("gene_symbol"),
-        finding.get("drug"),
-    ):
+    # receive a patient-facing card through scalar or structured payload fields.
+    if not is_patient_presentable_finding_payload(finding):
         return None
 
     # Parse detail_json once for renderers that need it
@@ -143,6 +138,19 @@ def render_finding_svg(finding: dict[str, Any]) -> str | None:
         return _render_evidence_stars(evidence_level)
 
     return None
+
+
+def is_safe_svg_marker(value: object) -> bool:
+    """Whether a persisted SVG marker is a non-traversing relative path.
+
+    Patient-facing code treats the marker only as an availability hint and
+    never opens the referenced artifact. Validate both path syntaxes so legacy
+    absolute/traversal values have consistent no-card behavior on every sink.
+    """
+    if not isinstance(value, str) or not value.strip():
+        return False
+    paths = (PurePosixPath(value), PureWindowsPath(value))
+    return all(not path.is_absolute() and ".." not in path.parts for path in paths)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -853,13 +861,39 @@ def generate_svgs_for_sample(
     # Use the canonical generated filename instead of trusting a stored relative
     # path, and retry every quarantined ID on later runs if deletion fails.
     with sample_engine.begin() as conn:
-        quarantined_ids = (
+        policy_quarantined_ids = (
             conn.execute(sa.select(findings.c.id).where(sa.not_(qualified_clause))).scalars().all()
         )
-        if quarantined_ids:
+        if policy_quarantined_ids:
             conn.execute(
-                findings.update().where(findings.c.id.in_(quarantined_ids)).values(svg_path=None)
+                findings.update()
+                .where(findings.c.id.in_(policy_quarantined_ids))
+                .values(svg_path=None)
             )
+
+    # 2. Read all qualified findings from the sample DB
+    with sample_engine.connect() as conn:
+        rows = conn.execute(sa.select(findings).where(qualified_clause)).fetchall()
+
+    # 3. Convert rows to dicts
+    column_names = [c.key for c in findings.columns]
+    finding_dicts = [dict(zip(column_names, row)) for row in rows]
+
+    # Structured payloads can retain a held pair even when the row's scalar
+    # identifiers look safe. Remove both fresh and stale cards for those rows.
+    payload_quarantined_ids = [
+        finding["id"]
+        for finding in finding_dicts
+        if not is_patient_presentable_finding_payload(finding)
+    ]
+    if payload_quarantined_ids:
+        with sample_engine.begin() as conn:
+            conn.execute(
+                findings.update()
+                .where(findings.c.id.in_(payload_quarantined_ids))
+                .values(svg_path=None)
+            )
+    quarantined_ids = sorted(set(policy_quarantined_ids) | set(payload_quarantined_ids))
 
     for finding_id in quarantined_ids:
         stale_svg = sample_dir / "svgs" / f"{finding_id}.svg"
@@ -873,17 +907,12 @@ def generate_svgs_for_sample(
                 error=str(exc),
             )
 
-    # 2. Read all qualified findings from the sample DB
-    with sample_engine.connect() as conn:
-        rows = conn.execute(sa.select(findings).where(qualified_clause)).fetchall()
-
-    if not rows:
-        logger.info("svg_generation_skipped", reason="no_findings")
+    finding_dicts = [
+        finding for finding in finding_dicts if finding["id"] not in payload_quarantined_ids
+    ]
+    if not finding_dicts:
+        logger.info("svg_generation_skipped", reason="no_patient_presentable_findings")
         return 0
-
-    # 3. Convert rows to dicts
-    column_names = [c.key for c in findings.columns]
-    finding_dicts = [dict(zip(column_names, row)) for row in rows]
 
     # 4. Generate SVGs and persist to disk
     updated = save_finding_svgs(finding_dicts, sample_dir)

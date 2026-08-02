@@ -681,6 +681,57 @@ class TestFindingsEndpoint:
         assert resp.status_code == 404
 
 
+class TestPayloadGate:
+    """#2019: rare-variant views and exports share the payload boundary."""
+
+    def test_held_payload_is_absent_from_findings_and_exports(
+        self,
+        rare_client: TestClient,
+        sample_db_path: Path,
+    ) -> None:
+        seed_rare_variant_findings(sample_db_path)
+        sample_engine = sa.create_engine(f"sqlite:///{sample_db_path}")
+        try:
+            with sample_engine.begin() as conn:
+                conn.execute(
+                    findings.insert().values(
+                        module="rare_variants",
+                        category="clinvar_pathogenic",
+                        evidence_level=6,
+                        gene_symbol="CYP2C19",
+                        drug="clopidogrel",
+                        rsid="rs_held_payload",
+                        finding_text="Scalar-safe legacy shell",
+                        zygosity="het",
+                        detail_json=(
+                            '{"chrom":"1","pos":12345,"ref":"A","alt":"G",'
+                            '"legacy":{" Gene ":"CYP2D6","DRUG":"tamoxifen",'
+                            '"recommendation":"Must not reach exports."}}'
+                        ),
+                    )
+                )
+
+            findings_response = rare_client.get("/api/analysis/rare-variants/findings?sample_id=1")
+            first_page = rare_client.get(
+                "/api/analysis/rare-variants/findings?sample_id=1&limit=1&offset=0"
+            )
+            second_page = rare_client.get(
+                "/api/analysis/rare-variants/findings?sample_id=1&limit=1&offset=1"
+            )
+            tsv = rare_client.get("/api/analysis/rare-variants/export/tsv?sample_id=1")
+            vcf = rare_client.get("/api/analysis/rare-variants/export/vcf?sample_id=1")
+
+            assert findings_response.status_code == 200
+            assert findings_response.json()["total"] == 2
+            assert [item["rsid"] for item in first_page.json()["items"]] == ["rs_first"]
+            assert [item["rsid"] for item in second_page.json()["items"]] == ["rs_second"]
+            for response in (findings_response, tsv, vcf):
+                assert "rs_held_payload" not in response.text
+                assert "tamoxifen" not in response.text.lower()
+        finally:
+            sample_engine.dispose()
+
+
 # ═══════════════════════════════════════════════════════════════════════
 # POST /api/analysis/rare-variants/run
 # ═══════════════════════════════════════════════════════════════════════

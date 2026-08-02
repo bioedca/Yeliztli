@@ -17,6 +17,7 @@ import json
 from collections.abc import Generator
 from datetime import UTC, datetime
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -397,6 +398,115 @@ class TestLogExplorer:
         assert "unknown-message duplicate guidance" not in rendered
         assert "scalar cyp2d6 tamoxifen guidance" not in rendered
         assert "list cyp2d6 tamoxifen guidance" not in rendered
+
+    def test_log_gate_aggregates_message_and_event_payload_before_pagination(
+        self,
+        admin_client: TestClient,
+    ) -> None:
+        """Split or unstructured log text cannot bypass the held-pair gate."""
+        from backend.db.connection import get_registry
+
+        baseline = admin_client.get("/api/admin/logs")
+        assert baseline.status_code == 200
+        baseline_total = baseline.json()["total"]
+
+        with get_registry().reference_engine.begin() as conn:
+            conn.execute(
+                sa.insert(log_entries),
+                [
+                    {
+                        "timestamp": datetime.now(UTC),
+                        "level": "WARNING",
+                        "logger": "backend.analysis.pharmacogenomics",
+                        "message": "CYP2D6",
+                        "event_data": json.dumps({"recommendation": "tamoxifen guidance"}),
+                    },
+                    {
+                        "timestamp": datetime.now(UTC),
+                        "level": "WARNING",
+                        "logger": "backend.analysis.pharmacogenomics",
+                        "message": "CYP2D6 tamoxifen guidance without payload",
+                        "event_data": None,
+                    },
+                    {
+                        "timestamp": datetime.now(UTC),
+                        "level": "WARNING",
+                        "logger": "backend.analysis.pharmacogenomics",
+                        "message": "legacy_pgx_event",
+                        "event_data": '{"score": NaN}',
+                    },
+                ],
+            )
+
+        response = admin_client.get("/api/admin/logs", params={"page": 1, "page_size": 50})
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["total"] == baseline_total
+        rendered = json.dumps(body).lower()
+        assert "tamoxifen" not in rendered
+        assert "legacy_pgx_event" not in rendered
+
+    def test_log_page_withholds_cross_row_escaped_identifier_pair(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """The final page gate decodes JSON before joining row evidence."""
+        from backend.api.routes import admin as admin_route
+
+        engine = sa.create_engine("sqlite://")
+        reference_metadata.create_all(engine)
+        with engine.begin() as conn:
+            conn.execute(
+                sa.insert(log_entries),
+                [
+                    {
+                        "timestamp": datetime.now(UTC),
+                        "level": "INFO",
+                        "logger": "backend.analysis.ancestry",
+                        "message": "CYP2D6",
+                        "event_data": None,
+                    },
+                    {
+                        "timestamp": datetime.now(UTC),
+                        "level": "INFO",
+                        "logger": "backend.analysis.ancestry",
+                        "message": "safe separate record",
+                        "event_data": '{"note":"tam\\u006fxifen"}',
+                    },
+                ],
+            )
+
+        with engine.connect() as conn:
+            source_rows = (
+                conn.execute(sa.select(log_entries).order_by(log_entries.c.id)).mappings().all()
+            )
+        assert all(admin_route._is_patient_visible_log_entry(row) for row in source_rows)
+
+        monkeypatch.setattr(
+            admin_route,
+            "get_registry",
+            lambda: SimpleNamespace(reference_engine=engine),
+        )
+        try:
+            response = admin_route.get_logs(
+                page=1,
+                page_size=50,
+                level=None,
+                component=None,
+                since=None,
+                until=None,
+                search=None,
+            )
+            assert response.model_dump() == {
+                "entries": [],
+                "total": 0,
+                "page": 1,
+                "page_size": 50,
+                "has_more": False,
+            }
+        finally:
+            engine.dispose()
 
     def test_deeply_nested_pgx_logs_fail_closed(self, admin_client: TestClient) -> None:
         """#2019: deeply nested legacy PGx JSON cannot crash Log Explorer."""

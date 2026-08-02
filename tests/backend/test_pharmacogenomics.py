@@ -31,7 +31,11 @@ from backend.analysis.pharmacogenomics import (
     _fetch_sample_genotypes,
     call_all_star_alleles,
     call_star_alleles_for_gene,
+    contains_unpresentable_prescribing_identifier,
     generate_prescribing_alerts,
+    is_patient_presentable_finding_payload,
+    is_patient_presentable_response_payload,
+    is_prescribing_alert_withheld,
     patient_visible_finding_clause,
     store_prescribing_alerts,
     update_annotation_coverage_cpic,
@@ -2370,3 +2374,455 @@ class TestRunPharmaAnnotationCoverage:
             ).scalar()
 
         assert coverage & CPIC_BIT == CPIC_BIT
+
+
+class TestPatientPresentableFindingPayload:
+    """#2019: legacy structured payloads cannot bypass the output hold."""
+
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            {"legacy_pair": ["CYP2D6", "tamoxifen", "Escalate dose"]},
+            {
+                "legacy_gene": "CYP2D6",
+                "legacy_drug": "tamoxifen",
+                "recommendation": "Escalate dose",
+            },
+            {"recommendation": "CYP2D6 tamoxifen: escalate dose"},
+            {"gene": "CYP2D6", "legacy": {"drug": "tamoxifen"}},
+            {
+                "legacy": [
+                    {"gene": "CYP2D6"},
+                    {"drug": "tamoxifen", "recommendation": "Escalate dose"},
+                ]
+            },
+            {
+                "advice": {"gene": "CYP2D6"},
+                "medication": {"drug": "tamoxifen", "recommendation": "Escalate dose"},
+            },
+            {"first": ["CYP2D6"], "second": ["tamoxifen dose guidance"]},
+            {"CYP2D6": "legacy carrier", "tamoxifen": "dose guidance"},
+            {
+                "first": {"legacy_gene": "CYP2D6"},
+                "second": {"legacy_drug": "tamoxifen dose guidance"},
+            },
+            {
+                "legacy": [
+                    {"gene": "CYP2D6", "drug": "codeine"},
+                    {"drug": "tamoxifen", "recommendation": "Escalate dose"},
+                ]
+            },
+            {
+                "legacy": {
+                    "gene_hint": "CYP2D6",
+                    "record": {
+                        "gene": "CYP2C19",
+                        "drug": "tamoxifen",
+                        "recommendation": "Escalate dose",
+                    },
+                }
+            },
+            {
+                "effects": [
+                    {
+                        "gene": "CYP2C19",
+                        "drug": "clopidogrel",
+                        "legacy": {"gene_hint": "CYP2D6"},
+                    },
+                    {
+                        "gene": "CYP2C19",
+                        "drug": "tamoxifen",
+                        "recommendation": "Escalate dose",
+                    },
+                ]
+            },
+        ],
+    )
+    def test_rejects_held_pair_in_legacy_payload_shapes(self, payload: dict) -> None:
+        assert contains_unpresentable_prescribing_identifier(payload)
+
+    def test_keeps_independent_safe_pair_records_presentable(self) -> None:
+        payload = {
+            "effects": [
+                {"gene": "CYP2D6", "drug": "codeine"},
+                {"gene": "CYP2C19", "drug": "tamoxifen"},
+            ]
+        }
+
+        assert not contains_unpresentable_prescribing_identifier(payload)
+        assert is_patient_presentable_finding_payload(
+            {
+                "module": "pharmacogenomics",
+                "category": "prescribing_alert",
+                "gene_symbol": "CYP2C19",
+                "drug": "clopidogrel",
+                "finding_text": "CYP2C19/clopidogrel result",
+                "detail_json": payload,
+            }
+        )
+
+    def test_keeps_nested_independent_safe_pair_records_presentable(self) -> None:
+        payload = {
+            "gene": "CYP2D6",
+            "drug": "codeine",
+            "related": {"gene": "CYP2C19", "drug": "tamoxifen"},
+        }
+
+        assert not contains_unpresentable_prescribing_identifier(payload)
+
+    def test_keeps_nested_record_narrative_with_its_own_safe_pair(self) -> None:
+        payload = {
+            "gene": "CYP2D6",
+            "drug": "codeine",
+            "finding_text": "CYP2D6/codeine normal guidance",
+            "related": {
+                "gene": "CYP2C19",
+                "drug": "tamoxifen",
+                "recommendation": "Review normally.",
+            },
+        }
+
+        assert not contains_unpresentable_prescribing_identifier(payload)
+
+    def test_keeps_row_narrative_with_its_own_safe_complete_record(self) -> None:
+        finding = {
+            "module": "pharmacogenomics",
+            "category": "prescribing_alert",
+            "gene_symbol": "CYP2D6",
+            "drug": "codeine",
+            "finding_text": "CYP2D6/codeine result",
+            "detail_json": {
+                "records": [
+                    {
+                        "gene": "CYP2D6",
+                        "drug": "codeine",
+                        "recommendation": "Dose normally.",
+                    },
+                    {
+                        "gene": "CYP2C19",
+                        "drug": "tamoxifen",
+                        "recommendation": "Review normally.",
+                    },
+                ]
+            },
+        }
+
+        assert is_patient_presentable_finding_payload(finding)
+
+    def test_keeps_compound_nonheld_prescribing_identifiers_presentable(self) -> None:
+        finding = {
+            "module": "pharmacogenomics",
+            "category": "prescribing_alert",
+            "gene_symbol": "TPMT/NUDT15",
+            "drug": "azathioprine",
+            "finding_text": "TPMT/NUDT15 azathioprine guidance",
+            "detail_json": {"recommendation": "Start reduced dose."},
+        }
+
+        assert not is_prescribing_alert_withheld("TPMT/NUDT15", "azathioprine")
+        assert is_patient_presentable_finding_payload(finding)
+
+    def test_keeps_lone_generic_identifier_fields_as_free_evidence(self) -> None:
+        assert not contains_unpresentable_prescribing_identifier(
+            {"gene": "CYP2D6", "status": "routine"}
+        )
+        assert not contains_unpresentable_prescribing_identifier(
+            {"drug": "tamoxifen", "status": "reference-only"}
+        )
+
+    def test_rejects_intercharacter_whitespace_identifier_bypass(self) -> None:
+        gene = "CYP 2D6"
+        drug = "tamox ifen"
+
+        assert is_prescribing_alert_withheld(gene, drug)
+        assert contains_unpresentable_prescribing_identifier(
+            {"recommendation": f"{gene} {drug} dose guidance"}
+        )
+
+    def test_rejects_held_pair_in_finding_text(self) -> None:
+        assert not is_patient_presentable_finding_payload(
+            {
+                "module": "pharmacogenomics",
+                "category": "prescribing_alert",
+                "gene_symbol": "CYP2C19",
+                "drug": "clopidogrel",
+                "finding_text": "CYP2D6/tamoxifen: escalate dose",
+                "detail_json": {},
+            }
+        )
+
+    @pytest.mark.parametrize(
+        "field",
+        ("phenotype", "conditions", "metabolizer_status", "diplotype"),
+    )
+    def test_rejects_held_pair_in_any_serialized_scalar_field(self, field: str) -> None:
+        finding: dict[str, object] = {
+            "module": "pharmacogenomics",
+            "category": "prescribing_alert",
+            "gene_symbol": "CYP2C19",
+            "drug": "clopidogrel",
+            "finding_text": "CYP2C19/clopidogrel result",
+            "detail_json": {},
+            field: "CYP2D6 tamoxifen dose guidance",
+        }
+
+        assert not is_patient_presentable_finding_payload(finding)
+
+    def test_rejects_pair_split_across_serialized_scalar_fields(self) -> None:
+        assert not is_patient_presentable_finding_payload(
+            {
+                "module": "pharmacogenomics",
+                "category": "prescribing_alert",
+                "gene_symbol": "CYP2C19",
+                "drug": "clopidogrel",
+                "finding_text": "CYP2C19/clopidogrel result",
+                "phenotype": "CYP2D6",
+                "conditions": "tamoxifen dose guidance",
+                "detail_json": {},
+            }
+        )
+
+    def test_rejects_default_ignorable_identifier_bypass(self) -> None:
+        gene = "CYP\u200b2D6"
+        drug = "tamox\u200bifen"
+
+        assert is_prescribing_alert_withheld(gene, drug)
+        assert contains_unpresentable_prescribing_identifier(
+            {"recommendation": f"{gene} {drug} dose guidance"}
+        )
+        assert not is_patient_presentable_finding_payload(
+            {
+                "module": "pharmacogenomics",
+                "category": "prescribing_alert",
+                "gene_symbol": gene,
+                "drug": drug,
+                "finding_text": "Legacy prescribing alert",
+                "detail_json": {},
+            }
+        )
+
+    @pytest.mark.parametrize(
+        ("pmid_citations", "expected"),
+        [
+            (json.dumps(["PMID:29385237"]), True),
+            ("not JSON", False),
+            (json.dumps({"pmid": "PMID:29385237"}), False),
+            (json.dumps(["PMID:29385237", 1]), False),
+            (json.dumps(["CYP2D6", "tamoxifen dose guidance"]), False),
+        ],
+        ids=["clean-list", "malformed", "object", "mixed-items", "held-pair-split"],
+    )
+    def test_pmid_citations_are_strict_patient_payloads(
+        self,
+        pmid_citations: str,
+        expected: bool,
+    ) -> None:
+        assert (
+            is_patient_presentable_finding_payload(
+                {
+                    "module": "pharmacogenomics",
+                    "category": "prescribing_alert",
+                    "gene_symbol": "CYP2C19",
+                    "drug": "clopidogrel",
+                    "finding_text": "CYP2C19/clopidogrel result",
+                    "detail_json": {},
+                    "pmid_citations": pmid_citations,
+                }
+            )
+            is expected
+        )
+
+    def test_rejects_held_pair_in_provenance(self) -> None:
+        assert not is_patient_presentable_finding_payload(
+            {
+                "module": "pharmacogenomics",
+                "category": "prescribing_alert",
+                "gene_symbol": "CYP2C19",
+                "drug": "clopidogrel",
+                "finding_text": "CYP2C19/clopidogrel result",
+                "detail_json": {},
+                "provenance": {
+                    "legacy": {
+                        "gene": "CYP2D6",
+                        "drug": "tamoxifen",
+                        "recommendation": "Must not be serialized as provenance.",
+                    }
+                },
+            }
+        )
+
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            {
+                "gene": "CYP2C19",
+                "drug": "clopidogrel",
+                "legacy_gene_hint": "CYP2D6",
+                "nested": {"gene": "CYP2C19", "drug": "tamoxifen"},
+            },
+            {
+                "gene": "CYP2C19",
+                "drug": "clopidogrel",
+                "legacy_drug_hint": "tamoxifen",
+                "nested": {"gene": "CYP2D6", "drug": "codeine"},
+            },
+        ],
+    )
+    def test_rejects_free_fragment_crossing_a_nested_complete_record(
+        self,
+        payload: dict[str, object],
+    ) -> None:
+        assert contains_unpresentable_prescribing_identifier(payload)
+
+    def test_keeps_safe_row_schema_gene_and_drug_as_one_complete_record(self) -> None:
+        assert is_patient_presentable_finding_payload(
+            {
+                "module": "pharmacogenomics",
+                "category": "prescribing_alert",
+                "gene_symbol": "CYP2C19",
+                "drug": "tamoxifen",
+                "finding_text": "CYP2C19/tamoxifen result",
+                "detail_json": {"recommendation": "Review normally."},
+            }
+        )
+
+    @pytest.mark.parametrize(
+        "finding",
+        [
+            {
+                "module": "pharmacogenomics",
+                "category": "prescribing_alert",
+                "gene_symbol": "CYP2D6",
+                "drug": "codeine",
+                "finding_text": "CYP2D6/codeine result",
+                "detail_json": {"recommendation": "tamoxifen guidance"},
+            },
+            {
+                "module": "pharmacogenomics",
+                "category": "prescribing_alert",
+                "gene_symbol": "CYP2C19",
+                "drug": "clopidogrel",
+                "finding_text": "CYP2C19/clopidogrel result",
+                "detail_json": {"recommendation": "tamoxifen guidance"},
+                "provenance": {"legacy_gene": "CYP2D6"},
+            },
+            {
+                "module": "pharmacogenomics",
+                "category": "prescribing_alert",
+                "gene_symbol": "CYP2C19",
+                "drug": "clopidogrel",
+                "finding_text": "CYP2C19/clopidogrel result",
+                "detail_json": {"recommendation": "tamoxifen guidance"},
+                "pmid_citations": ["CYP2D6"],
+            },
+        ],
+    )
+    def test_rejects_pair_split_across_patient_response_fields(
+        self,
+        finding: dict[str, object],
+    ) -> None:
+        assert not is_patient_presentable_finding_payload(finding)
+
+    def test_rejects_control_combining_and_lookalike_identifier_bypasses(self) -> None:
+        assert is_prescribing_alert_withheld("CYP2D\u03326", "tamox\x00ifen")
+        assert contains_unpresentable_prescribing_identifier(
+            {"recommendation": "CYP2D6 tamox\x00ifen dose guidance"}
+        )
+        assert contains_unpresentable_prescribing_identifier(
+            {"recommendation": "CYP2D\u03326 tamoxifen dose guidance"}
+        )
+        assert not is_patient_presentable_finding_payload(
+            {
+                "module": "pharmacogenomics",
+                "category": "prescribing_alert",
+                "gene_symbol": "CYP-2D6",
+                "drug": "tamoxifen",
+                "finding_text": "Malformed direct identifier",
+                "detail_json": {},
+            }
+        )
+        assert not is_patient_presentable_finding_payload(
+            {
+                "module": "pharmacogenomics",
+                "category": "prescribing_alert",
+                "gene_symbol": "CYP2D6",
+                "drug": "tamоxifen",
+                "finding_text": "Non-ASCII lookalike identifier",
+                "detail_json": {},
+            }
+        )
+
+    @pytest.mark.parametrize("gene", ("CYP٢D6", "CYP২D6"))
+    def test_rejects_non_ascii_digit_lookalikes_in_free_text(self, gene: str) -> None:
+        assert not is_patient_presentable_finding_payload(
+            {
+                "module": "pharmacogenomics",
+                "category": "prescribing_alert",
+                "gene_symbol": "CYP2C19",
+                "drug": "clopidogrel",
+                "finding_text": "Routine result",
+                "detail_json": {"note": f"{gene} tamoxifen dose escalation"},
+            }
+        )
+
+    @pytest.mark.parametrize(
+        "text",
+        (
+            "CYP2D6tamoxifen dose guidance",
+            "CYP2D6tamoxifendoseguidance",
+            "legacyCYP2D6tamoxifendoseguidance",
+            "CYP2D6\u200btamoxifen dose guidance",
+            "CYP2D6\u00adtamoxifen dose guidance",
+        ),
+    )
+    def test_rejects_fused_or_ignorable_separated_held_pair_text(self, text: str) -> None:
+        assert contains_unpresentable_prescribing_identifier({"note": text})
+
+    def test_rejects_pair_assembled_in_a_complete_response(self) -> None:
+        assert not is_patient_presentable_response_payload(
+            {
+                "population_distances": {"CYP2D6": 0.1},
+                "admixture_fractions": {"tamoxifen dose escalation": 1.0},
+            }
+        )
+
+    def test_keeps_nested_detail_text_with_its_own_safe_response_record(self) -> None:
+        response = [
+            {
+                "gene_symbol": "CYP2D6",
+                "drug": "codeine",
+                "detail": {"note": "CYP2D6 codeine normal guidance"},
+            },
+            {
+                "gene_symbol": "CYP2C19",
+                "drug": "tamoxifen",
+                "detail": {"note": "CYP2C19 tamoxifen normal guidance"},
+            },
+        ]
+
+        assert is_patient_presentable_response_payload(response)
+
+    def test_rejects_default_ignorable_blank_prescribing_alert_identifiers(self) -> None:
+        assert not is_patient_presentable_finding_payload(
+            {
+                "module": "pharmacogenomics",
+                "category": "prescribing_alert\u200b",
+                "gene_symbol": "\u200b",
+                "drug": "codeine",
+                "finding_text": "Unclassifiable legacy prescribing alert",
+                "detail_json": {},
+            }
+        )
+
+    @pytest.mark.parametrize("constant", ("NaN", "Infinity", "-Infinity"))
+    def test_rejects_non_json_constants_in_serialized_payloads(self, constant: str) -> None:
+        assert not is_patient_presentable_finding_payload(
+            {
+                "module": "pharmacogenomics",
+                "category": "prescribing_alert",
+                "gene_symbol": "CYP2C19",
+                "drug": "clopidogrel",
+                "finding_text": "CYP2C19/clopidogrel result",
+                "detail_json": f'{{"score": {constant}}}',
+            }
+        )

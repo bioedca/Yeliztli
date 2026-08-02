@@ -20,7 +20,10 @@ from fastapi import APIRouter, Query
 from pydantic import BaseModel
 from sqlalchemy.pool import NullPool
 
-from backend.analysis.pharmacogenomics import contains_unpresentable_prescribing_identifier
+from backend.analysis.pharmacogenomics import (
+    contains_unpresentable_prescribing_identifier,
+    is_patient_presentable_response_payload,
+)
 from backend.config import get_settings
 from backend.db.connection import get_registry
 from backend.db.database_registry import DATABASES, DatabaseInfo
@@ -66,25 +69,14 @@ def _reject_duplicate_json_keys(pairs: list[tuple[str, object]]) -> dict[str, ob
     return result
 
 
+def _reject_non_json_constant(value: str) -> None:
+    """Reject JavaScript-style constants that strict JSON does not permit."""
+    raise ValueError(f"non-JSON constant: {value}")
+
+
 def _is_nonblank_string(value: object) -> bool:
     """Whether a structured payload identifier can be safely normalized."""
     return isinstance(value, str) and bool(value.strip())
-
-
-def _event_data_has_incomplete_identifier_pair(value: object) -> bool:
-    """Whether legacy structured log data has an incomplete identifier pair."""
-    if isinstance(value, dict):
-        has_gene = "gene" in value
-        has_drug = "drug" in value
-        if (has_gene or has_drug) and (
-            not _is_nonblank_string(value.get("gene"))
-            or not _is_nonblank_string(value.get("drug"))
-        ):
-            return True
-        return any(_event_data_has_incomplete_identifier_pair(nested) for nested in value.values())
-    if isinstance(value, list):
-        return any(_event_data_has_incomplete_identifier_pair(item) for item in value)
-    return False
 
 
 def _is_patient_visible_log_entry(row: sa.RowMapping) -> bool:
@@ -98,9 +90,19 @@ def _is_patient_visible_log_entry(row: sa.RowMapping) -> bool:
     message = str(row["message"] or "")
     event_data = row["event_data"]
     if event_data is None:
-        return message not in _PRESCRIBING_LOG_MESSAGES
+        try:
+            return (
+                message not in _PRESCRIBING_LOG_MESSAGES
+                and not contains_unpresentable_prescribing_identifier({"message": message})
+            )
+        except RecursionError:
+            return False
     try:
-        payload = json.loads(event_data, object_pairs_hook=_reject_duplicate_json_keys)
+        payload = json.loads(
+            event_data,
+            object_pairs_hook=_reject_duplicate_json_keys,
+            parse_constant=_reject_non_json_constant,
+        )
     except (TypeError, ValueError, RecursionError):
         return False
     if not isinstance(payload, dict):
@@ -112,8 +114,8 @@ def _is_patient_visible_log_entry(row: sa.RowMapping) -> bool:
         return False
     try:
         if contains_unpresentable_prescribing_identifier(
-            payload
-        ) or _event_data_has_incomplete_identifier_pair(payload):
+            {"message": message, "event_data": payload}
+        ):
             return False
     except RecursionError:
         # Deep legacy JSON cannot be safely classified, so do not expose it.
@@ -146,6 +148,46 @@ def _collect_visible_log_page(
             visible_count += 1
 
     return page_rows, visible_count
+
+
+def _is_patient_presentable_log_page(rows: list[sa.RowMapping]) -> bool:
+    """Validate the fully assembled log page with decoded event-data objects.
+
+    Per-row screening prevents a legacy event from rendering by itself. A page
+    can nevertheless combine safe fragments from separate rows, so evaluate
+    the exact dynamic DTO shape before returning it. Event data is parsed
+    strictly here rather than checked as a raw JSON string, which prevents
+    escaped identifiers from bypassing the aggregate gate.
+    """
+    normalized_entries: list[dict[str, object]] = []
+    for row in rows:
+        event_data = row["event_data"]
+        decoded_event_data: object = None
+        if event_data is not None:
+            try:
+                decoded_event_data = json.loads(
+                    event_data,
+                    object_pairs_hook=_reject_duplicate_json_keys,
+                    parse_constant=_reject_non_json_constant,
+                )
+            except (TypeError, ValueError, RecursionError):
+                return False
+            if not isinstance(decoded_event_data, dict):
+                return False
+        normalized_entries.append(
+            {
+                "id": row["id"],
+                "timestamp": _format_ts(row["timestamp"]),
+                "level": row["level"],
+                "logger": row["logger"],
+                "message": row["message"],
+                "event_data": decoded_event_data,
+            }
+        )
+    try:
+        return is_patient_presentable_response_payload(normalized_entries)
+    except RecursionError:
+        return False
 
 
 # ── Response models ──────────────────────────────────────────────────
@@ -274,6 +316,18 @@ def get_logs(
         )
         for r in page_rows
     ]
+
+    # ``entries`` are screened individually above, but the actual response is
+    # a collection. Do not serialize rows that would assemble held guidance
+    # after pagination, including through escaped JSON event-data values.
+    if not _is_patient_presentable_log_page(page_rows):
+        return LogResponse(
+            entries=[],
+            total=0,
+            page=page,
+            page_size=page_size,
+            has_more=False,
+        )
 
     return LogResponse(
         entries=entries,

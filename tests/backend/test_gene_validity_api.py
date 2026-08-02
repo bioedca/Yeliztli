@@ -150,6 +150,54 @@ def gv_client(tmp_data_dir: Path) -> Generator[TestClient, None, None]:
 
 
 class TestGeneValidityEndpoint:
+    def test_withholds_held_pair_assembled_by_response_rows(self, monkeypatch) -> None:
+        """The guardrail endpoint must gate its assembled patient payload, not rows alone."""
+        import backend.api.routes.gene_validity as route
+
+        row = {
+            "module": "cancer",
+            "clinvar_significance": "Pathogenic",
+            "disease_context": "Synthetic disease",
+            "disease_context_match": "matched",
+            "matched_disease_label": "Synthetic disease",
+            "has_clingen_curation": True,
+            "best_classification": "Definitive",
+            "validity_established": True,
+            "caution": False,
+            "label": "ClinGen: Definitive",
+            "detail": "Synthetic test result.",
+            "curations": [],
+            "context_only": True,
+            "note": "Static ClinGen context.",
+            "pmid_citations": ["1"],
+        }
+        monkeypatch.setattr(route, "resolve_sample_engine", lambda sample_id: object())
+        monkeypatch.setattr(
+            route, "get_registry", lambda: type("Registry", (), {"reference_engine": object()})()
+        )
+        monkeypatch.setattr(
+            route,
+            "assess_finding_gene_validity",
+            lambda sample_engine, reference_engine: [
+                {
+                    **row,
+                    "finding_id": 1,
+                    "gene_symbol": "CYP2D6",
+                    "rsid": "safe-gene-row",
+                    "finding_text": "Synthetic source row one.",
+                },
+                {
+                    **row,
+                    "finding_id": 2,
+                    "gene_symbol": "SAFE1",
+                    "rsid": "safe-drug-row",
+                    "finding_text": "tamoxifen dose guidance",
+                },
+            ],
+        )
+
+        assert route.list_gene_validity(sample_id=1) == []
+
     def test_only_pathogenic_findings(self, gv_client: TestClient) -> None:
         data = gv_client.get("/api/analysis/gene-validity?sample_id=1").json()
         assert {d["rsid"] for d in data} == set(_FINDINGS)

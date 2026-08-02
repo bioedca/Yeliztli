@@ -27,6 +27,7 @@ from __future__ import annotations
 import sqlalchemy as sa
 import structlog
 
+from backend.analysis.pharmacogenomics import is_patient_presentable_finding_payload
 from backend.db.tables import findings, risk_overlay_consent
 from backend.services.sex_inference import resolve_biological_sex
 
@@ -259,7 +260,7 @@ def _breast_monogenic_carriers(sample_engine: sa.Engine) -> list[str]:
     """Genes with a reportable breast-cancer monogenic finding in the sample."""
     with sample_engine.connect() as conn:
         rows = conn.execute(
-            sa.select(findings.c.gene_symbol)
+            sa.select(findings)
             .where(
                 findings.c.category == "monogenic_variant",
                 findings.c.gene_symbol.in_(BREAST_MONOGENIC_GENES),
@@ -267,7 +268,13 @@ def _breast_monogenic_carriers(sample_engine: sa.Engine) -> list[str]:
             )
             .distinct()
         ).fetchall()
-    return sorted({r.gene_symbol for r in rows if r.gene_symbol})
+    return sorted(
+        {
+            r.gene_symbol
+            for r in rows
+            if r.gene_symbol and is_patient_presentable_finding_payload(r._mapping)
+        }
+    )
 
 
 def _sex_context(inferred_sex: str | None) -> str:
