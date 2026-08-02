@@ -11,6 +11,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
+import { fetchActiveAnnotationJob } from '@/api/annotation'
 import StaleSampleGate from '@/components/layout/StaleSampleGate'
 
 const STALE_PAYLOAD = {
@@ -36,6 +37,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  vi.useRealTimers()
   vi.unstubAllGlobals()
 })
 
@@ -108,6 +110,34 @@ describe('StaleSampleGate', () => {
     )
   })
 
+  it.each(['javascript:alert(1)', 'data:text/html,unsafe'])(
+    'omits an unsafe update URL (%s)',
+    async (updateUrl) => {
+      mockFetch.mockImplementation((input: RequestInfo | URL) => {
+        const url = requestUrl(input)
+        if (isActiveJobRequest(url)) {
+          return apiResponse(404, { detail: 'No active job' })
+        }
+        if (isStalenessRequest(url)) {
+          return apiResponse(423, {
+            detail: { ...STALE_PAYLOAD, update_url: updateUrl },
+          })
+        }
+        return apiResponse(200, {})
+      })
+
+      render(
+        <StaleSampleGate>
+          <div data-testid="protected-content">protected content</div>
+        </StaleSampleGate>,
+        { wrapper: createWrapper() },
+      )
+
+      expect(await screen.findByTestId('stale-sample-gate')).toBeInTheDocument()
+      expect(screen.queryByRole('link', { name: /view bundle update/i })).not.toBeInTheDocument()
+    },
+  )
+
   it('renders children when the staleness probe returns 200', async () => {
     mockFetch.mockImplementation((input: RequestInfo | URL) => {
       const url = requestUrl(input)
@@ -149,8 +179,74 @@ describe('StaleSampleGate', () => {
     )
 
     expect(await screen.findByTestId('protected-content')).toBeInTheDocument()
-    expect(mockFetch).toHaveBeenCalledWith('/api/annotation/active/42')
+    expect(mockFetch).toHaveBeenCalledWith(
+      '/api/annotation/active/42',
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    )
     expect(mockFetch).toHaveBeenCalledWith('/api/variants/count?sample_id=42')
+  })
+
+  it('times out an active-job probe and returns no active job', async () => {
+    vi.useFakeTimers()
+    let activeJobSignal: AbortSignal | undefined
+    mockFetch.mockImplementation((_input: RequestInfo | URL, init?: RequestInit) => {
+      activeJobSignal = init?.signal ?? undefined
+      return new Promise((_resolve, reject) => {
+        activeJobSignal?.addEventListener('abort', () => {
+          reject(new DOMException('Timed out', 'AbortError'))
+        })
+      })
+    })
+
+    const queryController = new AbortController()
+    const activeJob = fetchActiveAnnotationJob(42, queryController.signal)
+    expect(activeJobSignal).toBeDefined()
+    expect(activeJobSignal?.aborted).toBe(false)
+
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(activeJobSignal?.aborted).toBe(true)
+    await expect(activeJob).resolves.toBeNull()
+  })
+
+  it('preserves query cancellation for an active-job probe', async () => {
+    let activeJobSignal: AbortSignal | undefined
+    mockFetch.mockImplementation((_input: RequestInfo | URL, init?: RequestInit) => {
+      activeJobSignal = init?.signal ?? undefined
+      return new Promise((_resolve, reject) => {
+        activeJobSignal?.addEventListener('abort', () => {
+          reject(new DOMException('Cancelled', 'AbortError'))
+        })
+      })
+    })
+
+    const queryController = new AbortController()
+    const activeJob = fetchActiveAnnotationJob(42, queryController.signal)
+    queryController.abort()
+
+    await expect(activeJob).rejects.toMatchObject({ name: 'AbortError' })
+  })
+
+  it('renders stale recovery when the active-job probe is unavailable', async () => {
+    mockFetch.mockImplementation((input: RequestInfo | URL) => {
+      const url = requestUrl(input)
+      if (isActiveJobRequest(url)) {
+        return Promise.reject(new DOMException('Unavailable', 'AbortError'))
+      }
+      if (isStalenessRequest(url)) {
+        return apiResponse(423, { detail: STALE_PAYLOAD })
+      }
+      return apiResponse(200, {})
+    })
+
+    render(
+      <StaleSampleGate>
+        <div data-testid="protected-content">protected content</div>
+      </StaleSampleGate>,
+      { wrapper: createWrapper() },
+    )
+
+    expect(await screen.findByTestId('stale-sample-gate')).toBeInTheDocument()
+    expect(screen.getByTestId('stale-reannotate-cta')).toBeEnabled()
   })
 
   it('keeps protected content fenced when the staleness probe cannot establish freshness', async () => {

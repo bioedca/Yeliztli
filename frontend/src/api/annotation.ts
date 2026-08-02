@@ -81,18 +81,45 @@ export interface ActiveAnnotationJob {
 export const annotationActiveQueryKey = (sampleId: number | null) =>
   ["annotation-active", sampleId] as const
 
+const ACTIVE_ANNOTATION_PROBE_TIMEOUT_MS = 10_000
+
+export async function fetchActiveAnnotationJob(
+  sampleId: number,
+  querySignal: AbortSignal,
+): Promise<ActiveAnnotationJob | null> {
+  const requestController = new AbortController()
+  const timeoutId = setTimeout(
+    () => requestController.abort(),
+    ACTIVE_ANNOTATION_PROBE_TIMEOUT_MS,
+  )
+  const abortFromQuery = () => requestController.abort()
+  querySignal.addEventListener("abort", abortFromQuery, { once: true })
+
+  try {
+    const res = await fetch(`/api/annotation/active/${sampleId}`, {
+      signal: requestController.signal,
+    })
+    if (res.status === 404 || !res.ok) return null
+    return await res.json()
+  } catch (error) {
+    // Preserve TanStack Query's cancellation semantics, but make a timed-out
+    // or unavailable auxiliary probe recoverable so stale recovery is not
+    // permanently blanked behind a pending request.
+    if (querySignal.aborted) throw error
+    return null
+  } finally {
+    clearTimeout(timeoutId)
+    querySignal.removeEventListener("abort", abortFromQuery)
+  }
+}
+
 /** Check if a sample has an active (pending/running) annotation job. */
 export function useActiveAnnotationJob(sampleId: number | null) {
   return useQuery<ActiveAnnotationJob | null>({
     queryKey: annotationActiveQueryKey(sampleId),
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (sampleId == null) return null
-      const res = await fetch(`/api/annotation/active/${sampleId}`)
-      if (res.status === 404) return null
-      if (!res.ok) {
-        await throwApiError(res, "Unable to check annotation status. Please try again.")
-      }
-      return await res.json()
+      return fetchActiveAnnotationJob(sampleId, signal)
     },
     enabled: sampleId != null,
     staleTime: 0,

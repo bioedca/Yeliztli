@@ -144,7 +144,9 @@ function setupFetchMocks(options: {
         })
       if (url.includes('/api/updates/app-update'))
         return Promise.resolve({
-          ok: (options.appUpdateStatus ?? 200) < 400,
+          ok:
+            (options.appUpdateStatus ?? 200) >= 200 &&
+            (options.appUpdateStatus ?? 200) < 300,
           status: options.appUpdateStatus ?? 200,
           json: async () =>
             options.appUpdate ?? {

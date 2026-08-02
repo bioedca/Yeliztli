@@ -59,22 +59,41 @@ function reannotationUrl(sampleId: number): string {
   return `/api/annotation/${sampleId}`
 }
 
-function isStalenessPayload(value: unknown): value is StalenessPayload {
-  if (!value || typeof value !== 'object') return false
+function safeUpdateUrl(value: string): string {
+  if (!value) return ''
+  try {
+    const url = new URL(value)
+    return url.protocol === 'http:' || url.protocol === 'https:' ? value : ''
+  } catch {
+    return ''
+  }
+}
+
+function parseStalenessPayload(value: unknown): StalenessPayload | null {
+  if (!value || typeof value !== 'object') return null
   const payload = value as Record<string, unknown>
-  return (
+  if (
     typeof payload.installed_version === 'string' &&
     typeof payload.required_version === 'string' &&
     typeof payload.update_url === 'string' &&
     typeof payload.reannotate_url === 'string'
-  )
+  ) {
+    return {
+      installed_version: payload.installed_version,
+      required_version: payload.required_version,
+      update_url: safeUpdateUrl(payload.update_url),
+      reannotate_url: payload.reannotate_url,
+    }
+  }
+  return null
 }
 
 async function probeStaleness(sampleId: number): Promise<StalenessPayload | null> {
   const res = await fetch(`/api/variants/count?sample_id=${sampleId}`)
   if (res.status === 423) {
     const body = (await res.json().catch(() => null)) as { detail?: unknown } | null
-    if (isStalenessPayload(body?.detail)) return body.detail
+    const payload = parseStalenessPayload(body?.detail)
+    if (payload) return payload
 
     // Keep the stale route fenced even if an intermediary strips the structured
     // payload. The action endpoint is stable, and this avoids rendering an
