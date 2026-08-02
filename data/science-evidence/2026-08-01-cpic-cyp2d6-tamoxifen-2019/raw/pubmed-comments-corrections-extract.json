@@ -1,0 +1,94 @@
+{
+  "accessed": "2026-08-01",
+  "linked_notice_count": 2,
+  "raw_sha256": "bcb9027e7fcf7d6ca74b17885beeaf5a089153c01c51d0a3c4d677b7dbb9e88d",
+  "records": [
+    {
+      "comments_corrections": [],
+      "date_revised": "2024",
+      "dois": [
+        "10.1002/cpt.1007"
+      ],
+      "pmid": "29385237"
+    },
+    {
+      "comments_corrections": [
+        {
+          "pmid": "26211823",
+          "ref_type": "CommentIn"
+        }
+      ],
+      "date_revised": "2025",
+      "dois": [
+        "10.1016/S0140-6736(15)61074-1"
+      ],
+      "pmid": "26211827"
+    },
+    {
+      "comments_corrections": [],
+      "date_revised": "2018",
+      "dois": [
+        "10.1634/theoncologist.2015-0480"
+      ],
+      "pmid": "27226358"
+    },
+    {
+      "comments_corrections": [],
+      "date_revised": "2025",
+      "dois": [
+        "10.1158/1078-0432.CCR-12-2153"
+      ],
+      "pmid": "23213055"
+    },
+    {
+      "comments_corrections": [
+        {
+          "pmid": "21768456",
+          "ref_type": "CommentIn"
+        }
+      ],
+      "date_revised": "2021",
+      "dois": [
+        "10.1200/JCO.2010.31.4427"
+      ],
+      "pmid": "21768473"
+    }
+  ],
+  "request": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=29385237,26211827,27226358,23213055,21768473&retmode=xml",
+  "sanitized_sha256": "3d24ebece7724793a626b31d2a52b96076ab2f7d226783efa939cc03bf3317dd",
+  "sanitizer": {
+    "excluded_container_counts": {
+      "Abstract": 5,
+      "AffiliationInfo": 42,
+      "AuthorList": 5,
+      "CoiStatement": 3,
+      "DataBankList": 0,
+      "GrantList": 5,
+      "InvestigatorList": 0,
+      "MeshHeadingList": 5,
+      "OtherAbstract": 0,
+      "ReferenceList": 4
+    },
+    "excluded_containers": [
+      "Abstract",
+      "OtherAbstract",
+      "ReferenceList",
+      "CoiStatement",
+      "AuthorList",
+      "AffiliationInfo",
+      "InvestigatorList",
+      "GrantList",
+      "DataBankList",
+      "MeshHeadingList"
+    ],
+    "excluded_email_count": 3,
+    "retained_fields": [
+      "PMID",
+      "DateRevised",
+      "ArticleTitle",
+      "ArticleIdList(pubmed,doi)",
+      "CommentsCorrectionsList"
+    ]
+  },
+  "source": "NCBI Entrez EFetch PubMed"
+}

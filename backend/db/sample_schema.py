@@ -108,6 +108,38 @@ _CYP2B6_EFAVIRENZ_GUIDELINE_URL = (
     "https://cpicpgx.org/guidelines/cpic-guideline-for-efavirenz-based-on-cyp2b6-genotype/"
 )
 
+_CYP2D6_TAMOXIFEN_RECOMMENDATION_UPDATES = {
+    "Normal Metabolizer": (
+        "Use label-recommended dosing.",
+        "Avoid moderate and strong CYP2D6 inhibitors. Initiate therapy with "
+        "recommended standard of care dosing (tamoxifen 20 mg/day).",
+    ),
+    "Intermediate Metabolizer": (
+        "Consider higher dose or alternative therapy.",
+        "Consider hormonal therapy such as an aromatase inhibitor for postmenopausal women "
+        "or aromatase inhibitor along with ovarian function suppression in premenopausal "
+        "women, given that these approaches are superior to tamoxifen regardless of CYP2D6 "
+        "genotype (PMID 26211827). If aromatase inhibitor use is contraindicated, "
+        "consideration should be given to use a higher but FDA approved tamoxifen dose "
+        "(40 mg/day)(PMID 27226358). Avoid CYP2D6 strong to weak inhibitors.",
+    ),
+    "Poor Metabolizer": (
+        "Avoid tamoxifen. Use alternative hormonal therapy such as aromatase inhibitor.",
+        "Recommend alternative hormonal therapy such as an aromatase inhibitor for "
+        "postmenopausal women or aromatase inhibitor along with ovarian function suppression "
+        "in premenopausal women given that these approaches are superior to tamoxifen "
+        "regardless of CYP2D6 genotype (PMID 26211827) and based on knowledge that CYP2D6 "
+        "poor metabolizers switched from tamoxifen to anastrozole do not have an increased "
+        "risk of recurrence (PMID 23213055). Note, higher dose tamoxifen (40 mg/day) "
+        "increases but does not normalize endoxifen concentrations and can be considered if "
+        "there are contraindications to aromatase inhibitor therapy (PMID 27226358, "
+        "21768473).",
+    ),
+}
+_CYP2D6_TAMOXIFEN_GUIDELINE_URL = (
+    "https://cpicpgx.org/guidelines/cpic-guideline-for-tamoxifen-based-on-cyp2d6/"
+)
+
 _PARKINSONS_RISK_CLASSIFICATION = (
     "LRRK2 G2019S — Parkinson's disease risk factor (reduced penetrance)"
 )
@@ -249,6 +281,58 @@ def _is_legacy_cyp2b6_efavirenz_diff_entry(entry: object) -> bool:
     )
 
 
+def _updated_cyp2d6_tamoxifen_finding_text(
+    finding_text: object,
+    phenotype: str,
+    diplotype: object,
+    legacy_recommendation: str,
+    bundled_recommendation: str,
+) -> str | None:
+    """Replace one exact generated legacy tamoxifen recommendation."""
+    if not isinstance(finding_text, str) or not isinstance(diplotype, str):
+        return None
+
+    marker = f" -- tamoxifen: {legacy_recommendation}"
+    if finding_text.count(marker) != 1:
+        return None
+
+    prefix, suffix = finding_text.split(marker, maxsplit=1)
+    if prefix != f"CYP2D6 {diplotype}: {phenotype}":
+        return None
+    if suffix not in {"", " (provisional -- see call confidence note)"}:
+        return None
+    return f"{prefix} -- tamoxifen: {bundled_recommendation}{suffix}"
+
+
+def _is_legacy_cyp2d6_tamoxifen_diff_entry(entry: object) -> bool:
+    """Whether a diff entry exactly identifies a superseded tamoxifen alert."""
+    if not (
+        isinstance(entry, dict)
+        and entry.get("module") == "pharmacogenomics"
+        and entry.get("category") == "prescribing_alert"
+        and entry.get("gene_symbol") == "CYP2D6"
+        and entry.get("drug") == "tamoxifen"
+        and isinstance(entry.get("metabolizer_status"), str)
+    ):
+        return False
+
+    phenotype = entry["metabolizer_status"]
+    update = _CYP2D6_TAMOXIFEN_RECOMMENDATION_UPDATES.get(phenotype)
+    if update is None:
+        return False
+    legacy_recommendation, bundled_recommendation = update
+    return (
+        _updated_cyp2d6_tamoxifen_finding_text(
+            entry.get("finding_text"),
+            phenotype,
+            entry.get("diplotype"),
+            legacy_recommendation,
+            bundled_recommendation,
+        )
+        is not None
+    )
+
+
 def _updated_parkinsons_finding_text(
     finding_text: object,
     genotype_call: object | None = None,
@@ -329,7 +413,9 @@ def _updated_parkinsons_diff_entry(entry: object) -> dict[str, object] | None:
 #      whose exact released recommendations were corrected by issue #2012.
 # v24: Repair exact persisted LRRK2 G2019S findings and finding-diff entries
 #      whose lifetime wording exceeded the cited age-80 evidence (issue #2091).
-SAMPLE_SCHEMA_VERSION = 24
+# v25: Repair exact persisted CYP2D6/tamoxifen prescribing alerts whose CPIC
+#      instructions were corrected by issue #2019.
+SAMPLE_SCHEMA_VERSION = 25
 
 
 # AncestryDNA Plan §10.4(a): merged-sample raw_variants uses (chrom, pos) PK
@@ -1464,6 +1550,176 @@ def _add_missing_columns(engine: sa.Engine, from_version: int) -> bool:
                 "legacy_parkinsons_penetrance_wording_repaired",
                 findings_count=repaired_findings,
                 finding_diff_count=repaired_diff_entries,
+                from_version=from_version,
+            )
+
+    if from_version < 25:
+        # Issue #2019: three released CYP2D6/tamoxifen rows omitted or
+        # inverted CPIC's operative advice. Existing sample databases retain
+        # generated alerts, so repair only entries whose full structured
+        # identity, old detail payload, and production-rendered text are exact.
+        # Custom, malformed, current, and near-match findings remain untouched.
+        inspector = sa.inspect(engine)
+        table_names = set(inspector.get_table_names())
+        findings_cols = (
+            {c["name"] for c in inspector.get_columns("findings")}
+            if "findings" in table_names
+            else set()
+        )
+        state_cols = (
+            {c["name"] for c in inspector.get_columns("annotation_state")}
+            if "annotation_state" in table_names
+            else set()
+        )
+        required_finding_cols = {
+            "id",
+            "module",
+            "category",
+            "gene_symbol",
+            "diplotype",
+            "metabolizer_status",
+            "drug",
+            "finding_text",
+            "detail_json",
+        }
+        can_repair_findings = required_finding_cols <= findings_cols
+        can_repair_diff = {"key", "value"} <= state_cols
+        repaired_findings = 0
+        removed_diff_entries = 0
+
+        if can_repair_findings or can_repair_diff:
+            # Python's sqlite3 legacy transaction mode does not begin a DB
+            # transaction for SELECT. Reserve the writer lock before reading
+            # either persisted surface so every exact-match check and update is
+            # one transaction.
+            with engine.connect() as conn:
+                conn.exec_driver_sql("BEGIN IMMEDIATE")
+                try:
+                    if can_repair_findings:
+                        candidates = conn.execute(
+                            sa.select(
+                                findings.c.id,
+                                findings.c.diplotype,
+                                findings.c.metabolizer_status,
+                                findings.c.finding_text,
+                                findings.c.detail_json,
+                            )
+                            .where(
+                                findings.c.module == "pharmacogenomics",
+                                findings.c.category == "prescribing_alert",
+                                findings.c.gene_symbol == "CYP2D6",
+                                findings.c.metabolizer_status.in_(
+                                    tuple(_CYP2D6_TAMOXIFEN_RECOMMENDATION_UPDATES)
+                                ),
+                                findings.c.drug == "tamoxifen",
+                            )
+                            .order_by(findings.c.id)
+                        ).fetchall()
+                        for row in candidates:
+                            try:
+                                detail = json.loads(row.detail_json)
+                            except (json.JSONDecodeError, TypeError):
+                                continue
+                            if not isinstance(detail, dict):
+                                continue
+
+                            legacy_recommendation, bundled_recommendation = (
+                                _CYP2D6_TAMOXIFEN_RECOMMENDATION_UPDATES[row.metabolizer_status]
+                            )
+                            if (
+                                detail.get("recommendation") != legacy_recommendation
+                                or detail.get("classification") != "A"
+                                or detail.get("guideline_url") != _CYP2D6_TAMOXIFEN_GUIDELINE_URL
+                            ):
+                                continue
+                            updated_text = _updated_cyp2d6_tamoxifen_finding_text(
+                                row.finding_text,
+                                row.metabolizer_status,
+                                row.diplotype,
+                                legacy_recommendation,
+                                bundled_recommendation,
+                            )
+                            if updated_text is None:
+                                continue
+
+                            detail["recommendation"] = bundled_recommendation
+                            update_values: dict[str, object] = {
+                                "finding_text": updated_text,
+                                "detail_json": json.dumps(detail),
+                            }
+                            if "provenance" in findings_cols:
+                                update_values["provenance"] = None
+                            result = conn.execute(
+                                findings.update()
+                                .where(
+                                    findings.c.id == row.id,
+                                    findings.c.module == "pharmacogenomics",
+                                    findings.c.category == "prescribing_alert",
+                                    findings.c.gene_symbol == "CYP2D6",
+                                    findings.c.diplotype == row.diplotype,
+                                    findings.c.metabolizer_status == row.metabolizer_status,
+                                    findings.c.drug == "tamoxifen",
+                                    findings.c.finding_text == row.finding_text,
+                                    findings.c.detail_json == row.detail_json,
+                                )
+                                .values(**update_values)
+                            )
+                            repaired_findings += max(result.rowcount or 0, 0)
+
+                    if can_repair_diff:
+                        state_row = conn.execute(
+                            sa.select(annotation_state.c.value).where(
+                                annotation_state.c.key == _FINDING_DIFF_STATE_KEY
+                            )
+                        ).fetchone()
+                        if state_row is not None:
+                            try:
+                                diff = json.loads(state_row.value)
+                            except (json.JSONDecodeError, TypeError):
+                                diff = None
+
+                            if isinstance(diff, dict):
+                                for bucket in ("changed", "added", "removed"):
+                                    entries = diff.get(bucket)
+                                    if not isinstance(entries, list):
+                                        continue
+                                    kept = [
+                                        entry
+                                        for entry in entries
+                                        if not _is_legacy_cyp2d6_tamoxifen_diff_entry(entry)
+                                    ]
+                                    removed_diff_entries += len(entries) - len(kept)
+                                    if len(kept) != len(entries):
+                                        diff[bucket] = kept
+
+                                if removed_diff_entries:
+                                    diff["counts"] = {
+                                        bucket: (
+                                            len(diff.get(bucket, []))
+                                            if isinstance(diff.get(bucket), list)
+                                            else 0
+                                        )
+                                        for bucket in ("changed", "added", "removed")
+                                    }
+                                    conn.execute(
+                                        annotation_state.update()
+                                        .where(
+                                            annotation_state.c.key == _FINDING_DIFF_STATE_KEY,
+                                            annotation_state.c.value == state_row.value,
+                                        )
+                                        .values(value=json.dumps(diff))
+                                    )
+                    conn.commit()
+                except BaseException:
+                    conn.rollback()
+                    raise
+
+        if repaired_findings or removed_diff_entries:
+            added = True
+            logger.warning(
+                "legacy_cyp2d6_tamoxifen_guidance_repaired",
+                findings_count=repaired_findings,
+                finding_diff_count=removed_diff_entries,
                 from_version=from_version,
             )
 

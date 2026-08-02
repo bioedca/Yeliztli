@@ -88,6 +88,63 @@ _LEGACY_CYP2B6_EFAVIRENZ_FINGERPRINTS = {
     ),
 }
 
+_CYP2D6_TAMOXIFEN_GUIDELINE_URL = (
+    "https://cpicpgx.org/guidelines/cpic-guideline-for-tamoxifen-based-on-cyp2d6/"
+)
+_CYP2D6_TAMOXIFEN_PHENOTYPES = frozenset(
+    {"Normal Metabolizer", "Intermediate Metabolizer", "Poor Metabolizer"}
+)
+_CANONICAL_CYP2D6_TAMOXIFEN_RECOMMENDATIONS = {
+    "Normal Metabolizer": (
+        "Avoid moderate and strong CYP2D6 inhibitors. Initiate therapy with "
+        "recommended standard of care dosing (tamoxifen 20 mg/day)."
+    ),
+    "Intermediate Metabolizer": (
+        "Consider hormonal therapy such as an aromatase inhibitor for postmenopausal women "
+        "or aromatase inhibitor along with ovarian function suppression in premenopausal "
+        "women, given that these approaches are superior to tamoxifen regardless of CYP2D6 "
+        "genotype (PMID 26211827). If aromatase inhibitor use is contraindicated, "
+        "consideration should be given to use a higher but FDA approved tamoxifen dose "
+        "(40 mg/day)(PMID 27226358). Avoid CYP2D6 strong to weak inhibitors."
+    ),
+    "Poor Metabolizer": (
+        "Recommend alternative hormonal therapy such as an aromatase inhibitor for "
+        "postmenopausal women or aromatase inhibitor along with ovarian function suppression "
+        "in premenopausal women given that these approaches are superior to tamoxifen "
+        "regardless of CYP2D6 genotype (PMID 26211827) and based on knowledge that CYP2D6 "
+        "poor metabolizers switched from tamoxifen to anastrozole do not have an increased "
+        "risk of recurrence (PMID 23213055). Note, higher dose tamoxifen (40 mg/day) "
+        "increases but does not normalize endoxifen concentrations and can be considered if "
+        "there are contraindications to aromatase inhibitor therapy (PMID 27226358, "
+        "21768473)."
+    ),
+}
+_LEGACY_CYP2D6_TAMOXIFEN_FINGERPRINT = Counter(
+    {
+        (
+            "Normal Metabolizer",
+            None,
+            "Use label-recommended dosing.",
+            "A",
+            _CYP2D6_TAMOXIFEN_GUIDELINE_URL,
+        ): 1,
+        (
+            "Intermediate Metabolizer",
+            None,
+            "Consider higher dose or alternative therapy.",
+            "A",
+            _CYP2D6_TAMOXIFEN_GUIDELINE_URL,
+        ): 1,
+        (
+            "Poor Metabolizer",
+            None,
+            "Avoid tamoxifen. Use alternative hormonal therapy such as aromatase inhibitor.",
+            "A",
+            _CYP2D6_TAMOXIFEN_GUIDELINE_URL,
+        ): 1,
+    }
+)
+
 _TPMT_THIOPURINE_GUIDELINE_URL = (
     "https://cpicpgx.org/guidelines/guideline-for-thiopurines-and-tpmt/"
 )
@@ -376,6 +433,111 @@ def _refresh_legacy_cyp2b6_efavirenz_guidelines(engine: sa.Engine) -> bool:
     return True
 
 
+def _refresh_legacy_cyp2d6_tamoxifen_guidelines(engine: sa.Engine) -> bool:
+    """Upgrade only the complete exact pre-#2019 tamoxifen matrix.
+
+    Existing reference databases are not reloaded after a bundled CPIC CSV
+    changes. The whole three-row historical matrix is the migration sentinel:
+    empty, partial, duplicated, mixed, current, future, or custom content is
+    left untouched. Matching rows are updated in place to preserve row IDs.
+    """
+    inspector = sa.inspect(engine)
+    if "cpic_guidelines" not in inspector.get_table_names():
+        return False
+    columns = {column["name"] for column in inspector.get_columns("cpic_guidelines")}
+    required = {
+        "id",
+        "gene",
+        "drug",
+        "phenotype",
+        "activity_score",
+        "recommendation",
+        "classification",
+        "guideline_url",
+    }
+    if not required <= columns:
+        return False
+
+    from backend.db.tables import cpic_guidelines
+
+    target = sa.and_(
+        cpic_guidelines.c.gene == "CYP2D6",
+        cpic_guidelines.c.drug == "tamoxifen",
+    )
+
+    # Acquire the SQLite reserved lock before fingerprinting every target row:
+    # a concurrent custom update must not land between the exact-match check
+    # and the in-place repair.
+    with engine.connect() as conn:
+        conn.exec_driver_sql("BEGIN IMMEDIATE")
+        try:
+            rows = conn.execute(
+                sa.select(
+                    cpic_guidelines.c.id,
+                    cpic_guidelines.c.phenotype,
+                    cpic_guidelines.c.activity_score,
+                    cpic_guidelines.c.recommendation,
+                    cpic_guidelines.c.classification,
+                    cpic_guidelines.c.guideline_url,
+                ).where(target)
+            ).fetchall()
+            observed = Counter(
+                (
+                    row.phenotype,
+                    row.activity_score,
+                    row.recommendation,
+                    row.classification,
+                    row.guideline_url,
+                )
+                for row in rows
+            )
+            if observed != _LEGACY_CYP2D6_TAMOXIFEN_FINGERPRINT:
+                conn.rollback()
+                return False
+
+            from backend.annotation.cpic import CPIC_DATA_DIR, parse_cpic_guidelines_csv
+
+            bundled_rows, _ = parse_cpic_guidelines_csv(CPIC_DATA_DIR / "cpic_guidelines.csv")
+            canonical_rows = [
+                row
+                for row in bundled_rows
+                if row["gene"] == "CYP2D6"
+                and row["drug"] == "tamoxifen"
+                and row["phenotype"] in _CYP2D6_TAMOXIFEN_PHENOTYPES
+            ]
+            canonical_by_phenotype = {row["phenotype"]: row for row in canonical_rows}
+            if (
+                len(canonical_rows) != 3
+                or set(canonical_by_phenotype) != _CYP2D6_TAMOXIFEN_PHENOTYPES
+                or any(
+                    row["activity_score"] is not None
+                    or row["recommendation"]
+                    != _CANONICAL_CYP2D6_TAMOXIFEN_RECOMMENDATIONS[row["phenotype"]]
+                    or row["classification"] != "A"
+                    or row["guideline_url"] != _CYP2D6_TAMOXIFEN_GUIDELINE_URL
+                    for row in canonical_rows
+                )
+            ):
+                raise RuntimeError("Bundled CYP2D6/tamoxifen guideline matrix is not canonical")
+
+            for legacy_row in sorted(rows, key=lambda row: row.phenotype):
+                conn.execute(
+                    sa.update(cpic_guidelines)
+                    .where(cpic_guidelines.c.id == legacy_row.id)
+                    .values(canonical_by_phenotype[legacy_row.phenotype])
+                )
+            conn.commit()
+        except BaseException:
+            conn.rollback()
+            raise
+
+    logger.warning(
+        "legacy_cyp2d6_tamoxifen_guidelines_refreshed",
+        updated_rows=len(rows),
+    )
+    return True
+
+
 def _refresh_legacy_tpmt_poor_metabolizer_guidelines(engine: sa.Engine) -> bool:
     """Upgrade only a complete, exact historical TPMT poor-metabolizer matrix.
 
@@ -626,6 +788,9 @@ def ensure_reference_schema_current(engine: sa.Engine) -> bool:
             changed = True
 
         if _refresh_legacy_cyp2b6_efavirenz_guidelines(engine):
+            changed = True
+
+        if _refresh_legacy_cyp2d6_tamoxifen_guidelines(engine):
             changed = True
 
         if _refresh_legacy_tpmt_poor_metabolizer_guidelines(engine):

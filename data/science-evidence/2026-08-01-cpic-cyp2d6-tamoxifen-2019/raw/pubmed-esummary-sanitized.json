@@ -1,0 +1,498 @@
+{
+  "header": {
+    "type": "esummary",
+    "version": "0.3"
+  },
+  "result": {
+    "uids": [
+      "29385237",
+      "26211827",
+      "27226358",
+      "23213055",
+      "21768473"
+    ],
+    "29385237": {
+      "uid": "29385237",
+      "pubdate": "2018 May",
+      "epubdate": "2018 Jan 31",
+      "source": "Clin Pharmacol Ther",
+      "title": "Clinical Pharmacogenetics Implementation Consortium (CPIC) Guideline for CYP2D6 and Tamoxifen Therapy.",
+      "sorttitle": "clinical pharmacogenetics implementation consortium cpic guideline for cyp2d6 and tamoxifen therapy",
+      "volume": "103",
+      "issue": "5",
+      "pages": "770-777",
+      "lang": [
+        "eng"
+      ],
+      "nlmuniqueid": "0372741",
+      "issn": "0009-9236",
+      "essn": "1532-6535",
+      "pubtype": [
+        "Journal Article",
+        "Research Support, N.I.H., Extramural",
+        "Research Support, Non-U.S. Gov't",
+        "Practice Guideline"
+      ],
+      "recordstatus": "PubMed - indexed for MEDLINE",
+      "pubstatus": "256",
+      "articleids": [
+        {
+          "idtype": "pubmed",
+          "idtypen": 1,
+          "value": "29385237"
+        },
+        {
+          "idtype": "mid",
+          "idtypen": 8,
+          "value": "NIHMS932531"
+        },
+        {
+          "idtype": "pmc",
+          "idtypen": 8,
+          "value": "PMC5931215"
+        },
+        {
+          "idtype": "pmcid",
+          "idtypen": 5,
+          "value": "pmc-id: PMC5931215;manuscript-id: NIHMS932531;"
+        },
+        {
+          "idtype": "doi",
+          "idtypen": 3,
+          "value": "10.1002/cpt.1007"
+        }
+      ],
+      "history": [
+        {
+          "pubstatus": "received",
+          "date": "2017/11/02 00:00"
+        },
+        {
+          "pubstatus": "revised",
+          "date": "2017/12/14 00:00"
+        },
+        {
+          "pubstatus": "accepted",
+          "date": "2017/12/23 00:00"
+        },
+        {
+          "pubstatus": "pubmed",
+          "date": "2018/02/01 06:00"
+        },
+        {
+          "pubstatus": "medline",
+          "date": "2019/05/21 06:00"
+        },
+        {
+          "pubstatus": "entrez",
+          "date": "2018/02/01 06:00"
+        },
+        {
+          "pubstatus": "pmc-release",
+          "date": "2019/05/01 00:00"
+        }
+      ],
+      "references": [],
+      "attributes": [
+        "Has Abstract"
+      ],
+      "pmcrefcount": 57,
+      "fulljournalname": "Clinical pharmacology and therapeutics",
+      "elocationid": "doi: 10.1002/cpt.1007",
+      "doctype": "citation",
+      "booktitle": "",
+      "medium": "",
+      "edition": "",
+      "publisherlocation": "",
+      "publishername": "",
+      "srcdate": "",
+      "reportnumber": "",
+      "availablefromurl": "",
+      "locationlabel": "",
+      "docdate": "",
+      "bookname": "",
+      "chapter": "",
+      "sortpubdate": "2018/05/01 00:00",
+      "vernaculartitle": ""
+    },
+    "26211827": {
+      "uid": "26211827",
+      "pubdate": "2015 Oct 3",
+      "epubdate": "2015 Jul 23",
+      "source": "Lancet",
+      "title": "Aromatase inhibitors versus tamoxifen in early breast cancer: patient-level meta-analysis of the randomised trials.",
+      "sorttitle": "aromatase inhibitors versus tamoxifen in early breast cancer patient level meta analysis of the randomised trials",
+      "volume": "386",
+      "issue": "10001",
+      "pages": "1341-1352",
+      "lang": [
+        "eng"
+      ],
+      "nlmuniqueid": "2985213R",
+      "issn": "0140-6736",
+      "essn": "1474-547X",
+      "pubtype": [
+        "Comparative Study",
+        "Journal Article",
+        "Meta-Analysis",
+        "Research Support, Non-U.S. Gov't"
+      ],
+      "recordstatus": "PubMed - indexed for MEDLINE",
+      "pubstatus": "256",
+      "articleids": [
+        {
+          "idtype": "pubmed",
+          "idtypen": 1,
+          "value": "26211827"
+        },
+        {
+          "idtype": "doi",
+          "idtypen": 3,
+          "value": "10.1016/S0140-6736(15)61074-1"
+        },
+        {
+          "idtype": "pii",
+          "idtypen": 4,
+          "value": "S0140-6736(15)61074-1"
+        }
+      ],
+      "history": [
+        {
+          "pubstatus": "entrez",
+          "date": "2015/07/28 06:00"
+        },
+        {
+          "pubstatus": "pubmed",
+          "date": "2015/07/28 06:00"
+        },
+        {
+          "pubstatus": "medline",
+          "date": "2015/11/03 06:00"
+        }
+      ],
+      "references": [
+        {
+          "refsource": "Lancet. 2015 Oct 3;386(10001):1317-1319. doi: 10.1016/S0140-6736(15)61206-5.",
+          "reftype": "Comment in",
+          "pmid": 26211823,
+          "note": ""
+        }
+      ],
+      "attributes": [
+        "Has Abstract"
+      ],
+      "pmcrefcount": "",
+      "fulljournalname": "Lancet (London, England)",
+      "elocationid": "doi: 10.1016/S0140-6736(15)61074-1",
+      "doctype": "citation",
+      "booktitle": "",
+      "medium": "",
+      "edition": "",
+      "publisherlocation": "",
+      "publishername": "",
+      "srcdate": "",
+      "reportnumber": "",
+      "availablefromurl": "",
+      "locationlabel": "",
+      "docdate": "",
+      "bookname": "",
+      "chapter": "",
+      "sortpubdate": "2015/10/03 00:00",
+      "vernaculartitle": ""
+    },
+    "27226358": {
+      "uid": "27226358",
+      "pubdate": "2016 Jul",
+      "epubdate": "2016 May 25",
+      "source": "Oncologist",
+      "title": "Tamoxifen Dose Escalation in Patients With Diminished CYP2D6 Activity Normalizes Endoxifen Concentrations Without Increasing Toxicity.",
+      "sorttitle": "tamoxifen dose escalation in patients with diminished cyp2d6 activity normalizes endoxifen concentrations without increasing toxicity",
+      "volume": "21",
+      "issue": "7",
+      "pages": "795-803",
+      "lang": [
+        "eng"
+      ],
+      "nlmuniqueid": "9607837",
+      "issn": "1083-7159",
+      "essn": "1549-490X",
+      "pubtype": [
+        "Journal Article",
+        "Research Support, N.I.H., Extramural",
+        "Research Support, Non-U.S. Gov't"
+      ],
+      "recordstatus": "PubMed - indexed for MEDLINE",
+      "pubstatus": "256",
+      "articleids": [
+        {
+          "idtype": "pubmed",
+          "idtypen": 1,
+          "value": "27226358"
+        },
+        {
+          "idtype": "pmc",
+          "idtypen": 8,
+          "value": "PMC4943390"
+        },
+        {
+          "idtype": "pmcid",
+          "idtypen": 5,
+          "value": "pmc-id: PMC4943390;"
+        },
+        {
+          "idtype": "doi",
+          "idtypen": 3,
+          "value": "10.1634/theoncologist.2015-0480"
+        },
+        {
+          "idtype": "pii",
+          "idtypen": 4,
+          "value": "theoncologist.2015-0480"
+        }
+      ],
+      "history": [
+        {
+          "pubstatus": "received",
+          "date": "2015/11/24 00:00"
+        },
+        {
+          "pubstatus": "accepted",
+          "date": "2016/02/23 00:00"
+        },
+        {
+          "pubstatus": "entrez",
+          "date": "2016/05/27 06:00"
+        },
+        {
+          "pubstatus": "pubmed",
+          "date": "2016/05/27 06:00"
+        },
+        {
+          "pubstatus": "medline",
+          "date": "2017/11/02 06:00"
+        },
+        {
+          "pubstatus": "pmc-release",
+          "date": "2017/07/01 00:00"
+        }
+      ],
+      "references": [],
+      "attributes": [
+        "Has Abstract"
+      ],
+      "pmcrefcount": 36,
+      "fulljournalname": "The oncologist",
+      "elocationid": "doi: 10.1634/theoncologist.2015-0480",
+      "doctype": "citation",
+      "booktitle": "",
+      "medium": "",
+      "edition": "",
+      "publisherlocation": "",
+      "publishername": "",
+      "srcdate": "",
+      "reportnumber": "",
+      "availablefromurl": "",
+      "locationlabel": "",
+      "docdate": "",
+      "bookname": "",
+      "chapter": "",
+      "sortpubdate": "2016/07/01 00:00",
+      "vernaculartitle": ""
+    },
+    "23213055": {
+      "uid": "23213055",
+      "pubdate": "2013 Jan 15",
+      "epubdate": "2012 Dec 4",
+      "source": "Clin Cancer Res",
+      "title": "CYP2D6 metabolism and patient outcome in the Austrian Breast and Colorectal Cancer Study Group trial (ABCSG) 8.",
+      "sorttitle": "cyp2d6 metabolism and patient outcome in the austrian breast and colorectal cancer study group trial abcsg 8",
+      "volume": "19",
+      "issue": "2",
+      "pages": "500-7",
+      "lang": [
+        "eng"
+      ],
+      "nlmuniqueid": "9502500",
+      "issn": "1078-0432",
+      "essn": "1557-3265",
+      "pubtype": [
+        "Journal Article",
+        "Multicenter Study",
+        "Randomized Controlled Trial",
+        "Research Support, N.I.H., Extramural"
+      ],
+      "recordstatus": "PubMed - indexed for MEDLINE",
+      "pubstatus": "256",
+      "articleids": [
+        {
+          "idtype": "pubmed",
+          "idtypen": 1,
+          "value": "23213055"
+        },
+        {
+          "idtype": "mid",
+          "idtypen": 8,
+          "value": "NIHMS426261"
+        },
+        {
+          "idtype": "pmc",
+          "idtypen": 8,
+          "value": "PMC3548984"
+        },
+        {
+          "idtype": "pmcid",
+          "idtypen": 5,
+          "value": "pmc-id: PMC3548984;manuscript-id: NIHMS426261;"
+        },
+        {
+          "idtype": "doi",
+          "idtypen": 3,
+          "value": "10.1158/1078-0432.CCR-12-2153"
+        },
+        {
+          "idtype": "pii",
+          "idtypen": 4,
+          "value": "1078-0432.CCR-12-2153"
+        }
+      ],
+      "history": [
+        {
+          "pubstatus": "entrez",
+          "date": "2012/12/06 06:00"
+        },
+        {
+          "pubstatus": "pubmed",
+          "date": "2012/12/06 06:00"
+        },
+        {
+          "pubstatus": "medline",
+          "date": "2013/07/05 06:00"
+        },
+        {
+          "pubstatus": "pmc-release",
+          "date": "2014/01/15 00:00"
+        }
+      ],
+      "references": [],
+      "attributes": [
+        "Has Abstract"
+      ],
+      "pmcrefcount": 32,
+      "fulljournalname": "Clinical cancer research : an official journal of the American Association for Cancer Research",
+      "elocationid": "doi: 10.1158/1078-0432.CCR-12-2153",
+      "doctype": "citation",
+      "booktitle": "",
+      "medium": "",
+      "edition": "",
+      "publisherlocation": "",
+      "publishername": "",
+      "srcdate": "",
+      "reportnumber": "",
+      "availablefromurl": "",
+      "locationlabel": "",
+      "docdate": "",
+      "bookname": "",
+      "chapter": "",
+      "sortpubdate": "2013/01/15 00:00",
+      "vernaculartitle": ""
+    },
+    "21768473": {
+      "uid": "21768473",
+      "pubdate": "2011 Aug 20",
+      "epubdate": "2011 Jul 18",
+      "source": "J Clin Oncol",
+      "title": "Genotype-guided tamoxifen dosing increases active metabolite exposure in women with reduced CYP2D6 metabolism: a multicenter study.",
+      "sorttitle": "genotype guided tamoxifen dosing increases active metabolite exposure in women with reduced cyp2d6 metabolism a multicenter study",
+      "volume": "29",
+      "issue": "24",
+      "pages": "3232-9",
+      "lang": [
+        "eng"
+      ],
+      "nlmuniqueid": "8309333",
+      "issn": "0732-183X",
+      "essn": "1527-7755",
+      "pubtype": [
+        "Journal Article",
+        "Research Support, N.I.H., Extramural",
+        "Research Support, Non-U.S. Gov't"
+      ],
+      "recordstatus": "PubMed - indexed for MEDLINE",
+      "pubstatus": "256",
+      "articleids": [
+        {
+          "idtype": "pubmed",
+          "idtypen": 1,
+          "value": "21768473"
+        },
+        {
+          "idtype": "pmc",
+          "idtypen": 8,
+          "value": "PMC3158597"
+        },
+        {
+          "idtype": "pmcid",
+          "idtypen": 5,
+          "value": "pmc-id: PMC3158597;"
+        },
+        {
+          "idtype": "doi",
+          "idtypen": 3,
+          "value": "10.1200/JCO.2010.31.4427"
+        },
+        {
+          "idtype": "pii",
+          "idtypen": 4,
+          "value": "JCO.2010.31.4427"
+        }
+      ],
+      "history": [
+        {
+          "pubstatus": "entrez",
+          "date": "2011/07/20 06:00"
+        },
+        {
+          "pubstatus": "pubmed",
+          "date": "2011/07/20 06:00"
+        },
+        {
+          "pubstatus": "medline",
+          "date": "2011/10/14 06:00"
+        },
+        {
+          "pubstatus": "pmc-release",
+          "date": "2012/08/20 00:00"
+        }
+      ],
+      "references": [
+        {
+          "refsource": "J Clin Oncol. 2011 Aug 20;29(24):3206-8. doi: 10.1200/JCO.2011.36.3895.",
+          "reftype": "Comment in",
+          "pmid": 21768456,
+          "note": ""
+        }
+      ],
+      "attributes": [
+        "Has Abstract"
+      ],
+      "pmcrefcount": 52,
+      "fulljournalname": "Journal of clinical oncology : official journal of the American Society of Clinical Oncology",
+      "elocationid": "doi: 10.1200/JCO.2010.31.4427",
+      "doctype": "citation",
+      "booktitle": "",
+      "medium": "",
+      "edition": "",
+      "publisherlocation": "",
+      "publishername": "",
+      "srcdate": "",
+      "reportnumber": "",
+      "availablefromurl": "",
+      "locationlabel": "",
+      "docdate": "",
+      "bookname": "",
+      "chapter": "",
+      "sortpubdate": "2011/08/20 00:00",
+      "vernaculartitle": ""
+    }
+  }
+}

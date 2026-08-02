@@ -13,6 +13,8 @@ Covers:
 from __future__ import annotations
 
 import csv
+import hashlib
+import json
 import sqlite3
 from pathlib import Path
 
@@ -39,6 +41,9 @@ from backend.db.tables import (
 
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
 SEED_DIR = FIXTURES_DIR / "seed_csvs"
+_TAMOXIFEN_EVIDENCE_DIR = (
+    Path(__file__).parents[2] / "data/science-evidence/2026-08-01-cpic-cyp2d6-tamoxifen-2019"
+)
 
 _TPMT_GUIDELINE_URL = "https://cpicpgx.org/guidelines/guideline-for-thiopurines-and-tpmt/"
 _TPMT_POOR_METABOLIZER_GUIDELINES = {
@@ -409,6 +414,208 @@ class TestParseGuidelinesCSV:
             ).fetchall()
         assert len(mini_rows) == len(expected)
         assert dict(mini_rows) == expected
+
+    def test_cyp2d6_tamoxifen_rows_preserve_cpic_text(self):
+        """Shipped tamoxifen alerts retain CPIC's operative instructions (#2019)."""
+
+        expected = {
+            "Normal Metabolizer": (
+                "Avoid moderate and strong CYP2D6 inhibitors. Initiate therapy with "
+                "recommended standard of care dosing (tamoxifen 20 mg/day)."
+            ),
+            "Intermediate Metabolizer": (
+                "Consider hormonal therapy such as an aromatase inhibitor for "
+                "postmenopausal women or aromatase inhibitor along with ovarian function "
+                "suppression in premenopausal women, given that these approaches are superior "
+                "to tamoxifen regardless of CYP2D6 genotype (PMID 26211827). If aromatase "
+                "inhibitor use is contraindicated, consideration should be given to use a higher "
+                "but FDA approved tamoxifen dose (40 mg/day)(PMID 27226358). Avoid CYP2D6 "
+                "strong to weak inhibitors."
+            ),
+            "Poor Metabolizer": (
+                "Recommend alternative hormonal therapy such as an aromatase inhibitor for "
+                "postmenopausal women or aromatase inhibitor along with ovarian function "
+                "suppression in premenopausal women given that these approaches are superior "
+                "to tamoxifen regardless of CYP2D6 genotype (PMID 26211827) and based on "
+                "knowledge that CYP2D6 poor metabolizers switched from tamoxifen to anastrozole "
+                "do not have an increased risk of recurrence (PMID 23213055). Note, higher dose "
+                "tamoxifen (40 mg/day) increases but does not normalize endoxifen concentrations "
+                "and can be considered if there are contraindications to aromatase inhibitor "
+                "therapy (PMID 27226358, 21768473)."
+            ),
+        }
+
+        for csv_path in (
+            CPIC_DATA_DIR / "cpic_guidelines.csv",
+            SEED_DIR / "cpic_guidelines_seed.csv",
+        ):
+            rows, _ = parse_cpic_guidelines_csv(csv_path)
+            raw_tamoxifen_rows = [
+                row
+                for row in rows
+                if row["gene"] == "CYP2D6"
+                and row["drug"] == "tamoxifen"
+                and row["phenotype"] in expected
+            ]
+            tamoxifen_rows = {row["phenotype"]: row for row in raw_tamoxifen_rows}
+
+            assert len(raw_tamoxifen_rows) == len(tamoxifen_rows) == len(expected)
+            assert {
+                phenotype: row["recommendation"] for phenotype, row in tamoxifen_rows.items()
+            } == expected
+            for row in tamoxifen_rows.values():
+                assert row["classification"] == "A"
+                assert row["guideline_url"] == (
+                    "https://cpicpgx.org/guidelines/cpic-guideline-for-tamoxifen-based-on-cyp2d6/"
+                )
+
+        with sqlite3.connect(FIXTURES_DIR / "mini_reference.db") as conn:
+            mini_rows = conn.execute(
+                "SELECT phenotype, recommendation FROM cpic_guidelines "
+                "WHERE gene = 'CYP2D6' AND drug = 'tamoxifen'"
+            ).fetchall()
+        assert len(mini_rows) == len(expected)
+        assert dict(mini_rows) == expected
+
+    def test_cyp2d6_tamoxifen_evidence_packet_is_crosswalked_and_sanitized(self):
+        """#2019 packet binds shipped guidance to public, sanitized sources."""
+        raw_dir = _TAMOXIFEN_EVIDENCE_DIR / "raw"
+        expected_files = {
+            "cpic-tamoxifen-drug.json",
+            "cpic-cyp2d6-tamoxifen-recommendations.json",
+            "pubmed-esummary-sanitized.json",
+            "pubmed-efetch-sanitized.xml",
+            "pubmed-comments-corrections-extract.json",
+            "pubmed-claim-excerpts.json",
+        }
+        assert {path.name for path in raw_dir.iterdir()} == expected_files
+        payloads = {name: (raw_dir / name).read_bytes() for name in expected_files}
+        assert all(b"@" not in payload for payload in payloads.values())
+
+        expected = {
+            "Normal Metabolizer": (
+                "Avoid moderate and strong CYP2D6 inhibitors. Initiate therapy with "
+                "recommended standard of care dosing (tamoxifen 20 mg/day)."
+            ),
+            "Intermediate Metabolizer": (
+                "Consider hormonal therapy such as an aromatase inhibitor for "
+                "postmenopausal women or aromatase inhibitor along with ovarian function "
+                "suppression in premenopausal women, given that these approaches are superior "
+                "to tamoxifen regardless of CYP2D6 genotype (PMID 26211827). If aromatase "
+                "inhibitor use is contraindicated, consideration should be given to use a higher "
+                "but FDA approved tamoxifen dose (40 mg/day)(PMID 27226358). Avoid CYP2D6 "
+                "strong to weak inhibitors."
+            ),
+            "Poor Metabolizer": (
+                "Recommend alternative hormonal therapy such as an aromatase inhibitor for "
+                "postmenopausal women or aromatase inhibitor along with ovarian function "
+                "suppression in premenopausal women given that these approaches are superior "
+                "to tamoxifen regardless of CYP2D6 genotype (PMID 26211827) and based on "
+                "knowledge that CYP2D6 poor metabolizers switched from tamoxifen to anastrozole "
+                "do not have an increased risk of recurrence (PMID 23213055). Note, higher dose "
+                "tamoxifen (40 mg/day) increases but does not normalize endoxifen concentrations "
+                "and can be considered if there are contraindications to aromatase inhibitor "
+                "therapy (PMID 27226358, 21768473)."
+            ),
+        }
+        assert json.loads((raw_dir / "cpic-tamoxifen-drug.json").read_text()) == [
+            {"drugid": "RxNorm:10324", "name": "tamoxifen"}
+        ]
+        recommendations = json.loads(
+            (raw_dir / "cpic-cyp2d6-tamoxifen-recommendations.json").read_text()
+        )
+        authoritative_rows = [
+            row for row in recommendations if row.get("phenotypes", {}).get("CYP2D6") in expected
+        ]
+        assert len(authoritative_rows) == 10
+        assert {row["guidelineid"] for row in authoritative_rows} == {100415}
+        expected_classifications = {
+            "Normal Metabolizer": {
+                ("1.25", "Strong"),
+                ("1.5", "Strong"),
+                ("1.75", "Strong"),
+                ("2.0", "Strong"),
+                ("2.25", "Strong"),
+            },
+            "Intermediate Metabolizer": {
+                ("0.25", "Moderate"),
+                ("0.5", "Moderate"),
+                ("0.75", "Moderate"),
+                ("1.0", "Optional"),
+            },
+            "Poor Metabolizer": {("0.0", "Strong")},
+        }
+        for phenotype, recommendation in expected.items():
+            phenotype_rows = [
+                row for row in authoritative_rows if row["phenotypes"]["CYP2D6"] == phenotype
+            ]
+            assert {row["drugrecommendation"] for row in phenotype_rows} == {recommendation}
+            assert {
+                (str(row["lookupkey"]["CYP2D6"]), row["classification"]) for row in phenotype_rows
+            } == expected_classifications[phenotype]
+
+        pubmed_xml = payloads["pubmed-efetch-sanitized.xml"].decode()
+        assert all(
+            unsafe not in pubmed_xml
+            for unsafe in (
+                "<Abstract",
+                "<AuthorList",
+                "<AffiliationInfo",
+                "<ReferenceList",
+                "<CoiStatement",
+                "<GrantList",
+            )
+        )
+        expected_pmids = {"29385237", "26211827", "27226358", "23213055", "21768473"}
+        esummary = json.loads(payloads["pubmed-esummary-sanitized.json"])
+        assert set(esummary["result"]["uids"]) == expected_pmids
+
+        def nested_keys(value: object) -> set[str]:
+            if isinstance(value, dict):
+                return set(value) | set().union(*(nested_keys(item) for item in value.values()))
+            if isinstance(value, list):
+                return set().union(*(nested_keys(item) for item in value))
+            return set()
+
+        assert not {
+            key
+            for key in nested_keys(esummary)
+            if "author" in key.casefold() or "contrib" in key.casefold()
+        }
+        crosswalk = json.loads(payloads["pubmed-claim-excerpts.json"])
+        crosswalk_sources = {
+            source for record in crosswalk["provenance_records"] for source in record["sources"]
+        }
+        assert {f"PMID:{pmid}" for pmid in expected_pmids} <= crosswalk_sources
+        corrections = json.loads(payloads["pubmed-comments-corrections-extract.json"])
+        assert {record["pmid"] for record in corrections["records"]} == expected_pmids
+        assert corrections["linked_notice_count"] == 2
+        assert (
+            corrections["sanitized_sha256"]
+            == hashlib.sha256(payloads["pubmed-efetch-sanitized.xml"]).hexdigest()
+        )
+        assert {
+            entry["ref_type"]
+            for record in corrections["records"]
+            for entry in record["comments_corrections"]
+        } == {"CommentIn"}
+
+        readme = (_TAMOXIFEN_EVIDENCE_DIR / "README.md").read_text()
+        for name, payload in payloads.items():
+            assert f"| `raw/{name}` | `{hashlib.sha256(payload).hexdigest()}` |" in readme
+        for source in (
+            "PMID:29385237",
+            "DOI:10.1002/cpt.1007",
+            "PMID:26211827",
+            "DOI:10.1016/S0140-6736(15)61074-1",
+            "PMID:27226358",
+            "DOI:10.1634/theoncologist.2015-0480",
+            "PMID:23213055",
+            "DOI:10.1158/1078-0432.CCR-12-2153",
+            "PMID:21768473",
+            "DOI:10.1200/JCO.2010.31.4427",
+        ):
+            assert f"{source} (accessed 2026-08-01)" in readme
 
     def test_empty_csv(self, tmp_path: Path):
         csv_path = tmp_path / "empty.csv"

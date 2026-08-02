@@ -99,6 +99,64 @@ _CANONICAL_EFAVIRENZ_RECOMMENDATIONS = {
     ),
 }
 
+_TAMOXIFEN_URL = "https://cpicpgx.org/guidelines/cpic-guideline-for-tamoxifen-based-on-cyp2d6/"
+_LEGACY_TAMOXIFEN_ROWS = [
+    {
+        "gene": "CYP2D6",
+        "drug": "tamoxifen",
+        "phenotype": "Normal Metabolizer",
+        "activity_score": None,
+        "recommendation": "Use label-recommended dosing.",
+        "classification": "A",
+        "guideline_url": _TAMOXIFEN_URL,
+    },
+    {
+        "gene": "CYP2D6",
+        "drug": "tamoxifen",
+        "phenotype": "Intermediate Metabolizer",
+        "activity_score": None,
+        "recommendation": "Consider higher dose or alternative therapy.",
+        "classification": "A",
+        "guideline_url": _TAMOXIFEN_URL,
+    },
+    {
+        "gene": "CYP2D6",
+        "drug": "tamoxifen",
+        "phenotype": "Poor Metabolizer",
+        "activity_score": None,
+        "recommendation": (
+            "Avoid tamoxifen. Use alternative hormonal therapy such as aromatase inhibitor."
+        ),
+        "classification": "A",
+        "guideline_url": _TAMOXIFEN_URL,
+    },
+]
+_CANONICAL_TAMOXIFEN_RECOMMENDATIONS = {
+    "Normal Metabolizer": (
+        "Avoid moderate and strong CYP2D6 inhibitors. Initiate therapy with "
+        "recommended standard of care dosing (tamoxifen 20 mg/day)."
+    ),
+    "Intermediate Metabolizer": (
+        "Consider hormonal therapy such as an aromatase inhibitor for postmenopausal women "
+        "or aromatase inhibitor along with ovarian function suppression in premenopausal "
+        "women, given that these approaches are superior to tamoxifen regardless of CYP2D6 "
+        "genotype (PMID 26211827). If aromatase inhibitor use is contraindicated, "
+        "consideration should be given to use a higher but FDA approved tamoxifen dose "
+        "(40 mg/day)(PMID 27226358). Avoid CYP2D6 strong to weak inhibitors."
+    ),
+    "Poor Metabolizer": (
+        "Recommend alternative hormonal therapy such as an aromatase inhibitor for "
+        "postmenopausal women or aromatase inhibitor along with ovarian function suppression "
+        "in premenopausal women given that these approaches are superior to tamoxifen "
+        "regardless of CYP2D6 genotype (PMID 26211827) and based on knowledge that CYP2D6 "
+        "poor metabolizers switched from tamoxifen to anastrozole do not have an increased "
+        "risk of recurrence (PMID 23213055). Note, higher dose tamoxifen (40 mg/day) "
+        "increases but does not normalize endoxifen concentrations and can be considered if "
+        "there are contraindications to aromatase inhibitor therapy (PMID 27226358, "
+        "21768473)."
+    ),
+}
+
 _TPMT_URL = "https://cpicpgx.org/guidelines/guideline-for-thiopurines-and-tpmt/"
 _LEGACY_TPMT_POOR_METABOLIZER_BASE = [
     {
@@ -1270,6 +1328,312 @@ def test_tpmt_refresh_locks_for_write_before_whole_matrix_fingerprint(tmp_path: 
         for index, statement in enumerate(statements)
         if statement.startswith("SELECT CPIC_GUIDELINES.ID, CPIC_GUIDELINES.DRUG")
     )
+    begin_index = max(
+        index
+        for index, statement in enumerate(statements[:fingerprint_index])
+        if statement == "BEGIN IMMEDIATE"
+    )
+    update_index = next(
+        index
+        for index, statement in enumerate(statements[fingerprint_index:], fingerprint_index)
+        if statement.startswith("UPDATE CPIC_GUIDELINES")
+    )
+    assert begin_index < fingerprint_index < update_index
+
+
+def test_refreshes_only_exact_legacy_cyp2d6_tamoxifen_matrix(tmp_path: Path) -> None:
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'ref.db'}")
+    reference_metadata.create_all(engine, checkfirst=True)
+    preserved_rows = [
+        {
+            "gene": "CYP2D6",
+            "drug": "codeine",
+            "phenotype": "Poor Metabolizer",
+            "activity_score": None,
+            "recommendation": "Preserve unrelated guidance.",
+            "classification": "A",
+            "guideline_url": "https://example.test/codeine",
+        },
+        {
+            "gene": "CYP2B6",
+            "drug": "efavirenz",
+            "phenotype": "Normal Metabolizer",
+            "activity_score": None,
+            "recommendation": "Preserve normal-metabolizer guidance.",
+            "classification": "A",
+            "guideline_url": _EFAVIRENZ_URL,
+        },
+    ]
+    with engine.begin() as conn:
+        conn.execute(cpic_guidelines.insert(), [*_LEGACY_TAMOXIFEN_ROWS, *preserved_rows])
+        conn.execute(
+            database_versions.insert(),
+            {
+                "db_name": "cpic",
+                "version": "v1.58.0",
+                "checksum_sha256": "legacy-checksum",
+            },
+        )
+    with engine.connect() as conn:
+        legacy_ids = dict(
+            conn.execute(
+                sa.select(cpic_guidelines.c.phenotype, cpic_guidelines.c.id).where(
+                    cpic_guidelines.c.gene == "CYP2D6",
+                    cpic_guidelines.c.drug == "tamoxifen",
+                )
+            ).fetchall()
+        )
+        version_before = (
+            conn.execute(sa.select(database_versions).where(database_versions.c.db_name == "cpic"))
+            .mappings()
+            .one()
+        )
+
+    assert ensure_reference_schema_current(engine) is True
+
+    with engine.connect() as conn:
+        upgraded = list(
+            conn.execute(
+                sa.select(
+                    cpic_guidelines.c.id,
+                    cpic_guidelines.c.phenotype,
+                    cpic_guidelines.c.activity_score,
+                    cpic_guidelines.c.recommendation,
+                    cpic_guidelines.c.classification,
+                    cpic_guidelines.c.guideline_url,
+                )
+                .where(
+                    cpic_guidelines.c.gene == "CYP2D6",
+                    cpic_guidelines.c.drug == "tamoxifen",
+                )
+                .order_by(cpic_guidelines.c.phenotype)
+            ).fetchall()
+        )
+        preserved = list(
+            conn.execute(
+                sa.select(
+                    cpic_guidelines.c.gene,
+                    cpic_guidelines.c.drug,
+                    cpic_guidelines.c.phenotype,
+                    cpic_guidelines.c.recommendation,
+                ).where(cpic_guidelines.c.drug.in_(("codeine", "efavirenz")))
+            ).fetchall()
+        )
+        version_after = (
+            conn.execute(sa.select(database_versions).where(database_versions.c.db_name == "cpic"))
+            .mappings()
+            .one()
+        )
+
+    assert {row.phenotype: row.id for row in upgraded} == legacy_ids
+    assert {row.phenotype: row.recommendation for row in upgraded} == (
+        _CANONICAL_TAMOXIFEN_RECOMMENDATIONS
+    )
+    assert all(row.activity_score is None for row in upgraded)
+    assert {row.classification for row in upgraded} == {"A"}
+    assert {row.guideline_url for row in upgraded} == {_TAMOXIFEN_URL}
+    assert set(preserved) == {
+        ("CYP2D6", "codeine", "Poor Metabolizer", "Preserve unrelated guidance."),
+        ("CYP2B6", "efavirenz", "Normal Metabolizer", "Preserve normal-metabolizer guidance."),
+    }
+    assert dict(version_after) == dict(version_before)
+    assert ensure_reference_schema_current(engine) is False
+
+
+@pytest.mark.parametrize(
+    "rows",
+    [
+        pytest.param(_LEGACY_TAMOXIFEN_ROWS[:2], id="partial"),
+        pytest.param(
+            [*_LEGACY_TAMOXIFEN_ROWS, _LEGACY_TAMOXIFEN_ROWS[0]],
+            id="duplicate",
+        ),
+        pytest.param(
+            [
+                {
+                    **_LEGACY_TAMOXIFEN_ROWS[0],
+                    "recommendation": _CANONICAL_TAMOXIFEN_RECOMMENDATIONS["Normal Metabolizer"],
+                },
+                *_LEGACY_TAMOXIFEN_ROWS[1:],
+            ],
+            id="mixed-current",
+        ),
+        pytest.param(
+            [
+                {
+                    **_LEGACY_TAMOXIFEN_ROWS[0],
+                    "recommendation": "Locally curated tamoxifen guidance.",
+                },
+                *_LEGACY_TAMOXIFEN_ROWS[1:],
+            ],
+            id="custom",
+        ),
+        pytest.param(
+            [{**row, "drug": "TAMOXIFEN"} for row in _LEGACY_TAMOXIFEN_ROWS],
+            id="uppercase-drug",
+        ),
+        pytest.param(
+            [
+                {
+                    **row,
+                    "recommendation": _CANONICAL_TAMOXIFEN_RECOMMENDATIONS[row["phenotype"]],
+                }
+                for row in _LEGACY_TAMOXIFEN_ROWS
+            ],
+            id="current",
+        ),
+    ],
+)
+def test_tamoxifen_refresh_leaves_nonexact_matrices_untouched_without_loading_bundle(
+    tmp_path: Path,
+    monkeypatch,
+    rows: list[dict],
+) -> None:
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'ref.db'}")
+    reference_metadata.create_all(engine, checkfirst=True)
+    with engine.begin() as conn:
+        conn.execute(cpic_guidelines.insert(), rows)
+    with engine.connect() as conn:
+        before = [
+            dict(row)
+            for row in conn.execute(
+                sa.select(cpic_guidelines).order_by(cpic_guidelines.c.id)
+            ).mappings()
+        ]
+
+    from backend.annotation import cpic as cpic_module
+
+    def fail_if_parsed(_path):
+        raise AssertionError("nonlegacy CYP2D6/tamoxifen content must not load the bundle")
+
+    monkeypatch.setattr(cpic_module, "parse_cpic_guidelines_csv", fail_if_parsed)
+
+    assert ensure_reference_schema_current(engine) is False
+    with engine.connect() as conn:
+        after = [
+            dict(row)
+            for row in conn.execute(
+                sa.select(cpic_guidelines).order_by(cpic_guidelines.c.id)
+            ).mappings()
+        ]
+    assert after == before
+
+
+def test_invalid_bundled_tamoxifen_matrix_rolls_back_legacy_rows(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'ref.db'}")
+    reference_metadata.create_all(engine, checkfirst=True)
+    with engine.begin() as conn:
+        conn.execute(cpic_guidelines.insert(), _LEGACY_TAMOXIFEN_ROWS)
+    with engine.connect() as conn:
+        before = [
+            dict(row)
+            for row in conn.execute(
+                sa.select(cpic_guidelines).order_by(cpic_guidelines.c.id)
+            ).mappings()
+        ]
+
+    invalid_canonical = [
+        {
+            **row,
+            "recommendation": _CANONICAL_TAMOXIFEN_RECOMMENDATIONS[row["phenotype"]],
+        }
+        for row in _LEGACY_TAMOXIFEN_ROWS
+    ]
+    invalid_canonical[0] = {
+        **invalid_canonical[0],
+        "recommendation": "Unreviewed bundled recommendation.",
+    }
+
+    from backend.annotation import cpic as cpic_module
+
+    def parse_invalid_bundle(_path):
+        return invalid_canonical, None
+
+    monkeypatch.setattr(cpic_module, "parse_cpic_guidelines_csv", parse_invalid_bundle)
+
+    with pytest.raises(
+        RuntimeError, match="Bundled CYP2D6/tamoxifen guideline matrix is not canonical"
+    ):
+        ensure_reference_schema_current(engine)
+
+    with engine.connect() as conn:
+        after = [
+            dict(row)
+            for row in conn.execute(
+                sa.select(cpic_guidelines).order_by(cpic_guidelines.c.id)
+            ).mappings()
+        ]
+    assert after == before
+
+
+def test_tamoxifen_refresh_rolls_back_if_a_canonical_write_fails(tmp_path: Path) -> None:
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'ref.db'}")
+    reference_metadata.create_all(engine, checkfirst=True)
+    with engine.begin() as conn:
+        conn.execute(cpic_guidelines.insert(), _LEGACY_TAMOXIFEN_ROWS)
+    with engine.connect() as conn:
+        before = [
+            dict(row)
+            for row in conn.execute(
+                sa.select(cpic_guidelines).order_by(cpic_guidelines.c.id)
+            ).mappings()
+        ]
+
+    update_count = 0
+
+    def fail_second_update(_conn, _cursor, statement, _parameters, _context, _executemany):
+        nonlocal update_count
+        if " ".join(statement.split()).upper().startswith("UPDATE CPIC_GUIDELINES"):
+            update_count += 1
+            if update_count == 2:
+                raise RuntimeError("simulated tamoxifen write failure")
+
+    sa.event.listen(engine, "before_cursor_execute", fail_second_update)
+    try:
+        with pytest.raises(RuntimeError, match="simulated tamoxifen write failure"):
+            ensure_reference_schema_current(engine)
+    finally:
+        sa.event.remove(engine, "before_cursor_execute", fail_second_update)
+
+    with engine.connect() as conn:
+        after = [
+            dict(row)
+            for row in conn.execute(
+                sa.select(cpic_guidelines).order_by(cpic_guidelines.c.id)
+            ).mappings()
+        ]
+    assert update_count == 2
+    assert after == before
+
+
+def test_tamoxifen_refresh_locks_for_write_before_whole_matrix_fingerprint(
+    tmp_path: Path,
+) -> None:
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'ref.db'}")
+    reference_metadata.create_all(engine, checkfirst=True)
+    with engine.begin() as conn:
+        conn.execute(cpic_guidelines.insert(), _LEGACY_TAMOXIFEN_ROWS)
+
+    statements: list[str] = []
+
+    def record_statement(_conn, _cursor, statement, _parameters, _context, _executemany):
+        statements.append(" ".join(statement.split()).upper())
+
+    sa.event.listen(engine, "before_cursor_execute", record_statement)
+    try:
+        assert ensure_reference_schema_current(engine) is True
+    finally:
+        sa.event.remove(engine, "before_cursor_execute", record_statement)
+
+    fingerprint_indices = [
+        index
+        for index, statement in enumerate(statements)
+        if statement.startswith("SELECT CPIC_GUIDELINES.ID, CPIC_GUIDELINES.PHENOTYPE")
+    ]
+    fingerprint_index = fingerprint_indices[-1]
     begin_index = max(
         index
         for index, statement in enumerate(statements[:fingerprint_index])
