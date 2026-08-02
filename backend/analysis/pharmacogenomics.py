@@ -413,7 +413,7 @@ def _identifier_match_variants(identifier: str) -> tuple[str, ...]:
     """Return the canonical and pinned UTS #39 skeleton forms of an identifier."""
     canonical = _identifier_match_characters(identifier)
     skeleton = "".join(
-        _IDENTIFIER_SKELETON_VARIANT_EXPANSIONS.get(character, character)
+        _IDENTIFIER_SKELETON_VARIANT_EXPANSIONS.get(character.casefold(), character)
         for character in canonical
     )
     return (canonical,) if skeleton == canonical else (canonical, skeleton)

@@ -2532,6 +2532,24 @@ class TestPatientPresentableFindingPayload:
 
         assert not contains_unpresentable_prescribing_identifier(payload)
 
+    def test_keeps_uppercase_skeleton_owned_record_independent(self) -> None:
+        payload = {
+            "effects": [
+                {
+                    "gene": "CYP2D6",
+                    "drug": "codeine",
+                    "note": "CYP2D6/codeine normal guidance.",
+                },
+                {
+                    "gene": "MTHFR",
+                    "drug": "METHADONE",
+                    "note": "MTHFR/METHADONE note; tamoxifen appears only in this record.",
+                },
+            ]
+        }
+
+        assert not contains_unpresentable_prescribing_identifier(payload)
+
     def test_keeps_row_narrative_with_its_own_safe_complete_record(self) -> None:
         finding = {
             "module": "pharmacogenomics",
