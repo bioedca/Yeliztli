@@ -1775,6 +1775,46 @@ class TestStorePrescribingAlerts:
             ).scalar()
         assert n == 0, "empty rerun left stale prescribing alerts"
 
+    def test_rerun_preserves_withheld_tamoxifen_audit_records(self):
+        """#2019: reanalysis must not delete retained custom audit provenance."""
+        sample = _make_sample_engine([])
+        with sample.begin() as conn:
+            conn.execute(
+                findings.insert().values(
+                    module="pharmacogenomics",
+                    category="prescribing_alert",
+                    gene_symbol="CYP2D6",
+                    drug="tamoxifen",
+                    finding_text="Custom retained tamoxifen audit record.",
+                    detail_json=json.dumps({"local_audit_note": "retain"}),
+                    provenance=json.dumps({"source": "local_clinician"}),
+                )
+            )
+
+        # A normal alert is still refreshed and then cleared, while the held
+        # source/custom row survives both reanalysis paths.
+        assert store_prescribing_alerts([self._alert()], sample) == 1
+        assert store_prescribing_alerts([], sample) == 0
+
+        with sample.connect() as conn:
+            rows = conn.execute(
+                sa.select(
+                    findings.c.gene_symbol,
+                    findings.c.drug,
+                    findings.c.finding_text,
+                    findings.c.provenance,
+                ).where(findings.c.category == "prescribing_alert")
+            ).all()
+
+        assert rows == [
+            (
+                "CYP2D6",
+                "tamoxifen",
+                "Custom retained tamoxifen audit record.",
+                json.dumps({"source": "local_clinician"}),
+            )
+        ]
+
 
 # ═══════════════════════════════════════════════════════════════════════
 # Integration: call_all_star_alleles → generate → store (P3-04)

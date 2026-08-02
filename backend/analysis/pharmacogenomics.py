@@ -193,9 +193,9 @@ def is_withheld_prescribing_alert_finding(
 def patient_visible_finding_clause(columns: Any) -> Any:
     """Return a SQL predicate excluding clinically withheld alert pairs.
 
-    Apply this only at patient-visible presentation boundaries. It is intentionally
-    separate from storage and re-annotation logic so audit-only source rows remain
-    available to scientific-validity review. SQL normalization mirrors
+    Apply this at patient-visible presentation boundaries and when replacing
+    reanalysis-generated alerts. It keeps audit-only source rows available to
+    scientific-validity review while SQL normalization mirrors
     :func:`is_withheld_prescribing_alert_finding`, including case and whitespace.
     """
     if not WITHHELD_PRESCRIBING_ALERT_PAIRS:
@@ -253,9 +253,14 @@ def configure_raw_sql_findings_guard(connection: sqlite3.Connection) -> None:
 
 def is_raw_sql_audit_only_access_denied(error: object) -> bool:
     """Whether SQLite rejected a protected audit-only table read."""
-    message = str(error).casefold()
-    return any(table in message for table in _RAW_SQL_AUDIT_ONLY_TABLES) and (
-        "not authorized" in message or "prohibited" in message
+    message = str(error).casefold().strip()
+    # SQLite does not include a table name when an aggregate invokes the
+    # authorizer without a readable column (for example ``COUNT(*)``). These
+    # routes install only this audit-only authorizer after their read-only SQL
+    # validation, so its bare authorization error is still an audit-only deny.
+    return message == "not authorized" or (
+        any(table in message for table in _RAW_SQL_AUDIT_ONLY_TABLES)
+        and ("not authorized" in message or "prohibited" in message)
     )
 
 
@@ -1864,15 +1869,17 @@ def store_prescribing_alerts(
         )
 
     with sample_engine.begin() as conn:
-        # Clear prior prescribing alerts BEFORE (re)inserting so a rerun never
-        # duplicates them, and a rerun that now yields none doesn't leave stale ones
-        # (#481). Scoped to this category so other pharmacogenomics findings (e.g.
-        # gene/phenotype rows) are untouched. The delete runs even when ``rows`` is
-        # empty, which is the empty-path clear that every sibling store_* must do.
+        # Clear prior patient-presentable prescribing alerts BEFORE (re)inserting so
+        # a rerun never duplicates them, and a rerun that now yields none doesn't
+        # leave stale ones (#481). Held pairs deliberately remain as audit-only
+        # source/custom records, including across reanalysis (#2019). The delete
+        # still runs when ``rows`` is empty, so unrelated alert pairs retain the
+        # sibling store_* empty-path clear behavior.
         conn.execute(
             sa.delete(findings).where(
                 findings.c.module == "pharmacogenomics",
                 findings.c.category == "prescribing_alert",
+                patient_visible_finding_clause(findings.c),
             )
         )
         if rows:

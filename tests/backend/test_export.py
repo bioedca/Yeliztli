@@ -622,6 +622,20 @@ class TestExportSecurity:
         assert resp.status_code == 403
         assert "audit-only" in resp.json()["detail"].lower()
 
+    def test_sql_export_denies_aggregate_findings(self, client) -> None:
+        """#2019: aggregate export access keeps the audit-only 403 response."""
+        tc, sid = client
+        resp = tc.post(
+            "/api/export/sql",
+            json={
+                "sample_id": sid,
+                "sql": "SELECT COUNT(*) FROM findings",
+                "format": "csv",
+            },
+        )
+        assert resp.status_code == 403
+        assert "audit-only" in resp.json()["detail"].lower()
+
     def test_sql_export_denies_serialized_finding_history(self, client) -> None:
         """#2019: streaming export cannot expose a retained diff payload."""
         tc, sid = client

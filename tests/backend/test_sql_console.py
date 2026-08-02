@@ -462,6 +462,16 @@ class TestSqlConsoleReadAccess:
         assert resp.status_code == 403
         assert "audit-only" in resp.json()["detail"].lower()
 
+    def test_aggregate_findings_are_denied_to_raw_sql(self, client) -> None:
+        """#2019: aggregate access must keep the audit-only 403 response."""
+        tc, sid = client
+        resp = tc.post(
+            "/api/query/sql",
+            json={"sample_id": sid, "sql": "SELECT COUNT(*) FROM findings"},
+        )
+        assert resp.status_code == 403
+        assert "audit-only" in resp.json()["detail"].lower()
+
     def test_serialized_finding_history_is_denied_to_raw_sql(self, client) -> None:
         """#2019: retained diffs cannot bypass the finding-table guard."""
         tc, sid = client
