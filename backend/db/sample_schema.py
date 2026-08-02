@@ -140,6 +140,33 @@ _CYP2D6_TAMOXIFEN_GUIDELINE_URL = (
     "https://cpicpgx.org/guidelines/cpic-guideline-for-tamoxifen-based-on-cyp2d6/"
 )
 
+# Keys written by ``store_prescribing_alerts``.  A candidate with any other
+# key is a custom/audit record and must survive the fail-closed v25 migration.
+_GENERATED_PRESCRIBING_ALERT_DETAIL_KEYS: frozenset[str] = frozenset(
+    {
+        "recommendation",
+        "classification",
+        "guideline_url",
+        "call_confidence",
+        "confidence_note",
+        "activity_score",
+        "ehr_notation",
+        "involved_rsids",
+        "coverage",
+        "indeterminate_alleles",
+        "indeterminate_allele_rsids",
+        "gene_caveat",
+        "conservative_alert",
+        "called_phenotype",
+        "called_activity_score",
+        "called_ehr_notation",
+        "conservative_diplotype",
+        "conservative_phenotype",
+        "conservative_activity_score",
+        "conservative_allele",
+    }
+)
+
 _PARKINSONS_RISK_CLASSIFICATION = (
     "LRRK2 G2019S — Parkinson's disease risk factor (reduced penetrance)"
 )
@@ -333,9 +360,17 @@ def _is_withheld_cyp2d6_tamoxifen_finding(
     diplotype: object,
     finding_text: object,
     detail_json: object,
+    provenance: object,
 ) -> bool:
-    """Match only a released CYP2D6/tamoxifen alert safe to quarantine."""
+    """Match only an unprovenanced generated alert safe to quarantine.
+
+    A populated provenance field or unrecognized detail key turns a matching
+    clinical payload into an audit/custom record. Preserve those records rather
+    than risk deleting provenance that cannot be regenerated.
+    """
     if not isinstance(phenotype, str):
+        return False
+    if provenance is not None:
         return False
 
     update = _CYP2D6_TAMOXIFEN_RECOMMENDATION_UPDATES.get(phenotype)
@@ -346,6 +381,8 @@ def _is_withheld_cyp2d6_tamoxifen_finding(
     except (json.JSONDecodeError, TypeError):
         return False
     if not isinstance(detail, dict):
+        return False
+    if set(detail) - _GENERATED_PRESCRIBING_ALERT_DETAIL_KEYS:
         return False
 
     legacy_recommendation, bundled_recommendation = update
@@ -1636,14 +1673,17 @@ def _add_missing_columns(engine: sa.Engine, from_version: int) -> bool:
                 conn.exec_driver_sql("BEGIN IMMEDIATE")
                 try:
                     if can_quarantine_findings:
+                        candidate_columns = [
+                            findings.c.id,
+                            findings.c.diplotype,
+                            findings.c.metabolizer_status,
+                            findings.c.finding_text,
+                            findings.c.detail_json,
+                        ]
+                        if "provenance" in findings_cols:
+                            candidate_columns.append(findings.c.provenance)
                         candidates = conn.execute(
-                            sa.select(
-                                findings.c.id,
-                                findings.c.diplotype,
-                                findings.c.metabolizer_status,
-                                findings.c.finding_text,
-                                findings.c.detail_json,
-                            )
+                            sa.select(*candidate_columns)
                             .where(
                                 findings.c.module == "pharmacogenomics",
                                 findings.c.category == "prescribing_alert",
@@ -1661,21 +1701,23 @@ def _add_missing_columns(engine: sa.Engine, from_version: int) -> bool:
                                 row.diplotype,
                                 row.finding_text,
                                 row.detail_json,
+                                row.provenance if "provenance" in findings_cols else None,
                             ):
                                 continue
-                            result = conn.execute(
-                                findings.delete().where(
-                                    findings.c.id == row.id,
-                                    findings.c.module == "pharmacogenomics",
-                                    findings.c.category == "prescribing_alert",
-                                    findings.c.gene_symbol == "CYP2D6",
-                                    findings.c.diplotype == row.diplotype,
-                                    findings.c.metabolizer_status == row.metabolizer_status,
-                                    findings.c.drug == "tamoxifen",
-                                    findings.c.finding_text == row.finding_text,
-                                    findings.c.detail_json == row.detail_json,
-                                )
-                            )
+                            identity_filters = [
+                                findings.c.id == row.id,
+                                findings.c.module == "pharmacogenomics",
+                                findings.c.category == "prescribing_alert",
+                                findings.c.gene_symbol == "CYP2D6",
+                                findings.c.diplotype == row.diplotype,
+                                findings.c.metabolizer_status == row.metabolizer_status,
+                                findings.c.drug == "tamoxifen",
+                                findings.c.finding_text == row.finding_text,
+                                findings.c.detail_json == row.detail_json,
+                            ]
+                            if "provenance" in findings_cols:
+                                identity_filters.append(findings.c.provenance.is_(None))
+                            result = conn.execute(findings.delete().where(*identity_filters))
                             removed_findings += max(result.rowcount or 0, 0)
 
                     if can_quarantine_diff:

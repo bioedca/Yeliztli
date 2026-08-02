@@ -95,7 +95,6 @@ def _alert(
         "classification": "A",
         "guideline_url": GUIDELINE_URL,
         "call_confidence": "Partial",
-        "future_metadata": {"preserve": [phenotype]},
     }
     row: dict[str, object] = {
         "module": "pharmacogenomics",
@@ -112,7 +111,7 @@ def _alert(
             suffix=suffix,
         ),
         "detail_json": json.dumps(detail),
-        "provenance": json.dumps({"sources": {"cpic": {"version": "legacy"}}}),
+        "provenance": None,
     }
     if row_id is not None:
         row["id"] = row_id
@@ -261,6 +260,25 @@ def test_v25_leaves_malformed_custom_and_near_miss_alerts_untouched(
             row_id=12,
             diplotype="*4/*4",
             finding_text=_finding_text(phenotype, legacy, diplotype="*1/*4"),
+        ),
+        _alert(
+            phenotype,
+            legacy,
+            row_id=13,
+            detail_json=json.dumps(
+                {
+                    "recommendation": legacy,
+                    "classification": "A",
+                    "guideline_url": GUIDELINE_URL,
+                    "local_audit_note": "Retain this local review annotation.",
+                }
+            ),
+        ),
+        _alert(
+            phenotype,
+            legacy,
+            row_id=14,
+            provenance=json.dumps({"sources": {"local_clinician": {"record": "keep"}}}),
         ),
     ]
     with sample_engine.begin() as conn:
