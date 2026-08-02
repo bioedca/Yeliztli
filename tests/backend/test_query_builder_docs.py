@@ -9,7 +9,13 @@ from backend.api.routes.query_builder import (
     QueryRequest,
     SqlRequest,
 )
-from backend.db.tables import annotated_variants, raw_variants, tags, variant_tags
+from backend.db.tables import (
+    PREDEFINED_TAGS,
+    annotated_variants,
+    raw_variants,
+    tags,
+    variant_tags,
+)
 
 DOCS_PATH = Path(__file__).resolve().parents[2] / "docs" / "features" / "query-builder.md"
 
@@ -36,7 +42,12 @@ def test_query_builder_docs_distinguish_visual_and_sql_scope() -> None:
     assert {"source", "concordance"}.isdisjoint(annotated_fields)
     assert {"source", "concordance"} <= raw_fields
     assert tags.name == "tags"
+    assert tags.c.id.name == "id"
+    assert tags.c.name.name == "name"
     assert variant_tags.name == "variant_tags"
+    assert variant_tags.c.rsid.name == "rsid"
+    assert variant_tags.c.tag_id.name == "tag_id"
+    assert "Review later" in PREDEFINED_TAGS
 
     assert "filters only columns from `annotated_variants`" in docs
     assert "`tags` and `variant_tags`" in docs
@@ -52,14 +63,16 @@ def test_query_builder_docs_pin_runtime_limits() -> None:
     visual_default = QueryRequest.model_fields["limit"].default
     visual_maximum = _upper_bound(QueryRequest, "limit")
     sql_default = SqlRequest.model_fields["limit"].default
+    sql_maximum = _upper_bound(SqlRequest, "limit")
+
+    assert sql_maximum == SQL_CONSOLE_MAX_ROWS
 
     assert (
         f"defaults to **{visual_default} rows per page** and accepts at most "
         f"**{visual_maximum} rows per page**" in docs
     )
     assert (
-        f"defaults to **{sql_default} rows** and accepts at most "
-        f"**{SQL_CONSOLE_MAX_ROWS:,} rows**" in docs
+        f"defaults to **{sql_default} rows** and accepts at most **{sql_maximum:,} rows**" in docs
     )
     assert f"**{SQL_CONSOLE_TIMEOUT}-second timeout**" in docs
     assert "HTTP 408" in docs
