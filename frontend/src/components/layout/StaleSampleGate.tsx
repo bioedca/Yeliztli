@@ -15,7 +15,7 @@
  * state.
  */
 
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useMatch, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle, RefreshCw } from 'lucide-react'
@@ -152,7 +152,8 @@ export default function StaleSampleGate({ children }: StaleSampleGateProps) {
     parseSampleId(concordanceMatch?.params.id ?? null) ??
     parseSampleId(searchParams.get('sample_id'))
   const queryClient = useQueryClient()
-  const activeJobQuery = useActiveAnnotationJob(activeSampleId)
+  const [reconnectPending, setReconnectPending] = useState(false)
+  const activeJobQuery = useActiveAnnotationJob(activeSampleId, reconnectPending)
   const activeJob = activeJobQuery.data ?? null
   const trackedJobRef = useRef<{ sampleId: number; jobId: string } | null>(null)
 
@@ -220,20 +221,34 @@ export default function StaleSampleGate({ children }: StaleSampleGateProps) {
     },
     onError: (error, request) => {
       if (error.status !== 409) return
-      void Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: annotationActiveQueryKey(request.sampleId),
-        }),
-        queryClient.invalidateQueries({
-          queryKey: sampleStalenessQueryKey(request.sampleId),
-        }),
-      ])
+      if (activeSampleId !== request.sampleId) return
+
+      // A 409 confirms that an annotation is active server-side. Keep the CTA
+      // fenced until a fresh active-job probe reaches a conclusive 404. If that
+      // probe is temporarily unavailable, useActiveAnnotationJob keeps polling
+      // instead of treating the failure as an absent job.
+      setReconnectPending(true)
+      void activeJobQuery
+        .refetch()
+        .then((result) => {
+          if (!result.isError && result.data == null) {
+            setReconnectPending(false)
+            resetReannotation()
+          }
+        })
+        .catch(() => {
+          // The enabled retry interval owns transient probe failures.
+        })
+      void queryClient.invalidateQueries({
+        queryKey: sampleStalenessQueryKey(request.sampleId),
+      })
     },
   })
   const resetReannotation = reannotate.reset
 
   useEffect(() => {
     resetReannotation()
+    setReconnectPending(false)
     trackedJobRef.current = null
     // Reset the mutation banner state when the active sample changes so
     // a prior success/error toast from a different sample doesn't leak in.
@@ -337,7 +352,7 @@ export default function StaleSampleGate({ children }: StaleSampleGateProps) {
     reannotate.isError &&
     reannotate.error instanceof ReannotationRequestError &&
     reannotate.error.status === 409
-  const isReconnecting = isConflict && activeJobQuery.isFetching && !activeJob
+  const isReconnecting = isConflict && reconnectPending && !activeJob
   const progressPct = Math.min(100, Math.max(0, activeJob?.progress_pct ?? 0))
 
   const banner = (

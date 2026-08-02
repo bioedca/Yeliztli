@@ -99,14 +99,15 @@ export async function fetchActiveAnnotationJob(
     const res = await fetch(`/api/annotation/active/${sampleId}`, {
       signal: requestController.signal,
     })
-    if (res.status === 404 || !res.ok) return null
+    // A 404 is the only authoritative absence signal. Treat transport and
+    // non-404 HTTP failures as observable query errors so callers recovering
+    // from a 409 conflict can keep polling instead of mistaking an unavailable
+    // probe for a completed annotation.
+    if (res.status === 404) return null
+    if (!res.ok) {
+      await throwApiError(res, "Unable to check re-annotation status. Please try again.")
+    }
     return await res.json()
-  } catch (error) {
-    // Preserve TanStack Query's cancellation semantics, but make a timed-out
-    // or unavailable auxiliary probe recoverable so stale recovery is not
-    // permanently blanked behind a pending request.
-    if (querySignal.aborted) throw error
-    return null
   } finally {
     clearTimeout(timeoutId)
     querySignal.removeEventListener("abort", abortFromQuery)
@@ -114,7 +115,10 @@ export async function fetchActiveAnnotationJob(
 }
 
 /** Check if a sample has an active (pending/running) annotation job. */
-export function useActiveAnnotationJob(sampleId: number | null) {
+export function useActiveAnnotationJob(
+  sampleId: number | null,
+  pollWhenUnavailable = false,
+) {
   return useQuery<ActiveAnnotationJob | null>({
     queryKey: annotationActiveQueryKey(sampleId),
     queryFn: async ({ signal }) => {
@@ -123,8 +127,12 @@ export function useActiveAnnotationJob(sampleId: number | null) {
     },
     enabled: sampleId != null,
     staleTime: 0,
+    // The stale gate deliberately treats this as an auxiliary probe on initial
+    // load, then opts into one-second retries only after the server confirms a
+    // conflicting annotation request is already active.
+    retry: false,
     refetchOnWindowFocus: false,
-    refetchInterval: ({ state: { data } }) => (data ? 1_000 : false),
+    refetchInterval: ({ state: { data } }) => (data || pollWhenUnavailable ? 1_000 : false),
   })
 }
 
