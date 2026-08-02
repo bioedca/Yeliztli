@@ -1475,7 +1475,6 @@ def _add_missing_columns(engine: sa.Engine, from_version: int) -> bool:
         # legacy alert from a locally amended one, so this migration never
         # deletes or rewrites either findings or finding-diff state. Patient
         # presentation is fail-closed at the current runtime boundaries.
-        added = True
         logger.info(
             "cyp2d6_tamoxifen_audit_records_retained",
             from_version=from_version,

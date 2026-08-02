@@ -98,7 +98,7 @@ def test_v25_retains_legacy_and_custom_audit_records_and_diff_state(
         ).scalar_one()
         conn.execute(sa.text("PRAGMA user_version = 24"))
 
-    assert ensure_sample_schema_current(sample_engine) is True
+    assert ensure_sample_schema_current(sample_engine) is False
 
     with sample_engine.connect() as conn:
         after_findings = list(conn.execute(sa.select(findings).order_by(findings.c.id)).mappings())
@@ -138,7 +138,7 @@ def test_v25_never_executes_a_destructive_quarantine_delete(sample_engine: sa.En
         )
         conn.execute(sa.text("PRAGMA user_version = 24"))
 
-    assert ensure_sample_schema_current(sample_engine) is True
+    assert ensure_sample_schema_current(sample_engine) is False
 
     with sample_engine.connect() as conn:
         retained = conn.execute(sa.select(findings.c.id).where(findings.c.id == 1)).one_or_none()
