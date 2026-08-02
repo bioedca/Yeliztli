@@ -11,7 +11,7 @@ from datetime import UTC, datetime
 from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from backend.analysis.pharmacogenomics import is_withheld_prescribing_alert_finding
 from backend.db.build_guard import is_cross_process_build_claimed
@@ -144,9 +144,29 @@ class FindingChangesResponse(BaseModel):
     counts: dict[str, int] = {}
 
 
+_DISPLAY_DIFF_ENTRY_KEYS = frozenset(
+    {
+        "module",
+        "category",
+        "gene_symbol",
+        "rsid",
+        "drug",
+        "diplotype",
+        "pathway",
+        "trait",
+        "finding_text",
+        "clinvar_significance",
+        "evidence_level",
+        "metabolizer_status",
+        "pathway_level",
+    }
+)
+_CHANGED_DIFF_ENTRY_KEYS = _DISPLAY_DIFF_ENTRY_KEYS | {"changes"}
+
+
 def _filter_nonpresentable_findings_from_diff(
     diff: dict[str, Any], hidden_modules: list[str]
-) -> dict[str, Any]:
+) -> dict[str, Any] | None:
     """Drop non-presentable entries from the displayed finding diff.
 
     The stored diff remains complete for provenance, but the aggregate update
@@ -154,25 +174,59 @@ def _filter_nonpresentable_findings_from_diff(
     recomputed after filtering so callers cannot infer gated modules or a held
     prescribing alert from a nonzero bucket count.
     """
+    generated_at = diff.get("generated_at")
+    if generated_at is not None and not isinstance(generated_at, str):
+        return None
+
+    raw_release_deltas = diff.get("release_deltas", [])
+    if not isinstance(raw_release_deltas, list):
+        return None
+    release_deltas: list[dict[str, Any]] = []
+    for delta in raw_release_deltas:
+        if not isinstance(delta, dict):
+            return None
+        try:
+            release_deltas.append(ReleaseDelta.model_validate(delta).model_dump())
+        except ValidationError:
+            return None
+
     hidden = set(hidden_modules)
 
-    def visible(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        return [
-            entry
-            for entry in entries
-            if entry.get("module") not in hidden
-            and not is_withheld_prescribing_alert_finding(
-                entry.get("module"),
-                entry.get("category"),
-                entry.get("gene_symbol"),
-                entry.get("drug"),
-            )
-        ]
+    def visible(
+        entries: object,
+        model: type[ChangedFinding] | type[DiffFinding],
+        allowed_keys: frozenset[str],
+    ) -> list[dict[str, Any]] | None:
+        """Return only structurally valid, patient-presentable diff entries."""
+        if not isinstance(entries, list):
+            return None
 
-    changed = visible(diff.get("changed", []))
-    added = visible(diff.get("added", []))
-    removed = visible(diff.get("removed", []))
+        result: list[dict[str, Any]] = []
+        for entry in entries:
+            if not isinstance(entry, dict) or not set(entry).issubset(allowed_keys):
+                continue
+            try:
+                presentable = model.model_validate(entry).model_dump()
+            except ValidationError:
+                continue
+            if presentable["module"] in hidden or is_withheld_prescribing_alert_finding(
+                presentable["module"],
+                presentable["category"],
+                presentable["gene_symbol"],
+                presentable["drug"],
+            ):
+                continue
+            result.append(presentable)
+        return result
+
+    changed = visible(diff.get("changed", []), ChangedFinding, _CHANGED_DIFF_ENTRY_KEYS)
+    added = visible(diff.get("added", []), DiffFinding, _DISPLAY_DIFF_ENTRY_KEYS)
+    removed = visible(diff.get("removed", []), DiffFinding, _DISPLAY_DIFF_ENTRY_KEYS)
+    if changed is None or added is None or removed is None:
+        return None
     filtered = dict(diff)
+    filtered["generated_at"] = generated_at
+    filtered["release_deltas"] = release_deltas
     filtered["changed"] = changed
     filtered["added"] = added
     filtered["removed"] = removed
@@ -482,7 +536,7 @@ async def get_finding_changes(
         return FindingChangesResponse(available=False)
 
     diff = _filter_nonpresentable_findings_from_diff(diff, gated_modules_to_hide(engine))
-    if not has_changes(diff):
+    if diff is None or not has_changes(diff):
         return FindingChangesResponse(available=False)
 
     return FindingChangesResponse(

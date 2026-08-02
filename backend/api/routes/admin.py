@@ -20,7 +20,7 @@ from fastapi import APIRouter, Query
 from pydantic import BaseModel
 from sqlalchemy.pool import NullPool
 
-from backend.analysis.pharmacogenomics import is_prescribing_alert_withheld
+from backend.analysis.pharmacogenomics import contains_unpresentable_prescribing_identifier
 from backend.config import get_settings
 from backend.db.connection import get_registry
 from backend.db.database_registry import DATABASES, DatabaseInfo
@@ -71,14 +71,19 @@ def _is_nonblank_string(value: object) -> bool:
     return isinstance(value, str) and bool(value.strip())
 
 
-def _event_data_contains_withheld_pair(value: object) -> bool:
-    """Recursively recognize a held pair in legacy structured log data."""
+def _event_data_has_incomplete_identifier_pair(value: object) -> bool:
+    """Whether legacy structured log data has an incomplete identifier pair."""
     if isinstance(value, dict):
-        if is_prescribing_alert_withheld(value.get("gene"), value.get("drug")):
+        has_gene = "gene" in value
+        has_drug = "drug" in value
+        if (has_gene or has_drug) and (
+            not _is_nonblank_string(value.get("gene"))
+            or not _is_nonblank_string(value.get("drug"))
+        ):
             return True
-        return any(_event_data_contains_withheld_pair(nested) for nested in value.values())
+        return any(_event_data_has_incomplete_identifier_pair(nested) for nested in value.values())
     if isinstance(value, list):
-        return any(_event_data_contains_withheld_pair(item) for item in value)
+        return any(_event_data_has_incomplete_identifier_pair(item) for item in value)
     return False
 
 
@@ -97,14 +102,21 @@ def _is_patient_visible_log_entry(row: sa.RowMapping) -> bool:
     try:
         payload = json.loads(event_data, object_pairs_hook=_reject_duplicate_json_keys)
     except (TypeError, ValueError, RecursionError):
-        return message not in _PRESCRIBING_LOG_MESSAGES
+        return False
+    if not isinstance(payload, dict):
+        return False
     if message in _PRESCRIBING_LOG_MESSAGES and (
-        not isinstance(payload, dict)
-        or not _is_nonblank_string(payload.get("gene"))
+        not _is_nonblank_string(payload.get("gene"))
         or not _is_nonblank_string(payload.get("drug"))
     ):
         return False
-    if _event_data_contains_withheld_pair(payload):
+    try:
+        if contains_unpresentable_prescribing_identifier(
+            payload
+        ) or _event_data_has_incomplete_identifier_pair(payload):
+            return False
+    except RecursionError:
+        # Deep legacy JSON cannot be safely classified, so do not expose it.
         return False
     return True
 

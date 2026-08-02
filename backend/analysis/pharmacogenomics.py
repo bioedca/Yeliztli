@@ -158,6 +158,7 @@ _SQLITE_PYTHON_STRIP_CHARS = (
 # or serialized finding diffs, so neither may be read through the interactive
 # console/export while a pair is clinically withheld.
 _RAW_SQL_AUDIT_ONLY_TABLES: frozenset[str] = frozenset({"annotation_state", "findings"})
+_PRESCRIBING_IDENTIFIER_KEYS = frozenset({"gene", "drug"})
 
 
 def is_prescribing_alert_withheld(gene: object, drug: object) -> bool:
@@ -172,23 +173,67 @@ def is_prescribing_alert_withheld(gene: object, drug: object) -> bool:
     return (gene.strip().upper(), drug.strip().casefold()) in WITHHELD_PRESCRIBING_ALERT_PAIRS
 
 
+def contains_unpresentable_prescribing_identifier(value: object) -> bool:
+    """Whether structured data contains held or ambiguously named identifiers.
+
+    Legacy payloads can obscure a held pair with whitespace/case-mutated keys.
+    Treat those shapes as unpresentable so logging and API boundaries cannot
+    expose unclassified clinical guidance.
+    """
+    if isinstance(value, dict):
+        for key in value:
+            if (
+                isinstance(key, str)
+                and key.strip().casefold() in _PRESCRIBING_IDENTIFIER_KEYS
+                and key not in _PRESCRIBING_IDENTIFIER_KEYS
+            ):
+                return True
+        if "gene" in value and "drug" in value:
+            gene = value.get("gene")
+            drug = value.get("drug")
+            if (
+                not isinstance(gene, str)
+                or not gene.strip()
+                or not isinstance(drug, str)
+                or not drug.strip()
+                or is_prescribing_alert_withheld(gene, drug)
+            ):
+                return True
+        return any(
+            contains_unpresentable_prescribing_identifier(nested) for nested in value.values()
+        )
+    if isinstance(value, (list, tuple)):
+        return any(contains_unpresentable_prescribing_identifier(item) for item in value)
+    return False
+
+
 def is_withheld_prescribing_alert_finding(
-    _module: str | None,
-    category: str | None,
-    gene: str | None,
-    drug: str | None,
+    _module: object,
+    category: object,
+    gene: object,
+    drug: object,
 ) -> bool:
     """Whether a stored finding is held from patient-visible presentation.
 
-    This policy applies to every prescribing alert for the held pair, including
-    a legacy or custom row under a differently named module. Source-faithful
-    rows stay in storage for provenance and future scientific review, but generic
-    result, report, and diff surfaces must not turn their free-text payload into
-    patient-specific clinical guidance.
+    A source-faithful held pair remains audit-only regardless of how a legacy or
+    custom row labels its category. A prescribing alert with blank identifiers
+    is likewise unclassifiable, so it cannot safely expose free-text guidance.
+    Source rows stay in storage for provenance and future scientific review.
     """
+    if not WITHHELD_PRESCRIBING_ALERT_PAIRS:
+        return False
+    if is_prescribing_alert_withheld(gene, drug):
+        return True
     return (
-        category or ""
-    ).strip().casefold() == "prescribing_alert" and is_prescribing_alert_withheld(gene, drug)
+        isinstance(category, str)
+        and category.strip().casefold() == "prescribing_alert"
+        and (
+            not isinstance(gene, str)
+            or not gene.strip()
+            or not isinstance(drug, str)
+            or not drug.strip()
+        )
+    )
 
 
 def patient_visible_finding_clause(columns: Any) -> Any:
@@ -213,13 +258,16 @@ def patient_visible_finding_clause(columns: Any) -> Any:
     )
     held_pairs = [
         sa.and_(
-            category == "prescribing_alert",
             gene == held_gene,
             drug == held_drug,
         )
         for held_gene, held_drug in WITHHELD_PRESCRIBING_ALERT_PAIRS
     ]
-    return sa.not_(sa.or_(*held_pairs))
+    malformed_prescribing_alert = sa.and_(
+        category == "prescribing_alert",
+        sa.or_(gene == "", drug == ""),
+    )
+    return sa.not_(sa.or_(*held_pairs, malformed_prescribing_alert))
 
 
 def configure_raw_sql_findings_guard(connection: sqlite3.Connection) -> Callable[[], bool]:

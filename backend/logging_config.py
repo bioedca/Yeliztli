@@ -13,7 +13,7 @@ from datetime import UTC, datetime
 
 import structlog
 
-from backend.analysis.pharmacogenomics import is_prescribing_alert_withheld
+from backend.analysis.pharmacogenomics import contains_unpresentable_prescribing_identifier
 
 # Guard against recursive log writes (e.g. if the DB insert triggers logging)
 _in_db_processor = contextvars.ContextVar("_in_db_processor", default=False)
@@ -55,7 +55,11 @@ def _redact_withheld_prescribing_alert_fields(
     patient-visible recommendation channel. Preserve only event metadata and a
     neutral marker when a withheld pair is encountered.
     """
-    if not is_prescribing_alert_withheld(event_dict.get("gene"), event_dict.get("drug")):
+    try:
+        should_redact = contains_unpresentable_prescribing_identifier(event_dict)
+    except RecursionError:
+        should_redact = True
+    if not should_redact:
         return event_dict
 
     safe_metadata = {key: value for key, value in event_dict.items() if key in _LOG_METADATA_KEYS}

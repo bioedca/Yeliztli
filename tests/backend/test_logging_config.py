@@ -70,6 +70,46 @@ def test_withheld_prescribing_alert_log_keeps_only_neutral_metadata() -> None:
     }
 
 
+def test_nested_or_aliased_withheld_log_fields_keep_only_neutral_metadata() -> None:
+    """#2019: legacy nested aliases cannot reach a sink as guidance."""
+    event_dict = {
+        "event": "legacy_pgx_event",
+        "logger": "backend.analysis.pharmacogenomics",
+        "nested": {
+            " gene": " CYP2D6 ",
+            " drug": "\ttamoxifen\n",
+            "recommendation": "Use alternate hormonal therapy.",
+        },
+    }
+
+    redacted = _redact_withheld_prescribing_alert_fields(event_dict)
+
+    assert redacted == {
+        "event": "legacy_pgx_event",
+        "logger": "backend.analysis.pharmacogenomics",
+        "clinical_guidance_withheld": True,
+    }
+
+
+def test_malformed_prescribing_identifier_pair_keeps_only_neutral_metadata() -> None:
+    """#2019: blank canonical identifiers cannot send legacy guidance to a sink."""
+    event_dict = {
+        "event": "legacy_pgx_event",
+        "logger": "backend.analysis.pharmacogenomics",
+        "gene": " \t",
+        "drug": "tamoxifen",
+        "recommendation": "Use alternate hormonal therapy.",
+    }
+
+    redacted = _redact_withheld_prescribing_alert_fields(event_dict)
+
+    assert redacted == {
+        "event": "legacy_pgx_event",
+        "logger": "backend.analysis.pharmacogenomics",
+        "clinical_guidance_withheld": True,
+    }
+
+
 def test_configured_logging_redacts_before_db_and_console(
     tmp_path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -114,6 +154,44 @@ def test_configured_logging_redacts_before_db_and_console(
             "gene": "APOE",
         }
         assert event_data["rsid"] == "rs123"
+    finally:
+        structlog.reset_defaults()
+        engine.dispose()
+
+
+def test_configured_logging_redacts_nested_guidance_before_db_and_console(
+    tmp_path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """#2019: a nested legacy PGx payload is redacted before either log sink."""
+    structlog.reset_defaults()
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'reference.db'}")
+    reference_metadata.create_all(engine)
+
+    try:
+        configure_logging(engine_getter=lambda: engine)
+        structlog.get_logger("tests.logging_privacy").info(
+            "legacy_pgx_event",
+            nested={
+                " gene": "CYP2D6",
+                " drug": "tamoxifen",
+                "recommendation": "Use alternate hormonal therapy.",
+            },
+        )
+
+        stdout = capsys.readouterr().out
+        assert "CYP2D6" not in stdout
+        assert "tamoxifen" not in stdout
+        assert "alternate hormonal" not in stdout
+
+        with engine.connect() as conn:
+            event_data = conn.execute(
+                sa.select(log_entries.c.event_data).where(
+                    log_entries.c.message == "legacy_pgx_event"
+                )
+            ).scalar_one()
+
+        stored = json.loads(event_data)
+        assert stored == {"clinical_guidance_withheld": True}
     finally:
         structlog.reset_defaults()
         engine.dispose()

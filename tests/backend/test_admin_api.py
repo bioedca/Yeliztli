@@ -308,6 +308,72 @@ class TestLogExplorer:
                             '"recommendation":"Duplicate legacy payload must not render."}'
                         ),
                     },
+                    {
+                        "timestamp": datetime.now(UTC),
+                        "level": "WARNING",
+                        "logger": "backend.analysis.pharmacogenomics",
+                        "message": "pgx_prescribing_alert",
+                        "event_data": json.dumps(
+                            {
+                                "gene": "CYP2C19",
+                                "drug": "clopidogrel",
+                                "nested": {
+                                    " gene": "CYP2D6",
+                                    " drug": "tamoxifen",
+                                    "recommendation": "Aliased nested guidance must not render.",
+                                },
+                            }
+                        ),
+                    },
+                    {
+                        "timestamp": datetime.now(UTC),
+                        "level": "WARNING",
+                        "logger": "backend.analysis.pharmacogenomics",
+                        "message": "legacy_pgx_event",
+                        "event_data": json.dumps(
+                            {
+                                "gene": "CYP2C19",
+                                "drug": "clopidogrel",
+                                "nested": {
+                                    " gene": "CYP2D6",
+                                    " drug": "tamoxifen",
+                                    "recommendation": (
+                                        "Unknown-message alias guidance must not render."
+                                    ),
+                                },
+                            }
+                        ),
+                    },
+                    {
+                        "timestamp": datetime.now(UTC),
+                        "level": "WARNING",
+                        "logger": "backend.analysis.pharmacogenomics",
+                        "message": "legacy_pgx_event",
+                        "event_data": (
+                            '{"gene":"CYP2D6","drug":"tamoxifen",'
+                            '"gene":"CYP2C19","drug":"clopidogrel",'
+                            '"recommendation":"Unknown-message duplicate guidance must not "'
+                            '"render."}'
+                        ),
+                    },
+                    {
+                        "timestamp": datetime.now(UTC),
+                        "level": "WARNING",
+                        "logger": "backend.analysis.pharmacogenomics",
+                        "message": "legacy_pgx_event",
+                        "event_data": json.dumps(
+                            "Scalar CYP2D6 tamoxifen guidance must not render."
+                        ),
+                    },
+                    {
+                        "timestamp": datetime.now(UTC),
+                        "level": "WARNING",
+                        "logger": "backend.analysis.pharmacogenomics",
+                        "message": "legacy_pgx_event",
+                        "event_data": json.dumps(
+                            ["List CYP2D6 tamoxifen guidance must not render."]
+                        ),
+                    },
                 ],
             )
 
@@ -326,6 +392,47 @@ class TestLogExplorer:
         assert "whitespace gene" not in rendered
         assert "whitespace drug" not in rendered
         assert "duplicate legacy" not in rendered
+        assert "aliased nested guidance" not in rendered
+        assert "unknown-message alias guidance" not in rendered
+        assert "unknown-message duplicate guidance" not in rendered
+        assert "scalar cyp2d6 tamoxifen guidance" not in rendered
+        assert "list cyp2d6 tamoxifen guidance" not in rendered
+
+    def test_deeply_nested_pgx_logs_fail_closed(self, admin_client: TestClient) -> None:
+        """#2019: deeply nested legacy PGx JSON cannot crash Log Explorer."""
+        from backend.db.connection import get_registry
+
+        baseline = admin_client.get("/api/admin/logs")
+        assert baseline.status_code == 200
+        baseline_total = baseline.json()["total"]
+
+        payload: dict[str, object] = {
+            "gene": "CYP2C19",
+            "drug": "clopidogrel",
+            "recommendation": "Deep legacy payload must not render.",
+        }
+        nested = payload
+        for _ in range(600):
+            child: dict[str, object] = {}
+            nested["nested"] = child
+            nested = child
+
+        with get_registry().reference_engine.begin() as conn:
+            conn.execute(
+                sa.insert(log_entries).values(
+                    timestamp=datetime.now(UTC),
+                    level="WARNING",
+                    logger="backend.analysis.pharmacogenomics",
+                    message="pgx_prescribing_alert",
+                    event_data=json.dumps(payload),
+                )
+            )
+
+        response = admin_client.get("/api/admin/logs")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == baseline_total
+        assert "deep legacy payload" not in json.dumps(data).lower()
 
     def test_visible_log_paging_uses_bounded_batches(self) -> None:
         """#2019: filtering legacy logs must not materialize the full history."""

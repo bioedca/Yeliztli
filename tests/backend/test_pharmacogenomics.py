@@ -32,6 +32,7 @@ from backend.analysis.pharmacogenomics import (
     call_all_star_alleles,
     call_star_alleles_for_gene,
     generate_prescribing_alerts,
+    patient_visible_finding_clause,
     store_prescribing_alerts,
     update_annotation_coverage_cpic,
 )
@@ -493,6 +494,58 @@ def _make_sample_engine(genotypes: list[dict]) -> sa.Engine:
         with engine.begin() as conn:
             conn.execute(raw_variants.insert(), genotypes)
     return engine
+
+
+def test_patient_visible_clause_hides_held_and_unclassifiable_alerts() -> None:
+    """#2019: malformed or relabeled alert rows stay audit-only in SQL surfaces."""
+    sample = _make_sample_engine([])
+    with sample.begin() as conn:
+        conn.execute(
+            findings.insert(),
+            [
+                {
+                    "module": "pharmacogenomics",
+                    "category": "prescribing_alert",
+                    "gene_symbol": "CYP2D6",
+                    "drug": "codeine",
+                    "finding_text": "CYP2D6/codeine control alert",
+                },
+                {
+                    "module": "medication_review",
+                    "category": "legacy_note",
+                    "gene_symbol": "CYP2D6",
+                    "drug": "tamoxifen",
+                    "finding_text": "Relabeled tamoxifen guidance must not render.",
+                },
+                {
+                    "module": "medication_review",
+                    "category": "prescribing_alert",
+                    "gene_symbol": " \t",
+                    "drug": "tamoxifen",
+                    "finding_text": "Blank-gene guidance must not render.",
+                },
+                {
+                    "module": "medication_review",
+                    "category": "prescribing_alert",
+                    "gene_symbol": "CYP2D6",
+                    "drug": "\n ",
+                    "finding_text": "Blank-drug guidance must not render.",
+                },
+            ],
+        )
+
+    with sample.connect() as conn:
+        visible = (
+            conn.execute(
+                sa.select(findings.c.finding_text)
+                .where(patient_visible_finding_clause(findings.c))
+                .order_by(findings.c.id)
+            )
+            .scalars()
+            .all()
+        )
+
+    assert visible == ["CYP2D6/codeine control alert"]
 
 
 # ═══════════════════════════════════════════════════════════════════════

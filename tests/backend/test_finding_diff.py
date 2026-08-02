@@ -15,6 +15,7 @@ import pytest
 import sqlalchemy as sa
 
 from backend.analysis.finding_diff import (
+    DIFF_STATE_KEY,
     compute_and_store_finding_diff,
     compute_finding_diff,
     dismiss_finding_diff,
@@ -23,7 +24,7 @@ from backend.analysis.finding_diff import (
     snapshot_findings,
 )
 from backend.db.sample_schema import create_sample_tables
-from backend.db.tables import database_versions, findings, reference_metadata
+from backend.db.tables import annotation_state, database_versions, findings, reference_metadata
 from tests.backend.vep_bundle_test_utils import seed_embedded_vep_bundle_version
 
 SYNTHETIC_RECLASSIFICATION_RSID = "synthetic-reclassification-variant"
@@ -540,6 +541,20 @@ class TestSnapshotFindings:
                     "drug": "\ttamoxifen\n",
                     "finding_text": "Custom retained tamoxifen clinical advice.",
                 },
+                {
+                    "module": "medication_review",
+                    "category": "legacy_note",
+                    "gene_symbol": "CYP2D6",
+                    "drug": "tamoxifen",
+                    "finding_text": "Relabeled tamoxifen clinical advice.",
+                },
+                {
+                    "module": "medication_review",
+                    "category": "prescribing_alert",
+                    "gene_symbol": " ",
+                    "drug": "tamoxifen",
+                    "finding_text": "Blank-gene clinical advice.",
+                },
             ],
         )
 
@@ -674,3 +689,18 @@ class TestComputeAndStoreRoundTrip:
     def test_dismiss_without_stored_diff_returns_false(self, sample_engine: sa.Engine) -> None:
         assert dismiss_finding_diff(sample_engine) is False
         assert read_finding_diff(sample_engine) is None
+
+    def test_read_and_dismiss_reject_ambiguous_persisted_diff(
+        self, sample_engine: sa.Engine
+    ) -> None:
+        """#2019: duplicated JSON keys are unsafe for both diff read paths."""
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotation_state).values(
+                    key=DIFF_STATE_KEY,
+                    value='{"dismissed":false,"dismissed":true}',
+                )
+            )
+
+        assert read_finding_diff(sample_engine) is None
+        assert dismiss_finding_diff(sample_engine) is False

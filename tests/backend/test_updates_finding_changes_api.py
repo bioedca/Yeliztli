@@ -214,6 +214,19 @@ def _dismiss_finding_changes(sample_id: int) -> dict:
     return asyncio.run(dismiss_finding_changes(sample_id=sample_id))
 
 
+def _replace_stored_finding_diff(env: DBRegistry, raw_diff: str) -> None:
+    """Replace sample 1's persisted diff with deliberately legacy-shaped JSON."""
+    sample_db = env.settings.data_dir / "samples" / "sample_1.db"
+    engine = sa.create_engine(f"sqlite:///{sample_db}")
+    with engine.begin() as conn:
+        conn.execute(
+            annotation_state.update()
+            .where(annotation_state.c.key == DIFF_STATE_KEY)
+            .values(value=raw_diff)
+        )
+    engine.dispose()
+
+
 def test_get_finding_changes_returns_diff(_env: DBRegistry) -> None:
     body = _get_finding_changes(1)
     assert body["available"] is True
@@ -268,6 +281,113 @@ def test_get_finding_changes_all_gated_is_unavailable(_env: DBRegistry) -> None:
         "removed": [],
         "counts": {},
     }
+
+
+def test_get_finding_changes_skips_malformed_persisted_entries(_env: DBRegistry) -> None:
+    """#2019: malformed preserved diff entries must fail closed at the API boundary."""
+    malformed_category = {
+        "module": "medication_review",
+        "category": 1,
+        "gene_symbol": "CYP2D6",
+        "rsid": None,
+        "drug": "tamoxifen",
+        "diplotype": "*1/*4",
+        "finding_text": "Malformed category must not render.",
+        "changes": [],
+    }
+    whitespace_key = {
+        "module": "medication_review",
+        " category": "prescribing_alert",
+        "gene_symbol": "CYP2D6",
+        "rsid": None,
+        "drug": "tamoxifen",
+        "diplotype": "*1/*4",
+        "finding_text": "Whitespace-key guidance must not render.",
+        "changes": [],
+    }
+    nonstandard_category = {
+        "module": "medication_review",
+        "category": "legacy_note",
+        "gene_symbol": "CYP2D6",
+        "rsid": None,
+        "drug": "tamoxifen",
+        "diplotype": "*1/*4",
+        "finding_text": "Relabeled guidance must not render.",
+        "changes": [],
+    }
+    malformed_diff = {
+        **_DIFF_WITH_CHANGES,
+        "changed": [
+            _DIFF_WITH_CHANGES["changed"][0],
+            "malformed changed entry",
+            malformed_category,
+            whitespace_key,
+            nonstandard_category,
+        ],
+        "added": ["malformed added entry"],
+        "removed": ["malformed removed entry"],
+        "counts": {"changed": 5, "added": 1, "removed": 1},
+    }
+    _replace_stored_finding_diff(_env, json.dumps(malformed_diff))
+
+    body = _get_finding_changes(1)
+    assert body["available"] is True
+    assert body["counts"] == {"changed": 1, "added": 0, "removed": 0}
+    assert [entry["gene_symbol"] for entry in body["changed"]] == ["BRCA1"]
+    assert "malformed" not in json.dumps(body).lower()
+    assert "tamoxifen" not in json.dumps(body).lower()
+    assert "whitespace-key" not in json.dumps(body).lower()
+    assert "relabeled guidance" not in json.dumps(body).lower()
+
+
+def test_get_finding_changes_rejects_ambiguous_persisted_diff(_env: DBRegistry) -> None:
+    """#2019: duplicate JSON keys cannot relabel held guidance for display."""
+    held_entry = {
+        "module": "medication_review",
+        "category": "prescribing_alert",
+        "gene_symbol": "CYP2D6",
+        "rsid": None,
+        "drug": "tamoxifen",
+        "diplotype": "*1/*4",
+        "finding_text": "Ambiguous tamoxifen dose guidance must not render.",
+        "changes": [],
+    }
+    raw_diff = json.dumps(
+        {
+            **_DIFF_WITH_CHANGES,
+            "changed": [held_entry],
+            "added": [],
+            "removed": [],
+            "counts": {"changed": 1, "added": 0, "removed": 0},
+        }
+    ).replace(
+        '"category": "prescribing_alert"',
+        '"category": "prescribing_alert", "category": "legacy_note"',
+        1,
+    )
+    _replace_stored_finding_diff(_env, raw_diff)
+
+    body = _get_finding_changes(1)
+    assert body["available"] is False
+    assert "tamoxifen" not in json.dumps(body).lower()
+    assert "dose guidance" not in json.dumps(body).lower()
+
+
+@pytest.mark.parametrize(
+    "raw_diff",
+    [
+        "[]",
+        json.dumps({**_DIFF_WITH_CHANGES, "generated_at": 1}),
+        json.dumps({**_DIFF_WITH_CHANGES, "release_deltas": ["malformed"]}),
+    ],
+    ids=["non-object-root", "non-string-generated-at", "malformed-release-delta"],
+)
+def test_get_finding_changes_hides_malformed_envelopes(_env: DBRegistry, raw_diff: str) -> None:
+    """#2019: invalid diff envelopes are unavailable rather than crash or leak."""
+    _replace_stored_finding_diff(_env, raw_diff)
+
+    body = _get_finding_changes(1)
+    assert body["available"] is False
 
 
 def test_get_finding_changes_absent_is_unavailable(_env: DBRegistry) -> None:
