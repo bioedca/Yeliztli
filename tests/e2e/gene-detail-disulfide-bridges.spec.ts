@@ -72,6 +72,14 @@ test('renders known P01308 disulfide pairs as labeled Nightingale bridges', asyn
   await expect(page.getByText('Features', { exact: true })).toBeVisible()
   const featureTrack = page.locator('nightingale-track[aria-label="Protein features"]')
   await expect(featureTrack).toBeVisible()
+  await expect(featureTrack).toHaveAttribute('height', '60')
+  await expect
+    .poll(() =>
+      featureTrack.evaluate(
+        (element) => (element as HTMLElement & { layout?: string }).layout,
+      ),
+    )
+    .toBe('non-overlapping')
 
   const data = await featureTrack.evaluate((element) => {
     const value = (element as HTMLElement & { data?: unknown }).data
@@ -105,4 +113,16 @@ test('renders known P01308 disulfide pairs as labeled Nightingale bridges', asyn
       locations: [{ fragments: [{ start: 95, end: 100 }] }],
     },
   ])
+
+  const bridgeYOffsets = await featureTrack.locator('svg path.bridge.feature').evaluateAll((paths) =>
+    paths.map((path) => {
+      const transform = path.getAttribute('transform') ?? ''
+      const match = /translate\([^,]+,([^)]+)\)/.exec(transform)
+      return match ? Number(match[1]) : null
+    }),
+  )
+
+  expect(bridgeYOffsets).toHaveLength(3)
+  expect(bridgeYOffsets).not.toContain(null)
+  expect(new Set(bridgeYOffsets).size).toBe(3)
 })

@@ -233,9 +233,10 @@ export default function NightingaleViewer({
               ref={featureTrackRef}
               aria-label="Protein features"
               length={seqLength}
-              height="30"
+              height="60"
               display-start="1"
               display-end={seqLength}
+              layout="non-overlapping"
             />
           </div>
         )}

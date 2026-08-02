@@ -19,7 +19,7 @@ rendered as a non-bridge until a live refresh supplies its exactness qualifiers.
 | --- | --- | --- | --- |
 | Reviewed human insulin entry P01308 reports three explicit `EXACT` disulfide endpoint pairs: 31–96, 43–109, and 95–100. | UniProtKB P01308, entry version 283 (accessed 2026-08-02); each annotation links to PMID:1433291 and DOI:10.1016/0022-2836(92)90527-q (accessed 2026-08-02) | `uniprot-p01308.json` | Direct authoritative record; source-linked primary evidence |
 | A disulfide connectivity represents which nonadjacent cysteines are cross-linked. | PMID:26523116; DOI:10.4137/EBO.S25349 (accessed 2026-08-02) | `pubmed-26523116.xml` | Context only; no clinical claim |
-| The pinned upstream Nightingale track maps `DISULFID` to the non-continuous `bridge` shape. | `ebi-webcomponents/nightingale` commit `a4a65eccbf03fe5290adb1ec171cb5a43e8a3d83` (accessed 2026-08-02) | Upstream source URLs in `query-log.md` | Renderer contract |
+| The pinned upstream Nightingale track maps `DISULFID` to the non-continuous `bridge` shape, and its `non-overlapping` layout places overlapping features on separate rows. | `ebi-webcomponents/nightingale` commit `a4a65eccbf03fe5290adb1ec171cb5a43e8a3d83` (accessed 2026-08-02) | Upstream source URLs in `query-log.md` | Renderer contract |
 
 ## Source and license notes
 
