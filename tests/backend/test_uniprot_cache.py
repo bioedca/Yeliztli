@@ -310,7 +310,17 @@ class TestUniProtCacheFetcher:
     def test_store_and_retrieve(self, ref_engine: sa.Engine, fetcher: UniProtCacheFetcher) -> None:
         """Store data in cache and retrieve it."""
         domains = [ProteinDomainData(type="Domain", description="Test", start=1, end=100)]
-        features = [ProteinFeatureData(type="Active site", description="Test", position=50)]
+        features = [
+            ProteinFeatureData(type="Active site", description="Test", position=50),
+            ProteinFeatureData(
+                type="Disulfide bond",
+                description="Disulfide bond",
+                start=31,
+                end=96,
+                start_modifier="EXACT",
+                end_modifier="EXACT",
+            ),
+        ]
 
         fetcher._store_cache(
             accession="Q12345",
@@ -325,7 +335,12 @@ class TestUniProtCacheFetcher:
         assert result.accession == "Q12345"
         assert result.sequence_length == 500
         assert len(result.domains) == 1
-        assert len(result.features) == 1
+        assert len(result.features) == 2
+        disulfide = result.features[1]
+        assert disulfide.start == 31
+        assert disulfide.end == 96
+        assert disulfide.start_modifier == "EXACT"
+        assert disulfide.end_modifier == "EXACT"
 
     def test_store_updates_existing(
         self, ref_engine: sa.Engine, fetcher: UniProtCacheFetcher
@@ -764,6 +779,67 @@ class TestAPIFetchParsing:
         assert len(features) == 2
         assert features[0].type == "Active site"
         assert features[1].type == "Binding site"
+
+    def test_extract_disulfide_pairs_preserves_both_endpoints(
+        self, fetcher: UniProtCacheFetcher
+    ) -> None:
+        """UniProt disulfide annotations retain both explicit cysteine coordinates."""
+        entry = {
+            "features": [
+                {
+                    "type": "Disulfide bond",
+                    "description": "Interchain (between B and A chains)",
+                    "location": {
+                        "start": {"value": 31, "modifier": "EXACT"},
+                        "end": {"value": 96, "modifier": "EXACT"},
+                    },
+                },
+                {
+                    "type": "Disulfide bond",
+                    "description": "Interchain (between B and A chains)",
+                    "location": {
+                        "start": {"value": 43, "modifier": "EXACT"},
+                        "end": {"value": 109, "modifier": "EXACT"},
+                    },
+                },
+                {
+                    "type": "Disulfide bond",
+                    "description": "",
+                    "location": {
+                        "start": {"value": 95, "modifier": "EXACT"},
+                        "end": {"value": 100, "modifier": "EXACT"},
+                    },
+                },
+                {
+                    "type": "Disulfide bond",
+                    "description": "Qualified endpoint",
+                    "location": {
+                        "start": {"value": 60, "modifier": "OUTSIDE"},
+                        "end": {"value": 80, "modifier": "EXACT"},
+                    },
+                },
+            ]
+        }
+
+        domains, features = fetcher._extract_features(entry)
+
+        assert domains == []
+        assert [
+            (
+                feature.type,
+                feature.position,
+                feature.start,
+                feature.end,
+                feature.start_modifier,
+                feature.end_modifier,
+            )
+            for feature in features
+        ] == [
+            ("Disulfide bond", None, 31, 96, "EXACT", "EXACT"),
+            ("Disulfide bond", None, 43, 109, "EXACT", "EXACT"),
+            ("Disulfide bond", None, 95, 100, "EXACT", "EXACT"),
+            ("Disulfide bond", None, 60, 80, "OUTSIDE", "EXACT"),
+        ]
 
     @pytest.mark.parametrize(
         ("field", "feature_type", "is_domain"),
