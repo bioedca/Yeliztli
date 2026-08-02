@@ -325,6 +325,14 @@ describe('StaleSampleGate', () => {
     queryClient.setQueryData(['findings', 42], { cached: 'pre-annotation findings' })
     queryClient.setQueryData(['pharma-genes', 42], { cached: 'pre-annotation pharmacogenomics' })
     queryClient.setQueryData(['pharma-genes', 99], { cached: 'other sample' })
+    queryClient.setQueryData(['individuals', 7], {
+      linked_samples: [{ id: 42 }],
+      aggregated_findings_count: 1,
+    })
+    queryClient.setQueryData(['individuals', 8], {
+      linked_samples: [{ id: 99 }],
+      aggregated_findings_count: 1,
+    })
     queryClient.setQueryData(['nutrigenomics-pathway-detail', 42, 99], {
       cached: 'other sample, target-sized pathway ID',
     })
@@ -385,6 +393,8 @@ describe('StaleSampleGate', () => {
       expect(queryClient.getQueryState(['findings', 42])?.isInvalidated).toBe(true)
       expect(queryClient.getQueryState(['pharma-genes', 42])?.isInvalidated).toBe(true)
       expect(queryClient.getQueryState(['pharma-genes', 99])?.isInvalidated).toBe(false)
+      expect(queryClient.getQueryState(['individuals', 7])?.isInvalidated).toBe(true)
+      expect(queryClient.getQueryState(['individuals', 8])?.isInvalidated).toBe(false)
       expect(
         queryClient.getQueryState(['nutrigenomics-pathway-detail', 42, 99])?.isInvalidated,
       ).toBe(false)

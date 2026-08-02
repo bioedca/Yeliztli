@@ -199,6 +199,32 @@ function isSampleDerivedQueryKey(queryKey: readonly unknown[], sampleId: number)
   )
 }
 
+function isIndividualDetailQueryForSample(
+  queryKey: readonly unknown[],
+  data: unknown,
+  sampleId: number,
+): boolean {
+  if (
+    queryKey[0] !== "individuals" ||
+    queryKey.length !== 2 ||
+    typeof queryKey[1] !== "number"
+  ) {
+    return false
+  }
+  if (!data || typeof data !== "object") return false
+
+  const linkedSamples = (data as { linked_samples?: unknown }).linked_samples
+  return (
+    Array.isArray(linkedSamples) &&
+    linkedSamples.some(
+      (sample) =>
+        !!sample &&
+        typeof sample === "object" &&
+        (sample as { id?: unknown }).id === sampleId,
+    )
+  )
+}
+
 const ACTIVE_ANNOTATION_PROBE_TIMEOUT_MS = 10_000
 
 export async function fetchActiveAnnotationJob(
@@ -275,9 +301,18 @@ export function invalidateAnnotationResultQueries(
     // is not always in the same position (for example, `pharma-drug` includes
     // a drug name before it). Match the explicit sample-key contract so a
     // coincident pathway or pagination value cannot invalidate another sample.
-    return queryClient.invalidateQueries({
+    const sampleResults = queryClient.invalidateQueries({
       predicate: (query) => isSampleDerivedQueryKey(query.queryKey, sampleId),
     })
+    // Individual details cache the server-side aggregate count, which includes
+    // every linked sample's findings. Refresh only the cached individual
+    // details that actually link this sample so a newly fresh summary cannot
+    // disagree with its header total.
+    const individualAggregates = queryClient.invalidateQueries({
+      predicate: (query) =>
+        isIndividualDetailQueryForSample(query.queryKey, query.state.data, sampleId),
+    })
+    return Promise.all([sampleResults, individualAggregates])
   }
 
   // Preserve the legacy all-samples behavior for callers that do not have a
