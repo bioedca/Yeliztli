@@ -340,6 +340,11 @@ export default function StaleSampleGate({ children }: StaleSampleGateProps) {
       !activeJobQuery.isFetching
     ) {
       trackedJobRef.current = null
+      // A 409 recovery enables polling independently of the active job data.
+      // Once the tracked job reaches its authoritative terminal 404, clear
+      // that recovery mode so the completed sample does not keep polling.
+      setReconnectPending(false)
+      setReconnectProbeFailed(false)
       resetReannotation()
       void queryClient.invalidateQueries({
         queryKey: sampleStalenessQueryKeyPrefix(activeSampleId),

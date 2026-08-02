@@ -895,6 +895,11 @@ describe('StaleSampleGate', () => {
     )
     expect(screen.queryByTestId('stale-reconnect-status')).not.toBeInTheDocument()
     expect(screen.getByTestId('stale-sample-gate')).toBeInTheDocument()
+
+    // A successful 409 recovery must stop its one-second polling loop after
+    // the tracked job's terminal 404; otherwise the stale gate polls forever.
+    await new Promise((resolve) => setTimeout(resolve, 1_100))
+    expect(recoveredActiveChecks).toBe(2)
   })
 
   it('keeps conflict recovery fenced and polling when the active-job probe is unavailable', async () => {
