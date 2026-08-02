@@ -922,6 +922,97 @@ class TestDownloadAndLoad:
         assert len(managed_bundles) == 3
         assert all(not (path / SOURCE_BUNDLE_PENDING).exists() for path in managed_bundles)
 
+    @pytest.mark.parametrize("replacement", ("corrupt", "symlink", "manifest_fifo"))
+    def test_refuses_invalid_pending_bundle_on_an_identical_retry(
+        self,
+        monkeypatch,
+        reference_engine: sa.Engine,
+        mondo_tsv_file: Path,
+        hpo_phenotype_file: Path,
+        mondo_sssom_file: Path,
+        tmp_path: Path,
+        replacement: str,
+    ) -> None:
+        """A self-reported matching manifest cannot reuse altered source bytes."""
+        monkeypatch.setattr("backend.annotation.mondo_hpo.MINIMUM_UNAMBIGUOUS_MONDO_XREFS", 2)
+        source_files = {
+            "gene_disease.9606.tsv.gz": mondo_tsv_file,
+            "genes_to_phenotype.txt": hpo_phenotype_file,
+            "mondo.sssom.tsv": mondo_sssom_file,
+        }
+        generation = {"value": 0}
+
+        def fake_download(url, dest_dir, filename, **kwargs):
+            target = dest_dir / filename
+            target.parent.mkdir(parents=True, exist_ok=True)
+            if filename.endswith(".gz"):
+                with gzip.open(target, "wb") as fh:
+                    fh.write(source_files[filename].read_bytes())
+            else:
+                target.write_bytes(source_files[filename].read_bytes())
+            meta = kwargs.get("meta")
+            if meta is not None:
+                meta.update(
+                    {
+                        "etag": f'"generation-{generation["value"]}-{filename}"',
+                        "last_modified": "Wed, 15 Apr 2026 12:34:56 GMT",
+                        "version": "20260415",
+                    }
+                )
+            return target
+
+        monkeypatch.setattr("backend.annotation.mondo_hpo.download_file", fake_download)
+        downloads = tmp_path / "downloads"
+        download_and_load_mondo_hpo(reference_engine, downloads)
+        with reference_engine.connect() as conn:
+            prior_path = conn.execute(
+                sa.select(database_versions.c.file_path).where(
+                    database_versions.c.db_name == "mondo_hpo"
+                )
+            ).scalar_one()
+
+        original_load_rows = load_mondo_hpo_rows
+
+        def fail_load(*args, **kwargs):
+            raise RuntimeError("simulated row load failure")
+
+        generation["value"] = 1
+        monkeypatch.setattr("backend.annotation.mondo_hpo.load_mondo_hpo_rows", fail_load)
+        with pytest.raises(RuntimeError, match="simulated row load failure"):
+            download_and_load_mondo_hpo(reference_engine, downloads)
+
+        failed_bundle = next(
+            path
+            for path in (downloads / "mondo_hpo_sources").iterdir()
+            if path != Path(prior_path).parent
+        )
+        primary_source = failed_bundle / "gene_disease.9606.tsv.gz"
+        external_source = tmp_path / "external-primary-source"
+        if replacement == "corrupt":
+            primary_source.write_bytes(b"corrupt source bytes\n")
+        elif replacement == "symlink":
+            external_source.write_bytes(b"external source bytes\n")
+            primary_source.unlink()
+            primary_source.symlink_to(external_source)
+        else:
+            (failed_bundle / "mondo_hpo_sources.json").unlink()
+            os.mkfifo(failed_bundle / "mondo_hpo_sources.json")
+
+        monkeypatch.setattr("backend.annotation.mondo_hpo.load_mondo_hpo_rows", original_load_rows)
+        with pytest.raises(ValueError, match="source bundle"):
+            download_and_load_mondo_hpo(reference_engine, downloads)
+
+        with reference_engine.connect() as conn:
+            preserved_path = conn.execute(
+                sa.select(database_versions.c.file_path).where(
+                    database_versions.c.db_name == "mondo_hpo"
+                )
+            ).scalar_one()
+        assert preserved_path == prior_path
+        assert (failed_bundle / SOURCE_BUNDLE_PENDING).is_file()
+        if replacement == "symlink":
+            assert external_source.read_bytes() == b"external source bytes\n"
+
     def test_rejects_symlinked_source_bundle_root(
         self,
         monkeypatch,

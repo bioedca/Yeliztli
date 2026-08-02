@@ -881,21 +881,131 @@ def _read_source_bundle_manifest_from_fd(bundle_name: str, bundle_fd: int) -> di
     try:
         manifest_fd = os.open(
             SOURCE_BUNDLE_MANIFEST,
-            _source_bundle_open_flags(directory=False),
+            _source_bundle_file_open_flags(),
             dir_fd=bundle_fd,
         )
     except OSError as exc:
         raise ValueError(f"Existing MONDO/HPO source bundle is not valid: {bundle_name}") from exc
     try:
         with os.fdopen(manifest_fd, encoding="utf-8") as manifest_file:
-            if not stat.S_ISREG(os.fstat(manifest_file.fileno()).st_mode):
-                raise ValueError("MONDO/HPO source bundle manifest is not a regular file")
+            manifest_stat = os.fstat(manifest_file.fileno())
+            named_before = os.stat(
+                SOURCE_BUNDLE_MANIFEST,
+                dir_fd=bundle_fd,
+                follow_symlinks=False,
+            )
+            if (
+                not stat.S_ISREG(manifest_stat.st_mode)
+                or not stat.S_ISREG(named_before.st_mode)
+                or _source_bundle_identity(manifest_stat) != _source_bundle_identity(named_before)
+            ):
+                raise ValueError("MONDO/HPO source bundle manifest is not a stable regular file")
             manifest = json.load(manifest_file)
+        named_after = os.stat(
+            SOURCE_BUNDLE_MANIFEST,
+            dir_fd=bundle_fd,
+            follow_symlinks=False,
+        )
+        if not stat.S_ISREG(named_after.st_mode) or _source_bundle_identity(
+            manifest_stat
+        ) != _source_bundle_identity(named_after):
+            raise ValueError("MONDO/HPO source bundle manifest changed during validation")
     except (OSError, UnicodeDecodeError, ValueError, json.JSONDecodeError) as exc:
         raise ValueError(f"Existing MONDO/HPO source bundle is not valid: {bundle_name}") from exc
     if not isinstance(manifest, dict):
         raise ValueError(f"Existing MONDO/HPO source bundle is not valid: {bundle_name}")
     return manifest
+
+
+def _source_bundle_file_open_flags() -> int:
+    """Return fail-closed flags for a source file opened through a bundle FD."""
+    nonblocking_flag = getattr(os, "O_NONBLOCK", None)
+    if nonblocking_flag is None:
+        raise OSError("The platform cannot safely inspect MONDO/HPO source bundle files")
+    return _source_bundle_open_flags(directory=False) | nonblocking_flag
+
+
+def _source_bundle_expected_file_fields(
+    source: dict[str, str | int | None],
+) -> tuple[str, int, str]:
+    """Validate the file facts a newly downloaded source requires on reuse."""
+    filename = source.get("filename")
+    size_bytes = source.get("size_bytes")
+    checksum = source.get("sha256")
+    if (
+        not isinstance(filename, str)
+        or filename in {"", ".", ".."}
+        or Path(filename).name != filename
+        or type(size_bytes) is not int
+        or size_bytes < 0
+        or not isinstance(checksum, str)
+        or len(checksum) != 64
+        or any(character not in "0123456789abcdef" for character in checksum)
+    ):
+        raise ValueError("MONDO/HPO source bundle manifest has invalid source file facts")
+    return filename, size_bytes, checksum
+
+
+def _source_bundle_file_matches_expected(
+    bundle_name: str,
+    bundle_fd: int,
+    *,
+    filename: str,
+    expected_size: int,
+    expected_checksum: str,
+) -> bool:
+    """Return whether one held source file is regular, stable, and byte-exact."""
+    try:
+        source_fd = os.open(
+            filename,
+            _source_bundle_file_open_flags(),
+            dir_fd=bundle_fd,
+        )
+    except OSError as exc:
+        raise ValueError(
+            f"MONDO/HPO source bundle has an unsafe source file: {bundle_name}/{filename}"
+        ) from exc
+    try:
+        source_stat = os.fstat(source_fd)
+        try:
+            named_before = os.stat(filename, dir_fd=bundle_fd, follow_symlinks=False)
+        except OSError as exc:
+            raise ValueError(
+                f"MONDO/HPO source bundle source file changed during validation: "
+                f"{bundle_name}/{filename}"
+            ) from exc
+        if (
+            not stat.S_ISREG(source_stat.st_mode)
+            or not stat.S_ISREG(named_before.st_mode)
+            or _source_bundle_identity(source_stat) != _source_bundle_identity(named_before)
+            or source_stat.st_size != expected_size
+        ):
+            return False
+        digest = hashlib.sha256()
+        try:
+            while chunk := os.read(source_fd, 1024 * 1024):
+                digest.update(chunk)
+        except OSError as exc:
+            raise ValueError(
+                f"Unable to validate MONDO/HPO source bundle source file: {bundle_name}/{filename}"
+            ) from exc
+        final_stat = os.fstat(source_fd)
+        try:
+            named_after = os.stat(filename, dir_fd=bundle_fd, follow_symlinks=False)
+        except OSError as exc:
+            raise ValueError(
+                f"MONDO/HPO source bundle source file changed during validation: "
+                f"{bundle_name}/{filename}"
+            ) from exc
+        return (
+            stat.S_ISREG(final_stat.st_mode)
+            and _source_bundle_identity(final_stat) == _source_bundle_identity(source_stat)
+            and final_stat.st_size == expected_size
+            and _source_bundle_identity(named_after) == _source_bundle_identity(source_stat)
+            and digest.hexdigest() == expected_checksum
+        )
+    finally:
+        os.close(source_fd)
 
 
 def _assert_published_source_bundle_matches_fd(
@@ -916,6 +1026,40 @@ def _assert_published_source_bundle_matches_fd(
         ) from exc
     if not stat.S_ISDIR(current.st_mode) or _source_bundle_identity(current) != published.identity:
         raise ValueError(f"MONDO/HPO source bundle changed during finalization: {published.name}")
+
+
+def _assert_published_source_bundle_contents(
+    managed: _ManagedSourceBundleDir,
+    published: _PublishedSourceBundle,
+    sources: list[dict[str, str | int | None]],
+) -> None:
+    """Require a held bundle's manifest and source files to match fresh inputs."""
+    _assert_published_source_bundle_matches_fd(managed, published)
+    manifest = _read_source_bundle_manifest_from_fd(published.name, published.fd)
+    if (
+        manifest.get("schema_version") != 1
+        or manifest.get("ingestion_revision") != MONDO_HPO_INGESTION_REVISION
+        or manifest.get("sources") != sources
+    ):
+        raise ValueError(f"MONDO/HPO source bundle ID collision: {published.name}")
+    filenames: set[str] = set()
+    for source in sources:
+        filename, expected_size, expected_checksum = _source_bundle_expected_file_fields(source)
+        if filename in filenames:
+            raise ValueError("MONDO/HPO source bundle manifest repeats a source filename")
+        filenames.add(filename)
+        if not _source_bundle_file_matches_expected(
+            published.name,
+            published.fd,
+            filename=filename,
+            expected_size=expected_size,
+            expected_checksum=expected_checksum,
+        ):
+            raise ValueError(
+                f"MONDO/HPO source bundle source file does not match its manifest: "
+                f"{published.name}/{filename}"
+            )
+    _assert_published_source_bundle_matches_fd(managed, published)
 
 
 def _open_published_source_bundle(
@@ -1015,19 +1159,8 @@ def _publish_staged_source_bundle(
         if stat.S_ISLNK(existing.st_mode) or not stat.S_ISDIR(existing.st_mode):
             raise ValueError(f"Existing MONDO/HPO source bundle is not a directory: {bundle_id}")
         published = _open_published_source_bundle(managed, bundle_id)
-        try:
-            manifest = _read_source_bundle_manifest_from_fd(bundle_id, published.fd)
-        except BaseException:
-            os.close(published.fd)
-            raise
-        if (
-            manifest.get("ingestion_revision") != MONDO_HPO_INGESTION_REVISION
-            or manifest.get("sources") != sources
-        ):
-            os.close(published.fd)
-            raise ValueError(f"MONDO/HPO source bundle ID collision: {bundle_id}")
     try:
-        _assert_published_source_bundle_matches_fd(managed, published)
+        _assert_published_source_bundle_contents(managed, published, sources)
         yield published
     finally:
         os.close(published.fd)
@@ -1741,14 +1874,13 @@ def download_and_load_mondo_hpo(
                         _source_bundle_id(sources),
                         sources,
                     ) as published:
-                        _assert_published_source_bundle_matches_fd(managed, published)
                         final_mondo_path = managed.path / published.name / mondo_path.name
                         final_source_manifest_path = (
                             managed.path / published.name / source_manifest_path.name
                         )
 
                         def assert_published_before_commit() -> None:
-                            _assert_published_source_bundle_matches_fd(managed, published)
+                            _assert_published_source_bundle_contents(managed, published, sources)
 
                         stats.records_loaded = load_mondo_hpo_rows(
                             rows,

@@ -63,7 +63,7 @@ NCBI Entrez:
      makes no patient-level, diagnostic, or risk claim.
 3. Human Phenotype Ontology, `genes_to_phenotype.txt`
    <https://purl.obolibrary.org/obo/hp/hpoa/genes_to_phenotype.txt>
-   (source snapshot and retained excerpt verified 2026-08-02).
+   (accessed 2026-08-02; source snapshot and retained excerpt verified on that date).
    - Its six-column schema includes a `disease_id` for each gene/HPO term.
    - [`hpo-genes-to-phenotype-excerpt.tsv`](hpo-genes-to-phenotype-excerpt.tsv)
      is a small, public, source-native excerpt showing one gene with distinct
@@ -76,7 +76,7 @@ NCBI Entrez:
      before an exact MONDO match.
 4. MONDO SSSOM mappings,
    <https://purl.obolibrary.org/obo/mondo/mappings/mondo.sssom.tsv>
-   (source snapshot and retained excerpt verified 2026-08-02).
+   (accessed 2026-08-02; source snapshot and retained excerpt verified on that date).
    - [`mondo-sssom-excerpt.tsv`](mondo-sssom-excerpt.tsv) preserves source-native
      `skos:exactMatch` rows for those identifiers. Broad/narrow mappings and
      source identifiers with more than one exact MONDO target are deliberately
