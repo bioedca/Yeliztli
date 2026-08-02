@@ -114,10 +114,20 @@ export async function fetchActiveAnnotationJob(
   }
 }
 
+interface ActiveAnnotationJobQueryOptions {
+  /** Continue one-second probes after a 409 has confirmed an active job. */
+  pollWhenUnavailable?: boolean
+  /** Suppress initial-error retries for auxiliary callers such as the stale gate. */
+  retryOnInitialFailure?: boolean
+}
+
 /** Check if a sample has an active (pending/running) annotation job. */
 export function useActiveAnnotationJob(
   sampleId: number | null,
-  pollWhenUnavailable = false,
+  {
+    pollWhenUnavailable = false,
+    retryOnInitialFailure = true,
+  }: ActiveAnnotationJobQueryOptions = {},
 ) {
   return useQuery<ActiveAnnotationJob | null>({
     queryKey: annotationActiveQueryKey(sampleId),
@@ -127,10 +137,11 @@ export function useActiveAnnotationJob(
     },
     enabled: sampleId != null,
     staleTime: 0,
-    // The stale gate deliberately treats this as an auxiliary probe on initial
-    // load, then opts into one-second retries only after the server confirms a
-    // conflicting annotation request is already active.
-    retry: false,
+    // Ordinary consumers retain their QueryClient retry policy, so a transient
+    // active-job probe cannot expose a duplicate-start CTA. The stale gate
+    // explicitly opts out on its initial auxiliary probe, then polls after a
+    // 409 has authoritatively established that a job is active.
+    ...(retryOnInitialFailure ? {} : { retry: false }),
     refetchOnWindowFocus: false,
     refetchInterval: ({ state: { data } }) => (data || pollWhenUnavailable ? 1_000 : false),
   })

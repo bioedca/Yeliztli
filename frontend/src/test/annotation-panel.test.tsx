@@ -1,5 +1,6 @@
-import { act } from "react"
-import { QueryClient } from "@tanstack/react-query"
+import { act, type ReactNode } from "react"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { render as renderWithWrapper } from "@testing-library/react"
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
 import { render, screen, fireEvent, waitFor } from "./test-utils"
 import AnnotationPanel from "@/components/dashboard/AnnotationPanel"
@@ -113,6 +114,49 @@ describe("AnnotationPanel", () => {
     it("shows generic description when variant count is null", () => {
       render(<AnnotationPanel sampleId={1} variantCount={null} />)
       expect(screen.getByText(/Run the annotation pipeline/)).toBeInTheDocument()
+    })
+
+    it("retries an unavailable active-job probe before showing the start CTA", async () => {
+      mockFetch.mockReset()
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 503,
+          json: async () => ({ detail: "Temporarily unavailable" }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            job_id: "existing-job",
+            sample_id: 1,
+            status: "running",
+            progress_pct: 25,
+            message: "Annotating variants",
+          }),
+        })
+
+      const queryClient = new QueryClient({
+        defaultOptions: {
+          queries: { retry: 1, retryDelay: 0, gcTime: 0 },
+          mutations: { retry: false },
+        },
+      })
+      const RetryWrapper = ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      )
+
+      renderWithWrapper(<AnnotationPanel sampleId={1} variantCount={1000} />, {
+        wrapper: RetryWrapper,
+      })
+
+      await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2))
+      await waitFor(() => {
+        expect(MockEventSource.instances[0]?.url).toBe(
+          "/api/annotation/status/existing-job",
+        )
+      })
+      expect(screen.queryByText("Run Annotation")).not.toBeInTheDocument()
     })
   })
 

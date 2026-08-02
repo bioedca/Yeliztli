@@ -154,7 +154,10 @@ export default function StaleSampleGate({ children }: StaleSampleGateProps) {
   const queryClient = useQueryClient()
   const [reconnectPending, setReconnectPending] = useState(false)
   const [reconnectProbeFailed, setReconnectProbeFailed] = useState(false)
-  const activeJobQuery = useActiveAnnotationJob(activeSampleId, reconnectPending)
+  const activeJobQuery = useActiveAnnotationJob(activeSampleId, {
+    pollWhenUnavailable: reconnectPending,
+    retryOnInitialFailure: false,
+  })
   const activeJob = activeJobQuery.data ?? null
   const trackedJobRef = useRef<{ sampleId: number; jobId: string } | null>(null)
 
