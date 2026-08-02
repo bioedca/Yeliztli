@@ -129,6 +129,30 @@ describe('StaleSampleGate', () => {
     expect(mockFetch).toHaveBeenCalledWith('/api/variants/count?sample_id=42')
   })
 
+  it('does not block a fresh route on an unresolved active-job probe', async () => {
+    mockFetch.mockImplementation((input: RequestInfo | URL) => {
+      const url = requestUrl(input)
+      if (isActiveJobRequest(url)) {
+        return new Promise(() => {})
+      }
+      if (isStalenessRequest(url)) {
+        return apiResponse(200, { total: 12345 })
+      }
+      return apiResponse(200, {})
+    })
+
+    render(
+      <StaleSampleGate>
+        <div data-testid="protected-content">fresh content</div>
+      </StaleSampleGate>,
+      { wrapper: createWrapper() },
+    )
+
+    expect(await screen.findByTestId('protected-content')).toBeInTheDocument()
+    expect(mockFetch).toHaveBeenCalledWith('/api/annotation/active/42')
+    expect(mockFetch).toHaveBeenCalledWith('/api/variants/count?sample_id=42')
+  })
+
   it('renders children without probing when no sample_id is in the URL', async () => {
     mockFetch.mockImplementation(() => apiResponse(200, {}))
 

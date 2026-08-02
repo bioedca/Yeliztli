@@ -205,18 +205,22 @@ export default function StaleSampleGate({ children }: StaleSampleGateProps) {
     resetReannotation,
   ])
 
-  // While an active sample's staleness probe is still pending, hold back
-  // children so potentially-stale content never flashes. Also wait for the
-  // initial active-job check so a reload cannot briefly expose a duplicate CTA.
-  if (
-    activeSampleId != null &&
-    (isStalenessPending || activeJobQuery.isPending)
-  ) {
+  // Hold back children only until the authoritative staleness probe resolves,
+  // so potentially stale content never flashes. The active-job endpoint is
+  // auxiliary: a slow or unavailable probe must not blank a route already
+  // confirmed fresh.
+  if (activeSampleId != null && isStalenessPending) {
     return null
   }
 
   if (!stale) {
     return <>{children}</>
+  }
+
+  // Once staleness is established, wait for the initial active-job check so a
+  // reload cannot briefly expose a duplicate re-annotation CTA.
+  if (activeJobQuery.isPending) {
+    return null
   }
 
   const isConflict =
