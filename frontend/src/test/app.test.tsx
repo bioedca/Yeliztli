@@ -2,6 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen } from './test-utils'
 import App from '../App'
 
+vi.mock('../pages/IndividualDetail', () => ({
+  default: () => <div data-testid="individual-detail-page">Individual detail</div>,
+}))
+
 function jsonResponse(body: unknown, status = 200): Promise<Response> {
   return Promise.resolve(
     new Response(JSON.stringify(body), {
@@ -139,6 +143,20 @@ describe('App', () => {
       fetchMock.mock.calls.some(([input]) =>
         requestUrl(input as RequestInfo | URL).startsWith('/api/analysis/findings?'),
       ),
+    ).toBe(false)
+  })
+
+  it('keeps individual detail reachable when the globally selected sample is stale', async () => {
+    const fetchMock = vi.mocked(globalThis.fetch)
+
+    render(<App />, { route: '/individuals/7?sample_id=42' })
+
+    expect(await screen.findByTestId('individual-detail-page')).toBeInTheDocument()
+    expect(
+      fetchMock.mock.calls.some(([input]) => {
+        const url = requestUrl(input as RequestInfo | URL)
+        return url === '/api/annotation/active/42' || url === '/api/variants/count?sample_id=42'
+      }),
     ).toBe(false)
   })
 })
