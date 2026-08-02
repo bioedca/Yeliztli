@@ -574,7 +574,10 @@ class UniProtCacheFetcher:
                     ProteinFeatureData(
                         type=feat_type,
                         description=desc,
-                        position=start_val,
+                        # `position` represents a single site only. Ranges and
+                        # paired features retain their endpoints without a
+                        # misleading first-residue shorthand.
+                        position=start_val if start_val == end_val else None,
                         start=start_val,
                         end=end_val,
                     )

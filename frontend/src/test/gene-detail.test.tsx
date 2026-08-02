@@ -80,6 +80,24 @@ const BRCA1_FEATURES: ProteinFeature[] = [
   { type: "Binding site", description: "DNA-binding", position: 65, start: 65, end: 65 },
 ]
 
+const INSULIN_DISULFIDE_FEATURES: ProteinFeature[] = [
+  {
+    type: "Disulfide bond",
+    description: "Interchain (between B and A chains)",
+    position: 31,
+    start: 31,
+    end: 96,
+  },
+  {
+    type: "Disulfide bond",
+    description: "Interchain (between B and A chains)",
+    position: 43,
+    start: 43,
+    end: 109,
+  },
+  { type: "Disulfide bond", description: "", position: 95, start: 95, end: 100 },
+]
+
 const BRCA1_VARIANTS: GeneVariantSummary[] = [
   {
     rsid: "rs80357906",
@@ -412,6 +430,127 @@ describe("NightingaleViewer", () => {
     const domainTrack = tracks[0] as any
     expect(domainTrack.data).toBeDefined()
     expect(domainTrack.data.length).toBe(3)
+  })
+
+  it("preserves paired disulfide endpoints as non-continuous bridges", () => {
+    render(
+      <NightingaleViewer
+        sequenceLength={110}
+        domains={[]}
+        features={INSULIN_DISULFIDE_FEATURES}
+        variants={[]}
+        accession="P01308"
+      />,
+    )
+
+    const featureTrack = document.querySelector(
+      'nightingale-track[aria-label="Protein features"]',
+    )
+    expect(featureTrack).not.toBeNull()
+    const data = (
+      featureTrack as unknown as {
+        data: Array<{
+          accession: string
+          type: string
+          tooltipContent: string
+          color: string
+          shape: string
+          start: number
+          end: number
+        }>
+      }
+    ).data
+
+    expect(data).toHaveLength(3)
+    expect(data).toMatchObject([
+      {
+        accession: "P01308-feature-0",
+        type: "Disulfide bond",
+        tooltipContent: "Disulfide bond: Interchain (between B and A chains) (31–96)",
+        color: "#6B7280",
+        shape: "bridge",
+        start: 31,
+        end: 96,
+        locations: [{ fragments: [{ start: 31, end: 96 }] }],
+      },
+      {
+        accession: "P01308-feature-1",
+        type: "Disulfide bond",
+        tooltipContent: "Disulfide bond: Interchain (between B and A chains) (43–109)",
+        color: "#6B7280",
+        shape: "bridge",
+        start: 43,
+        end: 109,
+        locations: [{ fragments: [{ start: 43, end: 109 }] }],
+      },
+      {
+        accession: "P01308-feature-2",
+        type: "Disulfide bond",
+        tooltipContent: "Disulfide bond (95–100)",
+        color: "#6B7280",
+        shape: "bridge",
+        start: 95,
+        end: 100,
+        locations: [{ fragments: [{ start: 95, end: 100 }] }],
+      },
+    ])
+  })
+
+  it("does not invent a bridge for equal or incomplete disulfide endpoints", () => {
+    render(
+      <NightingaleViewer
+        sequenceLength={110}
+        domains={[]}
+        features={[
+          {
+            type: "Disulfide bond",
+            description: "Point annotation",
+            position: 31,
+            start: 31,
+            end: 31,
+          },
+          {
+            type: "Disulfide bond",
+            description: "Incomplete annotation",
+            position: null,
+            start: 43,
+            end: null,
+          },
+        ]}
+        variants={[]}
+        accession="P01308"
+      />,
+    )
+
+    const featureTrack = document.querySelector(
+      'nightingale-track[aria-label="Protein features"]',
+    )
+    expect(featureTrack).not.toBeNull()
+    const data = (
+      featureTrack as unknown as {
+        data: Array<{
+          shape: string
+          start: number
+          end: number
+          tooltipContent: string
+        }>
+      }
+    ).data
+
+    expect(data).toMatchObject([
+      {
+        shape: "diamond",
+        start: 31,
+        end: 31,
+        tooltipContent: "Disulfide bond: Point annotation",
+      },
+      {
+        shape: "diamond",
+        start: 43,
+        end: 43,
+        tooltipContent: "Disulfide bond: Incomplete annotation",
+      },
+    ])
   })
 })
 

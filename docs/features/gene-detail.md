@@ -10,7 +10,9 @@ gene. Open it from a gene symbol in the Findings Explorer, a dashboard finding, 
 
 - **Protein viewer** -- UniProt accession, sequence length, cache status, and a Nightingale
   diagram of protein domains and features. Protein-changing sample variants with HGVS p.
-  notation can be highlighted on the protein map.
+  notation can be highlighted on the protein map. When UniProt supplies two known disulfide
+  endpoints, the viewer draws a bridge between those residues rather than treating the sequence
+  between them as a continuous domain.
 - **Variants** -- the sample's annotated variants in the gene, including rsID, HGVS protein
   notation, consequence, genotype, ClinVar significance and review stars, evidence-conflict
   status, gnomAD allele frequency, and CADD. Variant IDs link back to their variant detail pages.

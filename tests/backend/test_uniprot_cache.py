@@ -765,6 +765,41 @@ class TestAPIFetchParsing:
         assert features[0].type == "Active site"
         assert features[1].type == "Binding site"
 
+    def test_extract_disulfide_pairs_preserves_both_endpoints(
+        self, fetcher: UniProtCacheFetcher
+    ) -> None:
+        """UniProt disulfide annotations retain both explicit cysteine coordinates."""
+        entry = {
+            "features": [
+                {
+                    "type": "Disulfide bond",
+                    "description": "Interchain (between B and A chains)",
+                    "location": {"start": {"value": 31}, "end": {"value": 96}},
+                },
+                {
+                    "type": "Disulfide bond",
+                    "description": "Interchain (between B and A chains)",
+                    "location": {"start": {"value": 43}, "end": {"value": 109}},
+                },
+                {
+                    "type": "Disulfide bond",
+                    "description": "",
+                    "location": {"start": {"value": 95}, "end": {"value": 100}},
+                },
+            ]
+        }
+
+        domains, features = fetcher._extract_features(entry)
+
+        assert domains == []
+        assert [
+            (feature.type, feature.position, feature.start, feature.end) for feature in features
+        ] == [
+            ("Disulfide bond", None, 31, 96),
+            ("Disulfide bond", None, 43, 109),
+            ("Disulfide bond", None, 95, 100),
+        ]
+
     @pytest.mark.parametrize(
         ("field", "feature_type", "is_domain"),
         [

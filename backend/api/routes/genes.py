@@ -299,7 +299,9 @@ def _fetch_uniprot_from_api(gene_symbol: str) -> UniProtData | None:
                     ProteinFeature(
                         type=feat_type,
                         description=desc,
-                        position=start_val,
+                        # Preserve ranges and paired features as endpoints;
+                        # `position` is only meaningful for a true point site.
+                        position=start_val if start_val == end_val else None,
                         start=start_val,
                         end=end_val,
                     )

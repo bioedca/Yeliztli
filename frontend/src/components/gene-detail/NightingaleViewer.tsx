@@ -99,15 +99,29 @@ export default function NightingaleViewer({
     if (!featureTrackRef.current || features.length === 0) return
     const featureData = features
       .filter((f) => f.start != null || f.position != null)
-      .map((f, i) => ({
-        accession: `${accession}-feature-${i}`,
-        type: f.type,
-        tooltipContent: `${f.type}: ${f.description}`,
-        color: "#6B7280",
-        shape: "diamond" as const,
-        start: f.position ?? f.start ?? 0,
-        end: f.position ?? f.end ?? f.start ?? 0,
-      }))
+      .map((f, i) => {
+        // `position` is a legacy single-site convenience value. Prefer the
+        // explicit endpoints so ranged features do not collapse to their start.
+        const start = f.start ?? f.position ?? 0
+        const end = f.end ?? f.start ?? f.position ?? 0
+        const hasKnownDisulfidePair =
+          f.type === "Disulfide bond" && f.start != null && f.end != null && f.start !== f.end
+        const featureLabel = f.description ? `${f.type}: ${f.description}` : f.type
+
+        return {
+          accession: `${accession}-feature-${i}`,
+          type: f.type,
+          tooltipContent: hasKnownDisulfidePair
+            ? `${featureLabel} (${start}–${end})`
+            : featureLabel,
+          color: "#6B7280",
+          // A bridge encodes a pair of residues; do not claim a missing or
+          // equal endpoint is a known paired connection.
+          shape: hasKnownDisulfidePair ? ("bridge" as const) : ("diamond" as const),
+          start,
+          end,
+        }
+      })
     ;(featureTrackRef.current as unknown as { data: unknown[] }).data = featureData
   }, [features, accession])
 
@@ -212,6 +226,7 @@ export default function NightingaleViewer({
             </span>
             <nightingale-track
               ref={featureTrackRef}
+              aria-label="Protein features"
               length={seqLength}
               height="30"
               display-start="1"
