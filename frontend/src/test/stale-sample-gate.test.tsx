@@ -10,7 +10,7 @@ import { act, type ReactNode } from 'react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { MemoryRouter } from 'react-router-dom'
+import { Link, MemoryRouter, Outlet, Route, Routes } from 'react-router-dom'
 import { fetchActiveAnnotationJob } from '@/api/annotation'
 import StaleSampleGate from '@/components/layout/StaleSampleGate'
 
@@ -160,6 +160,67 @@ describe('StaleSampleGate', () => {
       '/api/variants/count?sample_id=42',
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     )
+  })
+
+  it('revalidates freshness before rendering a newly navigated analysis route', async () => {
+    let stalenessCalls = 0
+    let resolveRouteProbe: (() => void) | undefined
+    mockFetch.mockImplementation((input: RequestInfo | URL) => {
+      const url = requestUrl(input)
+      if (isActiveJobRequest(url)) {
+        return apiResponse(404, { detail: 'No active job' })
+      }
+      if (isStalenessRequest(url)) {
+        stalenessCalls += 1
+        if (stalenessCalls === 1) return apiResponse(200, { total: 12345 })
+        return new Promise((resolve) => {
+          resolveRouteProbe = () =>
+            resolve({
+              ok: false,
+              status: 423,
+              json: async () => ({ detail: STALE_PAYLOAD }),
+              text: async () => JSON.stringify({ detail: STALE_PAYLOAD }),
+            })
+        })
+      }
+      return apiResponse(200, {})
+    })
+
+    render(
+      <Routes>
+        <Route
+          element={(
+            <StaleSampleGate>
+              <Outlet />
+            </StaleSampleGate>
+          )}
+        >
+          <Route
+            path="/findings"
+            element={(
+              <>
+                <div data-testid="findings-content">fresh findings</div>
+                <Link to="/variants?sample_id=42">Open variants</Link>
+              </>
+            )}
+          />
+          <Route
+            path="/variants"
+            element={<div data-testid="variants-content">cached variants</div>}
+          />
+        </Route>
+      </Routes>,
+      { wrapper: createWrapper(['/findings?sample_id=42']) },
+    )
+
+    expect(await screen.findByTestId('findings-content')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('link', { name: 'Open variants' }))
+
+    await waitFor(() => expect(resolveRouteProbe).toBeDefined())
+    expect(screen.queryByTestId('variants-content')).not.toBeInTheDocument()
+
+    resolveRouteProbe?.()
+    expect(await screen.findByTestId('stale-sample-gate')).toBeInTheDocument()
   })
 
   it('lets routes render their missing-sample fallback when the probe returns 404', async () => {

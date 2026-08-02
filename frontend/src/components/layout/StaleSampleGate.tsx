@@ -16,7 +16,7 @@
  */
 
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { useMatch, useSearchParams } from 'react-router-dom'
+import { useLocation, useMatch, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle, RefreshCw } from 'lucide-react'
 import {
@@ -54,7 +54,9 @@ class ReannotationRequestError extends Error {
   }
 }
 
-const sampleStalenessQueryKey = (sampleId: number | null) =>
+const sampleStalenessQueryKey = (sampleId: number | null, routeKey: string) =>
+  ['sample-staleness', sampleId, routeKey] as const
+const sampleStalenessQueryPrefix = (sampleId: number | null) =>
   ['sample-staleness', sampleId] as const
 const STALENESS_REQUEST_TIMEOUT_MS = 10_000
 
@@ -146,6 +148,7 @@ async function probeStaleness(
 }
 
 export default function StaleSampleGate({ children }: StaleSampleGateProps) {
+  const location = useLocation()
   const [searchParams] = useSearchParams()
   const concordanceMatch = useMatch('/samples/:id/concordance')
   const activeSampleId =
@@ -154,6 +157,10 @@ export default function StaleSampleGate({ children }: StaleSampleGateProps) {
   const queryClient = useQueryClient()
   const [reconnectPending, setReconnectPending] = useState(false)
   const [reconnectProbeFailed, setReconnectProbeFailed] = useState(false)
+  // A navigation needs its own authoritative freshness result: cached `null`
+  // from an earlier route must not make newly mounted analysis content visible
+  // while the current route's probe is still in flight.
+  const stalenessQueryKey = sampleStalenessQueryKey(activeSampleId, location.key)
   const activeJobQuery = useActiveAnnotationJob(activeSampleId, {
     pollWhenUnavailable: reconnectPending,
     retryOnInitialFailure: false,
@@ -168,11 +175,10 @@ export default function StaleSampleGate({ children }: StaleSampleGateProps) {
     isFetching: isStalenessFetching,
     refetch: refetchStaleness,
   } = useQuery<StalenessPayload | null>({
-    queryKey: sampleStalenessQueryKey(activeSampleId),
+    queryKey: stalenessQueryKey,
     queryFn: async ({ signal }) => {
       const sampleId = activeSampleId as number
-      const queryKey = sampleStalenessQueryKey(sampleId)
-      const previous = queryClient.getQueryData<StalenessPayload | null>(queryKey)
+      const previous = queryClient.getQueryData<StalenessPayload | null>(stalenessQueryKey)
       const next = await probeStaleness(sampleId, signal)
 
       if (previous && !next) {
@@ -220,7 +226,7 @@ export default function StaleSampleGate({ children }: StaleSampleGateProps) {
         queryKey: annotationActiveQueryKey(result.sample_id),
       })
       void queryClient.invalidateQueries({
-        queryKey: sampleStalenessQueryKey(result.sample_id),
+        queryKey: sampleStalenessQueryPrefix(result.sample_id),
       })
     },
     onError: (error, request) => {
@@ -250,7 +256,7 @@ export default function StaleSampleGate({ children }: StaleSampleGateProps) {
           setReconnectProbeFailed(true)
         })
       void queryClient.invalidateQueries({
-        queryKey: sampleStalenessQueryKey(request.sampleId),
+        queryKey: sampleStalenessQueryPrefix(request.sampleId),
       })
     },
   })
@@ -309,7 +315,7 @@ export default function StaleSampleGate({ children }: StaleSampleGateProps) {
       trackedJobRef.current = null
       resetReannotation()
       void queryClient.invalidateQueries({
-        queryKey: sampleStalenessQueryKey(activeSampleId),
+        queryKey: sampleStalenessQueryPrefix(activeSampleId),
       })
     }
   }, [
@@ -321,11 +327,14 @@ export default function StaleSampleGate({ children }: StaleSampleGateProps) {
     resetReannotation,
   ])
 
-  // Hold back children only until the authoritative staleness probe resolves,
-  // so potentially stale content never flashes. The active-job endpoint is
-  // auxiliary: a slow or unavailable probe must not blank a route already
-  // confirmed fresh.
-  if (activeSampleId != null && isStalenessPending) {
+  // Hold back children until the authoritative staleness probe resolves. A
+  // cached fresh result still fences the outlet during a new route's probe, so
+  // stale analysis data cannot flash between navigations. The active-job
+  // endpoint remains auxiliary and never blocks an already-fresh route.
+  if (
+    activeSampleId != null &&
+    (isStalenessPending || (!stale && isStalenessFetching && !isStalenessError))
+  ) {
     return null
   }
 
