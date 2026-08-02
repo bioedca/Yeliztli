@@ -62,9 +62,25 @@ def test_v25_retains_legacy_and_custom_audit_records_and_diff_state(
                 "local_audit_note": "Retain this diff context.",
             }
         ],
-        "added": [],
-        "removed": [],
-        "counts": {"changed": 1, "added": 0, "removed": 0},
+        "added": [
+            {
+                "module": "pharmacogenomics",
+                "category": "prescribing_alert",
+                "gene_symbol": "CYP2D6",
+                "drug": "tamoxifen",
+                "local_audit_note": "Retain this added diff context.",
+            }
+        ],
+        "removed": [
+            {
+                "module": "pharmacogenomics",
+                "category": "prescribing_alert",
+                "gene_symbol": "CYP2D6",
+                "drug": "tamoxifen",
+                "local_audit_note": "Retain this removed diff context.",
+            }
+        ],
+        "counts": {"changed": 1, "added": 1, "removed": 1},
     }
     with sample_engine.begin() as conn:
         conn.execute(findings.insert(), rows)

@@ -827,6 +827,12 @@ class TestWithheldPrescribingAlertPresentation:
         sample_engine = sa.create_engine(f"sqlite:///{tmp_path / 'svg_path.db'}")
         try:
             create_sample_tables(sample_engine)
+            outside = tmp_path.parent / "outside.svg"
+            sentinel = "outside SVG sentinel must never be served"
+            outside.write_text(
+                f'<svg xmlns="http://www.w3.org/2000/svg"><text>{sentinel}</text></svg>',
+                encoding="utf-8",
+            )
             with sample_engine.begin() as conn:
                 conn.execute(
                     findings.insert().values(
@@ -850,6 +856,7 @@ class TestWithheldPrescribingAlertPresentation:
             with pytest.raises(HTTPException) as caught:
                 await findings_route.get_finding_svg(finding_id=2020, sample_id=1)
             assert caught.value.status_code == 404
+            assert sentinel in outside.read_text(encoding="utf-8")
         finally:
             sample_engine.dispose()
 
@@ -1596,4 +1603,5 @@ class TestParkinsonsSvgGate:
         resp = parkinsons_svg_client.get("/api/analysis/findings/1/svg?sample_id=1")
         assert resp.status_code == 200
         assert resp.headers["content-type"].startswith("image/svg+xml")
-        assert "G2019S" in resp.text
+        assert "<svg" in resp.text
+        assert "LRRK2 G2019S" not in resp.text

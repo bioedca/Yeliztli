@@ -113,6 +113,7 @@ def test_shared_loaders_omit_nested_held_payload(
 
         assert len(result) == 1
         rendered = json.dumps(result).lower()
+        assert "safe1" in rendered
         assert "scalar-safe legacy shell" not in rendered
         assert "tamoxifen" not in rendered
     finally:

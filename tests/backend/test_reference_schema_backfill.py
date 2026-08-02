@@ -1621,10 +1621,10 @@ def test_tamoxifen_refresh_locks_for_write_before_whole_matrix_fingerprint(
     with engine.begin() as conn:
         conn.execute(cpic_guidelines.insert(), _LEGACY_TAMOXIFEN_ROWS)
 
-    statements: list[str] = []
+    statements: list[tuple[str, object]] = []
 
     def record_statement(_conn, _cursor, statement, _parameters, _context, _executemany):
-        statements.append(" ".join(statement.split()).upper())
+        statements.append((" ".join(statement.split()).upper(), _parameters))
 
     sa.event.listen(engine, "before_cursor_execute", record_statement)
     try:
@@ -1634,18 +1634,22 @@ def test_tamoxifen_refresh_locks_for_write_before_whole_matrix_fingerprint(
 
     fingerprint_indices = [
         index
-        for index, statement in enumerate(statements)
+        for index, (statement, parameters) in enumerate(statements)
         if statement.startswith("SELECT CPIC_GUIDELINES.ID, CPIC_GUIDELINES.PHENOTYPE")
+        and parameters == ("CYP2D6", "tamoxifen")
     ]
-    fingerprint_index = fingerprint_indices[-1]
+    assert len(fingerprint_indices) == 1
+    fingerprint_index = fingerprint_indices[0]
     begin_index = max(
         index
-        for index, statement in enumerate(statements[:fingerprint_index])
+        for index, (statement, _parameters) in enumerate(statements[:fingerprint_index])
         if statement == "BEGIN IMMEDIATE"
     )
     update_index = next(
         index
-        for index, statement in enumerate(statements[fingerprint_index:], fingerprint_index)
+        for index, (statement, _parameters) in enumerate(
+            statements[fingerprint_index:], fingerprint_index
+        )
         if statement.startswith("UPDATE CPIC_GUIDELINES")
     )
     assert begin_index < fingerprint_index < update_index

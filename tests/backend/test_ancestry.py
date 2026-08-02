@@ -1186,9 +1186,18 @@ class TestStoreAncestryFindings:
         pca_response = ancestry_routes.get_pca_coordinates_endpoint(sample_id=123)
 
         assert finding_response is not None
+        assert result.top_population != "AFR"
         assert finding_response.top_population == result.top_population
+        assert finding_response.top_population != "AFR"
         assert pca_response is not None
         assert pca_response.top_population == result.top_population
+        assert pca_response.top_population != "AFR"
+
+        finding_payload = json.dumps(finding_response.model_dump(mode="json")).lower()
+        pca_payload = json.dumps(pca_response.model_dump(mode="json")).lower()
+        for payload in (finding_payload, pca_payload):
+            assert "tamoxifen" not in payload
+            assert "unsafe newer ancestry result" not in payload
 
     def test_evidence_level_2(
         self,

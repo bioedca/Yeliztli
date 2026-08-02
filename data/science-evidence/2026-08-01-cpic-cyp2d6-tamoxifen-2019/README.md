@@ -26,8 +26,8 @@ conditional aromatase-inhibitor priority. All three prior local rows also
 omitted at least part of CPIC's inhibitor warning. The source rows now preserve
 the correct CPIC transcription, but they are **not prescribing output**:
 `generate_prescribing_alerts` withholds every CYP2D6/tamoxifen pair and sample
-schema v25 removes exactly fingerprinted historical alerts and finding-diff
-entries. The application therefore makes no patient-specific CYP2D6/tamoxifen
+schema v25 preserves historical alerts and finding-diff entries as audit
+records. The application therefore makes no patient-specific CYP2D6/tamoxifen
 treatment, dose, or inhibitor recommendation.
 
 The drug-detail API instead returns an explicit clinical-recommendation-
@@ -55,7 +55,7 @@ repository's `classification=A` field is retained with the audit record; it is
 not an active alert tier for this withheld pair and is not a claim that CPIC
 labels every recommendation `A`. The raw response also contains phenotypes not
 represented by the repository's current CYP2D6 diplotype table; they are outside
-#2019's source-record scope.
+the source-record scope of #2019.
 
 ## Queries and retained payloads
 
