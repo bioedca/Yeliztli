@@ -921,18 +921,19 @@ def check_ancestry_mismatch(
         result.is_sufficient and result.calibrated and result.percentile is not None
     )
     if not has_reported_percentile:
-        applicability_caveat = "The ancestry applicability of this assessment is uncertain."
-        background_caveat = applicability_caveat
-        admixed_background_caveat = applicability_caveat
-        interpretation_caveat = applicability_caveat
+        # The ancestry mismatch/inference warning itself remains useful, but it
+        # must not add calibration guidance for a value this result withholds.
+        background_caveat = ""
+        admixed_background_caveat = "."
+        interpretation_caveat = "."
     else:
         background_caveat = (
-            "Percentile estimates may be less accurate for your genetic background."
+            " Percentile estimates may be less accurate for your genetic background."
         )
         admixed_background_caveat = (
-            "Percentile estimates may be less accurate for an admixed background."
+            ". Percentile estimates may be less accurate for an admixed background."
         )
-        interpretation_caveat = "Interpret the percentile with caution."
+        interpretation_caveat = ". Interpret the percentile with caution."
 
     if inferred_ancestry is None:
         result.ancestry_mismatch = False
@@ -975,14 +976,14 @@ def check_ancestry_mismatch(
                 "Your genotype did not resolve to a single top ancestry (admixed "
                 "composition), so it cannot be matched to this score's development "
                 "population. PRS portability depends on ancestry composition, linkage "
-                "disequilibrium, and allele-frequency differences. "
+                "disequilibrium, and allele-frequency differences"
                 f"{admixed_background_caveat}"
             )
         else:  # UNCERTAIN
             result.ancestry_warning_text = (
                 "Ancestry could not be confidently inferred (insufficient data), so the "
                 "match between your background and this score's development population "
-                f"cannot be assessed. {interpretation_caveat}"
+                f"cannot be assessed{interpretation_caveat}"
             )
     else:
         if is_multi:
@@ -996,13 +997,13 @@ def check_ancestry_mismatch(
                 dev = ", ".join(result.development_ancestries)
                 result.ancestry_warning_text = (
                     f"This PRS was developed across multiple ancestries ({dev}), none "
-                    f"matching your inferred ancestry ({inferred_ancestry}). {background_caveat}"
+                    f"matching your inferred ancestry ({inferred_ancestry}).{background_caveat}"
                 )
             else:
                 result.ancestry_warning_text = (
                     f"This PRS was derived from a single-ancestry ({result.source_ancestry}) "
                     f"population study. Your inferred ancestry ({inferred_ancestry}) differs "
-                    f"from the source population. {background_caveat}"
+                    f"from the source population.{background_caveat}"
                 )
         else:
             result.ancestry_mismatch = False

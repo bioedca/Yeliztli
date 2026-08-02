@@ -682,10 +682,9 @@ class TestRunPRS:
                 "Your genotype did not resolve to a single top ancestry (admixed "
                 "composition), so it cannot be matched to this score's development "
                 "population. PRS portability depends on ancestry composition, linkage "
-                "disequilibrium, and allele-frequency differences. The ancestry "
-                "applicability of this assessment is uncertain. Your ancestry composition "
-                "is admixed (top ancestry 55%). PRS accuracy may be reduced for admixed "
-                "genetic backgrounds.",
+                "disequilibrium, and allele-frequency differences. Your ancestry "
+                "composition is admixed (top ancestry 55%). PRS accuracy may be reduced "
+                "for admixed genetic backgrounds.",
             ),
             (
                 "UNCERTAIN",
@@ -693,24 +692,21 @@ class TestRunPRS:
                 False,
                 "Ancestry could not be confidently inferred (insufficient data), so the "
                 "match between your background and this score's development population "
-                "cannot be assessed. The ancestry applicability of this assessment is "
-                "uncertain.",
+                "cannot be assessed.",
             ),
             (
                 "AFR",
                 None,
                 False,
                 "This PRS was derived from a single-ancestry (EUR) population study. "
-                "Your inferred ancestry (AFR) differs from the source population. The "
-                "ancestry applicability of this assessment is uncertain.",
+                "Your inferred ancestry (AFR) differs from the source population.",
             ),
             (
                 "AFR",
                 None,
                 True,
                 "This PRS was developed across multiple ancestries (EUR), none matching "
-                "your inferred ancestry (AFR). The ancestry applicability of this "
-                "assessment is uncertain.",
+                "your inferred ancestry (AFR).",
             ),
         ],
     )
