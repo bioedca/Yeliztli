@@ -23,6 +23,7 @@ import pytest
 import sqlalchemy as sa
 from fastapi.testclient import TestClient
 
+from backend.api.routes.admin import _collect_visible_log_page
 from backend.config import Settings
 from backend.db.connection import reset_registry
 from backend.db.tables import jobs, log_entries, reference_metadata, samples
@@ -257,6 +258,53 @@ class TestLogExplorer:
         assert "tamoxifen" not in rendered
         assert "40 mg" not in rendered
         assert "malformed legacy" not in rendered
+
+    def test_visible_log_paging_uses_bounded_batches(self) -> None:
+        """#2019: filtering legacy logs must not materialize the full history."""
+
+        class BatchedRows:
+            def __init__(self, rows: list[dict[str, object]]) -> None:
+                self.rows = rows
+                self.index = 0
+                self.requested_sizes: list[int] = []
+
+            def fetchmany(self, size: int) -> list[dict[str, object]]:
+                self.requested_sizes.append(size)
+                batch = self.rows[self.index : self.index + size]
+                self.index += len(batch)
+                return batch
+
+        rows = [
+            {
+                "id": index,
+                "message": "ordinary operational log",
+                "event_data": None,
+            }
+            for index in range(1001)
+        ]
+        rows.insert(
+            500,
+            {
+                "id": 9999,
+                "message": "pgx_prescribing_alert",
+                "event_data": json.dumps(
+                    {
+                        "gene": "CYP2D6",
+                        "drug": "tamoxifen",
+                        "recommendation": "legacy guidance",
+                    }
+                ),
+            },
+        )
+        stream = BatchedRows(rows)
+
+        page_rows, total = _collect_visible_log_page(stream, offset=500, page_size=3)
+
+        assert total == 1001
+        assert [row["id"] for row in page_rows] == [500, 501, 502]
+        assert stream.requested_sizes
+        assert set(stream.requested_sizes) == {500}
+        assert len(stream.requested_sizes) == 4
 
     def test_event_data_included(self, admin_client: TestClient) -> None:
         """Entries with event_data have the JSON field populated."""

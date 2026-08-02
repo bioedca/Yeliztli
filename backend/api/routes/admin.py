@@ -46,6 +46,7 @@ _APP_START_TIME = time.time()
 _PRESCRIBING_LOG_MESSAGES = frozenset(
     {"pgx_alert_withheld_insufficient_clinical_evidence", "pgx_prescribing_alert"}
 )
+_LOG_PAGE_BATCH_SIZE = 500
 
 
 def _format_ts(val: object) -> str | None:
@@ -87,6 +88,33 @@ def _is_patient_visible_log_entry(row: sa.RowMapping) -> bool:
     if message in _PRESCRIBING_LOG_MESSAGES and not isinstance(payload, dict):
         return False
     return True
+
+
+def _collect_visible_log_page(
+    rows: sa.MappingResult,
+    *,
+    offset: int,
+    page_size: int,
+) -> tuple[list[sa.RowMapping], int]:
+    """Filter durable logs in bounded batches while preserving visible totals.
+
+    The policy must inspect every caller-filtered record because malformed legacy
+    JSON cannot safely be classified in SQL.  Keep the scan memory-bounded,
+    retaining only the requested page while still counting all visible rows so
+    pagination cannot leak withheld records through totals or ``has_more``.
+    """
+    page_rows: list[sa.RowMapping] = []
+    visible_count = 0
+
+    while batch := rows.fetchmany(_LOG_PAGE_BATCH_SIZE):
+        for row in batch:
+            if not _is_patient_visible_log_entry(row):
+                continue
+            if offset <= visible_count < offset + page_size:
+                page_rows.append(row)
+            visible_count += 1
+
+    return page_rows, visible_count
 
 
 # ── Response models ──────────────────────────────────────────────────
@@ -176,6 +204,7 @@ def get_logs(
     """Paginated log explorer with faceted filtering."""
     registry = get_registry()
     engine = registry.reference_engine
+    offset = (page - 1) * page_size
 
     with engine.connect() as conn:
         # Build WHERE clause
@@ -194,15 +223,14 @@ def get_logs(
         where = sa.and_(*conditions) if conditions else sa.true()
 
         # Filter durable structured event data before pagination. A raw SQL
-        # predicate cannot safely parse malformed legacy JSON, so materialize the
-        # caller-filtered log set and apply the fail-closed Python policy first.
+        # predicate cannot safely parse malformed legacy JSON, so scan the
+        # caller-filtered log set in bounded batches under the fail-closed policy.
         q = sa.select(log_entries).where(where).order_by(log_entries.c.id.desc())
-        rows = conn.execute(q).mappings().all()
-
-    visible_rows = [row for row in rows if _is_patient_visible_log_entry(row)]
-    total = len(visible_rows)
-    offset = (page - 1) * page_size
-    page_rows = visible_rows[offset : offset + page_size]
+        page_rows, total = _collect_visible_log_page(
+            conn.execute(q).mappings(),
+            offset=offset,
+            page_size=page_size,
+        )
 
     entries = [
         LogEntry(
