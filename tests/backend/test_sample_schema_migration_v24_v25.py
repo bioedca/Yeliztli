@@ -8,7 +8,12 @@ from datetime import datetime
 import pytest
 import sqlalchemy as sa
 
-from backend.db.sample_schema import SAMPLE_SCHEMA_VERSION, ensure_sample_schema_current
+from backend.annotation.cpic import CPIC_DATA_DIR, parse_cpic_guidelines_csv
+from backend.db.sample_schema import (
+    _CYP2D6_TAMOXIFEN_RECOMMENDATION_UPDATES,
+    SAMPLE_SCHEMA_VERSION,
+    ensure_sample_schema_current,
+)
 from backend.db.tables import annotation_state, findings
 
 GUIDELINE_URL = "https://cpicpgx.org/guidelines/cpic-guideline-for-tamoxifen-based-on-cyp2d6/"
@@ -44,6 +49,26 @@ CURRENT_RECOMMENDATIONS = {
         "21768473)."
     ),
 }
+
+
+def test_v25_migration_recommendations_match_bundled_cpic_rows() -> None:
+    """Keep the persisted-alert migration text in lockstep with bundled CPIC rows."""
+    bundled_rows, _ = parse_cpic_guidelines_csv(CPIC_DATA_DIR / "cpic_guidelines.csv")
+    bundled_recommendations = {
+        row["phenotype"]: row["recommendation"]
+        for row in bundled_rows
+        if row["gene"] == "CYP2D6"
+        and row["drug"] == "tamoxifen"
+        and row["phenotype"] in _CYP2D6_TAMOXIFEN_RECOMMENDATION_UPDATES
+    }
+
+    assert bundled_recommendations == {
+        phenotype: bundled_recommendation
+        for phenotype, (
+            _,
+            bundled_recommendation,
+        ) in _CYP2D6_TAMOXIFEN_RECOMMENDATION_UPDATES.items()
+    }
 
 
 def _finding_text(
