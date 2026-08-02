@@ -84,15 +84,19 @@ def client_factory(
 
     def _factory(fto_genotype: str) -> TestClient:
         _settings, registry = _make_env(tmp_path, fto_genotype)
-        patcher = patch("backend.api.routes.metabolic.get_registry", return_value=registry)
-        patcher.start()
-        patchers.append(patcher)
+        route_patcher = patch("backend.api.routes.metabolic.get_registry", return_value=registry)
+        dependency_patcher = patch("backend.api.dependencies.get_registry", return_value=registry)
+        staleness_patcher = patch("backend.services.staleness.get_registry", return_value=registry)
+        route_patcher.start()
+        dependency_patcher.start()
+        staleness_patcher.start()
+        patchers.extend((route_patcher, dependency_patcher, staleness_patcher))
         app = FastAPI()
         app.include_router(router, prefix="/api")
         return TestClient(app)
 
     yield _factory
-    for p in patchers:
+    for p in reversed(patchers):
         p.stop()
     reset_registry()
 

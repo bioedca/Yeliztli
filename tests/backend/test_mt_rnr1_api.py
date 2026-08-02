@@ -52,7 +52,11 @@ def _env(tmp_path: Path) -> Generator[sa.Engine, None, None]:
     settings = Settings(data_dir=data_dir)
     reset_registry()
     registry = DBRegistry(settings)
-    with patch("backend.api.routes.risk_common.get_registry", return_value=registry):
+    with (
+        patch("backend.api.dependencies.get_registry", return_value=registry),
+        patch("backend.api.routes.risk_common.get_registry", return_value=registry),
+        patch("backend.services.staleness.get_registry", return_value=registry),
+    ):
         yield sample_engine
     registry.dispose_all()
     reset_registry()
