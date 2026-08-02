@@ -245,6 +245,32 @@ class TestLogExplorer:
                         "message": "pgx_prescribing_alert",
                         "event_data": "{malformed legacy prescribing payload",
                     },
+                    {
+                        "timestamp": datetime.now(UTC),
+                        "level": "WARNING",
+                        "logger": "backend.analysis.pharmacogenomics",
+                        "message": "pgx_prescribing_alert",
+                        "event_data": json.dumps(
+                            {
+                                "gene": 1,
+                                "drug": "tamoxifen",
+                                "recommendation": "Numeric legacy payload must not render.",
+                            }
+                        ),
+                    },
+                    {
+                        "timestamp": datetime.now(UTC),
+                        "level": "WARNING",
+                        "logger": "backend.analysis.pharmacogenomics",
+                        "message": "pgx_prescribing_alert",
+                        "event_data": json.dumps(
+                            {
+                                "gene": "CYP2D6",
+                                "drug": [],
+                                "recommendation": "Array legacy payload must not render.",
+                            }
+                        ),
+                    },
                 ],
             )
 
@@ -258,6 +284,8 @@ class TestLogExplorer:
         assert "tamoxifen" not in rendered
         assert "40 mg" not in rendered
         assert "malformed legacy" not in rendered
+        assert "numeric legacy" not in rendered
+        assert "array legacy" not in rendered
 
     def test_visible_log_paging_uses_bounded_batches(self) -> None:
         """#2019: filtering legacy logs must not materialize the full history."""

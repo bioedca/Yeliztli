@@ -83,9 +83,13 @@ def _is_patient_visible_log_entry(row: sa.RowMapping) -> bool:
         payload = json.loads(event_data)
     except (TypeError, json.JSONDecodeError):
         return message not in _PRESCRIBING_LOG_MESSAGES
-    if _event_data_contains_withheld_pair(payload):
+    if message in _PRESCRIBING_LOG_MESSAGES and (
+        not isinstance(payload, dict)
+        or not isinstance(payload.get("gene"), str)
+        or not isinstance(payload.get("drug"), str)
+    ):
         return False
-    if message in _PRESCRIBING_LOG_MESSAGES and not isinstance(payload, dict):
+    if _event_data_contains_withheld_pair(payload):
         return False
     return True
 

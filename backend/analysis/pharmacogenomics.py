@@ -160,14 +160,14 @@ _SQLITE_PYTHON_STRIP_CHARS = (
 _RAW_SQL_AUDIT_ONLY_TABLES: frozenset[str] = frozenset({"annotation_state", "findings"})
 
 
-def is_prescribing_alert_withheld(gene: str | None, drug: str | None) -> bool:
+def is_prescribing_alert_withheld(gene: object, drug: object) -> bool:
     """Whether a gene-drug pair is held from Yeliztli prescribing output.
 
     The reference row remains available for audit provenance, but a held pair
     must not be rendered as a patient-specific prescribing recommendation.
     Normalize both inputs here so every output surface applies the same hold.
     """
-    if not gene or not drug:
+    if not isinstance(gene, str) or not isinstance(drug, str):
         return False
     return (gene.strip().upper(), drug.strip().casefold()) in WITHHELD_PRESCRIBING_ALERT_PAIRS
 
