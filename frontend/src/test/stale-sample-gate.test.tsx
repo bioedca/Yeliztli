@@ -41,13 +41,19 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-function createWrapper(initialEntries: string[] = ['/?sample_id=42']) {
-  const queryClient = new QueryClient({
+function createTestQueryClient(gcTime = 0) {
+  return new QueryClient({
     defaultOptions: {
-      queries: { retry: false, gcTime: 0 },
+      queries: { retry: false, gcTime },
       mutations: { retry: false },
     },
   })
+}
+
+function createWrapper(
+  initialEntries: string[] = ['/?sample_id=42'],
+  queryClient = createTestQueryClient(),
+) {
   return function Wrapper({ children }: { children: ReactNode }) {
     return (
       <QueryClientProvider client={queryClient}>
@@ -221,6 +227,64 @@ describe('StaleSampleGate', () => {
 
     resolveRouteProbe?.()
     expect(await screen.findByTestId('stale-sample-gate')).toBeInTheDocument()
+  })
+
+  it('invalidates cached sample results after re-annotation completes away from the gate', async () => {
+    const queryClient = createTestQueryClient(Infinity)
+    queryClient.setQueryData(['findings', 42], { cached: 'pre-annotation findings' })
+    let stalenessCalls = 0
+    mockFetch.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = requestUrl(input)
+      if (url === '/api/annotation/42' && init?.method === 'POST') {
+        return apiResponse(202, {
+          job_id: ACTIVE_JOB.job_id,
+          sample_id: 42,
+          status: 'pending',
+        })
+      }
+      if (isActiveJobRequest(url)) {
+        return apiResponse(404, { detail: 'No active job' })
+      }
+      if (isStalenessRequest(url)) {
+        stalenessCalls += 1
+        if (stalenessCalls === 1) return apiResponse(423, { detail: STALE_PAYLOAD })
+        if (stalenessCalls === 2) return new Promise(() => {})
+        return apiResponse(200, { total: 12345 })
+      }
+      return apiResponse(200, {})
+    })
+
+    render(
+      <Routes>
+        <Route
+          path="/findings"
+          element={(
+            <>
+              <Link to="/settings">Open settings</Link>
+              <StaleSampleGate>
+                <div data-testid="fresh-content">fresh findings</div>
+              </StaleSampleGate>
+            </>
+          )}
+        />
+        <Route
+          path="/settings"
+          element={<Link to="/findings?sample_id=42">Return to findings</Link>}
+        />
+      </Routes>,
+      { wrapper: createWrapper(['/findings?sample_id=42'], queryClient) },
+    )
+
+    fireEvent.click(await screen.findByTestId('stale-reannotate-cta'))
+    await waitFor(() => expect(stalenessCalls).toBeGreaterThanOrEqual(2))
+
+    fireEvent.click(screen.getByRole('link', { name: 'Open settings' }))
+    fireEvent.click(await screen.findByRole('link', { name: 'Return to findings' }))
+
+    expect(await screen.findByTestId('fresh-content')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(queryClient.getQueryState(['findings', 42])?.isInvalidated).toBe(true)
+    })
   })
 
   it('lets routes render their missing-sample fallback when the probe returns 404', async () => {

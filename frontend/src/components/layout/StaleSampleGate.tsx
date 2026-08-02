@@ -17,7 +17,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useLocation, useMatch, useSearchParams } from 'react-router-dom'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { AlertTriangle, RefreshCw } from 'lucide-react'
 import {
   annotationActiveQueryKey,
@@ -59,6 +59,31 @@ const sampleStalenessQueryKey = (sampleId: number | null, routeKey: string) =>
 const sampleStalenessQueryPrefix = (sampleId: number | null) =>
   ['sample-staleness', sampleId] as const
 const STALENESS_REQUEST_TIMEOUT_MS = 10_000
+
+// Route-scoped freshness keys intentionally do not reuse a prior route's
+// cached result. Keep the fact that a sample was stale separately, however:
+// re-annotation can finish while this gate is unmounted (for example, on
+// Settings), and the returning route must invalidate cached analysis results
+// before rendering a newly fresh sample. Scope the transient marker to the
+// QueryClient so it is isolated per app session and survives query-cache GC.
+const staleSampleHistory = new WeakMap<QueryClient, Set<number>>()
+
+function markSampleStale(queryClient: QueryClient, sampleId: number): void {
+  const samples = staleSampleHistory.get(queryClient) ?? new Set<number>()
+  samples.add(sampleId)
+  staleSampleHistory.set(queryClient, samples)
+}
+
+function hasStaleSampleHistory(queryClient: QueryClient, sampleId: number): boolean {
+  return staleSampleHistory.get(queryClient)?.has(sampleId) ?? false
+}
+
+function clearStaleSampleHistory(queryClient: QueryClient, sampleId: number): void {
+  const samples = staleSampleHistory.get(queryClient)
+  if (!samples) return
+  samples.delete(sampleId)
+  if (samples.size === 0) staleSampleHistory.delete(queryClient)
+}
 
 function reannotationUrl(sampleId: number): string {
   return `/api/annotation/${sampleId}`
@@ -178,11 +203,13 @@ export default function StaleSampleGate({ children }: StaleSampleGateProps) {
     queryKey: stalenessQueryKey,
     queryFn: async ({ signal }) => {
       const sampleId = activeSampleId as number
-      const previous = queryClient.getQueryData<StalenessPayload | null>(stalenessQueryKey)
       const next = await probeStaleness(sampleId, signal)
 
-      if (previous && !next) {
+      if (next) {
+        markSampleStale(queryClient, sampleId)
+      } else if (hasStaleSampleHistory(queryClient, sampleId)) {
         await invalidateAnnotationResultQueries(queryClient, sampleId)
+        clearStaleSampleHistory(queryClient, sampleId)
       }
 
       return next
