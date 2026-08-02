@@ -108,65 +108,6 @@ _CYP2B6_EFAVIRENZ_GUIDELINE_URL = (
     "https://cpicpgx.org/guidelines/cpic-guideline-for-efavirenz-based-on-cyp2b6-genotype/"
 )
 
-_CYP2D6_TAMOXIFEN_RECOMMENDATION_UPDATES = {
-    "Normal Metabolizer": (
-        "Use label-recommended dosing.",
-        "Avoid moderate and strong CYP2D6 inhibitors. Initiate therapy with "
-        "recommended standard of care dosing (tamoxifen 20 mg/day).",
-    ),
-    "Intermediate Metabolizer": (
-        "Consider higher dose or alternative therapy.",
-        "Consider hormonal therapy such as an aromatase inhibitor for postmenopausal women "
-        "or aromatase inhibitor along with ovarian function suppression in premenopausal "
-        "women, given that these approaches are superior to tamoxifen regardless of CYP2D6 "
-        "genotype (PMID 26211827). If aromatase inhibitor use is contraindicated, "
-        "consideration should be given to use a higher but FDA approved tamoxifen dose "
-        "(40 mg/day)(PMID 27226358). Avoid CYP2D6 strong to weak inhibitors.",
-    ),
-    "Poor Metabolizer": (
-        "Avoid tamoxifen. Use alternative hormonal therapy such as aromatase inhibitor.",
-        "Recommend alternative hormonal therapy such as an aromatase inhibitor for "
-        "postmenopausal women or aromatase inhibitor along with ovarian function suppression "
-        "in premenopausal women given that these approaches are superior to tamoxifen "
-        "regardless of CYP2D6 genotype (PMID 26211827) and based on knowledge that CYP2D6 "
-        "poor metabolizers switched from tamoxifen to anastrozole do not have an increased "
-        "risk of recurrence (PMID 23213055). Note, higher dose tamoxifen (40 mg/day) "
-        "increases but does not normalize endoxifen concentrations and can be considered if "
-        "there are contraindications to aromatase inhibitor therapy (PMID 27226358, "
-        "21768473).",
-    ),
-}
-_CYP2D6_TAMOXIFEN_GUIDELINE_URL = (
-    "https://cpicpgx.org/guidelines/cpic-guideline-for-tamoxifen-based-on-cyp2d6/"
-)
-
-# Keys written by ``store_prescribing_alerts``.  A candidate with any other
-# key is a custom/audit record and must survive the fail-closed v25 migration.
-_GENERATED_PRESCRIBING_ALERT_DETAIL_KEYS: frozenset[str] = frozenset(
-    {
-        "recommendation",
-        "classification",
-        "guideline_url",
-        "call_confidence",
-        "confidence_note",
-        "activity_score",
-        "ehr_notation",
-        "involved_rsids",
-        "coverage",
-        "indeterminate_alleles",
-        "indeterminate_allele_rsids",
-        "gene_caveat",
-        "conservative_alert",
-        "called_phenotype",
-        "called_activity_score",
-        "called_ehr_notation",
-        "conservative_diplotype",
-        "conservative_phenotype",
-        "conservative_activity_score",
-        "conservative_allele",
-    }
-)
-
 _PARKINSONS_RISK_CLASSIFICATION = (
     "LRRK2 G2019S — Parkinson's disease risk factor (reduced penetrance)"
 )
@@ -308,109 +249,6 @@ def _is_legacy_cyp2b6_efavirenz_diff_entry(entry: object) -> bool:
     )
 
 
-def _matches_generated_cyp2d6_tamoxifen_finding_text(
-    finding_text: object,
-    phenotype: str,
-    diplotype: object,
-    recommendation: str,
-) -> bool:
-    """Whether text exactly matches one generated tamoxifen recommendation."""
-    if not isinstance(finding_text, str) or not isinstance(diplotype, str):
-        return False
-
-    marker = f" -- tamoxifen: {recommendation}"
-    if finding_text.count(marker) != 1:
-        return False
-
-    prefix, suffix = finding_text.split(marker, maxsplit=1)
-    if prefix != f"CYP2D6 {diplotype}: {phenotype}":
-        return False
-    if suffix not in {"", " (provisional -- see call confidence note)"}:
-        return False
-    return True
-
-
-def _matches_released_cyp2d6_tamoxifen_finding_text(
-    finding_text: object,
-    phenotype: object,
-    diplotype: object,
-) -> bool:
-    """Whether text exactly matches a generated pre-withholding alert."""
-    if not isinstance(phenotype, str):
-        return False
-
-    update = _CYP2D6_TAMOXIFEN_RECOMMENDATION_UPDATES.get(phenotype)
-    if update is None:
-        return False
-
-    legacy_recommendation, bundled_recommendation = update
-    return any(
-        _matches_generated_cyp2d6_tamoxifen_finding_text(
-            finding_text,
-            phenotype,
-            diplotype,
-            recommendation,
-        )
-        for recommendation in (legacy_recommendation, bundled_recommendation)
-    )
-
-
-def _is_withheld_cyp2d6_tamoxifen_finding(
-    phenotype: object,
-    diplotype: object,
-    finding_text: object,
-    detail_json: object,
-    provenance: object,
-) -> bool:
-    """Match only an unprovenanced generated alert safe to quarantine.
-
-    A populated provenance field or unrecognized detail key turns a matching
-    clinical payload into an audit/custom record. Preserve those records rather
-    than risk deleting provenance that cannot be regenerated.
-    """
-    if not isinstance(phenotype, str):
-        return False
-    if provenance is not None:
-        return False
-
-    update = _CYP2D6_TAMOXIFEN_RECOMMENDATION_UPDATES.get(phenotype)
-    if update is None:
-        return False
-    try:
-        detail = json.loads(detail_json)
-    except (json.JSONDecodeError, TypeError):
-        return False
-    if not isinstance(detail, dict):
-        return False
-    if set(detail) - _GENERATED_PRESCRIBING_ALERT_DETAIL_KEYS:
-        return False
-
-    legacy_recommendation, bundled_recommendation = update
-    if detail.get("recommendation") not in {legacy_recommendation, bundled_recommendation}:
-        return False
-    if (
-        detail.get("classification") != "A"
-        or detail.get("guideline_url") != _CYP2D6_TAMOXIFEN_GUIDELINE_URL
-    ):
-        return False
-    return _matches_released_cyp2d6_tamoxifen_finding_text(finding_text, phenotype, diplotype)
-
-
-def _is_withheld_cyp2d6_tamoxifen_diff_entry(entry: object) -> bool:
-    """Whether a diff entry exposes a withheld released tamoxifen alert."""
-    if not (
-        isinstance(entry, dict)
-        and entry.get("module") == "pharmacogenomics"
-        and entry.get("category") == "prescribing_alert"
-        and entry.get("gene_symbol") == "CYP2D6"
-        and entry.get("drug") == "tamoxifen"
-    ):
-        return False
-    return _matches_released_cyp2d6_tamoxifen_finding_text(
-        entry.get("finding_text"), entry.get("metabolizer_status"), entry.get("diplotype")
-    )
-
-
 def _updated_parkinsons_finding_text(
     finding_text: object,
     genotype_call: object | None = None,
@@ -491,8 +329,8 @@ def _updated_parkinsons_diff_entry(entry: object) -> dict[str, object] | None:
 #      whose exact released recommendations were corrected by issue #2012.
 # v24: Repair exact persisted LRRK2 G2019S findings and finding-diff entries
 #      whose lifetime wording exceeded the cited age-80 evidence (issue #2091).
-# v25: Quarantine exact CYP2D6/tamoxifen prescribing alerts pending the
-#      independent clinical-validation gate documented by issue #2019.
+# v25: Retain CYP2D6/tamoxifen audit records and rely on fail-closed runtime
+#      presentation gates pending the independent clinical-validation gate (#2019).
 SAMPLE_SCHEMA_VERSION = 25
 
 
@@ -1632,150 +1470,16 @@ def _add_missing_columns(engine: sa.Engine, from_version: int) -> bool:
             )
 
     if from_version < 25:
-        # Issue #2019: CPIC's three source rows are retained only as audit
-        # provenance while independent clinical authorities conflict on using
-        # CYP2D6 to steer tamoxifen treatment. Runtime generation now withholds
-        # this pair; remove only persisted alerts and finding-diff entries that
-        # exactly match a released generated form. Custom, malformed, and
-        # near-match records remain intact.
-        inspector = sa.inspect(engine)
-        table_names = set(inspector.get_table_names())
-        findings_cols = (
-            {column["name"] for column in inspector.get_columns("findings")}
-            if "findings" in table_names
-            else set()
+        # Issue #2019: source and custom CYP2D6/tamoxifen records are audit
+        # material. No immutable producer fingerprint distinguishes a generated
+        # legacy alert from a locally amended one, so this migration never
+        # deletes or rewrites either findings or finding-diff state. Patient
+        # presentation is fail-closed at the current runtime boundaries.
+        added = True
+        logger.info(
+            "cyp2d6_tamoxifen_audit_records_retained",
+            from_version=from_version,
         )
-        state_cols = (
-            {column["name"] for column in inspector.get_columns("annotation_state")}
-            if "annotation_state" in table_names
-            else set()
-        )
-        required_finding_cols = {
-            "id",
-            "module",
-            "category",
-            "gene_symbol",
-            "diplotype",
-            "metabolizer_status",
-            "drug",
-            "finding_text",
-            "detail_json",
-        }
-        can_quarantine_findings = required_finding_cols <= findings_cols
-        can_quarantine_diff = {"key", "value"} <= state_cols
-        removed_findings = 0
-        removed_diff_entries = 0
-
-        if can_quarantine_findings or can_quarantine_diff:
-            # Reserve the writer lock before inspecting either persisted
-            # surface, so every exact-match check and deletion is atomic.
-            with engine.connect() as conn:
-                conn.exec_driver_sql("BEGIN IMMEDIATE")
-                try:
-                    if can_quarantine_findings:
-                        candidate_columns = [
-                            findings.c.id,
-                            findings.c.diplotype,
-                            findings.c.metabolizer_status,
-                            findings.c.finding_text,
-                            findings.c.detail_json,
-                        ]
-                        if "provenance" in findings_cols:
-                            candidate_columns.append(findings.c.provenance)
-                        candidates = conn.execute(
-                            sa.select(*candidate_columns)
-                            .where(
-                                findings.c.module == "pharmacogenomics",
-                                findings.c.category == "prescribing_alert",
-                                findings.c.gene_symbol == "CYP2D6",
-                                findings.c.metabolizer_status.in_(
-                                    tuple(_CYP2D6_TAMOXIFEN_RECOMMENDATION_UPDATES)
-                                ),
-                                findings.c.drug == "tamoxifen",
-                            )
-                            .order_by(findings.c.id)
-                        ).fetchall()
-                        for row in candidates:
-                            if not _is_withheld_cyp2d6_tamoxifen_finding(
-                                row.metabolizer_status,
-                                row.diplotype,
-                                row.finding_text,
-                                row.detail_json,
-                                row.provenance if "provenance" in findings_cols else None,
-                            ):
-                                continue
-                            identity_filters = [
-                                findings.c.id == row.id,
-                                findings.c.module == "pharmacogenomics",
-                                findings.c.category == "prescribing_alert",
-                                findings.c.gene_symbol == "CYP2D6",
-                                findings.c.diplotype == row.diplotype,
-                                findings.c.metabolizer_status == row.metabolizer_status,
-                                findings.c.drug == "tamoxifen",
-                                findings.c.finding_text == row.finding_text,
-                                findings.c.detail_json == row.detail_json,
-                            ]
-                            if "provenance" in findings_cols:
-                                identity_filters.append(findings.c.provenance.is_(None))
-                            result = conn.execute(findings.delete().where(*identity_filters))
-                            removed_findings += max(result.rowcount or 0, 0)
-
-                    if can_quarantine_diff:
-                        state_row = conn.execute(
-                            sa.select(annotation_state.c.value).where(
-                                annotation_state.c.key == _FINDING_DIFF_STATE_KEY
-                            )
-                        ).fetchone()
-                        if state_row is not None:
-                            try:
-                                diff = json.loads(state_row.value)
-                            except (json.JSONDecodeError, TypeError):
-                                diff = None
-
-                            if isinstance(diff, dict):
-                                for bucket in ("changed", "added", "removed"):
-                                    entries = diff.get(bucket)
-                                    if not isinstance(entries, list):
-                                        continue
-                                    kept = [
-                                        entry
-                                        for entry in entries
-                                        if not _is_withheld_cyp2d6_tamoxifen_diff_entry(entry)
-                                    ]
-                                    removed_diff_entries += len(entries) - len(kept)
-                                    if len(kept) != len(entries):
-                                        diff[bucket] = kept
-
-                                if removed_diff_entries:
-                                    diff["counts"] = {
-                                        bucket: (
-                                            len(diff.get(bucket, []))
-                                            if isinstance(diff.get(bucket), list)
-                                            else 0
-                                        )
-                                        for bucket in ("changed", "added", "removed")
-                                    }
-                                    conn.execute(
-                                        annotation_state.update()
-                                        .where(
-                                            annotation_state.c.key == _FINDING_DIFF_STATE_KEY,
-                                            annotation_state.c.value == state_row.value,
-                                        )
-                                        .values(value=json.dumps(diff))
-                                    )
-                    conn.commit()
-                except BaseException:
-                    conn.rollback()
-                    raise
-
-        if removed_findings or removed_diff_entries:
-            added = True
-            logger.warning(
-                "cyp2d6_tamoxifen_alerts_withheld",
-                findings_count=removed_findings,
-                finding_diff_count=removed_diff_entries,
-                from_version=from_version,
-            )
 
     return added
 

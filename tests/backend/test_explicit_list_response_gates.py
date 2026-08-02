@@ -21,6 +21,7 @@ from backend.api.routes import (
     hemochromatosis,
     kinship,
     metabolic,
+    parkinsons,
     rare_variants,
     risk_common,
 )
@@ -286,6 +287,13 @@ def test_finding_list_aggregates_withhold_cross_row_pair(
     endpoint = next(route.endpoint for route in router.routes if route.path == "/test/findings")
 
     assert endpoint(sample_id=1) == risk_common.RiskFindingsListResponse(items=[], total=0)
+
+    monkeypatch.setattr(parkinsons, "resolve_sample_engine", lambda _sample_id: object())
+    monkeypatch.setattr(parkinsons, "_ensure_gate_acknowledged", lambda _engine: None)
+    monkeypatch.setattr(parkinsons, "fetch_risk_findings", lambda _engine, _module: risk_rows)
+    assert parkinsons.list_findings(sample_id=1) == risk_common.RiskFindingsListResponse(
+        items=[], total=0
+    )
 
 
 def test_rare_findings_and_exports_withhold_cross_row_pair(
