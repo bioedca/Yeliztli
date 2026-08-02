@@ -153,6 +153,7 @@ export default function StaleSampleGate({ children }: StaleSampleGateProps) {
     parseSampleId(searchParams.get('sample_id'))
   const queryClient = useQueryClient()
   const [reconnectPending, setReconnectPending] = useState(false)
+  const [reconnectProbeFailed, setReconnectProbeFailed] = useState(false)
   const activeJobQuery = useActiveAnnotationJob(activeSampleId, reconnectPending)
   const activeJob = activeJobQuery.data ?? null
   const trackedJobRef = useRef<{ sampleId: number; jobId: string } | null>(null)
@@ -228,9 +229,14 @@ export default function StaleSampleGate({ children }: StaleSampleGateProps) {
       // probe is temporarily unavailable, useActiveAnnotationJob keeps polling
       // instead of treating the failure as an absent job.
       setReconnectPending(true)
+      setReconnectProbeFailed(false)
       void activeJobQuery
         .refetch()
         .then((result) => {
+          if (result.isError) {
+            setReconnectProbeFailed(true)
+            return
+          }
           if (!result.isError && result.data == null) {
             setReconnectPending(false)
             resetReannotation()
@@ -238,6 +244,7 @@ export default function StaleSampleGate({ children }: StaleSampleGateProps) {
         })
         .catch(() => {
           // The enabled retry interval owns transient probe failures.
+          setReconnectProbeFailed(true)
         })
       void queryClient.invalidateQueries({
         queryKey: sampleStalenessQueryKey(request.sampleId),
@@ -249,10 +256,34 @@ export default function StaleSampleGate({ children }: StaleSampleGateProps) {
   useEffect(() => {
     resetReannotation()
     setReconnectPending(false)
+    setReconnectProbeFailed(false)
     trackedJobRef.current = null
     // Reset the mutation banner state when the active sample changes so
     // a prior success/error toast from a different sample doesn't leak in.
   }, [activeSampleId, resetReannotation])
+
+  useEffect(() => {
+    // After the first conflict-recovery probe failed, a later successful null
+    // result is the authoritative 404 that re-enables a retry. The initial
+    // cached null cannot satisfy this branch because reconnectProbeFailed only
+    // flips after a fresh conflict probe has actually failed.
+    if (
+      reconnectPending &&
+      reconnectProbeFailed &&
+      activeJobQuery.isSuccess &&
+      activeJob == null
+    ) {
+      setReconnectPending(false)
+      setReconnectProbeFailed(false)
+      resetReannotation()
+    }
+  }, [
+    activeJob,
+    activeJobQuery.isSuccess,
+    reconnectPending,
+    reconnectProbeFailed,
+    resetReannotation,
+  ])
 
   const activeJobId = activeJob?.job_id ?? null
   useEffect(() => {

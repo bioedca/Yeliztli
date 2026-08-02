@@ -665,6 +665,46 @@ describe('StaleSampleGate', () => {
     expect(cta).toBeDisabled()
   })
 
+  it('re-enables retry after a failed conflict probe later confirms no active job', async () => {
+    let conflictReceived = false
+    let recoveredActiveChecks = 0
+
+    mockFetch.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = requestUrl(input)
+      if (url === STALE_PAYLOAD.reannotate_url && init?.method === 'POST') {
+        conflictReceived = true
+        return apiResponse(409, { detail: 'Annotation already in progress' })
+      }
+      if (isActiveJobRequest(url)) {
+        if (!conflictReceived) return apiResponse(404, { detail: 'No active job' })
+        recoveredActiveChecks += 1
+        return recoveredActiveChecks === 1
+          ? apiResponse(503, { detail: 'temporary outage' })
+          : apiResponse(404, { detail: 'No active job' })
+      }
+      if (isStalenessRequest(url)) {
+        return apiResponse(423, { detail: STALE_PAYLOAD })
+      }
+      return apiResponse(200, {})
+    })
+
+    render(
+      <StaleSampleGate>
+        <div>hidden</div>
+      </StaleSampleGate>,
+      { wrapper: createWrapper() },
+    )
+
+    const cta = await screen.findByTestId('stale-reannotate-cta')
+    fireEvent.click(cta)
+
+    await waitFor(() => expect(recoveredActiveChecks).toBeGreaterThanOrEqual(2), {
+      timeout: 2_500,
+    })
+    await waitFor(() => expect(cta).toBeEnabled())
+    expect(screen.queryByTestId('stale-reconnect-status')).not.toBeInTheDocument()
+  })
+
   it('re-enables retry when the active job disappears but the sample stays stale', async () => {
     let activeChecks = 0
 
