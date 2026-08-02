@@ -667,6 +667,84 @@ class TestRunPRS:
         assert result.z_score is None
         assert result.has_bootstrap_ci is False
 
+    @pytest.mark.parametrize(
+        ("inferred_ancestry", "top_ancestry_fraction", "multi_ancestry"),
+        [
+            ("ADMIXED", 0.55, False),
+            ("UNCERTAIN", None, False),
+            ("AFR", None, False),
+            ("AFR", None, True),
+        ],
+    )
+    def test_uncalibrated_ancestry_warning_omits_withheld_percentile(
+        self,
+        weight_set: PRSWeightSet,
+        sample_with_prs_variants: sa.Engine,
+        inferred_ancestry: str,
+        top_ancestry_fraction: float | None,
+        multi_ancestry: bool,
+    ) -> None:
+        """A warning must not tell a user to interpret a withheld percentile (#2018)."""
+        weight_set.calibration_eligible = False
+        weight_set.multi_ancestry = multi_ancestry
+        if multi_ancestry:
+            weight_set.development_ancestries = ["EUR"]
+
+        result = run_prs(
+            weight_set,
+            sample_with_prs_variants,
+            inferred_ancestry=inferred_ancestry,
+            top_ancestry_fraction=top_ancestry_fraction,
+        )
+
+        assert result.calibrated is False
+        assert result.percentile is None
+        assert result.ancestry_warning_text is not None
+        assert "percentile" not in result.ancestry_warning_text.lower()
+
+        assert store_prs_findings([result], sample_with_prs_variants, module="cancer") == 1
+        with sample_with_prs_variants.connect() as conn:
+            row = conn.execute(sa.select(findings).where(findings.c.category == "prs")).fetchone()
+        detail = json.loads(row.detail_json)
+        assert detail["percentile"] is None
+        assert detail["ancestry_warning_text"] == result.ancestry_warning_text
+        assert "percentile" not in detail["ancestry_warning_text"].lower()
+
+    @pytest.mark.parametrize(
+        ("inferred_ancestry", "top_ancestry_fraction"),
+        [("ADMIXED", 0.55), ("UNCERTAIN", None)],
+    )
+    def test_reported_percentile_ancestry_warning_keeps_percentile_context(
+        self,
+        weight_set: PRSWeightSet,
+        sample_with_prs_variants: sa.Engine,
+        inferred_ancestry: str,
+        top_ancestry_fraction: float | None,
+    ) -> None:
+        """Calibrated scores retain percentile-specific ancestry guidance (#2018)."""
+        result = run_prs(
+            weight_set,
+            sample_with_prs_variants,
+            inferred_ancestry=inferred_ancestry,
+            top_ancestry_fraction=top_ancestry_fraction,
+        )
+
+        assert result.calibrated is True
+        assert result.percentile is not None
+        assert result.ancestry_warning_text is not None
+        assert "percentile" in result.ancestry_warning_text.lower()
+
+    def test_insufficient_coverage_warning_omits_unreported_percentile(
+        self, weight_set: PRSWeightSet, sample_engine: sa.Engine
+    ) -> None:
+        """Internal calculations do not authorize percentile-facing copy (#2018)."""
+        result = run_prs(weight_set, sample_engine, inferred_ancestry="AFR")
+
+        assert result.is_sufficient is False
+        assert result.percentile is not None
+        assert result.ancestry_warning_text is not None
+        assert "percentile" not in result.ancestry_warning_text.lower()
+
     def test_full_pipeline(
         self, weight_set: PRSWeightSet, sample_with_prs_variants: sa.Engine
     ) -> None:
