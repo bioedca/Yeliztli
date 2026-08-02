@@ -668,12 +668,50 @@ class TestRunPRS:
         assert result.has_bootstrap_ci is False
 
     @pytest.mark.parametrize(
-        ("inferred_ancestry", "top_ancestry_fraction", "multi_ancestry"),
+        (
+            "inferred_ancestry",
+            "top_ancestry_fraction",
+            "multi_ancestry",
+            "expected_warning",
+        ),
         [
-            ("ADMIXED", 0.55, False),
-            ("UNCERTAIN", None, False),
-            ("AFR", None, False),
-            ("AFR", None, True),
+            (
+                "ADMIXED",
+                0.55,
+                False,
+                "Your genotype did not resolve to a single top ancestry (admixed "
+                "composition), so it cannot be matched to this score's development "
+                "population. PRS portability depends on ancestry composition, linkage "
+                "disequilibrium, and allele-frequency differences. The ancestry "
+                "applicability of this assessment is uncertain. Your ancestry composition "
+                "is admixed (top ancestry 55%). PRS accuracy may be reduced for admixed "
+                "genetic backgrounds.",
+            ),
+            (
+                "UNCERTAIN",
+                None,
+                False,
+                "Ancestry could not be confidently inferred (insufficient data), so the "
+                "match between your background and this score's development population "
+                "cannot be assessed. The ancestry applicability of this assessment is "
+                "uncertain.",
+            ),
+            (
+                "AFR",
+                None,
+                False,
+                "This PRS was derived from a single-ancestry (EUR) population study. "
+                "Your inferred ancestry (AFR) differs from the source population. The "
+                "ancestry applicability of this assessment is uncertain.",
+            ),
+            (
+                "AFR",
+                None,
+                True,
+                "This PRS was developed across multiple ancestries (EUR), none matching "
+                "your inferred ancestry (AFR). The ancestry applicability of this "
+                "assessment is uncertain.",
+            ),
         ],
     )
     def test_uncalibrated_ancestry_warning_omits_withheld_percentile(
@@ -683,6 +721,7 @@ class TestRunPRS:
         inferred_ancestry: str,
         top_ancestry_fraction: float | None,
         multi_ancestry: bool,
+        expected_warning: str,
     ) -> None:
         """A warning must not tell a user to interpret a withheld percentile (#2018)."""
         weight_set.calibration_eligible = False
@@ -700,19 +739,15 @@ class TestRunPRS:
         assert result.calibrated is False
         assert result.percentile is None
         assert result.ancestry_warning_text is not None
+        assert result.ancestry_warning_text == expected_warning
         assert "percentile" not in result.ancestry_warning_text.lower()
-        if inferred_ancestry == "ADMIXED":
-            assert (
-                "allele-frequency differences. This score may be less applicable "
-                "to an admixed background."
-            ) in result.ancestry_warning_text
 
         assert store_prs_findings([result], sample_with_prs_variants, module="cancer") == 1
         with sample_with_prs_variants.connect() as conn:
             row = conn.execute(sa.select(findings).where(findings.c.category == "prs")).fetchone()
         detail = json.loads(row.detail_json)
         assert detail["percentile"] is None
-        assert detail["ancestry_warning_text"] == result.ancestry_warning_text
+        assert detail["ancestry_warning_text"] == expected_warning
         assert "percentile" not in detail["ancestry_warning_text"].lower()
 
     @pytest.mark.parametrize(

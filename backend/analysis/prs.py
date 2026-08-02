@@ -921,9 +921,10 @@ def check_ancestry_mismatch(
         result.is_sufficient and result.calibrated and result.percentile is not None
     )
     if not has_reported_percentile:
-        background_caveat = "This score may be less applicable to your genetic background."
-        admixed_background_caveat = "This score may be less applicable to an admixed background."
-        interpretation_caveat = "Interpret this score with caution."
+        applicability_caveat = "The ancestry applicability of this assessment is uncertain."
+        background_caveat = applicability_caveat
+        admixed_background_caveat = applicability_caveat
+        interpretation_caveat = applicability_caveat
     else:
         background_caveat = (
             "Percentile estimates may be less accurate for your genetic background."
