@@ -56,6 +56,21 @@ def _format_ts(val: object) -> str | None:
     return str(val) if val is not None else None
 
 
+def _reject_duplicate_json_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    """Build a JSON object while rejecting ambiguous duplicate keys."""
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON key: {key}")
+        result[key] = value
+    return result
+
+
+def _is_nonblank_string(value: object) -> bool:
+    """Whether a structured payload identifier can be safely normalized."""
+    return isinstance(value, str) and bool(value.strip())
+
+
 def _event_data_contains_withheld_pair(value: object) -> bool:
     """Recursively recognize a held pair in legacy structured log data."""
     if isinstance(value, dict):
@@ -80,13 +95,13 @@ def _is_patient_visible_log_entry(row: sa.RowMapping) -> bool:
     if event_data is None:
         return message not in _PRESCRIBING_LOG_MESSAGES
     try:
-        payload = json.loads(event_data)
-    except (TypeError, json.JSONDecodeError):
+        payload = json.loads(event_data, object_pairs_hook=_reject_duplicate_json_keys)
+    except (TypeError, ValueError, RecursionError):
         return message not in _PRESCRIBING_LOG_MESSAGES
     if message in _PRESCRIBING_LOG_MESSAGES and (
         not isinstance(payload, dict)
-        or not isinstance(payload.get("gene"), str)
-        or not isinstance(payload.get("drug"), str)
+        or not _is_nonblank_string(payload.get("gene"))
+        or not _is_nonblank_string(payload.get("drug"))
     ):
         return False
     if _event_data_contains_withheld_pair(payload):

@@ -271,6 +271,43 @@ class TestLogExplorer:
                             }
                         ),
                     },
+                    {
+                        "timestamp": datetime.now(UTC),
+                        "level": "WARNING",
+                        "logger": "backend.analysis.pharmacogenomics",
+                        "message": "pgx_prescribing_alert",
+                        "event_data": json.dumps(
+                            {
+                                "gene": " \t",
+                                "drug": "tamoxifen",
+                                "recommendation": "Whitespace gene payload must not render.",
+                            }
+                        ),
+                    },
+                    {
+                        "timestamp": datetime.now(UTC),
+                        "level": "WARNING",
+                        "logger": "backend.analysis.pharmacogenomics",
+                        "message": "pgx_prescribing_alert",
+                        "event_data": json.dumps(
+                            {
+                                "gene": "CYP2D6",
+                                "drug": "\n ",
+                                "recommendation": "Whitespace drug payload must not render.",
+                            }
+                        ),
+                    },
+                    {
+                        "timestamp": datetime.now(UTC),
+                        "level": "WARNING",
+                        "logger": "backend.analysis.pharmacogenomics",
+                        "message": "pgx_prescribing_alert",
+                        "event_data": (
+                            '{"gene":"CYP2D6","drug":"tamoxifen",'
+                            '"gene":"CYP2C19","drug":"clopidogrel",'
+                            '"recommendation":"Duplicate legacy payload must not render."}'
+                        ),
+                    },
                 ],
             )
 
@@ -286,6 +323,9 @@ class TestLogExplorer:
         assert "malformed legacy" not in rendered
         assert "numeric legacy" not in rendered
         assert "array legacy" not in rendered
+        assert "whitespace gene" not in rendered
+        assert "whitespace drug" not in rendered
+        assert "duplicate legacy" not in rendered
 
     def test_visible_log_paging_uses_bounded_batches(self) -> None:
         """#2019: filtering legacy logs must not materialize the full history."""
