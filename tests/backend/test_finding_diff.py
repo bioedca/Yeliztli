@@ -519,6 +519,34 @@ class TestSnapshotFindings:
         assert by_text["BRCA1 Pathogenic"]["trait"] is None
         assert by_text["Malformed trait PRS"]["trait"] is None
 
+    def test_withheld_tamoxifen_alert_is_not_snapshotted_for_future_diff(
+        self,
+        sample_engine: sa.Engine,
+    ) -> None:
+        _insert_findings(
+            sample_engine,
+            [
+                {
+                    "module": "pharmacogenomics",
+                    "category": "prescribing_alert",
+                    "gene_symbol": "CYP2D6",
+                    "drug": "codeine",
+                    "finding_text": "CYP2D6/codeine control alert",
+                },
+                {
+                    "module": "medication_review",
+                    "category": "prescribing_alert",
+                    "gene_symbol": " CYP2D6 ",
+                    "drug": "\ttamoxifen\n",
+                    "finding_text": "Custom retained tamoxifen clinical advice.",
+                },
+            ],
+        )
+
+        records = snapshot_findings(sample_engine)
+
+        assert [record["finding_text"] for record in records] == ["CYP2D6/codeine control alert"]
+
 
 class TestComputeAndStoreRoundTrip:
     def test_store_read_dismiss(

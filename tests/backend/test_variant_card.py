@@ -289,6 +289,25 @@ class TestLoadSingleFinding:
         with pytest.raises(ValueError, match="Finding 99 not found"):
             _load_single_finding(sample_engine, finding_id=99)
 
+    def test_withholds_retained_custom_tamoxifen_alert(self, sample_with_findings: tuple) -> None:
+        """#2019: direct PNG/PDF/HTML card generation cannot bypass the hold."""
+        _, sample_engine, _ = sample_with_findings
+        with sample_engine.begin() as conn:
+            conn.execute(
+                findings.insert().values(
+                    id=2019,
+                    module="medication_review",
+                    category="prescribing_alert",
+                    evidence_level=4,
+                    gene_symbol=" CYP2D6 ",
+                    drug="\ttamoxifen\n",
+                    finding_text="Custom retained tamoxifen clinical advice.",
+                )
+            )
+
+        with pytest.raises(ValueError, match="Finding 2019 not found"):
+            _load_single_finding(sample_engine, finding_id=2019)
+
     def test_clinvar_conditions_cleaned(self, sample_with_findings: tuple) -> None:
         """#918: the raw CLNDN blob is cleaned for display — no | separators, no
         not provided/not specified placeholders, no drug-response entries, and

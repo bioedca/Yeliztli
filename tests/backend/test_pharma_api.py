@@ -88,6 +88,16 @@ CPIC_GUIDELINES_DATA = [
     },
 ]
 
+
+_TAMOXIFEN_AUDIT_ONLY_GUIDELINE = {
+    "gene": "CYP2D6",
+    "drug": "tamoxifen",
+    "phenotype": "Intermediate Metabolizer",
+    "recommendation": "Audit-only source wording that must not reach the drug-detail API.",
+    "classification": "A",
+    "guideline_url": "https://cpicpgx.org/guidelines/cpic-guideline-for-tamoxifen-based-on-cyp2d6/",
+}
+
 # Findings stored by the pharmacogenomics module (P3-04)
 SAMPLE_FINDINGS = [
     {
@@ -142,6 +152,26 @@ SAMPLE_FINDINGS = [
         ),
     },
 ]
+
+
+_STALE_TAMOXIFEN_FINDING = {
+    "module": "pharmacogenomics",
+    "category": "prescribing_alert",
+    "evidence_level": 4,
+    "gene_symbol": "CYP2D6",
+    "diplotype": "*1/*4",
+    "metabolizer_status": "Intermediate Metabolizer",
+    "drug": "tamoxifen",
+    "finding_text": "CYP2D6 *1/*4: Intermediate Metabolizer -- tamoxifen: stale advice.",
+    "detail_json": json.dumps(
+        {
+            "recommendation": "Stale advice that must not reach the drug-detail API.",
+            "classification": "A",
+            "guideline_url": "https://cpicpgx.org/guidelines/cpic-guideline-for-tamoxifen-based-on-cyp2d6/",
+            "call_confidence": "Partial",
+        }
+    ),
+}
 
 
 _UGT1A1_IRINOTECAN_INTERMEDIATE_RECOMMENDATION = (
@@ -328,6 +358,18 @@ def client_no_guidelines(tmp_data_dir: Path) -> Generator[tuple[TestClient, int]
 
 
 @pytest.fixture
+def tamoxifen_withheld_client(
+    tmp_data_dir: Path,
+) -> Generator[tuple[TestClient, int], None, None]:
+    """A stale target alert must not bypass the explicit clinical-evidence hold."""
+    yield from _setup_client(
+        tmp_data_dir,
+        CPIC_GUIDELINES_DATA + [_TAMOXIFEN_AUDIT_ONLY_GUIDELINE],
+        SAMPLE_FINDINGS + [_STALE_TAMOXIFEN_FINDING],
+    )
+
+
+@pytest.fixture
 def ugt1a1_conservative_sample(tmp_data_dir: Path) -> Generator[int, None, None]:
     """Registry-backed sample with conservative UGT1A1 alert rows."""
     settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
@@ -395,6 +437,20 @@ class TestListDrugs:
         codeine = next(i for i in data["items"] if i["drug"] == "codeine")
         assert codeine["genes"] == ["CYP2D6"]
 
+    def test_audit_only_drug_has_no_active_cpic_tier(
+        self,
+        tamoxifen_withheld_client: tuple[TestClient, int],
+    ):
+        """#2019: held source data must not advertise an active alert tier."""
+        tc, _ = tamoxifen_withheld_client
+        resp = tc.get("/api/analysis/pharma/drugs")
+
+        assert resp.status_code == 200
+        tamoxifen = next(item for item in resp.json()["items"] if item["drug"] == "tamoxifen")
+        assert tamoxifen["genes"] == ["CYP2D6"]
+        assert tamoxifen["classification"] is None
+        assert tamoxifen["prescribing_guidance_withheld"] is True
+
     def test_empty_when_no_guidelines(self, client_no_guidelines: tuple[TestClient, int]):
         tc, _ = client_no_guidelines
         resp = tc.get("/api/analysis/pharma/drugs")
@@ -444,6 +500,26 @@ class TestDrugLookup:
         assert effect["gene"] == "CYP2D6"
         assert effect["diplotype"] == "*1/*4"
         assert effect["call_confidence"] == "Partial"
+
+    def test_tamoxifen_withholding_prevents_stale_recommendation_leak(
+        self,
+        tamoxifen_withheld_client: tuple[TestClient, int],
+    ):
+        """#2019: an evidence hold is neither a normal result nor a failed call."""
+        tc, sample_id = tamoxifen_withheld_client
+        resp = tc.get(f"/api/analysis/pharma/drug/tamoxifen?sample_id={sample_id}")
+
+        assert resp.status_code == 200
+        effect = resp.json()["gene_effects"][0]
+        assert effect["gene"] == "CYP2D6"
+        assert effect["recommendation_status"] == "withheld"
+        assert effect["not_assessed"] is False
+        assert effect["recommendation"] is None
+        assert effect["classification"] is None
+        assert effect["guideline_url"] is None
+        assert effect["diplotype"] is None
+        assert effect["metabolizer_status"] is None
+        assert effect["call_confidence"] is None
 
     def test_case_insensitive(self, client: tuple[TestClient, int]):
         tc, sample_id = client
@@ -575,6 +651,18 @@ class TestGeneResults:
         assert "clopidogrel" in cyp2c19["drugs"]
         cyp2d6 = next(i for i in data["items"] if i["gene"] == "CYP2D6")
         assert "codeine" in cyp2d6["drugs"]
+
+    def test_withheld_pair_is_not_presented_as_a_gene_drug_association(
+        self,
+        tamoxifen_withheld_client: tuple[TestClient, int],
+    ):
+        """#2019: metabolizer cards must not advertise the held association."""
+        tc, sample_id = tamoxifen_withheld_client
+        data = tc.get(f"/api/analysis/pharma/genes?sample_id={sample_id}").json()
+
+        cyp2d6 = next(item for item in data["items"] if item["gene"] == "CYP2D6")
+        assert "codeine" in cyp2d6["drugs"]
+        assert "tamoxifen" not in cyp2d6["drugs"]
 
     def test_empty_when_no_findings(self, client_no_findings: tuple[TestClient, int]):
         tc, sample_id = client_no_findings
@@ -869,6 +957,22 @@ def malformed_coverage_client(tmp_data_dir: Path) -> Generator[tuple[TestClient,
 
 
 class TestMedicationSafetyReport:
+    def test_withheld_pair_cannot_leak_through_report(
+        self,
+        tamoxifen_withheld_client: tuple[TestClient, int],
+    ):
+        """#2019: report output must honor the same clinical-evidence hold."""
+        tc, sample_id = tamoxifen_withheld_client
+        response = tc.get(f"/api/analysis/pharma/report?sample_id={sample_id}")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "tamoxifen" not in [entry["drug"] for entry in data["drugs"]]
+        assert "Stale advice that must not reach the drug-detail API." not in json.dumps(data)
+        # The independent CYP2D6/codeine result remains available; filtering is
+        # constrained to the held gene-drug pair rather than the whole gene.
+        assert "codeine" in [entry["drug"] for entry in data["drugs"]]
+
     def test_disclosure_present(self, report_client: tuple[TestClient, int]):
         tc, sample_id = report_client
         resp = tc.get(f"/api/analysis/pharma/report?sample_id={sample_id}")

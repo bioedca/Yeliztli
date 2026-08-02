@@ -1,7 +1,8 @@
 """Export results API endpoints (P4-05, P4-12a).
 
 POST /api/export/query  — Export query builder results as VCF/TSV/JSON/CSV.
-POST /api/export/sql    — Export raw SQL console results as TSV/JSON/CSV.
+POST /api/export/sql    — Export raw SQL console results as TSV/JSON/CSV, except
+                          stored findings held from patient presentation.
 POST /api/export/fhir   — Export FHIR R4 Bundle (DiagnosticReport + Observations).
 
 All formats use StreamingResponse to avoid holding large result sets in
@@ -27,6 +28,10 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+from backend.analysis.pharmacogenomics import (
+    configure_raw_sql_findings_guard,
+    is_raw_sql_audit_only_access_denied,
+)
 from backend.analysis.zygosity import CARRIED_ZYGOSITIES, ZYG_HOM_REF
 from backend.api.dependencies import require_fresh_sample
 from backend.db.connection import get_registry
@@ -386,7 +391,9 @@ def export_sql(body: ExportSqlRequest) -> StreamingResponse:
     Executes user-provided SQL against a read-only SQLite connection and streams
     the COMPLETE result set (no row cap — #1000), mirroring /export/query's
     uncapped streaming so a console-truncated user funneled here for the full
-    data actually receives all of it. VCF is not supported (arbitrary schemas).
+    data actually receives all of it. Stored findings are denied at SQLite
+    execution time while clinical guidance is held for scientific review. VCF is
+    not supported (arbitrary schemas).
     """
     require_fresh_sample(body.sample_id)
     _validate_read_only(body.sql)
@@ -417,9 +424,11 @@ def export_sql(body: ExportSqlRequest) -> StreamingResponse:
     conn = ro_engine.connect()
     raw_conn = conn.connection.dbapi_connection
     raw_conn.set_progress_handler(_progress_handler, 10_000)
+    configure_raw_sql_findings_guard(raw_conn)
 
     def _cleanup() -> None:
         raw_conn.set_progress_handler(None, 0)
+        raw_conn.set_authorizer(None)
         conn.close()
         ro_engine.dispose()
 
@@ -431,9 +440,17 @@ def export_sql(body: ExportSqlRequest) -> StreamingResponse:
         else:
             columns = []
             first_batch = []
-    except sa.exc.OperationalError as exc:
+    except sa.exc.DatabaseError as exc:
         _cleanup()
         msg = str(exc.orig) if exc.orig else str(exc)
+        if is_raw_sql_audit_only_access_denied(msg):
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    "Direct SQL access to audit-only clinical finding data is unavailable "
+                    "while guidance is withheld for scientific review."
+                ),
+            ) from exc
         if "interrupted" in msg.lower():
             raise HTTPException(
                 status_code=408,

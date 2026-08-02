@@ -34,6 +34,7 @@ from typing import Any
 
 import sqlalchemy as sa
 
+from backend.analysis.pharmacogenomics import patient_visible_finding_clause
 from backend.disclaimers import PGX_SOURCES_CONTEXT_ONLY
 
 # PharmGKB clinical-annotation LoE framework (primary citation for the LoE column).
@@ -90,7 +91,10 @@ def assess_sample_pgx_guidelines(sample_engine: sa.Engine) -> dict[str, Any]:
             findings.c.metabolizer_status,
             findings.c.finding_text,
         )
-        .where(findings.c.category == "prescribing_alert")
+        .where(
+            findings.c.category == "prescribing_alert",
+            patient_visible_finding_clause(findings.c),
+        )
         .order_by(findings.c.id)
     )
     with sample_engine.connect() as conn:

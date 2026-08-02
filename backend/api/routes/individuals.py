@@ -35,6 +35,7 @@ import sqlalchemy as sa
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from backend.analysis.pharmacogenomics import patient_visible_finding_clause
 from backend.api.gating import gated_modules_to_hide
 from backend.db.connection import get_registry
 from backend.db.tables import findings as findings_table
@@ -237,7 +238,10 @@ def _aggregate_findings_count(linked: list[sa.Row]) -> int:
             # (APOE #222, sex-aneuploidy #299, Parkinson's #298) shifts this
             # aggregate count and re-opens the disclosure as a count delta (#388).
             hidden_modules = gated_modules_to_hide(sample_engine)
-            stmt = sa.select(findings_table.c.rsid).where(findings_table.c.evidence_level >= 3)
+            stmt = sa.select(findings_table.c.rsid).where(
+                findings_table.c.evidence_level >= 3,
+                patient_visible_finding_clause(findings_table.c),
+            )
             if hidden_modules:
                 stmt = stmt.where(findings_table.c.module.not_in(hidden_modules))
             with sample_engine.connect() as sample_conn:

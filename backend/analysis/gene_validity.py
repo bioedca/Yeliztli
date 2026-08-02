@@ -26,6 +26,7 @@ import sqlalchemy as sa
 
 from backend.analysis.clinvar_conditions import format_clinvar_conditions
 from backend.analysis.clinvar_significance import pathogenic_significance_filter
+from backend.analysis.pharmacogenomics import patient_visible_finding_clause
 from backend.annotation.clingen import lookup_gene_validities
 from backend.disclaimers import GENE_VALIDITY_CONTEXT_ONLY
 
@@ -441,7 +442,10 @@ def assess_finding_gene_validity(
             findings.c.finding_text,
             findings.c.conditions,
         )
-        .where(pathogenic_significance_filter(findings.c.clinvar_significance))
+        .where(
+            pathogenic_significance_filter(findings.c.clinvar_significance),
+            patient_visible_finding_clause(findings.c),
+        )
         .order_by(findings.c.id)
     )
     with sample_engine.connect() as conn:

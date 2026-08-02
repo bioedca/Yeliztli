@@ -2,7 +2,8 @@
 
 PRD test requirements:
 - T4-03: SQL console rejects write operations (INSERT, UPDATE, DELETE, DROP)
-- T4-04: SQL console allows full read access to all tables including schema metadata
+- T4-04: SQL console allows read access to patient-visible sample data and schema
+  metadata, while retained clinically withheld findings remain audit-only.
 """
 
 from __future__ import annotations
@@ -349,7 +350,7 @@ class TestSqlConsoleRejectsWrites:
 
 
 class TestSqlConsoleReadAccess:
-    """PRD T4-04: Full read access to all tables + schema metadata."""
+    """PRD T4-04: Patient-visible reads and schema metadata remain available."""
 
     def test_select_all_variants(self, client) -> None:
         tc, sid = client
@@ -445,6 +446,34 @@ class TestSqlConsoleReadAccess:
         # Just verify we can access other tables (they may be empty)
         data = resp.json()
         assert data["row_count"] > 0
+
+    def test_stored_findings_are_denied_to_raw_sql(self, client) -> None:
+        """#2019: a CTE or alias must not bypass the audit-only finding hold."""
+        tc, sid = client
+        resp = tc.post(
+            "/api/query/sql",
+            json={
+                "sample_id": sid,
+                "sql": (
+                    "WITH retained AS (SELECT finding_text FROM findings) SELECT * FROM retained"
+                ),
+            },
+        )
+        assert resp.status_code == 403
+        assert "audit-only" in resp.json()["detail"].lower()
+
+    def test_serialized_finding_history_is_denied_to_raw_sql(self, client) -> None:
+        """#2019: retained diffs cannot bypass the finding-table guard."""
+        tc, sid = client
+        resp = tc.post(
+            "/api/query/sql",
+            json={
+                "sample_id": sid,
+                "sql": "SELECT value FROM annotation_state WHERE key = 'last_finding_diff_json'",
+            },
+        )
+        assert resp.status_code == 403
+        assert "audit-only" in resp.json()["detail"].lower()
 
     def test_join_query(self, client) -> None:
         """User can run JOIN queries within the sample DB."""

@@ -14,6 +14,7 @@ from backend.db.tables import log_entries, reference_metadata
 from backend.logging_config import (
     _REDACTED_LOG_VALUE,
     _redact_sensitive_log_fields,
+    _redact_withheld_prescribing_alert_fields,
     configure_logging,
 )
 
@@ -48,6 +49,25 @@ def test_redact_sensitive_log_fields_recursively() -> None:
     }
     assert redacted["items"] == [{"haplotype": _REDACTED_LOG_VALUE, "rsid": "rs123"}]
     assert redacted["input_gt"] == _REDACTED_LOG_VALUE
+
+
+def test_withheld_prescribing_alert_log_keeps_only_neutral_metadata() -> None:
+    event_dict = {
+        "event": "pgx_prescribing_alert",
+        "logger": "backend.analysis.pharmacogenomics",
+        "gene": " CYP2D6 ",
+        "drug": "\ttamoxifen\n",
+        "recommendation": "Escalate tamoxifen to 40 mg/day.",
+        "classification": "A",
+    }
+
+    redacted = _redact_withheld_prescribing_alert_fields(event_dict)
+
+    assert redacted == {
+        "event": "pgx_prescribing_alert",
+        "logger": "backend.analysis.pharmacogenomics",
+        "clinical_guidance_withheld": True,
+    }
 
 
 def test_configured_logging_redacts_before_db_and_console(

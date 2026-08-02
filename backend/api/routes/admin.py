@@ -9,6 +9,7 @@ Provides endpoints for the Settings > System Health page:
 
 from __future__ import annotations
 
+import json
 import shutil
 import time
 from datetime import datetime
@@ -19,6 +20,7 @@ from fastapi import APIRouter, Query
 from pydantic import BaseModel
 from sqlalchemy.pool import NullPool
 
+from backend.analysis.pharmacogenomics import is_prescribing_alert_withheld
 from backend.config import get_settings
 from backend.db.connection import get_registry
 from backend.db.database_registry import DATABASES, DatabaseInfo
@@ -41,12 +43,50 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 # Track app start time for uptime calculation
 _APP_START_TIME = time.time()
 
+_PRESCRIBING_LOG_MESSAGES = frozenset(
+    {"pgx_alert_withheld_insufficient_clinical_evidence", "pgx_prescribing_alert"}
+)
+
 
 def _format_ts(val: object) -> str | None:
     """Format a timestamp value to ISO string."""
     if isinstance(val, datetime):
         return val.isoformat()
     return str(val) if val is not None else None
+
+
+def _event_data_contains_withheld_pair(value: object) -> bool:
+    """Recursively recognize a held pair in legacy structured log data."""
+    if isinstance(value, dict):
+        if is_prescribing_alert_withheld(value.get("gene"), value.get("drug")):
+            return True
+        return any(_event_data_contains_withheld_pair(nested) for nested in value.values())
+    if isinstance(value, list):
+        return any(_event_data_contains_withheld_pair(item) for item in value)
+    return False
+
+
+def _is_patient_visible_log_entry(row: sa.RowMapping) -> bool:
+    """Hide durable PGx guidance logs retained before the #2019 hold.
+
+    A malformed payload from a prescribing event is treated as withheld rather
+    than rendered, because it may contain a legacy recommendation that cannot be
+    safely classified. This is applied before pagination and count calculation
+    so the Log Explorer has no content or count side channel.
+    """
+    message = str(row["message"] or "")
+    event_data = row["event_data"]
+    if event_data is None:
+        return message not in _PRESCRIBING_LOG_MESSAGES
+    try:
+        payload = json.loads(event_data)
+    except (TypeError, json.JSONDecodeError):
+        return message not in _PRESCRIBING_LOG_MESSAGES
+    if _event_data_contains_withheld_pair(payload):
+        return False
+    if message in _PRESCRIBING_LOG_MESSAGES and not isinstance(payload, dict):
+        return False
+    return True
 
 
 # ── Response models ──────────────────────────────────────────────────
@@ -153,20 +193,16 @@ def get_logs(
 
         where = sa.and_(*conditions) if conditions else sa.true()
 
-        # Total count
-        count_q = sa.select(sa.func.count()).select_from(log_entries).where(where)
-        total = conn.execute(count_q).scalar() or 0
-
-        # Paginated query (newest first)
-        offset = (page - 1) * page_size
-        q = (
-            sa.select(log_entries)
-            .where(where)
-            .order_by(log_entries.c.id.desc())
-            .limit(page_size)
-            .offset(offset)
-        )
+        # Filter durable structured event data before pagination. A raw SQL
+        # predicate cannot safely parse malformed legacy JSON, so materialize the
+        # caller-filtered log set and apply the fail-closed Python policy first.
+        q = sa.select(log_entries).where(where).order_by(log_entries.c.id.desc())
         rows = conn.execute(q).mappings().all()
+
+    visible_rows = [row for row in rows if _is_patient_visible_log_entry(row)]
+    total = len(visible_rows)
+    offset = (page - 1) * page_size
+    page_rows = visible_rows[offset : offset + page_size]
 
     entries = [
         LogEntry(
@@ -177,7 +213,7 @@ def get_logs(
             message=r["message"],
             event_data=r["event_data"],
         )
-        for r in rows
+        for r in page_rows
     ]
 
     return LogResponse(

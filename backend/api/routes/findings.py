@@ -22,6 +22,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 from pydantic import BaseModel
 
+from backend.analysis.pharmacogenomics import patient_visible_finding_clause
 from backend.api.dependencies import require_fresh_sample
 from backend.api.gating import gated_modules_to_hide
 from backend.db.connection import get_registry
@@ -209,7 +210,10 @@ async def list_findings(
     """
     engine = _get_sample_engine(sample_id)
 
-    clauses = [policy_qualified_finding_clause(findings.c.category)]
+    clauses = [
+        policy_qualified_finding_clause(findings.c.category),
+        patient_visible_finding_clause(findings.c),
+    ]
     if module:
         clauses.append(findings.c.module == module)
     if category:
@@ -264,13 +268,17 @@ async def findings_summary(
 
     with engine.connect() as conn:
         # Per-module aggregation
+        visible_finding_clause = patient_visible_finding_clause(findings.c)
         agg_stmt = (
             sa.select(
                 findings.c.module,
                 sa.func.count().label("cnt"),
                 sa.func.max(findings.c.evidence_level).label("max_ev"),
             )
-            .where(policy_qualified_finding_clause(findings.c.category))
+            .where(
+                policy_qualified_finding_clause(findings.c.category),
+                visible_finding_clause,
+            )
             .group_by(findings.c.module)
             .order_by(sa.desc("max_ev"))
         )
@@ -292,7 +300,10 @@ async def findings_summary(
                 normalized_evidence_level.label("evidence_level"),
                 sa.func.count().label("cnt"),
             )
-            .where(policy_qualified_finding_clause(findings.c.category))
+            .where(
+                policy_qualified_finding_clause(findings.c.category),
+                visible_finding_clause,
+            )
             .group_by(findings.c.module, normalized_evidence_level)
             .order_by(sa.desc(normalized_evidence_level), findings.c.module)
         )
@@ -303,7 +314,10 @@ async def findings_summary(
         # All findings for top finding per module
         all_stmt = (
             sa.select(findings)
-            .where(policy_qualified_finding_clause(findings.c.category))
+            .where(
+                policy_qualified_finding_clause(findings.c.category),
+                visible_finding_clause,
+            )
             .order_by(
                 sa.desc(sa.func.coalesce(findings.c.evidence_level, 0)),
                 findings.c.module,
@@ -372,6 +386,7 @@ async def get_finding_svg(
             sa.select(findings.c.module, findings.c.svg_path).where(
                 findings.c.id == finding_id,
                 policy_qualified_finding_clause(findings.c.category),
+                patient_visible_finding_clause(findings.c),
             )
         ).fetchone()
 

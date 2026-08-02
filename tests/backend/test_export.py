@@ -606,6 +606,36 @@ class TestExportSecurity:
         )
         assert resp.status_code == 403
 
+    def test_sql_export_denies_stored_findings(self, client) -> None:
+        """#2019: streaming export cannot expose the retained audit-only row."""
+        tc, sid = client
+        resp = tc.post(
+            "/api/export/sql",
+            json={
+                "sample_id": sid,
+                "sql": (
+                    "WITH retained AS (SELECT finding_text FROM findings) SELECT * FROM retained"
+                ),
+                "format": "csv",
+            },
+        )
+        assert resp.status_code == 403
+        assert "audit-only" in resp.json()["detail"].lower()
+
+    def test_sql_export_denies_serialized_finding_history(self, client) -> None:
+        """#2019: streaming export cannot expose a retained diff payload."""
+        tc, sid = client
+        resp = tc.post(
+            "/api/export/sql",
+            json={
+                "sample_id": sid,
+                "sql": "SELECT value FROM annotation_state WHERE key = 'last_finding_diff_json'",
+                "format": "csv",
+            },
+        )
+        assert resp.status_code == 403
+        assert "audit-only" in resp.json()["detail"].lower()
+
 
 class TestExportErrors:
     """Error handling tests."""

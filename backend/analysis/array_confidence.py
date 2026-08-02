@@ -37,6 +37,7 @@ from typing import Any
 import sqlalchemy as sa
 
 from backend.analysis.clinvar_significance import pathogenic_significance_filter
+from backend.analysis.pharmacogenomics import patient_visible_finding_clause
 from backend.db.tables import annotated_variants, findings
 from backend.disclaimers import ARRAY_CONFIDENCE_CONTEXT_ONLY
 
@@ -278,7 +279,10 @@ def assess_pathogenic_findings(sample_engine: sa.Engine) -> list[dict[str, Any]]
             av.c.clinvar_accession.label("av_clinvar_accession"),
         )
         .select_from(join)
-        .where(pathogenic_significance_filter(findings.c.clinvar_significance))
+        .where(
+            pathogenic_significance_filter(findings.c.clinvar_significance),
+            patient_visible_finding_clause(findings.c),
+        )
         .order_by(findings.c.id)
     )
     with sample_engine.connect() as conn:

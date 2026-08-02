@@ -46,6 +46,7 @@ from typing import Any
 import structlog
 
 from backend.analysis.pathway_coverage import pathway_level_display_label
+from backend.analysis.pharmacogenomics import is_withheld_prescribing_alert_finding
 
 logger = structlog.get_logger(__name__)
 
@@ -104,6 +105,16 @@ def render_finding_svg(finding: dict[str, Any]) -> str | None:
     """
     module = finding.get("module", "")
     category = finding.get("category", "")
+
+    # Held source rows may remain on disk for audit provenance, but must never
+    # receive a freshly generated patient-facing pharmacogenomics card.
+    if is_withheld_prescribing_alert_finding(
+        module,
+        category,
+        finding.get("gene_symbol"),
+        finding.get("drug"),
+    ):
+        return None
 
     # Parse detail_json once for renderers that need it
     detail = _parse_detail_json(finding.get("detail_json"))

@@ -505,6 +505,90 @@ class TestLAIPolicyQuarantine:
             sample_engine.dispose()
 
 
+class TestWithheldPrescribingAlertPresentation:
+    """#2019: a retained custom alert cannot bypass generic finding surfaces."""
+
+    async def test_list_summary_and_svg_hide_whitespace_wrapped_target(
+        self,
+        monkeypatch,
+        tmp_path,
+    ):
+        from fastapi import HTTPException
+
+        import backend.api.routes.findings as findings_route
+
+        sample_engine = sa.create_engine(f"sqlite:///{tmp_path / 'withheld_alert.db'}")
+        try:
+            create_sample_tables(sample_engine)
+            svg_dir = tmp_path / "svgs"
+            svg_dir.mkdir()
+            (svg_dir / "held.svg").write_text(
+                '<svg xmlns="http://www.w3.org/2000/svg"><text>stale advice</text></svg>',
+                encoding="utf-8",
+            )
+            with sample_engine.begin() as conn:
+                conn.execute(
+                    findings.insert().values(
+                        id=1,
+                        module="pharmacogenomics",
+                        category="prescribing_alert",
+                        evidence_level=4,
+                        gene_symbol="CYP2D6",
+                        drug="codeine",
+                        finding_text="CYP2D6/codeine control alert",
+                    )
+                )
+                conn.execute(
+                    findings.insert().values(
+                        id=2019,
+                        # Deliberately not the canonical module and with
+                        # whitespace/case variation: v25 preserves this row.
+                        module="medication_review",
+                        category="prescribing_alert",
+                        evidence_level=4,
+                        gene_symbol="\u00a0CYP2D6\u2003",
+                        drug="\vTamOxIfEn\f",
+                        finding_text="Custom retained tamoxifen clinical advice.",
+                        svg_path="svgs/held.svg",
+                    )
+                )
+
+            monkeypatch.setattr(
+                findings_route,
+                "_get_sample_engine",
+                lambda sample_id: sample_engine,
+            )
+            monkeypatch.setattr(
+                findings_route,
+                "_get_sample_engine_and_dir",
+                lambda sample_id: (sample_engine, tmp_path),
+            )
+            monkeypatch.setattr(findings_route, "gated_modules_to_hide", lambda engine: set())
+
+            listed = await findings_route.list_findings(
+                sample_id=1,
+                module=None,
+                category=None,
+                min_stars=None,
+                limit=None,
+                offset=0,
+            )
+            assert [finding.finding_text for finding in listed] == ["CYP2D6/codeine control alert"]
+
+            summary = await findings_route.findings_summary(sample_id=1)
+            assert summary.total_findings == 1
+            assert summary.modules[0].top_finding_text == "CYP2D6/codeine control alert"
+            assert "tamoxifen" not in summary.model_dump_json().lower()
+
+            # The backing SVG exists, so a 404 proves the row predicate rather
+            # than a missing-file fallback.
+            with pytest.raises(HTTPException) as caught:
+                await findings_route.get_finding_svg(finding_id=2019, sample_id=1)
+            assert caught.value.status_code == 404
+        finally:
+            sample_engine.dispose()
+
+
 # ── SVG endpoint tests ─────────────────────────────────────────────
 
 

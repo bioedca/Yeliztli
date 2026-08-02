@@ -13,6 +13,8 @@ from datetime import UTC, datetime
 
 import structlog
 
+from backend.analysis.pharmacogenomics import is_prescribing_alert_withheld
+
 # Guard against recursive log writes (e.g. if the DB insert triggers logging)
 _in_db_processor = contextvars.ContextVar("_in_db_processor", default=False)
 
@@ -38,6 +40,29 @@ _SENSITIVE_LOG_KEYS = {
     "haplotypes",
     "gt",
 }
+_LOG_METADATA_KEYS = frozenset(
+    {"event", "logger", "_logger", "timestamp", "level", "_record", "_from_structlog"}
+)
+
+
+def _redact_withheld_prescribing_alert_fields(
+    event_dict: structlog.types.EventDict,
+) -> structlog.types.EventDict:
+    """Strip all clinical fields for a pair held from patient presentation.
+
+    Structured logs are persisted and rendered by the admin panel, so retaining
+    a source-faithful row in the sample database must not create a second
+    patient-visible recommendation channel. Preserve only event metadata and a
+    neutral marker when a withheld pair is encountered.
+    """
+    if not is_prescribing_alert_withheld(event_dict.get("gene"), event_dict.get("drug")):
+        return event_dict
+
+    safe_metadata = {key: value for key, value in event_dict.items() if key in _LOG_METADATA_KEYS}
+    safe_metadata["clinical_guidance_withheld"] = True
+    event_dict.clear()
+    event_dict.update(safe_metadata)
+    return event_dict
 
 
 def _is_sensitive_log_key(key: object) -> bool:
@@ -70,6 +95,7 @@ def _redact_sensitive_log_fields(
     event_dict: structlog.types.EventDict,
 ) -> structlog.types.EventDict:
     """Redact genotype-like structured fields before any log sink sees them."""
+    _redact_withheld_prescribing_alert_fields(event_dict)
     for key, value in list(event_dict.items()):
         event_dict[key] = (
             _REDACTED_LOG_VALUE if _is_sensitive_log_key(key) else _redact_sensitive_value(value)

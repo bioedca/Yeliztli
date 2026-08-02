@@ -296,6 +296,30 @@ class TestLoadFindings:
         assert all(result["category"] != "local_ancestry" for result in all_results)
         assert all(result["category"] != "local_ancestry" for result in ancestry_results)
 
+    def test_withholds_retained_custom_tamoxifen_alert(self, sample_with_findings: tuple) -> None:
+        """#2019: PDF/preview inputs cannot re-render a held alert row."""
+        _, sample_engine, _ = sample_with_findings
+        with sample_engine.begin() as conn:
+            conn.execute(
+                findings.insert().values(
+                    module="medication_review",
+                    category="prescribing_alert",
+                    evidence_level=4,
+                    gene_symbol=" CYP2D6 ",
+                    drug="\ttamoxifen\n",
+                    finding_text="Custom retained tamoxifen clinical advice.",
+                )
+            )
+
+        results = _load_findings(sample_engine, modules=None)
+
+        assert "CYP2D6 *1/*4 — Intermediate Metabolizer for codeine" in {
+            result["finding_text"] for result in results
+        }
+        assert "Custom retained tamoxifen clinical advice." not in {
+            result["finding_text"] for result in results
+        }
+
     def test_sorted_by_evidence_level_desc(
         self, tmp_data_dir: Path, sample_with_findings: tuple
     ) -> None:
@@ -579,6 +603,29 @@ class TestHtmlRendering:
         assert "Sensitive APOE report narrative" not in html
         assert "Sensitive Parkinsons report narrative" not in html
         assert "Sensitive aneuploidy report narrative" not in html
+
+    def test_render_report_html_hides_retained_custom_tamoxifen_alert(
+        self,
+        tmp_data_dir: Path,
+        sample_with_findings: tuple,
+    ) -> None:
+        _, sample_engine, _ = sample_with_findings
+        with sample_engine.begin() as conn:
+            conn.execute(
+                findings.insert().values(
+                    module="medication_review",
+                    category="prescribing_alert",
+                    evidence_level=4,
+                    gene_symbol=" CYP2D6 ",
+                    drug="\ttamoxifen\n",
+                    finding_text="Custom retained tamoxifen clinical advice.",
+                )
+            )
+
+        html = _render_html_helper(tmp_data_dir, sample_with_findings)
+
+        assert "CYP2D6 *1/*4 — Intermediate Metabolizer for codeine" in html
+        assert "Custom retained tamoxifen clinical advice." not in html
 
     def test_render_report_html_hides_explicit_unacknowledged_gated_module(
         self,

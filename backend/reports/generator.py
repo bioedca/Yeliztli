@@ -29,6 +29,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from backend.analysis.clinvar_conditions import format_clinvar_conditions_text
 from backend.analysis.pathway_coverage import pathway_level_display_label
+from backend.analysis.pharmacogenomics import patient_visible_finding_clause
 from backend.api.gating import gated_modules_to_hide
 from backend.db.connection import get_registry
 from backend.db.tables import findings, samples
@@ -107,7 +108,10 @@ def _load_findings(
     modules: list[str] | None,
 ) -> list[dict[str, Any]]:
     """Query reportable findings from sample DB, sorted by evidence."""
-    clauses = [policy_qualified_finding_clause(findings.c.category)]
+    clauses = [
+        policy_qualified_finding_clause(findings.c.category),
+        patient_visible_finding_clause(findings.c),
+    ]
     if modules:
         clauses.append(findings.c.module.in_(modules))
 

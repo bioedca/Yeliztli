@@ -6,8 +6,9 @@ translated server-side to SQLAlchemy Core expressions via the recursive
 translator — values are always bound parameters, never interpolated.
 
 POST /api/query/sql — Execute user-provided SQL against a read-only
-SQLite connection to the per-sample database.  Full schema access — user
-owns all the data, no restrictions beyond read-only.
+SQLite connection to the per-sample database. Stored findings are excluded
+while clinical guidance is scientifically withheld; the retained source record
+remains available only to the audited provenance workflow.
 """
 
 from __future__ import annotations
@@ -23,6 +24,10 @@ import sqlalchemy as sa
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from backend.analysis.pharmacogenomics import (
+    configure_raw_sql_findings_guard,
+    is_raw_sql_audit_only_access_denied,
+)
 from backend.analysis.zygosity import CARRIED_ZYGOSITIES, ZYG_HOM_REF
 from backend.api.dependencies import require_fresh_sample
 from backend.db.connection import get_registry
@@ -427,8 +432,10 @@ def _get_sample_db_path(sample_id: int) -> str:
 def execute_sql(body: SqlRequest) -> SqlResult:
     """Execute raw SQL against a read-only SQLite connection.
 
-    The user owns all the data — full schema access is granted.
-    Only read operations (SELECT, PRAGMA reads, etc.) are allowed.
+    Only read operations (SELECT, PRAGMA reads, etc.) are allowed. Stored
+    findings are denied at SQLite execution time while any clinically withheld
+    guidance remains in the audit record, so arbitrary SQL cannot bypass
+    patient-visible presentation policy.
     The connection is opened in SQLite read-only mode as defence-in-depth.
     """
     require_fresh_sample(body.sample_id)
@@ -457,6 +464,7 @@ def execute_sql(body: SqlRequest) -> SqlResult:
             # virtual-machine instructions; non-zero return aborts.
             raw_conn = conn.connection.dbapi_connection
             raw_conn.set_progress_handler(_progress_handler, 10_000)
+            configure_raw_sql_findings_guard(raw_conn)
             try:
                 result = conn.execute(sa.text(body.sql))
 
@@ -475,11 +483,20 @@ def execute_sql(body: SqlRequest) -> SqlResult:
                     truncated = False
             finally:
                 raw_conn.set_progress_handler(None, 0)
+                raw_conn.set_authorizer(None)
 
         elapsed_ms = (time.monotonic() - t0) * 1000
-    except sa.exc.OperationalError as exc:
+    except sa.exc.DatabaseError as exc:
         # Surface SQLite errors (syntax, read-only violations, timeout).
         msg = str(exc.orig) if exc.orig else str(exc)
+        if is_raw_sql_audit_only_access_denied(msg):
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    "Direct SQL access to audit-only clinical finding data is unavailable "
+                    "while guidance is withheld for scientific review."
+                ),
+            ) from exc
         if "interrupted" in msg.lower():
             raise HTTPException(
                 status_code=408,

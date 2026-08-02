@@ -285,6 +285,21 @@ class TestRenderFindingSvg:
         assert "<svg" in svg
         assert "CYP2C19" in svg
 
+    def test_withheld_tamoxifen_alert_does_not_generate_card(self):
+        assert (
+            render_finding_svg(
+                {
+                    "id": 2019,
+                    "module": "medication_review",
+                    "category": "prescribing_alert",
+                    "gene_symbol": " CYP2D6 ",
+                    "drug": "\ttamoxifen\n",
+                    "finding_text": "Custom retained tamoxifen clinical advice.",
+                }
+            )
+            is None
+        )
+
     def test_carrier_generates_card(self, carrier_finding):
         svg = render_finding_svg(carrier_finding)
         assert svg is not None

@@ -891,6 +891,23 @@ class TestAggregateFindingsCountGatesDisclosure:
             conn.execute(apoe_gate.insert().values(id=1, acknowledged=True))
         engine.dispose()
 
+    def _add_withheld_tamoxifen_alert(self, client: TestClient) -> None:
+        engine = self._sample1_engine(client)
+        with engine.begin() as conn:
+            conn.execute(
+                findings_table.insert().values(
+                    # A retained custom alert must not shift the dashboard count
+                    # simply because it does not have an rsid for deduplication.
+                    module="medication_review",
+                    category="prescribing_alert",
+                    evidence_level=4,
+                    gene_symbol=" CYP2D6 ",
+                    drug="\ttamoxifen\n",
+                    finding_text="Custom retained tamoxifen clinical advice.",
+                )
+            )
+        engine.dispose()
+
     def test_gated_finding_excluded_from_count_until_acknowledged(
         self, individuals_client: TestClient
     ) -> None:
@@ -910,3 +927,21 @@ class TestAggregateFindingsCountGatesDisclosure:
         self._acknowledge_apoe_gate(client)
         body = client.get(f"/api/individuals/{ind_id}").json()
         assert body["aggregated_findings_count"] == 3
+
+    def test_withheld_tamoxifen_alert_does_not_shift_aggregate_count(
+        self,
+        individuals_client: TestClient,
+    ) -> None:
+        client = individuals_client
+        sample1_id = client.sample1_id  # type: ignore[attr-defined]
+        self._add_withheld_tamoxifen_alert(client)
+
+        ind_id = client.post("/api/individuals", json={"display_name": "Subject"}).json()["id"]
+        body = client.post(
+            f"/api/individuals/{ind_id}/link-sample",
+            json={"sample_id": sample1_id},
+        ).json()
+
+        # The fixture's two active high-confidence findings remain; the held
+        # alert cannot disclose its existence through a count delta.
+        assert body["aggregated_findings_count"] == 2

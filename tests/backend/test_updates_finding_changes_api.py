@@ -100,10 +100,28 @@ _APOE_CHANGED = {
     "changes": [{"field": "evidence_level", "before": "4", "after": "5"}],
 }
 
+_WITHHELD_TAMOXIFEN_ADDED = {
+    # Deliberately not the canonical module and with whitespace/case variation:
+    # this represents an intentionally retained custom record, not a generated
+    # CPIC row that v25 can safely delete.
+    "module": "medication_review",
+    "category": "prescribing_alert",
+    "gene_symbol": " CYP2D6 ",
+    "rsid": None,
+    "drug": "\ttamoxifen\n",
+    "diplotype": "*1/*4",
+    "finding_text": "Custom retained tamoxifen clinical advice.",
+    "clinvar_significance": None,
+    "evidence_level": 4,
+    "metabolizer_status": "Intermediate Metabolizer",
+    "pathway_level": None,
+}
+
 _DIFF_WITH_MIXED_GATED_CHANGES = {
     **_DIFF_WITH_CHANGES,
     "changed": [*_DIFF_WITH_CHANGES["changed"], _APOE_CHANGED],
-    "counts": {"changed": 2, "added": 1, "removed": 1},
+    "added": [*_DIFF_WITH_CHANGES["added"], _WITHHELD_TAMOXIFEN_ADDED],
+    "counts": {"changed": 2, "added": 2, "removed": 1},
 }
 
 _DIFF_WITH_ONLY_GATED_CHANGES = {
@@ -212,6 +230,7 @@ def test_get_finding_changes_returns_diff(_env: DBRegistry) -> None:
     assert "APOE" not in serialized
     assert "LRRK2" not in serialized
     assert "XXY" not in serialized
+    assert "tamoxifen" not in serialized.lower()
 
 
 def test_get_finding_changes_reveals_acknowledged_gated_module(

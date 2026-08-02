@@ -118,6 +118,20 @@ def gv_client(tmp_data_dir: Path) -> Generator[TestClient, None, None]:
                 clinvar_significance="Benign",
             )
         )
+        # #2019: this category/pair stays source-faithful in storage but cannot
+        # be rendered by a generic P/LP-derived clinical-analysis endpoint.
+        conn.execute(
+            findings.insert().values(
+                module="medication_review",
+                category="prescribing_alert",
+                evidence_level=4,
+                gene_symbol="\u00a0CYP2D6\u2003",
+                rsid="synthetic-cyp2d6-tamoxifen",
+                drug="\vTamOxIfEn\f",
+                finding_text="Retained tamoxifen clinical advice.",
+                clinvar_significance="Pathogenic",
+            )
+        )
 
     ref_engine.dispose()
     sample_engine.dispose()

@@ -14,13 +14,13 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any
+from typing import Any, Literal
 
 import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
-from backend.analysis.pharmacogenomics import classify_actionability
+from backend.analysis.pharmacogenomics import classify_actionability, is_prescribing_alert_withheld
 from backend.api.dependencies import require_fresh_sample
 from backend.db.connection import get_registry
 from backend.db.tables import cpic_guidelines, findings, samples
@@ -40,6 +40,10 @@ class DrugListItem(BaseModel):
     drug: str
     genes: list[str]
     classification: str | None = None  # best (min) CPIC level across genes
+    # True when every gene-drug row for this drug is audit-only and held from
+    # patient-specific prescribing output. Such a row intentionally has no
+    # active CPIC tier in this response.
+    prescribing_guidance_withheld: bool = False
 
 
 class DrugListResponse(BaseModel):
@@ -65,10 +69,15 @@ class GeneEffect(BaseModel):
     ehr_notation: str | None = None
     involved_rsids: list[str] = []
     gene_caveat: str | None = None  # interpretive caveat (e.g. DPYD fatal-toxicity)
-    # True when this guideline gene has no sample finding — the call was Insufficient
-    # (uncallable on the array) or annotation has not run — so the sample-specific
-    # fields are null because the gene was NOT assessed, not because it was normal.
-    # Lets the UI distinguish "not assessed" from "evaluated and unremarkable" (#905).
+    # ``withheld`` is a clinical-evidence hold, not an uncallable or
+    # evaluated-as-normal result. Keeping it separate from ``not_assessed``
+    # prevents a deliberately suppressed recommendation from being misread as
+    # an array coverage failure.
+    recommendation_status: Literal["available", "not_assessed", "withheld"] = "available"
+    # True only for ``recommendation_status='not_assessed'``: the call was
+    # Insufficient (uncallable on the array) or annotation has not run. A
+    # withheld recommendation is deliberately a separate state, even when its
+    # sample-specific fields are null.
     not_assessed: bool = False
 
 
@@ -341,13 +350,23 @@ def list_drugs() -> DrugListResponse:
         )
         rows = conn.execute(stmt).fetchall()
 
-    # Group by drug
+    # Group by drug. A source classification is patient-facing only when at
+    # least one gene-drug pair remains eligible for prescribing output; an
+    # audit-only held pair cannot lend the drug an active CPIC tier.
     drugs: dict[str, dict[str, Any]] = {}
     for row in rows:
         drug = row.drug
         if drug not in drugs:
-            drugs[drug] = {"genes": [], "classification": row.classification}
+            drugs[drug] = {
+                "genes": [],
+                "classification": None,
+                "has_available_guidance": False,
+            }
         drugs[drug]["genes"].append(row.gene)
+        if is_prescribing_alert_withheld(row.gene, row.drug):
+            continue
+
+        drugs[drug]["has_available_guidance"] = True
         # Track best (min) classification
         current = drugs[drug]["classification"]
         if row.classification and (current is None or row.classification < current):
@@ -358,6 +377,7 @@ def list_drugs() -> DrugListResponse:
             drug=drug,
             genes=info["genes"],
             classification=info["classification"],
+            prescribing_guidance_withheld=not info["has_available_guidance"],
         )
         for drug, info in sorted(drugs.items())
     ]
@@ -409,6 +429,18 @@ def drug_lookup(
     # 3. Build per-gene effects
     gene_effects: list[GeneEffect] = []
     for gene in sorted(gene_set):
+        if is_prescribing_alert_withheld(gene, canonical_drug):
+            # The reference row is audit provenance only. Check this before
+            # selecting any sample finding so even an unmigrated legacy row
+            # cannot leak a patient-specific recommendation through this API.
+            gene_effects.append(
+                GeneEffect(
+                    gene=gene,
+                    recommendation_status="withheld",
+                )
+            )
+            continue
+
         finding = sample_findings.get(gene)
 
         if finding:
@@ -428,6 +460,7 @@ def drug_lookup(
                     ehr_notation=finding["ehr_notation"],
                     involved_rsids=finding["involved_rsids"],
                     gene_caveat=finding["gene_caveat"],
+                    recommendation_status="available",
                 )
             )
         else:
@@ -442,6 +475,7 @@ def drug_lookup(
                     gene=gene,
                     classification=gene_info["classification"],
                     guideline_url=gene_info["guideline_url"],
+                    recommendation_status="not_assessed",
                     not_assessed=True,
                 )
             )
@@ -523,6 +557,8 @@ def gene_results(
 
         gene_drugs: dict[str, list[str]] = {}
         for dr in drug_rows:
+            if is_prescribing_alert_withheld(dr.gene, dr.drug):
+                continue
             gene_drugs.setdefault(dr.gene, []).append(dr.drug)
     else:
         gene_drugs = {}
@@ -556,10 +592,11 @@ def medication_safety_report(
 ) -> MedicationSafetyReportResponse:
     """Consolidated drug-centric medication-safety report for a sample (SW-E4).
 
-    Aggregates every stored pharmacogenomics prescribing alert into a single
+    Aggregates every active pharmacogenomics prescribing alert into a single
     report organized by drug, with CPIC-standard phenotype terms, per-gene
     coverage / call-confidence, a coarse actionability flag (attention-worthy
-    results first), and a report-level reference-bias disclosure.
+    results first), and a report-level reference-bias disclosure. Pairs held
+    from clinical output are excluded even when an older stored alert remains.
 
     This endpoint is a read-only re-presentation of existing findings — it never
     creates findings or changes any phenotype / evidence level / recommendation.
@@ -591,6 +628,11 @@ def medication_safety_report(
         gene = row.gene_symbol
         drug = row.drug
         if gene is None or drug is None:
+            continue
+        # A clinical-evidence hold is an output policy, not merely a migration
+        # detail. Filter stale or otherwise retained target rows here so the
+        # consolidated report cannot re-expose a withheld recommendation.
+        if is_prescribing_alert_withheld(gene, drug):
             continue
 
         detail: dict[str, Any] = {}

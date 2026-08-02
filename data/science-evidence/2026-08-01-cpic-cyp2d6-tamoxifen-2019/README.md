@@ -30,6 +30,24 @@ schema v25 removes exactly fingerprinted historical alerts and finding-diff
 entries. The application therefore makes no patient-specific CYP2D6/tamoxifen
 treatment, dose, or inhibitor recommendation.
 
+The drug-detail API instead returns an explicit clinical-recommendation-
+withheld state. It exposes no recommendation, CPIC tier, guideline link, or
+cross-source evidence strip for the pair, and it never mislabels the hold as an
+uncallable or evaluated-as-normal CYP2D6 result.
+The pharmacogenomics drug list likewise labels the pair as guidance-withheld
+rather than advertising the audit record's `classification=A` as an active CPIC
+tier.
+The same runtime presentation policy excludes the held pair from generic
+findings, finding summaries and counts, SVG cards, update diffs, cross-source
+PGx metadata, HTML/PDF/PNG exports, generic P/LP-derived analysis cards, and
+the Admin Log Explorer. The raw SQL console and raw-SQL export deny access to
+stored finding payloads and serialized finding-history payloads rather than
+attempting an unsafe query rewrite. That remains true for a custom, malformed,
+or whitespace/case-variant historical `prescribing_alert` that v25 correctly
+preserves as an audit record rather than deleting. A full database backup is
+retained solely as an audit/recovery artifact and is not a patient presentation
+surface.
+
 The CPIC API classification varies by CYP2D6 activity score: the retained
 Normal and Poor Metabolizer records are `Strong`; the Intermediate records are
 `Moderate` for activity scores 0.25, 0.5, and 0.75, and `Optional` at 1.0. The

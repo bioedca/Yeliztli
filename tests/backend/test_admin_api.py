@@ -13,6 +13,7 @@ entries filterable by level and component.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Generator
 from datetime import UTC, datetime
 from pathlib import Path
@@ -212,6 +213,50 @@ class TestLogExplorer:
         data = resp.json()
         ids = [e["id"] for e in data["entries"]]
         assert ids == sorted(ids, reverse=True)
+
+    def test_withheld_pgx_logs_are_hidden_before_count_and_pagination(
+        self, admin_client: TestClient
+    ) -> None:
+        """#2019: historical detailed PGx logs must not reopen the guidance hold."""
+        from backend.db.connection import get_registry
+
+        with get_registry().reference_engine.begin() as conn:
+            conn.execute(
+                sa.insert(log_entries),
+                [
+                    {
+                        "timestamp": datetime.now(UTC),
+                        "level": "INFO",
+                        "logger": "backend.analysis.pharmacogenomics",
+                        "message": "pgx_prescribing_alert",
+                        "event_data": json.dumps(
+                            {
+                                "gene": " CYP2D6 ",
+                                "drug": "\ttamoxifen\n",
+                                "recommendation": "Escalate tamoxifen to 40 mg/day.",
+                            }
+                        ),
+                    },
+                    {
+                        "timestamp": datetime.now(UTC),
+                        "level": "WARNING",
+                        "logger": "backend.analysis.pharmacogenomics",
+                        "message": "pgx_prescribing_alert",
+                        "event_data": "{malformed legacy prescribing payload",
+                    },
+                ],
+            )
+
+        resp = admin_client.get("/api/admin/logs", params={"page": 1, "page_size": 5})
+        assert resp.status_code == 200
+        data = resp.json()
+        rendered = json.dumps(data).lower()
+        assert data["total"] == 5
+        assert len(data["entries"]) == 5
+        assert data["has_more"] is False
+        assert "tamoxifen" not in rendered
+        assert "40 mg" not in rendered
+        assert "malformed legacy" not in rendered
 
     def test_event_data_included(self, admin_client: TestClient) -> None:
         """Entries with event_data have the JSON field populated."""

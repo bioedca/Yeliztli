@@ -13,6 +13,7 @@ from typing import Any, Literal
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
+from backend.analysis.pharmacogenomics import is_withheld_prescribing_alert_finding
 from backend.db.build_guard import is_cross_process_build_claimed
 from backend.db.connection import get_registry
 from backend.db.database_registry import DATABASES, get_build_fn, get_database_status
@@ -143,23 +144,30 @@ class FindingChangesResponse(BaseModel):
     counts: dict[str, int] = {}
 
 
-def _filter_hidden_modules_from_finding_diff(
+def _filter_nonpresentable_findings_from_diff(
     diff: dict[str, Any], hidden_modules: list[str]
 ) -> dict[str, Any]:
-    """Drop unacknowledged gated modules from the displayed finding diff.
+    """Drop non-presentable entries from the displayed finding diff.
 
-    The stored diff remains complete for post-acknowledgment display, but the
-    aggregate update banner is itself a finding surface. Its visible counts must
-    be recomputed after filtering so pre-acknowledgment callers cannot infer that
-    a gated finding exists from a nonzero bucket count.
+    The stored diff remains complete for provenance, but the aggregate update
+    banner is itself a patient-visible finding surface. Its counts must be
+    recomputed after filtering so callers cannot infer gated modules or a held
+    prescribing alert from a nonzero bucket count.
     """
-    if not hidden_modules:
-        return diff
-
     hidden = set(hidden_modules)
 
     def visible(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        return [entry for entry in entries if entry.get("module") not in hidden]
+        return [
+            entry
+            for entry in entries
+            if entry.get("module") not in hidden
+            and not is_withheld_prescribing_alert_finding(
+                entry.get("module"),
+                entry.get("category"),
+                entry.get("gene_symbol"),
+                entry.get("drug"),
+            )
+        ]
 
     changed = visible(diff.get("changed", []))
     added = visible(diff.get("added", []))
@@ -473,7 +481,7 @@ async def get_finding_changes(
     if diff is None or diff.get("dismissed"):
         return FindingChangesResponse(available=False)
 
-    diff = _filter_hidden_modules_from_finding_diff(diff, gated_modules_to_hide(engine))
+    diff = _filter_nonpresentable_findings_from_diff(diff, gated_modules_to_hide(engine))
     if not has_changes(diff):
         return FindingChangesResponse(available=False)
 

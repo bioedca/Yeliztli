@@ -50,7 +50,9 @@ from __future__ import annotations
 import enum
 import json
 import re
+import sqlite3
 from dataclasses import dataclass, field
+from typing import Any
 
 import sqlalchemy as sa
 import structlog
@@ -139,6 +141,123 @@ WITHHOLD_CROSS_DIRECTION_GENES: frozenset[str] = frozenset({"CYP3A5"})
 # authorities/trials conflict. Keep this pair explicitly withheld until a
 # scientific-validity review can clear that gate.
 WITHHELD_PRESCRIBING_ALERT_PAIRS: frozenset[tuple[str, str]] = frozenset({("CYP2D6", "tamoxifen")})
+
+# Python's ``str.strip`` recognizes these 29 Unicode whitespace code points.
+# SQLite's one-argument ``trim`` only removes U+0020, so SQL presentation
+# boundaries pass this complete set explicitly to preserve the same fail-closed
+# normalization as :func:`is_prescribing_alert_withheld`.
+_SQLITE_PYTHON_STRIP_CHARS = (
+    "\t\n\v\f\r\x1c\x1d\x1e\x1f "
+    "\x85\xa0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a"
+    "\u2028\u2029\u202f\u205f\u3000"
+)
+
+# Arbitrary raw SQL cannot safely inject the row-level presentation predicate
+# into a user query. These tables retain either source-faithful finding payloads
+# or serialized finding diffs, so neither may be read through the interactive
+# console/export while a pair is clinically withheld.
+_RAW_SQL_AUDIT_ONLY_TABLES: frozenset[str] = frozenset({"annotation_state", "findings"})
+
+
+def is_prescribing_alert_withheld(gene: str | None, drug: str | None) -> bool:
+    """Whether a gene-drug pair is held from Yeliztli prescribing output.
+
+    The reference row remains available for audit provenance, but a held pair
+    must not be rendered as a patient-specific prescribing recommendation.
+    Normalize both inputs here so every output surface applies the same hold.
+    """
+    if not gene or not drug:
+        return False
+    return (gene.strip().upper(), drug.strip().casefold()) in WITHHELD_PRESCRIBING_ALERT_PAIRS
+
+
+def is_withheld_prescribing_alert_finding(
+    _module: str | None,
+    category: str | None,
+    gene: str | None,
+    drug: str | None,
+) -> bool:
+    """Whether a stored finding is held from patient-visible presentation.
+
+    This policy applies to every prescribing alert for the held pair, including
+    a legacy or custom row under a differently named module. Source-faithful
+    rows stay in storage for provenance and future scientific review, but generic
+    result, report, and diff surfaces must not turn their free-text payload into
+    patient-specific clinical guidance.
+    """
+    return (
+        category or ""
+    ).strip().casefold() == "prescribing_alert" and is_prescribing_alert_withheld(gene, drug)
+
+
+def patient_visible_finding_clause(columns: Any) -> Any:
+    """Return a SQL predicate excluding clinically withheld alert pairs.
+
+    Apply this only at patient-visible presentation boundaries. It is intentionally
+    separate from storage and re-annotation logic so audit-only source rows remain
+    available to scientific-validity review. SQL normalization mirrors
+    :func:`is_withheld_prescribing_alert_finding`, including case and whitespace.
+    """
+    if not WITHHELD_PRESCRIBING_ALERT_PAIRS:
+        return sa.true()
+
+    category = sa.func.lower(
+        sa.func.trim(sa.func.coalesce(columns.category, ""), _SQLITE_PYTHON_STRIP_CHARS)
+    )
+    gene = sa.func.upper(
+        sa.func.trim(sa.func.coalesce(columns.gene_symbol, ""), _SQLITE_PYTHON_STRIP_CHARS)
+    )
+    drug = sa.func.lower(
+        sa.func.trim(sa.func.coalesce(columns.drug, ""), _SQLITE_PYTHON_STRIP_CHARS)
+    )
+    held_pairs = [
+        sa.and_(
+            category == "prescribing_alert",
+            gene == held_gene,
+            drug == held_drug,
+        )
+        for held_gene, held_drug in WITHHELD_PRESCRIBING_ALERT_PAIRS
+    ]
+    return sa.not_(sa.or_(*held_pairs))
+
+
+def configure_raw_sql_findings_guard(connection: sqlite3.Connection) -> None:
+    """Prevent raw SQL consoles from reading stored audit-only finding payloads.
+
+    The console accepts arbitrary read-only SQL, so safely injecting a row-level
+    visibility predicate is not possible. While a clinically withheld pair is
+    retained for audit provenance, deny all reads of ``findings`` and serialized
+    finding history through SQLite's execution-time authorizer instead. This
+    blocks aliases, CTEs, and other syntactic rewrites without deleting the
+    audit record or weakening ordinary patient-visible query boundaries.
+    """
+    if not WITHHELD_PRESCRIBING_ALERT_PAIRS:
+        return
+
+    def _authorizer(
+        action: int,
+        table: str | None,
+        _column: str | None,
+        _database: str | None,
+        _trigger: str | None,
+    ) -> int:
+        if (
+            action == sqlite3.SQLITE_READ
+            and (table or "").casefold() in _RAW_SQL_AUDIT_ONLY_TABLES
+        ):
+            return sqlite3.SQLITE_DENY
+        return sqlite3.SQLITE_OK
+
+    connection.set_authorizer(_authorizer)
+
+
+def is_raw_sql_audit_only_access_denied(error: object) -> bool:
+    """Whether SQLite rejected a protected audit-only table read."""
+    message = str(error).casefold()
+    return any(table in message for table in _RAW_SQL_AUDIT_ONLY_TABLES) and (
+        "not authorized" in message or "prohibited" in message
+    )
+
 
 # Genes whose diplotype must be flagged as phase-inferred when two *different*
 # non-reference alleles are called from unphased array genotypes. The helper
@@ -1582,14 +1701,10 @@ def generate_prescribing_alerts(
             continue
 
         for guideline in guidelines:
-            if (result.gene, guideline["drug"].casefold()) in WITHHELD_PRESCRIBING_ALERT_PAIRS:
+            if is_prescribing_alert_withheld(result.gene, guideline["drug"]):
                 logger.warning(
                     "pgx_alert_withheld_insufficient_clinical_evidence",
-                    gene=result.gene,
-                    drug=guideline["drug"],
-                    diplotype=result.diplotype,
-                    phenotype=alert_phenotype,
-                    guideline_url=guideline["guideline_url"],
+                    withheld_alert_count=1,
                 )
                 continue
 

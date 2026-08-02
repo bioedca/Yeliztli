@@ -28,6 +28,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from backend.analysis.clinvar_conditions import format_clinvar_conditions_text
 from backend.analysis.pathway_coverage import pathway_level_display_label
+from backend.analysis.pharmacogenomics import patient_visible_finding_clause
 from backend.api.gating import gated_modules_to_hide
 from backend.db.tables import findings
 from backend.reports.generator import _get_sample_info, _read_svg_content
@@ -64,6 +65,7 @@ def _load_single_finding(
     stmt = sa.select(findings).where(
         findings.c.id == finding_id,
         policy_qualified_finding_clause(findings.c.category),
+        patient_visible_finding_clause(findings.c),
     )
 
     with engine.connect() as conn:
