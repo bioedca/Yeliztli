@@ -17,7 +17,10 @@ from __future__ import annotations
 import gzip
 import hashlib
 import json
+import os
+import shutil
 import textwrap
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
@@ -1007,6 +1010,358 @@ class TestDownloadAndLoad:
                 ).scalar_one_or_none()
                 is None
             )
+
+    def test_database_claim_blocks_a_distinct_downloads_root(
+        self,
+        monkeypatch,
+        mondo_tsv_file: Path,
+        hpo_phenotype_file: Path,
+        mondo_sssom_file: Path,
+        tmp_path: Path,
+    ) -> None:
+        """A file-backed DB claim protects direct callers with separate roots."""
+        monkeypatch.setattr("backend.annotation.mondo_hpo.MINIMUM_UNAMBIGUOUS_MONDO_XREFS", 2)
+        source_files = {
+            "gene_disease.9606.tsv.gz": mondo_tsv_file,
+            "genes_to_phenotype.txt": hpo_phenotype_file,
+            "mondo.sssom.tsv": mondo_sssom_file,
+        }
+
+        def fake_download(url, dest_dir, filename, **kwargs):
+            target = dest_dir / filename
+            if filename.endswith(".gz"):
+                with gzip.open(target, "wb") as fh:
+                    fh.write(source_files[filename].read_bytes())
+            else:
+                target.write_bytes(source_files[filename].read_bytes())
+            return target
+
+        monkeypatch.setattr("backend.annotation.mondo_hpo.download_file", fake_download)
+        reference_path = tmp_path / "reference.db"
+        file_engine = sa.create_engine(f"sqlite:///{reference_path}")
+        reference_metadata.create_all(file_engine)
+        downloads_a = tmp_path / "downloads-a"
+        downloads_b = tmp_path / "downloads-b"
+        downloads_a.mkdir()
+        try:
+            with cross_process_build_claim("mondo_hpo", reference_path.parent) as acquired:
+                assert acquired
+                with pytest.raises(RuntimeError, match="database update is already in progress"):
+                    download_and_load_mondo_hpo(file_engine, downloads_b)
+
+            with file_engine.connect() as conn:
+                assert (
+                    conn.execute(
+                        sa.select(database_versions.c.version).where(
+                            database_versions.c.db_name == "mondo_hpo"
+                        )
+                    ).scalar_one_or_none()
+                    is None
+                )
+            assert not (downloads_b / "mondo_hpo_sources").exists()
+        finally:
+            file_engine.dispose()
+
+    def test_refuses_stale_finalizer_after_installation_changes_during_download(
+        self,
+        monkeypatch,
+        reference_engine: sa.Engine,
+        mondo_tsv_file: Path,
+        hpo_phenotype_file: Path,
+        mondo_sssom_file: Path,
+        tmp_path: Path,
+    ) -> None:
+        """A download that loses the provenance race cannot replace newer rows."""
+        monkeypatch.setattr("backend.annotation.mondo_hpo.MINIMUM_UNAMBIGUOUS_MONDO_XREFS", 2)
+        source_files = {
+            "gene_disease.9606.tsv.gz": mondo_tsv_file,
+            "genes_to_phenotype.txt": hpo_phenotype_file,
+            "mondo.sssom.tsv": mondo_sssom_file,
+        }
+
+        def fake_download(url, dest_dir, filename, **kwargs):
+            target = dest_dir / filename
+            if filename.endswith(".gz"):
+                with gzip.open(target, "wb") as fh:
+                    fh.write(source_files[filename].read_bytes())
+            else:
+                target.write_bytes(source_files[filename].read_bytes())
+            return target
+
+        @contextmanager
+        def interleaving_database_claim(engine):
+            record_mondo_hpo_version(
+                engine,
+                version="20270101+disease-scope-v2",
+                file_path="/newer/reference/gene_disease.9606.tsv.gz",
+                checksum="newer-checksum",
+            )
+            yield True
+
+        monkeypatch.setattr("backend.annotation.mondo_hpo.download_file", fake_download)
+        monkeypatch.setattr(
+            "backend.annotation.mondo_hpo._mondo_hpo_database_claim",
+            interleaving_database_claim,
+        )
+        downloads = tmp_path / "downloads"
+
+        with pytest.raises(RuntimeError, match="changed while sources were downloading"):
+            download_and_load_mondo_hpo(reference_engine, downloads)
+
+        with reference_engine.connect() as conn:
+            state = conn.execute(
+                sa.select(
+                    database_versions.c.version,
+                    database_versions.c.file_path,
+                    database_versions.c.checksum_sha256,
+                ).where(database_versions.c.db_name == "mondo_hpo")
+            ).one()
+        assert tuple(state) == (
+            "20270101+disease-scope-v2",
+            "/newer/reference/gene_disease.9606.tsv.gz",
+            "newer-checksum",
+        )
+        assert not (downloads / "mondo_hpo_sources").exists()
+
+    def test_publish_does_not_follow_a_root_swapped_after_descriptor_open(
+        self,
+        monkeypatch,
+        reference_engine: sa.Engine,
+        mondo_tsv_file: Path,
+        hpo_phenotype_file: Path,
+        mondo_sssom_file: Path,
+        tmp_path: Path,
+    ) -> None:
+        """Descriptor-relative publication cannot be redirected outside downloads."""
+        monkeypatch.setattr("backend.annotation.mondo_hpo.MINIMUM_UNAMBIGUOUS_MONDO_XREFS", 2)
+        source_files = {
+            "gene_disease.9606.tsv.gz": mondo_tsv_file,
+            "genes_to_phenotype.txt": hpo_phenotype_file,
+            "mondo.sssom.tsv": mondo_sssom_file,
+        }
+
+        def fake_download(url, dest_dir, filename, **kwargs):
+            target = dest_dir / filename
+            if filename.endswith(".gz"):
+                with gzip.open(target, "wb") as fh:
+                    fh.write(source_files[filename].read_bytes())
+            else:
+                target.write_bytes(source_files[filename].read_bytes())
+            return target
+
+        monkeypatch.setattr("backend.annotation.mondo_hpo.download_file", fake_download)
+        downloads = tmp_path / "downloads"
+        bundles_dir = downloads / "mondo_hpo_sources"
+        parked_dir = tmp_path / "parked-bundles"
+        external_dir = tmp_path / "external"
+        external_dir.mkdir()
+        original_replace = os.replace
+        swapped = {"value": False}
+
+        def swap_root_then_replace(source, destination, *args, **kwargs):
+            if kwargs.get("dst_dir_fd") is not None and not swapped["value"]:
+                bundles_dir.rename(parked_dir)
+                bundles_dir.symlink_to(external_dir, target_is_directory=True)
+                swapped["value"] = True
+            return original_replace(source, destination, *args, **kwargs)
+
+        monkeypatch.setattr("backend.annotation.mondo_hpo.os.replace", swap_root_then_replace)
+        with pytest.raises(ValueError, match="changed during finalization"):
+            download_and_load_mondo_hpo(reference_engine, downloads)
+
+        assert swapped["value"]
+        assert list(external_dir.iterdir()) == []
+        with reference_engine.connect() as conn:
+            assert (
+                conn.execute(
+                    sa.select(database_versions.c.version).where(
+                        database_versions.c.db_name == "mondo_hpo"
+                    )
+                ).scalar_one_or_none()
+                is None
+            )
+
+    def test_publish_does_not_follow_a_downloads_dir_swapped_after_descriptor_open(
+        self,
+        monkeypatch,
+        reference_engine: sa.Engine,
+        mondo_tsv_file: Path,
+        hpo_phenotype_file: Path,
+        mondo_sssom_file: Path,
+        tmp_path: Path,
+    ) -> None:
+        """The staged source is pinned to the original downloads descriptor."""
+        monkeypatch.setattr("backend.annotation.mondo_hpo.MINIMUM_UNAMBIGUOUS_MONDO_XREFS", 2)
+        source_files = {
+            "gene_disease.9606.tsv.gz": mondo_tsv_file,
+            "genes_to_phenotype.txt": hpo_phenotype_file,
+            "mondo.sssom.tsv": mondo_sssom_file,
+        }
+
+        def fake_download(url, dest_dir, filename, **kwargs):
+            target = dest_dir / filename
+            if filename.endswith(".gz"):
+                with gzip.open(target, "wb") as fh:
+                    fh.write(source_files[filename].read_bytes())
+            else:
+                target.write_bytes(source_files[filename].read_bytes())
+            return target
+
+        monkeypatch.setattr("backend.annotation.mondo_hpo.download_file", fake_download)
+        downloads = tmp_path / "downloads"
+        parked_dir = tmp_path / "parked-downloads"
+        external_dir = tmp_path / "external"
+        external_dir.mkdir()
+        original_replace = os.replace
+        swapped = {"value": False}
+
+        def swap_downloads_then_replace(source, destination, *args, **kwargs):
+            if kwargs.get("dst_dir_fd") is not None and not swapped["value"]:
+                downloads.rename(parked_dir)
+                downloads.symlink_to(external_dir, target_is_directory=True)
+                swapped["value"] = True
+            return original_replace(source, destination, *args, **kwargs)
+
+        monkeypatch.setattr("backend.annotation.mondo_hpo.os.replace", swap_downloads_then_replace)
+        with pytest.raises(ValueError, match="changed during finalization"):
+            download_and_load_mondo_hpo(reference_engine, downloads)
+
+        assert swapped["value"]
+        assert list(external_dir.iterdir()) == []
+        assert any((parked_dir / "mondo_hpo_sources").iterdir())
+        with reference_engine.connect() as conn:
+            assert (
+                conn.execute(
+                    sa.select(database_versions.c.version).where(
+                        database_versions.c.db_name == "mondo_hpo"
+                    )
+                ).scalar_one_or_none()
+                is None
+            )
+
+    def test_prune_stays_with_the_pinned_root_after_a_path_swap(
+        self,
+        monkeypatch,
+        reference_engine: sa.Engine,
+        mondo_tsv_file: Path,
+        hpo_phenotype_file: Path,
+        mondo_sssom_file: Path,
+        tmp_path: Path,
+    ) -> None:
+        """Pruning cannot follow a root symlink introduced after validation."""
+        monkeypatch.setattr("backend.annotation.mondo_hpo.MINIMUM_UNAMBIGUOUS_MONDO_XREFS", 2)
+        source_files = {
+            "gene_disease.9606.tsv.gz": mondo_tsv_file,
+            "genes_to_phenotype.txt": hpo_phenotype_file,
+            "mondo.sssom.tsv": mondo_sssom_file,
+        }
+        generation = {"value": 0}
+
+        def fake_download(url, dest_dir, filename, **kwargs):
+            target = dest_dir / filename
+            if filename.endswith(".gz"):
+                with gzip.open(target, "wb") as fh:
+                    fh.write(source_files[filename].read_bytes())
+            else:
+                target.write_bytes(source_files[filename].read_bytes())
+            meta = kwargs.get("meta")
+            if meta is not None:
+                meta.update(
+                    {
+                        "etag": f'"generation-{generation["value"]}-{filename}"',
+                        "last_modified": "Wed, 15 Apr 2026 12:34:56 GMT",
+                        "version": "20260415",
+                    }
+                )
+            return target
+
+        monkeypatch.setattr("backend.annotation.mondo_hpo.download_file", fake_download)
+        downloads = tmp_path / "downloads"
+        source_root = downloads / "mondo_hpo_sources"
+        download_and_load_mondo_hpo(reference_engine, downloads)
+        with reference_engine.connect() as conn:
+            first_bundle = Path(
+                conn.execute(
+                    sa.select(database_versions.c.file_path).where(
+                        database_versions.c.db_name == "mondo_hpo"
+                    )
+                ).scalar_one()
+            ).parent.name
+
+        generation["value"] = 1
+        download_and_load_mondo_hpo(reference_engine, downloads)
+        external_dir = tmp_path / "external"
+        external_bundle = external_dir / first_bundle
+        external_bundle.mkdir(parents=True)
+        (external_bundle / "must-survive.txt").write_text("external\n", encoding="utf-8")
+        parked_root = tmp_path / "parked-source-root"
+        original_rmtree = shutil.rmtree
+        swapped = {"value": False}
+
+        def swap_root_then_rmtree(path, *args, **kwargs):
+            if path == first_bundle and kwargs.get("dir_fd") is not None and not swapped["value"]:
+                source_root.rename(parked_root)
+                source_root.symlink_to(external_dir, target_is_directory=True)
+                swapped["value"] = True
+            return original_rmtree(path, *args, **kwargs)
+
+        monkeypatch.setattr("backend.annotation.mondo_hpo.shutil.rmtree", swap_root_then_rmtree)
+        generation["value"] = 2
+        download_and_load_mondo_hpo(reference_engine, downloads)
+
+        assert swapped["value"]
+        assert (external_bundle / "must-survive.txt").read_text(encoding="utf-8") == "external\n"
+        assert not (parked_root / first_bundle).exists()
+
+    def test_refuses_older_comparable_direct_download(
+        self,
+        monkeypatch,
+        reference_engine: sa.Engine,
+        mondo_tsv_file: Path,
+        hpo_phenotype_file: Path,
+        mondo_sssom_file: Path,
+        tmp_path: Path,
+    ) -> None:
+        """A direct caller cannot roll a dated source back after acquiring the lock."""
+        monkeypatch.setattr("backend.annotation.mondo_hpo.MINIMUM_UNAMBIGUOUS_MONDO_XREFS", 2)
+        source_files = {
+            "gene_disease.9606.tsv.gz": mondo_tsv_file,
+            "genes_to_phenotype.txt": hpo_phenotype_file,
+            "mondo.sssom.tsv": mondo_sssom_file,
+        }
+
+        def fake_download(url, dest_dir, filename, **kwargs):
+            target = dest_dir / filename
+            if filename.endswith(".gz"):
+                with gzip.open(target, "wb") as fh:
+                    fh.write(source_files[filename].read_bytes())
+            else:
+                target.write_bytes(source_files[filename].read_bytes())
+            meta = kwargs.get("meta")
+            if meta is not None:
+                meta.update({"version": "20260415"})
+            return target
+
+        monkeypatch.setattr("backend.annotation.mondo_hpo.download_file", fake_download)
+        record_mondo_hpo_version(
+            reference_engine,
+            version="20270101+disease-scope-v2",
+            file_path="/newer/reference/gene_disease.9606.tsv.gz",
+            checksum="newer-checksum",
+        )
+        downloads = tmp_path / "downloads"
+
+        with pytest.raises(RuntimeError, match="newer installed MONDO/HPO source"):
+            download_and_load_mondo_hpo(reference_engine, downloads)
+
+        with reference_engine.connect() as conn:
+            version = conn.execute(
+                sa.select(database_versions.c.version).where(
+                    database_versions.c.db_name == "mondo_hpo"
+                )
+            ).scalar_one()
+        assert version == "20270101+disease-scope-v2"
+        assert not (downloads / "mondo_hpo_sources").exists()
 
     def test_refuses_zero_exact_matches_before_clearing_existing_rows(
         self,

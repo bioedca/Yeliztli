@@ -4,9 +4,10 @@
 
 This packet supports a narrow reference-data integrity change: HPO
 `genes_to_phenotype` annotations retain their source `disease_id`, and the
-loader attaches them to MONDO disease rows only through an authoritative
-MONDO `skos:exactMatch` cross-reference. It does not make a diagnosis,
-estimate risk, or assert a clinical association for an individual.
+loader attaches them to MONDO disease rows only through either a direct valid
+MONDO identifier or an authoritative unambiguous MONDO `skos:exactMatch`
+cross-reference. It does not make a diagnosis, estimate risk, or assert a
+clinical association for an individual.
 
 Repository base: `813d7568b286f2d76c2338a13f035aa3d8632234`
 

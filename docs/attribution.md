@@ -34,8 +34,10 @@ redistribution.
 
 ## Downloaded from the provider
 
-These are fetched from their original sources during setup/updates and used locally; they
-are not redistributed by Yeliztli.
+The complete runtime exports are fetched from their original providers during setup/updates
+and used locally; Yeliztli does not redistribute those full runtime files. Compact public
+provenance excerpts may be retained under `data/science-evidence/` with their documented,
+artifact-specific terms.
 
 | Source | Used for | License |
 |--------|----------|---------|

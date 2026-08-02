@@ -117,7 +117,7 @@
       "unambiguous_exact_source_ids_observed": 109306,
       "minimum_unambiguous_exact_source_ids": 50000,
       "claim_mapping": [
-        "only unambiguous skos:exactMatch source identifiers may join HPO annotations to a MONDO row"
+        "a direct valid MONDO identifier or an unambiguous skos:exactMatch source identifier may join an HPO annotation to a MONDO row"
       ]
     }
   ]
