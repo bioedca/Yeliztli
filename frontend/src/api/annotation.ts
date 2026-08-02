@@ -81,6 +81,88 @@ export interface ActiveAnnotationJob {
 export const annotationActiveQueryKey = (sampleId: number | null) =>
   ["annotation-active", sampleId] as const
 
+// Query-key contract for data scoped to one sample. Some keys place sampleId
+// after a detail selector, so matching every numeric key segment would corrupt
+// cache isolation when a pathway, limit, or overlay ID happens to equal a
+// different sample ID. Add new sample-derived query keys here alongside their
+// hook rather than relying on their positional coincidence.
+const SAMPLE_DERIVED_QUERY_KEY_SHAPES: ReadonlyArray<{
+  prefix: readonly unknown[]
+  sampleIdIndex: number
+}> = [
+  { prefix: ["samples"], sampleIdIndex: 1 },
+  { prefix: ["analysis-qc-metrics"], sampleIdIndex: 1 },
+  { prefix: ["variants"], sampleIdIndex: 1 },
+  { prefix: ["variants-count"], sampleIdIndex: 1 },
+  { prefix: ["variants-chromosomes"], sampleIdIndex: 1 },
+  { prefix: ["variants-qc-stats"], sampleIdIndex: 1 },
+  { prefix: ["variants-search"], sampleIdIndex: 1 },
+  { prefix: ["variants-total-count"], sampleIdIndex: 1 },
+  { prefix: ["variants-unannotated-count"], sampleIdIndex: 1 },
+  { prefix: ["findings"], sampleIdIndex: 1 },
+  { prefix: ["findings-summary"], sampleIdIndex: 1 },
+  { prefix: ["rare-variant-findings"], sampleIdIndex: 1 },
+  { prefix: ["variant-detail"], sampleIdIndex: 2 },
+  { prefix: ["gene-detail"], sampleIdIndex: 2 },
+  { prefix: ["gene-health-pathways"], sampleIdIndex: 1 },
+  { prefix: ["gene-health-pathway-detail"], sampleIdIndex: 2 },
+  { prefix: ["fitness-pathways"], sampleIdIndex: 1 },
+  { prefix: ["fitness-pathway-detail"], sampleIdIndex: 2 },
+  { prefix: ["traits-pathways"], sampleIdIndex: 1 },
+  { prefix: ["traits-pathway-detail"], sampleIdIndex: 2 },
+  { prefix: ["traits-prs"], sampleIdIndex: 1 },
+  { prefix: ["sleep-pathways"], sampleIdIndex: 1 },
+  { prefix: ["sleep-pathway-detail"], sampleIdIndex: 2 },
+  { prefix: ["methylation-pathways"], sampleIdIndex: 1 },
+  { prefix: ["methylation-pathway-detail"], sampleIdIndex: 2 },
+  { prefix: ["allergy-pathways"], sampleIdIndex: 1 },
+  { prefix: ["allergy-pathway-detail"], sampleIdIndex: 2 },
+  { prefix: ["skin-pathways"], sampleIdIndex: 1 },
+  { prefix: ["skin-pathway-detail"], sampleIdIndex: 2 },
+  { prefix: ["nutrigenomics-pathways"], sampleIdIndex: 1 },
+  { prefix: ["nutrigenomics-pathway-detail"], sampleIdIndex: 2 },
+  { prefix: ["hla-drug-hypersensitivity"], sampleIdIndex: 1 },
+  { prefix: ["hla-rule-outs"], sampleIdIndex: 1 },
+  { prefix: ["hla-susceptibility"], sampleIdIndex: 1 },
+  { prefix: ["hla-alleles"], sampleIdIndex: 1 },
+  { prefix: ["ancestry-findings"], sampleIdIndex: 1 },
+  { prefix: ["ancestry-pca-coordinates"], sampleIdIndex: 1 },
+  { prefix: ["ancestry-haplogroups"], sampleIdIndex: 1 },
+  { prefix: ["lai-results"], sampleIdIndex: 1 },
+  { prefix: ["lai-progress"], sampleIdIndex: 1 },
+  { prefix: ["carrier-variants"], sampleIdIndex: 1 },
+  { prefix: ["apoe-gate-status"], sampleIdIndex: 1 },
+  { prefix: ["apoe-genotype"], sampleIdIndex: 1 },
+  { prefix: ["apoe-findings"], sampleIdIndex: 1 },
+  { prefix: ["cardiovascular-variants"], sampleIdIndex: 1 },
+  { prefix: ["cardiovascular-fh-status"], sampleIdIndex: 1 },
+  { prefix: ["cancer-variants"], sampleIdIndex: 1 },
+  { prefix: ["cancer-prs"], sampleIdIndex: 1 },
+  { prefix: ["cancer-absolute-risk"], sampleIdIndex: 1 },
+  { prefix: ["metabolic-prs"], sampleIdIndex: 1 },
+  { prefix: ["metabolic-anchors"], sampleIdIndex: 1 },
+  { prefix: ["ebmd"], sampleIdIndex: 1 },
+  { prefix: ["fh-assessment"], sampleIdIndex: 1 },
+  { prefix: ["pgx-guidelines"], sampleIdIndex: 1 },
+  { prefix: ["pharma-genes"], sampleIdIndex: 1 },
+  { prefix: ["pharma-drug"], sampleIdIndex: 2 },
+  { prefix: ["pharma-report"], sampleIdIndex: 1 },
+  { prefix: ["watched-variants"], sampleIdIndex: 1 },
+  { prefix: ["tags"], sampleIdIndex: 1 },
+  { prefix: ["sql-schema"], sampleIdIndex: 1 },
+  { prefix: ["overlay-results"], sampleIdIndex: 2 },
+  { prefix: ["updates", "prompts"], sampleIdIndex: 2 },
+  { prefix: ["updates", "finding-changes"], sampleIdIndex: 2 },
+]
+
+function isSampleDerivedQueryKey(queryKey: readonly unknown[], sampleId: number): boolean {
+  return SAMPLE_DERIVED_QUERY_KEY_SHAPES.some(
+    ({ prefix, sampleIdIndex }) =>
+      queryKey[sampleIdIndex] === sampleId &&
+      prefix.every((segment, index) => queryKey[index] === segment),
+  )
+}
+
 const ACTIVE_ANNOTATION_PROBE_TIMEOUT_MS = 10_000
 
 export async function fetchActiveAnnotationJob(
@@ -152,6 +234,19 @@ export function invalidateAnnotationResultQueries(
   queryClient: QueryClient,
   sampleId: number | null = null,
 ) {
+  if (sampleId != null) {
+    // Annotation-result keys do not share one prefix and the sample identifier
+    // is not always in the same position (for example, `pharma-drug` includes
+    // a drug name before it). Match the explicit sample-key contract so a
+    // coincident pathway or pagination value cannot invalidate another sample.
+    return queryClient.invalidateQueries({
+      predicate: (query) => isSampleDerivedQueryKey(query.queryKey, sampleId),
+    })
+  }
+
+  // Preserve the legacy all-samples behavior for callers that do not have a
+  // concrete sample identifier. Normal annotation completion always supplies
+  // one and takes the exhaustive predicate above.
   const invalidations = [
     queryClient.invalidateQueries({ queryKey: ["variants"] }),
     queryClient.invalidateQueries({ queryKey: ["variants-count"] }),
@@ -161,11 +256,6 @@ export function invalidateAnnotationResultQueries(
     queryClient.invalidateQueries({ queryKey: ["findings-summary"] }),
     queryClient.invalidateQueries({ queryKey: ["findings"] }),
   ]
-  if (sampleId != null) {
-    invalidations.push(
-      queryClient.invalidateQueries({ queryKey: qcMetricsQueryKey(sampleId) }),
-    )
-  }
   return Promise.all(invalidations)
 }
 

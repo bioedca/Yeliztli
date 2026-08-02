@@ -232,6 +232,14 @@ describe('StaleSampleGate', () => {
   it('invalidates cached sample results after re-annotation completes away from the gate', async () => {
     const queryClient = createTestQueryClient(Infinity)
     queryClient.setQueryData(['findings', 42], { cached: 'pre-annotation findings' })
+    queryClient.setQueryData(['pharma-genes', 42], { cached: 'pre-annotation pharmacogenomics' })
+    queryClient.setQueryData(['pharma-genes', 99], { cached: 'other sample' })
+    queryClient.setQueryData(['nutrigenomics-pathway-detail', 42, 99], {
+      cached: 'other sample, target-sized pathway ID',
+    })
+    queryClient.setQueryData(['findings', 99, null, null, null, 42, 0], {
+      cached: 'other sample, target-sized page limit',
+    })
     let stalenessCalls = 0
     mockFetch.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
       const url = requestUrl(input)
@@ -284,7 +292,60 @@ describe('StaleSampleGate', () => {
     expect(await screen.findByTestId('fresh-content')).toBeInTheDocument()
     await waitFor(() => {
       expect(queryClient.getQueryState(['findings', 42])?.isInvalidated).toBe(true)
+      expect(queryClient.getQueryState(['pharma-genes', 42])?.isInvalidated).toBe(true)
+      expect(queryClient.getQueryState(['pharma-genes', 99])?.isInvalidated).toBe(false)
+      expect(
+        queryClient.getQueryState(['nutrigenomics-pathway-detail', 42, 99])?.isInvalidated,
+      ).toBe(false)
+      expect(
+        queryClient.getQueryState(['findings', 99, null, null, null, 42, 0])?.isInvalidated,
+      ).toBe(false)
     })
+  })
+
+  it('keeps fresh content mounted during a background staleness refetch', async () => {
+    const queryClient = createTestQueryClient(Infinity)
+    let stalenessCalls = 0
+    let resolveBackgroundProbe: (() => void) | undefined
+    mockFetch.mockImplementation((input: RequestInfo | URL) => {
+      const url = requestUrl(input)
+      if (isActiveJobRequest(url)) {
+        return apiResponse(404, { detail: 'No active job' })
+      }
+      if (isStalenessRequest(url)) {
+        stalenessCalls += 1
+        if (stalenessCalls === 1) return apiResponse(200, { total: 12345 })
+        return new Promise((resolve) => {
+          resolveBackgroundProbe = () =>
+            resolve({
+              ok: true,
+              status: 200,
+              json: async () => ({ total: 12345 }),
+              text: async () => JSON.stringify({ total: 12345 }),
+            })
+        })
+      }
+      return apiResponse(200, {})
+    })
+
+    render(
+      <StaleSampleGate>
+        <div data-testid="protected-content">fresh content</div>
+      </StaleSampleGate>,
+      { wrapper: createWrapper(['/?sample_id=42'], queryClient) },
+    )
+
+    expect(await screen.findByTestId('protected-content')).toBeInTheDocument()
+
+    act(() => {
+      void queryClient.invalidateQueries({ queryKey: ['sample-staleness', 42] })
+    })
+
+    await waitFor(() => expect(resolveBackgroundProbe).toBeDefined())
+    expect(screen.getByTestId('protected-content')).toBeInTheDocument()
+
+    act(() => resolveBackgroundProbe?.())
+    await waitFor(() => expect(stalenessCalls).toBe(2))
   })
 
   it('lets routes render their missing-sample fallback when the probe returns 404', async () => {

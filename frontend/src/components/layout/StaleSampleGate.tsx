@@ -198,6 +198,7 @@ export default function StaleSampleGate({ children }: StaleSampleGateProps) {
     isPending: isStalenessPending,
     isError: isStalenessError,
     isFetching: isStalenessFetching,
+    isFetchedAfterMount: isStalenessFetchedAfterMount,
     refetch: refetchStaleness,
   } = useQuery<StalenessPayload | null>({
     queryKey: stalenessQueryKey,
@@ -355,12 +356,20 @@ export default function StaleSampleGate({ children }: StaleSampleGateProps) {
   ])
 
   // Hold back children until the authoritative staleness probe resolves. A
-  // cached fresh result still fences the outlet during a new route's probe, so
-  // stale analysis data cannot flash between navigations. The active-job
+  // cached fresh result still fences a newly mounted/back-navigated outlet
+  // until this observer has completed its own probe, so stale analysis data
+  // cannot flash between routes. Later background refetches retain the
+  // already-fresh content instead of blanking the entire outlet. The active-job
   // endpoint remains auxiliary and never blocks an already-fresh route.
   if (
     activeSampleId != null &&
-    (isStalenessPending || (!stale && isStalenessFetching && !isStalenessError))
+    (
+      isStalenessPending ||
+      (!stale &&
+        isStalenessFetching &&
+        !isStalenessError &&
+        !isStalenessFetchedAfterMount)
+    )
   ) {
     return null
   }

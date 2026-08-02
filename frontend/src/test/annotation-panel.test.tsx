@@ -384,9 +384,17 @@ describe("AnnotationPanel", () => {
       })
 
       await waitFor(() => {
-        expect(
-          invalidateSpy.mock.calls.slice(callsBeforeTerminalState),
-        ).toContainEqual([{ queryKey: ["analysis-qc-metrics", 42] }])
+        const terminalFilters = invalidateSpy.mock.calls
+          .slice(callsBeforeTerminalState)
+          .map(([filters]) => filters as { predicate?: unknown })
+          .find((filters) => typeof filters.predicate === "function")
+        expect(terminalFilters?.predicate).toEqual(expect.any(Function))
+
+        const matchesSampleResult = terminalFilters?.predicate as
+          | ((query: { queryKey: readonly unknown[] }) => boolean)
+          | undefined
+        expect(matchesSampleResult?.({ queryKey: ["analysis-qc-metrics", 42] })).toBe(true)
+        expect(matchesSampleResult?.({ queryKey: ["analysis-qc-metrics", 99] })).toBe(false)
       })
     })
   })
