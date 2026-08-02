@@ -262,7 +262,7 @@ def test_v20_migration_tolerates_partial_legacy_findings_table() -> None:
     assert ensure_sample_schema_current(engine) is True
 
     with engine.connect() as conn:
-        assert conn.execute(sa.text("PRAGMA user_version")).scalar_one() == 25
+        assert conn.execute(sa.text("PRAGMA user_version")).scalar_one() == SAMPLE_SCHEMA_VERSION
         remaining = conn.execute(
             sa.text("SELECT id, module, category FROM findings ORDER BY id")
         ).fetchall()

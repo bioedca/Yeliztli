@@ -199,7 +199,7 @@ def test_v24_leaves_current_custom_malformed_and_near_match_rows_untouched(
         version = conn.execute(sa.text("PRAGMA user_version")).scalar_one()
 
     assert after == before
-    assert version == 25
+    assert version == SAMPLE_SCHEMA_VERSION
 
 
 def test_v24_repairs_exact_finding_diff_text_without_changing_counts(
@@ -278,7 +278,7 @@ def test_v24_repairs_legacy_finding_without_provenance_column() -> None:
         text = conn.execute(sa.text("SELECT finding_text FROM findings WHERE id = 1")).scalar_one()
         version = conn.execute(sa.text("PRAGMA user_version")).scalar_one()
     assert text == _render(CURRENT_TEMPLATE, "GA")
-    assert version == 25
+    assert version == SAMPLE_SCHEMA_VERSION
 
 
 def test_v24_locks_before_reading_or_writing_findings_and_diff(

@@ -281,55 +281,96 @@ def _is_legacy_cyp2b6_efavirenz_diff_entry(entry: object) -> bool:
     )
 
 
-def _updated_cyp2d6_tamoxifen_finding_text(
+def _matches_generated_cyp2d6_tamoxifen_finding_text(
     finding_text: object,
     phenotype: str,
     diplotype: object,
-    legacy_recommendation: str,
-    bundled_recommendation: str,
-) -> str | None:
-    """Replace one exact generated legacy tamoxifen recommendation."""
+    recommendation: str,
+) -> bool:
+    """Whether text exactly matches one generated tamoxifen recommendation."""
     if not isinstance(finding_text, str) or not isinstance(diplotype, str):
-        return None
+        return False
 
-    marker = f" -- tamoxifen: {legacy_recommendation}"
+    marker = f" -- tamoxifen: {recommendation}"
     if finding_text.count(marker) != 1:
-        return None
+        return False
 
     prefix, suffix = finding_text.split(marker, maxsplit=1)
     if prefix != f"CYP2D6 {diplotype}: {phenotype}":
-        return None
+        return False
     if suffix not in {"", " (provisional -- see call confidence note)"}:
-        return None
-    return f"{prefix} -- tamoxifen: {bundled_recommendation}{suffix}"
+        return False
+    return True
 
 
-def _is_legacy_cyp2d6_tamoxifen_diff_entry(entry: object) -> bool:
-    """Whether a diff entry exactly identifies a superseded tamoxifen alert."""
+def _matches_released_cyp2d6_tamoxifen_finding_text(
+    finding_text: object,
+    phenotype: object,
+    diplotype: object,
+) -> bool:
+    """Whether text exactly matches a generated pre-withholding alert."""
+    if not isinstance(phenotype, str):
+        return False
+
+    update = _CYP2D6_TAMOXIFEN_RECOMMENDATION_UPDATES.get(phenotype)
+    if update is None:
+        return False
+
+    legacy_recommendation, bundled_recommendation = update
+    return any(
+        _matches_generated_cyp2d6_tamoxifen_finding_text(
+            finding_text,
+            phenotype,
+            diplotype,
+            recommendation,
+        )
+        for recommendation in (legacy_recommendation, bundled_recommendation)
+    )
+
+
+def _is_withheld_cyp2d6_tamoxifen_finding(
+    phenotype: object,
+    diplotype: object,
+    finding_text: object,
+    detail_json: object,
+) -> bool:
+    """Match only a released CYP2D6/tamoxifen alert safe to quarantine."""
+    if not isinstance(phenotype, str):
+        return False
+
+    update = _CYP2D6_TAMOXIFEN_RECOMMENDATION_UPDATES.get(phenotype)
+    if update is None:
+        return False
+    try:
+        detail = json.loads(detail_json)
+    except (json.JSONDecodeError, TypeError):
+        return False
+    if not isinstance(detail, dict):
+        return False
+
+    legacy_recommendation, bundled_recommendation = update
+    if detail.get("recommendation") not in {legacy_recommendation, bundled_recommendation}:
+        return False
+    if (
+        detail.get("classification") != "A"
+        or detail.get("guideline_url") != _CYP2D6_TAMOXIFEN_GUIDELINE_URL
+    ):
+        return False
+    return _matches_released_cyp2d6_tamoxifen_finding_text(finding_text, phenotype, diplotype)
+
+
+def _is_withheld_cyp2d6_tamoxifen_diff_entry(entry: object) -> bool:
+    """Whether a diff entry exposes a withheld released tamoxifen alert."""
     if not (
         isinstance(entry, dict)
         and entry.get("module") == "pharmacogenomics"
         and entry.get("category") == "prescribing_alert"
         and entry.get("gene_symbol") == "CYP2D6"
         and entry.get("drug") == "tamoxifen"
-        and isinstance(entry.get("metabolizer_status"), str)
     ):
         return False
-
-    phenotype = entry["metabolizer_status"]
-    update = _CYP2D6_TAMOXIFEN_RECOMMENDATION_UPDATES.get(phenotype)
-    if update is None:
-        return False
-    legacy_recommendation, bundled_recommendation = update
-    return (
-        _updated_cyp2d6_tamoxifen_finding_text(
-            entry.get("finding_text"),
-            phenotype,
-            entry.get("diplotype"),
-            legacy_recommendation,
-            bundled_recommendation,
-        )
-        is not None
+    return _matches_released_cyp2d6_tamoxifen_finding_text(
+        entry.get("finding_text"), entry.get("metabolizer_status"), entry.get("diplotype")
     )
 
 
@@ -413,8 +454,8 @@ def _updated_parkinsons_diff_entry(entry: object) -> dict[str, object] | None:
 #      whose exact released recommendations were corrected by issue #2012.
 # v24: Repair exact persisted LRRK2 G2019S findings and finding-diff entries
 #      whose lifetime wording exceeded the cited age-80 evidence (issue #2091).
-# v25: Repair exact persisted CYP2D6/tamoxifen prescribing alerts whose CPIC
-#      instructions were corrected by issue #2019.
+# v25: Quarantine exact CYP2D6/tamoxifen prescribing alerts pending the
+#      independent clinical-validation gate documented by issue #2019.
 SAMPLE_SCHEMA_VERSION = 25
 
 
@@ -1554,20 +1595,21 @@ def _add_missing_columns(engine: sa.Engine, from_version: int) -> bool:
             )
 
     if from_version < 25:
-        # Issue #2019: three released CYP2D6/tamoxifen rows omitted or
-        # inverted CPIC's operative advice. Existing sample databases retain
-        # generated alerts, so repair only entries whose full structured
-        # identity, old detail payload, and production-rendered text are exact.
-        # Custom, malformed, current, and near-match findings remain untouched.
+        # Issue #2019: CPIC's three source rows are retained only as audit
+        # provenance while independent clinical authorities conflict on using
+        # CYP2D6 to steer tamoxifen treatment. Runtime generation now withholds
+        # this pair; remove only persisted alerts and finding-diff entries that
+        # exactly match a released generated form. Custom, malformed, and
+        # near-match records remain intact.
         inspector = sa.inspect(engine)
         table_names = set(inspector.get_table_names())
         findings_cols = (
-            {c["name"] for c in inspector.get_columns("findings")}
+            {column["name"] for column in inspector.get_columns("findings")}
             if "findings" in table_names
             else set()
         )
         state_cols = (
-            {c["name"] for c in inspector.get_columns("annotation_state")}
+            {column["name"] for column in inspector.get_columns("annotation_state")}
             if "annotation_state" in table_names
             else set()
         )
@@ -1582,20 +1624,18 @@ def _add_missing_columns(engine: sa.Engine, from_version: int) -> bool:
             "finding_text",
             "detail_json",
         }
-        can_repair_findings = required_finding_cols <= findings_cols
-        can_repair_diff = {"key", "value"} <= state_cols
-        repaired_findings = 0
+        can_quarantine_findings = required_finding_cols <= findings_cols
+        can_quarantine_diff = {"key", "value"} <= state_cols
+        removed_findings = 0
         removed_diff_entries = 0
 
-        if can_repair_findings or can_repair_diff:
-            # Python's sqlite3 legacy transaction mode does not begin a DB
-            # transaction for SELECT. Reserve the writer lock before reading
-            # either persisted surface so every exact-match check and update is
-            # one transaction.
+        if can_quarantine_findings or can_quarantine_diff:
+            # Reserve the writer lock before inspecting either persisted
+            # surface, so every exact-match check and deletion is atomic.
             with engine.connect() as conn:
                 conn.exec_driver_sql("BEGIN IMMEDIATE")
                 try:
-                    if can_repair_findings:
+                    if can_quarantine_findings:
                         candidates = conn.execute(
                             sa.select(
                                 findings.c.id,
@@ -1616,42 +1656,15 @@ def _add_missing_columns(engine: sa.Engine, from_version: int) -> bool:
                             .order_by(findings.c.id)
                         ).fetchall()
                         for row in candidates:
-                            try:
-                                detail = json.loads(row.detail_json)
-                            except (json.JSONDecodeError, TypeError):
-                                continue
-                            if not isinstance(detail, dict):
-                                continue
-
-                            legacy_recommendation, bundled_recommendation = (
-                                _CYP2D6_TAMOXIFEN_RECOMMENDATION_UPDATES[row.metabolizer_status]
-                            )
-                            if (
-                                detail.get("recommendation") != legacy_recommendation
-                                or detail.get("classification") != "A"
-                                or detail.get("guideline_url") != _CYP2D6_TAMOXIFEN_GUIDELINE_URL
-                            ):
-                                continue
-                            updated_text = _updated_cyp2d6_tamoxifen_finding_text(
-                                row.finding_text,
+                            if not _is_withheld_cyp2d6_tamoxifen_finding(
                                 row.metabolizer_status,
                                 row.diplotype,
-                                legacy_recommendation,
-                                bundled_recommendation,
-                            )
-                            if updated_text is None:
+                                row.finding_text,
+                                row.detail_json,
+                            ):
                                 continue
-
-                            detail["recommendation"] = bundled_recommendation
-                            update_values: dict[str, object] = {
-                                "finding_text": updated_text,
-                                "detail_json": json.dumps(detail),
-                            }
-                            if "provenance" in findings_cols:
-                                update_values["provenance"] = None
                             result = conn.execute(
-                                findings.update()
-                                .where(
+                                findings.delete().where(
                                     findings.c.id == row.id,
                                     findings.c.module == "pharmacogenomics",
                                     findings.c.category == "prescribing_alert",
@@ -1662,11 +1675,10 @@ def _add_missing_columns(engine: sa.Engine, from_version: int) -> bool:
                                     findings.c.finding_text == row.finding_text,
                                     findings.c.detail_json == row.detail_json,
                                 )
-                                .values(**update_values)
                             )
-                            repaired_findings += max(result.rowcount or 0, 0)
+                            removed_findings += max(result.rowcount or 0, 0)
 
-                    if can_repair_diff:
+                    if can_quarantine_diff:
                         state_row = conn.execute(
                             sa.select(annotation_state.c.value).where(
                                 annotation_state.c.key == _FINDING_DIFF_STATE_KEY
@@ -1686,7 +1698,7 @@ def _add_missing_columns(engine: sa.Engine, from_version: int) -> bool:
                                     kept = [
                                         entry
                                         for entry in entries
-                                        if not _is_legacy_cyp2d6_tamoxifen_diff_entry(entry)
+                                        if not _is_withheld_cyp2d6_tamoxifen_diff_entry(entry)
                                     ]
                                     removed_diff_entries += len(entries) - len(kept)
                                     if len(kept) != len(entries):
@@ -1714,11 +1726,11 @@ def _add_missing_columns(engine: sa.Engine, from_version: int) -> bool:
                     conn.rollback()
                     raise
 
-        if repaired_findings or removed_diff_entries:
+        if removed_findings or removed_diff_entries:
             added = True
             logger.warning(
-                "legacy_cyp2d6_tamoxifen_guidance_repaired",
-                findings_count=repaired_findings,
+                "cyp2d6_tamoxifen_alerts_withheld",
+                findings_count=removed_findings,
                 finding_diff_count=removed_diff_entries,
                 from_version=from_version,
             )

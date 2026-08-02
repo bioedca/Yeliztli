@@ -416,7 +416,7 @@ class TestParseGuidelinesCSV:
         assert dict(mini_rows) == expected
 
     def test_cyp2d6_tamoxifen_rows_preserve_cpic_text(self):
-        """Shipped tamoxifen alerts retain CPIC's operative instructions (#2019)."""
+        """Audit-only tamoxifen source rows retain CPIC's text (#2019)."""
 
         expected = {
             "Normal Metabolizer": (
@@ -478,7 +478,7 @@ class TestParseGuidelinesCSV:
         assert dict(mini_rows) == expected
 
     def test_cyp2d6_tamoxifen_evidence_packet_is_crosswalked_and_sanitized(self):
-        """#2019 packet binds shipped guidance to public, sanitized sources."""
+        """#2019 packet documents withheld source records and the evidence gate."""
         raw_dir = _TAMOXIFEN_EVIDENCE_DIR / "raw"
         expected_files = {
             "cpic-tamoxifen-drug.json",
@@ -487,6 +487,7 @@ class TestParseGuidelinesCSV:
             "pubmed-efetch-sanitized.xml",
             "pubmed-comments-corrections-extract.json",
             "pubmed-claim-excerpts.json",
+            "clinical-validation-decision.json",
         }
         assert {path.name for path in raw_dir.iterdir()} == expected_files
         payloads = {name: (raw_dir / name).read_bytes() for name in expected_files}
@@ -600,6 +601,22 @@ class TestParseGuidelinesCSV:
             for entry in record["comments_corrections"]
         } == {"CommentIn"}
 
+        decision = json.loads(payloads["clinical-validation-decision.json"])
+        assert decision["accessed"] == "2026-08-01"
+        assert decision["decision"].startswith("The two-independent-source gate")
+        assert {record["accessed"] for record in decision["source_records"]} == {"2026-08-01"}
+        decision_identifiers = {
+            identifier
+            for record in decision["source_records"]
+            for identifier in record["identifiers"]
+        }
+        assert {
+            "PMID:31236598",
+            "DOI:10.1093/annonc/mdz173",
+            "NCBI Bookshelf:NBK247013",
+            "GOV.UK:tamoxifen-for-breast-cancer",
+        } <= decision_identifiers
+
         readme = (_TAMOXIFEN_EVIDENCE_DIR / "README.md").read_text()
         for name, payload in payloads.items():
             assert f"| `raw/{name}` | `{hashlib.sha256(payload).hexdigest()}` |" in readme
@@ -614,8 +631,13 @@ class TestParseGuidelinesCSV:
             "DOI:10.1158/1078-0432.CCR-12-2153",
             "PMID:21768473",
             "DOI:10.1200/JCO.2010.31.4427",
+            "PMID:31236598",
+            "DOI:10.1093/annonc/mdz173",
+            "NCBI Bookshelf:NBK247013",
+            "GOV.UK:tamoxifen-for-breast-cancer",
         ):
             assert f"{source} (accessed 2026-08-01)" in readme
+        assert "not prescribing output" in readme
 
     def test_empty_csv(self, tmp_path: Path):
         csv_path = tmp_path / "empty.csv"

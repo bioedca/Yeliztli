@@ -273,7 +273,7 @@ def test_v23_leaves_malformed_current_custom_and_near_miss_alerts_untouched(
         version = conn.execute(sa.text("PRAGMA user_version")).scalar_one()
 
     assert after == before
-    assert version == 25
+    assert version == SAMPLE_SCHEMA_VERSION
 
 
 def test_v23_removes_only_exact_legacy_diff_entries_and_recomputes_counts(
@@ -378,7 +378,7 @@ def test_v23_leaves_malformed_diff_json_untouched(sample_engine: sa.Engine) -> N
             ).scalar_one()
             == "{not-json"
         )
-        assert conn.execute(sa.text("PRAGMA user_version")).scalar_one() == 25
+        assert conn.execute(sa.text("PRAGMA user_version")).scalar_one() == SAMPLE_SCHEMA_VERSION
 
 
 def test_v23_repairs_legacy_alert_when_provenance_column_is_absent() -> None:
@@ -431,7 +431,7 @@ def test_v23_repairs_legacy_alert_when_provenance_column_is_absent() -> None:
         CURRENT_RECOMMENDATIONS[phenotype],
     )
     assert json.loads(row.detail_json)["recommendation"] == CURRENT_RECOMMENDATIONS[phenotype]
-    assert version == 25
+    assert version == SAMPLE_SCHEMA_VERSION
 
 
 def test_v23_locks_before_reading_or_writing_findings_and_diff(

@@ -1,4 +1,4 @@
-"""Tests for the v24 -> v25 persisted CYP2D6/tamoxifen guidance repair."""
+"""Tests for CYP2D6/tamoxifen repair then fail-closed alert withholding."""
 
 from __future__ import annotations
 
@@ -52,7 +52,7 @@ CURRENT_RECOMMENDATIONS = {
 
 
 def test_v25_migration_recommendations_match_bundled_cpic_rows() -> None:
-    """Keep the persisted-alert migration text in lockstep with bundled CPIC rows."""
+    """Keep the corrected released-alert fingerprint in lockstep with CPIC rows."""
     bundled_rows, _ = parse_cpic_guidelines_csv(CPIC_DATA_DIR / "cpic_guidelines.csv")
     bundled_recommendations = {
         row["phenotype"]: row["recommendation"]
@@ -140,7 +140,7 @@ def _diff_entry(
     return entry
 
 
-def test_v25_repairs_exact_legacy_tamoxifen_alerts_in_place(
+def test_v25_quarantines_exact_legacy_tamoxifen_alerts(
     sample_engine: sa.Engine,
 ) -> None:
     created_at = datetime(2026, 8, 1, 10, 0)
@@ -188,24 +188,7 @@ def test_v25_repairs_exact_legacy_tamoxifen_alerts_in_place(
         version = conn.execute(sa.text("PRAGMA user_version")).scalar_one()
 
     assert version == SAMPLE_SCHEMA_VERSION == 25
-    assert [row["id"] for row in migrated] == [101, 102, 103]
-    for row, (_, phenotype, diplotype, suffix) in zip(migrated, cases, strict=True):
-        recommendation = CURRENT_RECOMMENDATIONS[phenotype]
-        assert row["metabolizer_status"] == phenotype
-        assert row["diplotype"] == diplotype
-        assert row["finding_text"] == _finding_text(
-            phenotype,
-            recommendation,
-            diplotype=diplotype,
-            suffix=suffix,
-        )
-        detail = json.loads(row["detail_json"])
-        assert detail["recommendation"] == recommendation
-        assert detail["classification"] == "A"
-        assert detail["guideline_url"] == GUIDELINE_URL
-        assert detail["future_metadata"] == {"preserve": [phenotype]}
-        assert row["provenance"] is None
-        assert row["created_at"] == created_at
+    assert migrated == []
 
     snapshot = migrated
     assert ensure_sample_schema_current(sample_engine) is False
@@ -226,7 +209,7 @@ def test_v25_repairs_exact_legacy_tamoxifen_alerts_in_place(
     assert rerun == snapshot
 
 
-def test_v25_leaves_malformed_current_custom_and_near_miss_alerts_untouched(
+def test_v25_leaves_malformed_custom_and_near_miss_alerts_untouched(
     sample_engine: sa.Engine,
 ) -> None:
     phenotype = "Intermediate Metabolizer"
@@ -285,16 +268,16 @@ def test_v25_leaves_malformed_current_custom_and_near_miss_alerts_untouched(
         before = list(conn.execute(sa.select(findings).order_by(findings.c.id)).mappings())
         conn.execute(sa.text("PRAGMA user_version = 24"))
 
-    assert ensure_sample_schema_current(sample_engine) is False
+    assert ensure_sample_schema_current(sample_engine) is True
     with sample_engine.connect() as conn:
         after = list(conn.execute(sa.select(findings).order_by(findings.c.id)).mappings())
         version = conn.execute(sa.text("PRAGMA user_version")).scalar_one()
 
-    assert after == before
+    assert after == [row for row in before if row["id"] != 9]
     assert version == 25
 
 
-def test_v25_removes_only_exact_legacy_diff_entries_and_recomputes_counts(
+def test_v25_removes_only_exact_released_diff_entries_and_recomputes_counts(
     sample_engine: sa.Engine,
 ) -> None:
     preserved_changed = _diff_entry(
@@ -302,7 +285,7 @@ def test_v25_removes_only_exact_legacy_diff_entries_and_recomputes_counts(
         LEGACY_RECOMMENDATIONS["Intermediate Metabolizer"],
         diplotype="*1/*1",
     )
-    preserved_added = _diff_entry(
+    withheld_added = _diff_entry(
         "Intermediate Metabolizer",
         CURRENT_RECOMMENDATIONS["Intermediate Metabolizer"],
     )
@@ -322,7 +305,7 @@ def test_v25_removes_only_exact_legacy_diff_entries_and_recomputes_counts(
         ],
         "added": [
             _diff_entry("Poor Metabolizer", LEGACY_RECOMMENDATIONS["Poor Metabolizer"]),
-            preserved_added,
+            withheld_added,
         ],
         "removed": [
             _diff_entry(
@@ -358,7 +341,7 @@ def test_v25_removes_only_exact_legacy_diff_entries_and_recomputes_counts(
             if key not in {"changed", "added", "removed", "counts"}
         },
         "changed": [preserved_changed, "malformed entry"],
-        "added": [preserved_added],
+        "added": [],
         "removed": [
             _diff_entry(
                 "Poor Metabolizer",
@@ -367,7 +350,7 @@ def test_v25_removes_only_exact_legacy_diff_entries_and_recomputes_counts(
             ),
             preserved_removed,
         ],
-        "counts": {"changed": 2, "added": 1, "removed": 2},
+        "counts": {"changed": 2, "added": 0, "removed": 2},
     }
 
 
@@ -392,7 +375,7 @@ def test_v25_leaves_malformed_diff_json_untouched(sample_engine: sa.Engine) -> N
         assert conn.execute(sa.text("PRAGMA user_version")).scalar_one() == 25
 
 
-def test_v25_repairs_legacy_alert_when_provenance_column_is_absent() -> None:
+def test_v25_quarantines_legacy_alert_when_provenance_column_is_absent() -> None:
     engine = sa.create_engine("sqlite://")
     phenotype = "Intermediate Metabolizer"
     legacy = LEGACY_RECOMMENDATIONS[phenotype]
@@ -435,15 +418,10 @@ def test_v25_repairs_legacy_alert_when_provenance_column_is_absent() -> None:
     with engine.connect() as conn:
         row = conn.execute(
             sa.text("SELECT finding_text, detail_json FROM findings WHERE id = 1")
-        ).one()
+        ).one_or_none()
         version = conn.execute(sa.text("PRAGMA user_version")).scalar_one()
 
-    assert row.finding_text == _finding_text(
-        phenotype,
-        CURRENT_RECOMMENDATIONS[phenotype],
-        diplotype="*1/*4",
-    )
-    assert json.loads(row.detail_json)["recommendation"] == CURRENT_RECOMMENDATIONS[phenotype]
+    assert row is None
     assert version == 25
 
 
@@ -451,15 +429,15 @@ def test_v25_locks_before_reading_or_writing_findings_and_diff(
     sample_engine: sa.Engine,
 ) -> None:
     phenotype = "Intermediate Metabolizer"
-    legacy = LEGACY_RECOMMENDATIONS[phenotype]
+    current = CURRENT_RECOMMENDATIONS[phenotype]
     diff = {
-        "changed": [_diff_entry(phenotype, legacy)],
+        "changed": [_diff_entry(phenotype, current)],
         "added": [],
         "removed": [],
         "counts": {"changed": 1, "added": 0, "removed": 0},
     }
     with sample_engine.begin() as conn:
-        conn.execute(findings.insert(), _alert(phenotype, legacy))
+        conn.execute(findings.insert(), _alert(phenotype, current))
         conn.execute(
             annotation_state.insert(),
             {"key": "last_finding_diff_json", "value": json.dumps(diff)},
@@ -486,10 +464,10 @@ def test_v25_locks_before_reading_or_writing_findings_and_diff(
             "FINDINGS.FINDING_TEXT, FINDINGS.DETAIL_JSON"
         )
     )
-    finding_update_index = next(
+    finding_delete_index = next(
         index
         for index, statement in enumerate(statements)
-        if statement.startswith("UPDATE FINDINGS SET")
+        if statement.startswith("DELETE FROM FINDINGS")
     )
     diff_select_index = next(
         index
@@ -504,41 +482,26 @@ def test_v25_locks_before_reading_or_writing_findings_and_diff(
     assert (
         begin_index
         < candidate_index
-        < finding_update_index
+        < finding_delete_index
         < diff_select_index
         < diff_update_index
     )
+    assert not any(statement.startswith("UPDATE FINDINGS SET") for statement in statements)
 
 
-def test_v25_rolls_back_all_repairs_when_one_update_fails(
+def test_v25_rolls_back_all_quarantine_changes_when_one_delete_fails(
     sample_engine: sa.Engine,
 ) -> None:
-    rows = [
-        _alert(
-            "Intermediate Metabolizer",
-            LEGACY_RECOMMENDATIONS["Intermediate Metabolizer"],
-            row_id=1,
-        ),
-        _alert(
-            "Poor Metabolizer",
-            LEGACY_RECOMMENDATIONS["Poor Metabolizer"],
-            row_id=2,
-            diplotype="*4/*4",
-        ),
-    ]
+    phenotype = "Intermediate Metabolizer"
+    current = CURRENT_RECOMMENDATIONS[phenotype]
     diff = {
-        "changed": [
-            _diff_entry(
-                "Intermediate Metabolizer",
-                LEGACY_RECOMMENDATIONS["Intermediate Metabolizer"],
-            )
-        ],
+        "changed": [_diff_entry(phenotype, current)],
         "added": [],
         "removed": [],
         "counts": {"changed": 1, "added": 0, "removed": 0},
     }
     with sample_engine.begin() as conn:
-        conn.execute(findings.insert(), rows)
+        conn.execute(findings.insert(), _alert(phenotype, current, row_id=1))
         conn.execute(
             annotation_state.insert(),
             {"key": "last_finding_diff_json", "value": json.dumps(diff)},
@@ -553,15 +516,15 @@ def test_v25_rolls_back_all_repairs_when_one_update_fails(
         ).scalar_one()
         conn.execute(
             sa.text(
-                "CREATE TRIGGER reject_poor_tamoxifen_repair "
-                "BEFORE UPDATE OF finding_text ON findings "
-                "WHEN OLD.metabolizer_status = 'Poor Metabolizer' "
-                "BEGIN SELECT RAISE(ABORT, 'blocked repair'); END"
+                "CREATE TRIGGER reject_tamoxifen_quarantine "
+                "BEFORE DELETE ON findings "
+                "WHEN OLD.gene_symbol = 'CYP2D6' AND OLD.drug = 'tamoxifen' "
+                "BEGIN SELECT RAISE(ABORT, 'blocked quarantine'); END"
             )
         )
         conn.execute(sa.text("PRAGMA user_version = 24"))
 
-    with pytest.raises(sa.exc.IntegrityError, match="blocked repair"):
+    with pytest.raises(sa.exc.IntegrityError, match="blocked quarantine"):
         ensure_sample_schema_current(sample_engine)
 
     with sample_engine.connect() as conn:

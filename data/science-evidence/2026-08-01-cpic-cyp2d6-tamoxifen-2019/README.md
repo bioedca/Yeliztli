@@ -8,8 +8,8 @@ data, or host-specific paths.
 
 ## Decision and scope
 
-The shipped CYP2D6/tamoxifen rows must preserve CPIC's current operative
-recommendation text for the three phenotypes represented by this repository:
+The bundled CYP2D6/tamoxifen rows retain CPIC's current text as an **audit-only
+source record** for the three phenotypes represented by this repository:
 
 - Normal Metabolizer: avoid moderate and strong CYP2D6 inhibitors, then use
   standard tamoxifen dosing.
@@ -23,18 +23,21 @@ recommendation text for the three phenotypes represented by this repository:
 
 The prior local Intermediate row led with dose escalation and omitted the
 conditional aromatase-inhibitor priority. All three prior local rows also
-omitted at least part of CPIC's inhibitor warning. This change copies the
-source wording; it does not derive a new clinical treatment ranking, alter the
-application's supported phenotypes, or make patient-specific treatment
-decisions.
+omitted at least part of CPIC's inhibitor warning. The source rows now preserve
+the correct CPIC transcription, but they are **not prescribing output**:
+`generate_prescribing_alerts` withholds every CYP2D6/tamoxifen pair and sample
+schema v25 removes exactly fingerprinted historical alerts and finding-diff
+entries. The application therefore makes no patient-specific CYP2D6/tamoxifen
+treatment, dose, or inhibitor recommendation.
 
 The CPIC API classification varies by CYP2D6 activity score: the retained
 Normal and Poor Metabolizer records are `Strong`; the Intermediate records are
 `Moderate` for activity scores 0.25, 0.5, and 0.75, and `Optional` at 1.0. The
-repository's persisted `classification=A` is its existing local alert tier,
-not a claim that CPIC labels every recommendation `A`. The raw response also
-contains phenotypes not represented by the repository's current CYP2D6
-diplotype table; they are outside #2019's row-repair scope.
+repository's `classification=A` field is retained with the audit record; it is
+not an active alert tier for this withheld pair and is not a claim that CPIC
+labels every recommendation `A`. The raw response also contains phenotypes not
+represented by the repository's current CYP2D6 diplotype table; they are outside
+#2019's source-record scope.
 
 ## Queries and retained payloads
 
@@ -66,6 +69,10 @@ diplotype table; they are outside #2019's row-repair scope.
 6. Scite literature lookup for the targeted CPIC/tamoxifen evidence was
    attempted after Consensus but returned a monthly-quota `INVALID_ARGUMENT`.
    No plan, purchase, login, or fallback source was used.
+7. `raw/clinical-validation-decision.json` is a sanitized public-source record
+   of the independent-authority and study-independence check that led to
+   withholding the clinical output. It contains identifiers, public URLs,
+   access date, and concise decision-relevant scope only.
 
 The CPIC endpoint is API v1 and exposes no separate source-data release in the
 selected response. The API version, guideline ID, full request URL, payload
@@ -75,14 +82,27 @@ hash, and concrete access date are therefore the retrieval identity.
 
 | Repository provenance claim | Sources | Mapping and boundary |
 | --- | --- | --- |
-| The three repository rows are a source-faithful copy of current CPIC API guideline `100415`, including the source text's inhibitor warning and conditional language. | CPIC API guideline `100415` (accessed 2026-08-01); PMID:29385237 (accessed 2026-08-01); DOI:10.1002/cpt.1007 (accessed 2026-08-01) | The API is the normative record for the copied wording. The publication establishes guideline identity; neither is counted as independent clinical-cohort evidence. |
-| The cited PubMed records are the identifiers named in the copied CPIC source text and are retained so future reviewers can trace the source's references. | PMID:26211827 (accessed 2026-08-01); DOI:10.1016/S0140-6736(15)61074-1 (accessed 2026-08-01); PMID:27226358 (accessed 2026-08-01); DOI:10.1634/theoncologist.2015-0480 (accessed 2026-08-01); PMID:23213055 (accessed 2026-08-01); DOI:10.1158/1078-0432.CCR-12-2153 (accessed 2026-08-01); PMID:21768473 (accessed 2026-08-01); DOI:10.1200/JCO.2010.31.4427 (accessed 2026-08-01) | This is bibliographic provenance only. The implementation does not assert or independently validate comparative efficacy, dose-response, inhibitor effect size, or a patient-specific clinical outcome. |
+| The three repository rows are a source-faithful copy of current CPIC API guideline `100415`, including the source text's inhibitor warning and conditional language. | CPIC API guideline `100415` (accessed 2026-08-01); PMID:29385237 (accessed 2026-08-01); DOI:10.1002/cpt.1007 (accessed 2026-08-01) | The API is the normative record for the copied wording. The publication establishes guideline identity; neither is counted as independent clinical-cohort evidence. The rows are audit provenance, never Yeliztli prescribing output. |
+| The cited PubMed records are identifiers named in the copied CPIC source text and are retained so future reviewers can trace the source's references. | PMID:26211827 (accessed 2026-08-01); DOI:10.1016/S0140-6736(15)61074-1 (accessed 2026-08-01); PMID:27226358 (accessed 2026-08-01); DOI:10.1634/theoncologist.2015-0480 (accessed 2026-08-01); PMID:23213055 (accessed 2026-08-01); DOI:10.1158/1078-0432.CCR-12-2153 (accessed 2026-08-01); PMID:21768473 (accessed 2026-08-01); DOI:10.1200/JCO.2010.31.4427 (accessed 2026-08-01) | This is bibliographic provenance only. It does not independently validate comparative efficacy, dose-response, inhibitor effect size, or a patient-specific clinical outcome. |
 
-Because this change makes only a provenance claim about copying the source's
-current text, it deliberately does not present the cited papers as two
-independent validations of a high-stakes clinical fact. Any future feature that
-derives or changes a clinical conclusion from these studies must separately
-establish two agreeing, cohort-independent sources before it is shipped.
+## Clinical-validity decision
+
+CPIC accurately establishes the wording being preserved, but cannot supply the
+two independent clinical validations required for Yeliztli to present that
+wording as its own treatment, dose, or inhibitor instruction. The additional
+authority and independence check reaches a fail-closed result:
+
+| Decision input | Durable source(s) | Result for this repository |
+| --- | --- | --- |
+| CYP2D6-guided adjuvant tamoxifen treatment selection | PMID:31236598 (accessed 2026-08-01); DOI:10.1093/annonc/mdz173 (accessed 2026-08-01); NCBI Bookshelf:NBK247013 (accessed 2026-08-01) | ESMO does not support CYP2D6-guided treatment selection outside a clinical trial, while the DPWG table uses a different intermediate-metabolizer presentation. These authorities do not provide the required agreement. |
+| CYP2D6 genotype clinical outcome and inhibitor action | GOV.UK:tamoxifen-for-breast-cancer (accessed 2026-08-01) | MHRA limits its precaution to potent inhibitors where possible and describes genotype-outcome evidence as mixed or inconclusive. This does not validate the bundled blanket clinical action. |
+| Conditional 40 mg dose escalation | PMID:21768473 (accessed 2026-08-01); DOI:10.1200/JCO.2010.31.4427 (accessed 2026-08-01); PMID:27226358 (accessed 2026-08-01); DOI:10.1634/theoncologist.2015-0480 (accessed 2026-08-01) | The later report is an expansion or secondary analysis of the same prospective dose-escalation study, rather than an independent clinical-outcome validation. |
+
+The two-independent-source gate therefore fails for the displayed clinical
+actions. Runtime generation withholds the pair and schema v25 removes only
+exactly fingerprinted historical generated output. Any future effort to surface
+it must first document two agreeing, cohort-independent sources and resolve the
+identified authority conflict.
 
 `raw/pubmed-claim-excerpts.json` is the corresponding concise source/citation
 provenance crosswalk. It deliberately records citation identity and scope,
@@ -113,6 +133,7 @@ repository.
 | `raw/pubmed-efetch-sanitized.xml` | `3d24ebece7724793a626b31d2a52b96076ab2f7d226783efa939cc03bf3317dd` |
 | `raw/pubmed-comments-corrections-extract.json` | `52b2d1ebdaa0b6743842294fe120be6472a24e6cefc62218c89e6ac6224f96f5` |
 | `raw/pubmed-claim-excerpts.json` | `309d48a5046bcc7a36f2f64774501f1e5fa3ec99d2015f494b2371411efcc794` |
+| `raw/clinical-validation-decision.json` | `114ae5a73757cb6c105c86cefbe16d65730bdadc043621737a9f7770ceacee1f` |
 
 ## Availability and licensing
 

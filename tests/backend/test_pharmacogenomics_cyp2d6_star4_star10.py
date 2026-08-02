@@ -63,32 +63,6 @@ _CYP2D6_CONSENSUS_NORMAL_DIPLOTYPES = [
     ("*1/*41", {"rs28371725": "CT"}, 1.5),
 ]
 
-_CYP2D6_TAMOXIFEN_RECOMMENDATIONS = {
-    "Normal Metabolizer": (
-        "Avoid moderate and strong CYP2D6 inhibitors. Initiate therapy with "
-        "recommended standard of care dosing (tamoxifen 20 mg/day)."
-    ),
-    "Intermediate Metabolizer": (
-        "Consider hormonal therapy such as an aromatase inhibitor for postmenopausal women "
-        "or aromatase inhibitor along with ovarian function suppression in premenopausal "
-        "women, given that these approaches are superior to tamoxifen regardless of CYP2D6 "
-        "genotype (PMID 26211827). If aromatase inhibitor use is contraindicated, "
-        "consideration should be given to use a higher but FDA approved tamoxifen dose "
-        "(40 mg/day)(PMID 27226358). Avoid CYP2D6 strong to weak inhibitors."
-    ),
-    "Poor Metabolizer": (
-        "Recommend alternative hormonal therapy such as an aromatase inhibitor for "
-        "postmenopausal women or aromatase inhibitor along with ovarian function suppression "
-        "in premenopausal women given that these approaches are superior to tamoxifen "
-        "regardless of CYP2D6 genotype (PMID 26211827) and based on knowledge that CYP2D6 "
-        "poor metabolizers switched from tamoxifen to anastrozole do not have an increased "
-        "risk of recurrence (PMID 23213055). Note, higher dose tamoxifen (40 mg/day) "
-        "increases but does not normalize endoxifen concentrations and can be considered if "
-        "there are contraindications to aromatase inhibitor therapy (PMID 27226358, "
-        "21768473)."
-    ),
-}
-
 
 def _expected_cyp2d6_phenotype(score: float) -> str:
     if score == 0.0:
@@ -226,13 +200,7 @@ def test_cyp2d6_as_1_25_and_1_5_diplotypes_are_normal_metabolizers(
     assert alerts, f"expected CYP2D6 prescribing alerts for {expected_diplotype}"
     assert {alert.phenotype for alert in alerts} == {"Normal Metabolizer"}
 
-    tamoxifen = [alert for alert in alerts if alert.drug == "tamoxifen"]
-    assert len(tamoxifen) == 1
-    assert tamoxifen[0].recommendation == (
-        "Avoid moderate and strong CYP2D6 inhibitors. Initiate therapy with "
-        "recommended standard of care dosing (tamoxifen 20 mg/day)."
-    )
-    assert "alternative therapy" not in tamoxifen[0].recommendation.lower()
+    assert all(alert.drug != "tamoxifen" for alert in alerts)
 
 
 @pytest.mark.parametrize(
@@ -243,12 +211,12 @@ def test_cyp2d6_as_1_25_and_1_5_diplotypes_are_normal_metabolizers(
         pytest.param({"rs3892097": "TT"}, "Poor Metabolizer", id="poor"),
     ],
 )
-def test_cyp2d6_tamoxifen_alerts_use_current_cpic_guidance_for_every_phenotype(
+def test_cyp2d6_tamoxifen_alerts_are_withheld_for_every_phenotype(
     reference_engine: sa.Engine,
     overrides: dict[str, str],
     expected_phenotype: str,
 ) -> None:
-    """Production call and alert generation preserve all three CPIC rows (#2019)."""
+    """CPIC source rows never become prescribing output before validation (#2019)."""
     sample = _sample(**overrides)
     results = call_all_star_alleles(reference_engine, sample, genes=frozenset({"CYP2D6"}))
     (result,) = results
@@ -256,6 +224,5 @@ def test_cyp2d6_tamoxifen_alerts_use_current_cpic_guidance_for_every_phenotype(
 
     alerts = generate_prescribing_alerts(results, reference_engine)
     tamoxifen = [alert for alert in alerts if alert.drug == "tamoxifen"]
-    assert len(tamoxifen) == 1
-    assert tamoxifen[0].phenotype == expected_phenotype
-    assert tamoxifen[0].recommendation == _CYP2D6_TAMOXIFEN_RECOMMENDATIONS[expected_phenotype]
+    assert tamoxifen == []
+    assert any(alert.drug == "codeine" for alert in alerts)

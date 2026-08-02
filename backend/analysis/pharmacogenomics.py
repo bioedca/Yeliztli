@@ -132,6 +132,14 @@ CONSERVATIVE_UNTYPED_PHENOTYPE_GENES: frozenset[str] = frozenset({"CYP2B6", "CYP
 # indeterminate allele.
 WITHHOLD_CROSS_DIRECTION_GENES: frozenset[str] = frozenset({"CYP3A5"})
 
+# CPIC's CYP2D6/tamoxifen rows remain in the bundled reference database as a
+# source-faithful, audit-only record (#2019). They must not become Yeliztli
+# prescribing output: the required two independent, agreeing sources for the
+# genotype-guided treatment actions are not available, and independent
+# authorities/trials conflict. Keep this pair explicitly withheld until a
+# scientific-validity review can clear that gate.
+WITHHELD_PRESCRIBING_ALERT_PAIRS: frozenset[tuple[str, str]] = frozenset({("CYP2D6", "tamoxifen")})
+
 # Genes whose diplotype must be flagged as phase-inferred when two *different*
 # non-reference alleles are called from unphased array genotypes. The helper
 # below requires each allele to have its own heterozygous defining marker so
@@ -1574,6 +1582,17 @@ def generate_prescribing_alerts(
             continue
 
         for guideline in guidelines:
+            if (result.gene, guideline["drug"].casefold()) in WITHHELD_PRESCRIBING_ALERT_PAIRS:
+                logger.warning(
+                    "pgx_alert_withheld_insufficient_clinical_evidence",
+                    gene=result.gene,
+                    drug=guideline["drug"],
+                    diplotype=result.diplotype,
+                    phenotype=alert_phenotype,
+                    guideline_url=guideline["guideline_url"],
+                )
+                continue
+
             # #2169: an untyped defining marker can leave the plausible genotypes
             # spanning opposite shipped recommendations (CYP3A5/tacrolimus: increase
             # the starting dose for an expresser, keep label dosing for a
