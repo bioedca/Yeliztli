@@ -174,6 +174,25 @@ _STALE_TAMOXIFEN_FINDING = {
 }
 
 
+_TAMOXIFEN_FIRST_WITHHELD_FINDING = {
+    **_STALE_TAMOXIFEN_FINDING,
+    "diplotype": "*4/*4",
+    "metabolizer_status": "Poor Metabolizer",
+    "finding_text": "CYP2D6 *4/*4: Poor Metabolizer -- tamoxifen: stale advice.",
+    "detail_json": json.dumps(
+        {
+            "recommendation": "Stale advice that must not reach a gene summary.",
+            "classification": "A",
+            "guideline_url": "https://cpicpgx.org/guidelines/cpic-guideline-for-tamoxifen-based-on-cyp2d6/",
+            "call_confidence": "Complete",
+            "activity_score": 0.0,
+            "ehr_notation": "Poor Metabolizer",
+            "involved_rsids": ["rs3892097"],
+        }
+    ),
+}
+
+
 _UGT1A1_IRINOTECAN_INTERMEDIATE_RECOMMENDATION = (
     "No dose reduction recommended; consider reduction for high-dose therapy."
 )
@@ -366,6 +385,18 @@ def tamoxifen_withheld_client(
         tmp_data_dir,
         CPIC_GUIDELINES_DATA + [_TAMOXIFEN_AUDIT_ONLY_GUIDELINE],
         SAMPLE_FINDINGS + [_STALE_TAMOXIFEN_FINDING],
+    )
+
+
+@pytest.fixture
+def tamoxifen_first_withheld_client(
+    tmp_data_dir: Path,
+) -> Generator[tuple[TestClient, int], None, None]:
+    """A held row preceding an active pair must not supply card values."""
+    yield from _setup_client(
+        tmp_data_dir,
+        CPIC_GUIDELINES_DATA + [_TAMOXIFEN_AUDIT_ONLY_GUIDELINE],
+        [_TAMOXIFEN_FIRST_WITHHELD_FINDING, *SAMPLE_FINDINGS],
     )
 
 
@@ -662,6 +693,23 @@ class TestGeneResults:
 
         cyp2d6 = next(item for item in data["items"] if item["gene"] == "CYP2D6")
         assert "codeine" in cyp2d6["drugs"]
+        assert "tamoxifen" not in cyp2d6["drugs"]
+
+    def test_withheld_pair_cannot_supply_gene_summary_values(
+        self,
+        tamoxifen_first_withheld_client: tuple[TestClient, int],
+    ):
+        """#2019: an audit-only alert cannot mask an active gene result."""
+        tc, sample_id = tamoxifen_first_withheld_client
+        data = tc.get(f"/api/analysis/pharma/genes?sample_id={sample_id}").json()
+
+        cyp2d6 = next(item for item in data["items"] if item["gene"] == "CYP2D6")
+        assert cyp2d6["diplotype"] == "*1/*4"
+        assert cyp2d6["phenotype"] == "Intermediate Metabolizer"
+        assert cyp2d6["activity_score"] == 1.0
+        assert cyp2d6["ehr_notation"] == "Intermediate Metabolizer"
+        assert cyp2d6["call_confidence"] == "Partial"
+        assert cyp2d6["involved_rsids"] == ["rs3892097"]
         assert "tamoxifen" not in cyp2d6["drugs"]
 
     def test_empty_when_no_findings(self, client_no_findings: tuple[TestClient, int]):

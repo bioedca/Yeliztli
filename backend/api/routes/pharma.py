@@ -20,7 +20,11 @@ import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
-from backend.analysis.pharmacogenomics import classify_actionability, is_prescribing_alert_withheld
+from backend.analysis.pharmacogenomics import (
+    classify_actionability,
+    is_prescribing_alert_withheld,
+    patient_visible_finding_clause,
+)
 from backend.api.dependencies import require_fresh_sample
 from backend.db.connection import get_registry
 from backend.db.tables import cpic_guidelines, findings, samples
@@ -248,6 +252,7 @@ def _fetch_sample_findings(sample_engine: sa.Engine, drug_name: str) -> dict[str
                     findings.c.module == "pharmacogenomics",
                     findings.c.category == "prescribing_alert",
                     sa.func.lower(findings.c.drug) == drug_name.lower(),
+                    patient_visible_finding_clause(findings.c),
                 )
             )
             .order_by(findings.c.gene_symbol)
@@ -492,10 +497,10 @@ def gene_results(
 ) -> GeneSummaryResponse:
     """Return all pharmacogenomics gene results for a sample.
 
-    Groups findings by gene_symbol (taking the first finding per gene for
-    diplotype / phenotype / confidence) and fetches associated drugs from
-    CPIC guidelines.  Intended for metabolizer phenotype cards on the
-    pharmacogenomics overview page.
+    Groups patient-visible findings by gene_symbol (taking the first finding
+    per gene for diplotype / phenotype / confidence) and fetches associated
+    drugs from CPIC guidelines. Intended for metabolizer phenotype cards on
+    the pharmacogenomics overview page.
 
     Example: ``GET /api/analysis/pharma/genes?sample_id=1``
     """
@@ -505,7 +510,10 @@ def gene_results(
     with sample_engine.connect() as conn:
         stmt = (
             sa.select(findings)
-            .where(findings.c.module == "pharmacogenomics")
+            .where(
+                findings.c.module == "pharmacogenomics",
+                patient_visible_finding_clause(findings.c),
+            )
             .order_by(findings.c.gene_symbol, findings.c.id)
         )
         rows = conn.execute(stmt).fetchall()
@@ -613,6 +621,7 @@ def medication_safety_report(
                 sa.and_(
                     findings.c.module == "pharmacogenomics",
                     findings.c.category == "prescribing_alert",
+                    patient_visible_finding_clause(findings.c),
                 )
             )
             .order_by(findings.c.gene_symbol, findings.c.drug, findings.c.id)
