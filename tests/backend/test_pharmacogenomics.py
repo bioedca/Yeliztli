@@ -20,6 +20,7 @@ import sqlalchemy as sa
 
 from backend.analysis.pharmacogenomics import (
     _IDENTIFIER_CHARACTER_CONFUSABLES,
+    _IDENTIFIER_SKELETON_SOURCE_TO_TARGET,
     CallConfidence,
     PrescribingAlert,
     StarAlleleResult,
@@ -1840,6 +1841,7 @@ class TestStorePrescribingAlerts:
             ("CYP2D-6", "tamoxifen"),
             ("CYP2D6", "tamoxifen\u200b"),
             ("CYP2D6", "tam0xifen"),
+            ("CYP2D6", "tarnoxifen"),
             ("ＣＹＰ２Ｄ６", "tamoxifen"),
             ("\u03f9YP2D6", "tamoxifen"),
             (
@@ -2818,8 +2820,10 @@ class TestPatientPresentableFindingPayload:
         )
 
     def test_pinned_uts39_residual_map_has_complete_expected_character_coverage(self) -> None:
-        assert set(_IDENTIFIER_CHARACTER_CONFUSABLES) == set("cyp2d6tamoxifen")
-        assert sum(map(len, _IDENTIFIER_CHARACTER_CONFUSABLES.values())) == 482
+        assert set(_IDENTIFIER_CHARACTER_CONFUSABLES) == set("cyp2d6tamoxifenr")
+        assert sum(map(len, _IDENTIFIER_CHARACTER_CONFUSABLES.values())) == 502
+        assert set(_IDENTIFIER_SKELETON_SOURCE_TO_TARGET.values()) == {"rn"}
+        assert len(_IDENTIFIER_SKELETON_SOURCE_TO_TARGET) == 20
 
     @pytest.mark.parametrize(
         ("expected", "confusable"),
@@ -2840,8 +2844,11 @@ class TestPatientPresentableFindingPayload:
         drug = "tamoxifen"
         if expected in gene:
             gene = gene.replace(expected, confusable, 1)
-        else:
+        elif expected in drug:
             drug = drug.replace(expected, confusable, 1)
+        else:
+            assert expected == "r"
+            drug = drug.replace("m", f"{confusable}n", 1)
 
         assert is_prescribing_alert_withheld(gene, drug)
         assert not is_patient_presentable_response_payload({"gene": gene, "drug": drug})
@@ -2867,6 +2874,8 @@ class TestPatientPresentableFindingPayload:
             ("CYP2D6", "tamoxi\u017fen"),
             ("CYP2D6", "tamoxif\u0435n"),
             ("CYP2D6", "tamoxife\u03b7"),
+            ("CYP2D6", "tarnoxifen"),
+            ("CYP2D6", "ta\u0433noxifen"),
             (
                 "\u0421\u0423\u03a1\u0662\u0501\u0431",
                 "\u03c4\u0430\u043c\u03bf\u0445\u0456\u0192\u0435\u03b7",

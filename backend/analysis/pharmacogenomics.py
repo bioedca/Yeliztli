@@ -201,7 +201,8 @@ _DEFAULT_IGNORABLE_CODEPOINT_RANGES: tuple[tuple[int, int], ...] = (
 _SERIALIZED_FINDING_PAYLOAD_FIELDS = frozenset({"detail_json", "provenance", "pmid_citations"})
 
 # Pinned residual UTS #39 confusables v17.0.0 (accessed 2026-08-02) for every
-# distinct held-identifier character. The official source is
+# distinct held-identifier character plus the ``r`` component used by the
+# pinned ``m`` to ``rn`` skeleton expansion. The official source is
 # https://www.unicode.org/Public/security/latest/confusables.txt; its accessed
 # header identifies version 17.0.0. This includes every single-codepoint source
 # whose target reduces through this module's presentation normalizer and
@@ -252,6 +253,10 @@ _UTS39_V17_RESIDUAL_CONFUSABLE_CODEPOINTS: dict[str, str] = {
         "A4D1 10295 1CCE5 1D6B8 1D6D2 1D6E0 1D6F2 1D70C 1D71A 1D72C 1D746 1D754 "
         "1D766 1D780 1D78E 1D7A0 1D7BA 1D7C8"
     ),
+    "r": (
+        "AB47 AB48 1D26 2C85 0433 AB81 1D216 1CCE7 01A6 13A1 13D2 104B4 1587 A4E3 "
+        "16F35 027D 027C 024D 0493 1D72"
+    ),
     "t": (
         "03A4 0422 13A2 22A4 27D9 2CA6 A4D4 10297 102B1 10315 118BC 16F0A 1CCE9 "
         "1D6BB 1D6F5 1D72F 1D769 1D7A3 1F768"
@@ -300,11 +305,28 @@ _IDENTIFIER_CHARACTER_CONFUSABLES: dict[str, frozenset[str]] = {
     )
     for expected, code_points in _UTS39_V17_RESIDUAL_CONFUSABLE_CODEPOINTS.items()
 }
+
+# UTS #39's skeleton for ASCII ``m`` is ``rn``. Pin every one-codepoint source
+# whose project-normalized UTS #39 target is that sequence, then expand it only
+# in identifier matching. This catches ``tarnoxifen`` and equivalent source
+# characters without turning general text normalization into a skeletonizer.
+_UTS39_V17_IDENTIFIER_SKELETON_EXPANSION_SOURCES: dict[str, str] = {
+    "rn": (
+        "118E3 006D 217F 1D426 1D45A 1D48E 1D4C2 1D4F6 1D52A 1D55E 1D592 1D5C6 "
+        "1D5FA 1D62E 1D662 1D696 11700 20A5 0271 1D6F"
+    ),
+}
+_IDENTIFIER_SKELETON_SOURCE_TO_TARGET = {
+    chr(int(code_point, 16)).casefold(): target
+    for target, code_points in _UTS39_V17_IDENTIFIER_SKELETON_EXPANSION_SOURCES.items()
+    for code_point in code_points.split()
+}
+_IDENTIFIER_SKELETON_VARIANT_EXPANSIONS = {"m": "rn"}
 _CURATED_IDENTIFIER_CONFUSABLE_CASEFOLDS = frozenset(
     character.casefold()
     for characters in _IDENTIFIER_CHARACTER_CONFUSABLES.values()
     for character in characters
-)
+) | frozenset(_IDENTIFIER_SKELETON_SOURCE_TO_TARGET)
 
 
 def _is_default_ignorable_character(character: str) -> bool:
@@ -313,6 +335,16 @@ def _is_default_ignorable_character(character: str) -> bool:
     return unicodedata.category(character) == "Cf" or any(
         start <= code_point <= end for start, end in _DEFAULT_IGNORABLE_CODEPOINT_RANGES
     )
+
+
+def _identifier_normalization_group(character: str) -> tuple[str | tuple[str], bool]:
+    """Return one matching-only normalization group and preservation flag."""
+    skeleton = _IDENTIFIER_SKELETON_SOURCE_TO_TARGET.get(character.casefold())
+    if skeleton is not None:
+        return skeleton, True
+    if character.casefold() in _CURATED_IDENTIFIER_CONFUSABLE_CASEFOLDS:
+        return (character,), True
+    return unicodedata.normalize("NFD", unicodedata.normalize("NFKC", character)), False
 
 
 def _normalize_prescribing_text(
@@ -334,15 +366,9 @@ def _normalize_prescribing_text(
         # Process each source character independently: a pinned mark/symbol is
         # meaningful evidence for exactly one identifier position and must not
         # be discarded by the ordinary NFKC/NFD or category filtering below.
-        normalization_groups = (
-            (
-                (character,),
-                character.casefold() in _CURATED_IDENTIFIER_CONFUSABLE_CASEFOLDS,
-            )
-            if character.casefold() in _CURATED_IDENTIFIER_CONFUSABLE_CASEFOLDS
-            else (unicodedata.normalize("NFD", unicodedata.normalize("NFKC", character)), False)
-            for character in value
-        )
+        # A separate pinned UTS #39 source set expands ``m``-like skeletons to
+        # ``rn`` before scanning, so multi-codepoint lookalikes stay visible.
+        normalization_groups = (_identifier_normalization_group(character) for character in value)
     else:
         normalization_groups = (
             (unicodedata.normalize("NFD", unicodedata.normalize("NFKC", value)), False),
@@ -381,6 +407,16 @@ def _identifier_match_characters(identifier: str) -> str:
         for character in _normalize_prescribing_text(identifier)
         if character.isascii() and character.isalnum()
     )
+
+
+def _identifier_match_variants(identifier: str) -> tuple[str, ...]:
+    """Return the canonical and pinned UTS #39 skeleton forms of an identifier."""
+    canonical = _identifier_match_characters(identifier)
+    skeleton = "".join(
+        _IDENTIFIER_SKELETON_VARIANT_EXPANSIONS.get(character, character)
+        for character in canonical
+    )
+    return (canonical,) if skeleton == canonical else (canonical, skeleton)
 
 
 def _identifier_character_matches(actual: str, expected: str) -> bool:
@@ -458,16 +494,29 @@ def _text_mentions_identifier(value: str, identifier: str) -> bool:
     #39 source character can act as a non-alphanumeric identifier position;
     all other punctuation remains a separator.
     """
-    return _text_mentions_identifier_characters(value, _identifier_match_characters(identifier))
+    return any(
+        _text_mentions_identifier_characters(value, variant)
+        for variant in _identifier_match_variants(identifier)
+    )
 
 
 def _text_mentions_identifier_sequence(value: str, *identifiers: str) -> bool:
     """Match a held identifier sequence even when legacy text fuses its terms."""
-    return _text_mentions_identifier_characters(
-        value,
-        "".join(_identifier_match_characters(identifier) for identifier in identifiers),
-        require_left_boundary=False,
-        require_right_boundary=False,
+    variants = ("",)
+    for identifier in identifiers:
+        variants = tuple(
+            prefix + variant
+            for prefix in variants
+            for variant in _identifier_match_variants(identifier)
+        )
+    return any(
+        _text_mentions_identifier_characters(
+            value,
+            variant,
+            require_left_boundary=False,
+            require_right_boundary=False,
+        )
+        for variant in variants
     )
 
 
