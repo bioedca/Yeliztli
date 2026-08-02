@@ -42,6 +42,7 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from backend.annotation.bulk_load import serialized_write
 from backend.annotation.http_download import stream_download
+from backend.db.build_guard import build_claim
 from backend.db.tables import database_versions, gene_phenotype
 
 if TYPE_CHECKING:
@@ -611,17 +612,41 @@ def _source_bundle_id(sources: list[dict[str, str | int | None]]) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+def _managed_source_bundles_dir(dest_dir: Path, *, create: bool) -> Path:
+    """Return the non-symlinked directory owned by MONDO/HPO source bundles.
+
+    The loader may remove only bundles beneath this exact managed root.  A
+    symlinked root would make a normal-looking cleanup traverse operator-owned
+    storage outside ``dest_dir``, so reject it before publishing or pruning.
+    """
+    bundles_dir = dest_dir / SOURCE_BUNDLE_DIRECTORY
+    if bundles_dir.is_symlink():
+        raise ValueError(
+            f"Refusing symbolic link for MONDO/HPO source bundle directory: {bundles_dir}"
+        )
+    if create:
+        bundles_dir.mkdir(parents=True, exist_ok=True)
+    if bundles_dir.is_symlink() or not bundles_dir.is_dir():
+        raise ValueError(
+            f"MONDO/HPO source bundle path must be a directory, not a symbolic link: {bundles_dir}"
+        )
+    return bundles_dir
+
+
 def _publish_staged_source_bundle(
     staging_dir: Path,
     dest_dir: Path,
     bundle_id: str,
     sources: list[dict[str, str | int | None]],
-) -> tuple[Path, bool]:
-    """Publish validated inputs and say whether this call created the bundle."""
-    bundles_dir = dest_dir / SOURCE_BUNDLE_DIRECTORY
-    bundles_dir.mkdir(parents=True, exist_ok=True)
+) -> Path:
+    """Publish validated inputs as an immutable managed source bundle."""
+    bundles_dir = _managed_source_bundles_dir(dest_dir, create=True)
     bundle_dir = bundles_dir / bundle_id
+    if bundle_dir.is_symlink():
+        raise ValueError(f"Refusing symbolic link for MONDO/HPO source bundle: {bundle_dir}")
     if bundle_dir.exists():
+        if not bundle_dir.is_dir():
+            raise ValueError(f"Existing MONDO/HPO source bundle is not a directory: {bundle_dir}")
         manifest_path = bundle_dir / SOURCE_BUNDLE_MANIFEST
         try:
             existing = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -635,10 +660,10 @@ def _publish_staged_source_bundle(
         ):
             raise ValueError(f"MONDO/HPO source bundle ID collision: {bundle_dir}")
         shutil.rmtree(staging_dir)
-        return bundle_dir, False
+        return bundle_dir
 
     staging_dir.replace(bundle_dir)
-    return bundle_dir, True
+    return bundle_dir
 
 
 def _source_bundle_for_file_path(file_path: str | None, bundles_dir: Path) -> Path | None:
@@ -705,8 +730,8 @@ def _prune_source_bundles(
     version are committed. That makes pruning safe even for direct callers that
     are not wrapped by the higher-level cross-process build claim.
     """
-    bundles_dir = dest_dir / SOURCE_BUNDLE_DIRECTORY
     try:
+        bundles_dir = _managed_source_bundles_dir(dest_dir, create=False)
         with serialized_write(engine):
             recorded_bundle = _recorded_source_bundle(engine, bundles_dir)
             retained = {current_bundle, previous_bundle, recorded_bundle}
@@ -721,7 +746,7 @@ def _prune_source_bundles(
                         bundle_name=candidate.name,
                         error=str(exc),
                     )
-    except OSError as exc:
+    except (OSError, ValueError) as exc:
         logger.warning("mondo_hpo_source_bundle_cleanup_failed", error=str(exc))
 
 
@@ -1036,7 +1061,13 @@ def _mondo_hpo_source_version(version: str) -> str:
 
 def _is_mondo_hpo_source_date(version: str) -> bool:
     """Whether *version* is a comparable primary MONDO source date."""
-    return len(version) == 8 and version.isdigit()
+    if len(version) != 8 or not version.isdigit():
+        return False
+    try:
+        datetime.strptime(version, "%Y%m%d")
+    except ValueError:
+        return False
+    return True
 
 
 def _has_current_ingestion_revision(version: str) -> bool:
@@ -1143,12 +1174,19 @@ def check_mondo_hpo_update(
     primary_size = _content_length_or_zero(resp)
     current = get_current_version(reference_engine, "mondo_hpo")
     current_source_version: str | None = None
+    legacy_noncanonical_version = False
     if current is not None:
         current_source_version = _mondo_hpo_source_version(current)
         if not _is_mondo_hpo_source_date(current_source_version):
-            logger.warning("mondo_hpo_update_check_uncomparable_installed_version")
-            return None
-        if current_source_version > remote_version:
+            if _has_current_ingestion_revision(current):
+                logger.warning("mondo_hpo_update_check_uncomparable_scoped_installed_version")
+                return None
+            # The lookup path withholds this unproven legacy data.  Once the
+            # authoritative remote metadata is available, offer a scoped
+            # rebuild instead of leaving the installation permanently empty.
+            legacy_noncanonical_version = True
+            logger.warning("mondo_hpo_update_check_uncomparable_legacy_installed_version")
+        elif current_source_version > remote_version:
             return None
 
     try:
@@ -1181,7 +1219,9 @@ def check_mondo_hpo_update(
         ),
         release_date=remote_version,
     )
-    if current is None or current_source_version < remote_version:
+    if current is None or legacy_noncanonical_version:
+        return available
+    if current_source_version is not None and current_source_version < remote_version:
         return available
     if not _has_current_ingestion_revision(current) or _hpo_labels_need_refresh(reference_engine):
         return available
@@ -1319,32 +1359,39 @@ def download_and_load_mondo_hpo(
         stats.hpo_version = hpo_meta.get("version")
         stats.mondo_sssom_version = mondo_sssom_meta.get("version")
 
-        # Publish a unique immutable source bundle after validation. Its pending
-        # sentinel remains until the row/version transaction succeeds, so an
-        # overlapping loader cannot prune this bundle before it is referenced.
-        bundles_dir = dest_dir / SOURCE_BUNDLE_DIRECTORY
-        previous_source_bundle = _recorded_source_bundle(engine, bundles_dir)
-        (staging_dir / SOURCE_BUNDLE_PENDING).write_text("pending\n", encoding="utf-8")
-        source_bundle_dir, source_bundle_created = _publish_staged_source_bundle(
-            staging_dir,
-            dest_dir,
-            _source_bundle_id(sources),
-            sources,
-        )
-        final_mondo_path = source_bundle_dir / mondo_path.name
-        final_source_manifest_path = source_bundle_dir / source_manifest_path.name
-        stats.records_loaded = load_mondo_hpo_rows(
-            rows,
-            engine,
-            version=stats.version,
-            file_path=str(final_mondo_path),
-            file_size_bytes=mondo_size,
-            checksum=stats.sha256,
-        )
-        if source_bundle_created:
+        # Serialise the snapshot, publish, row/version transaction, and
+        # retention decision.  Direct callers can use a different downloads
+        # directory from the outer database build, so this dedicated claim is
+        # keyed to the source-bundle root rather than the reference database.
+        with build_claim("mondo_hpo_source_bundles", dest_dir) as acquired:
+            if not acquired:
+                raise RuntimeError("MONDO/HPO source bundle update is already in progress")
+
+            # Publish a unique immutable source bundle after validation. Its
+            # pending sentinel remains until the row/version transaction
+            # succeeds, so a crashed load cannot make the bundle prunable.
+            bundles_dir = _managed_source_bundles_dir(dest_dir, create=True)
+            previous_source_bundle = _recorded_source_bundle(engine, bundles_dir)
+            (staging_dir / SOURCE_BUNDLE_PENDING).write_text("pending\n", encoding="utf-8")
+            source_bundle_dir = _publish_staged_source_bundle(
+                staging_dir,
+                dest_dir,
+                _source_bundle_id(sources),
+                sources,
+            )
+            final_mondo_path = source_bundle_dir / mondo_path.name
+            final_source_manifest_path = source_bundle_dir / source_manifest_path.name
+            stats.records_loaded = load_mondo_hpo_rows(
+                rows,
+                engine,
+                version=stats.version,
+                file_path=str(final_mondo_path),
+                file_size_bytes=mondo_size,
+                checksum=stats.sha256,
+            )
             pending_path = source_bundle_dir / SOURCE_BUNDLE_PENDING
             try:
-                pending_path.unlink()
+                pending_path.unlink(missing_ok=True)
             except OSError as exc:
                 logger.warning(
                     "mondo_hpo_source_bundle_pending_cleanup_failed",
@@ -1352,12 +1399,17 @@ def download_and_load_mondo_hpo(
                     error=str(exc),
                 )
             else:
-                _prune_source_bundles(
-                    engine,
-                    dest_dir,
-                    current_bundle=source_bundle_dir,
-                    previous_bundle=previous_source_bundle,
-                )
+                # Reusing the active bundle does not advance source history,
+                # so preserve its previously retained fallback bundle. A
+                # successful retry after a failed publish has a distinct
+                # previous bundle and therefore performs normal cleanup.
+                if source_bundle_dir != previous_source_bundle:
+                    _prune_source_bundles(
+                        engine,
+                        dest_dir,
+                        current_bundle=source_bundle_dir,
+                        previous_bundle=previous_source_bundle,
+                    )
 
         logger.info(
             "mondo_hpo_loaded",

@@ -15,6 +15,7 @@ Covers:
 from __future__ import annotations
 
 import gzip
+import hashlib
 import json
 import textwrap
 from pathlib import Path
@@ -26,6 +27,7 @@ from sqlalchemy.pool import StaticPool
 from backend.annotation.mondo_hpo import (
     _INHERITANCE_MAP,
     MONDO_HPO_INGESTION_REVISION,
+    SOURCE_BUNDLE_PENDING,
     GenePhenotypeRecord,
     HpoTerm,
     LoadStats,
@@ -41,12 +43,19 @@ from backend.annotation.mondo_hpo import (
     parse_mondo_sssom,
     record_mondo_hpo_version,
 )
+from backend.db.build_guard import cross_process_build_claim
 from backend.db.tables import database_versions, gene_phenotype, reference_metadata
 
 # ── Fixtures ────────────────────────────────────────────────────────────
 
 FIXTURES_DIR = Path(__file__).resolve().parent.parent / "fixtures"
 GENE_PHENOTYPE_SEED_CSV = FIXTURES_DIR / "seed_csvs" / "gene_phenotype_seed.csv"
+EVIDENCE_DIR = (
+    Path(__file__).resolve().parents[2]
+    / "data"
+    / "science-evidence"
+    / "2026-08-01-hpo-disease-scope-2163"
+)
 _SSSOM_HEADER = (
     "subject_id\tsubject_label\tpredicate_id\tobject_id\tobject_label\tmapping_justification"
 )
@@ -54,6 +63,34 @@ _SSSOM_HEADER = (
 
 def _sssom_line(*columns: str) -> str:
     return "\t".join(columns)
+
+
+def test_hpo_disease_scope_evidence_artifacts_are_explicit_and_intact() -> None:
+    """The packet distinguishes committed excerpts from observed full payloads."""
+    manifest = json.loads((EVIDENCE_DIR / "source-manifest.json").read_text(encoding="utf-8"))
+
+    assert manifest["schema_version"] == 2
+    assert manifest["packet_created"] == "2026-08-01"
+    assert manifest["remote_snapshot_metadata_accessed"] == "2026-08-02"
+    for source in manifest["sources"]:
+        assert "raw_evidence_path" not in source
+        assert source["complete_remote_payload_retained"] is False
+        artifact = source["retained_artifact"]
+        artifact_path = Path(__file__).resolve().parents[2] / artifact["repository_path"]
+        assert artifact_path.is_file()
+        assert artifact_path.stat().st_size == artifact["bytes"]
+        assert hashlib.sha256(artifact_path.read_bytes()).hexdigest() == artifact["sha256"]
+
+    hpo_source = next(
+        source for source in manifest["sources"] if source["name"].startswith("Human")
+    )
+    metadata_path = (
+        Path(__file__).resolve().parents[2]
+        / hpo_source["retained_artifact"]["display_metadata_repository_path"]
+    )
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    assert metadata["release_version"] == hpo_source["release_version"]
+    assert metadata["source_snapshot_accessed"] == hpo_source["excerpt_accessed"]
 
 
 @pytest.fixture
@@ -833,6 +870,7 @@ class TestDownloadAndLoad:
             ).scalar_one()
 
         generation["value"] = 1
+        original_load_rows = load_mondo_hpo_rows
 
         def fail_load(*args, **kwargs):
             raise RuntimeError("simulated row load failure")
@@ -849,6 +887,126 @@ class TestDownloadAndLoad:
             ).scalar_one()
         assert preserved_path == prior_path
         assert Path(prior_path).is_file()
+
+        failed_bundle = next(
+            path
+            for path in (downloads / "mondo_hpo_sources").iterdir()
+            if path != Path(prior_path).parent
+        )
+        assert (failed_bundle / SOURCE_BUNDLE_PENDING).is_file()
+
+        # An identical retry reuses the previously published bundle. It must
+        # still promote that bundle after the now-successful DB transaction.
+        monkeypatch.setattr("backend.annotation.mondo_hpo.load_mondo_hpo_rows", original_load_rows)
+        download_and_load_mondo_hpo(reference_engine, downloads)
+        with reference_engine.connect() as conn:
+            recovered_path = conn.execute(
+                sa.select(database_versions.c.file_path).where(
+                    database_versions.c.db_name == "mondo_hpo"
+                )
+            ).scalar_one()
+        assert Path(recovered_path).parent == failed_bundle
+        assert not (failed_bundle / SOURCE_BUNDLE_PENDING).exists()
+
+        # Subsequent refreshes can now bound retention normally instead of
+        # preserving the once-failed bundle forever.
+        generation["value"] = 2
+        download_and_load_mondo_hpo(reference_engine, downloads)
+        managed_bundles = [
+            path for path in (downloads / "mondo_hpo_sources").iterdir() if path.is_dir()
+        ]
+        assert len(managed_bundles) == 2
+        assert all(not (path / SOURCE_BUNDLE_PENDING).exists() for path in managed_bundles)
+
+    def test_rejects_symlinked_source_bundle_root(
+        self,
+        monkeypatch,
+        reference_engine: sa.Engine,
+        mondo_tsv_file: Path,
+        hpo_phenotype_file: Path,
+        mondo_sssom_file: Path,
+        tmp_path: Path,
+    ) -> None:
+        """Never publish or clean through an operator-owned symlinked root."""
+        monkeypatch.setattr("backend.annotation.mondo_hpo.MINIMUM_UNAMBIGUOUS_MONDO_XREFS", 2)
+        source_files = {
+            "gene_disease.9606.tsv.gz": mondo_tsv_file,
+            "genes_to_phenotype.txt": hpo_phenotype_file,
+            "mondo.sssom.tsv": mondo_sssom_file,
+        }
+
+        def fake_download(url, dest_dir, filename, **kwargs):
+            target = dest_dir / filename
+            if filename.endswith(".gz"):
+                with gzip.open(target, "wb") as fh:
+                    fh.write(source_files[filename].read_bytes())
+            else:
+                target.write_bytes(source_files[filename].read_bytes())
+            return target
+
+        monkeypatch.setattr("backend.annotation.mondo_hpo.download_file", fake_download)
+        downloads = tmp_path / "downloads"
+        downloads.mkdir()
+        external_dir = tmp_path / "external"
+        external_dir.mkdir()
+        (downloads / "mondo_hpo_sources").symlink_to(external_dir, target_is_directory=True)
+
+        with pytest.raises(ValueError, match="symbolic link"):
+            download_and_load_mondo_hpo(reference_engine, downloads)
+
+        assert list(external_dir.iterdir()) == []
+        with reference_engine.connect() as conn:
+            assert (
+                conn.execute(
+                    sa.select(database_versions.c.version).where(
+                        database_versions.c.db_name == "mondo_hpo"
+                    )
+                ).scalar_one_or_none()
+                is None
+            )
+
+    def test_source_bundle_claim_blocks_overlapping_finalization(
+        self,
+        monkeypatch,
+        reference_engine: sa.Engine,
+        mondo_tsv_file: Path,
+        hpo_phenotype_file: Path,
+        mondo_sssom_file: Path,
+        tmp_path: Path,
+    ) -> None:
+        """A competing finalizer cannot snapshot, load, or prune this bundle."""
+        monkeypatch.setattr("backend.annotation.mondo_hpo.MINIMUM_UNAMBIGUOUS_MONDO_XREFS", 2)
+        source_files = {
+            "gene_disease.9606.tsv.gz": mondo_tsv_file,
+            "genes_to_phenotype.txt": hpo_phenotype_file,
+            "mondo.sssom.tsv": mondo_sssom_file,
+        }
+
+        def fake_download(url, dest_dir, filename, **kwargs):
+            target = dest_dir / filename
+            if filename.endswith(".gz"):
+                with gzip.open(target, "wb") as fh:
+                    fh.write(source_files[filename].read_bytes())
+            else:
+                target.write_bytes(source_files[filename].read_bytes())
+            return target
+
+        monkeypatch.setattr("backend.annotation.mondo_hpo.download_file", fake_download)
+        downloads = tmp_path / "downloads"
+        with cross_process_build_claim("mondo_hpo_source_bundles", downloads) as acquired:
+            assert acquired
+            with pytest.raises(RuntimeError, match="source bundle update is already in progress"):
+                download_and_load_mondo_hpo(reference_engine, downloads)
+
+        with reference_engine.connect() as conn:
+            assert (
+                conn.execute(
+                    sa.select(database_versions.c.version).where(
+                        database_versions.c.db_name == "mondo_hpo"
+                    )
+                ).scalar_one_or_none()
+                is None
+            )
 
     def test_refuses_zero_exact_matches_before_clearing_existing_rows(
         self,

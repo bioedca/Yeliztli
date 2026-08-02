@@ -1116,8 +1116,22 @@ class TestCheckMondoHpoUpdate:
         with patch("backend.annotation.mondo_hpo.httpx.Client", mock_client):
             assert check_mondo_hpo_update(reference_engine) is None
 
+    @pytest.mark.parametrize(
+        ("installed_version", "hpo_etag", "sssom_etag"),
+        [
+            (_current_mondo_hpo_version("hpo-old", "sssom-current"), "hpo-new", "sssom-current"),
+            (_current_mondo_hpo_version("hpo-current", "sssom-old"), "hpo-current", "sssom-new"),
+        ],
+        ids=["hpo", "mondo-sssom"],
+    )
     def test_changed_secondary_validator_offers_refresh(
-        self, tmp_path: Path, monkeypatch, reference_engine
+        self,
+        tmp_path: Path,
+        monkeypatch,
+        reference_engine,
+        installed_version,
+        hpo_etag,
+        sssom_etag,
     ):
         """An HPO or SSSOM update is not hidden by an unchanged primary date."""
         path = _write_manifest(tmp_path, SAMPLE_MANIFEST)
@@ -1125,14 +1139,14 @@ class TestCheckMondoHpoUpdate:
         _record_version_row(
             reference_engine,
             "mondo_hpo",
-            _current_mondo_hpo_version("hpo-old", "sssom-current"),
+            installed_version,
         )
 
         primary = MagicMock(headers={"Last-Modified": MONDO_HPO_LAST_MODIFIED_NEW})
         primary.raise_for_status = MagicMock()
-        hpo = MagicMock(headers={"ETag": "hpo-new"})
+        hpo = MagicMock(headers={"ETag": hpo_etag})
         hpo.raise_for_status = MagicMock()
-        sssom = MagicMock(headers={"ETag": "sssom-current"})
+        sssom = MagicMock(headers={"ETag": sssom_etag})
         sssom.raise_for_status = MagicMock()
         mock_client, _ = _mock_head_client(last_modified=MONDO_HPO_LAST_MODIFIED_NEW)
         mock_client.return_value.head.side_effect = [primary, hpo, sssom]
@@ -1148,14 +1162,40 @@ class TestCheckMondoHpoUpdate:
             call(MONDO_SSSOM_URL),
         ]
 
-    @pytest.mark.parametrize("installed_version", ["vNext", "2026-04-x"])
-    def test_noncanonical_installed_version_is_not_compared_lexically(
+    @pytest.mark.parametrize(
+        "installed_version", ["vNext", "2026-04-x", "latest", "unknown", "99999999"]
+    )
+    def test_noncanonical_legacy_installed_version_offers_scoped_refresh(
         self, tmp_path: Path, monkeypatch, reference_engine, installed_version: str
     ):
-        """An unparseable primary version must not trigger a possible downgrade."""
+        """A withheld unproven install gets a recovery path, not a downgrade guess."""
         path = _write_manifest(tmp_path, SAMPLE_MANIFEST)
         monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(path))
         _record_version_row(reference_engine, "mondo_hpo", installed_version)
+
+        mock_client, _ = _mock_head_client(last_modified=MONDO_HPO_LAST_MODIFIED_NEW)
+        with patch("backend.annotation.mondo_hpo.httpx.Client", mock_client):
+            result = check_mondo_hpo_update(reference_engine)
+
+        assert isinstance(result, VersionInfo)
+        assert result.latest_version == MONDO_HPO_LAST_MODIFIED_NEW_VERSION
+        assert mock_client.return_value.head.call_args_list == [
+            call(MONDO_HPO_URL),
+            call(HPO_GENES_TO_PHENOTYPE_URL),
+            call(MONDO_SSSOM_URL),
+        ]
+
+    def test_noncanonical_scoped_installed_version_is_not_overwritten(
+        self, tmp_path: Path, monkeypatch, reference_engine
+    ):
+        """A scope-proven but unorderable operator release is not replaced blindly."""
+        path = _write_manifest(tmp_path, SAMPLE_MANIFEST)
+        monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(path))
+        _record_version_row(
+            reference_engine,
+            "mondo_hpo",
+            f"vNext+{MONDO_HPO_INGESTION_REVISION}",
+        )
 
         mock_client, _ = _mock_head_client(last_modified=MONDO_HPO_LAST_MODIFIED_NEW)
         with patch("backend.annotation.mondo_hpo.httpx.Client", mock_client):

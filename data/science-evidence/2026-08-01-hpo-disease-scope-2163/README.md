@@ -10,12 +10,14 @@ estimate risk, or assert a clinical association for an individual.
 
 Repository base: `813d7568b286f2d76c2338a13f035aa3d8632234`
 
-Access date: `2026-08-01`
+Packet created: `2026-08-01`
 
-The retained source-native excerpts were captured for the 2026-08-01 packet.
-The current source validators, release metadata, checksums, and transfer sizes
-in [`source-manifest.json`](source-manifest.json) were independently refreshed
-on `2026-08-02`; the two dates are deliberately kept distinct.
+On `2026-08-02`, each retained source-native excerpt was checked against its
+public endpoint, and the source validators, release metadata, checksums, and
+transfer sizes in [`source-manifest.json`](source-manifest.json) were refreshed.
+The manifest distinguishes those compact retained artifacts from the complete
+remote payloads whose hashes and sizes were observed but which are not
+redistributed in this packet.
 
 ## Sanitized discovery and validation queries
 
@@ -60,14 +62,20 @@ NCBI Entrez:
      makes no patient-level, diagnostic, or risk claim.
 3. Human Phenotype Ontology, `genes_to_phenotype.txt`
    <https://purl.obolibrary.org/obo/hp/hpoa/genes_to_phenotype.txt>
-   (source snapshot accessed 2026-08-02; excerpt accessed 2026-08-01).
+   (source snapshot and retained excerpt verified 2026-08-02).
    - Its six-column schema includes a `disease_id` for each gene/HPO term.
    - [`hpo-genes-to-phenotype-excerpt.tsv`](hpo-genes-to-phenotype-excerpt.tsv)
      is a small, public, source-native excerpt showing one gene with distinct
      OMIM and ORPHA disease identifiers.
+   - The adjacent
+     [`hpo-genes-to-phenotype-excerpt.metadata.json`](hpo-genes-to-phenotype-excerpt.metadata.json)
+     records the displayed source version/date, unaltered-row selection,
+     acknowledgement, and requested HPO citation. The `ORPHA:` value is copied
+     verbatim; the loader changes only its namespace spelling to `Orphanet:`
+     before an exact MONDO match.
 4. MONDO SSSOM mappings,
    <https://purl.obolibrary.org/obo/mondo/mappings/mondo.sssom.tsv>
-   (source snapshot accessed 2026-08-02; excerpt accessed 2026-08-01).
+   (source snapshot and retained excerpt verified 2026-08-02).
    - [`mondo-sssom-excerpt.tsv`](mondo-sssom-excerpt.tsv) preserves source-native
      `skos:exactMatch` rows for those identifiers. Broad/narrow mappings and
      source identifiers with more than one exact MONDO target are deliberately
@@ -86,8 +94,10 @@ At runtime, each validated set of the three inputs is published as an immutable
 content-and-validator-addressed source bundle. The installed database version
 records that bundle's primary archive path only in the same transaction as its
 disease rows, so a failed replacement cannot overwrite a prior provenance
-record. After a successful replacement, the loader retains the active and
-immediately preceding validated bundles; incomplete, malformed, legacy, and
+record. A dedicated cross-process finalization claim serializes the bundle
+snapshot, publish, row/version transaction, and retention decision. After a
+successful replacement, the loader retains the active and immediately
+preceding validated bundles; incomplete, malformed, legacy, symlinked, and
 operator-created directories are not automatically removed. The verified
 three-source transfer footprint is 33,992,110 bytes (about 34 MB) per bundle.
 
@@ -101,9 +111,18 @@ publisher abstract text, author details, affiliations, and references.
 
 The source excerpts contain only public ontology/reference identifiers and no
 participants, genotypes, PII, credentials, restricted data, or private paths.
-The full per-source versions, access dates, checksums, license status, and
-claim mapping are in [`source-manifest.json`](source-manifest.json). MONDO
-SSSOM is recorded as CC BY 4.0; HPO uses its project license and attribution
-conditions. The primary Monarch aggregate export's source-specific license was
-not established at the access date, so this packet makes no license claim for
-it. This packet distributes only short provenance excerpts.
+The full per-source versions, access dates, checksums, retained-artifact paths,
+license status, and claim mapping are in
+[`source-manifest.json`](source-manifest.json). Complete remote payloads are
+not retained here: the packet instead records their public canonical URL,
+observed size/hash/validators, and the reason for non-retention alongside a
+small source-native excerpt or sanitized derivative.
+
+HPO's project terms apply to all HPO files and require acknowledgement/citation,
+the displayed source date or version, and unaltered HPO content. This packet
+satisfies those excerpt-specific requirements through the adjacent HPO metadata
+sidecar and keeps the TSV header and rows unchanged. The SSSOM artifact's own
+header declared an unspecified license; MONDO's CC BY 4.0 download-page notice
+is recorded only as project-level context, not as an artifact-specific license.
+The primary Monarch aggregate export's source-specific license was likewise not
+established, so this packet makes no artifact-license claim for it.
