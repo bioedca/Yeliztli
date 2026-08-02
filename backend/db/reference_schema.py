@@ -509,16 +509,26 @@ def _refresh_legacy_cyp2d6_tamoxifen_guidelines(engine: sa.Engine) -> bool:
             if (
                 len(canonical_rows) != 3
                 or set(canonical_by_phenotype) != _CYP2D6_TAMOXIFEN_PHENOTYPES
-                or any(
-                    row["activity_score"] is not None
-                    or row["recommendation"]
-                    != _CANONICAL_CYP2D6_TAMOXIFEN_RECOMMENDATIONS[row["phenotype"]]
-                    or row["classification"] != "A"
-                    or row["guideline_url"] != _CYP2D6_TAMOXIFEN_GUIDELINE_URL
-                    for row in canonical_rows
-                )
             ):
                 raise RuntimeError("Bundled CYP2D6/tamoxifen guideline matrix is not canonical")
+            for row in canonical_rows:
+                phenotype = row["phenotype"]
+                expected_recommendation = _CANONICAL_CYP2D6_TAMOXIFEN_RECOMMENDATIONS[phenotype]
+                actual_recommendation = row["recommendation"]
+                if actual_recommendation != expected_recommendation:
+                    raise RuntimeError(
+                        "Bundled CYP2D6/tamoxifen guideline recommendation is not canonical "
+                        f"for {phenotype!r}: expected {expected_recommendation!r}, "
+                        f"got {actual_recommendation!r}"
+                    )
+                if (
+                    row["activity_score"] is not None
+                    or row["classification"] != "A"
+                    or row["guideline_url"] != _CYP2D6_TAMOXIFEN_GUIDELINE_URL
+                ):
+                    raise RuntimeError(
+                        "Bundled CYP2D6/tamoxifen guideline matrix is not canonical"
+                    )
 
             for legacy_row in sorted(rows, key=lambda row: row.phenotype):
                 conn.execute(

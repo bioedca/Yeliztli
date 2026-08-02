@@ -1555,7 +1555,11 @@ def test_invalid_bundled_tamoxifen_matrix_rolls_back_legacy_rows(
     monkeypatch.setattr(cpic_module, "parse_cpic_guidelines_csv", parse_invalid_bundle)
 
     with pytest.raises(
-        RuntimeError, match="Bundled CYP2D6/tamoxifen guideline matrix is not canonical"
+        RuntimeError,
+        match=(
+            "Bundled CYP2D6/tamoxifen guideline recommendation is not canonical "
+            ".*Normal Metabolizer.*Unreviewed bundled recommendation"
+        ),
     ):
         ensure_reference_schema_current(engine)
 
