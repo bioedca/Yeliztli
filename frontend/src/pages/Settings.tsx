@@ -88,7 +88,7 @@ function HealthPage() {
 }
 
 function AboutPage() {
-  const { data: appUpdate, isLoading, refetch, isFetching } = useAppUpdate()
+  const { data: appUpdate, isLoading, isError, refetch, isFetching } = useAppUpdate()
 
   return (
     <div className="space-y-6">
@@ -154,7 +154,7 @@ function AboutPage() {
               )}
             </div>
           </div>
-        ) : appUpdate?.error ? (
+        ) : isError || appUpdate?.error ? (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <AlertCircle className="h-4 w-4 shrink-0" />
             <span>Could not check for updates.</span>

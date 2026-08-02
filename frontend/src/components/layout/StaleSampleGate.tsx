@@ -8,9 +8,9 @@
  * rather than trusting an advertised action URL. While re-annotation is
  * active, the gate reconnects through `/api/annotation/active/{sample_id}`
  * and polls the staleness probe until the backend authoritatively unlocks it.
- * Any other status — 2xx, 4xx other than 423, network error — lets `children`
- * through; this gate is concerned only with the staleness contract and never
- * blocks on unrelated failures.
+ * A successful non-423 response lets `children` through. If the probe cannot
+ * establish freshness because of a transport or non-success response, the gate
+ * keeps sample-scoped content fenced behind a safe retry state.
  */
 
 import { useEffect, useRef, type ReactNode } from 'react'
@@ -72,19 +72,23 @@ function isStalenessPayload(value: unknown): value is StalenessPayload {
 
 async function probeStaleness(sampleId: number): Promise<StalenessPayload | null> {
   const res = await fetch(`/api/variants/count?sample_id=${sampleId}`)
-  if (res.status !== 423) return null
-  const body = (await res.json().catch(() => null)) as { detail?: unknown } | null
-  if (isStalenessPayload(body?.detail)) return body.detail
+  if (res.status === 423) {
+    const body = (await res.json().catch(() => null)) as { detail?: unknown } | null
+    if (isStalenessPayload(body?.detail)) return body.detail
 
-  // Keep the stale route fenced even if an intermediary strips the structured
-  // payload. The action endpoint is stable, and this avoids rendering an
-  // arbitrary 423 response to the user.
-  return {
-    installed_version: 'an earlier version',
-    required_version: 'the current version',
-    update_url: '',
-    reannotate_url: `/api/annotation/${sampleId}`,
+    // Keep the stale route fenced even if an intermediary strips the structured
+    // payload. The action endpoint is stable, and this avoids rendering an
+    // arbitrary 423 response to the user.
+    return {
+      installed_version: 'an earlier version',
+      required_version: 'the current version',
+      update_url: '',
+      reannotate_url: `/api/annotation/${sampleId}`,
+    }
   }
+
+  if (!res.ok) throw new Error('Unable to verify sample freshness')
+  return null
 }
 
 export default function StaleSampleGate({ children }: StaleSampleGateProps) {
@@ -98,9 +102,13 @@ export default function StaleSampleGate({ children }: StaleSampleGateProps) {
   const activeJob = activeJobQuery.data ?? null
   const trackedJobRef = useRef<{ sampleId: number; jobId: string } | null>(null)
 
-  const { data: stale, isPending: isStalenessPending } = useQuery<
-    StalenessPayload | null
-  >({
+  const {
+    data: stale,
+    isPending: isStalenessPending,
+    isError: isStalenessError,
+    isFetching: isStalenessFetching,
+    refetch: refetchStaleness,
+  } = useQuery<StalenessPayload | null>({
     queryKey: sampleStalenessQueryKey(activeSampleId),
     queryFn: async () => {
       const sampleId = activeSampleId as number
@@ -211,6 +219,49 @@ export default function StaleSampleGate({ children }: StaleSampleGateProps) {
   // confirmed fresh.
   if (activeSampleId != null && isStalenessPending) {
     return null
+  }
+
+  if (activeSampleId != null && isStalenessError) {
+    return (
+      <section
+        aria-labelledby="staleness-probe-unavailable-title"
+        className="p-6 max-w-3xl mx-auto"
+        data-testid="staleness-probe-unavailable"
+        role="alert"
+      >
+        <div
+          className={cn(
+            'flex flex-col gap-4 rounded-lg border p-6',
+            'border-amber-200 bg-amber-50 text-amber-900',
+            'dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100',
+          )}
+        >
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="mt-0.5 h-6 w-6 shrink-0" aria-hidden="true" />
+            <div className="space-y-1">
+              <h2 id="staleness-probe-unavailable-title" className="text-lg font-semibold">
+                Unable to verify sample freshness
+              </h2>
+              <p className="text-sm">
+                Retry the check before viewing sample-specific results.
+              </p>
+            </div>
+          </div>
+          <div>
+            <button
+              type="button"
+              className="inline-flex items-center gap-2 rounded-md border border-amber-300 bg-background px-3 py-2 text-sm font-medium text-foreground hover:bg-muted disabled:opacity-60"
+              data-testid="retry-staleness-probe"
+              disabled={isStalenessFetching}
+              onClick={() => void refetchStaleness()}
+            >
+              <RefreshCw className={cn('h-4 w-4', isStalenessFetching && 'animate-spin')} />
+              Retry freshness check
+            </button>
+          </div>
+        </div>
+      </section>
+    )
   }
 
   if (!stale) {

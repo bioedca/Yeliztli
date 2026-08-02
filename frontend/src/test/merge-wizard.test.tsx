@@ -447,9 +447,8 @@ describe("MergeWizard — confirm step", () => {
       })
     })
 
-    expect(
-      await screen.findByText("Annotation failed. Open the sample dashboard to retry."),
-    ).toBeInTheDocument()
+    const failure = await screen.findByRole("alert")
+    expect(failure).toHaveTextContent("Annotation failed. Open the sample dashboard to retry.")
     expect(document.body).not.toHaveTextContent(rawDiagnostic)
   })
 

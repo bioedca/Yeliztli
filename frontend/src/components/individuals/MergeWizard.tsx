@@ -583,7 +583,10 @@ function ConfirmStep({
                   style={{ width: `${progressPct ?? 0}%` }}
                 />
               </div>
-              <p className="text-xs text-muted-foreground">
+              <p
+                className="text-xs text-muted-foreground"
+                role={progressStatus === "failed" ? "alert" : "status"}
+              >
                 {progressStatus === "failed"
                   ? "Annotation failed. Open the sample dashboard to retry."
                   : progressStatus === "cancelled"

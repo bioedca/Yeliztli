@@ -120,6 +120,7 @@ function setupFetchMocks(options: {
   triggerResponse?: unknown
   autoUpdateResponse?: unknown
   appUpdate?: unknown
+  appUpdateStatus?: number
   health?: { databases: unknown[] }
 } = {}) {
   mockFetch.mockImplementation((url: string, init?: RequestInit) => {
@@ -143,8 +144,8 @@ function setupFetchMocks(options: {
         })
       if (url.includes('/api/updates/app-update'))
         return Promise.resolve({
-          ok: true,
-          status: 200,
+          ok: (options.appUpdateStatus ?? 200) < 400,
+          status: options.appUpdateStatus ?? 200,
           json: async () =>
             options.appUpdate ?? {
               update_available: false,
@@ -295,6 +296,19 @@ describe('Settings page', () => {
     expect(screen.getByText('About')).toBeDefined()
     expect(screen.getByText('About Yeliztli')).toBeDefined()
     expect(screen.getByText('Current Version')).toBeDefined()
+  })
+
+  it('shows a safe error instead of latest-version copy when the update check fails', async () => {
+    const rawDiagnostic = 'https://internal.example.test/releases: connection refused'
+    setupFetchMocks({
+      appUpdateStatus: 500,
+      appUpdate: { detail: rawDiagnostic },
+    })
+    renderSettings(['/settings/about'])
+
+    expect(await screen.findByText('Could not check for updates.')).toBeInTheDocument()
+    expect(screen.queryByText('You are running the latest version.')).not.toBeInTheDocument()
+    expect(document.body).not.toHaveTextContent(rawDiagnostic)
   })
 })
 

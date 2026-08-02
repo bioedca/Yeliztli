@@ -153,6 +153,33 @@ describe('StaleSampleGate', () => {
     expect(mockFetch).toHaveBeenCalledWith('/api/variants/count?sample_id=42')
   })
 
+  it('keeps protected content fenced when the staleness probe cannot establish freshness', async () => {
+    const rawDiagnostic = 'sqlite:///private/data/sample.db: connection refused'
+    mockFetch.mockImplementation((input: RequestInfo | URL) => {
+      const url = requestUrl(input)
+      if (isActiveJobRequest(url)) {
+        return apiResponse(404, { detail: 'No active job' })
+      }
+      if (isStalenessRequest(url)) {
+        return Promise.reject(new Error(rawDiagnostic))
+      }
+      return apiResponse(200, {})
+    })
+
+    render(
+      <StaleSampleGate>
+        <div data-testid="protected-content">protected content</div>
+      </StaleSampleGate>,
+      { wrapper: createWrapper() },
+    )
+
+    const unavailable = await screen.findByTestId('staleness-probe-unavailable')
+    expect(unavailable).toHaveTextContent('Unable to verify sample freshness')
+    expect(unavailable).toHaveTextContent('Retry freshness check')
+    expect(unavailable).not.toHaveTextContent(rawDiagnostic)
+    expect(screen.queryByTestId('protected-content')).not.toBeInTheDocument()
+  })
+
   it('renders children without probing when no sample_id is in the URL', async () => {
     mockFetch.mockImplementation(() => apiResponse(200, {}))
 

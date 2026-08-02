@@ -262,6 +262,10 @@ function LinkedSampleRow({ sample }: { sample: LinkedSample }) {
 
 function ReannotateLinkedSampleButton({ sample }: { sample: LinkedSample }) {
   const reannotate = useStartAnnotation()
+  // Do not invalidate result queries when this request starts: the backend
+  // remains authoritative and continues to return 423 until annotation is
+  // complete. The Track link enters StaleSampleGate, which invalidates those
+  // queries only after a confirmed fresh response.
   const annotationAlreadyRunning =
     reannotate.error instanceof ApiError && reannotate.error.status === 409
 
