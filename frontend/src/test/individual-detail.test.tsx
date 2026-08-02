@@ -691,9 +691,25 @@ describe("IndividualDetail page", () => {
       return Promise.resolve(jsonResponse({ detail: "not mocked" }, 500))
     })
 
-    render(<IndividualDetail />, {
-      wrapper: createWrapper(["/individuals/17"]),
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, gcTime: Infinity },
+        mutations: { retry: false },
+      },
     })
+    queryClient.setQueryData(["pharma-genes", 61], { staleResult: true })
+    queryClient.setQueryData(["pharma-genes", 62], { otherSample: true })
+    const Wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/individuals/17"]}>
+          <Routes>
+            <Route path="/individuals/:id" element={children} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    render(<IndividualDetail />, { wrapper: Wrapper })
 
     const staleGate = await screen.findByTestId("individual-stale-sample-gate")
     expect(staleGate).toHaveTextContent("gina_23andme.txt")
@@ -711,6 +727,71 @@ describe("IndividualDetail page", () => {
         expect.objectContaining({ method: "POST" }),
       )
     })
+    await waitFor(() => {
+      expect(queryClient.getQueryState(["pharma-genes", 61])?.isInvalidated).toBe(true)
+    })
+    expect(queryClient.getQueryState(["pharma-genes", 62])?.isInvalidated).not.toBe(true)
+    queryClient.clear()
+  })
+
+  it("invalidates the target cache when re-annotation is already running", async () => {
+    const individual: MockIndividual = {
+      id: 18,
+      display_name: "Hana",
+      linked_samples: [
+        {
+          id: 63,
+          name: "hana_23andme.txt",
+          file_format: "23andme_v5",
+          vendor: "23andme",
+          variantCount: 600000,
+          highConfidenceFindings: [],
+        },
+      ],
+    }
+    mockFetch.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString()
+      if (url === "/api/individuals/18") {
+        return Promise.resolve(jsonResponse(individualPayload(individual)))
+      }
+      if (url === "/api/variants/count?sample_id=63") {
+        return Promise.resolve(jsonResponse({ detail: "stale" }, 423))
+      }
+      if (url === "/api/analysis/findings/summary?sample_id=63") {
+        return Promise.resolve(jsonResponse({ detail: "stale" }, 423))
+      }
+      if (url === "/api/annotation/63" && init?.method === "POST") {
+        return Promise.resolve(jsonResponse({ detail: "Already in progress" }, 409))
+      }
+      return Promise.resolve(jsonResponse({ detail: "not mocked" }, 500))
+    })
+
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, gcTime: Infinity },
+        mutations: { retry: false },
+      },
+    })
+    queryClient.setQueryData(["pharma-genes", 63], { staleResult: true })
+    const Wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/individuals/18"]}>
+          <Routes>
+            <Route path="/individuals/:id" element={children} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    render(<IndividualDetail />, { wrapper: Wrapper })
+    await screen.findByTestId("individual-stale-sample-gate")
+    fireEvent.click(screen.getByTestId("individual-reannotate-63"))
+
+    await waitFor(() => {
+      expect(queryClient.getQueryState(["pharma-genes", 63])?.isInvalidated).toBe(true)
+    })
+    expect(screen.getByRole("link", { name: "Track re-annotation" })).toBeInTheDocument()
+    queryClient.clear()
   })
 
   it("surfaces a named partial failure without hiding successful findings", async () => {

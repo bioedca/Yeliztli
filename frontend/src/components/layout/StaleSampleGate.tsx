@@ -22,6 +22,7 @@ import { AlertTriangle, RefreshCw } from 'lucide-react'
 import {
   annotationActiveQueryKey,
   invalidateAnnotationResultQueries,
+  sampleStalenessQueryKeyPrefix,
   useActiveAnnotationJob,
   type ActiveAnnotationJob,
   type AnnotationJobResult,
@@ -55,9 +56,7 @@ class ReannotationRequestError extends Error {
 }
 
 const sampleStalenessQueryKey = (sampleId: number | null, routeKey: string) =>
-  ['sample-staleness', sampleId, routeKey] as const
-const sampleStalenessQueryPrefix = (sampleId: number | null) =>
-  ['sample-staleness', sampleId] as const
+  [...sampleStalenessQueryKeyPrefix(sampleId), routeKey] as const
 const STALENESS_REQUEST_TIMEOUT_MS = 10_000
 
 // Route-scoped freshness keys intentionally do not reuse a prior route's
@@ -254,7 +253,7 @@ export default function StaleSampleGate({ children }: StaleSampleGateProps) {
         queryKey: annotationActiveQueryKey(result.sample_id),
       })
       void queryClient.invalidateQueries({
-        queryKey: sampleStalenessQueryPrefix(result.sample_id),
+        queryKey: sampleStalenessQueryKeyPrefix(result.sample_id),
       })
     },
     onError: (error, request) => {
@@ -284,7 +283,7 @@ export default function StaleSampleGate({ children }: StaleSampleGateProps) {
           setReconnectProbeFailed(true)
         })
       void queryClient.invalidateQueries({
-        queryKey: sampleStalenessQueryPrefix(request.sampleId),
+        queryKey: sampleStalenessQueryKeyPrefix(request.sampleId),
       })
     },
   })
@@ -343,7 +342,7 @@ export default function StaleSampleGate({ children }: StaleSampleGateProps) {
       trackedJobRef.current = null
       resetReannotation()
       void queryClient.invalidateQueries({
-        queryKey: sampleStalenessQueryPrefix(activeSampleId),
+        queryKey: sampleStalenessQueryKeyPrefix(activeSampleId),
       })
     }
   }, [

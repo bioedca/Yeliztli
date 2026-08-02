@@ -9,9 +9,9 @@
 import { act, type ReactNode } from 'react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
 import { Link, MemoryRouter, Outlet, Route, Routes } from 'react-router-dom'
-import { fetchActiveAnnotationJob } from '@/api/annotation'
+import { fetchActiveAnnotationJob, useStartAnnotation } from '@/api/annotation'
 import StaleSampleGate from '@/components/layout/StaleSampleGate'
 
 const STALE_PAYLOAD = {
@@ -82,6 +82,35 @@ function isStalenessRequest(url: string) {
 
 function isActiveJobRequest(url: string) {
   return url === '/api/annotation/active/42'
+}
+
+/** Minimal dashboard-side caller for the shared annotation-launch hook. */
+function DashboardAnnotationLauncher({ sampleId = 42 }: { sampleId?: number }) {
+  const startAnnotation = useStartAnnotation()
+  return (
+    <button type="button" onClick={() => startAnnotation.mutate(sampleId)}>
+      Run annotation
+    </button>
+  )
+}
+
+/** Keeps one active result refetch unresolved after launch. */
+function LaunchWithUnresolvedResult({ sampleId = 42 }: { sampleId?: number }) {
+  const startAnnotation = useStartAnnotation()
+  useQuery({
+    queryKey: ['pharma-genes', sampleId],
+    queryFn: () => new Promise<never>(() => {}),
+    initialData: { cached: 'pre-annotation result' },
+    staleTime: Infinity,
+  })
+  return (
+    <>
+      <button type="button" onClick={() => startAnnotation.mutate(sampleId)}>
+        Start annotation
+      </button>
+      {startAnnotation.isSuccess ? <span data-testid="annotation-launch-accepted">Accepted</span> : null}
+    </>
+  )
 }
 
 describe('StaleSampleGate', () => {
@@ -166,6 +195,68 @@ describe('StaleSampleGate', () => {
       '/api/variants/count?sample_id=42',
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     )
+  })
+
+  it('fences an already-fresh route after a dashboard launch reaches a 423 probe', async () => {
+    let started = false
+    let stalenessCalls = 0
+    mockFetch.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = requestUrl(input)
+      if (url === '/api/annotation/42' && init?.method === 'POST') {
+        started = true
+        return apiResponse(202, {
+          job_id: ACTIVE_JOB.job_id,
+          sample_id: 42,
+          status: 'pending',
+        })
+      }
+      if (isActiveJobRequest(url)) {
+        return started ? apiResponse(200, ACTIVE_JOB) : apiResponse(404, { detail: 'No active job' })
+      }
+      if (isStalenessRequest(url)) {
+        stalenessCalls += 1
+        return started ? apiResponse(423, { detail: STALE_PAYLOAD }) : apiResponse(200, { total: 12345 })
+      }
+      return apiResponse(200, {})
+    })
+
+    render(
+      <StaleSampleGate>
+        <DashboardAnnotationLauncher />
+        <div data-testid="protected-content">fresh content</div>
+      </StaleSampleGate>,
+      { wrapper: createWrapper() },
+    )
+
+    expect(await screen.findByTestId('protected-content')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Run annotation' }))
+
+    expect(await screen.findByTestId('stale-sample-gate')).toBeInTheDocument()
+    expect(screen.queryByTestId('protected-content')).not.toBeInTheDocument()
+    expect(stalenessCalls).toBeGreaterThanOrEqual(2)
+  })
+
+  it('accepts a launch without waiting for an invalidated active result refetch', async () => {
+    mockFetch.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = requestUrl(input)
+      if (url === '/api/annotation/42' && init?.method === 'POST') {
+        return apiResponse(202, {
+          job_id: ACTIVE_JOB.job_id,
+          sample_id: 42,
+          status: 'pending',
+        })
+      }
+      return apiResponse(500, { detail: 'not mocked' })
+    })
+
+    const queryClient = createTestQueryClient(Infinity)
+    render(<LaunchWithUnresolvedResult />, {
+      wrapper: createWrapper(['/dashboard'], queryClient),
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start annotation' }))
+    expect(await screen.findByTestId('annotation-launch-accepted')).toHaveTextContent('Accepted')
+    queryClient.clear()
   })
 
   it('revalidates freshness before rendering a newly navigated analysis route', async () => {

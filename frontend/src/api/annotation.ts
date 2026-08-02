@@ -12,8 +12,7 @@ import {
   useQueryClient,
   type QueryClient,
 } from "@tanstack/react-query"
-import { throwApiError } from "@/api/errors"
-import { qcMetricsQueryKey } from "@/api/qc"
+import { ApiError, throwApiError } from "@/api/errors"
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -45,9 +44,42 @@ export function useStartAnnotation() {
       }
       return await res.json()
     },
-    onSuccess: (_result, sampleId) => {
-      queryClient.invalidateQueries({ queryKey: ["variants-count"] })
-      queryClient.invalidateQueries({ queryKey: qcMetricsQueryKey(sampleId) })
+    onSuccess: (result, sampleId) => {
+      // Starting a new annotation makes every cached result for this sample
+      // untrustworthy. Do this at launch rather than relying solely on an SSE
+      // observer: callers such as the individual page can start a job and
+      // navigate away before any progress listener reaches its terminal event.
+      // The running-job cache and staleness probe also notify an already-open
+      // route gate that it must re-check the server before trusting its data.
+      // Do not return any of these promises: an invalidated active result can
+      // wait on the backend, but the accepted job must immediately leave the
+      // mutation usable for callers that offer progress navigation.
+      const activeResult: ActiveAnnotationJob = {
+        ...result,
+        sample_id: sampleId,
+        progress_pct: 0,
+        message: "Queued for annotation",
+      }
+      queryClient.setQueryData(annotationActiveQueryKey(sampleId), activeResult)
+      void queryClient.invalidateQueries({
+        queryKey: sampleStalenessQueryKeyPrefix(sampleId),
+      })
+      void invalidateAnnotationResultQueries(queryClient, sampleId)
+    },
+    onError: (error, sampleId) => {
+      // A 409 means another request already started annotation. It carries the
+      // same cache-safety consequence as this request's accepted 202, and is
+      // especially important after a reload where no local progress observer
+      // is available to invalidate on the terminal event.
+      if (error instanceof ApiError && error.status === 409) {
+        void queryClient.invalidateQueries({
+          queryKey: annotationActiveQueryKey(sampleId),
+        })
+        void queryClient.invalidateQueries({
+          queryKey: sampleStalenessQueryKeyPrefix(sampleId),
+        })
+        void invalidateAnnotationResultQueries(queryClient, sampleId)
+      }
     },
   })
 }
@@ -80,6 +112,10 @@ export interface ActiveAnnotationJob {
 
 export const annotationActiveQueryKey = (sampleId: number | null) =>
   ["annotation-active", sampleId] as const
+
+/** Shared prefix for the route-scoped freshness probes of one sample. */
+export const sampleStalenessQueryKeyPrefix = (sampleId: number | null) =>
+  ["sample-staleness", sampleId] as const
 
 // Query-key contract for data scoped to one sample. Some keys place sampleId
 // after a detail selector, so matching every numeric key segment would corrupt
