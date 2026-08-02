@@ -386,7 +386,7 @@ describe("ConcordanceReport — 423 stale-sample handling", () => {
     })
 
     expect(screen.getByText(/annotated against an older bundle/i)).toBeInTheDocument()
-    expect(screen.queryByText(STALE_PAYLOAD.detail.message)).not.toBeInTheDocument()
+    expect(document.body).not.toHaveTextContent(STALE_PAYLOAD.detail.message)
     fireEvent.click(screen.getByTestId("concordance-reannotate-cta"))
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalledWith(

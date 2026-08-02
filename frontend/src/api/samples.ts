@@ -1,11 +1,8 @@
 /** React Query hooks for sample management and file ingestion (P1-13, P1-16). */
 
 import {
-  getApiErrorDetail,
-  isUnsupportedGenomeBuildDetail,
   readApiResponseBody,
   throwApiError,
-  UNSUPPORTED_GENOME_BUILD_MESSAGE,
 } from "@/api/errors"
 
 import {
@@ -15,7 +12,6 @@ import {
   useQueryClient,
 } from "@tanstack/react-query"
 import type {
-  IngestResult,
   MergedChild,
   Sample,
   SampleUpdate,
@@ -26,8 +22,7 @@ import type {
   MigrateFromSourcesResponse,
   StaleSampleDetail,
 } from "@/types/individuals"
-import type { BundleGatePayload } from "@/types/setup"
-import { BundleGateError, isBundleGatePayload } from "@/api/setup"
+import { postIngestFile } from "@/api/setup"
 
 export function useSamples() {
   return useQuery({
@@ -56,30 +51,7 @@ export function useSample(sampleId: number | null) {
 export function useIngestFile() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (file: File): Promise<IngestResult> => {
-      const formData = new FormData()
-      formData.append("file", file)
-      const res = await fetch("/api/ingest", {
-        method: "POST",
-        body: formData,
-      })
-      if (!res.ok) {
-        const body = await readApiResponseBody(res)
-        // AncestryDNA + pre-v2.0.0 VEP bundle → structured 409 gate payload.
-        const detail = getApiErrorDetail(body)
-        if (res.status === 409 && isBundleGatePayload(detail)) {
-          throw new BundleGateError(detail as BundleGatePayload)
-        }
-        if (
-          res.status === 422 &&
-          isUnsupportedGenomeBuildDetail(detail)
-        ) {
-          await throwApiError(res, UNSUPPORTED_GENOME_BUILD_MESSAGE)
-        }
-        await throwApiError(res, "Unable to upload the sample. Please try again.")
-      }
-      return await res.json()
-    },
+    mutationFn: postIngestFile,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["samples"] })
     },

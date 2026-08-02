@@ -8,9 +8,11 @@
  * rather than trusting an advertised action URL. While re-annotation is
  * active, the gate reconnects through `/api/annotation/active/{sample_id}`
  * and polls the staleness probe until the backend authoritatively unlocks it.
- * A successful non-423 response lets `children` through. If the probe cannot
- * establish freshness because of a transport or non-success response, the gate
- * keeps sample-scoped content fenced behind a safe retry state.
+ * A successful non-423 response (including a missing/deleted sample) lets
+ * `children` through so the route can render its normal fallback. If the probe
+ * cannot establish freshness because of a transport or other non-success
+ * response, the gate keeps sample-scoped content fenced behind a safe retry
+ * state.
  */
 
 import { useEffect, useRef, type ReactNode } from 'react'
@@ -54,6 +56,7 @@ class ReannotationRequestError extends Error {
 
 const sampleStalenessQueryKey = (sampleId: number | null) =>
   ['sample-staleness', sampleId] as const
+const STALENESS_REQUEST_TIMEOUT_MS = 10_000
 
 function reannotationUrl(sampleId: number): string {
   return `/api/annotation/${sampleId}`
@@ -88,8 +91,37 @@ function parseStalenessPayload(value: unknown): StalenessPayload | null {
   return null
 }
 
-async function probeStaleness(sampleId: number): Promise<StalenessPayload | null> {
-  const res = await fetch(`/api/variants/count?sample_id=${sampleId}`)
+async function fetchWithTimeout(
+  input: RequestInfo | URL,
+  init: RequestInit = {},
+  querySignal?: AbortSignal,
+): Promise<Response> {
+  const requestController = new AbortController()
+  const timeoutId = setTimeout(
+    () => requestController.abort(),
+    STALENESS_REQUEST_TIMEOUT_MS,
+  )
+  const abortFromQuery = () => requestController.abort()
+
+  if (querySignal?.aborted) {
+    requestController.abort()
+  } else {
+    querySignal?.addEventListener('abort', abortFromQuery, { once: true })
+  }
+
+  try {
+    return await fetch(input, { ...init, signal: requestController.signal })
+  } finally {
+    clearTimeout(timeoutId)
+    querySignal?.removeEventListener('abort', abortFromQuery)
+  }
+}
+
+async function probeStaleness(
+  sampleId: number,
+  querySignal: AbortSignal,
+): Promise<StalenessPayload | null> {
+  const res = await fetchWithTimeout(`/api/variants/count?sample_id=${sampleId}`, {}, querySignal)
   if (res.status === 423) {
     const body = (await res.json().catch(() => null)) as { detail?: unknown } | null
     const payload = parseStalenessPayload(body?.detail)
@@ -106,6 +138,9 @@ async function probeStaleness(sampleId: number): Promise<StalenessPayload | null
     }
   }
 
+  // A deleted or nonexistent selection is not stale. Let each route display
+  // its own missing-sample fallback instead of permanently fencing it here.
+  if (res.status === 404) return null
   if (!res.ok) throw new Error('Unable to verify sample freshness')
   return null
 }
@@ -129,11 +164,11 @@ export default function StaleSampleGate({ children }: StaleSampleGateProps) {
     refetch: refetchStaleness,
   } = useQuery<StalenessPayload | null>({
     queryKey: sampleStalenessQueryKey(activeSampleId),
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const sampleId = activeSampleId as number
       const queryKey = sampleStalenessQueryKey(sampleId)
       const previous = queryClient.getQueryData<StalenessPayload | null>(queryKey)
-      const next = await probeStaleness(sampleId)
+      const next = await probeStaleness(sampleId, signal)
 
       if (previous && !next) {
         await invalidateAnnotationResultQueries(queryClient, sampleId)
@@ -154,14 +189,19 @@ export default function StaleSampleGate({ children }: StaleSampleGateProps) {
     ReannotationRequest
   >({
     mutationFn: async ({ sampleId }) => {
-      const res = await fetch(reannotationUrl(sampleId), { method: 'POST' })
-      if (!res.ok) {
-        throw new ReannotationRequestError(
-          res.status,
-          'Unable to start re-annotation. Please try again.',
-        )
+      try {
+        const res = await fetchWithTimeout(reannotationUrl(sampleId), { method: 'POST' })
+        if (!res.ok) {
+          throw new ReannotationRequestError(
+            res.status,
+            'Unable to start re-annotation. Please try again.',
+          )
+        }
+        return (await res.json()) as AnnotationJobResult
+      } catch (error) {
+        if (error instanceof ReannotationRequestError) throw error
+        throw new ReannotationRequestError(0, 'Unable to start re-annotation. Please try again.')
       }
-      return res.json() as Promise<AnnotationJobResult>
     },
     onSuccess: (result) => {
       const activeResult: ActiveAnnotationJob = {

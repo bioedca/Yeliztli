@@ -41,7 +41,7 @@ export class BundleGateError extends Error {
   }
 }
 
-export function isBundleGatePayload(value: unknown): value is BundleGatePayload {
+function isBundleGatePayload(value: unknown): value is BundleGatePayload {
   if (!value || typeof value !== 'object') return false
   const obj = value as Record<string, unknown>
   return (
@@ -304,7 +304,7 @@ export function useTriggerDownload() {
 
 // ── P1-19g: Upload sample file ──────────────────────────────────
 
-async function postIngestFile(file: File): Promise<IngestResult> {
+export async function postIngestFile(file: File): Promise<IngestResult> {
   const formData = new FormData()
   formData.append('file', file)
   const res = await fetch('/api/ingest', {

@@ -160,7 +160,7 @@ describe('UploadStep — Step 15 bundle-gate banner', () => {
     expect(
       await screen.findByText('Unable to upload the sample. Please try again.'),
     ).toBeInTheDocument()
-    expect(screen.queryByText('Not a valid 23andMe file')).not.toBeInTheDocument()
+    expect(document.body).not.toHaveTextContent('Not a valid 23andMe file')
     expect(
       screen.queryByTestId('bundle-gate-banner'),
     ).not.toBeInTheDocument()

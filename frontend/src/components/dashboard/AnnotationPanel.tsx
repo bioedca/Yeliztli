@@ -237,7 +237,7 @@ export default function AnnotationPanel({ sampleId, variantCount }: AnnotationPa
       </div>
 
       {/* Error message */}
-      {progress?.error && (
+      {progress?.status === "failed" && (
         <p className="mt-2 text-xs text-destructive" role="alert">
           Annotation failed. Please try again.
         </p>

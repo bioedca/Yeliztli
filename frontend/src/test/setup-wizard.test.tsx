@@ -2254,6 +2254,40 @@ describe('DatabasesStep', () => {
     vi.unstubAllGlobals()
   })
 
+  it('explains a failed download even when the backend omits an error detail', async () => {
+    await startDownloadAndEmit({
+      session_id: 's1',
+      databases: [
+        {
+          db_name: 'clinvar',
+          job_id: 'j1',
+          status: 'failed',
+          progress_pct: 0,
+          message: 'Failed',
+          error: null,
+          total_bytes: 250_000_000,
+          downloaded_bytes: 0,
+          speed_bps: null,
+          eta_seconds: null,
+        },
+      ],
+      aggregate: {
+        total_bytes: 250_000_000,
+        downloaded_bytes: 0,
+        remaining_bytes: 250_000_000,
+        overall_pct: 0,
+        speed_bps: null,
+        eta_seconds: null,
+        size_unknown_count: 0,
+      },
+    })
+
+    expect(await screen.findByTestId('db-error-clinvar')).toHaveTextContent(
+      'The download failed. Retry the download or check your connection.',
+    )
+    vi.unstubAllGlobals()
+  })
+
   it('disables failed-row recovery actions while another database is still downloading', async () => {
     const databases = [
       {

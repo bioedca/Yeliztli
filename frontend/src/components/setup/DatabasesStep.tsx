@@ -700,14 +700,12 @@ export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
                     {/* Failure: safe copy + the most useful next action */}
                     {isFailed && (
                       <div className="mt-1 space-y-1.5">
-                        {progress?.error && (
-                          <p
-                            className="text-xs text-destructive"
-                            data-testid={`db-error-${db.name}`}
-                          >
-                            The download failed. Retry the download or check your connection.
-                          </p>
-                        )}
+                        <p
+                          className="text-xs text-destructive"
+                          data-testid={`db-error-${db.name}`}
+                        >
+                          The download failed. Retry the download or check your connection.
+                        </p>
                         {failAction === 'window' && (
                           <p className="text-[11px] text-amber-700 dark:text-amber-400">
                             Outside the scheduled bandwidth window — it retries

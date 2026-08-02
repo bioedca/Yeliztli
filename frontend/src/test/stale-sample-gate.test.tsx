@@ -6,7 +6,7 @@
  * sample remains stale.
  */
 
-import type { ReactNode } from 'react'
+import { act, type ReactNode } from 'react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -156,7 +156,35 @@ describe('StaleSampleGate', () => {
 
     expect(await screen.findByTestId('protected-content')).toBeInTheDocument()
     expect(screen.queryByTestId('stale-sample-gate')).not.toBeInTheDocument()
-    expect(mockFetch).toHaveBeenCalledWith('/api/variants/count?sample_id=42')
+    expect(mockFetch).toHaveBeenCalledWith(
+      '/api/variants/count?sample_id=42',
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    )
+  })
+
+  it('lets routes render their missing-sample fallback when the probe returns 404', async () => {
+    mockFetch.mockImplementation((input: RequestInfo | URL) => {
+      const url = requestUrl(input)
+      if (isActiveJobRequest(url)) {
+        return apiResponse(404, { detail: 'No active job' })
+      }
+      if (isStalenessRequest(url)) {
+        return apiResponse(404, { detail: 'Sample not found' })
+      }
+      return apiResponse(200, {})
+    })
+
+    render(
+      <StaleSampleGate>
+        <div data-testid="protected-content">missing-sample fallback</div>
+      </StaleSampleGate>,
+      { wrapper: createWrapper() },
+    )
+
+    expect(await screen.findByTestId('protected-content')).toHaveTextContent(
+      'missing-sample fallback',
+    )
+    expect(screen.queryByTestId('staleness-probe-unavailable')).not.toBeInTheDocument()
   })
 
   it('does not block a fresh route on an unresolved active-job probe', async () => {
@@ -183,7 +211,10 @@ describe('StaleSampleGate', () => {
       '/api/annotation/active/42',
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     )
-    expect(mockFetch).toHaveBeenCalledWith('/api/variants/count?sample_id=42')
+    expect(mockFetch).toHaveBeenCalledWith(
+      '/api/variants/count?sample_id=42',
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    )
   })
 
   it('times out an active-job probe and returns no active job', async () => {
@@ -206,6 +237,46 @@ describe('StaleSampleGate', () => {
     await vi.advanceTimersByTimeAsync(10_000)
     expect(activeJobSignal?.aborted).toBe(true)
     await expect(activeJob).resolves.toBeNull()
+  })
+
+  it('times out a staleness probe and keeps sample content fenced', async () => {
+    vi.useFakeTimers()
+    let stalenessSignal: AbortSignal | undefined
+    mockFetch.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = requestUrl(input)
+      if (isActiveJobRequest(url)) {
+        return apiResponse(404, { detail: 'No active job' })
+      }
+      if (isStalenessRequest(url)) {
+        stalenessSignal = init?.signal ?? undefined
+        return new Promise((_resolve, reject) => {
+          stalenessSignal?.addEventListener('abort', () => {
+            reject(new DOMException('Timed out', 'AbortError'))
+          })
+        })
+      }
+      return apiResponse(200, {})
+    })
+
+    render(
+      <StaleSampleGate>
+        <div data-testid="protected-content">protected content</div>
+      </StaleSampleGate>,
+      { wrapper: createWrapper() },
+    )
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    expect(stalenessSignal).toBeDefined()
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000)
+      await vi.advanceTimersByTimeAsync(1)
+    })
+
+    expect(stalenessSignal?.aborted).toBe(true)
+    expect(screen.getByTestId('staleness-probe-unavailable')).toBeInTheDocument()
+    expect(screen.queryByTestId('protected-content')).not.toBeInTheDocument()
   })
 
   it('preserves query cancellation for an active-job probe', async () => {
@@ -317,13 +388,16 @@ describe('StaleSampleGate', () => {
     )
 
     expect(await screen.findByTestId('stale-sample-gate')).toBeInTheDocument()
-    expect(mockFetch).toHaveBeenCalledWith('/api/variants/count?sample_id=42')
+    expect(mockFetch).toHaveBeenCalledWith(
+      '/api/variants/count?sample_id=42',
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    )
     expect(screen.queryByTestId('protected-content')).not.toBeInTheDocument()
     fireEvent.click(screen.getByTestId('stale-reannotate-cta'))
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalledWith(
         STALE_PAYLOAD.reannotate_url,
-        expect.objectContaining({ method: 'POST' }),
+        expect.objectContaining({ method: 'POST', signal: expect.any(AbortSignal) }),
       )
     })
   })
@@ -358,10 +432,13 @@ describe('StaleSampleGate', () => {
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalledWith(
         '/api/annotation/42',
-        expect.objectContaining({ method: 'POST' }),
+        expect.objectContaining({ method: 'POST', signal: expect.any(AbortSignal) }),
       )
     })
-    expect(mockFetch).toHaveBeenCalledWith('/api/variants/count?sample_id=42')
+    expect(mockFetch).toHaveBeenCalledWith(
+      '/api/variants/count?sample_id=42',
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    )
     expect(
       mockFetch.mock.calls.some(
         ([input]) => requestUrl(input as RequestInfo | URL).includes('sample_id=99'),
@@ -604,6 +681,55 @@ describe('StaleSampleGate', () => {
     )
     expect(document.body).not.toHaveTextContent('annotator unavailable')
     expect(screen.getByTestId('stale-sample-gate')).toBeInTheDocument()
+    expect(screen.getByTestId('stale-reannotate-cta')).toBeEnabled()
+  })
+
+  it('times out re-annotation with a safe retry message', async () => {
+    vi.useFakeTimers()
+    let reannotationSignal: AbortSignal | undefined
+    mockFetch.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = requestUrl(input)
+      if (url === STALE_PAYLOAD.reannotate_url && init?.method === 'POST') {
+        reannotationSignal = init.signal ?? undefined
+        return new Promise((_resolve, reject) => {
+          reannotationSignal?.addEventListener('abort', () => {
+            reject(new DOMException('Timed out', 'AbortError'))
+          })
+        })
+      }
+      if (isActiveJobRequest(url)) {
+        return apiResponse(404, { detail: 'No active job' })
+      }
+      if (isStalenessRequest(url)) {
+        return apiResponse(423, { detail: STALE_PAYLOAD })
+      }
+      return apiResponse(200, {})
+    })
+
+    render(
+      <StaleSampleGate>
+        <div>hidden</div>
+      </StaleSampleGate>,
+      { wrapper: createWrapper() },
+    )
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    fireEvent.click(screen.getByTestId('stale-reannotate-cta'))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    expect(reannotationSignal).toBeDefined()
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000)
+      await vi.advanceTimersByTimeAsync(1)
+    })
+
+    expect(reannotationSignal?.aborted).toBe(true)
+    expect(screen.getByTestId('stale-error')).toHaveTextContent(
+      'Unable to start re-annotation. Please try again.',
+    )
     expect(screen.getByTestId('stale-reannotate-cta')).toBeEnabled()
   })
 })

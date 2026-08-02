@@ -270,6 +270,29 @@ describe("AnnotationPanel", () => {
       expect(document.body).not.toHaveTextContent("sqlite:///private/data/sample.db")
     })
 
+    it("announces a failed annotation even without a backend error detail", async () => {
+      mockStartAnnotation()
+      render(<AnnotationPanel sampleId={1} variantCount={1000} />)
+
+      fireEvent.click(screen.getByText("Run Annotation"))
+
+      await waitFor(() => expect(MockEventSource.instances.length).toBe(1))
+
+      act(() => {
+        MockEventSource.instances[0]._emit("progress", {
+          job_id: "test-job-123",
+          status: "failed",
+          progress_pct: 30.0,
+          message: "Failed",
+          error: null,
+        })
+      })
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "Annotation failed. Please try again.",
+      )
+    })
+
     it("closes EventSource on terminal state", async () => {
       mockStartAnnotation()
       render(<AnnotationPanel sampleId={1} variantCount={1000} />)

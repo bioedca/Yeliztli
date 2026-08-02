@@ -138,7 +138,7 @@ describe('App', () => {
     expect(await screen.findByTestId('stale-sample-gate')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /re-annotate sample/i })).toBeEnabled()
     expect(screen.queryByRole('button', { name: /^retry$/i })).not.toBeInTheDocument()
-    expect(screen.queryByText(rawDiagnostic)).not.toBeInTheDocument()
+    expect(document.body).not.toHaveTextContent(rawDiagnostic)
     expect(
       fetchMock.mock.calls.some(([input]) =>
         requestUrl(input as RequestInfo | URL).startsWith('/api/analysis/findings?'),
