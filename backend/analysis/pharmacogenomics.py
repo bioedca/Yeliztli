@@ -51,6 +51,7 @@ import enum
 import json
 import re
 import sqlite3
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -221,7 +222,7 @@ def patient_visible_finding_clause(columns: Any) -> Any:
     return sa.not_(sa.or_(*held_pairs))
 
 
-def configure_raw_sql_findings_guard(connection: sqlite3.Connection) -> None:
+def configure_raw_sql_findings_guard(connection: sqlite3.Connection) -> Callable[[], bool]:
     """Prevent raw SQL consoles from reading stored audit-only finding payloads.
 
     The console accepts arbitrary read-only SQL, so safely injecting a row-level
@@ -229,10 +230,15 @@ def configure_raw_sql_findings_guard(connection: sqlite3.Connection) -> None:
     retained for audit provenance, deny all reads of ``findings`` and serialized
     finding history through SQLite's execution-time authorizer instead. This
     blocks aliases, CTEs, and other syntactic rewrites without deleting the
-    audit record or weakening ordinary patient-visible query boundaries.
+    audit record or weakening ordinary patient-visible query boundaries. The
+    returned callback reports whether this connection's authorizer denied a
+    protected-table read, so callers can distinguish SQLite's ambiguous bare
+    ``not authorized`` error from an unrelated SQL failure.
     """
     if not WITHHELD_PRESCRIBING_ALERT_PAIRS:
-        return
+        return lambda: False
+
+    denied_protected_read = False
 
     def _authorizer(
         action: int,
@@ -241,27 +247,27 @@ def configure_raw_sql_findings_guard(connection: sqlite3.Connection) -> None:
         _database: str | None,
         _trigger: str | None,
     ) -> int:
+        nonlocal denied_protected_read
         if (
             action == sqlite3.SQLITE_READ
             and (table or "").casefold() in _RAW_SQL_AUDIT_ONLY_TABLES
         ):
+            denied_protected_read = True
             return sqlite3.SQLITE_DENY
         return sqlite3.SQLITE_OK
 
     connection.set_authorizer(_authorizer)
+    return lambda: denied_protected_read
 
 
-def is_raw_sql_audit_only_access_denied(error: object) -> bool:
-    """Whether SQLite rejected a protected audit-only table read."""
+def is_raw_sql_audit_only_access_denied(error: object, *, guard_denied: bool) -> bool:
+    """Whether this connection's guard rejected a protected audit-only read."""
     message = str(error).casefold().strip()
-    # SQLite does not include a table name when an aggregate invokes the
-    # authorizer without a readable column (for example ``COUNT(*)``). These
-    # routes install only this audit-only authorizer after their read-only SQL
-    # validation, so its bare authorization error is still an audit-only deny.
-    return message == "not authorized" or (
-        any(table in message for table in _RAW_SQL_AUDIT_ONLY_TABLES)
-        and ("not authorized" in message or "prohibited" in message)
-    )
+    # SQLite omits the table name when an aggregate invokes the authorizer
+    # without a readable column (for example ``COUNT(*)``). A bare message is
+    # therefore meaningful only if this exact guard recorded its own denial:
+    # unrelated functions such as load_extension() can emit the same text.
+    return guard_denied and ("not authorized" in message or "prohibited" in message)
 
 
 # Genes whose diplotype must be flagged as phase-inferred when two *different*

@@ -457,6 +457,11 @@ def execute_sql(body: SqlRequest) -> SqlResult:
         creator=lambda: sqlite3.connect(f"file:{db_path}?mode=ro", uri=True),
     )
 
+    def _audit_only_guard_not_triggered() -> bool:
+        return False
+
+    audit_only_guard_denied = _audit_only_guard_not_triggered
+
     try:
         t0 = time.monotonic()
         with ro_engine.connect() as conn:
@@ -464,7 +469,7 @@ def execute_sql(body: SqlRequest) -> SqlResult:
             # virtual-machine instructions; non-zero return aborts.
             raw_conn = conn.connection.dbapi_connection
             raw_conn.set_progress_handler(_progress_handler, 10_000)
-            configure_raw_sql_findings_guard(raw_conn)
+            audit_only_guard_denied = configure_raw_sql_findings_guard(raw_conn)
             try:
                 result = conn.execute(sa.text(body.sql))
 
@@ -489,7 +494,7 @@ def execute_sql(body: SqlRequest) -> SqlResult:
     except sa.exc.DatabaseError as exc:
         # Surface SQLite errors (syntax, read-only violations, timeout).
         msg = str(exc.orig) if exc.orig else str(exc)
-        if is_raw_sql_audit_only_access_denied(msg):
+        if is_raw_sql_audit_only_access_denied(msg, guard_denied=audit_only_guard_denied()):
             raise HTTPException(
                 status_code=403,
                 detail=(

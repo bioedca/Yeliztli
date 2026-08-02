@@ -424,7 +424,7 @@ def export_sql(body: ExportSqlRequest) -> StreamingResponse:
     conn = ro_engine.connect()
     raw_conn = conn.connection.dbapi_connection
     raw_conn.set_progress_handler(_progress_handler, 10_000)
-    configure_raw_sql_findings_guard(raw_conn)
+    audit_only_guard_denied = configure_raw_sql_findings_guard(raw_conn)
 
     def _cleanup() -> None:
         raw_conn.set_progress_handler(None, 0)
@@ -443,7 +443,7 @@ def export_sql(body: ExportSqlRequest) -> StreamingResponse:
     except sa.exc.DatabaseError as exc:
         _cleanup()
         msg = str(exc.orig) if exc.orig else str(exc)
-        if is_raw_sql_audit_only_access_denied(msg):
+        if is_raw_sql_audit_only_access_denied(msg, guard_denied=audit_only_guard_denied()):
             raise HTTPException(
                 status_code=403,
                 detail=(

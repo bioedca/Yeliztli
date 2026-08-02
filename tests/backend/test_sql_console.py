@@ -472,6 +472,16 @@ class TestSqlConsoleReadAccess:
         assert resp.status_code == 403
         assert "audit-only" in resp.json()["detail"].lower()
 
+    def test_non_audit_authorization_error_is_not_audit_only(self, client) -> None:
+        """#2019: bare SQLite authorization errors need a guard-trigger signal."""
+        tc, sid = client
+        resp = tc.post(
+            "/api/query/sql",
+            json={"sample_id": sid, "sql": "SELECT load_extension('missing')"},
+        )
+        assert resp.status_code == 422
+        assert "audit-only" not in resp.json()["detail"].lower()
+
     def test_serialized_finding_history_is_denied_to_raw_sql(self, client) -> None:
         """#2019: retained diffs cannot bypass the finding-table guard."""
         tc, sid = client
