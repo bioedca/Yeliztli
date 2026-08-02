@@ -3,8 +3,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   getApiErrorDetail,
+  isUnsupportedGenomeBuildDetail,
   readApiResponseBody,
   throwApiError,
+  UNSUPPORTED_GENOME_BUILD_MESSAGE,
 } from '@/api/errors'
 import type {
   AcceptDisclaimerResult,
@@ -314,6 +316,12 @@ async function postIngestFile(file: File): Promise<IngestResult> {
     const detail = getApiErrorDetail(body)
     if (res.status === 409 && isBundleGatePayload(detail)) {
       throw new BundleGateError(detail as BundleGatePayload)
+    }
+    if (
+      res.status === 422 &&
+      isUnsupportedGenomeBuildDetail(detail)
+    ) {
+      await throwApiError(res, UNSUPPORTED_GENOME_BUILD_MESSAGE)
     }
     await throwApiError(res, 'Unable to upload the sample. Please try again.')
   }

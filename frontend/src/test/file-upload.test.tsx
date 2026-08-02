@@ -89,6 +89,35 @@ describe("FileUpload", () => {
     expect(screen.getByRole("button", { name: /try again/i })).toBeInTheDocument()
   })
 
+  it("shows curated build remediation for the typed unsupported-build response", async () => {
+    const rawDiagnostic = "GRCh38 at /private/imports/user-42.txt"
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 422,
+      json: () =>
+        Promise.resolve({
+          detail: {
+            code: "unsupported_genome_build",
+            diagnostic: rawDiagnostic,
+          },
+        }),
+    })
+
+    render(<FileUpload />)
+    const dropZone = screen.getByRole("button")
+    const file = new File(["unsupported build"], "build38.txt", {
+      type: "text/plain",
+    })
+    fireEvent.drop(dropZone, { dataTransfer: { files: [file] } })
+
+    expect(
+      await screen.findByText(
+        "This file uses an unsupported genome build. Upload a GRCh37 (build 37) export, such as 23andMe v4/v5 or AncestryDNA.",
+      ),
+    ).toBeInTheDocument()
+    expect(document.body).not.toHaveTextContent(rawDiagnostic)
+  })
+
   it("resets to idle after clicking try again", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: false,

@@ -17,6 +17,10 @@ export class ApiError extends Error {
   }
 }
 
+const UNSUPPORTED_GENOME_BUILD_CODE = "unsupported_genome_build"
+export const UNSUPPORTED_GENOME_BUILD_MESSAGE =
+  "This file uses an unsupported genome build. Upload a GRCh37 (build 37) export, such as 23andMe v4/v5 or AncestryDNA."
+
 /** Read a response body for structured local handling without assuming mocks
  * or intermediaries implement every standard Response method. */
 export async function readApiResponseBody(response: Response): Promise<unknown> {
@@ -42,6 +46,16 @@ export async function readApiResponseBody(response: Response): Promise<unknown> 
 export function getApiErrorDetail(body: unknown): unknown {
   if (!body || typeof body !== "object") return undefined
   return (body as Record<string, unknown>).detail
+}
+
+/** Match the documented ingest validation code without promoting response data
+ * to UI. Unrecognized response data remains opaque to generic error UI. */
+export function isUnsupportedGenomeBuildDetail(value: unknown): boolean {
+  return (
+    !!value &&
+    typeof value === "object" &&
+    (value as Record<string, unknown>).code === UNSUPPORTED_GENOME_BUILD_CODE
+  )
 }
 
 /** Throw a typed response failure with curated, safe display copy. */
