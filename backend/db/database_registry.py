@@ -499,10 +499,10 @@ DATABASES: dict[str, DatabaseInfo] = {
     "mondo_hpo": DatabaseInfo(
         name="mondo_hpo",
         display_name="MONDO/HPO",
-        description="Gene-disease-phenotype associations from Monarch Initiative and HPO",
+        description="Disease-scoped gene-phenotype associations from MONDO and HPO exact mappings",
         url="",
         filename="",
-        expected_size_bytes=15_000_000,  # ~15 MB
+        expected_size_bytes=30_000_000,  # ~30 MB including MONDO SSSOM exact mappings
         required=True,
         phase=2,
         build_mode="pipeline",

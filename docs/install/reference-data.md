@@ -61,13 +61,17 @@ attribution list lives in the repository
 | **AlphaMissense** | Optional | Missense pathogenicity predictions | ~3.5 GB when installed | CC-BY-4.0 |
 | **GWAS Catalog** (EBI) | **Required** | Trait/disease associations for risk modules | ~100 MB | Open |
 | **dbSNP** (NCBI) | **Required** | rsID merge/identity resolution | ~20 MB | Public domain |
-| **MONDO/HPO** (Monarch) | **Required** | Disease & phenotype associations | ~15 MB | Open |
+| **MONDO/HPO** (Monarch) | **Required** | Disease-scoped phenotype associations | ~30 MB | Open |
 | **PharmGKB** | Optional context | Clinical drug annotations | Small metadata source | CC-BY-SA-4.0 |
 | **FDA drug labels** (via PharmGKB) | Optional context | Pharmacogenomic labeling | Small metadata source | CC-BY-SA-4.0 |
 | **GTEx eQTL** | Optional | Tissue eQTLs for functional context | ~3 GB when installed | Open-access summary stats |
 | **SpliceAI** | Optional / manual | User-supplied splice-effect prediction database | Depends on local ingest | Illumina non-commercial terms |
 | **ENCODE cCREs** | Optional | Candidate cis-regulatory elements for Genome Browser tracks | ~30 MB when installed | ENCODE data terms |
 | **UCSC hg19 FASTA + RefSeq (`refGene`)** | Optional local browser reference | Fully local Genome Browser reference and gene track | ~4 GB when installed | UCSC Genome Browser data terms |
+
+For MONDO/HPO, phenotype terms and inheritance are attached to a MONDO disease only through
+an authoritative `skos:exactMatch` cross-reference. Unmatched or ambiguous source disease
+identifiers remain unannotated rather than being copied to another disease for the same gene.
 
 !!! warning "dbNSFP license"
     dbNSFP is distributed under an **academic / non-commercial** license. Make sure your use

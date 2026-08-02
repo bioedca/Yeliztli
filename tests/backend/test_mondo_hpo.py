@@ -14,6 +14,7 @@ Covers:
 
 from __future__ import annotations
 
+import gzip
 import json
 import textwrap
 from pathlib import Path
@@ -24,17 +25,20 @@ from sqlalchemy.pool import StaticPool
 
 from backend.annotation.mondo_hpo import (
     _INHERITANCE_MAP,
+    MONDO_HPO_INGESTION_REVISION,
     GenePhenotypeRecord,
     HpoTerm,
     LoadStats,
     _extract_gene_symbol_from_subject,
     _records_to_rows,
     decode_hpo_terms,
+    download_and_load_mondo_hpo,
     load_mondo_hpo_from_csv,
     load_mondo_hpo_rows,
     lookup_gene_phenotypes,
     parse_hpo_genes_to_phenotype,
     parse_mondo_gene_disease_tsv,
+    parse_mondo_sssom,
     record_mondo_hpo_version,
 )
 from backend.db.tables import database_versions, gene_phenotype, reference_metadata
@@ -43,6 +47,13 @@ from backend.db.tables import database_versions, gene_phenotype, reference_metad
 
 FIXTURES_DIR = Path(__file__).resolve().parent.parent / "fixtures"
 GENE_PHENOTYPE_SEED_CSV = FIXTURES_DIR / "seed_csvs" / "gene_phenotype_seed.csv"
+_SSSOM_HEADER = (
+    "subject_id\tsubject_label\tpredicate_id\tobject_id\tobject_label\tmapping_justification"
+)
+
+
+def _sssom_line(*columns: str) -> str:
+    return "\t".join(columns)
 
 
 @pytest.fixture
@@ -100,6 +111,39 @@ def hpo_phenotype_file(tmp_path: Path) -> Path:
     hpo_path = tmp_path / "genes_to_phenotype.txt"
     hpo_path.write_text(content, encoding="utf-8")
     return hpo_path
+
+
+@pytest.fixture
+def mondo_sssom_file(tmp_path: Path) -> Path:
+    """Create a minimal authoritative-style MONDO SSSOM exact-map TSV."""
+    content = (
+        "\n".join(
+            [
+                "# mapping_set_id: http://purl.obolibrary.org/obo/mondo/mappings/mondo.sssom.tsv",
+                _SSSOM_HEADER,
+                _sssom_line(
+                    "MONDO:0011450",
+                    "Hereditary breast cancer",
+                    "skos:exactMatch",
+                    "OMIM:604370",
+                    "Breast-ovarian cancer",
+                    "semapv:UnspecifiedMatching",
+                ),
+                _sssom_line(
+                    "MONDO:0009061",
+                    "Cystic fibrosis",
+                    "skos:exactMatch",
+                    "OMIM:219700",
+                    "Cystic fibrosis",
+                    "semapv:UnspecifiedMatching",
+                ),
+            ]
+        )
+        + "\n"
+    )
+    sssom_path = tmp_path / "mondo.sssom.tsv"
+    sssom_path.write_text(content, encoding="utf-8")
+    return sssom_path
 
 
 # ── CSV seed loading tests ──────────────────────────────────────────────
@@ -201,6 +245,22 @@ class TestMondoTSVParsing:
         assert stats.skipped_duplicate == 1
         assert len(records["BRCA1"]) == 2
 
+    def test_rejects_missing_or_non_mondo_disease_ids(self, tmp_path: Path) -> None:
+        """Only canonical MONDO object IDs may enter disease-scoped matching."""
+        tsv_path = tmp_path / "invalid_disease_ids.tsv"
+        tsv_path.write_text(
+            "subject\tsubject_label\tpredicate\tobject\tobject_label\n"
+            "HGNC:1100\tBRCA1\tassociated\tOMIM:604370\tNot a MONDO row\n"
+            "HGNC:1100\tBRCA1\tassociated\t\tMissing ID\n"
+            "HGNC:1100\tBRCA1\tassociated\tMONDO:0011450\tValid MONDO row\n",
+            encoding="utf-8",
+        )
+
+        records, stats = parse_mondo_gene_disease_tsv(tsv_path)
+
+        assert [record.disease_id for record in records["BRCA1"]] == ["MONDO:0011450"]
+        assert stats.skipped_no_disease == 2
+
 
 # ── HPO parsing tests ───────────────────────────────────────────────────
 
@@ -209,11 +269,11 @@ class TestHPOParsing:
     """Test HPO genes_to_phenotype parsing."""
 
     def test_parse_hpo_basic(self, hpo_phenotype_file: Path) -> None:
-        """Parse HPO phenotype file and extract terms + inheritance."""
+        """Parse HPO phenotype data by source disease, terms, and inheritance."""
         result = parse_hpo_genes_to_phenotype(hpo_phenotype_file)
 
         assert "BRCA1" in result
-        brca1 = result["BRCA1"]
+        brca1 = result["BRCA1"]["OMIM:604370"]
         # Should have HP:0003002 and HP:0100013 but NOT HP:0000006 (inheritance)
         assert brca1["hpo_terms"] == [
             HpoTerm(id="HP:0003002", name="Breast carcinoma"),
@@ -222,7 +282,7 @@ class TestHPOParsing:
         assert brca1["inheritance"] == "Autosomal dominant"
 
         assert "CFTR" in result
-        cftr = result["CFTR"]
+        cftr = result["CFTR"]["OMIM:219700"]
         assert HpoTerm(id="HP:0002110", name="Bronchiectasis") in cftr["hpo_terms"]
         assert cftr["inheritance"] == "Autosomal recessive"
 
@@ -230,10 +290,9 @@ class TestHPOParsing:
         """MTHFR has no inheritance HPO term."""
         result = parse_hpo_genes_to_phenotype(hpo_phenotype_file)
         assert "MTHFR" in result
-        assert result["MTHFR"]["inheritance"] is None
-        assert result["MTHFR"]["hpo_terms"] == [
-            HpoTerm(id="HP:0003572", name="Low plasma methionine")
-        ]
+        mthfr = result["MTHFR"]["OMIM:607093"]
+        assert mthfr["inheritance"] is None
+        assert mthfr["hpo_terms"] == [HpoTerm(id="HP:0003572", name="Low plasma methionine")]
 
     def test_parse_hpo_deduplicates_and_prefers_nonempty_label(self, tmp_path: Path) -> None:
         """Repeated IDs collapse deterministically without losing a later label."""
@@ -248,7 +307,155 @@ class TestHPOParsing:
 
         result = parse_hpo_genes_to_phenotype(hpo_path)
 
-        assert result["BRCA1"]["hpo_terms"] == [HpoTerm(id="HP:0003002", name="Breast carcinoma")]
+        assert result["BRCA1"]["OMIM:604370"]["hpo_terms"] == [
+            HpoTerm(id="HP:0003002", name="Breast carcinoma")
+        ]
+
+    def test_keeps_terms_and_inheritance_scoped_to_each_disease(self, tmp_path: Path) -> None:
+        """The same gene's disease rows cannot pool terms or inheritance."""
+        hpo_path = tmp_path / "genes_to_phenotype.txt"
+        hpo_path.write_text(
+            "ncbi_gene_id\tgene_symbol\thpo_id\thpo_name\tfrequency\tdisease_id\n"
+            "672\tBRCA1\tHP:0003002\tBreast carcinoma\t\tOMIM:604370\n"
+            "672\tBRCA1\tHP:0000006\tAutosomal dominant\t\tOMIM:604370\n"
+            "672\tBRCA1\tHP:0002110\tBronchiectasis\t\tORPHA:33364\n"
+            "672\tBRCA1\tHP:0000007\tAutosomal recessive\t\tORPHA:33364\n",
+            encoding="utf-8",
+        )
+
+        result = parse_hpo_genes_to_phenotype(hpo_path)
+
+        assert result["BRCA1"]["OMIM:604370"] == {
+            "hpo_terms": [HpoTerm(id="HP:0003002", name="Breast carcinoma")],
+            "inheritance": "Autosomal dominant",
+        }
+        assert result["BRCA1"]["Orphanet:33364"] == {
+            "hpo_terms": [HpoTerm(id="HP:0002110", name="Bronchiectasis")],
+            "inheritance": "Autosomal recessive",
+        }
+
+    @pytest.mark.parametrize("disease_id", ["", "not-a-curie", "OMIM: 604370"])
+    def test_requires_a_valid_source_disease_id(self, tmp_path: Path, disease_id: str) -> None:
+        """Missing or malformed sixth-column identifiers are not silently pooled."""
+        hpo_path = tmp_path / "genes_to_phenotype.txt"
+        hpo_path.write_text(
+            "ncbi_gene_id\tgene_symbol\thpo_id\thpo_name\tfrequency\tdisease_id\n"
+            f"672\tBRCA1\tHP:0003002\tBreast carcinoma\t\t{disease_id}\n",
+            encoding="utf-8",
+        )
+
+        assert parse_hpo_genes_to_phenotype(hpo_path) == {}
+
+    def test_ambiguous_inheritance_is_withheld(self, tmp_path: Path) -> None:
+        """A scalar field must not select one of multiple source inheritance modes."""
+        hpo_path = tmp_path / "genes_to_phenotype.txt"
+        hpo_path.write_text(
+            "ncbi_gene_id\tgene_symbol\thpo_id\thpo_name\tfrequency\tdisease_id\n"
+            "672\tBRCA1\tHP:0000006\tAutosomal dominant\t\tOMIM:604370\n"
+            "672\tBRCA1\tHP:0000007\tAutosomal recessive\t\tOMIM:604370\n",
+            encoding="utf-8",
+        )
+
+        assert parse_hpo_genes_to_phenotype(hpo_path)["BRCA1"]["OMIM:604370"] == {
+            "hpo_terms": [],
+            "inheritance": None,
+        }
+
+
+class TestMondoSssomParsing:
+    """Test exact, unambiguous MONDO cross-reference parsing."""
+
+    def test_accepts_exact_matches_and_normalizes_orpha(self, tmp_path: Path) -> None:
+        sssom_path = tmp_path / "mondo.sssom.tsv"
+        sssom_path.write_text(
+            "\n".join(
+                [
+                    "# mapping_set_id: https://example.test/mondo.sssom.tsv",
+                    _SSSOM_HEADER,
+                    _sssom_line(
+                        "MONDO:0011450",
+                        "Disease A",
+                        "skos:exactMatch",
+                        "OMIM:604370",
+                        "Disease A",
+                        "semapv:UnspecifiedMatching",
+                    ),
+                    _sssom_line(
+                        "MONDO:0018053",
+                        "Disease B",
+                        "skos:exactMatch",
+                        "Orphanet:33364",
+                        "Disease B",
+                        "semapv:UnspecifiedMatching",
+                    ),
+                    _sssom_line(
+                        "MONDO:0000002",
+                        "Broad only",
+                        "skos:broadMatch",
+                        "OMIM:999999",
+                        "Broad only",
+                        "semapv:UnspecifiedMatching",
+                    ),
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        mappings = parse_mondo_sssom(sssom_path)
+
+        assert mappings["OMIM:604370"] == "MONDO:0011450"
+        assert mappings["Orphanet:33364"] == "MONDO:0018053"
+        assert "OMIM:999999" not in mappings
+
+    def test_rejects_ambiguous_or_malformed_exact_targets(self, tmp_path: Path) -> None:
+        sssom_path = tmp_path / "mondo.sssom.tsv"
+        sssom_path.write_text(
+            "\n".join(
+                [
+                    _SSSOM_HEADER,
+                    _sssom_line(
+                        "MONDO:0011450",
+                        "Disease A",
+                        "skos:exactMatch",
+                        "OMIM:604370",
+                        "Disease A",
+                        "semapv:UnspecifiedMatching",
+                    ),
+                    _sssom_line(
+                        "MONDO:0011451",
+                        "Disease B",
+                        "skos:exactMatch",
+                        "OMIM:604370",
+                        "Disease B",
+                        "semapv:UnspecifiedMatching",
+                    ),
+                    _sssom_line(
+                        "OMIM:1",
+                        "Invalid subject",
+                        "skos:exactMatch",
+                        "OMIM:111111",
+                        "Invalid",
+                        "semapv:UnspecifiedMatching",
+                    ),
+                    _sssom_line(
+                        "MONDO:0011452",
+                        "Missing object",
+                        "skos:exactMatch",
+                        "",
+                        "Missing",
+                        "semapv:UnspecifiedMatching",
+                    ),
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        mappings = parse_mondo_sssom(sssom_path)
+
+        assert "OMIM:604370" not in mappings
+        assert "OMIM:111111" not in mappings
 
 
 class TestHpoTermDecoding:
@@ -284,8 +491,87 @@ class TestHpoTermDecoding:
 class TestRecordMerging:
     """Test merging MONDO records with HPO data."""
 
-    def test_merge_with_hpo(self) -> None:
-        """Records get HPO terms and inheritance from HPO data."""
+    def test_merge_with_disease_scoped_hpo(self) -> None:
+        """Each MONDO disease gets only its exactly mapped HPO context."""
+        records = {
+            "BRCA1": [
+                GenePhenotypeRecord(
+                    gene_symbol="BRCA1",
+                    disease_name="Breast cancer",
+                    disease_id="MONDO:0011450",
+                ),
+                GenePhenotypeRecord(
+                    gene_symbol="BRCA1",
+                    disease_name="A distinct disease",
+                    disease_id="MONDO:0018053",
+                ),
+            ],
+        }
+        hpo_data = {
+            "BRCA1": {
+                "OMIM:604370": {
+                    "hpo_terms": [
+                        HpoTerm(id="HP:0003002", name="Breast carcinoma"),
+                        HpoTerm(id="HP:0100013", name="Neoplasm of the breast"),
+                    ],
+                    "inheritance": "Autosomal dominant",
+                },
+                "Orphanet:33364": {
+                    "hpo_terms": [HpoTerm(id="HP:0002110", name="Bronchiectasis")],
+                    "inheritance": "Autosomal recessive",
+                },
+            }
+        }
+        mappings = {
+            "OMIM:604370": "MONDO:0011450",
+            "Orphanet:33364": "MONDO:0018053",
+        }
+
+        rows = _records_to_rows(records, hpo_data, mappings)
+
+        assert len(rows) == 2
+        by_disease = {row["disease_id"]: row for row in rows}
+        breast = by_disease["MONDO:0011450"]
+        assert breast["gene_symbol"] == "BRCA1"
+        assert breast["source"] == "mondo_hpo"
+        assert breast["inheritance"] == "Autosomal dominant"
+        assert json.loads(breast["hpo_terms"]) == [
+            {"id": "HP:0003002", "name": "Breast carcinoma"},
+            {"id": "HP:0100013", "name": "Neoplasm of the breast"},
+        ]
+        distinct = by_disease["MONDO:0018053"]
+        assert distinct["inheritance"] == "Autosomal recessive"
+        assert json.loads(distinct["hpo_terms"]) == [
+            {"id": "HP:0002110", "name": "Bronchiectasis"}
+        ]
+
+    def test_merge_does_not_fall_back_to_gene_or_label_matching(self) -> None:
+        """Unmapped source IDs must not leak terms to another disease for the gene."""
+        records = {
+            "BRCA1": [
+                GenePhenotypeRecord(
+                    gene_symbol="BRCA1",
+                    disease_name="A disease with a similar label",
+                    disease_id="MONDO:0011450",
+                )
+            ]
+        }
+        hpo_data = {
+            "BRCA1": {
+                "OMIM:999999": {
+                    "hpo_terms": [HpoTerm(id="HP:0003002", name="Breast carcinoma")],
+                    "inheritance": "Autosomal dominant",
+                }
+            }
+        }
+
+        row = _records_to_rows(records, hpo_data, {})[0]
+
+        assert row["hpo_terms"] is None
+        assert row["inheritance"] is None
+
+    def test_merge_accepts_a_direct_mondo_scope_without_a_cross_reference(self) -> None:
+        """A canonical MONDO source disease does not need to appear in SSSOM twice."""
         records = {
             "BRCA1": [
                 GenePhenotypeRecord(
@@ -293,28 +579,21 @@ class TestRecordMerging:
                     disease_name="Breast cancer",
                     disease_id="MONDO:0011450",
                 )
-            ],
+            ]
         }
         hpo_data = {
             "BRCA1": {
-                "hpo_terms": [
-                    HpoTerm(id="HP:0003002", name="Breast carcinoma"),
-                    HpoTerm(id="HP:0100013", name="Neoplasm of the breast"),
-                ],
-                "inheritance": "Autosomal dominant",
+                "MONDO:0011450": {
+                    "hpo_terms": [HpoTerm(id="HP:0003002", name="Breast carcinoma")],
+                    "inheritance": "Autosomal dominant",
+                }
             }
         }
-        rows = _records_to_rows(records, hpo_data)
-        assert len(rows) == 1
-        row = rows[0]
-        assert row["gene_symbol"] == "BRCA1"
-        assert row["source"] == "mondo_hpo"
+
+        row = _records_to_rows(records, hpo_data, {})[0]
+
+        assert json.loads(row["hpo_terms"]) == [{"id": "HP:0003002", "name": "Breast carcinoma"}]
         assert row["inheritance"] == "Autosomal dominant"
-        hpo = json.loads(row["hpo_terms"])
-        assert hpo == [
-            {"id": "HP:0003002", "name": "Breast carcinoma"},
-            {"id": "HP:0100013", "name": "Neoplasm of the breast"},
-        ]
 
     def test_merge_without_hpo(self) -> None:
         """Records without HPO data get None hpo_terms."""
@@ -327,10 +606,246 @@ class TestRecordMerging:
                 )
             ],
         }
-        rows = _records_to_rows(records, {})
+        rows = _records_to_rows(records, {}, {})
         assert len(rows) == 1
         assert rows[0]["hpo_terms"] is None
         assert rows[0]["inheritance"] is None
+
+
+class TestDownloadAndLoad:
+    """Test the full three-source disease-scoped ingestion path."""
+
+    def test_records_all_source_provenance_and_scoped_rows(
+        self,
+        monkeypatch,
+        reference_engine: sa.Engine,
+        mondo_tsv_file: Path,
+        hpo_phenotype_file: Path,
+        mondo_sssom_file: Path,
+        tmp_path: Path,
+    ) -> None:
+        """The loader persists per-source evidence and maps only exact scopes."""
+        monkeypatch.setattr("backend.annotation.mondo_hpo.MINIMUM_UNAMBIGUOUS_MONDO_XREFS", 2)
+        source_files = {
+            "gene_disease.9606.tsv.gz": mondo_tsv_file,
+            "genes_to_phenotype.txt": hpo_phenotype_file,
+            "mondo.sssom.tsv": mondo_sssom_file,
+        }
+
+        def fake_download(url, dest_dir, filename, **kwargs):
+            target = dest_dir / filename
+            target.parent.mkdir(parents=True, exist_ok=True)
+            if filename.endswith(".gz"):
+                with gzip.open(target, "wb") as fh:
+                    fh.write(source_files[filename].read_bytes())
+            else:
+                target.write_bytes(source_files[filename].read_bytes())
+            meta = kwargs.get("meta")
+            if meta is not None:
+                meta.update(
+                    {
+                        "etag": f'"{filename}-etag"',
+                        "last_modified": "Wed, 15 Apr 2026 12:34:56 GMT",
+                        "version": "20260415",
+                    }
+                )
+            return target
+
+        monkeypatch.setattr("backend.annotation.mondo_hpo.download_file", fake_download)
+
+        downloads = tmp_path / "downloads"
+        prior_bundle = downloads / "mondo_hpo_sources" / "prior-immutable-bundle"
+        prior_bundle.mkdir(parents=True)
+        prior_source = prior_bundle / "gene_disease.9606.tsv.gz"
+        prior_source.write_text("prior source bytes\n", encoding="utf-8")
+
+        stats = download_and_load_mondo_hpo(
+            reference_engine,
+            downloads,
+            mondo_url="https://operator:credential@source.example/mondo.tsv?access=opaque#fragment",
+            hpo_url="https://source.example/hpo.txt?signature=secret",
+            mondo_sssom_url="https://source.example/mondo.sssom.tsv#fragment",
+        )
+
+        assert stats.hpo_disease_matches == 2
+        assert stats.hpo_disease_unmatched == 1  # MTHFR has no MONDO record in the fixture.
+        assert stats.sha256 is not None
+        assert stats.hpo_sha256 is not None
+        assert stats.mondo_sssom_sha256 is not None
+        assert stats.version.startswith(f"20260415+{MONDO_HPO_INGESTION_REVISION}+hpo-")
+        assert stats.hpo_version == "20260415"
+        assert stats.mondo_sssom_version == "20260415"
+
+        bundle_dirs = [
+            path
+            for path in (downloads / "mondo_hpo_sources").iterdir()
+            if path.name != "prior-immutable-bundle"
+        ]
+        assert len(bundle_dirs) == 1
+        source_bundle = bundle_dirs[0]
+        manifest = json.loads((source_bundle / "mondo_hpo_sources.json").read_text())
+        assert manifest["ingestion_revision"] == MONDO_HPO_INGESTION_REVISION
+        assert {source["role"] for source in manifest["sources"]} == {
+            "mondo_gene_disease",
+            "hpo_genes_to_phenotype",
+            "mondo_sssom_exact_cross_references",
+        }
+        assert all(source["sha256"] for source in manifest["sources"])
+        assert {source["url"] for source in manifest["sources"]} == {
+            "https://source.example/mondo.tsv",
+            "https://source.example/hpo.txt",
+            "https://source.example/mondo.sssom.tsv",
+        }
+        assert prior_source.read_text(encoding="utf-8") == "prior source bytes\n"
+
+        with reference_engine.connect() as conn:
+            rows = conn.execute(
+                sa.select(gene_phenotype).where(gene_phenotype.c.source == "mondo_hpo")
+            ).fetchall()
+            version_row = conn.execute(
+                sa.select(database_versions.c.version, database_versions.c.file_path).where(
+                    database_versions.c.db_name == "mondo_hpo"
+                )
+            ).one()
+        brca = next(row for row in rows if row.gene_symbol == "BRCA1")
+        cftr = next(row for row in rows if row.gene_symbol == "CFTR")
+        assert json.loads(brca.hpo_terms) == [
+            {"id": "HP:0003002", "name": "Breast carcinoma"},
+            {"id": "HP:0100013", "name": "Neoplasm of the breast"},
+        ]
+        assert brca.inheritance == "Autosomal dominant"
+        assert json.loads(cftr.hpo_terms) == [
+            {"id": "HP:0002110", "name": "Bronchiectasis"},
+            {"id": "HP:0006538", "name": "Recurrent pneumonia"},
+        ]
+        assert cftr.inheritance == "Autosomal recessive"
+        assert version_row.version == stats.version
+        assert version_row.file_path == str(source_bundle / "gene_disease.9606.tsv.gz")
+
+    def test_refuses_zero_exact_matches_before_clearing_existing_rows(
+        self,
+        monkeypatch,
+        reference_engine: sa.Engine,
+        mondo_tsv_file: Path,
+        tmp_path: Path,
+    ) -> None:
+        """A changed/malformed mapping source cannot erase prior HPO context."""
+        monkeypatch.setattr("backend.annotation.mondo_hpo.MINIMUM_UNAMBIGUOUS_MONDO_XREFS", 1)
+        hpo_path = tmp_path / "unmatched_hpo.txt"
+        hpo_path.write_text(
+            "ncbi_gene_id\tgene_symbol\thpo_id\thpo_name\tfrequency\tdisease_id\n"
+            "672\tBRCA1\tHP:0003002\tBreast carcinoma\t\tOMIM:999999\n",
+            encoding="utf-8",
+        )
+        sssom_path = tmp_path / "unmatched_mondo.sssom.tsv"
+        sssom_path.write_text(
+            "\n".join(
+                [
+                    _SSSOM_HEADER,
+                    _sssom_line(
+                        "MONDO:0011450",
+                        "Disease A",
+                        "skos:exactMatch",
+                        "OMIM:604370",
+                        "Disease A",
+                        "semapv:UnspecifiedMatching",
+                    ),
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        source_files = {
+            "gene_disease.9606.tsv.gz": mondo_tsv_file,
+            "genes_to_phenotype.txt": hpo_path,
+            "mondo.sssom.tsv": sssom_path,
+        }
+
+        def fake_download(url, dest_dir, filename, **kwargs):
+            target = dest_dir / filename
+            target.parent.mkdir(parents=True, exist_ok=True)
+            if filename.endswith(".gz"):
+                with gzip.open(target, "wb") as fh:
+                    fh.write(source_files[filename].read_bytes())
+            else:
+                target.write_bytes(source_files[filename].read_bytes())
+            return target
+
+        with reference_engine.begin() as conn:
+            conn.execute(
+                gene_phenotype.insert().values(
+                    gene_symbol="PRESERVE",
+                    disease_name="Prior disease",
+                    disease_id="MONDO:0000001",
+                    source="mondo_hpo",
+                )
+            )
+        monkeypatch.setattr("backend.annotation.mondo_hpo.download_file", fake_download)
+        downloads = tmp_path / "downloads"
+        downloads.mkdir()
+        prior_sssom = downloads / "mondo.sssom.tsv"
+        prior_sssom.write_text("previous validated source\n", encoding="utf-8")
+
+        with pytest.raises(ValueError, match="no HPO disease scope resolved"):
+            download_and_load_mondo_hpo(reference_engine, downloads)
+
+        with reference_engine.connect() as conn:
+            preserved = conn.execute(
+                sa.select(gene_phenotype.c.gene_symbol).where(
+                    gene_phenotype.c.gene_symbol == "PRESERVE"
+                )
+            ).scalar_one()
+        assert preserved == "PRESERVE"
+        assert prior_sssom.read_text(encoding="utf-8") == "previous validated source\n"
+
+    def test_refuses_undersized_exact_mapping_before_replacing_rows(
+        self,
+        monkeypatch,
+        reference_engine: sa.Engine,
+        mondo_tsv_file: Path,
+        hpo_phenotype_file: Path,
+        mondo_sssom_file: Path,
+        tmp_path: Path,
+    ) -> None:
+        """A plausibly parsed but truncated SSSOM source cannot clear the cache."""
+        monkeypatch.setattr("backend.annotation.mondo_hpo.MINIMUM_UNAMBIGUOUS_MONDO_XREFS", 3)
+        source_files = {
+            "gene_disease.9606.tsv.gz": mondo_tsv_file,
+            "genes_to_phenotype.txt": hpo_phenotype_file,
+            "mondo.sssom.tsv": mondo_sssom_file,
+        }
+
+        def fake_download(url, dest_dir, filename, **kwargs):
+            target = dest_dir / filename
+            target.parent.mkdir(parents=True, exist_ok=True)
+            if filename.endswith(".gz"):
+                with gzip.open(target, "wb") as fh:
+                    fh.write(source_files[filename].read_bytes())
+            else:
+                target.write_bytes(source_files[filename].read_bytes())
+            return target
+
+        with reference_engine.begin() as conn:
+            conn.execute(
+                gene_phenotype.insert().values(
+                    gene_symbol="PRESERVE",
+                    disease_name="Prior disease",
+                    disease_id="MONDO:0000001",
+                    source="mondo_hpo",
+                )
+            )
+        monkeypatch.setattr("backend.annotation.mondo_hpo.download_file", fake_download)
+
+        with pytest.raises(ValueError, match="unambiguous exact mappings"):
+            download_and_load_mondo_hpo(reference_engine, tmp_path / "downloads")
+
+        with reference_engine.connect() as conn:
+            preserved = conn.execute(
+                sa.select(gene_phenotype.c.gene_symbol).where(
+                    gene_phenotype.c.gene_symbol == "PRESERVE"
+                )
+            ).scalar_one()
+        assert preserved == "PRESERVE"
 
 
 # ── Lookup tests ─────────────────────────────────────────────────────────
@@ -413,6 +928,15 @@ class TestLookup:
 
         assert cftr.hpo_terms == ["HP:0002110"]
         assert cftr.hpo_term_details == [HpoTerm(id="HP:0002110", name="Bronchiectasis")]
+
+    def test_withholds_dated_gene_wide_install_until_scoped_refresh(
+        self, loaded_engine: sa.Engine
+    ) -> None:
+        """A non-downgradable legacy source must not surface misattributed rows."""
+        record_mondo_hpo_version(loaded_engine, version="20270101")
+
+        assert lookup_gene_phenotypes(["BRCA1"], loaded_engine) == {}
+        assert lookup_gene_phenotypes(["BRCA1"], loaded_engine, source_filter="mondo_hpo") == {}
 
 
 # ── Version recording tests ─────────────────────────────────────────────
@@ -554,6 +1078,61 @@ class TestBulkLoading:
             symbols = [r.gene_symbol for r in rows]
             assert "NEW" in symbols
             assert "OLD" not in symbols
+
+    def test_failed_replace_rolls_back_rows_and_version(
+        self, monkeypatch, reference_engine: sa.Engine
+    ) -> None:
+        """A later batch failure leaves both prior rows and version intact."""
+        load_mondo_hpo_rows(
+            [
+                {
+                    "gene_symbol": "PRESERVE",
+                    "disease_name": "Prior disease",
+                    "disease_id": "MONDO:0000001",
+                    "hpo_terms": None,
+                    "source": "mondo_hpo",
+                    "inheritance": None,
+                }
+            ],
+            reference_engine,
+            version="20260415+prior-revision",
+        )
+        monkeypatch.setattr("backend.annotation.mondo_hpo.BATCH_SIZE", 1)
+        rows = [
+            {
+                "gene_symbol": "NEW",
+                "disease_name": "New disease",
+                "disease_id": "MONDO:0000002",
+                "hpo_terms": None,
+                "source": "mondo_hpo",
+                "inheritance": None,
+            },
+            {
+                "gene_symbol": None,
+                "disease_name": "Invalid disease",
+                "disease_id": "MONDO:0000003",
+                "hpo_terms": None,
+                "source": "mondo_hpo",
+                "inheritance": None,
+            },
+        ]
+
+        with pytest.raises(sa.exc.IntegrityError):
+            load_mondo_hpo_rows(
+                rows,
+                reference_engine,
+                version="20260415+new-revision",
+            )
+
+        with reference_engine.connect() as conn:
+            symbols = conn.execute(sa.select(gene_phenotype.c.gene_symbol)).scalars().all()
+            version = conn.execute(
+                sa.select(database_versions.c.version).where(
+                    database_versions.c.db_name == "mondo_hpo"
+                )
+            ).scalar_one()
+        assert symbols == ["PRESERVE"]
+        assert version == "20260415+prior-revision"
 
 
 class TestMondoHpoZeroRowGuard:

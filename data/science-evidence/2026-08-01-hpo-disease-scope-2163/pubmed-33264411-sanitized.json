@@ -1,0 +1,31 @@
+{
+  "source": "NCBI PubMed EFetch",
+  "accessed": "2026-08-01",
+  "request": {
+    "endpoint": "efetch",
+    "db": "pubmed",
+    "id": "33264411",
+    "retmode": "xml"
+  },
+  "raw_response": {
+    "sha256": "00f153a95bce63608b29e4721b9a09c230782505bdfc4beede06361c739f01c0",
+    "bytes": 50282
+  },
+  "record": {
+    "pmid": "33264411",
+    "pmcid": "PMC7778952",
+    "doi": "10.1093/nar/gkaa1043",
+    "title": "The Human Phenotype Ontology in 2021.",
+    "journal": "Nucleic Acids Research",
+    "pages": "D1207-D1217"
+  },
+  "corrections_retractions": {
+    "comments_corrections_list_present": false,
+    "search_terms": [
+      "CommentsCorrectionsList",
+      "Retraction",
+      "Erratum",
+      "ExpressionOfConcern"
+    ]
+  }
+}

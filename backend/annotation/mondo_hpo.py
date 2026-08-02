@@ -2,9 +2,9 @@
 
 Downloads the MONDO gene-disease association file (TSV) from the Monarch
 Initiative, parses gene-phenotype records, and bulk-loads them into the
-``gene_phenotype`` table in reference.db.  HPO phenotype annotations are
-fetched from the HPO ``genes_to_phenotype.txt`` file and merged by gene
-symbol.
+``gene_phenotype`` table in reference.db. HPO phenotype annotations are
+fetched from the HPO ``genes_to_phenotype.txt`` file and attached only when
+their source disease identifier has a validated exact MONDO cross-reference.
 
 Also provides a lookup function for querying gene-phenotype associations
 by gene symbol, used during annotation (P2-15).
@@ -24,49 +24,30 @@ Usage::
 from __future__ import annotations
 
 import csv
-import functools
 import gzip
 import hashlib
 import json
+import shutil
+import tempfile
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, TypedDict
+from urllib.parse import urlsplit, urlunsplit
 
 import httpx
 import sqlalchemy as sa
 import structlog
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from backend.annotation.bulk_load import serialized_write
 from backend.annotation.http_download import stream_download
-from backend.db.tables import gene_phenotype
+from backend.db.tables import database_versions, gene_phenotype
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
 logger = structlog.get_logger(__name__)
-
-
-# ── Gene-phenotype hygiene (validation strategy F14, F21) ─────────────────
-
-
-@functools.lru_cache(maxsize=1)
-def _load_inheritance_overrides() -> dict[str, str]:
-    """Load curated gene→inheritance overrides (F14).
-
-    The MONDO/HPO export stamps one gene-wide inheritance value (first-in-file)
-    onto every disease, mislabelling classic dominant genes (BRCA1/2, LMNA, …)
-    as recessive. These overrides assert the established mode of inheritance for
-    the well-characterised genes the audit named. Returns ``{}`` if the file is
-    missing/malformed (no override applied — falls back to the source value).
-    """
-    path = Path(__file__).resolve().parent.parent / "data" / "gene_inheritance_overrides.json"
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        logger.warning("gene_inheritance_overrides_unavailable", path=str(path))
-        return {}
-    return {str(k).upper(): v for k, v in data.get("overrides", {}).items()}
 
 
 def _is_obsolete_disease(name: str | None) -> bool:
@@ -85,6 +66,19 @@ MONDO_GENE_DISEASE_URL = (
 # HPO genes-to-phenotype annotations
 HPO_GENES_TO_PHENOTYPE_URL = "https://purl.obolibrary.org/obo/hp/hpoa/genes_to_phenotype.txt"
 
+# MONDO exact cross-references in SSSOM form. The loader intentionally uses
+# only ``skos:exactMatch`` records from this authoritative MONDO export.
+MONDO_SSSOM_URL = "https://purl.obolibrary.org/obo/mondo/mappings/mondo.sssom.tsv"
+
+# A loader revision marker lets the update check rebuild labelled-but-gene-wide
+# installations once, without conflating source release dates with schema data.
+MONDO_HPO_INGESTION_REVISION = "disease-scope-v2"
+
+# The authoritative MONDO SSSOM export had 109,306 unambiguous exact source
+# identifiers on 2026-08-01. A large floor catches a valid-looking but heavily
+# truncated mapping file before it can erase most disease-scoped HPO context.
+MINIMUM_UNAMBIGUOUS_MONDO_XREFS = 50_000
+
 # Batch size for bulk inserts
 BATCH_SIZE = 10_000
 
@@ -100,11 +94,14 @@ class HpoTerm:
     name: str | None = None
 
 
-class GeneHpoData(TypedDict):
-    """Gene-level HPO terms and the first reported inheritance pattern."""
+class DiseaseHpoData(TypedDict):
+    """HPO terms and inheritance for one source disease identifier."""
 
     hpo_terms: list[HpoTerm]
     inheritance: str | None
+
+
+HpoDataByGene = dict[str, dict[str, DiseaseHpoData]]
 
 
 @dataclass
@@ -129,8 +126,14 @@ class LoadStats:
     skipped_no_disease: int = 0
     skipped_duplicate: int = 0
     hpo_genes_mapped: int = 0
+    hpo_disease_matches: int = 0
+    hpo_disease_unmatched: int = 0
     sha256: str | None = None
+    hpo_sha256: str | None = None
+    mondo_sssom_sha256: str | None = None
     version: str | None = None
+    hpo_version: str | None = None
+    mondo_sssom_version: str | None = None
 
 
 # ── Parse helpers ────────────────────────────────────────────────────────
@@ -156,6 +159,39 @@ def _is_hpo_id(value: str) -> bool:
     """Return whether *value* has the canonical ``HP:ddddddd`` shape."""
     prefix, separator, local_id = value.partition(":")
     return prefix == "HP" and separator == ":" and len(local_id) == 7 and local_id.isdigit()
+
+
+def _is_mondo_id(value: str) -> bool:
+    """Return whether *value* has the canonical ``MONDO:ddddddd`` shape."""
+    prefix, separator, local_id = value.partition(":")
+    return prefix == "MONDO" and separator == ":" and len(local_id) == 7 and local_id.isdigit()
+
+
+def _normalize_source_disease_id(value: str) -> str | None:
+    """Normalize a source disease CURIE without inferring equivalence.
+
+    HPO currently writes Orphanet identifiers as ``ORPHA:`` while MONDO's
+    SSSOM file writes the same namespace as ``Orphanet:``. This is a namespace
+    spelling normalization only; all other equivalence decisions come from the
+    explicit ``skos:exactMatch`` mapping file.
+    """
+    identifier = value.strip()
+    prefix, separator, local_id = identifier.partition(":")
+    if (
+        not prefix
+        or not separator
+        or not local_id
+        or any(char.isspace() for char in identifier)
+        or not prefix[0].isalpha()
+        or not all(char.isalnum() or char in "._-" for char in prefix)
+    ):
+        return None
+
+    if prefix.upper() == "ORPHA":
+        return f"Orphanet:{local_id}"
+    if prefix.upper() == "MONDO":
+        return f"MONDO:{local_id}"
+    return identifier
 
 
 def decode_hpo_terms(raw: str | None) -> list[HpoTerm]:
@@ -254,7 +290,7 @@ def parse_mondo_gene_disease_tsv(
             # Extract disease info
             disease_name = (row.get("object_label") or "").strip()
             disease_id = (row.get("object") or "").strip()
-            if not disease_name:
+            if not disease_name or not _is_mondo_id(disease_id):
                 stats.skipped_no_disease += 1
                 continue
 
@@ -277,56 +313,94 @@ def parse_mondo_gene_disease_tsv(
 
 def parse_hpo_genes_to_phenotype(
     hpo_path: Path,
-) -> dict[str, GeneHpoData]:
+) -> HpoDataByGene:
     """Parse the HPO genes_to_phenotype.txt file.
 
-    Returns a dict mapping gene_symbol -> {
-        "hpo_terms": [{"id": HPO ID, "name": HPO label}],
-        "inheritance": inheritance pattern or None
-    }.
+    Returns a dict mapping each ``gene_symbol`` to source disease identifiers,
+    then to ``hpo_terms`` and ``inheritance``. Terms are never pooled across
+    source diseases for the same gene.
 
     The file format is tab-separated with columns:
     gene_id, gene_symbol, hpo_id, hpo_name, frequency, disease_id
     """
-    gene_hpo: dict[str, dict[str, HpoTerm]] = {}
-    gene_inheritance: dict[str, str | None] = {}
+    gene_hpo: dict[str, dict[str, dict[str, HpoTerm]]] = {}
+    gene_inheritance: dict[str, dict[str, set[str]]] = {}
 
     with open(hpo_path, encoding="utf-8") as fh:
         for line in fh:
             if line.startswith("#"):
                 continue
-            parts = line.strip().split("\t")
-            if len(parts) < 4:
+            # ``rstrip`` preserves leading/trailing tab fields so an omitted
+            # disease identifier cannot silently turn into a four-column row.
+            parts = line.rstrip("\r\n").split("\t")
+            if len(parts) < 6:
                 continue
 
             gene_symbol = parts[1].strip()
             hpo_id = parts[2].strip()
             hpo_name = parts[3].strip() or None
+            source_disease_id = _normalize_source_disease_id(parts[5])
 
-            if not gene_symbol or not _is_hpo_id(hpo_id):
+            if not gene_symbol or not _is_hpo_id(hpo_id) or source_disease_id is None:
                 continue
 
-            terms_by_id = gene_hpo.setdefault(gene_symbol, {})
+            terms_by_id = gene_hpo.setdefault(gene_symbol, {}).setdefault(source_disease_id, {})
             existing = terms_by_id.get(hpo_id)
             if existing is None or (existing.name is None and hpo_name is not None):
                 terms_by_id[hpo_id] = HpoTerm(id=hpo_id, name=hpo_name)
 
             # Check if this HPO term is an inheritance pattern
-            if hpo_id in _INHERITANCE_MAP and gene_symbol not in gene_inheritance:
-                gene_inheritance[gene_symbol] = _INHERITANCE_MAP[hpo_id]
+            if hpo_id in _INHERITANCE_MAP:
+                gene_inheritance.setdefault(gene_symbol, {}).setdefault(
+                    source_disease_id, set()
+                ).add(_INHERITANCE_MAP[hpo_id])
 
-    result: dict[str, GeneHpoData] = {}
-    for gene, terms in gene_hpo.items():
-        # Filter out inheritance-pattern HPO terms from the phenotype list
-        phenotype_terms = sorted(
-            (term for term in terms.values() if term.id not in _INHERITANCE_MAP),
-            key=lambda term: term.id,
-        )
-        result[gene] = {
-            "hpo_terms": phenotype_terms,
-            "inheritance": gene_inheritance.get(gene),
-        }
+    result: HpoDataByGene = {}
+    for gene, diseases in gene_hpo.items():
+        result[gene] = {}
+        for source_disease_id, terms in diseases.items():
+            # Filter out inheritance-pattern HPO terms from the phenotype list.
+            phenotype_terms = sorted(
+                (term for term in terms.values() if term.id not in _INHERITANCE_MAP),
+                key=lambda term: term.id,
+            )
+            inheritance_values = gene_inheritance.get(gene, {}).get(source_disease_id, set())
+            # The storage contract has one scalar inheritance value. Multiple
+            # distinct source modes are ambiguous, so withhold rather than pick
+            # an arbitrary mode.
+            inheritance = sorted(inheritance_values)[0] if len(inheritance_values) == 1 else None
+            result[gene][source_disease_id] = {
+                "hpo_terms": phenotype_terms,
+                "inheritance": inheritance,
+            }
     return result
+
+
+def parse_mondo_sssom(sssom_path: Path) -> dict[str, str]:
+    """Return unambiguous source-disease → MONDO exact cross-references.
+
+    The MONDO SSSOM export can contain broad/narrow mappings and multiple
+    exact targets for one source identifier. Broad/narrow mappings are never
+    sufficient for this clinical-context join, and ambiguous exact targets are
+    deliberately omitted instead of guessing.
+    """
+    candidates: dict[str, set[str]] = {}
+    with open(sssom_path, encoding="utf-8") as fh:
+        reader = csv.DictReader((line for line in fh if not line.startswith("#")), delimiter="\t")
+        for row in reader:
+            if row.get("predicate_id") != "skos:exactMatch":
+                continue
+            mondo_id = (row.get("subject_id") or "").strip()
+            source_disease_id = _normalize_source_disease_id(row.get("object_id") or "")
+            if not _is_mondo_id(mondo_id) or source_disease_id is None:
+                continue
+            candidates.setdefault(source_disease_id, set()).add(mondo_id)
+
+    return {
+        source_disease_id: next(iter(mondo_ids))
+        for source_disease_id, mondo_ids in candidates.items()
+        if len(mondo_ids) == 1
+    }
 
 
 # ── CSV seed loader ──────────────────────────────────────────────────────
@@ -434,6 +508,132 @@ def _parse_last_modified_version(last_modified: str | None) -> str | None:
         return None
 
 
+def _source_manifest_entry(
+    path: Path, url: str, role: str, meta: dict[str, str]
+) -> dict[str, str | int | None]:
+    """Build a public, portable provenance entry for one loader input."""
+    return {
+        "role": role,
+        "url": _public_source_url(url),
+        "filename": path.name,
+        "size_bytes": path.stat().st_size,
+        "sha256": _compute_sha256(path),
+        "etag": meta.get("etag"),
+        "last_modified": meta.get("last_modified"),
+        "version": meta.get("version"),
+    }
+
+
+def _source_validator_fingerprint(meta: dict[str, str]) -> str | None:
+    """Return a stable, non-secret marker for a source response validator."""
+    validator = meta.get("etag") or meta.get("last_modified")
+    if not validator:
+        return None
+    return hashlib.sha256(validator.encode("utf-8")).hexdigest()[:16]
+
+
+def _mondo_hpo_install_version(
+    primary_version: str,
+    hpo_meta: dict[str, str],
+    mondo_sssom_meta: dict[str, str],
+) -> str:
+    """Build the stored version from the primary date and secondary validators."""
+    hpo_fingerprint = _source_validator_fingerprint(hpo_meta) or "unknown"
+    sssom_fingerprint = _source_validator_fingerprint(mondo_sssom_meta) or "unknown"
+    return (
+        f"{primary_version}+{MONDO_HPO_INGESTION_REVISION}"
+        f"+hpo-{hpo_fingerprint}+mondo-sssom-{sssom_fingerprint}"
+    )
+
+
+def _version_component(version: str, prefix: str) -> str | None:
+    """Extract a ``+``-delimited version component with *prefix*."""
+    return next(
+        (
+            component.removeprefix(prefix)
+            for component in version.split("+")
+            if component.startswith(prefix)
+        ),
+        None,
+    )
+
+
+def _public_source_url(url: str) -> str:
+    """Return a provenance-safe URL without credentials or request parameters.
+
+    Source URLs are operator-supplied overrides in tests and maintenance tools,
+    so a durable manifest and structured log must never retain a signed URL,
+    password, query parameter, or fragment.
+    """
+    try:
+        parsed = urlsplit(url)
+        if not parsed.scheme or not parsed.hostname:
+            return "<invalid source URL>"
+        hostname = parsed.hostname
+        host = f"[{hostname}]" if ":" in hostname else hostname
+        port = f":{parsed.port}" if parsed.port is not None else ""
+    except ValueError:
+        return "<invalid source URL>"
+    return urlunsplit((parsed.scheme, f"{host}{port}", parsed.path, "", ""))
+
+
+def _write_source_manifest(
+    dest_dir: Path, sources: list[dict[str, str | int | None]]
+) -> tuple[Path, str]:
+    """Write the source-level provenance manifest atomically and return its hash."""
+    manifest_path = dest_dir / "mondo_hpo_sources.json"
+    temp_path = manifest_path.with_suffix(".json.tmp")
+    payload = {
+        "schema_version": 1,
+        "ingestion_revision": MONDO_HPO_INGESTION_REVISION,
+        "retrieved_at": datetime.now(UTC).isoformat(),
+        "sources": sources,
+    }
+    temp_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    temp_path.replace(manifest_path)
+    return manifest_path, _compute_sha256(manifest_path)
+
+
+def _source_bundle_id(sources: list[dict[str, str | int | None]]) -> str:
+    """Return a stable content/validator identifier for an immutable source bundle."""
+    payload = {
+        "ingestion_revision": MONDO_HPO_INGESTION_REVISION,
+        "sources": sources,
+    }
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _publish_staged_source_bundle(
+    staging_dir: Path,
+    dest_dir: Path,
+    bundle_id: str,
+    sources: list[dict[str, str | int | None]],
+) -> Path:
+    """Publish validated inputs as an immutable directory without replacing a prior bundle."""
+    bundles_dir = dest_dir / "mondo_hpo_sources"
+    bundles_dir.mkdir(parents=True, exist_ok=True)
+    bundle_dir = bundles_dir / bundle_id
+    if bundle_dir.exists():
+        manifest_path = bundle_dir / "mondo_hpo_sources.json"
+        try:
+            existing = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ValueError(
+                f"Existing MONDO/HPO source bundle is not valid: {bundle_dir}"
+            ) from exc
+        if (
+            existing.get("ingestion_revision") != MONDO_HPO_INGESTION_REVISION
+            or existing.get("sources") != sources
+        ):
+            raise ValueError(f"MONDO/HPO source bundle ID collision: {bundle_dir}")
+        shutil.rmtree(staging_dir)
+        return bundle_dir
+
+    staging_dir.replace(bundle_dir)
+    return bundle_dir
+
+
 def _wal_checkpoint(engine: sa.Engine) -> None:
     """Run WAL checkpoint if the engine is file-backed."""
     url = str(engine.url)
@@ -474,7 +674,7 @@ def download_file(
     dest_path = dest_dir / filename
     tmp_path = dest_dir / f"{filename}.tmp"
 
-    logger.info("download_start", url=url, dest=str(dest_path))
+    logger.info("download_start", url=_public_source_url(url), dest=str(dest_path))
 
     outcome = stream_download(
         url,
@@ -484,7 +684,10 @@ def download_file(
     )
 
     if meta is not None:
-        source_version = _parse_last_modified_version(outcome.headers.get("Last-Modified"))
+        last_modified = outcome.headers.get("Last-Modified")
+        meta["etag"] = outcome.headers.get("ETag", "")
+        meta["last_modified"] = last_modified or ""
+        source_version = _parse_last_modified_version(last_modified)
         if source_version:
             meta["version"] = source_version
 
@@ -495,19 +698,79 @@ def download_file(
     return dest_path
 
 
+def _resolve_source_disease_to_mondo(
+    source_disease_id: str,
+    mondo_xrefs: dict[str, str],
+) -> str | None:
+    """Resolve one source disease only through a direct MONDO ID or exact xref."""
+    if _is_mondo_id(source_disease_id):
+        return source_disease_id
+    return mondo_xrefs.get(source_disease_id)
+
+
+def _hpo_data_for_record(
+    record: GenePhenotypeRecord,
+    hpo_by_source_disease: dict[str, DiseaseHpoData],
+    mondo_xrefs: dict[str, str],
+) -> DiseaseHpoData | None:
+    """Merge only source HPO scopes that resolve exactly to *record*."""
+    terms_by_id: dict[str, HpoTerm] = {}
+    inheritance_values: set[str] = set()
+    found = False
+
+    for source_disease_id, hpo_info in hpo_by_source_disease.items():
+        if _resolve_source_disease_to_mondo(source_disease_id, mondo_xrefs) != record.disease_id:
+            continue
+        found = True
+        for term in hpo_info["hpo_terms"]:
+            existing = terms_by_id.get(term.id)
+            if existing is None or (existing.name is None and term.name is not None):
+                terms_by_id[term.id] = term
+        if hpo_info["inheritance"]:
+            inheritance_values.add(hpo_info["inheritance"])
+
+    if not found:
+        return None
+
+    return {
+        "hpo_terms": sorted(terms_by_id.values(), key=lambda term: term.id),
+        "inheritance": sorted(inheritance_values)[0] if len(inheritance_values) == 1 else None,
+    }
+
+
+def _count_scoped_hpo_matches(
+    records_by_gene: dict[str, list[GenePhenotypeRecord]],
+    hpo_data: HpoDataByGene,
+    mondo_xrefs: dict[str, str],
+) -> tuple[int, int]:
+    """Count source disease scopes that do and do not resolve to loaded MONDO rows."""
+    matches = 0
+    unmatched = 0
+    for gene, hpo_by_source_disease in hpo_data.items():
+        mondo_ids = {record.disease_id for record in records_by_gene.get(gene, [])}
+        for source_disease_id in hpo_by_source_disease:
+            if _resolve_source_disease_to_mondo(source_disease_id, mondo_xrefs) in mondo_ids:
+                matches += 1
+            else:
+                unmatched += 1
+    return matches, unmatched
+
+
 def _records_to_rows(
     records_by_gene: dict[str, list[GenePhenotypeRecord]],
-    hpo_data: dict[str, GeneHpoData],
+    hpo_data: HpoDataByGene,
+    mondo_xrefs: dict[str, str],
 ) -> list[dict]:
-    """Convert parsed records + HPO data into insert-ready row dicts."""
+    """Convert parsed records + disease-scoped HPO data into insert-ready rows."""
     rows: list[dict] = []
     for gene, recs in records_by_gene.items():
-        hpo_info = hpo_data.get(gene, {})
-        hpo_terms = hpo_info.get("hpo_terms", [])
-        hpo_inheritance = hpo_info.get("inheritance")
-        serialized_hpo_terms = [{"id": term.id, "name": term.name} for term in hpo_terms]
+        hpo_by_source_disease = hpo_data.get(gene, {})
 
         for rec in recs:
+            hpo_info = _hpo_data_for_record(rec, hpo_by_source_disease, mondo_xrefs)
+            hpo_terms = hpo_info["hpo_terms"] if hpo_info else []
+            hpo_inheritance = hpo_info["inheritance"] if hpo_info else None
+            serialized_hpo_terms = [{"id": term.id, "name": term.name} for term in hpo_terms]
             # Use HPO-derived inheritance if the record doesn't have one
             inheritance = rec.inheritance or hpo_inheritance
 
@@ -531,13 +794,21 @@ def load_mondo_hpo_rows(
     engine: sa.Engine,
     *,
     clear_existing: bool = True,
+    version: str | None = None,
+    file_path: str | None = None,
+    file_size_bytes: int | None = None,
+    checksum: str | None = None,
 ) -> int:
-    """Bulk-load gene-phenotype rows into the gene_phenotype table.
+    """Atomically bulk-load MONDO/HPO rows and optional source provenance.
 
     Args:
         rows: List of dicts matching gene_phenotype columns.
         engine: SQLAlchemy engine for reference.db.
         clear_existing: Delete existing mondo_hpo rows first.
+        version: Installed source version to upsert in the same transaction.
+        file_path: Primary source path recorded with *version*.
+        file_size_bytes: Primary source size recorded with *version*.
+        checksum: Primary source SHA-256 recorded with *version*.
 
     Returns:
         Number of rows loaded.
@@ -551,17 +822,61 @@ def load_mondo_hpo_rows(
             "(likely an empty or malformed MONDO/HPO source)."
         )
 
-    if clear_existing:
-        with serialized_write(engine), engine.begin() as conn:
+    # Delete, every insert batch, and the version row share one transaction so
+    # a failed load cannot expose partial disease rows or a mismatched version.
+    with serialized_write(engine), engine.begin() as conn:
+        if clear_existing:
             conn.execute(gene_phenotype.delete().where(gene_phenotype.c.source == "mondo_hpo"))
 
-    for i in range(0, len(rows), BATCH_SIZE):
-        batch = rows[i : i + BATCH_SIZE]
-        with serialized_write(engine), engine.begin() as conn:
+        for i in range(0, len(rows), BATCH_SIZE):
+            batch = rows[i : i + BATCH_SIZE]
             conn.execute(gene_phenotype.insert(), batch)
+
+        if version is not None:
+            _record_mondo_hpo_version_on_connection(
+                conn,
+                version=version,
+                file_path=file_path,
+                file_size_bytes=file_size_bytes,
+                checksum=checksum,
+            )
 
     _wal_checkpoint(engine)
     return len(rows)
+
+
+def _record_mondo_hpo_version_on_connection(
+    conn: sa.Connection,
+    *,
+    version: str,
+    file_path: str | None,
+    file_size_bytes: int | None,
+    checksum: str | None,
+) -> None:
+    """Upsert the MONDO/HPO version using an existing write transaction."""
+    now = datetime.now(UTC)
+    values = {
+        "db_name": "mondo_hpo",
+        "version": version,
+        "file_path": file_path,
+        "file_size_bytes": file_size_bytes,
+        "downloaded_at": now,
+        "checksum_sha256": checksum,
+        "genome_build": None,
+    }
+    stmt = sqlite_insert(database_versions).values(**values)
+    stmt = stmt.on_conflict_do_update(
+        index_elements=[database_versions.c.db_name],
+        set_={
+            "version": stmt.excluded.version,
+            "file_path": stmt.excluded.file_path,
+            "file_size_bytes": stmt.excluded.file_size_bytes,
+            "downloaded_at": stmt.excluded.downloaded_at,
+            "checksum_sha256": stmt.excluded.checksum_sha256,
+            "genome_build": stmt.excluded.genome_build,
+        },
+    )
+    conn.execute(stmt)
 
 
 def record_mondo_hpo_version(
@@ -573,16 +888,14 @@ def record_mondo_hpo_version(
     checksum: str | None = None,
 ) -> None:
     """Insert or update the MONDO/HPO version in database_versions."""
-    from backend.db.database_registry import _record_db_version
-
-    _record_db_version(
-        engine,
-        db_name="mondo_hpo",
-        version=version,
-        file_size_bytes=file_size_bytes,
-        sha256=checksum,
-        file_path=file_path,
-    )
+    with serialized_write(engine), engine.begin() as conn:
+        _record_mondo_hpo_version_on_connection(
+            conn,
+            version=version,
+            file_path=file_path,
+            file_size_bytes=file_size_bytes,
+            checksum=checksum,
+        )
 
 
 def _hpo_labels_need_refresh(reference_engine: sa.Engine) -> bool:
@@ -625,6 +938,40 @@ def _hpo_labels_need_refresh(reference_engine: sa.Engine) -> bool:
     return False
 
 
+def _mondo_hpo_source_version(version: str) -> str:
+    """Extract the primary MONDO source date from an installed loader version."""
+    return version.partition("+")[0]
+
+
+def _has_current_ingestion_revision(version: str) -> bool:
+    """Whether *version* records the current disease-scoped loader revision."""
+    return MONDO_HPO_INGESTION_REVISION in version.split("+")
+
+
+def _has_current_secondary_validators(
+    version: str,
+    hpo_meta: dict[str, str],
+    mondo_sssom_meta: dict[str, str],
+) -> bool:
+    """Whether stored secondary validators equal the freshly fetched values."""
+    hpo_fingerprint = _source_validator_fingerprint(hpo_meta)
+    sssom_fingerprint = _source_validator_fingerprint(mondo_sssom_meta)
+    if hpo_fingerprint is None or sssom_fingerprint is None:
+        return False
+    return (
+        _version_component(version, "hpo-") == hpo_fingerprint
+        and _version_component(version, "mondo-sssom-") == sssom_fingerprint
+    )
+
+
+def _is_legacy_disease_scope_install(version: str | None) -> bool:
+    """Whether a dated install can still contain gene-wide HPO annotations."""
+    if version is None or _has_current_ingestion_revision(version):
+        return False
+    source_version = _mondo_hpo_source_version(version)
+    return len(source_version) == 8 and source_version.isdigit()
+
+
 def check_mondo_hpo_update(
     reference_engine: sa.Engine,
     settings: object | None = None,
@@ -638,15 +985,13 @@ def check_mondo_hpo_update(
     the pinned URL. The Monarch Initiative publishes a rolling "latest"
     gene-disease archive without a static release tag, so the remote version
     is derived from the response's ``Last-Modified`` header (formatted
-    YYYYMMDD to match :func:`download_and_load_mondo_hpo`'s recorded value).
+    YYYYMMDD to match the primary date in
+    :func:`download_and_load_mondo_hpo`'s recorded value).
     The ``Content-Length`` response header populates the download-size
-    estimate used by the bandwidth-window check. Returns ``None`` when the
-    manifest pin is missing/unreachable, the HEAD call fails,
-    ``Last-Modified`` is absent, or the recorded version is the same as or
-    newer than the remote and stored HPO terms already include labels. A
-    same-version rebuild is offered once for legacy ID-only rows so existing
-    installations receive the labelled storage shape introduced for #2004;
-    a newer installed snapshot is never downgraded for this content migration.
+    estimate used by the bandwidth-window check. When the primary source date
+    matches, it also compares HPO and MONDO SSSOM response validators recorded
+    in the installed version. A missing validator is fail-closed and offers a
+    rebuild rather than silently declaring secondary inputs current.
 
     Args:
         reference_engine: Reference DB engine for ``database_versions`` lookup.
@@ -655,9 +1000,10 @@ def check_mondo_hpo_update(
         timeout: HTTP timeout in seconds for both the manifest fetch and HEAD.
 
     Returns:
-        ``VersionInfo`` when the remote ``Last-Modified`` date is newer than
-        the recorded version, or when the dates match but legacy ID-only HPO
-        rows need the labelled-data rebuild; otherwise ``None``.
+        ``VersionInfo`` when the primary source date is newer, a same-date
+        installation needs a content migration, or an HPO/SSSOM validator
+        changed; otherwise ``None``. A newer primary source is never
+        downgraded.
     """
     del settings  # unused; kept for dispatch-signature parity
     from email.utils import parsedate_to_datetime
@@ -692,12 +1038,6 @@ def check_mondo_hpo_update(
         return None
 
     current = get_current_version(reference_engine, "mondo_hpo")
-    if current is not None:
-        if current > remote_version:
-            return None
-        if current == remote_version and not _hpo_labels_need_refresh(reference_engine):
-            return None
-
     download_size = 0
     if content_length:
         try:
@@ -705,13 +1045,50 @@ def check_mondo_hpo_update(
         except ValueError:
             download_size = 0
 
-    return VersionInfo(
+    available = VersionInfo(
         db_name="mondo_hpo",
         latest_version=remote_version,
         download_url=pin.url,
         download_size_bytes=download_size,
         release_date=remote_version,
     )
+    if current is None:
+        return available
+
+    current_source_version = _mondo_hpo_source_version(current)
+    if current_source_version > remote_version:
+        return None
+    if current_source_version < remote_version:
+        return available
+    if not _has_current_ingestion_revision(current) or _hpo_labels_need_refresh(reference_engine):
+        return available
+
+    try:
+        with httpx.Client(
+            follow_redirects=True,
+            timeout=httpx.Timeout(timeout, connect=10.0),
+        ) as client:
+            hpo_resp = client.head(HPO_GENES_TO_PHENOTYPE_URL)
+            hpo_resp.raise_for_status()
+            sssom_resp = client.head(MONDO_SSSOM_URL)
+            sssom_resp.raise_for_status()
+    except Exception as exc:
+        logger.warning("mondo_hpo_secondary_update_check_failed", error=str(exc))
+        return available
+
+    hpo_meta = {
+        "etag": hpo_resp.headers.get("ETag", ""),
+        "last_modified": hpo_resp.headers.get("Last-Modified", ""),
+    }
+    mondo_sssom_meta = {
+        "etag": sssom_resp.headers.get("ETag", ""),
+        "last_modified": sssom_resp.headers.get("Last-Modified", ""),
+    }
+    if _has_current_secondary_validators(current, hpo_meta, mondo_sssom_meta):
+        return None
+
+    logger.warning("mondo_hpo_secondary_source_changed_or_unverifiable")
+    return available
 
 
 def download_and_load_mondo_hpo(
@@ -720,77 +1097,153 @@ def download_and_load_mondo_hpo(
     *,
     mondo_url: str = MONDO_GENE_DISEASE_URL,
     hpo_url: str = HPO_GENES_TO_PHENOTYPE_URL,
+    mondo_sssom_url: str = MONDO_SSSOM_URL,
     download_progress: Callable[[int, int | None], None] | None = None,
     timeout: float = 300.0,
 ) -> LoadStats:
-    """Full pipeline: download MONDO + HPO data, parse, merge, and load.
+    """Full pipeline: download MONDO, HPO, and exact xrefs, then load.
 
     Args:
         engine: SQLAlchemy engine for reference.db.
         dest_dir: Directory for downloaded files.
         mondo_url: Override URL for MONDO gene-disease TSV.
         hpo_url: Override URL for HPO genes-to-phenotype file.
+        mondo_sssom_url: Override URL for MONDO's SSSOM exact cross-references.
         download_progress: Callback for download progress.
         timeout: HTTP timeout seconds.
 
     Returns:
         LoadStats with counts and metadata.
     """
-    # Download MONDO gene-disease associations
-    mondo_meta: dict = {}
-    mondo_path = download_file(
-        mondo_url,
-        dest_dir,
+    source_filenames = (
         "gene_disease.9606.tsv.gz",
-        progress_callback=download_progress,
-        timeout=timeout,
-        meta=mondo_meta,
-    )
-
-    # Download HPO genes-to-phenotype
-    hpo_path = download_file(
-        hpo_url,
-        dest_dir,
         "genes_to_phenotype.txt",
-        progress_callback=download_progress,
-        timeout=timeout,
+        "mondo.sssom.tsv",
+        "mondo_hpo_sources.json",
     )
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    staging_dir = Path(tempfile.mkdtemp(prefix=".mondo-hpo-", dir=dest_dir))
+    try:
+        # Download into an isolated directory first. Existing validated source
+        # artifacts are untouched until every input is parsed and accepted.
+        mondo_meta: dict[str, str] = {}
+        mondo_path = download_file(
+            mondo_url,
+            staging_dir,
+            source_filenames[0],
+            progress_callback=download_progress,
+            timeout=timeout,
+            meta=mondo_meta,
+        )
+        hpo_meta: dict[str, str] = {}
+        hpo_path = download_file(
+            hpo_url,
+            staging_dir,
+            source_filenames[1],
+            progress_callback=download_progress,
+            timeout=timeout,
+            meta=hpo_meta,
+        )
+        mondo_sssom_meta: dict[str, str] = {}
+        mondo_sssom_path = download_file(
+            mondo_sssom_url,
+            staging_dir,
+            source_filenames[2],
+            progress_callback=download_progress,
+            timeout=timeout,
+            meta=mondo_sssom_meta,
+        )
 
-    # Parse
-    records_by_gene, stats = parse_mondo_gene_disease_tsv(mondo_path)
-    hpo_data = parse_hpo_genes_to_phenotype(hpo_path)
-    stats.hpo_genes_mapped = len(set(records_by_gene.keys()) & set(hpo_data.keys()))
+        records_by_gene, stats = parse_mondo_gene_disease_tsv(mondo_path)
+        hpo_data = parse_hpo_genes_to_phenotype(hpo_path)
+        mondo_xrefs = parse_mondo_sssom(mondo_sssom_path)
+        if len(mondo_xrefs) < MINIMUM_UNAMBIGUOUS_MONDO_XREFS:
+            raise ValueError(
+                "Refusing to replace MONDO/HPO rows because MONDO SSSOM yielded only "
+                f"{len(mondo_xrefs):,} unambiguous exact mappings; expected at least "
+                f"{MINIMUM_UNAMBIGUOUS_MONDO_XREFS:,}."
+            )
 
-    # Merge and load
-    rows = _records_to_rows(records_by_gene, hpo_data)
-    stats.records_loaded = load_mondo_hpo_rows(rows, engine)
+        stats.hpo_genes_mapped = len(set(records_by_gene.keys()) & set(hpo_data.keys()))
+        stats.hpo_disease_matches, stats.hpo_disease_unmatched = _count_scoped_hpo_matches(
+            records_by_gene,
+            hpo_data,
+            mondo_xrefs,
+        )
+        if records_by_gene and not hpo_data:
+            raise ValueError(
+                "Refusing to replace MONDO/HPO rows because the HPO source yielded no valid "
+                "disease-scoped annotations."
+            )
+        if records_by_gene and hpo_data and stats.hpo_disease_matches == 0:
+            raise ValueError(
+                "Refusing to replace MONDO/HPO rows because no HPO disease scope resolved "
+                "through a validated exact MONDO cross-reference."
+            )
 
-    # Checksums and version
-    sha256 = _compute_sha256(mondo_path)
-    stats.sha256 = sha256
-    # Record the source publication date (Last-Modified, captured from the MONDO
-    # download response above) so the value read by get_current_version is the
-    # same kind of date check_mondo_hpo_update compares against, avoiding false
-    # "already up to date" skips. Fall back to the install date only when the
-    # server did not provide a usable Last-Modified header.
-    stats.version = mondo_meta.get("version") or datetime.now(UTC).strftime("%Y%m%d")
+        rows = _records_to_rows(records_by_gene, hpo_data, mondo_xrefs)
 
-    record_mondo_hpo_version(
-        engine,
-        version=stats.version,
-        file_path=str(mondo_path),
-        file_size_bytes=mondo_path.stat().st_size,
-        checksum=sha256,
-    )
+        # ``stats.sha256`` and the database_versions row remain tied to the
+        # primary Monarch archive for compatibility with the existing updater.
+        mondo_size = mondo_path.stat().st_size
+        stats.sha256 = _compute_sha256(mondo_path)
+        stats.hpo_sha256 = _compute_sha256(hpo_path)
+        stats.mondo_sssom_sha256 = _compute_sha256(mondo_sssom_path)
+        sources = [
+            _source_manifest_entry(mondo_path, mondo_url, "mondo_gene_disease", mondo_meta),
+            _source_manifest_entry(hpo_path, hpo_url, "hpo_genes_to_phenotype", hpo_meta),
+            _source_manifest_entry(
+                mondo_sssom_path,
+                mondo_sssom_url,
+                "mondo_sssom_exact_cross_references",
+                mondo_sssom_meta,
+            ),
+        ]
+        source_manifest_path, source_manifest_sha256 = _write_source_manifest(staging_dir, sources)
+        source_version = mondo_meta.get("version") or datetime.now(UTC).strftime("%Y%m%d")
+        stats.version = _mondo_hpo_install_version(
+            source_version,
+            hpo_meta,
+            mondo_sssom_meta,
+        )
+        stats.hpo_version = hpo_meta.get("version")
+        stats.mondo_sssom_version = mondo_sssom_meta.get("version")
 
-    logger.info(
-        "mondo_hpo_loaded",
-        records=stats.records_loaded,
-        genes=len(records_by_gene),
-        hpo_mapped=stats.hpo_genes_mapped,
-    )
+        # Publish a unique immutable source bundle after validation. A database
+        # transaction can now fail without replacing the prior version's files.
+        source_bundle_dir = _publish_staged_source_bundle(
+            staging_dir,
+            dest_dir,
+            _source_bundle_id(sources),
+            sources,
+        )
+        final_mondo_path = source_bundle_dir / mondo_path.name
+        final_source_manifest_path = source_bundle_dir / source_manifest_path.name
+        stats.records_loaded = load_mondo_hpo_rows(
+            rows,
+            engine,
+            version=stats.version,
+            file_path=str(final_mondo_path),
+            file_size_bytes=mondo_size,
+            checksum=stats.sha256,
+        )
 
-    return stats
+        logger.info(
+            "mondo_hpo_loaded",
+            records=stats.records_loaded,
+            genes=len(records_by_gene),
+            hpo_mapped=stats.hpo_genes_mapped,
+            hpo_disease_matches=stats.hpo_disease_matches,
+            hpo_disease_unmatched=stats.hpo_disease_unmatched,
+            mondo_sha256=stats.sha256,
+            hpo_sha256=stats.hpo_sha256,
+            mondo_sssom_sha256=stats.mondo_sssom_sha256,
+            source_manifest_path=str(final_source_manifest_path),
+            source_manifest_sha256=source_manifest_sha256,
+        )
+        return stats
+    finally:
+        shutil.rmtree(staging_dir, ignore_errors=True)
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -834,12 +1287,28 @@ def lookup_gene_phenotypes(
     results: dict[str, list[GenePhenotypeAnnotation]] = {}
 
     with reference_engine.connect() as conn:
+        installed_version = conn.execute(
+            sa.select(database_versions.c.version).where(
+                database_versions.c.db_name == "mondo_hpo"
+            )
+        ).scalar_one_or_none()
+        withhold_legacy_mondo = _is_legacy_disease_scope_install(installed_version)
+        if withhold_legacy_mondo:
+            logger.warning(
+                "mondo_hpo_legacy_disease_scope_withheld",
+                installed_version=installed_version,
+            )
+            if source_filter == "mondo_hpo":
+                return {}
+
         for i in range(0, len(gene_symbols), 500):
             batch = gene_symbols[i : i + 500]
 
             conditions = [gene_phenotype.c.gene_symbol.in_(batch)]
             if source_filter:
                 conditions.append(gene_phenotype.c.source == source_filter)
+            elif withhold_legacy_mondo:
+                conditions.append(gene_phenotype.c.source != "mondo_hpo")
 
             stmt = (
                 sa.select(
@@ -859,7 +1328,6 @@ def lookup_gene_phenotypes(
 
             rows = conn.execute(stmt).fetchall()
 
-            overrides = _load_inheritance_overrides()
             for row in rows:
                 # Drop obsolete MONDO terms so they never reach the user (F21).
                 if _is_obsolete_disease(row.disease_name):
@@ -868,9 +1336,6 @@ def lookup_gene_phenotypes(
                 hpo_term_details = decode_hpo_terms(row.hpo_terms)
                 hpo_terms = [term.id for term in hpo_term_details]
 
-                # Curated inheritance override for known-mislabelled genes (F14).
-                inheritance = overrides.get((row.gene_symbol or "").upper(), row.inheritance)
-
                 annot = GenePhenotypeAnnotation(
                     gene_symbol=row.gene_symbol,
                     disease_name=row.disease_name,
@@ -878,7 +1343,7 @@ def lookup_gene_phenotypes(
                     hpo_terms=hpo_terms,
                     hpo_term_details=hpo_term_details,
                     source=row.source,
-                    inheritance=inheritance,
+                    inheritance=row.inheritance,
                 )
                 results.setdefault(row.gene_symbol, []).append(annot)
 

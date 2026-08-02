@@ -300,10 +300,9 @@ def _fetch_gene_phenotypes(gene_symbol: str | None) -> list[GenePhenotypeRecord]
     Routes through :func:`lookup_gene_phenotypes` rather than reading the
     ``gene_phenotype`` table directly so the full-page list inherits the same
     reference-data hygiene the annotation engine applies (F23): obsolete MONDO
-    terms are dropped (F21), gene-level inheritance is corrected for the
-    known-mislabelled dominant genes (F14), and records come back
-    deterministically ordered. A raw ``SELECT *`` leaked obsolete labels and the
-    wrong inheritance that the stored single-disease summary already filters out.
+    terms are dropped (F21), disease-scoped inheritance is kept with its source
+    disease, and records come back deterministically ordered. A raw ``SELECT *``
+    leaked obsolete labels and bypassed the shared disease-scoped lookup.
     """
     if not gene_symbol:
         return []

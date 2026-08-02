@@ -411,8 +411,8 @@ def _fetch_gene_phenotypes(gene_symbol: str) -> list[GenePhenotypeRecord]:
     """Fetch gene-phenotype associations through the shared lookup path.
 
     The shared lookup applies the same reference-data hygiene as annotation and
-    variant detail: obsolete diseases are excluded, curated inheritance
-    overrides are applied, and results have deterministic ordering.
+    variant detail: obsolete diseases are excluded, source disease-scoped
+    inheritance is preserved, and results have deterministic ordering.
     """
     registry = get_registry()
     annots_by_gene = lookup_gene_phenotypes([gene_symbol], registry.reference_engine)

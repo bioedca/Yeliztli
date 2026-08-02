@@ -1,0 +1,4 @@
+subject_id	subject_label	predicate_id	object_id	object_label	mapping_justification
+MONDO:0013212	Charcot-Marie-Tooth disease axonal type 2N	skos:exactMatch	OMIM:613287	charcot-marie-tooth disease, axonal, type 2n	semapv:UnspecifiedMatching
+MONDO:0014593	developmental and epileptic encephalopathy, 29	skos:exactMatch	OMIM:616339	developmental and epileptic encephalopathy 29	semapv:UnspecifiedMatching
+MONDO:0018053	trichothiodystrophy	skos:exactMatch	Orphanet:33364	Trichothiodystrophy	semapv:UnspecifiedMatching

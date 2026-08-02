@@ -1,0 +1,28 @@
+{
+  "accessed": "2026-08-01",
+  "issue": 2163,
+  "sources": [
+    {
+      "kind": "peer_reviewed_article",
+      "pmid": "33264411",
+      "pmcid": "PMC7778952",
+      "doi": "10.1093/nar/gkaa1043",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/33264411/"
+    },
+    {
+      "kind": "authoritative_database_export",
+      "name": "Human Phenotype Ontology genes_to_phenotype",
+      "url": "https://purl.obolibrary.org/obo/hp/hpoa/genes_to_phenotype.txt",
+      "schema_role": "source disease_id for each gene-HPO annotation"
+    },
+    {
+      "kind": "authoritative_ontology_mapping",
+      "name": "MONDO SSSOM mappings",
+      "url": "https://purl.obolibrary.org/obo/mondo/mappings/mondo.sssom.tsv",
+      "schema_role": "validated skos:exactMatch source-to-MONDO cross-reference",
+      "etag_observed": "0a1dce47b9acc738152374453dca0ae8ee65f761ec56bc50cc36f3d720d2e2ef",
+      "unambiguous_exact_source_ids_observed": 109306,
+      "minimum_unambiguous_exact_source_ids": 50000
+    }
+  ]
+}

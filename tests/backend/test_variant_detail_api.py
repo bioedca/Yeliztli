@@ -217,10 +217,9 @@ GENE_PHENOTYPE_DATA = [
 ]
 
 
-# Reference rows that exercise the full-page hygiene path (F21/F14/F23): an
-# obsolete term that must be dropped, two real diseases that must ALL surface
-# (not one arbitrary record), all on BRCA1 — a gene the curated override
-# relabels dominant, even though the source rows are mislabelled recessive.
+# Reference rows that exercise the full-page hygiene path (F21/F23): an
+# obsolete term that must be dropped and two real diseases that must ALL
+# surface (not one arbitrary record), while preserving each source inheritance.
 HYGIENE_GENE_PHENOTYPE_DATA = [
     {
         "gene_symbol": "BRCA1",
@@ -658,9 +657,9 @@ class TestGenePhenotypeRefDataHygiene:
     """F23: the full-page gene-phenotype list inherits the engine's hygiene.
 
     The list is built via ``lookup_gene_phenotypes`` (not a raw table read), so
-    obsolete MONDO terms (F21) and gene-mislabelled inheritance (F14) are
-    filtered/corrected exactly as the stored single-disease summary is, and
-    *every* non-obsolete disease surfaces rather than one arbitrary record.
+    obsolete MONDO terms (F21) are filtered, disease-specific inheritance is
+    preserved, and *every* non-obsolete disease surfaces rather than one
+    arbitrary record.
     """
 
     def test_obsolete_terms_dropped(self, hygiene_client):
@@ -677,13 +676,16 @@ class TestGenePhenotypeRefDataHygiene:
         ids = {gp["disease_id"] for gp in data["gene_phenotypes"]}
         assert ids == {"MONDO:0005012", "OMIM:604370"}
 
-    def test_dominant_inheritance_corrected(self, hygiene_client):
-        # F14: curated override relabels the mislabelled-recessive dominant gene.
+    def test_disease_specific_inheritance_is_preserved(self, hygiene_client):
+        """A gene-wide rule must not rewrite inheritance on every disease row."""
         tc, sid = hygiene_client
         data = tc.get(f"/api/variants/rs80357906?sample_id={sid}").json()
         gps = data["gene_phenotypes"]
         assert gps, "expected gene-phenotype records"
-        assert all(gp["inheritance"] == "Autosomal dominant" for gp in gps), gps
+        assert {gp["disease_id"]: gp["inheritance"] for gp in gps} == {
+            "MONDO:0005012": "AR",
+            "OMIM:604370": "AR",
+        }
 
 
 # ═══════════════════════════════════════════════════════════════════════
