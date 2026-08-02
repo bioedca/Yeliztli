@@ -20,10 +20,7 @@ from fastapi import APIRouter, Query
 from pydantic import BaseModel
 from sqlalchemy.pool import NullPool
 
-from backend.analysis.pharmacogenomics import (
-    contains_unpresentable_prescribing_identifier,
-    is_patient_presentable_response_payload,
-)
+from backend.analysis.pharmacogenomics import is_patient_presentable_response_payload
 from backend.config import get_settings
 from backend.db.connection import get_registry
 from backend.db.database_registry import DATABASES, DatabaseInfo
@@ -35,6 +32,7 @@ from backend.db.db_health import (
     validate_database,
 )
 from backend.db.tables import (
+    LOG_ENTRY_PRESENTATION_POLICY_VERSION,
     database_versions,
     jobs,
     log_entries,
@@ -45,11 +43,6 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 
 # Track app start time for uptime calculation
 _APP_START_TIME = time.time()
-
-_PRESCRIBING_LOG_MESSAGES = frozenset(
-    {"pgx_alert_withheld_insufficient_clinical_evidence", "pgx_prescribing_alert"}
-)
-_LOG_PAGE_BATCH_SIZE = 500
 
 
 def _format_ts(val: object) -> str | None:
@@ -72,82 +65,6 @@ def _reject_duplicate_json_keys(pairs: list[tuple[str, object]]) -> dict[str, ob
 def _reject_non_json_constant(value: str) -> None:
     """Reject JavaScript-style constants that strict JSON does not permit."""
     raise ValueError(f"non-JSON constant: {value}")
-
-
-def _is_nonblank_string(value: object) -> bool:
-    """Whether a structured payload identifier can be safely normalized."""
-    return isinstance(value, str) and bool(value.strip())
-
-
-def _is_patient_visible_log_entry(row: sa.RowMapping) -> bool:
-    """Hide durable PGx guidance logs retained before the #2019 hold.
-
-    A malformed payload from a prescribing event is treated as withheld rather
-    than rendered, because it may contain a legacy recommendation that cannot be
-    safely classified. This is applied before pagination and count calculation
-    so the Log Explorer has no content or count side channel.
-    """
-    message = str(row["message"] or "")
-    event_data = row["event_data"]
-    if event_data is None:
-        try:
-            return (
-                message not in _PRESCRIBING_LOG_MESSAGES
-                and not contains_unpresentable_prescribing_identifier({"message": message})
-            )
-        except RecursionError:
-            return False
-    try:
-        payload = json.loads(
-            event_data,
-            object_pairs_hook=_reject_duplicate_json_keys,
-            parse_constant=_reject_non_json_constant,
-        )
-    except (TypeError, ValueError, RecursionError):
-        return False
-    if not isinstance(payload, dict):
-        return False
-    if message in _PRESCRIBING_LOG_MESSAGES and (
-        not _is_nonblank_string(payload.get("gene"))
-        or not _is_nonblank_string(payload.get("drug"))
-    ):
-        return False
-    try:
-        if contains_unpresentable_prescribing_identifier(
-            {"message": message, "event_data": payload}
-        ):
-            return False
-    except RecursionError:
-        # Deep legacy JSON cannot be safely classified, so do not expose it.
-        return False
-    return True
-
-
-def _collect_visible_log_page(
-    rows: sa.MappingResult,
-    *,
-    offset: int,
-    page_size: int,
-) -> tuple[list[sa.RowMapping], int]:
-    """Filter durable logs in bounded batches while preserving visible totals.
-
-    The policy must inspect every caller-filtered record because malformed legacy
-    JSON cannot safely be classified in SQL.  Keep the scan memory-bounded,
-    retaining only the requested page while still counting all visible rows so
-    pagination cannot leak withheld records through totals or ``has_more``.
-    """
-    page_rows: list[sa.RowMapping] = []
-    visible_count = 0
-
-    while batch := rows.fetchmany(_LOG_PAGE_BATCH_SIZE):
-        for row in batch:
-            if not _is_patient_visible_log_entry(row):
-                continue
-            if offset <= visible_count < offset + page_size:
-                page_rows.append(row)
-            visible_count += 1
-
-    return page_rows, visible_count
 
 
 def _is_patient_presentable_log_page(rows: list[sa.RowMapping]) -> bool:
@@ -280,8 +197,13 @@ def get_logs(
     offset = (page - 1) * page_size
 
     with engine.connect() as conn:
-        # Build WHERE clause
-        conditions: list[sa.ColumnElement] = []
+        # The writer attests that a row was normalized/redacted under the
+        # current presentation policy.  Legacy rows stay on version 0 rather
+        # than being reparsed at request time, so count and pagination remain
+        # exact without a raw-history scan or a size-dependent failure oracle.
+        conditions: list[sa.ColumnElement] = [
+            log_entries.c.presentation_policy_version == LOG_ENTRY_PRESENTATION_POLICY_VERSION
+        ]
         if level:
             conditions.append(log_entries.c.level == level.upper())
         if component:
@@ -293,16 +215,20 @@ def get_logs(
         if search:
             conditions.append(log_entries.c.message.contains(search))
 
-        where = sa.and_(*conditions) if conditions else sa.true()
-
-        # Filter durable structured event data before pagination. A raw SQL
-        # predicate cannot safely parse malformed legacy JSON, so scan the
-        # caller-filtered log set in bounded batches under the fail-closed policy.
-        q = sa.select(log_entries).where(where).order_by(log_entries.c.id.desc())
-        page_rows, total = _collect_visible_log_page(
-            conn.execute(q).mappings(),
-            offset=offset,
-            page_size=page_size,
+        where = sa.and_(*conditions)
+        total = conn.execute(
+            sa.select(sa.func.count()).select_from(log_entries).where(where)
+        ).scalar_one()
+        page_rows = (
+            conn.execute(
+                sa.select(log_entries)
+                .where(where)
+                .order_by(log_entries.c.id.desc())
+                .offset(offset)
+                .limit(page_size)
+            )
+            .mappings()
+            .all()
         )
 
     entries = [
@@ -317,9 +243,9 @@ def get_logs(
         for r in page_rows
     ]
 
-    # ``entries`` are screened individually above, but the actual response is
-    # a collection. Do not serialize rows that would assemble held guidance
-    # after pagination, including through escaped JSON event-data values.
+    # The attestation is per row, but the actual response is a collection. Do
+    # not serialize rows that would assemble held guidance after pagination,
+    # including through escaped JSON event-data values.
     if not _is_patient_presentable_log_page(page_rows):
         return LogResponse(
             entries=[],
@@ -334,7 +260,7 @@ def get_logs(
         total=total,
         page=page,
         page_size=page_size,
-        has_more=(offset + page_size) < total,
+        has_more=(offset + len(entries)) < total,
     )
 
 

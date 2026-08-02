@@ -19,6 +19,7 @@ import pytest
 import sqlalchemy as sa
 
 from backend.analysis.pharmacogenomics import (
+    _IDENTIFIER_CHARACTER_CONFUSABLES,
     CallConfidence,
     PrescribingAlert,
     StarAlleleResult,
@@ -1832,16 +1833,31 @@ class TestStorePrescribingAlerts:
             ).scalar()
         assert n == 0, "empty rerun left stale prescribing alerts"
 
-    def test_rerun_preserves_withheld_tamoxifen_audit_records(self):
-        """#2019: reanalysis must not delete retained custom audit provenance."""
+    @pytest.mark.parametrize(
+        ("gene", "drug"),
+        (
+            ("CYP2D6", "tamoxifen"),
+            ("CYP2D-6", "tamoxifen"),
+            ("CYP2D6", "tamoxifen\u200b"),
+            ("CYP2D6", "tam0xifen"),
+            ("ＣＹＰ２Ｄ６", "tamoxifen"),
+            ("\u03f9YP2D6", "tamoxifen"),
+            (
+                "\u0421\u0423\u03a1\u0662\u0501\u0431",
+                "\u03c4\u0430\u043c\u03bf\u0445\u0456\u0192\u0435\u03b7",
+            ),
+        ),
+    )
+    def test_rerun_preserves_withheld_tamoxifen_audit_records(self, gene: str, drug: str):
+        """#2019: reanalysis must not delete normalized retained audit provenance."""
         sample = _make_sample_engine([])
         with sample.begin() as conn:
             conn.execute(
                 findings.insert().values(
                     module="pharmacogenomics",
                     category="prescribing_alert",
-                    gene_symbol="CYP2D6",
-                    drug="tamoxifen",
+                    gene_symbol=gene,
+                    drug=drug,
                     finding_text="Custom retained tamoxifen audit record.",
                     detail_json=json.dumps({"local_audit_note": "retain"}),
                     provenance=json.dumps({"source": "local_clinician"}),
@@ -1865,12 +1881,42 @@ class TestStorePrescribingAlerts:
 
         assert rows == [
             (
-                "CYP2D6",
-                "tamoxifen",
+                gene,
+                drug,
                 "Custom retained tamoxifen audit record.",
                 json.dumps({"source": "local_clinician"}),
             )
         ]
+
+    def test_rerun_preserves_audit_record_with_nested_held_identifiers(self) -> None:
+        """#2019: retained audit evidence uses the complete payload classifier."""
+        sample = _make_sample_engine([])
+        detail_json = json.dumps({"source_evidence": {"gene": "CYP2D6", "drug": "tamoxifen"}})
+        with sample.begin() as conn:
+            conn.execute(
+                findings.insert().values(
+                    module="pharmacogenomics",
+                    category="prescribing_alert",
+                    gene_symbol="CYP2C19",
+                    drug="clopidogrel",
+                    finding_text="Custom retained audit record.",
+                    detail_json=detail_json,
+                    provenance=json.dumps({"source": "local_clinician"}),
+                )
+            )
+
+        assert store_prescribing_alerts([], sample) == 0
+
+        with sample.connect() as conn:
+            rows = conn.execute(
+                sa.select(
+                    findings.c.gene_symbol,
+                    findings.c.drug,
+                    findings.c.detail_json,
+                ).where(findings.c.category == "prescribing_alert")
+            ).all()
+
+        assert rows == [("CYP2C19", "clopidogrel", detail_json)]
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -2764,6 +2810,72 @@ class TestPatientPresentableFindingPayload:
                 "detail_json": {"note": f"{gene} tamoxifen dose escalation"},
             }
         )
+
+    def test_allows_unrelated_non_ascii_clinical_text(self) -> None:
+        """A long non-ASCII phrase is not a wildcard-held identifier."""
+        assert is_patient_presentable_response_payload(
+            {"note": "病患檢體資料 tamoxifen reference"}
+        )
+
+    def test_pinned_uts39_residual_map_has_complete_expected_character_coverage(self) -> None:
+        assert set(_IDENTIFIER_CHARACTER_CONFUSABLES) == set("cyp2d6tamoxifen")
+        assert sum(map(len, _IDENTIFIER_CHARACTER_CONFUSABLES.values())) == 482
+
+    @pytest.mark.parametrize(
+        ("expected", "confusable"),
+        tuple(
+            pytest.param(
+                expected,
+                confusable,
+                id=f"{expected}-U+{ord(confusable):04X}",
+            )
+            for expected, confusables in sorted(_IDENTIFIER_CHARACTER_CONFUSABLES.items())
+            for confusable in sorted(confusables, key=ord)
+        ),
+    )
+    def test_rejects_every_pinned_uts39_residual_confusable(
+        self, expected: str, confusable: str
+    ) -> None:
+        gene = "cyp2d6"
+        drug = "tamoxifen"
+        if expected in gene:
+            gene = gene.replace(expected, confusable, 1)
+        else:
+            drug = drug.replace(expected, confusable, 1)
+
+        assert is_prescribing_alert_withheld(gene, drug)
+        assert not is_patient_presentable_response_payload({"gene": gene, "drug": drug})
+
+    @pytest.mark.parametrize(
+        ("gene", "drug"),
+        (
+            ("\u0421YP2D6", "tamoxifen"),
+            ("\u03f9YP2D6", "tamoxifen"),
+            ("C\u0423P2D6", "tamoxifen"),
+            ("CY\u03a12D6", "tamoxifen"),
+            ("CYP\u0662D6", "tamoxifen"),
+            ("CYP2\u05016", "tamoxifen"),
+            ("CYP2D\u0431", "tamoxifen"),
+            ("CYP2D6", "\u03c4amoxifen"),
+            ("CYP2D6", "t\u0430moxifen"),
+            ("CYP2D6", "ta\u043coxifen"),
+            ("CYP2D6", "tam\u03bfxifen"),
+            ("CYP2D6", "tamo\u0445ifen"),
+            ("CYP2D6", "tam0xifen"),
+            ("CYP2D6", "tamox\u0456fen"),
+            ("CYP2D6", "tamoxi\u0192en"),
+            ("CYP2D6", "tamoxi\u017fen"),
+            ("CYP2D6", "tamoxif\u0435n"),
+            ("CYP2D6", "tamoxife\u03b7"),
+            (
+                "\u0421\u0423\u03a1\u0662\u0501\u0431",
+                "\u03c4\u0430\u043c\u03bf\u0445\u0456\u0192\u0435\u03b7",
+            ),
+        ),
+    )
+    def test_rejects_reviewed_unicode_confusable_held_pair(self, gene: str, drug: str) -> None:
+        assert is_prescribing_alert_withheld(gene, drug)
+        assert not is_patient_presentable_response_payload({"gene": gene, "drug": drug})
 
     @pytest.mark.parametrize(
         "text",

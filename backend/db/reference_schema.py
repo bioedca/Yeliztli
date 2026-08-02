@@ -25,7 +25,11 @@ from collections import Counter
 import sqlalchemy as sa
 import structlog
 
+from backend.db.tables import log_entries, reference_metadata
+
 logger = structlog.get_logger(__name__)
+
+_LOG_ENTRY_PRESENTATION_POLICY_INDEX = "idx_log_entries_presentation_policy_id"
 
 _CYP2C9_PHENYTOIN_GUIDELINE_URL = (
     "https://cpicpgx.org/guidelines/guideline-for-phenytoin-and-cyp2c9/"
@@ -701,6 +705,79 @@ def _remove_orphaned_reannotation_prompts(engine: sa.Engine) -> bool:
     return removed_rows > 0
 
 
+def bootstrap_reference_schema_tables(engine: sa.Engine) -> None:
+    """Create missing reference tables without a concurrent SQLite check/create race."""
+    if engine.dialect.name != "sqlite":
+        reference_metadata.create_all(engine, checkfirst=True)
+        return
+
+    with engine.connect() as conn:
+        conn.exec_driver_sql("BEGIN IMMEDIATE")
+        try:
+            reference_metadata.create_all(conn, checkfirst=True)
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+
+
+def ensure_log_entry_presentation_policy(engine: sa.Engine) -> bool:
+    """Create or atomically backfill the durable log-presentation policy.
+
+    The helper is intentionally narrow enough for direct Huey-worker startup:
+    logging must not invoke unrelated content repairs merely to prepare its
+    sink. SQLite's ``BEGIN IMMEDIATE`` serializes this schema check and its
+    additive DDL across concurrently starting web and worker processes.
+    """
+    if engine.dialect.name != "sqlite":
+        raise RuntimeError("log presentation policy requires SQLite reference storage")
+
+    with engine.connect() as conn:
+        conn.exec_driver_sql("BEGIN IMMEDIATE")
+        try:
+            table_exists = conn.exec_driver_sql(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'log_entries'"
+            ).scalar()
+            changed = False
+            if not table_exists:
+                log_entries.create(conn)
+                changed = True
+            else:
+                columns = {
+                    row[1] for row in conn.exec_driver_sql("PRAGMA table_info(log_entries)")
+                }
+                if "presentation_policy_version" not in columns:
+                    conn.exec_driver_sql(
+                        "ALTER TABLE log_entries ADD COLUMN "
+                        "presentation_policy_version INTEGER NOT NULL DEFAULT 0"
+                    )
+                    changed = True
+
+                indexes = {
+                    row[1] for row in conn.exec_driver_sql("PRAGMA index_list(log_entries)")
+                }
+                if _LOG_ENTRY_PRESENTATION_POLICY_INDEX not in indexes:
+                    conn.exec_driver_sql(
+                        "CREATE INDEX IF NOT EXISTS "
+                        f"{_LOG_ENTRY_PRESENTATION_POLICY_INDEX} "
+                        "ON log_entries (presentation_policy_version, id DESC)"
+                    )
+                    changed = True
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+
+    if changed:
+        logger.info(
+            "reference_schema_backfilled",
+            table="log_entries",
+            column="presentation_policy_version",
+            index=_LOG_ENTRY_PRESENTATION_POLICY_INDEX,
+        )
+    return changed
+
+
 def ensure_reference_schema_current(engine: sa.Engine) -> bool:
     """Backfill missing additive schema and exact-fingerprint content repairs.
 
@@ -775,6 +852,14 @@ def ensure_reference_schema_current(engine: sa.Engine) -> bool:
                 table="downloads",
                 column="validator",
             )
+
+    # ── log_entries.presentation_policy_version (#2019 — durable log hold)
+    # Existing rows are quarantined at version 0 rather than retrospectively
+    # parsed. New rows are visible only when the redacting DB writer explicitly
+    # attests the current version. The narrow helper serializes this DDL with a
+    # direct worker's bootstrap path.
+    if "log_entries" in table_names and ensure_log_entry_presentation_policy(engine):
+        changed = True
 
     # ── cpic_guidelines.activity_score (#1993 — AS-keyed DPYD dosing)
     # Nullable REAL so CPIC recommendations that split by gene activity score

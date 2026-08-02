@@ -17,15 +17,22 @@ function is idempotent, and that a fresh schema is left untouched.
 from __future__ import annotations
 
 from datetime import datetime
+from multiprocessing import get_context
 from pathlib import Path
+from queue import Empty
 
 import pytest
 import sqlalchemy as sa
 
-from backend.db.reference_schema import ensure_reference_schema_current
+from backend.db.reference_schema import (
+    bootstrap_reference_schema_tables,
+    ensure_reference_schema_current,
+)
 from backend.db.tables import (
+    LOG_ENTRY_PRESENTATION_POLICY_VERSION,
     cpic_guidelines,
     database_versions,
+    log_entries,
     reannotation_prompts,
     reference_metadata,
     samples,
@@ -209,6 +216,18 @@ def _columns(engine: sa.Engine, table: str) -> set[str]:
     return {c["name"] for c in sa.inspect(engine).get_columns(table)}
 
 
+def _bootstrap_reference_schema_in_subprocess(db_path: str, start, errors) -> None:
+    """Race two independent processes through the reference-table bootstrap."""
+    engine = sa.create_engine(f"sqlite:///{db_path}", connect_args={"timeout": 5})
+    try:
+        start.wait(timeout=5)
+        bootstrap_reference_schema_tables(engine)
+    except Exception as exc:  # pragma: no cover - asserted by the parent process
+        errors.put(f"{type(exc).__name__}: {exc}")
+    finally:
+        engine.dispose()
+
+
 def _make_pre009_samples(engine: sa.Engine) -> None:
     """Create a ``samples`` table lacking ``individual_id`` (pre-Alembic-009)."""
     with engine.begin() as conn:
@@ -284,6 +303,137 @@ def test_noop_on_fresh_create_all_schema(tmp_path: Path) -> None:
     assert "individual_id" in _columns(engine, "samples")
     assert "genome_build" in _columns(engine, "database_versions")
     assert "validator" in _columns(engine, "downloads")
+    assert "presentation_policy_version" in _columns(engine, "log_entries")
+    indexes = {index["name"] for index in sa.inspect(engine).get_indexes("log_entries")}
+    assert "idx_log_entries_presentation_policy_id" in indexes
+    with engine.begin() as conn:
+        conn.execute(
+            sa.insert(log_entries).values(
+                level="INFO",
+                logger="backend.operations",
+                message="unattested raw event",
+                event_data=None,
+            )
+        )
+        raw_version = conn.execute(
+            sa.select(log_entries.c.presentation_policy_version).where(
+                log_entries.c.message == "unattested raw event"
+            )
+        ).scalar_one()
+    assert raw_version == 0
+    assert ensure_reference_schema_current(engine) is False
+
+
+def test_bootstrap_serializes_parallel_reference_table_creation(tmp_path: Path) -> None:
+    """Concurrent web/worker starts cannot race SQLite's check/create window."""
+    db_path = tmp_path / "reference.db"
+    context = get_context("spawn")
+    start = context.Event()
+    errors = context.Queue()
+    workers = [
+        context.Process(
+            target=_bootstrap_reference_schema_in_subprocess,
+            args=(str(db_path), start, errors),
+        )
+        for _ in range(2)
+    ]
+    for worker in workers:
+        worker.start()
+    start.set()
+    for worker in workers:
+        worker.join(timeout=10)
+
+    assert not [worker for worker in workers if worker.is_alive()]
+    assert [worker.exitcode for worker in workers] == [0, 0]
+    reported_errors: list[str] = []
+    while True:
+        try:
+            reported_errors.append(errors.get_nowait())
+        except Empty:
+            break
+    assert reported_errors == []
+    engine = sa.create_engine(f"sqlite:///{db_path}")
+    try:
+        assert {"individuals", "jobs", "log_entries"} <= set(sa.inspect(engine).get_table_names())
+    finally:
+        engine.dispose()
+
+
+def _make_pre_presentation_policy_log_entries(engine: sa.Engine) -> None:
+    """Create the exact pre-#2019 durable-log schema with a historic row."""
+    with engine.begin() as conn:
+        conn.execute(
+            sa.text(
+                "CREATE TABLE log_entries ("
+                "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                "  timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,"
+                "  level TEXT NOT NULL,"
+                "  logger TEXT,"
+                "  message TEXT,"
+                "  event_data TEXT"
+                ")"
+            )
+        )
+        conn.execute(
+            sa.text(
+                "INSERT INTO log_entries (level, logger, message, event_data) VALUES "
+                "('WARNING', 'backend.analysis.pharmacogenomics', "
+                "'pgx_prescribing_alert', "
+                '\'{"gene": "CYP2D6", "drug": "tamoxifen"}\')'
+            )
+        )
+
+
+def test_backfills_log_presentation_policy_without_reclassifying_history(tmp_path: Path) -> None:
+    """Historic log rows remain quarantined while fresh writer rows attest current policy."""
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'ref.db'}")
+    _make_pre_presentation_policy_log_entries(engine)
+
+    # Match application bootstrap: create_all must leave the old table intact,
+    # after which the additive repair provides its new column and index.
+    reference_metadata.create_all(engine, checkfirst=True)
+    assert "presentation_policy_version" not in _columns(engine, "log_entries")
+
+    assert ensure_reference_schema_current(engine) is True
+    assert "presentation_policy_version" in _columns(engine, "log_entries")
+    indexes = {index["name"] for index in sa.inspect(engine).get_indexes("log_entries")}
+    assert "idx_log_entries_presentation_policy_id" in indexes
+
+    with engine.begin() as conn:
+        historic_version = conn.execute(
+            sa.select(log_entries.c.presentation_policy_version).where(log_entries.c.id == 1)
+        ).scalar_one()
+        conn.execute(
+            sa.insert(log_entries).values(
+                level="INFO",
+                logger="backend.operations",
+                message="unattested migrated raw event",
+                event_data=None,
+            )
+        )
+        conn.execute(
+            sa.insert(log_entries).values(
+                level="INFO",
+                logger="backend.logging_config",
+                message="fresh policy-attested event",
+                event_data=None,
+                presentation_policy_version=LOG_ENTRY_PRESENTATION_POLICY_VERSION,
+            )
+        )
+        raw_version = conn.execute(
+            sa.select(log_entries.c.presentation_policy_version).where(
+                log_entries.c.message == "unattested migrated raw event"
+            )
+        ).scalar_one()
+        writer_version = conn.execute(
+            sa.select(log_entries.c.presentation_policy_version).where(
+                log_entries.c.message == "fresh policy-attested event"
+            )
+        ).scalar_one()
+
+    assert historic_version == 0
+    assert raw_version == 0
+    assert writer_version == LOG_ENTRY_PRESENTATION_POLICY_VERSION
     assert ensure_reference_schema_current(engine) is False
 
 
@@ -637,7 +787,12 @@ def test_loads_bundled_rows_only_after_locked_legacy_fingerprint(
     finally:
         sa.event.remove(engine, "before_cursor_execute", record_statement)
 
-    assert events[:3] == ["begin", "fingerprint", "parse"]
+    fingerprint_index = events.index("fingerprint")
+    assert events[fingerprint_index - 1 : fingerprint_index + 2] == [
+        "begin",
+        "fingerprint",
+        "parse",
+    ]
 
 
 def test_legacy_refresh_locks_for_write_before_fingerprint_select(tmp_path: Path) -> None:
@@ -657,11 +812,15 @@ def test_legacy_refresh_locks_for_write_before_fingerprint_select(tmp_path: Path
     finally:
         sa.event.remove(engine, "before_cursor_execute", record_statement)
 
-    begin_index = statements.index("BEGIN IMMEDIATE")
     fingerprint_index = next(
         index
         for index, statement in enumerate(statements)
         if statement.startswith("SELECT CPIC_GUIDELINES.PHENOTYPE")
+    )
+    begin_index = max(
+        index
+        for index, statement in enumerate(statements[:fingerprint_index])
+        if statement == "BEGIN IMMEDIATE"
     )
     delete_index = next(
         index

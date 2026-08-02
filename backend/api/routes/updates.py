@@ -113,7 +113,13 @@ class ChangedFinding(BaseModel):
     rsid: str | None = None
     drug: str | None = None
     diplotype: str | None = None
+    pathway: str | None = None
+    trait: str | None = None
     finding_text: str
+    clinvar_significance: str | None = None
+    evidence_level: int | None = None
+    metabolizer_status: str | None = None
+    pathway_level: str | None = None
     changes: list[FindingFieldChange] = []
 
 
@@ -124,6 +130,8 @@ class DiffFinding(BaseModel):
     rsid: str | None = None
     drug: str | None = None
     diplotype: str | None = None
+    pathway: str | None = None
+    trait: str | None = None
     finding_text: str
     clinvar_significance: str | None = None
     evidence_level: int | None = None

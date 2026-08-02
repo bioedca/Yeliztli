@@ -170,6 +170,23 @@ class RareVariantRunResponse(BaseModel):
 # ── Helpers ──────────────────────────────────────────────────────────
 
 
+def _payload_gate_projection(payload: dict[str, Any]) -> dict[str, Any]:
+    """Omit only an absent intergenic gene label for aggregate gating.
+
+    Stored rows first pass the full finding gate. A response model legitimately
+    represents an intergenic locus as ``gene_symbol=None``; the generic
+    prescribing gate reserves a present-but-blank identifier for malformed
+    legacy clinical records. Keep the public DTO unchanged while omitting only
+    None or empty labels from the gate-only projection. Whitespace or non-string
+    values remain visible to the generic gate and therefore fail closed.
+    """
+    return {
+        key: value
+        for key, value in payload.items()
+        if key != "gene_symbol" or not (value is None or isinstance(value, str) and value == "")
+    }
+
+
 def _get_sample_engine(sample_id: int) -> sa.Engine:
     """Resolve sample_id to a per-sample DB engine."""
     registry = get_registry()
@@ -377,7 +394,9 @@ def list_rare_variant_findings(
         )
 
     response = RareVariantFindingsListResponse(items=items, total=total)
-    if not is_patient_presentable_response_payload(response.model_dump(mode="json")):
+    if not is_patient_presentable_response_payload(
+        [_payload_gate_projection(item.model_dump(mode="json")) for item in items]
+    ):
         return RareVariantFindingsListResponse(items=[], total=0)
     return response
 
@@ -463,7 +482,9 @@ def export_rare_variants_tsv(
     # Rows have already passed their own stored-payload gate. Recheck the
     # decoded export DTOs as one response so safe fragments cannot reassemble
     # a held prescribing pair across separate source records.
-    if not is_patient_presentable_response_payload(export_rows):
+    if not is_patient_presentable_response_payload(
+        [_payload_gate_projection(row) for row in export_rows]
+    ):
         export_rows = []
 
     buf = io.StringIO()
@@ -559,7 +580,9 @@ def export_rare_variants_vcf(
     # The VCF body is derived from these decoded records. Gate the complete
     # collection before legacy coordinate backfill or serialization so an
     # unsafe aggregate produces the established header-only export.
-    if not is_patient_presentable_response_payload(records):
+    if not is_patient_presentable_response_payload(
+        [_payload_gate_projection(record) for record in records]
+    ):
         records = []
     # Backward-compat backfill: findings stored before #1575 have no chrom/pos in
     # detail_json. For those (only), fall back to the annotated_variants row for

@@ -908,6 +908,20 @@ class TestAggregateFindingsCountGatesDisclosure:
             )
         engine.dispose()
 
+    def _add_presentable_no_rsid_finding(self, client: TestClient) -> None:
+        engine = self._sample1_engine(client)
+        with engine.begin() as conn:
+            conn.execute(
+                findings_table.insert().values(
+                    module="rare_variants",
+                    category="rare",
+                    evidence_level=4,
+                    gene_symbol="SAFE1",
+                    finding_text="Presentable unkeyed high-confidence finding.",
+                )
+            )
+        engine.dispose()
+
     def test_gated_finding_excluded_from_count_until_acknowledged(
         self, individuals_client: TestClient
     ) -> None:
@@ -945,3 +959,7 @@ class TestAggregateFindingsCountGatesDisclosure:
         # The fixture's two active high-confidence findings remain; the held
         # alert cannot disclose its existence through a count delta.
         assert body["aggregated_findings_count"] == 2
+
+        self._add_presentable_no_rsid_finding(client)
+        body = client.get(f"/api/individuals/{ind_id}").json()
+        assert body["aggregated_findings_count"] == 3

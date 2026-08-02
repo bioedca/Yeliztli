@@ -200,6 +200,112 @@ _DEFAULT_IGNORABLE_CODEPOINT_RANGES: tuple[tuple[int, int], ...] = (
 )
 _SERIALIZED_FINDING_PAYLOAD_FIELDS = frozenset({"detail_json", "provenance", "pmid_citations"})
 
+# Pinned residual UTS #39 confusables v17.0.0 (accessed 2026-08-02) for every
+# distinct held-identifier character. The official source is
+# https://www.unicode.org/Public/security/latest/confusables.txt; its accessed
+# header identifies version 17.0.0. This includes every single-codepoint source
+# whose target reduces through this module's presentation normalizer and
+# casefold to one held character *and* which the normal NFKC path does not
+# already turn into that character. The residual form avoids a broad
+# Unicode-letter wildcard while keeping the pinned source coverage complete;
+# the exhaustive regression below exercises every code point.
+_UTS39_V17_RESIDUAL_CONFUSABLE_CODEPOINTS: dict[str, str] = {
+    "2": ("01A7 03E8 14BF A644 A6EF A75A 1CCF2"),
+    "6": ("03EC 0431 13EE 2CD2 2CD3 2CDC 118D5 1CCF6"),
+    "a": (
+        "0251 0391 03B1 0410 0430 13AA 15C5 237A A4EE 102A0 16F40 1CCD6 1D6A8 1D6C2 "
+        "1D6E2 1D6FC 1D71C 1D736 1D756 1D770 1D790 1D7AA"
+    ),
+    "c": (
+        "03F2 03F9 0421 0441 1004 105A 13DF 1D04 2CA4 2CA5 A4DA ABAF 102A2 10302 "
+        "10415 1043D 1051C 118E9 118F2 1CCD8 1F74C"
+    ),
+    "d": ("0501 13A0 13E7 146F 15DE 15EA A4D2 A4D3 1CCD9"),
+    "e": (
+        "0395 0415 0435 04BD 13AC 212E 22FF 2D39 A4F0 AB32 10286 118A6 118AE 1CCDA "
+        "1D6AC 1D6E6 1D720 1D75A 1D794"
+    ),
+    "f": (
+        "017F 0192 03DC 0584 15B4 1E9D A4DD A798 A799 AB35 10287 102A5 10525 118A2 "
+        "118C2 1CCDB 1D213 1D7CA"
+    ),
+    "i": (
+        "0131 0269 026A 02DB 037A 03B9 0456 0582 13A5 1FBE 2373 24DB 2C93 A647 AB75 "
+        "118C3 1D6A4 1D6CA 1D704 1D73E 1D778 1D7B2"
+    ),
+    "m": (
+        "039C 03FA 041C 13B7 15F0 16D6 2C98 A4DF 102B0 10311 1CCE2 1D6B3 1D6ED 1D727 1D761 1D79B"
+    ),
+    "n": ("039D 0578 057C 2C9A A4E0 10513 1CCE3 1D6B4 1D6EE 1D728 1D762 1D79C"),
+    "o": (
+        "0030 039F 03BF 03C3 03ED 041E 043E 0555 0585 05E1 0647 0665 06BE 06C1 06D5 06F5 "
+        "07C0 0966 09E6 0A66 0AE6 0B20 0B66 0BE6 0C02 0C66 0C82 0CE6 0D02 0D20 0D66 "
+        "0D82 0E50 0ED0 101D 1040 10FF 12D0 17E0 1D0F 1D11 2070 2C9E 2C9F 2D54 3007 "
+        "A4F3 AB3D FBA6 FBA7 FBA8 FBA9 FBAA FBAB FBAC FBAD FEE9 FEEA FEEB FEEC 10292 "
+        "102AB 10404 1042C 104C2 104EA 10516 114D0 118B5 118C8 118D7 118E0 11DE0 "
+        "1CCE4 1CCF0 1D6B6 1D6D0 1D6D4 1D6F0 1D70A 1D70E 1D72A 1D744 1D748 1D764 "
+        "1D77E 1D782 1D79E 1D7B8 1D7BC 1D7CE 1D7D8 1D7E2 1D7EC 1D7F6 1EE24 1EE64 "
+        "1EE84 1FBF0"
+    ),
+    "p": (
+        "00FE 01BF 03A1 03C1 03F1 03F8 0420 0440 13E2 146D 2374 2CA2 2CA3 2CCE 2CCF "
+        "A4D1 10295 1CCE5 1D6B8 1D6D2 1D6E0 1D6F2 1D70C 1D71A 1D72C 1D746 1D754 "
+        "1D766 1D780 1D78E 1D7A0 1D7BA 1D7C8"
+    ),
+    "t": (
+        "03A4 0422 13A2 22A4 27D9 2CA6 A4D4 10297 102B1 10315 118BC 16F0A 1CCE9 "
+        "1D6BB 1D6F5 1D72F 1D769 1D7A3 1F768"
+    ),
+    "x": (
+        "00D7 03A7 0425 0445 1541 157D 166D 166E 16B7 2573 292B 292C 2A2F 2CAC 2D5D "
+        "A4EB A7B3 10290 102B4 10317 10322 10527 118EC 1CCED 1D6BE 1D6F8 1D732 1D76C "
+        "1D7A6"
+    ),
+    "y": (
+        "0263 028F 03A5 03B3 03D2 0423 0443 04AE 04AF 10E7 13A9 13BD 1D8C 1EFF 213D "
+        "2CA8 2CA9 A4EC AB5A 102B2 118A4 118DC 16F43 1CCEE 1D6BC 1D6C4 1D6F6 1D6FE "
+        "1D730 1D738 1D76A 1D772 1D7A4 1D7AC"
+    ),
+}
+_UTS39_V17_PROJECT_NORMALIZED_ADDITIONS: dict[str, str] = {
+    # The official target includes combining marks for these sources. The
+    # presentation normalizer deliberately removes those marks, leaving the
+    # corresponding one-character skeleton below.
+    "2": "01BB",
+    "a": "1E9A 2376",
+    "c": "00A2 023C 04AA 04AB 20A1 1F16E",
+    "d": "00D0 0110 0111 0189 018C 0256 0257 20AB",
+    "e": "0246 0247 04BF",
+    "f": "0191 1D6E",
+    "i": "0268 1D7B 1D7C 2378",
+    "m": "04CD",
+    "n": "014B 019D 019E 0273 03B7 0572 1D70 1018E 1D6C8 1D702 1D73C 1D776 1D7B0",
+    "o": (
+        "00D8 00F8 019F 01FE 0275 0398 03B8 03D1 03F4 0472 0473 04E8 04E9 06FF 1010 "
+        "10D7 13BE 13EB 2296 229D 236C 2C90 2C91 2D31 2D41 A74A A74B AB3E AB74 AB8E "
+        "ABBB FCD9 1D21A 1D6AF 1D6B9 1D6C9 1D6DD 1D6E9 1D6F3 1D703 1D717 1D723 "
+        "1D72D 1D73D 1D751 1D75D 1D767 1D777 1D78B 1D797 1D7A1 1D7B1 1D7C5 1F714"
+    ),
+    "p": "01A5 1D7D",
+    "t": "0166 0167 01AD 01AE 023E 04AC 1D75 20AE 2361",
+    "x": "04B2 2A30 10196",
+    "y": "00A5 01B4 024E 024F 04B0 04B1",
+}
+_IDENTIFIER_CHARACTER_CONFUSABLES: dict[str, frozenset[str]] = {
+    expected: frozenset(
+        chr(int(code_point, 16))
+        for code_point in (
+            code_points + " " + _UTS39_V17_PROJECT_NORMALIZED_ADDITIONS.get(expected, "")
+        ).split()
+    )
+    for expected, code_points in _UTS39_V17_RESIDUAL_CONFUSABLE_CODEPOINTS.items()
+}
+_CURATED_IDENTIFIER_CONFUSABLE_CASEFOLDS = frozenset(
+    character.casefold()
+    for characters in _IDENTIFIER_CHARACTER_CONFUSABLES.values()
+    for character in characters
+)
+
 
 def _is_default_ignorable_character(character: str) -> bool:
     """Whether a character can visually split a prescribing identifier."""
@@ -209,21 +315,52 @@ def _is_default_ignorable_character(character: str) -> bool:
     )
 
 
-def _normalize_prescribing_text(value: str) -> str:
+def _normalize_prescribing_text(
+    value: str,
+    *,
+    preserve_identifier_confusables: bool = False,
+) -> str:
     """Normalize text before comparing or rendering-boundary matching.
 
     NFKC collapses compatibility forms. Default-ignorable characters, control
     characters, and combining marks cannot split a held identifier into a
-    superficially different token.
+    superficially different token. Identifier matching preserves the pinned
+    UTS #39 residual set before NFKC/NFD so compatibility normalization or mark
+    filtering cannot erase its reviewed source characters.
     """
     normalized_characters: list[str] = []
-    for character in unicodedata.normalize("NFD", unicodedata.normalize("NFKC", value)):
-        if _is_default_ignorable_character(character) or unicodedata.category(character) == "Cc":
-            # Keep an identifier boundary instead of fusing independently
-            # rendered words such as ``CYP2D6\u200btamoxifen``.
-            normalized_characters.append(" ")
-        elif not unicodedata.category(character).startswith("M"):
-            normalized_characters.append(character)
+
+    if preserve_identifier_confusables:
+        # Process each source character independently: a pinned mark/symbol is
+        # meaningful evidence for exactly one identifier position and must not
+        # be discarded by the ordinary NFKC/NFD or category filtering below.
+        normalization_groups = (
+            (
+                (character,),
+                character.casefold() in _CURATED_IDENTIFIER_CONFUSABLE_CASEFOLDS,
+            )
+            if character.casefold() in _CURATED_IDENTIFIER_CONFUSABLE_CASEFOLDS
+            else (unicodedata.normalize("NFD", unicodedata.normalize("NFKC", character)), False)
+            for character in value
+        )
+    else:
+        normalization_groups = (
+            (unicodedata.normalize("NFD", unicodedata.normalize("NFKC", value)), False),
+        )
+
+    for characters, preserve_group in normalization_groups:
+        for character in characters:
+            if preserve_group:
+                normalized_characters.append(character)
+            elif (
+                _is_default_ignorable_character(character)
+                or unicodedata.category(character) == "Cc"
+            ):
+                # Keep an identifier boundary instead of fusing independently
+                # rendered words such as ``CYP2D6\u200btamoxifen``.
+                normalized_characters.append(" ")
+            elif not unicodedata.category(character).startswith("M"):
+                normalized_characters.append(character)
     return "".join(normalized_characters)
 
 
@@ -249,13 +386,28 @@ def _identifier_match_characters(identifier: str) -> str:
 def _identifier_character_matches(actual: str, expected: str) -> bool:
     """Match one identifier position without regex backtracking.
 
-    Non-ASCII *alphanumeric* characters are treated as ambiguous lookalikes.
-    Punctuation stays a separator instead of also being a wildcard match, which
-    keeps this check deterministic for untrusted stored text.
+    Match only the reviewed per-character confusables below; arbitrary non-ASCII
+    alphanumerics are not identifier wildcards, because unrelated clinical text
+    must not be suppressed merely for being long enough to resemble a held
+    identifier.
     """
-    if actual.isascii():
-        return actual.casefold() == expected.casefold()
-    return actual.isalnum()
+    if actual.isascii() and actual.casefold() == expected.casefold():
+        return True
+    if expected.isdecimal():
+        try:
+            return unicodedata.decimal(actual) == int(expected)
+        except ValueError:
+            pass
+    actual_folded = actual.casefold()
+    return any(
+        actual_folded == confusable.casefold()
+        for confusable in _IDENTIFIER_CHARACTER_CONFUSABLES.get(expected.casefold(), frozenset())
+    )
+
+
+def _is_identifier_character(character: str) -> bool:
+    """Whether a character may fill an identifier position while scanning."""
+    return character.isalnum() or character.casefold() in _CURATED_IDENTIFIER_CONFUSABLE_CASEFOLDS
 
 
 def _text_mentions_identifier_characters(
@@ -268,7 +420,7 @@ def _text_mentions_identifier_characters(
     """Match an ASCII identifier core through separators and lookalikes in O(n)."""
     if not expected:
         return False
-    normalized = _normalize_prescribing_text(value)
+    normalized = _normalize_prescribing_text(value, preserve_identifier_confusables=True)
     for start, character in enumerate(normalized):
         if not _identifier_character_matches(character, expected[0]):
             continue
@@ -282,7 +434,7 @@ def _text_mentions_identifier_characters(
 
         cursor = start + 1
         for expected_character in expected[1:]:
-            while cursor < len(normalized) and not normalized[cursor].isalnum():
+            while cursor < len(normalized) and not _is_identifier_character(normalized[cursor]):
                 cursor += 1
             if cursor == len(normalized) or not _identifier_character_matches(
                 normalized[cursor], expected_character
@@ -302,9 +454,9 @@ def _text_mentions_identifier_characters(
 def _text_mentions_identifier(value: str, identifier: str) -> bool:
     """Match an identifier through separators and Unicode lookalikes in O(n).
 
-    This deliberately avoids a wildcard regular expression: a non-ASCII
-    punctuation mark must have exactly one role (a separator), while a
-    non-ASCII alphanumeric character is an ambiguous identifier character.
+    This deliberately avoids a wildcard regular expression: only a pinned UTS
+    #39 source character can act as a non-alphanumeric identifier position;
+    all other punctuation remains a separator.
     """
     return _text_mentions_identifier_characters(value, _identifier_match_characters(identifier))
 
@@ -656,10 +808,10 @@ def is_withheld_prescribing_alert_finding(
 def patient_visible_finding_clause(columns: Any) -> Any:
     """Return a SQL predicate excluding clinically withheld alert pairs.
 
-    Apply this at patient-visible presentation boundaries and when replacing
-    reanalysis-generated alerts. It keeps audit-only source rows available to
-    scientific-validity review while SQL normalization mirrors
-    :func:`is_withheld_prescribing_alert_finding`, including case and whitespace.
+    This is a canonical-column prefilter for patient-visible queries. SQLite
+    cannot mirror the Python NFKC/default-ignorable normalization, so callers
+    must recheck full rows with :func:`is_patient_presentable_finding_payload`.
+    Never use this SQL predicate alone for destructive cleanup decisions.
     """
     if not WITHHELD_PRESCRIBING_ALERT_PAIRS:
         return sa.true()
@@ -2342,17 +2494,24 @@ def store_prescribing_alerts(
     with sample_engine.begin() as conn:
         # Clear prior patient-presentable prescribing alerts BEFORE (re)inserting so
         # a rerun never duplicates them, and a rerun that now yields none doesn't
-        # leave stale ones (#481). Held pairs deliberately remain as audit-only
-        # source/custom records, including across reanalysis (#2019). The delete
-        # still runs when ``rows`` is empty, so unrelated alert pairs retain the
-        # sibling store_* empty-path clear behavior.
-        conn.execute(
-            sa.delete(findings).where(
+        # leave stale ones (#481). SQLite cannot reproduce the full Unicode-aware
+        # hold normalization, so select the narrowly scoped candidates and make the
+        # retention decision with the same Python classifier as presentation. This
+        # preserves held source/custom audit records across reanalysis, including
+        # punctuated, default-ignorable, and compatibility-form spellings.
+        existing_alerts = conn.execute(
+            sa.select(findings).where(
                 findings.c.module == "pharmacogenomics",
                 findings.c.category == "prescribing_alert",
-                patient_visible_finding_clause(findings.c),
             )
-        )
+        ).mappings()
+        deletable_ids = [
+            row["id"] for row in existing_alerts if is_patient_presentable_finding_payload(row)
+        ]
+        for start in range(0, len(deletable_ids), 500):
+            conn.execute(
+                sa.delete(findings).where(findings.c.id.in_(deletable_ids[start : start + 500]))
+            )
         if rows:
             conn.execute(findings.insert(), rows)
 

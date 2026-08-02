@@ -107,6 +107,7 @@ class TestGateFlow:
         # Now findings are visible.
         listing = client.get("/api/analysis/parkinsons/findings?sample_id=1")
         assert listing.status_code == 200
+        assert listing.json()["total"] == 1
         item = listing.json()["items"][0]
         assert item["gene_symbol"] == "LRRK2"
         assert item["evidence_level"] == 2

@@ -117,10 +117,10 @@ authority and independence check reaches a fail-closed result:
 | Conditional 40 mg dose escalation | PMID:21768473 (accessed 2026-08-01); DOI:10.1200/JCO.2010.31.4427 (accessed 2026-08-01); PMID:27226358 (accessed 2026-08-01); DOI:10.1634/theoncologist.2015-0480 (accessed 2026-08-01) | The later report is an expansion or secondary analysis of the same prospective dose-escalation study, rather than an independent clinical-outcome validation. |
 
 The two-independent-source gate therefore fails for the displayed clinical
-actions. Runtime generation withholds the pair and schema v25 removes only
-exactly fingerprinted historical generated output. Any future effort to surface
-it must first document two agreeing, cohort-independent sources and resolve the
-identified authority conflict.
+actions. Runtime generation withholds the pair and schema v25 retains historical
+generated and source/custom findings as audit-only provenance. Any future effort
+to surface it must first document two agreeing, cohort-independent sources and
+resolve the identified authority conflict.
 
 `raw/pubmed-claim-excerpts.json` is the corresponding concise source/citation
 provenance crosswalk. It deliberately records citation identity and scope,

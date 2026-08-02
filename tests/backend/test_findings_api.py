@@ -813,8 +813,10 @@ class TestWithheldPrescribingAlertPresentation:
 
             response = await findings_route.get_finding_svg(finding_id=2019, sample_id=1)
             assert response.status_code == 200
-            assert "<svg" in response.body.decode()
-            assert "tamoxifen" not in response.body.decode().lower()
+            body = response.body.decode()
+            assert "<svg" in body
+            assert "Drug: codeine" in body
+            assert "tamoxifen" not in body.lower()
         finally:
             sample_engine.dispose()
 

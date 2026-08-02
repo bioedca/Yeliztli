@@ -83,25 +83,19 @@ def _finding_row(**overrides: Any) -> SimpleNamespace:
         "prs_percentile": None,
     }
     values.update(overrides)
-    mapping = {
-        key: values[key]
-        for key in (
-            "module",
-            "category",
-            "gene_symbol",
-            "drug",
-            "finding_text",
-            "detail_json",
-            "provenance",
-            "pmid_citations",
-        )
-    }
-    values["_mapping"] = mapping
+    values["_mapping"] = dict(values)
     return SimpleNamespace(**values)
 
 
 def _assert_individually_presentable(rows: list[SimpleNamespace]) -> None:
     assert all(is_patient_presentable_finding_payload(row._mapping) for row in rows)
+
+
+def test_finding_row_helper_preserves_all_scalar_payload_evidence() -> None:
+    """A held pair confined to an inspected scalar cannot disappear in a fixture."""
+    row = _finding_row(phenotype="CYP2D6 tamoxifen dose guidance")
+
+    assert not is_patient_presentable_finding_payload(row._mapping)
 
 
 class _CapturedStreamingResponse:

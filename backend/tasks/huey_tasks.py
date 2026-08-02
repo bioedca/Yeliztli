@@ -12,6 +12,7 @@ import uuid
 from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
+from threading import Lock
 
 import structlog
 from huey import SqliteHuey, crontab
@@ -24,11 +25,37 @@ from backend.logging_config import configure_logging
 
 logger = structlog.get_logger(__name__)
 
+_worker_logging_schema_lock = Lock()
+_worker_logging_schema_engine: object | None = None
+
 
 def _get_reference_engine_for_logging():
+    """Return a schema-current reference engine before a worker writes logs."""
     from backend.db.connection import get_registry
+    from backend.db.reference_schema import (
+        bootstrap_reference_schema_tables,
+        ensure_log_entry_presentation_policy,
+    )
 
-    return get_registry().reference_engine
+    global _worker_logging_schema_engine
+
+    engine = get_registry().reference_engine
+    if _worker_logging_schema_engine is engine:
+        return engine
+
+    # Huey can start without FastAPI's lifespan.  Bootstrap once per engine so
+    # the logging processor never silently loses a current-policy attestation
+    # because an older reference.db has not reached application startup yet.
+    with _worker_logging_schema_lock:
+        if _worker_logging_schema_engine is not engine:
+            # A direct worker owns job-state writes too, so retain the normal
+            # missing-table bootstrap while keeping the policy migration itself
+            # narrow and serialized below.
+            bootstrap_reference_schema_tables(engine)
+            ensure_log_entry_presentation_policy(engine)
+            _worker_logging_schema_engine = engine
+
+    return engine
 
 
 def _configure_worker_logging() -> None:

@@ -17,17 +17,21 @@ import json
 from collections.abc import Generator
 from datetime import UTC, datetime
 from pathlib import Path
-from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
 import sqlalchemy as sa
 from fastapi.testclient import TestClient
 
-from backend.api.routes.admin import _collect_visible_log_page
 from backend.config import Settings
 from backend.db.connection import reset_registry
-from backend.db.tables import jobs, log_entries, reference_metadata, samples
+from backend.db.tables import (
+    LOG_ENTRY_PRESENTATION_POLICY_VERSION,
+    jobs,
+    log_entries,
+    reference_metadata,
+    samples,
+)
 
 # ── Fixtures ─────────────────────────────────────────────────────────
 
@@ -89,7 +93,12 @@ def admin_client(tmp_data_dir: Path) -> Generator[TestClient, None, None]:
         },
     ]
     with engine.begin() as conn:
-        conn.execute(sa.insert(log_entries), log_data)
+        conn.execute(
+            sa.insert(log_entries).values(
+                presentation_policy_version=LOG_ENTRY_PRESENTATION_POLICY_VERSION
+            ),
+            log_data,
+        )
 
     # Seed a sample
     with engine.begin() as conn:
@@ -224,7 +233,7 @@ class TestLogExplorer:
 
         with get_registry().reference_engine.begin() as conn:
             conn.execute(
-                sa.insert(log_entries),
+                sa.insert(log_entries).values(presentation_policy_version=0),
                 [
                     {
                         "timestamp": datetime.now(UTC),
@@ -412,7 +421,7 @@ class TestLogExplorer:
 
         with get_registry().reference_engine.begin() as conn:
             conn.execute(
-                sa.insert(log_entries),
+                sa.insert(log_entries).values(presentation_policy_version=0),
                 [
                     {
                         "timestamp": datetime.now(UTC),
@@ -447,18 +456,17 @@ class TestLogExplorer:
         assert "tamoxifen" not in rendered
         assert "legacy_pgx_event" not in rendered
 
-    def test_log_page_withholds_cross_row_escaped_identifier_pair(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
+    def test_current_policy_log_page_withholds_cross_row_escaped_identifier_pair(
+        self, admin_client: TestClient
     ) -> None:
-        """The final page gate decodes JSON before joining row evidence."""
-        from backend.api.routes import admin as admin_route
+        """The final page gate remains a defense for current split fragments."""
+        from backend.db.connection import get_registry
 
-        engine = sa.create_engine("sqlite://")
-        reference_metadata.create_all(engine)
-        with engine.begin() as conn:
+        with get_registry().reference_engine.begin() as conn:
             conn.execute(
-                sa.insert(log_entries),
+                sa.insert(log_entries).values(
+                    presentation_policy_version=LOG_ENTRY_PRESENTATION_POLICY_VERSION
+                ),
                 [
                     {
                         "timestamp": datetime.now(UTC),
@@ -477,36 +485,16 @@ class TestLogExplorer:
                 ],
             )
 
-        with engine.connect() as conn:
-            source_rows = (
-                conn.execute(sa.select(log_entries).order_by(log_entries.c.id)).mappings().all()
-            )
-        assert all(admin_route._is_patient_visible_log_entry(row) for row in source_rows)
+        response = admin_client.get("/api/admin/logs", params={"page": 1, "page_size": 50})
 
-        monkeypatch.setattr(
-            admin_route,
-            "get_registry",
-            lambda: SimpleNamespace(reference_engine=engine),
-        )
-        try:
-            response = admin_route.get_logs(
-                page=1,
-                page_size=50,
-                level=None,
-                component=None,
-                since=None,
-                until=None,
-                search=None,
-            )
-            assert response.model_dump() == {
-                "entries": [],
-                "total": 0,
-                "page": 1,
-                "page_size": 50,
-                "has_more": False,
-            }
-        finally:
-            engine.dispose()
+        assert response.status_code == 200
+        assert response.json() == {
+            "entries": [],
+            "total": 0,
+            "page": 1,
+            "page_size": 50,
+            "has_more": False,
+        }
 
     def test_deeply_nested_pgx_logs_fail_closed(self, admin_client: TestClient) -> None:
         """#2019: deeply nested legacy PGx JSON cannot crash Log Explorer."""
@@ -535,6 +523,7 @@ class TestLogExplorer:
                     logger="backend.analysis.pharmacogenomics",
                     message="pgx_prescribing_alert",
                     event_data=json.dumps(payload),
+                    presentation_policy_version=0,
                 )
             )
 
@@ -544,52 +533,62 @@ class TestLogExplorer:
         assert data["total"] == baseline_total
         assert "deep legacy payload" not in json.dumps(data).lower()
 
-    def test_visible_log_paging_uses_bounded_batches(self) -> None:
-        """#2019: filtering legacy logs must not materialize the full history."""
+    def test_sql_pagination_excludes_legacy_rows_without_a_scan_threshold(
+        self, admin_client: TestClient
+    ) -> None:
+        """A history beyond the former scan cap remains exact and available."""
+        from backend.db.connection import get_registry
 
-        class BatchedRows:
-            def __init__(self, rows: list[dict[str, object]]) -> None:
-                self.rows = rows
-                self.index = 0
-                self.requested_sizes: list[int] = []
-
-            def fetchmany(self, size: int) -> list[dict[str, object]]:
-                self.requested_sizes.append(size)
-                batch = self.rows[self.index : self.index + size]
-                self.index += len(batch)
-                return batch
-
-        rows = [
-            {
-                "id": index,
-                "message": "ordinary operational log",
-                "event_data": None,
-            }
-            for index in range(1001)
-        ]
-        rows.insert(
-            500,
-            {
-                "id": 9999,
-                "message": "pgx_prescribing_alert",
-                "event_data": json.dumps(
-                    {
-                        "gene": "CYP2D6",
-                        "drug": "tamoxifen",
-                        "recommendation": "legacy guidance",
-                    }
+        current_row_count = 10_001
+        with get_registry().reference_engine.begin() as conn:
+            conn.execute(
+                sa.insert(log_entries).values(
+                    presentation_policy_version=LOG_ENTRY_PRESENTATION_POLICY_VERSION
                 ),
-            },
-        )
-        stream = BatchedRows(rows)
+                [
+                    {
+                        "timestamp": datetime.now(UTC),
+                        "level": "INFO",
+                        "logger": "backend.operations",
+                        "message": f"attested operational event {index}",
+                        "event_data": None,
+                    }
+                    for index in range(current_row_count)
+                ],
+            )
 
-        page_rows, total = _collect_visible_log_page(stream, offset=500, page_size=3)
+        params = {"page": 21, "page_size": 500}
+        response = admin_client.get("/api/admin/logs", params=params)
 
-        assert total == 1001
-        assert [row["id"] for row in page_rows] == [500, 501, 502]
-        assert stream.requested_sizes
-        assert set(stream.requested_sizes) == {500}
-        assert len(stream.requested_sizes) == 4
+        assert response.status_code == 200
+        expected = response.json()
+        assert expected["total"] == current_row_count + 5
+        assert len(expected["entries"]) == 6
+        assert expected["has_more"] is False
+
+        # This historical detailed row must not change a response's contents,
+        # count, or availability simply because it sits beyond an old scan cap.
+        with get_registry().reference_engine.begin() as conn:
+            conn.execute(
+                sa.insert(log_entries).values(
+                    timestamp=datetime.now(UTC),
+                    level="WARNING",
+                    logger="backend.analysis.pharmacogenomics",
+                    message="pgx_prescribing_alert",
+                    event_data=json.dumps(
+                        {
+                            "gene": "CYP2D6",
+                            "drug": "tamoxifen",
+                            "recommendation": "Historic guidance must remain quarantined.",
+                        }
+                    ),
+                    presentation_policy_version=0,
+                )
+            )
+
+        repeated = admin_client.get("/api/admin/logs", params=params)
+        assert repeated.status_code == 200
+        assert repeated.json() == expected
 
     def test_event_data_included(self, admin_client: TestClient) -> None:
         """Entries with event_data have the JSON field populated."""

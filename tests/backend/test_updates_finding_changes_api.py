@@ -246,6 +246,58 @@ def test_get_finding_changes_returns_diff(_env: DBRegistry) -> None:
     assert "tamoxifen" not in serialized.lower()
 
 
+def test_get_finding_changes_preserves_display_identity_and_meaning_fields(
+    _env: DBRegistry,
+) -> None:
+    """Every field emitted by the diff writer survives the response DTO."""
+    enriched_diff = {
+        **_DIFF_WITH_CHANGES,
+        "changed": [
+            {
+                **_DIFF_WITH_CHANGES["changed"][0],
+                "pathway": "DNA repair",
+                "trait": "hereditary_cancer",
+                "metabolizer_status": "Normal Metabolizer",
+                "pathway_level": "high",
+            }
+        ],
+        "added": [
+            {
+                **_DIFF_WITH_CHANGES["added"][0],
+                "module": "cancer",
+                "gene_symbol": "BRCA2",
+                "pathway": "DNA repair",
+                "trait": "breast_cancer",
+            }
+        ],
+        "removed": [
+            {
+                **_DIFF_WITH_CHANGES["removed"][0],
+                "module": "cancer",
+                "gene_symbol": "BRCA1",
+                "pathway": "DNA repair",
+                "trait": "ovarian_cancer",
+            }
+        ],
+        "counts": {"changed": 1, "added": 1, "removed": 1},
+    }
+    _replace_stored_finding_diff(_env, json.dumps(enriched_diff))
+
+    body = _get_finding_changes(1)
+
+    changed = body["changed"][0]
+    assert changed["pathway"] == "DNA repair"
+    assert changed["trait"] == "hereditary_cancer"
+    assert changed["clinvar_significance"] == "Pathogenic"
+    assert changed["evidence_level"] == 4
+    assert changed["metabolizer_status"] == "Normal Metabolizer"
+    assert changed["pathway_level"] == "high"
+    assert body["added"][0]["pathway"] == "DNA repair"
+    assert body["added"][0]["trait"] == "breast_cancer"
+    assert body["removed"][0]["pathway"] == "DNA repair"
+    assert body["removed"][0]["trait"] == "ovarian_cancer"
+
+
 def test_get_finding_changes_reveals_acknowledged_gated_module(
     _env: DBRegistry,
 ) -> None:
