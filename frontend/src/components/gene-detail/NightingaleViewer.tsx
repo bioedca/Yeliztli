@@ -105,7 +105,12 @@ export default function NightingaleViewer({
         const start = f.start ?? f.position ?? 0
         const end = f.end ?? f.start ?? f.position ?? 0
         const hasKnownDisulfidePair =
-          f.type === "Disulfide bond" && f.start != null && f.end != null && f.start !== f.end
+          f.type === "Disulfide bond" &&
+          f.start != null &&
+          f.end != null &&
+          f.start !== f.end &&
+          f.start_modifier === "EXACT" &&
+          f.end_modifier === "EXACT"
         const featureLabel = f.description ? `${f.type}: ${f.description}` : f.type
 
         return {

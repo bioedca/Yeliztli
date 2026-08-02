@@ -3,21 +3,21 @@
 ## Scope
 
 This packet supports a narrow data-shape and rendering correction: when a
-reviewed UniProt `Disulfide bond` feature supplies two explicit, unequal residue
-coordinates, preserve both values through the application and render the feature
-as a non-continuous connector. It does not add, infer, or change a biological,
+reviewed UniProt `Disulfide bond` feature supplies two explicit, `EXACT`, unequal
+residue coordinates, preserve both values through the application and render the
+feature as a non-continuous connector. It does not add, infer, or change a biological,
 clinical, or protein-folding claim.
 
 For new live parser output, the legacy `position` convenience field is populated
-only for a true point feature (`start == end`). Existing cached records can still
-contain a legacy first-endpoint `position`; the viewer therefore prioritizes
-explicit `start` and `end` values.
+only for a true point feature (`start == end`). The viewer prioritizes explicit
+`start` and `end` values, but an older cache entry without endpoint modifiers is
+rendered as a non-bridge until a live refresh supplies its exactness qualifiers.
 
 ## Claim map
 
 | Claim | Source and version | Sanitized payload | Status |
 | --- | --- | --- | --- |
-| Reviewed human insulin entry P01308 reports three explicit disulfide endpoint pairs: 31–96, 43–109, and 95–100. | UniProtKB P01308, entry version 283 (accessed 2026-08-02); each annotation links to PMID:1433291 and DOI:10.1016/0022-2836(92)90527-q (accessed 2026-08-02) | `uniprot-p01308.json` | Direct authoritative record; source-linked primary evidence |
+| Reviewed human insulin entry P01308 reports three explicit `EXACT` disulfide endpoint pairs: 31–96, 43–109, and 95–100. | UniProtKB P01308, entry version 283 (accessed 2026-08-02); each annotation links to PMID:1433291 and DOI:10.1016/0022-2836(92)90527-q (accessed 2026-08-02) | `uniprot-p01308.json` | Direct authoritative record; source-linked primary evidence |
 | A disulfide connectivity represents which nonadjacent cysteines are cross-linked. | PMID:26523116; DOI:10.4137/EBO.S25349 (accessed 2026-08-02) | `pubmed-26523116.xml` | Context only; no clinical claim |
 | The pinned upstream Nightingale track maps `DISULFID` to the non-continuous `bridge` shape. | `ebi-webcomponents/nightingale` commit `a4a65eccbf03fe5290adb1ec171cb5a43e8a3d83` (accessed 2026-08-02) | Upstream source URLs in `query-log.md` | Renderer contract |
 
@@ -42,8 +42,8 @@ explicit `start` and `end` values.
 
 ## Scope boundaries
 
-- Render a bridge only when both endpoint values are explicitly present and
-  unequal.
+- Preserve endpoint modifiers and render a bridge only when both endpoint
+  values are explicitly present, `EXACT`, and unequal.
 - Do not turn an unknown or alternative partner into a numeric interval; the
   present `int | None` model cannot represent those semantics without separately
   sourced schema work.

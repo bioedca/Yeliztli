@@ -87,6 +87,8 @@ const INSULIN_DISULFIDE_FEATURES: ProteinFeature[] = [
     position: 31,
     start: 31,
     end: 96,
+    start_modifier: "EXACT",
+    end_modifier: "EXACT",
   },
   {
     type: "Disulfide bond",
@@ -94,8 +96,18 @@ const INSULIN_DISULFIDE_FEATURES: ProteinFeature[] = [
     position: 43,
     start: 43,
     end: 109,
+    start_modifier: "EXACT",
+    end_modifier: "EXACT",
   },
-  { type: "Disulfide bond", description: "", position: 95, start: 95, end: 100 },
+  {
+    type: "Disulfide bond",
+    description: "",
+    position: 95,
+    start: 95,
+    end: 100,
+    start_modifier: "EXACT",
+    end_modifier: "EXACT",
+  },
 ]
 
 const BRCA1_VARIANTS: GeneVariantSummary[] = [
@@ -508,6 +520,8 @@ describe("NightingaleViewer", () => {
             position: 31,
             start: 31,
             end: 31,
+            start_modifier: "EXACT",
+            end_modifier: "EXACT",
           },
           {
             type: "Disulfide bond",
@@ -515,6 +529,24 @@ describe("NightingaleViewer", () => {
             position: null,
             start: 43,
             end: null,
+            start_modifier: "EXACT",
+            end_modifier: null,
+          },
+          {
+            type: "Disulfide bond",
+            description: "Qualified endpoint",
+            position: null,
+            start: 60,
+            end: 80,
+            start_modifier: "OUTSIDE",
+            end_modifier: "EXACT",
+          },
+          {
+            type: "Disulfide bond",
+            description: "Legacy cache annotation",
+            position: 31,
+            start: 31,
+            end: 96,
           },
         ]}
         variants={[]}
@@ -537,6 +569,7 @@ describe("NightingaleViewer", () => {
       }
     ).data
 
+    expect(data).toHaveLength(4)
     expect(data).toMatchObject([
       {
         shape: "diamond",
@@ -549,6 +582,18 @@ describe("NightingaleViewer", () => {
         start: 43,
         end: 43,
         tooltipContent: "Disulfide bond: Incomplete annotation",
+      },
+      {
+        shape: "diamond",
+        start: 60,
+        end: 80,
+        tooltipContent: "Disulfide bond: Qualified endpoint",
+      },
+      {
+        shape: "diamond",
+        start: 31,
+        end: 96,
+        tooltipContent: "Disulfide bond: Legacy cache annotation",
       },
     ])
   })

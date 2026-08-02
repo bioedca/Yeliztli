@@ -524,8 +524,8 @@ class TestUniProtLiveFetch:
                                     "type": "Disulfide bond",
                                     "description": "Paired cysteines",
                                     "location": {
-                                        "start": {"value": 31},
-                                        "end": {"value": 96},
+                                        "start": {"value": 31, "modifier": "EXACT"},
+                                        "end": {"value": 96, "modifier": "EXACT"},
                                     },
                                 },
                             ],
@@ -559,11 +559,18 @@ class TestUniProtLiveFetch:
         assert result.accession == "P04637"
         assert [domain.type for domain in result.domains] == ["Region"]
         assert [
-            (feature.type, feature.position, feature.start, feature.end)
+            (
+                feature.type,
+                feature.position,
+                feature.start,
+                feature.end,
+                feature.start_modifier,
+                feature.end_modifier,
+            )
             for feature in result.features
         ] == [
-            ("Binding site", 176, 176, 176),
-            ("Disulfide bond", None, 31, 96),
+            ("Binding site", 176, 176, 176, None, None),
+            ("Disulfide bond", None, 31, 96, "EXACT", "EXACT"),
         ]
         store_cache.assert_called_once()
 
@@ -666,6 +673,8 @@ class TestUniProtCacheStorage:
                     position=None,
                     start=31,
                     end=96,
+                    start_modifier="EXACT",
+                    end_modifier="EXACT",
                 ),
             ]
 
@@ -684,11 +693,18 @@ class TestUniProtCacheStorage:
             assert len(result.domains) == 2
             assert result.domains[0].description == "BRCT 1"
             assert [
-                (feature.type, feature.position, feature.start, feature.end)
+                (
+                    feature.type,
+                    feature.position,
+                    feature.start,
+                    feature.end,
+                    feature.start_modifier,
+                    feature.end_modifier,
+                )
                 for feature in result.features
             ] == [
-                ("Active site", 1524, 1524, 1524),
-                ("Disulfide bond", None, 31, 96),
+                ("Active site", 1524, 1524, 1524, None, None),
+                ("Disulfide bond", None, 31, 96, "EXACT", "EXACT"),
             ]
             assert result.is_cached is True
 

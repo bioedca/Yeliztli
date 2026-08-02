@@ -65,6 +65,8 @@ class ProteinFeature(BaseModel):
     position: int | None = None
     start: int | None = None
     end: int | None = None
+    start_modifier: str | None = None
+    end_modifier: str | None = None
 
 
 class UniProtData(BaseModel):
@@ -273,8 +275,10 @@ def _fetch_uniprot_from_api(gene_symbol: str) -> UniProtData | None:
             feat_type = feat.get("type", "")
             desc = feat.get("description", "")
             loc = feat.get("location", {})
-            start_val = loc.get("start", {}).get("value")
-            end_val = loc.get("end", {}).get("value")
+            start = loc.get("start", {})
+            end = loc.get("end", {})
+            start_val = start.get("value")
+            end_val = end.get("value")
 
             if feat_type in ("Domain", "Region", "Repeat", "Zinc finger", "Motif"):
                 if start_val is not None and end_val is not None:
@@ -304,6 +308,8 @@ def _fetch_uniprot_from_api(gene_symbol: str) -> UniProtData | None:
                         position=start_val if start_val == end_val else None,
                         start=start_val,
                         end=end_val,
+                        start_modifier=start.get("modifier"),
+                        end_modifier=end.get("modifier"),
                     )
                 )
 

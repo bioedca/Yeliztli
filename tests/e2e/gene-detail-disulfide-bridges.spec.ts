@@ -24,6 +24,8 @@ const INSULIN_GENE_DETAIL = {
         position: null,
         start: 31,
         end: 96,
+        start_modifier: 'EXACT',
+        end_modifier: 'EXACT',
       },
       {
         type: 'Disulfide bond',
@@ -31,6 +33,8 @@ const INSULIN_GENE_DETAIL = {
         position: null,
         start: 43,
         end: 109,
+        start_modifier: 'EXACT',
+        end_modifier: 'EXACT',
       },
       {
         type: 'Disulfide bond',
@@ -38,6 +42,8 @@ const INSULIN_GENE_DETAIL = {
         position: null,
         start: 95,
         end: 100,
+        start_modifier: 'EXACT',
+        end_modifier: 'EXACT',
       },
     ],
     fetched_at: '2026-08-02T00:00:00Z',
