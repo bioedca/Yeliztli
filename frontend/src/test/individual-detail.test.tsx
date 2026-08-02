@@ -734,6 +734,96 @@ describe("IndividualDetail page", () => {
     queryClient.clear()
   })
 
+  it("revalidates cached linked findings before rendering a returning individual page", async () => {
+    const individual: MockIndividual = {
+      id: 19,
+      display_name: "Iris",
+      aggregated_findings_count: 1,
+      linked_samples: [
+        {
+          id: 64,
+          name: "iris_23andme.txt",
+          file_format: "23andme_v5",
+          vendor: "23andme",
+          variantCount: 600000,
+          highConfidenceFindings: [
+            {
+              id: 901,
+              module: "pharmacogenomics",
+              rsid: "rs4244285",
+              finding_text: "Cached finding must not survive a stale probe.",
+              evidence_level: 4,
+            },
+          ],
+        },
+      ],
+    }
+    installMocks(individual)
+    const successfulFetch = mockFetch.getMockImplementation()
+    if (!successfulFetch) throw new Error("installMocks must configure fetch")
+
+    let stale = false
+    let resolveCount: (() => void) | undefined
+    let resolveSummary: (() => void) | undefined
+    mockFetch.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString()
+      if (stale && url === "/api/variants/count?sample_id=64") {
+        return new Promise<Response>((resolve) => {
+          resolveCount = () => resolve(jsonResponse({ detail: "stale" }, 423))
+        })
+      }
+      if (stale && url === "/api/analysis/findings/summary?sample_id=64") {
+        return new Promise<Response>((resolve) => {
+          resolveSummary = () => resolve(jsonResponse({ detail: "stale" }, 423))
+        })
+      }
+      return successfulFetch(input, init)
+    })
+
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, gcTime: Infinity },
+        mutations: { retry: false },
+      },
+    })
+    const Wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/individuals/19"]}>
+          <Routes>
+            <Route path="/individuals/:id" element={children} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    const firstVisit = render(<IndividualDetail />, { wrapper: Wrapper })
+    expect(await screen.findByTestId("aggregated-finding-rsid:rs4244285")).toBeInTheDocument()
+    firstVisit.unmount()
+
+    stale = true
+    render(<IndividualDetail />, { wrapper: Wrapper })
+    await waitFor(() => {
+      expect(resolveCount).toBeDefined()
+      expect(resolveSummary).toBeDefined()
+    })
+
+    const row = screen.getByTestId("linked-sample-row-64")
+    expect(within(row).getByText("Loading…")).toBeInTheDocument()
+    expect(screen.queryByTestId("aggregated-finding-rsid:rs4244285")).not.toBeInTheDocument()
+
+    resolveCount?.()
+    resolveSummary?.()
+
+    expect(await screen.findByTestId("individual-stale-sample-gate")).toHaveTextContent(
+      "iris_23andme.txt",
+    )
+    expect(screen.queryByTestId("aggregated-finding-rsid:rs4244285")).not.toBeInTheDocument()
+    expect(
+      within(screen.getByTestId("linked-sample-row-64")).getByText("Re-annotation required"),
+    ).toBeInTheDocument()
+    queryClient.clear()
+  })
+
   it("invalidates the target cache when re-annotation is already running", async () => {
     const individual: MockIndividual = {
       id: 18,

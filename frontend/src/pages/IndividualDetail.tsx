@@ -188,6 +188,8 @@ function LinkedSampleRow({ sample }: { sample: LinkedSample }) {
   const {
     data: variantCount,
     isLoading: countLoading,
+    isFetching: countFetching,
+    isFetchedAfterMount: countFetchedAfterMount,
     isError: countError,
     error: countErrorDetail,
   } = useQuery({
@@ -201,12 +203,16 @@ function LinkedSampleRow({ sample }: { sample: LinkedSample }) {
       return body.total ?? null
     },
     staleTime: Infinity,
+    // A linked sample can become stale while this individual page is away.
+    // Recheck every new page observer before treating its cached count as ready.
+    refetchOnMount: "always",
   })
 
+  const countAwaitingFreshness = countFetching && !countFetchedAfterMount
   const requiresReannotation =
     countErrorDetail instanceof ApiError && countErrorDetail.status === 423
 
-  const statusLabel = countLoading
+  const statusLabel = countLoading || countAwaitingFreshness
     ? "Loading…"
     : requiresReannotation
       ? "Re-annotation required"
@@ -236,7 +242,7 @@ function LinkedSampleRow({ sample }: { sample: LinkedSample }) {
         {formatFileFormat(sample.file_format)}
       </td>
       <td className="px-4 py-2 text-sm text-right tabular-nums text-foreground">
-        {countLoading || countError || variantCount == null
+        {countLoading || countAwaitingFreshness || countError || variantCount == null
           ? "—"
           : formatNumber(variantCount)}
       </td>
@@ -379,8 +385,20 @@ export default function IndividualDetail() {
         return (await res.json()) as FindingsSummaryResponse
       },
       staleTime: Infinity,
+      // Findings stay cached during a visit, but a new individual-detail
+      // observer must obtain a current server response before rendering them.
+      refetchOnMount: "always",
     })),
   })
+
+  // A cached result may be retained while the mount-time probe is pending or
+  // after it receives a 423. Only aggregate a successful response fetched by
+  // this observer, so an old finding cannot bypass the re-annotation notice.
+  const verifiedFindings = findingsQueries.map((query) =>
+    query.isSuccess && query.isFetchedAfterMount
+      ? query.data?.high_confidence_findings
+      : undefined,
+  )
 
   // findingsQueries identity churns each render; key the memo on a
   // fingerprint of the resolved findings so we recompute whenever the
@@ -389,10 +407,10 @@ export default function IndividualDetail() {
   // module, rsid, gene_symbol, finding_text) — not just finding ids —
   // so an updated payload reusing the same ids still recomputes.
   const sampleIdsKey = linkedSamples.map((s) => s.id).join(",")
-  const findingsFingerprint = findingsQueries
+  const findingsFingerprint = verifiedFindings
     .map(
-      (q) =>
-        q.data?.high_confidence_findings
+      (findings) =>
+        findings
           ?.map((f) =>
             [
               f.id,
@@ -411,7 +429,7 @@ export default function IndividualDetail() {
       aggregateFindings(
         linkedSamples.map((sample, idx) => ({
           sample,
-          findings: findingsQueries[idx]?.data?.high_confidence_findings,
+          findings: verifiedFindings[idx],
         })),
       ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -450,7 +468,9 @@ export default function IndividualDetail() {
   }
 
   const anyFindingsLoading = findingsQueries.some(
-    (q) => linkedSamples.length > 0 && q.isPending,
+    (q) =>
+      linkedSamples.length > 0 &&
+      (q.isPending || (q.isFetching && !q.isFetchedAfterMount)),
   )
   const failedFindingsQueries = findingsQueries.flatMap((query, index) => {
     const sample = linkedSamples[index]
