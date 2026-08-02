@@ -293,6 +293,24 @@ describe('DatabaseHealthPanel — needs-attention banner', () => {
 // ── Tests: integrity / last_error detail text ────────────────────────
 
 describe('DatabaseHealthPanel — detail text', () => {
+  it('does not flag a ready database when its successful integrity detail is present', async () => {
+    setupHealth([
+      makeDb({
+        state: 'ready',
+        integrity_ok: true,
+        integrity_detail: 'ok',
+      }),
+    ])
+    renderPanel()
+
+    expect(await screen.findByText('ClinVar')).toBeInTheDocument()
+    expect(
+      screen.queryByText(
+        'Database integrity needs attention. Re-check or clean and re-download the database.',
+      ),
+    ).not.toBeInTheDocument()
+  })
+
   it('renders safe copy instead of integrity-failed detail text', async () => {
     const rawDiagnostic = 'dbnsfp_scores table is empty'
     setupHealth([

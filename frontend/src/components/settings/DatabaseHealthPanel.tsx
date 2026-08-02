@@ -113,7 +113,8 @@ function HealthRow({ db }: { db: DatabaseHealth }) {
     (db.state === 'downloading' || (db.state === 'partial' && db.resumable))
 
   const integrityNote =
-    db.integrity_ok === false || Boolean(db.last_error) || Boolean(db.integrity_detail)
+    db.integrity_ok === false ||
+    (db.state !== 'ready' && (Boolean(db.last_error) || Boolean(db.integrity_detail)))
       ? 'Database integrity needs attention. Re-check or clean and re-download the database.'
       : null
 
