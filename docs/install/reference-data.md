@@ -61,7 +61,7 @@ attribution list lives in the repository
 | **AlphaMissense** | Optional | Missense pathogenicity predictions | ~3.5 GB when installed | CC-BY-4.0 |
 | **GWAS Catalog** (EBI) | **Required** | Trait/disease associations for risk modules | ~100 MB | Open |
 | **dbSNP** (NCBI) | **Required** | rsID merge/identity resolution | ~20 MB | Public domain |
-| **MONDO/HPO** (Monarch) | **Required** | Disease-scoped phenotype associations | ~30 MB | Open |
+| **MONDO/HPO** (Monarch) | **Required** | Disease-scoped phenotype associations | ~34 MB per source bundle | Source-specific terms |
 | **PharmGKB** | Optional context | Clinical drug annotations | Small metadata source | CC-BY-SA-4.0 |
 | **FDA drug labels** (via PharmGKB) | Optional context | Pharmacogenomic labeling | Small metadata source | CC-BY-SA-4.0 |
 | **GTEx eQTL** | Optional | Tissue eQTLs for functional context | ~3 GB when installed | Open-access summary stats |
@@ -72,6 +72,11 @@ attribution list lives in the repository
 For MONDO/HPO, phenotype terms and inheritance are attached to a MONDO disease only through
 an authoritative `skos:exactMatch` cross-reference. Unmatched or ambiguous source disease
 identifiers remain unannotated rather than being copied to another disease for the same gene.
+Each successful refresh transfers about 34 MB across the Monarch primary archive, HPO export,
+and MONDO SSSOM mapping. The downloader retains the active validated source bundle and its
+immediately preceding validated bundle for reproducibility. Incomplete, malformed, or
+operator-created bundle directories are never automatically removed; inspect those manually
+before cleanup.
 
 !!! warning "dbNSFP license"
     dbNSFP is distributed under an **academic / non-commercial** license. Make sure your use

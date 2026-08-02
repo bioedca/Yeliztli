@@ -243,7 +243,7 @@ HYGIENE_GENE_PHENOTYPE_DATA = [
         "disease_id": "OMIM:604370",
         "hpo_terms": '["HP:0003002"]',
         "source": "omim",
-        "inheritance": "AR",
+        "inheritance": "AD",
     },
 ]
 
@@ -684,7 +684,7 @@ class TestGenePhenotypeRefDataHygiene:
         assert gps, "expected gene-phenotype records"
         assert {gp["disease_id"]: gp["inheritance"] for gp in gps} == {
             "MONDO:0005012": "AR",
-            "OMIM:604370": "AR",
+            "OMIM:604370": "AD",
         }
 
 

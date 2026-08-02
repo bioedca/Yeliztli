@@ -12,6 +12,11 @@ Repository base: `813d7568b286f2d76c2338a13f035aa3d8632234`
 
 Access date: `2026-08-01`
 
+The retained source-native excerpts were captured for the 2026-08-01 packet.
+The current source validators, release metadata, checksums, and transfer sizes
+in [`source-manifest.json`](source-manifest.json) were independently refreshed
+on `2026-08-02`; the two dates are deliberately kept distinct.
+
 ## Sanitized discovery and validation queries
 
 Consensus:
@@ -43,16 +48,26 @@ NCBI Entrez:
    - Supports the use of HPO as disease-associated phenotype data; it does not
      authorize treating annotations for distinct diseases of one gene as
      interchangeable.
-2. Human Phenotype Ontology, `genes_to_phenotype.txt`
+2. Monarch KG, `gene_disease.9606.tsv.gz`
+   <https://data.monarchinitiative.org/monarch-kg/latest/tsv/gene_associations/gene_disease.9606.tsv.gz>
+   (accessed 2026-08-02).
+   - This is the primary source for canonical MONDO disease rows. Its current
+     release metadata, validators, content hash, and a small public,
+     source-native excerpt are recorded in
+     [`source-manifest.json`](source-manifest.json) and
+     [`monarch-gene-disease-excerpt.tsv`](monarch-gene-disease-excerpt.tsv).
+   - The excerpt documents the schema and identifiers used by the loader; it
+     makes no patient-level, diagnostic, or risk claim.
+3. Human Phenotype Ontology, `genes_to_phenotype.txt`
    <https://purl.obolibrary.org/obo/hp/hpoa/genes_to_phenotype.txt>
-   (accessed 2026-08-01).
+   (source snapshot accessed 2026-08-02; excerpt accessed 2026-08-01).
    - Its six-column schema includes a `disease_id` for each gene/HPO term.
    - [`hpo-genes-to-phenotype-excerpt.tsv`](hpo-genes-to-phenotype-excerpt.tsv)
      is a small, public, source-native excerpt showing one gene with distinct
      OMIM and ORPHA disease identifiers.
-3. MONDO SSSOM mappings,
+4. MONDO SSSOM mappings,
    <https://purl.obolibrary.org/obo/mondo/mappings/mondo.sssom.tsv>
-   (accessed 2026-08-01).
+   (source snapshot accessed 2026-08-02; excerpt accessed 2026-08-01).
    - [`mondo-sssom-excerpt.tsv`](mondo-sssom-excerpt.tsv) preserves source-native
      `skos:exactMatch` rows for those identifiers. Broad/narrow mappings and
      source identifiers with more than one exact MONDO target are deliberately
@@ -67,11 +82,14 @@ files, not independent clinical cohorts. The implementation relies on their
 explicit identifier relationship rather than a label, numeric-string, or
 gene-level inference.
 
-At runtime, each validated set of the three inputs is retained in an immutable
+At runtime, each validated set of the three inputs is published as an immutable
 content-and-validator-addressed source bundle. The installed database version
 records that bundle's primary archive path only in the same transaction as its
 disease rows, so a failed replacement cannot overwrite a prior provenance
-record.
+record. After a successful replacement, the loader retains the active and
+immediately preceding validated bundles; incomplete, malformed, legacy, and
+operator-created directories are not automatically removed. The verified
+three-source transfer footprint is 33,992,110 bytes (about 34 MB) per bundle.
 
 ## Corrections, licensing, and data handling
 
@@ -83,5 +101,9 @@ publisher abstract text, author details, affiliations, and references.
 
 The source excerpts contain only public ontology/reference identifiers and no
 participants, genotypes, PII, credentials, restricted data, or private paths.
-Use the upstream HPO and MONDO license/attribution terms for the full source
-files; this packet distributes only short provenance excerpts.
+The full per-source versions, access dates, checksums, license status, and
+claim mapping are in [`source-manifest.json`](source-manifest.json). MONDO
+SSSOM is recorded as CC BY 4.0; HPO uses its project license and attribution
+conditions. The primary Monarch aggregate export's source-specific license was
+not established at the access date, so this packet makes no license claim for
+it. This packet distributes only short provenance excerpts.

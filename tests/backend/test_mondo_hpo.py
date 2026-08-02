@@ -722,6 +722,134 @@ class TestDownloadAndLoad:
         assert version_row.version == stats.version
         assert version_row.file_path == str(source_bundle / "gene_disease.9606.tsv.gz")
 
+    def test_retains_only_active_and_previous_valid_source_bundles(
+        self,
+        monkeypatch,
+        reference_engine: sa.Engine,
+        mondo_tsv_file: Path,
+        hpo_phenotype_file: Path,
+        mondo_sssom_file: Path,
+        tmp_path: Path,
+    ) -> None:
+        """Repeated successful refreshes bound managed immutable bundle storage."""
+        monkeypatch.setattr("backend.annotation.mondo_hpo.MINIMUM_UNAMBIGUOUS_MONDO_XREFS", 2)
+        source_files = {
+            "gene_disease.9606.tsv.gz": mondo_tsv_file,
+            "genes_to_phenotype.txt": hpo_phenotype_file,
+            "mondo.sssom.tsv": mondo_sssom_file,
+        }
+        generation = {"value": 0}
+
+        def fake_download(url, dest_dir, filename, **kwargs):
+            target = dest_dir / filename
+            target.parent.mkdir(parents=True, exist_ok=True)
+            if filename.endswith(".gz"):
+                with gzip.open(target, "wb") as fh:
+                    fh.write(source_files[filename].read_bytes())
+            else:
+                target.write_bytes(source_files[filename].read_bytes())
+            meta = kwargs.get("meta")
+            if meta is not None:
+                meta.update(
+                    {
+                        "etag": f'"generation-{generation["value"]}-{filename}"',
+                        "last_modified": "Wed, 15 Apr 2026 12:34:56 GMT",
+                        "version": "20260415",
+                    }
+                )
+            return target
+
+        monkeypatch.setattr("backend.annotation.mondo_hpo.download_file", fake_download)
+        downloads = tmp_path / "downloads"
+        bundle_names = []
+        for value in range(3):
+            generation["value"] = value
+            download_and_load_mondo_hpo(reference_engine, downloads)
+            with reference_engine.connect() as conn:
+                primary_path = conn.execute(
+                    sa.select(database_versions.c.file_path).where(
+                        database_versions.c.db_name == "mondo_hpo"
+                    )
+                ).scalar_one()
+            bundle_names.append(Path(primary_path).parent.name)
+
+        managed = {
+            path.name for path in (downloads / "mondo_hpo_sources").iterdir() if path.is_dir()
+        }
+        assert managed == set(bundle_names[-2:])
+
+        # A source-identical refresh reuses its immutable bundle without churn.
+        generation["value"] = 2
+        download_and_load_mondo_hpo(reference_engine, downloads)
+        assert {
+            path.name for path in (downloads / "mondo_hpo_sources").iterdir() if path.is_dir()
+        } == managed
+
+    def test_failed_row_load_keeps_previously_recorded_source_bundle(
+        self,
+        monkeypatch,
+        reference_engine: sa.Engine,
+        mondo_tsv_file: Path,
+        hpo_phenotype_file: Path,
+        mondo_sssom_file: Path,
+        tmp_path: Path,
+    ) -> None:
+        """A post-publication failure cannot delete the previously committed provenance."""
+        monkeypatch.setattr("backend.annotation.mondo_hpo.MINIMUM_UNAMBIGUOUS_MONDO_XREFS", 2)
+        source_files = {
+            "gene_disease.9606.tsv.gz": mondo_tsv_file,
+            "genes_to_phenotype.txt": hpo_phenotype_file,
+            "mondo.sssom.tsv": mondo_sssom_file,
+        }
+        generation = {"value": 0}
+
+        def fake_download(url, dest_dir, filename, **kwargs):
+            target = dest_dir / filename
+            target.parent.mkdir(parents=True, exist_ok=True)
+            if filename.endswith(".gz"):
+                with gzip.open(target, "wb") as fh:
+                    fh.write(source_files[filename].read_bytes())
+            else:
+                target.write_bytes(source_files[filename].read_bytes())
+            meta = kwargs.get("meta")
+            if meta is not None:
+                meta.update(
+                    {
+                        "etag": f'"generation-{generation["value"]}-{filename}"',
+                        "last_modified": "Wed, 15 Apr 2026 12:34:56 GMT",
+                        "version": "20260415",
+                    }
+                )
+            return target
+
+        monkeypatch.setattr("backend.annotation.mondo_hpo.download_file", fake_download)
+        downloads = tmp_path / "downloads"
+        download_and_load_mondo_hpo(reference_engine, downloads)
+        with reference_engine.connect() as conn:
+            prior_path = conn.execute(
+                sa.select(database_versions.c.file_path).where(
+                    database_versions.c.db_name == "mondo_hpo"
+                )
+            ).scalar_one()
+
+        generation["value"] = 1
+
+        def fail_load(*args, **kwargs):
+            raise RuntimeError("simulated row load failure")
+
+        monkeypatch.setattr("backend.annotation.mondo_hpo.load_mondo_hpo_rows", fail_load)
+        with pytest.raises(RuntimeError, match="simulated row load failure"):
+            download_and_load_mondo_hpo(reference_engine, downloads)
+
+        with reference_engine.connect() as conn:
+            preserved_path = conn.execute(
+                sa.select(database_versions.c.file_path).where(
+                    database_versions.c.db_name == "mondo_hpo"
+                )
+            ).scalar_one()
+        assert preserved_path == prior_path
+        assert Path(prior_path).is_file()
+
     def test_refuses_zero_exact_matches_before_clearing_existing_rows(
         self,
         monkeypatch,
@@ -932,10 +1060,41 @@ class TestLookup:
     def test_withholds_dated_gene_wide_install_until_scoped_refresh(
         self, loaded_engine: sa.Engine
     ) -> None:
-        """A non-downgradable legacy source must not surface misattributed rows."""
+        """A legacy MONDO source is withheld without hiding other source rows."""
+        with loaded_engine.begin() as conn:
+            conn.execute(
+                gene_phenotype.insert().values(
+                    gene_symbol="BRCA1",
+                    disease_name="External curated disease",
+                    disease_id="OMIM:604370",
+                    hpo_terms='["HP:0003002"]',
+                    source="omim",
+                    inheritance="AD",
+                )
+            )
         record_mondo_hpo_version(loaded_engine, version="20270101")
 
-        assert lookup_gene_phenotypes(["BRCA1"], loaded_engine) == {}
+        results = lookup_gene_phenotypes(["BRCA1"], loaded_engine)
+        assert [annotation.source for annotation in results["BRCA1"]] == ["omim"]
+        assert lookup_gene_phenotypes(["BRCA1"], loaded_engine, source_filter="mondo_hpo") == {}
+
+    def test_withholds_unproven_noncanonical_install(self, loaded_engine: sa.Engine) -> None:
+        """An uncomparable version cannot prove that MONDO rows are disease-scoped."""
+        with loaded_engine.begin() as conn:
+            conn.execute(
+                gene_phenotype.insert().values(
+                    gene_symbol="BRCA1",
+                    disease_name="External curated disease",
+                    disease_id="OMIM:604370",
+                    hpo_terms='["HP:0003002"]',
+                    source="omim",
+                    inheritance="AD",
+                )
+            )
+        record_mondo_hpo_version(loaded_engine, version="vNext")
+
+        results = lookup_gene_phenotypes(["BRCA1"], loaded_engine)
+        assert [annotation.source for annotation in results["BRCA1"]] == ["omim"]
         assert lookup_gene_phenotypes(["BRCA1"], loaded_engine, source_filter="mondo_hpo") == {}
 
 

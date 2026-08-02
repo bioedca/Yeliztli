@@ -13,7 +13,7 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 import httpx
 import pytest
@@ -22,7 +22,12 @@ from backend.annotation.cpic import check_cpic_update
 from backend.annotation.dbnsfp import check_dbnsfp_update
 from backend.annotation.dbsnp import check_dbsnp_update
 from backend.annotation.gwas import check_gwas_update
-from backend.annotation.mondo_hpo import MONDO_HPO_INGESTION_REVISION, check_mondo_hpo_update
+from backend.annotation.mondo_hpo import (
+    HPO_GENES_TO_PHENOTYPE_URL,
+    MONDO_HPO_INGESTION_REVISION,
+    MONDO_SSSOM_URL,
+    check_mondo_hpo_update,
+)
 from backend.db import manifest as manifest_mod
 from backend.db.manifest import reset_cache
 from backend.db.tables import database_versions, gene_phenotype
@@ -924,10 +929,15 @@ class TestCheckMondoHpoUpdate:
         monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(path))
         _record_version_row(reference_engine, "mondo_hpo", MONDO_HPO_LAST_MODIFIED_OLD_VERSION)
 
-        mock_client, _ = _mock_head_client(
+        mock_client, primary = _mock_head_client(
             content_length="98765432",
             last_modified=MONDO_HPO_LAST_MODIFIED_NEW,
         )
+        hpo = MagicMock(headers={"Content-Length": "20", "ETag": "hpo-current"})
+        hpo.raise_for_status = MagicMock()
+        sssom = MagicMock(headers={"Content-Length": "13", "ETag": "sssom-current"})
+        sssom.raise_for_status = MagicMock()
+        mock_client.return_value.head.side_effect = [primary, hpo, sssom]
         with patch("backend.annotation.mondo_hpo.httpx.Client", mock_client):
             result = check_mondo_hpo_update(reference_engine)
 
@@ -936,9 +946,13 @@ class TestCheckMondoHpoUpdate:
         assert result.db_name == "mondo_hpo"
         assert result.latest_version == MONDO_HPO_LAST_MODIFIED_NEW_VERSION
         assert result.download_url == MONDO_HPO_URL
-        assert result.download_size_bytes == 98_765_432
+        assert result.download_size_bytes == 98_765_465
         assert result.release_date == MONDO_HPO_LAST_MODIFIED_NEW_VERSION
-        mock_client.return_value.head.assert_called_once_with(MONDO_HPO_URL)
+        assert mock_client.return_value.head.call_args_list == [
+            call(MONDO_HPO_URL),
+            call(HPO_GENES_TO_PHENOTYPE_URL),
+            call(MONDO_SSSOM_URL),
+        ]
 
     def test_newer_recorded_returns_none(self, tmp_path: Path, monkeypatch, reference_engine):
         """Recorded date newer than remote Last-Modified → no downgrade offered."""
@@ -1031,7 +1045,10 @@ class TestCheckMondoHpoUpdate:
 
         mock_client, _ = _mock_head_client(last_modified=MONDO_HPO_LAST_MODIFIED_NEW)
         with patch("backend.annotation.mondo_hpo.httpx.Client", mock_client):
-            assert check_mondo_hpo_update(reference_engine) is not None
+            result = check_mondo_hpo_update(reference_engine)
+
+        assert result is not None
+        assert result.latest_version == MONDO_HPO_LAST_MODIFIED_NEW_VERSION
 
     def test_matching_labelled_version_without_scope_revision_offers_refresh(
         self, tmp_path: Path, monkeypatch, reference_engine
@@ -1053,7 +1070,13 @@ class TestCheckMondoHpoUpdate:
 
         mock_client, _ = _mock_head_client(last_modified=MONDO_HPO_LAST_MODIFIED_NEW)
         with patch("backend.annotation.mondo_hpo.httpx.Client", mock_client):
-            assert check_mondo_hpo_update(reference_engine) is not None
+            result = check_mondo_hpo_update(reference_engine)
+
+        assert isinstance(result, VersionInfo)
+        assert result.db_name == "mondo_hpo"
+        assert result.latest_version == MONDO_HPO_LAST_MODIFIED_NEW_VERSION
+        assert result.download_url == MONDO_HPO_URL
+        assert result.release_date == MONDO_HPO_LAST_MODIFIED_NEW_VERSION
 
     def test_newer_version_with_legacy_terms_never_downgrades(
         self, tmp_path: Path, monkeypatch, reference_engine
@@ -1115,9 +1138,30 @@ class TestCheckMondoHpoUpdate:
         mock_client.return_value.head.side_effect = [primary, hpo, sssom]
 
         with patch("backend.annotation.mondo_hpo.httpx.Client", mock_client):
-            assert check_mondo_hpo_update(reference_engine) is not None
+            result = check_mondo_hpo_update(reference_engine)
 
-        assert mock_client.return_value.head.call_count == 3
+        assert isinstance(result, VersionInfo)
+        assert result.download_url == MONDO_HPO_URL
+        assert mock_client.return_value.head.call_args_list == [
+            call(MONDO_HPO_URL),
+            call(HPO_GENES_TO_PHENOTYPE_URL),
+            call(MONDO_SSSOM_URL),
+        ]
+
+    @pytest.mark.parametrize("installed_version", ["vNext", "2026-04-x"])
+    def test_noncanonical_installed_version_is_not_compared_lexically(
+        self, tmp_path: Path, monkeypatch, reference_engine, installed_version: str
+    ):
+        """An unparseable primary version must not trigger a possible downgrade."""
+        path = _write_manifest(tmp_path, SAMPLE_MANIFEST)
+        monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(path))
+        _record_version_row(reference_engine, "mondo_hpo", installed_version)
+
+        mock_client, _ = _mock_head_client(last_modified=MONDO_HPO_LAST_MODIFIED_NEW)
+        with patch("backend.annotation.mondo_hpo.httpx.Client", mock_client):
+            assert check_mondo_hpo_update(reference_engine) is None
+
+        mock_client.return_value.head.assert_called_once_with(MONDO_HPO_URL)
 
     def test_no_recorded_version_returns_version_info(
         self, tmp_path: Path, monkeypatch, reference_engine
@@ -1135,7 +1179,7 @@ class TestCheckMondoHpoUpdate:
 
         assert result is not None
         assert result.latest_version == MONDO_HPO_LAST_MODIFIED_NEW_VERSION
-        assert result.download_size_bytes == 98_765_432
+        assert result.download_size_bytes == 296_296_296
 
     def test_head_missing_content_length_returns_zero_size(
         self, tmp_path: Path, monkeypatch, reference_engine
@@ -1377,4 +1421,4 @@ class TestCheckFnsRegistration:
         assert result is not None
         assert result.db_name == "mondo_hpo"
         assert result.latest_version == MONDO_HPO_LAST_MODIFIED_NEW_VERSION
-        assert result.download_size_bytes == 666_777
+        assert result.download_size_bytes == 2_000_331
