@@ -3,7 +3,7 @@ import { throwApiError } from "@/api/errors"
 import { useQuery } from '@tanstack/react-query'
 import type { QCMetrics } from '@/types/qc'
 
-export const qcMetricsQueryKey = (sampleId: number | null) =>
+const qcMetricsQueryKey = (sampleId: number | null) =>
   ['analysis-qc-metrics', sampleId] as const
 
 export function useQCMetrics(sampleId: number | null) {
