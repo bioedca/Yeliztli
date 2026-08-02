@@ -974,7 +974,7 @@ def check_ancestry_mismatch(
                 "Your genotype did not resolve to a single top ancestry (admixed "
                 "composition), so it cannot be matched to this score's development "
                 "population. PRS portability depends on ancestry composition, linkage "
-                "disequilibrium, and allele-frequency differences, so "
+                "disequilibrium, and allele-frequency differences. "
                 f"{admixed_background_caveat}"
             )
         else:  # UNCERTAIN

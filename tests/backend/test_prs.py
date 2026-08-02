@@ -701,6 +701,11 @@ class TestRunPRS:
         assert result.percentile is None
         assert result.ancestry_warning_text is not None
         assert "percentile" not in result.ancestry_warning_text.lower()
+        if inferred_ancestry == "ADMIXED":
+            assert (
+                "allele-frequency differences. This score may be less applicable "
+                "to an admixed background."
+            ) in result.ancestry_warning_text
 
         assert store_prs_findings([result], sample_with_prs_variants, module="cancer") == 1
         with sample_with_prs_variants.connect() as conn:
@@ -733,6 +738,11 @@ class TestRunPRS:
         assert result.percentile is not None
         assert result.ancestry_warning_text is not None
         assert "percentile" in result.ancestry_warning_text.lower()
+        if inferred_ancestry == "ADMIXED":
+            assert (
+                "allele-frequency differences. Percentile estimates may be less "
+                "accurate for an admixed background."
+            ) in result.ancestry_warning_text
 
     def test_insufficient_coverage_warning_omits_unreported_percentile(
         self, weight_set: PRSWeightSet, sample_engine: sa.Engine
