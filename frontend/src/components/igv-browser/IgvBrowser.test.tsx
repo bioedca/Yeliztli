@@ -169,7 +169,7 @@ describe("IgvBrowser", () => {
     const rawError = "IGV backend connection failed at https://internal.example.test/private/genome"
     mockCreateBrowser.mockReset()
     mockCreateBrowser.mockRejectedValue(new Error(rawError))
-    vi.spyOn(console, "error").mockImplementation(() => {})
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {})
     render(<IgvBrowser />)
     await waitFor(() => {
       expect(screen.getByRole("alert")).toBeInTheDocument()
@@ -179,6 +179,7 @@ describe("IgvBrowser", () => {
       screen.getByText("Unable to load the genome browser. Please retry."),
     ).toBeInTheDocument()
     expect(screen.queryByText(/igv backend connection failed at https:\/\/internal\.example\.test\/private\/genome/i)).not.toBeInTheDocument()
+    expect(consoleError).not.toHaveBeenCalled()
     expect(screen.getByText("Retry")).toBeInTheDocument()
   })
 
