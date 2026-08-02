@@ -73,10 +73,10 @@ For MONDO/HPO, phenotype terms and inheritance are attached to a MONDO disease o
 an authoritative `skos:exactMatch` cross-reference. Unmatched or ambiguous source disease
 identifiers remain unannotated rather than being copied to another disease for the same gene.
 Each successful refresh transfers about 34 MB across the Monarch primary archive, HPO export,
-and MONDO SSSOM mapping. The downloader retains the active validated source bundle and its
-immediately preceding validated bundle for reproducibility. Incomplete, malformed, or
-operator-created bundle directories are never automatically removed; inspect those manually
-before cleanup.
+and MONDO SSSOM mapping. The downloader retains every successfully validated source bundle as
+append-only provenance rather than recursively deleting a directory after a path identity check.
+Incomplete, malformed, or operator-created directories are also never automatically removed;
+inspect all bundle directories manually before any operator-directed cleanup.
 
 !!! warning "dbNSFP license"
     dbNSFP is distributed under an **academic / non-commercial** license. Make sure your use

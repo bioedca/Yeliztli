@@ -97,9 +97,9 @@ records that bundle's primary archive path only in the same transaction as its
 disease rows, so a failed replacement cannot overwrite a prior provenance
 record. A dedicated cross-process finalization claim serializes the bundle
 snapshot, publish, row/version transaction, and retention decision. After a
-successful replacement, the loader retains the active and immediately
-preceding validated bundles; incomplete, malformed, legacy, symlinked, and
-operator-created directories are not automatically removed. The verified
+successful replacement, the loader retains every validated bundle as
+append-only provenance; incomplete, malformed, legacy, symlinked, and
+operator-created directories are also not automatically removed. The verified
 three-source transfer footprint is 33,992,110 bytes (about 34 MB) per bundle.
 
 ## Corrections, licensing, and data handling
