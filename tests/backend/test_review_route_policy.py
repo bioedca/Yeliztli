@@ -1013,8 +1013,26 @@ def test_v3_provider_evidence_is_exact_head_immutable_and_nonblocking(mutation: 
                 "> ### Notes",
                 "- ### Notes",
                 "<details>\n<summary>x</summary>\n</details>",
+                # ATX forms a `^#{1,3} ` boundary pattern would have missed:
+                # up to three leading spaces, a tab after the hashes, an empty
+                # heading, and closing hashes.
+                "   ### Notes",
+                "###\tNotes",
+                "###",
+                "  ## Notes",
+                "### Notes ###",
+                # Raw HTML preformatted blocks: rendered as quoted text, and
+                # NOT blanked by _visible_markdown, which only handles fenced
+                # and indented code.
+                "<pre>quoted</pre>",
+                "<code>quoted</code>",
             )
         ),
+        # The sentence itself quoted in raw HTML rather than asserted.
+        "## O\n\n### Reviewed changes\n\n<pre>\nCopilot reviewed 2 out of 2 changed "
+        "files in this pull request and generated no comments.\n</pre>\n",
+        "## O\n\n### Reviewed changes\n\n<pre>Copilot reviewed 2 out of 2 changed "
+        "files in this pull request and generated no comments.</pre>\n",
         # Section heading missing entirely.
         _copilot_v3_body(2).replace("### Reviewed changes\n\n", ""),
         # Duplicate headings leave the section ambiguous.
