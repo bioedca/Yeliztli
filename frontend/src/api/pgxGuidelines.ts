@@ -4,14 +4,14 @@
  * sample's CPIC prescribing alerts. Additive — a failure here must never block
  * the pharmacogenomics surface (the caller treats it as supplementary). */
 
+import { throwApiError } from "@/api/errors"
 import { useQuery } from "@tanstack/react-query"
 import type { PgxGuidelinesResponse } from "@/types/pgxGuidelines"
 
 async function getJson<T>(url: string, label: string): Promise<T> {
   const res = await fetch(url)
   if (!res.ok) {
-    const text = await res.text().catch(() => "")
-    throw new Error(`${label} failed: ${res.status}${text ? ` - ${text}` : ""}`)
+    await throwApiError(res, `${label} could not be loaded. Please try again.`)
   }
   return res.json()
 }

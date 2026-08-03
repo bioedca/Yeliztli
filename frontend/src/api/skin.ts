@@ -1,5 +1,7 @@
 /** React Query hooks for Gene Skin API (P3-56). */
 
+import { throwApiError } from "@/api/errors"
+
 import { useQuery } from "@tanstack/react-query"
 import type { PathwaysResponse, PathwayDetailResponse } from "@/types/skin"
 
@@ -17,8 +19,7 @@ export function useSkinPathways(sampleId: number | null) {
       const params = new URLSearchParams({ sample_id: String(sampleId!) })
       const res = await fetch(`/api/analysis/skin/pathways?${params}`)
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`Skin pathways failed: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `Skin pathways failed. Please try again.`)
       }
       return res.json()
     },
@@ -45,10 +46,7 @@ export function useSkinPathwayDetail(
         `/api/analysis/skin/pathway/${encodeURIComponent(pathwayId!)}?${params}`,
       )
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(
-          `Skin pathway detail failed: ${res.status}${text ? ` - ${text}` : ""}`,
-        )
+        await throwApiError(res, `Skin pathway detail failed. Please try again.`)
       }
       return res.json()
     },

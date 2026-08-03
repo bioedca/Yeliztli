@@ -1,5 +1,7 @@
 /** React Query hooks for custom gene panel API (P4-11). */
 
+import { throwApiError } from "@/api/errors"
+
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import type {
   CustomPanelListResponse,
@@ -13,8 +15,7 @@ export function useCustomPanels() {
     queryFn: async (): Promise<CustomPanelListResponse> => {
       const res = await fetch("/api/panels")
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`Failed to load panels: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `Failed to load panels. Please try again.`)
       }
       return res.json()
     },
@@ -44,8 +45,7 @@ export function useUploadPanel() {
         body: formData,
       })
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`Upload failed: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `Upload failed. Please try again.`)
       }
       return res.json()
     },
@@ -62,8 +62,7 @@ export function useDeletePanel() {
     mutationFn: async (panelId: number): Promise<void> => {
       const res = await fetch(`/api/panels/${panelId}`, { method: "DELETE" })
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`Delete failed: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `Delete failed. Please try again.`)
       }
     },
     onSuccess: () => {

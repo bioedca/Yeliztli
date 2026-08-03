@@ -1,5 +1,7 @@
 /** React Query hooks for nutrigenomics API (P3-11). */
 
+import { throwApiError } from "@/api/errors"
+
 import { useQuery } from "@tanstack/react-query"
 import type { PathwaysResponse, PathwayDetailResponse } from "@/types/nutrigenomics"
 
@@ -15,8 +17,7 @@ export function useNutrigenomicsPathways(sampleId: number | null) {
       const params = new URLSearchParams({ sample_id: String(sampleId!) })
       const res = await fetch(`/api/analysis/nutrigenomics/pathways?${params}`)
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`Nutrigenomics pathways failed: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `Nutrigenomics pathways failed. Please try again.`)
       }
       return res.json()
     },
@@ -42,10 +43,7 @@ export function useNutrigenomicsPathwayDetail(
         `/api/analysis/nutrigenomics/pathway/${encodeURIComponent(pathwayId!)}?${params}`,
       )
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(
-          `Nutrigenomics pathway detail failed: ${res.status}${text ? ` - ${text}` : ""}`,
-        )
+        await throwApiError(res, `Nutrigenomics pathway detail failed. Please try again.`)
       }
       return res.json()
     },

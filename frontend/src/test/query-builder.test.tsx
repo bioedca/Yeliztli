@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest"
 import { render, screen, waitFor, within } from "./test-utils"
 import userEvent from "@testing-library/user-event"
 import QueryBuilderView from "@/pages/QueryBuilderView"
+import { QueryBuilderDraftProvider } from "@/components/query-builder/QueryBuilderDraftState"
 import SavedQueriesPanel from "@/components/query-builder/SavedQueriesPanel"
 import QueryResultsTable from "@/components/query-builder/QueryResultsTable"
 import { CADD_TOOLTIP, REVEL_TOOLTIP } from "@/lib/inSilicoScoreInfo"
@@ -22,7 +23,9 @@ function renderWithRoute(ui: ReactNode, route = "/query-builder") {
   })
   return rtlRender(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={[route]}>{ui}</MemoryRouter>
+      <MemoryRouter initialEntries={[route]}>
+        <QueryBuilderDraftProvider>{ui}</QueryBuilderDraftProvider>
+      </MemoryRouter>
     </QueryClientProvider>,
   )
 }

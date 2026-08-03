@@ -1,5 +1,7 @@
 /** React Query hooks for carrier status module API (P3-38). */
 
+import { throwApiError } from "@/api/errors"
+
 import { useQuery } from "@tanstack/react-query"
 import type {
   CarrierVariantsListResponse,
@@ -18,8 +20,7 @@ export function useCarrierVariants(sampleId: number | null) {
       const params = new URLSearchParams({ sample_id: String(sampleId!) })
       const res = await fetch(`/api/analysis/carrier/variants?${params}`)
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`Carrier variants failed: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `Carrier variants failed. Please try again.`)
       }
       return res.json()
     },
@@ -39,8 +40,7 @@ export function useCarrierDisclaimer() {
     queryFn: async (): Promise<CarrierDisclaimerResponse> => {
       const res = await fetch("/api/analysis/carrier/disclaimer")
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`Carrier disclaimer failed: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `Carrier disclaimer failed. Please try again.`)
       }
       return res.json()
     },

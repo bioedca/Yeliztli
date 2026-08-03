@@ -365,12 +365,17 @@ describe("ConcordanceReport — empty discordant loci", () => {
 // ═══════════════════════════════════════════════════════════════════════
 
 describe("ConcordanceReport — 423 stale-sample handling", () => {
-  it("surfaces the stale banner with the dependency's reannotate_url CTA", async () => {
-    mockFetch.mockImplementation((url: string) => {
+  it("surfaces a safe stale banner with an actionable re-annotation POST", async () => {
+    mockFetch.mockImplementation((url: string, init?: RequestInit) => {
       if (url === provenanceUrl())
         return Promise.resolve(jsonResponse(STALE_PAYLOAD, 423))
       if (url === reportUrl(0))
         return Promise.resolve(jsonResponse(STALE_PAYLOAD, 423))
+      if (url === `/api/annotation/${SAMPLE_ID}` && init?.method === "POST") {
+        return Promise.resolve(
+          jsonResponse({ job_id: "annotation-123", sample_id: SAMPLE_ID, status: "pending" }, 202),
+        )
+      }
       throw new Error(`unexpected fetch: ${url}`)
     })
 
@@ -380,11 +385,15 @@ describe("ConcordanceReport — 423 stale-sample handling", () => {
       expect(screen.getByTestId("concordance-stale-banner")).toBeInTheDocument()
     })
 
-    expect(
-      screen.getByText(/Re-annotate to view this report/i),
-    ).toBeInTheDocument()
-    const cta = screen.getByTestId("concordance-reannotate-cta") as HTMLAnchorElement
-    expect(cta.getAttribute("href")).toBe(`/api/annotation/${SAMPLE_ID}`)
+    expect(screen.getByText(/annotated against an older bundle/i)).toBeInTheDocument()
+    expect(document.body).not.toHaveTextContent(STALE_PAYLOAD.detail.message)
+    fireEvent.click(screen.getByTestId("concordance-reannotate-cta"))
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith(
+        `/api/annotation/${SAMPLE_ID}`,
+        expect.objectContaining({ method: "POST" }),
+      )
+    })
 
     // Summary + table must NOT render under a stale gate.
     expect(screen.queryByTestId("concordance-summary")).not.toBeInTheDocument()
@@ -457,8 +466,9 @@ describe("ConcordanceReport — report-query 5xx handling", () => {
       expect(screen.getByTestId("concordance-bucket-match")).toBeInTheDocument()
     })
     await waitFor(() => {
-      expect(screen.getByText(/internal server error/i)).toBeInTheDocument()
+      expect(screen.getByText("Failed to fetch concordance report")).toBeInTheDocument()
     })
+    expect(screen.queryByText(/internal server error/i)).not.toBeInTheDocument()
     expect(
       screen.queryByTestId("concordance-discordant-table"),
     ).not.toBeInTheDocument()

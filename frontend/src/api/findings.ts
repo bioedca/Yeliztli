@@ -1,5 +1,7 @@
 /** React Query hooks for the unified findings API (P3-43). */
 
+import { throwApiError } from "@/api/errors"
+
 import { useQuery } from "@tanstack/react-query"
 import type { Finding, FindingsSummaryResponse } from "@/types/findings"
 
@@ -37,8 +39,7 @@ export function useFindings(
       if (offset != null && offset > 0) params.set("offset", String(offset))
       const res = await fetch(`/api/analysis/findings?${params}`)
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`Findings failed: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `Findings failed. Please try again.`)
       }
       return res.json()
     },
@@ -58,8 +59,7 @@ export function useFindingsSummary(sampleId: number | null) {
       const params = new URLSearchParams({ sample_id: String(sampleId!) })
       const res = await fetch(`/api/analysis/findings/summary?${params}`)
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`Findings summary failed: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `Findings summary failed. Please try again.`)
       }
       return res.json()
     },

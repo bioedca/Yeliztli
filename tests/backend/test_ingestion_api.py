@@ -631,8 +631,7 @@ class TestGenomeBuildGate:
         )
         assert response.status_code == 422, response.text
         detail = response.json()["detail"]
-        assert isinstance(detail, str)
-        assert "GRCh38" in detail
+        assert detail == {"code": "unsupported_genome_build"}
         ref_path = Settings(data_dir=tmp_data_dir, wal_mode=False).reference_db_path
         engine = sa.create_engine(f"sqlite:///{ref_path}")
         with engine.connect() as conn:

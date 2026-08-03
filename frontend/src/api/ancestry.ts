@@ -1,5 +1,7 @@
 /** React Query hooks for ancestry module API (P3-27, P3-34, AMv2 Step 6). */
 
+import { throwApiError } from "@/api/errors"
+
 import { useRef } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type {
@@ -24,8 +26,7 @@ export function useAncestryFindings(sampleId: number | null) {
       const params = new URLSearchParams({ sample_id: String(sampleId!) })
       const res = await fetch(`/api/analysis/ancestry/findings?${params}`)
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`Ancestry findings failed: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `Ancestry findings failed. Please try again.`)
       }
       return res.json()
     },
@@ -46,8 +47,7 @@ export function usePCACoordinates(sampleId: number | null) {
       const params = new URLSearchParams({ sample_id: String(sampleId!) })
       const res = await fetch(`/api/analysis/ancestry/pca-coordinates?${params}`)
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`PCA coordinates failed: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `PCA coordinates failed. Please try again.`)
       }
       return res.json()
     },
@@ -68,8 +68,7 @@ export function useHaplogroups(sampleId: number | null) {
       const params = new URLSearchParams({ sample_id: String(sampleId!) })
       const res = await fetch(`/api/analysis/ancestry/haplogroups?${params}`)
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`Haplogroup fetch failed: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `Haplogroup fetch failed. Please try again.`)
       }
       return res.json()
     },
@@ -89,8 +88,7 @@ export function useLAIStatus() {
     queryFn: async (): Promise<LAIStatusResponse> => {
       const res = await fetch("/api/analysis/ancestry/lai/status")
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`LAI status failed: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `LAI status failed. Please try again.`)
       }
       return res.json()
     },
@@ -109,8 +107,7 @@ export function useLAIResults(sampleId: number | null) {
     queryFn: async (): Promise<LAIResultResponse | null> => {
       const res = await fetch(`/api/analysis/ancestry/lai/${sampleId}/results`)
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`LAI results failed: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `LAI results failed. Please try again.`)
       }
       return res.json()
     },
@@ -135,8 +132,7 @@ export function useLAIProgress(
     queryFn: async (): Promise<LAIProgressResponse | null> => {
       const res = await fetch(`/api/analysis/ancestry/lai/${sampleId}/progress`)
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`LAI progress failed: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `LAI progress failed. Please try again.`)
       }
       const data: LAIProgressResponse | null = await res.json()
       if (data?.status === "complete" && onComplete && !completeFiredRef.current) {
@@ -169,8 +165,7 @@ export function useTriggerLAI() {
         method: "POST",
       })
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`LAI trigger failed: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `LAI trigger failed. Please try again.`)
       }
       return res.json()
     },

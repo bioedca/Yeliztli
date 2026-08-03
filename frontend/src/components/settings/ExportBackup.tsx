@@ -176,11 +176,9 @@ export default function ExportBackup() {
             <p className="text-sm font-medium text-red-800 dark:text-red-300">
               Backup export failed
             </p>
-            {jobStatus.data.error && (
-              <p className="text-xs text-red-700 dark:text-red-400 mt-0.5">
-                {jobStatus.data.error}
-              </p>
-            )}
+            <p role="alert" className="text-xs text-red-700 dark:text-red-400 mt-0.5">
+              Please try again.
+            </p>
           </div>
         </div>
       )}

@@ -1,5 +1,7 @@
 /** React Query hooks for vcfanno overlay API (P4-12). */
 
+import { throwApiError } from "@/api/errors"
+
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import type {
   OverlayListResponse,
@@ -16,8 +18,7 @@ export function useOverlays() {
     queryFn: async (): Promise<OverlayListResponse> => {
       const res = await fetch("/api/overlays")
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`Failed to load overlays: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `Failed to load overlays. Please try again.`)
       }
       return res.json()
     },
@@ -36,8 +37,7 @@ export function useParseOverlayPreview() {
         body: formData,
       })
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`Parse failed: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `Parse failed. Please try again.`)
       }
       return res.json()
     },
@@ -66,8 +66,7 @@ export function useUploadOverlay() {
         body: formData,
       })
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`Upload failed: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `Upload failed. Please try again.`)
       }
       return res.json()
     },
@@ -84,8 +83,7 @@ export function useDeleteOverlay() {
     mutationFn: async (overlayId: number): Promise<void> => {
       const res = await fetch(`/api/overlays/${overlayId}`, { method: "DELETE" })
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`Delete failed: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `Delete failed. Please try again.`)
       }
     },
     onSuccess: (_data, overlayId) => {
@@ -112,8 +110,7 @@ export function useApplyOverlay() {
         method: "POST",
       })
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`Apply failed: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `Apply failed. Please try again.`)
       }
       return res.json()
     },
@@ -133,8 +130,7 @@ export function useOverlayResults(overlayId: number | null, sampleId: number | n
       const params = new URLSearchParams({ sample_id: String(sampleId) })
       const res = await fetch(`/api/overlays/${overlayId}/results?${params}`)
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`Failed to load results: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `Failed to load results. Please try again.`)
       }
       return res.json()
     },
