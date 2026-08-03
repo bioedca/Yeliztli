@@ -64,6 +64,30 @@ def _assert_real_access_date(text: str, where: str) -> str:
     return raw
 
 
+def _scalar_values(node: object) -> set[str]:
+    """Every scalar in a nested structure, as upper-case strings.
+
+    Identifier checks compare against this set rather than substring-matching
+    serialized JSON, so ``25855707`` is not satisfied by ``258557070``.
+    """
+    if isinstance(node, dict):
+        return {value for child in node.values() for value in _scalar_values(child)}
+    if isinstance(node, list):
+        return {value for child in node for value in _scalar_values(child)}
+    if isinstance(node, bool) or node is None:
+        return set()
+    return {str(node).upper()}
+
+
+def _assert_iso_date(value: object, where: str) -> None:
+    """Require a bare ``YYYY-MM-DD`` field to be a real calendar date."""
+    assert isinstance(value, str) and value, f"{where} must record an access date"
+    try:
+        date.fromisoformat(value)
+    except ValueError:  # pragma: no cover - only reached on a malformed date
+        raise AssertionError(f"{where} records an impossible access date: {value}") from None
+
+
 def _weight_sets() -> list[dict[str, object]]:
     data = json.loads(_PANEL_PATH.read_text(encoding="utf-8"))
     return data["weight_sets"]
@@ -241,6 +265,13 @@ def test_breast_prs_references_carry_a_science_evidence_packet() -> None:
     )
     for entry in packet["queries"]:
         assert entry.get("status"), f"packet entry for {entry['service']} must record a status"
+        # The entry's own access date must be real and agree with the packet's,
+        # or an entry can silently claim a different retrieval boundary.
+        _assert_iso_date(entry.get("accessed"), f"the {entry['service']} query entry")
+        assert entry["accessed"] == packet["accessed"], (
+            f"the {entry['service']} query entry records access date "
+            f"{entry['accessed']!r}, not the packet's {packet['accessed']!r}"
+        )
         if entry["status"] != "success":
             # An unavailable or quota-blocked tier still has to record why, or a
             # skipped service is indistinguishable from one that was never run.
@@ -338,8 +369,8 @@ def test_breast_prs_references_carry_a_science_evidence_packet() -> None:
                 for key, value in payload.items()
                 if key in {"records", "results_retained", "complete_result_ranking"}
             ]
-            blob = json.dumps(returned_records).upper()
-            missing_ids = sorted(w for w in wanted if w not in blob)
+            present = _scalar_values(returned_records)
+            missing_ids = sorted(w for w in wanted if w not in present)
             assert not missing_ids, (
                 f"{raw} returns no record for the identifiers its entry requested: {missing_ids}"
             )
@@ -410,10 +441,17 @@ def test_breast_prs_references_carry_a_science_evidence_packet() -> None:
             )
 
     doc_text = _DOC_PATH.read_text(encoding="utf-8")
+    # Derive the reference set from the note itself. A hard-coded (2, 3) would
+    # silently ignore a future [4], letting a new source enter the documentation
+    # with no packet entry, no identifier coverage and no access date.
+    note_text = _breast_prs_note(doc_text)
+    referenced = sorted({int(number) for number in re.findall(r"\[([1-9][0-9]*)\]", note_text)})
+    assert referenced, "the breast PRS note must cite at least one numbered reference"
+    reference_texts = {number: _reference_entry(doc_text, number) for number in referenced}
     cited = {
         match.group(0).upper()
-        for number in (2, 3)
-        for match in _PROVENANCE_ID_RE.finditer(_reference_entry(doc_text, number))
+        for text in reference_texts.values()
+        for match in _PROVENANCE_ID_RE.finditer(text)
     }
     assert cited, "the breast PRS references must cite at least one approved identifier"
 
@@ -445,10 +483,12 @@ def test_breast_prs_references_carry_a_science_evidence_packet() -> None:
     # only that some access date is present lets the documentation and the packet
     # tell different stories about the same lookup.
     packet_date = packet["accessed"]
+    for number, text in reference_texts.items():
+        _assert_real_access_date(text, f"breast PRS reference [{number}]")
     doc_dates = {
         match.group(0).lower()
-        for number in (2, 3)
-        for match in _ACCESS_DATE_RE.finditer(_reference_entry(doc_text, number))
+        for text in reference_texts.values()
+        for match in _ACCESS_DATE_RE.finditer(text)
     }
     assert doc_dates == {f"(accessed {packet_date})"}, (
         "the breast PRS references must carry the same access date the evidence "
