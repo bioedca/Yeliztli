@@ -756,6 +756,7 @@ class TestRunEndpoint:
             response = rare_variants.run_rare_variant_finder(
                 sample_id=1,
                 body=rare_variants.RareVariantFilterRequest(gene_symbols=["BRCA1"]),
+                has_supplied_body=True,
             )
             assert response.findings_stored == 0
             assert response.variants_found > 0
@@ -787,12 +788,74 @@ class TestRunEndpoint:
             response = rare_variants.run_rare_variant_finder(
                 sample_id=1,
                 body=rare_variants.RareVariantFilterRequest(),
+                has_supplied_body=True,
             )
             assert response.findings_stored == 0
             assert response.variants_found > 0
 
             after = rare_variants.list_rare_variant_findings(sample_id=1, limit=100, offset=0)
             assert after == before
+        finally:
+            engine.dispose()
+
+    def test_null_run_body_preserves_existing_stored_findings_via_route_function(
+        self, monkeypatch: pytest.MonkeyPatch, sample_db_path: Path
+    ) -> None:
+        """A supplied JSON null must not be mistaken for a canonical full run (#2060)."""
+        seed_rare_variant_findings(sample_db_path)
+
+        from backend.api.routes import rare_variants
+
+        engine = sa.create_engine(f"sqlite:///{sample_db_path}")
+        monkeypatch.setattr(rare_variants, "_get_sample_engine", lambda sample_id: engine)
+        monkeypatch.setattr(
+            rare_variants,
+            "_resolve_biological_sex_for_sample",
+            lambda sample_engine, sample_id: None,
+        )
+
+        try:
+            before = rare_variants.list_rare_variant_findings(sample_id=1, limit=100, offset=0)
+            response = rare_variants.run_rare_variant_finder(
+                sample_id=1,
+                body=None,
+                has_supplied_body=True,
+            )
+            assert response.findings_stored == 0
+            assert response.variants_found > 0
+
+            after = rare_variants.list_rare_variant_findings(sample_id=1, limit=100, offset=0)
+            assert after == before
+        finally:
+            engine.dispose()
+
+    def test_bodyless_run_replaces_stored_findings_via_route_function(
+        self, monkeypatch: pytest.MonkeyPatch, sample_db_path: Path
+    ) -> None:
+        """Only a genuinely body-less run may replace canonical findings (#2060)."""
+        seed_rare_variant_findings(sample_db_path)
+
+        from backend.api.routes import rare_variants
+
+        engine = sa.create_engine(f"sqlite:///{sample_db_path}")
+        monkeypatch.setattr(rare_variants, "_get_sample_engine", lambda sample_id: engine)
+        monkeypatch.setattr(
+            rare_variants,
+            "_resolve_biological_sex_for_sample",
+            lambda sample_engine, sample_id: None,
+        )
+
+        try:
+            response = rare_variants.run_rare_variant_finder(
+                sample_id=1,
+                body=None,
+                has_supplied_body=False,
+            )
+            assert response.findings_stored == response.variants_found
+            assert response.findings_stored > 0
+
+            stored = rare_variants.list_rare_variant_findings(sample_id=1, limit=100, offset=0)
+            assert stored.total == response.findings_stored
         finally:
             engine.dispose()
 
@@ -834,6 +897,29 @@ class TestRunEndpoint:
         exploratory_run = rare_client.post(
             "/api/analysis/rare-variants/run?sample_id=1",
             json={},
+        )
+        assert exploratory_run.status_code == 200
+        assert exploratory_run.json()["findings_stored"] == 0
+
+        after_response = rare_client.get("/api/analysis/rare-variants/findings?sample_id=1")
+        assert after_response.status_code == 200
+        assert after_response.json() == before
+
+    def test_null_run_body_does_not_store_findings(self, rare_client: TestClient) -> None:
+        """An explicit JSON null is exploratory and leaves findings unchanged (#2060)."""
+        full_run = rare_client.post("/api/analysis/rare-variants/run?sample_id=1")
+        assert full_run.status_code == 200
+        assert full_run.json()["findings_stored"] > 0
+
+        before_response = rare_client.get("/api/analysis/rare-variants/findings?sample_id=1")
+        assert before_response.status_code == 200
+        before = before_response.json()
+        assert before["total"] > 1
+
+        exploratory_run = rare_client.post(
+            "/api/analysis/rare-variants/run?sample_id=1",
+            content=b"null",
+            headers={"content-type": "application/json"},
         )
         assert exploratory_run.status_code == 200
         assert exploratory_run.json()["findings_stored"] == 0

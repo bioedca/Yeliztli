@@ -472,6 +472,9 @@ class TestSearchWithPanelEndpoint:
         assert data["panel_name"] == "BRCA Panel"
         assert data["variants_found"] >= 1
         assert data["findings_stored"] == 0
+        assert len(data["items"]) == data["variants_found"]
+        assert data["items"]
+        assert {item["gene_symbol"] for item in data["items"]} <= {"BRCA1", "BRCA2"}
 
         after_response = panel_client.get("/api/analysis/rare-variants/findings?sample_id=1")
         assert after_response.status_code == 200
@@ -525,6 +528,8 @@ class TestSearchWithPanelEndpoint:
             assert response.variants_found > 0
             assert response.findings_stored == 0
             assert response.genes_with_findings == ["BRCA1"]
+            assert len(response.items) == response.variants_found
+            assert {item.gene_symbol for item in response.items} == {"BRCA1"}
 
             with engine.connect() as conn:
                 after = set(
@@ -553,6 +558,8 @@ class TestSearchWithPanelEndpoint:
         # Only BRCA1 Pathogenic variant should match
         assert data["variants_found"] >= 1
         assert data["findings_stored"] == 0
+        assert data["items"]
+        assert {item["gene_symbol"] for item in data["items"]} == {"BRCA1"}
         for gene in data["genes_with_findings"]:
             assert gene in ["BRCA1"]
 

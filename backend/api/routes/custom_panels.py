@@ -36,6 +36,7 @@ from backend.analysis.rare_variant_finder import (
     find_rare_variants,
 )
 from backend.api.dependencies import require_fresh_sample
+from backend.api.routes.rare_variants import RareVariantResponse, to_rare_variant_response
 from backend.db.connection import get_registry
 from backend.db.tables import samples
 from backend.services.sex_inference import (
@@ -108,6 +109,7 @@ class PanelSearchResponse(BaseModel):
     """Response from an exploratory rare variant search with a panel."""
 
     panel_name: str
+    items: list[RareVariantResponse]
     variants_found: int
     findings_stored: int = Field(
         default=0,
@@ -293,8 +295,8 @@ def search_with_panel(
 
     Loads the panel's gene symbols and passes them as the gene filter
     to the rare variant finder. Additional filters (AF, consequence,
-    ClinVar) can be specified in the request body. Panel searches never replace
-    the sample's canonical stored findings.
+    ClinVar) can be specified in the request body. It returns the transient
+    matched variants and never replaces the sample's canonical stored findings.
 
     Example: ``POST /api/panels/1/search?sample_id=1``
     """
@@ -332,6 +334,7 @@ def search_with_panel(
 
     return PanelSearchResponse(
         panel_name=panel.name,
+        items=[to_rare_variant_response(variant) for variant in result.variants],
         variants_found=result.count,
         findings_stored=0,
         total_variants_scanned=result.total_variants_scanned,

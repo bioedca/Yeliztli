@@ -17,13 +17,14 @@ from datetime import date
 from typing import Any
 
 import sqlalchemy as sa
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from starlette.responses import StreamingResponse
 
 from backend.analysis.rare_variant_finder import (
     DEFAULT_AF_THRESHOLD,
     RareVariantFilter,
+    RareVariantResult,
     find_rare_variants,
     store_rare_variant_findings,
 )
@@ -195,6 +196,11 @@ def _resolve_biological_sex_for_sample(sample_engine: sa.Engine, sample_id: int)
     return resolved.sex
 
 
+async def _has_supplied_body(request: Request) -> bool:
+    """Distinguish an absent request body from an explicit JSON ``null``."""
+    return bool(await request.body())
+
+
 def _request_to_filter(
     req: RareVariantFilterRequest, *, biological_sex: str | None = None
 ) -> RareVariantFilter:
@@ -218,6 +224,48 @@ def _request_to_filter(
         carried_only=True,
         inferred_sex=biological_sex,
         biological_sex=biological_sex,
+    )
+
+
+def to_rare_variant_response(variant: RareVariantResult) -> RareVariantResponse:
+    """Serialize a finder result for exploratory API responses."""
+    return RareVariantResponse(
+        rsid=variant.rsid,
+        chrom=variant.chrom,
+        pos=variant.pos,
+        ref=variant.ref,
+        alt=variant.alt,
+        genotype=variant.genotype,
+        zygosity=variant.zygosity,
+        zygosity_label=variant.zygosity_label,
+        gene_symbol=variant.gene_symbol,
+        consequence=variant.consequence,
+        hgvs_coding=variant.hgvs_coding,
+        hgvs_protein=variant.hgvs_protein,
+        gnomad_af_global=variant.gnomad_af_global,
+        gnomad_af_afr=variant.gnomad_af_afr,
+        gnomad_af_amr=variant.gnomad_af_amr,
+        gnomad_af_asj=variant.gnomad_af_asj,
+        gnomad_af_eas=variant.gnomad_af_eas,
+        gnomad_af_eur=variant.gnomad_af_eur,
+        gnomad_af_fin=variant.gnomad_af_fin,
+        gnomad_af_sas=variant.gnomad_af_sas,
+        gnomad_source_status=variant.gnomad_source_status,
+        is_novel=variant.is_novel,
+        clinvar_significance=variant.clinvar_significance,
+        clinvar_low_penetrance_or_risk_allele=(variant.is_clinvar_low_penetrance_or_risk_allele),
+        clinvar_review_stars=variant.clinvar_review_stars,
+        clinvar_accession=variant.clinvar_accession,
+        clinvar_conditions=variant.clinvar_conditions,
+        cadd_phred=variant.cadd_phred,
+        revel=variant.revel,
+        deleterious_count=variant.deleterious_count,
+        deleterious_total_assessed=variant.deleterious_total_assessed,
+        ensemble_pathogenic=variant.ensemble_pathogenic,
+        evidence_conflict=variant.evidence_conflict,
+        evidence_level=variant.evidence_level,
+        disease_name=variant.disease_name,
+        inheritance_pattern=variant.inheritance_pattern,
     )
 
 
@@ -253,47 +301,7 @@ def search_rare_variants(
     filters = _request_to_filter(body, biological_sex=biological_sex)
     result = find_rare_variants(filters, sample_engine)
 
-    items = [
-        RareVariantResponse(
-            rsid=v.rsid,
-            chrom=v.chrom,
-            pos=v.pos,
-            ref=v.ref,
-            alt=v.alt,
-            genotype=v.genotype,
-            zygosity=v.zygosity,
-            zygosity_label=v.zygosity_label,
-            gene_symbol=v.gene_symbol,
-            consequence=v.consequence,
-            hgvs_coding=v.hgvs_coding,
-            hgvs_protein=v.hgvs_protein,
-            gnomad_af_global=v.gnomad_af_global,
-            gnomad_af_afr=v.gnomad_af_afr,
-            gnomad_af_amr=v.gnomad_af_amr,
-            gnomad_af_asj=v.gnomad_af_asj,
-            gnomad_af_eas=v.gnomad_af_eas,
-            gnomad_af_eur=v.gnomad_af_eur,
-            gnomad_af_fin=v.gnomad_af_fin,
-            gnomad_af_sas=v.gnomad_af_sas,
-            gnomad_source_status=v.gnomad_source_status,
-            is_novel=v.is_novel,
-            clinvar_significance=v.clinvar_significance,
-            clinvar_low_penetrance_or_risk_allele=(v.is_clinvar_low_penetrance_or_risk_allele),
-            clinvar_review_stars=v.clinvar_review_stars,
-            clinvar_accession=v.clinvar_accession,
-            clinvar_conditions=v.clinvar_conditions,
-            cadd_phred=v.cadd_phred,
-            revel=v.revel,
-            deleterious_count=v.deleterious_count,
-            deleterious_total_assessed=v.deleterious_total_assessed,
-            ensemble_pathogenic=v.ensemble_pathogenic,
-            evidence_conflict=v.evidence_conflict,
-            evidence_level=v.evidence_level,
-            disease_name=v.disease_name,
-            inheritance_pattern=v.inheritance_pattern,
-        )
-        for v in result.variants
-    ]
+    items = [to_rare_variant_response(variant) for variant in result.variants]
 
     return RareVariantSearchResponse(
         items=items,
@@ -372,12 +380,13 @@ def list_rare_variant_findings(
 def run_rare_variant_finder(
     sample_id: int = Query(..., description="Sample ID"),
     body: RareVariantFilterRequest | None = None,
+    has_supplied_body: bool = Depends(_has_supplied_body),
 ) -> RareVariantRunResponse:
     """Run the rare variant finder with optional filters.
 
     With no body, uses default filters (AF < 1%, include novel) and replaces the
-    canonical stored findings. Any supplied JSON body, including ``{}``, is an
-    exploratory run and leaves those findings unchanged.
+    canonical stored findings. Any supplied JSON body, including ``{}`` and
+    ``null``, is an exploratory run and leaves those findings unchanged.
 
     Example: ``POST /api/analysis/rare-variants/run?sample_id=1``
     """
@@ -394,7 +403,15 @@ def run_rare_variant_finder(
         )
     )
     result = find_rare_variants(filters, sample_engine)
-    stored = store_rare_variant_findings(result, sample_engine) if body is None else 0
+    # FastAPI parses both an absent body and JSON ``null`` as ``None``. The async
+    # dependency consults cached raw bytes so this synchronous handler can leave
+    # blocking database work in FastAPI's threadpool. Only a body-less POST can
+    # replace canonical findings; JSON ``null`` fails closed as exploratory (#2060).
+    stored = (
+        store_rare_variant_findings(result, sample_engine)
+        if body is None and not has_supplied_body
+        else 0
+    )
 
     return RareVariantRunResponse(
         variants_found=result.count,
