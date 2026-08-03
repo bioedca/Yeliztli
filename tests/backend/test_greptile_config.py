@@ -106,6 +106,18 @@ def test_extra_credit_consuming_triggers_stay_disabled(key: str) -> None:
     )
 
 
+def test_dependabot_pull_requests_never_spend_the_budget() -> None:
+    # Dependabot opens pull requests on its own schedule. Without this exclusion a
+    # dependency-bump wave could spend the month before a human sees it, and the
+    # key is silently ignored if misspelled, so assert the concrete value.
+    excluded = _config().get("excludeAuthors")
+    assert isinstance(excluded, list), "excludeAuthors must be a list"
+    assert "dependabot[bot]" in excluded, (
+        "excludeAuthors must exclude dependabot[bot]; a dependency-bump wave would "
+        "otherwise spend the monthly review budget unattended"
+    )
+
+
 def test_the_review_stays_a_provider_authored_artifact() -> None:
     # With shouldUpdateDescription true, Greptile rewrites the PR body instead of
     # posting a review, leaving nothing provider-authored for a route validator.

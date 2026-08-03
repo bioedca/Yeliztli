@@ -1,9 +1,13 @@
 # Greptile reviews
 
 Greptile is an AI code-review GitHub App installed on this repository. Its allowance is
-small enough that an unguarded configuration would exhaust it in about a day, so Greptile
-runs here in **manual-only** mode: it reviews a pull request when a maintainer asks it to,
-and never on its own.
+small enough that an unguarded configuration would exhaust it in about a day, so this
+repository asks Greptile to run in **manual-only** mode: to review a pull request when a
+maintainer asks it to, and never on its own.
+
+"Asks" is exact. Org-enforced dashboard rules and a `.greptile/` folder both take
+precedence over the root `greptile.json` described here, so either can override this
+configuration — see [Caveats](#caveats).
 
 ## The budget
 
@@ -11,11 +15,15 @@ This repository is allocated **16 Greptile reviews per month**.
 
 Greptile meters *completed reviews*, not pull requests: "Billing counts **completed
 reviews**, not PRs. Each finished review consumes one credit, charged to the PR author.
-Skipped reviews don't count."[^billing] Three events each consume one review:
+Skipped reviews don't count."[^billing] Three events each consume one review — two automatic,
+one manual:
 
-1. opening a pull request,
-2. mentioning the Greptile bot on a pull request,
-3. pushing a commit while `triggerOnUpdates` is enabled.
+1. *automatic* — opening a pull request,
+2. *automatic* — pushing a commit while `triggerOnUpdates` is enabled,
+3. *manual* — mentioning the Greptile bot on a pull request.
+
+The configuration below disables both automatic paths and leaves the manual mention
+available, so a review is only ever billed because someone deliberately asked for one.
 
 A review that finds nothing costs the same as one that finds a bug, and a re-review of the
 same pull request costs a fresh unit. There is no partial refund and no API that reports
@@ -52,9 +60,9 @@ The rest of `greptile.json` pins defaults so they cannot be switched on silently
 | --- | --- | --- |
 | `skipReview` | `"AUTOMATIC"` | Skips automatic review while still allowing manual triggers. |
 | `triggerOnUpdates` | `false` | No re-review per pushed commit. Each one would be a separate billed review. |
-| `triggerOnDrafts` | `false` | No review of draft pull requests. Marking a draft ready is itself a trigger. |
+| `triggerOnDrafts` | `false` | No *automatic* review of draft pull requests; a manual mention on a draft still works. Marking a draft ready is itself an automatic trigger. |
 | `shouldUpdateDescription` | `false` | Keeps the review as a bot-authored artifact instead of rewriting the pull request body. |
-| `excludeAuthors` | `["dependabot[bot]"]` | Dependency bumps never spend the budget. |
+| `excludeAuthors` | `["dependabot[bot]"]` | Dependabot pull requests never spend the budget. Other bots are not excluded — add them here if they start opening pull requests. |
 
 `shouldUpdateDescription` is load-bearing beyond cost: set to `true`, Greptile writes its
 summary into the pull request description and leaves **no provider-authored artifact at
@@ -73,14 +81,16 @@ stray credit.
   long-lived branch to pick it up.
 - Config resolves as *org enforced rules > `.greptile/` folder > `greptile.json` > org
   default rules*. Dashboard state can pre-empt this file, and cannot be seen from here.
-- The only hard stop Greptile documents is **Organization Settings → Billing → Flex Usage
-  Limit set to `$0`**, which stops spend at the vendor rather than at the repository.
+- **Organization Settings → Billing → Flex Usage Limit set to `$0`** is the only vendor-side
+  spend control Greptile documents, but it is not a review kill switch: it stops *flex*
+  (overage) spend beyond the included credits. Authors still inside their included
+  allowance keep getting reviews.[^billing] It caps the bill, not the review count.
 
 ## Requesting a review — not yet
 
-**Do not trigger Greptile today.** Greptile is not a selectable hosted reviewer: the v3 pull
-request template and `scripts/validate_review_route.py` accept only Copilot, Codex, and
-CodeRabbit. Every valid pull request therefore selects one of those three, and the contract
+**Do not trigger Greptile until issue #2251 has merged.** Greptile is not a selectable hosted
+reviewer: the v3 pull request template and `scripts/validate_review_route.py` accept only
+Copilot, Codex, and CodeRabbit. Every valid pull request therefore selects one of those three, and the contract
 forbids triggering a lane the route did not select.
 
 So a Greptile review requested now would spend one of the 16 on evidence the route validator
@@ -92,7 +102,7 @@ will work **once that merges**; it is not a licence to trigger before then.
 
 To spend one of the 16, comment on the pull request:
 
-```
+```text
 @greptile-apps
 ```
 
