@@ -237,9 +237,15 @@ def test_cancer_docs_distinguish_the_runtime_block_from_ancestry_withholding() -
     # panel with a new version but unchanged traits and counts would otherwise
     # leave this reference presenting a stale version as the current audit.
     panel_version = json.loads(_PANEL_PATH.read_text(encoding="utf-8"))["version"]
-    assert re.search(rf"version {re.escape(str(panel_version))}(?![\w.-])", audit_reference), (
-        f"breast PRS allele-audit reference must cite panel version {panel_version}; "
+    documented_version = re.search(r"panel version (?P<version>\S+?)[,;)\s]", audit_reference)
+    assert documented_version, (
+        f"breast PRS allele-audit reference must name a panel version; "
         f"reference reads: {audit_reference}"
+    )
+    assert documented_version.group("version") == str(panel_version), (
+        f"breast PRS allele-audit reference documents panel version "
+        f"{documented_version.group('version')!r}, but the bundled panel is "
+        f"{panel_version!r}"
     )
     _assert_real_access_date(audit_reference, "breast PRS allele-audit reference [3]")
 
@@ -300,6 +306,22 @@ def test_breast_prs_references_carry_a_science_evidence_packet() -> None:
             assert artifact_path.is_file(), f"missing referenced artifact: {artifact}"
             expected = entry.get("artifact_sha256")
             assert expected, f"{artifact} must be pinned by an artifact_sha256"
+            # Validating only the entry's own digest would accept any repository
+            # file whose digest was pasted alongside it. The panel is the
+            # authority for what the build actually consumes, so the referenced
+            # artifact must appear in its reproducibility record with the same
+            # digest.
+            panel_pins = json.loads(_PANEL_PATH.read_text(encoding="utf-8"))["weight_sets"][0][
+                "model_provenance"
+            ]["reproducibility"]["checked_in_snapshot_sha256"]
+            pinned = panel_pins.get(Path(artifact).name)
+            assert pinned, (
+                f"{artifact} is not pinned by the panel's checked_in_snapshot_sha256; "
+                f"the panel pins {sorted(panel_pins)}"
+            )
+            assert pinned == expected, (
+                f"{artifact} digest {expected} disagrees with the panel's pin {pinned}"
+            )
             actual = hashlib.sha256(artifact_path.read_bytes()).hexdigest()
             assert actual == expected, (
                 f"{artifact} digest drifted: packet records {expected}, file is {actual}"
