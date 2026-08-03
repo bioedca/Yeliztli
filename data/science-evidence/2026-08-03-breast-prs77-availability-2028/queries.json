@@ -133,9 +133,6 @@
   "panel_derived_values": {
     "note": "The locus counts in cancer.md come from the bundled panel, not from either paper.",
     "source": "backend/data/panels/cancer_prs_weights.json -> weight_sets[0].model_provenance.current_allele_audit",
-    "multiallelic_primary_loci": 39,
-    "biallelic_palindromic_loci": 2,
-    "runtime_blocked_loci": 41,
     "audit_source": "Ensembl Variation, GRCh38, checked_on 2026-07-16",
     "guard": "tests/backend/test_cancer_prs_docs_consistency.py derives the expected counts from the panel and cross-checks runtime_blocked_loci == multiallelic + biallelic.",
     "audit_reproducibility": {
@@ -147,6 +144,7 @@
       "what_is_not": "The Ensembl Variation RELEASE identifier is not recorded anywhere in the snapshot - verified by searching it for 'release', 'version' and 'build' tokens, none of which appear. The snapshot can therefore be re-used but not re-fetched and confirmed upstream, because the database state that produced it is unnamed.",
       "not_invented": "A release identifier is deliberately not supplied here; a fabricated version would read as verified.",
       "tracked_by": "#2246 - narrowed to recording the Ensembl Variation release identifier."
-    }
+    },
+    "counts": "Deliberately NOT duplicated here. The authoritative values live in backend/data/panels/cancer_prs_weights.json -> weight_sets[0].model_provenance.current_allele_audit, and tests/backend/test_cancer_prs_docs_consistency.py derives cancer.md's numbers from that panel. A second copy in this packet could drift from the panel just as the documentation could, so it is removed rather than guarded."
   }
 }

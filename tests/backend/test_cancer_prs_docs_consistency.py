@@ -12,6 +12,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -43,7 +44,24 @@ _PROVENANCE_ID_RE = re.compile(
     r"\b(?:PMID|DOI|ChEMBL|NCT):[A-Z0-9][A-Z0-9./_-]*",
     re.IGNORECASE,
 )
-_ACCESS_DATE_RE = re.compile(r"\(accessed [0-9]{4}-[0-9]{2}-[0-9]{2}\)", re.IGNORECASE)
+_ACCESS_DATE_RE = re.compile(r"\(accessed (?P<date>[0-9]{4}-[0-9]{2}-[0-9]{2})\)", re.IGNORECASE)
+
+
+def _assert_real_access_date(text: str, where: str) -> str:
+    """Require a *calendar-valid* access date, not merely a digit pattern.
+
+    A shape-only regex accepts impossible values such as ``2026-13-45``, and a
+    typo propagated consistently across the documentation and the packet would
+    otherwise satisfy every cross-check between them.
+    """
+    match = _ACCESS_DATE_RE.search(text)
+    assert match, f"{where} must include an '(accessed YYYY-MM-DD)' date"
+    raw = match.group("date")
+    try:
+        date.fromisoformat(raw)
+    except ValueError:  # pragma: no cover - only reached on a malformed date
+        raise AssertionError(f"{where} records an impossible access date: {raw}") from None
+    return raw
 
 
 def _weight_sets() -> list[dict[str, object]]:
@@ -181,9 +199,7 @@ def test_cancer_docs_distinguish_the_runtime_block_from_ancestry_withholding() -
         f"breast PRS reference [2] must cite the panel's source_pmid ({source_pmid}); "
         f"reference reads: {reference_text}"
     )
-    assert _ACCESS_DATE_RE.search(reference_text), (
-        "breast PRS reference must include an '(accessed YYYY-MM-DD)' date"
-    )
+    _assert_real_access_date(reference_text, "breast PRS reference [2]")
 
     assert "[3]" in note_text, "breast PRS note must link to the current allele audit"
     audit_reference = _reference_entry(doc_text, 3)
@@ -197,13 +213,11 @@ def test_cancer_docs_distinguish_the_runtime_block_from_ancestry_withholding() -
     # panel with a new version but unchanged traits and counts would otherwise
     # leave this reference presenting a stale version as the current audit.
     panel_version = json.loads(_PANEL_PATH.read_text(encoding="utf-8"))["version"]
-    assert f"version {panel_version}" in audit_reference, (
+    assert re.search(rf"version {re.escape(str(panel_version))}(?![0-9.])", audit_reference), (
         f"breast PRS allele-audit reference must cite panel version {panel_version}; "
         f"reference reads: {audit_reference}"
     )
-    assert _ACCESS_DATE_RE.search(audit_reference), (
-        "breast PRS allele-audit reference must include an '(accessed YYYY-MM-DD)' date"
-    )
+    _assert_real_access_date(audit_reference, "breast PRS allele-audit reference [3]")
 
 
 def test_breast_prs_references_carry_a_science_evidence_packet() -> None:
@@ -228,6 +242,11 @@ def test_breast_prs_references_carry_a_science_evidence_packet() -> None:
     for entry in packet["queries"]:
         assert entry.get("status"), f"packet entry for {entry['service']} must record a status"
         if entry["status"] != "success":
+            # An unavailable or quota-blocked tier still has to record why, or a
+            # skipped service is indistinguishable from one that was never run.
+            assert str(entry.get("reason", "")).strip(), (
+                f"{entry['service']} recorded status {entry['status']!r} without a reason"
+            )
             continue
 
         # An entry may either retain its own sanitized payload under raw/, or
@@ -301,6 +320,21 @@ def test_breast_prs_references_carry_a_science_evidence_packet() -> None:
             f"{raw} records service {payload.get('service')!r} but is cited by the "
             f"{entry['service']!r} entry"
         )
+        # Bind the retained records to what the entry actually requested.
+        # Matching the service name alone would still accept another PMID's or
+        # DOI's record sitting under the right service label.
+        params = entry.get("params") or {}
+        wanted = [
+            str(value).upper()
+            for source in (entry.get("dois") or [], params.get("pmids") or [])
+            for value in source
+        ]
+        if wanted:
+            blob = json.dumps(payload).upper()
+            missing_ids = sorted(w for w in wanted if w not in blob)
+            assert not missing_ids, (
+                f"{raw} does not contain the identifiers its entry requested: {missing_ids}"
+            )
         # A payload that declares how many results came back must retain that
         # many, or the "complete" ranking is a truncation wearing its name.
         returned = payload.get("results_returned")
@@ -383,9 +417,7 @@ def test_breast_prs_references_carry_a_science_evidence_packet() -> None:
     # Extracting identifiers alone would let an entry silently lose or change
     # its `(accessed YYYY-MM-DD)` suffix while the packet still looked complete.
     for citation in packet["citations"]:
-        assert _ACCESS_DATE_RE.search(str(citation)), (
-            f"packet citation must carry an '(accessed YYYY-MM-DD)' date: {citation}"
-        )
+        _assert_real_access_date(str(citation), f"packet citation {citation!r}")
         assert f"(accessed {packet['accessed']})" in str(citation), (
             f"packet citation must use the packet's access date {packet['accessed']}: {citation}"
         )
