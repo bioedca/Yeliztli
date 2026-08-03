@@ -255,13 +255,30 @@ UTC_RESULT = re.compile(
 )
 TERMINAL_REVIEW_STATES = {"APPROVED", "COMMENTED"}
 HUMAN_ASSOCIATIONS = {"OWNER", "MEMBER", "COLLABORATOR"}
-COPILOT_V3_FINDINGS_BODY = re.compile(
-    r"\A## Copilot's findings\n"
-    r"(?:\n){5,6}"
-    r"- \*\*Files reviewed:\*\* "
-    r"(?P<reviewed>[1-9][0-9]*)/(?P<total>[1-9][0-9]*) changed files\n"
-    r"- \*\*Comments generated:\*\* 0 new\n\n\Z"
+# Copilot closes every review with one coverage sentence. That sentence is the
+# only part of the body worth trusting: it is provider-authored, it carries both
+# file counts, and it states the comment verdict. Everything around it — the
+# prose overview, the "**Changes:**" list, the per-file table, the analysis-depth
+# label added in June 2026 — is presentation that Copilot rewrites at will.
+#
+# The predecessor of this pattern required the WHOLE body to fullmatch a
+# "## Copilot's findings" / "- **Files reviewed:**" shape that Copilot has never
+# emitted, so the lane could not be used: all four substantive Copilot reviews
+# this repository has received (PRs #2183, #2235, #2237, #2238) failed it on
+# format alone, and the failure published `pending` with no visible cause (#2248).
+# Anchor on the sentence, not on the layout, and let identity come from the
+# authenticated app id rather than from prose.
+COPILOT_V3_COVERAGE_LINE = re.compile(
+    r"(?m)^Copilot reviewed (?P<reviewed>[1-9][0-9]*) out of (?P<total>[1-9][0-9]*) "
+    r"changed files in this pull request and generated "
+    r"(?P<verdict>no comments|[1-9][0-9]* comments?)\.$"
 )
+COPILOT_V3_COVERAGE_PHRASE = "Copilot reviewed "
+COPILOT_V3_CLEAN_VERDICT = "no comments"
+# Copilot can withhold low-confidence findings instead of posting them. A review
+# that suppressed findings is not a clean review, and the suppressed ones never
+# become attached comments, so the zero-attached-count check cannot see them.
+COPILOT_V3_SUPPRESSED_COMMENTS = re.compile(r"(?i)comments?\s+suppressed")
 CODEX_CLEAN_COMPLETION_PREFIX = "Codex Review: Didn't find any major issues."
 CODEX_CLEAN_COMPLETION_MARKER = f"{CODEX_CLEAN_COMPLETION_PREFIX} What shall we delve into next?"
 CODEX_CLEAN_COMPLETION_LINE = re.compile(
@@ -1266,11 +1283,15 @@ def _v3_formal_review_is_clean(
     if isinstance(changed_files, bool) or not isinstance(changed_files, int) or changed_files <= 0:
         return False
     if gate == COPILOT_GATE:
-        match = COPILOT_V3_FINDINGS_BODY.fullmatch(body)
+        coverage = list(COPILOT_V3_COVERAGE_LINE.finditer(body))
+        if len(coverage) != 1 or body.count(COPILOT_V3_COVERAGE_PHRASE) != 1:
+            return False
+        found = coverage[0]
         return (
-            match is not None
-            and int(match.group("reviewed")) == changed_files
-            and int(match.group("total")) == changed_files
+            found.group("verdict") == COPILOT_V3_CLEAN_VERDICT
+            and COPILOT_V3_SUPPRESSED_COMMENTS.search(body) is None
+            and int(found.group("reviewed")) == changed_files
+            and int(found.group("total")) == changed_files
         )
     if gate != CODERABBIT_GATE:
         return False
