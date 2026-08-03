@@ -30,8 +30,11 @@ at runtime and no score or percentile is produced for any user.
   Extramural`, `Research Support, Non-U.S. Gov't`. 212 authors.
 - Hunt S, McLaren W, Gil L, et al. *Ensembl variation resources.* Database.
   2018;2018. DOI:10.1093/database/bay119 (accessed 2026-08-03).
-  Gold open access under CC BY; the version is not stated by Scite or by the
-  publisher article page, so no version is asserted.
+  Gold open access under CC BY. Scite records no version field, and the
+  publisher page's rendered licence statement carries no version number, so this
+  packet asserts no version. That is not a claim that no version appears
+  anywhere on the page: the retained extract covers the rendered statement and
+  copyright line only.
 
 ## Evidence route and checks
 

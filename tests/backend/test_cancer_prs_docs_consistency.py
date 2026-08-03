@@ -285,6 +285,22 @@ def test_breast_prs_references_carry_a_science_evidence_packet() -> None:
         f"(recorded {sorted(services)})"
     )
 
+    # Every entry and every retained payload must carry the packet's access date;
+    # checking only the top-level field lets an individual record drift.
+    for entry in packet["queries"]:
+        assert entry.get("accessed") == packet["accessed"], (
+            f"the {entry['service']} entry records access date {entry.get('accessed')!r}, "
+            f"not the packet's {packet['accessed']!r}"
+        )
+        raw = entry.get("raw_payload")
+        if not raw:
+            continue
+        payload = json.loads((REPO_ROOT / raw).read_text(encoding="utf-8"))
+        assert payload.get("accessed") == packet["accessed"], (
+            f"{raw} records access date {payload.get('accessed')!r}, not the packet's "
+            f"{packet['accessed']!r}"
+        )
+
     # A recorded digest is a claim; check it rather than let it sit unverified.
     for entry in packet["queries"]:
         artifact = entry.get("repository_artifact")
