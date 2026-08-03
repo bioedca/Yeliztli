@@ -27,9 +27,12 @@ import pytest
 import sqlalchemy as sa
 from sqlalchemy.pool import StaticPool
 
+import backend.annotation.mondo_hpo as mondo_hpo
 from backend.annotation.http_download import DownloadOutcome
 from backend.annotation.mondo_hpo import (
     _INHERITANCE_MAP,
+    MINIMUM_HPO_GENES_TO_PHENOTYPE_BYTES,
+    MINIMUM_MONDO_GENE_DISEASE_ARCHIVE_BYTES,
     MONDO_HPO_INGESTION_REVISION,
     SOURCE_BUNDLE_PENDING,
     GenePhenotypeRecord,
@@ -88,6 +91,15 @@ def test_hpo_disease_scope_evidence_artifacts_are_explicit_and_intact() -> None:
     hpo_source = next(
         source for source in manifest["sources"] if source["name"].startswith("Human")
     )
+    primary_source = next(
+        source for source in manifest["sources"] if source["name"].startswith("Monarch KG")
+    )
+    assert primary_source["content_length_bytes"] == 183547
+    assert (
+        primary_source["minimum_content_length_bytes"] == MINIMUM_MONDO_GENE_DISEASE_ARCHIVE_BYTES
+    )
+    assert hpo_source["content_length_bytes"] == 20732778
+    assert hpo_source["minimum_content_length_bytes"] == MINIMUM_HPO_GENES_TO_PHENOTYPE_BYTES
     metadata_path = (
         Path(__file__).resolve().parents[2]
         / hpo_source["retained_artifact"]["display_metadata_repository_path"]
@@ -304,6 +316,43 @@ class TestMondoTSVParsing:
 
 
 # ── HPO parsing tests ───────────────────────────────────────────────────
+
+
+def test_retained_compressed_source_reader_closes_its_duplicate_fd(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Repeated descriptor-backed gzip parses must not retain their raw duplicates."""
+    compressed = tmp_path / "source.tsv.gz"
+    with gzip.open(compressed, "wt", encoding="utf-8") as source_file:
+        source_file.write("subject\tsubject_label\n")
+    source_fd = os.open(compressed, os.O_RDONLY)
+    source_stat = os.fstat(source_fd)
+    source = mondo_hpo._OpenedStagedSource(
+        name=compressed.name,
+        fd=source_fd,
+        identity=(source_stat.st_dev, source_stat.st_ino),
+        size_bytes=source_stat.st_size,
+        sha256=mondo_hpo._compute_sha256_from_fd(source_fd),
+    )
+    raw_files = []
+    original_fdopen = os.fdopen
+
+    def track_fdopen(fd, *args, **kwargs):
+        raw_file = original_fdopen(fd, *args, **kwargs)
+        raw_files.append(raw_file)
+        return raw_file
+
+    monkeypatch.setattr(mondo_hpo.os, "fdopen", track_fdopen)
+    try:
+        for _ in range(16):
+            os.lseek(source_fd, 0, os.SEEK_SET)
+            with mondo_hpo._read_opened_staged_source(source, compressed=True) as source_file:
+                assert source_file.readline() == "subject\tsubject_label\n"
+    finally:
+        os.close(source_fd)
+    assert raw_files
+    assert all(raw_file.closed for raw_file in raw_files)
 
 
 class TestHPOParsing:
@@ -656,6 +705,18 @@ class TestRecordMerging:
 class TestDownloadAndLoad:
     """Test the full three-source disease-scoped ingestion path."""
 
+    @pytest.fixture(autouse=True)
+    def _allow_small_synthetic_source_fixtures(self, monkeypatch) -> None:
+        """Keep miniature test fixtures separate from production size floors."""
+        monkeypatch.setattr(
+            "backend.annotation.mondo_hpo.MINIMUM_MONDO_GENE_DISEASE_ARCHIVE_BYTES",
+            1,
+        )
+        monkeypatch.setattr(
+            "backend.annotation.mondo_hpo.MINIMUM_HPO_GENES_TO_PHENOTYPE_BYTES",
+            1,
+        )
+
     def test_records_all_source_provenance_and_scoped_rows(
         self,
         monkeypatch,
@@ -677,8 +738,9 @@ class TestDownloadAndLoad:
             target = dest_dir / filename
             target.parent.mkdir(parents=True, exist_ok=True)
             if filename.endswith(".gz"):
-                with gzip.open(target, "wb") as fh:
-                    fh.write(source_files[filename].read_bytes())
+                with target.open("wb") as raw_file:
+                    with gzip.GzipFile(fileobj=raw_file, mode="wb", mtime=0) as fh:
+                        fh.write(source_files[filename].read_bytes())
             else:
                 target.write_bytes(source_files[filename].read_bytes())
             meta = kwargs.get("meta")
@@ -785,8 +847,9 @@ class TestDownloadAndLoad:
             target = dest_dir / filename
             target.parent.mkdir(parents=True, exist_ok=True)
             if filename.endswith(".gz"):
-                with gzip.open(target, "wb") as fh:
-                    fh.write(source_files[filename].read_bytes())
+                with target.open("wb") as raw_file:
+                    with gzip.GzipFile(fileobj=raw_file, mode="wb", mtime=0) as fh:
+                        fh.write(source_files[filename].read_bytes())
             else:
                 target.write_bytes(source_files[filename].read_bytes())
             meta = kwargs.get("meta")
@@ -848,8 +911,9 @@ class TestDownloadAndLoad:
             target = dest_dir / filename
             target.parent.mkdir(parents=True, exist_ok=True)
             if filename.endswith(".gz"):
-                with gzip.open(target, "wb") as fh:
-                    fh.write(source_files[filename].read_bytes())
+                with target.open("wb") as raw_file:
+                    with gzip.GzipFile(fileobj=raw_file, mode="wb", mtime=0) as fh:
+                        fh.write(source_files[filename].read_bytes())
             else:
                 target.write_bytes(source_files[filename].read_bytes())
             meta = kwargs.get("meta")
@@ -1059,6 +1123,178 @@ class TestDownloadAndLoad:
                 ).scalar_one_or_none()
                 is None
             )
+
+    def test_rejects_missing_downloads_directory_below_unsafe_ancestor(
+        self, reference_engine: sa.Engine, tmp_path: Path
+    ) -> None:
+        """Reject before creating a child below a non-sticky writable ancestor."""
+        unsafe_parent = tmp_path / "unsafe-parent"
+        unsafe_parent.mkdir()
+        unsafe_parent.chmod(0o777)
+        downloads = unsafe_parent / "missing-downloads"
+
+        with pytest.raises(ValueError, match="group/world-writable"):
+            download_and_load_mondo_hpo(reference_engine, downloads)
+
+        assert not downloads.exists()
+        with reference_engine.connect() as conn:
+            assert (
+                conn.execute(
+                    sa.select(database_versions.c.version).where(
+                        database_versions.c.db_name == "mondo_hpo"
+                    )
+                ).scalar_one_or_none()
+                is None
+            )
+
+    def test_rejects_raced_symlink_intermediate_before_creating_downloads_dir(
+        self, monkeypatch, reference_engine: sa.Engine, tmp_path: Path
+    ) -> None:
+        """A raced symlink cannot receive a child through a trusted parent FD."""
+        safe_root = tmp_path / "safe-root"
+        safe_root.mkdir()
+        downloads = safe_root / "raced-intermediate" / "missing-downloads"
+        external_dir = tmp_path / "external"
+        external_dir.mkdir()
+        real_mkdir = os.mkdir
+        injected = False
+
+        def inject_symlink_intermediate(path, mode=0o777, *, dir_fd=None):
+            nonlocal injected
+            if path == "raced-intermediate" and dir_fd is not None and not injected:
+                injected = True
+                os.symlink(external_dir, path, target_is_directory=True, dir_fd=dir_fd)
+            return real_mkdir(path, mode=mode, dir_fd=dir_fd)
+
+        monkeypatch.setattr("backend.annotation.mondo_hpo.os.mkdir", inject_symlink_intermediate)
+
+        with pytest.raises(ValueError, match="appeared while creating"):
+            download_and_load_mondo_hpo(reference_engine, downloads)
+
+        assert injected
+        assert not downloads.exists()
+        assert not (external_dir / "missing-downloads").exists()
+        with reference_engine.connect() as conn:
+            assert (
+                conn.execute(
+                    sa.select(database_versions.c.version).where(
+                        database_versions.c.db_name == "mondo_hpo"
+                    )
+                ).scalar_one_or_none()
+                is None
+            )
+
+    def test_rejects_raced_existing_ancestor_symlink_before_creating_downloads_dir(
+        self, monkeypatch, reference_engine: sa.Engine, tmp_path: Path
+    ) -> None:
+        """A renamed ancestor cannot redirect an FD-only creation walk."""
+        safe_root = tmp_path / "safe-root"
+        raced_parent = safe_root / "raced-parent"
+        parked_parent = safe_root / "parked-parent"
+        external_dir = tmp_path / "external"
+        raced_parent.mkdir(parents=True)
+        external_dir.mkdir()
+        downloads = raced_parent / "missing-downloads"
+        real_open = os.open
+        swapped = False
+
+        def swap_before_component_open(path, flags, mode=0o777, *, dir_fd=None):
+            nonlocal swapped
+            if os.fspath(path) == "raced-parent" and dir_fd is not None and not swapped:
+                raced_parent.rename(parked_parent)
+                raced_parent.symlink_to(external_dir, target_is_directory=True)
+                swapped = True
+            if dir_fd is None:
+                return real_open(path, flags, mode)
+            return real_open(path, flags, mode, dir_fd=dir_fd)
+
+        monkeypatch.setattr("backend.annotation.mondo_hpo.os.open", swap_before_component_open)
+
+        with pytest.raises(ValueError, match="Unable to inspect"):
+            download_and_load_mondo_hpo(reference_engine, downloads)
+
+        assert swapped
+        assert not (external_dir / "missing-downloads").exists()
+        with reference_engine.connect() as conn:
+            assert (
+                conn.execute(
+                    sa.select(database_versions.c.version).where(
+                        database_versions.c.db_name == "mondo_hpo"
+                    )
+                ).scalar_one_or_none()
+                is None
+            )
+
+    def test_closes_creation_descriptors_when_interrupted(
+        self, monkeypatch, tmp_path: Path
+    ) -> None:
+        """An interruption while validating a new child cannot leak held descriptors."""
+        downloads = tmp_path / "new-parent" / "downloads"
+        real_open = os.open
+        real_fstat = os.fstat
+        opened_target_fds: list[int] = []
+        interrupted = False
+
+        def track_open(path, flags, mode=0o777, *, dir_fd=None):
+            if dir_fd is None:
+                fd = real_open(path, flags, mode)
+                opened_path = Path(path)
+            else:
+                fd = real_open(path, flags, mode, dir_fd=dir_fd)
+                opened_path = Path(os.readlink(f"/proc/self/fd/{dir_fd}")) / os.fspath(path)
+            if opened_path in {downloads.parent, downloads}:
+                opened_target_fds.append(fd)
+            return fd
+
+        def interrupt_after_final_child_fstat(fd):
+            nonlocal interrupted
+            result = real_fstat(fd)
+            if not interrupted and Path(os.readlink(f"/proc/self/fd/{fd}")) == downloads:
+                interrupted = True
+                raise KeyboardInterrupt
+            return result
+
+        monkeypatch.setattr("backend.annotation.mondo_hpo.os.open", track_open)
+        monkeypatch.setattr(
+            "backend.annotation.mondo_hpo.os.fstat",
+            interrupt_after_final_child_fstat,
+        )
+
+        with pytest.raises(KeyboardInterrupt):
+            mondo_hpo._open_or_create_pinned_source_bundle_directory(downloads)
+
+        assert interrupted
+        assert len(opened_target_fds) == 2
+        for fd in opened_target_fds:
+            with pytest.raises(OSError):
+                real_fstat(fd)
+
+    def test_creates_missing_nested_downloads_directory_with_pinned_descriptor(
+        self, tmp_path: Path
+    ) -> None:
+        """Missing nested paths are created below retained, private descriptors."""
+        downloads = tmp_path / "one" / "two" / "downloads"
+
+        with mondo_hpo._create_pinned_staged_source_bundle(downloads) as staging:
+            assert mondo_hpo._source_bundle_identity(
+                os.fstat(staging.parent_fd)
+            ) == mondo_hpo._source_bundle_identity(downloads.stat())
+            assert (downloads / staging.name).is_dir()
+
+        assert downloads.is_dir()
+
+    def test_allows_private_final_downloads_symlink(self, tmp_path: Path) -> None:
+        """An explicitly configured private downloads symlink remains supported."""
+        target = tmp_path / "private-target"
+        target.mkdir()
+        downloads = tmp_path / "configured-downloads"
+        downloads.symlink_to(target, target_is_directory=True)
+
+        with mondo_hpo._create_pinned_staged_source_bundle(downloads) as staging:
+            assert mondo_hpo._source_bundle_identity(
+                os.fstat(staging.parent_fd)
+            ) == mondo_hpo._source_bundle_identity(target.stat())
+            assert (target / staging.name).is_dir()
 
     def test_source_bundle_claim_blocks_overlapping_finalization(
         self,
@@ -1274,6 +1510,80 @@ class TestDownloadAndLoad:
                 is None
             )
 
+    def test_rejects_staged_source_replaced_after_descriptor_pin(
+        self,
+        monkeypatch,
+        reference_engine: sa.Engine,
+        mondo_tsv_file: Path,
+        hpo_phenotype_file: Path,
+        mondo_sssom_file: Path,
+        tmp_path: Path,
+    ) -> None:
+        """A parser reads the retained FD, then rejects a swapped staged name."""
+        monkeypatch.setattr("backend.annotation.mondo_hpo.MINIMUM_UNAMBIGUOUS_MONDO_XREFS", 1)
+        source_files = {
+            "gene_disease.9606.tsv.gz": mondo_tsv_file,
+            "genes_to_phenotype.txt": hpo_phenotype_file,
+            "mondo.sssom.tsv": mondo_sssom_file,
+        }
+        external = tmp_path / "external-replacement"
+        external.write_text("foreign source\n", encoding="utf-8")
+        captured: dict[str, Path] = {}
+
+        def fake_download(url, dest_dir, filename, **kwargs):
+            target = dest_dir / filename
+            target.parent.mkdir(parents=True, exist_ok=True)
+            if filename.endswith(".gz"):
+                with gzip.open(target, "wb") as source_file:
+                    source_file.write(source_files[filename].read_bytes())
+            else:
+                target.write_bytes(source_files[filename].read_bytes())
+            captured["staging"] = target.parent
+            return target
+
+        original_parse = mondo_hpo._parse_mondo_gene_disease_tsv_reader
+
+        def swap_then_parse(source_file):
+            victim = captured["staging"] / "gene_disease.9606.tsv.gz"
+            victim.unlink()
+            victim.symlink_to(external)
+            return original_parse(source_file)
+
+        load_mondo_hpo_rows(
+            [
+                {
+                    "gene_symbol": "PRESERVE",
+                    "disease_name": "Prior disease",
+                    "disease_id": "MONDO:0000001",
+                    "hpo_terms": None,
+                    "source": "mondo_hpo",
+                    "inheritance": None,
+                }
+            ],
+            reference_engine,
+        )
+        monkeypatch.setattr("backend.annotation.mondo_hpo.download_file", fake_download)
+        monkeypatch.setattr(
+            "backend.annotation.mondo_hpo._parse_mondo_gene_disease_tsv_reader",
+            swap_then_parse,
+        )
+
+        with pytest.raises(ValueError, match="staged source file changed before finalization"):
+            download_and_load_mondo_hpo(reference_engine, tmp_path / "downloads")
+
+        assert external.read_text(encoding="utf-8") == "foreign source\n"
+        with reference_engine.connect() as conn:
+            rows = (
+                conn.execute(
+                    sa.select(gene_phenotype.c.gene_symbol).where(
+                        gene_phenotype.c.source == "mondo_hpo"
+                    )
+                )
+                .scalars()
+                .all()
+            )
+        assert rows == ["PRESERVE"]
+
     def test_published_bundle_swap_before_commit_rolls_back_without_touching_replacement(
         self,
         monkeypatch,
@@ -1343,6 +1653,109 @@ class TestDownloadAndLoad:
         monkeypatch.setattr("backend.annotation.mondo_hpo.load_mondo_hpo_rows", swap_before_commit)
         with pytest.raises(ValueError, match="source bundle changed during finalization"):
             download_and_load_mondo_hpo(reference_engine, tmp_path / "downloads")
+
+        assert (swapped["parked"] / SOURCE_BUNDLE_PENDING).read_text(
+            encoding="utf-8"
+        ) == "pending\n"
+        assert (swapped["replacement"] / SOURCE_BUNDLE_PENDING).read_text(
+            encoding="utf-8"
+        ) == "replacement\n"
+        with reference_engine.connect() as conn:
+            version = conn.execute(
+                sa.select(database_versions.c.version).where(
+                    database_versions.c.db_name == "mondo_hpo"
+                )
+            ).scalar_one()
+            rows = (
+                conn.execute(
+                    sa.select(gene_phenotype.c.gene_symbol).where(
+                        gene_phenotype.c.source == "mondo_hpo"
+                    )
+                )
+                .scalars()
+                .all()
+            )
+        assert version == "20260415+disease-scope-v2"
+        assert rows == ["PRESERVE"]
+
+    def test_commit_listener_bundle_swap_rolls_back_before_dbapi_commit(
+        self,
+        monkeypatch,
+        reference_engine: sa.Engine,
+        mondo_tsv_file: Path,
+        hpo_phenotype_file: Path,
+        mondo_sssom_file: Path,
+        tmp_path: Path,
+    ) -> None:
+        """A pre-existing commit listener cannot swap provenance after the final guard."""
+        monkeypatch.setattr("backend.annotation.mondo_hpo.MINIMUM_UNAMBIGUOUS_MONDO_XREFS", 2)
+        source_files = {
+            "gene_disease.9606.tsv.gz": mondo_tsv_file,
+            "genes_to_phenotype.txt": hpo_phenotype_file,
+            "mondo.sssom.tsv": mondo_sssom_file,
+        }
+
+        def fake_download(url, dest_dir, filename, **kwargs):
+            target = dest_dir / filename
+            target.parent.mkdir(parents=True, exist_ok=True)
+            if filename.endswith(".gz"):
+                with gzip.open(target, "wb") as source_file:
+                    source_file.write(source_files[filename].read_bytes())
+            else:
+                target.write_bytes(source_files[filename].read_bytes())
+            meta = kwargs.get("meta")
+            if meta is not None:
+                meta.update({"version": "20260415"})
+            return target
+
+        load_mondo_hpo_rows(
+            [
+                {
+                    "gene_symbol": "PRESERVE",
+                    "disease_name": "Prior disease",
+                    "disease_id": "MONDO:0000001",
+                    "hpo_terms": None,
+                    "source": "mondo_hpo",
+                    "inheritance": None,
+                }
+            ],
+            reference_engine,
+            version="20260415+disease-scope-v2",
+            file_path="/prior/gene_disease.9606.tsv.gz",
+            checksum="prior-checksum",
+        )
+        monkeypatch.setattr("backend.annotation.mondo_hpo.download_file", fake_download)
+        original_load_rows = load_mondo_hpo_rows
+        captured: dict[str, Path] = {}
+        swapped: dict[str, Path] = {}
+
+        def capture_bundle_path(*args, **kwargs):
+            captured["bundle"] = Path(kwargs["file_path"]).parent
+            return original_load_rows(*args, **kwargs)
+
+        def swap_at_commit(connection: sa.Connection) -> None:
+            del connection
+            bundle_path = captured.get("bundle")
+            if bundle_path is None or "replacement" in swapped:
+                return
+            parked_bundle = tmp_path / "parked-commit-listener-bundle"
+            bundle_path.rename(parked_bundle)
+            bundle_path.mkdir()
+            replacement_pending = bundle_path / SOURCE_BUNDLE_PENDING
+            replacement_pending.write_text("replacement\n", encoding="utf-8")
+            swapped["parked"] = parked_bundle
+            swapped["replacement"] = bundle_path
+
+        monkeypatch.setattr(
+            "backend.annotation.mondo_hpo.load_mondo_hpo_rows",
+            capture_bundle_path,
+        )
+        sa.event.listen(reference_engine, "commit", swap_at_commit)
+        try:
+            with pytest.raises(ValueError, match="source bundle changed during finalization"):
+                download_and_load_mondo_hpo(reference_engine, tmp_path / "downloads")
+        finally:
+            sa.event.remove(reference_engine, "commit", swap_at_commit)
 
         assert (swapped["parked"] / SOURCE_BUNDLE_PENDING).read_text(
             encoding="utf-8"
@@ -1776,6 +2189,547 @@ class TestDownloadAndLoad:
                 )
             ).scalar_one()
         assert preserved == "PRESERVE"
+
+    def test_refuses_valid_but_truncated_primary_before_replacing_rows(
+        self,
+        monkeypatch,
+        reference_engine: sa.Engine,
+        hpo_phenotype_file: Path,
+        mondo_sssom_file: Path,
+        tmp_path: Path,
+    ) -> None:
+        """A syntactically valid one-row primary archive cannot clear prior rows."""
+        monkeypatch.setattr(
+            "backend.annotation.mondo_hpo.MINIMUM_MONDO_GENE_DISEASE_ARCHIVE_BYTES",
+            1_000,
+        )
+        monkeypatch.setattr("backend.annotation.mondo_hpo.MINIMUM_UNAMBIGUOUS_MONDO_XREFS", 1)
+        primary = (
+            b"subject\tsubject_label\tpredicate\tobject\tobject_label\tqualifier\n"
+            b"HGNC:1100\tBRCA1\tbiolink:gene_associated_with_condition\t"
+            b"MONDO:0011450\tHereditary breast cancer\t\n"
+        )
+        source_files = {
+            "gene_disease.9606.tsv.gz": primary,
+            "genes_to_phenotype.txt": hpo_phenotype_file.read_bytes(),
+            "mondo.sssom.tsv": mondo_sssom_file.read_bytes(),
+        }
+
+        def fake_download(url, dest_dir, filename, **kwargs):
+            target = dest_dir / filename
+            target.parent.mkdir(parents=True, exist_ok=True)
+            if filename.endswith(".gz"):
+                with gzip.open(target, "wb") as source_file:
+                    source_file.write(source_files[filename])
+            else:
+                target.write_bytes(source_files[filename])
+            return target
+
+        load_mondo_hpo_rows(
+            [
+                {
+                    "gene_symbol": "PRESERVE",
+                    "disease_name": "Prior disease",
+                    "disease_id": "MONDO:0000001",
+                    "hpo_terms": None,
+                    "source": "mondo_hpo",
+                    "inheritance": None,
+                }
+            ],
+            reference_engine,
+            version="20260415+disease-scope-v2",
+            file_path="/prior/gene_disease.9606.tsv.gz",
+            checksum="prior-checksum",
+        )
+        monkeypatch.setattr("backend.annotation.mondo_hpo.download_file", fake_download)
+
+        with pytest.raises(ValueError, match="MONDO primary archive is only"):
+            download_and_load_mondo_hpo(reference_engine, tmp_path / "downloads")
+
+        with reference_engine.connect() as conn:
+            version = conn.execute(
+                sa.select(database_versions.c.version).where(
+                    database_versions.c.db_name == "mondo_hpo"
+                )
+            ).scalar_one()
+            rows = (
+                conn.execute(
+                    sa.select(gene_phenotype.c.gene_symbol).where(
+                        gene_phenotype.c.source == "mondo_hpo"
+                    )
+                )
+                .scalars()
+                .all()
+            )
+        assert version == "20260415+disease-scope-v2"
+        assert rows == ["PRESERVE"]
+
+    def test_refuses_group_writable_source_bundle_parent(
+        self,
+        reference_engine: sa.Engine,
+        tmp_path: Path,
+    ) -> None:
+        """A shared mutable downloads root is not a trustworthy provenance namespace."""
+        downloads = tmp_path / "downloads"
+        downloads.mkdir()
+        os.chmod(downloads, 0o777)
+        try:
+            with pytest.raises(ValueError, match="not group/world-writable"):
+                download_and_load_mondo_hpo(reference_engine, downloads)
+        finally:
+            os.chmod(downloads, 0o700)
+
+    def test_refuses_nonsticky_group_writable_source_bundle_ancestor(
+        self,
+        reference_engine: sa.Engine,
+        tmp_path: Path,
+    ) -> None:
+        """A non-sticky shared ancestor can rename a private downloads root."""
+        shared = tmp_path / "shared"
+        downloads = shared / "downloads"
+        downloads.mkdir(parents=True)
+        os.chmod(shared, 0o770)
+        try:
+            with pytest.raises(
+                ValueError, match="downloads ancestors must not be group/world-writable"
+            ):
+                download_and_load_mondo_hpo(reference_engine, downloads)
+        finally:
+            os.chmod(shared, 0o700)
+
+    def test_refuses_symlinked_source_bundle_root_under_writable_ancestor(
+        self,
+        reference_engine: sa.Engine,
+        tmp_path: Path,
+    ) -> None:
+        """A private target cannot hide an unsafe lexical symlink parent."""
+        shared = tmp_path / "shared"
+        target = tmp_path / "private" / "downloads"
+        shared.mkdir()
+        target.mkdir(parents=True)
+        downloads_link = shared / "downloads"
+        downloads_link.symlink_to(target, target_is_directory=True)
+        os.chmod(shared, 0o770)
+        try:
+            with pytest.raises(
+                ValueError, match="downloads ancestors must not be group/world-writable"
+            ):
+                download_and_load_mondo_hpo(reference_engine, downloads_link)
+        finally:
+            os.chmod(shared, 0o700)
+
+    def test_refuses_foreign_owned_symlinked_source_bundle_root_in_sticky_directory(
+        self,
+        monkeypatch,
+        reference_engine: sa.Engine,
+        tmp_path: Path,
+    ) -> None:
+        """A sticky parent cannot make an attacker-owned link safe to retain."""
+        shared = tmp_path / "shared"
+        target = tmp_path / "private" / "downloads"
+        shared.mkdir()
+        target.mkdir(parents=True)
+        downloads_link = shared / "downloads"
+        downloads_link.symlink_to(target, target_is_directory=True)
+        os.chmod(shared, 0o1777)
+        original_lstat = os.lstat
+
+        def fake_foreign_owned_lstat(path, *args, **kwargs):
+            result = original_lstat(path, *args, **kwargs)
+            if Path(path) == downloads_link:
+                fields = list(result)
+                fields[4] = result.st_uid + 1
+                return os.stat_result(fields)
+            return result
+
+        monkeypatch.setattr(mondo_hpo.os, "lstat", fake_foreign_owned_lstat)
+        try:
+            with pytest.raises(
+                ValueError, match="symbolic-link component must be owned by the current user"
+            ):
+                download_and_load_mondo_hpo(reference_engine, downloads_link)
+        finally:
+            os.chmod(shared, 0o700)
+
+    def test_refuses_foreign_owned_sticky_source_bundle_ancestor(
+        self,
+        monkeypatch,
+        reference_engine: sa.Engine,
+        tmp_path: Path,
+    ) -> None:
+        """A sticky parent owned by another user can still rename our root."""
+        shared = tmp_path / "shared"
+        downloads = shared / "downloads"
+        downloads.mkdir(parents=True)
+        os.chmod(shared, 0o1777)
+        original_lstat = os.lstat
+        monkeypatch.setattr(mondo_hpo.tempfile, "tempdir", str(shared))
+        foreign_uid = os.stat("/").st_uid
+        if foreign_uid in {os.geteuid(), 0}:
+            foreign_uid += 1
+
+        def fake_foreign_owned_lstat(path, *args, **kwargs):
+            result = original_lstat(path, *args, **kwargs)
+            if Path(path) == shared:
+                fields = list(result)
+                fields[4] = foreign_uid
+                return os.stat_result(fields)
+            return result
+
+        monkeypatch.setattr(mondo_hpo.os, "lstat", fake_foreign_owned_lstat)
+        try:
+            with pytest.raises(
+                ValueError,
+                match=(
+                    "ancestors must be owned by the current user, root, "
+                    "or match a pinned system boundary"
+                ),
+            ):
+                download_and_load_mondo_hpo(reference_engine, downloads)
+        finally:
+            os.chmod(shared, 0o700)
+
+    def test_refuses_foreign_owned_regular_source_bundle_ancestor(
+        self,
+        monkeypatch,
+        reference_engine: sa.Engine,
+        tmp_path: Path,
+    ) -> None:
+        """Even a foreign 0555 directory owner can later restore write access."""
+        shared = tmp_path / "shared"
+        downloads = shared / "downloads"
+        downloads.mkdir(parents=True)
+        os.chmod(shared, 0o555)
+        original_lstat = os.lstat
+        foreign_uid = os.stat("/").st_uid
+        if foreign_uid in {os.geteuid(), 0}:
+            foreign_uid += 1
+
+        def fake_foreign_owned_lstat(path, *args, **kwargs):
+            result = original_lstat(path, *args, **kwargs)
+            if Path(path) == shared:
+                fields = list(result)
+                fields[4] = foreign_uid
+                return os.stat_result(fields)
+            return result
+
+        monkeypatch.setattr(mondo_hpo.os, "lstat", fake_foreign_owned_lstat)
+        try:
+            with pytest.raises(
+                ValueError,
+                match=(
+                    "ancestors must be owned by the current user, root, "
+                    "or match a pinned system boundary"
+                ),
+            ):
+                download_and_load_mondo_hpo(reference_engine, downloads)
+        finally:
+            os.chmod(shared, 0o700)
+
+    def test_refuses_in_place_source_mutation_after_parsing(
+        self,
+        monkeypatch,
+        reference_engine: sa.Engine,
+        mondo_tsv_file: Path,
+        hpo_phenotype_file: Path,
+        mondo_sssom_file: Path,
+        tmp_path: Path,
+    ) -> None:
+        """Rows and recorded provenance must come from the same source bytes."""
+        monkeypatch.setattr("backend.annotation.mondo_hpo.MINIMUM_UNAMBIGUOUS_MONDO_XREFS", 1)
+        source_files = {
+            "gene_disease.9606.tsv.gz": mondo_tsv_file,
+            "genes_to_phenotype.txt": hpo_phenotype_file,
+            "mondo.sssom.tsv": mondo_sssom_file,
+        }
+        downloaded: dict[str, Path] = {}
+        mutated = {"value": False}
+
+        def fake_download(url, dest_dir, filename, **kwargs):
+            target = dest_dir / filename
+            target.parent.mkdir(parents=True, exist_ok=True)
+            if filename.endswith(".gz"):
+                with gzip.open(target, "wb") as source_file:
+                    source_file.write(source_files[filename].read_bytes())
+            else:
+                target.write_bytes(source_files[filename].read_bytes())
+            downloaded[filename] = target
+            meta = kwargs.get("meta")
+            if meta is not None and filename == "gene_disease.9606.tsv.gz":
+                meta["version"] = "20260416"
+            return target
+
+        original_parse_hpo = mondo_hpo._parse_hpo_genes_to_phenotype_reader
+
+        def mutate_after_hpo_parse(source_file):
+            result = original_parse_hpo(source_file)
+            hpo_path = downloaded["genes_to_phenotype.txt"]
+            with hpo_path.open("r+b") as raw_file:
+                first_byte = raw_file.read(1)
+                raw_file.seek(0)
+                raw_file.write(b"!" if first_byte != b"!" else b"#")
+            mutated["value"] = True
+            return result
+
+        load_mondo_hpo_rows(
+            [
+                {
+                    "gene_symbol": "PRESERVE",
+                    "disease_name": "Prior disease",
+                    "disease_id": "MONDO:0000001",
+                    "hpo_terms": None,
+                    "source": "mondo_hpo",
+                    "inheritance": None,
+                }
+            ],
+            reference_engine,
+            version="20260415+disease-scope-v2",
+            file_path="/prior/gene_disease.9606.tsv.gz",
+            checksum="prior-checksum",
+        )
+        monkeypatch.setattr("backend.annotation.mondo_hpo.download_file", fake_download)
+        monkeypatch.setattr(
+            mondo_hpo,
+            "_parse_hpo_genes_to_phenotype_reader",
+            mutate_after_hpo_parse,
+        )
+
+        with pytest.raises(ValueError, match="staged source file contents changed"):
+            download_and_load_mondo_hpo(reference_engine, tmp_path / "downloads")
+
+        assert mutated["value"]
+        with reference_engine.connect() as conn:
+            version = conn.execute(
+                sa.select(database_versions.c.version).where(
+                    database_versions.c.db_name == "mondo_hpo"
+                )
+            ).scalar_one()
+            rows = (
+                conn.execute(
+                    sa.select(gene_phenotype.c.gene_symbol).where(
+                        gene_phenotype.c.source == "mondo_hpo"
+                    )
+                )
+                .scalars()
+                .all()
+            )
+        assert version == "20260415+disease-scope-v2"
+        assert rows == ["PRESERVE"]
+
+    def test_refuses_valid_but_truncated_hpo_before_replacing_rows(
+        self,
+        monkeypatch,
+        reference_engine: sa.Engine,
+        mondo_tsv_file: Path,
+        mondo_sssom_file: Path,
+        tmp_path: Path,
+    ) -> None:
+        """A syntactically valid tiny HPO source cannot strip clinical context."""
+        monkeypatch.setattr(
+            "backend.annotation.mondo_hpo.MINIMUM_HPO_GENES_TO_PHENOTYPE_BYTES",
+            1_000,
+        )
+        monkeypatch.setattr("backend.annotation.mondo_hpo.MINIMUM_UNAMBIGUOUS_MONDO_XREFS", 1)
+        hpo = (
+            b"ncbi_gene_id\tgene_symbol\thpo_id\thpo_name\tfrequency\tdisease_id\n"
+            b"672\tBRCA1\tHP:0003002\tBreast carcinoma\t\tOMIM:604370\n"
+        )
+        source_files = {
+            "gene_disease.9606.tsv.gz": mondo_tsv_file.read_bytes(),
+            "genes_to_phenotype.txt": hpo,
+            "mondo.sssom.tsv": mondo_sssom_file.read_bytes(),
+        }
+
+        def fake_download(url, dest_dir, filename, **kwargs):
+            target = dest_dir / filename
+            target.parent.mkdir(parents=True, exist_ok=True)
+            if filename.endswith(".gz"):
+                with gzip.open(target, "wb") as source_file:
+                    source_file.write(source_files[filename])
+            else:
+                target.write_bytes(source_files[filename])
+            return target
+
+        load_mondo_hpo_rows(
+            [
+                {
+                    "gene_symbol": "PRESERVE",
+                    "disease_name": "Prior disease",
+                    "disease_id": "MONDO:0000001",
+                    "hpo_terms": None,
+                    "source": "mondo_hpo",
+                    "inheritance": None,
+                }
+            ],
+            reference_engine,
+            version="20260415+disease-scope-v2",
+            file_path="/prior/gene_disease.9606.tsv.gz",
+            checksum="prior-checksum",
+        )
+        monkeypatch.setattr("backend.annotation.mondo_hpo.download_file", fake_download)
+
+        with pytest.raises(ValueError, match="HPO disease annotation source is only"):
+            download_and_load_mondo_hpo(reference_engine, tmp_path / "downloads")
+
+        with reference_engine.connect() as conn:
+            version = conn.execute(
+                sa.select(database_versions.c.version).where(
+                    database_versions.c.db_name == "mondo_hpo"
+                )
+            ).scalar_one()
+            rows = (
+                conn.execute(
+                    sa.select(gene_phenotype.c.gene_symbol).where(
+                        gene_phenotype.c.source == "mondo_hpo"
+                    )
+                )
+                .scalars()
+                .all()
+            )
+        assert version == "20260415+disease-scope-v2"
+        assert rows == ["PRESERVE"]
+
+    @pytest.mark.parametrize(
+        "filename",
+        ("gene_disease.9606.tsv.gz", "genes_to_phenotype.txt", "mondo.sssom.tsv"),
+    )
+    @pytest.mark.parametrize("replacement", ("symlink", "fifo"))
+    def test_refuses_replaced_staged_source_before_parsing(
+        self,
+        monkeypatch,
+        reference_engine: sa.Engine,
+        mondo_tsv_file: Path,
+        hpo_phenotype_file: Path,
+        mondo_sssom_file: Path,
+        tmp_path: Path,
+        filename: str,
+        replacement: str,
+    ) -> None:
+        """Each staged source must remain a held regular file before parsing."""
+        monkeypatch.setattr("backend.annotation.mondo_hpo.MINIMUM_UNAMBIGUOUS_MONDO_XREFS", 1)
+        source_files = {
+            "gene_disease.9606.tsv.gz": mondo_tsv_file,
+            "genes_to_phenotype.txt": hpo_phenotype_file,
+            "mondo.sssom.tsv": mondo_sssom_file,
+        }
+        external = tmp_path / "external-source"
+        external.write_text("foreign source\n", encoding="utf-8")
+
+        def fake_download(url, dest_dir, downloaded_filename, **kwargs):
+            target = dest_dir / downloaded_filename
+            target.parent.mkdir(parents=True, exist_ok=True)
+            if downloaded_filename.endswith(".gz"):
+                with gzip.open(target, "wb") as source_file:
+                    source_file.write(source_files[downloaded_filename].read_bytes())
+            else:
+                target.write_bytes(source_files[downloaded_filename].read_bytes())
+            if downloaded_filename == "mondo.sssom.tsv":
+                victim = target.parent / filename
+                victim.unlink()
+                if replacement == "symlink":
+                    victim.symlink_to(external)
+                else:
+                    os.mkfifo(victim)
+            return target
+
+        load_mondo_hpo_rows(
+            [
+                {
+                    "gene_symbol": "PRESERVE",
+                    "disease_name": "Prior disease",
+                    "disease_id": "MONDO:0000001",
+                    "hpo_terms": None,
+                    "source": "mondo_hpo",
+                    "inheritance": None,
+                }
+            ],
+            reference_engine,
+        )
+        monkeypatch.setattr("backend.annotation.mondo_hpo.download_file", fake_download)
+
+        with pytest.raises(ValueError, match="staged source file"):
+            download_and_load_mondo_hpo(reference_engine, tmp_path / "downloads")
+
+        assert external.read_text(encoding="utf-8") == "foreign source\n"
+        with reference_engine.connect() as conn:
+            rows = (
+                conn.execute(
+                    sa.select(gene_phenotype.c.gene_symbol).where(
+                        gene_phenotype.c.source == "mondo_hpo"
+                    )
+                )
+                .scalars()
+                .all()
+            )
+        assert rows == ["PRESERVE"]
+
+    @pytest.mark.parametrize("replacement", ("symlink", "fifo"))
+    def test_refuses_preexisting_staged_source_manifest(
+        self,
+        monkeypatch,
+        reference_engine: sa.Engine,
+        mondo_tsv_file: Path,
+        hpo_phenotype_file: Path,
+        mondo_sssom_file: Path,
+        tmp_path: Path,
+        replacement: str,
+    ) -> None:
+        """A planted source-manifest name is never followed or overwritten."""
+        monkeypatch.setattr("backend.annotation.mondo_hpo.MINIMUM_UNAMBIGUOUS_MONDO_XREFS", 1)
+        source_files = {
+            "gene_disease.9606.tsv.gz": mondo_tsv_file,
+            "genes_to_phenotype.txt": hpo_phenotype_file,
+            "mondo.sssom.tsv": mondo_sssom_file,
+        }
+        external = tmp_path / "external-manifest"
+        external.write_text("do not overwrite\n", encoding="utf-8")
+
+        def fake_download(url, dest_dir, filename, **kwargs):
+            target = dest_dir / filename
+            target.parent.mkdir(parents=True, exist_ok=True)
+            if filename.endswith(".gz"):
+                with gzip.open(target, "wb") as source_file:
+                    source_file.write(source_files[filename].read_bytes())
+            else:
+                target.write_bytes(source_files[filename].read_bytes())
+            if filename == "mondo.sssom.tsv":
+                manifest = target.parent / "mondo_hpo_sources.json"
+                if replacement == "symlink":
+                    manifest.symlink_to(external)
+                else:
+                    os.mkfifo(manifest)
+            return target
+
+        load_mondo_hpo_rows(
+            [
+                {
+                    "gene_symbol": "PRESERVE",
+                    "disease_name": "Prior disease",
+                    "disease_id": "MONDO:0000001",
+                    "hpo_terms": None,
+                    "source": "mondo_hpo",
+                    "inheritance": None,
+                }
+            ],
+            reference_engine,
+        )
+        monkeypatch.setattr("backend.annotation.mondo_hpo.download_file", fake_download)
+
+        with pytest.raises(ValueError, match="pre-existing MONDO/HPO source manifest file"):
+            download_and_load_mondo_hpo(reference_engine, tmp_path / "downloads")
+
+        assert external.read_text(encoding="utf-8") == "do not overwrite\n"
+        with reference_engine.connect() as conn:
+            rows = (
+                conn.execute(
+                    sa.select(gene_phenotype.c.gene_symbol).where(
+                        gene_phenotype.c.source == "mondo_hpo"
+                    )
+                )
+                .scalars()
+                .all()
+            )
+        assert rows == ["PRESERVE"]
 
 
 # ── Lookup tests ─────────────────────────────────────────────────────────

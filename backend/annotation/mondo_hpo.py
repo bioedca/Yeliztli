@@ -30,7 +30,7 @@ import json
 import os
 import stat
 import tempfile
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -81,6 +81,18 @@ MONDO_HPO_INGESTION_REVISION = "disease-scope-v2"
 # identifiers on 2026-08-01. A large floor catches a valid-looking but heavily
 # truncated mapping file before it can erase most disease-scoped HPO context.
 MINIMUM_UNAMBIGUOUS_MONDO_XREFS = 50_000
+
+# The authoritative Monarch primary archive measured 183,547 bytes in the
+# 2026-08-02 evidence snapshot. A 100,000-byte floor leaves room for normal
+# release variation while rejecting a valid-gzip but severely truncated source
+# before it can replace the installed MONDO/HPO rows.
+MINIMUM_MONDO_GENE_DISEASE_ARCHIVE_BYTES = 100_000
+
+# The HPO genes-to-phenotype export measured 20,732,778 bytes in the same
+# evidence snapshot. This conservative floor catches grossly truncated but
+# parseable disease context; it is not a claim that byte size proves semantic
+# completeness.
+MINIMUM_HPO_GENES_TO_PHENOTYPE_BYTES = 10_000_000
 
 # Batch size for bulk inserts
 BATCH_SIZE = 10_000
@@ -266,6 +278,8 @@ def _extract_gene_symbol_from_subject(subject: str) -> str | None:
 
 def parse_mondo_gene_disease_tsv(
     tsv_path: Path,
+    *,
+    compressed: bool | None = None,
 ) -> tuple[dict[str, list[GenePhenotypeRecord]], LoadStats]:
     """Parse the MONDO gene-disease association TSV.
 
@@ -278,46 +292,53 @@ def parse_mondo_gene_disease_tsv(
     Returns:
         Tuple of (dict mapping gene_symbol -> list of records, stats).
     """
+    is_compressed = tsv_path.suffix == ".gz" if compressed is None else compressed
+    open_fn = gzip.open if is_compressed else open
+    with open_fn(tsv_path, mode="rt", encoding="utf-8") as fh:
+        return _parse_mondo_gene_disease_tsv_reader(fh)
+
+
+def _parse_mondo_gene_disease_tsv_reader(
+    fh,
+) -> tuple[dict[str, list[GenePhenotypeRecord]], LoadStats]:
+    """Parse MONDO rows from an already-open text stream."""
     stats = LoadStats()
     records_by_gene: dict[str, list[GenePhenotypeRecord]] = {}
     seen: set[tuple[str, str]] = set()
+    reader = csv.DictReader(fh, delimiter="\t")
+    for row in reader:
+        stats.total_lines += 1
 
-    open_fn = gzip.open if tsv_path.suffix == ".gz" else open
-    with open_fn(tsv_path, mode="rt", encoding="utf-8") as fh:
-        reader = csv.DictReader(fh, delimiter="\t")
-        for row in reader:
-            stats.total_lines += 1
-
-            # Extract gene symbol from subject_label column
-            gene_symbol = (row.get("subject_label") or "").strip()
-            if not gene_symbol:
-                gene_symbol_alt = _extract_gene_symbol_from_subject(row.get("subject", ""))
-                if gene_symbol_alt:
-                    gene_symbol = gene_symbol_alt
-                else:
-                    stats.skipped_no_gene += 1
-                    continue
-
-            # Extract disease info
-            disease_name = (row.get("object_label") or "").strip()
-            disease_id = (row.get("object") or "").strip()
-            if not disease_name or not _is_mondo_id(disease_id):
-                stats.skipped_no_disease += 1
+        # Extract gene symbol from subject_label column
+        gene_symbol = (row.get("subject_label") or "").strip()
+        if not gene_symbol:
+            gene_symbol_alt = _extract_gene_symbol_from_subject(row.get("subject", ""))
+            if gene_symbol_alt:
+                gene_symbol = gene_symbol_alt
+            else:
+                stats.skipped_no_gene += 1
                 continue
 
-            # Deduplicate by (gene, disease_id)
-            dedup_key = (gene_symbol, disease_id)
-            if dedup_key in seen:
-                stats.skipped_duplicate += 1
-                continue
-            seen.add(dedup_key)
+        # Extract disease info
+        disease_name = (row.get("object_label") or "").strip()
+        disease_id = (row.get("object") or "").strip()
+        if not disease_name or not _is_mondo_id(disease_id):
+            stats.skipped_no_disease += 1
+            continue
 
-            record = GenePhenotypeRecord(
-                gene_symbol=gene_symbol,
-                disease_name=disease_name,
-                disease_id=disease_id,
-            )
-            records_by_gene.setdefault(gene_symbol, []).append(record)
+        # Deduplicate by (gene, disease_id)
+        dedup_key = (gene_symbol, disease_id)
+        if dedup_key in seen:
+            stats.skipped_duplicate += 1
+            continue
+        seen.add(dedup_key)
+
+        record = GenePhenotypeRecord(
+            gene_symbol=gene_symbol,
+            disease_name=disease_name,
+            disease_id=disease_id,
+        )
+        records_by_gene.setdefault(gene_symbol, []).append(record)
 
     return records_by_gene, stats
 
@@ -334,37 +355,42 @@ def parse_hpo_genes_to_phenotype(
     The file format is tab-separated with columns:
     gene_id, gene_symbol, hpo_id, hpo_name, frequency, disease_id
     """
+    with open(hpo_path, encoding="utf-8") as fh:
+        return _parse_hpo_genes_to_phenotype_reader(fh)
+
+
+def _parse_hpo_genes_to_phenotype_reader(fh) -> HpoDataByGene:
+    """Parse HPO disease-scoped rows from an already-open text stream."""
     gene_hpo: dict[str, dict[str, dict[str, HpoTerm]]] = {}
     gene_inheritance: dict[str, dict[str, set[str]]] = {}
 
-    with open(hpo_path, encoding="utf-8") as fh:
-        for line in fh:
-            if line.startswith("#"):
-                continue
-            # ``rstrip`` preserves leading/trailing tab fields so an omitted
-            # disease identifier cannot silently turn into a four-column row.
-            parts = line.rstrip("\r\n").split("\t")
-            if len(parts) < 6:
-                continue
+    for line in fh:
+        if line.startswith("#"):
+            continue
+        # ``rstrip`` preserves leading/trailing tab fields so an omitted
+        # disease identifier cannot silently turn into a four-column row.
+        parts = line.rstrip("\r\n").split("\t")
+        if len(parts) < 6:
+            continue
 
-            gene_symbol = parts[1].strip()
-            hpo_id = parts[2].strip()
-            hpo_name = parts[3].strip() or None
-            source_disease_id = _normalize_source_disease_id(parts[5])
+        gene_symbol = parts[1].strip()
+        hpo_id = parts[2].strip()
+        hpo_name = parts[3].strip() or None
+        source_disease_id = _normalize_source_disease_id(parts[5])
 
-            if not gene_symbol or not _is_hpo_id(hpo_id) or source_disease_id is None:
-                continue
+        if not gene_symbol or not _is_hpo_id(hpo_id) or source_disease_id is None:
+            continue
 
-            terms_by_id = gene_hpo.setdefault(gene_symbol, {}).setdefault(source_disease_id, {})
-            existing = terms_by_id.get(hpo_id)
-            if existing is None or (existing.name is None and hpo_name is not None):
-                terms_by_id[hpo_id] = HpoTerm(id=hpo_id, name=hpo_name)
+        terms_by_id = gene_hpo.setdefault(gene_symbol, {}).setdefault(source_disease_id, {})
+        existing = terms_by_id.get(hpo_id)
+        if existing is None or (existing.name is None and hpo_name is not None):
+            terms_by_id[hpo_id] = HpoTerm(id=hpo_id, name=hpo_name)
 
-            # Check if this HPO term is an inheritance pattern
-            if hpo_id in _INHERITANCE_MAP:
-                gene_inheritance.setdefault(gene_symbol, {}).setdefault(
-                    source_disease_id, set()
-                ).add(_INHERITANCE_MAP[hpo_id])
+        # Check if this HPO term is an inheritance pattern
+        if hpo_id in _INHERITANCE_MAP:
+            gene_inheritance.setdefault(gene_symbol, {}).setdefault(source_disease_id, set()).add(
+                _INHERITANCE_MAP[hpo_id]
+            )
 
     result: HpoDataByGene = {}
     for gene, diseases in gene_hpo.items():
@@ -395,17 +421,22 @@ def parse_mondo_sssom(sssom_path: Path) -> dict[str, str]:
     sufficient for this clinical-context join, and ambiguous exact targets are
     deliberately omitted instead of guessing.
     """
-    candidates: dict[str, set[str]] = {}
     with open(sssom_path, encoding="utf-8") as fh:
-        reader = csv.DictReader((line for line in fh if not line.startswith("#")), delimiter="\t")
-        for row in reader:
-            if row.get("predicate_id") != "skos:exactMatch":
-                continue
-            mondo_id = (row.get("subject_id") or "").strip()
-            source_disease_id = _normalize_source_disease_id(row.get("object_id") or "")
-            if not _is_mondo_id(mondo_id) or source_disease_id is None:
-                continue
-            candidates.setdefault(source_disease_id, set()).add(mondo_id)
+        return _parse_mondo_sssom_reader(fh)
+
+
+def _parse_mondo_sssom_reader(fh) -> dict[str, str]:
+    """Parse exact MONDO cross-references from an already-open text stream."""
+    candidates: dict[str, set[str]] = {}
+    reader = csv.DictReader((line for line in fh if not line.startswith("#")), delimiter="\t")
+    for row in reader:
+        if row.get("predicate_id") != "skos:exactMatch":
+            continue
+        mondo_id = (row.get("subject_id") or "").strip()
+        source_disease_id = _normalize_source_disease_id(row.get("object_id") or "")
+        if not _is_mondo_id(mondo_id) or source_disease_id is None:
+            continue
+        candidates.setdefault(source_disease_id, set()).add(mondo_id)
 
     return {
         source_disease_id: next(iter(mondo_ids))
@@ -491,12 +522,13 @@ def load_mondo_hpo_from_csv(
 # ── Full download + load pipeline ────────────────────────────────────────
 
 
-def _compute_sha256(path: Path) -> str:
-    """Compute SHA-256 hex digest of a file."""
+def _compute_sha256_from_fd(fd: int) -> str:
+    """Compute a SHA-256 digest without changing a retained descriptor's offset."""
     h = hashlib.sha256()
-    with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(65536), b""):
-            h.update(chunk)
+    offset = 0
+    while chunk := os.pread(fd, 65536, offset):
+        h.update(chunk)
+        offset += len(chunk)
     return h.hexdigest()
 
 
@@ -520,15 +552,16 @@ def _parse_last_modified_version(last_modified: str | None) -> str | None:
 
 
 def _source_manifest_entry(
-    path: Path, url: str, role: str, meta: dict[str, str]
+    source: _OpenedStagedSource, url: str, role: str, meta: dict[str, str]
 ) -> dict[str, str | int | None]:
-    """Build a public, portable provenance entry for one loader input."""
+    """Build provenance from one already-pinned, regular staged source."""
+    _assert_opened_staged_source_content_matches_fd(source)
     return {
         "role": role,
         "url": _public_source_url(url),
-        "filename": path.name,
-        "size_bytes": path.stat().st_size,
-        "sha256": _compute_sha256(path),
+        "filename": source.name,
+        "size_bytes": source.size_bytes,
+        "sha256": source.sha256,
         "etag": meta.get("etag"),
         "last_modified": meta.get("last_modified"),
         "version": meta.get("version"),
@@ -589,20 +622,55 @@ def _public_source_url(url: str) -> str:
 
 
 def _write_source_manifest(
-    dest_dir: Path, sources: list[dict[str, str | int | None]]
-) -> tuple[Path, str]:
-    """Write the source-level provenance manifest atomically and return its hash."""
-    manifest_path = dest_dir / SOURCE_BUNDLE_MANIFEST
-    temp_path = manifest_path.with_suffix(".json.tmp")
+    staging: _StagedSourceBundle, sources: list[dict[str, str | int | None]]
+) -> str:
+    """Exclusively create provenance through the held staging descriptor."""
     payload = {
         "schema_version": 1,
         "ingestion_revision": MONDO_HPO_INGESTION_REVISION,
         "retrieved_at": datetime.now(UTC).isoformat(),
         "sources": sources,
     }
-    temp_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    temp_path.replace(manifest_path)
-    return manifest_path, _compute_sha256(manifest_path)
+    encoded = (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode("utf-8")
+    nofollow_flag = getattr(os, "O_NOFOLLOW", None)
+    if nofollow_flag is None:
+        raise OSError("The platform cannot safely write MONDO/HPO source provenance")
+    flags = (
+        os.O_WRONLY
+        | os.O_CREAT
+        | os.O_EXCL
+        | nofollow_flag
+        | getattr(os, "O_NONBLOCK", 0)
+        | getattr(os, "O_CLOEXEC", 0)
+    )
+    try:
+        manifest_fd = os.open(
+            SOURCE_BUNDLE_MANIFEST,
+            flags,
+            mode=0o600,
+            dir_fd=staging.fd,
+        )
+    except FileExistsError as exc:
+        raise ValueError(
+            f"Refusing pre-existing MONDO/HPO source manifest file: {SOURCE_BUNDLE_MANIFEST}"
+        ) from exc
+    except OSError as exc:
+        raise ValueError("Unable to write MONDO/HPO source manifest") from exc
+    try:
+        written = 0
+        while written < len(encoded):
+            count = os.write(manifest_fd, encoded[written:])
+            if count <= 0:
+                raise OSError("Incomplete MONDO/HPO source manifest write")
+            written += count
+        os.fsync(manifest_fd)
+    except OSError as exc:
+        raise ValueError("Unable to write MONDO/HPO source manifest") from exc
+    finally:
+        os.close(manifest_fd)
+    if not _staged_source_bundle_matches_fd(staging):
+        raise ValueError(f"MONDO/HPO staging directory is unavailable: {staging.name}")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def _source_bundle_id(sources: list[dict[str, str | int | None]]) -> str:
@@ -635,6 +703,313 @@ def _source_bundle_identity(result: os.stat_result) -> tuple[int, int]:
 
 
 @dataclass(frozen=True)
+class _PinnedSystemSourceBundleBoundaries:
+    """Fixed system-boundary identities captured without following final links."""
+
+    directory_identities: frozenset[tuple[int, int]]
+    lexical_symlink_identities: frozenset[tuple[Path, tuple[int, int]]]
+
+
+def _absolute_path_components(path: Path) -> tuple[Path, ...]:
+    """Return each absolute path component, including the filesystem root."""
+    absolute_path = path.absolute()
+    component = Path(absolute_path.anchor)
+    components = [component]
+    for part in absolute_path.parts[1:]:
+        component /= part
+        components.append(component)
+    return tuple(components)
+
+
+def _pinned_system_source_bundle_boundaries() -> _PinnedSystemSourceBundleBoundaries:
+    """Pin fixed system roots without trusting configurable temp paths."""
+    directory_identities: set[tuple[int, int]] = set()
+    lexical_symlink_identities: set[tuple[Path, tuple[int, int]]] = set()
+    for boundary_path in (Path("/"), Path("/tmp"), Path("/var/tmp"), Path("/home")):
+        try:
+            resolved_boundary = boundary_path.resolve(strict=True)
+        except FileNotFoundError:
+            continue
+        except OSError as exc:
+            raise ValueError(
+                f"Unable to inspect MONDO/HPO system boundary: {boundary_path}"
+            ) from exc
+        for lexical_component in _absolute_path_components(boundary_path):
+            try:
+                lexical_stat = os.lstat(lexical_component)
+            except OSError as exc:
+                raise ValueError(
+                    f"Unable to inspect MONDO/HPO system boundary: {lexical_component}"
+                ) from exc
+            if stat.S_ISLNK(lexical_stat.st_mode):
+                lexical_symlink_identities.add(
+                    (lexical_component, _source_bundle_identity(lexical_stat))
+                )
+            elif not stat.S_ISDIR(lexical_stat.st_mode):
+                raise ValueError(
+                    f"MONDO/HPO system boundary is not a directory: {lexical_component}"
+                )
+        for resolved_component in _absolute_path_components(resolved_boundary):
+            try:
+                boundary_fd = os.open(
+                    resolved_component,
+                    _source_bundle_open_flags(directory=True),
+                )
+            except OSError as exc:
+                raise ValueError(
+                    f"Unable to inspect MONDO/HPO system boundary: {resolved_component}"
+                ) from exc
+            try:
+                boundary_stat = os.fstat(boundary_fd)
+                if not stat.S_ISDIR(boundary_stat.st_mode):
+                    raise ValueError(
+                        f"MONDO/HPO system boundary is not a directory: {resolved_component}"
+                    )
+                directory_identities.add(_source_bundle_identity(boundary_stat))
+            finally:
+                os.close(boundary_fd)
+    return _PinnedSystemSourceBundleBoundaries(
+        directory_identities=frozenset(directory_identities),
+        lexical_symlink_identities=frozenset(lexical_symlink_identities),
+    )
+
+
+def _assert_private_source_bundle_directory(
+    result: os.stat_result,
+    path: Path,
+) -> None:
+    """Require a local, private namespace for mutable source-bundle paths.
+
+    Descriptor validation prevents accidental path traversal and cooperating
+    writer races. It cannot make a filesystem controlled by another local
+    principal trustworthy, so reject a configured directory that is not owned
+    by this process or is writable by its group or by everyone.
+    """
+    if (
+        not stat.S_ISDIR(result.st_mode)
+        or result.st_uid != os.geteuid()
+        or result.st_mode & (stat.S_IWGRP | stat.S_IWOTH)
+    ):
+        raise ValueError(
+            "MONDO/HPO source bundle directory must be owned by the current user "
+            f"and not group/world-writable: {path}"
+        )
+
+
+def _assert_source_bundle_ancestor_chain_is_trusted(dest_dir: Path) -> None:
+    """Reject unsafe lexical or resolved parents of a source-bundle root."""
+    try:
+        resolved = dest_dir.resolve(strict=True)
+    except OSError as exc:
+        raise ValueError(f"Unable to resolve MONDO/HPO downloads directory: {dest_dir}") from exc
+    trusted_owner_uids = {os.geteuid(), 0}
+    system_boundaries = _pinned_system_source_bundle_boundaries()
+
+    def assert_chain(path: Path, *, lexical: bool) -> None:
+        if lexical:
+            try:
+                lexical_root = os.lstat(path)
+            except OSError as exc:
+                raise ValueError(
+                    f"Unable to inspect MONDO/HPO downloads directory: {path}"
+                ) from exc
+            if (
+                stat.S_ISLNK(lexical_root.st_mode)
+                and lexical_root.st_uid != os.geteuid()
+                and (path, _source_bundle_identity(lexical_root))
+                not in system_boundaries.lexical_symlink_identities
+            ):
+                raise ValueError(
+                    "MONDO/HPO downloads symbolic-link component must be owned by "
+                    f"the current user: {path}"
+                )
+        ancestor = path.parent
+        while True:
+            try:
+                ancestor_stat = os.lstat(ancestor) if lexical else ancestor.stat()
+            except OSError as exc:
+                raise ValueError(
+                    f"Unable to inspect MONDO/HPO downloads ancestor: {ancestor}"
+                ) from exc
+            if stat.S_ISLNK(ancestor_stat.st_mode) and lexical:
+                # In a sticky shared directory, only the symlink owner can
+                # replace the entry. Reject a foreign-owned component so its
+                # target cannot be retargeted after this validation.
+                if (
+                    ancestor_stat.st_uid != os.geteuid()
+                    and (ancestor, _source_bundle_identity(ancestor_stat))
+                    not in system_boundaries.lexical_symlink_identities
+                ):
+                    raise ValueError(
+                        "MONDO/HPO downloads symbolic-link component must be owned by "
+                        f"the current user: {ancestor}"
+                    )
+            elif not stat.S_ISDIR(ancestor_stat.st_mode):
+                raise ValueError(f"MONDO/HPO downloads ancestor is not a directory: {ancestor}")
+            else:
+                is_writable_by_others = ancestor_stat.st_mode & (stat.S_IWGRP | stat.S_IWOTH)
+                is_sticky = ancestor_stat.st_mode & stat.S_ISVTX
+                is_pinned_system_boundary = (
+                    _source_bundle_identity(ancestor_stat)
+                    in system_boundaries.directory_identities
+                )
+                if (
+                    ancestor_stat.st_uid not in trusted_owner_uids
+                    and not is_pinned_system_boundary
+                ):
+                    raise ValueError(
+                        "MONDO/HPO downloads ancestors must be owned by the current user, root, "
+                        f"or match a pinned system boundary: {ancestor}"
+                    )
+                if is_writable_by_others:
+                    if not is_sticky:
+                        raise ValueError(
+                            "MONDO/HPO downloads ancestors must not be group/world-writable "
+                            f"unless sticky: {ancestor}"
+                        )
+            if ancestor.parent == ancestor:
+                return
+            ancestor = ancestor.parent
+
+    assert_chain(dest_dir.absolute(), lexical=True)
+    assert_chain(resolved, lexical=False)
+
+
+def _assert_source_bundle_ancestor_directory_is_trusted(
+    result: os.stat_result,
+    path: Path,
+    system_boundaries: _PinnedSystemSourceBundleBoundaries,
+) -> None:
+    """Verify one held ancestor descriptor is safe to create a child below."""
+    if not stat.S_ISDIR(result.st_mode):
+        raise ValueError(f"MONDO/HPO downloads ancestor is not a directory: {path}")
+    if (
+        result.st_uid not in {os.geteuid(), 0}
+        and _source_bundle_identity(result) not in system_boundaries.directory_identities
+    ):
+        raise ValueError(
+            "MONDO/HPO downloads ancestors must be owned by the current user, root, "
+            f"or match a pinned system boundary: {path}"
+        )
+    writable_by_others = result.st_mode & (stat.S_IWGRP | stat.S_IWOTH)
+    if writable_by_others and not result.st_mode & stat.S_ISVTX:
+        raise ValueError(
+            f"MONDO/HPO downloads ancestors must not be group/world-writable unless sticky: {path}"
+        )
+
+
+def _open_or_create_pinned_source_bundle_directory(dest_dir: Path) -> int:
+    """Return a retained descriptor for ``dest_dir`` without recursive path writes.
+
+    A configured, existing downloads root may intentionally be a symlink, so
+    retain that final descriptor first.  When the root is missing, walk from
+    the filesystem root through ``O_NOFOLLOW`` descriptors and create only
+    below an already-validated parent descriptor.  A component that appears
+    during creation is a race and fails closed instead of being opened or
+    traversed.  This prevents a race below an otherwise valid sticky system
+    boundary from leaving an owned directory in another principal's namespace.
+    """
+    try:
+        return os.open(
+            dest_dir,
+            _source_bundle_open_flags(directory=True, nofollow=False),
+        )
+    except FileNotFoundError:
+        pass
+    except OSError as exc:
+        raise ValueError(f"Unable to inspect MONDO/HPO downloads directory: {dest_dir}") from exc
+
+    absolute_dest = dest_dir.absolute()
+    root_path = Path(absolute_dest.anchor)
+    components = absolute_dest.parts[1:]
+    if not root_path or not components:
+        raise ValueError(f"Unable to find a MONDO/HPO downloads ancestor: {dest_dir}")
+    try:
+        parent_fd = os.open(
+            root_path,
+            _source_bundle_open_flags(directory=True),
+        )
+    except OSError as exc:
+        raise ValueError(f"Unable to inspect MONDO/HPO downloads directory: {dest_dir}") from exc
+
+    try:
+        system_boundaries = _pinned_system_source_bundle_boundaries()
+        parent_stat = os.fstat(parent_fd)
+        _assert_source_bundle_ancestor_directory_is_trusted(
+            parent_stat,
+            root_path,
+            system_boundaries,
+        )
+        current_path = root_path
+        for index, part in enumerate(components):
+            child_path = current_path / part
+            child_fd: int | None = None
+            try:
+                try:
+                    child_fd = os.open(
+                        part,
+                        _source_bundle_open_flags(directory=True),
+                        dir_fd=parent_fd,
+                    )
+                except FileNotFoundError:
+                    _assert_source_bundle_ancestor_directory_is_trusted(
+                        os.fstat(parent_fd),
+                        current_path,
+                        system_boundaries,
+                    )
+                    try:
+                        os.mkdir(part, mode=0o700, dir_fd=parent_fd)
+                    except FileExistsError as exc:
+                        raise ValueError(
+                            f"MONDO/HPO downloads directory appeared while creating: {child_path}"
+                        ) from exc
+                    except OSError as exc:
+                        raise ValueError(
+                            f"Unable to create MONDO/HPO downloads directory: {child_path}"
+                        ) from exc
+                    try:
+                        child_fd = os.open(
+                            part,
+                            _source_bundle_open_flags(directory=True),
+                            dir_fd=parent_fd,
+                        )
+                    except OSError as exc:
+                        raise ValueError(
+                            f"Unable to inspect MONDO/HPO downloads directory: {child_path}"
+                        ) from exc
+                    _assert_private_source_bundle_directory(
+                        os.fstat(child_fd),
+                        child_path,
+                    )
+                except OSError as exc:
+                    raise ValueError(
+                        f"Unable to inspect MONDO/HPO downloads directory: {child_path}"
+                    ) from exc
+                else:
+                    if index < len(components) - 1:
+                        _assert_source_bundle_ancestor_directory_is_trusted(
+                            os.fstat(child_fd),
+                            child_path,
+                            system_boundaries,
+                        )
+            except BaseException:
+                if child_fd is not None:
+                    os.close(child_fd)
+                raise
+            try:
+                os.close(parent_fd)
+            except BaseException:
+                os.close(child_fd)
+                raise
+            parent_fd = child_fd
+            current_path = child_path
+        return parent_fd
+    except BaseException:
+        os.close(parent_fd)
+        raise
+
+
+@dataclass(frozen=True)
 class _StagedSourceBundle:
     """A direct child of a pinned downloads directory."""
 
@@ -645,6 +1020,17 @@ class _StagedSourceBundle:
     parent_identity: tuple[int, int]
     fd: int
     identity: tuple[int, int]
+
+
+@dataclass(frozen=True)
+class _OpenedStagedSource:
+    """One source file held open through staging parse and provenance capture."""
+
+    name: str
+    fd: int
+    identity: tuple[int, int]
+    size_bytes: int
+    sha256: str
 
 
 @dataclass(frozen=True)
@@ -697,16 +1083,11 @@ def _create_pinned_staged_source_bundle(dest_dir: Path) -> Iterator[_StagedSourc
     preserved for an operator instead of recursively deleting a possibly
     substituted directory.
     """
-    dest_dir.mkdir(parents=True, exist_ok=True)
-    try:
-        parent_fd = os.open(
-            dest_dir,
-            _source_bundle_open_flags(directory=True, nofollow=False),
-        )
-    except OSError as exc:
-        raise ValueError(f"Unable to inspect MONDO/HPO downloads directory: {dest_dir}") from exc
+    parent_fd = _open_or_create_pinned_source_bundle_directory(dest_dir)
     try:
         parent_stat = os.fstat(parent_fd)
+        _assert_private_source_bundle_directory(parent_stat, dest_dir)
+        _assert_source_bundle_ancestor_chain_is_trusted(dest_dir)
         try:
             staging_path = Path(
                 tempfile.mkdtemp(prefix=".mondo-hpo-", dir=_fd_backed_path(parent_fd))
@@ -824,6 +1205,10 @@ def _open_managed_source_bundles_dir(
         ) from exc
     try:
         bundles_stat = os.fstat(bundles_fd)
+        _assert_private_source_bundle_directory(
+            bundles_stat,
+            staging.dest_dir / SOURCE_BUNDLE_DIRECTORY,
+        )
         try:
             named_bundles = os.stat(
                 SOURCE_BUNDLE_DIRECTORY,
@@ -923,6 +1308,130 @@ def _source_bundle_file_open_flags() -> int:
     if nonblocking_flag is None:
         raise OSError("The platform cannot safely inspect MONDO/HPO source bundle files")
     return _source_bundle_open_flags(directory=False) | nonblocking_flag
+
+
+def _source_bundle_child_name(filename: str) -> str:
+    """Require one simple child name before any descriptor-relative operation."""
+    if filename in {"", ".", ".."} or Path(filename).name != filename:
+        raise ValueError(f"Invalid MONDO/HPO source bundle child name: {filename!r}")
+    return filename
+
+
+def _assert_opened_staged_source_matches_fd(
+    staging: _StagedSourceBundle,
+    source: _OpenedStagedSource,
+) -> None:
+    """Fail if a named staged source no longer matches its held descriptor."""
+    if not _staged_source_bundle_matches_fd(staging):
+        raise ValueError(f"MONDO/HPO staging directory is unavailable: {staging.name}")
+    try:
+        named = os.stat(source.name, dir_fd=staging.fd, follow_symlinks=False)
+    except OSError as exc:
+        raise ValueError(
+            f"MONDO/HPO staged source file changed before finalization: {source.name}"
+        ) from exc
+    if (
+        not stat.S_ISREG(named.st_mode)
+        or _source_bundle_identity(named) != source.identity
+        or named.st_size != source.size_bytes
+    ):
+        raise ValueError(
+            f"MONDO/HPO staged source file changed before finalization: {source.name}"
+        )
+    _assert_opened_staged_source_content_matches_fd(source)
+
+
+def _assert_opened_staged_source_is_stable(
+    source: _OpenedStagedSource,
+) -> os.stat_result:
+    """Fail if a retained staged-source descriptor stops denoting its input file."""
+    source_stat = os.fstat(source.fd)
+    if (
+        not stat.S_ISREG(source_stat.st_mode)
+        or _source_bundle_identity(source_stat) != source.identity
+        or source_stat.st_size != source.size_bytes
+    ):
+        raise ValueError(
+            f"MONDO/HPO staged source file changed during finalization: {source.name}"
+        )
+    return source_stat
+
+
+def _assert_opened_staged_source_content_matches_fd(source: _OpenedStagedSource) -> None:
+    """Require a retained source's bytes to equal the pre-parse checksum."""
+    _assert_opened_staged_source_is_stable(source)
+    current_checksum = _compute_sha256_from_fd(source.fd)
+    _assert_opened_staged_source_is_stable(source)
+    if current_checksum != source.sha256:
+        raise ValueError(
+            f"MONDO/HPO staged source file contents changed during finalization: {source.name}"
+        )
+
+
+@contextmanager
+def _open_staged_source(
+    staging: _StagedSourceBundle,
+    filename: str,
+) -> Iterator[_OpenedStagedSource]:
+    """Open one regular staged source without following a substituted child."""
+    name = _source_bundle_child_name(filename)
+    if not _staged_source_bundle_matches_fd(staging):
+        raise ValueError(f"MONDO/HPO staging directory is unavailable: {staging.name}")
+    try:
+        source_fd = os.open(name, _source_bundle_file_open_flags(), dir_fd=staging.fd)
+    except OSError as exc:
+        raise ValueError(f"Unable to inspect MONDO/HPO staged source file: {name}") from exc
+    try:
+        source_stat = os.fstat(source_fd)
+        try:
+            named = os.stat(name, dir_fd=staging.fd, follow_symlinks=False)
+        except OSError as exc:
+            raise ValueError(f"MONDO/HPO staged source file changed before parse: {name}") from exc
+        if (
+            not stat.S_ISREG(source_stat.st_mode)
+            or not stat.S_ISREG(named.st_mode)
+            or _source_bundle_identity(source_stat) != _source_bundle_identity(named)
+        ):
+            raise ValueError(f"MONDO/HPO staged source file is not a stable regular file: {name}")
+        source = _OpenedStagedSource(
+            name=name,
+            fd=source_fd,
+            identity=_source_bundle_identity(source_stat),
+            size_bytes=source_stat.st_size,
+            sha256=_compute_sha256_from_fd(source_fd),
+        )
+        yield source
+    finally:
+        os.close(source_fd)
+
+
+@contextmanager
+def _open_staged_sources(
+    staging: _StagedSourceBundle,
+    filenames: tuple[str, str, str],
+) -> Iterator[tuple[_OpenedStagedSource, _OpenedStagedSource, _OpenedStagedSource]]:
+    """Retain all parser inputs through parse, hashing, and manifest capture."""
+    with ExitStack() as stack:
+        opened = tuple(
+            stack.enter_context(_open_staged_source(staging, name)) for name in filenames
+        )
+        yield opened  # type: ignore[return-value]
+
+
+@contextmanager
+def _read_opened_staged_source(
+    source: _OpenedStagedSource,
+    *,
+    compressed: bool = False,
+) -> Iterator[object]:
+    """Yield text from a duplicate of a retained staged-source descriptor."""
+    if compressed:
+        with os.fdopen(os.dup(source.fd), "rb") as raw_file:
+            with gzip.open(raw_file, mode="rt", encoding="utf-8") as fh:
+                yield fh
+        return
+    with os.fdopen(os.dup(source.fd), encoding="utf-8") as fh:
+        yield fh
 
 
 def _source_bundle_expected_file_fields(
@@ -1075,10 +1584,12 @@ def _open_published_source_bundle(
     except OSError as exc:
         raise ValueError(f"Unable to inspect MONDO/HPO source bundle: {bundle_name}") from exc
     try:
+        bundle_stat = os.fstat(bundle_fd)
+        _assert_private_source_bundle_directory(bundle_stat, managed.path / bundle_name)
         published = _PublishedSourceBundle(
             name=bundle_name,
             fd=bundle_fd,
-            identity=_source_bundle_identity(os.fstat(bundle_fd)),
+            identity=_source_bundle_identity(bundle_stat),
         )
         _assert_published_source_bundle_matches_fd(managed, published)
     except BaseException:
@@ -1392,6 +1903,7 @@ def load_mondo_hpo_rows(
     file_size_bytes: int | None = None,
     checksum: str | None = None,
     before_commit: Callable[[], None] | None = None,
+    commit_guard: Callable[[], None] | None = None,
 ) -> int:
     """Atomically bulk-load MONDO/HPO rows and optional source provenance.
 
@@ -1403,7 +1915,9 @@ def load_mondo_hpo_rows(
         file_path: Primary source path recorded with *version*.
         file_size_bytes: Primary source size recorded with *version*.
         checksum: Primary source SHA-256 recorded with *version*.
-        before_commit: Optional final integrity check run inside the transaction.
+        before_commit: Optional integrity check run inside the transaction body.
+        commit_guard: Optional final integrity check run by SQLAlchemy's
+            pre-DBAPI-commit event for this exact connection.
 
     Returns:
         Number of rows loaded.
@@ -1419,24 +1933,42 @@ def load_mondo_hpo_rows(
 
     # Delete, every insert batch, and the version row share one transaction so
     # a failed load cannot expose partial disease rows or a mismatched version.
-    with serialized_write(engine), engine.begin() as conn:
-        if clear_existing:
-            conn.execute(gene_phenotype.delete().where(gene_phenotype.c.source == "mondo_hpo"))
+    # ``ConnectionEvents.commit`` is raised before DBAPI commit. Registering the
+    # engine listener after any existing engine listeners lets a final guard
+    # detect an application-level filesystem interleaving before the rows commit.
+    with serialized_write(engine), engine.connect() as conn:
+        listener: Callable[[sa.Connection], None] | None = None
+        if commit_guard is not None:
 
-        for i in range(0, len(rows), BATCH_SIZE):
-            batch = rows[i : i + BATCH_SIZE]
-            conn.execute(gene_phenotype.insert(), batch)
+            def listener(event_connection: sa.Connection) -> None:
+                if event_connection is conn:
+                    commit_guard()
 
-        if version is not None:
-            _record_mondo_hpo_version_on_connection(
-                conn,
-                version=version,
-                file_path=file_path,
-                file_size_bytes=file_size_bytes,
-                checksum=checksum,
-            )
-        if before_commit is not None:
-            before_commit()
+            sa.event.listen(engine, "commit", listener)
+        try:
+            with conn.begin():
+                if clear_existing:
+                    conn.execute(
+                        gene_phenotype.delete().where(gene_phenotype.c.source == "mondo_hpo")
+                    )
+
+                for i in range(0, len(rows), BATCH_SIZE):
+                    batch = rows[i : i + BATCH_SIZE]
+                    conn.execute(gene_phenotype.insert(), batch)
+
+                if version is not None:
+                    _record_mondo_hpo_version_on_connection(
+                        conn,
+                        version=version,
+                        file_path=file_path,
+                        file_size_bytes=file_size_bytes,
+                        checksum=checksum,
+                    )
+                if before_commit is not None:
+                    before_commit()
+        finally:
+            if listener is not None:
+                sa.event.remove(engine, "commit", listener)
 
     _wal_checkpoint(engine)
     return len(rows)
@@ -1577,15 +2109,17 @@ def _is_legacy_disease_scope_install(version: str | None) -> bool:
     return version is not None and not _has_current_ingestion_revision(version)
 
 
-def _content_length_or_zero(response: httpx.Response) -> int:
-    """Return a non-negative response content length when the server provides one."""
+def _positive_content_length_or_none(response: httpx.Response) -> int | None:
+    """Return a strictly positive response content length, or ``None`` if unknown."""
     content_length = response.headers.get("Content-Length")
-    if not content_length:
-        return 0
-    try:
-        return max(0, int(content_length))
-    except ValueError:
-        return 0
+    if (
+        not isinstance(content_length, str)
+        or not content_length.isascii()
+        or not content_length.isdecimal()
+    ):
+        return None
+    size = int(content_length)
+    return size if size > 0 else None
 
 
 def check_mondo_hpo_update(
@@ -1652,7 +2186,10 @@ def check_mondo_hpo_update(
         logger.warning("mondo_hpo_update_check_bad_last_modified", error=str(exc))
         return None
 
-    primary_size = _content_length_or_zero(resp)
+    primary_size = _positive_content_length_or_none(resp)
+    if primary_size is None:
+        logger.warning("mondo_hpo_update_check_unknown_content_length", source="primary")
+        return None
     current = get_current_version(reference_engine, "mondo_hpo")
     current_source_version: str | None = None
     legacy_noncanonical_version = False
@@ -1681,13 +2218,26 @@ def check_mondo_hpo_update(
             sssom_resp.raise_for_status()
     except Exception as exc:
         logger.warning("mondo_hpo_secondary_update_check_failed", error=str(exc))
-        return VersionInfo(
-            db_name="mondo_hpo",
-            latest_version=remote_version,
-            download_url=pin.url,
-            download_size_bytes=primary_size,
-            release_date=remote_version,
+        # A MONDO/HPO refresh always transfers all three authoritative
+        # sources.  Do not offer a primary-only estimate when a secondary
+        # validator is unavailable: it could understate the transfer and
+        # bypass the configured bandwidth window.
+        return None
+
+    secondary_sizes = {
+        "hpo": _positive_content_length_or_none(hpo_resp),
+        "mondo_sssom": _positive_content_length_or_none(sssom_resp),
+    }
+    unknown_size_sources = [source for source, size in secondary_sizes.items() if size is None]
+    if unknown_size_sources:
+        # Setup fetches all three source files. Withhold an update when any
+        # size is absent, malformed, or non-positive instead of bypassing the
+        # bandwidth policy with an underestimated total.
+        logger.warning(
+            "mondo_hpo_update_check_unknown_content_length",
+            sources=unknown_size_sources,
         )
+        return None
 
     # Setup fetches all three source files, so bandwidth policy needs their
     # complete known transfer footprint rather than only the small primary TSV.
@@ -1695,9 +2245,7 @@ def check_mondo_hpo_update(
         db_name="mondo_hpo",
         latest_version=remote_version,
         download_url=pin.url,
-        download_size_bytes=(
-            primary_size + _content_length_or_zero(hpo_resp) + _content_length_or_zero(sssom_resp)
-        ),
+        download_size_bytes=primary_size + sum(secondary_sizes.values()),
         release_date=remote_version,
     )
     if current is None or legacy_noncanonical_version:
@@ -1750,7 +2298,6 @@ def download_and_load_mondo_hpo(
         "gene_disease.9606.tsv.gz",
         "genes_to_phenotype.txt",
         "mondo.sssom.tsv",
-        SOURCE_BUNDLE_MANIFEST,
     )
     # Fence a downloader that starts from one provenance state but reaches the
     # final write section only after another updater has committed a newer one.
@@ -1760,7 +2307,7 @@ def download_and_load_mondo_hpo(
         # held staging descriptor, never through its mutable lexical name.
         staging_dir = staging.path
         mondo_meta: dict[str, str] = {}
-        mondo_path = download_file(
+        download_file(
             mondo_url,
             staging_dir,
             source_filenames[0],
@@ -1769,7 +2316,7 @@ def download_and_load_mondo_hpo(
             meta=mondo_meta,
         )
         hpo_meta: dict[str, str] = {}
-        hpo_path = download_file(
+        download_file(
             hpo_url,
             staging_dir,
             source_filenames[1],
@@ -1778,7 +2325,7 @@ def download_and_load_mondo_hpo(
             meta=hpo_meta,
         )
         mondo_sssom_meta: dict[str, str] = {}
-        mondo_sssom_path = download_file(
+        download_file(
             mondo_sssom_url,
             staging_dir,
             source_filenames[2],
@@ -1787,134 +2334,178 @@ def download_and_load_mondo_hpo(
             meta=mondo_sssom_meta,
         )
 
-        records_by_gene, stats = parse_mondo_gene_disease_tsv(mondo_path)
-        hpo_data = parse_hpo_genes_to_phenotype(hpo_path)
-        mondo_xrefs = parse_mondo_sssom(mondo_sssom_path)
-        if len(mondo_xrefs) < MINIMUM_UNAMBIGUOUS_MONDO_XREFS:
-            raise ValueError(
-                "Refusing to replace MONDO/HPO rows because MONDO SSSOM yielded only "
-                f"{len(mondo_xrefs):,} unambiguous exact mappings; expected at least "
-                f"{MINIMUM_UNAMBIGUOUS_MONDO_XREFS:,}."
-            )
+        with _open_staged_sources(staging, source_filenames) as (
+            mondo_source,
+            hpo_source,
+            mondo_sssom_source,
+        ):
+            mondo_size = mondo_source.size_bytes
+            if mondo_size < MINIMUM_MONDO_GENE_DISEASE_ARCHIVE_BYTES:
+                raise ValueError(
+                    "Refusing to replace MONDO/HPO rows because the MONDO primary archive is only "
+                    f"{mondo_size:,} bytes; expected at least "
+                    f"{MINIMUM_MONDO_GENE_DISEASE_ARCHIVE_BYTES:,}."
+                )
+            if hpo_source.size_bytes < MINIMUM_HPO_GENES_TO_PHENOTYPE_BYTES:
+                raise ValueError(
+                    "Refusing to replace MONDO/HPO rows because the HPO disease annotation "
+                    f"source is only {hpo_source.size_bytes:,} bytes; expected at least "
+                    f"{MINIMUM_HPO_GENES_TO_PHENOTYPE_BYTES:,}."
+                )
 
-        stats.hpo_genes_mapped = len(set(records_by_gene.keys()) & set(hpo_data.keys()))
-        stats.hpo_disease_matches, stats.hpo_disease_unmatched = _count_scoped_hpo_matches(
-            records_by_gene,
-            hpo_data,
-            mondo_xrefs,
-        )
-        if records_by_gene and not hpo_data:
-            raise ValueError(
-                "Refusing to replace MONDO/HPO rows because the HPO source yielded no valid "
-                "disease-scoped annotations."
-            )
-        if records_by_gene and hpo_data and stats.hpo_disease_matches == 0:
-            raise ValueError(
-                "Refusing to replace MONDO/HPO rows because no HPO disease scope resolved "
-                "through a validated exact MONDO cross-reference."
-            )
+            with _read_opened_staged_source(mondo_source, compressed=True) as mondo_file:
+                records_by_gene, stats = _parse_mondo_gene_disease_tsv_reader(mondo_file)
+            with _read_opened_staged_source(hpo_source) as hpo_file:
+                hpo_data = _parse_hpo_genes_to_phenotype_reader(hpo_file)
+            with _read_opened_staged_source(mondo_sssom_source) as mondo_sssom_file:
+                mondo_xrefs = _parse_mondo_sssom_reader(mondo_sssom_file)
+            if len(mondo_xrefs) < MINIMUM_UNAMBIGUOUS_MONDO_XREFS:
+                raise ValueError(
+                    "Refusing to replace MONDO/HPO rows because MONDO SSSOM yielded only "
+                    f"{len(mondo_xrefs):,} unambiguous exact mappings; expected at least "
+                    f"{MINIMUM_UNAMBIGUOUS_MONDO_XREFS:,}."
+                )
 
-        rows = _records_to_rows(records_by_gene, hpo_data, mondo_xrefs)
+            stats.hpo_genes_mapped = len(set(records_by_gene.keys()) & set(hpo_data.keys()))
+            stats.hpo_disease_matches, stats.hpo_disease_unmatched = _count_scoped_hpo_matches(
+                records_by_gene,
+                hpo_data,
+                mondo_xrefs,
+            )
+            if records_by_gene and not hpo_data:
+                raise ValueError(
+                    "Refusing to replace MONDO/HPO rows because the HPO source yielded no valid "
+                    "disease-scoped annotations."
+                )
+            if records_by_gene and hpo_data and stats.hpo_disease_matches == 0:
+                raise ValueError(
+                    "Refusing to replace MONDO/HPO rows because no HPO disease scope resolved "
+                    "through a validated exact MONDO cross-reference."
+                )
 
-        # ``stats.sha256`` and the database_versions row remain tied to the
-        # primary Monarch archive for compatibility with the existing updater.
-        mondo_size = mondo_path.stat().st_size
-        mondo_checksum = _compute_sha256(mondo_path)
-        stats.sha256 = mondo_checksum
-        stats.hpo_sha256 = _compute_sha256(hpo_path)
-        stats.mondo_sssom_sha256 = _compute_sha256(mondo_sssom_path)
-        sources = [
-            _source_manifest_entry(mondo_path, mondo_url, "mondo_gene_disease", mondo_meta),
-            _source_manifest_entry(hpo_path, hpo_url, "hpo_genes_to_phenotype", hpo_meta),
-            _source_manifest_entry(
-                mondo_sssom_path,
-                mondo_sssom_url,
-                "mondo_sssom_exact_cross_references",
+            rows = _records_to_rows(records_by_gene, hpo_data, mondo_xrefs)
+
+            # ``stats.sha256`` and the database_versions row remain tied to the
+            # primary Monarch archive for compatibility with the existing updater.
+            sources = [
+                _source_manifest_entry(
+                    mondo_source,
+                    mondo_url,
+                    "mondo_gene_disease",
+                    mondo_meta,
+                ),
+                _source_manifest_entry(
+                    hpo_source,
+                    hpo_url,
+                    "hpo_genes_to_phenotype",
+                    hpo_meta,
+                ),
+                _source_manifest_entry(
+                    mondo_sssom_source,
+                    mondo_sssom_url,
+                    "mondo_sssom_exact_cross_references",
+                    mondo_sssom_meta,
+                ),
+            ]
+            mondo_checksum = str(sources[0]["sha256"])
+            stats.sha256 = mondo_checksum
+            stats.hpo_sha256 = str(sources[1]["sha256"])
+            stats.mondo_sssom_sha256 = str(sources[2]["sha256"])
+            source_manifest_sha256 = _write_source_manifest(staging, sources)
+            for source in (mondo_source, hpo_source, mondo_sssom_source):
+                _assert_opened_staged_source_matches_fd(staging, source)
+            # Never turn absent source provenance into the local wall-clock date:
+            # it would permit an older payload to masquerade as today's release.
+            source_version = mondo_meta.get("version") or f"unverified-{mondo_checksum[:16]}"
+            stats.version = _mondo_hpo_install_version(
+                source_version,
+                hpo_meta,
                 mondo_sssom_meta,
-            ),
-        ]
-        source_manifest_path, source_manifest_sha256 = _write_source_manifest(staging_dir, sources)
-        # Never turn absent source provenance into the local wall-clock date:
-        # it would permit an older payload to masquerade as today's release.
-        source_version = mondo_meta.get("version") or f"unverified-{mondo_checksum[:16]}"
-        stats.version = _mondo_hpo_install_version(
-            source_version,
-            hpo_meta,
-            mondo_sssom_meta,
-        )
-        stats.hpo_version = hpo_meta.get("version")
-        stats.mondo_sssom_version = mondo_sssom_meta.get("version")
+            )
+            stats.hpo_version = hpo_meta.get("version")
+            stats.mondo_sssom_version = mondo_sssom_meta.get("version")
 
-        # Serialise the database transaction independently of the descriptor-
-        # anchored downloads root. Direct callers may share a file-backed
-        # reference DB while deliberately using separate source directories,
-        # so either claim alone is insufficient.
-        with _mondo_hpo_database_claim(engine) as database_acquired:
-            if not database_acquired:
-                raise RuntimeError("MONDO/HPO database update is already in progress")
-            with build_claim(
-                "mondo_hpo_source_bundles",
-                _fd_backed_path(staging.parent_fd),
-            ) as source_acquired:
-                if not source_acquired:
-                    raise RuntimeError("MONDO/HPO source bundle update is already in progress")
-                current_installation = _mondo_hpo_installation_state(engine)
-                if current_installation != starting_installation:
-                    raise RuntimeError(
-                        "MONDO/HPO changed while sources were downloading; retry update"
-                    )
-                _assert_mondo_hpo_source_is_not_older(current_installation, stats.version)
-
-                # Publish a validated immutable source bundle. It remains
-                # pending until the row/version transaction commits, and every
-                # finalization operation uses the held root and child FDs.
-                with _open_managed_source_bundles_dir(staging, create=True) as managed:
-                    with _publish_staged_source_bundle(
-                        managed,
-                        _source_bundle_id(sources),
-                        sources,
-                    ) as published:
-                        final_mondo_path = managed.path / published.name / mondo_path.name
-                        final_source_manifest_path = (
-                            managed.path / published.name / source_manifest_path.name
+            # Serialise the database transaction independently of the descriptor-
+            # anchored downloads root. Direct callers may share a file-backed
+            # reference DB while deliberately using separate source directories,
+            # so either claim alone is insufficient.
+            with _mondo_hpo_database_claim(engine) as database_acquired:
+                if not database_acquired:
+                    raise RuntimeError("MONDO/HPO database update is already in progress")
+                with build_claim(
+                    "mondo_hpo_source_bundles",
+                    _fd_backed_path(staging.parent_fd),
+                ) as source_acquired:
+                    if not source_acquired:
+                        raise RuntimeError("MONDO/HPO source bundle update is already in progress")
+                    current_installation = _mondo_hpo_installation_state(engine)
+                    if current_installation != starting_installation:
+                        raise RuntimeError(
+                            "MONDO/HPO changed while sources were downloading; retry update"
                         )
+                    _assert_mondo_hpo_source_is_not_older(current_installation, stats.version)
 
-                        def assert_published_before_commit() -> None:
-                            _assert_published_source_bundle_contents(managed, published, sources)
-
-                        stats.records_loaded = load_mondo_hpo_rows(
-                            rows,
-                            engine,
-                            version=stats.version,
-                            file_path=str(final_mondo_path),
-                            file_size_bytes=mondo_size,
-                            checksum=mondo_checksum,
-                            before_commit=assert_published_before_commit,
-                        )
-                        _assert_published_source_bundle_matches_fd(managed, published)
-                        try:
-                            _clear_source_bundle_pending(published)
-                        except (OSError, ValueError) as exc:
-                            logger.warning(
-                                "mondo_hpo_source_bundle_pending_cleanup_failed",
-                                bundle_name=published.name,
-                                error=str(exc),
+                    # Publish a validated immutable source bundle. It remains
+                    # pending until the row/version transaction commits, and every
+                    # finalization operation uses the held root and child FDs.
+                    with _open_managed_source_bundles_dir(staging, create=True) as managed:
+                        with _publish_staged_source_bundle(
+                            managed,
+                            _source_bundle_id(sources),
+                            sources,
+                        ) as published:
+                            final_mondo_path = managed.path / published.name / mondo_source.name
+                            final_source_manifest_path = (
+                                managed.path / published.name / SOURCE_BUNDLE_MANIFEST
                             )
 
-        logger.info(
-            "mondo_hpo_loaded",
-            records=stats.records_loaded,
-            genes=len(records_by_gene),
-            hpo_mapped=stats.hpo_genes_mapped,
-            hpo_disease_matches=stats.hpo_disease_matches,
-            hpo_disease_unmatched=stats.hpo_disease_unmatched,
-            mondo_sha256=stats.sha256,
-            hpo_sha256=stats.hpo_sha256,
-            mondo_sssom_sha256=stats.mondo_sssom_sha256,
-            source_manifest_path=str(final_source_manifest_path),
-            source_manifest_sha256=source_manifest_sha256,
-        )
-        return stats
+                            def assert_published_before_commit() -> None:
+                                for source in (
+                                    mondo_source,
+                                    hpo_source,
+                                    mondo_sssom_source,
+                                ):
+                                    _assert_opened_staged_source_is_stable(source)
+                                _assert_published_source_bundle_contents(
+                                    managed,
+                                    published,
+                                    sources,
+                                )
+
+                            stats.records_loaded = load_mondo_hpo_rows(
+                                rows,
+                                engine,
+                                version=stats.version,
+                                file_path=str(final_mondo_path),
+                                file_size_bytes=mondo_size,
+                                checksum=mondo_checksum,
+                                before_commit=assert_published_before_commit,
+                                commit_guard=assert_published_before_commit,
+                            )
+                            _assert_published_source_bundle_matches_fd(managed, published)
+                            try:
+                                _clear_source_bundle_pending(published)
+                            except (OSError, ValueError) as exc:
+                                logger.warning(
+                                    "mondo_hpo_source_bundle_pending_cleanup_failed",
+                                    bundle_name=published.name,
+                                    error=str(exc),
+                                )
+
+            logger.info(
+                "mondo_hpo_loaded",
+                records=stats.records_loaded,
+                genes=len(records_by_gene),
+                hpo_mapped=stats.hpo_genes_mapped,
+                hpo_disease_matches=stats.hpo_disease_matches,
+                hpo_disease_unmatched=stats.hpo_disease_unmatched,
+                mondo_sha256=stats.sha256,
+                hpo_sha256=stats.hpo_sha256,
+                mondo_sssom_sha256=stats.mondo_sssom_sha256,
+                source_manifest_path=str(final_source_manifest_path),
+                source_manifest_sha256=source_manifest_sha256,
+            )
+            return stats
 
 
 # ═══════════════════════════════════════════════════════════════════════

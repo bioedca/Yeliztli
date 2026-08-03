@@ -1142,11 +1142,16 @@ class TestCheckMondoHpoUpdate:
             installed_version,
         )
 
-        primary = MagicMock(headers={"Last-Modified": MONDO_HPO_LAST_MODIFIED_NEW})
+        primary = MagicMock(
+            headers={
+                "Content-Length": "98765432",
+                "Last-Modified": MONDO_HPO_LAST_MODIFIED_NEW,
+            }
+        )
         primary.raise_for_status = MagicMock()
-        hpo = MagicMock(headers={"ETag": hpo_etag})
+        hpo = MagicMock(headers={"Content-Length": "20", "ETag": hpo_etag})
         hpo.raise_for_status = MagicMock()
-        sssom = MagicMock(headers={"ETag": sssom_etag})
+        sssom = MagicMock(headers={"Content-Length": "13", "ETag": sssom_etag})
         sssom.raise_for_status = MagicMock()
         mock_client, _ = _mock_head_client(last_modified=MONDO_HPO_LAST_MODIFIED_NEW)
         mock_client.return_value.head.side_effect = [primary, hpo, sssom]
@@ -1221,39 +1226,23 @@ class TestCheckMondoHpoUpdate:
         assert result.latest_version == MONDO_HPO_LAST_MODIFIED_NEW_VERSION
         assert result.download_size_bytes == 296_296_296
 
-    def test_head_missing_content_length_returns_zero_size(
-        self, tmp_path: Path, monkeypatch, reference_engine
+    @pytest.mark.parametrize(
+        "content_length",
+        [None, "not-a-number", "0", "-1", "+1", " 1", "1 ", "1_0", "1e2"],
+    )
+    def test_unknown_malformed_or_nonpositive_primary_content_length_withholds_update(
+        self, tmp_path: Path, monkeypatch, reference_engine, content_length: str | None
     ):
-        """HEAD succeeds without Content-Length → size defaults to 0."""
+        """The bandwidth gate cannot safely use an unknown primary transfer size."""
         path = _write_manifest(tmp_path, SAMPLE_MANIFEST)
         monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(path))
 
         mock_client, _ = _mock_head_client(
-            content_length=None,
+            content_length=content_length,
             last_modified=MONDO_HPO_LAST_MODIFIED_NEW,
         )
         with patch("backend.annotation.mondo_hpo.httpx.Client", mock_client):
-            result = check_mondo_hpo_update(reference_engine)
-
-        assert result is not None
-        assert result.download_size_bytes == 0
-
-    def test_head_unparseable_content_length_returns_zero_size(
-        self, tmp_path: Path, monkeypatch, reference_engine
-    ):
-        """Non-integer Content-Length header → size defaults to 0 (no crash)."""
-        path = _write_manifest(tmp_path, SAMPLE_MANIFEST)
-        monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(path))
-
-        mock_client, _ = _mock_head_client(
-            content_length="not-a-number",
-            last_modified=MONDO_HPO_LAST_MODIFIED_NEW,
-        )
-        with patch("backend.annotation.mondo_hpo.httpx.Client", mock_client):
-            result = check_mondo_hpo_update(reference_engine)
-
-        assert result is not None
-        assert result.download_size_bytes == 0
+            assert check_mondo_hpo_update(reference_engine) is None
 
     def test_head_missing_last_modified_returns_none(
         self, tmp_path: Path, monkeypatch, reference_engine
@@ -1296,6 +1285,116 @@ class TestCheckMondoHpoUpdate:
         mock_resp.raise_for_status.side_effect = httpx.HTTPStatusError(
             "404", request=MagicMock(), response=MagicMock(status_code=404)
         )
+        with patch("backend.annotation.mondo_hpo.httpx.Client", mock_client):
+            assert check_mondo_hpo_update(reference_engine) is None
+
+    def test_secondary_head_error_withholds_update_instead_of_understating_size(
+        self, tmp_path: Path, monkeypatch, reference_engine
+    ):
+        """A missing secondary validator cannot safely yield a partial size estimate."""
+        path = _write_manifest(tmp_path, SAMPLE_MANIFEST)
+        monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(path))
+
+        primary = MagicMock(
+            headers={
+                "Content-Length": "98765432",
+                "Last-Modified": MONDO_HPO_LAST_MODIFIED_NEW,
+            }
+        )
+        primary.raise_for_status = MagicMock()
+        hpo = MagicMock(headers={"Content-Length": "20", "ETag": "hpo-current"})
+        hpo.raise_for_status = MagicMock()
+        sssom = MagicMock(headers={"Content-Length": "13", "ETag": "sssom-current"})
+        sssom.raise_for_status.side_effect = httpx.HTTPStatusError(
+            "503", request=MagicMock(), response=MagicMock(status_code=503)
+        )
+        mock_client, _ = _mock_head_client(last_modified=MONDO_HPO_LAST_MODIFIED_NEW)
+        mock_client.return_value.head.side_effect = [primary, hpo, sssom]
+
+        with patch("backend.annotation.mondo_hpo.httpx.Client", mock_client):
+            assert check_mondo_hpo_update(reference_engine) is None
+
+        assert mock_client.return_value.head.call_args_list == [
+            call(MONDO_HPO_URL),
+            call(HPO_GENES_TO_PHENOTYPE_URL),
+            call(MONDO_SSSOM_URL),
+        ]
+
+    @pytest.mark.parametrize(
+        ("hpo_size", "sssom_size"),
+        [
+            (None, "13"),
+            ("20", None),
+            ("not-a-number", "13"),
+            ("20", "not-a-number"),
+            ("0", "13"),
+            ("20", "0"),
+            ("-1", "13"),
+            ("20", "-1"),
+            ("+1", "13"),
+            ("20", "+1"),
+            (" 1", "13"),
+            ("20", " 1"),
+            ("1 ", "13"),
+            ("20", "1 "),
+            ("1_0", "13"),
+            ("20", "1_0"),
+            ("1e2", "13"),
+            ("20", "1e2"),
+        ],
+        ids=[
+            "hpo-missing",
+            "sssom-missing",
+            "hpo-malformed",
+            "sssom-malformed",
+            "hpo-zero",
+            "sssom-zero",
+            "hpo-negative",
+            "sssom-negative",
+            "hpo-plus-sign",
+            "sssom-plus-sign",
+            "hpo-leading-space",
+            "sssom-leading-space",
+            "hpo-trailing-space",
+            "sssom-trailing-space",
+            "hpo-underscore",
+            "sssom-underscore",
+            "hpo-exponent",
+            "sssom-exponent",
+        ],
+    )
+    def test_unknown_malformed_or_nonpositive_secondary_content_length_withholds_update(
+        self,
+        tmp_path: Path,
+        monkeypatch,
+        reference_engine,
+        hpo_size: str | None,
+        sssom_size: str | None,
+    ):
+        """Any unknown secondary size must not understate the total transfer."""
+        path = _write_manifest(tmp_path, SAMPLE_MANIFEST)
+        monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(path))
+
+        primary = MagicMock(
+            headers={
+                "Content-Length": "98765432",
+                "Last-Modified": MONDO_HPO_LAST_MODIFIED_NEW,
+            }
+        )
+        primary.raise_for_status = MagicMock()
+        hpo_headers = {"ETag": "hpo-current"}
+        if hpo_size is not None:
+            hpo_headers["Content-Length"] = hpo_size
+        hpo = MagicMock(headers=hpo_headers)
+        hpo.raise_for_status = MagicMock()
+        sssom_headers = {"ETag": "sssom-current"}
+        if sssom_size is not None:
+            sssom_headers["Content-Length"] = sssom_size
+        sssom = MagicMock(headers=sssom_headers)
+        sssom.raise_for_status = MagicMock()
+        mock_client, _ = _mock_head_client(last_modified=MONDO_HPO_LAST_MODIFIED_NEW)
+        mock_client.return_value.head.side_effect = [primary, hpo, sssom]
+
         with patch("backend.annotation.mondo_hpo.httpx.Client", mock_client):
             assert check_mondo_hpo_update(reference_engine) is None
 

@@ -78,6 +78,25 @@ append-only provenance rather than recursively deleting a directory after a path
 Incomplete, malformed, or operator-created directories are also never automatically removed;
 inspect all bundle directories manually before any operator-directed cleanup.
 
+The loader rejects grossly truncated inputs before replacing installed rows: the compressed
+Monarch primary archive must be at least 100,000 bytes, the HPO export at least 10,000,000
+bytes, and the MONDO SSSOM export must yield at least 50,000 unambiguous exact mappings. These
+are fail-closed operational guards based on the recorded source snapshot, not proof of semantic
+completeness. Configure the downloads directory and its `mondo_hpo_sources` child as private to
+the updating account and not group/world-writable. Every lexical and resolved ancestor must
+likewise be non-writable by group/other users and not writable by a different directory owner.
+A writable sticky ancestor is accepted only when it is owned by the updating account or root.
+The loader permits an unknown owner only when the ancestor's device/inode matches a fixed,
+descriptor-pinned system boundary (`/`, `/tmp`, `/var/tmp`, or `/home`); it never derives that
+exception from `TMPDIR`. Each lexical symbolic-link component must also be owned by the updating
+account unless its exact path and identity are one of those pinned system-boundary links. The
+loader hashes its held source files
+before parsing and verifies those same bytes again before it writes the provenance manifest or
+publishes a bundle. Descriptor checks and the final pre-commit validation detect swaps that the
+process can observe, but cannot make a filesystem rename atomic with the SQLite commit; an
+administrator, the platform temporary-directory service, or another same-privilege principal
+remain outside that boundary.
+
 !!! warning "dbNSFP license"
     dbNSFP is distributed under an **academic / non-commercial** license. Make sure your use
     complies with its terms. Its setup footprint is also large: the source archive is removed

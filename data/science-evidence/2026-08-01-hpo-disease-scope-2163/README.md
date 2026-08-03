@@ -59,12 +59,18 @@ NCBI Entrez:
      source-native excerpt are recorded in
      [`source-manifest.json`](source-manifest.json) and
      [`monarch-gene-disease-excerpt.tsv`](monarch-gene-disease-excerpt.tsv).
+   - The observed compressed archive was 183,547 bytes. The loader requires at
+     least 100,000 bytes before a replacement; that catches gross truncation,
+     not semantic incompleteness.
    - The excerpt documents the schema and identifiers used by the loader; it
      makes no patient-level, diagnostic, or risk claim.
 3. Human Phenotype Ontology, `genes_to_phenotype.txt`
    <https://purl.obolibrary.org/obo/hp/hpoa/genes_to_phenotype.txt>
    (accessed 2026-08-02; source snapshot and retained excerpt verified on that date).
    - Its six-column schema includes a `disease_id` for each gene/HPO term.
+   - The observed export was 20,732,778 bytes. The loader requires at least
+     10,000,000 bytes before a replacement; that catches gross truncation, not
+     semantic incompleteness.
    - [`hpo-genes-to-phenotype-excerpt.tsv`](hpo-genes-to-phenotype-excerpt.tsv)
      is a small, public, source-native excerpt showing one gene with distinct
      OMIM and ORPHA disease identifiers.
@@ -101,6 +107,22 @@ successful replacement, the loader retains every validated bundle as
 append-only provenance; incomplete, malformed, legacy, symlinked, and
 operator-created directories are also not automatically removed. The verified
 three-source transfer footprint is 33,992,110 bytes (about 34 MB) per bundle.
+The configured downloads directory and its managed `mondo_hpo_sources` child
+must be private to the updating account and not group/world-writable. Held
+descriptors and the final pre-commit guard fail closed on detectable swaps, but
+the entire lexical and resolved ancestor chain must also be non-writable by
+group/other users and not writable by a different directory owner. A writable
+sticky ancestor is accepted only when it is owned by the updating account or
+root. An unknown owner is permitted only when the ancestor's device/inode
+matches a fixed, descriptor-pinned system boundary (`/`, `/tmp`, `/var/tmp`, or
+`/home`); the exception is never derived from `TMPDIR`. Every lexical
+symbolic-link component must be owned by the updating account unless its exact
+path and identity are one of those pinned system-boundary links. The
+loader hashes each held source before parsing and rechecks the same bytes before
+manifest creation and bundle publication. No filesystem primitive makes a
+namespace controlled by an administrator, the platform temporary-directory
+service, or the same privileged local owner an independently trusted provenance
+boundary.
 
 ## Corrections, licensing, and data handling
 
