@@ -227,9 +227,13 @@ def test_cancer_docs_distinguish_the_runtime_block_from_ancestry_withholding() -
     # identifier already in the packet -- the Ensembl DOI, say -- even though it
     # would no longer identify the withheld breast model at all.
     source_pmid = breast["source_pmid"]
-    assert re.search(rf"PMID:{re.escape(str(source_pmid))}(?![0-9])", reference_text), (
-        f"breast PRS reference [2] must cite the panel's source_pmid ({source_pmid}); "
-        f"reference reads: {reference_text}"
+    # Compare the complete set of PMIDs the reference carries. A prefix match
+    # would accept an invalid extension such as PMID:258557070 propagated
+    # consistently through the documentation and the packet.
+    documented_pmids = {match.group(1) for match in re.finditer(r"PMID:([0-9]+)", reference_text)}
+    assert documented_pmids == {str(source_pmid)}, (
+        f"breast PRS reference [2] cites PMIDs {sorted(documented_pmids)}, but the "
+        f"panel's source_pmid is {source_pmid}"
     )
     _assert_real_access_date(reference_text, "breast PRS reference [2]")
 
@@ -276,6 +280,21 @@ def test_cancer_docs_distinguish_the_runtime_block_from_ancestry_withholding() -
     # Naming the right path is not enough: after the audit is regenerated the URL
     # can still resolve to a blob carrying the *old* counts. Read the linked blob
     # and require its audit to be the one the documentation reports.
+    #
+    # CI checks out at depth 1 (`actions/checkout` with no `fetch-depth`), so the
+    # linked commit is normally absent there. Requiring it would redden every CI
+    # run, so probe first and compare only when the object is present: a full
+    # checkout still catches a stale link, and CI never fails for lacking history
+    # it was never given.
+    if (
+        subprocess.run(
+            ["git", "cat-file", "-e", f"{immutable.group('sha')}^{{commit}}"],
+            capture_output=True,
+            cwd=REPO_ROOT,
+        ).returncode
+        != 0
+    ):
+        return
     linked = subprocess.run(
         ["git", "show", f"{immutable.group('sha')}:{panel_rel}"],
         capture_output=True,
@@ -284,7 +303,7 @@ def test_cancer_docs_distinguish_the_runtime_block_from_ancestry_withholding() -
     )
     assert linked.returncode == 0, (
         f"reference [3] links commit {immutable.group('sha')[:10]}, which this checkout "
-        "cannot read; the link must name a commit reachable from the repository"
+        "has but cannot read the panel from"
     )
     linked_panel = json.loads(linked.stdout)
     linked_breast = next(w for w in linked_panel["weight_sets"] if w["trait"] == "breast_cancer")
@@ -671,6 +690,26 @@ def test_breast_prs_references_carry_a_science_evidence_packet() -> None:
     # table could be deleted, or a reference mapped to the wrong source, while
     # the packet still looked complete.
     readme = (_EVIDENCE_DIR / "README.md").read_text(encoding="utf-8")
+
+    # The README quotes Scite's citation tallies. Bind them to the retained
+    # payload, or an edited number -- or a refreshed payload -- leaves the
+    # documentation asserting counts the evidence does not carry.
+    scite_payload = json.loads(
+        (_EVIDENCE_DIR / "raw" / "scite-doi-lookup-2026-08-03.json").read_text(encoding="utf-8")
+    )
+    for record in scite_payload["records"]:
+        tally = record["citation_tally"]
+        quoted = re.search(
+            rf"{re.escape(record['doi'])} — (?P<total>[0-9,]+) total, "
+            rf"(?P<supporting>[0-9,]+) supporting, (?P<contrasting>[0-9,]+) contrasting",
+            readme,
+        )
+        if quoted:
+            for field in ("total", "supporting", "contrasting"):
+                assert int(quoted.group(field).replace(",", "")) == tally[field], (
+                    f"the README quotes {field}={quoted.group(field)} for {record['doi']}, "
+                    f"but the retained payload records {tally[field]}"
+                )
     mapping_rows = [
         line for line in readme.splitlines() if line.startswith("|") and "reference `[" in line
     ]

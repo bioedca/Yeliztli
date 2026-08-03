@@ -132,14 +132,14 @@
   ],
   "panel_derived_values": {
     "note": "The locus counts in cancer.md come from the bundled panel, not from either paper.",
-    "source": "backend/data/panels/cancer_prs_weights.json -> weight_sets[0].model_provenance.current_allele_audit",
+    "source": "backend/data/panels/cancer_prs_weights.json -> model_provenance.current_allele_audit on the weight set whose trait is breast_cancer. Identified by trait, not by position: the loader treats weight_sets order as insignificant.",
     "audit_source": "Ensembl Variation, GRCh38, checked_on 2026-07-16",
     "guard": "tests/backend/test_cancer_prs_docs_consistency.py derives the expected counts from the panel and cross-checks runtime_blocked_loci == multiallelic + biallelic.",
     "audit_reproducibility": {
       "_correction": "An earlier revision of this packet claimed the audit's inputs were absent from the repository. That was WRONG and review corrected it. The inputs are checked in and the counts are re-derivable offline.",
       "stored_response": "backend/data/sources/breast_prs77/ensembl_primary_grch38_2026-07-16.json - 77 Ensembl records (rsid, alleles, location, strand) with assembly_name, coord_system, mapping_policy, checked_on 2026-07-16, and raw_payload_sha256 over the upstream payload.",
       "generator": "scripts/build_breast_prs77.py deterministically re-derives the forward / reverse-complement / palindromic classification from that snapshot.",
-      "integrity_pin": "backend/data/panels/cancer_prs_weights.json -> model_provenance.reproducibility.checked_in_snapshot_sha256 pins the snapshot's SHA-256, so editing it breaks a recorded hash.",
+      "integrity_pin": "the breast_cancer weight set's model_provenance.reproducibility.checked_in_snapshot_sha256 pins the snapshot's SHA-256, so editing it breaks a recorded hash.",
       "what_is_reproducible": "The documented 39 / 2 / 41 counts can be re-derived offline from repository contents.",
       "what_is_not": "The Ensembl Variation RELEASE identifier is not recorded anywhere in the snapshot - verified by searching it for 'release', 'version' and 'build' tokens, none of which appear. The snapshot can therefore be re-used but not re-fetched and confirmed upstream, because the database state that produced it is unnamed.",
       "not_invented": "A release identifier is deliberately not supplied here; a fabricated version would read as verified.",
