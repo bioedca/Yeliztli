@@ -40,6 +40,7 @@ from backend.analysis.ancestry import (
     run_haplogroup_assignment,
     store_haplogroup_findings,
 )
+from backend.analysis.zygosity import MERGE_AMBIGUITY_SENTINEL, is_no_call
 from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import (
     annotated_variants,
@@ -47,6 +48,7 @@ from backend.db.tables import (
     haplogroup_assignments,
     raw_variants,
 )
+from backend.services.sample_merge import MergeStrategy, _apply_semantics
 
 # ── Paths ────────────────────────────────────────────────────────────────
 
@@ -5187,6 +5189,101 @@ class TestAssignHaplogroups:
         assert mt.haplogroup == "U"
         assert [step.haplogroup for step in mt.traversal_path] == ["L3", "N", "R", "U"]
         assert all(not step.haplogroup.startswith("U5") for step in mt.traversal_path)
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize("target", ("U5a", "U5b"))
+    @pytest.mark.parametrize(
+        ("s1_guard", "s2_guard", "guard_blocks"),
+        [
+            pytest.param("CC", "TT", True, id="merged-discordant-s1-ancestral"),
+            pytest.param("TT", "CC", True, id="merged-discordant-s2-ancestral"),
+            pytest.param("CC", "CC", True, id="merged-concordant-ancestral"),
+            pytest.param("TT", "TT", False, id="merged-concordant-derived"),
+            pytest.param("--", "TT", False, id="merged-filled-nocall-derived"),
+            pytest.param("--", "--", False, id="merged-both-no-call"),
+        ],
+    )
+    def test_issue_2165_u5_guard_reads_flag_only_merged_representation(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        target: str,
+        s1_guard: str,
+        s2_guard: str,
+        guard_blocks: bool,
+    ) -> None:
+        """The guard sees a merged discordance through its production row shape.
+
+        ``flag_only`` is the default merge strategy and it does *not* keep both
+        conflicting calls: it writes one row carrying the merge-ambiguity
+        sentinel. Building the rows with the real ``_apply_semantics`` keeps this
+        test bound to that representation instead of to a hand-written literal,
+        so a merged sample whose sources disagree at m.16270 must withhold U5
+        exactly like two discordant probes in a single file. The ordinary
+        no-call rows are the discriminating negative control: they must remain
+        missing evidence and still reach the U5 subtype.
+        """
+        direct_calls = _ISSUE_1798_BATCH13_DIRECT_CASES[target][0]
+        shared = [
+            *_derived_mt_path_genotypes("R"),
+            *({"pos": position, "genotype": allele * 2} for position, allele in direct_calls),
+        ]
+        s1_coords: dict[tuple[str, int], dict[str, str]] = {}
+        s2_coords: dict[tuple[str, int], dict[str, str]] = {}
+        for index, row in enumerate(shared):
+            coord = ("MT", int(row["pos"]))
+            entry = {"rsid": f"vendor_issue_2165_merged_{target}_{index}", **row}
+            s1_coords[coord] = dict(entry)
+            s2_coords[coord] = dict(entry)
+        guard_rsid = f"vendor_issue_2165_merged_{target}_guard"
+        s1_coords[("MT", 16270)] = {"rsid": guard_rsid, "genotype": s1_guard}
+        s2_coords[("MT", 16270)] = {"rsid": guard_rsid, "genotype": s2_guard}
+
+        merged_rows, _summary = _apply_semantics(
+            s1_coords,
+            s2_coords,
+            strategy=MergeStrategy.FLAG_ONLY,
+            rsids_in_bundle=set(),
+            s1_vendor="23andme",
+            s2_vendor="ancestrydna",
+        )
+        guard_row = next(row for row in merged_rows if row.pos == 16270)
+        if s1_guard != s2_guard and "--" not in (s1_guard, s2_guard):
+            # Lock the production shape this test depends on: one collapsed row
+            # holding the sentinel, not the two source genotypes.
+            assert guard_row.concordance == "discordant"
+            assert guard_row.genotype == MERGE_AMBIGUITY_SENTINEL
+            assert is_no_call(guard_row.genotype)
+
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(source_table),
+                [
+                    {
+                        "rsid": row.rsid,
+                        "chrom": row.chrom,
+                        "pos": row.pos,
+                        "genotype": row.genotype,
+                    }
+                    for row in merged_rows
+                ],
+            )
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        if guard_blocks:
+            assert mt.haplogroup == "U"
+            assert [step.haplogroup for step in mt.traversal_path] == ["L3", "N", "R", "U"]
+            assert all(not step.haplogroup.startswith("U5") for step in mt.traversal_path)
+        else:
+            assert mt.haplogroup == target
+            assert [step.haplogroup for step in mt.traversal_path] == list(
+                _ISSUE_1798_BATCH13_PATHS[target]
+            )
 
     @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
     @pytest.mark.parametrize(

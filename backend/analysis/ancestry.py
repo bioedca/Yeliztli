@@ -82,7 +82,7 @@ import structlog
 from scipy.optimize import nnls as _scipy_nnls
 
 from backend.analysis.evidence import ANCESTRY_EVIDENCE_LEVEL
-from backend.analysis.zygosity import is_no_call
+from backend.analysis.zygosity import MERGE_AMBIGUITY_SENTINEL, is_no_call
 from backend.db.tables import (
     annotated_variants,
     findings,
@@ -1740,10 +1740,12 @@ def _classify_optional_conflict_match(
     Optional conflict guards are intentionally excluded from marker support and
     confidence: a missing call is no evidence either way, only an unambiguous
     derived call permits descent, and any mixed or ancestral typed call vetoes
-    this node and every descendant. A position with disagreeing typed vendor
-    probes is likewise a conflict for a guard: the ordinary positional
-    projection omits it as ambiguous, but a markerless branch must not treat
-    that known conflict as missing evidence.
+    this node and every descendant. A position whose typed evidence disagrees
+    with itself is likewise a conflict for a guard — whether that is two
+    disagreeing vendor probes in one file, which the ordinary positional
+    projection omits as ambiguous, or a merged sample's single ``flag_only``
+    sentinel row. A markerless branch must not treat either known conflict as
+    missing evidence.
     """
     present = 0
     conflicting = 0
@@ -1852,9 +1854,11 @@ def _tree_walk(
             one-SNP non-leaf child terminal despite the general sparse-node floor.
         trusted_missing_internal_passthrough_rsids: Audited rsIDs whose absence
             may be bypassed only when an independently supported descendant exists.
-        ambiguous_guard_positions: Typed mtDNA positions with discordant vendor
-            probes. They veto only matching node-scoped conflict guards; ordinary
-            defining-SNP projection retains its existing ambiguity behavior.
+        ambiguous_guard_positions: mtDNA positions whose typed evidence is known
+            to disagree — discordant vendor probes in one file, or a merged
+            sample's ``flag_only`` ambiguity sentinel. They veto only matching
+            node-scoped conflict guards; ordinary defining-SNP projection retains
+            its existing ambiguity behavior.
 
     Returns:
         Tuple of (deepest matching node, full traversal path).
@@ -2114,14 +2118,29 @@ def assign_haplogroups(
             sa.select(source.c.pos, source.c.genotype).where(source.c.chrom == _MT_CHROM)
         ).fetchall()
         mt_pos_to_genotypes: dict[int, list[str]] = {}
+        # A merged sample does not carry the two conflicting calls as duplicate
+        # rows: the default ``flag_only`` strategy collapses a discordant locus
+        # to a single row holding the merge-ambiguity sentinel (Plan §10.3), and
+        # the merged ``raw_variants`` PK is ``(chrom, pos)`` so a second row for
+        # the position cannot exist. That sentinel round-trips through
+        # ``is_no_call``, so without this branch the only surviving record of a
+        # known C/T disagreement would be dropped as ordinary missing data and a
+        # source-conflict guard would fail open. It is recorded as ambiguous and
+        # still withheld from ``mt_pos_to_genotypes`` — a conflict is never a
+        # positive call.
+        ambiguous_mt_positions: set[int] = set()
         for row in mt_rows:
             genotype = row.genotype
-            if row.pos is None or genotype is None or is_no_call(genotype):
+            if row.pos is None or genotype is None:
+                continue
+            if genotype.strip() == MERGE_AMBIGUITY_SENTINEL:
+                ambiguous_mt_positions.add(row.pos)
+                continue
+            if is_no_call(genotype):
                 continue
             mt_pos_to_genotypes.setdefault(row.pos, []).append(genotype)
 
         mt_pos_to_genotype: dict[int, str] = {}
-        ambiguous_mt_positions: set[int] = set()
         for pos, genotypes in mt_pos_to_genotypes.items():
             allele_sets = {frozenset(genotype.strip().upper()) for genotype in genotypes}
             if len(allele_sets) == 1:
