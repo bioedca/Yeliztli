@@ -76,9 +76,21 @@ stray credit.
 - The only hard stop Greptile documents is **Organization Settings → Billing → Flex Usage
   Limit set to `$0`**, which stops spend at the vendor rather than at the repository.
 
-## Requesting a review
+## Requesting a review — not yet
 
-Greptile reviews nothing unless asked. To spend one of the 16, comment on the pull request:
+**Do not trigger Greptile today.** Greptile is not a selectable hosted reviewer: the v3 pull
+request template and `scripts/validate_review_route.py` accept only Copilot, Codex, and
+CodeRabbit. Every valid pull request therefore selects one of those three, and the contract
+forbids triggering a lane the route did not select.
+
+So a Greptile review requested now would spend one of the 16 on evidence the route validator
+cannot accept, on a pull request that asked for a different reviewer. Greptile stays silent
+until the lane lands — that is the point of the two layers above.
+
+Adding the lane is tracked in issue #2251. The rest of this section describes how triggering
+will work **once that merges**; it is not a licence to trigger before then.
+
+To spend one of the 16, comment on the pull request:
 
 ```
 @greptile-apps
@@ -91,9 +103,8 @@ successful trigger costs a review, so do not spray both.
 
 Before spending one, check that it is worth a unit of a 16/month budget:
 
-- Do not trigger Greptile on a pull request whose `## Review route` section selects a
-  different hosted reviewer — that review cannot be used as route evidence, so the credit
-  buys nothing.
+- Only trigger Greptile on a pull request whose `## Review route` section **selects
+  Greptile**. Any other review cannot be used as route evidence, so the credit buys nothing.
 - Do not re-trigger to "refresh" after a push unless the new evidence is actually needed.
 - Prefer a single trigger on the final, frozen head over one per iteration.
 
