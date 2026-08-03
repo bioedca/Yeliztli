@@ -53,6 +53,12 @@ These standards are **advisory** — surfaced as review comments by CodeRabbit (
 convention. The goal is to stop *new* vacuous assertions at review time and migrate legacy ones
 opportunistically.
 
+CodeRabbit no longer reviews every pull request automatically: its included reviews and the local
+`coderabbit` CLI share one budget that adaptive fair-usage limits throttle, so reviewing every push
+starved the pull requests that had actually selected it. A review now runs when the
+`review:coderabbit` label is applied or someone comments `@coderabbitai review`. Treat these
+standards as the bar to meet whether or not a reviewer shows up to say so.
+
 ## Scientific accuracy
 
 Yeliztli's analyses rest on biological and statistical facts. When adding or changing logic

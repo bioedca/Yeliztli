@@ -41,17 +41,17 @@
 - [ ] Standard — routine code/tests/UI/refactor/bug fix not protecting a load-bearing area
 - [ ] Load-bearing — science/clinical/reference data or their tests; privacy/security/auth; schema/migration/data loss; concurrency; dependencies; updater/installer/release; CI/workflows/permissions; core architecture; broad/hard-to-revert
 
-<!-- Before ready/merge, check EXACTLY ONE hosted reviewer. They are substitutes; select another provider instead of adding fallback parsers or waiting on quota. -->
-- [ ] Copilot — Low preferred; fallback for any route
-- [ ] Codex — Standard preferred; fallback for any route
-- [ ] CodeRabbit — Load-bearing preferred; fallback for any route
+<!-- Before ready/merge, check EXACTLY ONE hosted reviewer. They are substitutes on every route; select another provider instead of adding fallback parsers or waiting on quota. Codex is the default lane. A hosted CodeRabbit review starts only from the `review:coderabbit` label or an explicit `@coderabbitai review`, so pick it deliberately and only once per head — it and the local `coderabbit` CLI share one budget. Never trigger a lane you did not check. -->
+- [ ] Copilot — alternate lane; its evidence envelope needs repair before it can pass
+- [ ] Codex — default lane on every route
+- [ ] CodeRabbit — alternate lane; label-gated, for a deliberate hosted second engine
 
 <!-- Drafts need only the route classification. The selected row needs the exact 40-character head SHA and `YYYY-MM-DDTHH:MM:SSZ — COMPLETE`; enter exactly N/A in BOTH cells for unused providers. Evidence must be unedited, provider-authored, and exact-head. Codex accepts an empty zero-comment formal approval or its canonical immutable clean comment. Copilot accepts only its concise findings envelope with all changed files reviewed and zero generated/attached comments. CodeRabbit accepts only its structured clean review with zero actionable/attached comments, no ignored files, and a selected-file count equal to GitHub's changed-file count. Resolve every thread, then have a live write-capable finalizer post the exact unedited `/validate-route`. -->
 | Required review gate | Applies to | Head SHA or N/A | UTC time and status, or N/A |
 | --- | --- | --- | --- |
-| Copilot PR review | Low preferred; fallback for any route | | |
-| Codex `@codex review` | Standard preferred; fallback for any route | | |
-| CodeRabbit structured clean review | Load-bearing preferred; fallback for any route | | |
+| Copilot PR review | alternate lane, any route | | |
+| Codex `@codex review` | default lane, any route | | |
+| CodeRabbit structured clean review | alternate lane, any route; label-gated | | |
 
 <!--
   Do not merge until required CI and the dedicated App's Review Route status are green.
