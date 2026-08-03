@@ -294,6 +294,20 @@ def test_breast_prs_references_carry_a_science_evidence_packet() -> None:
         path = (REPO_ROOT / artifact).resolve()
         assert path.is_relative_to(REPO_ROOT.resolve()), f"artifact escapes the repo: {artifact}"
         assert path.is_file(), f"missing referenced artifact: {artifact}"
+        # Compare against the panel's pin as well as the file: a self-declared
+        # digest matching a repointed artifact would otherwise pass.
+        panel_pins = _breast_weight_set()["model_provenance"]["reproducibility"][
+            "checked_in_snapshot_sha256"
+        ]
+        pinned = panel_pins.get(Path(artifact).name)
+        assert pinned, (
+            f"{artifact} is not pinned by the panel's checked_in_snapshot_sha256; "
+            f"the panel pins {sorted(panel_pins)}"
+        )
+        assert pinned == entry.get("artifact_sha256"), (
+            f"{artifact} digest {entry.get('artifact_sha256')} disagrees with the "
+            f"panel's pin {pinned}"
+        )
         actual = hashlib.sha256(path.read_bytes()).hexdigest()
         assert actual == entry.get("artifact_sha256"), (
             f"{artifact} digest is {actual}, but the packet records {entry.get('artifact_sha256')}"
@@ -306,7 +320,18 @@ def test_breast_prs_references_carry_a_science_evidence_packet() -> None:
     screening = json.loads(
         (_EVIDENCE_DIR / "raw" / "scite-doi-lookup-2026-08-03.json").read_text(encoding="utf-8")
     )
-    assert screening.get("records"), "the screening payload must retain the screened records"
+    screened = {str(r.get("doi", "")).upper() for r in screening.get("records", [])}
+    cited_dois = {
+        match.group(0).split(":", 1)[1].upper()
+        for citation in packet["citations"]
+        for match in _PROVENANCE_ID_RE.finditer(str(citation))
+        if match.group(0).upper().startswith("DOI:")
+    }
+    unscreened = sorted(cited_dois - screened)
+    assert not unscreened, (
+        f"the packet cites {unscreened} but the screening payload holds no record for "
+        "them, so their retraction status is unverified"
+    )
     for record in screening["records"]:
         notices = record.get("editorial_notices")
         assert notices is not None, (
@@ -331,6 +356,11 @@ def test_breast_prs_references_carry_a_science_evidence_packet() -> None:
     }
     for number in referenced:
         text = _reference_entry(doc_text, number)
+        documented_date = _assert_real_access_date(text, f"breast PRS reference [{number}]")
+        assert documented_date == packet["accessed"], (
+            f"reference [{number}] records access date {documented_date}, but the packet "
+            f"records {packet['accessed']}"
+        )
         cited = {match.group(0).upper() for match in _PROVENANCE_ID_RE.finditer(text)}
         assert cited, f"breast PRS reference [{number}] carries no approved identifier"
         missing = sorted(cited - recorded)
