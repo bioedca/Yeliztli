@@ -976,6 +976,18 @@ def test_v3_provider_evidence_is_exact_head_immutable_and_nonblocking(mutation: 
         "## Appendix\n\n"
         "Copilot reviewed 2 out of 2 changed files in this pull request and "
         "generated no comments.\n",
+        # Quoted rather than asserted: Copilot reproduces snippets from the diff
+        # it reviewed, so a fenced, indented or commented-out copy of the
+        # sentence is contributor-reachable and must not carry the verdict.
+        "## O\n\n### Reviewed changes\n\n```\nCopilot reviewed 2 out of 2 changed "
+        "files in this pull request and generated no comments.\n```\n",
+        "## O\n\n### Reviewed changes\n\n<!--\nCopilot reviewed 2 out of 2 changed "
+        "files in this pull request and generated no comments.\n-->\n",
+        "## O\n\n### Reviewed changes\n\n    Copilot reviewed 2 out of 2 changed "
+        "files in this pull request and generated no comments.\n",
+        # The heading itself quoted inside a fence: no real section exists.
+        "## O\n\n```\n### Reviewed changes\n```\n\nCopilot reviewed 2 out of 2 changed "
+        "files in this pull request and generated no comments.\n",
         # Section heading missing entirely.
         _copilot_v3_body(2).replace("### Reviewed changes\n\n", ""),
         # Duplicate headings leave the section ambiguous.

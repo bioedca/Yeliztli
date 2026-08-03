@@ -1314,13 +1314,19 @@ def _v3_formal_review_is_clean(
         # the overview may use it in passing, and counting it would reject a
         # valid clean review — the silent fail-closed defect this envelope was
         # rewritten to remove.
-        heading = list(COPILOT_V3_COVERAGE_HEADING.finditer(body))
-        coverage = list(COPILOT_V3_COVERAGE_LINE.finditer(body))
+        # Read the rendered-visible body only. Fenced/indented code and HTML
+        # comments are blanked first, so a sentence — or the heading itself —
+        # quoted inside a code fence or a comment cannot supply the verdict.
+        # Copilot reproduces snippets from the diff it reviewed, so those are
+        # reachable by a contributor, and all three were accepted before this.
+        visible = _visible_markdown(body)
+        heading = list(COPILOT_V3_COVERAGE_HEADING.finditer(visible))
+        coverage = list(COPILOT_V3_COVERAGE_LINE.finditer(visible))
         if len(heading) != 1 or len(coverage) != 1:
             return False
         section_start = heading[0].end()
-        boundary = COPILOT_V3_SECTION_BOUNDARY.search(body, section_start)
-        section_end = boundary.start() if boundary else len(body)
+        boundary = COPILOT_V3_SECTION_BOUNDARY.search(visible, section_start)
+        section_end = boundary.start() if boundary else len(visible)
         if not (section_start <= coverage[0].start() and coverage[0].end() <= section_end):
             return False
         found = coverage[0]
