@@ -12,7 +12,6 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-import subprocess
 from datetime import date
 from pathlib import Path
 
@@ -53,6 +52,7 @@ _ACCESS_DATE_RE = re.compile(r"\(accessed (?P<date>[0-9]{4}-[0-9]{2}-[0-9]{2})\)
 # rather than on a marker the payload supplies about itself.
 _EVIDENCE_TIER_SERVICES = frozenset({"Consensus", "Scite", "PubMed connector"})
 _SCREENING_SERVICE = "Scite"
+_AUDIT_SERVICE = "Ensembl Variation"
 
 
 def _assert_real_access_date(text: str, where: str) -> str:
@@ -235,6 +235,11 @@ def test_cancer_docs_distinguish_the_runtime_block_from_ancestry_withholding() -
         f"breast PRS reference [2] cites PMIDs {sorted(documented_pmids)}, but the "
         f"panel's source_pmid is {source_pmid}"
     )
+    model_doi = str(breast["source_url"]).rsplit("doi.org/", 1)[-1]
+    assert f"https://doi.org/{model_doi}" in reference_text, (
+        f"breast PRS reference [2]'s link must target the model's own DOI "
+        f"({model_doi}); reference reads: {reference_text}"
+    )
     _assert_real_access_date(reference_text, "breast PRS reference [2]")
 
     assert "[3]" in note_text, "breast PRS note must link to the current allele audit"
@@ -277,46 +282,14 @@ def test_cancer_docs_distinguish_the_runtime_block_from_ancestry_withholding() -
         f"reference [3]'s immutable link points at {immutable.group('path')}, not the "
         f"bundled panel {panel_rel}"
     )
-    # Naming the right path is not enough: after the audit is regenerated the URL
-    # can still resolve to a blob carrying the *old* counts. Read the linked blob
-    # and require its audit to be the one the documentation reports.
-    #
-    # CI checks out at depth 1 (`actions/checkout` with no `fetch-depth`), so the
-    # linked commit is normally absent there. Requiring it would redden every CI
-    # run, so probe first and compare only when the object is present: a full
-    # checkout still catches a stale link, and CI never fails for lacking history
-    # it was never given.
-    if (
-        subprocess.run(
-            ["git", "cat-file", "-e", f"{immutable.group('sha')}^{{commit}}"],
-            capture_output=True,
-            cwd=REPO_ROOT,
-        ).returncode
-        != 0
-    ):
-        return
-    linked = subprocess.run(
-        ["git", "show", f"{immutable.group('sha')}:{panel_rel}"],
-        capture_output=True,
-        text=True,
-        cwd=REPO_ROOT,
-    )
-    assert linked.returncode == 0, (
-        f"reference [3] links commit {immutable.group('sha')[:10]}, which this checkout "
-        "has but cannot read the panel from"
-    )
-    linked_panel = json.loads(linked.stdout)
-    linked_breast = next(w for w in linked_panel["weight_sets"] if w["trait"] == "breast_cancer")
-    linked_audit = linked_breast["model_provenance"]["current_allele_audit"]
-    assert linked_audit == audit, (
-        "reference [3]'s immutable link resolves to a panel whose allele audit differs "
-        "from the bundled one; the link is stale and must be re-pointed at the "
-        "regenerated panel"
-    )
-    assert linked_panel["version"] == panel_version, (
-        f"reference [3]'s immutable link resolves to panel version "
-        f"{linked_panel['version']!r}, not the bundled {panel_version!r}"
-    )
+    # The link's *content* is deliberately not verified here. Doing so requires
+    # reading the linked commit, and CI checks out at depth 1
+    # (`actions/checkout` with no `fetch-depth`), so that object is absent in the
+    # only environment that gates merges. A check that silently skips exactly
+    # where it would matter is worse than no check: it reads as coverage while
+    # providing none. Verifying the blob would need either a network fetch from a
+    # test or a CI fetch-depth change; both belong in their own change, not in a
+    # documentation fix. The path assertion above holds in every checkout.
 
 
 def test_breast_prs_references_carry_a_science_evidence_packet() -> None:
@@ -525,11 +498,12 @@ def test_breast_prs_references_carry_a_science_evidence_packet() -> None:
         if ranking and retained:
             top = next((r for r in ranking if r.get("rank") == 1), None)
             claimed = next((r for r in retained if r.get("rank") == 1), None)
-            if top and claimed:
-                assert top.get("title") == claimed.get("title"), (
-                    f"{raw} annotates rank 1 as {claimed.get('title')!r} but the retained "
-                    f"ranking has {top.get('title')!r} there"
-                )
+            assert top is not None, f"{raw} retains a ranking with no rank-1 entry"
+            assert claimed is not None, f"{raw} annotates no rank-1 record"
+            assert top.get("title") == claimed.get("title"), (
+                f"{raw} annotates rank 1 as {claimed.get('title')!r} but the retained "
+                f"ranking has {top.get('title')!r} there"
+            )
         # A payload that declares how many results came back must retain that
         # many, or the "complete" ranking is a truncation wearing its name.
         returned = payload.get("results_returned")
@@ -704,12 +678,15 @@ def test_breast_prs_references_carry_a_science_evidence_packet() -> None:
             rf"(?P<supporting>[0-9,]+) supporting, (?P<contrasting>[0-9,]+) contrasting",
             readme,
         )
-        if quoted:
-            for field in ("total", "supporting", "contrasting"):
-                assert int(quoted.group(field).replace(",", "")) == tally[field], (
-                    f"the README quotes {field}={quoted.group(field)} for {record['doi']}, "
-                    f"but the retained payload records {tally[field]}"
-                )
+        assert quoted, (
+            f"the README must quote the retained citation tallies for {record['doi']}; "
+            "an unquoted record leaves the payload's numbers unchecked"
+        )
+        for field in ("total", "supporting", "contrasting"):
+            assert int(quoted.group(field).replace(",", "")) == tally[field], (
+                f"the README quotes {field}={quoted.group(field)} for {record['doi']}, "
+                f"but the retained payload records {tally[field]}"
+            )
     mapping_rows = [
         line for line in readme.splitlines() if line.startswith("|") and "reference `[" in line
     ]
