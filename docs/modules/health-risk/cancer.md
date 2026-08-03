@@ -19,6 +19,9 @@ A **28-gene** hereditary-cancer panel, including *BRCA1*, *BRCA2*, *TP53*, *PALB
   pattern, and an evidence rating. For recessive genes, you're told whether you're a
   *carrier* versus *affected*. *BRCA1/BRCA2* findings cross-reference the
   [carrier module](carrier-status.md), where they also appear in a reproductive context.
+  ClinVar lower-penetrance/risk-allele findings are stored under a distinct findings category
+  from high-penetrance P/LP cancer-predisposition variants, although the current page displays
+  both categories together.[^clingen-risk-allele]
 - **Polygenic scores** — shown as a **population percentile**, never as a raw score,
   confidence interval, or absolute risk. This statement is specific to cancer PRS output:
   PRS percentiles are explicitly research-use-only and are kept separate from the optional
@@ -70,3 +73,9 @@ sex cannot be resolved from array data, sex-specific numeric penetrance is withh
 [1] Kuchenbaecker KB, Hopper JL, Barnes DR, et al. [Risks of breast, ovarian, and
 contralateral breast cancer for BRCA1 and BRCA2 mutation carriers](https://doi.org/10.1001/jama.2017.7112).
 *JAMA*. 2017;317(23):2402-2416. [PMID 28632866](https://pubmed.ncbi.nlm.nih.gov/28632866/).
+
+[^clingen-risk-allele]: Schmidt RJ, et al. [Recommendations for risk allele evidence
+    curation, classification, and reporting from the ClinGen Low Penetrance/Risk Allele
+    Working Group](https://doi.org/10.1016/j.gim.2023.101036). *Genetics in Medicine*.
+    2024;26(3):101036. PMID:38054408; DOI:10.1016/j.gim.2023.101036
+    (accessed 2026-07-31).
