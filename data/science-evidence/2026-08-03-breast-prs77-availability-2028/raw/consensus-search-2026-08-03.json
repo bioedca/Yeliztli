@@ -20,15 +20,15 @@
     },
     {
       "rank": 4,
-      "role": "independent population validation of PRS77 - recorded for completeness, deliberately NOT relied on",
+      "role": "Also-ranked result, recorded so the ranking is complete. NOT relied on and NOT characterized.",
       "title": "Population-specific validation and comparison of the performance of 77- and 313-variant polygenic risk scores for breast cancer risk prediction",
       "first_author": "Milena Hovhannisyan",
       "year": 2024,
       "journal": "Cancer",
       "citation_count_reported": 1,
-      "why_not_relied_on": "This PR withholds the PRS77 model rather than scoring it, so no risk-stratification claim is being made that would need validation. Were Yeliztli ever to enable scoring, evidence of this kind would be required and this packet must not be mistaken for that work.",
       "citation": "DOI:10.1002/cncr.35337 (accessed 2026-08-03)",
-      "citation_source": "Resolved via Scite on 2026-08-03; Cancer. 2024;130(17):2978-2987."
+      "citation_source": "Resolved via Scite on 2026-08-03; Cancer. 2024;130(17):2978-2987.",
+      "note": "An earlier revision called this an independent validation with a different cohort and author group. That could not be established from the retained records - Scite exposes three authors and the PubMed payload retains 10 of Mavaddat's 212 - so the characterization is withdrawn rather than supported by a partial author list. Nothing in this packet depends on it."
     },
     {
       "rank": 16,

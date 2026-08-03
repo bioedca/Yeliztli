@@ -184,6 +184,14 @@ def test_cancer_docs_distinguish_the_runtime_block_from_ancestry_withholding() -
     assert "DOI:10.1093/database/bay119" in audit_reference, (
         "breast PRS allele audit must cite the Ensembl Variation resource"
     )
+    # Tie the documented panel version to the bundled panel. Regenerating the
+    # panel with a new version but unchanged traits and counts would otherwise
+    # leave this reference presenting a stale version as the current audit.
+    panel_version = json.loads(_PANEL_PATH.read_text(encoding="utf-8"))["version"]
+    assert f"version {panel_version}" in audit_reference, (
+        f"breast PRS allele-audit reference must cite panel version {panel_version}; "
+        f"reference reads: {audit_reference}"
+    )
     assert _ACCESS_DATE_RE.search(audit_reference), (
         "breast PRS allele-audit reference must include an '(accessed YYYY-MM-DD)' date"
     )

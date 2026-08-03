@@ -53,17 +53,17 @@ The high-stakes two-independent-source rule is **not engaged**, because this
 packet asserts no patient-specific or quantitative clinical claim; it records
 which published model and which annotation resource the bundled panel points at.
 
-That distinction is recorded deliberately rather than assumed. Consensus also
-surfaced a population validation of PRS77 (Hovhannisyan et al., *Cancer*
-2024;130(17):2978-2987 — DOI:10.1002/cncr.35337, accessed 2026-08-03). Calling it
-independent is **not** inferred from the ranking: its record was retrieved from
-Scite and retained in `raw/scite-doi-lookup-2026-08-03.json`, and it shows an
-author group (Hovhannisyan, Zemánková, Nehasil) sharing no author with Mavaddat
-et al. and a Czech case-control cohort.
+Consensus's ranking also contained a later PRS77 validation study. An earlier
+revision of this packet described it as an *independent* validation with a
+different cohort and author group. **That characterization is withdrawn**: the
+retained records expose three authors for it and ten of Mavaddat's 212, which
+cannot establish that the full author groups do not overlap. Rather than register
+another source and retrieve two complete author lists to support a claim nothing
+depends on, the claim is simply removed — the paper is recorded in the ranking as
+an also-ranked result and is not relied on, characterized, or cited.
 
-It is nevertheless **not** relied on here: were Yeliztli ever to score this model,
-that validation would be part of the evidence needed, and this packet must not be
-mistaken for that work.
+Were Yeliztli ever to score this model, validation evidence would be part of what
+is required, and this packet must not be mistaken for that work.
 
 ### Scite citation tallies (context, not evidence of correctness)
 
