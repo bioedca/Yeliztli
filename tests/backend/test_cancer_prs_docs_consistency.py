@@ -46,6 +46,13 @@ _PROVENANCE_ID_RE = re.compile(
 )
 _ACCESS_DATE_RE = re.compile(r"\(accessed (?P<date>[0-9]{4}-[0-9]{2}-[0-9]{2})\)", re.IGNORECASE)
 
+# Tiers whose payloads carry the retained records; none may claim the
+# no-payload exemption. Scite is the service that performs the packet's
+# correction/retraction screening, so its payload is checked unconditionally
+# rather than on a marker the payload supplies about itself.
+_EVIDENCE_TIER_SERVICES = frozenset({"Consensus", "Scite", "PubMed connector"})
+_SCREENING_SERVICE = "Scite"
+
 
 def _assert_real_access_date(text: str, where: str) -> str:
     """Require a *calendar-valid* access date, not merely a digit pattern.
@@ -338,6 +345,14 @@ def test_breast_prs_references_carry_a_science_evidence_packet() -> None:
             assert isinstance(withheld, str) and withheld.strip(), (
                 f"{entry['service']} must explain why no payload is retained"
             )
+            # The exemption exists for incidental lookups such as a publisher
+            # page. It must never cover a bibliographic tier, whose payload is
+            # what carries the records and the retraction screening -- otherwise
+            # a single added string disables every check below.
+            assert entry["service"] not in _EVIDENCE_TIER_SERVICES, (
+                f"{entry['service']} is a bibliographic tier and must retain its "
+                "payload; no_payload_retained cannot exempt it"
+            )
             continue
 
         raw = entry.get("raw_payload")
@@ -449,7 +464,12 @@ def test_breast_prs_references_carry_a_science_evidence_packet() -> None:
         # queries.json asserting a clean screening that no longer holds. This is
         # the one guard whose failure mode is a scientific claim, not a metadata
         # inconsistency.
-        if "correction_retraction_screening" in payload:
+        if entry["service"] == _SCREENING_SERVICE:
+            assert payload.get("correction_retraction_screening"), (
+                f"{raw} is the packet's correction/retraction screening and must "
+                "record its outcome"
+            )
+            assert payload.get("records"), f"{raw} must retain the screened records"
             for record in payload.get("records", []):
                 notices = record.get("editorial_notices")
                 assert notices is not None, (
@@ -491,6 +511,24 @@ def test_breast_prs_references_carry_a_science_evidence_packet() -> None:
             f"the {service} query has no version/licence entry in "
             f"source_versions_and_licenses; entries are {sorted(entries)}"
         )
+
+    # The packet cites the panel's own license_basis as the governing record for
+    # the model source, so the two must agree. Requiring only nonempty text would
+    # let the packet contradict the very field it defers to.
+    breast = _breast_weight_set()
+    panel_license = str(breast["license_basis"])
+    model_entry = next(
+        (record for key, record in entries.items() if str(breast["source_pmid"]) in key),
+        None,
+    )
+    assert model_entry is not None, (
+        f"the packet must carry a licence entry for the model source PMID {breast['source_pmid']}"
+    )
+    panel_terms = panel_license.rsplit(",", 1)[-1].strip()
+    assert panel_terms and panel_terms in str(model_entry["license_or_terms"]), (
+        f"the packet records licence {model_entry['license_or_terms']!r} for the model "
+        f"source, which does not carry the panel's license_basis terms {panel_terms!r}"
+    )
 
     for name, record in entries.items():
         for field in ("version_or_build", "license_or_terms", "retention_basis"):
@@ -544,6 +582,31 @@ def test_breast_prs_references_carry_a_science_evidence_packet() -> None:
         "every identifier cited by the breast PRS references must appear verbatim in "
         f"the evidence packet's citations; missing: {missing} (packet records {sorted(recorded)})"
     )
+
+    # The README's claim-mapping table is what tells an auditor which reference
+    # rests on which source. Loading only queries.json left it unguarded, so the
+    # table could be deleted, or a reference mapped to the wrong source, while
+    # the packet still looked complete.
+    readme = (_EVIDENCE_DIR / "README.md").read_text(encoding="utf-8")
+    mapping_rows = [
+        line for line in readme.splitlines() if line.startswith("|") and "reference `[" in line
+    ]
+    assert len(mapping_rows) == len(reference_texts), (
+        f"the packet's claim mapping must cover all {len(reference_texts)} references the "
+        f"note cites; it has {len(mapping_rows)} rows"
+    )
+    for number, text in reference_texts.items():
+        row = next((r for r in mapping_rows if f"reference `[{number}]`" in r), None)
+        assert row, f"the packet's claim mapping has no row for reference [{number}]"
+        row_ids = {m.group(0).upper() for m in _PROVENANCE_ID_RE.finditer(row)}
+        ref_ids = {m.group(0).upper() for m in _PROVENANCE_ID_RE.finditer(text)}
+        # The row may legitimately be richer than the reference (the reference
+        # spells its DOI as a link URL), but it must account for every identifier
+        # the reference carries, so a row cannot be remapped to another source.
+        assert ref_ids <= row_ids, (
+            f"the claim-mapping row for reference [{number}] cites {sorted(row_ids)}, "
+            f"which does not account for the reference's identifiers {sorted(ref_ids)}"
+        )
 
     # The two files must also agree on *when* the sources were checked. Asserting
     # only that some access date is present lets the documentation and the packet

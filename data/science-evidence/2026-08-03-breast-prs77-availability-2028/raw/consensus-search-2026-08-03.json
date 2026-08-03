@@ -27,8 +27,8 @@
       "journal": "Cancer",
       "citation_count_reported": 1,
       "citation": "DOI:10.1002/cncr.35337 (accessed 2026-08-03)",
-      "citation_source": "Resolved via Scite on 2026-08-03; Cancer. 2024;130(17):2978-2987.",
-      "note": "An earlier revision called this an independent validation with a different cohort and author group. That could not be established from the retained records - Scite exposes three authors and the PubMed payload retains 10 of Mavaddat's 212 - so the characterization is withdrawn rather than supported by a partial author list. Nothing in this packet depends on it."
+      "note": "An earlier revision called this an independent validation with a different cohort and author group. Establishing non-overlap needs two complete author lists; this packet retains neither, so the characterization is withdrawn and the record briefly retained to support it was removed. Nothing here depends on this paper.",
+      "citation_note": "Identifier recorded from the Consensus ranking. The Scite record that briefly substantiated it was removed with the withdrawn independence characterization, so this packet retains no author list for this paper and makes no claim about it."
     },
     {
       "rank": 16,
@@ -39,7 +39,7 @@
       "journal": "American Journal of Human Genetics",
       "citation_count_reported": 941,
       "citation": "DOI:10.1016/j.ajhg.2018.11.002 (accessed 2026-08-03)",
-      "citation_source": "Resolved via Scite on 2026-08-03; Am J Hum Genet. 2019;104(1):21-34. Consensus reported the year as 2018; the publisher issue is 2019. Both are recorded rather than reconciled."
+      "citation_source": "Identifier recorded from the Consensus ranking; Consensus reported the year as 2018 while the publisher issue is 2019. Both are recorded rather than reconciled, and nothing in this packet depends on this paper."
     }
   ],
   "not_retained": "Nothing is dropped from the ranking. complete_result_ranking holds all 20 hits in order. results_retained annotates only the three that bear on this packet, and the annotation is the added content - it removes nothing.",
