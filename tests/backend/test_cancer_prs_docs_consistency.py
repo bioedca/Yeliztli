@@ -255,6 +255,23 @@ def test_cancer_docs_distinguish_the_runtime_block_from_ancestry_withholding() -
         f"{panel_version!r}"
     )
     _assert_real_access_date(audit_reference, "breast PRS allele-audit reference [3]")
+    # The "immutable source" link is the reader's route to the audited panel, so
+    # it must actually name that panel. Otherwise a regenerated audit can satisfy
+    # the counts and the version while the link still resolves to a stale blob or
+    # an unrelated file entirely.
+    panel_rel = _PANEL_PATH.relative_to(REPO_ROOT).as_posix()
+    immutable = re.search(
+        r"https://github\.com/\S*?/blob/(?P<sha>[0-9a-f]{40})/(?P<path>\S+?)\)",
+        audit_reference,
+    )
+    assert immutable, (
+        "breast PRS allele-audit reference [3] must link an immutable blob of the panel; "
+        f"reference reads: {audit_reference}"
+    )
+    assert immutable.group("path") == panel_rel, (
+        f"reference [3]'s immutable link points at {immutable.group('path')}, not the "
+        f"bundled panel {panel_rel}"
+    )
 
 
 def test_breast_prs_references_carry_a_science_evidence_packet() -> None:
@@ -318,9 +335,12 @@ def test_breast_prs_references_carry_a_science_evidence_packet() -> None:
             # authority for what the build actually consumes, so the referenced
             # artifact must appear in its reproducibility record with the same
             # digest.
-            panel_pins = json.loads(_PANEL_PATH.read_text(encoding="utf-8"))["weight_sets"][0][
-                "model_provenance"
-            ]["reproducibility"]["checked_in_snapshot_sha256"]
+            # Resolve the pins from the breast model by trait. The loader treats
+            # weight-set order as insignificant, so indexing [0] would silently
+            # read another model's provenance after a valid panel reorder.
+            panel_pins = _breast_weight_set()["model_provenance"]["reproducibility"][
+                "checked_in_snapshot_sha256"
+            ]
             pinned = panel_pins.get(Path(artifact).name)
             assert pinned, (
                 f"{artifact} is not pinned by the panel's checked_in_snapshot_sha256; "
@@ -558,6 +578,11 @@ def test_breast_prs_references_carry_a_science_evidence_packet() -> None:
         for match in _PROVENANCE_ID_RE.finditer(text)
     }
     assert cited, "the breast PRS references must cite at least one approved identifier"
+    for number, text in reference_texts.items():
+        assert _PROVENANCE_ID_RE.search(text), (
+            f"breast PRS reference [{number}] carries no PMID:, DOI:, ChEMBL: or NCT: "
+            "identifier; a global check would let it ride on the other references"
+        )
 
     # Tokenise both sides with the same identifier grammar and compare as sets.
     # A substring test would accept a truncated identifier -- "PMID:2585570" is a
