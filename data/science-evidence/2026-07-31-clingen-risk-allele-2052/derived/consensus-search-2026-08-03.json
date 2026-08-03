@@ -29,7 +29,7 @@
    "citation": "Genet Med. 2019;21(12):2765-2773",
    "citation_count_reported": 31,
    "maps_to": "PMID:31147632; DOI:10.1038/s41436-019-0560-8",
-   "identifier_source": "NCBI PubMed esearch + efetch via the PubMed connector (accessed 2026-08-03); retained at raw/pubmed-31147632-metadata.json",
+   "identifier_source": "NCBI PubMed esearch + efetch via the PubMed connector (accessed 2026-08-03); retained at derived/pubmed-31147632-metadata.json",
    "independence_note": "NOT independent of the primary source. Schmidt RJ and Lebo MS are authors on BOTH this 2019 framework paper and the 2024 ClinGen Low Penetrance/Risk Allele Working Group recommendations, and the 2024 paper builds on this framework rather than testing it separately. It is recorded here as the documented antecedent of the same terminology, not as a second agreeing source. See the packet README for why the two-independent-source rule is not engaged by this packet's claim."
   }
  ],

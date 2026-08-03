@@ -86,10 +86,37 @@ Two precision points, because the shorthand above can be misread:
       `CommentsCorrectionsList` check recorded below. Scite's returned three-author
       subset is not the leading three of the NCBI author list, so authorship
       attribution follows the authoritative NCBI record.
-    - Sanitized payloads: `raw/scite-doi-lookup-2026-08-03.json` and
-      `raw/pubmed-31147632-metadata.json` are the sanitized provider responses,
-      with only prohibited content removed (abstracts, expiring signed links).
-    - The Consensus output is **not** a retained raw payload and is therefore
+    - **What is a raw payload here, and what is not.** An earlier revision of
+      this packet described the Scite and PubMed-connector files as sanitized
+      provider responses "with only prohibited content removed". That was
+      inaccurate, and review was right to check it rather than take it on
+      trust. Both carried packet-authored fields the services never emitted
+      (`sanitization`, `record.authorship_note`,
+      `correction_retraction_screening`, `_role`, `_sanitization`,
+      `shared_authors_with_pmid_38054408`, `attribution`), and the
+      PubMed-connector record was additionally restructured away from the
+      connector's native response shape. Every file was therefore audited, not
+      just the ones flagged, and the split below is now enforced by location:
+
+      - `raw/` holds only provider-native responses: `pubmed-esummary-38054408.json`
+        (NCBI's own `header`/`result` envelope), `pubmed-efetch-38054408.xml`, and
+        `nlm-copyright-download-terms-2026-07-31.html` (page chrome removed, terms
+        text verbatim).
+      - `derived/` holds every packet-authored capture:
+        `consensus-search-2026-08-03.json`, `scite-doi-lookup-2026-08-03.json`,
+        and `pubmed-31147632-metadata.json`. Each declares `artifact_type`,
+        `payload_completeness`, and the exact `packet_authored_fields` the service
+        did not emit, and `queries.json` records them as `derived_payload` with
+        `raw_payload_retained: false`.
+
+      For the three derived captures the complete provider responses are **not**
+      retained and cannot be recovered: re-running now returns a different service
+      state, not the response this packet used. The retraction screening and the
+      author-overlap check both remain auditable against stable identifiers —
+      PMID:38054408 / DOI:10.1016/j.gim.2023.101036 and PMID:31147632 /
+      DOI:10.1038/s41436-019-0560-8 — and the NCBI EFetch XML under `raw/` carries
+      the typed `CommentsCorrectionsList` screening independently of Scite.
+    - The Consensus output is likewise **not** a retained raw payload and is
       kept at `derived/consensus-search-2026-08-03.json`, outside `raw/`. The
       service returned 20 results; ranks 1-3 were captured, ranks 4-20 were not,
       and the file adds packet-specific interpretive fields (`role`, `maps_to`,
