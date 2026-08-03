@@ -1028,6 +1028,19 @@ def test_v3_provider_evidence_is_exact_head_immutable_and_nonblocking(mutation: 
                 "<code>quoted</code>",
             )
         ),
+        # Both markers planted inside a raw HTML element. GitHub renders the
+        # contents as quoted text, not a coverage section, and closing the
+        # element afterwards does not help — it is still open where the heading
+        # sits. Depth is counted rather than tag names listed, so `div` and
+        # `blockquote` are rejected without ever being enumerated.
+        *(
+            f"## O\n\nS.\n\n<{tag}>\n### Reviewed changes\n\nCopilot reviewed 2 out of 2 "
+            f"changed files in this pull request and generated no comments.\n</{tag}>\n"
+            for tag in ("pre", "code", "samp", "kbd", "xmp", "textarea", "div", "blockquote")
+        ),
+        # Never closed at all.
+        "## O\n\nS.\n\n<pre>\n### Reviewed changes\n\nCopilot reviewed 2 out of 2 changed "
+        "files in this pull request and generated no comments.\n",
         # The sentence itself quoted in raw HTML rather than asserted.
         "## O\n\n### Reviewed changes\n\n<pre>\nCopilot reviewed 2 out of 2 changed "
         "files in this pull request and generated no comments.\n</pre>\n",
@@ -1123,6 +1136,41 @@ def test_v3_copilot_accepts_a_clean_review_that_describes_a_suppression_change()
         2, suppressed="Adds coverage for how comments suppressed by the provider are handled."
     )
     assert "comments suppressed" in review["body"]
+    assert validate_context(context, files, now=NOW) == []
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        # A void element before the heading opens nothing.
+        "## O\n\nSummary.<br>\n\n### Reviewed changes\n\nCopilot reviewed 2 out of 2 "
+        "changed files in this pull request and generated no comments.\n",
+        # A raw HTML element that is opened AND closed before the heading also
+        # leaves nothing open.
+        "## O\n\n<details><summary>x</summary>y</details>\n\n### Reviewed changes\n\n"
+        "Copilot reviewed 2 out of 2 changed files in this pull request and generated "
+        "no comments.\n",
+    ],
+)
+def test_v3_copilot_accepts_html_that_is_not_open_at_the_heading(body: str) -> None:
+    """Only an element still OPEN at the heading disqualifies it.
+
+    Copilot's real reviews carry `<details>`/`<summary>`, so rejecting on the
+    mere presence of raw HTML would break the lane.
+    """
+    files = [ChangedFile("README.md"), ChangedFile("GOVERNANCE.md")]
+    context = _context(
+        "Load-bearing",
+        files,
+        automated_gates={COPILOT_GATE},
+        schema_version=3,
+    )
+    review = next(
+        item
+        for item in context["data"]["repository"]["pullRequest"]["reviews"]["nodes"]
+        if item["author"]["databaseId"] == BOT_ACTOR_IDS[COPILOT_GATE]
+    )
+    review["body"] = body
     assert validate_context(context, files, now=NOW) == []
 
 

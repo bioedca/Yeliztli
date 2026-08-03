@@ -285,6 +285,27 @@ HUMAN_ASSOCIATIONS = {"OWNER", "MEMBER", "COLLABORATOR"}
 # failure mode exactly. It cannot widen what is accepted, since whitespace
 # carries no meaning here.
 COPILOT_V3_COVERAGE_HEADING = re.compile(r"(?m)^### Reviewed changes[ \t]*$")
+COPILOT_V3_HTML_TAG = re.compile(
+    r"<(?P<closing>/?)(?P<name>[a-zA-Z][a-zA-Z0-9-]*)\b[^>]*?(?P<void>/?)>"
+)
+COPILOT_V3_VOID_HTML = frozenset(
+    {
+        "area",
+        "base",
+        "br",
+        "col",
+        "embed",
+        "hr",
+        "img",
+        "input",
+        "link",
+        "meta",
+        "param",
+        "source",
+        "track",
+        "wbr",
+    }
+)
 COPILOT_V3_COVERAGE_LINE = re.compile(
     r"(?m)^Copilot reviewed (?P<reviewed>[1-9][0-9]*) out of (?P<total>[1-9][0-9]*) "
     r"changed files in this pull request and generated "
@@ -1285,6 +1306,33 @@ def _connection_truncated_since(
     return oldest >= since if inclusive else oldest > since
 
 
+def _open_html_depth(text: str) -> int:
+    """How many raw HTML elements are still open at the end of `text`.
+
+    Used to reject a heading nested inside raw HTML. `<pre>`, `<code>`,
+    `<samp>`, `<kbd>`, `<xmp>` and `<textarea>` all render their contents as
+    quoted text rather than markdown, so a heading and sentence planted inside
+    one are not a coverage section at all — and closing the element after them
+    does not help, because the element is still open where the heading sits.
+
+    Counting depth rather than listing tag names is deliberate. Naming the
+    verbatim elements would be the same open-ended enumeration that the section
+    -boundary logic died of, and it would miss whichever tag is added next.
+    Copilot's real reviews only ever emit `<details>`/`<summary>`, and always
+    after the coverage sentence, so nothing is open where the heading sits.
+    """
+    depth = 0
+    for match in COPILOT_V3_HTML_TAG.finditer(text):
+        name = match.group("name").lower()
+        if name in COPILOT_V3_VOID_HTML or match.group("void"):
+            continue
+        if match.group("closing"):
+            depth = max(0, depth - 1)
+        else:
+            depth += 1
+    return depth
+
+
 def _copilot_coverage_line(visible: str) -> str | None:
     """The first non-blank line after Copilot's `### Reviewed changes` heading.
 
@@ -1299,6 +1347,8 @@ def _copilot_coverage_line(visible: str) -> str | None:
     """
     heading = list(COPILOT_V3_COVERAGE_HEADING.finditer(visible))
     if len(heading) != 1:
+        return None
+    if _open_html_depth(visible[: heading[0].start()]):
         return None
     for line in visible[heading[0].end() :].splitlines():
         if line.strip():
