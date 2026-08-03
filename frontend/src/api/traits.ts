@@ -1,5 +1,7 @@
 /** React Query hooks for Traits & Personality API (P3-64). */
 
+import { throwApiError } from "@/api/errors"
+
 import { useQuery } from "@tanstack/react-query"
 import type {
   PathwaysResponse,
@@ -21,8 +23,7 @@ export function useTraitsPathways(sampleId: number | null) {
       const params = new URLSearchParams({ sample_id: String(sampleId!) })
       const res = await fetch(`/api/analysis/traits/pathways?${params}`)
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`Traits pathways failed: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `Traits pathways failed. Please try again.`)
       }
       return res.json()
     },
@@ -49,10 +50,7 @@ export function useTraitsPathwayDetail(
         `/api/analysis/traits/pathway/${encodeURIComponent(pathwayId!)}?${params}`,
       )
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(
-          `Traits pathway detail failed: ${res.status}${text ? ` - ${text}` : ""}`,
-        )
+        await throwApiError(res, `Traits pathway detail failed. Please try again.`)
       }
       return res.json()
     },
@@ -74,8 +72,7 @@ export function useTraitsPRS(sampleId: number | null) {
       const params = new URLSearchParams({ sample_id: String(sampleId!) })
       const res = await fetch(`/api/analysis/traits/prs?${params}`)
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`Traits PRS failed: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `Traits PRS failed. Please try again.`)
       }
       return res.json()
     },
@@ -94,8 +91,7 @@ export function useTraitsDisclaimer() {
     queryFn: async (): Promise<DisclaimerResponse> => {
       const res = await fetch("/api/analysis/traits/disclaimer")
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`Traits disclaimer failed: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `Traits disclaimer failed. Please try again.`)
       }
       return res.json()
     },

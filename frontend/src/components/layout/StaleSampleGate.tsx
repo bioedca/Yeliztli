@@ -4,22 +4,25 @@
  * URL-scoped sample. When the route returns HTTP 423 the gate parses the
  * payload (`installed_version`, `required_version`, `update_url`,
  * `reannotate_url` — Plan §7.5) and renders a full-page banner whose single
- * CTA fires `POST` against the payload's `reannotate_url` (the existing
- * `POST /api/annotation/{sample_id}` escape hatch). While re-annotation is
+ * CTA uses the canonical `POST /api/annotation/{sample_id}` escape hatch,
+ * rather than trusting an advertised action URL. While re-annotation is
  * active, the gate reconnects through `/api/annotation/active/{sample_id}`
  * and polls the staleness probe until the backend authoritatively unlocks it.
- * Any other status — 2xx, 4xx other than 423, network error — lets `children`
- * through; this gate is concerned only with the staleness contract and never
- * blocks on unrelated failures.
+ * A successful non-423 response (including a missing/deleted sample) lets
+ * `children` through so the route can render its normal fallback. If the probe
+ * cannot establish freshness because of a transport or other non-success
+ * response, the gate keeps sample-scoped content fenced behind a safe retry
+ * state.
  */
 
-import { useEffect, useRef, type ReactNode } from 'react'
-import { useSearchParams } from 'react-router-dom'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useLocation, useMatch, useSearchParams } from 'react-router-dom'
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { AlertTriangle, RefreshCw } from 'lucide-react'
 import {
   annotationActiveQueryKey,
   invalidateAnnotationResultQueries,
+  sampleStalenessQueryKeyPrefix,
   useActiveAnnotationJob,
   type ActiveAnnotationJob,
   type AnnotationJobResult,
@@ -40,7 +43,6 @@ interface StaleSampleGateProps {
 
 interface ReannotationRequest {
   sampleId: number
-  url: string
 }
 
 class ReannotationRequestError extends Error {
@@ -53,36 +55,161 @@ class ReannotationRequestError extends Error {
   }
 }
 
-const sampleStalenessQueryKey = (sampleId: number | null) =>
-  ['sample-staleness', sampleId] as const
+const sampleStalenessQueryKey = (sampleId: number | null, routeKey: string) =>
+  [...sampleStalenessQueryKeyPrefix(sampleId), routeKey] as const
+const STALENESS_REQUEST_TIMEOUT_MS = 10_000
 
-async function probeStaleness(sampleId: number): Promise<StalenessPayload | null> {
-  const res = await fetch(`/api/variants/count?sample_id=${sampleId}`)
-  if (res.status !== 423) return null
-  const body = (await res.json().catch(() => null)) as { detail?: StalenessPayload } | null
-  return body?.detail ?? null
+// Route-scoped freshness keys intentionally do not reuse a prior route's
+// cached result. Keep the fact that a sample was stale separately, however:
+// re-annotation can finish while this gate is unmounted (for example, on
+// Settings), and the returning route must invalidate cached analysis results
+// before rendering a newly fresh sample. Scope the transient marker to the
+// QueryClient so it is isolated per app session and survives query-cache GC.
+const staleSampleHistory = new WeakMap<QueryClient, Set<number>>()
+
+function markSampleStale(queryClient: QueryClient, sampleId: number): void {
+  const samples = staleSampleHistory.get(queryClient) ?? new Set<number>()
+  samples.add(sampleId)
+  staleSampleHistory.set(queryClient, samples)
+}
+
+function hasStaleSampleHistory(queryClient: QueryClient, sampleId: number): boolean {
+  return staleSampleHistory.get(queryClient)?.has(sampleId) ?? false
+}
+
+function clearStaleSampleHistory(queryClient: QueryClient, sampleId: number): void {
+  const samples = staleSampleHistory.get(queryClient)
+  if (!samples) return
+  samples.delete(sampleId)
+  if (samples.size === 0) staleSampleHistory.delete(queryClient)
+}
+
+function reannotationUrl(sampleId: number): string {
+  return `/api/annotation/${sampleId}`
+}
+
+function safeUpdateUrl(value: string): string {
+  if (!value) return ''
+  try {
+    const url = new URL(value)
+    return url.protocol === 'http:' || url.protocol === 'https:' ? value : ''
+  } catch {
+    return ''
+  }
+}
+
+function parseStalenessPayload(value: unknown): StalenessPayload | null {
+  if (!value || typeof value !== 'object') return null
+  const payload = value as Record<string, unknown>
+  if (
+    typeof payload.installed_version === 'string' &&
+    typeof payload.required_version === 'string' &&
+    typeof payload.update_url === 'string' &&
+    typeof payload.reannotate_url === 'string'
+  ) {
+    return {
+      installed_version: payload.installed_version,
+      required_version: payload.required_version,
+      update_url: safeUpdateUrl(payload.update_url),
+      reannotate_url: payload.reannotate_url,
+    }
+  }
+  return null
+}
+
+async function fetchWithTimeout(
+  input: RequestInfo | URL,
+  init: RequestInit = {},
+  querySignal?: AbortSignal,
+): Promise<Response> {
+  const requestController = new AbortController()
+  const timeoutId = setTimeout(
+    () => requestController.abort(),
+    STALENESS_REQUEST_TIMEOUT_MS,
+  )
+  const abortFromQuery = () => requestController.abort()
+
+  if (querySignal?.aborted) {
+    requestController.abort()
+  } else {
+    querySignal?.addEventListener('abort', abortFromQuery, { once: true })
+  }
+
+  try {
+    return await fetch(input, { ...init, signal: requestController.signal })
+  } finally {
+    clearTimeout(timeoutId)
+    querySignal?.removeEventListener('abort', abortFromQuery)
+  }
+}
+
+async function probeStaleness(
+  sampleId: number,
+  querySignal: AbortSignal,
+): Promise<StalenessPayload | null> {
+  const res = await fetchWithTimeout(`/api/variants/count?sample_id=${sampleId}`, {}, querySignal)
+  if (res.status === 423) {
+    const body = (await res.json().catch(() => null)) as { detail?: unknown } | null
+    const payload = parseStalenessPayload(body?.detail)
+    if (payload) return payload
+
+    // Keep the stale route fenced even if an intermediary strips the structured
+    // payload. The action endpoint is stable, and this avoids rendering an
+    // arbitrary 423 response to the user.
+    return {
+      installed_version: 'an earlier version',
+      required_version: 'the current version',
+      update_url: '',
+      reannotate_url: `/api/annotation/${sampleId}`,
+    }
+  }
+
+  // A deleted or nonexistent selection is not stale. Let each route display
+  // its own missing-sample fallback instead of permanently fencing it here.
+  if (res.status === 404) return null
+  if (!res.ok) throw new Error('Unable to verify sample freshness')
+  return null
 }
 
 export default function StaleSampleGate({ children }: StaleSampleGateProps) {
+  const location = useLocation()
   const [searchParams] = useSearchParams()
-  const activeSampleId = parseSampleId(searchParams.get('sample_id'))
+  const concordanceMatch = useMatch('/samples/:id/concordance')
+  const activeSampleId =
+    parseSampleId(concordanceMatch?.params.id ?? null) ??
+    parseSampleId(searchParams.get('sample_id'))
   const queryClient = useQueryClient()
-  const activeJobQuery = useActiveAnnotationJob(activeSampleId)
+  const [reconnectPending, setReconnectPending] = useState(false)
+  const [reconnectProbeFailed, setReconnectProbeFailed] = useState(false)
+  // A navigation needs its own authoritative freshness result: cached `null`
+  // from an earlier route must not make newly mounted analysis content visible
+  // while the current route's probe is still in flight.
+  const stalenessQueryKey = sampleStalenessQueryKey(activeSampleId, location.key)
+  const activeJobQuery = useActiveAnnotationJob(activeSampleId, {
+    pollWhenUnavailable: reconnectPending,
+    retryOnInitialFailure: false,
+  })
   const activeJob = activeJobQuery.data ?? null
   const trackedJobRef = useRef<{ sampleId: number; jobId: string } | null>(null)
 
-  const { data: stale, isPending: isStalenessPending } = useQuery<
-    StalenessPayload | null
-  >({
-    queryKey: sampleStalenessQueryKey(activeSampleId),
-    queryFn: async () => {
+  const {
+    data: stale,
+    isPending: isStalenessPending,
+    isError: isStalenessError,
+    isFetching: isStalenessFetching,
+    isFetchedAfterMount: isStalenessFetchedAfterMount,
+    refetch: refetchStaleness,
+  } = useQuery<StalenessPayload | null>({
+    queryKey: stalenessQueryKey,
+    queryFn: async ({ signal }) => {
       const sampleId = activeSampleId as number
-      const queryKey = sampleStalenessQueryKey(sampleId)
-      const previous = queryClient.getQueryData<StalenessPayload | null>(queryKey)
-      const next = await probeStaleness(sampleId)
+      const next = await probeStaleness(sampleId, signal)
 
-      if (previous && !next) {
+      if (next) {
+        markSampleStale(queryClient, sampleId)
+      } else if (hasStaleSampleHistory(queryClient, sampleId)) {
         await invalidateAnnotationResultQueries(queryClient, sampleId)
+        clearStaleSampleHistory(queryClient, sampleId)
       }
 
       return next
@@ -99,17 +226,20 @@ export default function StaleSampleGate({ children }: StaleSampleGateProps) {
     ReannotationRequestError,
     ReannotationRequest
   >({
-    mutationFn: async ({ url }) => {
-      const res = await fetch(url, { method: 'POST' })
-      if (!res.ok) {
-        const body = await res.json().catch(() => null)
-        const detail = (body as { detail?: unknown } | null)?.detail
-        throw new ReannotationRequestError(
-          res.status,
-          typeof detail === 'string' ? detail : `Re-annotation failed: ${res.status}`,
-        )
+    mutationFn: async ({ sampleId }) => {
+      try {
+        const res = await fetchWithTimeout(reannotationUrl(sampleId), { method: 'POST' })
+        if (!res.ok) {
+          throw new ReannotationRequestError(
+            res.status,
+            'Unable to start re-annotation. Please try again.',
+          )
+        }
+        return (await res.json()) as AnnotationJobResult
+      } catch (error) {
+        if (error instanceof ReannotationRequestError) throw error
+        throw new ReannotationRequestError(0, 'Unable to start re-annotation. Please try again.')
       }
-      return res.json() as Promise<AnnotationJobResult>
     },
     onSuccess: (result) => {
       const activeResult: ActiveAnnotationJob = {
@@ -123,29 +253,73 @@ export default function StaleSampleGate({ children }: StaleSampleGateProps) {
         queryKey: annotationActiveQueryKey(result.sample_id),
       })
       void queryClient.invalidateQueries({
-        queryKey: sampleStalenessQueryKey(result.sample_id),
+        queryKey: sampleStalenessQueryKeyPrefix(result.sample_id),
       })
     },
     onError: (error, request) => {
       if (error.status !== 409) return
-      void Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: annotationActiveQueryKey(request.sampleId),
-        }),
-        queryClient.invalidateQueries({
-          queryKey: sampleStalenessQueryKey(request.sampleId),
-        }),
-      ])
+      if (activeSampleId !== request.sampleId) return
+
+      // A 409 confirms that an annotation is active server-side. Keep the CTA
+      // fenced until a fresh active-job probe reaches a conclusive 404. If that
+      // probe is temporarily unavailable, useActiveAnnotationJob keeps polling
+      // instead of treating the failure as an absent job.
+      setReconnectPending(true)
+      setReconnectProbeFailed(false)
+      void activeJobQuery
+        .refetch()
+        .then((result) => {
+          if (result.isError) {
+            setReconnectProbeFailed(true)
+            return
+          }
+          if (!result.isError && result.data == null) {
+            setReconnectPending(false)
+            resetReannotation()
+          }
+        })
+        .catch(() => {
+          // The enabled retry interval owns transient probe failures.
+          setReconnectProbeFailed(true)
+        })
+      void queryClient.invalidateQueries({
+        queryKey: sampleStalenessQueryKeyPrefix(request.sampleId),
+      })
     },
   })
   const resetReannotation = reannotate.reset
 
   useEffect(() => {
     resetReannotation()
+    setReconnectPending(false)
+    setReconnectProbeFailed(false)
     trackedJobRef.current = null
     // Reset the mutation banner state when the active sample changes so
     // a prior success/error toast from a different sample doesn't leak in.
   }, [activeSampleId, resetReannotation])
+
+  useEffect(() => {
+    // After the first conflict-recovery probe failed, a later successful null
+    // result is the authoritative 404 that re-enables a retry. The initial
+    // cached null cannot satisfy this branch because reconnectProbeFailed only
+    // flips after a fresh conflict probe has actually failed.
+    if (
+      reconnectPending &&
+      reconnectProbeFailed &&
+      activeJobQuery.isSuccess &&
+      activeJob == null
+    ) {
+      setReconnectPending(false)
+      setReconnectProbeFailed(false)
+      resetReannotation()
+    }
+  }, [
+    activeJob,
+    activeJobQuery.isSuccess,
+    reconnectPending,
+    reconnectProbeFailed,
+    resetReannotation,
+  ])
 
   const activeJobId = activeJob?.job_id ?? null
   useEffect(() => {
@@ -166,9 +340,14 @@ export default function StaleSampleGate({ children }: StaleSampleGateProps) {
       !activeJobQuery.isFetching
     ) {
       trackedJobRef.current = null
+      // A 409 recovery enables polling independently of the active job data.
+      // Once the tracked job reaches its authoritative terminal 404, clear
+      // that recovery mode so the completed sample does not keep polling.
+      setReconnectPending(false)
+      setReconnectProbeFailed(false)
       resetReannotation()
       void queryClient.invalidateQueries({
-        queryKey: sampleStalenessQueryKey(activeSampleId),
+        queryKey: sampleStalenessQueryKeyPrefix(activeSampleId),
       })
     }
   }, [
@@ -180,25 +359,83 @@ export default function StaleSampleGate({ children }: StaleSampleGateProps) {
     resetReannotation,
   ])
 
-  // While an active sample's staleness probe is still pending, hold back
-  // children so potentially-stale content never flashes. Also wait for the
-  // initial active-job check so a reload cannot briefly expose a duplicate CTA.
+  // Hold back children until the authoritative staleness probe resolves. A
+  // cached fresh result still fences a newly mounted/back-navigated outlet
+  // until this observer has completed its own probe, so stale analysis data
+  // cannot flash between routes. Later background refetches retain the
+  // already-fresh content instead of blanking the entire outlet. The active-job
+  // endpoint remains auxiliary and never blocks an already-fresh route.
   if (
     activeSampleId != null &&
-    (isStalenessPending || activeJobQuery.isPending)
+    (
+      isStalenessPending ||
+      (!stale &&
+        isStalenessFetching &&
+        !isStalenessError &&
+        !isStalenessFetchedAfterMount)
+    )
   ) {
     return null
+  }
+
+  if (activeSampleId != null && isStalenessError) {
+    return (
+      <section
+        aria-labelledby="staleness-probe-unavailable-title"
+        className="p-6 max-w-3xl mx-auto"
+        data-testid="staleness-probe-unavailable"
+        role="alert"
+      >
+        <div
+          className={cn(
+            'flex flex-col gap-4 rounded-lg border p-6',
+            'border-amber-200 bg-amber-50 text-amber-900',
+            'dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100',
+          )}
+        >
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="mt-0.5 h-6 w-6 shrink-0" aria-hidden="true" />
+            <div className="space-y-1">
+              <h2 id="staleness-probe-unavailable-title" className="text-lg font-semibold">
+                Unable to verify sample freshness
+              </h2>
+              <p className="text-sm">
+                Retry the check before viewing sample-specific results.
+              </p>
+            </div>
+          </div>
+          <div>
+            <button
+              type="button"
+              className="inline-flex items-center gap-2 rounded-md border border-amber-300 bg-background px-3 py-2 text-sm font-medium text-foreground hover:bg-muted disabled:opacity-60"
+              data-testid="retry-staleness-probe"
+              disabled={isStalenessFetching}
+              onClick={() => void refetchStaleness()}
+            >
+              <RefreshCw className={cn('h-4 w-4', isStalenessFetching && 'animate-spin')} />
+              Retry freshness check
+            </button>
+          </div>
+        </div>
+      </section>
+    )
   }
 
   if (!stale) {
     return <>{children}</>
   }
 
+  // Once staleness is established, wait for the initial active-job check so a
+  // reload cannot briefly expose a duplicate re-annotation CTA.
+  if (activeJobQuery.isPending) {
+    return null
+  }
+
   const isConflict =
     reannotate.isError &&
     reannotate.error instanceof ReannotationRequestError &&
     reannotate.error.status === 409
-  const isReconnecting = isConflict && activeJobQuery.isFetching && !activeJob
+  const isReconnecting = isConflict && reconnectPending && !activeJob
   const progressPct = Math.min(100, Math.max(0, activeJob?.progress_pct ?? 0))
 
   const banner = (
@@ -287,7 +524,6 @@ export default function StaleSampleGate({ children }: StaleSampleGateProps) {
               if (activeSampleId == null) return
               reannotate.mutate({
                 sampleId: activeSampleId,
-                url: stale.reannotate_url,
               })
             }}
             className={cn(

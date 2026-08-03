@@ -441,7 +441,8 @@ describe("SampleMetadataEditor — assign to individual", () => {
     fireEvent.change(select, { target: { value: "10" } })
 
     const alert = await screen.findByTestId("assign-error-1")
-    expect(alert.textContent).toMatch(/server exploded/i)
+    expect(alert.textContent).toMatch(/failed to link sample/i)
+    expect(alert.textContent).not.toMatch(/server exploded/i)
   })
 
   it("surfaces a 409 link-conflict body as an inline error", async () => {
