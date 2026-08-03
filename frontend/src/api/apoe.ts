@@ -1,5 +1,7 @@
 /** React Query hooks for APOE module API (P3-22d). */
 
+import { throwApiError } from "@/api/errors"
+
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import type {
   APOEGateDisclaimerResponse,
@@ -18,8 +20,7 @@ export function useAPOEDisclaimer() {
     queryFn: async (): Promise<APOEGateDisclaimerResponse> => {
       const res = await fetch("/api/analysis/apoe/disclaimer")
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`APOE disclaimer failed: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `APOE disclaimer failed. Please try again.`)
       }
       return res.json()
     },
@@ -38,8 +39,7 @@ export function useAPOEGateStatus(sampleId: number | null) {
       const params = new URLSearchParams({ sample_id: String(sampleId!) })
       const res = await fetch(`/api/analysis/apoe/gate-status?${params}`)
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`APOE gate status failed: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `APOE gate status failed. Please try again.`)
       }
       return res.json()
     },
@@ -62,8 +62,7 @@ export function useAcknowledgeAPOEGate() {
         method: "POST",
       })
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`APOE gate acknowledge failed: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `APOE gate acknowledge failed. Please try again.`)
       }
       return res.json()
     },
@@ -89,8 +88,7 @@ export function useAPOEGenotype(sampleId: number | null) {
       const params = new URLSearchParams({ sample_id: String(sampleId!) })
       const res = await fetch(`/api/analysis/apoe/genotype?${params}`)
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`APOE genotype failed: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `APOE genotype failed. Please try again.`)
       }
       return res.json()
     },
@@ -110,8 +108,7 @@ export function useAPOEFindings(sampleId: number | null, gateAcknowledged: boole
       const params = new URLSearchParams({ sample_id: String(sampleId!) })
       const res = await fetch(`/api/analysis/apoe/findings?${params}`)
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`APOE findings failed: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `APOE findings failed. Please try again.`)
       }
       return res.json()
     },

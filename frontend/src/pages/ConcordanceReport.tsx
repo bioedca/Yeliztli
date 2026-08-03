@@ -38,8 +38,8 @@ import {
 import {
   useConcordanceReport,
   useMergeProvenance,
-  type SamplesApiError,
 } from "@/api/samples"
+import { useStartAnnotation } from "@/api/annotation"
 import type {
   ConcordanceReportResponse,
   ConcordanceSummary,
@@ -94,20 +94,11 @@ function renderStrategyLabel(strategy: string): string {
 }
 
 function StaleSampleNotice({
-  error,
   sampleId,
 }: {
-  error: SamplesApiError
   sampleId: number
 }) {
-  const detail =
-    error.body && typeof error.body === "object"
-      ? ((error.body as { detail?: unknown }).detail as
-          | { update_url?: string; reannotate_url?: string; message?: string }
-          | undefined)
-      : undefined
-  const reannotateUrl =
-    detail?.reannotate_url ?? `/api/annotation/${sampleId}`
+  const reannotate = useStartAnnotation()
   return (
     <div
       className="rounded-lg border border-amber-500/50 bg-amber-500/5 p-5"
@@ -121,17 +112,26 @@ function StaleSampleNotice({
             Merged sample needs re-annotation
           </p>
           <p className="text-sm text-muted-foreground mt-1">
-            {detail?.message ??
-              error.message ??
-              "This sample was annotated against an older VEP bundle. Re-annotate to view the concordance report."}
+            This sample was annotated against an older bundle. Re-annotate it to
+            view the concordance report.
           </p>
-          <a
-            href={reannotateUrl}
+          {reannotate.isError ? (
+            <p className="mt-2 text-sm text-destructive" role="alert">
+              {reannotate.error instanceof Error
+                ? reannotate.error.message
+                : "Unable to start re-annotation. Please try again."}
+            </p>
+          ) : null}
+          <button
+            type="button"
+            disabled={reannotate.isPending}
+            onClick={() => reannotate.mutate(sampleId)}
             className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-input bg-background px-3 py-1.5 text-sm font-medium hover:bg-accent transition-colors"
             data-testid="concordance-reannotate-cta"
           >
-            <RefreshCw className="h-3.5 w-3.5" /> Re-annotate sample
-          </a>
+            <RefreshCw className="h-3.5 w-3.5" />
+            {reannotate.isPending ? "Starting re-annotation…" : "Re-annotate sample"}
+          </button>
         </div>
       </div>
     </div>
@@ -449,7 +449,7 @@ export default function ConcordanceReport() {
     return (
       <div className="p-6 max-w-6xl mx-auto space-y-4">
         <BackLink sampleId={sampleId} />
-        <StaleSampleNotice error={staleError} sampleId={sampleId} />
+        <StaleSampleNotice sampleId={sampleId} />
       </div>
     )
   }

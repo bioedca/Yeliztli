@@ -1,5 +1,7 @@
 /** API hooks for database update status, history, and triggers (P4-17, P4-18). */
 
+import { throwApiError } from "@/api/errors"
+
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 // ── Types ────────────────────────────────────────────────────────────
@@ -150,8 +152,7 @@ const FINDING_CHANGES_KEY = ['updates', 'finding-changes'] as const
 async function fetchDatabaseStatuses(): Promise<DatabaseStatus[]> {
   const res = await fetch('/api/updates/status')
   if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    throw new Error(`Database status fetch failed: ${res.status} ${text}`.trim())
+    await throwApiError(res, `Database status fetch failed. Please try again.`)
   }
   return res.json()
 }
@@ -159,8 +160,7 @@ async function fetchDatabaseStatuses(): Promise<DatabaseStatus[]> {
 async function fetchUpdateCheck(): Promise<UpdateCheckResult> {
   const res = await fetch('/api/updates/check')
   if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    throw new Error(`Update check failed: ${res.status} ${text}`.trim())
+    await throwApiError(res, `Update check failed. Please try again.`)
   }
   return res.json()
 }
@@ -171,8 +171,7 @@ async function fetchUpdateHistory(dbName?: string, limit = 50): Promise<UpdateHi
   params.set('limit', String(limit))
   const res = await fetch(`/api/updates/history?${params}`)
   if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    throw new Error(`Update history fetch failed: ${res.status} ${text}`.trim())
+    await throwApiError(res, `Update history fetch failed. Please try again.`)
   }
   return res.json()
 }
@@ -182,8 +181,7 @@ async function fetchReannotationPrompts(sampleId?: number): Promise<Reannotation
   if (sampleId != null) params.set('sample_id', String(sampleId))
   const res = await fetch(`/api/updates/prompts?${params}`)
   if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    throw new Error(`Prompts fetch failed: ${res.status} ${text}`.trim())
+    await throwApiError(res, `Prompts fetch failed. Please try again.`)
   }
   return res.json()
 }
@@ -202,8 +200,7 @@ async function triggerUpdate(
     body: JSON.stringify(body),
   })
   if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    throw new Error(`Trigger update failed: ${res.status} ${text}`.trim())
+    await throwApiError(res, `Trigger update failed. Please try again.`)
   }
   return res.json()
 }
@@ -211,16 +208,14 @@ async function triggerUpdate(
 async function dismissPrompt(promptId: number): Promise<void> {
   const res = await fetch(`/api/updates/prompts/${promptId}/dismiss`, { method: 'POST' })
   if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    throw new Error(`Dismiss prompt failed: ${res.status} ${text}`.trim())
+    await throwApiError(res, `Dismiss prompt failed. Please try again.`)
   }
 }
 
 async function fetchFindingChanges(sampleId: number): Promise<FindingChanges> {
   const res = await fetch(`/api/updates/finding-changes?sample_id=${sampleId}`)
   if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    throw new Error(`Finding-changes fetch failed: ${res.status} ${text}`.trim())
+    await throwApiError(res, `Finding-changes fetch failed. Please try again.`)
   }
   return res.json()
 }
@@ -231,8 +226,7 @@ async function dismissFindingChanges(sampleId: number): Promise<void> {
     { method: 'POST' },
   )
   if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    throw new Error(`Dismiss finding-changes failed: ${res.status} ${text}`.trim())
+    await throwApiError(res, `Dismiss finding-changes failed. Please try again.`)
   }
 }
 
@@ -243,16 +237,14 @@ async function toggleAutoUpdate(dbName: string, enabled: boolean): Promise<void>
     body: JSON.stringify({ db_name: dbName, enabled }),
   })
   if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    throw new Error(`Toggle auto-update failed: ${res.status} ${text}`.trim())
+    await throwApiError(res, `Toggle auto-update failed. Please try again.`)
   }
 }
 
 async function fetchJobStatus(jobId: string): Promise<JobStatus> {
   const res = await fetch(`/api/updates/job/${jobId}`)
   if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    throw new Error(`Job status fetch failed: ${res.status} ${text}`.trim())
+    await throwApiError(res, `Job status fetch failed. Please try again.`)
   }
   return res.json()
 }
@@ -282,8 +274,7 @@ async function pollJobUntilDone(
 async function fetchAppUpdate(): Promise<AppUpdateInfo> {
   const res = await fetch('/api/updates/app-update')
   if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    throw new Error(`App update check failed: ${res.status} ${text}`.trim())
+    await throwApiError(res, `App update check failed. Please try again.`)
   }
   return res.json()
 }

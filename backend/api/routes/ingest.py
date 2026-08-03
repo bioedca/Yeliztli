@@ -75,6 +75,7 @@ _VEP_BUNDLE_MIN_FOR_ANCESTRYDNA = Version("2.0.0")
 # assembly (parser_23andme: v3→GRCh36 — the parser's label for NCBI Build 36 /
 # hg18, which predates the GRC — v4/v5→GRCh37; AncestryDNA→GRCh37).
 _SUPPORTED_BUILD = "GRCh37"
+_UNSUPPORTED_GENOME_BUILD_CODE = "unsupported_genome_build"
 
 # NCBI Build 36 / hg18 — the build 23andMe v3 exports use. Stored verbatim its
 # coordinates would be silently mis-placed by up to several megabases, producing
@@ -278,8 +279,8 @@ def _ingest_file(file_bytes: bytes, filename: str) -> dict:
     #     dropped (counted), not guessed.
     #   - Any other non-GRCh37 build: reject — there is no chain to lift it and
     #     storing it verbatim would silently mis-place positions and corrupt
-    #     polygenic scores. The detail is a plain string so the upload UI renders
-    #     it verbatim (api/setup.ts only shows string ``detail``).
+    #     polygenic scores. Return only a stable, public error code: clients map
+    #     it to vetted remediation instead of rendering server diagnostics.
     if result.build == _BUILD36:
         lift_stats = _lift_result_build36(result)
         logger.info(
@@ -299,14 +300,7 @@ def _ingest_file(file_bytes: bytes, filename: str) -> dict:
         )
         raise HTTPException(
             status_code=422,
-            detail=(
-                f"This file is reported on genome build {result.build}, but analysis "
-                f"requires build 37 ({_SUPPORTED_BUILD}). Only NCBI build 36 (23andMe "
-                "v3) can be lifted to GRCh37 at ingest; this build has no supported "
-                "liftover, so the upload was refused to avoid silently shifting variant "
-                "positions and producing incorrect polygenic scores. "
-                "Please upload a build-37 export (23andMe v4/v5 or AncestryDNA)."
-            ),
+            detail={"code": _UNSUPPORTED_GENOME_BUILD_CODE},
         )
 
     # §5.4 bundle-version gate, keyed off the *parsed* vendor (not a pre-parse

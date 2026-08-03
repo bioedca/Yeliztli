@@ -143,7 +143,10 @@ describe("ErrorBoundary", () => {
       </ErrorBoundary>,
     )
     expect(screen.getByText("Something went wrong")).toBeInTheDocument()
-    expect(screen.getByText("Test explosion")).toBeInTheDocument()
+    expect(
+      screen.getByText("An unexpected error occurred. Please try again."),
+    ).toBeInTheDocument()
+    expect(screen.queryByText("Test explosion")).not.toBeInTheDocument()
   })
 
   it("shows retry button that resets the boundary", () => {

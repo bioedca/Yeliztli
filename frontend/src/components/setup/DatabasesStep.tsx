@@ -304,11 +304,8 @@ export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
         onSuccess: (res) =>
           res.ok
             ? toast.success(`${dbName}: integrity verified`)
-            : toast.error(`${dbName}: ${res.detail}`),
-        onError: (err) =>
-          toast.error(
-            err instanceof Error ? err.message : `Failed to verify ${dbName}`,
-          ),
+            : toast.error(`${dbName}: integrity check failed`),
+        onError: () => toast.error(`Failed to verify ${dbName}`),
       })
     },
     [verifyDatabase],
@@ -700,17 +697,15 @@ export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
                       </div>
                     )}
 
-                    {/* Failure: verbatim error + the most useful next action */}
+                    {/* Failure: safe copy + the most useful next action */}
                     {isFailed && (
                       <div className="mt-1 space-y-1.5">
-                        {progress?.error && (
-                          <p
-                            className="text-xs text-destructive"
-                            data-testid={`db-error-${db.name}`}
-                          >
-                            {progress.error}
-                          </p>
-                        )}
+                        <p
+                          className="text-xs text-destructive"
+                          data-testid={`db-error-${db.name}`}
+                        >
+                          The download failed. Retry the download or check your connection.
+                        </p>
                         {failAction === 'window' && (
                           <p className="text-[11px] text-amber-700 dark:text-amber-400">
                             Outside the scheduled bandwidth window — it retries
@@ -822,9 +817,7 @@ export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
                               data-testid={`db-integrity-failed-${db.name}`}
                             >
                               <ShieldAlert className="h-3 w-3" />
-                              Integrity failed
-                              {dbHealth.integrity_detail &&
-                                ` — ${dbHealth.integrity_detail}`}
+                              Integrity failed — re-check or clean and re-download
                             </span>
                             {dbHealth.can_clean && (
                               <button

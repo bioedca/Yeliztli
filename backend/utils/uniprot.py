@@ -233,6 +233,8 @@ class ProteinFeatureData:
     position: int | None = None
     start: int | None = None
     end: int | None = None
+    start_modifier: str | None = None
+    end_modifier: str | None = None
 
 
 @dataclass
@@ -556,8 +558,10 @@ class UniProtCacheFetcher:
             feat_type = feat.get("type", "")
             desc = feat.get("description", "")
             loc = feat.get("location", {})
-            start_val = loc.get("start", {}).get("value")
-            end_val = loc.get("end", {}).get("value")
+            start = loc.get("start", {})
+            end = loc.get("end", {})
+            start_val = start.get("value")
+            end_val = end.get("value")
 
             if feat_type in _DOMAIN_TYPES:
                 if start_val is not None and end_val is not None:
@@ -574,9 +578,14 @@ class UniProtCacheFetcher:
                     ProteinFeatureData(
                         type=feat_type,
                         description=desc,
-                        position=start_val,
+                        # `position` represents a single site only. Ranges and
+                        # paired features retain their endpoints without a
+                        # misleading first-residue shorthand.
+                        position=start_val if start_val == end_val else None,
                         start=start_val,
                         end=end_val,
+                        start_modifier=start.get("modifier"),
+                        end_modifier=end.get("modifier"),
                     )
                 )
 
@@ -606,6 +615,8 @@ class UniProtCacheFetcher:
                     "position": f.position,
                     "start": f.start,
                     "end": f.end,
+                    "start_modifier": f.start_modifier,
+                    "end_modifier": f.end_modifier,
                 }
                 for f in features
             ]

@@ -1,0 +1,37 @@
+<?xml version="1.0" ?>
+<!DOCTYPE PubmedArticleSet PUBLIC "-//NLM//DTD PubMedArticle, 1st January 2025//EN" "https://dtd.nlm.nih.gov/ncbi/pubmed/out/pubmed_250101.dtd">
+<PubmedArticleSet>
+  <PubmedArticle>
+    <MedlineCitation Status="PubMed-not-MEDLINE" Owner="NLM">
+      <PMID Version="1">26523116</PMID>
+      <DateCompleted><Year>2015</Year><Month>11</Month><Day>02</Day></DateCompleted>
+      <DateRevised><Year>2020</Year><Month>09</Month><Day>30</Day></DateRevised>
+      <Article PubModel="Electronic-eCollection">
+        <Journal>
+          <ISSN IssnType="Print">1176-9343</ISSN>
+          <JournalIssue CitedMedium="Print"><Volume>11</Volume><PubDate><Year>2015</Year></PubDate></JournalIssue>
+          <Title>Evolutionary bioinformatics online</Title>
+          <ISOAbbreviation>Evol Bioinform Online</ISOAbbreviation>
+        </Journal>
+        <ArticleTitle>Soft Computing Methods for Disulfide Connectivity Prediction.</ArticleTitle>
+        <Pagination><StartPage>223</StartPage><EndPage>229</EndPage><MedlinePgn>223-9</MedlinePgn></Pagination>
+        <ELocationID EIdType="doi" ValidYN="Y">10.4137/EBO.S25349</ELocationID>
+        <Language>eng</Language>
+        <PublicationTypeList>
+          <PublicationType UI="D016428">Journal Article</PublicationType>
+          <PublicationType UI="D016454">Review</PublicationType>
+        </PublicationTypeList>
+        <ArticleDate DateType="Electronic"><Year>2015</Year><Month>10</Month><Day>20</Day></ArticleDate>
+      </Article>
+    </MedlineCitation>
+    <PubmedData>
+      <PublicationStatus>epublish</PublicationStatus>
+      <ArticleIdList>
+        <ArticleId IdType="pubmed">26523116</ArticleId>
+        <ArticleId IdType="pmc">PMC4620934</ArticleId>
+        <ArticleId IdType="doi">10.4137/EBO.S25349</ArticleId>
+        <ArticleId IdType="pii">ebo-11-2015-223</ArticleId>
+      </ArticleIdList>
+    </PubmedData>
+  </PubmedArticle>
+</PubmedArticleSet>
