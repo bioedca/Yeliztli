@@ -60,9 +60,22 @@ DOCUMENTED_KEYS = frozenset(
 )
 
 
+def _effective_config_path(root: Path = REPO_ROOT) -> Path:
+    """Return the config Greptile actually obeys.
+
+    A ``.greptile/`` folder in the same directory takes precedence and makes
+    ``greptile.json`` **ignored entirely** — so when the folder exists it *is*
+    the policy, and asserting against the root file would check a document
+    Greptile never reads.
+    """
+    folder_config = root / ".greptile" / "config.json"
+    return folder_config if folder_config.is_file() else root / "greptile.json"
+
+
 def _config() -> dict[str, Any]:
-    config = json.loads(GREPTILE_CONFIG.read_text(encoding="utf-8"))
-    assert isinstance(config, dict), "greptile.json must be a JSON object"
+    path = _effective_config_path()
+    config = json.loads(path.read_text(encoding="utf-8"))
+    assert isinstance(config, dict), f"{path.name} must be a JSON object"
     return config
 
 
@@ -156,19 +169,17 @@ def test_manual_only_checker_detects_a_weakened_config(
     assert (_manual_only_violations(config) == []) is expected_clean
 
 
-def test_a_greptile_folder_may_not_shadow_the_guard() -> None:
-    # `.greptile/` takes precedence over the root greptile.json and makes it
-    # ignored entirely, so a config added there could re-enable automatic review
-    # while every assertion above still passes against the shadowed root file.
-    folder_config = REPO_ROOT / ".greptile" / "config.json"
-    if not folder_config.is_file():
-        return
-    config = json.loads(folder_config.read_text(encoding="utf-8"))
-    assert isinstance(config, dict), ".greptile/config.json must be a JSON object"
-    assert not _manual_only_violations(config), (
-        f".greptile/config.json shadows greptile.json and weakens the guard: "
-        f"{_manual_only_violations(config)}"
-    )
+def test_the_effective_config_follows_greptile_precedence(tmp_path: Path) -> None:
+    # Every policy assertion in this module reads _config(), so this resolution
+    # is what makes them apply to the document Greptile obeys. If it silently
+    # kept returning the root file, a shadow config could weaken the guard while
+    # the whole suite stayed green against a file Greptile ignores.
+    (tmp_path / "greptile.json").write_text("{}", encoding="utf-8")
+    assert _effective_config_path(tmp_path) == tmp_path / "greptile.json"
+
+    (tmp_path / ".greptile").mkdir()
+    (tmp_path / ".greptile" / "config.json").write_text("{}", encoding="utf-8")
+    assert _effective_config_path(tmp_path) == tmp_path / ".greptile" / "config.json"
 
 
 def test_every_configured_key_is_a_documented_greptile_key() -> None:

@@ -74,6 +74,26 @@ documentation contradicts itself about whether a mention overrides such filters 
 could also refuse the *manual* trigger. Losing manual review is worse than an occasional
 stray credit.
 
+### The one gap neither layer closes
+
+**A pull request that changes only `greptile.json` can still spend a credit, and nothing in
+this repository can stop it.**
+
+The three facts compose badly. Greptile reads its configuration from the pull request's
+*source branch*, so a branch that deletes or weakens this file is already unguarded when the
+pull request opens. That change is exactly **one file**, so `fileChangeLimit: 1` — which
+skips PRs with *more* than one changed file — permits it. And the review fires at open,
+before CI runs the guard test or the route floor can reject the change.
+
+So the single most dangerous change to this configuration is also the least protected one.
+Repository-side validation cannot close it: every repository-side control is evaluated after
+the review has already started.
+
+Closing it requires a control outside the repository — **make `skipReview: "AUTOMATIC"` an
+org-enforced rule in the Greptile dashboard**, which no repository-level configuration can
+override. Until that exists, treat a configuration-only pull request as costing one credit
+and open it deliberately.
+
 ### Caveats
 
 - `greptile.json` is read **from the source branch of the pull request**, not from
