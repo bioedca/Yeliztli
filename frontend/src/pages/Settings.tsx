@@ -270,7 +270,7 @@ function AboutPage() {
               rel="noopener noreferrer"
               className={EXTERNAL_LINK_CLASS}
             >
-              External inputs licensing policy
+              External inputs licensing strategy (working document)
             </a>
           </li>
         </ul>

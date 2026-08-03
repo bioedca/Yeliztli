@@ -331,7 +331,7 @@ describe('Settings page', () => {
       'https://bioedca.github.io/Yeliztli/attribution/',
     )
     expect(
-      screen.getByRole('link', { name: 'External inputs licensing policy' }),
+      screen.getByRole('link', { name: 'External inputs licensing strategy (working document)' }),
     ).toHaveAttribute(
       'href',
       'https://bioedca.github.io/Yeliztli/external-inputs-strategy/',

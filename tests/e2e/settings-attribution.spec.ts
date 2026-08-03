@@ -65,7 +65,7 @@ test('About distinguishes source licensing from third-party data attribution (#2
     'https://bioedca.github.io/Yeliztli/attribution/',
   )
   await expect(
-    page.getByRole('link', { name: 'External inputs licensing policy' }),
+    page.getByRole('link', { name: 'External inputs licensing strategy (working document)' }),
   ).toHaveAttribute(
     'href',
     'https://bioedca.github.io/Yeliztli/external-inputs-strategy/',
