@@ -45,6 +45,7 @@ CITATION_PMIDS = [
     "25741868",  # Richards 2015 — ACMG/AMP guidelines
     "28518168",  # Whiffin 2017 — maximum credible allele-frequency thresholds
     "30311383",  # Ghosh 2018 — ClinGen SVI BA1 benign-frequency exceptions
+    "31479589",  # 2019 — BA1/BS1 filtering-allele-frequency context
     "34859531",  # Gudmundsson 2021 — using gnomAD population data
     "28132688",  # Li 2017 — InterVar
     "29300386",  # Tavtigian 2018 — Bayesian framework

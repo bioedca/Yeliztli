@@ -659,6 +659,7 @@ class TestClassifyAcmg:
         )
         result = classify_acmg(ev)
         assert result.classification == LIKELY_BENIGN
+        assert "31479589" in result.pmid_citations
 
     @pytest.mark.parametrize(
         ("evidence", "expected_codes"),
