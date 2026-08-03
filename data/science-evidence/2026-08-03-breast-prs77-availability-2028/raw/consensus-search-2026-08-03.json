@@ -16,7 +16,8 @@
       "journal": "JNCI Journal of the National Cancer Institute",
       "citation_count_reported": 576,
       "maps_to": "PMID:25855707; DOI:10.1093/jnci/djv036",
-      "citation": "PMID:25855707; DOI:10.1093/jnci/djv036 (accessed 2026-08-03)"
+      "citation": "PMID:25855707; DOI:10.1093/jnci/djv036 (accessed 2026-08-03)",
+      "citation_source": "Identifier resolved against the authoritative NCBI PubMed record and the panel's own source_pmid, not taken from the Consensus ranking."
     },
     {
       "rank": 4,
@@ -28,7 +29,7 @@
       "citation_count_reported": 1,
       "citation": "DOI:10.1002/cncr.35337 (accessed 2026-08-03)",
       "note": "An earlier revision called this an independent validation with a different cohort and author group. Establishing non-overlap needs two complete author lists; this packet retains neither, so the characterization is withdrawn and the record briefly retained to support it was removed. Nothing here depends on this paper.",
-      "citation_note": "Identifier recorded from the Consensus ranking. The Scite record that briefly substantiated it was removed with the withdrawn independence characterization, so this packet retains no author list for this paper and makes no claim about it."
+      "citation_note": "Identifier resolved individually via Scite on 2026-08-03, NOT taken from the Consensus ranking - Consensus returned no identifier for any hit (see identifier_limitation). The Scite record briefly retained to substantiate a withdrawn characterization was removed; the identifier itself was verified before that removal."
     },
     {
       "rank": 16,
@@ -39,7 +40,7 @@
       "journal": "American Journal of Human Genetics",
       "citation_count_reported": 941,
       "citation": "DOI:10.1016/j.ajhg.2018.11.002 (accessed 2026-08-03)",
-      "citation_source": "Identifier recorded from the Consensus ranking; Consensus reported the year as 2018 while the publisher issue is 2019. Both are recorded rather than reconciled, and nothing in this packet depends on this paper."
+      "citation_source": "Identifier resolved individually via Scite on 2026-08-03, not taken from the Consensus ranking. Consensus reported the year as 2018 while the publisher issue is 2019; both are recorded rather than reconciled, and nothing in this packet depends on this paper."
     }
   ],
   "not_retained": "Nothing is dropped from the ranking. complete_result_ranking holds all 20 hits in order. results_retained annotates only the three that bear on this packet, and the annotation is the added content - it removes nothing.",

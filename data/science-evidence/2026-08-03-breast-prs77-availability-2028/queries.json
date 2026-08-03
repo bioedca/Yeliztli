@@ -63,7 +63,7 @@
     "OUP publisher article page (service)": {
       "version_or_build": "Unavailable. A live publisher page has no version or build identifier; the 2026-08-03 access date is the only boundary, and the page may change.",
       "license_or_terms": "Publisher-hosted page, all rights reserved. Only the factual outcome of the lookup is recorded; no page content is retained.",
-      "retention_basis": "Nothing is retained beyond the recorded outcome, so no reuse grant is required.",
+      "retention_basis": "A minimal point-in-time extract is retained at raw/oup-bay119-licence-lookup-2026-08-03.json: the two licence-bearing statements verbatim and nothing else - no abstract, no body text, no navigation. The finding this lookup supports is a negative (no CC BY version stated) against a mutable page, so the evidence has to be checkable rather than asserted in prose.",
       "unavailable_fields": [
         "version_or_build (a live web page issues none)"
       ]

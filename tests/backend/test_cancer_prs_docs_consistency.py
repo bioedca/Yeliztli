@@ -9,6 +9,7 @@ calibration withholding.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from datetime import date
@@ -274,6 +275,20 @@ def test_breast_prs_references_carry_a_science_evidence_packet() -> None:
         "the packet must record the Consensus and Scite first tier, even when a "
         f"service was unavailable; recorded services were {sorted(services)}"
     )
+
+    # A recorded digest is a claim; check it rather than let it sit unverified.
+    for entry in packet["queries"]:
+        artifact = entry.get("repository_artifact")
+        if not artifact:
+            continue
+        assert not Path(artifact).is_absolute(), f"artifact path must be relative: {artifact}"
+        path = (REPO_ROOT / artifact).resolve()
+        assert path.is_relative_to(REPO_ROOT.resolve()), f"artifact escapes the repo: {artifact}"
+        assert path.is_file(), f"missing referenced artifact: {artifact}"
+        actual = hashlib.sha256(path.read_bytes()).hexdigest()
+        assert actual == entry.get("artifact_sha256"), (
+            f"{artifact} digest is {actual}, but the packet records {entry.get('artifact_sha256')}"
+        )
 
     doc_text = _DOC_PATH.read_text(encoding="utf-8")
     note_text = _breast_prs_note(doc_text)
