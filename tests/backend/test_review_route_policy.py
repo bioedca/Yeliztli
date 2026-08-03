@@ -2045,6 +2045,7 @@ def test_protected_rename_raises_route_floor() -> None:
         "frontend/src/pages/SetupWizard.tsx",
         "frontend/src/components/igv-browser/IgvBrowser.tsx",
         "services/pyproject.toml",
+        "greptile.json",
         "launchd/com.yeliztli.api.plist",
         "mkdocs.yml",
         "systemd/yeliztli-huey.service",

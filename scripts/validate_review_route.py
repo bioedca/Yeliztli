@@ -52,6 +52,7 @@ LOAD_BEARING_EXACT = {
     "contributing.md",
     "dockerfile",
     "governance.md",
+    "greptile.json",
     "license",
     "makefile",
     "notice",
