@@ -7929,6 +7929,10 @@ def test_issue_2165_u5_conflict_evidence_packet_is_source_bound() -> None:
     # The rate-limit and result-size fallbacks are recorded, not silently dropped.
     assert services["Consensus"]["unavailable_or_quota_events"]
     assert services["Scite"]["unavailable_or_quota_events"]
+    # Likewise the excluded corroborating passage. The loop over this list above
+    # would pass vacuously if the field were emptied or dropped, and the test
+    # would quietly stop checking that the exclusion stays documented.
+    assert services["Scite"]["excluded_provider_findings"]
     assert {"PMID:10712215", "PMID:11032788"} <= set(
         services["Scite"]["primary_source_ids_checked_independently"]
     )
