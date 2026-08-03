@@ -203,7 +203,7 @@ def test_cancer_docs_distinguish_the_runtime_block_from_ancestry_withholding() -
         f"panel's source_pmid is {source_pmid}"
     )
     model_doi = str(breast["source_url"]).rsplit("doi.org/", 1)[-1]
-    assert f"https://doi.org/{model_doi}" in reference_text, (
+    assert re.search(rf"https://doi\.org/{re.escape(model_doi)}(?![\w./-])", reference_text), (
         f"breast PRS reference [2]'s link must target the model's own DOI "
         f"({model_doi}); reference reads: {reference_text}"
     )

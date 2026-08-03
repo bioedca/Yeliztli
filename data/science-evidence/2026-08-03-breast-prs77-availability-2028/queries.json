@@ -127,7 +127,8 @@
       "purpose": "Resolve whether the publisher states a CC BY version for the Ensembl Variation paper.",
       "status": "success",
       "result": "The page states CC BY and the copyright line 'The Author(s) 2018. Published by Oxford University Press'. It does NOT state a version number. This is a negative result and it is what the packet relies on to record the licence version as not established rather than asserting CC BY 4.0.",
-      "no_payload_retained": "Only this outcome is recorded. The page is publisher-hosted all-rights-reserved chrome around a CC BY article; retaining a scrape of it would add third-party expressive content the packet does not need. The DOI is the stable pointer to the publisher's authoritative terms."
+      "raw_payload": "data/science-evidence/2026-08-03-breast-prs77-availability-2028/raw/oup-bay119-licence-lookup-2026-08-03.json",
+      "payload_note": "Minimal extract: the two licence-bearing statements only. The finding is a negative, so the evidence for it has to be checkable rather than asserted in prose; the page is mutable and the DOI resolves only to its current contents."
     }
   ],
   "panel_derived_values": {
@@ -145,6 +146,6 @@
       "not_invented": "A release identifier is deliberately not supplied here; a fabricated version would read as verified.",
       "tracked_by": "#2246 - narrowed to recording the Ensembl Variation release identifier."
     },
-    "counts": "Deliberately NOT duplicated here. The authoritative values live in backend/data/panels/cancer_prs_weights.json -> weight_sets[0].model_provenance.current_allele_audit, and tests/backend/test_cancer_prs_docs_consistency.py derives cancer.md's numbers from that panel. A second copy in this packet could drift from the panel just as the documentation could, so it is removed rather than guarded."
+    "counts": "Deliberately NOT duplicated here. The authoritative values live on the weight set whose trait is breast_cancer, at model_provenance.current_allele_audit in backend/data/panels/cancer_prs_weights.json, and tests/backend/test_cancer_prs_docs_consistency.py derives cancer.md's numbers from that weight set. It is identified by trait, never by position: the loader treats weight_sets order as insignificant. A second copy in this packet could drift from the panel just as the documentation could, so it is removed rather than guarded."
   }
 }

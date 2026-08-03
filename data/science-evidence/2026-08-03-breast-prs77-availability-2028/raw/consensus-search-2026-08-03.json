@@ -204,5 +204,6 @@
       "journal": "JAMA Network Open",
       "citation_count_reported": 13
     }
-  ]
+  ],
+  "identifier_limitation": "The Consensus response carried no PMID, DOI or other durable identifier for any hit, so the retained ranking preserves exactly the fields the service returned: title, first author, year, journal and reported citation count. Identifiers are NOT back-filled by looking each paper up afterwards, because a title-based re-lookup can land on a different record and would record an identifier the service never returned. The three hits that bear on this packet were resolved individually against authoritative sources and carry verified identifiers; the remaining seventeen are retained for ranking completeness only and support no claim."
 }
