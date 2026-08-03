@@ -111,11 +111,35 @@ def _review(
 
 
 def _copilot_v3_body(changed_files: int, *, generated_comments: int = 0) -> str:
+    """Reproduce the body Copilot actually posts.
+
+    Shape taken from the four substantive Copilot reviews this repository has
+    received: PRs #2183 (8/8, 1 comment), #2235 (21/22, no comments), #2237
+    (2/2, 1 comment) and #2238 (15/15, 2 comments). The prose overview, the
+    "**Changes:**" list and the per-file table are all present in the real
+    thing, so they must not break acceptance.
+    """
+    if generated_comments == 0:
+        verdict = "no comments"
+    elif generated_comments == 1:
+        verdict = "1 comment"
+    else:
+        verdict = f"{generated_comments} comments"
     return (
-        "## Copilot's findings"
-        + "\n" * 7
-        + f"- **Files reviewed:** {changed_files}/{changed_files} changed files\n"
-        + f"- **Comments generated:** {generated_comments} new\n\n"
+        "## Pull request overview\n\n"
+        "This PR adjusts the documented contract so the shipped behaviour and the\n"
+        "documentation agree.\n\n"
+        "**Changes:**\n"
+        "- Restates the contract to match what the validator enforces.\n\n"
+        "### Reviewed changes\n\n"
+        f"Copilot reviewed {changed_files} out of {changed_files} changed files in this "
+        f"pull request and generated {verdict}.\n\n"
+        "<details>\n"
+        "<summary>Show a summary per file</summary>\n\n"
+        "| File | Description |\n"
+        "| ---- | ----------- |\n"
+        "| `README.md` | Restates the contract. |\n\n"
+        "</details>\n\n\n\n"
     )
 
 
@@ -892,12 +916,36 @@ def test_v3_provider_evidence_is_exact_head_immutable_and_nonblocking(mutation: 
 @pytest.mark.parametrize(
     "body",
     [
-        _copilot_v3_body(2).replace("2/2", "1/2"),
+        # THE critical case: a quota refusal is also a COMMENTED review with
+        # zero attached comments from the authenticated Copilot app, so the
+        # body is the only thing that separates "reviewed, found nothing" from
+        # "never ran". 42 of the 46 Copilot submissions this repository has
+        # received are exactly this.
+        "Copilot was unable to review this pull request because the user who "
+        "requested the review has reached their quota limit.",
+        # Copilot found something; a review with findings is not clean.
         _copilot_v3_body(2, generated_comments=1),
+        _copilot_v3_body(2, generated_comments=2),
+        # Quoted rather than asserted. _visible_markdown blanks fenced and
+        # indented code and strips HTML comments before anything is matched.
+        "## O\n\n### Reviewed changes\n\n```\nCopilot reviewed 2 out of 2 changed "
+        "files in this pull request and generated no comments.\n```\n",
+        "## O\n\n### Reviewed changes\n\n<!--\nCopilot reviewed 2 out of 2 changed "
+        "files in this pull request and generated no comments.\n-->\n",
+        "## O\n\n### Reviewed changes\n\n    Copilot reviewed 2 out of 2 changed "
+        "files in this pull request and generated no comments.\n",
+        # An echo cannot sit alongside the real footer: two occurrences is
+        # ambiguous about which one Copilot asserted, so neither is trusted.
+        _copilot_v3_body(2) + _copilot_v3_body(2),
+        # The dead pre-#2248 shape, which Copilot never emitted.
+        "## Copilot's findings"
+        + "\n" * 7
+        + "- **Files reviewed:** 2/2 changed files\n"
+        + "- **Comments generated:** 0 new\n\n",
         "No findings.",
     ],
 )
-def test_v3_copilot_requires_its_concise_exhaustive_zero_comment_envelope(body: str) -> None:
+def test_v3_copilot_rejects_anything_but_a_clean_coverage_verdict(body: str) -> None:
     files = [ChangedFile("README.md"), ChangedFile("GOVERNANCE.md")]
     context = _context(
         "Load-bearing",
@@ -916,6 +964,89 @@ def test_v3_copilot_requires_its_concise_exhaustive_zero_comment_envelope(body: 
         files,
         now=NOW,
     )
+
+
+# Copied from the real Copilot review on PR #2238 (review 4839198937, head
+# 821266907d) with the verdict set to the clean case. Nothing else is reshaped.
+REAL_COPILOT_CLEAN_BODY = """## Pull request overview
+
+This PR fixes a scientific-validity defect in the MONDO/HPO ingestion pipeline \
+by preserving HPO annotations at their source-disease scope.
+
+**Changes:**
+- Reworks MONDO/HPO ingestion to keep HPO terms disease-scoped.
+
+### Reviewed changes
+
+Copilot reviewed 2 out of 2 changed files in this pull request and generated \
+no comments.
+
+<details>
+<summary>Show a summary per file</summary>
+
+| File | Description |
+| ---- | ----------- |
+| `README.md` | Updates the contract description. |
+
+</details>
+
+
+
+
+"""
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        REAL_COPILOT_CLEAN_BODY,
+        # Position is not read, so none of these matter: no heading at all, the
+        # sentence wrapped in raw HTML, a Setext rule after it, prose that
+        # repeats the phrase, or insignificant trailing whitespace and CRLF.
+        "## O\n\nCopilot reviewed 2 out of 2 changed files in this pull request and "
+        "generated no comments.\n",
+        "## O\n\n<pre>\nCopilot reviewed 2 out of 2 changed files in this pull request "
+        "and generated no comments.\n</pre>\n",
+        "## O\n\n### Reviewed changes\n\nCopilot reviewed 2 out of 2 changed files in "
+        "this pull request and generated no comments.\n---\n",
+        "## O\n\nCopilot reviewed the changes for correctness.\n\n### Reviewed changes\n\n"
+        "Copilot reviewed 2 out of 2 changed files in this pull request and generated "
+        "no comments.\n",
+        "## O\n\n### Reviewed changes\n\nCopilot reviewed 2 out of 2 changed files in "
+        "this pull request and generated no comments. \n",
+        "## O\r\n\r\n### Reviewed changes\r\n\r\nCopilot reviewed 2 out of 2 changed files "
+        "in this pull request and generated no comments.\r\n",
+        # Partial coverage. GitHub documents that Copilot skips files it judges
+        # low risk, and the counts are asserted in the same prose as the
+        # verdict, so they are no longer compared against changedFiles. PR #2235
+        # is the real case: 21 of 22, no comments — the only genuinely clean
+        # Copilot review this repository has ever received.
+        "## O\n\n### Reviewed changes\n\nCopilot reviewed 21 out of 22 changed files in "
+        "this pull request and generated no comments.\n",
+    ],
+)
+def test_v3_copilot_accepts_a_clean_verdict_wherever_it_sits(body: str) -> None:
+    """The envelope reads the verdict, never its position.
+
+    Locating the sentence structurally was abandoned after ten review rounds:
+    holding it meant modelling every construct GitHub renders as a section
+    break, which is a CommonMark and raw-HTML parser built one finding at a
+    time, and each addition risked rejecting a real review.
+    """
+    files = [ChangedFile("README.md"), ChangedFile("GOVERNANCE.md")]
+    context = _context(
+        "Load-bearing",
+        files,
+        automated_gates={COPILOT_GATE},
+        schema_version=3,
+    )
+    review = next(
+        item
+        for item in context["data"]["repository"]["pullRequest"]["reviews"]["nodes"]
+        if item["author"]["databaseId"] == BOT_ACTOR_IDS[COPILOT_GATE]
+    )
+    review["body"] = body
+    assert validate_context(context, files, now=NOW) == []
 
 
 @pytest.mark.parametrize(
@@ -6590,7 +6721,7 @@ def test_public_template_contains_only_hosted_review_gates() -> None:
     assert HUMAN_GATE not in template
     assert "Developer Certificate of Origin" not in template
     assert "Agent claim ID:" in template
-    assert "all changed files reviewed and zero generated/attached comments" in template
+    assert "zero-comment coverage verdict exactly once and zero attached comments" in template
     assert "zero actionable/attached comments, no ignored files" in template
     assert "empty zero-comment formal approval" in template
     assert "code block or raw HTML" in template

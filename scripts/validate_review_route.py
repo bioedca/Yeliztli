@@ -260,13 +260,44 @@ UTC_RESULT = re.compile(
 )
 TERMINAL_REVIEW_STATES = {"APPROVED", "COMMENTED"}
 HUMAN_ASSOCIATIONS = {"OWNER", "MEMBER", "COLLABORATOR"}
-COPILOT_V3_FINDINGS_BODY = re.compile(
-    r"\A## Copilot's findings\n"
-    r"(?:\n){5,6}"
-    r"- \*\*Files reviewed:\*\* "
-    r"(?P<reviewed>[1-9][0-9]*)/(?P<total>[1-9][0-9]*) changed files\n"
-    r"- \*\*Comments generated:\*\* 0 new\n\n\Z"
+# Copilot's review body is the ONLY thing distinguishing a review that found
+# nothing from one that never ran: a quota refusal is also a COMMENTED review
+# with zero attached comments, from the same authenticated app, immutable and
+# exact-head. 42 of the 46 Copilot submissions this repository has received are
+# that refusal, so accepting on authenticated fields alone would accept them.
+#
+# Exactly one thing is therefore read from the body — the coverage sentence
+# Copilot closes with — and nothing about where it sits. An earlier revision of
+# this envelope tried to bind it to Copilot's "### Reviewed changes" section, to
+# stop a pull request whose own files contain the sentence from inducing Copilot
+# to echo it. Holding that line meant deciding where the section ended, which
+# meant modelling every construct GitHub renders as a break: ATX and Setext
+# headings, <h2>, <hr>, </details>, blockquoted and list-item headings, then
+# unpaired closing tags, inline code spans, autolinks, <?processing ?> and
+# <![CDATA[]]>. That is a CommonMark and raw-HTML parser, arrived at one review
+# finding at a time, and each addition was a fresh chance to reject a real
+# review — one already did (#2248 review rounds 3-10).
+#
+# The file counts are deliberately NOT compared against changedFiles any more.
+# They were only ever asserted in that same prose, so a count taken from it is
+# not a stronger guarantee than the prose itself; keeping the comparison bought
+# no trust while forcing the parser that caused the churn. What remains is the
+# provider-authored `no comments` verdict, occurring exactly once so an echo
+# cannot sit alongside the real footer, on top of GitHub's own authenticated
+# attached-comment count. Trailing whitespace is tolerated because markdown
+# treats it as insignificant and rejecting on it would kill the lane over
+# something invisible.
+COPILOT_V3_COVERAGE_LINE = re.compile(
+    r"(?m)^Copilot reviewed (?P<reviewed>[1-9][0-9]*) out of (?P<total>[1-9][0-9]*) "
+    r"changed files in this pull request and generated "
+    r"(?P<verdict>no comments|[1-9][0-9]* comments?)\.[ \t]*$"
 )
+COPILOT_V3_CLEAN_VERDICT = "no comments"
+# Copilot can withhold low-confidence findings instead of posting them, and a
+# withheld finding never becomes an attached comment. There is deliberately no
+# prose scan for that: Copilot paraphrases the diff it read, so any pattern wide
+# enough to catch the wording variants also rejects a clean review of a change
+# that merely discusses suppression. Tracked in #2256.
 CODEX_CLEAN_COMPLETION_PREFIX = "Codex Review: Didn't find any major issues."
 CODEX_CLEAN_COMPLETION_MARKER = f"{CODEX_CLEAN_COMPLETION_PREFIX} What shall we delve into next?"
 CODEX_CLEAN_COMPLETION_LINE = re.compile(
@@ -1271,12 +1302,12 @@ def _v3_formal_review_is_clean(
     if isinstance(changed_files, bool) or not isinstance(changed_files, int) or changed_files <= 0:
         return False
     if gate == COPILOT_GATE:
-        match = COPILOT_V3_FINDINGS_BODY.fullmatch(body)
-        return (
-            match is not None
-            and int(match.group("reviewed")) == changed_files
-            and int(match.group("total")) == changed_files
-        )
+        # Fenced/indented code and HTML comments are blanked first, so a
+        # sentence quoted in either cannot be read as the verdict. Position is
+        # not considered at all — see the note on COPILOT_V3_COVERAGE_LINE for
+        # why locating it structurally was abandoned.
+        coverage = list(COPILOT_V3_COVERAGE_LINE.finditer(_visible_markdown(body)))
+        return len(coverage) == 1 and coverage[0].group("verdict") == COPILOT_V3_CLEAN_VERDICT
     if gate != CODERABBIT_GATE:
         return False
     actionable = list(CODERABBIT_ACTIONABLE_COUNT.finditer(body))
