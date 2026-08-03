@@ -89,9 +89,26 @@ So the single most dangerous change to this configuration is also the least prot
 Repository-side validation cannot close it: every repository-side control is evaluated after
 the review has already started.
 
-Closing it requires a control outside the repository — **make `skipReview: "AUTOMATIC"` an
-org-enforced rule in the Greptile dashboard**, which no repository-level configuration can
-override. Until that exists, treat a configuration-only pull request as costing one credit
+Closing it requires a control outside the repository. Greptile's "org enforced rules" sound
+like the answer, but its documentation never says which settings are enforceable — the only
+stated purpose is "security policies or compliance requirements"[^config-precedence], and
+`skipReview` is not documented as one. Do not assume that route exists.
+
+What *is* documented is a **dashboard PR filter** — label, branch, author, or keyword —
+configurable at <https://app.greptile.com/review>: "The filters can be configured in the
+dashboard, or in your `greptile.json` file."[^trigger]
+
+A dashboard filter survives a repository-side edit, and this repository has direct evidence
+that dashboard settings apply per key rather than being replaced wholesale by the presence
+of a `greptile.json`: PR #2252 carried a `greptile.json` that does **not** set
+`fileChangeLimit`, and the dashboard's `fileChangeLimit: 1` still refused the review. A
+dashboard `labels` filter would behave the same way — and nothing on a pull request branch
+can clear it, because `greptile.json` here deliberately leaves `labels` unset.
+
+That is the second reason this file sets no allow-list filter: leaving `labels` unset in the
+repository is what keeps a dashboard label filter authoritative.
+
+Until such a filter exists, treat a configuration-only pull request as costing one credit
 and open it deliberately.
 
 ### Caveats
@@ -158,3 +175,4 @@ one, so that comment's creation time does not tell you when the latest review ra
 [^config]: Greptile, "greptile.json reference". <https://www.greptile.com/docs/code-review/greptile-json-reference> (accessed 2026-08-03).
 [^skip]: Greptile, "greptile.json reference", Review Behavior: `skipReview` — "Set to `\"AUTOMATIC\"` to skip auto-reviews but allow manual triggers". (accessed 2026-08-03).
 [^trigger]: Greptile, "Trigger a code review". <https://www.greptile.com/docs/code-review-bot/trigger-code-review> (accessed 2026-08-03).
+[^config-precedence]: Greptile, ".greptile/ configuration" — precedence and org-level rules: "Org-level enforced rules (set by admins in the dashboard) always apply. They cannot be disabled or overridden by any `.greptile/` configuration. This lets organizations enforce security policies or compliance requirements across all repositories regardless of per-repo config." <https://www.greptile.com/docs/code-review/greptile-config> (accessed 2026-08-03).
