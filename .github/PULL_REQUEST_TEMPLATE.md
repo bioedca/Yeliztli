@@ -41,17 +41,19 @@
 - [ ] Standard — routine code/tests/UI/refactor/bug fix not protecting a load-bearing area
 - [ ] Load-bearing — science/clinical/reference data or their tests; privacy/security/auth; schema/migration/data loss; concurrency; dependencies; updater/installer/release; CI/workflows/permissions; core architecture; broad/hard-to-revert
 
-<!-- Before ready/merge, check EXACTLY ONE hosted reviewer. They are substitutes on every route; select another provider instead of adding fallback parsers or waiting on quota. Codex is the default lane. A hosted CodeRabbit review starts only from the `review:coderabbit` label or an explicit comment trigger, so pick it deliberately and only once per head — it and the local `coderabbit` CLI share one budget. A legacy v2 PR selecting CodeRabbit still needs its unchanged reservation plus the exact `@coderabbitai full review`; the label does not replace that. Never trigger a lane you did not check. -->
+<!-- Before ready/merge, check EXACTLY ONE hosted reviewer. They are substitutes on every route; select another provider instead of adding fallback parsers or waiting on quota. Codex is the default lane. A hosted CodeRabbit review starts only from the `review:coderabbit` label or an explicit comment trigger, so pick it deliberately and only once per head — it and the local `coderabbit` CLI share one budget. A legacy v2 PR selecting CodeRabbit still needs its unchanged reservation plus the exact `@coderabbitai full review`; the label does not replace that. Greptile never reviews on its own — start it with the `greptile-review` label or an explicit mention, and only when you have checked its box, because this repository allows itself just 16 Greptile reviews a month and nothing enforces that count for you. Never trigger a lane you did not check. -->
 - [ ] Copilot — alternate lane; gated by account quota, not by format
 - [ ] Codex — default lane on every route
 - [ ] CodeRabbit — alternate lane; label-gated, for a deliberate hosted second engine
+- [ ] Greptile — alternate lane; manual-trigger only, on a 16-review monthly allowance
 
-<!-- Drafts need only the route classification. The selected row needs the exact 40-character head SHA and `YYYY-MM-DDTHH:MM:SSZ — COMPLETE`; enter exactly N/A in BOTH cells for unused providers. Evidence must be unedited, provider-authored, and exact-head. Codex accepts an empty zero-comment formal approval or its canonical immutable clean comment. Copilot accepts only a review carrying its zero-comment coverage verdict exactly once and zero attached comments. CodeRabbit accepts only its structured clean review with zero actionable/attached comments, no ignored files, and a selected-file count equal to GitHub's changed-file count. Resolve every thread, then have a live write-capable finalizer post the exact unedited `/validate-route`. -->
+<!-- Drafts need only the route classification. The selected row needs the exact 40-character head SHA and `YYYY-MM-DDTHH:MM:SSZ — COMPLETE`; enter exactly N/A in BOTH cells for unused providers. Evidence must be unedited, provider-authored, and exact-head. Codex accepts an empty zero-comment formal approval or its canonical immutable clean comment. Copilot accepts only a review carrying its zero-comment coverage verdict exactly once and zero attached comments. CodeRabbit accepts only its structured clean review with zero actionable/attached comments, no ignored files, and a selected-file count equal to GitHub's changed-file count. Greptile accepts only its `Greptile Review` check run on the head commit, completed, concluding success, reporting `0 comments added.` — never its formal review, whose zero-comment form is a billing notice rather than a clean verdict. Resolve every thread, then have a live write-capable finalizer post the exact unedited `/validate-route`. -->
 | Required review gate | Applies to | Head SHA or N/A | UTC time and status, or N/A |
 | --- | --- | --- | --- |
 | Copilot PR review | alternate lane, any route | | |
 | Codex `@codex review` | default lane, any route | | |
 | CodeRabbit structured clean review | alternate lane, any route; label-gated | | |
+| Greptile clean review check run | alternate lane, any route; manual-trigger only | | |
 
 <!--
   Do not merge until required CI and the dedicated App's Review Route status are green.

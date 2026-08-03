@@ -136,19 +136,87 @@ authoritative — provided this repository never sets `labels` itself.
   (overage) spend beyond the included credits. Authors still inside their included
   allowance keep getting reviews.[^billing] It caps the bill, not the review count.
 
-## Requesting a review — not yet
+## The route lane
 
-**Do not trigger Greptile until issue #2251 has merged.** Greptile is not a selectable hosted
-reviewer: the v3 pull request template and `scripts/validate_review_route.py` accept only
-Copilot, Codex, and CodeRabbit. Every valid pull request therefore selects one of those three, and the contract
-forbids triggering a lane the route did not select.
+Greptile is a selectable hosted reviewer on schema v3, on any route. It is nobody's default:
+with 16 reviews a month against this repository's volume, making it a preferred tier would
+guarantee exhaustion. Check its box only when you mean to spend a credit.
 
-So a Greptile review requested now would spend one of the 16 on evidence the route validator
-cannot accept, on a pull request that asked for a different reviewer. Greptile stays silent
-until the lane lands — that is the point of the two layers above.
+The accepted evidence is the **check run**, and only the check run:
 
-Adding the lane is tracked in issue #2251. The rest of this section describes how triggering
-will work **once that merges**; it is not a licence to trigger before then.
+| Property | Where it comes from | Depends on model prose? |
+| --- | --- | --- |
+| `app.databaseId == 867647` | GitHub App identity | no |
+| head commit | bound by GitHub, not self-reported | no |
+| `status == "COMPLETED"`, `conclusion == "SUCCESS"` | GitHub check lifecycle | no |
+| `<N> files reviewed, <M> comments added.` | Greptile's own counter, fixed template | template only |
+
+The clean test is `M == 0`. There is no sentence to match and no flourish to overflow, which
+is what makes this the only envelope here that is not keyed on a model's choice of words —
+the failure mode behind #2248, #2255 and #2256.
+
+The other two artifacts are unusable as evidence, and the validator rejects both:
+
+- The **formal review** is submitted only when Greptile has findings. Of 429 Greptile reviews
+  sampled across four repositories, 427 carried at least one inline comment and an empty body.
+  The only two carrying **zero** comments carried its billing notice: *"Your free trial has
+  ended. If you'd like to continue receiving code reviews, you can add a payment method."*
+  Reading zero attached comments as a clean verdict — the shape every other provider's
+  envelope uses — would accept a refusal to review as a passing gate.
+- The **summary comment** is edited in place on re-review, so it fails the immutability rule
+  the other providers are held to.
+
+Two counts are deliberately *not* compared. Greptile's reviewed-file count differed from
+GitHub's changed-file count in 522 of 2196 live check runs, because Greptile applies its own
+path filters. It is also asserted in the same generated string as the verdict, so comparing
+the two buys no trust (#2248) while rejecting roughly one clean review in four.
+
+`conclusion` is required on top of the counter but is never the verdict on its own: a review
+that found three problems on this repository's PR #2203 still concluded `SUCCESS`. Conversely
+a confidence threshold can turn the check `NEUTRAL` or `FAILURE` with a summary like
+`Greptile confidence 3/5 is below the required 4/5.` — 141 of 2341 sampled runs did exactly
+that. Neither shape passes.
+
+## The 16 is not machine-enforced
+
+The route validator does **not** count Greptile reviews. A repository-wide 30-day ledger was
+attempted alongside the lane and removed, because none of the four artifacts GitHub exposes can
+support one correctly. This is worth knowing before you rely on a number that nothing checks:
+
+- **Formal reviews** are submitted only when Greptile has findings, so clean reviews — the
+  ones this lane exists for — are invisible. Counting them undercounts, which fails *open*.
+- **Summary comments** are worse in both directions. Greptile has announced it no longer posts
+  anything when a review is clean, while unbilled skip notices (`Too many files changed for
+  review`) and conversational replies still post. Measured against this repository, a
+  comment-based count charged **5 reviews where 2 were actually spent**.
+- **Check runs** are the one artifact that is one-to-one with a billed credit, but each lives
+  on the commit that was reviewed, and those sit deep in our pull requests' commit histories.
+  Reading the last 10 commits of every pull request found **none** of this repository's
+  Greptile runs; the last 20 found one of two. At a depth that would catch them, the query
+  costs roughly 3600 GraphQL points per validation — about 72% of the hourly budget that every
+  route validation in the repository shares.
+- **Trigger events** cannot be proven complete: `timelineItems.totalCount` ignores the
+  `itemTypes` filter, so a label page can never show that it saw every label. Greptile's own
+  skip notice also contains the literal string `@greptile-apps`, so a mention scan counts its
+  advice as a trigger.
+
+Tracked in #2264. Until then the allowance is protected by the two layers above — every
+credit costs a deliberate label or mention — plus the discipline in the next section.
+
+Two facts to keep in mind either way:
+
+- Credits are billed **per author across every repository they open pull requests in**. The 16
+  is our own split of a shared pool, not a limit Greptile enforces here, and no per-repository
+  count could see the other repositories drawing on it.
+- Any such check would run *after* a review had already been spent. It could never prevent the
+  17th review, only refuse to honour it — which is why the manual-only guard, not a ledger, is
+  what actually protects the budget.
+
+## Requesting a review
+
+Only trigger Greptile on a pull request whose `## Review route` section **selects Greptile**.
+Any other review cannot be used as route evidence, so the credit buys nothing, and the
+contract forbids triggering a lane the route did not select.
 
 To spend one of the 16, comment on the pull request:
 
@@ -163,20 +231,26 @@ successful trigger costs a review, so do not spray both.
 
 Before spending one, check that it is worth a unit of a 16/month budget:
 
-- Only trigger Greptile on a pull request whose `## Review route` section **selects
-  Greptile**. Any other review cannot be used as route evidence, so the credit buys nothing.
 - Do not re-trigger to "refresh" after a push unless the new evidence is actually needed.
+  Every head-changing push invalidates the review, so a trigger before the head is frozen
+  buys a credit's worth of evidence that the next commit throws away.
 - Prefer a single trigger on the final, frozen head over one per iteration.
+- Nothing will stop you at 16. Check the allowance before spending: search the repository's
+  pull requests for the `Greptile Review` check run, or read the balance in the Greptile
+  dashboard, which is the only place that knows the true per-author figure.
 
 ## What Greptile posts
 
 A completed review produces, on the reviewed commit:
 
 - a check run named `Greptile Review` (app id `867647`) whose `output.summary` reads
-  `Greptile has reviewed the Pull Request.` followed by `<N> files reviewed, <M> comments added.`,
+  `Greptile has reviewed the Pull Request.` followed by `<N> files reviewed, <M> comments added.`
+  — this is the **only** artifact the route accepts,
 - a top-level issue comment carrying the human-readable `Greptile Summary`,
-- a formal pull-request review with an **empty body** and state `COMMENTED`, which exists
-  only to carry inline comments.
+- a formal pull-request review with state `COMMENTED` — but **only when it has findings**,
+  in which case the body is empty and the inline comments carry the content. A clean review
+  submits no formal review at all, so a zero-comment Greptile review is not a clean verdict;
+  in the sample behind this page, every such review was the "free trial has ended" notice.
 
 `conclusion: success` on the check run means the review *completed*, not that it was clean —
 a review that found three problems still succeeds. Cleanliness is `0 comments added`.
