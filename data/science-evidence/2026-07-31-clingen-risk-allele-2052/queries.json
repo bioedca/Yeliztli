@@ -5,16 +5,50 @@
   "queries": [
     {
       "service": "Consensus",
+      "attempt": 1,
+      "accessed": "2026-07-31",
       "query": "PMID 38054408 ClinGen low penetrance risk allele terminology working group year:2023-2024",
       "status": "unavailable",
       "reason": "Monthly 250-search quota exhausted; service reported an August 1 reset."
     },
     {
+      "service": "Consensus",
+      "attempt": 2,
+      "accessed": "2026-08-03",
+      "query": "ClinGen Low Penetrance Risk Allele Working Group recommendations risk allele evidence curation classification reporting",
+      "status": "success",
+      "reason": "Re-run after the reported August 1 quota reset.",
+      "result": "Returned the packet's primary source as rank 1 (Schmidt et al., Genetics in Medicine), its conference abstract as rank 3, and the 2019 Senol-Cosar framework paper as rank 2. Rank 2 shares authors Schmidt RJ and Lebo MS with the primary source and is therefore recorded as a documented antecedent, not an independent second source.",
+      "raw_payload": "data/science-evidence/2026-07-31-clingen-risk-allele-2052/raw/consensus-search-2026-08-03.json"
+    },
+    {
       "service": "Scite",
+      "attempt": 1,
+      "accessed": "2026-07-31",
       "doi": "10.1016/j.gim.2023.101036",
       "term": "low penetrance risk allele terminology classification reporting",
       "status": "unavailable",
       "reason": "Monthly MCP quota exhausted; service reported a 2026-08-03 UTC reset."
+    },
+    {
+      "service": "Scite",
+      "attempt": 2,
+      "accessed": "2026-08-03",
+      "endpoint": "search_literature",
+      "doi": "10.1016/j.gim.2023.101036",
+      "status": "success",
+      "reason": "Re-run after the reported 2026-08-03 UTC quota reset.",
+      "result": "Verified DOI, title, journal, volume 26, issue 3, page 101036, and 2024-03-01 publication date. Returned zero editorial notices (no retraction, correction, expression of concern, or erratum), independently agreeing with the NCBI EFetch typed CommentsCorrectionsList screening. Citation tally: 31 total, 1 supporting, 0 contrasting, 30 mentioning, 72 citing publications. Scite's three-author subset is not the leading three of the NCBI author list, so authorship attribution follows the NCBI esummary record.",
+      "raw_payload": "data/science-evidence/2026-07-31-clingen-risk-allele-2052/raw/scite-doi-lookup-2026-08-03.json"
+    },
+    {
+      "service": "PubMed connector",
+      "accessed": "2026-08-03",
+      "endpoint": "esearch + article metadata",
+      "purpose": "Resolve the authoritative PMID/DOI for the Consensus rank-2 antecedent and check its author overlap with the primary source",
+      "status": "success",
+      "result": "PMID:31147632; DOI:10.1038/s41436-019-0560-8; Genet Med. 2019;21(12):2765-2773. Confirms Schmidt RJ and Lebo MS are shared authors with PMID:38054408, so the paper is not an independent source.",
+      "raw_payload": "data/science-evidence/2026-07-31-clingen-risk-allele-2052/raw/pubmed-31147632-metadata.json"
     },
     {
       "service": "NCBI Entrez",

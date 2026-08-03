@@ -44,10 +44,30 @@ output category; this change does not add or alter variant classification behavi
 
 ## Evidence route and checks
 
-- Consensus query attempted first: unavailable because the monthly 250-search
-  quota was exhausted; the service reported an August 1 reset.
-- Scite DOI lookup attempted first: unavailable because the monthly MCP quota
-  was exhausted; the service reported a 2026-08-03 UTC reset.
+- Consensus query attempted first on 2026-07-31: unavailable because the monthly
+  250-search quota was exhausted; the service reported an August 1 reset.
+- Scite DOI lookup attempted first on 2026-07-31: unavailable because the monthly
+  MCP quota was exhausted; the service reported a 2026-08-03 UTC reset.
+- **Both first-tier services were re-run on 2026-08-03 after their reported quota
+  resets, so this packet no longer rests on an unavailable first tier.**
+    - Consensus returned this packet's primary source as its rank-1 result and the
+      Working Group's own conference abstract as rank 3. Rank 2 is the 2019
+      Senol-Cosar low-penetrance framework paper (PMID:31147632;
+      DOI:10.1038/s41436-019-0560-8; *Genet Med.* 2019;21(12):2765-2773, accessed
+      2026-08-03). It is recorded as the documented antecedent of the same
+      terminology and **not** as an independent second source, because Schmidt RJ
+      and Lebo MS author both it and PMID:38054408 and the 2024 recommendations
+      build on that framework rather than testing it separately.
+    - Scite verified the DOI, title, journal, volume/issue/page, and publication
+      date, and returned **zero editorial notices** — no retraction, correction,
+      expression of concern, or erratum. That is a second, independent
+      correction/retraction screening agreeing with the NCBI EFetch typed
+      `CommentsCorrectionsList` check recorded below. Scite's returned three-author
+      subset is not the leading three of the NCBI author list, so authorship
+      attribution follows the authoritative NCBI record.
+    - Sanitized payloads: `raw/consensus-search-2026-08-03.json`,
+      `raw/scite-doi-lookup-2026-08-03.json`,
+      `raw/pubmed-31147632-metadata.json`.
 - Narrow Life Science Research fallback:
   `life-science-research:ncbi-entrez-skill` ran its bundled
   `scripts/ncbi_entrez.py` client with the recorded PubMed `esummary` request.
@@ -58,10 +78,12 @@ output category; this change does not add or alter variant classification behavi
 - Correction/retraction screening: the captured PubMed EFetch XML has no typed
   `CommentsCorrectionsList` element for PMID:38054408, and its publication types
   are `Journal Article` and `Research Support, N.I.H., Extramural` (accessed
-  2026-07-31). Scite remained unavailable because of the quota above.
+  2026-07-31). The 2026-08-03 Scite screening above independently agrees.
 - This terminology/provenance statement is not a patient-specific or
   quantitative clinical claim, so the high-stakes two-independent-source rule
-  does not apply.
+  does not apply. That is stated explicitly because the only corroborating paper
+  surfaced by Consensus shares two authors with the primary source and therefore
+  could not satisfy that rule if it were engaged.
 
 ## Claim mapping
 
