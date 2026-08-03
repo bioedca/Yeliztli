@@ -62,6 +62,6 @@
   ],
   "related_correction_snapshot": {
     "payload_path": "data/science-evidence/2026-08-02-acmg-bs1-founder-window/pubmed-efetch-corrections-sanitized.json",
-    "sanitized_sha256": "589ab8a9951956564855bc56a39fe6345a2091c916f45a7cbf264c3603f2d88f"
+    "sanitized_sha256": "aebe8698901850a503bd4885e57c4589b09d8c6a294c2d7b32540a2481b10699"
   }
 }

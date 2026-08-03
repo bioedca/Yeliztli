@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "claim_ids": ["C3"],
+  "claim_ids": ["C1", "C3"],
   "source": "NCBI PubMed EFetch",
   "accessed": "2026-08-03",
   "payload_type": "sanitized raw service response",

@@ -830,7 +830,10 @@ class TestBs1EvidencePacket:
         inventory = json.loads(
             (_EVIDENCE_DIR / "source-inventory.json").read_text(encoding="utf-8")
         )
-        faf_scope = inventory["benign_frequency_criteria"]["generic_faf_data_eligibility"]
+        criteria = inventory["benign_frequency_criteria"]
+        faf_scope = criteria["generic_faf_data_eligibility"]
+        ba1_source = criteria["ba1_selector_primary_source"]
+        founder_source = criteria["founder_effect_corroboration"]
 
         assert faf_scope["criteria"] == ["BA1", "BS1"]
         assert "10.1002/cphg.93" in faf_scope["source"]
@@ -839,6 +842,21 @@ class TestBs1EvidencePacket:
         assert "does not ingest FAF" in faf_scope["implementation_limit"]
         assert "does not calculate FAF" in faf_scope["implementation_limit"]
         assert "disease-specific threshold" in faf_scope["implementation_limit"]
+        assert "10.1002/humu.23642" in ba1_source["source"]
+        assert "not used to calibrate BS1" in ba1_source["scope"]
+        assert "10.1002/humu.24152" in founder_source["source"]
+        assert "TP53" in founder_source["scope"]
+        assert "not a universal BA1/BS1 threshold" in founder_source["scope"]
+        assert (
+            "not present either as an independent empirical frequency measurement"
+            in founder_source["independence_note"]
+        )
+        selection_rule = criteria["selection_rule"]
+        assert "allele frequency (AF)" in selection_rule
+        assert "allele number (AN)" in selection_rule
+        assert "Allele count (AC)" in selection_rule
+        assert "neither ingested nor used" in selection_rule
+        assert inventory["not_parsed_or_persisted_fields"] == ["FAF", "OTH", "AC"]
 
     def test_sanitized_provider_responses_are_retained_and_linked(self) -> None:
         index = json.loads(
@@ -930,6 +948,7 @@ class TestBs1EvidencePacket:
 
         correction_path = _EVIDENCE_DIR / "pubmed-efetch-corrections-sanitized.json"
         correction_payload = json.loads(correction_path.read_text(encoding="utf-8"))
+        assert correction_payload["claim_ids"] == ["C1", "C3"]
         public_request_url = correction_payload["source_snapshot"]["request"]
         assert public_request_url.startswith("https://eutils.ncbi.nlm.nih.gov/entrez/eutils/")
         _assert_sanitized_payload(correction_payload, allowed_urls=(public_request_url,))

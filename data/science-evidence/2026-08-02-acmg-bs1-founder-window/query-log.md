@@ -7,7 +7,9 @@ restricted payload was submitted or retained.
 
 ## Claim identifiers
 
-- C1: fail-closed repository-consistency boundary for BS1.
+- C1: fail-closed repository-consistency boundary for BS1; the BA1 selector,
+  generic FAF limitation, and TP53-specific founder-effect rationale are kept
+  as separately scoped sources rather than treated as one universal threshold.
 - C2: repository AF/AN ingestion, persistence, and assessment inventory.
 - C3: citation provenance for the existing BA1/general-population distinction.
 - C4: public gnomAD GraphQL endpoint availability only.

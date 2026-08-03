@@ -29,7 +29,7 @@ highest AF whose paired observed-allele count satisfies its existing guard.
 
 | ID | Claim | Source and version | Sanitized payload | Status |
 | --- | --- | --- | --- | --- |
-| C1 | The BS1 implementation uses the repository's existing founder-excluding BA1 selector and fails closed without an eligible general-continental AF/AN observation. ClinGen SVI describes FAF as the decision statistic for BA1 and BS1 and records that gnomAD does not calculate FAF for Finnish or Ashkenazi Jewish noncontinental subpopulations. | Repository implementation and regression suite; generic FAF data-eligibility guidance: DOI:10.1002/cphg.93, PMID:31479589 (accessed 2026-08-02; response snapshot accessed 2026-08-03). | `source-inventory.json`, `source-response-index.json` | Engine-level conservative evidence-eligibility boundary. It does not calculate FAF or establish a universal disease-specific clinical threshold. |
+| C1 | The BS1 implementation uses the repository's existing founder-excluding BA1 selector and fails closed without an eligible general-continental AF/AN observation. The sources have deliberately separate roles: the ClinGen SVI BA1 refinement defines the existing selector; the SVI overview describes FAF and the Finnish/Ashkenazi Jewish noncontinental limitation; a separate TP53 VCEP specification corroborates a founder-effect exclusion only for TP53. | Repository implementation and regression suite; DOI:10.1002/humu.23642, PMID:30311383; DOI:10.1002/cphg.93, PMID:31479589; DOI:10.1002/humu.24152, PMID:33300245 (accessed 2026-08-02; response snapshots accessed 2026-08-03). | `source-inventory.json`, `source-response-index.json` | Engine-level conservative evidence-eligibility boundary. The TP53 source is not generalized, neither guidance source is treated as an independent empirical frequency measurement, and the engine does not calculate FAF or establish a universal disease-specific clinical threshold. |
 | C2 | Per-population AF/AN fields already reach ACMG assessment; FAF and OTH do not. | Immutable base and implementation snapshots named in `source-inventory.json` (accessed 2026-08-02). | `source-inventory.json` | Direct repository observation. |
 | C3 | Ghosh's BA1 update and the public gnomAD reference paper provide citation provenance for the existing BA1/general-population distinction and reference dataset. | PMID:30311383; DOI:10.1002/humu.23642; PMID:32461654; PMID:28518168 (accessed 2026-08-02; source-response and correction snapshots accessed 2026-08-03). | `source-response-index.json`, `raw/consensus-search-fetch-sanitized.json`, `raw/scite-targeted-doi-responses-sanitized.json`, `pubmed-efetch-corrections-sanitized.json` | Citation provenance only; this patch does not reproduce or alter population measurements. The gnomAD reference record has linked PubMed errata and is not used for a frequency result. |
 | C4 | The public gnomAD GraphQL endpoint was reachable while qualifying this packet. | gnomAD GraphQL `meta.clinvar_release_date=2026-06-06` (accessed 2026-08-02). | `gnomad-meta.json` | Availability/provenance check only; no sample or genotype data were queried. |
@@ -39,17 +39,19 @@ highest AF whose paired observed-allele count satisfies its existing guard.
 The ClinGen SVI overview separates two concerns. It identifies FAF as the
 confidence-bounded population-frequency construct for both BA1 and BS1, and it
 records that gnomAD does not calculate FAF for Finnish or Ashkenazi Jewish
-noncontinental subpopulations. Disease-specific threshold calibration remains a
-separate requirement. This repository does not ingest FAF or a condition-policy
-model, so it does not claim that its AF/AN values are FAF or that every gene and
-disease shares a clinical threshold. The implementation consequence is a narrow,
-engine-level, fail-closed evidence-eligibility guard: BS1 uses the pre-existing
-BA1 general-continental AF/AN selector and withholds when no usable candidate is
-available rather than allowing a founder-only raw AF peak to create benign draft
-evidence. The TP53 ClinGen VCEP specification is corroborative, TP53-specific
-founder-effect rationale, not the source of a universal threshold. Both guideline
-outputs use public population-frequency resources, including gnomAD; this packet
-does not treat them as independent empirical frequency measurements.
+noncontinental subpopulations. The preceding SVI BA1 refinement is the source of
+the pre-existing general-continental, minimum-AN selector; it does not calibrate
+BS1. Disease-specific threshold calibration remains a separate requirement. This
+repository does not ingest FAF or a condition-policy model, so it does not claim
+that its AF/AN values are FAF or that every gene and disease shares a clinical
+threshold. The implementation consequence is a narrow, engine-level, fail-closed
+evidence-eligibility guard: BS1 uses the pre-existing BA1 general-continental
+AF/AN selector and withholds when no usable candidate is available rather than
+allowing a founder-only raw AF peak to create benign draft evidence. The TP53
+ClinGen VCEP specification is separate, TP53-specific corroborative founder-effect
+rationale, not the source of a universal threshold. These guidance sources use
+public population-frequency resources, including gnomAD; this packet does not
+treat them as independent empirical frequency measurements.
 
 Consensus and Scite were queried before the database skills. Consensus returned
 and was fetched for Ghosh et al.'s BA1 recommendation; the retained sanitized
@@ -68,6 +70,8 @@ linked errata. Query details and redaction safeguards are in `query-log.md`.
   2,000-observed-allele guard and BS1's existing default threshold remain
   unchanged. This is a conservative engine-wide evidence-eligibility guard, not
   gene- or disease-specific calibration.
+- The selector considers paired allele frequency (AF) and allele number (AN)
+  only. It neither ingests nor enforces allele count (AC) for BA1 or BS1.
 - A true FAF implementation requires authoritative release-specific semantics,
   FAF/OTH ingestion and persistence, bundle provenance, migration/reannotation,
   and its own evidence packet. It must not derive FAF from stored AF/AN.
