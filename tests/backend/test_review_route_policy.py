@@ -937,11 +937,6 @@ def test_v3_provider_evidence_is_exact_head_immutable_and_nonblocking(mutation: 
         _copilot_v3_body(2, reviewed_files=1),
         # Copilot found something; a review with findings is not a clean review.
         _copilot_v3_body(2, generated_comments=1),
-        # Findings withheld rather than posted still means findings. The exact
-        # wording is not documented, so cover both orders and both nouns.
-        _copilot_v3_body(2, suppressed="Comments suppressed due to low confidence (1)."),
-        _copilot_v3_body(2, suppressed="1 finding suppressed due to low confidence."),
-        _copilot_v3_body(2, suppressed="Suppressed: 1 comment below the confidence bar."),
         # Two coverage sentences leave the real counts ambiguous.
         _copilot_v3_body(2) + _copilot_v3_body(2),
         # The dead pre-#2248 shape, which Copilot never emitted, must not be a
@@ -1006,6 +1001,35 @@ no comments.
 
 
 """
+
+
+def test_v3_copilot_accepts_a_clean_review_that_describes_a_suppression_change() -> None:
+    """Copilot paraphrases the diff, so its prose is not evidence about itself.
+
+    A body scan for withheld findings cannot tell "Copilot suppressed a comment"
+    from "this PR changes how comments are suppressed". Scanning would reject a
+    clean review of any change that discusses suppression — including the change
+    that introduced the scan. The accepted signals are GitHub's attached-comment
+    count and Copilot's own `no comments` verdict; see #2256 for the gap that
+    leaves, which is deliberate rather than overlooked.
+    """
+    files = [ChangedFile("README.md"), ChangedFile("GOVERNANCE.md")]
+    context = _context(
+        "Load-bearing",
+        files,
+        automated_gates={COPILOT_GATE},
+        schema_version=3,
+    )
+    review = next(
+        item
+        for item in context["data"]["repository"]["pullRequest"]["reviews"]["nodes"]
+        if item["author"]["databaseId"] == BOT_ACTOR_IDS[COPILOT_GATE]
+    )
+    review["body"] = _copilot_v3_body(
+        2, suppressed="Adds coverage for how comments suppressed by the provider are handled."
+    )
+    assert "comments suppressed" in review["body"]
+    assert validate_context(context, files, now=NOW) == []
 
 
 def test_v3_copilot_accepts_a_clean_review_whose_prose_repeats_the_phrase() -> None:

@@ -274,21 +274,20 @@ COPILOT_V3_COVERAGE_LINE = re.compile(
     r"(?P<verdict>no comments|[1-9][0-9]* comments?)\.$"
 )
 COPILOT_V3_CLEAN_VERDICT = "no comments"
-# Copilot can withhold low-confidence findings instead of posting them. A review
-# that suppressed findings is not a clean review, and the suppressed ones never
-# become attached comments, so the zero-attached-count check cannot see them.
+# Copilot can withhold low-confidence findings instead of posting them, and a
+# withheld finding never becomes an attached comment. There is deliberately NO
+# prose scan for that here. Copilot's overview and per-file table paraphrase the
+# diff it read, so any pattern broad enough to catch the wording variants
+# ("comments suppressed", "1 finding suppressed", "suppressed: 1 comment") also
+# rejects a clean review of any change that merely discusses suppression — this
+# file being the worked example. Scanning summary prose trades a documented
+# false-negative for an undiagnosable false-positive, which is the exact defect
+# this envelope was rewritten to remove (#2248).
 #
-# One line carrying both "suppress…" and "comment(s)"/"finding(s)", in either
-# order: the exact wording is not documented, so anchoring on a fixed phrase
-# order would miss "1 finding suppressed" or "suppressed: 1 comment". Scoped to
-# a single line rather than the whole body because Copilot's summary paraphrases
-# the diff it read — a bare `suppress` search would reject a clean review of any
-# change that merely discusses suppression, this file being the obvious example.
-# This is a heuristic on unverified provider wording and can still miss a
-# variant; the `no comments` verdict is the primary check.
-COPILOT_V3_SUPPRESSED_FINDINGS = re.compile(
-    r"(?im)^(?=[^\n]*\bsuppress)(?=[^\n]*\b(?:comments?|findings?)\b)[^\n]*$"
-)
+# Suppression should be inferred only from a structured provider marker or an
+# authenticated field. Neither is documented today, so the accepted signals stay
+# the two that are trustworthy: GitHub's own attached-comment count, and
+# Copilot's provider-authored `no comments` verdict. Tracked in #2256.
 CODEX_CLEAN_COMPLETION_PREFIX = "Codex Review: Didn't find any major issues."
 CODEX_CLEAN_COMPLETION_MARKER = f"{CODEX_CLEAN_COMPLETION_PREFIX} What shall we delve into next?"
 CODEX_CLEAN_COMPLETION_LINE = re.compile(
@@ -1304,7 +1303,6 @@ def _v3_formal_review_is_clean(
         found = coverage[0]
         return (
             found.group("verdict") == COPILOT_V3_CLEAN_VERDICT
-            and COPILOT_V3_SUPPRESSED_FINDINGS.search(body) is None
             and int(found.group("reviewed")) == changed_files
             and int(found.group("total")) == changed_files
         )
