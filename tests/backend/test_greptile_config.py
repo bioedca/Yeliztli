@@ -127,6 +127,50 @@ def test_the_review_stays_a_provider_authored_artifact() -> None:
     )
 
 
+def _manual_only_violations(config: dict[str, Any]) -> list[str]:
+    """Return the ways ``config`` fails to pin manual-only review."""
+    violations: list[str] = []
+    if config.get("skipReview") != "AUTOMATIC":
+        violations.append('skipReview must be exactly "AUTOMATIC"')
+    violations.extend(
+        f"{key} must be false"
+        for key in ("triggerOnUpdates", "triggerOnDrafts")
+        if config.get(key) is not False
+    )
+    return violations
+
+
+@pytest.mark.parametrize(
+    ("config", "expected_clean"),
+    [
+        ({"skipReview": "AUTOMATIC", "triggerOnUpdates": False, "triggerOnDrafts": False}, True),
+        ({"skipReview": "AUTO", "triggerOnUpdates": False, "triggerOnDrafts": False}, False),
+        ({"triggerOnUpdates": False, "triggerOnDrafts": False}, False),
+        ({"skipReview": "AUTOMATIC", "triggerOnUpdates": True, "triggerOnDrafts": False}, False),
+        ({"skipReview": "AUTOMATIC", "triggerOnUpdates": False, "triggerOnDrafts": True}, False),
+    ],
+)
+def test_manual_only_checker_detects_a_weakened_config(
+    config: dict[str, Any], expected_clean: bool
+) -> None:
+    assert (_manual_only_violations(config) == []) is expected_clean
+
+
+def test_a_greptile_folder_may_not_shadow_the_guard() -> None:
+    # `.greptile/` takes precedence over the root greptile.json and makes it
+    # ignored entirely, so a config added there could re-enable automatic review
+    # while every assertion above still passes against the shadowed root file.
+    folder_config = REPO_ROOT / ".greptile" / "config.json"
+    if not folder_config.is_file():
+        return
+    config = json.loads(folder_config.read_text(encoding="utf-8"))
+    assert isinstance(config, dict), ".greptile/config.json must be a JSON object"
+    assert not _manual_only_violations(config), (
+        f".greptile/config.json shadows greptile.json and weakens the guard: "
+        f"{_manual_only_violations(config)}"
+    )
+
+
 def test_every_configured_key_is_a_documented_greptile_key() -> None:
     unknown = sorted(set(_config()) - DOCUMENTED_KEYS)
     assert not unknown, (
