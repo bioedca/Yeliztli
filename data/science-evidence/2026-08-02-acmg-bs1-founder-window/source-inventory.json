@@ -1,0 +1,63 @@
+{
+  "claim_ids": ["C1", "C2"],
+  "accessed": "2026-08-02",
+  "derived_inventory_path": "data/science-evidence/2026-08-02-acmg-bs1-founder-window/source-inventory.json",
+  "related_citation_response_index": "data/science-evidence/2026-08-02-acmg-bs1-founder-window/source-response-index.json",
+  "repository_base_commit": "410241021cfa5531d7db108991080c7a5a76b560",
+  "repository_base_role": "Pre-change origin/main snapshot that establishes the existing ingestion, persistence, and BA1 selector path.",
+  "implementation_commit": "6923cbc725e74efb9666ec71c774be422d9dee0a",
+  "implementation_commit_role": "Immutable parent code/test snapshot audited by the initial evidence-only commit; later evidence-only provenance corrections remain bound by the PR head and review route.",
+  "bundle": {
+    "name": "gnomAD exomes",
+    "version": "r2.1.1",
+    "assembly": "GRCh37/b37"
+  },
+  "reviewed_paths": [
+    "backend/analysis/acmg.py",
+    "backend/annotation/engine.py",
+    "backend/annotation/gnomad.py",
+    "backend/db/sample_schema.py",
+    "backend/db/tables.py",
+    "tests/backend/test_acmg.py"
+  ],
+  "field_flow": {
+    "parser": "backend/annotation/gnomad.py GnomADAnnotation AF/AN attributes",
+    "annotation_writer": "backend/annotation/engine.py _gnomad_to_row maps AF/AN to gnomad_af_* and gnomad_an_*",
+    "storage": "backend/db/tables.py annotated_variants columns; backend/db/sample_schema.py migrations",
+    "assessment": "backend/analysis/acmg.py AcmgEvidence consumes persisted gnomad_af_* and gnomad_an_* fields"
+  },
+  "benign_frequency_criteria": {
+    "criteria": ["BA1", "BS1"],
+    "generic_faf_data_eligibility": {
+      "source": "DOI:10.1002/cphg.93; PMID:31479589 (accessed 2026-08-02; response snapshot accessed 2026-08-03)",
+      "criteria": ["BA1", "BS1"],
+      "guidance": "ClinGen SVI identifies filtering allele frequency (FAF) as the frequency construct for BA1 and BS1 and records that gnomAD does not calculate FAF for Finnish or Ashkenazi Jewish noncontinental subpopulations.",
+      "implementation_limit": "The repository does not ingest FAF or a disease-specific frequency-policy model. Its existing general-continental AF/AN selector is therefore a conservative evidence-eligibility guard that withholds on founder-only observations; it does not calculate FAF or calibrate a disease-specific threshold."
+    },
+    "ba1_selector_primary_source": {
+      "source": "DOI:10.1002/humu.23642; PMID:30311383 (accessed 2026-08-02; response snapshot accessed 2026-08-03)",
+      "scope": "ClinGen SVI's BA1 refinement is the primary source for the pre-existing general-continental, minimum-AN selector. It is not used to calibrate BS1.",
+      "independence_note": "This BA1 refinement and the FAF overview are not counted as independent empirical frequency measurements: both are guidance publications and the overview discusses the SVI BA1 refinement."
+    },
+    "founder_effect_corroboration": {
+      "source": "DOI:10.1002/humu.24152; PMID:33300245 (accessed 2026-08-02; response snapshot accessed 2026-08-03)",
+      "scope": "A separately authored ClinGen TP53 VCEP specification directs ignoring Ashkenazi Jewish and Finnish frequencies due to founder effects. It is disease-specific corroboration only, not a universal BA1/BS1 threshold.",
+      "independence_note": "This VCEP source is separate from the generic SVI overview. It agrees on the founder-effect caution but shares public population-frequency resources, so this packet does not present either as an independent empirical frequency measurement."
+    },
+    "eligible_general_continental_populations": [
+      {"label": "AFR", "af_field": "gnomad_af_afr", "an_field": "gnomad_an_afr"},
+      {"label": "AMR", "af_field": "gnomad_af_amr", "an_field": "gnomad_an_amr"},
+      {"label": "EAS", "af_field": "gnomad_af_eas", "an_field": "gnomad_an_eas"},
+      {"label": "EUR/NFE", "af_field": "gnomad_af_eur", "an_field": "gnomad_an_eur"},
+      {"label": "SAS", "af_field": "gnomad_af_sas", "an_field": "gnomad_an_sas"}
+    ],
+    "excluded_founder_populations": ["ASJ", "FIN"],
+    "not_eligible_for_ba1_or_bs1": ["gnomad_af_global", "gnomad_an_global", "gnomad_af_popmax", "gnomad_an_popmax"],
+    "selection_rule": "Choose the highest allele frequency (AF) only among candidates whose paired allele number (AN) meets BA1_MIN_OBSERVED_ALLELES. Allele count (AC) is neither ingested nor used for eligibility; withhold when none qualifies.",
+    "pm2_boundary": "PM2 remains separate: _effective_af uses gnomad_af_popmax, then gnomad_af_global as a rarity fallback."
+  },
+  "not_parsed_or_persisted_fields": ["FAF", "OTH", "AC"],
+  "implementation_boundary": "BS1 now uses the repository's pre-existing BA1 founder-excluding selector. The review follow-up moves BA1's existing observed-allele guard into candidate selection; neither change derives FAF from AF/AN or changes PM2.",
+  "retention": "Repository code-path and field inventory only; no gnomAD data record is retained.",
+  "license_or_terms": "N/A for this inventory: it copies no gnomAD source content or dataset payload."
+}
