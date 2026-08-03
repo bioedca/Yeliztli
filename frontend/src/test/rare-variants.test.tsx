@@ -274,7 +274,7 @@ describe("ResultsTable", () => {
 })
 
 describe("SearchSummary", () => {
-  it("renders stats and export buttons", () => {
+  it("renders search stats without exports of stored findings", () => {
     render(
       <SearchSummary
         total={42}
@@ -282,19 +282,11 @@ describe("SearchSummary", () => {
         novelCount={5}
         pathogenicCount={3}
         genesWithFindings={["BRCA1", "TP53"]}
-        sampleId={1}
       />,
     )
     expect(screen.getByTestId("total-found")).toHaveTextContent("42")
     expect(screen.getByText("600,000")).toBeInTheDocument()
-    expect(screen.getByTestId("export-tsv")).toHaveAttribute(
-      "href",
-      "/api/analysis/rare-variants/export/tsv?sample_id=1",
-    )
-    expect(screen.getByTestId("export-vcf")).toHaveAttribute(
-      "href",
-      "/api/analysis/rare-variants/export/vcf?sample_id=1",
-    )
+    expect(screen.queryByTestId("export-buttons")).not.toBeInTheDocument()
     expect(screen.getByText("BRCA1")).toBeInTheDocument()
     expect(screen.getByText("TP53")).toBeInTheDocument()
   })
@@ -494,6 +486,89 @@ describe("RareVariantsView", () => {
     expect(screen.getByText("BRCA1")).toBeInTheDocument()
     expect(screen.getByText("Previous Findings")).toBeInTheDocument()
     expect(screen.getAllByText("Heterozygous").length).toBeGreaterThan(0)
+    const exports = screen.getByTestId("findings-export")
+    expect(exports.querySelector('a[href="/api/analysis/rare-variants/export/tsv?sample_id=1"]')).toBeInTheDocument()
+    expect(exports.querySelector('a[href="/api/analysis/rare-variants/export/vcf?sample_id=1"]')).toBeInTheDocument()
+  })
+
+  it("keeps stored findings separate from an exploratory search", async () => {
+    const storedFindings = {
+      items: [
+        {
+          rsid: "rs12345",
+          gene_symbol: "BRCA1",
+          category: "clinvar_pathogenic",
+          evidence_level: 4,
+          finding_text: "Pathogenic variant in BRCA1",
+          zygosity: "het",
+          zygosity_label: "Heterozygous",
+          clinvar_significance: "Pathogenic",
+          conditions: "Breast cancer",
+          detail: {},
+        },
+      ],
+      total: 1,
+    }
+    const searchResult = {
+      items: [makeMockVariant()],
+      total: 1,
+      total_variants_scanned: 12,
+      novel_count: 0,
+      pathogenic_count: 1,
+      genes_with_findings: ["BRCA1"],
+      filters_applied: {
+        gene_symbols: null,
+        af_threshold: 0.01,
+        consequences: null,
+        clinvar_significance: null,
+        include_novel: true,
+        zygosity: null,
+      },
+    }
+    mockFetch.mockImplementation((input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes("/api/analysis/rare-variants/findings?")) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(storedFindings),
+          text: () => Promise.resolve(""),
+        })
+      }
+      if (url.includes("/api/analysis/rare-variants/search?")) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(searchResult),
+          text: () => Promise.resolve(""),
+        })
+      }
+      return Promise.reject(new Error(`Unexpected fetch: ${url}`))
+    })
+
+    const user = userEvent.setup()
+    rtlRender(<RareVariantsView />, {
+      wrapper: createWrapper(["/?sample_id=1"]),
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId("findings-export")).toBeInTheDocument()
+    })
+    expect(
+      mockFetch.mock.calls.filter(([input]) =>
+        String(input).includes("/api/analysis/rare-variants/findings?"),
+      ),
+    ).toHaveLength(1)
+
+    await user.click(screen.getByTestId("search-button"))
+
+    await waitFor(() => {
+      expect(screen.getByTestId("total-found")).toHaveTextContent("1")
+    })
+    expect(screen.queryByTestId("findings-export")).not.toBeInTheDocument()
+    expect(
+      mockFetch.mock.calls.filter(([input]) =>
+        String(input).includes("/api/analysis/rare-variants/findings?"),
+      ),
+    ).toHaveLength(1)
   })
 
   it("renders the 0★ clinvar_pathogenic_low_confidence category with a friendly label, not the raw key (#919)", async () => {

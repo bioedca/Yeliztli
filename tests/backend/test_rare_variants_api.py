@@ -392,9 +392,9 @@ class TestSearchEndpoint:
     ) -> None:
         """Default search must not surface a hom_ref (non-carrier) Pathogenic variant.
 
-        The ``/search`` route persists findings, so it carriage-gates the finder
-        (``_request_to_filter`` forces ``carried_only=True``) — a non-carried
-        Pathogenic variant never leaks into results or stored findings.
+        The ``/search`` route carriage-gates the finder
+        (``_request_to_filter`` forces ``carried_only=True``), so a non-carried
+        Pathogenic variant never leaks into user-visible results.
         """
         engine = sa.create_engine(f"sqlite:///{sample_db_path}")
         with engine.begin() as conn:
@@ -514,20 +514,64 @@ class TestSearchEndpoint:
         assert "rs_homalt_rare" in hom_rsids  # surfaced when the filter matches
         assert het_rsids.isdisjoint(hom_rsids)  # the filter genuinely partitions
 
-    def test_search_stores_findings(self, rare_client: TestClient) -> None:
-        """Search also stores findings in the sample DB."""
-        rare_client.post(
-            "/api/analysis/rare-variants/search?sample_id=1",
-            json={},
+    def test_filtered_search_preserves_existing_stored_findings_via_route_function(
+        self, monkeypatch: pytest.MonkeyPatch, sample_db_path: Path
+    ) -> None:
+        """A filtered search is exploratory and must not replace canonical findings (#2060)."""
+        seed_rare_variant_findings(sample_db_path)
+
+        from backend.api.routes import rare_variants
+
+        engine = sa.create_engine(f"sqlite:///{sample_db_path}")
+        monkeypatch.setattr(rare_variants, "_get_sample_engine", lambda sample_id: engine)
+        monkeypatch.setattr(
+            rare_variants,
+            "_resolve_biological_sex_for_sample",
+            lambda sample_engine, sample_id: None,
         )
-        # Verify findings are stored
-        resp = rare_client.get("/api/analysis/rare-variants/findings?sample_id=1")
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["total"] > 0
-        assert all("zygosity_label" in item for item in data["items"])
-        by_rsid = {item["rsid"]: item for item in data["items"]}
-        assert by_rsid["rs28897696"]["zygosity_label"] == "Heterozygous"
+
+        try:
+            before = rare_variants.list_rare_variant_findings(sample_id=1, limit=100, offset=0)
+            assert before.total == 2
+            assert {item.rsid for item in before.items} == {"rs_first", "rs_second"}
+
+            search = rare_variants.search_rare_variants(
+                rare_variants.RareVariantFilterRequest(gene_symbols=["BRCA1"]),
+                sample_id=1,
+            )
+            assert search.total > 0
+            assert {item.gene_symbol for item in search.items} == {"BRCA1"}
+
+            after = rare_variants.list_rare_variant_findings(sample_id=1, limit=100, offset=0)
+            assert after.total == before.total
+            assert {item.rsid for item in after.items} == {"rs_first", "rs_second"}
+        finally:
+            engine.dispose()
+
+    def test_filtered_search_preserves_existing_stored_findings_over_http(
+        self, rare_client: TestClient
+    ) -> None:
+        """The public filtered-search endpoint must not replace full-run findings (#2060)."""
+        full_run = rare_client.post("/api/analysis/rare-variants/run?sample_id=1")
+        assert full_run.status_code == 200
+        assert full_run.json()["findings_stored"] > 0
+
+        before_response = rare_client.get("/api/analysis/rare-variants/findings?sample_id=1")
+        assert before_response.status_code == 200
+        before = before_response.json()
+        assert before["total"] > 1
+
+        search_response = rare_client.post(
+            "/api/analysis/rare-variants/search?sample_id=1",
+            json={"gene_symbols": ["BRCA1"]},
+        )
+        assert search_response.status_code == 200
+        assert search_response.json()["total"] > 0
+        assert {item["gene_symbol"] for item in search_response.json()["items"]} == {"BRCA1"}
+
+        after_response = rare_client.get("/api/analysis/rare-variants/findings?sample_id=1")
+        assert after_response.status_code == 200
+        assert after_response.json() == before
 
     def test_search_response_metadata(self, rare_client: TestClient) -> None:
         """Response includes metadata fields."""
@@ -599,20 +643,17 @@ class TestSearchEndpoint:
 class TestFindingsEndpoint:
     """Tests for the findings endpoint."""
 
-    def test_findings_empty_before_search(self, rare_client: TestClient) -> None:
-        """Findings are empty before any search is run."""
+    def test_findings_empty_before_full_run(self, rare_client: TestClient) -> None:
+        """Findings are empty before a full run populates the canonical store."""
         resp = rare_client.get("/api/analysis/rare-variants/findings?sample_id=1")
         assert resp.status_code == 200
         data = resp.json()
         assert data["total"] == 0
         assert data["items"] == []
 
-    def test_findings_after_search(self, rare_client: TestClient) -> None:
-        """Findings are populated after a search."""
-        rare_client.post(
-            "/api/analysis/rare-variants/search?sample_id=1",
-            json={},
-        )
+    def test_findings_after_full_run(self, rare_client: TestClient) -> None:
+        """Findings are populated after an unfiltered full run."""
+        rare_client.post("/api/analysis/rare-variants/run?sample_id=1")
         resp = rare_client.get("/api/analysis/rare-variants/findings?sample_id=1")
         assert resp.status_code == 200
         data = resp.json()
@@ -649,10 +690,7 @@ class TestFindingsEndpoint:
 
     def test_findings_sorted_by_evidence(self, rare_client: TestClient) -> None:
         """Findings are sorted by evidence level descending."""
-        rare_client.post(
-            "/api/analysis/rare-variants/search?sample_id=1",
-            json={},
-        )
+        rare_client.post("/api/analysis/rare-variants/run?sample_id=1")
         resp = rare_client.get("/api/analysis/rare-variants/findings?sample_id=1")
         items = resp.json()["items"]
         if len(items) >= 2:
@@ -663,10 +701,7 @@ class TestFindingsEndpoint:
 
     def test_findings_contain_detail(self, rare_client: TestClient) -> None:
         """Findings include parsed detail_json."""
-        rare_client.post(
-            "/api/analysis/rare-variants/search?sample_id=1",
-            json={},
-        )
+        rare_client.post("/api/analysis/rare-variants/run?sample_id=1")
         resp = rare_client.get("/api/analysis/rare-variants/findings?sample_id=1")
         items = resp.json()["items"]
         for item in items:
@@ -695,12 +730,83 @@ class TestRunEndpoint:
         assert resp.status_code == 200
         data = resp.json()
         assert "variants_found" in data
+        assert data["findings_stored"] > 0
         assert "findings_stored" in data
         assert data["variants_found"] >= 2
         assert data["findings_stored"] == data["variants_found"]
 
-    def test_run_with_filters(self, rare_client: TestClient) -> None:
-        """Run with custom filter body."""
+    def test_filtered_run_preserves_existing_stored_findings_via_route_function(
+        self, monkeypatch: pytest.MonkeyPatch, sample_db_path: Path
+    ) -> None:
+        """A supplied filter body cannot replace canonical findings (#2060)."""
+        seed_rare_variant_findings(sample_db_path)
+
+        from backend.api.routes import rare_variants
+
+        engine = sa.create_engine(f"sqlite:///{sample_db_path}")
+        monkeypatch.setattr(rare_variants, "_get_sample_engine", lambda sample_id: engine)
+        monkeypatch.setattr(
+            rare_variants,
+            "_resolve_biological_sex_for_sample",
+            lambda sample_engine, sample_id: None,
+        )
+
+        try:
+            before = rare_variants.list_rare_variant_findings(sample_id=1, limit=100, offset=0)
+            response = rare_variants.run_rare_variant_finder(
+                sample_id=1,
+                body=rare_variants.RareVariantFilterRequest(gene_symbols=["BRCA1"]),
+            )
+            assert response.findings_stored == 0
+            assert response.variants_found > 0
+            assert response.genes_with_findings == ["BRCA1"]
+
+            after = rare_variants.list_rare_variant_findings(sample_id=1, limit=100, offset=0)
+            assert after == before
+        finally:
+            engine.dispose()
+
+    def test_empty_run_body_preserves_existing_stored_findings_via_route_function(
+        self, monkeypatch: pytest.MonkeyPatch, sample_db_path: Path
+    ) -> None:
+        """An explicitly supplied empty body is exploratory, not a full run (#2060)."""
+        seed_rare_variant_findings(sample_db_path)
+
+        from backend.api.routes import rare_variants
+
+        engine = sa.create_engine(f"sqlite:///{sample_db_path}")
+        monkeypatch.setattr(rare_variants, "_get_sample_engine", lambda sample_id: engine)
+        monkeypatch.setattr(
+            rare_variants,
+            "_resolve_biological_sex_for_sample",
+            lambda sample_engine, sample_id: None,
+        )
+
+        try:
+            before = rare_variants.list_rare_variant_findings(sample_id=1, limit=100, offset=0)
+            response = rare_variants.run_rare_variant_finder(
+                sample_id=1,
+                body=rare_variants.RareVariantFilterRequest(),
+            )
+            assert response.findings_stored == 0
+            assert response.variants_found > 0
+
+            after = rare_variants.list_rare_variant_findings(sample_id=1, limit=100, offset=0)
+            assert after == before
+        finally:
+            engine.dispose()
+
+    def test_filtered_run_does_not_store_findings(self, rare_client: TestClient) -> None:
+        """A supplied filter body is exploratory and does not replace findings (#2060)."""
+        full_run = rare_client.post("/api/analysis/rare-variants/run?sample_id=1")
+        assert full_run.status_code == 200
+        assert full_run.json()["findings_stored"] > 0
+
+        before_response = rare_client.get("/api/analysis/rare-variants/findings?sample_id=1")
+        assert before_response.status_code == 200
+        before = before_response.json()
+        assert before["total"] > 1
+
         resp = rare_client.post(
             "/api/analysis/rare-variants/run?sample_id=1",
             json={"gene_symbols": ["BRCA1"], "af_threshold": 0.001},
@@ -708,6 +814,33 @@ class TestRunEndpoint:
         assert resp.status_code == 200
         data = resp.json()
         assert data["variants_found"] >= 1
+        assert data["findings_stored"] == 0
+
+        findings_response = rare_client.get("/api/analysis/rare-variants/findings?sample_id=1")
+        assert findings_response.status_code == 200
+        assert findings_response.json() == before
+
+    def test_empty_run_body_does_not_store_findings(self, rare_client: TestClient) -> None:
+        """An explicit empty JSON body is exploratory and leaves findings unchanged (#2060)."""
+        full_run = rare_client.post("/api/analysis/rare-variants/run?sample_id=1")
+        assert full_run.status_code == 200
+        assert full_run.json()["findings_stored"] > 0
+
+        before_response = rare_client.get("/api/analysis/rare-variants/findings?sample_id=1")
+        assert before_response.status_code == 200
+        before = before_response.json()
+        assert before["total"] > 1
+
+        exploratory_run = rare_client.post(
+            "/api/analysis/rare-variants/run?sample_id=1",
+            json={},
+        )
+        assert exploratory_run.status_code == 200
+        assert exploratory_run.json()["findings_stored"] == 0
+
+        after_response = rare_client.get("/api/analysis/rare-variants/findings?sample_id=1")
+        assert after_response.status_code == 200
+        assert after_response.json() == before
 
     def test_run_missing_sample_404(self, empty_client: TestClient) -> None:
         """Missing sample returns 404."""
@@ -725,10 +858,7 @@ class TestTSVExport:
 
     def test_tsv_export_has_header(self, rare_client: TestClient) -> None:
         """TSV export includes a header row."""
-        rare_client.post(
-            "/api/analysis/rare-variants/search?sample_id=1",
-            json={},
-        )
+        rare_client.post("/api/analysis/rare-variants/run?sample_id=1")
         resp = rare_client.get("/api/analysis/rare-variants/export/tsv?sample_id=1")
         assert resp.status_code == 200
         assert "text/tab-separated-values" in resp.headers["content-type"]
@@ -740,10 +870,7 @@ class TestTSVExport:
 
     def test_tsv_export_content_disposition(self, rare_client: TestClient) -> None:
         """TSV has correct Content-Disposition header for download."""
-        rare_client.post(
-            "/api/analysis/rare-variants/search?sample_id=1",
-            json={},
-        )
+        rare_client.post("/api/analysis/rare-variants/run?sample_id=1")
         resp = rare_client.get("/api/analysis/rare-variants/export/tsv?sample_id=1")
         assert "attachment" in resp.headers.get("content-disposition", "")
         assert ".tsv" in resp.headers.get("content-disposition", "")
@@ -762,10 +889,7 @@ class TestTSVExport:
 
     def test_tsv_tab_separated(self, rare_client: TestClient) -> None:
         """TSV rows are tab-separated with correct column count."""
-        rare_client.post(
-            "/api/analysis/rare-variants/search?sample_id=1",
-            json={},
-        )
+        rare_client.post("/api/analysis/rare-variants/run?sample_id=1")
         resp = rare_client.get("/api/analysis/rare-variants/export/tsv?sample_id=1")
         lines = resp.text.strip().split("\n")
         header_cols = lines[0].split("\t")
@@ -784,10 +908,7 @@ class TestVCFExport:
 
     def test_vcf_export_has_header(self, rare_client: TestClient) -> None:
         """VCF export starts with proper VCF 4.2 header."""
-        rare_client.post(
-            "/api/analysis/rare-variants/search?sample_id=1",
-            json={},
-        )
+        rare_client.post("/api/analysis/rare-variants/run?sample_id=1")
         resp = rare_client.get("/api/analysis/rare-variants/export/vcf?sample_id=1")
         assert resp.status_code == 200
         text = resp.text
@@ -797,10 +918,7 @@ class TestVCFExport:
 
     def test_vcf_export_info_fields(self, rare_client: TestClient) -> None:
         """VCF data lines include INFO fields."""
-        rare_client.post(
-            "/api/analysis/rare-variants/search?sample_id=1",
-            json={},
-        )
+        rare_client.post("/api/analysis/rare-variants/run?sample_id=1")
         resp = rare_client.get("/api/analysis/rare-variants/export/vcf?sample_id=1")
         lines = resp.text.strip().split("\n")
         data_lines = [line for line in lines if not line.startswith("#")]
@@ -811,10 +929,7 @@ class TestVCFExport:
 
     def test_vcf_export_has_real_chrom_pos(self, rare_client: TestClient) -> None:
         """VCF data lines contain real chromosome and position from annotated_variants."""
-        rare_client.post(
-            "/api/analysis/rare-variants/search?sample_id=1",
-            json={},
-        )
+        rare_client.post("/api/analysis/rare-variants/run?sample_id=1")
         resp = rare_client.get("/api/analysis/rare-variants/export/vcf?sample_id=1")
         lines = resp.text.strip().split("\n")
         data_lines = [line for line in lines if not line.startswith("#")]
@@ -829,10 +944,7 @@ class TestVCFExport:
 
     def test_vcf_export_content_disposition(self, rare_client: TestClient) -> None:
         """VCF has correct Content-Disposition header."""
-        rare_client.post(
-            "/api/analysis/rare-variants/search?sample_id=1",
-            json={},
-        )
+        rare_client.post("/api/analysis/rare-variants/run?sample_id=1")
         resp = rare_client.get("/api/analysis/rare-variants/export/vcf?sample_id=1")
         assert "attachment" in resp.headers.get("content-disposition", "")
         assert ".vcf" in resp.headers.get("content-disposition", "")

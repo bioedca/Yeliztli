@@ -15,6 +15,7 @@ from __future__ import annotations
 import io
 from collections.abc import Generator
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -22,11 +23,13 @@ import sqlalchemy as sa
 from _carriage_fixtures import hom_ref_pathogenic_row
 from fastapi.testclient import TestClient
 
+from backend.analysis.custom_panels import CustomPanel
 from backend.config import Settings
 from backend.db.connection import reset_registry
 from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import (
     annotated_variants,
+    findings,
     reference_metadata,
     samples,
 )
@@ -161,6 +164,40 @@ def _insert_annotated_variant(sample_db_path: Path, row: dict) -> None:
     engine = sa.create_engine(f"sqlite:///{sample_db_path}")
     with engine.begin() as conn:
         conn.execute(sa.insert(annotated_variants), [row])
+    engine.dispose()
+
+
+def _seed_rare_variant_findings(sample_db_path: Path) -> None:
+    """Seed canonical rare-variant findings that an exploratory panel search must retain."""
+    engine = sa.create_engine(f"sqlite:///{sample_db_path}")
+    with engine.begin() as conn:
+        conn.execute(
+            sa.insert(findings),
+            [
+                {
+                    "module": "rare_variants",
+                    "category": "clinvar_pathogenic",
+                    "evidence_level": 4,
+                    "gene_symbol": "BRCA1",
+                    "rsid": "rs_existing_brca",
+                    "finding_text": "Existing canonical BRCA1 finding",
+                    "zygosity": "het",
+                    "clinvar_significance": "Pathogenic",
+                    "detail_json": "{}",
+                },
+                {
+                    "module": "rare_variants",
+                    "category": "rare",
+                    "evidence_level": 1,
+                    "gene_symbol": "CFTR",
+                    "rsid": "rs_existing_cftr",
+                    "finding_text": "Existing canonical CFTR finding",
+                    "zygosity": "het",
+                    "clinvar_significance": None,
+                    "detail_json": "{}",
+                },
+            ],
+        )
     engine.dispose()
 
 
@@ -409,13 +446,21 @@ class TestSearchWithPanelEndpoint:
     """Tests for running rare variant search with a saved panel."""
 
     def test_search_with_panel(self, panel_client: TestClient) -> None:
-        """Search with a saved panel returns matching variants."""
+        """Panel search is exploratory and retains canonical full-run findings (#2060)."""
         # Upload a panel
         upload_resp = panel_client.post(
             "/api/panels/upload?name=BRCA+Panel",
             files={"file": ("brca.txt", io.BytesIO(b"BRCA1\nBRCA2"), "text/plain")},
         )
         panel_id = upload_resp.json()["panel"]["id"]
+
+        full_run = panel_client.post("/api/analysis/rare-variants/run?sample_id=1")
+        assert full_run.status_code == 200
+        assert full_run.json()["findings_stored"] > 0
+        before_response = panel_client.get("/api/analysis/rare-variants/findings?sample_id=1")
+        assert before_response.status_code == 200
+        before = before_response.json()
+        assert before["total"] > 1
 
         # Search with the panel
         resp = panel_client.post(
@@ -426,7 +471,70 @@ class TestSearchWithPanelEndpoint:
         data = resp.json()
         assert data["panel_name"] == "BRCA Panel"
         assert data["variants_found"] >= 1
-        assert data["findings_stored"] >= 1
+        assert data["findings_stored"] == 0
+
+        after_response = panel_client.get("/api/analysis/rare-variants/findings?sample_id=1")
+        assert after_response.status_code == 200
+        assert after_response.json() == before
+
+    def test_panel_search_preserves_existing_stored_findings_via_route_function(
+        self, monkeypatch: pytest.MonkeyPatch, sample_db_path: Path
+    ) -> None:
+        """A saved panel is itself a filter and cannot overwrite findings (#2060)."""
+        _seed_rare_variant_findings(sample_db_path)
+
+        from backend.api.routes import custom_panels
+
+        panel = CustomPanel(
+            id=1,
+            name="BRCA Panel",
+            description="",
+            gene_symbols=["BRCA1"],
+            bed_regions=None,
+            source_type="gene_list",
+            gene_count=1,
+        )
+        engine = sa.create_engine(f"sqlite:///{sample_db_path}")
+        monkeypatch.setattr(
+            custom_panels,
+            "get_registry",
+            lambda: SimpleNamespace(reference_engine=object()),
+        )
+        monkeypatch.setattr(
+            custom_panels,
+            "get_custom_panel",
+            lambda panel_id, reference_engine: panel,
+        )
+        monkeypatch.setattr(custom_panels, "_get_sample_engine", lambda sample_id: engine)
+        monkeypatch.setattr(
+            custom_panels,
+            "_resolve_biological_sex_for_sample",
+            lambda sample_engine, sample_id: None,
+        )
+
+        try:
+            with engine.connect() as conn:
+                before = set(
+                    conn.execute(
+                        sa.select(findings.c.rsid).where(findings.c.module == "rare_variants")
+                    ).scalars()
+                )
+            assert before == {"rs_existing_brca", "rs_existing_cftr"}
+
+            response = custom_panels.search_with_panel(panel_id=1, sample_id=1)
+            assert response.variants_found > 0
+            assert response.findings_stored == 0
+            assert response.genes_with_findings == ["BRCA1"]
+
+            with engine.connect() as conn:
+                after = set(
+                    conn.execute(
+                        sa.select(findings.c.rsid).where(findings.c.module == "rare_variants")
+                    ).scalars()
+                )
+            assert after == before
+        finally:
+            engine.dispose()
 
     def test_search_with_panel_and_filters(self, panel_client: TestClient) -> None:
         """Search with panel respects additional filter parameters."""
@@ -444,6 +552,7 @@ class TestSearchWithPanelEndpoint:
         data = resp.json()
         # Only BRCA1 Pathogenic variant should match
         assert data["variants_found"] >= 1
+        assert data["findings_stored"] == 0
         for gene in data["genes_with_findings"]:
             assert gene in ["BRCA1"]
 
@@ -452,9 +561,8 @@ class TestSearchWithPanelEndpoint:
     ) -> None:
         """A hom_ref (non-carrier) Pathogenic variant in a panel gene is not found.
 
-        Panel search persists findings, so it carriage-gates the finder
-        (``carried_only=True``) — a non-carried Pathogenic variant in a panel
-        gene is never counted as found.
+        Panel search carriage-gates the finder (``carried_only=True``), so a
+        non-carried Pathogenic variant in a panel gene is never counted as found.
         """
         _insert_annotated_variant(
             sample_db_path,
@@ -527,7 +635,7 @@ class TestSearchWithPanelEndpoint:
         assert resp.status_code == 200
         data = resp.json()
         assert data["variants_found"] == 1
-        assert data["findings_stored"] == 1
+        assert data["findings_stored"] == 0
         assert data["genes_with_findings"] == ["SRY"]
 
     def test_search_panel_not_found(self, panel_client: TestClient) -> None:
