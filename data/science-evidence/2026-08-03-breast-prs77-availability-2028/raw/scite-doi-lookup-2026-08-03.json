@@ -1,0 +1,58 @@
+{
+  "service": "Scite",
+  "accessed": "2026-08-03",
+  "endpoint": "search_literature",
+  "params": {"dois": ["10.1093/jnci/djv036", "10.1093/database/bay119"], "limit": 5},
+  "status": "success",
+  "total_hits": 2,
+  "sanitization": "Bibliographic metadata, citation tallies, licence, and editorial-notice screening only. Scite's resolved publisher access links are signed, expiring redirects and are not retained; the canonical DOI is retained instead. Abstracts are retained only for the CC-BY licensed Ensembl record and omitted for the all-rights-reserved JNCI record. Smart Citation snippets quoting third-party papers are not retained.",
+  "records": [
+    {
+      "doi": "10.1093/jnci/djv036",
+      "title": "Prediction of Breast Cancer Risk Based on Profiling With Common Genetic Variants",
+      "journal": "jnci journal of the national cancer institute",
+      "publisher": "Oxford University Press (OUP)",
+      "year": 2015,
+      "date": "2015-04-02",
+      "volume": "107",
+      "issue": "5",
+      "is_open_access": true,
+      "oa_status": "bronze",
+      "authors_returned": ["Nasim Mavaddat", "Paul D.P. Pharoah", "Kyriaki Michailidou"],
+      "abstract_retained": false,
+      "abstract_omitted_reason": "Publisher abstract is all-rights-reserved.",
+      "editorial_notices": [],
+      "citation_tally": {
+        "total": 550,
+        "supporting": 33,
+        "contrasting": 3,
+        "mentioning": 496,
+        "citing_publications": 571
+      }
+    },
+    {
+      "doi": "10.1093/database/bay119",
+      "title": "Ensembl variation resources",
+      "journal": "database",
+      "publisher": "Oxford University Press (OUP)",
+      "year": 2018,
+      "date": "2018-01-01",
+      "volume": "2018",
+      "is_open_access": true,
+      "oa_status": "gold",
+      "license": "cc-by",
+      "authors_returned": ["Sarah Hunt", "William McLaren", "Laurent Gil"],
+      "abstract_retained": false,
+      "abstract_omitted_reason": "Not needed for this packet's source-identity claim; the record is CC-BY so retention would have been permitted.",
+      "editorial_notices": [],
+      "citation_tally": {
+        "total": 373,
+        "supporting": 8,
+        "contrasting": 0,
+        "mentioning": 357,
+        "citing_publications": 505
+      }
+    }
+  ],
+  "correction_retraction_screening": "Neither record carries any editorial notice - no retraction, correction, expression of concern, or erratum - as of the 2026-08-03 access date."
+}

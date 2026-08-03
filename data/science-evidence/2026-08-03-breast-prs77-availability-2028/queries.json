@@ -1,0 +1,51 @@
+{
+  "accessed": "2026-08-03",
+  "issue": "#2028",
+  "claim": "Source identity and provenance for the two references cited by the breast-cancer PRS77 availability note in docs/modules/health-risk/cancer.md. No biological, statistical, or clinical claim is asserted; the model is fail-closed and produces no score.",
+  "citations": [
+    "PMID:25855707; DOI:10.1093/jnci/djv036 (accessed 2026-08-03)",
+    "DOI:10.1093/database/bay119 (accessed 2026-08-03)"
+  ],
+  "high_stakes_two_source_rule": "Not engaged. This packet records which published model and which annotation resource the bundled panel points at, not a patient-specific or quantitative clinical claim.",
+  "queries": [
+    {
+      "service": "Consensus",
+      "tier": "first",
+      "accessed": "2026-08-03",
+      "query": "77-SNP polygenic risk score breast cancer risk stratification Mavaddat common genetic variants",
+      "filters": "none",
+      "status": "success",
+      "result": "Rank 1 is the Mavaddat 2015 JNCI paper cited as reference [2], matching its title, first author, year, and journal. Rank 4 (Hovhannisyan et al., Cancer, 2024) is an independent population validation of PRS77 with a different cohort and author group; it is recorded for completeness and deliberately NOT relied on, because this PR withholds the model rather than scoring it.",
+      "raw_payload": "data/science-evidence/2026-08-03-breast-prs77-availability-2028/raw/consensus-search-2026-08-03.json"
+    },
+    {
+      "service": "Scite",
+      "tier": "first",
+      "accessed": "2026-08-03",
+      "endpoint": "search_literature",
+      "dois": ["10.1093/jnci/djv036", "10.1093/database/bay119"],
+      "status": "success",
+      "result": "Both DOIs resolved. Zero editorial notices on each (no retraction, correction, expression of concern, or erratum) - this is the packet's correction/retraction screening. Verified journal, volume, issue, page and date for the JNCI record, and the CC-BY gold open-access licence for the Ensembl record.",
+      "raw_payload": "data/science-evidence/2026-08-03-breast-prs77-availability-2028/raw/scite-doi-lookup-2026-08-03.json"
+    },
+    {
+      "service": "PubMed connector",
+      "tier": "narrowest specialist",
+      "accessed": "2026-08-03",
+      "endpoint": "get_article_metadata",
+      "params": {"pmids": ["25855707"]},
+      "status": "success",
+      "result": "Confirms PMID:25855707 and DOI:10.1093/jnci/djv036 are the same record: 'Prediction of breast cancer risk based on profiling with common genetic variants', Journal of the National Cancer Institute, 2015, volume 107 issue 5, first author Mavaddat, 212 authors. Publication types are Journal Article; Research Support, N.I.H., Extramural; Research Support, Non-U.S. Gov't.",
+      "raw_payload": "data/science-evidence/2026-08-03-breast-prs77-availability-2028/raw/pubmed-25855707-metadata.json"
+    }
+  ],
+  "panel_derived_values": {
+    "note": "The locus counts in cancer.md come from the bundled panel, not from either paper.",
+    "source": "backend/data/panels/cancer_prs_weights.json -> weight_sets[0].model_provenance.current_allele_audit",
+    "multiallelic_primary_loci": 39,
+    "biallelic_palindromic_loci": 2,
+    "runtime_blocked_loci": 41,
+    "audit_source": "Ensembl Variation, GRCh38, checked_on 2026-07-16",
+    "guard": "tests/backend/test_cancer_prs_docs_consistency.py derives the expected counts from the panel and cross-checks runtime_blocked_loci == multiallelic + biallelic."
+  }
+}

@@ -31,7 +31,7 @@ A **28-gene** hereditary-cancer panel, including *BRCA1*, *BRCA2*, *TP53*, *PALB
 
 !!! note "Breast-cancer PRS is currently unavailable"
     The source-verified breast-cancer PRS77 [2] is not scored or reported. The bundled GRCh38
-    allele audit [3] records 39 multiallelic primary loci and two additional biallelic loci that
+    allele audit [3] records 39 multiallelic primary loci and 2 additional biallelic loci that
     are palindromic without trusted effect-allele strand provenance. The current sample schema
     does not preserve enough allele context to harmonize those loci safely. This is a runtime
     limitation, not an ancestry-calibration result; the percentile note below applies only to

@@ -18,6 +18,9 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[2]
 _PANEL_PATH = REPO_ROOT / "backend" / "data" / "panels" / "cancer_prs_weights.json"
 _DOC_PATH = REPO_ROOT / "docs" / "modules" / "health-risk" / "cancer.md"
+_EVIDENCE_DIR = (
+    REPO_ROOT / "data" / "science-evidence" / "2026-08-03-breast-prs77-availability-2028"
+)
 
 _TRAIT_LABELS = {
     "breast_cancer": "breast",
@@ -68,6 +71,17 @@ def _breast_prs_note(doc_text: str) -> str:
     return " ".join(match.group("body").lower().split())
 
 
+def _breast_allele_audit() -> dict[str, object]:
+    breast = next(
+        weight_set for weight_set in _weight_sets() if weight_set["trait"] == "breast_cancer"
+    )
+    provenance = breast["model_provenance"]
+    assert isinstance(provenance, dict), "breast weight set must carry model_provenance"
+    audit = provenance["current_allele_audit"]
+    assert isinstance(audit, dict), "breast model_provenance must carry current_allele_audit"
+    return audit
+
+
 def _reference_entry(doc_text: str, number: int) -> str:
     match = next(
         (
@@ -110,11 +124,30 @@ def test_cancer_docs_distinguish_the_runtime_block_from_ancestry_withholding() -
 
     doc_text = _DOC_PATH.read_text(encoding="utf-8")
     note_text = _breast_prs_note(doc_text)
+    audit = _breast_allele_audit()
+    multiallelic = audit["multiallelic_primary_loci"]
+    biallelic = audit["biallelic_palindromic_loci"]
+    blocked = audit["runtime_blocked_loci"]
+    assert isinstance(multiallelic, int) and not isinstance(multiallelic, bool)
+    assert isinstance(biallelic, int) and not isinstance(biallelic, bool)
+    assert multiallelic > 0 and biallelic > 0, (
+        "the audit must report a positive count in both blocked-locus groups, "
+        "otherwise the documented rationale describes nothing"
+    )
+    assert blocked == multiallelic + biallelic, (
+        "current_allele_audit is internally inconsistent: runtime_blocked_loci "
+        f"({blocked}) is not multiallelic_primary_loci ({multiallelic}) plus "
+        f"biallelic_palindromic_loci ({biallelic})"
+    )
+
+    # Derive the documented counts from the bundled audit rather than hard-coding
+    # them.  A regenerated audit with different blocker counts must redden this
+    # guard instead of leaving cancer.md asserting stale numbers.
     required_phrases = {
         "source-verified breast-cancer prs77",
         "not scored or reported",
-        "39 multiallelic primary loci",
-        "two additional biallelic loci",
+        f"{multiallelic} multiallelic primary loci",
+        f"{biallelic} additional biallelic loci",
         "multiallelic",
         "palindromic",
         "current sample schema",
@@ -147,4 +180,45 @@ def test_cancer_docs_distinguish_the_runtime_block_from_ancestry_withholding() -
     )
     assert _ACCESS_DATE_RE.search(audit_reference), (
         "breast PRS allele-audit reference must include an '(accessed YYYY-MM-DD)' date"
+    )
+
+
+def test_breast_prs_references_carry_a_science_evidence_packet() -> None:
+    """Every identifier cited by the breast PRS note must be in the stored packet.
+
+    The repository requires the queries, source IDs, access dates and raw payload
+    paths behind a cited identifier to live under ``data/science-evidence/``.
+    Binding the packet to the documentation here means a reference cannot be
+    added to, or changed in, ``cancer.md`` without its provenance following it.
+    """
+    queries_path = _EVIDENCE_DIR / "queries.json"
+    assert queries_path.is_file(), (
+        f"the breast PRS references need their science-evidence packet at {queries_path}"
+    )
+    packet = json.loads(queries_path.read_text(encoding="utf-8"))
+
+    services = {str(entry["service"]) for entry in packet["queries"]}
+    assert {"Consensus", "Scite"} <= services, (
+        "the packet must record the Consensus and Scite first tier, even when a "
+        f"service was unavailable; recorded services were {sorted(services)}"
+    )
+    for entry in packet["queries"]:
+        assert entry.get("status"), f"packet entry for {entry['service']} must record a status"
+        if entry["status"] == "success":
+            raw = entry.get("raw_payload")
+            assert raw, f"successful {entry['service']} call must record a raw payload path"
+            assert (REPO_ROOT / raw).is_file(), f"missing recorded raw payload: {raw}"
+
+    doc_text = _DOC_PATH.read_text(encoding="utf-8")
+    cited = {
+        match.group(0).upper()
+        for number in (2, 3)
+        for match in _PROVENANCE_ID_RE.finditer(_reference_entry(doc_text, number))
+    }
+    assert cited, "the breast PRS references must cite at least one approved identifier"
+    recorded = " ".join(str(item) for item in packet["citations"]).upper()
+    missing = sorted(identifier for identifier in cited if identifier not in recorded)
+    assert not missing, (
+        "every identifier cited by the breast PRS references must appear in the "
+        f"evidence packet's citations; missing: {missing}"
     )

@@ -1,0 +1,105 @@
+{
+  "_sanitization": "Sourced from NCBI PubMed via the PubMed connector, accessed 2026-08-03. The publisher-supplied abstract is removed because it carries all-rights-reserved copyright. This record has 212 authors; only the leading 10 are retained for identification, with the full count recorded. Author affiliation strings (which contain public contact emails) are not retained.",
+  "_role": "Confirms PMID:25855707 and DOI:10.1093/jnci/djv036 are the same record cited as reference [2] in docs/modules/health-risk/cancer.md.",
+  "identifiers": {
+    "pmid": "25855707",
+    "pmc": "PMC4754625",
+    "doi": "10.1093/jnci/djv036",
+    "pii": "djv036"
+  },
+  "title": "Prediction of breast cancer risk based on profiling with common genetic variants.",
+  "journal": {
+    "title": "Journal of the National Cancer Institute",
+    "iso_abbreviation": "J Natl Cancer Inst"
+  },
+  "publication_date": {
+    "year": "2015",
+    "month": "04",
+    "day": "08"
+  },
+  "citation": {
+    "volume": "107",
+    "issue": "5"
+  },
+  "article_types": [
+    "Journal Article",
+    "Research Support, N.I.H., Extramural",
+    "Research Support, Non-U.S. Gov't"
+  ],
+  "language": "eng",
+  "keywords": null,
+  "mesh_terms": [
+    "Adult",
+    "Aged",
+    "Biomarkers, Tumor",
+    "Breast Neoplasms",
+    "Europe",
+    "Female",
+    "Gene Expression Profiling",
+    "Gene Expression Regulation, Neoplastic",
+    "Genetic Predisposition to Disease",
+    "Genotype",
+    "Humans",
+    "Middle Aged",
+    "Odds Ratio",
+    "Polymorphism, Single Nucleotide",
+    "Predictive Value of Tests",
+    "Receptors, Estrogen",
+    "Risk Assessment",
+    "Risk Factors"
+  ],
+  "author_count": 212,
+  "authors_leading_10": [
+    {
+      "last_name": "Mavaddat",
+      "fore_name": "Nasim",
+      "initials": "N"
+    },
+    {
+      "last_name": "Pharoah",
+      "fore_name": "Paul D P",
+      "initials": "PD"
+    },
+    {
+      "last_name": "Michailidou",
+      "fore_name": "Kyriaki",
+      "initials": "K"
+    },
+    {
+      "last_name": "Tyrer",
+      "fore_name": "Jonathan",
+      "initials": "J"
+    },
+    {
+      "last_name": "Brook",
+      "fore_name": "Mark N",
+      "initials": "MN"
+    },
+    {
+      "last_name": "Bolla",
+      "fore_name": "Manjeet K",
+      "initials": "MK"
+    },
+    {
+      "last_name": "Wang",
+      "fore_name": "Qin",
+      "initials": "Q"
+    },
+    {
+      "last_name": "Dennis",
+      "fore_name": "Joe",
+      "initials": "J"
+    },
+    {
+      "last_name": "Dunning",
+      "fore_name": "Alison M",
+      "initials": "AM"
+    },
+    {
+      "last_name": "Shah",
+      "fore_name": "Mitul",
+      "initials": "M"
+    }
+  ],
+  "attribution": "Record retrieved from PubMed (NCBI/NLM). Source: https://doi.org/10.1093/jnci/djv036"
+}

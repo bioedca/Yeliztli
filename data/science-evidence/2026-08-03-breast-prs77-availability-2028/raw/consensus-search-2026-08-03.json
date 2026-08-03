@@ -1,0 +1,41 @@
+{
+  "service": "Consensus",
+  "accessed": "2026-08-03",
+  "query": "77-SNP polygenic risk score breast cancer risk stratification Mavaddat common genetic variants",
+  "filters": "none",
+  "status": "success",
+  "results_returned": 20,
+  "sanitization": "Bibliographic metadata only. Publisher-supplied abstracts are removed because they carry all-rights-reserved copyright, matching this repository's existing evidence-packet policy. Result ranks and reported citation counts are retained verbatim.",
+  "results_retained": [
+    {
+      "rank": 1,
+      "role": "primary source for cancer.md reference [2]",
+      "title": "Prediction of Breast Cancer Risk Based on Profiling With Common Genetic Variants",
+      "first_author": "N. Mavaddat",
+      "year": 2015,
+      "journal": "JNCI Journal of the National Cancer Institute",
+      "citation_count_reported": 576,
+      "maps_to": "PMID:25855707; DOI:10.1093/jnci/djv036"
+    },
+    {
+      "rank": 4,
+      "role": "independent population validation of PRS77 - recorded for completeness, deliberately NOT relied on",
+      "title": "Population-specific validation and comparison of the performance of 77- and 313-variant polygenic risk scores for breast cancer risk prediction",
+      "first_author": "Milena Hovhannisyan",
+      "year": 2024,
+      "journal": "Cancer",
+      "citation_count_reported": 1,
+      "why_not_relied_on": "This PR withholds the PRS77 model rather than scoring it, so no risk-stratification claim is being made that would need validation. Were Yeliztli ever to enable scoring, evidence of this kind would be required and this packet must not be mistaken for that work."
+    },
+    {
+      "rank": 16,
+      "role": "context: the successor 313-variant model by the same first author",
+      "title": "Polygenic Risk Scores for Prediction of Breast Cancer and Breast Cancer Subtypes",
+      "first_author": "N. Mavaddat",
+      "year": 2018,
+      "journal": "American Journal of Human Genetics",
+      "citation_count_reported": 941
+    }
+  ],
+  "not_retained": "The remaining ranks are general polygenic-risk-score reviews, population-specific PRS studies, and BRCA/CHEK2 carrier analyses that do not bear on this packet's source-identity claim."
+}
