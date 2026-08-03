@@ -145,7 +145,10 @@ class TestRunAndList:
 
     def test_malformed_detail_falls_back_safely(self, _env: sa.Engine, client: TestClient) -> None:
         # A row with a schema-drifted segment must not 500 — the route falls back
-        # to the plain finding_text with zeroed metrics.
+        # to an indeterminate response: no metrics, and standardized text rather
+        # than the stored narrative. (This comment previously described the
+        # opposite — plain finding_text with zeroed metrics — which is exactly
+        # the behaviour this change removes.)
         import json as _json
 
         from backend.db.tables import findings

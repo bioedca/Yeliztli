@@ -239,6 +239,12 @@ class TestEvaluability:
         result = detect_roh(sample_engine)
         assert result.autosomal_snps_used == MIN_ROH_SNPS - 1
         assert result.froh is None
+        # Pin the cause, not just the outcome. At the default 10 kb spacing this
+        # fixture also spans under MIN_ROH_KB, so without asserting the reason the
+        # test passes whichever floor fired and does not discriminate the
+        # marker-count rule it is named for.
+        assert not result.evaluable
+        assert result.indeterminate_reason == NO_SEGMENT_ELIGIBLE_REGION
 
     def test_at_structural_minimum_reports_a_real_negative(self, sample_engine: sa.Engine) -> None:
         # The discriminating control: a region that *could* hold a run — 100
@@ -373,6 +379,13 @@ class TestStorage:
         assert detail["evaluable"] is False
         assert detail["indeterminate_reason"] == NO_SEGMENT_ELIGIBLE_REGION
         assert detail["froh"] is None
+        # No derived quantity may restate the withheld absence in another field:
+        # a persisted 0.0 kb or 0 segments is the same measured-absence claim
+        # FROH is being withheld to avoid.
+        assert detail["total_roh_kb"] is None
+        assert detail["longest_kb"] is None
+        assert detail["n_segments"] is None
+        assert detail["segments"] == []
         # The observed count is retained for audit even though FROH is withheld.
         assert detail["autosomal_snps_used"] == 1
 
