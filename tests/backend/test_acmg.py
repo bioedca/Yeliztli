@@ -49,6 +49,30 @@ def _walk_json(value: object):
             yield from _walk_json(child)
 
 
+def _assert_sanitized_payload(value: object, *, allowed_urls: tuple[str, ...] = ()) -> None:
+    forbidden_keys = {
+        "authors",
+        "authorlist",
+        "abstract",
+        "citations",
+        "fulltextexcerpts",
+        "access",
+        "url",
+        "affiliation",
+        "affiliationinfo",
+        "coistatement",
+    }
+    for key, child in _walk_json(value):
+        assert key.lower() not in forbidden_keys
+        if isinstance(child, str):
+            assert "utm_" not in child.lower()
+            assert "email=" not in child.lower()
+            assert "@" not in child
+            if child not in allowed_urls:
+                assert "http://" not in child.lower()
+                assert "https://" not in child.lower()
+
+
 def _resolve_json_pointer(value: object, pointer: str) -> object:
     assert pointer.startswith("/")
     resolved = value
@@ -814,6 +838,7 @@ class TestBs1EvidencePacket:
             "scite-tp53-founder-context",
         }
         assert set(entries) == expected_keys
+        _assert_sanitized_payload(index)
 
         for entry in entries.values():
             payload = _REPO_ROOT / entry["payload_path"]
@@ -885,25 +910,14 @@ class TestBs1EvidencePacket:
             == "citations[1].snippet"
         )
 
-        for provider_payload in (consensus, scite):
-            for key, value in _walk_json(provider_payload):
-                assert key not in {
-                    "authors",
-                    "abstract",
-                    "citations",
-                    "fulltextExcerpts",
-                    "access",
-                    "url",
-                }
-                if isinstance(value, str):
-                    assert "utm_" not in value.lower()
-                    assert "email=" not in value.lower()
-                    assert "@" not in value
-                    assert "http://" not in value.lower()
-                    assert "https://" not in value.lower()
+        _assert_sanitized_payload(consensus)
+        _assert_sanitized_payload(scite)
 
         correction_path = _EVIDENCE_DIR / "pubmed-efetch-corrections-sanitized.json"
         correction_payload = json.loads(correction_path.read_text(encoding="utf-8"))
+        public_request_url = correction_payload["source_snapshot"]["request"]
+        assert public_request_url.startswith("https://eutils.ncbi.nlm.nih.gov/entrez/eutils/")
+        _assert_sanitized_payload(correction_payload, allowed_urls=(public_request_url,))
         assert (
             hashlib.sha256(correction_path.read_bytes()).hexdigest()
             == index["related_correction_snapshot"]["sanitized_sha256"]
