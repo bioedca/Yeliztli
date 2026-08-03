@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 from copy import deepcopy
+from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
@@ -61,6 +62,10 @@ SOURCE_METADATA_SHA256 = "13755a154c19c603bac63a2195287165271571ece1e36e178a666a
 STATE_PARTITION_SHA256 = "f9a0d2ecd09f05ae1d5fbd41123d0d9e63b79d8f08c2e3b1c4c1f873ebb6a1fd"
 BASELINE_EMITTED_TREE_SHA256 = "02a40be2096dd8c60e6e2934ba68a813f07478117a749e60e94e0608bed21914"
 LOCKED_EMITTED_TREE_SHA256 = "0d3f25360e57573a61910787224ddfc701fb77515208857132791ec936570d31"
+U5_CONFLICT_EVIDENCE_PACKET = (
+    Path(__file__).resolve().parents[2]
+    / "data/science-evidence/2026-08-03-u5-16270-conflict-guard"
+)
 
 PRIMARY_EXPORTS = ["pgp_4139", "pgp_4162", "pgp_4187", "pgp_huA08F4D"]
 HISTORICAL_EXPORTS = [*PRIMARY_EXPORTS, "pgp_1050"]
@@ -7759,6 +7764,79 @@ def test_issue_1798_batch_13_u5_is_an_exact_markerless_gateway() -> None:
     text = _issues_text(_validate_mt_registry_against_tree(_MT_SOURCE, _index_mt_tree(tree)))
     assert "Structural mtDNA pass-through U5 must be markerless" in text
     assert "mtDNA emitted tree differs from its live locked fingerprint" in text
+
+
+def test_issue_2165_u5_conflict_evidence_packet_is_source_bound() -> None:
+    """Keep the public evidence packet bound to the exact U5 Build 17 edge."""
+    inventory_path = U5_CONFLICT_EVIDENCE_PACKET / "source-inventory.json"
+    extract_path = U5_CONFLICT_EVIDENCE_PACKET / "raw/phylotree-build17-u5-source-extract.json"
+    response_index_path = U5_CONFLICT_EVIDENCE_PACKET / "source-response-index.json"
+    pubmed_path = U5_CONFLICT_EVIDENCE_PACKET / "pubmed-esummary.json"
+    readme_path = U5_CONFLICT_EVIDENCE_PACKET / "README.md"
+
+    for path in (
+        inventory_path,
+        extract_path,
+        response_index_path,
+        pubmed_path,
+        readme_path,
+    ):
+        assert path.is_file(), path
+
+    inventory = json.loads(inventory_path.read_text(encoding="utf-8"))
+    extract = json.loads(extract_path.read_text(encoding="utf-8"))
+    response_index = json.loads(response_index_path.read_text(encoding="utf-8"))
+    pubmed = json.loads(pubmed_path.read_text(encoding="utf-8"))
+    source_u5 = _MT_SOURCE["structural_exceptions"]["U5"]
+    source_metadata = _MT_SOURCE["source"]
+
+    assert inventory["issue"] == 2165
+    assert inventory["accessed"] == "2026-08-03"
+    assert inventory["implementation"]["commit"] == ("aa3acc8df76f782de3ade41a95d6e5a1d9f96da4")
+    assert inventory["source_archive"]["version"] == source_metadata["version"]
+    assert inventory["source_archive"]["archive_url"] == source_metadata["archive_url"]
+    assert inventory["source_archive"]["archive_sha256"] == source_metadata["archive_sha256"]
+    assert inventory["source_archive"]["archive_accessed"] == source_metadata["accessed"]
+    assert extract["source_archive"] == {
+        "name": source_metadata["name"],
+        "version": source_metadata["version"],
+        "archive_url": source_metadata["archive_url"],
+        "archive_sha256": source_metadata["archive_sha256"],
+        "archive_accessed": source_metadata["accessed"],
+    }
+
+    expected_motif = [
+        {
+            "notation": mutation["notation"],
+            "pos": mutation["pos"],
+            "ancestral_allele": mutation["ancestral_allele"],
+            "derived_allele": mutation["derived_allele"],
+            "emitted": mutation["emitted"],
+        }
+        for mutation in source_u5["direct_source_motif"]
+    ]
+    assert inventory["u5_guard"]["direct_source_motif"] == expected_motif
+    assert extract["u5"]["direct_source_motif"] == expected_motif
+    assert inventory["u5_guard"]["optional_conflict_snp"] == source_u5["optional_conflict_snps"][0]
+    assert extract["u5"]["optional_conflict_snp"] == source_u5["optional_conflict_snps"][0]
+    assert source_u5["emitted_snps"] == []
+
+    assert {(record["pmid"], record["doi"]) for record in pubmed["records"]} == {
+        ("18853457", "10.1002/humu.20921"),
+        ("34072215", "10.3390/ijms22115747"),
+    }
+    assert all(
+        record["correction_check"]["comments_corrections_list_emitted"] is False
+        for record in pubmed["records"]
+    )
+    readme = readme_path.read_text(encoding="utf-8")
+    assert "implementation-level source-conflict rule" in readme
+    assert "clinical, phenotypic, population, ancestry, or forensic conclusion" in readme
+
+    for entry in response_index["entries"]:
+        payload_path = Path(__file__).resolve().parents[2] / entry["payload_path"]
+        assert payload_path.is_file(), payload_path
+        assert hashlib.sha256(payload_path.read_bytes()).hexdigest() == entry["sanitized_sha256"]
 
 
 def test_issue_1798_batch_13_flattened_helpers_are_exact_and_source_only() -> None:

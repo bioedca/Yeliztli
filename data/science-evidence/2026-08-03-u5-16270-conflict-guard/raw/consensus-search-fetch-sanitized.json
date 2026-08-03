@@ -1,0 +1,61 @@
+{
+  "schema_version": "1.0",
+  "accessed": "2026-08-03",
+  "claim_ids": ["C3"],
+  "source": "Consensus",
+  "payload_type": "sanitized search and required fetch metadata",
+  "search": {
+    "request": {
+      "operation": "consensus_search",
+      "query": "human mitochondrial DNA phylogeny U5 C16270T m.16270 PhyloTree"
+    },
+    "selected_results": [
+      {
+        "id": "70d82b1aaccb53b9a0722084905a6ba3",
+        "title": "PhyloTree Build 17: Growing the human mitochondrial DNA tree"
+      },
+      {
+        "id": "acdbf1a62608546cb0a06fc9a83e04fb",
+        "title": "Updated comprehensive phylogenetic tree of global human mitochondrial DNA variation"
+      }
+    ]
+  },
+  "fetches": [
+    {
+      "request": {
+        "operation": "consensus_fetch",
+        "id": "70d82b1aaccb53b9a0722084905a6ba3"
+      },
+      "returned_metadata": {
+        "title": "PhyloTree Build 17: Growing the human mitochondrial DNA tree",
+        "publish_year": "2015",
+        "journal": "Forensic Science International: Genetics Supplement Series",
+        "volume": "5"
+      }
+    },
+    {
+      "request": {
+        "operation": "consensus_fetch",
+        "id": "acdbf1a62608546cb0a06fc9a83e04fb"
+      },
+      "returned_metadata": {
+        "title": "Updated comprehensive phylogenetic tree of global human mitochondrial DNA variation",
+        "publish_year": "2009",
+        "journal": "Human Mutation",
+        "volume": "30",
+        "doi": "10.1002/humu.20921",
+        "pmid": "18853457"
+      }
+    }
+  ],
+  "redaction": {
+    "removed_fields": [
+      "search-result text snippets",
+      "article abstracts and generated takeaways",
+      "author metadata",
+      "Consensus URLs and UTM parameters"
+    ],
+    "reason": "Retain source selection and durable metadata while excluding copyrighted text and service links."
+  },
+  "license_or_terms": "No abstract, full text, author detail, or service URL is redistributed."
+}

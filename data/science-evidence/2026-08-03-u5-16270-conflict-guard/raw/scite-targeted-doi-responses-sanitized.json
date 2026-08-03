@@ -1,0 +1,45 @@
+{
+  "schema_version": "1.0",
+  "accessed": "2026-08-03",
+  "claim_ids": ["C3", "C4"],
+  "source": "Scite",
+  "payload_type": "sanitized targeted DOI response metadata",
+  "request": {
+    "operation": "scite_search_literature",
+    "dois": ["10.1002/humu.20921", "10.3390/ijms22115747"],
+    "term": "PhyloTree mitochondrial DNA haplogroup U5",
+    "limit": 10
+  },
+  "returned_records": [
+    {
+      "doi": "10.1002/humu.20921",
+      "title": "Updated comprehensive phylogenetic tree of global human mitochondrial DNA variation",
+      "journal": "Human Mutation",
+      "year": 2009,
+      "is_open_access": true,
+      "retraction_notices_field": "not returned",
+      "retraction_interpretation": "The missing field is not a retraction clearance."
+    },
+    {
+      "doi": "10.3390/ijms22115747",
+      "title": "Fine-Tuning Phylogenetic Alignment and Haplogrouping of mtDNA Sequences",
+      "journal": "International Journal of Molecular Sciences",
+      "year": 2021,
+      "is_open_access": true,
+      "build17_context": "Returned metadata describes refinement of 5435 PhyloTree Build 17 haplogroup motifs.",
+      "retraction_notices_field": "not returned",
+      "retraction_interpretation": "The missing field is not a retraction clearance."
+    }
+  ],
+  "redaction": {
+    "removed_fields": [
+      "abstracts",
+      "full-text excerpts",
+      "Smart Citation snippets",
+      "authors",
+      "access URLs and purchase metadata"
+    ],
+    "reason": "Preserve query, durable identifiers, limited returned metadata, and retraction-field availability without redistributing article text or service access details."
+  },
+  "license_or_terms": "No article abstract, full text, Smart Citation text, author detail, or service access URL is redistributed."
+}

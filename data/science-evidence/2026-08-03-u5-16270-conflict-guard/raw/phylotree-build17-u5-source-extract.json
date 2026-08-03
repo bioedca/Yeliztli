@@ -1,0 +1,53 @@
+{
+  "schema_version": "1.0",
+  "accessed": "2026-08-03",
+  "claim_ids": ["C1", "C2"],
+  "payload_type": "minimal public source-audited U5 record extract",
+  "source_archive": {
+    "name": "PhyloTree",
+    "version": "Build 17",
+    "archive_url": "https://www.phylotree.org/builds/mtDNA_tree_Build_17.zip",
+    "archive_sha256": "3fe8cf00a15e1ccb09235091016eef1af3a68f44dd9355dd2b7666f8f767b146",
+    "archive_accessed": "2026-07-12"
+  },
+  "derivation": {
+    "repository_source_path": "scripts/mt_haplogroup_source.json",
+    "source_record": "structural_exceptions.U5",
+    "repository_state": "aa3acc8df76f782de3ade41a95d6e5a1d9f96da4",
+    "reviewed": "2026-08-03"
+  },
+  "u5": {
+    "type": "markerless_passthrough",
+    "emitted_parent": "U",
+    "source_status": "exact",
+    "direct_source_motif": [
+      {
+        "notation": "C16192T",
+        "pos": 16192,
+        "ancestral_allele": "C",
+        "derived_allele": "T",
+        "emitted": false
+      },
+      {
+        "notation": "C16270T",
+        "pos": 16270,
+        "ancestral_allele": "C",
+        "derived_allele": "T",
+        "emitted": false
+      }
+    ],
+    "optional_conflict_snp": {
+      "rsid": "i5016270",
+      "pos": 16270,
+      "ancestral_allele": "C",
+      "allele": "T",
+      "motif_owner": "U5",
+      "array_coverage": {
+        "cohort_id": "primary_four_23andme",
+        "position_present_in": ["pgp_4139", "pgp_4187", "pgp_huA08F4D"],
+        "callable_snv_in": ["pgp_4187", "pgp_huA08F4D"]
+      }
+    }
+  },
+  "license_or_terms": "This bounded factual extract records source identity and mutation fields only. It does not redistribute the upstream archive or a full source tree."
+}

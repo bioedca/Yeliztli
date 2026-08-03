@@ -1,0 +1,60 @@
+{
+  "schema_version": "1.0",
+  "accessed": "2026-08-03",
+  "purpose": "Maps the U5 m.16270 source and literature responses to bounded, sanitized payloads. Unredacted provider responses are not persisted because they can include copyrighted text and service-specific access URLs.",
+  "entries": [
+    {
+      "key": "phylotree-build17-u5-extract",
+      "claim_ids": ["C1", "C2"],
+      "service": "repository source-audited registry",
+      "identifier": "PhyloTree Build 17 archive SHA-256:3fe8cf00a15e1ccb09235091016eef1af3a68f44dd9355dd2b7666f8f767b146",
+      "operation": "bounded U5 source extract",
+      "payload_path": "data/science-evidence/2026-08-03-u5-16270-conflict-guard/raw/phylotree-build17-u5-source-extract.json",
+      "sanitized_sha256": "52e1e147ccf5c08dc0bf09230a49668fe4691fc278756c851e9405c67d34d834"
+    },
+    {
+      "key": "consensus-build17-and-phylotree-fetches",
+      "claim_ids": ["C3"],
+      "service": "Consensus",
+      "identifiers": [
+        "70d82b1aaccb53b9a0722084905a6ba3",
+        "acdbf1a62608546cb0a06fc9a83e04fb"
+      ],
+      "operation": "consensus_search followed by required consensus_fetch",
+      "payload_path": "data/science-evidence/2026-08-03-u5-16270-conflict-guard/raw/consensus-search-fetch-sanitized.json",
+      "sanitized_sha256": "8a5c221474cd905503eb734362fefd551cb4addf762d22aebe2323628badc0b9"
+    },
+    {
+      "key": "scite-targeted-doi-metadata",
+      "claim_ids": ["C3", "C4"],
+      "service": "Scite",
+      "identifiers": ["DOI:10.1002/humu.20921", "DOI:10.3390/ijms22115747"],
+      "operation": "scite_search_literature",
+      "payload_path": "data/science-evidence/2026-08-03-u5-16270-conflict-guard/raw/scite-targeted-doi-responses-sanitized.json",
+      "sanitized_sha256": "cca02170fc77eb09d321ca163b4bd5a832f5ceb275531fde3089aa74abad85ac"
+    },
+    {
+      "key": "pubmed-metadata-and-correction-check",
+      "claim_ids": ["C3", "C4"],
+      "service": "NCBI Entrez",
+      "identifiers": ["PMID:18853457", "PMID:34072215"],
+      "operation": "esummary and efetch",
+      "payload_path": "data/science-evidence/2026-08-03-u5-16270-conflict-guard/pubmed-esummary.json",
+      "sanitized_sha256": "693b35c1223afe2d0efce600bc49f16bc9f00631ce09ea85b203bb2ca897d226"
+    }
+  ],
+  "sanitization": {
+    "retained": [
+      "public query and identifier fields",
+      "publication and source-release metadata",
+      "correction/retraction-field availability",
+      "bounded source motif metadata"
+    ],
+    "removed": [
+      "article abstracts and full text",
+      "author and affiliation data",
+      "service access, download, and tracking URLs",
+      "any sample, genotype, PII, credential, or restricted data"
+    ]
+  }
+}

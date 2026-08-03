@@ -1,0 +1,60 @@
+{
+  "schema_version": "1.0",
+  "accessed": "2026-08-03",
+  "claim_ids": ["C3", "C4"],
+  "source": "NCBI Entrez",
+  "payload_type": "sanitized ESummary and EFetch metadata",
+  "requests": [
+    {
+      "operation": "esummary",
+      "database": "pubmed",
+      "ids": ["18853457", "34072215"],
+      "retmode": "json"
+    },
+    {
+      "operation": "efetch",
+      "database": "pubmed",
+      "ids": ["18853457", "34072215"],
+      "retmode": "xml",
+      "purpose": "Inspect CommentsCorrectionsList fields without retaining article text."
+    }
+  ],
+  "records": [
+    {
+      "pmid": "18853457",
+      "doi": "10.1002/humu.20921",
+      "title": "Updated comprehensive phylogenetic tree of global human mitochondrial DNA variation.",
+      "journal": "Human Mutation",
+      "publication_date": "2009-02",
+      "publication_type": ["Journal Article", "Research Support, Non-U.S. Gov't"],
+      "correction_check": {
+        "comments_corrections_list_emitted": false,
+        "interpretation": "No CommentsCorrectionsList element was emitted in this retained EFetch record; this is not a general retraction clearance."
+      }
+    },
+    {
+      "pmid": "34072215",
+      "pmcid": "PMC8198973",
+      "doi": "10.3390/ijms22115747",
+      "title": "Fine-Tuning Phylogenetic Alignment and Haplogrouping of mtDNA Sequences.",
+      "journal": "International Journal of Molecular Sciences",
+      "publication_date": "2021-05-27",
+      "publication_type": ["Journal Article"],
+      "correction_check": {
+        "comments_corrections_list_emitted": false,
+        "interpretation": "No CommentsCorrectionsList element was emitted in this retained EFetch record; this is not a general retraction clearance."
+      }
+    }
+  ],
+  "redaction": {
+    "removed_fields": [
+      "abstracts",
+      "full article text",
+      "author and affiliation metadata",
+      "reference lists except durable identifiers retained above",
+      "service URLs and tracking parameters"
+    ],
+    "reason": "Keep reproducible public citation and correction-check metadata without redistributing copyrighted text or user-specific access information."
+  },
+  "license_or_terms": "No article abstract or full text is redistributed. PubMed identifiers and bibliographic metadata are retained for provenance."
+}

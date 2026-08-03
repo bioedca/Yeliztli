@@ -1,0 +1,70 @@
+{
+  "schema_version": "1.0",
+  "issue": 2165,
+  "accessed": "2026-08-03",
+  "purpose": "Binds the U5 m.16270 ancestral-conflict guard to the source-audited Build 17 registry and the immutable implementation state immediately before this evidence-only packet.",
+  "claim_ids": ["C1", "C2"],
+  "implementation": {
+    "commit": "aa3acc8df76f782de3ade41a95d6e5a1d9f96da4",
+    "branch": "issue-2165-u5-ancestral-conflicts",
+    "source_registry_path": "scripts/mt_haplogroup_source.json",
+    "runtime_path": "backend/analysis/ancestry.py",
+    "regression_test_path": "tests/backend/test_haplogroup.py"
+  },
+  "source_archive": {
+    "name": "PhyloTree",
+    "version": "Build 17",
+    "archive_url": "https://www.phylotree.org/builds/mtDNA_tree_Build_17.zip",
+    "archive_sha256": "3fe8cf00a15e1ccb09235091016eef1af3a68f44dd9355dd2b7666f8f767b146",
+    "archive_accessed": "2026-07-12",
+    "registry_extract_reviewed": "2026-08-03",
+    "reference_sequence": {
+      "accession": "NC_012920.1"
+    }
+  },
+  "u5_guard": {
+    "source_node": "U5",
+    "source_status": "exact",
+    "markerless_reason": "C16270T is callable only in pgp_4187 and pgp_huA08F4D; emitting it would block valid U5 descendants in pgp_4139 and pgp_4162.",
+    "direct_source_motif": [
+      {
+        "notation": "C16192T",
+        "pos": 16192,
+        "ancestral_allele": "C",
+        "derived_allele": "T",
+        "emitted": false
+      },
+      {
+        "notation": "C16270T",
+        "pos": 16270,
+        "ancestral_allele": "C",
+        "derived_allele": "T",
+        "emitted": false
+      }
+    ],
+    "optional_conflict_snp": {
+      "rsid": "i5016270",
+      "pos": 16270,
+      "ancestral_allele": "C",
+      "allele": "T",
+      "motif_owner": "U5",
+      "array_coverage": {
+        "cohort_id": "primary_four_23andme",
+        "position_present_in": ["pgp_4139", "pgp_4187", "pgp_huA08F4D"],
+        "callable_snv_in": ["pgp_4187", "pgp_huA08F4D"]
+      }
+    },
+    "runtime_decision": {
+      "ancestral_c": "withhold U5 and descendant traversal",
+      "derived_t": "permit traversal only; do not assign U5 from this marker",
+      "missing_or_no_call": "preserve markerless traversal",
+      "discordant_typed_rows": "withhold U5 and descendant traversal"
+    }
+  },
+  "privacy": {
+    "payload_classification": "public source metadata and synthetic-test provenance only",
+    "contains_real_genotypes": false,
+    "contains_pii": false,
+    "contains_restricted_data": false
+  }
+}
