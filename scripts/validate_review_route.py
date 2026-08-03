@@ -283,6 +283,12 @@ COPILOT_V3_COVERAGE_HEADING = re.compile(r"(?m)^### Reviewed changes$")
 # after the heading, so an echo under a later `### Notes` still reads as the
 # verdict — the boundary is what makes the binding mean anything.
 COPILOT_V3_SECTION_BOUNDARY = re.compile(r"(?m)^#{1,3} ")
+# Setext headings close it too. `Notes` underlined by `---` renders as an h2,
+# i.e. a peer-or-higher section, but carries no `#`, so an ATX-only boundary
+# leaves the echo after it reading as though it were still inside Reviewed
+# changes. The underline must be the whole line: `| ---- | --- |` is a table
+# separator and `---` under a blank line is a thematic break, neither a heading.
+COPILOT_V3_SETEXT_UNDERLINE = re.compile(r" {0,3}(?:=+|-+)[ \t]*")
 COPILOT_V3_COVERAGE_LINE = re.compile(
     r"(?m)^Copilot reviewed (?P<reviewed>[1-9][0-9]*) out of (?P<total>[1-9][0-9]*) "
     r"changed files in this pull request and generated "
@@ -1283,6 +1289,29 @@ def _connection_truncated_since(
     return oldest >= since if inclusive else oldest > since
 
 
+def _copilot_section_end(visible: str, section_start: int) -> int:
+    """Offset where Copilot's `### Reviewed changes` section stops.
+
+    Closed by the next ATX heading of the same level or higher, or by a Setext
+    heading — a non-blank line underlined with `=` or `-`, which GitHub renders
+    as an h1 or h2 and so is also peer-or-higher. Whichever comes first wins.
+    """
+    atx = COPILOT_V3_SECTION_BOUNDARY.search(visible, section_start)
+    end = atx.start() if atx is not None else len(visible)
+    lines = visible.splitlines(keepends=True)
+    offset = 0
+    for index, line in enumerate(lines[:-1]):
+        if (
+            offset >= section_start
+            and offset < end
+            and line.strip()
+            and COPILOT_V3_SETEXT_UNDERLINE.fullmatch(lines[index + 1].rstrip("\n"))
+        ):
+            return offset
+        offset += len(line)
+    return end
+
+
 def _v3_formal_review_is_clean(
     review: dict[str, Any],
     gate: str,
@@ -1325,8 +1354,7 @@ def _v3_formal_review_is_clean(
         if len(heading) != 1 or len(coverage) != 1:
             return False
         section_start = heading[0].end()
-        boundary = COPILOT_V3_SECTION_BOUNDARY.search(visible, section_start)
-        section_end = boundary.start() if boundary else len(visible)
+        section_end = _copilot_section_end(visible, section_start)
         if not (section_start <= coverage[0].start() and coverage[0].end() <= section_end):
             return False
         found = coverage[0]

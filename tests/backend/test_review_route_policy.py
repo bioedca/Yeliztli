@@ -988,6 +988,15 @@ def test_v3_provider_evidence_is_exact_head_immutable_and_nonblocking(mutation: 
         # The heading itself quoted inside a fence: no real section exists.
         "## O\n\n```\n### Reviewed changes\n```\n\nCopilot reviewed 2 out of 2 changed "
         "files in this pull request and generated no comments.\n",
+        # Setext headings render as h1/h2 and close the section too, even though
+        # they carry no `#`. An ATX-only boundary let the echo after one read as
+        # though it were still inside Reviewed changes.
+        "## O\n\nS.\n\n### Reviewed changes\n\nNo files listed.\n\nNotes\n---\n\n"
+        "Copilot reviewed 2 out of 2 changed files in this pull request and "
+        "generated no comments.\n",
+        "## O\n\nS.\n\n### Reviewed changes\n\nNo files listed.\n\nNotes\n===\n\n"
+        "Copilot reviewed 2 out of 2 changed files in this pull request and "
+        "generated no comments.\n",
         # Section heading missing entirely.
         _copilot_v3_body(2).replace("### Reviewed changes\n\n", ""),
         # Duplicate headings leave the section ambiguous.
