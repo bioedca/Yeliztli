@@ -1,5 +1,7 @@
 /** React Query hooks for the variant table API (P1-15a, P1-15b, P1-15d). */
 
+import { throwApiError } from "@/api/errors"
+
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query"
 import type {
   VariantPage,
@@ -45,8 +47,7 @@ async function fetchVariantPage(
   }
   const res = await fetch(`/api/variants?${params}`)
   if (!res.ok) {
-    const text = await res.text().catch(() => "")
-    throw new Error(`Variant fetch failed: ${res.status}${text ? ` - ${text}` : ""}`)
+    await throwApiError(res, `Variant fetch failed. Please try again.`)
   }
   return res.json()
 }
@@ -65,8 +66,7 @@ async function fetchVariantCount(
   }
   const res = await fetch(`/api/variants/count?${params}`)
   if (!res.ok) {
-    const text = await res.text().catch(() => "")
-    throw new Error(`Variant count failed: ${res.status}${text ? ` - ${text}` : ""}`)
+    await throwApiError(res, `Variant count failed. Please try again.`)
   }
   return res.json()
 }
@@ -133,8 +133,7 @@ export function useChromosomeCounts(sampleId: number | null) {
       const params = new URLSearchParams({ sample_id: String(sampleId!) })
       const res = await fetch(`/api/variants/chromosomes?${params}`)
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`Chromosome counts failed: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `Chromosome counts failed. Please try again.`)
       }
       return res.json()
     },
@@ -164,8 +163,7 @@ export function useQCStats(sampleId: number | null) {
       const params = new URLSearchParams({ sample_id: String(sampleId!) })
       const res = await fetch(`/api/variants/qc-stats?${params}`)
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`QC stats failed: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `QC stats failed. Please try again.`)
       }
       return res.json()
     },

@@ -1,5 +1,7 @@
 /** React Query hook for Nuclear Delete (P4-21). */
 
+import { throwApiError } from "@/api/errors"
+
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 
 export interface NuclearDeleteResponse {
@@ -13,8 +15,7 @@ export function useNuclearDelete() {
     mutationFn: async (): Promise<NuclearDeleteResponse> => {
       const res = await fetch("/api/data/nuclear", { method: "DELETE" })
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(text || "Nuclear delete failed")
+        await throwApiError(res, "Nuclear delete failed")
       }
       return await res.json()
     },

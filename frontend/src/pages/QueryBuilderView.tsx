@@ -17,6 +17,7 @@ import PageEmpty from "@/components/ui/PageEmpty"
 import PageLoading from "@/components/ui/PageLoading"
 import PageError from "@/components/ui/PageError"
 import { useQueryFields, useRunQuery, useExportQuery } from "@/api/query-builder"
+import { throwApiError } from "@/api/errors"
 import type { QueryResultPage, QueryExportFormat, RuleGroupModel, SavedQuery } from "@/types/query-builder"
 import QueryBuilderPanel from "@/components/query-builder/QueryBuilderPanel"
 import QueryResultsTable from "@/components/query-builder/QueryResultsTable"
@@ -159,8 +160,10 @@ export default function QueryBuilderView() {
         limit: 50,
       }),
     })
-      .then((res) => {
-        if (!res.ok) throw new Error(`Query failed: ${res.status}`)
+      .then(async (res) => {
+        if (!res.ok) {
+          await throwApiError(res, "Unable to load more results. Please try again.")
+        }
         return res.json()
       })
       .then((data: QueryResultPage) => {

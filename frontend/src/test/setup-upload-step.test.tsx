@@ -158,11 +158,39 @@ describe('UploadStep — Step 15 bundle-gate banner', () => {
     fireEvent.click(screen.getByText('Upload & Parse'))
 
     expect(
-      await screen.findByText('Not a valid 23andMe file'),
+      await screen.findByText('Unable to upload the sample. Please try again.'),
     ).toBeInTheDocument()
+    expect(document.body).not.toHaveTextContent('Not a valid 23andMe file')
     expect(
       screen.queryByTestId('bundle-gate-banner'),
     ).not.toBeInTheDocument()
+  })
+
+  it('shows curated build remediation for the typed unsupported-build response', async () => {
+    const rawDiagnostic = 'GRCh38 at /private/imports/user-42.txt'
+    mockFetch.mockImplementation((url: string) => {
+      if (typeof url === 'string' && url === '/api/ingest') {
+        return jsonResponse(422, {
+          detail: {
+            code: 'unsupported_genome_build',
+            diagnostic: rawDiagnostic,
+          },
+        })
+      }
+      return jsonResponse(200, {})
+    })
+
+    render(<UploadStep onBack={vi.fn()} />)
+
+    selectFile('build38.txt')
+    fireEvent.click(screen.getByText('Upload & Parse'))
+
+    expect(
+      await screen.findByText(
+        'This file uses an unsupported genome build. Upload a GRCh37 (build 37) export, such as 23andMe v4/v5 or AncestryDNA.',
+      ),
+    ).toBeInTheDocument()
+    expect(document.body).not.toHaveTextContent(rawDiagnostic)
   })
 
   it('renders the parsed-summary success state on 200', async () => {

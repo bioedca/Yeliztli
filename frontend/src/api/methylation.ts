@@ -1,5 +1,7 @@
 /** React Query hooks for MTHFR & Methylation API (P3-53). */
 
+import { throwApiError } from "@/api/errors"
+
 import { useQuery } from "@tanstack/react-query"
 import type { PathwaysResponse, PathwayDetailResponse } from "@/types/methylation"
 
@@ -15,8 +17,7 @@ export function useMethylationPathways(sampleId: number | null) {
       const params = new URLSearchParams({ sample_id: String(sampleId!) })
       const res = await fetch(`/api/analysis/methylation/pathways?${params}`)
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`Methylation pathways failed: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `Methylation pathways failed. Please try again.`)
       }
       return res.json()
     },
@@ -42,10 +43,7 @@ export function useMethylationPathwayDetail(
         `/api/analysis/methylation/pathway/${encodeURIComponent(pathwayId!)}?${params}`,
       )
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(
-          `Methylation pathway detail failed: ${res.status}${text ? ` - ${text}` : ""}`,
-        )
+        await throwApiError(res, `Methylation pathway detail failed. Please try again.`)
       }
       return res.json()
     },
