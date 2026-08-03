@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
+from pathlib import Path
+
 import pytest
 import sqlalchemy as sa
 
@@ -30,6 +34,31 @@ from backend.analysis.acmg import (
 )
 from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import annotated_variants, reference_metadata
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_EVIDENCE_DIR = _REPO_ROOT / "data" / "science-evidence" / "2026-08-02-acmg-bs1-founder-window"
+
+
+def _walk_json(value: object):
+    if isinstance(value, dict):
+        for key, child in value.items():
+            yield key, child
+            yield from _walk_json(child)
+    elif isinstance(value, list):
+        for child in value:
+            yield from _walk_json(child)
+
+
+def _resolve_json_pointer(value: object, pointer: str) -> object:
+    assert pointer.startswith("/")
+    resolved = value
+    for segment in pointer.removeprefix("/").split("/"):
+        if isinstance(resolved, list):
+            resolved = resolved[int(segment)]
+        else:
+            assert isinstance(resolved, dict)
+            resolved = resolved[segment]
+    return resolved
 
 
 def _ba1_evidence(
@@ -769,3 +798,127 @@ class TestAssessSampleAcmg:
 
         assert result["total_candidates"] == 0
         assert result["variants"] == []
+
+
+class TestBs1EvidencePacket:
+    def test_sanitized_provider_responses_are_retained_and_linked(self) -> None:
+        index = json.loads(
+            (_EVIDENCE_DIR / "source-response-index.json").read_text(encoding="utf-8")
+        )
+        entries = {entry["key"]: entry for entry in index["entries"]}
+        expected_keys = {
+            "consensus-ghosh-search",
+            "consensus-ghosh-fetch",
+            "scite-ghosh-metadata",
+            "scite-cphg-faf-context",
+            "scite-tp53-founder-context",
+        }
+        assert set(entries) == expected_keys
+
+        for entry in entries.values():
+            payload = _REPO_ROOT / entry["payload_path"]
+            assert payload.is_file()
+            assert hashlib.sha256(payload.read_bytes()).hexdigest() == entry["sanitized_sha256"]
+            assert entry["unredacted_response_sha256"] is None
+            assert entry["unredacted_response_sha256_note"].startswith("Not recorded because")
+            resolved = _resolve_json_pointer(
+                json.loads(payload.read_text(encoding="utf-8")), entry["json_pointer"]
+            )
+
+            if entry["service"] == "Consensus":
+                response = resolved["sanitized_provider_envelope"]["content"][0]["response"]
+                returned_identifier = (
+                    response["selected_result"]["id"]
+                    if entry["operation"] == "consensus_search"
+                    else response["id"]
+                )
+                assert returned_identifier == entry["identifier"]
+            else:
+                assert resolved["key"] == entry["key"]
+                response = resolved["sanitized_provider_envelope"]["content"][0]["response"]
+                assert response["hits"][0]["doi"] == entry["doi"]
+
+        consensus = json.loads(
+            (_EVIDENCE_DIR / "raw" / "consensus-search-fetch-sanitized.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        assert consensus["search"]["sanitized_provider_envelope"]["isError"] is False
+        assert consensus["fetch"]["sanitized_provider_envelope"]["isError"] is False
+        assert (
+            consensus["fetch"]["sanitized_provider_envelope"]["content"][0]["response"]["id"]
+            == "4439bbb6071d5097972fac0f2fea8fb0"
+        )
+
+        scite = json.loads(
+            (_EVIDENCE_DIR / "raw" / "scite-targeted-doi-responses-sanitized.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        responses = {response["key"]: response for response in scite["responses"]}
+        assert set(responses) == {
+            "scite-ghosh-metadata",
+            "scite-cphg-faf-context",
+            "scite-tp53-founder-context",
+        }
+        assert all(
+            response["sanitized_provider_envelope"]["isError"] is False
+            and response["response_field_presence"]["hits[0].retraction_notices"] is False
+            for response in responses.values()
+        )
+        assert [
+            hit["doi"]
+            for hit in responses["scite-ghosh-metadata"]["sanitized_provider_envelope"]["content"][
+                0
+            ]["response"]["hits"]
+        ] == ["10.1002/humu.23642", "10.1002/cphg.93", "10.1002/humu.24152"]
+        assert (
+            responses["scite-cphg-faf-context"]["sanitized_provider_envelope"]["content"][0][
+                "response"
+            ]["hits"][0]["retained_short_context"]["source_field"]
+            == "fulltextExcerpts[2]"
+        )
+        assert (
+            responses["scite-tp53-founder-context"]["sanitized_provider_envelope"]["content"][0][
+                "response"
+            ]["hits"][0]["retained_short_context"]["source_field"]
+            == "citations[1].snippet"
+        )
+
+        for provider_payload in (consensus, scite):
+            for key, value in _walk_json(provider_payload):
+                assert key not in {
+                    "authors",
+                    "abstract",
+                    "citations",
+                    "fulltextExcerpts",
+                    "access",
+                    "url",
+                }
+                if isinstance(value, str):
+                    assert "utm_" not in value.lower()
+                    assert "email=" not in value.lower()
+                    assert "@" not in value
+                    assert "http://" not in value.lower()
+                    assert "https://" not in value.lower()
+
+        correction_path = _EVIDENCE_DIR / "pubmed-efetch-corrections-sanitized.json"
+        correction_payload = json.loads(correction_path.read_text(encoding="utf-8"))
+        assert (
+            hashlib.sha256(correction_path.read_bytes()).hexdigest()
+            == index["related_correction_snapshot"]["sanitized_sha256"]
+        )
+        correction_records = {record["pmid"]: record for record in correction_payload["records"]}
+        assert set(correction_records) == {
+            "30311383",
+            "32461654",
+            "28518168",
+            "31479589",
+            "33300245",
+        }
+        assert correction_records["30311383"]["comments_corrections"] == []
+        assert correction_records["31479589"]["comments_corrections"] == []
+        assert correction_records["33300245"]["comments_corrections"] == []
+        assert {
+            link["ref_type"] for link in correction_records["32461654"]["comments_corrections"]
+        } == {"CommentIn", "ErratumIn"}

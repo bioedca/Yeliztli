@@ -1,11 +1,12 @@
 {
   "claim_ids": ["C1", "C2"],
   "accessed": "2026-08-02",
-  "sanitized_payload_path": "data/science-evidence/2026-08-02-acmg-bs1-founder-window/source-inventory.json",
+  "derived_inventory_path": "data/science-evidence/2026-08-02-acmg-bs1-founder-window/source-inventory.json",
+  "related_citation_response_index": "data/science-evidence/2026-08-02-acmg-bs1-founder-window/source-response-index.json",
   "repository_base_commit": "410241021cfa5531d7db108991080c7a5a76b560",
   "repository_base_role": "Pre-change origin/main snapshot that establishes the existing ingestion, persistence, and BA1 selector path.",
   "implementation_commit": "6923cbc725e74efb9666ec71c774be422d9dee0a",
-  "implementation_commit_role": "Immutable parent code/test snapshot audited by this evidence-only commit; the PR head binds the evidence-only commit itself.",
+  "implementation_commit_role": "Immutable parent code/test snapshot audited by the initial evidence-only commit; later evidence-only provenance corrections remain bound by the PR head and review route.",
   "bundle": {
     "name": "gnomAD exomes",
     "version": "r2.1.1",

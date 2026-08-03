@@ -1,10 +1,17 @@
 {
-  "claim_ids": ["C1", "C3"],
-  "accessed": "2026-08-02",
-  "payload_type": "sanitized source-response extract",
-  "sanitized_payload_path": "data/science-evidence/2026-08-02-acmg-bs1-founder-window/literature-metadata.json",
-  "retention": "Only identifiers, titles, years, and independently written compact findings are retained. Raw service responses are omitted because they can carry user-specific access URLs.",
-  "license_or_terms": "N/A for retained content: no article text, abstract, figure, or licensed full-text material is copied.",
+  "schema_version": "1.0",
+  "claim_ids": ["C3"],
+  "original_discovery_accessed": "2026-08-02",
+  "response_snapshot_accessed": "2026-08-03",
+  "payload_type": "derived citation index",
+  "source_response_index": "data/science-evidence/2026-08-02-acmg-bs1-founder-window/source-response-index.json",
+  "source_response_artifacts": [
+    "data/science-evidence/2026-08-02-acmg-bs1-founder-window/raw/consensus-search-fetch-sanitized.json",
+    "data/science-evidence/2026-08-02-acmg-bs1-founder-window/raw/scite-targeted-doi-responses-sanitized.json",
+    "data/science-evidence/2026-08-02-acmg-bs1-founder-window/pubmed-efetch-corrections-sanitized.json"
+  ],
+  "retention": "This is a derived index. The referenced artifacts retain sanitized, provider-returned response envelopes and PubMed correction-link metadata; unredacted provider responses are not persisted because they can contain copyrighted text and user-specific access URLs.",
+  "license_or_terms": "No abstract, full text, author/affiliation detail, or user-specific service URL is copied into this index or its linked sanitized response artifacts.",
   "sources": [
     {
       "service": "Consensus",
@@ -12,22 +19,24 @@
       "title": "Updated Recommendation for the Benign Stand Alone ACMG/AMP Criterion",
       "doi": "10.1002/humu.23642",
       "year": 2018,
-      "status": "Fetched after search before use"
+      "raw_payload_refs": ["consensus-ghosh-search", "consensus-ghosh-fetch"],
+      "correction_check_pmid": "30311383"
     },
     {
       "service": "Scite",
       "doi": "10.1002/cphg.93",
       "title": "Overview of Specifications to the ACMG/AMP Variant Interpretation Guidelines",
       "year": 2019,
-      "finding": "Reports FAF as the confidence-bounded frequency construct used when applying BA1 or BS1; it is methodological context, not a disease-specific threshold for this patch."
+      "raw_payload_refs": ["scite-cphg-faf-context"],
+      "correction_check_pmid": "31479589"
     },
     {
       "service": "Scite",
       "doi": "10.1002/humu.24152",
       "title": "Specifications of the ACMG/AMP variant interpretation guidelines for germline TP53 variants",
       "year": 2020,
-      "finding": "Reports a TP53-specific ClinGen VCEP decision to ignore ASJ and FIN frequencies for BA1 and BS1 because of founder effects; this packet does not generalize that specification to every gene or disease."
+      "raw_payload_refs": ["scite-tp53-founder-context"],
+      "correction_check_pmid": "33300245"
     }
-  ],
-  "sanitization": "Public citation metadata and compact findings only; no abstracts, full text, or user-specific access URLs are retained."
+  ]
 }

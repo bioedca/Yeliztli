@@ -1,0 +1,73 @@
+{
+  "schema_version": "1.0",
+  "claim_ids": ["C3"],
+  "source": "NCBI PubMed EFetch",
+  "accessed": "2026-08-03",
+  "payload_type": "sanitized raw service response",
+  "source_snapshot": {
+    "request": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=30311383%2C32461654%2C28518168%2C33300245%2C31479589&retmode=xml",
+    "response_dtd": "2025-01-01",
+    "raw_sha256": "596984af7b42ce4b0ff494f8cce2044eca64346d8661472ac614d7b7b6e0f59a",
+    "extraction_paths": [
+      "PubmedArticle/MedlineCitation/PMID",
+      "PubmedArticle/MedlineCitation/DateRevised",
+      "PubmedArticle/MedlineCitation/CommentsCorrectionsList",
+      "PubmedArticle/PubmedData/ArticleIdList"
+    ]
+  },
+  "records": [
+    {
+      "pmid": "30311383",
+      "doi": "10.1002/humu.23642",
+      "date_revised": "2025-05-30",
+      "comments_corrections_list_present": false,
+      "comments_corrections": []
+    },
+    {
+      "pmid": "32461654",
+      "doi": "10.1038/s41586-020-2308-7",
+      "date_revised": "2026-05-18",
+      "comments_corrections_list_present": true,
+      "comments_corrections": [
+        {"ref_type": "CommentIn", "pmid": "32461645", "doi": "10.1038/d41586-020-01485-4"},
+        {"ref_type": "CommentIn", "pmid": "32488197", "doi": "10.1038/s41576-020-0255-7"},
+        {"ref_type": "ErratumIn", "pmid": "33536625", "doi": "10.1038/s41586-020-03174-8"},
+        {"ref_type": "ErratumIn", "pmid": "34373650", "doi": "10.1038/s41586-021-03758-y"}
+      ]
+    },
+    {
+      "pmid": "28518168",
+      "doi": "10.1038/gim.2017.26",
+      "date_revised": "2025-05-30",
+      "comments_corrections_list_present": false,
+      "comments_corrections": []
+    },
+    {
+      "pmid": "33300245",
+      "doi": "10.1002/humu.24152",
+      "date_revised": "2025-05-30",
+      "comments_corrections_list_present": false,
+      "comments_corrections": []
+    },
+    {
+      "pmid": "31479589",
+      "doi": "10.1002/cphg.93",
+      "date_revised": "2025-05-30",
+      "comments_corrections_list_present": false,
+      "comments_corrections": []
+    }
+  ],
+  "redaction": {
+    "removed_elements": [
+      "Abstract",
+      "AuthorList",
+      "AffiliationInfo",
+      "GrantList",
+      "ReferenceList",
+      "CoiStatement",
+      "article and publisher text"
+    ],
+    "reason": "Preserve PubMed's correction/retraction linkage metadata without redistributing article text or personal/affiliation information."
+  },
+  "license_or_terms": "Only PubMed identifiers, revision dates, and correction-link metadata are retained; no article text or author/affiliation detail is copied."
+}
