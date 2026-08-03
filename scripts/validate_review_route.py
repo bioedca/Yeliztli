@@ -52,6 +52,7 @@ LOAD_BEARING_EXACT = {
     "contributing.md",
     "dockerfile",
     "governance.md",
+    "greptile.json",
     "license",
     "makefile",
     "notice",
@@ -115,6 +116,10 @@ LOAD_BEARING_NAMES = {
 }
 LOAD_BEARING_PREFIXES = (
     ".github/",
+    # Greptile reads `.greptile/` in preference to the root `greptile.json`, so
+    # a file here can override the manual-only review guard. Without this the
+    # override would ride in on Standard, or on Low for `.greptile/rules.md`.
+    ".greptile/",
     "alembic/",
     "bundles/",
     "data/",
