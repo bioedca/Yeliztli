@@ -60,20 +60,29 @@ DOCUMENTED_KEYS = frozenset(
 )
 
 
-def _effective_config_path(root: Path = REPO_ROOT) -> Path:
-    """Return the config Greptile actually obeys.
+def _effective_config_path(root: Path = REPO_ROOT) -> Path | None:
+    """Return the config Greptile actually obeys, or ``None`` if there is none.
 
-    A ``.greptile/`` folder in the same directory takes precedence and makes
-    ``greptile.json`` **ignored entirely** — so when the folder exists it *is*
-    the policy, and asserting against the root file would check a document
-    Greptile never reads.
+    It is the presence of the ``.greptile/`` **folder** — not of
+    ``.greptile/config.json`` — that makes ``greptile.json`` ignored entirely.
+    So a rules-only folder (``rules.md`` with no ``config.json``) leaves the
+    repository with no trigger policy at all while the root file still sits
+    there looking authoritative. Return ``None`` for that case so it fails
+    loudly instead of passing against a document Greptile never reads.
     """
-    folder_config = root / ".greptile" / "config.json"
-    return folder_config if folder_config.is_file() else root / "greptile.json"
+    folder = root / ".greptile"
+    if folder.is_dir():
+        folder_config = folder / "config.json"
+        return folder_config if folder_config.is_file() else None
+    return root / "greptile.json"
 
 
 def _config() -> dict[str, Any]:
     path = _effective_config_path()
+    assert path is not None, (
+        ".greptile/ exists without a config.json: its presence makes greptile.json "
+        "ignored entirely, so the repository has no manual-only policy at all"
+    )
     config = json.loads(path.read_text(encoding="utf-8"))
     assert isinstance(config, dict), f"{path.name} must be a JSON object"
     return config
@@ -177,7 +186,11 @@ def test_the_effective_config_follows_greptile_precedence(tmp_path: Path) -> Non
     (tmp_path / "greptile.json").write_text("{}", encoding="utf-8")
     assert _effective_config_path(tmp_path) == tmp_path / "greptile.json"
 
+    # A rules-only folder still shadows the root file, leaving no trigger policy.
     (tmp_path / ".greptile").mkdir()
+    (tmp_path / ".greptile" / "rules.md").write_text("review carefully", encoding="utf-8")
+    assert _effective_config_path(tmp_path) is None
+
     (tmp_path / ".greptile" / "config.json").write_text("{}", encoding="utf-8")
     assert _effective_config_path(tmp_path) == tmp_path / ".greptile" / "config.json"
 

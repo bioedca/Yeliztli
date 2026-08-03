@@ -118,6 +118,11 @@ and open it deliberately.
   long-lived branch to pick it up.
 - Config resolves as *org enforced rules > `.greptile/` folder > `greptile.json` > org
   default rules*. Dashboard state can pre-empt this file, and cannot be seen from here.
+- **Do not add a `.greptile/` folder without a `config.json`.** It is the folder's presence,
+  not the config file's, that makes `greptile.json` ignored — so a folder holding only
+  `rules.md` silently drops every trigger setting on this page while the root file sits
+  there looking authoritative. If you add the folder, move the whole policy into
+  `.greptile/config.json`. The test suite fails on a rules-only folder.
 - **Organization Settings → Billing → Flex Usage Limit set to `$0`** is the only vendor-side
   spend control Greptile documents, but it is not a review kill switch: it stops *flex*
   (overage) spend beyond the included credits. Authors still inside their included
