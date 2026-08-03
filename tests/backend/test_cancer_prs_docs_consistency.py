@@ -216,9 +216,19 @@ def test_breast_prs_references_carry_a_science_evidence_packet() -> None:
         for match in _PROVENANCE_ID_RE.finditer(_reference_entry(doc_text, number))
     }
     assert cited, "the breast PRS references must cite at least one approved identifier"
-    recorded = " ".join(str(item) for item in packet["citations"]).upper()
-    missing = sorted(identifier for identifier in cited if identifier not in recorded)
+
+    # Tokenise both sides with the same identifier grammar and compare as sets.
+    # A substring test would accept a truncated identifier -- "PMID:2585570" is a
+    # substring of "PMID:25855707" -- and so would leave a broken reference
+    # undetected, which is exactly the drift this guard exists to catch.
+    recorded = {
+        match.group(0).upper()
+        for citation in packet["citations"]
+        for match in _PROVENANCE_ID_RE.finditer(str(citation))
+    }
+    assert recorded, "the evidence packet must record at least one approved identifier"
+    missing = sorted(cited - recorded)
     assert not missing, (
-        "every identifier cited by the breast PRS references must appear in the "
-        f"evidence packet's citations; missing: {missing}"
+        "every identifier cited by the breast PRS references must appear verbatim in "
+        f"the evidence packet's citations; missing: {missing} (packet records {sorted(recorded)})"
     )
