@@ -93,12 +93,21 @@ wording that an earlier revision of this packet used has been removed.
 source-inventory.json binds the evidence packet to the pre-evidence
 implementation commit and the exact local source extract, avoiding a
 self-referential commit identifier. source-response-index.json maps the two
-retained primary-source payloads to checksums. The primary archive URL in
-`source_archive.archive_url` is an explicit exception to the routine exclusion
-of access URLs: it identifies the versioned public archive whose checksum is
-needed to reproduce C1. Service access URLs are not retained in raw payloads;
-the policy URLs below are human-authored citations rather than provider output.
-All paths are repository-relative.
+retained primary-source payloads to checksums. Three kinds of URL are retained
+as explicit, enumerated exceptions to the routine exclusion of access URLs:
+
+- `source_archive.archive_url` — the versioned public archive whose checksum is
+  needed to reproduce C1.
+- `license_or_terms.official_pages` and `license_or_terms.official_policy_urls`
+  — the exact pages inspected for a licence or reuse grant, without which the
+  recorded terms status could not be re-checked.
+- `documentation_url` and `terms_url` on each discovery-service entry — the
+  provider's own published terms.
+
+Everything else stays excluded: no per-request service endpoints, download
+links, session or tracking parameters, or provider result URLs are retained
+anywhere in this packet, and every URL above is a human-authored citation rather
+than provider output. All file paths are repository-relative.
 
 PhyloTree's Build 17 landing, archive-link, home, and update-history pages did
 not state a licence or reuse grant when inspected on 2026-08-03. This packet

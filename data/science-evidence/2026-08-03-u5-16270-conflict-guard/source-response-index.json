@@ -96,12 +96,15 @@
       "bounded source motif metadata",
       "human-authored discovery-service handling metadata only",
       "human-authored paraphrases of claim-supporting statements, with the record section they were read from",
-      "records of provider unavailability, quota, and rate-limit fallbacks"
+      "records of provider unavailability, quota, and rate-limit fallbacks",
+      "the versioned source-archive URL needed to reproduce the pinned checksum",
+      "the exact official pages inspected for licence or reuse terms",
+      "each discovery service's published documentation and terms URLs"
     ],
     "removed": [
       "article abstracts and full text",
       "author and affiliation data",
-      "service access, download, and tracking URLs",
+      "per-request service endpoints, download links, session and tracking parameters, and provider result URLs",
       "Consensus and Scite provider response payloads, generated summaries, citation context, tallies, and classifier results",
       "any sample, genotype, PII, credential, or restricted data"
     ]

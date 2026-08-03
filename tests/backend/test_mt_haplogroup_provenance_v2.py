@@ -7914,6 +7914,15 @@ def test_issue_2165_u5_conflict_evidence_packet_is_source_bound() -> None:
         for excluded in service.get("excluded_provider_findings", []):
             assert excluded["used_as_evidence"] is False
             assert excluded["excluded_because"].strip()
+    # Retention policy must describe what the files actually hold. Every URL the
+    # packet keeps is one of the three enumerated exceptions, so the README and
+    # the index cannot claim a blanket exclusion they do not honour.
+    retained_url_kinds = response_index["sanitization"]["retained"]
+    assert any("source-archive URL" in kind for kind in retained_url_kinds)
+    assert any("licence or reuse terms" in kind for kind in retained_url_kinds)
+    assert any("documentation and terms URLs" in kind for kind in retained_url_kinds)
+    assert "`source_archive.archive_url`" in readme
+    assert "explicit, enumerated exceptions" in readme
     # The rate-limit and result-size fallbacks are recorded, not silently dropped.
     assert services["Consensus"]["unavailable_or_quota_events"]
     assert services["Scite"]["unavailable_or_quota_events"]
