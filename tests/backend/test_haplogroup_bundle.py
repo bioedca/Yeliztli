@@ -2499,6 +2499,23 @@ class TestBuildScript:
 
         assert "Structural mtDNA node U5 has no optional conflict guards" in issues
 
+    def test_issue_2165_mt_source_guard_null_fails_bundle_validation(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """The production builder reports an explicit null guard instead of raising TypeError."""
+        import scripts.build_haplogroup_bundle as bundle_builder
+
+        source = copy.deepcopy(bundle_builder._MT_SOURCE)
+        source["structural_exceptions"]["U5"]["optional_conflict_snps"] = None
+        monkeypatch.setattr(bundle_builder, "_MT_SOURCE", source)
+
+        with pytest.raises(
+            ValueError,
+            match="Structural mtDNA node U5 has no optional conflict guards",
+        ):
+            bundle_builder.build_bundle()
+
     def test_issue_1798_mt_source_guard_rejects_silent_omission_and_direction_drift(
         self,
     ) -> None:

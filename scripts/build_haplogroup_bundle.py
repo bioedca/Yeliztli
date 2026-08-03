@@ -2101,6 +2101,20 @@ def build_mt_tree() -> dict[str, Any]:
         ],
         [u5b1, u5b2],
     )
+    u5_record = _MT_SOURCE["structural_exceptions"].get("U5", {})
+    u5_guards = u5_record.get("optional_conflict_snps", []) if isinstance(u5_record, dict) else []
+    if not isinstance(u5_guards, list):
+        u5_guards = []
+    u5_optional_conflict_snps = [
+        _mt_snp(marker["rsid"], marker["pos"], marker["allele"])
+        for marker in u5_guards
+        if (
+            isinstance(marker, dict)
+            and isinstance(marker.get("rsid"), str)
+            and isinstance(marker.get("pos"), int)
+            and isinstance(marker.get("allele"), str)
+        )
+    ]
     u5 = _node(
         "U5",
         # Exact markerless gateway: direct m.16192 is historical-only and
@@ -2110,10 +2124,7 @@ def build_mt_tree() -> dict[str, Any]:
         # typed ancestral m.16270 vetoes descent through U5.
         [],
         [u5a, u5b],
-        [
-            _mt_snp(marker["rsid"], marker["pos"], marker["allele"])
-            for marker in _MT_SOURCE["structural_exceptions"]["U5"]["optional_conflict_snps"]
-        ],
+        u5_optional_conflict_snps,
     )
 
     u6a = _node(
