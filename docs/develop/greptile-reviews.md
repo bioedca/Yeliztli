@@ -91,42 +91,33 @@ No **PR filter** appears in this file: not `labels`, `includeAuthors`, `includeB
 Bot-author exclusion therefore lives in the dashboard, not here. The test suite fails if any
 of these keys reappears in the repository.
 
-### The one gap neither layer closes
+### The gap Layer 2 cannot close alone
 
-**A pull request that changes only `greptile.json` can still spend a credit, and nothing in
-this repository can stop it.**
+A pull request that changes only `greptile.json` is not protected by `greptile.json`. Three
+facts compose: Greptile reads its configuration from the pull request's **source branch**, so
+a branch that deletes or weakens this file is already unguarded when the pull request opens;
+that change is exactly **one file**, so `fileChangeLimit: 1` — which skips PRs with *more*
+than one — permits it; and the review fires at open, before CI runs the guard test or the
+route floor can reject the change. Every repository-side control is evaluated *after* the
+review has already started, so the most dangerous change to this file is the one Layer 2
+cannot protect.
 
-The three facts compose badly. Greptile reads its configuration from the pull request's
-*source branch*, so a branch that deletes or weakens this file is already unguarded when the
-pull request opens. That change is exactly **one file**, so `fileChangeLimit: 1` — which
-skips PRs with *more* than one changed file — permits it. And the review fires at open,
-before CI runs the guard test or the route floor can reject the change.
+**Layer 1's label filter is what closes it.** PR #2260 was exactly this shape — one file, no
+label — and Greptile produced no comment, no review, and no check run.
 
-So the single most dangerous change to this configuration is also the least protected one.
-Repository-side validation cannot close it: every repository-side control is evaluated after
-the review has already started.
+So a configuration-only pull request is free **today**, and stays free only while that
+dashboard filter exists. It would start costing a credit again the moment `Labels ∈ Include`
+is removed, and nothing in this repository would signal that: the dashboard is invisible from
+here, and no repository-side control substitutes for it.
 
-Closing it requires a control outside the repository. Greptile's "org enforced rules" sound
-like the answer, but its documentation never says which settings are enforceable — the only
-stated purpose is "security policies or compliance requirements"[^config-precedence], and
-`skipReview` is not documented as one. Do not assume that route exists.
+One route that sounds like a fix is not one. Greptile's "org enforced rules" never document
+*which* settings are enforceable — the stated purpose is "security policies or compliance
+requirements"[^config-precedence] — and `skipReview` is not among them. Do not assume it.
 
-What *is* documented is a **dashboard PR filter** — label, branch, author, or keyword —
-configurable at <https://app.greptile.com/review>: "The filters can be configured in the
-dashboard, or in your `greptile.json` file."[^trigger]
-
-A dashboard filter survives a repository-side edit, and this repository has direct evidence
-that dashboard settings apply per key rather than being replaced wholesale by the presence
-of a `greptile.json`: PR #2252 carried a `greptile.json` that does **not** set
-`fileChangeLimit`, and the dashboard's `fileChangeLimit: 1` still refused the review. A
-dashboard `labels` filter would behave the same way — and nothing on a pull request branch
-can clear it, because `greptile.json` here deliberately leaves `labels` unset.
-
-That is the second reason this file sets no allow-list filter: leaving `labels` unset in the
-repository is what keeps a dashboard label filter authoritative.
-
-Until such a filter exists, treat a configuration-only pull request as costing one credit
-and open it deliberately.
+That a dashboard key survives a repository-side edit is directly evidenced: PR #2252 carried
+a `greptile.json` that does **not** set `fileChangeLimit`, and the dashboard's value still
+refused the review. That per-key behaviour is exactly what makes the label filter
+authoritative — provided this repository never sets `labels` itself.
 
 ### Caveats
 

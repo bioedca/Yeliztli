@@ -107,10 +107,24 @@ def test_automatic_reviews_are_skipped() -> None:
     )
 
 
-@pytest.mark.parametrize(
-    "key",
-    ["labels", "includeAuthors", "includeBranches", "includeKeywords", "excludeAuthors"],
+# Every PR-filter key Greptile documents — the whole "which pull requests get
+# reviewed" family, allow-list and deny-list alike. Listing a subset is what
+# lets the next one slip in: `fileChangeLimit` in particular is currently set in
+# the dashboard, so a repository-side value would override it outright.
+PR_FILTER_KEYS = (
+    "disabledLabels",
+    "excludeAuthors",
+    "excludeBranches",
+    "fileChangeLimit",
+    "ignoreKeywords",
+    "includeAuthors",
+    "includeBranches",
+    "includeKeywords",
+    "labels",
 )
+
+
+@pytest.mark.parametrize("key", PR_FILTER_KEYS)
 def test_no_pr_filter_is_set_in_the_repository(key: str) -> None:
     # Two reasons, and the second is why this list keeps growing.
     #
