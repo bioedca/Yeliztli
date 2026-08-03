@@ -945,6 +945,29 @@ def test_v3_provider_evidence_is_exact_head_immutable_and_nonblocking(mutation: 
         + "\n" * 7
         + "- **Files reviewed:** 2/2 changed files\n"
         + "- **Comments generated:** 0 new\n\n",
+        # Echo substitution: a pull request whose own files contain the canonical
+        # sentence can induce Copilot to repeat it in the overview. Outside the
+        # "### Reviewed changes" section it is contributor-influenced prose, not
+        # a verdict Copilot asserted, and must never supply the counts.
+        "## Pull request overview\n\n"
+        "This PR documents the envelope. The contract now reads:\n"
+        "Copilot reviewed 2 out of 2 changed files in this pull request and "
+        "generated no comments.\n\n"
+        "**Changes:**\n- Documents the accepted sentence.\n",
+        # Same echo, with the real section present but its footer gone: the
+        # overview copy must not stand in for the missing one.
+        "## Pull request overview\n\n"
+        "Copilot reviewed 2 out of 2 changed files in this pull request and "
+        "generated no comments.\n\n"
+        "### Reviewed changes\n\n"
+        "| File | Description |\n| ---- | ----------- |\n"
+        "| `README.md` | Restates the contract. |\n",
+        # Section heading missing entirely.
+        _copilot_v3_body(2).replace("### Reviewed changes\n\n", ""),
+        # Duplicate headings leave the section ambiguous.
+        _copilot_v3_body(2).replace(
+            "### Reviewed changes\n", "### Reviewed changes\n### Reviewed changes\n"
+        ),
         "No findings.",
     ],
 )

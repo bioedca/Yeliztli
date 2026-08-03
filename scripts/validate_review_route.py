@@ -255,19 +255,29 @@ UTC_RESULT = re.compile(
 )
 TERMINAL_REVIEW_STATES = {"APPROVED", "COMMENTED"}
 HUMAN_ASSOCIATIONS = {"OWNER", "MEMBER", "COLLABORATOR"}
-# Copilot closes every review with one coverage sentence. That sentence is the
-# only part of the body worth trusting: it is provider-authored, it carries both
-# file counts, and it states the comment verdict. Everything around it — the
-# prose overview, the "**Changes:**" list, the per-file table, the analysis-depth
-# label added in June 2026 — is presentation that Copilot rewrites at will.
+# Copilot closes every review with one coverage sentence inside its own
+# "### Reviewed changes" section. That sentence carries both file counts and the
+# comment verdict; the prose overview, the "**Changes:**" list, the per-file
+# table and the analysis-depth label added in June 2026 are presentation Copilot
+# rewrites at will, so none of them is matched.
 #
 # The predecessor of this pattern required the WHOLE body to fullmatch a
 # "## Copilot's findings" / "- **Files reviewed:**" shape that Copilot has never
 # emitted, so the lane could not be used: all four substantive Copilot reviews
 # this repository has received (PRs #2183, #2235, #2237, #2238) failed it on
 # format alone, and the failure published `pending` with no visible cause (#2248).
-# Anchor on the sentence, not on the layout, and let identity come from the
-# authenticated app id rather than from prose.
+#
+# The sentence is nonetheless bound to the heading rather than searched for
+# body-wide, because the body is NOT purely provider-authored in effect: Copilot
+# paraphrases the diff it read, so a pull request whose own files contain the
+# canonical sentence can induce Copilot to echo it in the overview. A body-wide
+# search accepts that echo as the verdict — fail-open on a trust boundary, where
+# contributor-influenced prose substitutes for counts Copilot never asserted.
+# Binding costs brittleness if Copilot renames the heading, and that failure is
+# the #2248 class again; it is accepted deliberately because it fails closed,
+# and fail-closed is recoverable in a way fail-open is not. All four archived
+# bodies carry the heading exactly once with the sentence after it.
+COPILOT_V3_COVERAGE_HEADING = re.compile(r"(?m)^### Reviewed changes$")
 COPILOT_V3_COVERAGE_LINE = re.compile(
     r"(?m)^Copilot reviewed (?P<reviewed>[1-9][0-9]*) out of (?P<total>[1-9][0-9]*) "
     r"changed files in this pull request and generated "
@@ -1292,13 +1302,18 @@ def _v3_formal_review_is_clean(
     if isinstance(changed_files, bool) or not isinstance(changed_files, int) or changed_files <= 0:
         return False
     if gate == COPILOT_GATE:
-        # Exactly one coverage sentence, so two summaries cannot leave the real
-        # counts ambiguous. Deliberately NOT also counting the bare phrase:
-        # Copilot's prose overview may say "Copilot reviewed …" in passing, and
-        # a phrase count would then reject a valid clean review — the same
-        # silent fail-closed defect this envelope was rewritten to remove.
+        # Exactly one heading and exactly one coverage sentence, the sentence
+        # inside the section, so neither a duplicate summary nor an echo of the
+        # sentence in contributor-influenced overview prose can supply the
+        # counts. Deliberately NOT counting the bare phrase "Copilot reviewed":
+        # the overview may use it in passing, and counting it would reject a
+        # valid clean review — the silent fail-closed defect this envelope was
+        # rewritten to remove.
+        heading = list(COPILOT_V3_COVERAGE_HEADING.finditer(body))
         coverage = list(COPILOT_V3_COVERAGE_LINE.finditer(body))
-        if len(coverage) != 1:
+        if len(heading) != 1 or len(coverage) != 1:
+            return False
+        if coverage[0].start() < heading[0].end():
             return False
         found = coverage[0]
         return (

@@ -82,13 +82,16 @@ V3 trusts only a small provider-authenticated terminal envelope:
 
 - **Codex:** an exact-head empty formal approval with zero attached comments,
   or its canonical immutable clean comment and reviewed-commit marker.
-- **Copilot:** its unedited review closing with the coverage sentence
-  `Copilot reviewed N out of M changed files in this pull request and generated
-  no comments.`, where both counts equal GitHub's changed-file count and the
-  review has no attached comments. Copilot skips files it judges low risk, so a
-  partial count is normal output but is not accepted evidence. Copilot can also
-  withhold a low-confidence finding rather than post it; nothing in the envelope
-  detects that, so a clean Copilot review does not assert its absence (#2256).
+- **Copilot:** its unedited review whose `### Reviewed changes` section closes
+  with the coverage sentence `Copilot reviewed N out of M changed files in this
+  pull request and generated no comments.`, where both counts equal GitHub's
+  changed-file count and the review has no attached comments. The sentence is
+  only read inside that section: Copilot paraphrases the diff it reviewed, so
+  the same sentence appearing in its overview is contributor-influenced prose,
+  not a verdict. Copilot skips files it judges low risk, so a partial count is
+  normal output but is not accepted evidence. Copilot can also withhold a
+  low-confidence finding rather than post it; nothing in the envelope detects
+  that, so a clean Copilot review does not assert its absence (#2256).
 - **CodeRabbit:** its unedited structured clean review, with zero actionable or
   attached comments, no ignored files, and its selected-file count equal to
   GitHub's changed-file count.
