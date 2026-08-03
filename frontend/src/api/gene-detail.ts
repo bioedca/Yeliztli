@@ -1,5 +1,7 @@
 /** React Query hooks for gene detail API (P3-41, P3-42). */
 
+import { throwApiError } from "@/api/errors"
+
 import { useQuery } from "@tanstack/react-query"
 import type { GeneDetailResponse } from "@/types/gene-detail"
 
@@ -10,8 +12,7 @@ async function fetchGeneDetail(
   const params = new URLSearchParams({ sample_id: String(sampleId) })
   const res = await fetch(`/api/genes/${encodeURIComponent(symbol)}?${params}`)
   if (!res.ok) {
-    const text = await res.text().catch(() => "")
-    throw new Error(`Gene detail fetch failed: ${res.status}${text ? ` - ${text}` : ""}`)
+    await throwApiError(res, `Gene detail fetch failed. Please try again.`)
   }
   return res.json()
 }

@@ -512,7 +512,11 @@ describe("FindingsExplorer", () => {
     })
     renderWithRoute(<FindingsExplorer />, ["/?sample_id=1"])
 
-    expect(await screen.findByText(/Findings failed: 500/)).toBeInTheDocument()
+    expect(
+      await screen.findByText("Findings failed. Please try again."),
+    ).toBeInTheDocument()
+    expect(document.body).not.toHaveTextContent("Server error")
+    expect(document.body).not.toHaveTextContent("500")
   })
 
   it("renders metabolizer status for pharmacogenomics findings", async () => {

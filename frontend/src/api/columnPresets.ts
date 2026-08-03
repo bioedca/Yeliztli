@@ -1,5 +1,7 @@
 /** React Query hooks for column preset CRUD (P1-15c). */
 
+import { throwApiError } from "@/api/errors"
+
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import type { ColumnPreset } from "@/types/variants"
 
@@ -26,8 +28,7 @@ export function useCreatePreset() {
         body: JSON.stringify(body),
       })
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(text || "Failed to create preset")
+        await throwApiError(res, "Failed to create preset")
       }
       return res.json()
     },
@@ -43,8 +44,7 @@ export function useDeletePreset() {
         method: "DELETE",
       })
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(text || "Failed to delete preset")
+        await throwApiError(res, "Failed to delete preset")
       }
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["column-presets"] }),

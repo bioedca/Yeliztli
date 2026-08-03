@@ -5,6 +5,7 @@ import { render, screen, waitFor } from "./test-utils"
 import userEvent from "@testing-library/user-event"
 import SqlConsole from "@/components/query-builder/SqlConsole"
 import QueryBuilderView from "@/pages/QueryBuilderView"
+import { QueryBuilderDraftProvider } from "@/components/query-builder/QueryBuilderDraftState"
 import { MemoryRouter } from "react-router-dom"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { render as rtlRender } from "@testing-library/react"
@@ -42,7 +43,9 @@ function renderWithRoute(ui: ReactNode, route = "/query-builder") {
   })
   return rtlRender(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={[route]}>{ui}</MemoryRouter>
+      <MemoryRouter initialEntries={[route]}>
+        <QueryBuilderDraftProvider>{ui}</QueryBuilderDraftProvider>
+      </MemoryRouter>
     </QueryClientProvider>,
   )
 }
@@ -295,7 +298,12 @@ describe("SqlConsole", () => {
     await waitFor(() => {
       expect(screen.getByTestId("sql-error")).toBeInTheDocument()
     })
-    expect(screen.getByText(/write operations are not allowed/i)).toBeInTheDocument()
+    expect(
+      screen.getByText("SQL execution failed. Please try again."),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText(/write operations are not allowed/i),
+    ).not.toBeInTheDocument()
   })
 
   it("shows truncation warning when results are truncated", async () => {

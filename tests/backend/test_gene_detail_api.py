@@ -520,6 +520,14 @@ class TestUniProtLiveFetch:
                                         "end": {"value": 176},
                                     },
                                 },
+                                {
+                                    "type": "Disulfide bond",
+                                    "description": "Paired cysteines",
+                                    "location": {
+                                        "start": {"value": 31, "modifier": "EXACT"},
+                                        "end": {"value": 96, "modifier": "EXACT"},
+                                    },
+                                },
                             ],
                         }
                     ]
@@ -550,7 +558,20 @@ class TestUniProtLiveFetch:
         assert result is not None
         assert result.accession == "P04637"
         assert [domain.type for domain in result.domains] == ["Region"]
-        assert [feature.type for feature in result.features] == ["Binding site"]
+        assert [
+            (
+                feature.type,
+                feature.position,
+                feature.start,
+                feature.end,
+                feature.start_modifier,
+                feature.end_modifier,
+            )
+            for feature in result.features
+        ] == [
+            ("Binding site", 176, 176, 176, None, None),
+            ("Disulfide bond", None, 31, 96, "EXACT", "EXACT"),
+        ]
         store_cache.assert_called_once()
 
         assert captured_urls == ["https://rest.uniprot.org/uniprotkb/search"]
@@ -646,6 +667,15 @@ class TestUniProtCacheStorage:
                     start=1524,
                     end=1524,
                 ),
+                ProteinFeature(
+                    type="Disulfide bond",
+                    description="Interchain (between B and A chains)",
+                    position=None,
+                    start=31,
+                    end=96,
+                    start_modifier="EXACT",
+                    end_modifier="EXACT",
+                ),
             ]
 
             _store_uniprot_cache(
@@ -662,8 +692,20 @@ class TestUniProtCacheStorage:
             assert result.sequence_length == 1863
             assert len(result.domains) == 2
             assert result.domains[0].description == "BRCT 1"
-            assert len(result.features) == 1
-            assert result.features[0].position == 1524
+            assert [
+                (
+                    feature.type,
+                    feature.position,
+                    feature.start,
+                    feature.end,
+                    feature.start_modifier,
+                    feature.end_modifier,
+                )
+                for feature in result.features
+            ] == [
+                ("Active site", 1524, 1524, 1524, None, None),
+                ("Disulfide bond", None, 31, 96, "EXACT", "EXACT"),
+            ]
             assert result.is_cached is True
 
             reset_registry()

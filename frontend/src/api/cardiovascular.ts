@@ -1,5 +1,7 @@
 /** React Query hooks for cardiovascular module API (P3-21). */
 
+import { throwApiError } from "@/api/errors"
+
 import { useQuery } from "@tanstack/react-query"
 import type {
   CardiovascularVariantsListResponse,
@@ -19,8 +21,7 @@ export function useCardiovascularVariants(sampleId: number | null) {
       const params = new URLSearchParams({ sample_id: String(sampleId!) })
       const res = await fetch(`/api/analysis/cardiovascular/variants?${params}`)
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`Cardiovascular variants failed: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `Cardiovascular variants failed. Please try again.`)
       }
       return res.json()
     },
@@ -41,8 +42,7 @@ export function useFHStatus(sampleId: number | null) {
       const params = new URLSearchParams({ sample_id: String(sampleId!) })
       const res = await fetch(`/api/analysis/cardiovascular/fh-status?${params}`)
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`FH status failed: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `FH status failed. Please try again.`)
       }
       return res.json()
     },
@@ -62,8 +62,7 @@ export function useCardiovascularDisclaimer() {
     queryFn: async (): Promise<CardiovascularDisclaimerResponse> => {
       const res = await fetch("/api/analysis/cardiovascular/disclaimer")
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`Cardiovascular disclaimer failed: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `Cardiovascular disclaimer failed. Please try again.`)
       }
       return res.json()
     },

@@ -15,6 +15,8 @@ export interface ProteinFeature {
   position: number | null
   start: number | null
   end: number | null
+  start_modifier?: string | null
+  end_modifier?: string | null
 }
 
 /** UniProt protein data for Nightingale rendering. */

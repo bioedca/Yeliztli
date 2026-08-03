@@ -76,6 +76,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  vi.restoreAllMocks()
   vi.unstubAllGlobals()
 })
 
@@ -165,14 +166,20 @@ describe("IgvBrowser", () => {
   })
 
   it("shows error state when browser creation fails", async () => {
+    const rawError = "IGV backend connection failed at https://internal.example.test/private/genome"
     mockCreateBrowser.mockReset()
-    mockCreateBrowser.mockRejectedValue(new Error("Network error"))
+    mockCreateBrowser.mockRejectedValue(new Error(rawError))
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {})
     render(<IgvBrowser />)
     await waitFor(() => {
       expect(screen.getByRole("alert")).toBeInTheDocument()
     })
     expect(screen.getByText("Failed to load genome browser")).toBeInTheDocument()
-    expect(screen.getByText("Network error")).toBeInTheDocument()
+    expect(
+      screen.getByText("Unable to load the genome browser. Please retry."),
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/igv backend connection failed at https:\/\/internal\.example\.test\/private\/genome/i)).not.toBeInTheDocument()
+    expect(consoleError).not.toHaveBeenCalled()
     expect(screen.getByText("Retry")).toBeInTheDocument()
   })
 

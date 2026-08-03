@@ -1,5 +1,7 @@
 /** React Query hooks and utilities for the report builder API (P4-10). */
 
+import { throwApiError } from "@/api/errors"
+
 import { useMutation, useQuery } from "@tanstack/react-query"
 
 export interface ReportRequest {
@@ -21,8 +23,7 @@ export function useGenerateReport() {
         body: JSON.stringify(request),
       })
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`Report generation failed: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `Report generation failed. Please try again.`)
       }
       return res.blob()
     },
@@ -40,8 +41,7 @@ export async function fetchReportPreview(request: ReportRequest): Promise<string
     body: JSON.stringify(request),
   })
   if (!res.ok) {
-    const text = await res.text().catch(() => "")
-    throw new Error(`Report preview failed: ${res.status}${text ? ` - ${text}` : ""}`)
+    await throwApiError(res, `Report preview failed. Please try again.`)
   }
   return res.text()
 }
@@ -92,8 +92,7 @@ export function useExportFhir() {
         body: JSON.stringify(request),
       })
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`FHIR export failed: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `FHIR export failed. Please try again.`)
       }
       return res.blob()
     },

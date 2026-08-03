@@ -5,6 +5,8 @@
  * (integrity), resumable partials, and recovery actions.
  */
 
+import { throwApiError } from "@/api/errors"
+
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 // ── Types ────────────────────────────────────────────────────────────
@@ -74,8 +76,7 @@ export const DB_HEALTH_KEY = ['databases', 'health'] as const
 async function fetchDatabaseHealth(): Promise<DatabaseHealthList> {
   const res = await fetch('/api/databases/health')
   if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    throw new Error(`Database health fetch failed: ${res.status} ${text}`.trim())
+    await throwApiError(res, `Database health fetch failed. Please try again.`)
   }
   return res.json()
 }
@@ -87,8 +88,7 @@ async function resumeDownload(dbName: string): Promise<ResumeResponse> {
     body: JSON.stringify({ db_name: dbName }),
   })
   if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    throw new Error(`Resume failed: ${res.status} ${text}`.trim())
+    await throwApiError(res, `Resume failed. Please try again.`)
   }
   return res.json()
 }
@@ -96,8 +96,7 @@ async function resumeDownload(dbName: string): Promise<ResumeResponse> {
 async function verifyDatabase(dbName: string): Promise<VerifyResponse> {
   const res = await fetch(`/api/databases/${dbName}/verify`, { method: 'POST' })
   if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    throw new Error(`Verify failed: ${res.status} ${text}`.trim())
+    await throwApiError(res, `Verify failed. Please try again.`)
   }
   return res.json()
 }
@@ -105,8 +104,7 @@ async function verifyDatabase(dbName: string): Promise<VerifyResponse> {
 async function cleanDatabase(dbName: string): Promise<CleanResponse> {
   const res = await fetch(`/api/databases/${dbName}/clean`, { method: 'POST' })
   if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    throw new Error(`Clean failed: ${res.status} ${text}`.trim())
+    await throwApiError(res, `Clean failed. Please try again.`)
   }
   return res.json()
 }

@@ -76,7 +76,7 @@ UGT1A1,irinotecan,Normal Metabolizer,,Use label-recommended dosing.,B,https://ww
 UGT1A1,irinotecan,Intermediate Metabolizer,,Use label-recommended starting dose; consider reduction for high-dose regimens.,B,https://www.fda.gov/medical-devices/precision-medicine/table-pharmacogenetic-associations
 UGT1A1,irinotecan,Poor Metabolizer,,"Reduce the irinotecan starting dose (e.g., by ~30%) and monitor for neutropenia/diarrhea.",B,https://www.fda.gov/medical-devices/precision-medicine/table-pharmacogenetic-associations
 CYP2B6,efavirenz,Normal Metabolizer,,Use label-recommended dosing (600 mg/day).,A,https://cpicpgx.org/guidelines/cpic-guideline-for-efavirenz-based-on-cyp2b6-genotype/
-CYP2B6,efavirenz,Intermediate Metabolizer,,Use label-recommended dosing; consider a reduced dose if CNS side effects occur.,A,https://cpicpgx.org/guidelines/cpic-guideline-for-efavirenz-based-on-cyp2b6-genotype/
-CYP2B6,efavirenz,Poor Metabolizer,,"Consider initiating at a decreased dose (e.g., 400 mg/day); higher plasma exposure raises CNS-toxicity risk.",A,https://cpicpgx.org/guidelines/cpic-guideline-for-efavirenz-based-on-cyp2b6-genotype/
+CYP2B6,efavirenz,Intermediate Metabolizer,,Consider initiating efavirenz with decreased dose of 400 mg/day.,A,https://cpicpgx.org/guidelines/cpic-guideline-for-efavirenz-based-on-cyp2b6-genotype/
+CYP2B6,efavirenz,Poor Metabolizer,,Consider initiating efavirenz with decreased dose of 400 or 200 mg/day.,A,https://cpicpgx.org/guidelines/cpic-guideline-for-efavirenz-based-on-cyp2b6-genotype/
 CYP2B6,efavirenz,Rapid Metabolizer,,Use label-recommended dosing (600 mg/day).,A,https://cpicpgx.org/guidelines/cpic-guideline-for-efavirenz-based-on-cyp2b6-genotype/
 CYP2B6,efavirenz,Ultrarapid Metabolizer,,Use label-recommended dosing (600 mg/day).,A,https://cpicpgx.org/guidelines/cpic-guideline-for-efavirenz-based-on-cyp2b6-genotype/
