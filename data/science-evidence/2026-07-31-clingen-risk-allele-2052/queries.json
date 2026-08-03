@@ -41,6 +41,13 @@
       "unavailable_fields": [
         "version_or_build (not exposed by the service)"
       ]
+    },
+    "PubMed MCP connector": {
+      "role": "Narrowest specialist connector used to retrieve PMID:31147632 bibliographic metadata for the rank-2 author-overlap check.",
+      "version_or_build": "Unavailable — the connector exposes no service, build, or index-version stamp in its responses, and none was returned with the retrieved record.",
+      "boundary_that_follows": "Because no version is exposed, the 2026-08-03 access date is the only retrieval-version boundary for the metadata it returned, and that retrieval is not reproducible against a pinned service state. The underlying record is separately pinned by PMID and DOI, which are stable, and the author-overlap check rests on those identifiers rather than on the connector.",
+      "license_or_terms": "NCBI/NLM public data; no signed licence required, subject to source acknowledgement, non-endorsement, and currentness disclosure. Same NLM terms recorded above for the Entrez route.",
+      "what_is_retained": "Bibliographic metadata only, at raw/pubmed-31147632-metadata.json. No abstract and no full text."
     }
   },
   "queries": [

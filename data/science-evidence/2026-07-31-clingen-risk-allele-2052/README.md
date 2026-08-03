@@ -65,8 +65,14 @@ Two precision points, because the shorthand above can be misread:
   MCP quota was exhausted; the service reported a 2026-08-03 UTC reset.
 - **Both first-tier services were re-run on 2026-08-03 after their reported quota
   resets, so this packet no longer rests on an unavailable first tier.**
-    - Consensus returned this packet's primary source as its rank-1 result and the
-      Working Group's own conference abstract as rank 3. Rank 2 is the 2019
+    - Consensus returned this packet's primary source as its rank-1 result.
+      Rank 3 was the Working Group's own conference abstract; Consensus supplied
+      no DOI, PMID, or conference accession for it and no durable identifier
+      could be established, so it is **not retained as a source** — a source an
+      auditor cannot uniquely resolve is worse than no source. Its omission is
+      recorded in `derived/consensus-search-2026-08-03.json`. Nothing depends on
+      it: it reflects the same Working Group as rank 1 and never counted toward
+      independence. Rank 2 is the 2019
       Senol-Cosar low-penetrance framework paper (PMID:31147632;
       DOI:10.1038/s41436-019-0560-8; *Genet Med.* 2019;21(12):2765-2773, accessed
       2026-08-03). It is recorded as the documented antecedent of the same

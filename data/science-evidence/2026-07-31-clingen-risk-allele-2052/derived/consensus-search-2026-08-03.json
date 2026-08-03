@@ -31,16 +31,9 @@
    "maps_to": "PMID:31147632; DOI:10.1038/s41436-019-0560-8",
    "identifier_source": "NCBI PubMed esearch + efetch via the PubMed connector (accessed 2026-08-03); retained at raw/pubmed-31147632-metadata.json",
    "independence_note": "NOT independent of the primary source. Schmidt RJ and Lebo MS are authors on BOTH this 2019 framework paper and the 2024 ClinGen Low Penetrance/Risk Allele Working Group recommendations, and the 2024 paper builds on this framework rather than testing it separately. It is recorded here as the documented antecedent of the same terminology, not as a second agreeing source. See the packet README for why the two-independent-source rule is not engaged by this packet's claim."
-  },
-  {
-   "rank": 3,
-   "role": "conference abstract of the primary source; not counted as an independent source",
-   "title": "O31: Risk allele evidence curation, classification, and reporting: Recommendations from the ClinGen Low Penetrance/Risk Allele Working Group",
-   "first_author": "Matthew S. Lebo",
-   "year": 2023,
-   "journal": "Genetics in Medicine Open"
   }
  ],
  "not_retained": "Ranks 4-20 were unrelated to this packet's terminology claim (recurrent CNV prenatal alignment, gene-specific VCEP specifications, ClinVar concordance studies) and are omitted.",
- "results_retained_count": 3
+ "results_retained_count": 2,
+ "rank_3_not_retained": "Consensus's rank-3 hit was the Working Group's own conference abstract (\"O31: Risk allele evidence curation, classification, and reporting...\"). It is NOT retained as a source. Consensus supplied no DOI, PMID, or conference accession for it, and no durable identifier could be established, so it cannot be uniquely resolved by an auditor. Rather than retain a source that cannot be resolved, it is dropped and recorded here. Nothing in this packet or in the documentation relies on it: it was an also-ranked discovery result reflecting the same Working Group as the rank-1 primary source, and it was never counted toward independence."
 }
