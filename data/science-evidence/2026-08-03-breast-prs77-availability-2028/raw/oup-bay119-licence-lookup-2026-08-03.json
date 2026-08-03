@@ -10,12 +10,12 @@
     {
       "field": "licence",
       "verbatim": "CC BY",
-      "note": "Stated without a version number anywhere on the page."
+      "note": "Stated without a version number in the rendered licence statement. This extract covers the rendered licence statement and the copyright line only; it does not cover hyperlink targets or any other licence text elsewhere on the page."
     },
     {
       "field": "copyright_line",
       "verbatim": "\u00a9 The Author(s) 2018. Published by Oxford University Press"
     }
   ],
-  "conclusion": "The publisher page states CC BY and does not state a version. This is what the packet relies on to record the licence version as not established rather than asserting CC BY 4.0."
+  "conclusion": "The rendered licence statement says CC BY and carries no version number. This supports recording the version as NOT ESTABLISHED - it is deliberately not stated as 'no version appears anywhere on the page', which this extract cannot evidence. A version could exist in a hyperlink target or adjacent text outside what is retained here; the packet therefore asserts no version at all rather than asserting its absence."
 }

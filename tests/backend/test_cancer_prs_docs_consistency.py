@@ -299,6 +299,26 @@ def test_breast_prs_references_carry_a_science_evidence_packet() -> None:
             f"{artifact} digest is {actual}, but the packet records {entry.get('artifact_sha256')}"
         )
 
+    # The packet's correction/retraction screening is the one claim here whose
+    # failure mode is scientific rather than bookkeeping, so it is checked against
+    # the retained payload rather than taken on the packet's word. Cutting the
+    # larger validator dropped this; it is restored deliberately.
+    screening = json.loads(
+        (_EVIDENCE_DIR / "raw" / "scite-doi-lookup-2026-08-03.json").read_text(encoding="utf-8")
+    )
+    assert screening.get("records"), "the screening payload must retain the screened records"
+    for record in screening["records"]:
+        notices = record.get("editorial_notices")
+        assert notices is not None, (
+            f"the screened record for {record.get('doi')} has no editorial_notices field, so "
+            "the packet's zero-notice claim is unverifiable"
+        )
+        assert notices == [], (
+            f"the screened record for {record.get('doi')} carries editorial notices "
+            f"{notices!r}; the screening must be re-done and the documentation updated "
+            "before this source can be cited"
+        )
+
     doc_text = _DOC_PATH.read_text(encoding="utf-8")
     note_text = _breast_prs_note(doc_text)
     referenced = sorted({int(number) for number in re.findall(r"\[([1-9][0-9]*)\]", note_text)})

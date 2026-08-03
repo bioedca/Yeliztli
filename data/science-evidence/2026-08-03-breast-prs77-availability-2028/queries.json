@@ -126,7 +126,7 @@
       "endpoint": "https://academic.oup.com/database/article/doi/10.1093/database/bay119/5255129 (via https://doi.org/10.1093/database/bay119, 302)",
       "purpose": "Resolve whether the publisher states a CC BY version for the Ensembl Variation paper.",
       "status": "success",
-      "result": "The page states CC BY and the copyright line 'The Author(s) 2018. Published by Oxford University Press'. It does NOT state a version number. This is a negative result and it is what the packet relies on to record the licence version as not established rather than asserting CC BY 4.0.",
+      "result": "The rendered licence statement says CC BY and carries no version number, alongside the copyright line 'The Author(s) 2018. Published by Oxford University Press'. The packet records the version as not established rather than asserting no version exists anywhere on the page - the retained extract covers the rendered statement and copyright line only, not hyperlink targets or other licence text.",
       "raw_payload": "data/science-evidence/2026-08-03-breast-prs77-availability-2028/raw/oup-bay119-licence-lookup-2026-08-03.json",
       "payload_note": "Minimal extract: the two licence-bearing statements only. The finding is a negative, so the evidence for it has to be checkable rather than asserted in prose; the page is mutable and the DOI resolves only to its current contents."
     }
