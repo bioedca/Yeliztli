@@ -101,5 +101,7 @@
       "initials": "M"
     }
   ],
-  "attribution": "Record retrieved from PubMed (NCBI/NLM). Source: https://doi.org/10.1093/jnci/djv036"
+  "attribution": "Record retrieved from PubMed (NCBI/NLM). Source: https://doi.org/10.1093/jnci/djv036",
+  "_date_note": "PubMed records publication_date 2015-04-08. The Scite payload records 2015-04-02 for the same DOI. Neither service labels its date semantics, so both are retained with their source named and neither is canonized; DOI:10.1093/jnci/djv036 is the stable identifier.",
+  "_license_note": "This repository records the article and its supplementary material as CC BY 3.0 (backend/data/sources/breast_prs77/NOTICE.md; panel license_basis). PubMed itself carries no licence field for the record."
 }

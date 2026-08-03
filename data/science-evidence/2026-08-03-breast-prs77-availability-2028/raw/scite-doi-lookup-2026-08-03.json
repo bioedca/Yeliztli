@@ -18,9 +18,11 @@
       "issue": "5",
       "is_open_access": true,
       "oa_status": "bronze",
+      "oa_status_note": "Scite's 'bronze' flag describes reader access at the publisher and carries no licence field for this record. It is NOT evidence that the article is unlicensed: this repository records the article and supplement as CC BY 3.0 at backend/data/sources/breast_prs77/NOTICE.md and in the panel's license_basis field.",
+      "date_note": "Scite reports 2015-04-02; the PubMed payload reports 2015-04-08. Neither service labels its date semantics, so the packet retains both rather than resolving one as authoritative.",
       "authors_returned": ["Nasim Mavaddat", "Paul D.P. Pharoah", "Kyriaki Michailidou"],
       "abstract_retained": false,
-      "abstract_omitted_reason": "Publisher abstract is all-rights-reserved.",
+      "abstract_omitted_reason": "Not retained; the packet stores bibliographic metadata only.",
       "editorial_notices": [],
       "citation_tally": {
         "total": 550,

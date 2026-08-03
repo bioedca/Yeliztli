@@ -78,19 +78,35 @@ rather than left blank. In summary:
 
 | Source / service | Version or build | Licence or terms | What is retained |
 | --- | --- | --- | --- |
-| PMID:25855707 / DOI:10.1093/jnci/djv036 | Version of record; none issued beyond the DOI and 2015-04-02 date | **None stated** — bronze OA (free to read, no open licence) | Bibliographic metadata only; no abstract, no full text |
+| PMID:25855707 / DOI:10.1093/jnci/djv036 | Version of record, JNCI 107(5); none issued beyond the DOI | **CC BY 3.0** (article and supplement) | Bibliographic metadata only; no abstract, no full text |
 | DOI:10.1093/database/bay119 | Version of record, Database vol. 2018 | CC-BY (gold OA) | Bibliographic metadata only |
 | Consensus | **Unavailable** — no service or index-build stamp | Consensus terms; discovery aid only | Query, result ranks, hit identity |
 | Scite | **Unavailable** — no service or index-build stamp | Scite terms; screening aid only | Bibliographic fields, editorial-notice outcome, point-in-time tallies |
 | PubMed connector | **Unavailable** for this record | NCBI/NLM public data, no signed licence required | Bibliographic metadata only |
 
-Two consequences follow and are stated plainly. First, neither discovery service
-exposes a version or index build, so the 2026-08-03 access date is the only
-retrieval-version boundary and neither result is reproducible against a pinned
-index state; the citation tallies in particular will drift. Second, no claim in
-this packet rests on provider output — Consensus was used to discover the primary
-source and Scite to screen it for retractions, and every claim rests on the
-primary records themselves.
+Three consequences follow and are stated plainly.
+
+First, neither discovery service exposes a version or index build, so the
+2026-08-03 access date is the only retrieval-version boundary and neither result
+is reproducible against a pinned index state; the citation tallies in particular
+will drift.
+
+Second, no claim in this packet rests on provider output — Consensus was used to
+discover the primary source and Scite to screen it for retractions, and every
+claim rests on the primary records themselves. That distinction matters for the
+licence too: Scite reports the Mavaddat record as *bronze* open access, which
+describes reader access at the publisher and is **not** evidence that no licence
+exists. This repository's own source notice
+(`backend/data/sources/breast_prs77/NOTICE.md`) and the bundled panel's
+`license_basis` field both record the article and its supplement as **CC BY
+3.0**, and that explicit record governs.
+
+Third, the two retained payloads disagree on the Mavaddat publication date —
+PubMed records 2015-04-08, Scite records 2015-04-02 — and neither service labels
+the semantics of its date field. The packet deliberately does **not** pick a
+winner or invent an online-versus-issue explanation. Both are retained with their
+source named, `DOI:10.1093/jnci/djv036` is the stable identifier, and no claim
+uses either date as a version boundary.
 
 ## Sanitization
 
