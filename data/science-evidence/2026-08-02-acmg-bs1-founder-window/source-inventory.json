@@ -28,6 +28,12 @@
   },
   "benign_frequency_criteria": {
     "criteria": ["BA1", "BS1"],
+    "generic_faf_data_eligibility": {
+      "source": "DOI:10.1002/cphg.93; PMID:31479589 (accessed 2026-08-02; response snapshot accessed 2026-08-03)",
+      "criteria": ["BA1", "BS1"],
+      "guidance": "ClinGen SVI identifies filtering allele frequency (FAF) as the frequency construct for BA1 and BS1 and records that gnomAD does not calculate FAF for Finnish or Ashkenazi Jewish noncontinental subpopulations.",
+      "implementation_limit": "The repository does not ingest FAF or a disease-specific frequency-policy model. Its existing general-continental AF/AN selector is therefore a conservative evidence-eligibility guard that withholds on founder-only observations; it does not calculate FAF or calibrate a disease-specific threshold."
+    },
     "eligible_general_continental_populations": [
       {"label": "AFR", "af_field": "gnomad_af_afr", "an_field": "gnomad_an_afr"},
       {"label": "AMR", "af_field": "gnomad_af_amr", "an_field": "gnomad_an_amr"},

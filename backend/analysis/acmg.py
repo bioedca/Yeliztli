@@ -106,9 +106,14 @@ BENIGN = "Benign"
 # PMID 30311383).
 BA1_AF_MIN = 0.05
 BA1_MIN_OBSERVED_ALLELES = 2_000
-# Generic benign population-frequency criteria use only general continental
-# groups.  ASJ and FIN remain part of the all-population rarity denominator for
-# PM2, but founder peaks must not by themselves trigger a benign criterion.
+# Generic benign population-frequency candidates use only general continental
+# groups. ClinGen SVI notes that gnomAD does not calculate filtering allele
+# frequency (FAF) for Finnish and Ashkenazi Jewish noncontinental subpopulations
+# (DOI:10.1002/cphg.93; PMID:31479589). This engine does not ingest FAF, so the
+# existing AF/AN selector is a fail-closed evidence-eligibility guard, not
+# disease-specific BS1 calibration. ASJ and FIN remain part of PM2's all-
+# population rarity denominator, but founder peaks must not by themselves
+# trigger a benign draft criterion.
 _BENIGN_GENERAL_CONTINENTAL_GNOMAD_POPULATIONS = (
     ("AFR", "gnomad_af_afr", "gnomad_an_afr"),
     ("AMR", "gnomad_af_amr", "gnomad_an_amr"),
@@ -269,7 +274,8 @@ def _benign_effective_af_observed_alleles(
     The repository's current gnomAD r2.1.1 ingestion and persistence path
     exposes per-population AF/AN but does not parse or persist filtering allele
     frequency (FAF), so this intentionally fails closed when no general
-    continental observation is available. When a criterion supplies a minimum
+    continental observation is available. It does not treat AF/AN as FAF or
+    establish a disease-specific threshold. When a criterion supplies a minimum
     observed-allele count, underpowered populations are omitted before choosing
     the highest eligible AF. Finnish and Ashkenazi Jewish founder peaks remain
     part of the general rarity popmax for PM2.

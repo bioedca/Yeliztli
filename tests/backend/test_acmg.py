@@ -825,6 +825,20 @@ class TestAssessSampleAcmg:
 
 
 class TestBs1EvidencePacket:
+    def test_generic_faf_scope_is_explicitly_bounded(self) -> None:
+        inventory = json.loads(
+            (_EVIDENCE_DIR / "source-inventory.json").read_text(encoding="utf-8")
+        )
+        faf_scope = inventory["benign_frequency_criteria"]["generic_faf_data_eligibility"]
+
+        assert faf_scope["criteria"] == ["BA1", "BS1"]
+        assert "10.1002/cphg.93" in faf_scope["source"]
+        assert "Finnish" in faf_scope["guidance"]
+        assert "Ashkenazi Jewish" in faf_scope["guidance"]
+        assert "does not ingest FAF" in faf_scope["implementation_limit"]
+        assert "does not calculate FAF" in faf_scope["implementation_limit"]
+        assert "disease-specific threshold" in faf_scope["implementation_limit"]
+
     def test_sanitized_provider_responses_are_retained_and_linked(self) -> None:
         index = json.loads(
             (_EVIDENCE_DIR / "source-response-index.json").read_text(encoding="utf-8")
