@@ -962,6 +962,20 @@ def test_v3_provider_evidence_is_exact_head_immutable_and_nonblocking(mutation: 
         "### Reviewed changes\n\n"
         "| File | Description |\n| ---- | ----------- |\n"
         "| `README.md` | Restates the contract. |\n",
+        # Echo under a LATER same-level heading: after the trusted section has
+        # closed, so it is outside it even though it follows the heading.
+        "## Pull request overview\n\nSummary.\n\n"
+        "### Reviewed changes\n\n"
+        "| File | Description |\n| ---- | ----------- |\n| `README.md` | x |\n\n"
+        "### Notes\n\n"
+        "Copilot reviewed 2 out of 2 changed files in this pull request and "
+        "generated no comments.\n",
+        # Same, under a higher-level heading.
+        "## Pull request overview\n\nSummary.\n\n"
+        "### Reviewed changes\n\nNo files listed.\n\n"
+        "## Appendix\n\n"
+        "Copilot reviewed 2 out of 2 changed files in this pull request and "
+        "generated no comments.\n",
         # Section heading missing entirely.
         _copilot_v3_body(2).replace("### Reviewed changes\n\n", ""),
         # Duplicate headings leave the section ambiguous.

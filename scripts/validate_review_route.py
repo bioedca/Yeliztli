@@ -276,8 +276,13 @@ HUMAN_ASSOCIATIONS = {"OWNER", "MEMBER", "COLLABORATOR"}
 # Binding costs brittleness if Copilot renames the heading, and that failure is
 # the #2248 class again; it is accepted deliberately because it fails closed,
 # and fail-closed is recoverable in a way fail-open is not. All four archived
-# bodies carry the heading exactly once with the sentence after it.
+# bodies carry the heading exactly once with the sentence inside its section.
 COPILOT_V3_COVERAGE_HEADING = re.compile(r"(?m)^### Reviewed changes$")
+# Closes that section: the next heading at the same level or higher. `####` and
+# deeper stay inside. Without this the sentence only has to appear SOMEWHERE
+# after the heading, so an echo under a later `### Notes` still reads as the
+# verdict — the boundary is what makes the binding mean anything.
+COPILOT_V3_SECTION_BOUNDARY = re.compile(r"(?m)^#{1,3} ")
 COPILOT_V3_COVERAGE_LINE = re.compile(
     r"(?m)^Copilot reviewed (?P<reviewed>[1-9][0-9]*) out of (?P<total>[1-9][0-9]*) "
     r"changed files in this pull request and generated "
@@ -1313,7 +1318,10 @@ def _v3_formal_review_is_clean(
         coverage = list(COPILOT_V3_COVERAGE_LINE.finditer(body))
         if len(heading) != 1 or len(coverage) != 1:
             return False
-        if coverage[0].start() < heading[0].end():
+        section_start = heading[0].end()
+        boundary = COPILOT_V3_SECTION_BOUNDARY.search(body, section_start)
+        section_end = boundary.start() if boundary else len(body)
+        if not (section_start <= coverage[0].start() and coverage[0].end() <= section_end):
             return False
         found = coverage[0]
         return (
