@@ -1,0 +1,14 @@
+{
+  "source": "gnomAD GraphQL",
+  "accessed": "2026-08-02",
+  "payload_type": "sanitized endpoint-metadata response",
+  "retention": "Public endpoint availability metadata only; no variant, sample, genotype, or dataset record is retained.",
+  "license_or_terms": "N/A for retained endpoint metadata: no gnomAD dataset content is copied.",
+  "query": "query { meta { clinvar_release_date } }",
+  "response": {
+    "meta": {
+      "clinvar_release_date": "2026-06-06"
+    }
+  },
+  "sanitization": "Public endpoint metadata only; no variant, sample, genotype, or user data were requested."
+}

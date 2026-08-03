@@ -106,7 +106,10 @@ BENIGN = "Benign"
 # PMID 30311383).
 BA1_AF_MIN = 0.05
 BA1_MIN_OBSERVED_ALLELES = 2_000
-_BA1_GENERAL_CONTINENTAL_GNOMAD_POPULATIONS = (
+# Generic benign population-frequency criteria use only general continental
+# groups.  ASJ and FIN remain part of the all-population rarity denominator for
+# PM2, but founder peaks must not by themselves trigger a benign criterion.
+_BENIGN_GENERAL_CONTINENTAL_GNOMAD_POPULATIONS = (
     ("AFR", "gnomad_af_afr", "gnomad_an_afr"),
     ("AMR", "gnomad_af_amr", "gnomad_an_amr"),
     ("EAS", "gnomad_af_eas", "gnomad_an_eas"),
@@ -256,28 +259,29 @@ def _effective_af(ev: AcmgEvidence) -> float | None:
     return ev.gnomad_af_global
 
 
-def _effective_af_observed_alleles(ev: AcmgEvidence) -> tuple[float | None, int | None]:
-    """Return the AF and observed-allele count from the same gnomAD dataset."""
-    if ev.gnomad_af_popmax is not None:
-        return ev.gnomad_af_popmax, ev.gnomad_an_popmax
-    return ev.gnomad_af_global, ev.gnomad_an_global
-
-
-def _ba1_effective_af_observed_alleles(
+def _benign_effective_af_observed_alleles(
     ev: AcmgEvidence,
+    *,
+    min_observed_alleles: int | None = None,
 ) -> tuple[float | None, int | None, str | None]:
-    """BA1 popmax over non-founder continental populations only.
+    """Return the founder-excluding AF/AN window for generic benign criteria.
 
-    ClinGen SVI's refined BA1 wording uses general continental datasets and
-    explicitly excludes Finnish European as a founder population. ASJ is likewise
-    omitted here while remaining part of the general rarity popmax (#1092).
+    The repository's current gnomAD r2.1.1 ingestion and persistence path
+    exposes per-population AF/AN but does not parse or persist filtering allele
+    frequency (FAF), so this intentionally fails closed when no general
+    continental observation is available. When a criterion supplies a minimum
+    observed-allele count, underpowered populations are omitted before choosing
+    the highest eligible AF. Finnish and Ashkenazi Jewish founder peaks remain
+    part of the general rarity popmax for PM2.
     """
     best: tuple[float, int | None, str] | None = None
-    for label, af_attr, an_attr in _BA1_GENERAL_CONTINENTAL_GNOMAD_POPULATIONS:
+    for label, af_attr, an_attr in _BENIGN_GENERAL_CONTINENTAL_GNOMAD_POPULATIONS:
         af = getattr(ev, af_attr)
         if af is None:
             continue
         an = getattr(ev, an_attr)
+        if min_observed_alleles is not None and (an is None or an < min_observed_alleles):
+            continue
         if best is None or af > best[0]:
             best = (af, an, label)
     if best is None:
@@ -402,7 +406,7 @@ def criterion_pp3_bp4(ev: AcmgEvidence) -> AcmgCriterion | None:
 
 
 def criterion_ba1(ev: AcmgEvidence) -> AcmgCriterion | None:
-    af, observed_alleles, population = _ba1_effective_af_observed_alleles(ev)
+    af, observed_alleles, population = _benign_effective_af_observed_alleles(ev)
     if af is not None and af > BA1_AF_MIN:
         if _is_benign_af_exception(ev):
             # Common but with evidence of pathogenicity: generic benign frequency
@@ -425,7 +429,9 @@ def criterion_ba1(ev: AcmgEvidence) -> AcmgCriterion | None:
 
 
 def criterion_bs1(ev: AcmgEvidence) -> AcmgCriterion | None:
-    af, observed_alleles = _effective_af_observed_alleles(ev)
+    af, observed_alleles, population = _benign_effective_af_observed_alleles(
+        ev, min_observed_alleles=BA1_MIN_OBSERVED_ALLELES
+    )
     if af is not None and BS1_AF_MIN < af <= BA1_AF_MIN:
         if _is_benign_af_exception(ev):
             # BS1 is "greater than expected for the disorder"; known common
@@ -439,9 +445,10 @@ def criterion_bs1(ev: AcmgEvidence) -> AcmgCriterion | None:
             "benign",
             "Strong",
             _points_for("benign", "Strong"),
-            f"Allele frequency {af:.2%} > 1% with {observed_alleles:,} observed "
-            "alleles — higher than generally expected for a rare Mendelian disorder "
-            "(general default threshold).",
+            f"Allele frequency {af:.2%} in {population} > 1% with "
+            f"{observed_alleles:,} observed alleles — higher than generally expected "
+            "for a rare Mendelian disorder (general default threshold; Finnish and "
+            "ASJ founder-population peaks excluded).",
         )
     return None
 

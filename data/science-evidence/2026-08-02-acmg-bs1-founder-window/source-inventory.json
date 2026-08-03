@@ -1,0 +1,36 @@
+{
+  "source_commit": "410241021cfa5531d7db108991080c7a5a76b560",
+  "bundle": "gnomAD r2.1.1 exomes",
+  "reviewed_paths": [
+    "backend/analysis/acmg.py",
+    "backend/annotation/engine.py",
+    "backend/annotation/gnomad.py",
+    "backend/db/sample_schema.py",
+    "backend/db/tables.py",
+    "tests/backend/test_acmg.py"
+  ],
+  "available_frequency_fields": [
+    "global",
+    "AFR",
+    "AMR",
+    "ASJ",
+    "EAS",
+    "EUR/NFE",
+    "FIN",
+    "SAS"
+  ],
+  "available_count_fields": [
+    "global",
+    "AFR",
+    "AMR",
+    "ASJ",
+    "EAS",
+    "EUR/NFE",
+    "FIN",
+    "SAS"
+  ],
+  "not_parsed_or_persisted_fields": ["FAF", "OTH"],
+  "implementation_boundary": "For BS1, use the highest general-continental AF whose paired AN satisfies the existing guard; preserve founder-inclusive popmax for PM2; do not derive FAF from AF/AN.",
+  "retention": "Repository code-path and field inventory only; no gnomAD data record is retained.",
+  "license_or_terms": "N/A for this inventory: it copies no gnomAD source content or dataset payload."
+}
