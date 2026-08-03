@@ -7829,7 +7829,12 @@ def test_issue_2165_u5_conflict_evidence_packet_is_source_bound() -> None:
     assert {(record["pmid"], record["doi"]) for record in pubmed["records"]} == {
         ("18853457", "10.1002/humu.20921"),
         ("34072215", "10.3390/ijms22115747"),
+        ("10712215", "10.1086/302802"),
+        # NCBI emits no DOI for this record; the packet records that rather than
+        # inventing an identifier, so ``None`` here is the asserted state.
+        ("11032788", None),
     }
+    assert pubmed["records"][-1]["publisher_item_identifier"] == "S0002-9297(07)62954-1"
     assert all(
         record["correction_check"]["comments_corrections_list_emitted"] is False
         for record in pubmed["records"]
@@ -7838,14 +7843,39 @@ def test_issue_2165_u5_conflict_evidence_packet_is_source_bound() -> None:
         "https://www.ncbi.nlm.nih.gov/books/NBK25497/"
         in pubmed["license_or_terms"]["official_policy_urls"]
     )
+
+    # C5 is the limiting claim: m.16270 back-mutates inside U5, so the guard is
+    # withholding rather than exclusion. Both supporting records must stay in the
+    # packet, must carry a paraphrase instead of retained source text, and must
+    # not be accompanied by an invented false-veto rate.
+    c5_records = [record for record in pubmed["records"] if "C5" in record.get("supports", [])]
+    assert {record["pmid"] for record in c5_records} == {"10712215", "11032788"}
+    for record in c5_records:
+        assert record["supporting_statement"]["location"] == "Abstract"
+        assert record["supporting_statement"]["verbatim_text_retained"] is False
+        assert record["supporting_statement"]["paraphrase"].strip()
+    assert "C5" in pubmed["claim_ids"]
+
     readme = readme_path.read_text(encoding="utf-8")
     assert "implementation-level source-conflict rule" in readme
     assert "clinical, phenotypic, population, ancestry, or forensic conclusion" in readme
+    # The exclusion-flavoured wording an earlier revision used must stay retired.
+    assert "incompatible with descent" not in readme
+    assert "it does not assert that the sample is not U5" in readme.replace("\n", " ")
+    assert "PMID:10712215" in readme
+    assert "PMID:11032788" in readme
+    known_false_veto = inventory["u5_guard"]["known_false_veto"]
+    assert known_false_veto["rate_estimated"] is False
+    assert inventory["u5_guard"]["runtime_decision"]["semantics"] == "withholding, not exclusion"
+    assert inventory["u5_guard"]["runtime_decision"]["merged_flag_only_ambiguity_sentinel"]
 
     assert {entry["service"] for entry in response_index["entries"]} == {
         "repository source-audited registry",
         "NCBI Entrez",
     }
+    # Without this the per-entry payload/hash loop below would pass vacuously on
+    # an empty list, and the packet could silently stop being source-bound.
+    assert response_index["entries"]
     for entry in response_index["entries"]:
         payload_path = Path(__file__).resolve().parents[2] / entry["payload_path"]
         assert payload_path.is_file(), payload_path
@@ -7853,26 +7883,43 @@ def test_issue_2165_u5_conflict_evidence_packet_is_source_bound() -> None:
 
     services = {entry["service"]: entry for entry in response_index["discovery_services"]}
     assert set(services) == {"Consensus", "Scite"}
+    required_service_fields = {
+        "service",
+        "invoked_on",
+        "sanitized_query",
+        "purpose",
+        "provider_output_retained",
+        "provider_output_used_as_evidence",
+        "primary_source_ids_checked_independently",
+        "documentation_url",
+        "terms_url",
+    }
+    # Closed vocabulary: a discovery-service entry may record a fallback or an
+    # excluded provider finding, and nothing else. Anything outside this set
+    # would be undeclared provider content leaking into the packet.
+    optional_service_fields = {"unavailable_or_quota_events", "excluded_provider_findings"}
     for service in services.values():
-        assert set(service) == {
-            "service",
-            "invoked_on",
-            "sanitized_query",
-            "purpose",
-            "provider_output_retained",
-            "provider_output_used_as_evidence",
-            "primary_source_ids_checked_independently",
-            "documentation_url",
-            "terms_url",
-        }
+        assert required_service_fields <= set(service)
+        assert set(service) <= required_service_fields | optional_service_fields
         assert service["provider_output_retained"] is False
         assert service["provider_output_used_as_evidence"] is False
-        assert service["primary_source_ids_checked_independently"] == [
+        assert {
             "PMID:18853457",
             "PMID:34072215",
             "DOI:10.1002/humu.20921",
             "DOI:10.3390/ijms22115747",
-        ]
+        } <= set(service["primary_source_ids_checked_independently"])
+        for event in service.get("unavailable_or_quota_events", []):
+            assert event["error"] and event["action"]
+        for excluded in service.get("excluded_provider_findings", []):
+            assert excluded["used_as_evidence"] is False
+            assert excluded["excluded_because"].strip()
+    # The rate-limit and result-size fallbacks are recorded, not silently dropped.
+    assert services["Consensus"]["unavailable_or_quota_events"]
+    assert services["Scite"]["unavailable_or_quota_events"]
+    assert {"PMID:10712215", "PMID:11032788"} <= set(
+        services["Scite"]["primary_source_ids_checked_independently"]
+    )
     assert not (U5_CONFLICT_EVIDENCE_PACKET / "raw/consensus-search-fetch-sanitized.json").exists()
     assert not (
         U5_CONFLICT_EVIDENCE_PACKET / "raw/scite-targeted-doi-responses-sanitized.json"

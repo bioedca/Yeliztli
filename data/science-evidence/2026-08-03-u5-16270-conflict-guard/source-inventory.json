@@ -3,7 +3,7 @@
   "issue": 2165,
   "accessed": "2026-08-03",
   "purpose": "Binds the U5 m.16270 ancestral-conflict guard to the source-audited Build 17 registry and the immutable implementation state immediately before this evidence-only packet.",
-  "claim_ids": ["C1", "C2"],
+  "claim_ids": ["C1", "C2", "C5"],
   "implementation": {
     "commit": "aa3acc8df76f782de3ade41a95d6e5a1d9f96da4",
     "branch": "issue-2165-u5-ancestral-conflicts",
@@ -66,10 +66,19 @@
       }
     },
     "runtime_decision": {
-      "ancestral_c": "withhold U5 and descendant traversal",
+      "ancestral_c": "withhold U5 and descendant traversal; report the emitted parent U",
       "unambiguous_derived_t": "permit traversal only; do not assign U5 from this marker",
       "missing_or_no_call": "preserve markerless traversal",
-      "discordant_or_mixed_typed_rows": "withhold U5 and descendant traversal"
+      "discordant_or_mixed_typed_rows": "withhold U5 and descendant traversal",
+      "merged_flag_only_ambiguity_sentinel": "withhold U5 and descendant traversal; a merged sample collapses a discordant locus to one sentinel row, so the conflict must not be read as missing data",
+      "semantics": "withholding, not exclusion"
+    },
+    "known_false_veto": {
+      "cause": "documented back mutation at m.16270 within U5 (claim C5)",
+      "effect": "a genuine U5 carrier typed as ancestral C is reported as U",
+      "accepted_because": "the failure direction is loss of resolution, never a positive misassignment",
+      "rate_estimated": false,
+      "rate_note": "No retained source quantifies how often this occurs; this packet asserts no rate."
     }
   },
   "privacy": {

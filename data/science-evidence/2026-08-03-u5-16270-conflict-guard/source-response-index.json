@@ -14,22 +14,35 @@
     },
     {
       "key": "pubmed-metadata-and-correction-check",
-      "claim_ids": ["C3", "C4"],
+      "claim_ids": ["C3", "C4", "C5"],
       "service": "NCBI Entrez",
-      "identifiers": ["PMID:18853457", "PMID:34072215"],
+      "identifiers": [
+        "PMID:18853457",
+        "PMID:34072215",
+        "PMID:10712215",
+        "PMID:11032788"
+      ],
       "operation": "esummary and efetch",
       "payload_path": "data/science-evidence/2026-08-03-u5-16270-conflict-guard/pubmed-esummary.json",
-      "sanitized_sha256": "6f58cda888b9edfeadc698e96a35c4af843f49f71a37148ad3b09f201e48e914"
+      "sanitized_sha256": "26dbd55a77a07458b9fbc32ca09a79fed9cdd9650a5c667e76ea872927952236"
     }
   ],
   "discovery_services": [
     {
       "service": "Consensus",
       "invoked_on": "2026-08-03",
-      "sanitized_query": "human mitochondrial DNA phylogeny U5 C16270T m.16270 PhyloTree",
+      "sanitized_query": "human mitochondrial DNA phylogeny U5 C16270T m.16270 PhyloTree; recurrent mutation hotspot mitochondrial control region site 16270 back mutation homoplasy haplogroup assignment",
       "purpose": "primary-source discovery only",
       "provider_output_retained": false,
       "provider_output_used_as_evidence": false,
+      "unavailable_or_quota_events": [
+        {
+          "on": "2026-08-03",
+          "error": "rate limit exceeded",
+          "affected_query": "human mitochondrial DNA phylogeny U5 C16270T m.16270 PhyloTree",
+          "action": "not retried; discovery continued on Scite and NCBI"
+        }
+      ],
       "primary_source_ids_checked_independently": [
         "PMID:18853457",
         "PMID:34072215",
@@ -42,15 +55,34 @@
     {
       "service": "Scite",
       "invoked_on": "2026-08-03",
-      "sanitized_query": "PhyloTree mitochondrial DNA haplogroup U5",
+      "sanitized_query": "PhyloTree mitochondrial DNA haplogroup U5; \"haplogroup U5\" AND \"16270\" AND mitochondrial HVS-I motif; 16270 back mutation U5 16192 recurrent",
       "purpose": "primary-source discovery only",
       "provider_output_retained": false,
       "provider_output_used_as_evidence": false,
+      "unavailable_or_quota_events": [
+        {
+          "on": "2026-08-03",
+          "error": "response exceeded the client result-size limit",
+          "affected_query": "\"haplogroup U5\" AND \"16270\" AND mitochondrial HVS-I motif",
+          "action": "narrowed to DOI- and title-scoped lookups"
+        }
+      ],
+      "excluded_provider_findings": [
+        {
+          "affected_record": "PMID:11032788",
+          "finding": "Scite full-text excerpts contained a further corroborating passage for the U5 root state at position 16270.",
+          "excluded_because": "It could not be re-obtained through an authoritative route: PMC1288566 serves front matter only and the publisher copy returned HTTP 403.",
+          "used_as_evidence": false
+        }
+      ],
       "primary_source_ids_checked_independently": [
         "PMID:18853457",
         "PMID:34072215",
         "DOI:10.1002/humu.20921",
-        "DOI:10.3390/ijms22115747"
+        "DOI:10.3390/ijms22115747",
+        "PMID:10712215",
+        "PMID:11032788",
+        "DOI:10.1086/302802"
       ],
       "documentation_url": "https://api.scite.ai/docs",
       "terms_url": "https://scite.org/terms"
@@ -62,7 +94,9 @@
       "publication and source-release metadata",
       "correction/retraction-field availability",
       "bounded source motif metadata",
-      "human-authored discovery-service handling metadata only"
+      "human-authored discovery-service handling metadata only",
+      "human-authored paraphrases of claim-supporting statements, with the record section they were read from",
+      "records of provider unavailability, quota, and rate-limit fallbacks"
     ],
     "removed": [
       "article abstracts and full text",

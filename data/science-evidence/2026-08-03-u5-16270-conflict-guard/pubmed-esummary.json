@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0",
   "accessed": "2026-08-03",
-  "claim_ids": ["C3", "C4"],
+  "claim_ids": ["C3", "C4", "C5"],
   "source": "NCBI Entrez",
   "payload_type": "sanitized ESummary and EFetch metadata",
   "requests": [
@@ -17,6 +17,28 @@
       "ids": ["18853457", "34072215"],
       "retmode": "xml",
       "purpose": "Inspect CommentsCorrectionsList fields without retaining article text."
+    },
+    {
+      "operation": "esummary",
+      "database": "pubmed",
+      "ids": ["10712215", "11032788"],
+      "retmode": "json",
+      "purpose": "Resolve durable identifiers for the C5 recurrence records."
+    },
+    {
+      "operation": "efetch",
+      "database": "pubmed",
+      "ids": ["10712215", "11032788"],
+      "retmode": "xml",
+      "purpose": "Inspect CommentsCorrectionsList fields without retaining article text."
+    },
+    {
+      "operation": "efetch",
+      "database": "pmc",
+      "ids": ["PMC1288566"],
+      "retmode": "xml",
+      "purpose": "Attempt an authoritative full-text retrieval for PMID:11032788.",
+      "outcome": "front_matter_only_no_article_body_returned"
     }
   ],
   "records": [
@@ -44,6 +66,49 @@
         "comments_corrections_list_emitted": false,
         "interpretation": "No CommentsCorrectionsList element was emitted in this retained EFetch record; this is not a general retraction clearance."
       }
+    },
+    {
+      "pmid": "10712215",
+      "pmcid": "PMC1288139",
+      "doi": "10.1086/302802",
+      "title": "Phylogenetic network of the mtDNA haplogroup U in Northern Finland based on sequence analysis of the complete coding region by conformation-sensitive gel electrophoresis.",
+      "journal": "American Journal of Human Genetics",
+      "publication_date": "2000-03",
+      "publication_type": ["Journal Article", "Research Support, Non-U.S. Gov't"],
+      "supports": ["C5"],
+      "supporting_statement": {
+        "location": "Abstract",
+        "paraphrase": "Contrasting a complete-coding-region network for 22 Finnish haplogroup-U mtDNAs against HVS-I, the authors conclude that position 16192 is prone to recurrent mutation and that position 16270 has experienced a back mutation; all 22 samples belonged to subcluster U5.",
+        "verbatim_text_retained": false,
+        "relevance": "An m.16270 ancestral C can therefore occur within a genuine U5 lineage, so the repository guard must withhold a subtype rather than claim exclusion."
+      },
+      "correction_check": {
+        "comments_corrections_list_emitted": false,
+        "interpretation": "No CommentsCorrectionsList element was emitted in this retained EFetch record; this is not a general retraction clearance."
+      }
+    },
+    {
+      "pmid": "11032788",
+      "pmcid": "PMC1288566",
+      "doi": null,
+      "doi_status": "not_emitted_by_ncbi_esummary_for_this_record",
+      "publisher_item_identifier": "S0002-9297(07)62954-1",
+      "title": "Tracing European founder lineages in the Near Eastern mtDNA pool.",
+      "journal": "American Journal of Human Genetics",
+      "publication_date": "2000-11",
+      "publication_type": ["Journal Article", "Research Support, Non-U.S. Gov't"],
+      "supports": ["C5"],
+      "supporting_statement": {
+        "location": "Abstract",
+        "paraphrase": "Over extended Near Eastern (1,234), European (2,804) and north-Caucasus (208) sample databases, the authors state that recurrent mutation in source and derived populations is a major obstacle to lineage founder analysis and that they developed explicit phylogenetic criteria to account for it.",
+        "verbatim_text_retained": false,
+        "relevance": "Independent, much larger sample base establishing that control-region recurrence is significant enough to require explicit screening before a lineage call.",
+        "independence_caveat": "Not fully independent of PMID:10712215: this article cites that one for instability at the neighbouring position 16192."
+      },
+      "correction_check": {
+        "comments_corrections_list_emitted": false,
+        "interpretation": "No CommentsCorrectionsList element was emitted in this retained EFetch record; this is not a general retraction clearance."
+      }
     }
   ],
   "redaction": {
@@ -54,7 +119,8 @@
       "reference lists except durable identifiers retained above",
       "service URLs and tracking parameters"
     ],
-    "reason": "Keep reproducible public citation and correction-check metadata without redistributing copyrighted text or user-specific access information."
+    "reason": "Keep reproducible public citation and correction-check metadata without redistributing copyrighted text or user-specific access information.",
+    "claim_support_note": "Where a record supports a claim, a human-authored paraphrase and the section it was read from are retained instead of the source sentence, so a reviewer can re-open the cited record and check the claim without this repository republishing article text."
   },
   "license_or_terms": {
     "accessed": "2026-08-03",
