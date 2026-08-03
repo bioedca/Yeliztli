@@ -255,57 +255,33 @@ UTC_RESULT = re.compile(
 )
 TERMINAL_REVIEW_STATES = {"APPROVED", "COMMENTED"}
 HUMAN_ASSOCIATIONS = {"OWNER", "MEMBER", "COLLABORATOR"}
-# Copilot closes every review with one coverage sentence inside its own
-# "### Reviewed changes" section. That sentence carries both file counts and the
-# comment verdict; the prose overview, the "**Changes:**" list, the per-file
-# table and the analysis-depth label added in June 2026 are presentation Copilot
-# rewrites at will, so none of them is matched.
+# Copilot's review body is the ONLY thing distinguishing a review that found
+# nothing from one that never ran: a quota refusal is also a COMMENTED review
+# with zero attached comments, from the same authenticated app, immutable and
+# exact-head. 42 of the 46 Copilot submissions this repository has received are
+# that refusal, so accepting on authenticated fields alone would accept them.
 #
-# The predecessor of this pattern required the WHOLE body to fullmatch a
-# "## Copilot's findings" / "- **Files reviewed:**" shape that Copilot has never
-# emitted, so the lane could not be used: all four substantive Copilot reviews
-# this repository has received (PRs #2183, #2235, #2237, #2238) failed it on
-# format alone, and the failure published `pending` with no visible cause (#2248).
+# Exactly one thing is therefore read from the body — the coverage sentence
+# Copilot closes with — and nothing about where it sits. An earlier revision of
+# this envelope tried to bind it to Copilot's "### Reviewed changes" section, to
+# stop a pull request whose own files contain the sentence from inducing Copilot
+# to echo it. Holding that line meant deciding where the section ended, which
+# meant modelling every construct GitHub renders as a break: ATX and Setext
+# headings, <h2>, <hr>, </details>, blockquoted and list-item headings, then
+# unpaired closing tags, inline code spans, autolinks, <?processing ?> and
+# <![CDATA[]]>. That is a CommonMark and raw-HTML parser, arrived at one review
+# finding at a time, and each addition was a fresh chance to reject a real
+# review — one already did (#2248 review rounds 3-10).
 #
-# The sentence is nonetheless bound to the heading rather than searched for
-# body-wide, because the body is NOT purely provider-authored in effect: Copilot
-# paraphrases the diff it read, so a pull request whose own files contain the
-# canonical sentence can induce Copilot to echo it in the overview. A body-wide
-# search accepts that echo as the verdict — fail-open on a trust boundary, where
-# contributor-influenced prose substitutes for counts Copilot never asserted.
-# Binding costs brittleness if Copilot renames the heading, and that failure is
-# the #2248 class again; it is accepted deliberately because it fails closed,
-# and fail-closed is recoverable in a way fail-open is not. All four archived
-# bodies carry the heading exactly once, with the sentence as the FIRST
-# non-blank line after it — which is the anchor used below.
-#
-# Both patterns tolerate trailing whitespace. Markdown treats it as
-# insignificant and GitHub renders `### Reviewed changes ` identically, so
-# rejecting on it would kill the lane over something invisible — the #2248
-# failure mode exactly. It cannot widen what is accepted, since whitespace
-# carries no meaning here.
-COPILOT_V3_COVERAGE_HEADING = re.compile(r"(?m)^### Reviewed changes[ \t]*$")
-COPILOT_V3_HTML_TAG = re.compile(
-    r"<(?P<closing>/?)(?P<name>[a-zA-Z][a-zA-Z0-9-]*)\b[^>]*?(?P<void>/?)>"
-)
-COPILOT_V3_VOID_HTML = frozenset(
-    {
-        "area",
-        "base",
-        "br",
-        "col",
-        "embed",
-        "hr",
-        "img",
-        "input",
-        "link",
-        "meta",
-        "param",
-        "source",
-        "track",
-        "wbr",
-    }
-)
+# The file counts are deliberately NOT compared against changedFiles any more.
+# They were only ever asserted in that same prose, so a count taken from it is
+# not a stronger guarantee than the prose itself; keeping the comparison bought
+# no trust while forcing the parser that caused the churn. What remains is the
+# provider-authored `no comments` verdict, occurring exactly once so an echo
+# cannot sit alongside the real footer, on top of GitHub's own authenticated
+# attached-comment count. Trailing whitespace is tolerated because markdown
+# treats it as insignificant and rejecting on it would kill the lane over
+# something invisible.
 COPILOT_V3_COVERAGE_LINE = re.compile(
     r"(?m)^Copilot reviewed (?P<reviewed>[1-9][0-9]*) out of (?P<total>[1-9][0-9]*) "
     r"changed files in this pull request and generated "
@@ -313,19 +289,10 @@ COPILOT_V3_COVERAGE_LINE = re.compile(
 )
 COPILOT_V3_CLEAN_VERDICT = "no comments"
 # Copilot can withhold low-confidence findings instead of posting them, and a
-# withheld finding never becomes an attached comment. There is deliberately NO
-# prose scan for that here. Copilot's overview and per-file table paraphrase the
-# diff it read, so any pattern broad enough to catch the wording variants
-# ("comments suppressed", "1 finding suppressed", "suppressed: 1 comment") also
-# rejects a clean review of any change that merely discusses suppression — this
-# file being the worked example. Scanning summary prose trades a documented
-# false-negative for an undiagnosable false-positive, which is the exact defect
-# this envelope was rewritten to remove (#2248).
-#
-# Suppression should be inferred only from a structured provider marker or an
-# authenticated field. Neither is documented today, so the accepted signals stay
-# the two that are trustworthy: GitHub's own attached-comment count, and
-# Copilot's provider-authored `no comments` verdict. Tracked in #2256.
+# withheld finding never becomes an attached comment. There is deliberately no
+# prose scan for that: Copilot paraphrases the diff it read, so any pattern wide
+# enough to catch the wording variants also rejects a clean review of a change
+# that merely discusses suppression. Tracked in #2256.
 CODEX_CLEAN_COMPLETION_PREFIX = "Codex Review: Didn't find any major issues."
 CODEX_CLEAN_COMPLETION_MARKER = f"{CODEX_CLEAN_COMPLETION_PREFIX} What shall we delve into next?"
 CODEX_CLEAN_COMPLETION_LINE = re.compile(
@@ -1306,56 +1273,6 @@ def _connection_truncated_since(
     return oldest >= since if inclusive else oldest > since
 
 
-def _open_html_depth(text: str) -> int:
-    """How many raw HTML elements are still open at the end of `text`.
-
-    Used to reject a heading nested inside raw HTML. `<pre>`, `<code>`,
-    `<samp>`, `<kbd>`, `<xmp>` and `<textarea>` all render their contents as
-    quoted text rather than markdown, so a heading and sentence planted inside
-    one are not a coverage section at all — and closing the element after them
-    does not help, because the element is still open where the heading sits.
-
-    Counting depth rather than listing tag names is deliberate. Naming the
-    verbatim elements would be the same open-ended enumeration that the section
-    -boundary logic died of, and it would miss whichever tag is added next.
-    Copilot's real reviews only ever emit `<details>`/`<summary>`, and always
-    after the coverage sentence, so nothing is open where the heading sits.
-    """
-    depth = 0
-    for match in COPILOT_V3_HTML_TAG.finditer(text):
-        name = match.group("name").lower()
-        if name in COPILOT_V3_VOID_HTML or match.group("void"):
-            continue
-        if match.group("closing"):
-            depth = max(0, depth - 1)
-        else:
-            depth += 1
-    return depth
-
-
-def _copilot_coverage_line(visible: str) -> str | None:
-    """The first non-blank line after Copilot's `### Reviewed changes` heading.
-
-    Where the section *ends* is deliberately not computed. Doing so means
-    enumerating every construct GitHub renders as a section break, and that
-    enumeration was never finished: ATX headings, Setext underlines, `<h2>`,
-    `<h3>`, `<hr>`, a closing `</details>`, a blockquoted heading and a
-    list-item heading each let text further down the body read as though it
-    were still inside the section. Anchoring to the first line needs no such
-    list — everything after it is outside, whatever markup intervenes — and all
-    four archived Copilot reviews put the sentence exactly there.
-    """
-    heading = list(COPILOT_V3_COVERAGE_HEADING.finditer(visible))
-    if len(heading) != 1:
-        return None
-    if _open_html_depth(visible[: heading[0].start()]):
-        return None
-    for line in visible[heading[0].end() :].splitlines():
-        if line.strip():
-            return line
-    return None
-
-
 def _v3_formal_review_is_clean(
     review: dict[str, Any],
     gate: str,
@@ -1380,34 +1297,12 @@ def _v3_formal_review_is_clean(
     if isinstance(changed_files, bool) or not isinstance(changed_files, int) or changed_files <= 0:
         return False
     if gate == COPILOT_GATE:
-        # Read the rendered-visible body only. Fenced/indented code and HTML
-        # comments are blanked first, so a sentence — or the heading itself —
-        # quoted inside a code fence or a comment cannot supply the verdict.
-        # Copilot reproduces snippets from the diff it reviewed, so those are
-        # contributor-reachable, and each was accepted before this.
-        #
-        # The verdict is then taken from one place only: the first non-blank
-        # line after the single `### Reviewed changes` heading. Requiring the
-        # sentence to occur exactly once as well means an echo elsewhere in the
-        # body does not silently coexist with the real footer. Deliberately NOT
-        # counting the bare phrase "Copilot reviewed": the overview may use it
-        # in passing, and counting it would reject a valid clean review — the
-        # silent fail-closed defect this envelope was rewritten to remove.
-        visible = _visible_markdown(body)
-        coverage = list(COPILOT_V3_COVERAGE_LINE.finditer(visible))
-        if len(coverage) != 1:
-            return False
-        anchored = _copilot_coverage_line(visible)
-        if anchored is None:
-            return False
-        found = COPILOT_V3_COVERAGE_LINE.fullmatch(anchored)
-        if found is None:
-            return False
-        return (
-            found.group("verdict") == COPILOT_V3_CLEAN_VERDICT
-            and int(found.group("reviewed")) == changed_files
-            and int(found.group("total")) == changed_files
-        )
+        # Fenced/indented code and HTML comments are blanked first, so a
+        # sentence quoted in either cannot be read as the verdict. Position is
+        # not considered at all — see the note on COPILOT_V3_COVERAGE_LINE for
+        # why locating it structurally was abandoned.
+        coverage = list(COPILOT_V3_COVERAGE_LINE.finditer(_visible_markdown(body)))
+        return len(coverage) == 1 and coverage[0].group("verdict") == COPILOT_V3_CLEAN_VERDICT
     if gate != CODERABBIT_GATE:
         return False
     actionable = list(CODERABBIT_ACTIONABLE_COUNT.finditer(body))

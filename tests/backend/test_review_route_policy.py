@@ -110,14 +110,7 @@ def _review(
     }
 
 
-def _copilot_v3_body(
-    changed_files: int,
-    *,
-    reviewed_files: int | None = None,
-    generated_comments: int = 0,
-    suppressed: str | None = None,
-    prose_mentions_review: bool = False,
-) -> str:
+def _copilot_v3_body(changed_files: int, *, generated_comments: int = 0) -> str:
     """Reproduce the body Copilot actually posts.
 
     Shape taken from the four substantive Copilot reviews this repository has
@@ -126,30 +119,21 @@ def _copilot_v3_body(
     "**Changes:**" list and the per-file table are all present in the real
     thing, so they must not break acceptance.
     """
-    reviewed = changed_files if reviewed_files is None else reviewed_files
     if generated_comments == 0:
         verdict = "no comments"
     elif generated_comments == 1:
         verdict = "1 comment"
     else:
         verdict = f"{generated_comments} comments"
-    suppression = f"\n{suppressed}\n" if suppressed else ""
-    # Copilot's prose overview can repeat the phrase "Copilot reviewed" in
-    # passing; that must not disqualify an otherwise clean review.
-    overview = (
-        "Copilot reviewed the changes for correctness and found the contract\n"
-        "restated accurately.\n\n"
-        if prose_mentions_review
-        else "This PR adjusts the documented contract so the shipped behaviour and the\n"
-        "documentation agree.\n\n"
-    )
     return (
-        "## Pull request overview\n\n" + overview + "**Changes:**\n"
+        "## Pull request overview\n\n"
+        "This PR adjusts the documented contract so the shipped behaviour and the\n"
+        "documentation agree.\n\n"
+        "**Changes:**\n"
         "- Restates the contract to match what the validator enforces.\n\n"
         "### Reviewed changes\n\n"
-        f"Copilot reviewed {reviewed} out of {changed_files} changed files in this "
-        f"pull request and generated {verdict}.\n"
-        f"{suppression}\n"
+        f"Copilot reviewed {changed_files} out of {changed_files} changed files in this "
+        f"pull request and generated {verdict}.\n\n"
         "<details>\n"
         "<summary>Show a summary per file</summary>\n\n"
         "| File | Description |\n"
@@ -932,130 +916,36 @@ def test_v3_provider_evidence_is_exact_head_immutable_and_nonblocking(mutation: 
 @pytest.mark.parametrize(
     "body",
     [
-        # Partial coverage: Copilot skipped a file it assessed as low risk, so
-        # the review cannot certify the whole diff (real case: PR #2235, 21/22).
-        _copilot_v3_body(2, reviewed_files=1),
-        # Copilot found something; a review with findings is not a clean review.
+        # THE critical case: a quota refusal is also a COMMENTED review with
+        # zero attached comments from the authenticated Copilot app, so the
+        # body is the only thing that separates "reviewed, found nothing" from
+        # "never ran". 42 of the 46 Copilot submissions this repository has
+        # received are exactly this.
+        "Copilot was unable to review this pull request because the user who "
+        "requested the review has reached their quota limit.",
+        # Copilot found something; a review with findings is not clean.
         _copilot_v3_body(2, generated_comments=1),
-        # Two coverage sentences leave the real counts ambiguous.
-        _copilot_v3_body(2) + _copilot_v3_body(2),
-        # The dead pre-#2248 shape, which Copilot never emitted, must not be a
-        # back door now that the real shape is accepted.
-        "## Copilot's findings"
-        + "\n" * 7
-        + "- **Files reviewed:** 2/2 changed files\n"
-        + "- **Comments generated:** 0 new\n\n",
-        # Echo substitution: a pull request whose own files contain the canonical
-        # sentence can induce Copilot to repeat it in the overview. Outside the
-        # "### Reviewed changes" section it is contributor-influenced prose, not
-        # a verdict Copilot asserted, and must never supply the counts.
-        "## Pull request overview\n\n"
-        "This PR documents the envelope. The contract now reads:\n"
-        "Copilot reviewed 2 out of 2 changed files in this pull request and "
-        "generated no comments.\n\n"
-        "**Changes:**\n- Documents the accepted sentence.\n",
-        # Same echo, with the real section present but its footer gone: the
-        # overview copy must not stand in for the missing one.
-        "## Pull request overview\n\n"
-        "Copilot reviewed 2 out of 2 changed files in this pull request and "
-        "generated no comments.\n\n"
-        "### Reviewed changes\n\n"
-        "| File | Description |\n| ---- | ----------- |\n"
-        "| `README.md` | Restates the contract. |\n",
-        # Echo under a LATER same-level heading: after the trusted section has
-        # closed, so it is outside it even though it follows the heading.
-        "## Pull request overview\n\nSummary.\n\n"
-        "### Reviewed changes\n\n"
-        "| File | Description |\n| ---- | ----------- |\n| `README.md` | x |\n\n"
-        "### Notes\n\n"
-        "Copilot reviewed 2 out of 2 changed files in this pull request and "
-        "generated no comments.\n",
-        # Same, under a higher-level heading.
-        "## Pull request overview\n\nSummary.\n\n"
-        "### Reviewed changes\n\nNo files listed.\n\n"
-        "## Appendix\n\n"
-        "Copilot reviewed 2 out of 2 changed files in this pull request and "
-        "generated no comments.\n",
-        # Quoted rather than asserted: Copilot reproduces snippets from the diff
-        # it reviewed, so a fenced, indented or commented-out copy of the
-        # sentence is contributor-reachable and must not carry the verdict.
+        _copilot_v3_body(2, generated_comments=2),
+        # Quoted rather than asserted. _visible_markdown blanks fenced and
+        # indented code and strips HTML comments before anything is matched.
         "## O\n\n### Reviewed changes\n\n```\nCopilot reviewed 2 out of 2 changed "
         "files in this pull request and generated no comments.\n```\n",
         "## O\n\n### Reviewed changes\n\n<!--\nCopilot reviewed 2 out of 2 changed "
         "files in this pull request and generated no comments.\n-->\n",
         "## O\n\n### Reviewed changes\n\n    Copilot reviewed 2 out of 2 changed "
         "files in this pull request and generated no comments.\n",
-        # The heading itself quoted inside a fence: no real section exists.
-        "## O\n\n```\n### Reviewed changes\n```\n\nCopilot reviewed 2 out of 2 changed "
-        "files in this pull request and generated no comments.\n",
-        # Setext headings render as h1/h2 and close the section too, even though
-        # they carry no `#`. An ATX-only boundary let the echo after one read as
-        # though it were still inside Reviewed changes.
-        "## O\n\nS.\n\n### Reviewed changes\n\nNo files listed.\n\nNotes\n---\n\n"
-        "Copilot reviewed 2 out of 2 changed files in this pull request and "
-        "generated no comments.\n",
-        "## O\n\nS.\n\n### Reviewed changes\n\nNo files listed.\n\nNotes\n===\n\n"
-        "Copilot reviewed 2 out of 2 changed files in this pull request and "
-        "generated no comments.\n",
-        # Constructs GitHub renders as a section break but which carry no `#`.
-        # Enumerating these was the losing approach; the verdict is now taken
-        # from the first line after the heading, so all of them are simply
-        # "not the first line" and need no special case.
-        *(
-            "## O\n\nS.\n\n### Reviewed changes\n\nNo files listed.\n\n"
-            + separator
-            + "\n\nCopilot reviewed 2 out of 2 changed files in this pull request "
-            "and generated no comments.\n"
-            for separator in (
-                "<h2>Notes</h2>",
-                "<h3>Notes</h3>",
-                "<hr>",
-                "> ### Notes",
-                "- ### Notes",
-                "<details>\n<summary>x</summary>\n</details>",
-                # ATX forms a `^#{1,3} ` boundary pattern would have missed:
-                # up to three leading spaces, a tab after the hashes, an empty
-                # heading, and closing hashes.
-                "   ### Notes",
-                "###\tNotes",
-                "###",
-                "  ## Notes",
-                "### Notes ###",
-                # Raw HTML preformatted blocks: rendered as quoted text, and
-                # NOT blanked by _visible_markdown, which only handles fenced
-                # and indented code.
-                "<pre>quoted</pre>",
-                "<code>quoted</code>",
-            )
-        ),
-        # Both markers planted inside a raw HTML element. GitHub renders the
-        # contents as quoted text, not a coverage section, and closing the
-        # element afterwards does not help — it is still open where the heading
-        # sits. Depth is counted rather than tag names listed, so `div` and
-        # `blockquote` are rejected without ever being enumerated.
-        *(
-            f"## O\n\nS.\n\n<{tag}>\n### Reviewed changes\n\nCopilot reviewed 2 out of 2 "
-            f"changed files in this pull request and generated no comments.\n</{tag}>\n"
-            for tag in ("pre", "code", "samp", "kbd", "xmp", "textarea", "div", "blockquote")
-        ),
-        # Never closed at all.
-        "## O\n\nS.\n\n<pre>\n### Reviewed changes\n\nCopilot reviewed 2 out of 2 changed "
-        "files in this pull request and generated no comments.\n",
-        # The sentence itself quoted in raw HTML rather than asserted.
-        "## O\n\n### Reviewed changes\n\n<pre>\nCopilot reviewed 2 out of 2 changed "
-        "files in this pull request and generated no comments.\n</pre>\n",
-        "## O\n\n### Reviewed changes\n\n<pre>Copilot reviewed 2 out of 2 changed "
-        "files in this pull request and generated no comments.</pre>\n",
-        # Section heading missing entirely.
-        _copilot_v3_body(2).replace("### Reviewed changes\n\n", ""),
-        # Duplicate headings leave the section ambiguous.
-        _copilot_v3_body(2).replace(
-            "### Reviewed changes\n", "### Reviewed changes\n### Reviewed changes\n"
-        ),
+        # An echo cannot sit alongside the real footer: two occurrences is
+        # ambiguous about which one Copilot asserted, so neither is trusted.
+        _copilot_v3_body(2) + _copilot_v3_body(2),
+        # The dead pre-#2248 shape, which Copilot never emitted.
+        "## Copilot's findings"
+        + "\n" * 7
+        + "- **Files reviewed:** 2/2 changed files\n"
+        + "- **Comments generated:** 0 new\n\n",
         "No findings.",
     ],
 )
-def test_v3_copilot_requires_its_concise_exhaustive_zero_comment_envelope(body: str) -> None:
+def test_v3_copilot_rejects_anything_but_a_clean_coverage_verdict(body: str) -> None:
     files = [ChangedFile("README.md"), ChangedFile("GOVERNANCE.md")]
     context = _context(
         "Load-bearing",
@@ -1077,9 +967,7 @@ def test_v3_copilot_requires_its_concise_exhaustive_zero_comment_envelope(body: 
 
 
 # Copied from the real Copilot review on PR #2238 (review 4839198937, head
-# 821266907d, 15 of 15 files) with the file list trimmed to this fixture's two
-# files and the verdict set to the clean case. Nothing else is reshaped: if
-# Copilot's layout is what the validator keys on, this test is what notices.
+# 821266907d) with the verdict set to the clean case. Nothing else is reshaped.
 REAL_COPILOT_CLEAN_BODY = """## Pull request overview
 
 This PR fixes a scientific-validity defect in the MONDO/HPO ingestion pipeline \
@@ -1087,7 +975,6 @@ by preserving HPO annotations at their source-disease scope.
 
 **Changes:**
 - Reworks MONDO/HPO ingestion to keep HPO terms disease-scoped.
-- Adds immutable three-source provenance bundling + atomic row replacement.
 
 ### Reviewed changes
 
@@ -1100,7 +987,6 @@ no comments.
 | File | Description |
 | ---- | ----------- |
 | `README.md` | Updates the contract description. |
-| `GOVERNANCE.md` | Updates the maintainer list. |
 
 </details>
 
@@ -1110,53 +996,42 @@ no comments.
 """
 
 
-def test_v3_copilot_accepts_a_clean_review_that_describes_a_suppression_change() -> None:
-    """Copilot paraphrases the diff, so its prose is not evidence about itself.
-
-    A body scan for withheld findings cannot tell "Copilot suppressed a comment"
-    from "this PR changes how comments are suppressed". Scanning would reject a
-    clean review of any change that discusses suppression — including the change
-    that introduced the scan. The accepted signals are GitHub's attached-comment
-    count and Copilot's own `no comments` verdict; see #2256 for the gap that
-    leaves, which is deliberate rather than overlooked.
-    """
-    files = [ChangedFile("README.md"), ChangedFile("GOVERNANCE.md")]
-    context = _context(
-        "Load-bearing",
-        files,
-        automated_gates={COPILOT_GATE},
-        schema_version=3,
-    )
-    review = next(
-        item
-        for item in context["data"]["repository"]["pullRequest"]["reviews"]["nodes"]
-        if item["author"]["databaseId"] == BOT_ACTOR_IDS[COPILOT_GATE]
-    )
-    review["body"] = _copilot_v3_body(
-        2, suppressed="Adds coverage for how comments suppressed by the provider are handled."
-    )
-    assert "comments suppressed" in review["body"]
-    assert validate_context(context, files, now=NOW) == []
-
-
 @pytest.mark.parametrize(
     "body",
     [
-        # A void element before the heading opens nothing.
-        "## O\n\nSummary.<br>\n\n### Reviewed changes\n\nCopilot reviewed 2 out of 2 "
-        "changed files in this pull request and generated no comments.\n",
-        # A raw HTML element that is opened AND closed before the heading also
-        # leaves nothing open.
-        "## O\n\n<details><summary>x</summary>y</details>\n\n### Reviewed changes\n\n"
+        REAL_COPILOT_CLEAN_BODY,
+        # Position is not read, so none of these matter: no heading at all, the
+        # sentence wrapped in raw HTML, a Setext rule after it, prose that
+        # repeats the phrase, or insignificant trailing whitespace and CRLF.
+        "## O\n\nCopilot reviewed 2 out of 2 changed files in this pull request and "
+        "generated no comments.\n",
+        "## O\n\n<pre>\nCopilot reviewed 2 out of 2 changed files in this pull request "
+        "and generated no comments.\n</pre>\n",
+        "## O\n\n### Reviewed changes\n\nCopilot reviewed 2 out of 2 changed files in "
+        "this pull request and generated no comments.\n---\n",
+        "## O\n\nCopilot reviewed the changes for correctness.\n\n### Reviewed changes\n\n"
         "Copilot reviewed 2 out of 2 changed files in this pull request and generated "
         "no comments.\n",
+        "## O\n\n### Reviewed changes\n\nCopilot reviewed 2 out of 2 changed files in "
+        "this pull request and generated no comments. \n",
+        "## O\r\n\r\n### Reviewed changes\r\n\r\nCopilot reviewed 2 out of 2 changed files "
+        "in this pull request and generated no comments.\r\n",
+        # Partial coverage. GitHub documents that Copilot skips files it judges
+        # low risk, and the counts are asserted in the same prose as the
+        # verdict, so they are no longer compared against changedFiles. PR #2235
+        # is the real case: 21 of 22, no comments — the only genuinely clean
+        # Copilot review this repository has ever received.
+        "## O\n\n### Reviewed changes\n\nCopilot reviewed 21 out of 22 changed files in "
+        "this pull request and generated no comments.\n",
     ],
 )
-def test_v3_copilot_accepts_html_that_is_not_open_at_the_heading(body: str) -> None:
-    """Only an element still OPEN at the heading disqualifies it.
+def test_v3_copilot_accepts_a_clean_verdict_wherever_it_sits(body: str) -> None:
+    """The envelope reads the verdict, never its position.
 
-    Copilot's real reviews carry `<details>`/`<summary>`, so rejecting on the
-    mere presence of raw HTML would break the lane.
+    Locating the sentence structurally was abandoned after ten review rounds:
+    holding it meant modelling every construct GitHub renders as a section
+    break, which is a CommonMark and raw-HTML parser built one finding at a
+    time, and each addition risked rejecting a real review.
     """
     files = [ChangedFile("README.md"), ChangedFile("GOVERNANCE.md")]
     context = _context(
@@ -1171,91 +1046,6 @@ def test_v3_copilot_accepts_html_that_is_not_open_at_the_heading(body: str) -> N
         if item["author"]["databaseId"] == BOT_ACTOR_IDS[COPILOT_GATE]
     )
     review["body"] = body
-    assert validate_context(context, files, now=NOW) == []
-
-
-@pytest.mark.parametrize(
-    "body",
-    [
-        "## O\n\n### Reviewed changes \n\nCopilot reviewed 2 out of 2 changed files "
-        "in this pull request and generated no comments.\n",
-        "## O\n\n### Reviewed changes\t\n\nCopilot reviewed 2 out of 2 changed files "
-        "in this pull request and generated no comments.\n",
-        "## O\n\n### Reviewed changes\n\nCopilot reviewed 2 out of 2 changed files "
-        "in this pull request and generated no comments. \n",
-        "## O\r\n\r\n### Reviewed changes\r\n\r\nCopilot reviewed 2 out of 2 changed "
-        "files in this pull request and generated no comments.\r\n",
-    ],
-)
-def test_v3_copilot_tolerates_insignificant_whitespace(body: str) -> None:
-    """Trailing whitespace and CRLF must not kill the lane.
-
-    Markdown treats both as insignificant and GitHub renders them identically,
-    so rejecting on them would break the lane over something invisible — the
-    #2248 failure mode. Neither can widen what is accepted.
-    """
-    files = [ChangedFile("README.md"), ChangedFile("GOVERNANCE.md")]
-    context = _context(
-        "Load-bearing",
-        files,
-        automated_gates={COPILOT_GATE},
-        schema_version=3,
-    )
-    review = next(
-        item
-        for item in context["data"]["repository"]["pullRequest"]["reviews"]["nodes"]
-        if item["author"]["databaseId"] == BOT_ACTOR_IDS[COPILOT_GATE]
-    )
-    review["body"] = body
-    assert validate_context(context, files, now=NOW) == []
-
-
-def test_v3_copilot_accepts_a_clean_review_whose_prose_repeats_the_phrase() -> None:
-    """A passing mention of "Copilot reviewed" in the overview is not ambiguity.
-
-    An earlier revision of this envelope also required the bare phrase to occur
-    exactly once, which would have rejected a valid clean review whose prose
-    happened to use it — reintroducing the silent fail-closed defect #2248 exists
-    to remove. Only the full coverage sentence is counted.
-    """
-    files = [ChangedFile("README.md"), ChangedFile("GOVERNANCE.md")]
-    context = _context(
-        "Load-bearing",
-        files,
-        automated_gates={COPILOT_GATE},
-        schema_version=3,
-    )
-    review = next(
-        item
-        for item in context["data"]["repository"]["pullRequest"]["reviews"]["nodes"]
-        if item["author"]["databaseId"] == BOT_ACTOR_IDS[COPILOT_GATE]
-    )
-    review["body"] = _copilot_v3_body(2, prose_mentions_review=True)
-    assert review["body"].count("Copilot reviewed ") == 2
-    assert validate_context(context, files, now=NOW) == []
-
-
-def test_v3_copilot_accepts_the_body_copilot_actually_posts() -> None:
-    """The envelope must match Copilot's real output, not a reconstruction.
-
-    Before #2248 this body was rejected on format alone — the validator wanted a
-    "## Copilot's findings" bullet list that Copilot has never emitted — so the
-    Copilot lane could never produce accepted evidence and every attempt
-    published `pending` with no visible cause.
-    """
-    files = [ChangedFile("README.md"), ChangedFile("GOVERNANCE.md")]
-    context = _context(
-        "Load-bearing",
-        files,
-        automated_gates={COPILOT_GATE},
-        schema_version=3,
-    )
-    review = next(
-        item
-        for item in context["data"]["repository"]["pullRequest"]["reviews"]["nodes"]
-        if item["author"]["databaseId"] == BOT_ACTOR_IDS[COPILOT_GATE]
-    )
-    review["body"] = REAL_COPILOT_CLEAN_BODY
     assert validate_context(context, files, now=NOW) == []
 
 
@@ -6928,7 +6718,7 @@ def test_public_template_contains_only_hosted_review_gates() -> None:
     assert HUMAN_GATE not in template
     assert "Developer Certificate of Origin" not in template
     assert "Agent claim ID:" in template
-    assert "all changed files reviewed and zero generated/attached comments" in template
+    assert "zero-comment coverage verdict exactly once and zero attached comments" in template
     assert "zero actionable/attached comments, no ignored files" in template
     assert "empty zero-comment formal approval" in template
     assert "code block or raw HTML" in template
