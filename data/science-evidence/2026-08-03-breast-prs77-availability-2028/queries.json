@@ -20,7 +20,7 @@
       ]
     },
     "DOI:10.1093/database/bay119": {
-      "version_or_build": "Version of record, Database volume 2018, published 2018-01-01. No separate build identifier exists; the 2026-08-03 access date is the retrieval-version boundary.",
+      "version_or_build": "Version of record, Database volume 2018. The packet does NOT assert a publication date for this record: the only retained value is Scite's generic `date` field (2018-01-01), which carries no source-native publication-date semantics - the same limitation the packet records for the JNCI dates. The volume is the version boundary, and the 2026-08-03 access date bounds retrieval.",
       "license_or_terms": "CC BY, version not established. Scite reports the record as gold open access with licence `cc-by` and no version field. The publisher's article page at the DOI was fetched on 2026-08-03 to resolve the version: it states CC BY and the copyright line 'The Author(s) 2018. Published by Oxford University Press', but does NOT state a version number. A specific version is therefore deliberately not asserted here.",
       "license_version_note": "Review suggested this is CC BY 4.0. That was not confirmed by either retained payload or by the publisher page, so it is not recorded as fact. The DOI is the pointer to the publisher's authoritative terms. Nothing in this packet depends on the version: retention covers bibliographic metadata only, which does not rely on the licence grant.",
       "retention_basis": "Only bibliographic metadata is retained and the source is attributed by DOI. CC BY at any version permits reuse with attribution, so the unresolved version does not affect the basis.",

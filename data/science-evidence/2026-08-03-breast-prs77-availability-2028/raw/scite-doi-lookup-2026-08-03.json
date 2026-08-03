@@ -68,7 +68,8 @@
         "contrasting": 0,
         "mentioning": 357,
         "citing_publications": 505
-      }
+      },
+      "date_note": "Scite's `date` field is generic and unlabelled; it is not treated as a source-native publication date. The packet relies on the volume (2018) as the version boundary instead."
     }
   ],
   "correction_retraction_screening": "Neither record carries any editorial notice - no retraction, correction, expression of concern, or erratum - as of the 2026-08-03 access date."

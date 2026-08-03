@@ -213,7 +213,7 @@ def test_cancer_docs_distinguish_the_runtime_block_from_ancestry_withholding() -
     # panel with a new version but unchanged traits and counts would otherwise
     # leave this reference presenting a stale version as the current audit.
     panel_version = json.loads(_PANEL_PATH.read_text(encoding="utf-8"))["version"]
-    assert re.search(rf"version {re.escape(str(panel_version))}(?![0-9.])", audit_reference), (
+    assert re.search(rf"version {re.escape(str(panel_version))}(?![\w.-])", audit_reference), (
         f"breast PRS allele-audit reference must cite panel version {panel_version}; "
         f"reference reads: {audit_reference}"
     )
@@ -330,10 +330,18 @@ def test_breast_prs_references_carry_a_science_evidence_packet() -> None:
             for value in source
         ]
         if wanted:
-            blob = json.dumps(payload).upper()
+            # Search the returned records only. Both payloads echo the requested
+            # identifiers in their top-level `params`, so a whole-document search
+            # is satisfied even when every returned record has been replaced.
+            returned_records = [
+                value
+                for key, value in payload.items()
+                if key in {"records", "results_retained", "complete_result_ranking"}
+            ]
+            blob = json.dumps(returned_records).upper()
             missing_ids = sorted(w for w in wanted if w not in blob)
             assert not missing_ids, (
-                f"{raw} does not contain the identifiers its entry requested: {missing_ids}"
+                f"{raw} returns no record for the identifiers its entry requested: {missing_ids}"
             )
         # A payload that declares how many results came back must retain that
         # many, or the "complete" ranking is a truncation wearing its name.
