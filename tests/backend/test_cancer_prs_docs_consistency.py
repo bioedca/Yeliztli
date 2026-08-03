@@ -172,6 +172,15 @@ def test_cancer_docs_distinguish_the_runtime_block_from_ancestry_withholding() -
     assert _PROVENANCE_ID_RE.search(reference_text), (
         "breast PRS reference must include a PMID:, DOI:, ChEMBL:, or NCT: identifier"
     )
+    # Bind it to the model the panel actually derives from. A generic identifier
+    # check would still pass if reference [2] were swapped for any other approved
+    # identifier already in the packet -- the Ensembl DOI, say -- even though it
+    # would no longer identify the withheld breast model at all.
+    source_pmid = breast["source_pmid"]
+    assert f"PMID:{source_pmid}" in reference_text, (
+        f"breast PRS reference [2] must cite the panel's source_pmid ({source_pmid}); "
+        f"reference reads: {reference_text}"
+    )
     assert _ACCESS_DATE_RE.search(reference_text), (
         "breast PRS reference must include an '(accessed YYYY-MM-DD)' date"
     )
@@ -227,7 +236,17 @@ def test_breast_prs_references_carry_a_science_evidence_packet() -> None:
         # can drift from what is actually consumed, a verified digest cannot.
         artifact = entry.get("repository_artifact")
         if artifact:
-            artifact_path = REPO_ROOT / artifact
+            # Same containment rule as raw_payload below: an absolute path would
+            # discard the REPO_ROOT prefix and `..` could escape the checkout, so
+            # a digest-pinned file outside the repository would otherwise be
+            # accepted as canonical repository evidence.
+            assert not Path(artifact).is_absolute(), (
+                f"repository_artifact must be repository-relative: {artifact}"
+            )
+            artifact_path = (REPO_ROOT / artifact).resolve()
+            assert artifact_path.is_relative_to(REPO_ROOT.resolve()), (
+                f"repository_artifact must stay inside the repository: {artifact}"
+            )
             assert artifact_path.is_file(), f"missing referenced artifact: {artifact}"
             expected = entry.get("artifact_sha256")
             assert expected, f"{artifact} must be pinned by an artifact_sha256"
@@ -262,17 +281,20 @@ def test_breast_prs_references_carry_a_science_evidence_packet() -> None:
         assert payload.get("status") == "success", (
             f"{raw} must record the successful outcome it is cited for"
         )
-        records = next(
-            (
-                value
-                for key, value in payload.items()
-                if key in {"records", "results_retained", "complete_result_ranking"}
-            ),
-            None,
-        )
-        assert isinstance(records, list) and records, (
-            f"{raw} must retain a non-empty record collection, not just metadata"
-        )
+        # Validate *every* recognized collection, not the first one in insertion
+        # order. Picking one would let the Consensus payload satisfy the guard
+        # from its three-entry `results_retained` subset while the 20-result
+        # `complete_result_ranking` it claims to retain was emptied.
+        collections = {
+            key: value
+            for key, value in payload.items()
+            if key in {"records", "results_retained", "complete_result_ranking"}
+        }
+        assert collections, f"{raw} must retain a record collection, not just metadata"
+        for key, value in collections.items():
+            assert isinstance(value, list) and value, (
+                f"{raw} declares {key} but it is empty or not a list"
+            )
 
     # Versions/builds, licences and retention basis are required packet content,
     # so guard them too. Without this, deleting `source_versions_and_licenses`

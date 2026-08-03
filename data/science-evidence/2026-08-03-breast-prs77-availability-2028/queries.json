@@ -69,7 +69,7 @@
       "query": "77-SNP polygenic risk score breast cancer risk stratification Mavaddat common genetic variants",
       "filters": "none",
       "status": "success",
-      "result": "Rank 1 is the Mavaddat 2015 JNCI paper cited as reference [2], matching its title, first author, year, and journal. Rank 4 (Hovhannisyan et al., Cancer, 2024) is an independent population validation of PRS77 with a different cohort and author group; it is recorded for completeness and deliberately NOT relied on, because this PR withholds the model rather than scoring it.",
+      "result": "Rank 1 is the Mavaddat 2015 JNCI paper cited as reference [2], matching its title, first author, year, and journal. The complete 20-result ranking is retained in the payload. No other hit is relied on or characterized: an earlier revision described the rank-4 paper as an independent validation with a different cohort and author group, which the retained partial author lists cannot establish, so that characterization is withdrawn.",
       "raw_payload": "data/science-evidence/2026-08-03-breast-prs77-availability-2028/raw/consensus-search-2026-08-03.json"
     },
     {
