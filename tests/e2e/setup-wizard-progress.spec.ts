@@ -413,7 +413,7 @@ test.describe('Setup wizard — download progress observability', () => {
     await expect(integrityFailure).toContainText(
       'Integrity failed — re-check or clean and re-download',
     )
-    await expect(integrityFailure).not.toContainText('gnomad_af table is empty')
+    await expect(page.locator('body')).not.toContainText('gnomad_af table is empty')
     await expect(page.getByTestId('db-clean-gnomad')).toBeVisible()
     await expect(page.getByTestId('db-verify-gnomad')).toBeVisible()
     await expect(page.getByText('Included')).toHaveCount(0)

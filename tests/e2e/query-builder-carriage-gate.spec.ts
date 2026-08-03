@@ -346,7 +346,8 @@ test('carried-only is safe by default and all-position opt-in is explicit (#1988
     include_all_positions: true,
   })
   const exportError = page.getByRole('alert')
-  await expect(exportError).toContainText('Export failed. Please try again.')
+  const exportMessage = exportError.getByText('Export failed. Please try again.', { exact: true })
+  await expect(exportMessage).toHaveText('Export failed. Please try again.')
   await expect(exportError).not.toContainText(rawVcfExportDiagnostic)
   const alertAccessibility = await new AxeBuilder({ page })
     .include('[role="alert"]')
