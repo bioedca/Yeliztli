@@ -88,14 +88,17 @@ def _config() -> dict[str, Any]:
     return config
 
 
-def test_greptile_config_exists_at_the_repository_root() -> None:
-    # Greptile reads this file from the repository root of the PR's source
-    # branch; anywhere else it is not read at all.
-    assert GREPTILE_CONFIG.is_file(), (
-        "greptile.json must exist at the repository root or Greptile reverts to "
-        "reviewing every opened pull request automatically"
+def test_an_effective_greptile_config_exists() -> None:
+    # Greptile reads its config from the repository root of the PR's *source
+    # branch*; with no effective config it reverts to reviewing every opened
+    # pull request. Assert the effective document rather than the root file
+    # specifically, so migrating the policy into .greptile/config.json — which
+    # makes greptile.json ignored — does not require keeping a misleading
+    # legacy file behind just to satisfy this test.
+    assert _effective_config_path() is not None, (
+        "no effective Greptile configuration: automatic review is unguarded"
     )
-    assert _config(), "greptile.json must not be empty"
+    assert _config(), "the effective Greptile configuration must not be empty"
 
 
 def test_automatic_reviews_are_skipped() -> None:
@@ -105,18 +108,28 @@ def test_automatic_reviews_are_skipped() -> None:
     )
 
 
-@pytest.mark.parametrize("key", ["labels", "includeAuthors", "includeBranches", "includeKeywords"])
-def test_no_pr_filter_can_block_the_manual_trigger(key: str) -> None:
-    # Automatic review is already blocked twice over: the org dashboard sets
-    # fileChangeLimit to 1, and skipReview pins manual-only mode. An allow-list
-    # style PR filter adds no third guarantee but risks refusing the manual
-    # @greptile-apps trigger, which is the one path that must keep working --
-    # Greptile's docs contradict themselves on whether a mention overrides these
-    # filters. Losing manual review is worse than an occasional stray credit.
+@pytest.mark.parametrize(
+    "key",
+    ["labels", "includeAuthors", "includeBranches", "includeKeywords", "excludeAuthors"],
+)
+def test_no_pr_filter_is_set_in_the_repository(key: str) -> None:
+    # Two reasons, and the second is why this list keeps growing.
+    #
+    # 1. A filter here can refuse the manual @greptile-apps trigger, the one
+    #    path that must keep working. Greptile's docs contradict themselves on
+    #    whether a mention overrides PR filters, and losing manual review is
+    #    worse than an occasional stray credit.
+    # 2. PR filters live in the Greptile dashboard, which is the layer that
+    #    survives a repository-side edit -- a pull request cannot clear a key
+    #    the repository never sets. Because repo config overrides the dashboard
+    #    per key, setting one here silently NARROWS the dashboard's list: an
+    #    excludeAuthors of just dependabot[bot] would shrink a five-bot
+    #    dashboard exclusion down to one. Leave them unset so the dashboard
+    #    stays authoritative.
     assert key not in _config(), (
-        f"{key} must stay unset: an allow-list PR filter may also refuse the "
-        f"manual trigger, and manual review is the only way to spend the budget "
-        f"deliberately"
+        f"{key} must stay unset: it can refuse the manual trigger, and it "
+        f"overrides — and therefore narrows — the dashboard filter that is the "
+        f"only layer a pull request cannot edit"
     )
 
 
@@ -125,18 +138,6 @@ def test_extra_credit_consuming_triggers_stay_disabled(key: str) -> None:
     assert _config().get(key) is False, (
         f"{key} must stay false: each additional trigger it enables is a "
         f"separate billed review against the 16/month allowance"
-    )
-
-
-def test_dependabot_pull_requests_never_spend_the_budget() -> None:
-    # Dependabot opens pull requests on its own schedule. Without this exclusion a
-    # dependency-bump wave could spend the month before a human sees it, and the
-    # key is silently ignored if misspelled, so assert the concrete value.
-    excluded = _config().get("excludeAuthors")
-    assert isinstance(excluded, list), "excludeAuthors must be a list"
-    assert "dependabot[bot]" in excluded, (
-        "excludeAuthors must exclude dependabot[bot]; a dependency-bump wave would "
-        "otherwise spend the monthly review budget unattended"
     )
 
 

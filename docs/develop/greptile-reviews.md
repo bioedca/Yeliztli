@@ -38,21 +38,28 @@ per opened pull request, the whole month is gone well inside the first day.
 
 ## Two layers block automatic review
 
-**Layer 1 — the org dashboard sets `fileChangeLimit` to 1.** Greptile skips "PRs with more
-than this many changed files"[^config], so every pull request touching two or more files is
-refused automatically. This was observed working on PR #2252:
+**Layer 1 — the org dashboard.** Not visible from this repository, and the layer a pull
+request cannot edit. It carries two filters, described in the dashboard as "Control which
+pull requests Greptile reviews — PRs that don't pass these filters are skipped":
 
-> Too many files changed for review. (`6 files found`, `1 file limit`)
+- **Labels ∈ Include → `greptile-review`.** Nothing is reviewed automatically unless it
+  carries that label, and no pull request does unless someone adds it. This is the primary
+  block.
+- **Authors ∉ Exclude → `dependabot[bot]`, `renovate[bot]`, `pre-commit-ci[bot]`,
+  `github-actions[bot]`, `allcontributors[bot]`.** Defence in depth for machine authors.
 
-This layer is deliberate and is the primary block. It is not visible from this repository —
-it lives in Greptile's dashboard.
+Plus `fileChangeLimit: 1`, which skips "PRs with more than this many changed files"[^config]
+— observed refusing PR #2252 with `Too many files changed for review. (6 files found, 1 file
+limit)`.
 
-**Layer 2 — `greptile.json` sets `skipReview` to `"AUTOMATIC"`.** Layer 1 has a hole it
-cannot close: a pull request changing **exactly one file** is not "more than 1", so it is
-still auto-reviewed, and `fileChangeLimit` has a documented minimum of 1, so it cannot be
-set lower. Single-file pull requests are common here — a docs correction, a one-line fix.
-`skipReview: "AUTOMATIC"` — "skip auto-reviews but allow manual triggers"[^skip] — is what
-closes that hole.
+The label filter was verified empirically: PR #2260 carried exactly **one** file — the case
+`fileChangeLimit` cannot block, since it skips only PRs with *more* than one — and no label.
+Greptile produced no comment, no review, and no `Greptile Review` check run. Zero credits.
+
+**Layer 2 — `greptile.json` sets `skipReview` to `"AUTOMATIC"`.** The repository's own
+statement of intent, versioned and reviewable, and the fallback if a dashboard filter is
+ever relaxed: "skip auto-reviews but allow manual triggers".[^skip] It is deliberately
+*narrow* — see "Deliberately not set" below, which is as load-bearing as what is set.
 
 The rest of `greptile.json` pins defaults so they cannot be switched on silently:
 
@@ -62,17 +69,27 @@ The rest of `greptile.json` pins defaults so they cannot be switched on silently
 | `triggerOnUpdates` | `false` | No re-review per pushed commit. Each one would be a separate billed review. |
 | `triggerOnDrafts` | `false` | No *automatic* review of draft pull requests; a manual mention on a draft still works. Marking a draft ready is itself an automatic trigger. |
 | `shouldUpdateDescription` | `false` | Keeps the review as a bot-authored artifact instead of rewriting the pull request body. |
-| `excludeAuthors` | `["dependabot[bot]"]` | Dependabot pull requests never spend the budget. Other bots are not excluded — add them here if they start opening pull requests. |
 
 `shouldUpdateDescription` is load-bearing beyond cost: set to `true`, Greptile writes its
 summary into the pull request description and leaves **no provider-authored artifact at
 all** — nothing a review-route validator could verify.
 
-Deliberately **not** set: `labels`, `includeAuthors`, `includeBranches`, `includeKeywords`.
-An allow-list filter would add no third guarantee against automatic review, but Greptile's
-documentation contradicts itself about whether a mention overrides such filters — so it
-could also refuse the *manual* trigger. Losing manual review is worse than an occasional
-stray credit.
+### Deliberately not set
+
+No **PR filter** appears in this file: not `labels`, `includeAuthors`, `includeBranches`,
+`includeKeywords`, or `excludeAuthors`. Two reasons, and the second is the important one.
+
+1. A filter here could refuse the *manual* `@greptile-apps` trigger. Greptile's
+   documentation contradicts itself about whether a mention overrides PR filters, and losing
+   manual review is worse than an occasional stray credit.
+2. **Repository config overrides the dashboard per key, so setting a filter here silently
+   narrows the dashboard's.** An `excludeAuthors` of `["dependabot[bot]"]` would shrink the
+   five-bot dashboard exclusion above down to one, quietly re-admitting Renovate and the
+   rest. Leaving the key unset is what keeps the dashboard authoritative — and the dashboard
+   is the only layer a pull request branch cannot edit.
+
+Bot-author exclusion therefore lives in the dashboard, not here. The test suite fails if any
+of these keys reappears in the repository.
 
 ### The one gap neither layer closes
 

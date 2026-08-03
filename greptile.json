@@ -2,8 +2,5 @@
   "skipReview": "AUTOMATIC",
   "triggerOnUpdates": false,
   "triggerOnDrafts": false,
-  "shouldUpdateDescription": false,
-  "excludeAuthors": [
-    "dependabot[bot]"
-  ]
+  "shouldUpdateDescription": false
 }
