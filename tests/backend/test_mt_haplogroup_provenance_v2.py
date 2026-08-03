@@ -7834,7 +7834,10 @@ def test_issue_2165_u5_conflict_evidence_packet_is_source_bound() -> None:
         # inventing an identifier, so ``None`` here is the asserted state.
         ("11032788", None),
     }
-    assert pubmed["records"][-1]["publisher_item_identifier"] == "S0002-9297(07)62954-1"
+    pubmed_by_pmid = {record["pmid"]: record for record in pubmed["records"]}
+    assert pubmed_by_pmid["11032788"]["publisher_item_identifier"] == "S0002-9297(07)62954-1", (
+        "the DOI-less record must keep a durable identifier of its own"
+    )
     assert all(
         record["correction_check"]["comments_corrections_list_emitted"] is False
         for record in pubmed["records"]
