@@ -2822,9 +2822,9 @@ def _mt_validate_optional_conflict_snps(
     preserves a markerless path, a derived call permits it, and a typed ancestral
     call vetoes it. They may never stand in for a source recurrence or reversion.
     """
-    guards = record.get("optional_conflict_snps")
-    if guards is None:
+    if "optional_conflict_snps" not in record:
         return
+    guards = record["optional_conflict_snps"]
     if record.get("type") != "markerless_passthrough":
         issues.append(f"Optional conflict guards require markerless mtDNA node {node_name}")
     if record.get("source_status") != "exact":
@@ -2965,7 +2965,10 @@ def _mt_validate_duplicate_marker_coverage(
     for node_name, record in structural.items():
         if not isinstance(record, dict):
             continue
-        for marker in record.get("optional_conflict_snps", []):
+        guards = record.get("optional_conflict_snps", [])
+        if not isinstance(guards, list):
+            continue
+        for marker in guards:
             validate_marker_coverage(f"structural node {node_name}", marker)
 
 
@@ -4172,13 +4175,16 @@ def _validate_mt_structural_records(
                         issues.append(
                             f"Markerless structural mtDNA node {name} cannot emit source markers"
                         )
+                    source_optional_conflict_snps = record.get("optional_conflict_snps", [])
+                    if not isinstance(source_optional_conflict_snps, list):
+                        source_optional_conflict_snps = []
                     expected_optional_conflict_snps = [
                         {
                             "rsid": marker["rsid"],
                             "pos": marker["pos"],
                             "allele": marker["allele"],
                         }
-                        for marker in record.get("optional_conflict_snps", [])
+                        for marker in source_optional_conflict_snps
                     ]
                     if (
                         occurrence.node.get("optional_conflict_snps", [])

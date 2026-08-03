@@ -2484,6 +2484,21 @@ class TestBuildScript:
             assert "Marker-exact mtDNA source node U5 has no direct source motif" in issues
             assert not any("optional guard i5016270" in issue for issue in issues)
 
+    def test_issue_2165_mt_source_guard_rejects_explicit_null(self) -> None:
+        """A declared null guard list is invalid rather than silently omitted."""
+        from scripts.build_haplogroup_bundle import (
+            _MT_SOURCE,
+            _validate_mt_source,
+            build_mt_tree,
+        )
+
+        source = copy.deepcopy(_MT_SOURCE)
+        source["structural_exceptions"]["U5"]["optional_conflict_snps"] = None
+
+        issues = _validate_mt_source(source, build_mt_tree())
+
+        assert "Structural mtDNA node U5 has no optional conflict guards" in issues
+
     def test_issue_1798_mt_source_guard_rejects_silent_omission_and_direction_drift(
         self,
     ) -> None:
