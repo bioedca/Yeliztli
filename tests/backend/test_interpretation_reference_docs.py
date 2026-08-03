@@ -11,6 +11,7 @@ reference so a coverage-qualified badge can't ship undocumented again.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from backend.annotation.dbnsfp import ENSEMBLE_MIN_AXES, is_ensemble_pathogenic_from_counts
@@ -28,10 +29,35 @@ _DOC = _REPO / "docs" / "modules" / "interpretation-reference.md"
 _RARE_VARIANTS_DOC = _REPO / "docs" / "modules" / "rare-variants.md"
 _VARIANT_DETAIL_DOC = _REPO / "docs" / "features" / "variant-detail.md"
 _VARIANT_EXPLORER_DOC = _REPO / "docs" / "features" / "variant-explorer.md"
+_RISK_ALLELE_EVIDENCE_DIR = (
+    _REPO / "data" / "science-evidence" / "2026-07-31-clingen-risk-allele-2052"
+)
+_RISK_ALLELE_EVIDENCE_XML = _RISK_ALLELE_EVIDENCE_DIR / "raw" / "pubmed-efetch-38054408.xml"
+_RISK_ALLELE_NLM_TERMS = (
+    _RISK_ALLELE_EVIDENCE_DIR / "raw" / "nlm-copyright-download-terms-2026-07-31.html"
+)
 _SRC = _REPO / "frontend" / "src" / "lib" / "pathwayCoverage.ts"
 _RARE_VARIANT_PANEL = (
     _REPO / "frontend" / "src" / "components" / "rare-variants" / "VariantDetailPanel.tsx"
 )
+# Each entry has a synthetic production-path storage assertion in
+# test_cancer_analysis.py, test_cardiovascular.py, test_carrier_analysis.py, or
+# test_rare_variant_finder.py; the first three also assert the route returns it.
+_LOWER_PENETRANCE_MODULES = {
+    "cancer.py": (
+        "Cancer",
+        _REPO / "docs" / "modules" / "health-risk" / "cancer.md",
+    ),
+    "cardiovascular.py": (
+        "Cardiovascular",
+        _REPO / "docs" / "modules" / "health-risk" / "cardiovascular.md",
+    ),
+    "carrier_status.py": (
+        "Carrier status",
+        _REPO / "docs" / "modules" / "health-risk" / "carrier-status.md",
+    ),
+    "rare_variant_finder.py": ("Rare variants", _RARE_VARIANTS_DOC),
+}
 
 # The coverage-qualified level-badge strings pathwayLevelDisplayLabel can emit.
 _COVERAGE_BADGES = ("Tested Standard", "Not Assessed")
@@ -58,6 +84,182 @@ _ENSEMBLE_EXAMPLES = (
     (2, 4, False),
     (3, 4, True),
 )
+
+
+def _documents_distinct_lower_penetrance_category(text: str) -> bool:
+    normalized = (
+        " ".join(text.lower().split())
+        .replace("**", "")
+        .replace("lower-penetrance", "lower penetrance")
+        .replace("risk-allele", "risk allele")
+        .replace("high-penetrance", "high penetrance")
+    )
+    # One canonical sentence, required verbatim on every page. The earlier
+    # Rare-variants-specific alternative ("ClinVar risk assertions are stored
+    # under...") is deliberately gone: it named only the risk-allele half of a
+    # category that also holds low-penetrance assertions, so accepting it would
+    # let that imprecision return.
+    return (
+        "lower penetrance/risk allele findings are stored under a distinct findings category "
+        "from high penetrance p/lp" in normalized
+    )
+
+
+def test_lower_penetrance_output_table_matches_production_contract() -> None:
+    """The table matches modules covered by existing store-and-route tests (#2052)."""
+    doc = _DOC.read_text(encoding="utf-8")
+    row = next(
+        line
+        for line in doc.splitlines()
+        if line.startswith("| ClinVar lower-penetrance/risk-allele variants |")
+    )
+    documented_modules = {module.strip() for module in row.split("|")[2].split(",")}
+    expected_modules = {display_name for display_name, _ in _LOWER_PENETRANCE_MODULES.values()}
+    assert documented_modules == expected_modules, (
+        "The ClinVar lower-penetrance/risk-allele output row must list every analysis "
+        f"module in the production contract; expected {sorted(expected_modules)}, found "
+        f"{sorted(documented_modules)} (#2052)."
+    )
+
+
+def test_lower_penetrance_category_is_documented_on_each_module_page() -> None:
+    """Each module names the distinct stored category in 'What you'll see' (#2052)."""
+    assert _LOWER_PENETRANCE_MODULES, (
+        "no lower-penetrance modules configured; an emptied mapping would make this "
+        "guard pass vacuously"
+    )
+    missing: list[str] = []
+    for display_name, path in _LOWER_PENETRANCE_MODULES.values():
+        doc = path.read_text(encoding="utf-8")
+        what_youll_see = doc.split("## What you'll see", 1)[1].split("\n## ", 1)[0]
+        if not _documents_distinct_lower_penetrance_category(what_youll_see):
+            missing.append(display_name)
+
+    assert not missing, (
+        "Module pages returning the distinct ClinVar lower-penetrance/risk-allele category "
+        "must describe it under 'What you'll see' as a distinct stored category from "
+        f"high-penetrance P/LP findings; missing {missing} (#2052)."
+    )
+
+
+def test_shared_module_views_disclose_that_categories_render_together() -> None:
+    """Storage-category wording must not imply a user-visible tier in shared views (#2052)."""
+    shared_views = [
+        (display_name, path)
+        for display_name, path in _LOWER_PENETRANCE_MODULES.values()
+        if display_name != "Rare variants"
+    ]
+    assert shared_views, (
+        "no shared-view modules configured; an emptied mapping would make this loop "
+        "body never run and the guard pass vacuously"
+    )
+    for display_name, path in shared_views:
+        doc = path.read_text(encoding="utf-8")
+        what_youll_see = doc.split("## What you'll see", 1)[1].split("\n## ", 1)[0]
+        normalized = " ".join(what_youll_see.lower().split())
+        assert "the current page displays both categories together" in normalized, (
+            f"{display_name} must distinguish its stored categories "
+            "from its shared UI view (#2052)."
+        )
+
+
+def test_pubmed_evidence_payload_excludes_publisher_owned_abstract() -> None:
+    """The retained PubMed snapshot is redistributable citation metadata only (#2052)."""
+    payload = _RISK_ALLELE_EVIDENCE_XML.read_text(encoding="utf-8")
+    assert "<Abstract>" not in payload
+    assert "CopyrightInformation" not in payload
+    assert "All rights reserved" not in payload
+    assert '<PMID Version="1">38054408</PMID>' in payload
+    assert '<PublicationType UI="D016428">Journal Article</PublicationType>' in payload
+    assert "<Citation>ssing heritability of complex diseases." in payload
+
+    readme = (_RISK_ALLELE_EVIDENCE_DIR / "README.md").read_text(encoding="utf-8")
+    assert "source-native EFetch response" in readme
+    assert "not used to support this packet's claim" in " ".join(readme.split())
+
+    queries = json.loads((_RISK_ALLELE_EVIDENCE_DIR / "queries.json").read_text(encoding="utf-8"))
+    source = next(
+        query
+        for query in queries["queries"]
+        if query["service"] == "NCBI Entrez" and query["endpoint"] == "efetch"
+    )
+    assert "source-native response starts its first ReferenceList/Citation" in source["result"]
+    assert "retained verbatim and is not used for the claim" in source["result"]
+
+
+def test_risk_allele_evidence_records_narrow_life_science_route() -> None:
+    """The packet must record the required source-specific research fallback (#2052)."""
+    queries = json.loads((_RISK_ALLELE_EVIDENCE_DIR / "queries.json").read_text(encoding="utf-8"))
+    source = next(
+        query
+        for query in queries["queries"]
+        if query.get("route") == "life-science-research:ncbi-entrez-skill"
+    )
+
+    assert source["service"] == "NCBI Entrez"
+    assert source["runner"] == "scripts/ncbi_entrez.py"
+    assert source["endpoint"] == "esummary"
+    assert source["params"] == {
+        "db": "pubmed",
+        "id": "38054408",
+        "retmode": "json",
+    }
+    assert source["status"] == "success"
+    assert "ok=true, source=ncbi-entrez, no warnings" in source["result"]
+
+    readme = (_RISK_ALLELE_EVIDENCE_DIR / "README.md").read_text(encoding="utf-8")
+    assert "Narrow Life Science Research fallback" in readme
+    assert "`life-science-research:ncbi-entrez-skill`" in readme
+
+
+def test_nlm_license_source_is_preserved_with_the_evidence_packet() -> None:
+    """The packet must retain the authoritative terms supporting redistribution (#2052)."""
+    relative_path = (
+        "data/science-evidence/2026-07-31-clingen-risk-allele-2052/raw/"
+        "nlm-copyright-download-terms-2026-07-31.html"
+    )
+    payload = _RISK_ALLELE_NLM_TERMS.read_text(encoding="utf-8")
+    assert 'content="https://www.nlm.nih.gov/databases/download.html"' in payload
+    assert 'content="2026-07-31"' in payload
+    assert "Although a signed license agreement is not needed" in payload
+    assert "acknowledge NLM as the source of the data" in payload
+    assert "not indicate or imply that NLM has endorsed" in payload
+    assert "do not reflect the most current/accurate data available from NLM" in payload
+    assert "<script" not in payload
+
+    readme = (_RISK_ALLELE_EVIDENCE_DIR / "README.md").read_text(encoding="utf-8")
+    assert relative_path in readme
+
+    queries = json.loads((_RISK_ALLELE_EVIDENCE_DIR / "queries.json").read_text(encoding="utf-8"))
+    source = next(
+        query for query in queries["queries"] if query["service"] == "National Library of Medicine"
+    )
+    assert source["endpoint"] == "GET https://www.nlm.nih.gov/databases/download.html"
+    assert source["status"] == "success"
+    assert source["raw_payload"] == relative_path
+
+
+def test_lower_penetrance_category_guard_rejects_high_penetrance_equivalence() -> None:
+    """Keyword-only text cannot satisfy the stored-category documentation guard (#2052)."""
+    assert not _documents_distinct_lower_penetrance_category(
+        "Lower-penetrance/risk-allele findings use the same tier as high-penetrance P/LP findings."
+    )
+    assert not _documents_distinct_lower_penetrance_category(
+        "Lower-penetrance/risk-allele findings are not a separate tier from "
+        "high-penetrance P/LP findings."
+    )
+    assert not _documents_distinct_lower_penetrance_category(
+        "Lower-penetrance/risk-allele findings are not reported separately from "
+        "high-penetrance P/LP findings."
+    )
+    assert not _documents_distinct_lower_penetrance_category(
+        "Lower-penetrance/risk-allele findings are never reported in a separate tier from "
+        "high-penetrance P/LP findings."
+    )
+    assert not _documents_distinct_lower_penetrance_category(
+        "Lower-penetrance/risk-allele findings are no longer reported in a separate tier "
+        "from high-penetrance P/LP findings."
+    )
 
 
 def test_coverage_badges_are_documented() -> None:

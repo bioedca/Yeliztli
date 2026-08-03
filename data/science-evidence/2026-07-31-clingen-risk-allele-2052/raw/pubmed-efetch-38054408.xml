@@ -1,0 +1,830 @@
+<?xml version="1.0"?>
+<!DOCTYPE PubmedArticleSet PUBLIC "-//NLM//DTD PubMedArticle, 1st January 2025//EN" "https://dtd.nlm.nih.gov/ncbi/pubmed/out/pubmed_250101.dtd">
+<PubmedArticleSet>
+  <PubmedArticle>
+    <MedlineCitation Status="MEDLINE" Owner="NLM" IndexingMethod="Automated">
+      <PMID Version="1">38054408</PMID>
+      <DateCompleted>
+        <Year>2024</Year>
+        <Month>03</Month>
+        <Day>11</Day>
+      </DateCompleted>
+      <DateRevised>
+        <Year>2026</Year>
+        <Month>05</Month>
+        <Day>18</Day>
+      </DateRevised>
+      <Article PubModel="Print-Electronic">
+        <Journal>
+          <ISSN IssnType="Electronic">1530-0366</ISSN>
+          <JournalIssue CitedMedium="Internet">
+            <Volume>26</Volume>
+            <Issue>3</Issue>
+            <PubDate>
+              <Year>2024</Year>
+              <Month>Mar</Month>
+            </PubDate>
+          </JournalIssue>
+          <Title>Genetics in medicine : official journal of the American College of Medical Genetics</Title>
+          <ISOAbbreviation>Genet Med</ISOAbbreviation>
+        </Journal>
+        <ArticleTitle>Recommendations for risk allele evidence curation, classification, and reporting from the ClinGen Low Penetrance/Risk Allele Working Group.</ArticleTitle>
+        <Pagination>
+          <StartPage>101036</StartPage>
+          <MedlinePgn>101036</MedlinePgn>
+        </Pagination>
+        <ELocationID EIdType="doi" ValidYN="Y">10.1016/j.gim.2023.101036</ELocationID>
+        <ELocationID EIdType="pii" ValidYN="Y">S1098-3600(23)01052-3</ELocationID>
+        <AuthorList CompleteYN="Y">
+          <Author ValidYN="Y">
+            <LastName>Schmidt</LastName>
+            <ForeName>Ryan J</ForeName>
+            <Initials>RJ</Initials>
+            <AffiliationInfo>
+              <Affiliation>Children's Hospital Los Angeles, Keck School of Medicine of USC, Los Angeles, CA. Electronic address: [redacted-email].</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Steeves</LastName>
+            <ForeName>Marcie</ForeName>
+            <Initials>M</Initials>
+            <AffiliationInfo>
+              <Affiliation>Color Health, Burlingame, CA.</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Bayrak-Toydemir</LastName>
+            <ForeName>Pinar</ForeName>
+            <Initials>P</Initials>
+            <AffiliationInfo>
+              <Affiliation>Department of Pathology, University of Utah Molecular Genetics and Genomics, ARUP Laboratories, Salt Lake City, UT.</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Benson</LastName>
+            <ForeName>Katherine A</ForeName>
+            <Initials>KA</Initials>
+            <AffiliationInfo>
+              <Affiliation>School of Pharmacy and Biomolecular Sciences, Royal College of Surgeons in Ireland, Ireland.</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Coe</LastName>
+            <ForeName>Bradley P</ForeName>
+            <Initials>BP</Initials>
+            <AffiliationInfo>
+              <Affiliation>Department of Pathology &amp; Lab Medicine, BC Children's &amp; BC Women's Hospitals, Vancouver, Canada.</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Conlin</LastName>
+            <ForeName>Laura K</ForeName>
+            <Initials>LK</Initials>
+            <AffiliationInfo>
+              <Affiliation>Department of Pathology and Laboratory Medicine, Perelman School of Medicine at the University of Pennsylvania, Philadelphia, PA; Division of Genomic Diagnostics, Children's Hospital of Philadelphia, Philadelphia, PA.</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Ganapathi</LastName>
+            <ForeName>Mythily</ForeName>
+            <Initials>M</Initials>
+            <AffiliationInfo>
+              <Affiliation>Department of Pathology and Cell Biology, Columbia University Irving Medical Center, New York, NY.</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Garcia</LastName>
+            <ForeName>John</ForeName>
+            <Initials>J</Initials>
+            <AffiliationInfo>
+              <Affiliation>Invitae, San Francisco, CA.</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Gollob</LastName>
+            <ForeName>Michael H</ForeName>
+            <Initials>MH</Initials>
+            <AffiliationInfo>
+              <Affiliation>Inherited Arrhythmia and Cardiomyopathy Program, Division of Cardiology, Toronto General Hospital and Department of Physiology, University of Toronto, Toronto, Ontario, Canada.</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Jobanputra</LastName>
+            <ForeName>Vaidehi</ForeName>
+            <Initials>V</Initials>
+            <AffiliationInfo>
+              <Affiliation>New York Genome Center, New York, NY; Department of Pathology and Cell Biology, Columbia University Irving Medical Center, New York, NY.</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Luo</LastName>
+            <ForeName>Minjie</ForeName>
+            <Initials>M</Initials>
+            <AffiliationInfo>
+              <Affiliation>Department of Pathology and Laboratory Medicine, Perelman School of Medicine at the University of Pennsylvania, Philadelphia, PA; Division of Genomic Diagnostics, Children's Hospital of Philadelphia, Philadelphia, PA.</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Ma</LastName>
+            <ForeName>Deqiong</ForeName>
+            <Initials>D</Initials>
+            <AffiliationInfo>
+              <Affiliation>DNA diagnostic lab, Department of Genetics, School of Medicine, Yale University, New Haven, CT.</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Maston</LastName>
+            <ForeName>Glenn</ForeName>
+            <Initials>G</Initials>
+            <AffiliationInfo>
+              <Affiliation>Quest Diagnostics, Inc., Hillsboro, OR.</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>McGoldrick</LastName>
+            <ForeName>Kelly</ForeName>
+            <Initials>K</Initials>
+            <AffiliationInfo>
+              <Affiliation>Ambry Genetics, Aliso Viejo, CA.</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Palculict</LastName>
+            <ForeName>T Blake</ForeName>
+            <Initials>TB</Initials>
+            <AffiliationInfo>
+              <Affiliation>GeneDx, Gaithersburg, MD.</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Pesaran</LastName>
+            <ForeName>Tina</ForeName>
+            <Initials>T</Initials>
+            <AffiliationInfo>
+              <Affiliation>Ambry Genetics, Aliso Viejo, CA.</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Pollin</LastName>
+            <ForeName>Toni I</ForeName>
+            <Initials>TI</Initials>
+            <AffiliationInfo>
+              <Affiliation>University of Maryland School of Medicine, Baltimore, MD.</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Qian</LastName>
+            <ForeName>Emily</ForeName>
+            <Initials>E</Initials>
+            <AffiliationInfo>
+              <Affiliation>Department of Genetics, Yale University School of Medicine, New Haven, CT.</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Rehm</LastName>
+            <ForeName>Heidi L</ForeName>
+            <Initials>HL</Initials>
+            <AffiliationInfo>
+              <Affiliation>Center for Genomics Medicine, Massachusetts General Hospital, Medical and Population Genetics, Broad Institute of MIT and Harvard, Cambridge, MA.</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Riggs</LastName>
+            <ForeName>Erin R</ForeName>
+            <Initials>ER</Initials>
+            <AffiliationInfo>
+              <Affiliation>Geisinger Autism &amp; Developmental Medicine Institute, Lewisburg, PA.</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Schilit</LastName>
+            <ForeName>Samantha L P</ForeName>
+            <Initials>SLP</Initials>
+            <AffiliationInfo>
+              <Affiliation>Mass General Brigham, Brigham and Woman's Hospital, Harvard Medical School, Boston, MA.</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Sergouniotis</LastName>
+            <ForeName>Panagiotis I</ForeName>
+            <Initials>PI</Initials>
+            <AffiliationInfo>
+              <Affiliation>Division of Evolution, Infection and Genomics, University of Manchester, Manchester, United Kingdom.</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Tvrdik</LastName>
+            <ForeName>Tatiana</ForeName>
+            <Initials>T</Initials>
+            <AffiliationInfo>
+              <Affiliation>Department of Pathology and Laboratory Medicine, Emory University School of Medicine, Atlanta, GA.</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Watkins</LastName>
+            <ForeName>Nicholas</ForeName>
+            <Initials>N</Initials>
+            <AffiliationInfo>
+              <Affiliation>Department of Pathology and Laboratory Medicine, Sinai Health System, Toronto, Ontario, Canada Department of Molecular Genetics, University of Toronto, Toronto, Canada.</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Zec</LastName>
+            <ForeName>Lauren</ForeName>
+            <Initials>L</Initials>
+            <AffiliationInfo>
+              <Affiliation>Natera, Inc., Austin, TX.</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Zhang</LastName>
+            <ForeName>Wenying</ForeName>
+            <Initials>W</Initials>
+            <AffiliationInfo>
+              <Affiliation>Division of Human Genetics, Cincinnati Children's Hospital Medical Center, Department of Pediatrics, University of Cincinnati College of Medicine, Cincinnati, OH.</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Lebo</LastName>
+            <ForeName>Matthew S</ForeName>
+            <Initials>MS</Initials>
+            <AffiliationInfo>
+              <Affiliation>Mass General Brigham, Brigham and Woman's Hospital, Harvard Medical School, Broad Institute of MIT and Harvard, Cambridge, MA. Electronic address: [redacted-email].</Affiliation>
+            </AffiliationInfo>
+          </Author>
+          <Author ValidYN="Y">
+            <CollectiveName>ClinGen Low Penetrance/Risk Allele Working Group</CollectiveName>
+          </Author>
+        </AuthorList>
+        <Language>eng</Language>
+        <GrantList CompleteYN="Y">
+          <Grant>
+            <GrantID>U24 HG006834</GrantID>
+            <Acronym>HG</Acronym>
+            <Agency>NHGRI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>U24 HG009649</GrantID>
+            <Acronym>HG</Acronym>
+            <Agency>NHGRI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>U24 HG009650</GrantID>
+            <Acronym>HG</Acronym>
+            <Agency>NHGRI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+          <Grant>
+            <GrantID>U41 HG006834</GrantID>
+            <Acronym>HG</Acronym>
+            <Agency>NHGRI NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+        </GrantList>
+        <PublicationTypeList>
+          <PublicationType UI="D016428">Journal Article</PublicationType>
+          <PublicationType UI="D052061">Research Support, N.I.H., Extramural</PublicationType>
+        </PublicationTypeList>
+        <ArticleDate DateType="Electronic">
+          <Year>2023</Year>
+          <Month>12</Month>
+          <Day>03</Day>
+        </ArticleDate>
+      </Article>
+      <MedlineJournalInfo>
+        <Country>United States</Country>
+        <MedlineTA>Genet Med</MedlineTA>
+        <NlmUniqueID>9815831</NlmUniqueID>
+        <ISSNLinking>1098-3600</ISSNLinking>
+      </MedlineJournalInfo>
+      <CitationSubset>IM</CitationSubset>
+      <MeshHeadingList>
+        <MeshHeading>
+          <DescriptorName UI="D006801" MajorTopicYN="N">Humans</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D000483" MajorTopicYN="N">Alleles</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D014644" MajorTopicYN="Y">Genetic Variation</DescriptorName>
+          <QualifierName UI="Q000235" MajorTopicYN="N">genetics</QualifierName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D019683" MajorTopicYN="N">Penetrance</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D005787" MajorTopicYN="N">Gene Frequency</DescriptorName>
+        </MeshHeading>
+      </MeshHeadingList>
+      <KeywordList Owner="NOTNLM">
+        <Keyword MajorTopicYN="N">Association studies</Keyword>
+        <Keyword MajorTopicYN="N">Clinical disease risk assessment</Keyword>
+        <Keyword MajorTopicYN="N">Penetrance</Keyword>
+        <Keyword MajorTopicYN="N">Risk allele</Keyword>
+        <Keyword MajorTopicYN="N">Variant classification</Keyword>
+      </KeywordList>
+      <CoiStatement>Conflict of Interest The authors declare no conflicts of interest.</CoiStatement>
+      <InvestigatorList>
+        <Investigator ValidYN="Y">
+          <LastName>Byrne</LastName>
+          <ForeName>Alicia</ForeName>
+          <Initials>A</Initials>
+        </Investigator>
+        <Investigator ValidYN="Y">
+          <LastName>Spurdle</LastName>
+          <ForeName>Amanda</ForeName>
+          <Initials>A</Initials>
+        </Investigator>
+        <Investigator ValidYN="Y">
+          <LastName>Palculict</LastName>
+          <ForeName>Blake</ForeName>
+          <Initials>B</Initials>
+        </Investigator>
+        <Investigator ValidYN="Y">
+          <LastName>Coe</LastName>
+          <ForeName>Bradley</ForeName>
+          <Initials>B</Initials>
+        </Investigator>
+        <Investigator ValidYN="Y">
+          <LastName>Deqiong</LastName>
+          <ForeName>Ma</ForeName>
+          <Initials>M</Initials>
+        </Investigator>
+        <Investigator ValidYN="Y">
+          <LastName>Lyon</LastName>
+          <ForeName>Elaine</ForeName>
+          <Initials>E</Initials>
+        </Investigator>
+        <Investigator ValidYN="Y">
+          <LastName>Groopman</LastName>
+          <ForeName>Emily</ForeName>
+          <Initials>E</Initials>
+        </Investigator>
+        <Investigator ValidYN="Y">
+          <LastName>Qian</LastName>
+          <ForeName>Emily</ForeName>
+          <Initials>E</Initials>
+        </Investigator>
+        <Investigator ValidYN="Y">
+          <LastName>Puffenberger</LastName>
+          <ForeName>Erik</ForeName>
+          <Initials>E</Initials>
+        </Investigator>
+        <Investigator ValidYN="Y">
+          <LastName>Riggs</LastName>
+          <ForeName>Erin</ForeName>
+          <Initials>E</Initials>
+        </Investigator>
+        <Investigator ValidYN="Y">
+          <LastName>Couch</LastName>
+          <ForeName>Fergus</ForeName>
+          <Initials>F</Initials>
+        </Investigator>
+        <Investigator ValidYN="Y">
+          <LastName>Maston</LastName>
+          <ForeName>Glenn</ForeName>
+          <Initials>G</Initials>
+        </Investigator>
+        <Investigator ValidYN="Y">
+          <LastName>Dziadzio</LastName>
+          <ForeName>Hannah</ForeName>
+          <Initials>H</Initials>
+        </Investigator>
+        <Investigator ValidYN="Y">
+          <LastName>Harraway</LastName>
+          <ForeName>James</ForeName>
+          <Initials>J</Initials>
+        </Investigator>
+        <Investigator ValidYN="Y">
+          <LastName>Mester</LastName>
+          <ForeName>Jessica</ForeName>
+          <Initials>J</Initials>
+        </Investigator>
+        <Investigator ValidYN="Y">
+          <LastName>Garcia</LastName>
+          <ForeName>John</ForeName>
+          <Initials>J</Initials>
+        </Investigator>
+        <Investigator ValidYN="Y">
+          <LastName>Lerner-Ellis</LastName>
+          <ForeName>Jordan</ForeName>
+          <Initials>J</Initials>
+        </Investigator>
+        <Investigator ValidYN="Y">
+          <LastName>Benson</LastName>
+          <ForeName>Katherine</ForeName>
+          <Initials>K</Initials>
+        </Investigator>
+        <Investigator ValidYN="Y">
+          <LastName>Avello</LastName>
+          <ForeName>Kayleigh</ForeName>
+          <Initials>K</Initials>
+        </Investigator>
+        <Investigator ValidYN="Y">
+          <LastName>McGoldrick</LastName>
+          <ForeName>Kelly</ForeName>
+          <Initials>K</Initials>
+        </Investigator>
+        <Investigator ValidYN="Y">
+          <LastName>Conlin</LastName>
+          <ForeName>Laura</ForeName>
+          <Initials>L</Initials>
+        </Investigator>
+        <Investigator ValidYN="Y">
+          <LastName>Zec</LastName>
+          <ForeName>Lauren</ForeName>
+          <Initials>L</Initials>
+        </Investigator>
+        <Investigator ValidYN="Y">
+          <LastName>Steeves</LastName>
+          <ForeName>Marcie</ForeName>
+          <Initials>M</Initials>
+        </Investigator>
+        <Investigator ValidYN="Y">
+          <LastName>Richardson</LastName>
+          <ForeName>Marcy</ForeName>
+          <Initials>M</Initials>
+        </Investigator>
+        <Investigator ValidYN="Y">
+          <LastName>Lebo</LastName>
+          <ForeName>Matt</ForeName>
+          <Initials>M</Initials>
+        </Investigator>
+        <Investigator ValidYN="Y">
+          <LastName>Kelly</LastName>
+          <ForeName>Melissa</ForeName>
+          <Initials>M</Initials>
+        </Investigator>
+        <Investigator ValidYN="Y">
+          <LastName>Gollob</LastName>
+          <ForeName>Michael</ForeName>
+          <Initials>M</Initials>
+        </Investigator>
+        <Investigator ValidYN="Y">
+          <LastName>Luo</LastName>
+          <ForeName>Minjie</ForeName>
+          <Initials>M</Initials>
+        </Investigator>
+        <Investigator ValidYN="Y">
+          <LastName>Ganapathi</LastName>
+          <ForeName>Mythily</ForeName>
+          <Initials>M</Initials>
+        </Investigator>
+        <Investigator ValidYN="Y">
+          <LastName>Watkins</LastName>
+          <ForeName>Nicholas</ForeName>
+          <Initials>N</Initials>
+        </Investigator>
+        <Investigator ValidYN="Y">
+          <LastName>Niu</LastName>
+          <ForeName>Nifang</ForeName>
+          <Initials>N</Initials>
+        </Investigator>
+        <Investigator ValidYN="Y">
+          <LastName>Sergouniotis</LastName>
+          <ForeName>Panagiotis</ForeName>
+          <Initials>P</Initials>
+        </Investigator>
+        <Investigator ValidYN="Y">
+          <LastName>Bayrak-Toydemir</LastName>
+          <ForeName>Pinar</ForeName>
+          <Initials>P</Initials>
+        </Investigator>
+        <Investigator ValidYN="Y">
+          <LastName>Schmidt</LastName>
+          <ForeName>Ryan</ForeName>
+          <Initials>R</Initials>
+        </Investigator>
+        <Investigator ValidYN="Y">
+          <LastName>Schilit</LastName>
+          <ForeName>Samantha</ForeName>
+          <Initials>S</Initials>
+        </Investigator>
+        <Investigator ValidYN="Y">
+          <LastName>Richards</LastName>
+          <ForeName>Sarah</ForeName>
+          <Initials>S</Initials>
+        </Investigator>
+        <Investigator ValidYN="Y">
+          <LastName>Pesaran</LastName>
+          <ForeName>Tina</ForeName>
+          <Initials>T</Initials>
+        </Investigator>
+        <Investigator ValidYN="Y">
+          <LastName>Pollin</LastName>
+          <ForeName>Toni</ForeName>
+          <Initials>T</Initials>
+        </Investigator>
+        <Investigator ValidYN="Y">
+          <LastName>Jobanputra</LastName>
+          <ForeName>Vaidehi</ForeName>
+          <Initials>V</Initials>
+        </Investigator>
+        <Investigator ValidYN="Y">
+          <LastName>Zhang</LastName>
+          <ForeName>Wenying</ForeName>
+          <Initials>W</Initials>
+        </Investigator>
+        <Investigator ValidYN="Y">
+          <LastName>Chen</LastName>
+          <ForeName>Wuyan</ForeName>
+          <Initials>W</Initials>
+        </Investigator>
+        <Investigator ValidYN="Y">
+          <LastName>Fan</LastName>
+          <ForeName>Yuxin</ForeName>
+          <Initials>Y</Initials>
+        </Investigator>
+      </InvestigatorList>
+    </MedlineCitation>
+    <PubmedData>
+      <History>
+        <PubMedPubDate PubStatus="received">
+          <Year>2023</Year>
+          <Month>6</Month>
+          <Day>22</Day>
+        </PubMedPubDate>
+        <PubMedPubDate PubStatus="revised">
+          <Year>2023</Year>
+          <Month>11</Month>
+          <Day>28</Day>
+        </PubMedPubDate>
+        <PubMedPubDate PubStatus="accepted">
+          <Year>2023</Year>
+          <Month>11</Month>
+          <Day>30</Day>
+        </PubMedPubDate>
+        <PubMedPubDate PubStatus="medline">
+          <Year>2024</Year>
+          <Month>3</Month>
+          <Day>11</Day>
+          <Hour>6</Hour>
+          <Minute>42</Minute>
+        </PubMedPubDate>
+        <PubMedPubDate PubStatus="pubmed">
+          <Year>2023</Year>
+          <Month>12</Month>
+          <Day>6</Day>
+          <Hour>6</Hour>
+          <Minute>41</Minute>
+        </PubMedPubDate>
+        <PubMedPubDate PubStatus="entrez">
+          <Year>2023</Year>
+          <Month>12</Month>
+          <Day>6</Day>
+          <Hour>5</Hour>
+          <Minute>59</Minute>
+        </PubMedPubDate>
+        <PubMedPubDate PubStatus="pmc-release">
+          <Year>2025</Year>
+          <Month>3</Month>
+          <Day>1</Day>
+        </PubMedPubDate>
+      </History>
+      <PublicationStatus>ppublish</PublicationStatus>
+      <ArticleIdList>
+        <ArticleId IdType="pubmed">38054408</ArticleId>
+        <ArticleId IdType="mid">NIHMS1951003</ArticleId>
+        <ArticleId IdType="pmc">PMC10939896</ArticleId>
+        <ArticleId IdType="doi">10.1016/j.gim.2023.101036</ArticleId>
+        <ArticleId IdType="pii">S1098-3600(23)01052-3</ArticleId>
+      </ArticleIdList>
+      <ReferenceList>
+        <Reference>
+          <Citation>ssing heritability of complex diseases. Nature. 2009;461(7265):747&#x2013;753. 10.1038/nature08494</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="doi">10.1038/nature08494</ArticleId>
+            <ArticleId IdType="pmc">PMC2831613</ArticleId>
+            <ArticleId IdType="pubmed">19812666</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Senol-Cosar O, Schmidt RJ, Qian E, et al. Considerations for clinical curation, classification, and reporting of low-penetrance and low effect size variants associated with disease risk. Genet Med. 2019;21(12):2765&#x2013;2773. 10.1038/s41436-019-0560-8</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="doi">10.1038/s41436-019-0560-8</ArticleId>
+            <ArticleId IdType="pubmed">31147632</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Kujovich JL. Factor V Leiden Thrombophilia. In: Adam, Mirzaa, Pagon, et al. , eds. GeneReviews((R)). Seattle (WA)1993.</Citation>
+        </Reference>
+        <Reference>
+          <Citation>Thauvin-Robinet C, Munck A, Huet F, et al. The very low penetrance of cystic fibrosis for the R117H mutation: a reappraisal for genetic counselling and newborn screening. J Med Genet. 2009;46(11):752&#x2013;758. 10.1136/jmg.2009.067215</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="doi">10.1136/jmg.2009.067215</ArticleId>
+            <ArticleId IdType="pubmed">19880712</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Richards S, Aziz N, Bale S, et al. Standards and guidelines for the interpretation of sequence variants: a joint consensus recommendation of the American College of Medical Genetics and Genomics and the Association for Molecular Pathology. Genet Med. 2015;17(5):405&#x2013;424. 10.1038/gim.2015.30</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="doi">10.1038/gim.2015.30</ArticleId>
+            <ArticleId IdType="pmc">PMC4544753</ArticleId>
+            <ArticleId IdType="pubmed">25741868</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Riggs ER, Andersen EF, Cherry AM, et al. Technical standards for the interpretation and reporting of constitutional copy-number variants: a joint consensus recommendation of the American College of Medical Genetics and Genomics (ACMG) and the Clinical Genome Resource (ClinGen). Genet Med. 2020;22(2):245&#x2013;257. 10.1038/s41436-019-0686-8</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="doi">10.1038/s41436-019-0686-8</ArticleId>
+            <ArticleId IdType="pmc">PMC7313390</ArticleId>
+            <ArticleId IdType="pubmed">31690835</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Amendola LM, Muenzen K, Biesecker LG, et al. Variant Classification Concordance using the ACMG-AMP Variant Interpretation Guidelines across Nine Genomic Implementation Research Studies. Am J Hum Genet. 2020;107(5):932&#x2013;941. 10.1016/j.ajhg.2020.09.011</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="doi">10.1016/j.ajhg.2020.09.011</ArticleId>
+            <ArticleId IdType="pmc">PMC7675005</ArticleId>
+            <ArticleId IdType="pubmed">33108757</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Harrison SM, Austin-Tse CA, Kim S, et al. Harmonizing variant classification for return of results in the All of Us Research Program. Hum Mutat. 2022;43(8):1114&#x2013;1121. 10.1002/humu.24317</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="doi">10.1002/humu.24317</ArticleId>
+            <ArticleId IdType="pmc">PMC9206690</ArticleId>
+            <ArticleId IdType="pubmed">34923710</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Harrison SM, Dolinksy JS, Chen W, et al. Scaling resolution of variant classification differences in ClinVar between 41 clinical laboratories through an outlier approach. Hum Mutat. 2018;39(11):1641&#x2013;1649. 10.1002/humu.23643</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="doi">10.1002/humu.23643</ArticleId>
+            <ArticleId IdType="pmc">PMC6188667</ArticleId>
+            <ArticleId IdType="pubmed">30311378</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Hirschhorn JN, Lohmueller K, Byrne E, Hirschhorn K. A comprehensive review of genetic association studies. Genet Med. 2002;4(2):45&#x2013;61. 10.1097/00125817-200203000-00002</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="doi">10.1097/00125817-200203000-00002</ArticleId>
+            <ArticleId IdType="pubmed">11882781</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Ioannidis JP, Boffetta P, Little J, et al. Assessment of cumulative evidence on genetic associations: interim guidelines. Int J Epidemiol. 2008;37(1):120&#x2013;132. 10.1093/ije/dym159</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="doi">10.1093/ije/dym159</ArticleId>
+            <ArticleId IdType="pubmed">17898028</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Niehaus A, Azzariti DR, Harrison SM, et al. A survey assessing adoption of the ACMG-AMP guidelines for interpreting sequence variants and identification of areas for continued improvement. Genet Med. 2019;21(8):1699&#x2013;1701. 10.1038/s41436-018-0432-7</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="doi">10.1038/s41436-018-0432-7</ArticleId>
+            <ArticleId IdType="pmc">PMC7233466</ArticleId>
+            <ArticleId IdType="pubmed">30670879</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Goodrich JK, Singer-Berk M, Son R, et al. Determinants of penetrance and variable expressivity in monogenic metabolic conditions across 77,184 exomes. Nat Commun. 2021;12(1):3505. 10.1038/s41467-021-23556-4</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="doi">10.1038/s41467-021-23556-4</ArticleId>
+            <ArticleId IdType="pmc">PMC8190084</ArticleId>
+            <ArticleId IdType="pubmed">34108472</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Yang S, Lincoln SE, Kobayashi Y, Nykamp K, Nussbaum RL, Topper S. Sources of discordance among germ-line variant classifications in ClinVar. Genet Med. 2017;19(10):1118&#x2013;1126. 10.1038/gim.2017.60</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="doi">10.1038/gim.2017.60</ArticleId>
+            <ArticleId IdType="pmc">PMC5632819</ArticleId>
+            <ArticleId IdType="pubmed">28569743</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Rehm HL, Berg JS, Brooks LD, et al. ClinGen--the Clinical Genome Resource. N Engl J Med. 2015;372(23):2235&#x2013;2242. 10.1056/NEJMsr1406261</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="doi">10.1056/NEJMsr1406261</ArticleId>
+            <ArticleId IdType="pmc">PMC4474187</ArticleId>
+            <ArticleId IdType="pubmed">26014595</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>ClinGen Low Penetrance/Risk Allele Working Group. https://clinicalgenome.org/working-groups/low-penetrance-risk-allele-working-group/.
+Accessed 9 May 2023.</Citation>
+        </Reference>
+        <Reference>
+          <Citation>Consortium CBCC-C. CHEK2*1100delC and susceptibility to breast cancer: a collaborative analysis involving 10,860 breast cancer cases and 9,065 controls from 10 studies. Am J Hum Genet. 2004;74(6):1175&#x2013;1182. 10.1086/421251</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="doi">10.1086/421251</ArticleId>
+            <ArticleId IdType="pmc">PMC1182081</ArticleId>
+            <ArticleId IdType="pubmed">15122511</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Crownover BK, Covey CJ. Hereditary hemochromatosis. Am Fam Physician. 2013;87(3):183&#x2013;190</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="pubmed">23418762</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Laver TW, Colclough K, Shepherd M, et al. The Common p.R114W HNF4A Mutation Causes a Distinct Clinical Subtype of Monogenic Diabetes. Diabetes. 2016;65(10):3212&#x2013;3217. 10.2337/db16-0628</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="doi">10.2337/db16-0628</ArticleId>
+            <ArticleId IdType="pmc">PMC5035684</ArticleId>
+            <ArticleId IdType="pubmed">27486234</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Blout Zawatsky CL, Shah N, Machini K, et al. Returning actionable genomic results in a research biobank: Analytic validity, clinical implementation, and resource utilization. Am J Hum Genet. 2021;108(12):2224&#x2013;2237. 10.1016/j.ajhg.2021.10.005</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="doi">10.1016/j.ajhg.2021.10.005</ArticleId>
+            <ArticleId IdType="pmc">PMC8715145</ArticleId>
+            <ArticleId IdType="pubmed">34752750</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Weedon MN, Wright CF, Patel KA, Frayling TM. Unreliability of genotyping arrays for detecting very rare variants in human genetic studies: Example from a recent study of MC4R. Cell. 2021;184(7):1651. 10.1016/j.cell.2021.03.015</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="doi">10.1016/j.cell.2021.03.015</ArticleId>
+            <ArticleId IdType="pmc">PMC7611986</ArticleId>
+            <ArticleId IdType="pubmed">33798434</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Lewis CM, Knight J. Introduction to genetic association studies. Cold Spring Harb Protoc. 2012;2012(3):297&#x2013;306. 10.1101/pdb.top068163</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="doi">10.1101/pdb.top068163</ArticleId>
+            <ArticleId IdType="pubmed">22383645</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>So HC, Sham PC. Multiple testing and power calculations in genetic association studies. Cold Spring Harb Protoc. 2011;2011(1):pdb top95. 10.1101/pdb.top95</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="doi">10.1101/pdb.top95</ArticleId>
+            <ArticleId IdType="pubmed">21205861</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Dudbridge F, Gusnanto A. Estimation of significance thresholds for genomewide association scans. Genet Epidemiol. 2008;32(3):227&#x2013;234. 10.1002/gepi.20297</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="doi">10.1002/gepi.20297</ArticleId>
+            <ArticleId IdType="pmc">PMC2573032</ArticleId>
+            <ArticleId IdType="pubmed">18300295</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Pe&#x2019;er I, Yelensky R, Altshuler D, Daly MJ. Estimation of the multiple testing burden for genomewide association studies of nearly all common variants. Genet Epidemiol. 2008;32(4):381&#x2013;385. 10.1002/gepi.20303</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="doi">10.1002/gepi.20303</ArticleId>
+            <ArticleId IdType="pubmed">18348202</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Dudley JTK KJ Exploring personal genomics. Oxford University Press; 2013.</Citation>
+        </Reference>
+        <Reference>
+          <Citation>Ioannidis JP. Why most discovered true associations are inflated. Epidemiology. 2008;19(5):640&#x2013;648. 10.1097/EDE.0b013e31818131e7</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="doi">10.1097/EDE.0b013e31818131e7</ArticleId>
+            <ArticleId IdType="pubmed">18633328</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Harper AR, Bowman M, Hayesmoore JBG, et al. Reevaluation of the South Asian MYBPC3(Delta25bp) Intronic Deletion in Hypertrophic Cardiomyopathy. Circ Genom Precis Med. 2020;13(3):e002783. 10.1161/CIRCGEN.119.002783</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="doi">10.1161/CIRCGEN.119.002783</ArticleId>
+            <ArticleId IdType="pmc">PMC7299222</ArticleId>
+            <ArticleId IdType="pubmed">32163302</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Houge G, Laner A, Cirak S, de Leeuw N, Scheffer H, den Dunnen JT. Stepwise ABC system for classification of any type of genetic variant. Eur J Hum Genet. 2022;30(2):150&#x2013;159. 10.1038/s41431-021-00903-z</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="doi">10.1038/s41431-021-00903-z</ArticleId>
+            <ArticleId IdType="pmc">PMC8821602</ArticleId>
+            <ArticleId IdType="pubmed">33981013</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Masson E, Zou WB, Genin E, et al. Expanding ACMG variant classification guidelines into a general framework. Hum Genomics. 2022;16(1):31. 10.1186/s40246-022-00407-x</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="doi">10.1186/s40246-022-00407-x</ArticleId>
+            <ArticleId IdType="pmc">PMC9380380</ArticleId>
+            <ArticleId IdType="pubmed">35974416</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Martin CL, Wain KE, Oetjens MT, et al. Identification of Neuropsychiatric Copy Number Variants in a Health Care System Population. JAMA Psychiatry. 2020;77(12):1276&#x2013;1285. 10.1001/jamapsychiatry.2020.2159</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="doi">10.1001/jamapsychiatry.2020.2159</ArticleId>
+            <ArticleId IdType="pmc">PMC7376464</ArticleId>
+            <ArticleId IdType="pubmed">32697297</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Rosenfeld JA, Coe BP, Eichler EE, Cuckle H, Shaffer LG. Estimates of penetrance for recurrent pathogenic copy-number variations. Genet Med. 2013;15(6):478&#x2013;481. 10.1038/gim.2012.164</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="doi">10.1038/gim.2012.164</ArticleId>
+            <ArticleId IdType="pmc">PMC3664238</ArticleId>
+            <ArticleId IdType="pubmed">23258348</ArticleId>
+          </ArticleIdList>
+        </Reference>
+      </ReferenceList>
+    </PubmedData>
+  </PubmedArticle>
+</PubmedArticleSet>
