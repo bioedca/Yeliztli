@@ -5,6 +5,7 @@ import AuthGuard from '@/components/AuthGuard'
 import ErrorBoundary from '@/components/ui/ErrorBoundary'
 import RouteAnnouncer from '@/components/layout/RouteAnnouncer'
 import StaleSampleRouteGate from '@/components/layout/StaleSampleRouteGate'
+import { QueryBuilderDraftRouteProvider } from '@/components/query-builder/QueryBuilderDraftState'
 import Dashboard from '@/pages/Dashboard'
 import VariantExplorer from '@/pages/VariantExplorer'
 import VariantDetailPage from '@/pages/VariantDetailPage'
@@ -80,9 +81,13 @@ export default function App() {
               <Route path="/gene-health" element={<GeneHealthView />} />
               <Route path="/rare-variants" element={<RareVariantsView />} />
               <Route path="/genome-browser" element={<GenomeBrowser />} />
-              <Route path="/query-builder" element={<QueryBuilderView />} />
               <Route path="/overlays" element={<OverlaysView />} />
               <Route path="/reports" element={<ReportBuilder />} />
+            </Route>
+            <Route path="/query-builder" element={<QueryBuilderDraftRouteProvider />}>
+              <Route element={<StaleSampleRouteGate />}>
+                <Route index element={<QueryBuilderView />} />
+              </Route>
             </Route>
             {/* Individual pages aggregate their own linked samples and stay usable
                 even when the globally selected sample needs re-annotation. */}
