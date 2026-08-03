@@ -64,6 +64,7 @@ def _env(tmp_path: Path) -> Generator[sa.Engine, None, None]:
         patch("backend.services.staleness.get_registry", return_value=registry),
     ):
         yield sample_engine
+    registry.dispose_all()
     reset_registry()
 
 

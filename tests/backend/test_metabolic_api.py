@@ -81,6 +81,7 @@ def client_factory(
     from backend.api.routes.metabolic import router
 
     patchers: list[object] = []
+    registries: list[DBRegistry] = []
 
     def _factory(fto_genotype: str) -> TestClient:
         _settings, registry = _make_env(tmp_path, fto_genotype)
@@ -91,6 +92,7 @@ def client_factory(
         dependency_patcher.start()
         staleness_patcher.start()
         patchers.extend((route_patcher, dependency_patcher, staleness_patcher))
+        registries.append(registry)
         app = FastAPI()
         app.include_router(router, prefix="/api")
         return TestClient(app)
@@ -98,6 +100,8 @@ def client_factory(
     yield _factory
     for p in reversed(patchers):
         p.stop()
+    for registry in registries:
+        registry.dispose_all()
     reset_registry()
 
 
