@@ -13,6 +13,9 @@ const jsonRoute = (payload: unknown, status = 200) => ({
   body: JSON.stringify(payload),
 })
 
+const rawVcfExportDiagnostic =
+  'This VCF export would omit 1 annotated position with unresolved zygosity. Export CSV, TSV, or JSON, or filter to positions with resolved zygosity.'
+
 const baseRow = {
   chrom: '17',
   ref: 'A',
@@ -199,8 +202,7 @@ async function stubQueryBuilder(
       return route.fulfill(
         jsonRoute(
           {
-            detail:
-              'This VCF export would omit 1 annotated position with unresolved zygosity. Export CSV, TSV, or JSON, or filter to positions with resolved zygosity.',
+            detail: rawVcfExportDiagnostic,
           },
           422,
         ),
@@ -229,6 +231,12 @@ async function exportVcf(page: Page) {
 
 test.beforeEach(async ({ page }) => {
   await bypassSetup(page)
+  await page.route(/\/api\/variants\/count\?sample_id=\d+$/, (route) =>
+    route.fulfill(jsonRoute({ count: 1 })),
+  )
+  await page.route(/\/api\/annotation\/active\/\d+$/, (route) =>
+    route.fulfill(jsonRoute({ detail: 'No active job' }, 404)),
+  )
 })
 
 test('carried-only is safe by default and all-position opt-in is explicit (#1988)', async ({
@@ -338,11 +346,8 @@ test('carried-only is safe by default and all-position opt-in is explicit (#1988
     include_all_positions: true,
   })
   const exportError = page.getByRole('alert')
-  await expect(exportError).toContainText('Export failed')
-  await expect(exportError).toContainText(
-    /VCF export would omit 1 annotated position with unresolved zygosity/i,
-  )
-  await expect(exportError).toContainText(/Export CSV, TSV, or JSON/i)
+  await expect(exportError).toContainText('Export failed. Please try again.')
+  await expect(exportError).not.toContainText(rawVcfExportDiagnostic)
   const alertAccessibility = await new AxeBuilder({ page })
     .include('[role="alert"]')
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
@@ -400,6 +405,15 @@ test('obsolete run success and failure cannot cross a mode or filter edit (#1988
   const firstRun = deferred()
   const secondRun = deferred()
   const oldSampleRun = deferred()
+  const sample2StalenessProbe = deferred()
+  let sample2ProbeStarted = false
+  await page.route(/\/api\/variants\/count\?sample_id=\d+$/, async (route) => {
+    if (route.request().url().endsWith('sample_id=2')) {
+      sample2ProbeStarted = true
+      await sample2StalenessProbe.promise
+    }
+    await route.fulfill(jsonRoute({ count: 1 }))
+  })
   const requests = await stubQueryBuilder(page, async (body, requestIndex) => {
     if (requestIndex === 0) {
       await firstRun.promise
@@ -457,6 +471,12 @@ test('obsolete run success and failure cannot cross a mode or filter edit (#1988
     window.dispatchEvent(new PopStateEvent('popstate'))
   })
   await expect(page).toHaveURL(/sample_id=2/)
+  await expect.poll(() => sample2ProbeStarted).toBe(true)
+  await expect(page.getByTestId('run-query-btn')).toHaveCount(0)
+  await expect(page.getByTestId('query-results-table')).toHaveCount(0)
+  await expect(page.getByText('Query failed')).toHaveCount(0)
+  sample2StalenessProbe.resolve()
+  await expect(page.getByTestId('run-query-btn')).toBeEnabled()
   const oldSampleResponse = page.waitForResponse(
     (response) => response.url().endsWith('/api/query') && response.request().method() === 'POST',
   )
@@ -468,7 +488,14 @@ test('obsolete run success and failure cannot cross a mode or filter edit (#1988
 
   await page.getByTestId('run-query-btn').click()
   await expect.poll(() => requests.queryBodies.length).toBe(5)
-  expect(requests.queryBodies[4].sample_id).toBe(2)
+  expect(requests.queryBodies[4]).toMatchObject({
+    sample_id: 2,
+    include_all_positions: false,
+    filter: {
+      combinator: 'and',
+      rules: [{ field: 'gene_symbol', operator: '=', value: 'BRCA1' }],
+    },
+  })
   await expect(page.getByText('rs_carried')).toBeVisible()
   await exportJson(page)
   await expect.poll(() => requests.exportBodies.length).toBe(1)

@@ -7,7 +7,7 @@
  * - SQL Console: Monaco SQL editor + results table + schema sidebar
  */
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useContext, useEffect, useRef, useState } from "react"
 import { useSearchParams } from "react-router-dom"
 import { type RuleGroupType } from "react-querybuilder"
 import { Filter, Play, Loader2, AlertCircle, RotateCcw, Terminal } from "lucide-react"
@@ -23,20 +23,20 @@ import QueryBuilderPanel from "@/components/query-builder/QueryBuilderPanel"
 import QueryResultsTable from "@/components/query-builder/QueryResultsTable"
 import SavedQueriesPanel from "@/components/query-builder/SavedQueriesPanel"
 import SqlConsole from "@/components/query-builder/SqlConsole"
+import { QueryBuilderDraftContext } from "@/components/query-builder/QueryBuilderDraftContext"
 
 type TabId = "visual" | "sql"
-
-const DEFAULT_QUERY: RuleGroupType = {
-  combinator: "and",
-  rules: [],
-}
 
 export default function QueryBuilderView() {
   const [searchParams] = useSearchParams()
   const sampleId = parseSampleId(searchParams.get("sample_id"))
 
   const [activeTab, setActiveTab] = useState<TabId>("visual")
-  const [query, setQuery] = useState<RuleGroupType>(DEFAULT_QUERY)
+  const draft = useContext(QueryBuilderDraftContext)
+  if (!draft) {
+    throw new Error("QueryBuilderView must render inside QueryBuilderDraftProvider")
+  }
+  const { query, setQuery, resetQuery } = draft
   const [resultPages, setResultPages] = useState<QueryResultPage[]>([])
   const [hasExecuted, setHasExecuted] = useState(false)
   const [loadMoreError, setLoadMoreError] = useState<string | null>(null)
@@ -101,7 +101,7 @@ export default function QueryBuilderView() {
     setIsRunning(false)
     setRunError(null)
     setExportError(null)
-  }, [])
+  }, [setQuery])
 
   // No sample selected
   if (sampleId == null) {
@@ -183,7 +183,7 @@ export default function QueryBuilderView() {
 
   const handleClear = () => {
     resultGenerationRef.current += 1
-    setQuery(DEFAULT_QUERY)
+    resetQuery()
     setResultPages([])
     setHasExecuted(false)
     setIncludeAllPositions(false)
