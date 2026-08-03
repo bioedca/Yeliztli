@@ -1,119 +1,117 @@
 # Greptile reviews
 
-Greptile is an AI code-review GitHub App installed on this repository. Unlike the other
-hosted reviewers, its allowance is small enough that an unguarded configuration would
-exhaust it in about a day, so this repository runs Greptile in **manual-only** mode.
+Greptile is an AI code-review GitHub App installed on this repository. Its allowance is
+small enough that an unguarded configuration would exhaust it in about a day, so Greptile
+runs here in **manual-only** mode: it reviews a pull request when a maintainer asks it to,
+and never on its own.
 
 ## The budget
 
-This repository can use **16 Greptile reviews per month**.
+This repository is allocated **16 Greptile reviews per month**.
 
 Greptile meters *completed reviews*, not pull requests: "Billing counts **completed
 reviews**, not PRs. Each finished review consumes one credit, charged to the PR author.
 Skipped reviews don't count."[^billing] Three events each consume one review:
 
 1. opening a pull request,
-2. commenting `@greptileai` on a pull request,
+2. mentioning the Greptile bot on a pull request,
 3. pushing a commit while `triggerOnUpdates` is enabled.
 
-A review that finds nothing still costs the same as one that finds a bug, and a
-re-review of the same pull request costs a fresh unit. There is no partial refund and no
-API that reports the remaining balance — usage is visible only in Greptile's dashboard.
+A review that finds nothing costs the same as one that finds a bug, and a re-review of the
+same pull request costs a fresh unit. There is no partial refund and no API that reports
+the remaining balance — usage is visible only in Greptile's dashboard.
 
-For scale: this repository saw 374 pull requests updated in a recent 30-day window. At
-one automatic review per opened pull request, the monthly allowance is gone well inside
-the first day, and every one of those reviews lands on a pull request that never asked
-for it.
+Two things make the 16 tighter than it looks. Credits are billed **per author**, not per
+repository — "Overages are per-author, not pooled across the team"[^billing] — so every
+repository this account opens pull requests in draws on the same pool; 16 is this
+repository's share of it, not a limit Greptile enforces here. And for scale, this
+repository saw 374 pull requests updated in a recent 30-day window: at one automatic review
+per opened pull request, the whole month is gone well inside the first day.
 
-## The guard
+## Two layers block automatic review
 
-`greptile.json` at the repository root asks Greptile to disable every automatic trigger.
-Greptile reads this file **from the source branch of the pull request**, not from
-`main`[^config] — so a branch cut before this file landed is not protected by it. Merge
-`main` into a long-lived branch to pick the guard up.
-
-See "Known limitation" below before treating this file as a guarantee: on the only
-occasion it has been exercised here, an org-level setting decided the outcome first.
-
-| Key | Value | Why |
-| --- | --- | --- |
-| `skipReview` | `"AUTOMATIC"` | Skips automatic reviews while still allowing manual triggers.[^skip] |
-| `labels` | `["greptile-review"]` | Restricts review to pull requests carrying that label — a second, independent guard. |
-| `triggerOnUpdates` | `false` | No re-review per pushed commit. Each one would be a separate credit. |
-| `triggerOnDrafts` | `false` | No review of draft pull requests. |
-| `shouldUpdateDescription` | `false` | Keeps the review as a bot-authored artifact instead of rewriting the pull request body. |
-| `excludeAuthors` | `["dependabot[bot]"]` | Dependency bumps never spend the budget. |
-
-Two guards are deliberate rather than redundant. Greptile's own reference pages describe
-`skipReview` differently in two places — "skip auto-reviews but allow manual triggers" in
-the `greptile.json` reference[^skip] versus "skip review entirely for files in this
-directory" in the `.greptile/` reference — and at least one public repository uses an
-undocumented plural `skipReviews` spelling. The `labels` filter does not depend on that
-key being parsed the way the reference describes.
-
-`shouldUpdateDescription` is load-bearing beyond cost control: set to `true`, Greptile
-writes its summary into the pull request description instead of posting a review, leaving
-no provider-authored artifact for a route validator to verify.
-
-## Requesting a review
-
-Greptile will not review anything unless you ask. To spend one of the 16:
-
-1. Add the `greptile-review` label to the pull request.
-2. Comment `@greptileai` on the pull request.
-
-Step 1 satisfies the `labels` filter; step 2 is Greptile's documented manual trigger.[^trigger]
-Do both — Greptile's documentation is contradictory about whether a label-filtered pull
-request can still be triggered by mention alone, so relying on either one is a coin flip.
-
-Greptile's own messages on this repository use a **different** mention from its
-documentation: refusing PR #2252 it wrote "Bypass the limit by tagging `@greptile-apps` to
-review." If `@greptileai` produces no response, try `@greptile-apps`. Neither string is
-confirmed to be the only working one, and each successful trigger costs a review.
-
-## Known limitation: dashboard settings can pre-empt this file
-
-`greptile.json` is not the only control. Greptile resolves configuration as *org enforced
-rules > `.greptile/` folder > `greptile.json` > org default rules*, and the org dashboard is
-not visible from this repository.
-
-This was observed directly. PR #2252 — the pull request that *added* this guard, so
-`greptile.json` was present on its source branch — was still processed by Greptile, and
-was stopped by an org-level changed-file limit rather than by `skipReview`:
+**Layer 1 — the org dashboard sets `fileChangeLimit` to 1.** Greptile skips "PRs with more
+than this many changed files"[^config], so every pull request touching two or more files is
+refused automatically. This was observed working on PR #2252:
 
 > Too many files changed for review. (`6 files found`, `1 file limit`)
 
-No credit was consumed (a skipped review is not billed, and no `Greptile Review` check run
-was produced), but the skip came from dashboard state, not from this file. Treat the
-repository config as **one** layer of defence whose independent effectiveness is unproven,
-not as proof that automatic review cannot happen. If the budget must be guaranteed, the
-only hard stop Greptile documents is **Organization Settings → Billing → Flex Usage Limit
-set to `$0`**, which stops spend at the vendor.
+This layer is deliberate and is the primary block. It is not visible from this repository —
+it lives in Greptile's dashboard.
 
-Before spending a review, check that it is worth a unit of a 16/month budget:
+**Layer 2 — `greptile.json` sets `skipReview` to `"AUTOMATIC"`.** Layer 1 has a hole it
+cannot close: a pull request changing **exactly one file** is not "more than 1", so it is
+still auto-reviewed, and `fileChangeLimit` has a documented minimum of 1, so it cannot be
+set lower. Single-file pull requests are common here — a docs correction, a one-line fix.
+`skipReview: "AUTOMATIC"` — "skip auto-reviews but allow manual triggers"[^skip] — is what
+closes that hole.
+
+The rest of `greptile.json` pins defaults so they cannot be switched on silently:
+
+| Key | Value | Why |
+| --- | --- | --- |
+| `skipReview` | `"AUTOMATIC"` | Skips automatic review while still allowing manual triggers. |
+| `triggerOnUpdates` | `false` | No re-review per pushed commit. Each one would be a separate billed review. |
+| `triggerOnDrafts` | `false` | No review of draft pull requests. Marking a draft ready is itself a trigger. |
+| `shouldUpdateDescription` | `false` | Keeps the review as a bot-authored artifact instead of rewriting the pull request body. |
+| `excludeAuthors` | `["dependabot[bot]"]` | Dependency bumps never spend the budget. |
+
+`shouldUpdateDescription` is load-bearing beyond cost: set to `true`, Greptile writes its
+summary into the pull request description and leaves **no provider-authored artifact at
+all** — nothing a review-route validator could verify.
+
+Deliberately **not** set: `labels`, `includeAuthors`, `includeBranches`, `includeKeywords`.
+An allow-list filter would add no third guarantee against automatic review, but Greptile's
+documentation contradicts itself about whether a mention overrides such filters — so it
+could also refuse the *manual* trigger. Losing manual review is worse than an occasional
+stray credit.
+
+### Caveats
+
+- `greptile.json` is read **from the source branch of the pull request**, not from
+  `main`[^config]. A branch cut before this file landed is not covered; merge `main` into a
+  long-lived branch to pick it up.
+- Config resolves as *org enforced rules > `.greptile/` folder > `greptile.json` > org
+  default rules*. Dashboard state can pre-empt this file, and cannot be seen from here.
+- The only hard stop Greptile documents is **Organization Settings → Billing → Flex Usage
+  Limit set to `$0`**, which stops spend at the vendor rather than at the repository.
+
+## Requesting a review
+
+Greptile reviews nothing unless asked. To spend one of the 16, comment on the pull request:
+
+```
+@greptile-apps
+```
+
+This also bypasses the `fileChangeLimit` — Greptile's own refusal message says "Bypass the
+limit by tagging `@greptile-apps` to review." Greptile's documentation instead gives the
+mention as `@greptileai`[^trigger]; if one produces no response, try the other. Each
+successful trigger costs a review, so do not spray both.
+
+Before spending one, check that it is worth a unit of a 16/month budget:
 
 - Do not trigger Greptile on a pull request whose `## Review route` section selects a
-  different hosted reviewer. That review cannot be used as route evidence, so the credit
+  different hosted reviewer — that review cannot be used as route evidence, so the credit
   buys nothing.
-- Do not re-trigger to "refresh" a review after a push unless the new evidence is actually
-  needed — the previous review is stale, but the replacement costs another unit.
-- Prefer a single trigger on the final, frozen head rather than one per iteration.
+- Do not re-trigger to "refresh" after a push unless the new evidence is actually needed.
+- Prefer a single trigger on the final, frozen head over one per iteration.
 
 ## What Greptile posts
 
 A completed review produces, on the reviewed commit:
 
 - a check run named `Greptile Review` (app id `867647`) whose `output.summary` reads
-  `Greptile has reviewed the Pull Request.` followed by `<N> files reviewed, <M> comments added.`
+  `Greptile has reviewed the Pull Request.` followed by `<N> files reviewed, <M> comments added.`,
 - a top-level issue comment carrying the human-readable `Greptile Summary`,
 - a formal pull-request review with an **empty body** and state `COMMENTED`, which exists
   only to carry inline comments.
 
-`conclusion: success` on the check run means the review *completed*, not that it was
-clean — a review that found three problems still succeeds. Cleanliness is `0 comments added`.
+`conclusion: success` on the check run means the review *completed*, not that it was clean —
+a review that found three problems still succeeds. Cleanliness is `0 comments added`.
 
 Greptile **edits its summary comment in place** on each re-review rather than posting a new
-one, so the comment's creation time does not tell you when the latest review ran.
+one, so that comment's creation time does not tell you when the latest review ran.
 
 [^billing]: Greptile, "Billing and seats". <https://www.greptile.com/docs/code-review-bot/billing-seats> (accessed 2026-08-03).
 [^config]: Greptile, "greptile.json reference". <https://www.greptile.com/docs/code-review/greptile-json-reference> (accessed 2026-08-03).

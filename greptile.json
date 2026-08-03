@@ -1,8 +1,9 @@
 {
   "skipReview": "AUTOMATIC",
-  "labels": ["greptile-review"],
   "triggerOnUpdates": false,
   "triggerOnDrafts": false,
   "shouldUpdateDescription": false,
-  "excludeAuthors": ["dependabot[bot]"]
+  "excludeAuthors": [
+    "dependabot[bot]"
+  ]
 }

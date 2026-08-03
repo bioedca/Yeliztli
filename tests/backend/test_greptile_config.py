@@ -83,15 +83,19 @@ def test_automatic_reviews_are_skipped() -> None:
     )
 
 
-def test_a_label_filter_independently_blocks_automatic_review() -> None:
-    # Second, independent guard: Greptile's own reference pages describe
-    # skipReview inconsistently, so the budget must not rest on that key alone.
-    labels = _config().get("labels")
-    assert isinstance(labels, list) and labels, (
-        "labels must list at least one opt-in label so automatic review stays "
-        "blocked even if skipReview is not parsed as documented"
+@pytest.mark.parametrize("key", ["labels", "includeAuthors", "includeBranches", "includeKeywords"])
+def test_no_pr_filter_can_block_the_manual_trigger(key: str) -> None:
+    # Automatic review is already blocked twice over: the org dashboard sets
+    # fileChangeLimit to 1, and skipReview pins manual-only mode. An allow-list
+    # style PR filter adds no third guarantee but risks refusing the manual
+    # @greptile-apps trigger, which is the one path that must keep working --
+    # Greptile's docs contradict themselves on whether a mention overrides these
+    # filters. Losing manual review is worse than an occasional stray credit.
+    assert key not in _config(), (
+        f"{key} must stay unset: an allow-list PR filter may also refuse the "
+        f"manual trigger, and manual review is the only way to spend the budget "
+        f"deliberately"
     )
-    assert all(isinstance(label, str) and label for label in labels)
 
 
 @pytest.mark.parametrize("key", ["triggerOnUpdates", "triggerOnDrafts"])
