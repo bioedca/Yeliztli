@@ -54,10 +54,16 @@ packet asserts no patient-specific or quantitative clinical claim; it records
 which published model and which annotation resource the bundled panel points at.
 
 That distinction is recorded deliberately rather than assumed. Consensus also
-surfaced an independent population validation of PRS77 (Hovhannisyan et al.,
-*Cancer*, 2024) with a different cohort and author group. It is **not** relied on
-here: were Yeliztli ever to score this model, that validation would be part of
-the evidence needed, and this packet must not be mistaken for that work.
+surfaced a population validation of PRS77 (Hovhannisyan et al., *Cancer*
+2024;130(17):2978-2987 — DOI:10.1002/cncr.35337, accessed 2026-08-03). Calling it
+independent is **not** inferred from the ranking: its record was retrieved from
+Scite and retained in `raw/scite-doi-lookup-2026-08-03.json`, and it shows an
+author group (Hovhannisyan, Zemánková, Nehasil) sharing no author with Mavaddat
+et al. and a Czech case-control cohort.
+
+It is nevertheless **not** relied on here: were Yeliztli ever to score this model,
+that validation would be part of the evidence needed, and this packet must not be
+mistaken for that work.
 
 ### Scite citation tallies (context, not evidence of correctness)
 
@@ -84,6 +90,15 @@ rather than left blank. In summary:
 | Consensus | **Unavailable** — no service or index-build stamp | Consensus terms; discovery aid only | Query, result ranks, hit identity |
 | Scite | **Unavailable** — no service or index-build stamp | Scite terms; screening aid only | Bibliographic fields, editorial-notice outcome, point-in-time tallies |
 | PubMed connector | **Unavailable** for this record | NCBI/NLM public data, no signed licence required | Bibliographic metadata only |
+| Ensembl Variation snapshot | **Unavailable** — no release recorded (#2246) | Unrestricted Ensembl data; factual annotation only | Referenced by path + pinned SHA-256, **not** duplicated |
+
+The Ensembl audit snapshot is referenced rather than copied into `raw/`
+deliberately. It is already checked in at
+`backend/data/sources/breast_prs77/ensembl_primary_grch38_2026-07-16.json` as the
+artifact `scripts/build_breast_prs77.py` consumes, and the panel pins its
+SHA-256. A second copy under `raw/` could silently drift from the one that
+actually drives the build; a verified digest cannot. The packet test recomputes
+that digest, so truncating or editing the snapshot fails the guard.
 
 Three consequences follow and are stated plainly.
 

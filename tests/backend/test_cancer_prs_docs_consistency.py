@@ -9,6 +9,7 @@ calibration withholding.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from pathlib import Path
@@ -209,40 +210,61 @@ def test_breast_prs_references_carry_a_science_evidence_packet() -> None:
     )
     for entry in packet["queries"]:
         assert entry.get("status"), f"packet entry for {entry['service']} must record a status"
-        if entry["status"] == "success":
-            raw = entry.get("raw_payload")
-            assert raw, f"successful {entry['service']} call must record a raw payload path"
-            # The recorded path must name evidence inside this packet. Without
-            # this, an absolute path would discard the REPO_ROOT prefix and any
-            # unrelated repository file would satisfy the guard, so the packet
-            # could claim a sanitized payload its raw/ directory does not hold.
-            assert not Path(raw).is_absolute(), f"raw payload path must be relative: {raw}"
-            resolved = (REPO_ROOT / raw).resolve()
-            assert resolved.is_relative_to(_EVIDENCE_DIR.resolve()), (
-                f"raw payload must live inside {_EVIDENCE_DIR.name}: {raw}"
+        if entry["status"] != "success":
+            continue
+
+        # An entry may either retain its own sanitized payload under raw/, or
+        # reference a canonical repository artifact by pinned digest. The second
+        # form is preferred when the artifact already drives the build: a copy
+        # can drift from what is actually consumed, a verified digest cannot.
+        artifact = entry.get("repository_artifact")
+        if artifact:
+            artifact_path = REPO_ROOT / artifact
+            assert artifact_path.is_file(), f"missing referenced artifact: {artifact}"
+            expected = entry.get("artifact_sha256")
+            assert expected, f"{artifact} must be pinned by an artifact_sha256"
+            actual = hashlib.sha256(artifact_path.read_bytes()).hexdigest()
+            assert actual == expected, (
+                f"{artifact} digest drifted: packet records {expected}, file is {actual}"
             )
-            assert resolved.is_file(), f"missing recorded raw payload: {raw}"
-            # Existence is not usefulness: a truncated, emptied or malformed
-            # payload would otherwise let the packet report complete evidence
-            # over unusable files. Nothing else in the repository parses these.
-            payload = json.loads(resolved.read_text(encoding="utf-8"))
-            assert payload.get("accessed") == packet["accessed"], (
-                f"{raw} must record the packet's access date {packet['accessed']}"
-            )
-            assert payload.get("status") == "success", (
-                f"{raw} must record the successful outcome it is cited for"
-            )
-            records = next(
-                (
-                    value
-                    for key, value in payload.items()
-                    if key in {"records", "results_retained", "complete_result_ranking"}
-                ),
-                None,
-            )
-            assert isinstance(records, list) and records, (
-                f"{raw} must retain a non-empty record collection, not just metadata"
-            )
+            continue
+
+        raw = entry.get("raw_payload")
+        assert raw, (
+            f"successful {entry['service']} call must record a raw payload path "
+            "or a digest-pinned repository_artifact"
+        )
+        # The recorded path must name evidence inside this packet. Without this,
+        # an absolute path would discard the REPO_ROOT prefix and any unrelated
+        # repository file would satisfy the guard, so the packet could claim a
+        # sanitized payload its raw/ directory does not hold.
+        assert not Path(raw).is_absolute(), f"raw payload path must be relative: {raw}"
+        resolved = (REPO_ROOT / raw).resolve()
+        assert resolved.is_relative_to(_EVIDENCE_DIR.resolve()), (
+            f"raw payload must live inside {_EVIDENCE_DIR.name}: {raw}"
+        )
+        assert resolved.is_file(), f"missing recorded raw payload: {raw}"
+        # Existence is not usefulness: a truncated, emptied or malformed payload
+        # would otherwise let the packet report complete evidence over unusable
+        # files. Nothing else in the repository parses these.
+        payload = json.loads(resolved.read_text(encoding="utf-8"))
+        assert payload.get("accessed") == packet["accessed"], (
+            f"{raw} must record the packet's access date {packet['accessed']}"
+        )
+        assert payload.get("status") == "success", (
+            f"{raw} must record the successful outcome it is cited for"
+        )
+        records = next(
+            (
+                value
+                for key, value in payload.items()
+                if key in {"records", "results_retained", "complete_result_ranking"}
+            ),
+            None,
+        )
+        assert isinstance(records, list) and records, (
+            f"{raw} must retain a non-empty record collection, not just metadata"
+        )
 
     # Versions/builds, licences and retention basis are required packet content,
     # so guard them too. Without this, deleting `source_versions_and_licenses`

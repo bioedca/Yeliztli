@@ -4,7 +4,8 @@
   "claim": "Source identity and provenance for the two references cited by the breast-cancer PRS77 availability note in docs/modules/health-risk/cancer.md. No biological, statistical, or clinical claim is asserted; the model is fail-closed and produces no score.",
   "citations": [
     "PMID:25855707; DOI:10.1093/jnci/djv036 (accessed 2026-08-03)",
-    "DOI:10.1093/database/bay119 (accessed 2026-08-03)"
+    "DOI:10.1093/database/bay119 (accessed 2026-08-03)",
+    "Ensembl Variation GRCh38 primary-mapping snapshot, SHA-256 7e212e701dfbb7d189155326683396785e6cd3018a4d0a1645650d067fda50b5 (accessed 2026-08-03)"
   ],
   "high_stakes_two_source_rule": "Not engaged. This packet records which published model and which annotation resource the bundled panel points at, not a patient-specific or quantitative clinical claim.",
   "source_versions_and_licenses": {
@@ -50,6 +51,14 @@
       "unavailable_fields": [
         "version_or_build (not exposed for this record)"
       ]
+    },
+    "Ensembl Variation snapshot (backend/data/sources/breast_prs77/ensembl_primary_grch38_2026-07-16.json)": {
+      "version_or_build": "Unavailable. The snapshot records assembly GRCh38, coord_system chromosome, mapping_policy and checked_on 2026-07-16, but names no Ensembl Variation release or database version - verified by searching it for 'release', 'version' and 'build', none of which appear. The snapshot is therefore re-usable but not re-fetchable-and-confirmable upstream. Tracked by #2246; a release is not invented here.",
+      "license_or_terms": "Ensembl data is released without restriction (the resource is cited as DOI:10.1093/database/bay119). The stored artifact holds coordinates, alleles and strand for 77 public rsIDs - factual annotation, no third-party expressive content.",
+      "retention_basis": "Referenced, not duplicated: the canonical artifact lives at backend/data/sources/breast_prs77/ and its SHA-256 is pinned by the panel and re-verified by the packet test.",
+      "unavailable_fields": [
+        "version_or_build (no release identifier recorded in the snapshot)"
+      ]
     }
   },
   "queries": [
@@ -89,6 +98,18 @@
       "status": "success",
       "result": "Confirms PMID:25855707 and DOI:10.1093/jnci/djv036 are the same record: 'Prediction of breast cancer risk based on profiling with common genetic variants', Journal of the National Cancer Institute, 2015, volume 107 issue 5, first author Mavaddat, 212 authors. Publication types are Journal Article; Research Support, N.I.H., Extramural; Research Support, Non-U.S. Gov't.",
       "raw_payload": "data/science-evidence/2026-08-03-breast-prs77-availability-2028/raw/pubmed-25855707-metadata.json"
+    },
+    {
+      "service": "Ensembl Variation",
+      "tier": "authoritative database (not a discovery service)",
+      "accessed": "2026-08-03",
+      "original_retrieval": "2026-07-16, recorded as checked_on in the snapshot",
+      "endpoint": "primary GRCh38 chromosome mapping for the 77 PRS77 loci",
+      "status": "success",
+      "result": "77 records (rsid, alleles, location, strand) with assembly_name GRCh38, coord_system chromosome, and a mapping_policy excluding alternate scaffolds. scripts/build_breast_prs77.py re-derives the documented 39/2/41 classification from it.",
+      "repository_artifact": "backend/data/sources/breast_prs77/ensembl_primary_grch38_2026-07-16.json",
+      "artifact_sha256": "7e212e701dfbb7d189155326683396785e6cd3018a4d0a1645650d067fda50b5",
+      "why_not_copied_into_this_packet": "The snapshot is already checked in as the artifact the build script consumes, and the panel pins this exact SHA-256 in model_provenance.reproducibility.checked_in_snapshot_sha256. Duplicating it under raw/ would create a second copy that can silently drift from the one that actually drives the build. The packet references the canonical artifact and its digest instead, and the packet test recomputes that digest so a mismatch fails."
     }
   ],
   "panel_derived_values": {

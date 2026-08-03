@@ -7,7 +7,10 @@
       "10.1093/jnci/djv036",
       "10.1093/database/bay119"
     ],
-    "limit": 5
+    "limit": 5,
+    "titles_followup": [
+      "Population-specific validation and comparison of the performance of 77- and 313-variant polygenic risk scores for breast cancer risk prediction"
+    ]
   },
   "status": "success",
   "total_hits": 2,
@@ -69,6 +72,37 @@
         "mentioning": 357,
         "citing_publications": 505
       }
+    },
+    {
+      "doi": "10.1002/cncr.35337",
+      "title": "Population-specific validation and comparison of the performance of 77- and 313-variant polygenic risk scores for breast cancer risk prediction",
+      "journal": "cancer",
+      "publisher": "Wiley",
+      "year": 2024,
+      "date": "2024-05-08",
+      "volume": "130",
+      "issue": "17",
+      "page": "2978-2987",
+      "is_open_access": true,
+      "oa_status": "hybrid",
+      "license": "cc-by-nc",
+      "authors_returned": [
+        "Milena Hovhannisyan",
+        "Petra Zemankova",
+        "Petr Nehasil"
+      ],
+      "abstract_retained": false,
+      "abstract_omitted_reason": "Metadata-only packet choice.",
+      "editorial_notices": [],
+      "citation_tally": {
+        "total": 3,
+        "supporting": 0,
+        "contrasting": 0,
+        "mentioning": 3,
+        "citing_publications": 1
+      },
+      "role": "Substantiates the characterization of the Consensus rank-4 hit. Retrieved 2026-08-03 to check the claim rather than assert it from discovery-tool metadata.",
+      "substantiates": "Author group (Hovhannisyan, Zemankova, Nehasil) shares no author with Mavaddat et al. 2015, and the study is a Czech case-control cohort - so 'different cohort and author group' is supported by a retrieved record, not inferred from a ranking. The paper remains explicitly NOT relied on for any claim in this packet."
     }
   ],
   "correction_retraction_screening": "Neither record carries any editorial notice - no retraction, correction, expression of concern, or erratum - as of the 2026-08-03 access date."
