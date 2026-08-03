@@ -9,8 +9,10 @@ being withheld and where its allele audit came from:
 - reference `[2]` identifies the published model the bundled weight set derives
   from (Mavaddat et al., 77-SNP breast-cancer PRS);
 - reference `[3]` identifies the resource used for the bundled GRCh38 allele
-  audit recorded at `weight_sets[0].model_provenance.current_allele_audit` in
-  `backend/data/panels/cancer_prs_weights.json`.
+  audit recorded at `model_provenance.current_allele_audit` on the weight set whose
+  `trait` is `breast_cancer` in `backend/data/panels/cancer_prs_weights.json`. The
+  loader identifies models by trait and treats list order as insignificant, so the
+  audit is named by trait rather than by position.
 
 **This packet supports source identity and provenance only.** The documentation
 change asserts no biological, statistical, or clinical claim about breast-cancer
@@ -169,7 +171,8 @@ checked in:
   `checked_on: 2026-07-16`, and a `raw_payload_sha256` over the upstream payload;
 - `scripts/build_breast_prs77.py` — deterministically re-derives the
   forward / reverse-complement / palindromic classification from that snapshot;
-- `model_provenance.reproducibility.checked_in_snapshot_sha256` in the panel —
+- `model_provenance.reproducibility.checked_in_snapshot_sha256` on the `breast_cancer`
+  weight set —
   pins the snapshot's own SHA-256 alongside the source table and the PGS
   harmonized file.
 

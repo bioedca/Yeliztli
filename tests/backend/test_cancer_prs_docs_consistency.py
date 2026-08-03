@@ -12,6 +12,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import subprocess
 from datetime import date
 from pathlib import Path
 
@@ -226,7 +227,7 @@ def test_cancer_docs_distinguish_the_runtime_block_from_ancestry_withholding() -
     # identifier already in the packet -- the Ensembl DOI, say -- even though it
     # would no longer identify the withheld breast model at all.
     source_pmid = breast["source_pmid"]
-    assert f"PMID:{source_pmid}" in reference_text, (
+    assert re.search(rf"PMID:{re.escape(str(source_pmid))}(?![0-9])", reference_text), (
         f"breast PRS reference [2] must cite the panel's source_pmid ({source_pmid}); "
         f"reference reads: {reference_text}"
     )
@@ -272,6 +273,31 @@ def test_cancer_docs_distinguish_the_runtime_block_from_ancestry_withholding() -
         f"reference [3]'s immutable link points at {immutable.group('path')}, not the "
         f"bundled panel {panel_rel}"
     )
+    # Naming the right path is not enough: after the audit is regenerated the URL
+    # can still resolve to a blob carrying the *old* counts. Read the linked blob
+    # and require its audit to be the one the documentation reports.
+    linked = subprocess.run(
+        ["git", "show", f"{immutable.group('sha')}:{panel_rel}"],
+        capture_output=True,
+        text=True,
+        cwd=REPO_ROOT,
+    )
+    assert linked.returncode == 0, (
+        f"reference [3] links commit {immutable.group('sha')[:10]}, which this checkout "
+        "cannot read; the link must name a commit reachable from the repository"
+    )
+    linked_panel = json.loads(linked.stdout)
+    linked_breast = next(w for w in linked_panel["weight_sets"] if w["trait"] == "breast_cancer")
+    linked_audit = linked_breast["model_provenance"]["current_allele_audit"]
+    assert linked_audit == audit, (
+        "reference [3]'s immutable link resolves to a panel whose allele audit differs "
+        "from the bundled one; the link is stale and must be re-pointed at the "
+        "regenerated panel"
+    )
+    assert linked_panel["version"] == panel_version, (
+        f"reference [3]'s immutable link resolves to panel version "
+        f"{linked_panel['version']!r}, not the bundled {panel_version!r}"
+    )
 
 
 def test_breast_prs_references_carry_a_science_evidence_packet() -> None:
@@ -289,9 +315,11 @@ def test_breast_prs_references_carry_a_science_evidence_packet() -> None:
     packet = json.loads(queries_path.read_text(encoding="utf-8"))
 
     services = {str(entry["service"]) for entry in packet["queries"]}
-    assert {"Consensus", "Scite"} <= services, (
-        "the packet must record the Consensus and Scite first tier, even when a "
-        f"service was unavailable; recorded services were {sorted(services)}"
+    missing_tiers = sorted(_EVIDENCE_TIER_SERVICES - services)
+    assert not missing_tiers, (
+        "the packet must record the first tier and the narrowest specialist, even "
+        f"when a service was unavailable; missing {missing_tiers} (recorded "
+        f"{sorted(services)})"
     )
     for entry in packet["queries"]:
         assert entry.get("status"), f"packet entry for {entry['service']} must record a status"
@@ -307,6 +335,12 @@ def test_breast_prs_references_carry_a_science_evidence_packet() -> None:
             # skipped service is indistinguishable from one that was never run.
             assert str(entry.get("reason", "")).strip(), (
                 f"{entry['service']} recorded status {entry['status']!r} without a reason"
+            )
+            # A recorded outage also has to say what was done about it, or the
+            # packet documents a gap without documenting its disposition.
+            assert str(entry.get("fallback", "")).strip(), (
+                f"{entry['service']} recorded status {entry['status']!r} without a "
+                "fallback disposition"
             )
             continue
 
@@ -427,6 +461,17 @@ def test_breast_prs_references_carry_a_science_evidence_packet() -> None:
                 if key in {"records", "results_retained", "complete_result_ranking"}
             ]
             present = _scalar_values(returned_records)
+            # A PMID alone does not pin the record: it can keep the requested PMID
+            # while losing or changing the DOI the documentation cites beside it.
+            if params.get("pmids"):
+                doi_ids = {
+                    m.group(0).split(":", 1)[1].upper()
+                    for citation in packet["citations"]
+                    for m in _PROVENANCE_ID_RE.finditer(str(citation))
+                    if m.group(0).upper().startswith("DOI:")
+                    and str(params["pmids"][0]) in str(citation)
+                }
+                wanted = list(wanted) + sorted(doi_ids)
             missing_ids = sorted(w for w in wanted if w not in present)
             assert not missing_ids, (
                 f"{raw} returns no record for the identifiers its entry requested: {missing_ids}"
@@ -453,6 +498,19 @@ def test_breast_prs_references_carry_a_science_evidence_packet() -> None:
                 f"{entry[field]!r}; the stored results cannot be attributed to the "
                 "recorded search"
             )
+        # The packet's prose claims a specific paper at rank 1. Bind it to the
+        # retained ranking, or a refreshed ranking could put a different paper
+        # there while the entry still described the old one.
+        ranking = payload.get("complete_result_ranking")
+        retained = payload.get("results_retained")
+        if ranking and retained:
+            top = next((r for r in ranking if r.get("rank") == 1), None)
+            claimed = next((r for r in retained if r.get("rank") == 1), None)
+            if top and claimed:
+                assert top.get("title") == claimed.get("title"), (
+                    f"{raw} annotates rank 1 as {claimed.get('title')!r} but the retained "
+                    f"ranking has {top.get('title')!r} there"
+                )
         # A payload that declares how many results came back must retain that
         # many, or the "complete" ranking is a truncation wearing its name.
         returned = payload.get("results_returned")
