@@ -13,16 +13,16 @@ real genotype, sample, credential, or restricted data was submitted or retained.
 
 ## Evidence ladder
 
-1. Consensus search query: human mitochondrial DNA phylogeny U5 C16270T
-   m.16270 PhyloTree. The returned records
-   70d82b1aaccb53b9a0722084905a6ba3 (Build 17) and
-   acdbf1a62608546cb0a06fc9a83e04fb (2009 PhyloTree paper) were each fetched
-   before being retained. The bounded request and metadata envelopes are in
-   raw/consensus-search-fetch-sanitized.json.
-2. Scite targeted DOI lookup queried 10.1002/humu.20921 and
-   10.3390/ijms22115747 with PhyloTree mitochondrial DNA haplogroup U5. The
-   response metadata and retraction-field availability are retained in
-   raw/scite-targeted-doi-responses-sanitized.json.
+1. Consensus was invoked with the sanitized query: human mitochondrial DNA
+   phylogeny U5 C16270T m.16270 PhyloTree. It was used for primary-source
+   discovery only. No response payload, generated summary, citation context,
+   or result identifier is retained, redistributed, or used as evidence; see
+   the [Consensus terms](https://consensus.app/home/terms-of-service/).
+2. Scite was invoked with the sanitized query: PhyloTree mitochondrial DNA
+   haplogroup U5. It was used for primary-source discovery only. No response
+   payload, citation context, tally, classifier result, or result identifier
+   is retained, redistributed, or used as evidence; see the
+   [Scite terms](https://scite.org/terms).
 3. The NCBI Entrez skill queried PubMed ESummary for 18853457,34072215, then
    EFetch for the same public IDs to inspect correction-link fields. The
    bounded, sanitized metadata is in pubmed-esummary.json.
@@ -33,11 +33,9 @@ real genotype, sample, credential, or restricted data was submitted or retained.
 
 ## Results and limits
 
-- Consensus results were fetched before use. They identify the Build 17 and
-  2009 phylogeny publications but do not provide the exact U5 marker evidence.
-- Scite identifies the two DOI records and reports Build 17 as the basis of the
-  2021 refinement. Its response omitted retraction_notices; that absence is
-  recorded and is not interpreted as a retraction clearance.
+- Consensus and Scite are discovery aids only. Their output is not retained or
+  used as evidence; the primary identifiers were independently retrieved and
+  recorded through NCBI and the source-audited registry.
 - PubMed EFetch did not emit a CommentsCorrectionsList for either retained
   record. This is a per-query observation, not a claim that no correction or
   retraction can exist elsewhere.
@@ -47,8 +45,8 @@ real genotype, sample, credential, or restricted data was submitted or retained.
 
 ## Sanitization
 
-The raw payload copies preserve operation, public query or identifier, returned
-citation metadata, source-release identity, and correction-status fields needed
-for review. They omit article abstracts and full text, author and affiliation
-details, service access/download URLs, tracking parameters, and any data about a
-person or sample.
+The retained raw payload copies preserve only source-release identity, durable
+primary identifiers, and correction-status fields needed for review. They omit
+article abstracts and full text, author and affiliation details, service
+access/download URLs, tracking parameters, and any data about a person or
+sample. No Consensus or Scite provider output is retained.

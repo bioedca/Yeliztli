@@ -18,6 +18,17 @@
     "archive_sha256": "3fe8cf00a15e1ccb09235091016eef1af3a68f44dd9355dd2b7666f8f767b146",
     "archive_accessed": "2026-07-12",
     "registry_extract_reviewed": "2026-08-03",
+    "license_or_terms": {
+      "status": "not_stated_on_inspected_official_pages",
+      "inspected_accessed": "2026-08-03",
+      "official_pages": [
+        "https://www.phylotree.org/",
+        "https://www.phylotree.org/tree/index.htm",
+        "https://www.phylotree.org/builds/mtDNA_tree_Build_17.zip",
+        "https://www.phylotree.org/what_is_new.htm"
+      ],
+      "handling": "Only a minimal public provenance extract and source digest are retained; this packet does not assert a reuse licence."
+    },
     "reference_sequence": {
       "accession": "NC_012920.1"
     }
@@ -56,9 +67,9 @@
     },
     "runtime_decision": {
       "ancestral_c": "withhold U5 and descendant traversal",
-      "derived_t": "permit traversal only; do not assign U5 from this marker",
+      "unambiguous_derived_t": "permit traversal only; do not assign U5 from this marker",
       "missing_or_no_call": "preserve markerless traversal",
-      "discordant_typed_rows": "withhold U5 and descendant traversal"
+      "discordant_or_mixed_typed_rows": "withhold U5 and descendant traversal"
     }
   },
   "privacy": {

@@ -8,9 +8,10 @@ keeps U5 markerless because that position is callable in only two of the four
 audited primary array exports; emitting it as an ordinary required marker would
 wrongly exclude otherwise compatible U5 descendants. A typed ancestral C at that
 exact position is nevertheless incompatible with descent through the U5 source
-edge, so the implementation withholds U5 and descendants. A derived T or
-missing/no-call value does not itself establish U5. Discordant typed vendor rows
-also withhold the U5 subtree rather than being collapsed to missing.
+edge, so the implementation withholds U5 and descendants. Only an unambiguous
+derived T or a missing/no-call value permits traversal; neither establishes U5.
+Discordant or mixed typed vendor rows also withhold the U5 subtree rather than
+being collapsed to missing.
 
 This is an implementation-level source-conflict rule. It does not make a
 clinical, phenotypic, population, ancestry, or forensic conclusion, and it does
@@ -23,8 +24,8 @@ genotype, sample, PII, credential, or restricted source payload is retained.
 | --- | --- | --- | --- | --- |
 | C1 | The direct Build 17 source motif for U5 contains C16192T and C16270T; C16270T has ancestral C, derived T, and is represented locally as i5016270 at position 16270. | PhyloTree Build 17 public archive, SHA-256 3fe8cf00a15e1ccb09235091016eef1af3a68f44dd9355dd2b7666f8f767b146 (accessed 2026-07-12; registry extract reviewed 2026-08-03). | raw/phylotree-build17-u5-source-extract.json | The archive is the authoritative source for the exact motif; the packet does not claim an independently replicated laboratory observation. |
 | C2 | A typed ancestral C, including a discordant typed position, must stop markerless U5 descent; T or missing/no-call must not be treated as a positive U5 call. | Repository implementation and synthetic regression tests, immutable pre-evidence commit aa3acc8df76f782de3ade41a95d6e5a1d9f96da4 (accessed 2026-08-03). | source-inventory.json | Conservative software behavior only. It withholds an otherwise possible label rather than inferring a biological or clinical result. |
-| C3 | PhyloTree is a curated mtDNA phylogeny used as input to haplogrouping methods, and Build 17 was used as the basis for the later refinement study. | PMID:18853457, DOI:10.1002/humu.20921; PMID:34072215, DOI:10.3390/ijms22115747 (accessed 2026-08-03). | pubmed-esummary.json, raw/consensus-search-fetch-sanitized.json, raw/scite-targeted-doi-responses-sanitized.json | These papers provide separate methodological context; neither is represented as an independent validation of the exact U5 C16270T row. |
-| C4 | Correction/retraction checks were attempted for both literature records. | PubMed EFetch and Scite metadata responses (accessed 2026-08-03). | pubmed-esummary.json, raw/scite-targeted-doi-responses-sanitized.json | PubMed returned no CommentsCorrectionsList in either retained record. Scite did not return a retraction_notices field, so its omission is not treated as a retraction clearance. |
+| C3 | PhyloTree is a curated mtDNA phylogeny used as input to haplogrouping methods, and Build 17 was used as the basis for the later refinement study. | PMID:18853457, DOI:10.1002/humu.20921; PMID:34072215, DOI:10.3390/ijms22115747 (accessed 2026-08-03). | pubmed-esummary.json | These papers provide separate methodological context; neither is represented as an independent validation of the exact U5 C16270T row. Consensus and Scite were used only to discover primary sources; their output is neither retained nor evidence. |
+| C4 | A correction-link check was recorded for both literature records. | PubMed EFetch (accessed 2026-08-03). | pubmed-esummary.json | PubMed returned no CommentsCorrectionsList in either retained record. This is not a general retraction clearance. |
 
 ## Evidence interpretation
 
@@ -61,8 +62,29 @@ aggregation of conflicting rows from becoming a fail-open path.
 
 source-inventory.json binds the evidence packet to the pre-evidence
 implementation commit and the exact local source extract, avoiding a
-self-referential commit identifier. source-response-index.json maps public
-provider responses to bounded, sanitized payloads and checksums. The retained
-artifacts contain durable identifiers, dates, query terms, and minimal metadata;
-they intentionally exclude abstracts, full text, author or affiliation detail,
-service access URLs, and tracking parameters. All paths are repository-relative.
+self-referential commit identifier. source-response-index.json maps the two
+retained primary-source payloads to checksums. The primary archive URL in
+`source_archive.archive_url` is an explicit exception to the routine exclusion
+of access URLs: it identifies the versioned public archive whose checksum is
+needed to reproduce C1. Service access URLs are not retained in raw payloads;
+the policy URLs below are human-authored citations rather than provider output.
+All paths are repository-relative.
+
+PhyloTree's Build 17 landing, archive-link, home, and update-history pages did
+not state a licence or reuse grant when inspected on 2026-08-03. This packet
+stores only a minimal public provenance extract and source digest, cites the
+requested source, and does not assert a reuse licence. The PubMed payload is
+limited to document-summary metadata retrieved through the official NCBI
+interface; it reproduces neither abstracts nor full text and follows the
+[NCBI policies](https://www.ncbi.nlm.nih.gov/home/about/policies/) and
+[PubMed disclaimer](https://pubmed.ncbi.nlm.nih.gov/disclaimer/).
+
+Discovery-service handling (accessed 2026-08-03). Consensus and Scite were
+invoked only with a sanitized public query to discover primary sources and
+screen the literature. No provider response payload, generated summary,
+citation context, citation tally, classifier result, account data, or
+personal/genomic data is retained in this repository. The evidence packet uses
+only independently obtained primary-source records and identifiers. Provider
+output is neither redistributed nor used as scientific evidence. See the
+[Consensus terms](https://consensus.app/home/terms-of-service/) and
+[Scite terms](https://scite.org/terms).

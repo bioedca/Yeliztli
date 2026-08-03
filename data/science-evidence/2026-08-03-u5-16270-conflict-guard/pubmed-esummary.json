@@ -56,5 +56,13 @@
     ],
     "reason": "Keep reproducible public citation and correction-check metadata without redistributing copyrighted text or user-specific access information."
   },
-  "license_or_terms": "No article abstract or full text is redistributed. PubMed identifiers and bibliographic metadata are retained for provenance."
+  "license_or_terms": {
+    "accessed": "2026-08-03",
+    "official_policy_urls": [
+      "https://www.ncbi.nlm.nih.gov/books/NBK25497/",
+      "https://www.ncbi.nlm.nih.gov/home/about/policies/",
+      "https://pubmed.ncbi.nlm.nih.gov/disclaimer/"
+    ],
+    "handling": "NCBI E-utilities/PubMed document-summary metadata was retrieved through the official interface. No article abstract or full text is redistributed; usage and copyright remain subject to NCBI policies and any publisher or author terms for protected content."
+  }
 }

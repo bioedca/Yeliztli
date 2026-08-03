@@ -5082,6 +5082,8 @@ class TestAssignHaplogroups:
             pytest.param("pgp_huA08F4D", "TT", id="derived-pgp-huA08F4D"),
             pytest.param("pgp_4187", "CC", id="ancestral-pgp-4187"),
             pytest.param("pgp_huA08F4D", "CC", id="ancestral-pgp-huA08F4D"),
+            pytest.param("pgp_4187", "CT", id="mixed-pgp-4187"),
+            pytest.param("pgp_huA08F4D", "TC", id="mixed-pgp-huA08F4D"),
         ],
     )
     @pytest.mark.parametrize("target", ("U5a", "U5b"))
@@ -5129,7 +5131,7 @@ class TestAssignHaplogroups:
             for result in assign_haplogroups(bundle, sample_engine)
             if result.tree_type == "mt"
         )
-        if guard_genotype == "CC":
+        if guard_genotype in {"CC", "CT", "TC"}:
             assert mt.haplogroup == "U"
             assert [step.haplogroup for step in mt.traversal_path] == ["L3", "N", "R", "U"]
             assert all(not step.haplogroup.startswith("U5") for step in mt.traversal_path)

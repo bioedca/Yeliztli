@@ -7797,13 +7797,18 @@ def test_issue_2165_u5_conflict_evidence_packet_is_source_bound() -> None:
     assert inventory["source_archive"]["archive_url"] == source_metadata["archive_url"]
     assert inventory["source_archive"]["archive_sha256"] == source_metadata["archive_sha256"]
     assert inventory["source_archive"]["archive_accessed"] == source_metadata["accessed"]
-    assert extract["source_archive"] == {
+    assert inventory["source_archive"]["license_or_terms"]["status"] == (
+        "not_stated_on_inspected_official_pages"
+    )
+    expected_extract_source_archive = {
         "name": source_metadata["name"],
         "version": source_metadata["version"],
         "archive_url": source_metadata["archive_url"],
         "archive_sha256": source_metadata["archive_sha256"],
         "archive_accessed": source_metadata["accessed"],
     }
+    assert extract["source_archive"] == expected_extract_source_archive
+    assert extract["license_or_terms"]["status"] == ("not_stated_on_inspected_official_pages")
 
     expected_motif = [
         {
@@ -7829,14 +7834,54 @@ def test_issue_2165_u5_conflict_evidence_packet_is_source_bound() -> None:
         record["correction_check"]["comments_corrections_list_emitted"] is False
         for record in pubmed["records"]
     )
+    assert (
+        "https://www.ncbi.nlm.nih.gov/books/NBK25497/"
+        in pubmed["license_or_terms"]["official_policy_urls"]
+    )
     readme = readme_path.read_text(encoding="utf-8")
     assert "implementation-level source-conflict rule" in readme
     assert "clinical, phenotypic, population, ancestry, or forensic conclusion" in readme
 
+    assert {entry["service"] for entry in response_index["entries"]} == {
+        "repository source-audited registry",
+        "NCBI Entrez",
+    }
     for entry in response_index["entries"]:
         payload_path = Path(__file__).resolve().parents[2] / entry["payload_path"]
         assert payload_path.is_file(), payload_path
         assert hashlib.sha256(payload_path.read_bytes()).hexdigest() == entry["sanitized_sha256"]
+
+    services = {entry["service"]: entry for entry in response_index["discovery_services"]}
+    assert set(services) == {"Consensus", "Scite"}
+    for service in services.values():
+        assert set(service) == {
+            "service",
+            "invoked_on",
+            "sanitized_query",
+            "purpose",
+            "provider_output_retained",
+            "provider_output_used_as_evidence",
+            "primary_source_ids_checked_independently",
+            "documentation_url",
+            "terms_url",
+        }
+        assert service["provider_output_retained"] is False
+        assert service["provider_output_used_as_evidence"] is False
+        assert service["primary_source_ids_checked_independently"] == [
+            "PMID:18853457",
+            "PMID:34072215",
+            "DOI:10.1002/humu.20921",
+            "DOI:10.3390/ijms22115747",
+        ]
+    assert not (U5_CONFLICT_EVIDENCE_PACKET / "raw/consensus-search-fetch-sanitized.json").exists()
+    assert not (
+        U5_CONFLICT_EVIDENCE_PACKET / "raw/scite-targeted-doi-responses-sanitized.json"
+    ).exists()
+    assert not any(
+        provider in path.name.lower()
+        for path in (U5_CONFLICT_EVIDENCE_PACKET / "raw").iterdir()
+        for provider in ("consensus", "scite")
+    )
 
 
 def test_issue_1798_batch_13_flattened_helpers_are_exact_and_source_only() -> None:

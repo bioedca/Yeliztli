@@ -1738,16 +1738,27 @@ def _classify_optional_conflict_match(
     """Return derived and ancestral calls for a node's non-scoring guards.
 
     Optional conflict guards are intentionally excluded from marker support and
-    confidence: a missing call is no evidence either way, a derived call permits
-    descent, and a typed ancestral call vetoes this node and every descendant.
-    A position with disagreeing typed vendor probes is likewise a conflict for a
-    guard: the ordinary positional projection omits it as ambiguous, but a
-    markerless branch must not treat that known conflict as missing evidence.
+    confidence: a missing call is no evidence either way, only an unambiguous
+    derived call permits descent, and any mixed or ancestral typed call vetoes
+    this node and every descendant. A position with disagreeing typed vendor
+    probes is likewise a conflict for a guard: the ordinary positional
+    projection omits it as ambiguous, but a markerless branch must not treat
+    that known conflict as missing evidence.
     """
-    present, conflicting, _ = _classify_snps(node.optional_conflict_snps, genotype_map)
-    return present, conflicting + sum(
-        snp.pos in ambiguous_positions for snp in node.optional_conflict_snps
-    )
+    present = 0
+    conflicting = 0
+    for snp in node.optional_conflict_snps:
+        if snp.pos in ambiguous_positions:
+            conflicting += 1
+            continue
+        genotype = genotype_map.get(snp.rsid)
+        if genotype is None or is_no_call(genotype):
+            continue
+        if set(genotype.strip().upper()) == {snp.allele.upper()}:
+            present += 1
+        else:
+            conflicting += 1
+    return present, conflicting
 
 
 def _classify_snps(
@@ -1974,13 +1985,10 @@ def _tree_walk(
     for child, child_present, child_total in passthrough_children:
         # The inherited markers were derived to reach here, so a typed-ancestral
         # one would contradict the lineage — skip such a broken pass-through.
+        # The optional conflict guard was checked before this child entered the
+        # deferred pass-through collection.
         _, conflicting, _ = _classify_node_match(child, genotype_map)
-        _guard_present, guard_conflicting = _classify_optional_conflict_match(
-            child,
-            genotype_map,
-            ambiguous_guard_positions,
-        )
-        if conflicting > 0 or guard_conflicting > 0:
+        if conflicting > 0:
             continue
         sub_support_path: list[tuple[int, int]] = []
         terminal, sub_path = _tree_walk(

@@ -49,5 +49,15 @@
       }
     }
   },
-  "license_or_terms": "This bounded factual extract records source identity and mutation fields only. It does not redistribute the upstream archive or a full source tree."
+  "license_or_terms": {
+    "status": "not_stated_on_inspected_official_pages",
+    "inspected_accessed": "2026-08-03",
+    "official_pages": [
+      "https://www.phylotree.org/",
+      "https://www.phylotree.org/tree/index.htm",
+      "https://www.phylotree.org/builds/mtDNA_tree_Build_17.zip",
+      "https://www.phylotree.org/what_is_new.htm"
+    ],
+    "handling": "This bounded factual extract records source identity and mutation fields only. It does not redistribute the upstream archive or a full source tree, and it does not assert a reuse licence."
+  }
 }
