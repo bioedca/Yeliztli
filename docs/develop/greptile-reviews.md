@@ -27,10 +27,13 @@ for it.
 
 ## The guard
 
-`greptile.json` at the repository root disables every automatic trigger. Greptile reads
-this file **from the source branch of the pull request**, not from `main`[^config] — so a
-branch cut before this file landed is not protected by it. Merge `main` into a long-lived
-branch to pick the guard up.
+`greptile.json` at the repository root asks Greptile to disable every automatic trigger.
+Greptile reads this file **from the source branch of the pull request**, not from
+`main`[^config] — so a branch cut before this file landed is not protected by it. Merge
+`main` into a long-lived branch to pick the guard up.
+
+See "Known limitation" below before treating this file as a guarantee: on the only
+occasion it has been exercised here, an org-level setting decided the outcome first.
 
 | Key | Value | Why |
 | --- | --- | --- |
@@ -62,6 +65,30 @@ Greptile will not review anything unless you ask. To spend one of the 16:
 Step 1 satisfies the `labels` filter; step 2 is Greptile's documented manual trigger.[^trigger]
 Do both — Greptile's documentation is contradictory about whether a label-filtered pull
 request can still be triggered by mention alone, so relying on either one is a coin flip.
+
+Greptile's own messages on this repository use a **different** mention from its
+documentation: refusing PR #2252 it wrote "Bypass the limit by tagging `@greptile-apps` to
+review." If `@greptileai` produces no response, try `@greptile-apps`. Neither string is
+confirmed to be the only working one, and each successful trigger costs a review.
+
+## Known limitation: dashboard settings can pre-empt this file
+
+`greptile.json` is not the only control. Greptile resolves configuration as *org enforced
+rules > `.greptile/` folder > `greptile.json` > org default rules*, and the org dashboard is
+not visible from this repository.
+
+This was observed directly. PR #2252 — the pull request that *added* this guard, so
+`greptile.json` was present on its source branch — was still processed by Greptile, and
+was stopped by an org-level changed-file limit rather than by `skipReview`:
+
+> Too many files changed for review. (`6 files found`, `1 file limit`)
+
+No credit was consumed (a skipped review is not billed, and no `Greptile Review` check run
+was produced), but the skip came from dashboard state, not from this file. Treat the
+repository config as **one** layer of defence whose independent effectiveness is unproven,
+not as proof that automatic review cannot happen. If the budget must be guaranteed, the
+only hard stop Greptile documents is **Organization Settings → Billing → Flex Usage Limit
+set to `$0`**, which stops spend at the vendor.
 
 Before spending a review, check that it is worth a unit of a 16/month budget:
 
