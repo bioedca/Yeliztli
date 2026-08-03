@@ -1126,6 +1126,42 @@ def test_v3_copilot_accepts_a_clean_review_that_describes_a_suppression_change()
     assert validate_context(context, files, now=NOW) == []
 
 
+@pytest.mark.parametrize(
+    "body",
+    [
+        "## O\n\n### Reviewed changes \n\nCopilot reviewed 2 out of 2 changed files "
+        "in this pull request and generated no comments.\n",
+        "## O\n\n### Reviewed changes\t\n\nCopilot reviewed 2 out of 2 changed files "
+        "in this pull request and generated no comments.\n",
+        "## O\n\n### Reviewed changes\n\nCopilot reviewed 2 out of 2 changed files "
+        "in this pull request and generated no comments. \n",
+        "## O\r\n\r\n### Reviewed changes\r\n\r\nCopilot reviewed 2 out of 2 changed "
+        "files in this pull request and generated no comments.\r\n",
+    ],
+)
+def test_v3_copilot_tolerates_insignificant_whitespace(body: str) -> None:
+    """Trailing whitespace and CRLF must not kill the lane.
+
+    Markdown treats both as insignificant and GitHub renders them identically,
+    so rejecting on them would break the lane over something invisible — the
+    #2248 failure mode. Neither can widen what is accepted.
+    """
+    files = [ChangedFile("README.md"), ChangedFile("GOVERNANCE.md")]
+    context = _context(
+        "Load-bearing",
+        files,
+        automated_gates={COPILOT_GATE},
+        schema_version=3,
+    )
+    review = next(
+        item
+        for item in context["data"]["repository"]["pullRequest"]["reviews"]["nodes"]
+        if item["author"]["databaseId"] == BOT_ACTOR_IDS[COPILOT_GATE]
+    )
+    review["body"] = body
+    assert validate_context(context, files, now=NOW) == []
+
+
 def test_v3_copilot_accepts_a_clean_review_whose_prose_repeats_the_phrase() -> None:
     """A passing mention of "Copilot reviewed" in the overview is not ambiguity.
 

@@ -278,11 +278,17 @@ HUMAN_ASSOCIATIONS = {"OWNER", "MEMBER", "COLLABORATOR"}
 # and fail-closed is recoverable in a way fail-open is not. All four archived
 # bodies carry the heading exactly once, with the sentence as the FIRST
 # non-blank line after it — which is the anchor used below.
-COPILOT_V3_COVERAGE_HEADING = re.compile(r"(?m)^### Reviewed changes$")
+#
+# Both patterns tolerate trailing whitespace. Markdown treats it as
+# insignificant and GitHub renders `### Reviewed changes ` identically, so
+# rejecting on it would kill the lane over something invisible — the #2248
+# failure mode exactly. It cannot widen what is accepted, since whitespace
+# carries no meaning here.
+COPILOT_V3_COVERAGE_HEADING = re.compile(r"(?m)^### Reviewed changes[ \t]*$")
 COPILOT_V3_COVERAGE_LINE = re.compile(
     r"(?m)^Copilot reviewed (?P<reviewed>[1-9][0-9]*) out of (?P<total>[1-9][0-9]*) "
     r"changed files in this pull request and generated "
-    r"(?P<verdict>no comments|[1-9][0-9]* comments?)\.$"
+    r"(?P<verdict>no comments|[1-9][0-9]* comments?)\.[ \t]*$"
 )
 COPILOT_V3_CLEAN_VERDICT = "no comments"
 # Copilot can withhold low-confidence findings instead of posting them, and a
