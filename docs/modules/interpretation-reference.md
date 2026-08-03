@@ -236,7 +236,7 @@ limitations.
 | Output type | Modules |
 |-------------|---------|
 | Pathogenic variants (ClinVar P/LP) | Cancer, Cardiovascular, Carrier status, Rare variants (ClinVar pathogenic category) |
-| ClinVar lower-penetrance/risk-allele variants | Rare variants |
+| ClinVar lower-penetrance/risk-allele variants | Cancer, Cardiovascular, Carrier status, Rare variants |
 | Carried rare/novel variant inventory (mostly ★ discovery context) | Rare variants |
 | Categorical pathway levels | Nutrigenomics, Methylation, Fitness, Sleep, Skin, Allergy, Gene health |
 | Star-allele diplotype + CPIC phenotype/status | Pharmacogenomics |
