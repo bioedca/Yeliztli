@@ -15,7 +15,6 @@ from typing import Any
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-GREPTILE_CONFIG = REPO_ROOT / "greptile.json"
 
 # Keys Greptile documents for ``greptile.json``. Greptile silently ignores a key
 # it cannot parse, so a typo or an undocumented spelling does not fail loudly --
