@@ -41,7 +41,7 @@
 - [ ] Standard — routine code/tests/UI/refactor/bug fix not protecting a load-bearing area
 - [ ] Load-bearing — science/clinical/reference data or their tests; privacy/security/auth; schema/migration/data loss; concurrency; dependencies; updater/installer/release; CI/workflows/permissions; core architecture; broad/hard-to-revert
 
-<!-- Before ready/merge, check EXACTLY ONE hosted reviewer. They are substitutes on every route; select another provider instead of adding fallback parsers or waiting on quota. Codex is the default lane. A hosted CodeRabbit review starts only from the `review:coderabbit` label or an explicit `@coderabbitai review`, so pick it deliberately and only once per head — it and the local `coderabbit` CLI share one budget. Never trigger a lane you did not check. -->
+<!-- Before ready/merge, check EXACTLY ONE hosted reviewer. They are substitutes on every route; select another provider instead of adding fallback parsers or waiting on quota. Codex is the default lane. A hosted CodeRabbit review starts only from the `review:coderabbit` label or an explicit comment trigger, so pick it deliberately and only once per head — it and the local `coderabbit` CLI share one budget. A legacy v2 PR selecting CodeRabbit still needs its unchanged reservation plus the exact `@coderabbitai full review`; the label does not replace that. Never trigger a lane you did not check. -->
 - [ ] Copilot — alternate lane; its evidence envelope needs repair before it can pass
 - [ ] Codex — default lane on every route
 - [ ] CodeRabbit — alternate lane; label-gated, for a deliberate hosted second engine

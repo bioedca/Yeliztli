@@ -57,11 +57,19 @@ Choose the highest route required by any part of the final diff:
 
 The route decides how carefully the change is reviewed; it does not decide who
 reviews it. The three hosted providers are interchangeable on every route.
-Codex `@codex review` is the default lane. A hosted CodeRabbit review starts
-only when the `review:coderabbit` label is applied or someone comments
-`@coderabbitai review` — pick it deliberately, because its included reviews and
-the local `coderabbit` CLI draw on one shared budget that adaptive fair-usage
-limits throttle. Never trigger a provider you did not select.
+Codex `@codex review` is the default lane. CodeRabbit no longer reviews
+automatically, so on a v3 pull request it starts only when the
+`review:coderabbit` label is applied or someone asks for a review in a comment
+— pick it deliberately, because its included reviews and the local `coderabbit`
+CLI draw on one shared budget that adaptive fair-usage limits throttle. Never
+trigger a provider you did not select.
+
+A **v2** pull request that selects CodeRabbit keeps its legacy protocol
+unchanged: a `coderabbit-reservation: <40-character head SHA>` comment for the
+current head, followed by the exact comment `@coderabbitai full review`. The
+label gate does not replace that pair — a label alone, or a plain
+`@coderabbitai review`, is not recorded as a v2 protocol event and leaves the
+route pending.
 
 New pull requests use `review-route-schema:v3`. Existing v2 pull requests keep
 their human-gated contract until their body is explicitly migrated; v1 remains
