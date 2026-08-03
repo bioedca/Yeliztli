@@ -55,12 +55,12 @@ which published model and which annotation resource the bundled panel points at.
 
 Consensus's ranking also contained a later PRS77 validation study. An earlier
 revision of this packet described it as an *independent* validation with a
-different cohort and author group. **That characterization is withdrawn**: the
-retained records expose three authors for it and ten of Mavaddat's 212, which
-cannot establish that the full author groups do not overlap. Rather than register
-another source and retrieve two complete author lists to support a claim nothing
-depends on, the claim is simply removed — the paper is recorded in the ranking as
-an also-ranked result and is not relied on, characterized, or cited.
+different cohort and author group. **That characterization is withdrawn**, and
+so is the evidence that was briefly retained to support it. Establishing
+non-overlap would require two complete author lists; this packet retains neither,
+and it does not need to, because nothing here depends on that paper. It is
+recorded in the ranking as an also-ranked result and is not relied on,
+characterized, or cited.
 
 Were Yeliztli ever to score this model, validation evidence would be part of what
 is required, and this packet must not be mistaken for that work.

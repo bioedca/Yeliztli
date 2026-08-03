@@ -442,6 +442,28 @@ def test_breast_prs_references_carry_a_science_evidence_packet() -> None:
                 f"{raw} declares {key} but it is empty or not a list"
             )
 
+        # The packet states, as its correction/retraction screening, that both
+        # sources carry zero editorial notices. Bind that claim to the data: a
+        # payload refreshed with a real retraction -- or one that simply drops
+        # the field -- must fail here rather than leave the README and
+        # queries.json asserting a clean screening that no longer holds. This is
+        # the one guard whose failure mode is a scientific claim, not a metadata
+        # inconsistency.
+        if "correction_retraction_screening" in payload:
+            for record in payload.get("records", []):
+                notices = record.get("editorial_notices")
+                assert notices is not None, (
+                    f"{raw} claims a correction/retraction screening but its record for "
+                    f"{record.get('doi') or record.get('identifiers')} has no "
+                    "editorial_notices field"
+                )
+                assert notices == [], (
+                    f"{raw} records editorial notices {notices!r} for "
+                    f"{record.get('doi') or record.get('identifiers')}, but the packet "
+                    "claims zero notices; the screening must be re-done and the "
+                    "documentation updated before this can be cited"
+                )
+
     # Versions/builds, licences and retention basis are required packet content,
     # so guard them too. Without this, deleting `source_versions_and_licenses`
     # or blanking its entries leaves the packet passing while recording none of
