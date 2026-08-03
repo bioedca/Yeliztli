@@ -333,6 +333,65 @@ class TestLoadFindings:
         assert len(finding_selects) == 1
         assert "ORDER BY" not in finding_selects[0].upper()
 
+    def test_rejects_an_unfiltered_selection_over_the_report_limit(
+        self, sample_with_findings: tuple
+    ) -> None:
+        """The ``modules is None`` branch must be bounded too (#1990).
+
+        Every other boundary test passes an explicit module list, so they all
+        exercise only the filtered branch.  The default report applies no module
+        filter at all, and that unfiltered default is precisely the runaway this
+        guard exists for -- 311,467 findings in the issue's reproduction.
+
+        Asserting only that ``ReportTooLargeError`` is raised would *not*
+        discriminate this branch: the ordered ``LIMIT + 1`` recheck further down
+        raises the same error, so the test would still pass with the unordered
+        preflight disabled.  Pin the preflight itself, exactly as the filtered
+        case does -- the point of this guard is to refuse before SQLite sorts
+        every matching row.
+        """
+        _, sample_engine, _ = sample_with_findings
+        _insert_report_findings(sample_engine, MAX_REPORT_FINDINGS + 1)
+        finding_selects: list[str] = []
+
+        def capture_finding_select(
+            _conn,
+            _cursor,
+            statement: str,
+            _parameters,
+            _context,
+            _executemany,
+        ) -> None:
+            if "FROM findings" in statement:
+                finding_selects.append(statement)
+
+        sa.event.listen(sample_engine, "before_cursor_execute", capture_finding_select)
+        try:
+            with pytest.raises(ReportTooLargeError, match="maximum of 1,000 findings"):
+                _load_findings(sample_engine, modules=None)
+        finally:
+            sa.event.remove(sample_engine, "before_cursor_execute", capture_finding_select)
+
+        assert len(finding_selects) == 1
+        assert "ORDER BY" not in finding_selects[0].upper()
+
+    def test_allows_an_unfiltered_selection_at_the_report_limit(
+        self, sample_with_findings: tuple
+    ) -> None:
+        """Counterpart control for the unfiltered branch.
+
+        Without it, a guard that refused *every* unfiltered selection would
+        still satisfy the rejection test above.
+        """
+        _, sample_engine, _ = sample_with_findings
+        with sample_engine.begin() as conn:
+            conn.execute(sa.delete(findings))
+        _insert_report_findings(sample_engine, MAX_REPORT_FINDINGS)
+
+        results = _load_findings(sample_engine, modules=None)
+
+        assert len(results) == MAX_REPORT_FINDINGS
+
     def test_withholds_unqualified_local_ancestry(self, sample_with_findings: tuple) -> None:
         _, sample_engine, _ = sample_with_findings
         with sample_engine.begin() as conn:
