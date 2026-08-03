@@ -14,31 +14,42 @@
       "publication_date_note": "The two retained payloads disagree and the packet deliberately does not canonize either. PubMed records 2015-04-08 (raw/pubmed-25855707-metadata.json); Scite records 2015-04-02 (raw/scite-doi-lookup-2026-08-03.json). The two services do not label the semantics of their date fields, so which is the online-first date and which the indexing or issue date is NOT resolved here rather than guessed. Both are retained with their source named. DOI:10.1093/jnci/djv036 is the stable identifier and neither date is used as a version boundary for any claim.",
       "license_or_terms": "CC BY 3.0. The article and its supplementary material are distributed under the Creative Commons Attribution 3.0 Unported licence, as recorded by this repository at backend/data/sources/breast_prs77/NOTICE.md and by the bundled panel's license_basis field ('Mavaddat 2015 article and supplement, CC BY 3.0'). Scite separately reports the record as bronze open access; that flag describes reader access at the publisher and is NOT evidence of the absence of a licence, so the repository's explicit licence record governs.",
       "retention_basis": "CC BY 3.0 permits reuse with attribution, and the source is attributed by PMID and DOI. Independently of that grant, only bibliographic metadata is retained (identifiers, title, journal, dates, publication types, author names); the publisher abstract and full text are not.",
-      "unavailable_fields": ["version_or_build (not issued by the source)"]
+      "unavailable_fields": [
+        "version_or_build (not issued by the source)"
+      ]
     },
     "DOI:10.1093/database/bay119": {
       "version_or_build": "Version of record, Database volume 2018, published 2018-01-01. No separate build identifier exists; the 2026-08-03 access date is the retrieval-version boundary.",
-      "license_or_terms": "CC-BY, reported by the Scite record as gold open access. This licence would permit retaining the abstract; it is omitted anyway because it is not needed for this packet's claim.",
-      "retention_basis": "CC-BY permits reuse with attribution; only bibliographic metadata is retained and the source is attributed by DOI.",
-      "unavailable_fields": []
+      "license_or_terms": "CC BY, version not established. Scite reports the record as gold open access with licence `cc-by` and no version field. The publisher's article page at the DOI was fetched on 2026-08-03 to resolve the version: it states CC BY and the copyright line 'The Author(s) 2018. Published by Oxford University Press', but does NOT state a version number. A specific version is therefore deliberately not asserted here.",
+      "license_version_note": "Review suggested this is CC BY 4.0. That was not confirmed by either retained payload or by the publisher page, so it is not recorded as fact. The DOI is the pointer to the publisher's authoritative terms. Nothing in this packet depends on the version: retention covers bibliographic metadata only, which does not rely on the licence grant.",
+      "retention_basis": "Only bibliographic metadata is retained and the source is attributed by DOI. CC BY at any version permits reuse with attribution, so the unresolved version does not affect the basis.",
+      "unavailable_fields": [
+        "license_version (not stated by Scite or by the publisher's article page)"
+      ]
     },
     "Consensus (service)": {
       "version_or_build": "Unavailable. The MCP interface returns no service version, model version, or index build stamp with a search response. The 2026-08-03 access date is the only retrieval-version boundary, so this result is not reproducible against a pinned index state.",
       "license_or_terms": "Consensus terms of service. Provider output is treated as a discovery aid, not as evidence.",
       "retention_basis": "Only the query string, result ranks, and the bibliographic identity of the retained hits are recorded. No generated summary, abstract, or provider narrative is retained, and no Consensus result is cited as support for any claim; every claim rests on the primary records above.",
-      "unavailable_fields": ["version_or_build (not exposed by the service)"]
+      "unavailable_fields": [
+        "version_or_build (not exposed by the service)"
+      ]
     },
     "Scite (service)": {
       "version_or_build": "Unavailable. The MCP interface returns no service version or citation-index build stamp. Citation tallies are therefore a point-in-time reading bounded only by the 2026-08-03 access date and will drift.",
       "license_or_terms": "Scite terms of service. Provider output is treated as a screening aid, not as evidence.",
       "retention_basis": "Only bibliographic fields, the editorial-notice screening outcome, and point-in-time citation counts are recorded. No Smart Citation snippets quoting third-party papers are retained, and no signed access URL is retained. The screening outcome is used to check for retractions, not as support for any scientific claim.",
-      "unavailable_fields": ["version_or_build (not exposed by the service)"]
+      "unavailable_fields": [
+        "version_or_build (not exposed by the service)"
+      ]
     },
     "PubMed connector (service)": {
       "version_or_build": "Unavailable as a service version. The retrieved document summary carries no revision stamp for this record, so the 2026-08-03 access date is the retrieval-version boundary.",
       "license_or_terms": "NCBI/NLM public data. NLM requires no signed licence for publicly accessible data, subject to source acknowledgement, non-endorsement, and currentness disclosure.",
       "retention_basis": "Bibliographic metadata only, attributed to PubMed (NCBI/NLM) with the access date preserved as a fixed historical snapshot. The abstract is removed and author affiliation strings, which carry public contact emails, are not retained.",
-      "unavailable_fields": ["version_or_build (not exposed for this record)"]
+      "unavailable_fields": [
+        "version_or_build (not exposed for this record)"
+      ]
     }
   },
   "queries": [
@@ -57,7 +68,10 @@
       "tier": "first",
       "accessed": "2026-08-03",
       "endpoint": "search_literature",
-      "dois": ["10.1093/jnci/djv036", "10.1093/database/bay119"],
+      "dois": [
+        "10.1093/jnci/djv036",
+        "10.1093/database/bay119"
+      ],
       "status": "success",
       "result": "Both DOIs resolved. Zero editorial notices on each (no retraction, correction, expression of concern, or erratum) - this is the packet's correction/retraction screening. Verified journal, volume, issue, page and date for the JNCI record, and the CC-BY gold open-access licence for the Ensembl record.",
       "raw_payload": "data/science-evidence/2026-08-03-breast-prs77-availability-2028/raw/scite-doi-lookup-2026-08-03.json"
@@ -67,7 +81,11 @@
       "tier": "narrowest specialist",
       "accessed": "2026-08-03",
       "endpoint": "get_article_metadata",
-      "params": {"pmids": ["25855707"]},
+      "params": {
+        "pmids": [
+          "25855707"
+        ]
+      },
       "status": "success",
       "result": "Confirms PMID:25855707 and DOI:10.1093/jnci/djv036 are the same record: 'Prediction of breast cancer risk based on profiling with common genetic variants', Journal of the National Cancer Institute, 2015, volume 107 issue 5, first author Mavaddat, 212 authors. Publication types are Journal Article; Research Support, N.I.H., Extramural; Research Support, Non-U.S. Gov't.",
       "raw_payload": "data/science-evidence/2026-08-03-breast-prs77-availability-2028/raw/pubmed-25855707-metadata.json"
@@ -80,6 +98,13 @@
     "biallelic_palindromic_loci": 2,
     "runtime_blocked_loci": 41,
     "audit_source": "Ensembl Variation, GRCh38, checked_on 2026-07-16",
-    "guard": "tests/backend/test_cancer_prs_docs_consistency.py derives the expected counts from the panel and cross-checks runtime_blocked_loci == multiallelic + biallelic."
+    "guard": "tests/backend/test_cancer_prs_docs_consistency.py derives the expected counts from the panel and cross-checks runtime_blocked_loci == multiallelic + biallelic.",
+    "KNOWN GAP - audit is not reproducible from stored provenance": {
+      "what_is_missing": "The bundled panel records only the resource name ('Ensembl Variation'), the assembly (GRCh38), a mapping policy and the check date 2026-07-16. It does NOT record the Ensembl Variation release or database build, the query issued, or any sanitized response. Ensembl Variation is an evolving database, so the recorded date alone cannot establish which database state produced the 39/2/41 classification.",
+      "why_it_is_not_filled_in_here": "That audit was performed against the panel before this pull request and its inputs are not present in this repository. Reconstructing a release number, query or response would mean inventing provenance, which is expressly forbidden - a fabricated build identifier is worse than a recorded gap because it would read as verified.",
+      "scope": "This is a pre-existing limitation of the bundled panel's provenance, not something this documentation change introduces. This PR neither performs nor relies on a new audit: it reports the counts the panel already carries, and the guard ties the documentation to those stored values so the two cannot drift.",
+      "tracked_by": "#2246 \u2014 [Sci]: breast PRS77 allele audit records no Ensembl Variation release, so the runtime block is not reproducible",
+      "consequence_accepted": "Until that is fixed, cancer.md's locus counts are reproducible against the bundled panel but NOT independently reproducible against Ensembl Variation."
+    }
   }
 }

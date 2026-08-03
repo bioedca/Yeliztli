@@ -2,10 +2,16 @@
   "service": "Scite",
   "accessed": "2026-08-03",
   "endpoint": "search_literature",
-  "params": {"dois": ["10.1093/jnci/djv036", "10.1093/database/bay119"], "limit": 5},
+  "params": {
+    "dois": [
+      "10.1093/jnci/djv036",
+      "10.1093/database/bay119"
+    ],
+    "limit": 5
+  },
   "status": "success",
   "total_hits": 2,
-  "sanitization": "Bibliographic metadata, citation tallies, licence, and editorial-notice screening only. Scite's resolved publisher access links are signed, expiring redirects and are not retained; the canonical DOI is retained instead. Abstracts are retained only for the CC-BY licensed Ensembl record and omitted for the all-rights-reserved JNCI record. Smart Citation snippets quoting third-party papers are not retained.",
+  "sanitization": "Bibliographic metadata, citation tallies, licence, and editorial-notice screening only. Scite's resolved publisher access links are signed, expiring redirects and are not retained; the canonical DOI is retained instead. No abstract is retained for either record - that is this packet's metadata-only choice, NOT a licence consequence: the JNCI article and supplement are CC BY 3.0 per this repository's own source notice, and the Ensembl record is CC BY. Smart Citation snippets quoting third-party papers are not retained.",
   "records": [
     {
       "doi": "10.1093/jnci/djv036",
@@ -20,9 +26,13 @@
       "oa_status": "bronze",
       "oa_status_note": "Scite's 'bronze' flag describes reader access at the publisher and carries no licence field for this record. It is NOT evidence that the article is unlicensed: this repository records the article and supplement as CC BY 3.0 at backend/data/sources/breast_prs77/NOTICE.md and in the panel's license_basis field.",
       "date_note": "Scite reports 2015-04-02; the PubMed payload reports 2015-04-08. Neither service labels its date semantics, so the packet retains both rather than resolving one as authoritative.",
-      "authors_returned": ["Nasim Mavaddat", "Paul D.P. Pharoah", "Kyriaki Michailidou"],
+      "authors_returned": [
+        "Nasim Mavaddat",
+        "Paul D.P. Pharoah",
+        "Kyriaki Michailidou"
+      ],
       "abstract_retained": false,
-      "abstract_omitted_reason": "Not retained; the packet stores bibliographic metadata only.",
+      "abstract_omitted_reason": "Metadata-only packet choice. Not a licence consequence: the article and supplement are CC BY 3.0 per backend/data/sources/breast_prs77/NOTICE.md.",
       "editorial_notices": [],
       "citation_tally": {
         "total": 550,
@@ -30,7 +40,8 @@
         "contrasting": 3,
         "mentioning": 496,
         "citing_publications": 571
-      }
+      },
+      "license_from_repository_record": "CC BY 3.0"
     },
     {
       "doi": "10.1093/database/bay119",
@@ -43,9 +54,13 @@
       "is_open_access": true,
       "oa_status": "gold",
       "license": "cc-by",
-      "authors_returned": ["Sarah Hunt", "William McLaren", "Laurent Gil"],
+      "authors_returned": [
+        "Sarah Hunt",
+        "William McLaren",
+        "Laurent Gil"
+      ],
       "abstract_retained": false,
-      "abstract_omitted_reason": "Not needed for this packet's source-identity claim; the record is CC-BY so retention would have been permitted.",
+      "abstract_omitted_reason": "Metadata-only packet choice; the record is CC BY so retention would have been permitted.",
       "editorial_notices": [],
       "citation_tally": {
         "total": 373,

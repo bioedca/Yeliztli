@@ -28,7 +28,8 @@ at runtime and no score or percentile is produced for any user.
   Extramural`, `Research Support, Non-U.S. Gov't`. 212 authors.
 - Hunt S, McLaren W, Gil L, et al. *Ensembl variation resources.* Database.
   2018;2018. DOI:10.1093/database/bay119 (accessed 2026-08-03).
-  Gold open access under CC-BY, per the Scite record retained below.
+  Gold open access under CC BY; the version is not stated by Scite or by the
+  publisher article page, so no version is asserted.
 
 ## Evidence route and checks
 
@@ -79,7 +80,7 @@ rather than left blank. In summary:
 | Source / service | Version or build | Licence or terms | What is retained |
 | --- | --- | --- | --- |
 | PMID:25855707 / DOI:10.1093/jnci/djv036 | Version of record, JNCI 107(5); none issued beyond the DOI | **CC BY 3.0** (article and supplement) | Bibliographic metadata only; no abstract, no full text |
-| DOI:10.1093/database/bay119 | Version of record, Database vol. 2018 | CC-BY (gold OA) | Bibliographic metadata only |
+| DOI:10.1093/database/bay119 | Version of record, Database vol. 2018 | CC BY, **version not established** | Bibliographic metadata only |
 | Consensus | **Unavailable** — no service or index-build stamp | Consensus terms; discovery aid only | Query, result ranks, hit identity |
 | Scite | **Unavailable** — no service or index-build stamp | Scite terms; screening aid only | Bibliographic fields, editorial-notice outcome, point-in-time tallies |
 | PubMed connector | **Unavailable** for this record | NCBI/NLM public data, no signed licence required | Bibliographic metadata only |
@@ -113,9 +114,13 @@ uses either date as a version boundary.
 Sanitized payloads live under `raw/`. Consistent with this repository's other
 evidence packets:
 
-- publisher-supplied abstracts are removed where they carry all-rights-reserved
-  copyright, and retained only where the source is openly licensed;
-- public author contact email addresses are replaced with `[redacted-email]`;
+- **no** publisher-supplied abstract is retained for any record, including the
+  openly licensed Ensembl one. That is this packet's metadata-only choice, not a
+  licence consequence — both sources are CC BY, so retention would have been
+  permitted;
+- author affiliation and contact fields are **not retained at all** (rather than
+  email-redacted), and the 212-author Mavaddat list is reduced to its leading ten
+  with the full count recorded;
 - Scite's resolved publisher access links are signed, expiring redirects and are
   **not** retained; the canonical DOI is retained instead;
 - no genotype, sample, or user data of any kind is present. Every input sent to
@@ -136,5 +141,23 @@ paper. They are read from the bundled panel's own
 `tests/backend/test_cancer_prs_docs_consistency.py` derives the expected numbers
 from that panel so a regenerated audit reddens the guard rather than leaving the
 page asserting stale counts.
+
+### Known gap: the allele audit is not independently reproducible
+
+The bundled panel records the resource name, the assembly, a mapping policy and
+the check date `2026-07-16` — but **no Ensembl Variation release or database
+build, no query, and no stored response**. Ensembl Variation evolves, so a date
+alone cannot establish which database state produced the 39/2/41 classification.
+
+That provenance is deliberately **not** reconstructed here. The audit predates
+this pull request and its inputs are not in this repository, so supplying a
+release number or query would mean inventing provenance — and a fabricated build
+identifier is worse than a recorded gap, because it reads as verified.
+
+This is a pre-existing limitation of the panel, not something this documentation
+change introduces: the PR reports counts the panel already carries and ties the
+documentation to those stored values. The consequence is stated plainly — the
+counts are reproducible against the bundled panel, but not independently against
+Ensembl Variation. Issue #2246 tracks fixing the panel's audit provenance.
 
 The exact sanitized queries and service outcomes are recorded in `queries.json`.

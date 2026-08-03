@@ -223,6 +223,27 @@ def test_breast_prs_references_carry_a_science_evidence_packet() -> None:
             )
             assert resolved.is_file(), f"missing recorded raw payload: {raw}"
 
+    # Versions/builds, licences and retention basis are required packet content,
+    # so guard them too. Without this, deleting `source_versions_and_licenses`
+    # or blanking its entries leaves the packet passing while recording none of
+    # the provenance an auditor needs.
+    provenance = packet["source_versions_and_licenses"]
+    entries = {key: value for key, value in provenance.items() if not key.startswith("_")}
+    assert entries, "the packet must record versions and licences for its sources and services"
+    for name, record in entries.items():
+        for field in ("version_or_build", "license_or_terms", "retention_basis"):
+            value = record.get(field)
+            assert isinstance(value, str) and value.strip(), (
+                f"{name} must record a nonempty {field}"
+            )
+        # A field that does not exist has to say so, and say what follows from
+        # that, rather than being quietly filled with a plausible-looking value.
+        for missing in record.get("unavailable_fields", []):
+            assert "(" in missing and ")" in missing, (
+                f"{name} lists unavailable field {missing!r} without the parenthesised "
+                "reason it is unavailable"
+            )
+
     doc_text = _DOC_PATH.read_text(encoding="utf-8")
     cited = {
         match.group(0).upper()

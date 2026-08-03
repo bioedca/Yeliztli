@@ -5,7 +5,7 @@
   "filters": "none",
   "status": "success",
   "results_returned": 20,
-  "sanitization": "Bibliographic metadata only. Publisher-supplied abstracts are removed because they carry all-rights-reserved copyright, matching this repository's existing evidence-packet policy. Result ranks and reported citation counts are retained verbatim.",
+  "sanitization": "Bibliographic metadata only. Publisher-supplied abstracts are removed because they carry all-rights-reserved copyright for several of these records, matching this repository's existing evidence-packet policy. The COMPLETE 20-result ranking is retained verbatim in complete_result_ranking so the search outcome is reconstructible; results_retained below is an annotated subset of that list, not a replacement for it.",
   "results_retained": [
     {
       "rank": 1,
@@ -15,7 +15,8 @@
       "year": 2015,
       "journal": "JNCI Journal of the National Cancer Institute",
       "citation_count_reported": 576,
-      "maps_to": "PMID:25855707; DOI:10.1093/jnci/djv036"
+      "maps_to": "PMID:25855707; DOI:10.1093/jnci/djv036",
+      "citation": "PMID:25855707; DOI:10.1093/jnci/djv036 (accessed 2026-08-03)"
     },
     {
       "rank": 4,
@@ -25,7 +26,9 @@
       "year": 2024,
       "journal": "Cancer",
       "citation_count_reported": 1,
-      "why_not_relied_on": "This PR withholds the PRS77 model rather than scoring it, so no risk-stratification claim is being made that would need validation. Were Yeliztli ever to enable scoring, evidence of this kind would be required and this packet must not be mistaken for that work."
+      "why_not_relied_on": "This PR withholds the PRS77 model rather than scoring it, so no risk-stratification claim is being made that would need validation. Were Yeliztli ever to enable scoring, evidence of this kind would be required and this packet must not be mistaken for that work.",
+      "citation": "DOI:10.1002/cncr.35337 (accessed 2026-08-03)",
+      "citation_source": "Resolved via Scite on 2026-08-03; Cancer. 2024;130(17):2978-2987."
     },
     {
       "rank": 16,
@@ -34,8 +37,172 @@
       "first_author": "N. Mavaddat",
       "year": 2018,
       "journal": "American Journal of Human Genetics",
-      "citation_count_reported": 941
+      "citation_count_reported": 941,
+      "citation": "DOI:10.1016/j.ajhg.2018.11.002 (accessed 2026-08-03)",
+      "citation_source": "Resolved via Scite on 2026-08-03; Am J Hum Genet. 2019;104(1):21-34. Consensus reported the year as 2018; the publisher issue is 2019. Both are recorded rather than reconciled."
     }
   ],
-  "not_retained": "The remaining ranks are general polygenic-risk-score reviews, population-specific PRS studies, and BRCA/CHEK2 carrier analyses that do not bear on this packet's source-identity claim."
+  "not_retained": "Nothing is dropped from the ranking. complete_result_ranking holds all 20 hits in order. results_retained annotates only the three that bear on this packet, and the annotation is the added content - it removes nothing.",
+  "complete_result_ranking": [
+    {
+      "rank": 1,
+      "title": "Prediction of Breast Cancer Risk Based on Profiling With Common Genetic Variants",
+      "first_author": "N. Mavaddat",
+      "year": 2015,
+      "journal": "JNCI Journal of the National Cancer Institute",
+      "citation_count_reported": 576
+    },
+    {
+      "rank": 2,
+      "title": "Polygenic risk scores and breast cancer risk prediction",
+      "first_author": "E. Roberts",
+      "year": 2023,
+      "journal": "The Breast",
+      "citation_count_reported": 100
+    },
+    {
+      "rank": 3,
+      "title": "Development and Validation of a Clinical Polygenic Risk Score to Predict Breast Cancer Risk",
+      "first_author": "E. Hughes",
+      "year": 2020,
+      "journal": "JCO Precision Oncology",
+      "citation_count_reported": 46
+    },
+    {
+      "rank": 4,
+      "title": "Population-specific validation and comparison of the performance of 77- and 313-variant polygenic risk scores for breast cancer risk prediction",
+      "first_author": "Milena Hovhannisyan",
+      "year": 2024,
+      "journal": "Cancer",
+      "citation_count_reported": 1
+    },
+    {
+      "rank": 5,
+      "title": "Common Genetic Variation and Breast Cancer Risk - Past, present, and future",
+      "first_author": "J. Lilyquist",
+      "year": 2018,
+      "journal": "Cancer Epidemiol Biomarkers Prev",
+      "citation_count_reported": 120
+    },
+    {
+      "rank": 6,
+      "title": "Polygenic Risk Scores for Breast Cancer: Modern Approaches to Risk Prediction and Subtype Identification",
+      "first_author": "Krishna Dipp-Martin",
+      "year": 2025,
+      "journal": "Archives of Medical Research",
+      "citation_count_reported": 0
+    },
+    {
+      "rank": 7,
+      "title": "A Systematic Review and Critical Assessment of Breast Cancer Risk Prediction Tools Incorporating a Polygenic Risk Score for the General Population",
+      "first_author": "Cynthia Mbuya-Bienge",
+      "year": 2023,
+      "journal": "Cancers",
+      "citation_count_reported": 17
+    },
+    {
+      "rank": 8,
+      "title": "Association and performance of polygenic risk scores for breast cancer among French women presenting or not a familial predisposition to the disease",
+      "first_author": "Yue Jiao",
+      "year": 2022,
+      "journal": "European Journal of Cancer",
+      "citation_count_reported": 14
+    },
+    {
+      "rank": 9,
+      "title": "Polygenic risk and rare variant gene clustering enhance cancer risk stratification for breast and prostate cancers",
+      "first_author": "Joon Ho Kang",
+      "year": 2024,
+      "journal": "Communications Biology",
+      "citation_count_reported": 11
+    },
+    {
+      "rank": 10,
+      "title": "The polygenic risk score in the breast cancer treatment",
+      "first_author": "Federico Anaclerio",
+      "year": 2024,
+      "journal": "J Transl Genet Genom",
+      "citation_count_reported": 1
+    },
+    {
+      "rank": 11,
+      "title": "Polygenic risk score-based prediction of breast cancer risk in Taiwanese women with dense breast using a retrospective cohort study",
+      "first_author": "Chih-Chiang Hung",
+      "year": 2024,
+      "journal": "Scientific Reports",
+      "citation_count_reported": 6
+    },
+    {
+      "rank": 12,
+      "title": "A polygenic risk score for breast cancer risk in a Taiwanese population",
+      "first_author": "Y. Hsieh",
+      "year": 2017,
+      "journal": "Breast Cancer Research and Treatment",
+      "citation_count_reported": 37
+    },
+    {
+      "rank": 13,
+      "title": "Evaluation of Polygenic Risk Scores for Breast and Ovarian Cancer Risk Prediction in BRCA1 and BRCA2 Mutation Carriers",
+      "first_author": "Karoline B. Kuchenbaecker",
+      "year": 2017,
+      "journal": "JNCI",
+      "citation_count_reported": 286
+    },
+    {
+      "rank": 14,
+      "title": "Performance of breast cancer polygenic risk scores in 760 female CHEK2 germline mutation carriers",
+      "first_author": "J. Borde",
+      "year": 2020,
+      "journal": "JNCI",
+      "citation_count_reported": 31
+    },
+    {
+      "rank": 15,
+      "title": "The role of polygenic risk and susceptibility genes in breast cancer over the course of life",
+      "first_author": "N. Mars",
+      "year": 2020,
+      "journal": "Nature Communications",
+      "citation_count_reported": 129
+    },
+    {
+      "rank": 16,
+      "title": "Polygenic Risk Scores for Prediction of Breast Cancer and Breast Cancer Subtypes",
+      "first_author": "N. Mavaddat",
+      "year": 2018,
+      "journal": "American Journal of Human Genetics",
+      "citation_count_reported": 941
+    },
+    {
+      "rank": 17,
+      "title": "Polygenic risk scores for prediction of breast cancer risk in Asian populations",
+      "first_author": "W. Ho",
+      "year": 2021,
+      "journal": "Genetics in Medicine",
+      "citation_count_reported": 50
+    },
+    {
+      "rank": 18,
+      "title": "Combining rare and common genetic variants improves population risk stratification for breast cancer",
+      "first_author": "Alexandre Bolze",
+      "year": 2023,
+      "journal": "Genetics in Medicine Open",
+      "citation_count_reported": 9
+    },
+    {
+      "rank": 19,
+      "title": "Evaluating the Utility of Polygenic Risk Scores in Identifying High-Risk Individuals for Eight Common Cancers",
+      "first_author": "G. Jia",
+      "year": 2020,
+      "journal": "JNCI Cancer Spectrum",
+      "citation_count_reported": 112
+    },
+    {
+      "rank": 20,
+      "title": "Polygenic Risk Scores for Breast Cancer-Can They Deliver on the Promise of Precision Medicine?",
+      "first_author": "P. Shah",
+      "year": 2021,
+      "journal": "JAMA Network Open",
+      "citation_count_reported": 13
+    }
+  ]
 }
