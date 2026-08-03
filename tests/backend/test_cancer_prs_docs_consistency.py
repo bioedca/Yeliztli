@@ -71,10 +71,17 @@ def _breast_prs_note(doc_text: str) -> str:
     return " ".join(match.group("body").lower().split())
 
 
-def _breast_allele_audit() -> dict[str, object]:
+def _breast_weight_set() -> dict[str, object]:
     breast = next(
-        weight_set for weight_set in _weight_sets() if weight_set["trait"] == "breast_cancer"
+        (weight_set for weight_set in _weight_sets() if weight_set["trait"] == "breast_cancer"),
+        None,
     )
+    assert breast is not None, "cancer PRS panel must contain a breast_cancer weight set"
+    return breast
+
+
+def _breast_allele_audit() -> dict[str, object]:
+    breast = _breast_weight_set()
     provenance = breast["model_provenance"]
     assert isinstance(provenance, dict), "breast weight set must carry model_provenance"
     audit = provenance["current_allele_audit"]
@@ -116,9 +123,7 @@ def test_cancer_docs_advertise_exactly_the_enabled_prs_models() -> None:
 
 
 def test_cancer_docs_distinguish_the_runtime_block_from_ancestry_withholding() -> None:
-    breast = next(
-        weight_set for weight_set in _weight_sets() if weight_set["trait"] == "breast_cancer"
-    )
+    breast = _breast_weight_set()
     assert breast["model_status"] == "source_verified_runtime_blocked"
     assert breast["scoring_enabled"] is False
 
@@ -207,7 +212,16 @@ def test_breast_prs_references_carry_a_science_evidence_packet() -> None:
         if entry["status"] == "success":
             raw = entry.get("raw_payload")
             assert raw, f"successful {entry['service']} call must record a raw payload path"
-            assert (REPO_ROOT / raw).is_file(), f"missing recorded raw payload: {raw}"
+            # The recorded path must name evidence inside this packet. Without
+            # this, an absolute path would discard the REPO_ROOT prefix and any
+            # unrelated repository file would satisfy the guard, so the packet
+            # could claim a sanitized payload its raw/ directory does not hold.
+            assert not Path(raw).is_absolute(), f"raw payload path must be relative: {raw}"
+            resolved = (REPO_ROOT / raw).resolve()
+            assert resolved.is_relative_to(_EVIDENCE_DIR.resolve()), (
+                f"raw payload must live inside {_EVIDENCE_DIR.name}: {raw}"
+            )
+            assert resolved.is_file(), f"missing recorded raw payload: {raw}"
 
     doc_text = _DOC_PATH.read_text(encoding="utf-8")
     cited = {
@@ -231,4 +245,18 @@ def test_breast_prs_references_carry_a_science_evidence_packet() -> None:
     assert not missing, (
         "every identifier cited by the breast PRS references must appear verbatim in "
         f"the evidence packet's citations; missing: {missing} (packet records {sorted(recorded)})"
+    )
+
+    # The two files must also agree on *when* the sources were checked. Asserting
+    # only that some access date is present lets the documentation and the packet
+    # tell different stories about the same lookup.
+    packet_date = packet["accessed"]
+    doc_dates = {
+        match.group(0).lower()
+        for number in (2, 3)
+        for match in _ACCESS_DATE_RE.finditer(_reference_entry(doc_text, number))
+    }
+    assert doc_dates == {f"(accessed {packet_date})"}, (
+        "the breast PRS references must carry the same access date the evidence "
+        f"packet records ({packet_date}); documentation has {sorted(doc_dates)}"
     )

@@ -68,6 +68,30 @@ citation counts establish a claim:
 - DOI:10.1093/database/bay119 — 373 total, 8 supporting, 0 contrasting, 357
   mentioning, 505 citing publications.
 
+## Versions, licences, and retention basis
+
+`queries.json` carries a `source_versions_and_licenses` block recording, for each
+source and each service, its version/build, its licence or terms, and the basis
+on which the retained payload may be kept. Where a field genuinely does not
+exist it is recorded as unavailable together with the boundary that follows,
+rather than left blank. In summary:
+
+| Source / service | Version or build | Licence or terms | What is retained |
+| --- | --- | --- | --- |
+| PMID:25855707 / DOI:10.1093/jnci/djv036 | Version of record; none issued beyond the DOI and 2015-04-02 date | **None stated** — bronze OA (free to read, no open licence) | Bibliographic metadata only; no abstract, no full text |
+| DOI:10.1093/database/bay119 | Version of record, Database vol. 2018 | CC-BY (gold OA) | Bibliographic metadata only |
+| Consensus | **Unavailable** — no service or index-build stamp | Consensus terms; discovery aid only | Query, result ranks, hit identity |
+| Scite | **Unavailable** — no service or index-build stamp | Scite terms; screening aid only | Bibliographic fields, editorial-notice outcome, point-in-time tallies |
+| PubMed connector | **Unavailable** for this record | NCBI/NLM public data, no signed licence required | Bibliographic metadata only |
+
+Two consequences follow and are stated plainly. First, neither discovery service
+exposes a version or index build, so the 2026-08-03 access date is the only
+retrieval-version boundary and neither result is reproducible against a pinned
+index state; the citation tallies in particular will drift. Second, no claim in
+this packet rests on provider output — Consensus was used to discover the primary
+source and Scite to screen it for retractions, and every claim rests on the
+primary records themselves.
+
 ## Sanitization
 
 Sanitized payloads live under `raw/`. Consistent with this repository's other
