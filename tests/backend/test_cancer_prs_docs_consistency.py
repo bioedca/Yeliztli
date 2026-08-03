@@ -203,10 +203,14 @@ def test_cancer_docs_distinguish_the_runtime_block_from_ancestry_withholding() -
         f"breast PRS reference [2] cites PMIDs {sorted(documented_pmids)}, but the "
         f"panel's source_pmid is {source_pmid}"
     )
+    # Parse the complete link target and compare it exactly. Excluding one
+    # character class at a time from a lookahead never terminates: `-beta` was
+    # followed by `+other`, and the next suffix would be something else again.
     model_doi = str(breast["source_url"]).rsplit("doi.org/", 1)[-1]
-    assert re.search(rf"https://doi\.org/{re.escape(model_doi)}(?![\w./-])", reference_text), (
-        f"breast PRS reference [2]'s link must target the model's own DOI "
-        f"({model_doi}); reference reads: {reference_text}"
+    linked_dois = set(re.findall(r"\]\((https://doi\.org/[^)]+)\)", reference_text))
+    assert linked_dois == {f"https://doi.org/{model_doi}"}, (
+        f"breast PRS reference [2] links {sorted(linked_dois)}, but the model's DOI is "
+        f"https://doi.org/{model_doi}"
     )
     _assert_real_access_date(reference_text, "breast PRS reference [2]")
 
@@ -271,9 +275,14 @@ def test_breast_prs_references_carry_a_science_evidence_packet() -> None:
     packet = json.loads((_EVIDENCE_DIR / "queries.json").read_text(encoding="utf-8"))
 
     services = {str(entry["service"]) for entry in packet["queries"]}
-    assert {"Consensus", "Scite"} <= services, (
-        "the packet must record the Consensus and Scite first tier, even when a "
-        f"service was unavailable; recorded services were {sorted(services)}"
+    # The narrowest specialist is part of the ladder, not an optional extra: the
+    # packet's README describes all three tiers, so dropping one would leave the
+    # documentation describing evidence the packet no longer records.
+    missing_tiers = sorted({"Consensus", "Scite", "PubMed connector"} - services)
+    assert not missing_tiers, (
+        "the packet must record the Consensus and Scite first tier and the narrowest "
+        f"specialist, even when a service was unavailable; missing {missing_tiers} "
+        f"(recorded {sorted(services)})"
     )
 
     # A recorded digest is a claim; check it rather than let it sit unverified.
