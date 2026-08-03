@@ -58,9 +58,9 @@ INITIAL_DIRECT_MOTIF_PENDING_NAMES_SHA256 = (
 INITIAL_PENDING_NAMES_SHA256 = "996c2c96c22d37a2aa7edf1f4639d626ccc5199ecc5eb35984aa84204e05a591"
 ARRAY_MANIFEST_SHA256 = "42de22517a4644884596e36b0499a4fc45f264986c63f6fb239452b88719f977"
 SOURCE_METADATA_SHA256 = "13755a154c19c603bac63a2195287165271571ece1e36e178a666aa35184d04b"
-STATE_PARTITION_SHA256 = "b4f46c5140936d99429b7f52f1a94c7ded344417ad579e7d381ba07dc56c9115"
+STATE_PARTITION_SHA256 = "f9a0d2ecd09f05ae1d5fbd41123d0d9e63b79d8f08c2e3b1c4c1f873ebb6a1fd"
 BASELINE_EMITTED_TREE_SHA256 = "02a40be2096dd8c60e6e2934ba68a813f07478117a749e60e94e0608bed21914"
-LOCKED_EMITTED_TREE_SHA256 = "73323f94e8740b24faa0001065f0ca79a9a24c18554500545e65694b1f17a566"
+LOCKED_EMITTED_TREE_SHA256 = "0d3f25360e57573a61910787224ddfc701fb77515208857132791ec936570d31"
 
 PRIMARY_EXPORTS = ["pgp_4139", "pgp_4162", "pgp_4187", "pgp_huA08F4D"]
 HISTORICAL_EXPORTS = [*PRIMARY_EXPORTS, "pgp_1050"]
@@ -1885,7 +1885,7 @@ BATCH13_NAMES = [
 ]
 BATCH13_REGULAR_NAMES = [name for name in BATCH13_NAMES if name != "U5"]
 BATCH13_RECORD_SHA256 = {
-    "U5": "63a51c17d94bfb4ac04f2cbd9421e22f20a51abd9409c730cbcc9ca258be68aa",
+    "U5": "b7ed525ea70d1ca8ce49ddb932cfd515993ce985de59fcc4414ee06c59a32389",
     "U5a": "3373c81e7b8d82455d54a850c851e0835880d37c67f7bcd0e8f64b05a4c78fbc",
     "U5a1": "9558abb8432f12aee723d941f50155eba55158e630c0cd5fd846b60ba39d7c18",
     "U5a2": "3e47cf1f7bcb6f288925efd563f1eedf12154f5307bbb2186bd6527061331a11",
@@ -2676,13 +2676,14 @@ def _tree_projection(tree: dict[str, Any]) -> list[dict[str, Any]]:
     projection: list[dict[str, Any]] = []
 
     def visit(node: dict[str, Any], parent: str | None) -> None:
-        projection.append(
-            {
-                "node": node["haplogroup"],
-                "parent": parent,
-                "defining_snps": node.get("defining_snps", []),
-            }
-        )
+        record = {
+            "node": node["haplogroup"],
+            "parent": parent,
+            "defining_snps": node.get("defining_snps", []),
+        }
+        if optional_conflict_snps := node.get("optional_conflict_snps"):
+            record["optional_conflict_snps"] = optional_conflict_snps
+        projection.append(record)
         for child in node.get("children", []):
             visit(child, node["haplogroup"])
 
@@ -7719,7 +7720,7 @@ def test_issue_1798_batch_13_records_are_exact_covered_and_tree_locked() -> None
 
 
 def test_issue_1798_batch_13_u5_is_an_exact_markerless_gateway() -> None:
-    """U5 keeps both reviewed direct events source-only so neither child is blocked."""
+    """U5 keeps its markerless gateway with a source-backed ancestral conflict guard."""
     record = _MT_SOURCE["structural_exceptions"]["U5"]
     inventory = _index_mt_tree(build_mt_tree())
 
@@ -7729,6 +7730,23 @@ def test_issue_1798_batch_13_u5_is_an_exact_markerless_gateway() -> None:
     )
     assert not any(mutation["emitted"] for mutation in record["direct_source_motif"])
     assert inventory.by_name["U5"].node["defining_snps"] == []
+    assert inventory.by_name["U5"].node["optional_conflict_snps"] == [
+        {"rsid": "i5016270", "pos": 16270, "allele": "T"}
+    ]
+    assert record["optional_conflict_snps"] == [
+        {
+            "rsid": "i5016270",
+            "pos": 16270,
+            "ancestral_allele": "C",
+            "allele": "T",
+            "motif_owner": "U5",
+            "array_coverage": {
+                "cohort_id": "primary_four_23andme",
+                "position_present_in": ["pgp_4139", "pgp_4187", "pgp_huA08F4D"],
+                "callable_snv_in": ["pgp_4187", "pgp_huA08F4D"],
+            },
+        }
+    ]
     assert [child["haplogroup"] for child in inventory.by_name["U5"].node["children"]] == [
         "U5a",
         "U5b",
@@ -8778,7 +8796,7 @@ def test_derived_provenance_metadata_and_bundle_compatibility_are_exact() -> Non
 
     bundle = build_bundle()
     mt_audit = bundle["sources"]["mt"]["audit"]
-    assert bundle["version"] == "1.1.29"
+    assert bundle["version"] == "1.1.30"
     assert bundle["stats"]["mt_haplogroups"] == 193
     assert bundle["stats"]["mt_defining_snps"] == 634
     assert bundle["stats"]["mt_unique_snps"] == 515

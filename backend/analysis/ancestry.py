@@ -1495,6 +1495,7 @@ class HaplogroupNode:
     haplogroup: str
     defining_snps: list[HaplogroupSNP]
     children: list[HaplogroupNode]
+    optional_conflict_snps: list[HaplogroupSNP] = field(default_factory=list)
 
 
 _Y_HAPLOGROUP_MIN_INTERNAL_TERMINAL_SPECIFIC_SNPS = 2
@@ -1586,11 +1587,16 @@ def _parse_tree_node(data: dict) -> HaplogroupNode:
         HaplogroupSNP(rsid=s["rsid"], pos=s["pos"], allele=s["allele"])
         for s in data.get("defining_snps", [])
     ]
+    optional_conflict_snps = [
+        HaplogroupSNP(rsid=s["rsid"], pos=s["pos"], allele=s["allele"])
+        for s in data.get("optional_conflict_snps", [])
+    ]
     children = [_parse_tree_node(c) for c in data.get("children", [])]
     return HaplogroupNode(
         haplogroup=data["haplogroup"],
         defining_snps=snps,
         children=children,
+        optional_conflict_snps=optional_conflict_snps,
     )
 
 
@@ -1607,6 +1613,14 @@ def _collect_snps(node: HaplogroupNode) -> list[HaplogroupSNP]:
     snps = list(node.defining_snps)
     for child in node.children:
         snps.extend(_collect_snps(child))
+    return snps
+
+
+def _collect_runtime_snps(node: HaplogroupNode) -> list[HaplogroupSNP]:
+    """Collect defining SNPs plus node-scoped optional conflict guards."""
+    snps = [*node.defining_snps, *node.optional_conflict_snps]
+    for child in node.children:
+        snps.extend(_collect_runtime_snps(child))
     return snps
 
 
@@ -1714,6 +1728,20 @@ def _classify_node_match(
         the node's full defining-SNP count (present + conflicting + missing).
     """
     return _classify_snps(node.defining_snps, genotype_map)
+
+
+def _classify_optional_conflict_match(
+    node: HaplogroupNode,
+    genotype_map: dict[str, str | None],
+) -> tuple[int, int]:
+    """Return derived and ancestral calls for a node's non-scoring guards.
+
+    Optional conflict guards are intentionally excluded from marker support and
+    confidence: a missing call is no evidence either way, a derived call permits
+    descent, and a typed ancestral call vetoes this node and every descendant.
+    """
+    present, conflicting, _ = _classify_snps(node.optional_conflict_snps, genotype_map)
+    return present, conflicting
 
 
 def _classify_snps(
@@ -1830,6 +1858,14 @@ def _tree_walk(
         return present, _haplogroup_confidence(present, total), supported_depth
 
     for child in node.children:
+        # A source-backed optional guard is not positive descent evidence, but a
+        # typed ancestral state is evidence against this exact branch. This is
+        # checked before both direct and structural pass-through descent so a
+        # markerless ancestor cannot hide the observed conflict.
+        _guard_present, guard_conflicting = _classify_optional_conflict_match(child, genotype_map)
+        if guard_conflicting > 0:
+            continue
+
         # Clade-specific defining SNPs: drop any marker inherited/duplicated from
         # an ancestor on the path, so descent rests on evidence that the sample is
         # in *this* child rather than merely in its parent clade.
@@ -1924,7 +1960,8 @@ def _tree_walk(
         # The inherited markers were derived to reach here, so a typed-ancestral
         # one would contradict the lineage — skip such a broken pass-through.
         _, conflicting, _ = _classify_node_match(child, genotype_map)
-        if conflicting > 0:
+        _guard_present, guard_conflicting = _classify_optional_conflict_match(child, genotype_map)
+        if conflicting > 0 or guard_conflicting > 0:
             continue
         sub_support_path: list[tuple[int, int]] = []
         terminal, sub_path = _tree_walk(
@@ -2060,7 +2097,7 @@ def assign_haplogroups(
             allele_sets = {frozenset(genotype.strip().upper()) for genotype in genotypes}
             if len(allele_sets) == 1:
                 mt_pos_to_genotype[pos] = genotypes[0]
-        for snp in _collect_snps(bundle.mt_tree):
+        for snp in _collect_runtime_snps(bundle.mt_tree):
             genotype = mt_pos_to_genotype.get(snp.pos)
             if genotype is not None:
                 genotype_map[snp.rsid] = genotype

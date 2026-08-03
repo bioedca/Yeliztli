@@ -1650,6 +1650,7 @@ _ISSUE_1798_BATCH13_PRIMARY_LAYOUT_CALLABLE_POSITIONS = {
             14182,
             15218,
             16256,
+            16270,
             16399,
             16526,
         }
@@ -1676,6 +1677,7 @@ _ISSUE_1798_BATCH13_PRIMARY_LAYOUT_CALLABLE_POSITIONS = {
             14182,
             15218,
             16256,
+            16270,
             16399,
             16526,
         }
@@ -1739,7 +1741,7 @@ class TestLoadHaplogroupBundle:
     """Test haplogroup bundle loading from JSON."""
 
     def test_loads_from_json(self, bundle: HaplogroupBundle) -> None:
-        assert bundle.version == "1.1.29"
+        assert bundle.version == "1.1.30"
         assert bundle.build == "GRCh37"
 
     def test_mt_tree_root(self, bundle: HaplogroupBundle) -> None:
@@ -5022,9 +5024,30 @@ class TestAssignHaplogroups:
         assert u5["emitted_parent"] == "U"
         assert u5["source_status"] == "exact"
         assert u5["emitted_snps"] == []
+        assert u5["optional_conflict_snps"] == [
+            {
+                "rsid": "i5016270",
+                "pos": 16270,
+                "ancestral_allele": "C",
+                "allele": "T",
+                "motif_owner": "U5",
+                "array_coverage": {
+                    "cohort_id": "primary_four_23andme",
+                    "position_present_in": ["pgp_4139", "pgp_4187", "pgp_huA08F4D"],
+                    "callable_snv_in": ["pgp_4187", "pgp_huA08F4D"],
+                },
+            }
+        ]
         assert [(row["pos"], row["emitted"]) for row in u5["direct_source_motif"]] == [
             (16192, False),
             (16270, False),
+        ]
+
+        u5_node = _find_mt_node(bundle.mt_tree, "U5")
+        assert u5_node is not None
+        assert u5_node.defining_snps == []
+        assert [(snp.rsid, snp.pos, snp.allele) for snp in u5_node.optional_conflict_snps] == [
+            ("i5016270", 16270, "T")
         ]
 
         assert _find_mt_node(bundle.mt_tree, "U5a'b") is None
@@ -5045,6 +5068,76 @@ class TestAssignHaplogroups:
         assert all(
             counts[12] == 0 for counts in _ISSUE_1798_BATCH13_PRIMARY_LAYOUT_COUNTS.values()
         )
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize(
+        ("layout_id", "guard_genotype"),
+        [
+            pytest.param("pgp_4139", None, id="untyped-pgp-4139"),
+            pytest.param("pgp_4162", None, id="untyped-pgp-4162"),
+            pytest.param("pgp_4187", None, id="missing-pgp-4187"),
+            pytest.param("pgp_huA08F4D", None, id="missing-pgp-huA08F4D"),
+            pytest.param("pgp_4187", "--", id="no-call-pgp-4187"),
+            pytest.param("pgp_4187", "TT", id="derived-pgp-4187"),
+            pytest.param("pgp_huA08F4D", "TT", id="derived-pgp-huA08F4D"),
+            pytest.param("pgp_4187", "CC", id="ancestral-pgp-4187"),
+            pytest.param("pgp_huA08F4D", "CC", id="ancestral-pgp-huA08F4D"),
+        ],
+    )
+    @pytest.mark.parametrize("target", ("U5a", "U5b"))
+    def test_issue_2165_u5_optional_guard_preserves_missing_and_blocks_ancestral(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        layout_id: str,
+        guard_genotype: str | None,
+        target: str,
+    ) -> None:
+        """m.16270 is optional when absent but vetoes a contradicted U5 descent."""
+        direct_calls = _ISSUE_1798_BATCH13_DIRECT_CASES[target][0]
+        assert 16270 not in {position for position, _allele in direct_calls}
+        if guard_genotype is not None:
+            assert 16270 in _ISSUE_1798_BATCH13_PRIMARY_LAYOUT_CALLABLE_POSITIONS[layout_id]
+
+        rows = [
+            {
+                **row,
+                "rsid": f"vendor_issue_2165_{layout_id}_{target}_{index}",
+                "chrom": "MT",
+            }
+            for index, row in enumerate(
+                [
+                    *_derived_mt_path_genotypes("R"),
+                    *(
+                        {"pos": position, "genotype": allele * 2}
+                        for position, allele in direct_calls
+                    ),
+                    *(
+                        [{"pos": 16270, "genotype": guard_genotype}]
+                        if guard_genotype is not None
+                        else []
+                    ),
+                ]
+            )
+        ]
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        if guard_genotype == "CC":
+            assert mt.haplogroup == "U"
+            assert [step.haplogroup for step in mt.traversal_path] == ["L3", "N", "R", "U"]
+            assert all(not step.haplogroup.startswith("U5") for step in mt.traversal_path)
+        else:
+            assert mt.haplogroup == target
+            assert [step.haplogroup for step in mt.traversal_path] == list(
+                _ISSUE_1798_BATCH13_PATHS[target]
+            )
 
     @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
     @pytest.mark.parametrize(

@@ -147,7 +147,7 @@ class TestBundleStructure:
         parts = bundle["version"].split(".")
         assert len(parts) == 3
         assert all(p.isdigit() for p in parts)
-        assert bundle["version"] == "1.1.29"
+        assert bundle["version"] == "1.1.30"
 
     def test_build_is_grch37(self, bundle: dict) -> None:
         assert bundle["build"] == "GRCh37"
@@ -510,7 +510,7 @@ class TestBundleStructure:
                 "f8aecb8ba02e5c2becbccfc40846bd3c8668d4b8c6de5be1761ab78c0d83a87e"
             ),
             "locked_emitted_tree_sha256": (
-                "73323f94e8740b24faa0001065f0ca79a9a24c18554500545e65694b1f17a566"
+                "0d3f25360e57573a61910787224ddfc701fb77515208857132791ec936570d31"
             ),
             "locked_direct_motif_exact_nodes_sha256": (
                 "cbd8af4204fdbabb36d9c97a1ecb7100279d71d337f9e56aecc9dc44ccfd1454"
@@ -528,7 +528,7 @@ class TestBundleStructure:
                 "13755a154c19c603bac63a2195287165271571ece1e36e178a666aa35184d04b"
             ),
             "state_partition_sha256": (
-                "b4f46c5140936d99429b7f52f1a94c7ded344417ad579e7d381ba07dc56c9115"
+                "f9a0d2ecd09f05ae1d5fbd41123d0d9e63b79d8f08c2e3b1c4c1f873ebb6a1fd"
             ),
         }
 
@@ -2443,6 +2443,24 @@ class TestBuildScript:
         assert any("absent from its whole cohort" in issue for issue in issues)
         assert any(
             "source mutation U5b2:13637 must have an omission reason" in issue for issue in issues
+        )
+
+    def test_issue_2165_mt_source_guard_rejects_duplicate_marker_coverage_drift(self) -> None:
+        """Identical runtime markers cannot carry contradictory array coverage."""
+        from scripts.build_haplogroup_bundle import (
+            _MT_SOURCE,
+            _validate_mt_source,
+            build_mt_tree,
+        )
+
+        source = copy.deepcopy(_MT_SOURCE)
+        guard = source["structural_exceptions"]["U5"]["optional_conflict_snps"][0]
+        guard["array_coverage"]["position_present_in"] = ["pgp_4187", "pgp_huA08F4D"]
+
+        issues = _validate_mt_source(source, build_mt_tree())
+        assert any(
+            "duplicate marker coverage differs" in issue and "i5016270" in issue
+            for issue in issues
         )
 
     def test_issue_1798_mt_source_guard_rejects_silent_omission_and_direction_drift(
