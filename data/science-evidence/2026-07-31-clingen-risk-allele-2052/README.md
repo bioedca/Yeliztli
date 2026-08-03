@@ -7,6 +7,21 @@ lower-penetrance/risk-allele classifications from ordinary high-penetrance
 Mendelian P/LP findings. It is cited only to explain Yeliztli's existing stored
 output category; this change does not add or alter variant classification behavior.
 
+Two precision points, because the shorthand above can be misread:
+
+- **Low-penetrance and risk-allele are two classes, not one.** The Working Group
+  recognises risk alleles *and* low-penetrance variants as distinct variant
+  classes from those causing highly penetrant disease. Yeliztli's single storage
+  category `clinvar_low_penetrance_or_risk_allele` deliberately spans both, which
+  is a software grouping and not a claim that the two are the same thing.
+- **"Distinct from P/LP" means distinct from *ordinary high-penetrance Mendelian*
+  P/LP.** A ClinVar value such as `Pathogenic, low penetrance` still carries a
+  Pathogenic primary classification. Penetrance and pathogenicity are not mutually
+  exclusive, and nothing here should be read as claiming every lower-penetrance
+  finding is non-P/LP. The variant is routed out of the ordinary high-penetrance
+  path because of its penetrance modifier, so a decreased-penetrance assertion is
+  never presented as a standard high-penetrance result.
+
 ## Source
 
 - Schmidt RJ, et al. *Recommendations for risk allele evidence curation,
@@ -84,6 +99,28 @@ output category; this change does not add or alter variant classification behavi
   does not apply. That is stated explicitly because the only corroborating paper
   surfaced by Consensus shares two authors with the primary source and therefore
   could not satisfy that rule if it were engaged.
+
+## Versions, licences, and retention basis
+
+`queries.json` carries a `source_versions_and_licenses` block recording, for each
+source and each service, its version/build, its licence or terms, and the basis
+on which the retained payload may be kept. Fields that genuinely do not exist are
+recorded as unavailable with the boundary that follows, rather than left blank.
+
+| Source / service | Version or build | Licence or terms | What is retained |
+| --- | --- | --- | --- |
+| PMID:38054408 | Version of record; PubMed revision 2026-05-18 | **None stated** — bronze OA | Bibliographic metadata only |
+| PMID:31147632 | Version of record, Genet Med 2019;21(12) | **Unavailable** — not retrieved | Bibliographic metadata only |
+| NCBI Entrez / PubMed | esummary response version `0.3` | NLM public data; no signed licence required | Bibliographic metadata + retained terms snapshot |
+| Consensus | **Unavailable** — no service or index-build stamp | Consensus terms; discovery aid only | Query, result ranks, hit identity |
+| Scite | **Unavailable** — no service or index-build stamp | Scite terms; screening aid only | Bibliographic fields, editorial-notice outcome, point-in-time tallies |
+
+Two consequences follow and are stated plainly. Neither discovery service exposes
+a version or index build, so the access date is the only retrieval-version
+boundary and neither result is reproducible against a pinned index state — the
+citation tallies in particular will drift. And no claim in this packet rests on
+provider output: Consensus was used to discover the primary source and Scite to
+screen it for retractions, while every claim rests on the primary records.
 
 ## Claim mapping
 

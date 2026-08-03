@@ -94,15 +94,15 @@ def _documents_distinct_lower_penetrance_category(text: str) -> bool:
         .replace("risk-allele", "risk allele")
         .replace("high-penetrance", "high penetrance")
     )
-    canonical_distinct_category_language = (
+    # One canonical sentence, required verbatim on every page. The earlier
+    # Rare-variants-specific alternative ("ClinVar risk assertions are stored
+    # under...") is deliberately gone: it named only the risk-allele half of a
+    # category that also holds low-penetrance assertions, so accepting it would
+    # let that imprecision return.
+    return (
         "lower penetrance/risk allele findings are stored under a distinct findings category "
-        "from high penetrance p/lp"
-        in normalized
-        or "clinvar lower penetrance/risk allele — clinvar risk assertions are stored under "
-        "a distinct findings category from high penetrance p/lp"
-        in normalized
+        "from high penetrance p/lp" in normalized
     )
-    return canonical_distinct_category_language
 
 
 def test_lower_penetrance_output_table_matches_production_contract() -> None:
@@ -124,6 +124,10 @@ def test_lower_penetrance_output_table_matches_production_contract() -> None:
 
 def test_lower_penetrance_category_is_documented_on_each_module_page() -> None:
     """Each module names the distinct stored category in 'What you'll see' (#2052)."""
+    assert _LOWER_PENETRANCE_MODULES, (
+        "no lower-penetrance modules configured; an emptied mapping would make this "
+        "guard pass vacuously"
+    )
     missing: list[str] = []
     for display_name, path in _LOWER_PENETRANCE_MODULES.values():
         doc = path.read_text(encoding="utf-8")
@@ -140,9 +144,16 @@ def test_lower_penetrance_category_is_documented_on_each_module_page() -> None:
 
 def test_shared_module_views_disclose_that_categories_render_together() -> None:
     """Storage-category wording must not imply a user-visible tier in shared views (#2052)."""
-    for display_name, path in _LOWER_PENETRANCE_MODULES.values():
-        if display_name == "Rare variants":
-            continue
+    shared_views = [
+        (display_name, path)
+        for display_name, path in _LOWER_PENETRANCE_MODULES.values()
+        if display_name != "Rare variants"
+    ]
+    assert shared_views, (
+        "no shared-view modules configured; an emptied mapping would make this loop "
+        "body never run and the guard pass vacuously"
+    )
+    for display_name, path in shared_views:
         doc = path.read_text(encoding="utf-8")
         what_youll_see = doc.split("## What you'll see", 1)[1].split("\n## ", 1)[0]
         normalized = " ".join(what_youll_see.lower().split())

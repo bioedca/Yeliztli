@@ -29,8 +29,13 @@ zygosity. CADD and REVEL scores are shown in the result details when available.
 Findings sorted by clinical relevance, in these categories:
 
 - **ClinVar pathogenic** — known Pathogenic/Likely-Pathogenic variants.
-- **ClinVar lower-penetrance/risk allele** — ClinVar risk assertions are stored under a distinct
-  findings category from high-penetrance P/LP variants.
+- **ClinVar lower-penetrance/risk allele** — lower-penetrance/risk-allele findings are stored
+  under a distinct findings category from high-penetrance P/LP variants. The category spans
+  both ClinVar low-penetrance assertions (such as *Pathogenic, low penetrance*) and
+  risk-allele assertions (such as *Established risk allele*). A low-penetrance assertion still
+  carries a Pathogenic or Likely pathogenic primary classification; it is held separately
+  because its penetrance modifier means it must not be read as a standard high-penetrance
+  Mendelian result.[^clingen-risk-allele]
 - **[Ensemble pathogenic](interpretation-reference.md#ensemble-pathogenic)** — a supporting
   computational flag based on a strict majority of the prediction axes with data; the reference
   explains the axes, thresholds, and displayed fraction.
@@ -51,3 +56,9 @@ details, CADD/REVEL scores, zygosity, and inheritance. You can export results to
   carries more than one of them, carries none, or the alleles cannot be matched — no gnomAD
   frequency is shown rather than another allele's, so the variant is treated as having no
   gnomAD AF and appears only when you include those.
+
+[^clingen-risk-allele]: Schmidt RJ, et al. [Recommendations for risk allele evidence
+    curation, classification, and reporting from the ClinGen Low Penetrance/Risk Allele
+    Working Group](https://doi.org/10.1016/j.gim.2023.101036). *Genetics in Medicine*.
+    2024;26(3):101036. PMID:38054408; DOI:10.1016/j.gim.2023.101036
+    (accessed 2026-07-31).
