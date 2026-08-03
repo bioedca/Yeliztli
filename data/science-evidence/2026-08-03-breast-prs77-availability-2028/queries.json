@@ -99,12 +99,15 @@
     "runtime_blocked_loci": 41,
     "audit_source": "Ensembl Variation, GRCh38, checked_on 2026-07-16",
     "guard": "tests/backend/test_cancer_prs_docs_consistency.py derives the expected counts from the panel and cross-checks runtime_blocked_loci == multiallelic + biallelic.",
-    "KNOWN GAP - audit is not reproducible from stored provenance": {
-      "what_is_missing": "The bundled panel records only the resource name ('Ensembl Variation'), the assembly (GRCh38), a mapping policy and the check date 2026-07-16. It does NOT record the Ensembl Variation release or database build, the query issued, or any sanitized response. Ensembl Variation is an evolving database, so the recorded date alone cannot establish which database state produced the 39/2/41 classification.",
-      "why_it_is_not_filled_in_here": "That audit was performed against the panel before this pull request and its inputs are not present in this repository. Reconstructing a release number, query or response would mean inventing provenance, which is expressly forbidden - a fabricated build identifier is worse than a recorded gap because it would read as verified.",
-      "scope": "This is a pre-existing limitation of the bundled panel's provenance, not something this documentation change introduces. This PR neither performs nor relies on a new audit: it reports the counts the panel already carries, and the guard ties the documentation to those stored values so the two cannot drift.",
-      "tracked_by": "#2246 \u2014 [Sci]: breast PRS77 allele audit records no Ensembl Variation release, so the runtime block is not reproducible",
-      "consequence_accepted": "Until that is fixed, cancer.md's locus counts are reproducible against the bundled panel but NOT independently reproducible against Ensembl Variation."
+    "audit_reproducibility": {
+      "_correction": "An earlier revision of this packet claimed the audit's inputs were absent from the repository. That was WRONG and review corrected it. The inputs are checked in and the counts are re-derivable offline.",
+      "stored_response": "backend/data/sources/breast_prs77/ensembl_primary_grch38_2026-07-16.json - 77 Ensembl records (rsid, alleles, location, strand) with assembly_name, coord_system, mapping_policy, checked_on 2026-07-16, and raw_payload_sha256 over the upstream payload.",
+      "generator": "scripts/build_breast_prs77.py deterministically re-derives the forward / reverse-complement / palindromic classification from that snapshot.",
+      "integrity_pin": "backend/data/panels/cancer_prs_weights.json -> model_provenance.reproducibility.checked_in_snapshot_sha256 pins the snapshot's SHA-256, so editing it breaks a recorded hash.",
+      "what_is_reproducible": "The documented 39 / 2 / 41 counts can be re-derived offline from repository contents.",
+      "what_is_not": "The Ensembl Variation RELEASE identifier is not recorded anywhere in the snapshot - verified by searching it for 'release', 'version' and 'build' tokens, none of which appear. The snapshot can therefore be re-used but not re-fetched and confirmed upstream, because the database state that produced it is unnamed.",
+      "not_invented": "A release identifier is deliberately not supplied here; a fabricated version would read as verified.",
+      "tracked_by": "#2246 - narrowed to recording the Ensembl Variation release identifier."
     }
   }
 }

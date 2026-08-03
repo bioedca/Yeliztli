@@ -142,22 +142,34 @@ paper. They are read from the bundled panel's own
 from that panel so a regenerated audit reddens the guard rather than leaving the
 page asserting stale counts.
 
-### Known gap: the allele audit is not independently reproducible
+### How the allele audit *is* reproducible, and the one thing that is not
 
-The bundled panel records the resource name, the assembly, a mapping policy and
-the check date `2026-07-16` — but **no Ensembl Variation release or database
-build, no query, and no stored response**. Ensembl Variation evolves, so a date
-alone cannot establish which database state produced the 39/2/41 classification.
+An earlier revision of this packet claimed the audit's inputs were absent from
+the repository. **That was wrong**, and review corrected it. The inputs are all
+checked in:
 
-That provenance is deliberately **not** reconstructed here. The audit predates
-this pull request and its inputs are not in this repository, so supplying a
-release number or query would mean inventing provenance — and a fabricated build
-identifier is worse than a recorded gap, because it reads as verified.
+- `backend/data/sources/breast_prs77/ensembl_primary_grch38_2026-07-16.json` —
+  the stored Ensembl response for all 77 loci (`rsid`, `alleles`, `location`,
+  `strand`), carrying `assembly_name`, `coord_system`, `mapping_policy`,
+  `checked_on: 2026-07-16`, and a `raw_payload_sha256` over the upstream payload;
+- `scripts/build_breast_prs77.py` — deterministically re-derives the
+  forward / reverse-complement / palindromic classification from that snapshot;
+- `model_provenance.reproducibility.checked_in_snapshot_sha256` in the panel —
+  pins the snapshot's own SHA-256 alongside the source table and the PGS
+  harmonized file.
 
-This is a pre-existing limitation of the panel, not something this documentation
-change introduces: the PR reports counts the panel already carries and ties the
-documentation to those stored values. The consequence is stated plainly — the
-counts are reproducible against the bundled panel, but not independently against
-Ensembl Variation. Issue #2246 tracks fixing the panel's audit provenance.
+So the documented 39 / 2 / 41 counts **can** be re-derived offline from
+repository contents, and any edit to the snapshot breaks a pinned hash.
+
+The narrow thing that remains missing is the **Ensembl Variation release
+identifier**. The snapshot records the assembly (GRCh38) and the date it was
+taken, but names no release or database version — verified by searching the file
+for `release`, `version` and `build` tokens, none of which appear. Consequently
+you can reproduce the counts *from the checked-in snapshot*, but you cannot
+re-fetch that snapshot from Ensembl and confirm it still matches, because you do
+not know which release produced it.
+
+A release identifier is deliberately **not** invented here: a fabricated version
+would read as verified. Issue #2246 tracks adding it to the panel provenance.
 
 The exact sanitized queries and service outcomes are recorded in `queries.json`.

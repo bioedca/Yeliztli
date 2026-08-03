@@ -222,6 +222,27 @@ def test_breast_prs_references_carry_a_science_evidence_packet() -> None:
                 f"raw payload must live inside {_EVIDENCE_DIR.name}: {raw}"
             )
             assert resolved.is_file(), f"missing recorded raw payload: {raw}"
+            # Existence is not usefulness: a truncated, emptied or malformed
+            # payload would otherwise let the packet report complete evidence
+            # over unusable files. Nothing else in the repository parses these.
+            payload = json.loads(resolved.read_text(encoding="utf-8"))
+            assert payload.get("accessed") == packet["accessed"], (
+                f"{raw} must record the packet's access date {packet['accessed']}"
+            )
+            assert payload.get("status") == "success", (
+                f"{raw} must record the successful outcome it is cited for"
+            )
+            records = next(
+                (
+                    value
+                    for key, value in payload.items()
+                    if key in {"records", "results_retained", "complete_result_ranking"}
+                ),
+                None,
+            )
+            assert isinstance(records, list) and records, (
+                f"{raw} must retain a non-empty record collection, not just metadata"
+            )
 
     # Versions/builds, licences and retention basis are required packet content,
     # so guard them too. Without this, deleting `source_versions_and_licenses`
@@ -230,6 +251,27 @@ def test_breast_prs_references_carry_a_science_evidence_packet() -> None:
     provenance = packet["source_versions_and_licenses"]
     entries = {key: value for key, value in provenance.items() if not key.startswith("_")}
     assert entries, "the packet must record versions and licences for its sources and services"
+
+    # Tie the block's keys to the packet's own citations and queried services.
+    # Checking only global non-emptiness would let the Ensembl source record or
+    # the Scite service record be deleted while any one entry survived, so the
+    # per-source metadata could vanish undetected.
+    recorded_ids = {
+        match.group(0).upper() for key in entries for match in _PROVENANCE_ID_RE.finditer(key)
+    }
+    for citation in packet["citations"]:
+        for match in _PROVENANCE_ID_RE.finditer(str(citation)):
+            assert match.group(0).upper() in recorded_ids, (
+                f"{match.group(0)} is cited by the packet but has no entry in "
+                "source_versions_and_licenses"
+            )
+    for entry in packet["queries"]:
+        service = str(entry["service"])
+        assert any(service.split(" (")[0] in key for key in entries), (
+            f"the {service} query has no version/licence entry in "
+            f"source_versions_and_licenses; entries are {sorted(entries)}"
+        )
+
     for name, record in entries.items():
         for field in ("version_or_build", "license_or_terms", "retention_basis"):
             value = record.get(field)
