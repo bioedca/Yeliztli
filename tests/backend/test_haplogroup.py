@@ -5140,6 +5140,53 @@ class TestAssignHaplogroups:
             )
 
     @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize("target", ("U5a", "U5b"))
+    @pytest.mark.parametrize(
+        "guard_genotypes",
+        (("TT", "CC"), ("CC", "TT")),
+        ids=("derived-then-ancestral", "ancestral-then-derived"),
+    )
+    def test_issue_2165_u5_optional_guard_blocks_discordant_typed_probes(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        target: str,
+        guard_genotypes: tuple[str, str],
+    ) -> None:
+        """Discordant typed m.16270 probes withhold markerless U5 descent."""
+        direct_calls = _ISSUE_1798_BATCH13_DIRECT_CASES[target][0]
+        rows = [
+            {
+                **row,
+                "rsid": f"vendor_issue_2165_discordant_{target}_{index}",
+                "chrom": "MT",
+            }
+            for index, row in enumerate(
+                [
+                    *_derived_mt_path_genotypes("R"),
+                    *(
+                        {"pos": position, "genotype": allele * 2}
+                        for position, allele in direct_calls
+                    ),
+                    *({"pos": 16270, "genotype": genotype} for genotype in guard_genotypes),
+                ]
+            )
+        ]
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+
+        assert mt.haplogroup == "U"
+        assert [step.haplogroup for step in mt.traversal_path] == ["L3", "N", "R", "U"]
+        assert all(not step.haplogroup.startswith("U5") for step in mt.traversal_path)
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
     @pytest.mark.parametrize(
         ("target", "calls", "expected_path"),
         [

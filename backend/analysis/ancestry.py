@@ -1733,15 +1733,21 @@ def _classify_node_match(
 def _classify_optional_conflict_match(
     node: HaplogroupNode,
     genotype_map: dict[str, str | None],
+    ambiguous_positions: frozenset[int] = frozenset(),
 ) -> tuple[int, int]:
     """Return derived and ancestral calls for a node's non-scoring guards.
 
     Optional conflict guards are intentionally excluded from marker support and
     confidence: a missing call is no evidence either way, a derived call permits
     descent, and a typed ancestral call vetoes this node and every descendant.
+    A position with disagreeing typed vendor probes is likewise a conflict for a
+    guard: the ordinary positional projection omits it as ambiguous, but a
+    markerless branch must not treat that known conflict as missing evidence.
     """
     present, conflicting, _ = _classify_snps(node.optional_conflict_snps, genotype_map)
-    return present, conflicting
+    return present, conflicting + sum(
+        snp.pos in ambiguous_positions for snp in node.optional_conflict_snps
+    )
 
 
 def _classify_snps(
@@ -1781,6 +1787,7 @@ def _tree_walk(
     trusted_single_marker_terminal_rsids: frozenset[str] = frozenset(),
     trusted_missing_internal_passthrough_rsids: frozenset[str] = frozenset(),
     _support_path: list[tuple[int, int]] | None = None,
+    ambiguous_guard_positions: frozenset[int] = frozenset(),
 ) -> tuple[HaplogroupNode, list[HaplogroupTraversalStep]]:
     """Recursive tree-walk to find the deepest matching haplogroup.
 
@@ -1834,6 +1841,9 @@ def _tree_walk(
             one-SNP non-leaf child terminal despite the general sparse-node floor.
         trusted_missing_internal_passthrough_rsids: Audited rsIDs whose absence
             may be bypassed only when an independently supported descendant exists.
+        ambiguous_guard_positions: Typed mtDNA positions with discordant vendor
+            probes. They veto only matching node-scoped conflict guards; ordinary
+            defining-SNP projection retains its existing ambiguity behavior.
 
     Returns:
         Tuple of (deepest matching node, full traversal path).
@@ -1862,7 +1872,11 @@ def _tree_walk(
         # typed ancestral state is evidence against this exact branch. This is
         # checked before both direct and structural pass-through descent so a
         # markerless ancestor cannot hide the observed conflict.
-        _guard_present, guard_conflicting = _classify_optional_conflict_match(child, genotype_map)
+        _guard_present, guard_conflicting = _classify_optional_conflict_match(
+            child,
+            genotype_map,
+            ambiguous_guard_positions,
+        )
         if guard_conflicting > 0:
             continue
 
@@ -1944,6 +1958,7 @@ def _tree_walk(
             trusted_missing_internal_passthrough_rsids=(
                 trusted_missing_internal_passthrough_rsids
             ),
+            ambiguous_guard_positions=ambiguous_guard_positions,
             _support_path=direct_support_path,
         )
         best_path = direct_path
@@ -1960,7 +1975,11 @@ def _tree_walk(
         # The inherited markers were derived to reach here, so a typed-ancestral
         # one would contradict the lineage — skip such a broken pass-through.
         _, conflicting, _ = _classify_node_match(child, genotype_map)
-        _guard_present, guard_conflicting = _classify_optional_conflict_match(child, genotype_map)
+        _guard_present, guard_conflicting = _classify_optional_conflict_match(
+            child,
+            genotype_map,
+            ambiguous_guard_positions,
+        )
         if conflicting > 0 or guard_conflicting > 0:
             continue
         sub_support_path: list[tuple[int, int]] = []
@@ -1974,6 +1993,7 @@ def _tree_walk(
             trusted_missing_internal_passthrough_rsids=(
                 trusted_missing_internal_passthrough_rsids
             ),
+            ambiguous_guard_positions=ambiguous_guard_positions,
             _support_path=sub_support_path,
         )
         if sub_path:  # the pass-through reached at least one supported descendant
@@ -2093,10 +2113,13 @@ def assign_haplogroups(
             mt_pos_to_genotypes.setdefault(row.pos, []).append(genotype)
 
         mt_pos_to_genotype: dict[int, str] = {}
+        ambiguous_mt_positions: set[int] = set()
         for pos, genotypes in mt_pos_to_genotypes.items():
             allele_sets = {frozenset(genotype.strip().upper()) for genotype in genotypes}
             if len(allele_sets) == 1:
                 mt_pos_to_genotype[pos] = genotypes[0]
+            else:
+                ambiguous_mt_positions.add(pos)
         for snp in _collect_runtime_snps(bundle.mt_tree):
             genotype = mt_pos_to_genotype.get(snp.pos)
             if genotype is not None:
@@ -2116,7 +2139,12 @@ def assign_haplogroups(
     # mtDNA assignment (always runs)
     t0 = time.perf_counter()
     mt_path: list[HaplogroupTraversalStep] = []
-    terminal_mt, mt_path = _tree_walk(bundle.mt_tree, genotype_map, mt_path)
+    terminal_mt, mt_path = _tree_walk(
+        bundle.mt_tree,
+        genotype_map,
+        mt_path,
+        ambiguous_guard_positions=frozenset(ambiguous_mt_positions),
+    )
 
     # Accumulate total defining SNPs along the path for confidence
     mt_total_present = sum(step.snps_present for step in mt_path)
