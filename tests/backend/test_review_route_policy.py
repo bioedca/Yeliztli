@@ -997,6 +997,24 @@ def test_v3_provider_evidence_is_exact_head_immutable_and_nonblocking(mutation: 
         "## O\n\nS.\n\n### Reviewed changes\n\nNo files listed.\n\nNotes\n===\n\n"
         "Copilot reviewed 2 out of 2 changed files in this pull request and "
         "generated no comments.\n",
+        # Constructs GitHub renders as a section break but which carry no `#`.
+        # Enumerating these was the losing approach; the verdict is now taken
+        # from the first line after the heading, so all of them are simply
+        # "not the first line" and need no special case.
+        *(
+            "## O\n\nS.\n\n### Reviewed changes\n\nNo files listed.\n\n"
+            + separator
+            + "\n\nCopilot reviewed 2 out of 2 changed files in this pull request "
+            "and generated no comments.\n"
+            for separator in (
+                "<h2>Notes</h2>",
+                "<h3>Notes</h3>",
+                "<hr>",
+                "> ### Notes",
+                "- ### Notes",
+                "<details>\n<summary>x</summary>\n</details>",
+            )
+        ),
         # Section heading missing entirely.
         _copilot_v3_body(2).replace("### Reviewed changes\n\n", ""),
         # Duplicate headings leave the section ambiguous.
