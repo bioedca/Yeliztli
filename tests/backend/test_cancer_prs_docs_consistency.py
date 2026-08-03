@@ -380,12 +380,22 @@ def test_breast_prs_references_carry_a_science_evidence_packet() -> None:
         # search would satisfy every other check and its ranking would be
         # attributed to a query that never produced it.
         for field in ("query", "filters"):
-            if field in entry and field in payload:
-                assert entry[field] == payload[field], (
-                    f"{raw} records {field}={payload[field]!r} but its entry recorded "
-                    f"{entry[field]!r}; the stored results cannot be attributed to the "
-                    "recorded search"
-                )
+            if field not in entry:
+                continue
+            # One-sided: whenever the entry declares a search field, the payload
+            # must carry it. A two-sided check would skip the comparison when the
+            # payload simply drops the field, re-admitting a response that cannot
+            # be attributed to the recorded search.
+            assert field in payload, (
+                f"{raw} is missing {field}, which its entry declares as "
+                f"{entry[field]!r}; the stored results cannot be attributed to the "
+                "recorded search"
+            )
+            assert entry[field] == payload[field], (
+                f"{raw} records {field}={payload[field]!r} but its entry recorded "
+                f"{entry[field]!r}; the stored results cannot be attributed to the "
+                "recorded search"
+            )
         # A payload that declares how many results came back must retain that
         # many, or the "complete" ranking is a truncation wearing its name.
         returned = payload.get("results_returned")
