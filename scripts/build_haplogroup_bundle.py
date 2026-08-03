@@ -2839,6 +2839,8 @@ def _mt_validate_optional_conflict_snps(
         issues.append(f"Optional conflict guard node {node_name} has no source identity")
         return
     _mt_validate_mutation_list(source_node, motif, issues)
+    if not isinstance(motif, list) or not motif:
+        return
     motif_by_position = {
         mutation.get("pos"): mutation
         for mutation in motif

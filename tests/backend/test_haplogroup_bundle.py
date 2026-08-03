@@ -2463,6 +2463,27 @@ class TestBuildScript:
             for issue in issues
         )
 
+    def test_issue_2165_mt_source_guard_rejects_malformed_direct_source_motif(self) -> None:
+        """A malformed guard source motif reports its schema error without cascading."""
+        from scripts.build_haplogroup_bundle import (
+            _MT_SOURCE,
+            _validate_mt_source,
+            build_mt_tree,
+        )
+
+        for malformed_motif in (None, {"pos": 16270}):
+            source = copy.deepcopy(_MT_SOURCE)
+            record = source["structural_exceptions"]["U5"]
+            if malformed_motif is None:
+                record.pop("direct_source_motif")
+            else:
+                record["direct_source_motif"] = malformed_motif
+
+            issues = _validate_mt_source(source, build_mt_tree())
+
+            assert "Marker-exact mtDNA source node U5 has no direct source motif" in issues
+            assert not any("optional guard i5016270" in issue for issue in issues)
+
     def test_issue_1798_mt_source_guard_rejects_silent_omission_and_direction_drift(
         self,
     ) -> None:
