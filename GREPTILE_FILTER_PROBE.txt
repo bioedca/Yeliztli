@@ -1,0 +1,2 @@
+Temporary probe: verifying the Greptile dashboard label filter blocks
+automatic review on a single-file pull request. Delete after the check.
