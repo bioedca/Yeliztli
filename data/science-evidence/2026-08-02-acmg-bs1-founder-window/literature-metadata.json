@@ -1,6 +1,8 @@
 {
+  "claim_ids": ["C1", "C3"],
   "accessed": "2026-08-02",
   "payload_type": "sanitized source-response extract",
+  "sanitized_payload_path": "data/science-evidence/2026-08-02-acmg-bs1-founder-window/literature-metadata.json",
   "retention": "Only identifiers, titles, years, and independently written compact findings are retained. Raw service responses are omitted because they can carry user-specific access URLs.",
   "license_or_terms": "N/A for retained content: no article text, abstract, figure, or licensed full-text material is copied.",
   "sources": [
@@ -17,14 +19,14 @@
       "doi": "10.1002/cphg.93",
       "title": "Overview of Specifications to the ACMG/AMP Variant Interpretation Guidelines",
       "year": 2019,
-      "finding": "Reports FAF as the confidence-bounded frequency construct used when applying BA1 or BS1."
+      "finding": "Reports FAF as the confidence-bounded frequency construct used when applying BA1 or BS1; it is methodological context, not a disease-specific threshold for this patch."
     },
     {
       "service": "Scite",
       "doi": "10.1002/humu.24152",
       "title": "Specifications of the ACMG/AMP variant interpretation guidelines for germline TP53 variants",
       "year": 2020,
-      "finding": "Reports a ClinGen VCEP decision to ignore ASJ and FIN frequencies for BA1 and BS1 because of founder effects."
+      "finding": "Reports a TP53-specific ClinGen VCEP decision to ignore ASJ and FIN frequencies for BA1 and BS1 because of founder effects; this packet does not generalize that specification to every gene or disease."
     }
   ],
   "sanitization": "Public citation metadata and compact findings only; no abstracts, full text, or user-specific access URLs are retained."

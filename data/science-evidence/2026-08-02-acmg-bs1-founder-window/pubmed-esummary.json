@@ -1,7 +1,9 @@
 {
+  "claim_ids": ["C3"],
   "source": "NCBI Entrez ESummary",
   "accessed": "2026-08-02",
   "payload_type": "sanitized source-response extract",
+  "sanitized_payload_path": "data/science-evidence/2026-08-02-acmg-bs1-founder-window/pubmed-esummary.json",
   "retention": "Citation metadata only; no article content, abstract, author details, affiliation, or full-text material is retained.",
   "license_or_terms": "N/A for retained citation metadata: no licensed article content is copied.",
   "request": {

@@ -4,6 +4,13 @@ All queries used public, sanitized scientific terms and were accessed on
 2026-08-02. No real genotype, sample, credential, or restricted payload was
 submitted or retained.
 
+## Claim identifiers
+
+- C1: fail-closed repository-consistency boundary for BS1.
+- C2: repository AF/AN ingestion, persistence, and assessment inventory.
+- C3: citation provenance for the existing BA1/general-population distinction.
+- C4: public gnomAD GraphQL endpoint availability only.
+
 ## Evidence ladder
 
 1. Consensus search: `ACMG BS1 BA1 allele frequency founder populations
@@ -14,21 +21,24 @@ submitted or retained.
    `10.1002/humu.23642`, `10.1002/cphg.93`, and `10.1002/humu.24152` with
    `Ashkenazi Finnish BS1 BA1 filtering allele frequency`.
 3. NCBI Entrez ESummary queried PubMed IDs `30311383,32461654,28518168`.
-4. The gnomAD GraphQL skill queried `meta { clinvar_release_date }` to record
-   public endpoint availability. It did not fetch a variant or genotype record.
+4. The gnomAD GraphQL skill sent a POST request to
+   `https://gnomad.broadinstitute.org/api` for
+   `query { meta { clinvar_release_date } }` to record public endpoint
+   availability. It did not fetch a dataset, variant, sample, or genotype record.
 
 ## Results and checks
 
 - Consensus supplied the Ghosh BA1 recommendation record; no Consensus result
   is cited without its required fetch step.
 - Scite's targeted results supported the ClinGen SVI overview's use of FAF for
-  BA1/BS1 and the TP53 VCEP's ASJ/FIN founder-effect exclusion for both
-  criteria. Returned source metadata did not list a retraction notice.
+  BA1/BS1 and recorded the TP53 VCEP's TP53-specific ASJ/FIN founder-effect
+  example. Returned source metadata did not list a retraction notice.
 - PubMed metadata confirmed the identifiers and titles in
   `pubmed-esummary.json`. This is a metadata check as of the access date, not a
   claim about future corrections or retractions.
-- The gnomAD endpoint returned `clinvar_release_date` `2026-06-06`; the local
-  bundle remains versioned separately as r2.1.1 exomes.
+- The gnomAD endpoint returned `clinvar_release_date` `2026-06-06`; this is
+  endpoint metadata, not a gnomAD dataset release version. The local reference
+  bundle remains separately versioned as gnomAD r2.1.1 exomes on GRCh37/b37.
 
 ## Sanitization
 
