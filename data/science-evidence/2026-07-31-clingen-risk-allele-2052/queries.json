@@ -8,13 +8,17 @@
       "version_or_build": "Version of record, Genetics in Medicine 2024;26(3):101036. The retained PubMed record carries a revision date of 2026-05-18; that revision stamp plus the 2026-07-31 access date are the retrieval-version boundary.",
       "license_or_terms": "No reuse licence is stated by the publisher. Scite reports the record as bronze open access, meaning free to read at the publisher without an accompanying open licence.",
       "retention_basis": "Bibliographic metadata only. The publisher abstract and its all-rights-reserved CopyrightInformation are removed, and public author contact emails are redacted. Facts of this kind are not the publisher's copyrightable expression, so retention does not depend on a reuse grant.",
-      "unavailable_fields": ["license (not stated by the publisher)"]
+      "unavailable_fields": [
+        "license (not stated by the publisher)"
+      ]
     },
     "PMID:31147632 / DOI:10.1038/s41436-019-0560-8": {
       "version_or_build": "Version of record, Genet Med. 2019;21(12):2765-2773. No build identifier exists; the 2026-08-03 access date is the retrieval-version boundary.",
       "license_or_terms": "No reuse licence retrieved. Recorded as unavailable rather than inferred.",
       "retention_basis": "Bibliographic metadata only, with the abstract omitted and affiliation contact emails redacted. Retained solely to document author overlap with the primary source; it supports no claim.",
-      "unavailable_fields": ["license (not retrieved)"]
+      "unavailable_fields": [
+        "license (not retrieved)"
+      ]
     },
     "NCBI Entrez / PubMed (service)": {
       "version_or_build": "esummary response version 0.3, recorded in the retained payload. The EFetch PubMed XML exposes no separate service version; its record revision date of 2026-05-18 is the closest available boundary.",
@@ -26,13 +30,17 @@
       "version_or_build": "Unavailable. The MCP interface returns no service version, model version, or index build stamp with a search response, so the 2026-08-03 access date is the only retrieval-version boundary and the result is not reproducible against a pinned index state.",
       "license_or_terms": "Consensus terms of service. Provider output is treated as a discovery aid, not as evidence.",
       "retention_basis": "Only the query string, result ranks, and the bibliographic identity of the retained hits are recorded. No generated summary or provider narrative is retained, and no Consensus result supports any claim in this packet.",
-      "unavailable_fields": ["version_or_build (not exposed by the service)"]
+      "unavailable_fields": [
+        "version_or_build (not exposed by the service)"
+      ]
     },
     "Scite (service)": {
       "version_or_build": "Unavailable. The MCP interface returns no service version or citation-index build stamp, so the recorded citation tallies are a point-in-time reading bounded only by the 2026-08-03 access date and will drift.",
       "license_or_terms": "Scite terms of service. Provider output is treated as a screening aid, not as evidence.",
       "retention_basis": "Only bibliographic fields, the editorial-notice screening outcome, and point-in-time citation counts are recorded. No Smart Citation snippets quoting third-party papers and no signed access URL are retained. The screening outcome is used to check for retractions, not to support a scientific claim.",
-      "unavailable_fields": ["version_or_build (not exposed by the service)"]
+      "unavailable_fields": [
+        "version_or_build (not exposed by the service)"
+      ]
     }
   },
   "queries": [
@@ -52,7 +60,9 @@
       "status": "success",
       "reason": "Re-run after the reported August 1 quota reset.",
       "result": "Returned the packet's primary source as rank 1 (Schmidt et al., Genetics in Medicine), its conference abstract as rank 3, and the 2019 Senol-Cosar framework paper as rank 2. Rank 2 shares authors Schmidt RJ and Lebo MS with the primary source and is therefore recorded as a documented antecedent, not an independent second source.",
-      "raw_payload": "data/science-evidence/2026-07-31-clingen-risk-allele-2052/raw/consensus-search-2026-08-03.json"
+      "derived_payload": "data/science-evidence/2026-07-31-clingen-risk-allele-2052/derived/consensus-search-2026-08-03.json",
+      "raw_payload_retained": false,
+      "raw_payload_note": "Complete provider response not retained; see artifact_type and payload_completeness in the derived file."
     },
     {
       "service": "Scite",

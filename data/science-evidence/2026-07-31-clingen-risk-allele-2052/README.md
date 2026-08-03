@@ -80,9 +80,18 @@ Two precision points, because the shorthand above can be misread:
       `CommentsCorrectionsList` check recorded below. Scite's returned three-author
       subset is not the leading three of the NCBI author list, so authorship
       attribution follows the authoritative NCBI record.
-    - Sanitized payloads: `raw/consensus-search-2026-08-03.json`,
-      `raw/scite-doi-lookup-2026-08-03.json`,
-      `raw/pubmed-31147632-metadata.json`.
+    - Sanitized payloads: `raw/scite-doi-lookup-2026-08-03.json` and
+      `raw/pubmed-31147632-metadata.json` are the sanitized provider responses,
+      with only prohibited content removed (abstracts, expiring signed links).
+    - The Consensus output is **not** a retained raw payload and is therefore
+      kept at `derived/consensus-search-2026-08-03.json`, outside `raw/`. The
+      service returned 20 results; ranks 1-3 were captured, ranks 4-20 were not,
+      and the file adds packet-specific interpretive fields (`role`, `maps_to`,
+      `independence_note`) that Consensus never emitted. Re-running the query now
+      would return a different index state rather than the 2026-08-03 response
+      actually used, so the gap is disclosed instead of backfilled. No claim in
+      this packet depends on ranks 4-20 or on the completeness of the ordering —
+      Consensus was a discovery aid, and every claim rests on the primary records.
 - Narrow Life Science Research fallback:
   `life-science-research:ncbi-entrez-skill` ran its bundled
   `scripts/ncbi_entrez.py` client with the recorded PubMed `esummary` request.
@@ -94,11 +103,38 @@ Two precision points, because the shorthand above can be misread:
   `CommentsCorrectionsList` element for PMID:38054408, and its publication types
   are `Journal Article` and `Research Support, N.I.H., Extramural` (accessed
   2026-07-31). The 2026-08-03 Scite screening above independently agrees.
-- This terminology/provenance statement is not a patient-specific or
-  quantitative clinical claim, so the high-stakes two-independent-source rule
-  does not apply. That is stated explicitly because the only corroborating paper
-  surfaced by Consensus shares two authors with the primary source and therefore
-  could not satisfy that rule if it were engaged.
+### Why the two-independent-source rule is not engaged
+
+An earlier revision of this packet asserted only that the statement "is not a
+patient-specific or quantitative clinical claim". That reasoning was too weak to
+carry the point on its own, and review was right to challenge it. The rule is not
+engaged for a more specific reason: **every claim the documentation makes is a
+statement about an artifact, not an independent scientific assertion.** Each is
+verified against the artifact it describes, which is the authoritative source for
+it, and a second source could not corroborate it even in principle:
+
+| Documentation claim | Kind of claim | Where it is verified |
+| --- | --- | --- |
+| Lower-penetrance/risk-allele findings are stored under a distinct findings category, and the page currently displays both together | This repository's own behavior | The code and its tests, not literature |
+| Which modules surface that category | This repository's own behavior | The code and its tests |
+| The category spans ClinVar low-penetrance assertions (*Pathogenic, low penetrance*) and risk-allele assertions (*Established risk allele*) | ClinVar's controlled vocabulary | ClinVar's own significance terms |
+| A low-penetrance assertion retains a Pathogenic or Likely pathogenic primary classification | ClinVar's data model | ClinVar's own significance terms |
+| Such assertions should be curated and reported distinctly from standard high-penetrance results | What one named guideline recommends | PMID:38054408 — the guideline itself |
+
+The last row is the only one that could be mistaken for clinical guidance, and it
+is deliberately written in the documentation as *what the ClinGen Low
+Penetrance/Risk Allele Working Group recommends*, attributed to that guideline,
+rather than as a clinical instruction in this project's own voice. "What does
+this named guideline say" is settled by reading that guideline; requiring a
+second, independent guideline to agree would not strengthen it.
+
+This packet asserts **no** penetrance estimate, risk magnitude, effect size, or
+clinical action, and none appears in the documentation. Were any such claim ever
+added, the two-source rule would be engaged and this packet would not satisfy it:
+the only corroborating paper Consensus surfaced (PMID:31147632) shares authors
+Schmidt RJ and Lebo MS with the primary source and builds on the same framework,
+so it is recorded as a documented antecedent and explicitly **not** counted as an
+independent second source.
 
 ## Versions, licences, and retention basis
 

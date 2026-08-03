@@ -34,8 +34,9 @@ Findings sorted by clinical relevance, in these categories:
   both ClinVar low-penetrance assertions (such as *Pathogenic, low penetrance*) and
   risk-allele assertions (such as *Established risk allele*). A low-penetrance assertion still
   carries a Pathogenic or Likely pathogenic primary classification; it is held separately
-  because its penetrance modifier means it must not be read as a standard high-penetrance
-  Mendelian result.[^clingen-risk-allele]
+  because the ClinGen Low Penetrance/Risk Allele Working Group recommends that assertions
+  carrying a penetrance modifier be curated and reported distinctly from standard
+  high-penetrance results.[^clingen-risk-allele]
 - **[Ensemble pathogenic](interpretation-reference.md#ensemble-pathogenic)** — a supporting
   computational flag based on a strict majority of the prediction axes with data; the reference
   explains the axes, thresholds, and displayed fraction.
