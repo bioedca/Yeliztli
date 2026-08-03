@@ -47,15 +47,29 @@ Issues are organised by a labelled taxonomy — see
 Choose the highest route required by any part of the final diff:
 
 - **Low:** text or mechanical changes with no behavior, public-contract,
-  science, security, dependency, or workflow impact. Copilot is the usual
-  automated reviewer.
+  science, security, dependency, or workflow impact.
 - **Standard:** routine code, tests, UI, refactors, or bug fixes outside a
-  load-bearing area. Codex `@codex review` is the usual automated reviewer.
+  load-bearing area.
 - **Load-bearing:** science or clinical logic/data and their tests; privacy,
   security, or auth; schema, migration, or data-loss paths; concurrency;
   dependencies; updater, installer, release, CI, workflows, permissions, core
-  architecture, or broad/hard-to-revert changes. Manual CodeRabbit is the
-  preferred automated reviewer when its quota is available.
+  architecture, or broad/hard-to-revert changes.
+
+The route decides how carefully the change is reviewed; it does not decide who
+reviews it. The three hosted providers are interchangeable on every route.
+Codex `@codex review` is the default lane. CodeRabbit no longer reviews
+automatically, so on a v3 pull request it starts only when the
+`review:coderabbit` label is applied or someone asks for a review in a comment
+— pick it deliberately, because its included reviews and the local `coderabbit`
+CLI draw on one shared budget that adaptive fair-usage limits throttle. Never
+trigger a provider you did not select.
+
+A **v2** pull request that selects CodeRabbit keeps its legacy protocol
+unchanged: a `coderabbit-reservation: <40-character head SHA>` comment for the
+current head, followed by the exact comment `@coderabbitai full review`. The
+label gate does not replace that pair — a label alone, or a plain
+`@coderabbitai review`, is not recorded as a v2 protocol event and leaves the
+route pending.
 
 New pull requests use `review-route-schema:v3`. Existing v2 pull requests keep
 their human-gated contract until their body is explicitly migrated; v1 remains
@@ -68,9 +82,15 @@ V3 trusts only a small provider-authenticated terminal envelope:
 
 - **Codex:** an exact-head empty formal approval with zero attached comments,
   or its canonical immutable clean comment and reviewed-commit marker.
-- **Copilot:** its unedited concise findings envelope, with both reviewed-file
-  counts equal to GitHub's changed-file count and zero generated or attached
-  comments.
+- **Copilot:** its unedited review carrying the coverage sentence `Copilot
+  reviewed N out of M changed files in this pull request and generated no
+  comments.` exactly once, with no attached comments. The counts are not
+  compared against GitHub's changed-file count — they are asserted in the same
+  prose as the verdict, so checking them adds no trust — which means a clean
+  Copilot review says Copilot ran and raised nothing, not that it read every
+  file. Copilot skips files it judges low risk, and can withhold a
+  low-confidence finding rather than post it; the envelope detects neither
+  (#2256).
 - **CodeRabbit:** its unedited structured clean review, with zero actionable or
   attached comments, no ignored files, and its selected-file count equal to
   GitHub's changed-file count.

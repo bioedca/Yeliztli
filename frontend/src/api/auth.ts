@@ -1,5 +1,6 @@
 /** API hooks for authentication (P4-21a). */
 
+import { throwApiError } from '@/api/errors'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 // ── Types ────────────────────────────────────────────────────────────
@@ -23,7 +24,7 @@ const AUTH_STATUS_KEY = ['auth', 'status'] as const
 
 async function fetchAuthStatus(): Promise<AuthStatus> {
   const res = await fetch('/api/auth/status', { credentials: 'include' })
-  if (!res.ok) throw new Error(`Auth status failed: ${res.status}`)
+  if (!res.ok) await throwApiError(res, 'Unable to check sign-in status. Please try again.')
   return res.json()
 }
 
@@ -35,8 +36,12 @@ async function postLogin(password: string): Promise<LoginResponse> {
     body: JSON.stringify({ password }),
   })
   if (!res.ok) {
-    const body = await res.json().catch(() => null)
-    throw new Error(body?.detail || `Login failed: ${res.status}`)
+    await throwApiError(
+      res,
+      res.status === 401
+        ? 'The password is incorrect.'
+        : 'Unable to sign in. Please try again.',
+    )
   }
   return res.json()
 }
@@ -61,4 +66,3 @@ export function useLogin() {
     },
   })
 }
-

@@ -92,7 +92,7 @@ export default function AncestryView() {
             es.close()
             bundleSseRef.current = null
             setBundleDownloadStatus("error")
-            setBundleDownloadError(bundle.error || "Download failed")
+            setBundleDownloadError("The bundle download failed. Please try again.")
           }
         })
         es.addEventListener("error", () => {
@@ -428,8 +428,7 @@ export default function AncestryView() {
                         </p>
                         <p className="text-muted-foreground">
                           {laiProgressQuery.data.insufficient_data_reason?.message
-                            ?? laiProgressQuery.data.error
-                            ?? "Unknown error"}
+                            ?? "Chromosome painting failed. Please try again."}
                         </p>
                       </div>
                     </div>

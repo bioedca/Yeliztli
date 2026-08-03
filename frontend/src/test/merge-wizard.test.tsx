@@ -298,9 +298,10 @@ describe("MergeWizard — preview step", () => {
     ).toBeInTheDocument()
   })
 
-  it("surfaces the API error message on preview failure", async () => {
+  it("surfaces safe copy on preview failure", async () => {
+    const rawDiagnostic = "Source sample 11 is stale"
     mockFetch.mockResolvedValueOnce(
-      jsonResponse({ detail: "Source sample 11 is stale" }, 423),
+      jsonResponse({ detail: rawDiagnostic }, 423),
     )
 
     renderWizard()
@@ -309,9 +310,10 @@ describe("MergeWizard — preview step", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText(/Source sample 11 is stale/),
+        screen.getByText("Failed to preview merge"),
       ).toBeInTheDocument()
     })
+    expect(document.body).not.toHaveTextContent(rawDiagnostic)
   })
 
   it("back button returns to strategy step", async () => {
@@ -421,10 +423,40 @@ describe("MergeWizard — confirm step", () => {
     expect(MockEventSource.instances).toHaveLength(0)
   })
 
-  it("surfaces the commit error and keeps the user on confirm", async () => {
+  it("uses safe copy for a failed annotation progress event", async () => {
+    const rawDiagnostic = "sqlite:///private/data/merged.db: permission denied"
     mockFetch.mockResolvedValueOnce(jsonResponse(CONCORDANCE_PAYLOAD))
     mockFetch.mockResolvedValueOnce(
-      jsonResponse({ detail: "Source not fresh" }, 423),
+      jsonResponse({ merged_sample_id: 99, job_id: "merge-job-2" }, 201),
+    )
+
+    renderWizard()
+    await advanceToConfirm()
+    fireEvent.click(screen.getByRole("button", { name: /^Merge$/ }))
+
+    await waitFor(() => {
+      expect(MockEventSource.instances).toHaveLength(1)
+    })
+    act(() => {
+      MockEventSource.instances[0]._emit("progress", {
+        job_id: "merge-job-2",
+        status: "failed",
+        progress_pct: 42,
+        message: rawDiagnostic,
+        error: rawDiagnostic,
+      })
+    })
+
+    const failure = await screen.findByRole("alert")
+    expect(failure).toHaveTextContent("Annotation failed. Open the sample dashboard to retry.")
+    expect(document.body).not.toHaveTextContent(rawDiagnostic)
+  })
+
+  it("surfaces safe copy on commit failure and keeps the user on confirm", async () => {
+    const rawDiagnostic = "Source not fresh"
+    mockFetch.mockResolvedValueOnce(jsonResponse(CONCORDANCE_PAYLOAD))
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse({ detail: rawDiagnostic }, 423),
     )
 
     renderWizard()
@@ -433,8 +465,9 @@ describe("MergeWizard — confirm step", () => {
     fireEvent.click(screen.getByRole("button", { name: /^Merge$/ }))
 
     await waitFor(() =>
-      expect(screen.getByText(/Source not fresh/)).toBeInTheDocument(),
+      expect(screen.getByText("Failed to merge samples")).toBeInTheDocument(),
     )
+    expect(document.body).not.toHaveTextContent(rawDiagnostic)
     expect(screen.queryByTestId("merge-progress")).not.toBeInTheDocument()
   })
 })

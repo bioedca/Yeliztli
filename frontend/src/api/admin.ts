@@ -1,6 +1,7 @@
 /** API hooks for admin panel / System Health (P4-21b). */
 
 import { useQuery } from '@tanstack/react-query'
+import { throwApiError } from '@/api/errors'
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -100,31 +101,31 @@ async function fetchLogs(filters: LogFilters): Promise<LogResponse> {
   if (filters.until) params.set('until', filters.until)
   if (filters.search) params.set('search', filters.search)
   const res = await fetch(`/api/admin/logs?${params}`)
-  if (!res.ok) throw new Error(`Failed to fetch logs: ${res.status}`)
+  if (!res.ok) await throwApiError(res, 'Unable to load logs. Please try again.')
   return res.json()
 }
 
 async function fetchDbStats(): Promise<DatabaseStat[]> {
   const res = await fetch('/api/admin/db-stats')
-  if (!res.ok) throw new Error(`Failed to fetch DB stats: ${res.status}`)
+  if (!res.ok) await throwApiError(res, 'Unable to load database statistics. Please try again.')
   return res.json()
 }
 
 async function fetchSampleStats(): Promise<SampleStat[]> {
   const res = await fetch('/api/admin/sample-stats')
-  if (!res.ok) throw new Error(`Failed to fetch sample stats: ${res.status}`)
+  if (!res.ok) await throwApiError(res, 'Unable to load sample statistics. Please try again.')
   return res.json()
 }
 
 async function fetchDiskUsage(): Promise<DiskUsage> {
   const res = await fetch('/api/admin/disk-usage')
-  if (!res.ok) throw new Error(`Failed to fetch disk usage: ${res.status}`)
+  if (!res.ok) await throwApiError(res, 'Unable to load disk usage. Please try again.')
   return res.json()
 }
 
 async function fetchSystemStatus(): Promise<SystemStatus> {
   const res = await fetch('/api/admin/status')
-  if (!res.ok) throw new Error(`Failed to fetch system status: ${res.status}`)
+  if (!res.ok) await throwApiError(res, 'Unable to load system status. Please try again.')
   return res.json()
 }
 

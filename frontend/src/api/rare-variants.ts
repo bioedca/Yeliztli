@@ -1,5 +1,7 @@
 /** React Query hooks for rare variant finder API (P3-30). */
 
+import { throwApiError } from "@/api/errors"
+
 import { keepPreviousData, useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import type {
   RareVariantFilterRequest,
@@ -30,8 +32,7 @@ export function useRareVariantFindings(
       if (offset != null && offset > 0) params.set("offset", String(offset))
       const res = await fetch(`/api/analysis/rare-variants/findings?${params}`)
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`Rare variant findings failed: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `Rare variant findings failed. Please try again.`)
       }
       return res.json()
     },
@@ -60,8 +61,7 @@ export function useRareVariantSearch(sampleId: number | null) {
         body: JSON.stringify(filters),
       })
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`Rare variant search failed: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `Rare variant search failed. Please try again.`)
       }
       return res.json()
     },

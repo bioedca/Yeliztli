@@ -1,6 +1,8 @@
 /** HLA (imputed) module API hooks (Wave D). Read-only: HLA calls are computed
  * offline (scripts/predict_hla.py) and stored, so the views only GET + interpret. */
 
+import { throwApiError } from "@/api/errors"
+
 import { useQuery } from "@tanstack/react-query"
 import type {
   HlaDrugHypersensitivityResponse,
@@ -15,8 +17,7 @@ export function useHlaDrugHypersensitivity(sampleId: number | null) {
     queryFn: async (): Promise<HlaDrugHypersensitivityResponse> => {
       const res = await fetch(`/api/hla/drug-hypersensitivity?sample_id=${sampleId}`)
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`HLA drug-hypersensitivity failed: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `HLA drug-hypersensitivity failed. Please try again.`)
       }
       return res.json()
     },
@@ -31,8 +32,7 @@ export function useHlaRuleOuts(sampleId: number | null) {
     queryFn: async (): Promise<HlaRuleOutsResponse> => {
       const res = await fetch(`/api/hla/rule-outs?sample_id=${sampleId}`)
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`HLA rule-outs failed: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `HLA rule-outs failed. Please try again.`)
       }
       return res.json()
     },
@@ -47,8 +47,7 @@ export function useHlaSusceptibility(sampleId: number | null) {
     queryFn: async (): Promise<HlaSusceptibilityResponse> => {
       const res = await fetch(`/api/hla/susceptibility?sample_id=${sampleId}`)
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`HLA susceptibility failed: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `HLA susceptibility failed. Please try again.`)
       }
       return res.json()
     },
@@ -63,8 +62,7 @@ export function useHlaAlleles(sampleId: number | null) {
     queryFn: async (): Promise<HlaViewerResponse> => {
       const res = await fetch(`/api/hla/alleles?sample_id=${sampleId}`)
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`HLA alleles failed: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `HLA alleles failed. Please try again.`)
       }
       return res.json()
     },

@@ -113,9 +113,10 @@ function HealthRow({ db }: { db: DatabaseHealth }) {
     (db.state === 'downloading' || (db.state === 'partial' && db.resumable))
 
   const integrityNote =
-    db.integrity_ok === false
-      ? db.integrity_detail
-      : db.last_error || (db.integrity_ok ? null : db.integrity_detail)
+    db.integrity_ok === false ||
+    (db.state !== 'ready' && (Boolean(db.last_error) || Boolean(db.integrity_detail)))
+      ? 'Database integrity needs attention. Re-check or clean and re-download the database.'
+      : null
 
   return (
     <>
@@ -181,9 +182,13 @@ function HealthRow({ db }: { db: DatabaseHealth }) {
                 onClick={() =>
                   verify.mutate(db.name, {
                     onSuccess: (r) =>
-                      setVerifyResult(r.ok ? 'Integrity OK' : `Failed: ${r.detail}`),
-                    onError: (e) =>
-                      setVerifyResult(e instanceof Error ? e.message : 'Verify failed'),
+                      setVerifyResult(
+                        r.ok
+                          ? 'Integrity OK'
+                          : 'Integrity check failed. Re-check or clean and re-download the database.',
+                      ),
+                    onError: () =>
+                      setVerifyResult('Integrity check failed. Please try again.'),
                   })
                 }
               />
@@ -211,7 +216,7 @@ function HealthRow({ db }: { db: DatabaseHealth }) {
         </td>
       </tr>
 
-      {/* Detail row: integrity/error note or verify result. aria-live so the
+      {/* Detail row: safe integrity note or verify result. aria-live so the
           async Verify outcome is announced to screen readers. */}
       {(integrityNote || verifyResult) && (
         <tr>
