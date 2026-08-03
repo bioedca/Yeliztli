@@ -14,6 +14,7 @@ findings produced by a subsequently quarantined scientific model.
 """
 
 import json
+import re
 
 import sqlalchemy as sa
 import structlog
@@ -92,6 +93,56 @@ _TPMT_THIOPURINE_GUIDELINE_URL = (
     "https://cpicpgx.org/guidelines/guideline-for-thiopurines-and-tpmt/"
 )
 
+_CYP2B6_EFAVIRENZ_RECOMMENDATION_UPDATES = {
+    "Intermediate Metabolizer": (
+        "Use label-recommended dosing; consider a reduced dose if CNS side effects occur.",
+        "Consider initiating efavirenz with decreased dose of 400 mg/day.",
+    ),
+    "Poor Metabolizer": (
+        "Consider initiating at a decreased dose (e.g., 400 mg/day); higher plasma "
+        "exposure raises CNS-toxicity risk.",
+        "Consider initiating efavirenz with decreased dose of 400 or 200 mg/day.",
+    ),
+}
+_CYP2B6_EFAVIRENZ_GUIDELINE_URL = (
+    "https://cpicpgx.org/guidelines/cpic-guideline-for-efavirenz-based-on-cyp2b6-genotype/"
+)
+
+_PARKINSONS_RISK_CLASSIFICATION = (
+    "LRRK2 G2019S — Parkinson's disease risk factor (reduced penetrance)"
+)
+_PARKINSONS_LEGACY_FINDING_TEMPLATES = (
+    "LRRK2 G2019S (rs34637584 {genotype}) detected. This is the most common known "
+    "genetic risk factor for Parkinson's disease, but its penetrance is reduced and "
+    "age-dependent: lifetime risk for carriers is estimated at roughly 25-42.5% by "
+    "age 80, so the majority of carriers never develop Parkinson's. Risk also varies "
+    "by ancestry (the variant is more common in Ashkenazi Jewish and North African "
+    "Berber populations) and is modified by other genetic and environmental factors. "
+    "A positive result is not a diagnosis and not a prediction that you will develop "
+    "Parkinson's.",
+    "LRRK2 G2019S (rs34637584 {genotype}) detected. This is the most common known "
+    "genetic risk factor for Parkinson's disease, but its penetrance is reduced and "
+    "age-dependent. Published age-80 estimates vary by cohort design, ancestry, and "
+    "modifier burden: recent cohorts report roughly 24-49%, with kin-cohort estimates "
+    "around 25-42.5%, so many carriers never develop Parkinson's. Risk also varies by "
+    "ancestry (the variant is more common in Ashkenazi Jewish and North African Berber "
+    "populations) and is modified by other genetic and environmental factors. A "
+    "positive result is not a diagnosis and not a prediction that you will develop "
+    "Parkinson's.",
+)
+_PARKINSONS_CURRENT_FINDING_TEMPLATE = (
+    "LRRK2 G2019S (rs34637584 {genotype}) detected. This is the most common known "
+    "genetic risk factor for Parkinson's disease, but its penetrance is reduced and "
+    "age-dependent. Published age-80 estimates vary by cohort design, ancestry, and "
+    "modifier burden: recent cohorts report roughly 24-49%, with kin-cohort estimates "
+    "around 25-42.5%. By age 80, most carriers in these cohorts had not developed "
+    "Parkinson's disease. Risk also varies by ancestry (the variant is more common in "
+    "Ashkenazi Jewish and North African Berber populations) and is modified by other "
+    "genetic and environmental factors. A positive result is not a diagnosis and not "
+    "a prediction that you will develop Parkinson's."
+)
+_PARKINSONS_CURRENT_PMIDS = ("26062626", "28639421", "38804604", "40926580")
+
 
 def _updated_tpmt_poor_metabolizer_finding_text(
     finding_text: object,
@@ -144,6 +195,102 @@ def _is_legacy_tpmt_poor_metabolizer_diff_entry(entry: object) -> bool:
     )
 
 
+def _updated_cyp2b6_efavirenz_finding_text(
+    finding_text: object,
+    phenotype: str,
+    legacy_recommendation: str,
+    bundled_recommendation: str,
+) -> str | None:
+    """Replace one generated legacy efavirenz recommendation exactly."""
+    if not isinstance(finding_text, str):
+        return None
+
+    marker = f" -- efavirenz: {legacy_recommendation}"
+    if finding_text.count(marker) != 1:
+        return None
+
+    prefix, suffix = finding_text.split(marker, maxsplit=1)
+    if not prefix.startswith("CYP2B6 ") or not prefix.endswith(f": {phenotype}"):
+        return None
+    if suffix not in {
+        "",
+        " (provisional -- see call confidence note)",
+        " (conservative partial call -- see call confidence note)",
+    }:
+        return None
+    return f"{prefix} -- efavirenz: {bundled_recommendation}{suffix}"
+
+
+def _is_legacy_cyp2b6_efavirenz_diff_entry(entry: object) -> bool:
+    """Whether a diff entry exactly identifies a superseded efavirenz alert."""
+    if not (
+        isinstance(entry, dict)
+        and entry.get("module") == "pharmacogenomics"
+        and entry.get("category") == "prescribing_alert"
+        and entry.get("gene_symbol") == "CYP2B6"
+        and entry.get("drug") == "efavirenz"
+        and isinstance(entry.get("metabolizer_status"), str)
+    ):
+        return False
+
+    phenotype = entry["metabolizer_status"]
+    update = _CYP2B6_EFAVIRENZ_RECOMMENDATION_UPDATES.get(phenotype)
+    if update is None:
+        return False
+    legacy_recommendation, bundled_recommendation = update
+    return (
+        _updated_cyp2b6_efavirenz_finding_text(
+            entry.get("finding_text"),
+            phenotype,
+            legacy_recommendation,
+            bundled_recommendation,
+        )
+        is not None
+    )
+
+
+def _updated_parkinsons_finding_text(
+    finding_text: object,
+    genotype_call: object | None = None,
+) -> str | None:
+    """Replace one exact generated legacy LRRK2 finding, preserving its call."""
+    if not isinstance(finding_text, str):
+        return None
+
+    if genotype_call is None:
+        match = re.match(
+            r"^LRRK2 G2019S \(rs34637584 (rs34637584 [ACGT]{2})\)",
+            finding_text,
+        )
+        candidates = [] if match is None else [match.group(1)]
+    elif isinstance(genotype_call, str) and re.fullmatch(r"[ACGT]{2}", genotype_call):
+        candidates = [f"rs34637584 {genotype_call}"]
+    else:
+        return None
+
+    for genotype_text in candidates:
+        for legacy_template in _PARKINSONS_LEGACY_FINDING_TEMPLATES:
+            if finding_text == legacy_template.format(genotype=genotype_text):
+                return _PARKINSONS_CURRENT_FINDING_TEMPLATE.format(genotype=genotype_text)
+    return None
+
+
+def _updated_parkinsons_diff_entry(entry: object) -> dict[str, object] | None:
+    """Return a repaired exact Parkinson's finding-diff entry, if applicable."""
+    if not (
+        isinstance(entry, dict)
+        and entry.get("module") == "parkinsons"
+        and entry.get("category") == "risk_genotype"
+        and entry.get("gene_symbol") == "LRRK2"
+        and entry.get("rsid") == "rs34637584"
+    ):
+        return None
+    updated_text = _updated_parkinsons_finding_text(entry.get("finding_text"))
+    if updated_text is None:
+        return None
+    return {**entry, "finding_text": updated_text}
+
+
 # Current schema version. Bump for per-sample schema or content migrations.
 # v7: Add watched_variants table (P4-21g — VUS tracking)
 # v8: Add provenance columns to raw_variants + merge_provenance table
@@ -178,7 +325,11 @@ def _is_legacy_tpmt_poor_metabolizer_diff_entry(entry: object) -> bool:
 #      alerts from the corrected CPIC rows.
 # v22: Repair persisted TPMT Poor Metabolizer thiopurine alerts that contain the
 #      exact superseded recommendations corrected by issue #2000.
-SAMPLE_SCHEMA_VERSION = 22
+# v23: Repair persisted CYP2B6 efavirenz Intermediate/Poor Metabolizer alerts
+#      whose exact released recommendations were corrected by issue #2012.
+# v24: Repair exact persisted LRRK2 G2019S findings and finding-diff entries
+#      whose lifetime wording exceeded the cited age-80 evidence (issue #2091).
+SAMPLE_SCHEMA_VERSION = 24
 
 
 # AncestryDNA Plan §10.4(a): merged-sample raw_variants uses (chrom, pos) PK
@@ -993,6 +1144,326 @@ def _add_missing_columns(engine: sa.Engine, from_version: int) -> bool:
                 "legacy_tpmt_poor_metabolizer_guidance_repaired",
                 findings_count=repaired_findings,
                 finding_diff_count=removed_diff_entries,
+                from_version=from_version,
+            )
+
+    if from_version < 23:
+        # Issue #2012: the bundled CYP2B6 efavirenz Intermediate row delayed
+        # dose reduction until CNS side effects, while the Poor row omitted
+        # CPIC's 200 mg option. Repair only persisted alerts whose structured
+        # identity, detail payload, and generated text all match those exact
+        # released strings. Custom, malformed, current, and near-match findings
+        # remain untouched.
+        inspector = sa.inspect(engine)
+        table_names = set(inspector.get_table_names())
+        findings_cols = (
+            {c["name"] for c in inspector.get_columns("findings")}
+            if "findings" in table_names
+            else set()
+        )
+        state_cols = (
+            {c["name"] for c in inspector.get_columns("annotation_state")}
+            if "annotation_state" in table_names
+            else set()
+        )
+        required_finding_cols = {
+            "id",
+            "module",
+            "category",
+            "gene_symbol",
+            "metabolizer_status",
+            "drug",
+            "finding_text",
+            "detail_json",
+        }
+        can_repair_findings = required_finding_cols <= findings_cols
+        can_repair_diff = {"key", "value"} <= state_cols
+        repaired_findings = 0
+        removed_diff_entries = 0
+
+        if can_repair_findings or can_repair_diff:
+            with engine.connect() as conn:
+                conn.exec_driver_sql("BEGIN IMMEDIATE")
+                try:
+                    if can_repair_findings:
+                        candidates = conn.execute(
+                            sa.select(
+                                findings.c.id,
+                                findings.c.metabolizer_status,
+                                findings.c.finding_text,
+                                findings.c.detail_json,
+                            )
+                            .where(
+                                findings.c.module == "pharmacogenomics",
+                                findings.c.category == "prescribing_alert",
+                                findings.c.gene_symbol == "CYP2B6",
+                                findings.c.metabolizer_status.in_(
+                                    tuple(_CYP2B6_EFAVIRENZ_RECOMMENDATION_UPDATES)
+                                ),
+                                findings.c.drug == "efavirenz",
+                            )
+                            .order_by(findings.c.id)
+                        ).fetchall()
+                        for row in candidates:
+                            try:
+                                detail = json.loads(row.detail_json)
+                            except (json.JSONDecodeError, TypeError):
+                                continue
+                            if not isinstance(detail, dict):
+                                continue
+
+                            legacy_recommendation, bundled_recommendation = (
+                                _CYP2B6_EFAVIRENZ_RECOMMENDATION_UPDATES[row.metabolizer_status]
+                            )
+                            if (
+                                detail.get("recommendation") != legacy_recommendation
+                                or detail.get("classification") != "A"
+                                or detail.get("guideline_url") != _CYP2B6_EFAVIRENZ_GUIDELINE_URL
+                            ):
+                                continue
+                            updated_text = _updated_cyp2b6_efavirenz_finding_text(
+                                row.finding_text,
+                                row.metabolizer_status,
+                                legacy_recommendation,
+                                bundled_recommendation,
+                            )
+                            if updated_text is None:
+                                continue
+
+                            detail["recommendation"] = bundled_recommendation
+                            update_values: dict[str, object] = {
+                                "finding_text": updated_text,
+                                "detail_json": json.dumps(detail),
+                            }
+                            if "provenance" in findings_cols:
+                                update_values["provenance"] = None
+                            result = conn.execute(
+                                findings.update()
+                                .where(
+                                    findings.c.id == row.id,
+                                    findings.c.module == "pharmacogenomics",
+                                    findings.c.category == "prescribing_alert",
+                                    findings.c.gene_symbol == "CYP2B6",
+                                    findings.c.metabolizer_status == row.metabolizer_status,
+                                    findings.c.drug == "efavirenz",
+                                    findings.c.finding_text == row.finding_text,
+                                    findings.c.detail_json == row.detail_json,
+                                )
+                                .values(**update_values)
+                            )
+                            repaired_findings += max(result.rowcount or 0, 0)
+
+                    if can_repair_diff:
+                        state_row = conn.execute(
+                            sa.select(annotation_state.c.value).where(
+                                annotation_state.c.key == _FINDING_DIFF_STATE_KEY
+                            )
+                        ).fetchone()
+                        if state_row is not None:
+                            try:
+                                diff = json.loads(state_row.value)
+                            except (json.JSONDecodeError, TypeError):
+                                diff = None
+
+                            if isinstance(diff, dict):
+                                for bucket in ("changed", "added", "removed"):
+                                    entries = diff.get(bucket)
+                                    if not isinstance(entries, list):
+                                        continue
+                                    kept = [
+                                        entry
+                                        for entry in entries
+                                        if not _is_legacy_cyp2b6_efavirenz_diff_entry(entry)
+                                    ]
+                                    removed_diff_entries += len(entries) - len(kept)
+                                    if len(kept) != len(entries):
+                                        diff[bucket] = kept
+
+                                if removed_diff_entries:
+                                    diff["counts"] = {
+                                        bucket: (
+                                            len(diff.get(bucket, []))
+                                            if isinstance(diff.get(bucket), list)
+                                            else 0
+                                        )
+                                        for bucket in ("changed", "added", "removed")
+                                    }
+                                    conn.execute(
+                                        annotation_state.update()
+                                        .where(
+                                            annotation_state.c.key == _FINDING_DIFF_STATE_KEY,
+                                            annotation_state.c.value == state_row.value,
+                                        )
+                                        .values(value=json.dumps(diff))
+                                    )
+                    conn.commit()
+                except BaseException:
+                    conn.rollback()
+                    raise
+
+        if repaired_findings or removed_diff_entries:
+            added = True
+            logger.warning(
+                "legacy_cyp2b6_efavirenz_guidance_repaired",
+                findings_count=repaired_findings,
+                finding_diff_count=removed_diff_entries,
+                from_version=from_version,
+            )
+
+    if from_version < 24:
+        # Issue #2091: generated LRRK2 findings used an unbounded "never develop"
+        # statement even though the cited estimates end at age 80. Existing
+        # sample DBs persist that generated text, so updating the panel alone
+        # does not repair what those users see. Match the complete production
+        # identity, structured genotype evidence, and one of the two historical
+        # templates before rewriting. Custom, malformed, and near-match rows are
+        # left untouched. The same exact public wording is repaired in the
+        # persisted finding-change banner without changing its counts.
+        inspector = sa.inspect(engine)
+        table_names = set(inspector.get_table_names())
+        findings_cols = (
+            {c["name"] for c in inspector.get_columns("findings")}
+            if "findings" in table_names
+            else set()
+        )
+        state_cols = (
+            {c["name"] for c in inspector.get_columns("annotation_state")}
+            if "annotation_state" in table_names
+            else set()
+        )
+        required_finding_cols = {
+            "id",
+            "module",
+            "category",
+            "gene_symbol",
+            "rsid",
+            "conditions",
+            "finding_text",
+            "detail_json",
+        }
+        can_repair_findings = required_finding_cols <= findings_cols
+        can_repair_diff = {"key", "value"} <= state_cols
+        repaired_findings = 0
+        repaired_diff_entries = 0
+
+        if can_repair_findings or can_repair_diff:
+            # Reserve the SQLite writer lock before reading either persisted
+            # surface so every exact-match check and update is one transaction.
+            with engine.connect() as conn:
+                conn.exec_driver_sql("BEGIN IMMEDIATE")
+                try:
+                    if can_repair_findings:
+                        candidates = conn.execute(
+                            sa.select(
+                                findings.c.id,
+                                findings.c.finding_text,
+                                findings.c.detail_json,
+                                *(
+                                    [findings.c.pmid_citations]
+                                    if "pmid_citations" in findings_cols
+                                    else []
+                                ),
+                            )
+                            .where(
+                                findings.c.module == "parkinsons",
+                                findings.c.category == "risk_genotype",
+                                findings.c.gene_symbol == "LRRK2",
+                                findings.c.rsid == "rs34637584",
+                                findings.c.conditions == _PARKINSONS_RISK_CLASSIFICATION,
+                            )
+                            .order_by(findings.c.id)
+                        ).fetchall()
+                        for row in candidates:
+                            try:
+                                detail = json.loads(row.detail_json)
+                            except (json.JSONDecodeError, TypeError):
+                                continue
+                            if not isinstance(detail, dict):
+                                continue
+                            genotype_calls = detail.get("genotype_calls")
+                            if (
+                                detail.get("model_id") != "lrrk2_g2019s"
+                                or detail.get("classification") != _PARKINSONS_RISK_CLASSIFICATION
+                                or not isinstance(genotype_calls, dict)
+                                or set(genotype_calls) != {"rs34637584"}
+                            ):
+                                continue
+                            updated_text = _updated_parkinsons_finding_text(
+                                row.finding_text,
+                                genotype_calls["rs34637584"],
+                            )
+                            if updated_text is None:
+                                continue
+
+                            update_values: dict[str, object] = {"finding_text": updated_text}
+                            if "pmid_citations" in findings_cols:
+                                update_values["pmid_citations"] = json.dumps(
+                                    _PARKINSONS_CURRENT_PMIDS
+                                )
+                            if "provenance" in findings_cols:
+                                update_values["provenance"] = None
+                            identity_filters = [
+                                findings.c.id == row.id,
+                                findings.c.module == "parkinsons",
+                                findings.c.category == "risk_genotype",
+                                findings.c.gene_symbol == "LRRK2",
+                                findings.c.rsid == "rs34637584",
+                                findings.c.conditions == _PARKINSONS_RISK_CLASSIFICATION,
+                                findings.c.finding_text == row.finding_text,
+                                findings.c.detail_json == row.detail_json,
+                            ]
+                            if "pmid_citations" in findings_cols:
+                                identity_filters.append(
+                                    findings.c.pmid_citations == row.pmid_citations
+                                )
+                            result = conn.execute(
+                                findings.update().where(*identity_filters).values(**update_values)
+                            )
+                            repaired_findings += max(result.rowcount or 0, 0)
+
+                    if can_repair_diff:
+                        state_row = conn.execute(
+                            sa.select(annotation_state.c.value).where(
+                                annotation_state.c.key == _FINDING_DIFF_STATE_KEY
+                            )
+                        ).fetchone()
+                        if state_row is not None:
+                            try:
+                                diff = json.loads(state_row.value)
+                            except (json.JSONDecodeError, TypeError):
+                                diff = None
+
+                            if isinstance(diff, dict):
+                                for bucket in ("changed", "added", "removed"):
+                                    entries = diff.get(bucket)
+                                    if not isinstance(entries, list):
+                                        continue
+                                    for index, entry in enumerate(entries):
+                                        updated_entry = _updated_parkinsons_diff_entry(entry)
+                                        if updated_entry is not None:
+                                            entries[index] = updated_entry
+                                            repaired_diff_entries += 1
+
+                                if repaired_diff_entries:
+                                    conn.execute(
+                                        annotation_state.update()
+                                        .where(
+                                            annotation_state.c.key == _FINDING_DIFF_STATE_KEY,
+                                            annotation_state.c.value == state_row.value,
+                                        )
+                                        .values(value=json.dumps(diff))
+                                    )
+                    conn.commit()
+                except BaseException:
+                    conn.rollback()
+                    raise
+
+        if repaired_findings or repaired_diff_entries:
+            added = True
+            logger.warning(
+                "legacy_parkinsons_penetrance_wording_repaired",
+                findings_count=repaired_findings,
+                finding_diff_count=repaired_diff_entries,
                 from_version=from_version,
             )
 

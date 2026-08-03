@@ -192,6 +192,24 @@ def test_cyp2b6_star9_is_intermediate(reference_engine: sa.Engine) -> None:
     assert result.phenotype == "Intermediate Metabolizer"
 
 
+def test_cyp2b6_intermediate_efavirenz_alert_starts_at_400mg(
+    reference_engine: sa.Engine,
+) -> None:
+    """An Intermediate result must carry CPIC's preemptive starting dose (#2012)."""
+    sample = _make_sample(_cyp2b6_geno(rs3745274="GT", rs2279343="AG"))
+    results = call_all_star_alleles(reference_engine, sample, genes=frozenset({"CYP2B6"}))
+    cyp = next(r for r in results if r.gene == "CYP2B6")
+    assert cyp.diplotype == "*1/*6"
+    assert cyp.phenotype == "Intermediate Metabolizer"
+
+    alerts = generate_prescribing_alerts(results, reference_engine)
+    efavirenz = [a for a in alerts if a.gene == "CYP2B6" and a.drug == "efavirenz"]
+    assert len(efavirenz) == 1
+    assert efavirenz[0].recommendation == (
+        "Consider initiating efavirenz with decreased dose of 400 mg/day."
+    )
+
+
 def test_cyp2b6_star4_homozygous_is_ultrarapid(reference_engine: sa.Engine) -> None:
     """785A>G hom-alt with 516G>T typed hom-reference is *4/*4 (#1985).
 
@@ -286,7 +304,9 @@ def test_cyp2b6_missing_star9_marker_uses_conservative_intermediate_alert(
     assert efv[0].called_phenotype == "Normal Metabolizer"
     assert efv[0].conservative_alert is True
     assert efv[0].conservative_diplotype == "*1/*9"
-    assert "consider a reduced dose" in efv[0].recommendation
+    assert efv[0].recommendation == (
+        "Consider initiating efavirenz with decreased dose of 400 mg/day."
+    )
 
 
 def test_cyp2b6_missing_star6_marker_does_not_double_count_star9_copy(
@@ -348,8 +368,7 @@ def test_cyp2b6_star6_hom_is_poor_with_efavirenz_alert(reference_engine: sa.Engi
     efv = [a for a in alerts if a.gene == "CYP2B6" and a.drug == "efavirenz"]
     assert efv and efv[0].phenotype == "Poor Metabolizer"
     assert efv[0].recommendation == (
-        "Consider initiating at a decreased dose (e.g., 400 mg/day); "
-        "higher plasma exposure raises CNS-toxicity risk."
+        "Consider initiating efavirenz with decreased dose of 400 or 200 mg/day."
     )
     assert efv[0].classification == "A"
     assert efv[0].evidence_level == 4
@@ -387,8 +406,7 @@ def test_cyp2b6_star18_hom_is_poor_with_efavirenz_alert(reference_engine: sa.Eng
     efv = [a for a in alerts if a.gene == "CYP2B6" and a.drug == "efavirenz"]
     assert efv and efv[0].phenotype == "Poor Metabolizer"
     assert efv[0].recommendation == (
-        "Consider initiating at a decreased dose (e.g., 400 mg/day); "
-        "higher plasma exposure raises CNS-toxicity risk."
+        "Consider initiating efavirenz with decreased dose of 400 or 200 mg/day."
     )
     assert efv[0].classification == "A"
     assert efv[0].evidence_level == 4

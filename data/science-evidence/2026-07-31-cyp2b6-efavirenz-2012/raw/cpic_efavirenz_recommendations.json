@@ -1,0 +1,68 @@
+[
+  {
+    "guidelineid": 104245,
+    "lookupkey": {
+      "CYP2B6": "Ultrarapid Metabolizer"
+    },
+    "drugrecommendation": "Initiate efavirenz with standard dosing (600 mg/day)",
+    "classification": "Strong",
+    "phenotypes": {
+      "CYP2B6": "Ultrarapid Metabolizer"
+    }
+  },
+  {
+    "guidelineid": 104245,
+    "lookupkey": {
+      "CYP2B6": "Rapid Metabolizer"
+    },
+    "drugrecommendation": "Initiate efavirenz with standard dosing (600 mg/day)",
+    "classification": "Strong",
+    "phenotypes": {
+      "CYP2B6": "Rapid Metabolizer"
+    }
+  },
+  {
+    "guidelineid": 104245,
+    "lookupkey": {
+      "CYP2B6": "Normal Metabolizer"
+    },
+    "drugrecommendation": "Initiate efavirenz with standard dosing (600 mg/day)",
+    "classification": "Strong",
+    "phenotypes": {
+      "CYP2B6": "Normal Metabolizer"
+    }
+  },
+  {
+    "guidelineid": 104245,
+    "lookupkey": {
+      "CYP2B6": "Intermediate Metabolizer"
+    },
+    "drugrecommendation": "Consider initiating efavirenz with decreased dose of 400 mg/day",
+    "classification": "Moderate",
+    "phenotypes": {
+      "CYP2B6": "Intermediate Metabolizer"
+    }
+  },
+  {
+    "guidelineid": 104245,
+    "lookupkey": {
+      "CYP2B6": "Poor Metabolizer"
+    },
+    "drugrecommendation": "Consider initiating efavirenz with decreased dose of 400 or 200 mg/day",
+    "classification": "Moderate",
+    "phenotypes": {
+      "CYP2B6": "Poor Metabolizer"
+    }
+  },
+  {
+    "guidelineid": 104245,
+    "lookupkey": {
+      "CYP2B6": "Indeterminate"
+    },
+    "drugrecommendation": "No recommendation",
+    "classification": "No Recommendation",
+    "phenotypes": {
+      "CYP2B6": "Indeterminate"
+    }
+  }
+]

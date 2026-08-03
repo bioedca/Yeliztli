@@ -3,7 +3,7 @@
  *
  * Route: /variants/:rsid?sample_id=N
  *
- * Tabs: Overview | Population | Protein (stub) | Clinical | Literature (stub) | Genome
+ * Tabs: Overview | Population | Protein (stub) | Clinical | Literature | Genome
  */
 
 import { useState, useMemo, useRef, useCallback } from "react"
@@ -24,9 +24,12 @@ import {
 } from "lucide-react"
 
 import { useVariantDetail } from "@/api/variant-detail"
+import { useGeneDetail } from "@/api/gene-detail"
 import PageLoading from "@/components/ui/PageLoading"
 import PageError from "@/components/ui/PageError"
+import PageEmpty from "@/components/ui/PageEmpty"
 import HpoTermList from "@/components/HpoTermList"
+import LiteratureCard from "@/components/gene-detail/LiteratureCard"
 import type {
   VariantDetail,
   TranscriptAnnotation,
@@ -43,7 +46,7 @@ import { cn } from "@/lib/utils"
 import { getClinvarSignificanceBadgeClass } from "@/lib/clinvar-significance"
 import { formatClinvarConditionsText } from "@/lib/clinvar-conditions"
 import { formatAlleleFrequency } from "@/lib/format"
-import { gnomadNoFrequencyDetail, isGnomadSourceUncovered } from "@/lib/gnomad-status"
+import { gnomadNoFrequencyDetail, gnomadNoFrequencyShortLabel } from "@/lib/gnomad-status"
 import { polyphen2Display, siftDisplay } from "@/lib/insilico"
 import { HGVS_CODING_TOOLTIP, HGVS_PROTEIN_TOOLTIP } from "@/lib/hgvsInfo"
 import { SCORE_TOOLTIP_AFFORDANCE } from "@/lib/inSilicoScoreInfo"
@@ -192,7 +195,7 @@ function OverviewTab({ variant }: { variant: VariantDetail }) {
     : variant.rare_flag
       ? "Rare"
       : null
-  const gnomadUncovered = isGnomadSourceUncovered(variant.gnomad_source_status)
+  const gnomadNoAfLabel = gnomadNoFrequencyShortLabel(variant.gnomad_source_status)
   const conditions = formatClinvarConditionsText(variant.clinvar_conditions)
 
   return (
@@ -261,7 +264,7 @@ function OverviewTab({ variant }: { variant: VariantDetail }) {
       <SectionHeader icon={Activity} label="Key Scores" />
       <DetailRow label="gnomAD AF" value={
         <span className="flex items-center gap-1.5">
-          {gnomadUncovered ? "Not assessed" : formatAlleleFrequency(variant.gnomad_af_global)}
+          {gnomadNoAfLabel ?? formatAlleleFrequency(variant.gnomad_af_global)}
           {rareLabel && (
             <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
               {rareLabel}
@@ -533,25 +536,101 @@ function ClinicalTab({ variant }: { variant: VariantDetail }) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Tab: Literature (stub)                                             */
+/*  Tab: Literature                                                    */
 /* ------------------------------------------------------------------ */
 
-function LiteratureTab({ variant }: { variant: VariantDetail }) {
+function LiteratureTab({
+  variant,
+  sampleId,
+}: {
+  variant: VariantDetail
+  sampleId: number | null
+}) {
+  const geneSymbol = variant.gene_symbol
+    ?? variant.transcripts.find((transcript) => (
+      transcript.mane_select && transcript.gene_symbol
+    ))?.gene_symbol
+    ?? variant.transcripts.find((transcript) => transcript.gene_symbol)?.gene_symbol
+    ?? null
+  const { data, isLoading, isError, error, refetch } = useGeneDetail(
+    geneSymbol,
+    sampleId,
+  )
+
+  if (!geneSymbol) {
+    return (
+      <div
+        className="rounded-lg border bg-card p-6 text-center text-sm text-muted-foreground"
+        data-testid="tab-literature"
+      >
+        No gene is associated with this variant, so gene-level literature is unavailable.
+      </div>
+    )
+  }
+
+  const geneDetailUrl = sampleId == null
+    ? `/genes/${encodeURIComponent(geneSymbol)}`
+    : `/genes/${encodeURIComponent(geneSymbol)}?sample_id=${sampleId}`
+
   return (
-    <div className="text-center py-12" data-testid="tab-literature">
-      <BookOpen className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
-      <h3 className="text-lg font-medium text-foreground mb-2">Literature</h3>
-      <p className="text-sm text-muted-foreground max-w-md mx-auto mb-4">
-        PubMed literature search with cache-first fetching will be available in Phase 3.
-        Abstracts will be keyed by gene and phenotype.
-      </p>
-      {variant.gene_symbol && (
-        <p className="text-sm text-muted-foreground">
-          Search will cover: <span className="font-medium text-foreground">{variant.gene_symbol}</span>
-          {variant.disease_name && (
-            <> + <span className="font-medium text-foreground">{variant.disease_name}</span></>
-          )}
-        </p>
+    <div className="space-y-4" data-testid="tab-literature">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 className="flex items-center gap-2 text-lg font-medium text-foreground">
+            <BookOpen className="h-5 w-5 text-muted-foreground" />
+            Literature{data ? ` (${data.literature.length})` : ""}
+          </h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Gene-level PubMed literature for{" "}
+            <span className="font-medium text-foreground">{geneSymbol}</span>.
+          </p>
+        </div>
+        <Link
+          to={geneDetailUrl}
+          aria-label={`View full gene detail for ${geneSymbol}`}
+          className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
+        >
+          View full gene detail <ExternalLink className="h-3.5 w-3.5" />
+        </Link>
+      </div>
+
+      {isLoading && <PageLoading message={`Loading literature for ${geneSymbol}...`} />}
+
+      {isError && (
+        <PageError
+          message={error instanceof Error ? error.message : "Literature could not be loaded."}
+          onRetry={() => refetch()}
+        />
+      )}
+
+      {data && data.literature.length > 0 && (
+        <div className="space-y-2">
+          {data.literature.map((article) => (
+            <LiteratureCard key={article.pmid} article={article} />
+          ))}
+        </div>
+      )}
+
+      {data && data.literature_errors.length > 0 && (
+        <div
+          role="status"
+          className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-300"
+        >
+          <p className="font-medium">Literature results may be incomplete.</p>
+          {data.literature_errors.map((message) => (
+            <p key={message} className="mt-1">
+              {message}
+            </p>
+          ))}
+        </div>
+      )}
+
+      {data && data.literature.length === 0 && (
+        <div className="rounded-lg border bg-card p-6 text-center text-sm text-muted-foreground">
+          {data.literature_errors.length > 0
+            ? "No cached literature is available."
+            : "No literature found for this gene."}
+        </div>
       )}
     </div>
   )
@@ -751,6 +830,18 @@ export default function VariantDetailPage() {
     }
   }, [])
 
+  if (sampleId == null) {
+    return (
+      <div className="p-6">
+        <PageEmpty
+          icon={Dna}
+          title="Select a sample to view variant details."
+          description="Open a variant from a loaded sample in Variant Explorer."
+        />
+      </div>
+    )
+  }
+
   if (isLoading) {
     return <PageLoading message="Loading variant detail..." />
   }
@@ -859,7 +950,9 @@ export default function VariantDetailPage() {
         {activeTab === "population" && <PopulationTab variant={variant} />}
         {activeTab === "protein" && <ProteinTab variant={variant} sampleId={sampleId} />}
         {activeTab === "clinical" && <ClinicalTab variant={variant} />}
-        {activeTab === "literature" && <LiteratureTab variant={variant} />}
+        {activeTab === "literature" && (
+          <LiteratureTab variant={variant} sampleId={sampleId} />
+        )}
         {activeTab === "genome" && <GenomeTab variant={variant} sampleId={sampleId} />}
       </div>
     </div>

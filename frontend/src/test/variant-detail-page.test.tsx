@@ -191,6 +191,13 @@ afterEach(() => {
 })
 
 describe("VariantDetailPage (P2-21a)", () => {
+  it("asks for a sample before loading variant detail", () => {
+    renderPage("rs100", null)
+
+    expect(screen.getByText("Select a sample to view variant details.")).toBeInTheDocument()
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
   it("shows loading state initially", () => {
     mockFetch.mockImplementation(() => new Promise(() => {})) // never resolves
     renderPage("rs100")
@@ -510,11 +517,42 @@ describe("VariantDetailPage (P2-21a)", () => {
     expect(screen.getByText("HP:0002894")).toBeInTheDocument()
   })
 
-  it("shows Literature stub tab", async () => {
-    mockFetch.mockImplementation(async () => ({
-      ok: true,
-      json: async () => mockVariant,
-    }))
+  it("loads the gene's PubMed literature in the Literature tab", async () => {
+    mockFetch.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.startsWith("/api/variants/")) {
+        return {
+          ok: true,
+          json: async () => mockVariant,
+        }
+      }
+      if (url.startsWith("/api/genes/")) {
+        return {
+          ok: true,
+          json: async () => ({
+            gene_symbol: "BRCA1",
+            uniprot: null,
+            uniprot_error: null,
+            phenotypes: [],
+            literature: [
+              {
+                pmid: "12345678",
+                title: "BRCA1 literature title",
+                abstract: "A cached BRCA1 abstract.",
+                authors: ["Ada Author", "Ben Biologist"],
+                journal: "Genetics",
+                year: 2026,
+                is_stale: false,
+              },
+            ],
+            literature_errors: ["PubMed lookup unavailable; cached results shown."],
+            variants: [],
+            population_af: [],
+          }),
+        }
+      }
+      throw new Error(`Unexpected fetch: ${url}`)
+    })
 
     const user = userEvent.setup()
     renderPage("rs100")
@@ -525,7 +563,122 @@ describe("VariantDetailPage (P2-21a)", () => {
 
     await user.click(screen.getByRole("tab", { name: /literature/i }))
     expect(screen.getByTestId("tab-literature")).toBeInTheDocument()
-    expect(screen.getByText(/Phase 3/)).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByTestId("pubmed-12345678")).toBeInTheDocument()
+    })
+    expect(screen.getByText("BRCA1 literature title")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Open PubMed 12345678" })).toHaveAttribute(
+      "href",
+      "https://pubmed.ncbi.nlm.nih.gov/12345678/",
+    )
+    expect(screen.getByRole("link", { name: "View full gene detail for BRCA1" })).toHaveAttribute(
+      "href",
+      "/genes/BRCA1?sample_id=1",
+    )
+    expect(
+      screen.getByText("PubMed lookup unavailable; cached results shown."),
+    ).toBeInTheDocument()
+    expect(mockFetch).toHaveBeenCalledWith("/api/genes/BRCA1?sample_id=1")
+    expect(screen.queryByText(/Phase 3/)).not.toBeInTheDocument()
+  })
+
+  it("uses the MANE transcript gene when the top-level gene is absent", async () => {
+    const transcriptOnlyVariant: VariantDetail = {
+      ...mockVariant,
+      gene_symbol: null,
+      transcripts: [
+        { ...mockVariant.transcripts[1], gene_symbol: "OTHER" },
+        mockVariant.transcripts[0],
+      ],
+    }
+    mockFetch.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.startsWith("/api/variants/")) {
+        return {
+          ok: true,
+          json: async () => transcriptOnlyVariant,
+        }
+      }
+      if (url.startsWith("/api/genes/")) {
+        return {
+          ok: true,
+          json: async () => ({
+            gene_symbol: "BRCA1",
+            uniprot: null,
+            uniprot_error: null,
+            phenotypes: [],
+            literature: [],
+            literature_errors: [],
+            variants: [],
+            population_af: [],
+          }),
+        }
+      }
+      throw new Error(`Unexpected fetch: ${url}`)
+    })
+
+    const user = userEvent.setup()
+    renderPage("rs100")
+
+    await user.click(await screen.findByRole("tab", { name: /literature/i }))
+
+    expect(
+      await screen.findByRole("link", { name: "View full gene detail for BRCA1" }),
+    ).toHaveAttribute("href", "/genes/BRCA1?sample_id=1")
+    expect(mockFetch).toHaveBeenCalledWith("/api/genes/BRCA1?sample_id=1")
+    expect(screen.queryByText(/No gene is associated/)).not.toBeInTheDocument()
+  })
+
+  it.each([
+    {
+      name: "a genuine empty search",
+      literatureErrors: [] as string[],
+      expected: "No literature found for this gene.",
+      absent: "No cached literature is available.",
+    },
+    {
+      name: "a failed search without cached results",
+      literatureErrors: ["PubMed lookup unavailable."],
+      expected: "No cached literature is available.",
+      absent: "No literature found for this gene.",
+    },
+  ])("distinguishes $name", async ({ literatureErrors, expected, absent }) => {
+    mockFetch.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.startsWith("/api/variants/")) {
+        return {
+          ok: true,
+          json: async () => mockVariant,
+        }
+      }
+      if (url.startsWith("/api/genes/")) {
+        return {
+          ok: true,
+          json: async () => ({
+            gene_symbol: "BRCA1",
+            uniprot: null,
+            uniprot_error: null,
+            phenotypes: [],
+            literature: [],
+            literature_errors: literatureErrors,
+            variants: [],
+            population_af: [],
+          }),
+        }
+      }
+      throw new Error(`Unexpected fetch: ${url}`)
+    })
+
+    const user = userEvent.setup()
+    renderPage("rs100")
+
+    await user.click(await screen.findByRole("tab", { name: /literature/i }))
+
+    expect(await screen.findByText(expected)).toBeInTheDocument()
+    expect(screen.queryByText(absent)).not.toBeInTheDocument()
+    if (literatureErrors.length > 0) {
+      expect(screen.getByText(literatureErrors[0])).toBeInTheDocument()
+    }
   })
 
   it("switches to Genome tab with IGV browser", async () => {
@@ -701,6 +854,53 @@ describe("VariantDetailPage (P2-21a)", () => {
 
     await user.click(screen.getByRole("tab", { name: /population/i }))
     expect(screen.getByText("Not assessed by current gnomAD exome source")).toBeInTheDocument()
+  })
+
+  // #2214 review: the helper-level specs stay green if a consumer stops calling
+  // the helper. This page has TWO call sites -- the short label in the Overview
+  // "Key Scores" row and the long explanation in the Population tab -- so assert
+  // both rendered surfaces.
+  it.each([
+    ["allele_ambiguous", "Allele unresolved", "no single frequency can be attributed"],
+    ["locus_unresolved", "Position unmatched", "other genomic positions"],
+    ["alias_unresolved", "Shared rsID", "More than one call in your file"],
+    ["allele_mismatch", "Other allele", "different alternate allele"],
+  ])("labels %s as %s with its own explanation", async (status, shortLabel, detailText) => {
+    const withheldVariant: VariantDetail = {
+      ...mockVariant,
+      gnomad_af_global: null,
+      gnomad_af_afr: null,
+      gnomad_af_amr: null,
+      gnomad_af_asj: null,
+      gnomad_af_eas: null,
+      gnomad_af_eur: null,
+      gnomad_af_fin: null,
+      gnomad_af_sas: null,
+      gnomad_source_status: status,
+      gnomad_homozygous_count: null,
+      rare_flag: false,
+      ultra_rare_flag: false,
+    }
+
+    mockFetch.mockImplementation(async () => ({
+      ok: true,
+      json: async () => withheldVariant,
+    }))
+
+    const user = userEvent.setup()
+    renderPage("rs1799963")
+
+    await waitFor(() => {
+      expect(screen.getByRole("tab", { name: /population/i })).toBeInTheDocument()
+    })
+
+    // Overview: the compact AF cell must not be a bare dash.
+    expect(screen.getByText(shortLabel)).toBeInTheDocument()
+
+    // Population: the explanation must name this state's own cause.
+    await user.click(screen.getByRole("tab", { name: /population/i }))
+    expect(screen.getByText(new RegExp(detailText, "i"))).toBeInTheDocument()
+    expect(screen.queryByText("Not found in gnomAD")).not.toBeInTheDocument()
   })
 
   it("handles variant with no ClinVar data in Clinical tab", async () => {

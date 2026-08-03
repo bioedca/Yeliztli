@@ -88,7 +88,7 @@ function HealthPage() {
 }
 
 function AboutPage() {
-  const { data: appUpdate, isLoading, refetch, isFetching } = useAppUpdate()
+  const { data: appUpdate, isLoading, isError, refetch, isFetching } = useAppUpdate()
 
   return (
     <div className="space-y-6">
@@ -154,10 +154,10 @@ function AboutPage() {
               )}
             </div>
           </div>
-        ) : appUpdate?.error ? (
+        ) : isError || appUpdate?.error ? (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <AlertCircle className="h-4 w-4 shrink-0" />
-            <span>Could not check for updates: {appUpdate.error}</span>
+            <span>Could not check for updates.</span>
           </div>
         ) : (
           <div className="flex items-center gap-2 text-sm text-green-700 dark:text-green-400">
@@ -210,9 +210,9 @@ export default function Settings() {
   return (
     <div className="p-6">
       <h1 className="text-2xl font-bold mb-6">Settings</h1>
-      <div className="flex gap-6">
+      <div className="flex flex-col gap-6 md:flex-row">
         {/* Mini sidebar */}
-        <div className="w-48 shrink-0">
+        <div className="w-full shrink-0 md:w-48">
           <SettingsNav sampleId={activeSampleId} />
         </div>
 

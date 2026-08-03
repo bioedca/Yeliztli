@@ -426,7 +426,7 @@ function AssignIndividualControl({
 
   function formatError(err: unknown): string {
     if (err instanceof IndividualsApiError && err.isLinkConflict()) {
-      return err.body.detail.message
+      return "This sample is already linked to another individual."
     }
     if (err instanceof Error) return err.message
     return String(err)

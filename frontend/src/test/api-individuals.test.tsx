@@ -126,7 +126,8 @@ describe("useIndividuals (list)", () => {
     const err = result.current.error as IndividualsApiError
     expect(err).toBeInstanceOf(IndividualsApiError)
     expect(err.status).toBe(500)
-    expect(err.message).toBe("boom")
+    expect(err.message).toBe("Failed to fetch individuals")
+    expect(err.body).toEqual({ detail: "boom" })
   })
 })
 

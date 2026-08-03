@@ -9,12 +9,14 @@ Covers:
 
 from __future__ import annotations
 
+import io
 import json
 from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock, patch
 
 import pytest
 import sqlalchemy as sa
+from Bio import Entrez
 
 from backend.db.tables import literature_cache, reference_metadata
 from backend.utils.pubmed import (
@@ -129,6 +131,7 @@ class TestFetchAndCache:
 
             result = fetcher.fetch_by_pmids(["11111111"], gene="BRCA1")
 
+        mock_entrez.read.assert_called_once_with(mock_handle, escape=True)
         assert len(result.articles) == 1
         assert result.from_network == 1
         assert result.articles[0].pmid == "11111111"
@@ -144,7 +147,7 @@ class TestFetchAndCache:
             ).fetchall()
         assert len(rows) == 1
         assert rows[0].gene == "BRCA1"
-        assert rows[0].title == "BRCA1 mutations"
+        assert rows[0].title == "__YELIZTLI_PUBMED_ESCAPED_V1__:BRCA1 mutations"
 
     def test_second_call_returns_cached(
         self, fetcher: PubMedFetcher, reference_engine: sa.Engine
@@ -177,6 +180,35 @@ class TestFetchAndCache:
         assert result.from_network == 0
         assert result.articles[0].pmid == "22222222"
         assert result.articles[0].title == "MTHFR and folate"
+
+    def test_network_and_cache_paths_preserve_literal_tag_text(
+        self, fetcher: PubMedFetcher
+    ) -> None:
+        """A literal tag spelling is not reinterpreted after caching."""
+        mock_records = {
+            "PubmedArticle": [
+                _make_entrez_record(
+                    pmid="33333333",
+                    title="Literal &lt;i&gt; beside <i>TP53</i>",
+                    abstract="Literal &amp;lt; beside x&lt;y.",
+                ),
+            ]
+        }
+
+        with patch("backend.utils.pubmed.Entrez", autospec=True) as mock_entrez:
+            mock_handle = MagicMock()
+            mock_entrez.efetch.return_value = mock_handle
+            mock_entrez.read.return_value = mock_records
+
+            network_result = fetcher.fetch_by_pmids(["33333333"], gene="TP53")
+            cached_result = fetcher.fetch_by_pmids(["33333333"], gene="TP53")
+
+        assert network_result.articles[0].title == "Literal <i> beside TP53"
+        assert cached_result.articles[0].title == network_result.articles[0].title
+        assert network_result.articles[0].abstract == "Literal &lt; beside x<y."
+        assert cached_result.articles[0].abstract == network_result.articles[0].abstract
+        assert cached_result.from_cache == 1
+        mock_entrez.efetch.assert_called_once()
 
     def test_mixed_cached_and_new(
         self, fetcher: PubMedFetcher, reference_engine: sa.Engine
@@ -528,6 +560,78 @@ class TestParseEntrezRecord:
         assert "Part 2." in article.abstract
         assert "Part 3." in article.abstract
 
+    def test_parse_strips_pubmed_markup_from_title_and_abstract(self) -> None:
+        """Third-party PubMed markup is reduced to safe readable text."""
+        record = _make_entrez_record(
+            pmid="36766853",
+            title="<i>TP53</i> and CO<sub>2</sub> in Adaptation &amp; Evolution.",
+            abstract="The assay measured 10<sup>6</sup> cells.",
+        )
+
+        article = _parse_entrez_record(record)
+
+        assert article is not None
+        assert article.title == "TP53 and CO_(2) in Adaptation & Evolution."
+        assert article.abstract == "The assay measured 10^(6) cells."
+        assert "<" not in article.title
+        assert "<" not in article.abstract
+
+    def test_parse_preserves_escaped_literal_comparisons(self) -> None:
+        """Entrez-escaped scientific comparisons survive markup removal."""
+        record = _make_entrez_record(
+            title="Expression x&lt;y with <i>TP53</i>",
+            abstract="Dose &lt;5 mg and x&lt;y while <sup>2</sup> remains formatted.",
+        )
+
+        article = _parse_entrez_record(record)
+
+        assert article is not None
+        assert article.title == "Expression x<y with TP53"
+        assert article.abstract == "Dose <5 mg and x<y while ^(2) remains formatted."
+
+    def test_production_xml_decodes_metadata_and_strips_mathml(self) -> None:
+        """The real Entrez parser shape is normalized across every emitted field."""
+        xml = (
+            b'<?xml version="1.0" encoding="UTF-8"?>'
+            b"<!DOCTYPE PubmedArticleSet PUBLIC "
+            b'"-//NLM//DTD PubMedArticle, 1st January 2019//EN" '
+            b'"https://dtd.nlm.nih.gov/ncbi/pubmed/out/pubmed_190101.dtd">'
+            b"<PubmedArticleSet><PubmedArticle>"
+            b'<MedlineCitation Status="MEDLINE" Owner="NLM">'
+            b'<PMID Version="1">123</PMID><Article PubModel="Print"><Journal>'
+            b'<JournalIssue CitedMedium="Internet"><PubDate><Year>2024</Year>'
+            b"</PubDate></JournalIssue><Title>Research &amp; Practice</Title>"
+            b"</Journal><ArticleTitle>Value <i>TP53</i> and "
+            b'<mml:math xmlns:mml="http://www.w3.org/1998/Math/MathML">'
+            b"<mml:mfrac><mml:mn>1</mml:mn><mml:mn>2</mml:mn></mml:mfrac>"
+            b"</mml:math>.</ArticleTitle><Abstract>"
+            b"<AbstractText>Level &lt;5.</AbstractText></Abstract>"
+            b'<AuthorList CompleteYN="Y"><Author ValidYN="Y">'
+            b"<LastName>Smith &amp; Jones</LastName><Initials>AB</Initials>"
+            b"</Author></AuthorList><Language>eng</Language>"
+            b'<PublicationTypeList><PublicationType UI="D016428">'
+            b"Journal Article</PublicationType></PublicationTypeList></Article>"
+            b"<MedlineJournalInfo><Country>US</Country><MedlineTA>J</MedlineTA>"
+            b"<NlmUniqueID>1</NlmUniqueID></MedlineJournalInfo>"
+            b"<CitationSubset>IM</CitationSubset></MedlineCitation><PubmedData>"
+            b'<History><PubMedPubDate PubStatus="pubmed"><Year>2024</Year>'
+            b"</PubMedPubDate></History><PublicationStatus>epublish"
+            b"</PublicationStatus><ArticleIdList>"
+            b'<ArticleId IdType="pubmed">123</ArticleId></ArticleIdList>'
+            b"</PubmedData></PubmedArticle></PubmedArticleSet>"
+        )
+        record = Entrez.read(io.BytesIO(xml), escape=True)["PubmedArticle"][0]
+
+        article = _parse_entrez_record(record)
+
+        assert article is not None
+        assert article.title == "Value TP53 and [formula]."
+        assert article.abstract == "Level <5."
+        assert article.authors == ["Smith & Jones AB"]
+        assert article.journal == "Research & Practice"
+        assert "<math" not in article.title
+        assert "<mfrac>" not in article.title
+
 
 class TestRowToArticle:
     """Unit tests for _row_to_article helper."""
@@ -563,6 +667,40 @@ class TestRowToArticle:
         assert article.authors == ["Smith J", "Doe A"]
         assert article.journal == "Science"
         assert article.year == 2023
+
+    def test_row_conversion_strips_markup_from_legacy_cache(
+        self, reference_engine: sa.Engine
+    ) -> None:
+        """Existing cached PubMed markup is cleaned before it reaches consumers."""
+        _seed_cache(
+            reference_engine,
+            [
+                {
+                    "pmid": "36766853",
+                    "gene": "TP53",
+                    "title": "Literal <i> beside <i>TP53</i> and CO<sub>2</sub>",
+                    "abstract": "The assay measured 10<sup>6</sup> cells when x<y.",
+                    "authors": json.dumps(["Smith & Jones AB"]),
+                    "journal": "Research & Practice",
+                    "year": 2023,
+                    "fetched_at": datetime.now(UTC),
+                }
+            ],
+        )
+
+        with reference_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(literature_cache).where(literature_cache.c.pmid == "36766853")
+            ).first()
+
+        article = _row_to_article(row)
+        assert article.title == "Literal <i> beside TP53 and CO_(2)"
+        assert article.abstract == "The assay measured 10^(6) cells when x<y."
+        assert article.authors == ["Smith & Jones AB"]
+        assert article.journal == "Research & Practice"
+        assert article.title.count("<i>") == 1
+        assert "</i>" not in article.title
+        assert "<sub>" not in article.title
 
 
 class TestArticleSerialization:

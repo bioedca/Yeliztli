@@ -1,5 +1,7 @@
 /** React Query hooks for cancer module API (P3-18). */
 
+import { throwApiError } from "@/api/errors"
+
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type {
   AbsoluteRiskResponse,
@@ -20,8 +22,7 @@ export function useCancerVariants(sampleId: number | null) {
       const params = new URLSearchParams({ sample_id: String(sampleId!) })
       const res = await fetch(`/api/analysis/cancer/variants?${params}`)
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`Cancer variants failed: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `Cancer variants failed. Please try again.`)
       }
       return res.json()
     },
@@ -42,8 +43,7 @@ export function useCancerPRS(sampleId: number | null) {
       const params = new URLSearchParams({ sample_id: String(sampleId!) })
       const res = await fetch(`/api/analysis/cancer/prs?${params}`)
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`Cancer PRS failed: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `Cancer PRS failed. Please try again.`)
       }
       return res.json()
     },
@@ -63,8 +63,7 @@ export function useCancerDisclaimer() {
     queryFn: async (): Promise<CancerDisclaimerResponse> => {
       const res = await fetch("/api/analysis/cancer/disclaimer")
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`Cancer disclaimer failed: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `Cancer disclaimer failed. Please try again.`)
       }
       return res.json()
     },
@@ -79,8 +78,7 @@ export function useAbsoluteRisk(sampleId: number | null) {
     queryFn: async (): Promise<AbsoluteRiskResponse> => {
       const res = await fetch(`/api/analysis/cancer/absolute-risk?sample_id=${sampleId}`)
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`Absolute risk failed: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `Absolute risk failed. Please try again.`)
       }
       return res.json()
     },
@@ -99,8 +97,7 @@ export function useSetAbsoluteRiskConsent(sampleId: number | null) {
         { method: "POST" },
       )
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`Consent failed: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `Consent failed. Please try again.`)
       }
       return res.json()
     },

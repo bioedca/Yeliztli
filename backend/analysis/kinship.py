@@ -69,7 +69,10 @@ _ACGT = frozenset("ACGT")
 
 @dataclass(frozen=True)
 class KinshipStats:
-    phi: float
+    # None when the KING denominator (het_i + het_j) is zero: the estimator is
+    # undefined, not zero. Substituting 0.0 made a comparison carrying no
+    # heterozygous information read as a confident "unrelated" (#2170).
+    phi: float | None
     ibs0: int
     ibs0_proportion: float
     n_shared: int
@@ -77,6 +80,13 @@ class KinshipStats:
     het_j: int
     hethet: int
     relationship: str
+    # het_i + het_j -- the denominator the estimate actually rests on. `n_shared`
+    # counts every intersecting call including identical homozygotes, which
+    # contribute nothing here, so the two numbers can diverge wildly (#2170).
+    informative_denominator: int = 0
+    # Why `relationship` is "indeterminate": "insufficient_shared_snps" or
+    # "no_heterozygous_information". None when the pair was evaluable.
+    indeterminate_reason: str | None = None
 
 
 @dataclass
@@ -171,13 +181,38 @@ def king_kinship(genos_i: dict[str, str], genos_j: dict[str, str]) -> KinshipSta
             if hom_i is not None and hom_j is not None and hom_i != hom_j:
                 ibs0 += 1
     denom = het_i + het_j
-    phi = (hethet - 2 * ibs0) / denom if denom > 0 else 0.0
     ibs0_proportion = ibs0 / n_shared if n_shared else 0.0
+
+    # The KING-robust estimator divides by het_i + het_j. Two samples that are
+    # identically homozygous everywhere satisfy the shared-SNP gate while
+    # contributing nothing to that denominator, so the ratio is undefined --
+    # report it as such rather than forcing 0.0, which classified as "unrelated"
+    # and read as a confident negative (#2170).
+    indeterminate_reason: str | None = None
+    raw_phi: float | None = None
+    if denom <= 0:
+        indeterminate_reason = "no_heterozygous_information"
+    else:
+        raw_phi = (hethet - 2 * ibs0) / denom
+    # Only when a coefficient actually exists is "too few shared SNPs" the
+    # operative reason. With a zero denominator the estimate is undefined
+    # regardless of how many SNPs were shared, and overwriting that reported a
+    # weaker cause than the truth (#2215 review).
+    if n_shared < MIN_SHARED_SNPS and raw_phi is not None:
+        indeterminate_reason = "insufficient_shared_snps"
+
+    # Classify the FULL-PRECISION coefficient and round only what is stored.
+    # Rounding first lets a value within 0.00005 of a band edge cross it --
+    # 0.17696 would round to 0.1770 and be labelled first-degree rather than
+    # second-degree (#2215 review).
     relationship = (
-        _classify(phi, ibs0_proportion) if n_shared >= MIN_SHARED_SNPS else "indeterminate"
+        "indeterminate"
+        if indeterminate_reason is not None or raw_phi is None
+        else _classify(raw_phi, ibs0_proportion)
     )
+    phi = None if raw_phi is None else round(raw_phi, 4)
     return KinshipStats(
-        phi=round(phi, 4),
+        phi=phi,
         ibs0=ibs0,
         ibs0_proportion=round(ibs0_proportion, 5),
         n_shared=n_shared,
@@ -185,6 +220,8 @@ def king_kinship(genos_i: dict[str, str], genos_j: dict[str, str]) -> KinshipSta
         het_j=het_j,
         hethet=hethet,
         relationship=relationship,
+        informative_denominator=denom,
+        indeterminate_reason=indeterminate_reason,
     )
 
 
@@ -195,18 +232,41 @@ _RELATIONSHIP_LABEL = {
     "second_degree": "2nd-degree relative (e.g. grandparent, aunt/uncle, half-sibling)",
     "third_degree": "3rd-degree relative (e.g. first cousin)",
     "unrelated": "unrelated",
-    "indeterminate": "indeterminate (too few shared SNPs)",
+    "indeterminate": "indeterminate (not enough usable information)",
 }
 
 
 def _pair_text(pair: KinshipPair) -> str:
     s = pair.stats
     label = _RELATIONSHIP_LABEL[s.relationship]
+    # phi is None exactly when the estimator was undefined, which also forces
+    # relationship="indeterminate" -- and `store_kinship_findings` files no
+    # finding for those, so this branch is unreachable today. Spell it out
+    # anyway: `{s.phi:.3f}` would raise TypeError on None, and a future caller
+    # that files indeterminate pairs should get a sentence, not a crash (#2170).
+    phi_text = "undefined" if s.phi is None else f"{s.phi:.3f}"
     base = (
         f"Estimated relationship to '{pair.other_sample_name}': {label} "
-        f"(KING kinship φ={s.phi:.3f}, IBS0 proportion {s.ibs0_proportion:.4f}, "
-        f"{s.n_shared:,} shared autosomal SNPs)."
+        f"(KING kinship φ={phi_text}, IBS0 proportion {s.ibs0_proportion:.4f}, "
+        f"{s.n_shared:,} shared autosomal SNPs, "
+        f"{s.informative_denominator:,} heterozygous calls in the divisor)."
     )
+    if s.relationship == "indeterminate":
+        # "could not be computed" is only true for a zero denominator. With too
+        # few shared SNPs the coefficient IS computed and shown, it is simply not
+        # reportable -- claiming otherwise contradicts the number beside it.
+        if s.indeterminate_reason == "insufficient_shared_snps":
+            base += (
+                " This is NOT a finding of unrelatedness: too few SNPs are shared "
+                "for the estimate to be reportable, so no relationship is claimed "
+                "either way."
+            )
+        else:
+            base += (
+                " This is NOT a finding of unrelatedness: the estimate could not be "
+                "computed from the data available, so no relationship is claimed "
+                "either way."
+            )
     if s.relationship == "duplicate_or_mz_twin":
         base += (
             " A kinship near 0.5 means these two files are either the same person "
@@ -237,7 +297,8 @@ def assess_kinship(
         stats = king_kinship(target_genos, other_genos)
         pairs.append(KinshipPair(other_id, other_name, same_vendor, stats))
     # Most-related first.
-    pairs.sort(key=lambda p: p.stats.phi, reverse=True)
+    # An undefined phi sorts last rather than blowing up the comparison.
+    pairs.sort(key=lambda p: (p.stats.phi is not None, p.stats.phi or 0.0), reverse=True)
     return KinshipResult(
         target_sample_id=target_sample_id,
         pairs=pairs,
@@ -248,16 +309,17 @@ def assess_kinship(
 def store_kinship_findings(result: KinshipResult, sample_engine: sa.Engine) -> int:
     """Persist one finding per non-unrelated pair (idempotent).
 
-    Unrelated / indeterminate pairs are not stored as findings (only related
-    pairs and duplicates are actionable); when nothing is related, a single
-    informational summary is stored instead.
+    Unrelated pairs are not stored (a genuine negative needs no card). An
+    **indeterminate** pair IS stored, with its own per-pair detail: it is not a
+    negative, and folding it into the aggregate summary discarded exactly the
+    evidence -- `informative_denominator`, `indeterminate_reason` -- that
+    explains why it could not be estimated (#2170). When nothing at all is
+    reportable, a single informational summary is stored instead.
     """
-    related = [
-        p for p in result.pairs if p.stats.relationship not in {"unrelated", "indeterminate"}
-    ]
+    reportable = [p for p in result.pairs if p.stats.relationship != "unrelated"]
     rows: list[dict[str, Any]] = []
-    if related:
-        for pair in related:
+    if reportable:
+        for pair in reportable:
             s = pair.stats
             rows.append(
                 {
@@ -277,6 +339,8 @@ def store_kinship_findings(result: KinshipResult, sample_engine: sa.Engine) -> i
                             "ibs0": s.ibs0,
                             "ibs0_proportion": s.ibs0_proportion,
                             "n_shared_snps": s.n_shared,
+                            "informative_denominator": s.informative_denominator,
+                            "indeterminate_reason": s.indeterminate_reason,
                             "het_i": s.het_i,
                             "het_j": s.het_j,
                             "hethet": s.hethet,
@@ -302,6 +366,9 @@ def store_kinship_findings(result: KinshipResult, sample_engine: sa.Engine) -> i
             }
         )
     else:
+        # Every pair was evaluable and none was related. Indeterminate pairs no
+        # longer reach here -- they are stored individually above, so their
+        # per-pair evidence survives instead of collapsing into these counts.
         rows.append(
             {
                 "module": MODULE,
@@ -327,7 +394,7 @@ def store_kinship_findings(result: KinshipResult, sample_engine: sa.Engine) -> i
     logger.info(
         "kinship_stored",
         target=result.target_sample_id,
-        related=len(related),
+        reportable=len(reportable),
         compared=result.samples_compared,
     )
     return len(rows)

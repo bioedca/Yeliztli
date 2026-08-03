@@ -80,6 +80,36 @@ const BRCA1_FEATURES: ProteinFeature[] = [
   { type: "Binding site", description: "DNA-binding", position: 65, start: 65, end: 65 },
 ]
 
+const INSULIN_DISULFIDE_FEATURES: ProteinFeature[] = [
+  {
+    type: "Disulfide bond",
+    description: "Interchain (between B and A chains)",
+    position: 31,
+    start: 31,
+    end: 96,
+    start_modifier: "EXACT",
+    end_modifier: "EXACT",
+  },
+  {
+    type: "Disulfide bond",
+    description: "Interchain (between B and A chains)",
+    position: 43,
+    start: 43,
+    end: 109,
+    start_modifier: "EXACT",
+    end_modifier: "EXACT",
+  },
+  {
+    type: "Disulfide bond",
+    description: "",
+    position: 95,
+    start: 95,
+    end: 100,
+    start_modifier: "EXACT",
+    end_modifier: "EXACT",
+  },
+]
+
 const BRCA1_VARIANTS: GeneVariantSummary[] = [
   {
     rsid: "rs80357906",
@@ -177,6 +207,42 @@ function renderGeneDetailPage() {
 // ── GeneDetailPage tests ──────────────────────────────────────────
 
 describe("GeneDetailPage", () => {
+  it("renders normalized cached PubMed text in the literature card", async () => {
+    const user = userEvent.setup()
+    mockGeneDetail({
+      gene_symbol: "BRCA1",
+      uniprot: null,
+      uniprot_error: null,
+      phenotypes: [],
+      literature: [
+        {
+          pmid: "36766853",
+          title: "TP53 and CO_(2)",
+          abstract: "The assay measured 10^(6) cells.",
+          authors: ["Smith & Jones AB"],
+          journal: "Research & Practice",
+          year: 2023,
+          is_stale: false,
+        },
+      ],
+      literature_errors: [],
+      population_af: [],
+      variants: [],
+    })
+
+    renderGeneDetailPage()
+
+    const card = screen.getByTestId("pubmed-36766853")
+    expect(within(card).getByRole("heading", { name: "TP53 and CO_(2)" })).toBeVisible()
+    expect(card).toHaveTextContent("Smith & Jones AB · Research & Practice (2023)")
+    expect(card).not.toHaveTextContent("<i>")
+    expect(card).not.toHaveTextContent("<sub>")
+
+    await user.click(within(card).getByRole("button", { name: "Show abstract" }))
+    expect(card).toHaveTextContent("The assay measured 10^(6) cells.")
+    expect(card).not.toHaveTextContent("<sup>")
+  })
+
   it("renders phenotype labels with their HPO accessions", () => {
     mockGeneDetail({
       gene_symbol: "BRCA1",
@@ -376,6 +442,160 @@ describe("NightingaleViewer", () => {
     const domainTrack = tracks[0] as any
     expect(domainTrack.data).toBeDefined()
     expect(domainTrack.data.length).toBe(3)
+  })
+
+  it("preserves paired disulfide endpoints as non-continuous bridges", () => {
+    render(
+      <NightingaleViewer
+        sequenceLength={110}
+        domains={[]}
+        features={INSULIN_DISULFIDE_FEATURES}
+        variants={[]}
+        accession="P01308"
+      />,
+    )
+
+    const featureTrack = document.querySelector(
+      'nightingale-track[aria-label="Protein features"]',
+    )
+    expect(featureTrack).not.toBeNull()
+    const data = (
+      featureTrack as unknown as {
+        data: Array<{
+          accession: string
+          type: string
+          tooltipContent: string
+          color: string
+          shape: string
+          start: number
+          end: number
+        }>
+      }
+    ).data
+
+    expect(data).toHaveLength(3)
+    expect(data).toMatchObject([
+      {
+        accession: "P01308-feature-0",
+        type: "Disulfide bond",
+        tooltipContent: "Disulfide bond: Interchain (between B and A chains) (31–96)",
+        color: "#6B7280",
+        shape: "bridge",
+        start: 31,
+        end: 96,
+        locations: [{ fragments: [{ start: 31, end: 96 }] }],
+      },
+      {
+        accession: "P01308-feature-1",
+        type: "Disulfide bond",
+        tooltipContent: "Disulfide bond: Interchain (between B and A chains) (43–109)",
+        color: "#6B7280",
+        shape: "bridge",
+        start: 43,
+        end: 109,
+        locations: [{ fragments: [{ start: 43, end: 109 }] }],
+      },
+      {
+        accession: "P01308-feature-2",
+        type: "Disulfide bond",
+        tooltipContent: "Disulfide bond (95–100)",
+        color: "#6B7280",
+        shape: "bridge",
+        start: 95,
+        end: 100,
+        locations: [{ fragments: [{ start: 95, end: 100 }] }],
+      },
+    ])
+  })
+
+  it("does not invent a bridge for equal or incomplete disulfide endpoints", () => {
+    render(
+      <NightingaleViewer
+        sequenceLength={110}
+        domains={[]}
+        features={[
+          {
+            type: "Disulfide bond",
+            description: "Point annotation",
+            position: 31,
+            start: 31,
+            end: 31,
+            start_modifier: "EXACT",
+            end_modifier: "EXACT",
+          },
+          {
+            type: "Disulfide bond",
+            description: "Incomplete annotation",
+            position: null,
+            start: 43,
+            end: null,
+            start_modifier: "EXACT",
+            end_modifier: null,
+          },
+          {
+            type: "Disulfide bond",
+            description: "Qualified endpoint",
+            position: null,
+            start: 60,
+            end: 80,
+            start_modifier: "OUTSIDE",
+            end_modifier: "EXACT",
+          },
+          {
+            type: "Disulfide bond",
+            description: "Legacy cache annotation",
+            position: 31,
+            start: 31,
+            end: 96,
+          },
+        ]}
+        variants={[]}
+        accession="P01308"
+      />,
+    )
+
+    const featureTrack = document.querySelector(
+      'nightingale-track[aria-label="Protein features"]',
+    )
+    expect(featureTrack).not.toBeNull()
+    const data = (
+      featureTrack as unknown as {
+        data: Array<{
+          shape: string
+          start: number
+          end: number
+          tooltipContent: string
+        }>
+      }
+    ).data
+
+    expect(data).toHaveLength(4)
+    expect(data).toMatchObject([
+      {
+        shape: "diamond",
+        start: 31,
+        end: 31,
+        tooltipContent: "Disulfide bond: Point annotation",
+      },
+      {
+        shape: "diamond",
+        start: 43,
+        end: 43,
+        tooltipContent: "Disulfide bond: Incomplete annotation",
+      },
+      {
+        shape: "diamond",
+        start: 60,
+        end: 80,
+        tooltipContent: "Disulfide bond: Qualified endpoint",
+      },
+      {
+        shape: "diamond",
+        start: 31,
+        end: 96,
+        tooltipContent: "Disulfide bond: Legacy cache annotation",
+      },
+    ])
   })
 })
 

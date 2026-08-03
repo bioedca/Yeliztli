@@ -16,6 +16,7 @@ import {
   useQueryClient,
   type UseQueryOptions,
 } from "@tanstack/react-query"
+import { readApiResponseBody } from "@/api/errors"
 
 import type {
   IndividualCreate,
@@ -30,24 +31,8 @@ import type {
 import { IndividualsApiError } from "@/types/individuals"
 
 async function parseError(res: Response, fallback: string): Promise<never> {
-  let body: unknown = null
-  try {
-    body = await res.clone().json()
-  } catch {
-    try {
-      body = await res.text()
-    } catch {
-      body = null
-    }
-  }
-  let message = fallback
-  if (body && typeof body === "object" && "detail" in (body as object)) {
-    const detail = (body as { detail?: unknown }).detail
-    if (typeof detail === "string") message = detail
-  } else if (typeof body === "string" && body.length > 0) {
-    message = body
-  }
-  throw new IndividualsApiError(res.status, message, body)
+  const body = await readApiResponseBody(res)
+  throw new IndividualsApiError(res.status, fallback, body)
 }
 
 export const individualsKeys = {

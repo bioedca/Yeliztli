@@ -9,9 +9,9 @@ lives under Overview / Clinical), and omitted the real **Clinical** and
 so the page can never again document a tab that does not exist — or omit one that
 does — in either direction.
 
-(The separate concern of the two *stub* tabs — Literature/Protein — being
-described as finished features is fixed in the same doc rewrite; this guard only
-covers the tab-name set, which is the mechanical part that silently drifts.)
+(The separate concern of the former Literature stub and the remaining Protein
+stub being described as finished features was fixed in the same doc rewrite;
+the tab-name guards below cover only the mechanical part that silently drifts.)
 """
 
 from __future__ import annotations
@@ -22,6 +22,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 _TABS_SOURCE = REPO_ROOT / "frontend" / "src" / "pages" / "VariantDetailPage.tsx"
 _DOC_PATH = REPO_ROOT / "docs" / "features" / "variant-detail.md"
+_PRIVACY_DOC_PATH = REPO_ROOT / "docs" / "privacy.md"
 _REPORTS_DOC_PATH = REPO_ROOT / "docs" / "features" / "reports.md"
 _VARIANT_DETAIL_COMPONENT_ROOT = REPO_ROOT / "frontend" / "src" / "components" / "variant-detail"
 
@@ -74,6 +75,28 @@ def test_phantom_names_really_are_absent_from_tabs() -> None:
         f"A tab name previously documented-but-nonexistent is now live in TABS: "
         f"{sorted(_PHANTOM_TAB_NAMES & live)}. Revisit test_variant_detail_docs_"
         f"consistency and the doc."
+    )
+
+
+def test_literature_doc_matches_gene_detail_reuse() -> None:
+    text = _DOC_PATH.read_text(encoding="utf-8").lower()
+    required = ("gene-level", "cache-backed", "pubmed", "gene detail", "expandable abstract")
+    missing = [token for token in required if token not in text]
+    forbidden = ("planned; not yet implemented", "placeholder only")
+    stale = [token for token in forbidden if token in text]
+    assert not missing and not stale, (
+        "docs/features/variant-detail.md does not match the live Literature tab's "
+        f"Gene Detail reuse (missing={missing}, stale={stale}; #2015)."
+    )
+
+
+def test_variant_literature_privacy_discloses_shared_external_lookups() -> None:
+    text = _PRIVACY_DOC_PATH.read_text(encoding="utf-8").lower()
+    required = ("variant detail", "literature", "uniprot", "pubmed", "gene symbol")
+    missing = [token for token in required if token not in text]
+    assert not missing, (
+        "docs/privacy.md must disclose the external lookups shared by the Variant Detail "
+        f"Literature tab and Gene Detail (missing={missing}; #2015)."
     )
 
 
