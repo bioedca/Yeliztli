@@ -1,7 +1,28 @@
 # yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
-# CodeRabbit configuration. Scope: advisory review guidance only — CodeRabbit
-# uses its defaults for everything not set here.
+# CodeRabbit configuration. Scope: review triggering plus advisory review
+# guidance — CodeRabbit uses its defaults for everything not set here.
 reviews:
+  # Hosted CodeRabbit review is opt-in (#2247).
+  #
+  # CodeRabbit's included reviews are one adaptive per-developer pool shared by
+  # this GitHub App and the local `coderabbit` CLI. Leaving auto-review at its
+  # defaults made every PR open and every push a review trigger: over the first
+  # 13 active days of Review Route v3 that was 42 opens plus 333 pushes, and
+  # none of the 57 hosted reviews it produced landed on a pull request whose
+  # `## Review route` section had selected CodeRabbit. Both pull requests that
+  # did select CodeRabbit were then refused under the Fair Usage Limits Policy.
+  #
+  # So: no review on open, none on push, none on drafts. A reviewer arrives
+  # when a maintainer or owning agent applies the `review:coderabbit` label, or
+  # asks for one with an explicit `@coderabbitai review` comment. That keeps the
+  # budget available for the lane the route actually selected, and it matches
+  # the repository rule that an unselected hosted lane is never triggered.
+  auto_review:
+    enabled: false
+    auto_incremental_review: false
+    drafts: false
+    labels:
+      - "review:coderabbit"
   path_instructions:
     - path: "tests/**"
       instructions: |

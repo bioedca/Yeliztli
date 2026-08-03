@@ -93,6 +93,14 @@ jobs:
               # generators, the CI startup witness), so a scripts-only change
               # must run the suite that depends on it.
               - 'scripts/**'
+              # tests/backend/test_review_route_policy.py READS these two files
+              # and asserts on their contents — the PR template is fed to the
+              # real validator, and CONTRIBUTING.md is checked for agreement
+              # with it. Without these entries a template- or CONTRIBUTING-only
+              # PR skips the backend suite and can only redden main after the
+              # merge, the same trap as #1061/#1065 and #1965 above (#2247).
+              - '.github/PULL_REQUEST_TEMPLATE.md'
+              - 'CONTRIBUTING.md'
             frontend:
               - 'frontend/**'
               - 'tests/frontend/**'
