@@ -374,6 +374,18 @@ def test_breast_prs_references_carry_a_science_evidence_packet() -> None:
             assert not missing_ids, (
                 f"{raw} returns no record for the identifiers its entry requested: {missing_ids}"
             )
+        # An entry that identifies its evidence by search rather than by
+        # identifier must still be bound to it. The Consensus entry has no DOIs
+        # or PMIDs, so without this a successful response from a *different*
+        # search would satisfy every other check and its ranking would be
+        # attributed to a query that never produced it.
+        for field in ("query", "filters"):
+            if field in entry and field in payload:
+                assert entry[field] == payload[field], (
+                    f"{raw} records {field}={payload[field]!r} but its entry recorded "
+                    f"{entry[field]!r}; the stored results cannot be attributed to the "
+                    "recorded search"
+                )
         # A payload that declares how many results came back must retain that
         # many, or the "complete" ranking is a truncation wearing its name.
         returned = payload.get("results_returned")
