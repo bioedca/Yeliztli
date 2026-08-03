@@ -256,10 +256,22 @@ def test_breast_prs_references_carry_a_science_evidence_packet() -> None:
             )
             continue
 
+        # A lookup may legitimately retain nothing -- a negative result from a
+        # live publisher page, say, where a scrape would add third-party content
+        # the packet does not need. It must then say so explicitly and give the
+        # reason, so "nothing retained" is a recorded decision and not an
+        # omission that reads as evidence.
+        withheld = entry.get("no_payload_retained")
+        if withheld:
+            assert isinstance(withheld, str) and withheld.strip(), (
+                f"{entry['service']} must explain why no payload is retained"
+            )
+            continue
+
         raw = entry.get("raw_payload")
         assert raw, (
-            f"successful {entry['service']} call must record a raw payload path "
-            "or a digest-pinned repository_artifact"
+            f"successful {entry['service']} call must record a raw payload path, "
+            "a digest-pinned repository_artifact, or an explained no_payload_retained"
         )
         # The recorded path must name evidence inside this packet. Without this,
         # an absolute path would discard the REPO_ROOT prefix and any unrelated
@@ -281,6 +293,23 @@ def test_breast_prs_references_carry_a_science_evidence_packet() -> None:
         assert payload.get("status") == "success", (
             f"{raw} must record the successful outcome it is cited for"
         )
+        # Bind the payload to the entry that cites it. The bibliographic payloads
+        # share an access date, a success status and a records list, so swapping
+        # two raw_payload paths would otherwise leave both entries satisfied
+        # while each pointed at the wrong service's evidence.
+        assert payload.get("service") == entry["service"], (
+            f"{raw} records service {payload.get('service')!r} but is cited by the "
+            f"{entry['service']!r} entry"
+        )
+        # A payload that declares how many results came back must retain that
+        # many, or the "complete" ranking is a truncation wearing its name.
+        returned = payload.get("results_returned")
+        if returned is not None:
+            ranking = payload.get("complete_result_ranking") or []
+            assert len(ranking) == returned, (
+                f"{raw} declares results_returned={returned} but retains "
+                f"{len(ranking)} entries in complete_result_ranking"
+            )
         # Validate *every* recognized collection, not the first one in insertion
         # order. Picking one would let the Consensus payload satisfy the guard
         # from its three-entry `results_retained` subset while the 20-result
@@ -350,6 +379,16 @@ def test_breast_prs_references_carry_a_science_evidence_packet() -> None:
     # A substring test would accept a truncated identifier -- "PMID:2585570" is a
     # substring of "PMID:25855707" -- and so would leave a broken reference
     # undetected, which is exactly the drift this guard exists to catch.
+    # Each citation must carry its own access date, not merely an identifier.
+    # Extracting identifiers alone would let an entry silently lose or change
+    # its `(accessed YYYY-MM-DD)` suffix while the packet still looked complete.
+    for citation in packet["citations"]:
+        assert _ACCESS_DATE_RE.search(str(citation)), (
+            f"packet citation must carry an '(accessed YYYY-MM-DD)' date: {citation}"
+        )
+        assert f"(accessed {packet['accessed']})" in str(citation), (
+            f"packet citation must use the packet's access date {packet['accessed']}: {citation}"
+        )
     recorded = {
         match.group(0).upper()
         for citation in packet["citations"]
