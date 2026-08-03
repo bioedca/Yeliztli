@@ -206,6 +206,18 @@ class TestOtherCriteria:
             is None
         )
 
+    def test_ba1_uses_lower_supported_general_continental_frequency(self) -> None:
+        criterion = criterion_ba1(
+            AcmgEvidence(
+                gnomad_af_afr=0.06,
+                gnomad_an_afr=BA1_MIN_OBSERVED_ALLELES - 1,
+                gnomad_af_eur=0.055,
+                gnomad_an_eur=BA1_MIN_OBSERVED_ALLELES,
+            )
+        )
+        assert criterion is not None and criterion.code == "BA1" and criterion.points == -8
+        assert "EUR/NFE" in criterion.rationale
+
     def test_ba1_ignores_global_or_popmax_without_continental_population(self) -> None:
         assert (
             criterion_ba1(

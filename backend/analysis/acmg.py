@@ -406,7 +406,9 @@ def criterion_pp3_bp4(ev: AcmgEvidence) -> AcmgCriterion | None:
 
 
 def criterion_ba1(ev: AcmgEvidence) -> AcmgCriterion | None:
-    af, observed_alleles, population = _benign_effective_af_observed_alleles(ev)
+    af, observed_alleles, population = _benign_effective_af_observed_alleles(
+        ev, min_observed_alleles=BA1_MIN_OBSERVED_ALLELES
+    )
     if af is not None and af > BA1_AF_MIN:
         if _is_benign_af_exception(ev):
             # Common but with evidence of pathogenicity: generic benign frequency
