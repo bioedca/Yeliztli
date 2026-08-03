@@ -115,7 +115,8 @@ def _copilot_v3_body(
     *,
     reviewed_files: int | None = None,
     generated_comments: int = 0,
-    suppressed: bool = False,
+    suppressed: str | None = None,
+    prose_mentions_review: bool = False,
 ) -> str:
     """Reproduce the body Copilot actually posts.
 
@@ -132,12 +133,18 @@ def _copilot_v3_body(
         verdict = "1 comment"
     else:
         verdict = f"{generated_comments} comments"
-    suppression = "\nComments suppressed due to low confidence (1).\n" if suppressed else ""
-    return (
-        "## Pull request overview\n\n"
-        "This PR adjusts the documented contract so the shipped behaviour and the\n"
+    suppression = f"\n{suppressed}\n" if suppressed else ""
+    # Copilot's prose overview can repeat the phrase "Copilot reviewed" in
+    # passing; that must not disqualify an otherwise clean review.
+    overview = (
+        "Copilot reviewed the changes for correctness and found the contract\n"
+        "restated accurately.\n\n"
+        if prose_mentions_review
+        else "This PR adjusts the documented contract so the shipped behaviour and the\n"
         "documentation agree.\n\n"
-        "**Changes:**\n"
+    )
+    return (
+        "## Pull request overview\n\n" + overview + "**Changes:**\n"
         "- Restates the contract to match what the validator enforces.\n\n"
         "### Reviewed changes\n\n"
         f"Copilot reviewed {reviewed} out of {changed_files} changed files in this "
@@ -930,8 +937,11 @@ def test_v3_provider_evidence_is_exact_head_immutable_and_nonblocking(mutation: 
         _copilot_v3_body(2, reviewed_files=1),
         # Copilot found something; a review with findings is not a clean review.
         _copilot_v3_body(2, generated_comments=1),
-        # Findings withheld rather than posted still means findings.
-        _copilot_v3_body(2, suppressed=True),
+        # Findings withheld rather than posted still means findings. The exact
+        # wording is not documented, so cover both orders and both nouns.
+        _copilot_v3_body(2, suppressed="Comments suppressed due to low confidence (1)."),
+        _copilot_v3_body(2, suppressed="1 finding suppressed due to low confidence."),
+        _copilot_v3_body(2, suppressed="Suppressed: 1 comment below the confidence bar."),
         # Two coverage sentences leave the real counts ambiguous.
         _copilot_v3_body(2) + _copilot_v3_body(2),
         # The dead pre-#2248 shape, which Copilot never emitted, must not be a
@@ -996,6 +1006,31 @@ no comments.
 
 
 """
+
+
+def test_v3_copilot_accepts_a_clean_review_whose_prose_repeats_the_phrase() -> None:
+    """A passing mention of "Copilot reviewed" in the overview is not ambiguity.
+
+    An earlier revision of this envelope also required the bare phrase to occur
+    exactly once, which would have rejected a valid clean review whose prose
+    happened to use it — reintroducing the silent fail-closed defect #2248 exists
+    to remove. Only the full coverage sentence is counted.
+    """
+    files = [ChangedFile("README.md"), ChangedFile("GOVERNANCE.md")]
+    context = _context(
+        "Load-bearing",
+        files,
+        automated_gates={COPILOT_GATE},
+        schema_version=3,
+    )
+    review = next(
+        item
+        for item in context["data"]["repository"]["pullRequest"]["reviews"]["nodes"]
+        if item["author"]["databaseId"] == BOT_ACTOR_IDS[COPILOT_GATE]
+    )
+    review["body"] = _copilot_v3_body(2, prose_mentions_review=True)
+    assert review["body"].count("Copilot reviewed ") == 2
+    assert validate_context(context, files, now=NOW) == []
 
 
 def test_v3_copilot_accepts_the_body_copilot_actually_posts() -> None:

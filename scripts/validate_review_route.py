@@ -273,12 +273,22 @@ COPILOT_V3_COVERAGE_LINE = re.compile(
     r"changed files in this pull request and generated "
     r"(?P<verdict>no comments|[1-9][0-9]* comments?)\.$"
 )
-COPILOT_V3_COVERAGE_PHRASE = "Copilot reviewed "
 COPILOT_V3_CLEAN_VERDICT = "no comments"
 # Copilot can withhold low-confidence findings instead of posting them. A review
 # that suppressed findings is not a clean review, and the suppressed ones never
 # become attached comments, so the zero-attached-count check cannot see them.
-COPILOT_V3_SUPPRESSED_COMMENTS = re.compile(r"(?i)comments?\s+suppressed")
+#
+# One line carrying both "suppress…" and "comment(s)"/"finding(s)", in either
+# order: the exact wording is not documented, so anchoring on a fixed phrase
+# order would miss "1 finding suppressed" or "suppressed: 1 comment". Scoped to
+# a single line rather than the whole body because Copilot's summary paraphrases
+# the diff it read — a bare `suppress` search would reject a clean review of any
+# change that merely discusses suppression, this file being the obvious example.
+# This is a heuristic on unverified provider wording and can still miss a
+# variant; the `no comments` verdict is the primary check.
+COPILOT_V3_SUPPRESSED_FINDINGS = re.compile(
+    r"(?im)^(?=[^\n]*\bsuppress)(?=[^\n]*\b(?:comments?|findings?)\b)[^\n]*$"
+)
 CODEX_CLEAN_COMPLETION_PREFIX = "Codex Review: Didn't find any major issues."
 CODEX_CLEAN_COMPLETION_MARKER = f"{CODEX_CLEAN_COMPLETION_PREFIX} What shall we delve into next?"
 CODEX_CLEAN_COMPLETION_LINE = re.compile(
@@ -1283,13 +1293,18 @@ def _v3_formal_review_is_clean(
     if isinstance(changed_files, bool) or not isinstance(changed_files, int) or changed_files <= 0:
         return False
     if gate == COPILOT_GATE:
+        # Exactly one coverage sentence, so two summaries cannot leave the real
+        # counts ambiguous. Deliberately NOT also counting the bare phrase:
+        # Copilot's prose overview may say "Copilot reviewed …" in passing, and
+        # a phrase count would then reject a valid clean review — the same
+        # silent fail-closed defect this envelope was rewritten to remove.
         coverage = list(COPILOT_V3_COVERAGE_LINE.finditer(body))
-        if len(coverage) != 1 or body.count(COPILOT_V3_COVERAGE_PHRASE) != 1:
+        if len(coverage) != 1:
             return False
         found = coverage[0]
         return (
             found.group("verdict") == COPILOT_V3_CLEAN_VERDICT
-            and COPILOT_V3_SUPPRESSED_COMMENTS.search(body) is None
+            and COPILOT_V3_SUPPRESSED_FINDINGS.search(body) is None
             and int(found.group("reviewed")) == changed_files
             and int(found.group("total")) == changed_files
         )
