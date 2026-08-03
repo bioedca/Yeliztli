@@ -570,6 +570,27 @@ def assess_sample_acmg(
     from backend.db.tables import annotated_variants as av
 
     eff_af = sa.func.coalesce(av.c.gnomad_af_popmax, av.c.gnomad_af_global)
+    founder_frequency_without_benign_general_frequency = sa.and_(
+        sa.or_(
+            av.c.gnomad_af_asj >= BS1_AF_MIN,
+            av.c.gnomad_af_fin >= BS1_AF_MIN,
+        ),
+        *(
+            sa.or_(
+                population_af.is_(None),
+                population_af <= BS1_AF_MIN,
+                population_an.is_(None),
+                population_an < BA1_MIN_OBSERVED_ALLELES,
+            )
+            for population_af, population_an in (
+                (av.c.gnomad_af_afr, av.c.gnomad_an_afr),
+                (av.c.gnomad_af_amr, av.c.gnomad_an_amr),
+                (av.c.gnomad_af_eas, av.c.gnomad_an_eas),
+                (av.c.gnomad_af_eur, av.c.gnomad_an_eur),
+                (av.c.gnomad_af_sas, av.c.gnomad_an_sas),
+            )
+        ),
+    )
     stmt = (
         sa.select(
             av.c.rsid,
@@ -607,7 +628,14 @@ def assess_sample_acmg(
             sa.or_(
                 av.c.clinvar_significance.isnot(None),
                 eff_af.is_(None),
-                eff_af < 0.01,
+                eff_af < BS1_AF_MIN,
+                # BA1/BS1 intentionally reject Finnish and ASJ founder peaks.
+                # Keep otherwise notable carried variants when no general
+                # continental AF/AN observation can trigger either benign criterion,
+                # so they are drafted as uncertain rather than silently
+                # prefiltered. Keep the existing triage for variants common
+                # above the BS1 cutoff in a general continental population.
+                founder_frequency_without_benign_general_frequency,
             ),
         )
         .order_by(av.c.rsid)

@@ -761,8 +761,42 @@ class TestAssessSampleAcmg:
             ("gnomad_af_asj", "gnomad_an_asj"),
         ],
     )
-    def test_sample_query_excludes_founder_only_bs1_frequency(
-        self, tmp_path, af_field: str, an_field: str
+    @pytest.mark.parametrize(
+        ("consequence", "revel", "expected_codes"),
+        [
+            ("missense_variant", 0.9, {"PP3"}),
+            ("stop_gained", None, set()),
+            ("inframe_deletion", None, {"PM4"}),
+        ],
+    )
+    @pytest.mark.parametrize(
+        ("popmax", "global_af"),
+        [
+            (0.02, None),
+            (None, 0.02),
+        ],
+    )
+    @pytest.mark.parametrize(
+        ("general_af", "general_an"),
+        [
+            (0.002, BA1_MIN_OBSERVED_ALLELES),
+            (BS1_AF_MIN, BA1_MIN_OBSERVED_ALLELES),
+            (0.02, BA1_MIN_OBSERVED_ALLELES - 1),
+            (0.02, None),
+        ],
+    )
+    def test_sample_query_keeps_founder_frequency_candidate_without_clinvar(
+        self,
+        tmp_path,
+        af_field: str,
+        an_field: str,
+        consequence: str,
+        revel: float | None,
+        expected_codes: set[str],
+        popmax: float | None,
+        global_af: float | None,
+        general_af: float,
+        general_an: int | None,
     ) -> None:
         reference_engine = sa.create_engine("sqlite:///:memory:")
         sample_engine = sa.create_engine(f"sqlite:///{tmp_path / 'sample.db'}")
@@ -778,12 +812,13 @@ class TestAssessSampleAcmg:
                     genotype="AG",
                     zygosity="het",
                     gene_symbol="G",
-                    consequence="missense_variant",
-                    clinvar_significance="Pathogenic",
-                    gnomad_af_popmax=0.02,
+                    consequence=consequence,
+                    gnomad_af_global=global_af,
+                    gnomad_af_popmax=popmax,
                     gnomad_an_popmax=BA1_MIN_OBSERVED_ALLELES,
-                    gnomad_af_eur=0.002,
-                    gnomad_an_eur=BA1_MIN_OBSERVED_ALLELES,
+                    gnomad_af_eur=general_af,
+                    gnomad_an_eur=general_an,
+                    revel=revel,
                     **{af_field: 0.02, an_field: BA1_MIN_OBSERVED_ALLELES},
                 )
             )
@@ -792,8 +827,42 @@ class TestAssessSampleAcmg:
 
         assert result["total_candidates"] == 1
         variant = result["variants"][0]
+        assert variant["clinvar_significance"] is None
         assert variant["acmg_classification"] == UNCERTAIN
-        assert not any(c["code"] == "BS1" for c in variant["criteria"])
+        assert {c["code"] for c in variant["criteria"]} == expected_codes
+
+    def test_sample_query_excludes_common_nonfounder_frequency_without_clinvar(
+        self, tmp_path
+    ) -> None:
+        reference_engine = sa.create_engine("sqlite:///:memory:")
+        sample_engine = sa.create_engine(f"sqlite:///{tmp_path / 'sample.db'}")
+        reference_metadata.create_all(reference_engine)
+        create_sample_tables(sample_engine)
+
+        with sample_engine.begin() as conn:
+            conn.execute(
+                annotated_variants.insert().values(
+                    rsid="rs_common_nonfounder_without_clinvar",
+                    chrom="1",
+                    pos=100,
+                    genotype="AG",
+                    zygosity="het",
+                    gene_symbol="G",
+                    consequence="missense_variant",
+                    gnomad_af_popmax=0.02,
+                    gnomad_an_popmax=BA1_MIN_OBSERVED_ALLELES,
+                    gnomad_af_fin=0.02,
+                    gnomad_an_fin=BA1_MIN_OBSERVED_ALLELES,
+                    gnomad_af_eur=0.02,
+                    gnomad_an_eur=BA1_MIN_OBSERVED_ALLELES,
+                    revel=0.9,
+                )
+            )
+
+        result = assess_sample_acmg(sample_engine, reference_engine)
+
+        assert result["total_candidates"] == 0
+        assert result["variants"] == []
 
     def test_sample_query_excludes_hom_ref_negative_control(self, tmp_path) -> None:
         reference_engine = sa.create_engine("sqlite:///:memory:")
