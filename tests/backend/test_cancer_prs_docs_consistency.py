@@ -219,6 +219,12 @@ def test_cancer_docs_distinguish_the_runtime_block_from_ancestry_withholding() -
     assert "model_provenance.current_allele_audit" in audit_reference, (
         "breast PRS allele counts must cite their bundled audit provenance"
     )
+    for field, label in (("assembly", "assembly"), ("checked_on", "check date")):
+        value = str(audit[field])
+        assert value in audit_reference, (
+            f"breast PRS allele-audit reference [3] must cite the bundled audit's {label} "
+            f"({value}); reference reads: {audit_reference}"
+        )
     assert "DOI:10.1093/database/bay119" in audit_reference, (
         "breast PRS allele audit must cite the Ensembl Variation resource"
     )
@@ -333,8 +339,14 @@ def test_breast_prs_references_carry_a_science_evidence_packet() -> None:
     # failure mode is scientific rather than bookkeeping, so it is checked against
     # the retained payload rather than taken on the packet's word. Cutting the
     # larger validator dropped this; it is restored deliberately.
+    screening_entry = next(
+        (entry for entry in packet["queries"] if entry["service"] == "Scite"), None
+    )
+    assert screening_entry and screening_entry.get("raw_payload"), (
+        "the Scite entry must retain the payload carrying the correction/retraction screening"
+    )
     screening = json.loads(
-        (_EVIDENCE_DIR / "raw" / "scite-doi-lookup-2026-08-03.json").read_text(encoding="utf-8")
+        (REPO_ROOT / screening_entry["raw_payload"]).read_text(encoding="utf-8")
     )
     screened = {str(r.get("doi", "")).upper() for r in screening.get("records", [])}
     cited_dois = {
