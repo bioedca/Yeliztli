@@ -95,15 +95,23 @@ rather than left blank. In summary:
 | Consensus | **Unavailable** — no service or index-build stamp | Consensus terms; discovery aid only | Query, result ranks, hit identity |
 | Scite | **Unavailable** — no service or index-build stamp | Scite terms; screening aid only | Bibliographic fields, editorial-notice outcome, point-in-time tallies |
 | PubMed connector | **Unavailable** for this record | NCBI/NLM public data, no signed licence required | Bibliographic metadata only |
-| Ensembl Variation snapshot | **Unavailable** — no release recorded (#2246) | Unrestricted Ensembl data; factual annotation only | Referenced by path + pinned SHA-256, **not** duplicated |
+| Ensembl Variation snapshot | **Unavailable** — no release recorded (#2246) | Unrestricted Ensembl data; factual annotation only | Retained verbatim in `raw/`, digest-bound to the canonical artifact and the panel's pin |
 
-The Ensembl audit snapshot is referenced rather than copied into `raw/`
-deliberately. It is already checked in at
-`backend/data/sources/breast_prs77/ensembl_primary_grch38_2026-07-16.json` as the
-artifact `scripts/build_breast_prs77.py` consumes, and the panel pins its
-SHA-256. A second copy under `raw/` could silently drift from the one that
-actually drives the build; a verified digest cannot. The packet test recomputes
-that digest, so truncating or editing the snapshot fails the guard.
+The Ensembl audit snapshot is retained in `raw/` **and** bound by digest, so the
+packet is complete when archived or inspected on its own without the copy
+becoming a second thing that can drift. The canonical artifact remains
+`backend/data/sources/breast_prs77/ensembl_primary_grch38_2026-07-16.json`, the
+file `scripts/build_breast_prs77.py` consumes and the panel pins by SHA-256. The
+packet test requires the retained copy's digest to equal both that artifact's
+digest and the panel's `checked_in_snapshot_sha256` pin, and requires any entry
+citing a repository artifact to retain such a copy — so truncating or editing
+either file, or dropping the copy, fails the guard.
+
+Because the copy is verbatim, it carries the artifact's own `checked_on`
+(2026-07-16) rather than this packet's `accessed` date. It is exempt from the
+per-payload access-date rule for that reason and checked by digest instead:
+editing it to look like a service response is exactly what the digest binding
+forbids.
 
 Three consequences follow and are stated plainly.
 

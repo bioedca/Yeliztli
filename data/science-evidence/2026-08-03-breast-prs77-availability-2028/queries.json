@@ -55,7 +55,7 @@
     "Ensembl Variation snapshot (backend/data/sources/breast_prs77/ensembl_primary_grch38_2026-07-16.json)": {
       "version_or_build": "Unavailable. The snapshot records assembly GRCh38, coord_system chromosome, mapping_policy and checked_on 2026-07-16, but names no Ensembl Variation release or database version - verified by searching it for 'release', 'version' and 'build', none of which appear. The snapshot is therefore re-usable but not re-fetchable-and-confirmable upstream. Tracked by #2246; a release is not invented here.",
       "license_or_terms": "Ensembl data is released without restriction (the resource is cited as DOI:10.1093/database/bay119). The stored artifact holds coordinates, alleles and strand for 77 public rsIDs - factual annotation, no third-party expressive content.",
-      "retention_basis": "Referenced, not duplicated: the canonical artifact lives at backend/data/sources/breast_prs77/ and its SHA-256 is pinned by the panel and re-verified by the packet test.",
+      "retention_basis": "Retained verbatim in raw/ensembl_primary_grch38_2026-07-16.json so the packet is complete on its own, and bound by digest so the copy cannot drift: the guard requires its SHA-256 to equal both the canonical artifact at backend/data/sources/breast_prs77/ and the panel's model_provenance.reproducibility.checked_in_snapshot_sha256 pin.",
       "unavailable_fields": [
         "version_or_build (no release identifier recorded in the snapshot)"
       ]
