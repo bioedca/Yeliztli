@@ -1572,8 +1572,14 @@ def _greptile_run_is_billed(run: dict[str, Any]) -> bool:
 
 
 def _greptile_run_spent_at(run: dict[str, Any]) -> datetime | None:
-    """When a run spent its credit, or ``None`` if that cannot be established."""
-    for key in ("completedAt", "startedAt"):
+    """When a run spent its credit, or ``None`` if that cannot be established.
+
+    ``startedAt`` first, because the credit is committed when the review is
+    triggered rather than when it finishes. Preferring ``completedAt`` would
+    charge a stacked child pull request for a run that began on its parent and
+    only finished after the child was opened.
+    """
+    for key in ("startedAt", "completedAt"):
         value = run.get(key)
         if value is None:
             continue

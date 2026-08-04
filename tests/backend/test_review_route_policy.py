@@ -7572,3 +7572,30 @@ def test_schema_v2_does_not_need_the_greptile_commit_ledger() -> None:
     context = _context("Load-bearing", files, automated_gates={CODERABBIT_GATE})
     del context["data"]["repository"]["pullRequest"]["greptileCommits"]
     assert validate_context(context, files, now=NOW) == []
+
+
+def test_greptile_budget_places_a_run_by_when_it_started_not_when_it_finished() -> None:
+    """The credit is committed at trigger time.
+
+    A stacked child inherits a parent's commits, and a run can begin on the
+    parent and finish after the child was opened. Placing it by `completedAt`
+    would charge the child for its parent's review and refuse a lane that has
+    spent nothing.
+    """
+    straddling = _greptile_check_run(
+        started_at="2026-07-21T11:45:00Z",  # before CREATED_AT
+        completed_at="2026-07-21T12:15:00Z",  # after CREATED_AT
+        database_id=91710286800,
+    )
+    # Two runs genuinely belong to this pull request, so the straddling one is
+    # what decides the cap: charge it and the count is three.
+    context, files = _greptile_context(
+        commit_runs=[
+            [straddling],
+            [_billed_run(91710286801, "2026-07-21T12:10:00Z")],
+            [_billed_run(91710286922, GATE_TIMES[GREPTILE_GATE])],
+        ],
+    )
+    pull_request = context["data"]["repository"]["pullRequest"]
+    assert pull_request["createdAt"] == CREATED_AT == "2026-07-21T11:50:00Z"
+    assert validate_context(context, files, now=NOW) == []
