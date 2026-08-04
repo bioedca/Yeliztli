@@ -34,6 +34,7 @@ query ReviewRouteContext(
             checkRuns(first: 20, filterBy: {checkType: ALL}) {
               totalCount
               nodes {
+                id
                 databaseId
                 name
                 status
@@ -85,6 +86,7 @@ query ReviewRouteContext(
                 checkRuns(first: 20, filterBy: {checkType: ALL}) {
                   totalCount
                   nodes {
+                    id
                     databaseId
                     name
                     status

@@ -277,6 +277,9 @@ def _greptile_check_run(
             f"{files_reviewed} files reviewed, {comments_added} comments added."
         )
     return {
+        # `id` is `ID!`; `databaseId` is a nullable 32-bit `Int` that GitHub
+        # already overflows, so the count keys on `id` and never on `databaseId`.
+        "id": f"CR_kwDOtest{database_id}",
         "databaseId": database_id,
         "name": name,
         "status": status,
@@ -7140,7 +7143,10 @@ def test_route_context_query_reads_the_greptile_head_check_run() -> None:
     # an unchanged commit is invisible to both the gate and its truncation guard.
     assert "checkRuns(first: 20, filterBy: {checkType: ALL})" in query
     assert "checkRuns(first: 20)" not in query
+    # `id` is `ID!`; `databaseId` is a nullable 32-bit `Int` GitHub already
+    # overflows, so the budget count keys on `id`.
     for field in (
+        "id",
         "databaseId",
         "name",
         "status",
@@ -7167,6 +7173,7 @@ def test_route_context_query_reads_every_greptile_run_this_pull_request_spent() 
     # nodes have to carry `__typename` or every one of them fails closed.
     assert "\n          commit {\n            __typename\n" in query
     for field in (
+        "id",
         "databaseId",
         "name",
         "status",
@@ -7628,5 +7635,31 @@ def test_greptile_lane_fails_closed_on_an_unreadable_head_run_node() -> None:
     check_runs["nodes"] = [None, *check_runs["nodes"]]
     check_runs["totalCount"] = len(check_runs["nodes"])
     assert "no verified current-head GitHub activity for: Greptile clean review check run" in (
+        validate_context(context, files, now=NOW)
+    )
+
+
+def test_greptile_budget_survives_a_null_check_run_database_id() -> None:
+    """`CheckRun.databaseId` is a nullable 32-bit `Int` that GitHub already
+    overflows — PR #2203's run is 91710286922. Keying the count on it would
+    refuse every Greptile lane the day GitHub starts honouring the schema, so
+    the count keys on the non-null global `id` instead."""
+    runs = [_billed_run(91710286922, GATE_TIMES[GREPTILE_GATE])]
+    for run in runs:
+        run["databaseId"] = None
+    context, files = _greptile_context(runs=runs, commit_runs=[runs])
+    assert validate_context(context, files, now=NOW) == []
+
+
+def test_greptile_budget_fails_closed_without_a_check_run_node_id() -> None:
+    """Two runs indistinguishable by id could be one credit or two."""
+    runs = [
+        _billed_run(91710286900, "2026-07-21T12:10:00Z"),
+        _billed_run(91710286922, GATE_TIMES[GREPTILE_GATE]),
+    ]
+    for run in runs:
+        del run["id"]
+    context, files = _greptile_context(runs=runs, commit_runs=[runs])
+    assert "commit pagination cannot prove the Greptile per-pull-request budget" in (
         validate_context(context, files, now=NOW)
     )

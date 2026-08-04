@@ -1639,7 +1639,12 @@ def _greptile_pr_budget_errors(
 
     views: list[Any] = [repository.get("greptileHeadObject")]
     views.extend(node.get("commit") if isinstance(node, dict) else None for node in nodes)
-    billed: set[int] = set()
+    # Deduplicate on the global node id, not `databaseId`. The schema declares
+    # `CheckRun.databaseId` a nullable 32-bit `Int` while GitHub returns values
+    # far past that range (91710286922 on PR #2203), so a future spec-compliant
+    # null there would refuse every Greptile lane. `id` is `ID!` — non-null by
+    # schema — and equally unique. `CheckRun` has no `fullDatabaseId`.
+    billed: set[str] = set()
     for view in views:
         runs, complete = _greptile_check_runs(view)
         if not complete:
@@ -1656,8 +1661,8 @@ def _greptile_pr_budget_errors(
                 # A stacked branch inherits its parent's commits; those reviews
                 # were charged to the parent pull request, not to this one.
                 continue
-            run_id = run.get("databaseId")
-            if isinstance(run_id, bool) or not isinstance(run_id, int):
+            run_id = run.get("id")
+            if not isinstance(run_id, str) or not run_id:
                 return [GREPTILE_LEDGER_TRUNCATED]
             billed.add(run_id)
     if len(billed) > GREPTILE_PR_REVIEW_CAP:
