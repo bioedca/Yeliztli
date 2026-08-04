@@ -27,14 +27,20 @@ query ReviewRouteContext(
               __typename
               databaseId
             }
-            checkRuns(first: 20) {
+            # `checkType` defaults to LATEST, which drops a superseded run on an
+            # unchanged commit, and `totalCount` is computed after the filter, so
+            # it agrees with the shortened page and the truncation guard below
+            # proves nothing. ALL is what makes that guard real.
+            checkRuns(first: 20, filterBy: {checkType: ALL}) {
               totalCount
               nodes {
+                id
                 databaseId
                 name
                 status
                 conclusion
                 summary
+                startedAt
                 completedAt
               }
             }
@@ -59,6 +65,41 @@ query ReviewRouteContext(
       updatedAt
       commits(last: 1) {
         nodes { commit { committedDate } }
+      }
+      # Every Greptile run this pull request has spent, for the per-pull-request
+      # budget. `last:` because the connection is ordered oldest-first, so
+      # `first:` would omit the head on a long branch; `totalCount` against the
+      # page length is what proves the view complete.
+      greptileCommits: commits(last: 100) {
+        totalCount
+        nodes {
+          commit {
+            __typename
+            oid
+            checkSuites(first: 5, filterBy: {appId: 867647}) {
+              totalCount
+              nodes {
+                app {
+                  __typename
+                  databaseId
+                }
+                checkRuns(first: 20, filterBy: {checkType: ALL}) {
+                  totalCount
+                  nodes {
+                    id
+                    databaseId
+                    name
+                    status
+                    conclusion
+                    summary
+                    startedAt
+                    completedAt
+                  }
+                }
+              }
+            }
+          }
+        }
       }
       timelineItems(last: 1, itemTypes: [HEAD_REF_FORCE_PUSHED_EVENT]) {
         nodes { ... on HeadRefForcePushedEvent { createdAt } }
