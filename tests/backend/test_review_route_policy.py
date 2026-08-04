@@ -7109,3 +7109,93 @@ def test_pull_request_template_offers_the_greptile_lane_on_v3_only() -> None:
     assert template.count("- [ ] Greptile") == 1
     assert template.count(f"| {GREPTILE_GATE} |") == 1
     assert AUTONOMOUS_SCHEMA_MARKER in template
+
+
+def _three_provider_v3_body(route: str, gate: str) -> str:
+    """A v3 body written against the template that shipped before Greptile."""
+    body = _body(route, automated_gates={gate}, schema_version=3)
+    return "\n".join(
+        line
+        for line in body.splitlines()
+        if not line.startswith("- [ ] Greptile") and not line.startswith(f"| {GREPTILE_GATE} |")
+    )
+
+
+@pytest.mark.parametrize("gate", [COPILOT_GATE, CODEX_GATE, CODERABBIT_GATE])
+def test_v3_bodies_written_before_the_greptile_lane_stay_valid(gate: str) -> None:
+    """Already-open v3 pull requests must not break when the lane merges.
+
+    Their bodies carry three provider checkboxes and three evidence rows.
+    Requiring the Greptile pair would put every one of them at `pending` on
+    merge, and the body edit needed to repair one re-pends its route and spends
+    a fresh hosted review.
+    """
+    files = [ChangedFile("README.md")]
+    context = _context(
+        "Load-bearing",
+        files,
+        automated_gates={gate},
+        schema_version=3,
+        body=_three_provider_v3_body("Load-bearing", gate),
+    )
+    pull_request = context["data"]["repository"]["pullRequest"]
+    pull_request["reviews"]["nodes"] = [
+        review
+        for review in pull_request["reviews"]["nodes"]
+        if review["author"]["databaseId"] != HUMAN_ID
+    ]
+    pull_request["reviews"]["totalCount"] = len(pull_request["reviews"]["nodes"])
+    pull_request["latestHumanOpinions"] = {"totalCount": 0, "nodes": []}
+    assert validate_context(context, files, now=NOW) == []
+
+
+def test_a_three_provider_v3_body_survives_the_rendered_route_check() -> None:
+    """Rendered parity must track the body, not the newest template."""
+    files = [ChangedFile("README.md")]
+    body = _three_provider_v3_body("Load-bearing", CODEX_GATE)
+    rendered = (
+        _rendered_route_html("Load-bearing", automated_gates={CODEX_GATE}, schema_version=3)
+        .replace('<li><input type="checkbox"> Greptile — automated review</li>', "")
+        .replace(f"<tr><td>{GREPTILE_GATE}</td><td>scope</td><td>N/A</td><td>N/A</td></tr>", "")
+    )
+    context = _context(
+        "Load-bearing", files, automated_gates={CODEX_GATE}, schema_version=3, body=body
+    )
+    pull_request = context["data"]["repository"]["pullRequest"]
+    pull_request["reviews"]["nodes"] = [
+        review
+        for review in pull_request["reviews"]["nodes"]
+        if review["author"]["databaseId"] != HUMAN_ID
+    ]
+    pull_request["reviews"]["totalCount"] = len(pull_request["reviews"]["nodes"])
+    pull_request["latestHumanOpinions"] = {"totalCount": 0, "nodes": []}
+    assert _validate_rendered(context, files, rendered) == []
+
+
+def test_selecting_greptile_without_its_evidence_row_is_rejected() -> None:
+    """Optional only while unused: a selected gate must still prove itself."""
+    files = [ChangedFile("README.md")]
+    body = _body("Load-bearing", automated_gates={GREPTILE_GATE}, schema_version=3)
+    body = "\n".join(
+        line for line in body.splitlines() if not line.startswith(f"| {GREPTILE_GATE} |")
+    )
+    context = _context(
+        "Load-bearing", files, automated_gates={GREPTILE_GATE}, schema_version=3, body=body
+    )
+    errors = validate_context(context, files, now=NOW)
+    assert any("missing review evidence rows" in error for error in errors)
+
+
+def test_a_duplicated_greptile_checkbox_is_still_rejected() -> None:
+    files = [ChangedFile("README.md")]
+    body = _body("Load-bearing", automated_gates={CODEX_GATE}, schema_version=3)
+    body = body.replace(
+        "- [ ] Greptile — automated review",
+        "- [ ] Greptile — automated review\n- [ ] Greptile — automated review",
+    )
+    context = _context(
+        "Load-bearing", files, automated_gates={CODEX_GATE}, schema_version=3, body=body
+    )
+    assert "expected each automated reviewer checkbox exactly once" in (
+        validate_context(context, files, now=NOW)
+    )

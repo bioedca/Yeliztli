@@ -361,6 +361,35 @@ def _review_choices_for_schema(schema_version: int | None) -> dict[str, str]:
     return V3_AUTOMATED_REVIEW_CHOICES if schema_version == 3 else AUTOMATED_REVIEW_CHOICES
 
 
+def _is_optional_gate(gate: str, schema_version: int | None) -> bool:
+    """Whether a gate may be absent from an otherwise valid body of this schema.
+
+    Greptile joined schema v3 after v3 pull requests were already open. Making
+    its checkbox and evidence row mandatory would have broken the route on every
+    one of them the moment the lane merged, and each body edit needed to repair
+    one re-pends that route and spends a fresh hosted review. A body written
+    against the three-provider template stays valid; it simply cannot select
+    Greptile.
+    """
+    return schema_version == 3 and gate == GREPTILE_GATE
+
+
+def _present_gates(
+    schema_version: int | None, evidence: dict[str, Any]
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Return the gates and labels this particular body is required to carry."""
+    kept = [
+        (gate, label)
+        for gate, label in zip(
+            _gates_for_schema(schema_version),
+            _gate_labels_for_schema(schema_version),
+            strict=True,
+        )
+        if not _is_optional_gate(gate, schema_version) or gate in evidence
+    ]
+    return tuple(gate for gate, _ in kept), tuple(label for _, label in kept)
+
+
 @dataclass(frozen=True)
 class Evidence:
     applies_to: str
@@ -912,12 +941,13 @@ def _rendered_route_errors(
         )
 
     checklist_nodes = section_roots[:-1]
-    provider_count = len(_review_choices_for_schema(schema_version))
+    # The rendered controls must match the source body this was parsed from,
+    # which on v3 may or may not carry the optional Greptile pair.
+    present_gates, present_labels = _present_gates(schema_version, evidence)
+    provider_count = sum(1 for gate in present_gates if gate != HUMAN_GATE)
     if schema_version in {2, 3} and combined_groups:
         expected_checklist_sizes = [3 + provider_count]
     elif schema_version in {2, 3}:
-        # One route checklist of three, then one provider checklist whose size
-        # tracks the schema: v2 keeps three, v3 gains Greptile.
         expected_checklist_sizes = [3, provider_count]
     else:
         expected_checklist_sizes = [3] * len(checklist_nodes)
@@ -951,7 +981,11 @@ def _rendered_route_errors(
         return [RENDERED_ROUTE_ERROR]
 
     if schema_version in {2, 3}:
-        choices = _review_choices_for_schema(schema_version)
+        choices = {
+            label: gate
+            for label, gate in _review_choices_for_schema(schema_version).items()
+            if gate in present_gates
+        }
         provider_labels = list(choices)
         provider_checkboxes = (
             first_checkboxes[3:] if combined_groups else section_roots[1]["checkboxes"]
@@ -1009,8 +1043,8 @@ def _rendered_route_errors(
         "Head SHA or N/A",
         "UTC time and status, or N/A",
     ]
-    expected_gates = _gates_for_schema(schema_version)
-    expected_labels = _gate_labels_for_schema(schema_version)
+    expected_gates = present_gates
+    expected_labels = present_labels
     if (
         len(rendered_rows) != len(expected_gates) + 1
         or rendered_rows[0] != header
@@ -1136,10 +1170,17 @@ def _parse_route_section(
             reviewer_counts[name] += 1
             if mark.lower() == "x":
                 selected_bots.append(choices[name])
-        if any(count != 1 for count in reviewer_counts.values()):
+        if any(
+            count > 1 if _is_optional_gate(choices[name], schema_version) else count != 1
+            for name, count in reviewer_counts.items()
+        ):
             errors.append("expected each automated reviewer checkbox exactly once")
 
-    expected = set(_gates_for_schema(schema_version))
+    expected = {
+        gate
+        for gate in _gates_for_schema(schema_version)
+        if not _is_optional_gate(gate, schema_version)
+    }
     label_to_gate = dict(
         zip(
             _gate_labels_for_schema(schema_version),
@@ -1170,7 +1211,11 @@ def _parse_route_section(
                 head=cells[2],
                 status=cells[3],
             )
-    missing = expected - evidence.keys()
+    # An optional gate is only optional while it is unused. Selecting it without
+    # supplying its evidence row would otherwise leave the selection unprovable.
+    missing = (expected | {gate for gate in selected_bots if gate not in expected}) - (
+        evidence.keys()
+    )
     if missing:
         errors.append(
             "missing review evidence rows: "
