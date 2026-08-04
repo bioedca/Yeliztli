@@ -120,6 +120,20 @@ def _breast_allele_audit() -> dict[str, object]:
     return audit
 
 
+def _is_verbatim_artifact_copy(entry: dict[str, object]) -> bool:
+    """Whether an entry's retained payload is a copy of a checked-in artifact.
+
+    Such a copy is bound by digest to the canonical file rather than by the
+    packet's access date, so it must not be edited to look like a service
+    response.
+    """
+    artifact = entry.get("repository_artifact")
+    raw = entry.get("raw_payload")
+    if not isinstance(artifact, str) or not isinstance(raw, str):
+        return False
+    return Path(raw).name == Path(artifact).name
+
+
 def _reference_entry(doc_text: str, number: int) -> str:
     match = next(
         (
@@ -326,6 +340,13 @@ def test_breast_prs_references_carry_a_science_evidence_packet() -> None:
         raw = entry.get("raw_payload")
         if not raw:
             continue
+        if _is_verbatim_artifact_copy(entry):
+            # A verbatim copy of a checked-in repository artifact carries that
+            # artifact's own provenance (here ``checked_on``), not a service
+            # response envelope. Requiring the packet's access date would mean
+            # editing the copy, which is exactly what its digest binding below
+            # exists to forbid.
+            continue
         payload = json.loads((REPO_ROOT / raw).read_text(encoding="utf-8"))
         assert payload.get("accessed") == packet["accessed"], (
             f"{raw} records access date {payload.get('accessed')!r}, not the packet's "
@@ -358,6 +379,23 @@ def test_breast_prs_references_carry_a_science_evidence_packet() -> None:
         actual = hashlib.sha256(path.read_bytes()).hexdigest()
         assert actual == entry.get("artifact_sha256"), (
             f"{artifact} digest is {actual}, but the packet records {entry.get('artifact_sha256')}"
+        )
+        # The packet keeps its own copy so it is complete when archived or read
+        # on its own. That copy must be byte-identical to the canonical artifact,
+        # which is what makes it evidence rather than a second thing that can
+        # drift away from the file the build actually consumes.
+        assert _is_verbatim_artifact_copy(entry), (
+            f"the {entry['service']} entry references {artifact} but retains no copy of it "
+            f"under the packet's raw/ directory; the packet must be self-contained"
+        )
+        copy_path = (REPO_ROOT / entry["raw_payload"]).resolve()
+        assert copy_path.is_relative_to(_EVIDENCE_DIR.resolve()), (
+            f"the retained copy {entry['raw_payload']} must live inside this packet"
+        )
+        copied = hashlib.sha256(copy_path.read_bytes()).hexdigest()
+        assert copied == pinned, (
+            f"the packet's copy of {Path(artifact).name} has digest {copied}, but the panel "
+            f"pins {pinned}; the retained copy has drifted from the artifact it stands for"
         )
 
     # The packet's correction/retraction screening is the one claim here whose
