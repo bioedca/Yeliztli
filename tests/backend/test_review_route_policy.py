@@ -7599,3 +7599,34 @@ def test_greptile_budget_places_a_run_by_when_it_started_not_when_it_finished() 
     pull_request = context["data"]["repository"]["pullRequest"]
     assert pull_request["createdAt"] == CREATED_AT == "2026-07-21T11:50:00Z"
     assert validate_context(context, files, now=NOW) == []
+
+
+def test_greptile_budget_fails_closed_on_an_unreadable_run_node() -> None:
+    """A null node still counts toward `totalCount`.
+
+    Dropping it silently would leave the length check agreeing with the page
+    while a third billed run went unseen — the one direction a budget must not
+    fail in.
+    """
+    context, files = _greptile_context(
+        commit_runs=[[_billed_run(91710286922, GATE_TIMES[GREPTILE_GATE])]],
+    )
+    commit = context["data"]["repository"]["pullRequest"]["greptileCommits"]["nodes"][0]["commit"]
+    check_runs = commit["checkSuites"]["nodes"][0]["checkRuns"]
+    check_runs["nodes"] = [None, *check_runs["nodes"]]
+    check_runs["totalCount"] = len(check_runs["nodes"])
+    assert "commit pagination cannot prove the Greptile per-pull-request budget" in (
+        validate_context(context, files, now=NOW)
+    )
+
+
+def test_greptile_lane_fails_closed_on_an_unreadable_head_run_node() -> None:
+    """Same hole on the acceptance path the lane already shipped."""
+    context, files = _greptile_context()
+    head = context["data"]["repository"]["greptileHeadObject"]
+    check_runs = head["checkSuites"]["nodes"][0]["checkRuns"]
+    check_runs["nodes"] = [None, *check_runs["nodes"]]
+    check_runs["totalCount"] = len(check_runs["nodes"])
+    assert "no verified current-head GitHub activity for: Greptile clean review check run" in (
+        validate_context(context, files, now=NOW)
+    )

@@ -202,6 +202,23 @@ shortcuts are not retried:
   skip notice also contains the literal string `@greptile-apps`, so a mention scan counts its
   advice as a trigger.
 
+**The cap is a floor on one pull request, not a bound on spend.** Three limits follow from
+counting a *pull request's* commits, and none is closable from GitHub's data:
+
+- A check run belongs to a **commit, not a pull request**. Commits are shared — a stacked child
+  inherits its parent's — and nothing records which pull request triggered a run. Runs that
+  predate this pull request are skipped as the parent's, but a parent reviewed *after* the child
+  was opened is charged to the child. That direction refuses a lane that has spent nothing;
+  select another hosted reviewer.
+- A commit can **leave** `pullRequest.commits` with no force push to detect: when a stacked
+  parent merges, the merge-base moves and its commits drop out of the child's range, taking
+  their billed runs with them.
+- Closing a pull request and pushing the replacement on a different commit — the documented way
+  to supersede your own — starts the count at zero.
+
+The first fails closed; the last two fail open. A repository-wide count is what would close
+them, and #2266 tracks publishing one as an explicit lower bound.
+
 Two details of the check-run query are load-bearing and easy to get wrong:
 
 - `checkRuns` defaults to `checkType: LATEST`, which drops a run superseded on an unchanged

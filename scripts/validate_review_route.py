@@ -1484,7 +1484,12 @@ def _greptile_check_runs(commit: Any) -> tuple[list[dict[str, Any]], bool]:
             or run_total > len(run_nodes)
         ):
             return [], False
-        runs.extend(run for run in run_nodes if isinstance(run, dict))
+        # A non-dictionary node still counts toward `totalCount`, so silently
+        # dropping one would let the length check agree while a billed run went
+        # unseen. Anything unreadable makes the whole view unproven.
+        if any(not isinstance(run, dict) for run in run_nodes):
+            return [], False
+        runs.extend(run_nodes)
     return runs, True
 
 
