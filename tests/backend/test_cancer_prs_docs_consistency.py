@@ -32,6 +32,12 @@ _TRAIT_LABELS = {
     "colorectal_cancer": "colorectal",
     "melanoma": "melanoma",
 }
+# Approved citable identifier for each resource the bundled allele audit may name
+# in ``model_provenance.current_allele_audit.source``. Keyed on the audit's own
+# value so a repointed audit fails closed rather than keeping a stale attribution.
+_AUDIT_SOURCE_IDENTIFIERS = {
+    "Ensembl Variation": "DOI:10.1093/database/bay119",
+}
 _ADVERTISED_TRAITS_RE = re.compile(r"\(PRS\) for (?P<traits>[^.]+)\.", re.IGNORECASE)
 _BREAST_PRS_NOTE_RE = re.compile(
     r'^!!! note "Breast-cancer PRS is currently unavailable"\n'
@@ -134,21 +140,18 @@ def test_advertised_traits_reject_unknown_labels() -> None:
 
 def test_cancer_docs_advertise_exactly_the_enabled_prs_models() -> None:
     doc_text = _DOC_PATH.read_text(encoding="utf-8")
-    # Go through the production loader and reproduce its own skip condition
-    # (``cancer_prs.py``: ``if not ws.scoring_enabled or ws.runtime_scoring_blocked``)
-    # rather than re-reading the panel JSON here.  Reading the file directly would
-    # leave this guard green if the loader stopped honouring either half of the
-    # gate, which is precisely the case where the page's claim becomes false.
+    # Resolve the advertised set through the production loader *and* the production
+    # predicate itself -- ``PRSWeightSet.is_runtime_scored``, the single definition
+    # that ``run_cancer_prs``, ``store_cancer_prs_findings`` and ``compute_prs`` all
+    # gate on.  Re-reading the panel JSON, or restating the predicate here, would
+    # leave this guard green in exactly the case where the page's claim becomes
+    # false: the runtime gate changing while the documentation does not.
     weight_sets = load_cancer_prs_weights()
     assert weight_sets, "cancer PRS panel must contain at least one weight set"
-    scored = {
-        weight_set.trait
-        for weight_set in weight_sets
-        if weight_set.scoring_enabled and not weight_set.runtime_scoring_blocked
-    }
+    scored = {weight_set.trait for weight_set in weight_sets if weight_set.is_runtime_scored}
     assert _advertised_traits(doc_text) == scored, (
         "cancer.md's active PRS list must exactly match the weight sets the loader "
-        "actually scores (scoring_enabled and not runtime_scoring_blocked)"
+        "actually scores (PRSWeightSet.is_runtime_scored)"
     )
 
 
@@ -230,14 +233,31 @@ def test_cancer_docs_distinguish_the_runtime_block_from_ancestry_withholding() -
     assert "model_provenance.current_allele_audit" in audit_reference, (
         "breast PRS allele counts must cite their bundled audit provenance"
     )
-    for field, label in (("assembly", "assembly"), ("checked_on", "check date")):
+    for field, label in (
+        ("source", "source resource"),
+        ("assembly", "assembly"),
+        ("checked_on", "check date"),
+    ):
         value = str(audit[field])
         assert value in audit_reference, (
             f"breast PRS allele-audit reference [3] must cite the bundled audit's {label} "
             f"({value}); reference reads: {audit_reference}"
         )
-    assert "DOI:10.1093/database/bay119" in audit_reference, (
-        "breast PRS allele audit must cite the Ensembl Variation resource"
+    # Derive the expected identifier from the audit's own ``source`` rather than
+    # asserting one resource's DOI unconditionally.  Repointing the audit at a
+    # different resource, while its assembly and check date happen to be
+    # unchanged, must fail closed here instead of leaving the page attributing
+    # the current audit to the resource it no longer came from.
+    audit_source = str(audit["source"])
+    expected_identifier = _AUDIT_SOURCE_IDENTIFIERS.get(audit_source)
+    assert expected_identifier is not None, (
+        f"the bundled allele audit cites source {audit_source!r}, which has no approved "
+        f"identifier registered in _AUDIT_SOURCE_IDENTIFIERS; register the resource's "
+        f"PMID/DOI (and cite it in cancer.md) rather than documenting it unattributed"
+    )
+    assert expected_identifier in audit_reference, (
+        f"breast PRS allele-audit reference [3] must cite {expected_identifier}, the approved "
+        f"identifier for the audit's source {audit_source!r}; reference reads: {audit_reference}"
     )
     # Tie the documented panel version to the bundled panel. Regenerating the
     # panel with a new version but unchanged traits and counts would otherwise
