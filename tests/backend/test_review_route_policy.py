@@ -255,15 +255,21 @@ def _greptile_check_run(
     comments_added: int = 0,
     status: str = "COMPLETED",
     conclusion: str = "SUCCESS",
-    completed_at: str = GATE_TIMES[GREPTILE_GATE],
+    completed_at: str | None = GATE_TIMES[GREPTILE_GATE],
+    started_at: str | None = None,
     name: str = GREPTILE_CHECK_RUN_NAME,
     summary: str | None = None,
+    database_id: int = 91710286922,
 ) -> dict[str, object]:
     """Reproduce the check run Greptile actually publishes.
 
     Template taken from 2341 live `Greptile Review` check runs across 55 public
     repositories: the nouns stay plural at one, and the counter is the only part
     that varies.
+
+    ``database_id`` is a parameter because the budget count deduplicates on it:
+    two runs sharing one id are one credit, and a fixture that always reused the
+    same id could never tell a real double spend from a double sighting.
     """
     if summary is None:
         summary = (
@@ -271,11 +277,12 @@ def _greptile_check_run(
             f"{files_reviewed} files reviewed, {comments_added} comments added."
         )
     return {
-        "databaseId": 91710286922,
+        "databaseId": database_id,
         "name": name,
         "status": status,
         "conclusion": conclusion,
         "summary": summary,
+        "startedAt": started_at if started_at is not None else completed_at,
         "completedAt": completed_at,
     }
 
@@ -295,6 +302,25 @@ def _greptile_head_object(runs: list[dict[str, object]] | None = None) -> dict[s
                 }
             ],
         },
+    }
+
+
+def _greptile_commits(
+    commit_runs: list[list[dict[str, object]]] | None = None,
+    *,
+    total_count: int | None = None,
+) -> dict[str, object]:
+    """The pull request's own commits, each carrying the Greptile runs it spent.
+
+    Defaults to a single commit holding the same run the head object holds, so a
+    context that has not opted into a budget scenario spends exactly one credit.
+    """
+    if commit_runs is None:
+        commit_runs = [[_greptile_check_run()]]
+    nodes = [{"commit": _greptile_head_object(runs)} for runs in commit_runs]
+    return {
+        "totalCount": len(nodes) if total_count is None else total_count,
+        "nodes": nodes,
     }
 
 
@@ -548,6 +574,7 @@ def _context(
         "state": "OPEN",
         "updatedAt": PR_UPDATED_AT,
         "commits": {"nodes": [{"commit": {"committedDate": COMMITTED_AT}}]},
+        "greptileCommits": _greptile_commits(),
         "timelineItems": {"nodes": []},
         "reviews": {"totalCount": len(reviews), "nodes": reviews},
         "latestHumanOpinions": {"totalCount": 1, "nodes": [human_review]},
@@ -6870,6 +6897,8 @@ def test_graphql_context_tracks_comment_association_and_head_epoch() -> None:
 def _greptile_context(
     *,
     runs: list[dict[str, object]] | None = None,
+    commit_runs: list[list[dict[str, object]]] | None = None,
+    commit_total_count: int | None = None,
 ) -> tuple[dict[str, object], list[ChangedFile]]:
     """A v3 pull request that selects Greptile and carries no human approval."""
     files = [ChangedFile("README.md")]
@@ -6882,6 +6911,11 @@ def _greptile_context(
     repository = context["data"]["repository"]
     if runs is not None:
         repository["greptileHeadObject"] = _greptile_head_object(runs)
+    if commit_runs is not None or commit_total_count is not None:
+        repository["pullRequest"]["greptileCommits"] = _greptile_commits(
+            commit_runs if commit_runs is not None else [[_greptile_check_run()]],
+            total_count=commit_total_count,
+        )
     pull_request = repository["pullRequest"]
     pull_request["reviews"]["nodes"] = [
         review
@@ -7017,12 +7051,17 @@ def test_greptile_rejects_a_check_run_predating_the_head() -> None:
 
 def test_greptile_rejects_a_stale_dirty_run_alongside_a_clean_one() -> None:
     """The newest verdict decides, and a dirty newest verdict fails."""
-    context, files = _greptile_context(
-        runs=[
-            _greptile_check_run(comments_added=0, completed_at="2026-07-21T12:31:00Z"),
-            _greptile_check_run(comments_added=2, completed_at=GATE_TIMES[GREPTILE_GATE]),
-        ]
+    stale = _greptile_check_run(
+        comments_added=0,
+        completed_at="2026-07-21T12:31:00Z",
+        database_id=91710286922,
     )
+    newest = _greptile_check_run(
+        comments_added=2,
+        completed_at=GATE_TIMES[GREPTILE_GATE],
+        database_id=91710286923,
+    )
+    context, files = _greptile_context(runs=[stale, newest], commit_runs=[[stale, newest]])
     assert "no verified current-head GitHub activity for: Greptile clean review check run" in (
         validate_context(context, files, now=NOW)
     )
@@ -7096,9 +7135,47 @@ def test_route_context_query_reads_the_greptile_head_check_run() -> None:
     query = (root / "scripts/review_route_context.graphql").read_text(encoding="utf-8")
     assert "greptileHeadObject: object(oid: $headOid)" in query
     assert f"filterBy: {{appId: {GREPTILE_APP_ID}}}" in query
-    assert "checkRuns(first: 20)" in query
-    for field in ("databaseId", "name", "status", "conclusion", "summary", "completedAt"):
+    # Without `checkType: ALL` the connection returns only the newest run per
+    # name and reports a `totalCount` that agrees with it, so a superseded run on
+    # an unchanged commit is invisible to both the gate and its truncation guard.
+    assert "checkRuns(first: 20, filterBy: {checkType: ALL})" in query
+    assert "checkRuns(first: 20)" not in query
+    for field in (
+        "databaseId",
+        "name",
+        "status",
+        "conclusion",
+        "summary",
+        "startedAt",
+        "completedAt",
+    ):
         assert f"\n                {field}\n" in query
+
+
+def test_route_context_query_reads_every_greptile_run_this_pull_request_spent() -> None:
+    root = Path(__file__).resolve().parents[2]
+    query = (root / "scripts/review_route_context.graphql").read_text(encoding="utf-8")
+    # `commits` is ordered oldest-first, so `first:` would omit the head commit —
+    # the one carrying the accepted run — on any branch longer than the page.
+    assert "greptileCommits: commits(last: 100)" in query
+    assert "greptileCommits: commits(first:" not in query
+    # Both views must ask for the same thing, because `_greptile_check_runs`
+    # reads both and the budget count deduplicates across them.
+    assert query.count(f"filterBy: {{appId: {GREPTILE_APP_ID}}}") == 2
+    assert query.count("checkRuns(first: 20, filterBy: {checkType: ALL})") == 2
+    # `_greptile_check_runs` rejects anything that is not a Commit, so the commit
+    # nodes have to carry `__typename` or every one of them fails closed.
+    assert "\n          commit {\n            __typename\n" in query
+    for field in (
+        "databaseId",
+        "name",
+        "status",
+        "conclusion",
+        "summary",
+        "startedAt",
+        "completedAt",
+    ):
+        assert f"\n                    {field}\n" in query
 
 
 def test_pull_request_template_offers_the_greptile_lane_on_v3_only() -> None:
@@ -7268,4 +7345,230 @@ def test_another_provider_may_review_the_greptile_configuration() -> None:
     ]
     pull_request["reviews"]["totalCount"] = len(pull_request["reviews"]["nodes"])
     pull_request["latestHumanOpinions"] = {"totalCount": 0, "nodes": []}
+    assert validate_context(context, files, now=NOW) == []
+
+
+def _billed_run(database_id: int, completed_at: str) -> dict[str, object]:
+    """A run that spent a credit. Cleanliness is irrelevant to the budget."""
+    return _greptile_check_run(
+        comments_added=0,
+        completed_at=completed_at,
+        database_id=database_id,
+    )
+
+
+def test_greptile_budget_accepts_a_pull_request_that_spent_its_whole_allowance() -> None:
+    """One review plus one re-review after fixing what it found."""
+    first = _billed_run(91710286900, "2026-07-21T12:10:00Z")
+    second = _billed_run(91710286922, GATE_TIMES[GREPTILE_GATE])
+    context, files = _greptile_context(commit_runs=[[first], [second]])
+    assert validate_context(context, files, now=NOW) == []
+
+
+def test_greptile_budget_refuses_a_third_review_on_one_pull_request() -> None:
+    runs = [
+        [_billed_run(91710286900, "2026-07-21T12:05:00Z")],
+        [_billed_run(91710286901, "2026-07-21T12:10:00Z")],
+        [_billed_run(91710286922, GATE_TIMES[GREPTILE_GATE])],
+    ]
+    context, files = _greptile_context(commit_runs=runs)
+    assert "Greptile per-pull-request review budget exceeded: 3 > 2" in (
+        validate_context(context, files, now=NOW)
+    )
+
+
+def test_greptile_budget_counts_one_run_once_however_many_views_show_it() -> None:
+    """The head object and the commit page both carry the head commit's runs."""
+    head_runs = [
+        _billed_run(91710286900, "2026-07-21T12:10:00Z"),
+        _billed_run(91710286922, GATE_TIMES[GREPTILE_GATE]),
+    ]
+    context, files = _greptile_context(runs=head_runs, commit_runs=[head_runs, head_runs])
+    assert validate_context(context, files, now=NOW) == []
+
+
+@pytest.mark.parametrize("conclusion", ["CANCELLED", "SKIPPED"])
+def test_greptile_budget_does_not_charge_for_an_unbilled_run(conclusion: str) -> None:
+    """Greptile's billing page: skipped reviews don't count, and neither did a
+    run that never finished."""
+    unbilled = [
+        _greptile_check_run(
+            conclusion=conclusion,
+            completed_at="2026-07-21T12:05:00Z",
+            database_id=91710286900,
+        ),
+        _greptile_check_run(
+            conclusion=conclusion,
+            completed_at="2026-07-21T12:10:00Z",
+            database_id=91710286901,
+        ),
+    ]
+    context, files = _greptile_context(
+        commit_runs=[unbilled, [_billed_run(91710286922, GATE_TIMES[GREPTILE_GATE])]],
+    )
+    assert validate_context(context, files, now=NOW) == []
+
+
+def test_greptile_budget_charges_for_a_review_that_is_still_running() -> None:
+    """The credit is committed at trigger time, not at completion, and an
+    in-flight run carries no conclusion and no `completedAt` to place it by."""
+    in_flight = [
+        _greptile_check_run(
+            status="QUEUED",
+            conclusion=None,
+            completed_at=None,
+            started_at="2026-07-21T12:05:00Z",
+            database_id=91710286900,
+        ),
+        _greptile_check_run(
+            status="IN_PROGRESS",
+            conclusion=None,
+            completed_at=None,
+            started_at="2026-07-21T12:10:00Z",
+            database_id=91710286901,
+        ),
+    ]
+    context, files = _greptile_context(
+        commit_runs=[in_flight, [_billed_run(91710286922, GATE_TIMES[GREPTILE_GATE])]],
+    )
+    assert "Greptile per-pull-request review budget exceeded: 3 > 2" in (
+        validate_context(context, files, now=NOW)
+    )
+
+
+def test_greptile_budget_ignores_reviews_charged_to_a_parent_branch() -> None:
+    """A stacked branch inherits its parent's commits; those runs predate this
+    pull request and were charged to the one that triggered them."""
+    inherited = [
+        _billed_run(91710286800, "2026-07-20T09:00:00Z"),
+        _billed_run(91710286801, "2026-07-20T10:00:00Z"),
+    ]
+    context, files = _greptile_context(
+        commit_runs=[inherited, [_billed_run(91710286922, GATE_TIMES[GREPTILE_GATE])]],
+    )
+    assert validate_context(context, files, now=NOW) == []
+
+
+def test_greptile_budget_fails_closed_when_the_commit_page_is_truncated() -> None:
+    """More commits exist than were returned, so an unseen one could carry the
+    run that crosses the cap. That is a different failure from exceeding it."""
+    context, files = _greptile_context(commit_total_count=101)
+    errors = validate_context(context, files, now=NOW)
+    assert "commit pagination cannot prove the Greptile per-pull-request budget" in errors
+    assert not any("budget exceeded" in error for error in errors)
+
+
+def test_greptile_budget_fails_closed_without_a_commit_ledger() -> None:
+    context, files = _greptile_context()
+    del context["data"]["repository"]["pullRequest"]["greptileCommits"]
+    assert "Greptile per-pull-request check-run ledger is unavailable" in (
+        validate_context(context, files, now=NOW)
+    )
+
+
+@pytest.mark.parametrize(
+    "commit",
+    [
+        None,
+        {"__typename": "Tag"},
+        {"__typename": "Commit", "oid": HEAD_SHA},
+        {
+            "__typename": "Commit",
+            "oid": HEAD_SHA,
+            "checkSuites": {"totalCount": 4, "nodes": []},
+        },
+        {
+            "__typename": "Commit",
+            "oid": HEAD_SHA,
+            "checkSuites": {
+                "totalCount": 1,
+                "nodes": [
+                    {
+                        "app": {"__typename": "App", "databaseId": GREPTILE_APP_ID},
+                        "checkRuns": {"totalCount": 3, "nodes": []},
+                    }
+                ],
+            },
+        },
+    ],
+)
+def test_greptile_budget_fails_closed_on_an_unprovable_commit(commit: object) -> None:
+    context, files = _greptile_context()
+    context["data"]["repository"]["pullRequest"]["greptileCommits"]["nodes"] = [{"commit": commit}]
+    assert "commit pagination cannot prove the Greptile per-pull-request budget" in (
+        validate_context(context, files, now=NOW)
+    )
+
+
+def test_greptile_budget_fails_closed_on_a_run_it_cannot_place_in_time() -> None:
+    unplaceable = _greptile_check_run(completed_at=None, started_at=None, database_id=91710286900)
+    context, files = _greptile_context(
+        commit_runs=[[unplaceable], [_billed_run(91710286922, GATE_TIMES[GREPTILE_GATE])]],
+    )
+    assert "commit pagination cannot prove the Greptile per-pull-request budget" in (
+        validate_context(context, files, now=NOW)
+    )
+
+
+def test_greptile_budget_fails_closed_after_a_force_push() -> None:
+    """A force push drops commits from the connection and takes their billed runs
+    with them, leaving no truncation for the guards to catch."""
+    context, files = _greptile_context()
+    context["data"]["repository"]["pullRequest"]["timelineItems"] = {
+        "nodes": [{"createdAt": "2026-07-21T11:55:00Z"}]
+    }
+    errors = validate_context(context, files, now=NOW)
+    assert any(
+        "Greptile per-pull-request budget cannot be proven after a force push" in error
+        for error in errors
+    )
+
+
+def test_greptile_budget_does_not_charge_a_run_from_another_app() -> None:
+    context, files = _greptile_context()
+    commits = context["data"]["repository"]["pullRequest"]["greptileCommits"]
+    impostor = _greptile_head_object(
+        [
+            _billed_run(91710286800, "2026-07-21T12:05:00Z"),
+            _billed_run(91710286801, "2026-07-21T12:06:00Z"),
+        ]
+    )
+    impostor["checkSuites"]["nodes"][0]["app"]["databaseId"] = GREPTILE_APP_ID + 1
+    commits["nodes"].append({"commit": impostor})
+    commits["totalCount"] = len(commits["nodes"])
+    assert validate_context(context, files, now=NOW) == []
+
+
+def test_greptile_budget_does_not_charge_a_differently_named_check_run() -> None:
+    """App 867647 may publish other check runs; only its review spends a credit."""
+    other = [
+        _greptile_check_run(
+            name="Greptile Indexing",
+            completed_at="2026-07-21T12:05:00Z",
+            database_id=91710286800,
+        ),
+        _greptile_check_run(
+            name="Greptile Indexing",
+            completed_at="2026-07-21T12:06:00Z",
+            database_id=91710286801,
+        ),
+    ]
+    context, files = _greptile_context(
+        commit_runs=[other, [_billed_run(91710286922, GATE_TIMES[GREPTILE_GATE])]],
+    )
+    assert validate_context(context, files, now=NOW) == []
+
+
+@pytest.mark.parametrize("gate", [COPILOT_GATE, CODEX_GATE, CODERABBIT_GATE])
+def test_lanes_other_than_greptile_do_not_need_the_commit_ledger(gate: str) -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, automated_gates={gate}, schema_version=3)
+    del context["data"]["repository"]["pullRequest"]["greptileCommits"]
+    assert validate_context(context, files, now=NOW) == []
+
+
+def test_schema_v2_does_not_need_the_greptile_commit_ledger() -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, automated_gates={CODERABBIT_GATE})
+    del context["data"]["repository"]["pullRequest"]["greptileCommits"]
     assert validate_context(context, files, now=NOW) == []

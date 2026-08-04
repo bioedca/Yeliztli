@@ -70,6 +70,21 @@ GREPTILE_CHECK_SUMMARY = re.compile(
 # Greptile from it, so the lane refuses to review its own configuration.
 GREPTILE_CONFIG_EXACT = frozenset({"greptile.json"})
 GREPTILE_CONFIG_PREFIXES = (".greptile/",)
+# This repository allows itself 16 Greptile reviews a month, and a re-trigger on
+# every push is the cheapest way to spend them. Two is one review plus one
+# re-review after fixing what it found.
+GREPTILE_PR_REVIEW_CAP = 2
+# Greptile bills completed reviews and says skipped ones don't count; a cancelled
+# run never finished either. Everything else did the work and spent the credit,
+# including a `NEUTRAL` confidence-threshold refusal and an in-flight run that
+# has no conclusion yet, so the count deliberately errs high.
+GREPTILE_UNBILLED_CONCLUSIONS = frozenset({"CANCELLED", "SKIPPED"})
+GREPTILE_LEDGER_UNAVAILABLE = "Greptile per-pull-request check-run ledger is unavailable"
+GREPTILE_LEDGER_TRUNCATED = "commit pagination cannot prove the Greptile per-pull-request budget"
+GREPTILE_LEDGER_FORCE_PUSHED = (
+    "Greptile per-pull-request budget cannot be proven after a force push; "
+    "select another hosted reviewer"
+)
 LOAD_BEARING_EXACT = {
     ".coderabbit.yaml",
     ".gitattributes",
@@ -1539,6 +1554,109 @@ def _greptile_activity(
     return latest
 
 
+def _greptile_run_is_billed(run: dict[str, Any]) -> bool:
+    """A Greptile run that consumed a review credit.
+
+    Cleanliness is irrelevant here — a review that finds nothing costs the same
+    as one that finds a bug. So is completion: an in-flight run has already been
+    triggered and already committed the credit, and carries no conclusion yet.
+
+    The name is checked because app 867647 is free to publish other check runs
+    and each would inflate the count. It is checked *in addition to* the app id
+    that `_greptile_check_runs` pins, never instead of it: any app holding
+    `checks: write` can publish a run called `Greptile Review`.
+    """
+    if run.get("name") != GREPTILE_CHECK_RUN_NAME:
+        return False
+    return run.get("conclusion") not in GREPTILE_UNBILLED_CONCLUSIONS
+
+
+def _greptile_run_spent_at(run: dict[str, Any]) -> datetime | None:
+    """When a run spent its credit, or ``None`` if that cannot be established."""
+    for key in ("completedAt", "startedAt"):
+        value = run.get(key)
+        if value is None:
+            continue
+        if not isinstance(value, str):
+            return None
+        try:
+            return _parse_utc(value)
+        except ValueError:
+            return None
+    return None
+
+
+def _greptile_pr_budget_errors(
+    repository: dict[str, Any],
+    pull_request: dict[str, Any],
+) -> list[str]:
+    """Refuse the lane once this pull request has spent its Greptile allowance.
+
+    Greptile leaves exactly one artifact that is one-to-one with a billed credit:
+    the check run. A clean review posts no formal review and no comment, and the
+    summary comment it does post for a dirty one is edited in place, so neither
+    can be counted. Check runs live on the commit that was reviewed, which is why
+    this reads the pull request's own commits rather than only its head.
+
+    The count is bounded and provable, unlike a repository-wide one: every input
+    is a `totalCount` this query can compare against its own page.
+    """
+    force_pushes = (pull_request.get("timelineItems") or {}).get("nodes") or []
+    if force_pushes:
+        # A force push drops commits from this connection and takes their billed
+        # runs with them, leaving no truncation for the guards below to catch.
+        return [GREPTILE_LEDGER_FORCE_PUSHED]
+    commits = pull_request.get("greptileCommits")
+    if not isinstance(commits, dict):
+        return [GREPTILE_LEDGER_UNAVAILABLE]
+    nodes = commits.get("nodes")
+    total = commits.get("totalCount")
+    if (
+        not isinstance(nodes, list)
+        or isinstance(total, bool)
+        or not isinstance(total, int)
+        or total > len(nodes)
+    ):
+        return [GREPTILE_LEDGER_TRUNCATED]
+    created_raw = pull_request.get("createdAt")
+    if not isinstance(created_raw, str):
+        return [GREPTILE_LEDGER_TRUNCATED]
+    try:
+        created_at = _parse_utc(created_raw)
+    except ValueError:
+        return [GREPTILE_LEDGER_TRUNCATED]
+
+    views: list[Any] = [repository.get("greptileHeadObject")]
+    views.extend(node.get("commit") if isinstance(node, dict) else None for node in nodes)
+    billed: set[int] = set()
+    for view in views:
+        runs, complete = _greptile_check_runs(view)
+        if not complete:
+            return [GREPTILE_LEDGER_TRUNCATED]
+        for run in runs:
+            if not _greptile_run_is_billed(run):
+                continue
+            spent_at = _greptile_run_spent_at(run)
+            if spent_at is None:
+                # A run that cannot be placed in time cannot be proven to belong
+                # to another pull request either.
+                return [GREPTILE_LEDGER_TRUNCATED]
+            if spent_at < created_at:
+                # A stacked branch inherits its parent's commits; those reviews
+                # were charged to the parent pull request, not to this one.
+                continue
+            run_id = run.get("databaseId")
+            if isinstance(run_id, bool) or not isinstance(run_id, int):
+                return [GREPTILE_LEDGER_TRUNCATED]
+            billed.add(run_id)
+    if len(billed) > GREPTILE_PR_REVIEW_CAP:
+        return [
+            "Greptile per-pull-request review budget exceeded: "
+            f"{len(billed)} > {GREPTILE_PR_REVIEW_CAP}"
+        ]
+    return []
+
+
 def _bot_activity(
     pull_request: dict[str, Any],
     gate: str,
@@ -2292,6 +2410,9 @@ def validate_context(
             errors.append(
                 f"declared evidence time does not match verified GitHub activity: {gate}"
             )
+
+    if schema_version == 3 and GREPTILE_GATE in required:
+        errors.extend(_greptile_pr_budget_errors(repository, pull_request))
 
     if schema_version == 2 and selected_bots == [CODERABBIT_GATE] and CODERABBIT_GATE in observed:
         errors.extend(

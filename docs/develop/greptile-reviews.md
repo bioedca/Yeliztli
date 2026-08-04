@@ -177,40 +177,53 @@ a confidence threshold can turn the check `NEUTRAL` or `FAILURE` with a summary 
 `Greptile confidence 3/5 is below the required 4/5.` — 141 of 2341 sampled runs did exactly
 that. Neither shape passes.
 
-## The 16 is not machine-enforced
+## What the validator enforces, and what it cannot
 
-The route validator does **not** count Greptile reviews. A repository-wide 30-day ledger was
-attempted alongside the lane and removed, because none of the four artifacts GitHub exposes can
-support one correctly. This is worth knowing before you rely on a number that nothing checks:
+**Enforced: at most two Greptile reviews per pull request.** Re-triggering on every push is the
+cheapest way to spend a month's allowance, so the route counts the billed `Greptile Review` check
+runs across the pull request's own commits and refuses the lane above two — one review, plus one
+re-review after fixing what it found. The error reads
+`Greptile per-pull-request review budget exceeded: 3 > 2`, and switching to another hosted
+reviewer clears it.
+
+The count reads check runs because they are the only artifact that is one-to-one with a billed
+credit. Three measurements say why nothing cheaper works, and are recorded here so the cheap
+shortcuts are not retried:
 
 - **Formal reviews** are submitted only when Greptile has findings, so clean reviews — the
   ones this lane exists for — are invisible. Counting them undercounts, which fails *open*.
-- **Summary comments** are worse in both directions. Greptile has announced it no longer posts
-  anything when a review is clean, while unbilled skip notices (`Too many files changed for
-  review`) and conversational replies still post. Measured against this repository, a
-  comment-based count charged **5 reviews where 2 were actually spent**.
-- **Check runs** are the one artifact that is one-to-one with a billed credit, but each lives
-  on the commit that was reviewed, and those sit deep in our pull requests' commit histories.
-  Reading the last 10 commits of every pull request found **none** of this repository's
-  Greptile runs; the last 20 found one of two. At a depth that would catch them, the query
-  costs roughly 3600 GraphQL points per validation — about 72% of the hourly budget that every
-  route validation in the repository shares.
+- **Comments are wrong in both directions.** Greptile no longer posts anything when a review is
+  clean: PRs #2203 and #2254 each spent a credit and carry no trigger comment at all. Meanwhile
+  unbilled skip notices (`Too many files changed for review`) do post — on #2250, #2252 and
+  #2258, none of which spent anything. A comment count both misses real credits and invents
+  phantom ones.
 - **Trigger events** cannot be proven complete: `timelineItems.totalCount` ignores the
   `itemTypes` filter, so a label page can never show that it saw every label. Greptile's own
   skip notice also contains the literal string `@greptile-apps`, so a mention scan counts its
   advice as a trigger.
 
-Tracked in #2264. Until then the allowance is protected by the two layers above — every
-credit costs a deliberate label or mention — plus the discipline in the next section.
+Two details of the check-run query are load-bearing and easy to get wrong:
 
-Two facts to keep in mind either way:
+- `checkRuns` defaults to `checkType: LATEST`, which drops a run superseded on an unchanged
+  commit — and `totalCount` is computed *after* that filter, so it agrees with the shortened
+  page and the truncation guard proves nothing. Measured on bruin-data/bruin commit `37f776c5`,
+  which carries two billed runs: `LATEST` reports `totalCount` 1, `ALL` reports 2. Ask for
+  `filterBy: {checkType: ALL}`.
+- `PullRequest.commits` is ordered oldest-first, so `commits(first: 100)` omits the head commit
+  on a long branch — the one commit that must carry the accepted run. Use `last:`.
+
+**Not enforced: the 16 a month.** Three limits are structural, not implementation gaps:
 
 - Credits are billed **per author across every repository they open pull requests in**. The 16
   is our own split of a shared pool, not a limit Greptile enforces here, and no per-repository
   count could see the other repositories drawing on it.
-- Any such check would run *after* a review had already been spent. It could never prevent the
-  17th review, only refuse to honour it — which is why the manual-only guard, not a ledger, is
-  what actually protects the budget.
+- A repository-wide count cannot be proven complete. Labelling a pull request does not change
+  its `updatedAt`, and neither does a check run completing, so a ledger ordered by `updatedAt`
+  structurally misses a dormant pull request reviewed today. Any repository-wide figure is a
+  lower bound; #2266 tracks publishing one honestly rather than implying a count here.
+- Every such check runs *after* a review has been spent. It can refuse to honour the 17th
+  review, never prevent it — which is why the manual-only guard, not a count, is what actually
+  protects the budget.
 
 ## Requesting a review
 
@@ -235,9 +248,10 @@ Before spending one, check that it is worth a unit of a 16/month budget:
   Every head-changing push invalidates the review, so a trigger before the head is frozen
   buys a credit's worth of evidence that the next commit throws away.
 - Prefer a single trigger on the final, frozen head over one per iteration.
-- Nothing will stop you at 16. Check the allowance before spending: search the repository's
-  pull requests for the `Greptile Review` check run, or read the balance in the Greptile
-  dashboard, which is the only place that knows the true per-author figure.
+- The route stops you at **three on one pull request**, not at 16 overall. Nothing counts the
+  month for you: check the allowance before spending by searching the repository's pull
+  requests for the `Greptile Review` check run, or read the balance in the Greptile dashboard,
+  which is the only place that knows the true per-author figure.
 
 ## What Greptile posts
 
