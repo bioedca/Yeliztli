@@ -1,0 +1,120 @@
+{
+  "service": "PubMed connector",
+  "accessed": "2026-08-03",
+  "endpoint": "get_article_metadata",
+  "params": {
+    "pmids": [
+      "25855707"
+    ]
+  },
+  "status": "success",
+  "sanitization": "Sourced from NCBI PubMed via the PubMed connector, accessed 2026-08-03. Only bibliographic metadata is retained - a packet choice, not a licence consequence: the article and supplement are CC BY 3.0 per backend/data/sources/breast_prs77/NOTICE.md. The publisher abstract is not retained. This record has 212 authors; only the leading 10 are kept for identification, with the full count recorded, and author affiliation strings (which carry public contact emails) are not retained.",
+  "role": "Confirms PMID:25855707 and DOI:10.1093/jnci/djv036 are the same record cited as reference [2] in docs/modules/health-risk/cancer.md.",
+  "date_note": "PubMed records publication_date 2015-04-08. The Scite payload records 2015-04-02 for the same DOI. Neither service labels its date semantics, so both are retained with their source named and neither is canonized; DOI:10.1093/jnci/djv036 is the stable identifier.",
+  "license_note": "This repository records the article and its supplementary material as CC BY 3.0 (backend/data/sources/breast_prs77/NOTICE.md; panel license_basis). PubMed itself carries no licence field for the record.",
+  "records": [
+    {
+      "identifiers": {
+        "pmid": "25855707",
+        "pmc": "PMC4754625",
+        "doi": "10.1093/jnci/djv036",
+        "pii": "djv036"
+      },
+      "title": "Prediction of breast cancer risk based on profiling with common genetic variants.",
+      "journal": {
+        "title": "Journal of the National Cancer Institute",
+        "iso_abbreviation": "J Natl Cancer Inst"
+      },
+      "publication_date": {
+        "year": "2015",
+        "month": "04",
+        "day": "08"
+      },
+      "citation": {
+        "volume": "107",
+        "issue": "5"
+      },
+      "article_types": [
+        "Journal Article",
+        "Research Support, N.I.H., Extramural",
+        "Research Support, Non-U.S. Gov't"
+      ],
+      "language": "eng",
+      "keywords": null,
+      "mesh_terms": [
+        "Adult",
+        "Aged",
+        "Biomarkers, Tumor",
+        "Breast Neoplasms",
+        "Europe",
+        "Female",
+        "Gene Expression Profiling",
+        "Gene Expression Regulation, Neoplastic",
+        "Genetic Predisposition to Disease",
+        "Genotype",
+        "Humans",
+        "Middle Aged",
+        "Odds Ratio",
+        "Polymorphism, Single Nucleotide",
+        "Predictive Value of Tests",
+        "Receptors, Estrogen",
+        "Risk Assessment",
+        "Risk Factors"
+      ],
+      "author_count": 212,
+      "authors_leading_10": [
+        {
+          "last_name": "Mavaddat",
+          "fore_name": "Nasim",
+          "initials": "N"
+        },
+        {
+          "last_name": "Pharoah",
+          "fore_name": "Paul D P",
+          "initials": "PD"
+        },
+        {
+          "last_name": "Michailidou",
+          "fore_name": "Kyriaki",
+          "initials": "K"
+        },
+        {
+          "last_name": "Tyrer",
+          "fore_name": "Jonathan",
+          "initials": "J"
+        },
+        {
+          "last_name": "Brook",
+          "fore_name": "Mark N",
+          "initials": "MN"
+        },
+        {
+          "last_name": "Bolla",
+          "fore_name": "Manjeet K",
+          "initials": "MK"
+        },
+        {
+          "last_name": "Wang",
+          "fore_name": "Qin",
+          "initials": "Q"
+        },
+        {
+          "last_name": "Dennis",
+          "fore_name": "Joe",
+          "initials": "J"
+        },
+        {
+          "last_name": "Dunning",
+          "fore_name": "Alison M",
+          "initials": "AM"
+        },
+        {
+          "last_name": "Shah",
+          "fore_name": "Mitul",
+          "initials": "M"
+        }
+      ],
+      "attribution": "Record retrieved from PubMed (NCBI/NLM). Source: https://doi.org/10.1093/jnci/djv036"
+    }
+  ]
+}
