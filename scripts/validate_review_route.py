@@ -23,19 +23,53 @@ COPILOT_GATE = "Copilot PR review"
 CODEX_GATE = "Codex @codex review"
 CODERABBIT_GATE = "Manual CodeRabbit reservation and @coderabbitai full review"
 CODERABBIT_V3_GATE = "CodeRabbit structured clean review"
+GREPTILE_GATE = "Greptile clean review check run"
 HUMAN_GATE = "Independent human maintainer review"
 BOT_GATES = (COPILOT_GATE, CODEX_GATE, CODERABBIT_GATE)
 GATES = (*BOT_GATES, HUMAN_GATE)
+# Greptile is a v3-only lane. `BOT_GATES` is shared with the legacy human-gated
+# schema, so adding it there would retroactively demand a fourth evidence row
+# and a fourth reviewer checkbox from every open v2 pull request.
+V3_BOT_GATES = (*BOT_GATES, GREPTILE_GATE)
 AUTOMATED_REVIEW_CHOICES = {
     "Copilot": COPILOT_GATE,
     "Codex": CODEX_GATE,
     "CodeRabbit": CODERABBIT_GATE,
 }
+V3_AUTOMATED_REVIEW_CHOICES = {
+    **AUTOMATED_REVIEW_CHOICES,
+    "Greptile": GREPTILE_GATE,
+}
 BOT_ACTOR_IDS = {
     COPILOT_GATE: 175728472,  # Copilot GitHub App
     CODEX_GATE: 199175422,  # ChatGPT Codex connector GitHub App
     CODERABBIT_GATE: 136622811,  # CodeRabbit GitHub App
+    GREPTILE_GATE: 165735046,  # Greptile GitHub App (`greptile-apps[bot]`)
 }
+# Never match Greptile on a login. A separate ordinary *User* account holds the
+# bare login `greptile-apps` (id 244718400), and GraphQL reports the bot's own
+# login without the `[bot]` suffix, so the two are string-identical there.
+# `greptile[bot]` (id 271099122) is a third, inactive Greptile app.
+GREPTILE_APP_ID = 867647
+GREPTILE_CHECK_RUN_NAME = "Greptile Review"
+# Greptile's own counter, in a fixed template. `M == 0` is the whole clean test:
+# there is no sentence to match and no model-authored flourish to overflow, which
+# is what makes this the only envelope here not keyed on provider prose.
+# The reviewed-file count must be positive. Greptile applies its own path
+# filters, so a pull request whose changed files are all filtered out can report
+# `0 files reviewed, 0 comments added.` — a clean verdict over nothing, which on
+# v3 carries a merge with no human approval behind it.
+GREPTILE_CHECK_SUMMARY = re.compile(
+    r"^Greptile has reviewed the Pull Request\.\n\n"
+    r"(?P<files>[1-9][0-9]*) files? reviewed, "
+    r"(?P<comments>0|[1-9][0-9]*) comments? added\.$"
+)
+# Greptile reads `greptile.json` and `.greptile/` from the pull request's own
+# source branch (#2249), so a pull request can weaken the reviewer that is about
+# to clear it. Trusted `main` protects the validator from that; nothing protects
+# Greptile from it, so the lane refuses to review its own configuration.
+GREPTILE_CONFIG_EXACT = frozenset({"greptile.json"})
+GREPTILE_CONFIG_PREFIXES = (".greptile/",)
 LOAD_BEARING_EXACT = {
     ".coderabbit.yaml",
     ".gitattributes",
@@ -324,13 +358,59 @@ FINALIZE_COMMAND = "/validate-route"
 
 
 def _gates_for_schema(schema_version: int | None) -> tuple[str, ...]:
-    return BOT_GATES if schema_version == 3 else GATES
+    return V3_BOT_GATES if schema_version == 3 else GATES
 
 
 def _gate_labels_for_schema(schema_version: int | None) -> tuple[str, ...]:
     if schema_version == 3:
-        return (COPILOT_GATE, CODEX_GATE, CODERABBIT_V3_GATE)
+        return (COPILOT_GATE, CODEX_GATE, CODERABBIT_V3_GATE, GREPTILE_GATE)
     return GATES
+
+
+def _review_choices_for_schema(schema_version: int | None) -> dict[str, str]:
+    return V3_AUTOMATED_REVIEW_CHOICES if schema_version == 3 else AUTOMATED_REVIEW_CHOICES
+
+
+def _changes_greptile_config(files: list[ChangedFile]) -> bool:
+    """Whether the diff can alter the configuration Greptile reviews under."""
+    for changed in files:
+        for path in (changed.filename, changed.previous_filename):
+            if not path:
+                continue
+            # `lstrip("./")` would strip the leading dot of `.greptile/`.
+            lowered = path.lower().removeprefix("./")
+            if lowered in GREPTILE_CONFIG_EXACT or lowered.startswith(GREPTILE_CONFIG_PREFIXES):
+                return True
+    return False
+
+
+def _is_optional_gate(gate: str, schema_version: int | None) -> bool:
+    """Whether a gate may be absent from an otherwise valid body of this schema.
+
+    Greptile joined schema v3 after v3 pull requests were already open. Making
+    its checkbox and evidence row mandatory would have broken the route on every
+    one of them the moment the lane merged, and each body edit needed to repair
+    one re-pends that route and spends a fresh hosted review. A body written
+    against the three-provider template stays valid; it simply cannot select
+    Greptile.
+    """
+    return schema_version == 3 and gate == GREPTILE_GATE
+
+
+def _present_gates(
+    schema_version: int | None, evidence: dict[str, Any]
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Return the gates and labels this particular body is required to carry."""
+    kept = [
+        (gate, label)
+        for gate, label in zip(
+            _gates_for_schema(schema_version),
+            _gate_labels_for_schema(schema_version),
+            strict=True,
+        )
+        if not _is_optional_gate(gate, schema_version) or gate in evidence
+    ]
+    return tuple(gate for gate, _ in kept), tuple(label for _, label in kept)
 
 
 @dataclass(frozen=True)
@@ -884,9 +964,16 @@ def _rendered_route_errors(
         )
 
     checklist_nodes = section_roots[:-1]
-    expected_checklist_sizes = (
-        [6] if schema_version in {2, 3} and combined_groups else [3] * len(checklist_nodes)
-    )
+    # The rendered controls must match the source body this was parsed from,
+    # which on v3 may or may not carry the optional Greptile pair.
+    present_gates, present_labels = _present_gates(schema_version, evidence)
+    provider_count = sum(1 for gate in present_gates if gate != HUMAN_GATE)
+    if schema_version in {2, 3} and combined_groups:
+        expected_checklist_sizes = [3 + provider_count]
+    elif schema_version in {2, 3}:
+        expected_checklist_sizes = [3, provider_count]
+    else:
+        expected_checklist_sizes = [3] * len(checklist_nodes)
     if any(
         not exact_checklist(node, expected_count)
         for node, expected_count in zip(
@@ -917,19 +1004,24 @@ def _rendered_route_errors(
         return [RENDERED_ROUTE_ERROR]
 
     if schema_version in {2, 3}:
-        provider_labels = ["Copilot", "Codex", "CodeRabbit"]
+        choices = {
+            label: gate
+            for label, gate in _review_choices_for_schema(schema_version).items()
+            if gate in present_gates
+        }
+        provider_labels = list(choices)
         provider_checkboxes = (
             first_checkboxes[3:] if combined_groups else section_roots[1]["checkboxes"]
         )
         checked_providers = task_rows(provider_checkboxes, provider_labels)
         if checked_providers is None:
             return [RENDERED_ROUTE_ERROR]
-        gate_to_label = {
-            COPILOT_GATE: "Copilot",
-            CODEX_GATE: "Codex",
-            CODERABBIT_GATE: "CodeRabbit",
-        }
-        expected_providers = [gate_to_label[gate] for gate in BOT_GATES if gate in selected_bots]
+        gate_to_label = {gate: label for label, gate in choices.items()}
+        expected_providers = [
+            gate_to_label[gate]
+            for gate in _gates_for_schema(schema_version)
+            if gate in selected_bots and gate in gate_to_label
+        ]
         if checked_providers != expected_providers:
             return [RENDERED_ROUTE_ERROR]
 
@@ -974,8 +1066,8 @@ def _rendered_route_errors(
         "Head SHA or N/A",
         "UTC time and status, or N/A",
     ]
-    expected_gates = _gates_for_schema(schema_version)
-    expected_labels = _gate_labels_for_schema(schema_version)
+    expected_gates = present_gates
+    expected_labels = present_labels
     if (
         len(rendered_rows) != len(expected_gates) + 1
         or rendered_rows[0] != header
@@ -1089,19 +1181,29 @@ def _parse_route_section(
 
     selected_bots: list[str] = []
     if schema_version in {2, 3}:
+        choices = _review_choices_for_schema(schema_version)
+        # Longest-first so `Codex` cannot shadow a longer name sharing its prefix.
+        alternation = "|".join(sorted(map(re.escape, choices), key=len, reverse=True))
         reviewer_rows = re.findall(
-            r"(?m)^[ ]{0,3}- \[([ xX])\] (Copilot|Codex|CodeRabbit)\b",
+            rf"(?m)^[ ]{{0,3}}- \[([ xX])\] ({alternation})\b",
             section,
         )
-        reviewer_counts = {name: 0 for name in AUTOMATED_REVIEW_CHOICES}
+        reviewer_counts = {name: 0 for name in choices}
         for mark, name in reviewer_rows:
             reviewer_counts[name] += 1
             if mark.lower() == "x":
-                selected_bots.append(AUTOMATED_REVIEW_CHOICES[name])
-        if any(count != 1 for count in reviewer_counts.values()):
+                selected_bots.append(choices[name])
+        if any(
+            count > 1 if _is_optional_gate(choices[name], schema_version) else count != 1
+            for name, count in reviewer_counts.items()
+        ):
             errors.append("expected each automated reviewer checkbox exactly once")
 
-    expected = set(_gates_for_schema(schema_version))
+    expected = {
+        gate
+        for gate in _gates_for_schema(schema_version)
+        if not _is_optional_gate(gate, schema_version)
+    }
     label_to_gate = dict(
         zip(
             _gate_labels_for_schema(schema_version),
@@ -1132,7 +1234,11 @@ def _parse_route_section(
                 head=cells[2],
                 status=cells[3],
             )
-    missing = expected - evidence.keys()
+    # An optional gate is only optional while it is unused. Selecting it without
+    # supplying its evidence row would otherwise leave the selection unprovable.
+    missing = (expected | {gate for gate in selected_bots if gate not in expected}) - (
+        evidence.keys()
+    )
     if missing:
         errors.append(
             "missing review evidence rows: "
@@ -1188,12 +1294,8 @@ def _v3_provenance_errors(
     exact_head = fields.get("Exact head SHA", "")
     if (exact_head or not allow_blank) and exact_head.lower() != head_sha.lower():
         errors.append("v3 provenance head does not match the current head SHA")
-    provider_labels = {
-        COPILOT_GATE: "Copilot",
-        CODEX_GATE: "Codex",
-        CODERABBIT_GATE: "CodeRabbit",
-    }
-    expected_provider = provider_labels[selected_bots[0]] if len(selected_bots) == 1 else None
+    provider_labels = {gate: label for label, gate in V3_AUTOMATED_REVIEW_CHOICES.items()}
+    expected_provider = provider_labels.get(selected_bots[0]) if len(selected_bots) == 1 else None
     selected_provider = fields.get("Selected hosted reviewer", "")
     if (selected_provider or not allow_blank) and (
         expected_provider is None or selected_provider != expected_provider
@@ -1328,6 +1430,113 @@ def _v3_formal_review_is_clean(
         and body.count("Files selected for processing") == 1
         and int(selected[0].group("count")) == changed_files
     )
+
+
+def _greptile_check_runs(commit: Any) -> tuple[list[dict[str, Any]], bool]:
+    """Return Greptile's check runs on a commit, and whether the view is complete."""
+    if not isinstance(commit, dict) or commit.get("__typename") != "Commit":
+        return [], False
+    suites = commit.get("checkSuites")
+    if not isinstance(suites, dict):
+        return [], False
+    suite_nodes = suites.get("nodes")
+    suite_total = suites.get("totalCount")
+    if (
+        not isinstance(suite_nodes, list)
+        or isinstance(suite_total, bool)
+        or not isinstance(suite_total, int)
+        or suite_total > len(suite_nodes)
+    ):
+        return [], False
+    runs: list[dict[str, Any]] = []
+    for suite in suite_nodes:
+        if not isinstance(suite, dict):
+            return [], False
+        app = suite.get("app")
+        # The server-side app filter only narrows the page; identity is decided
+        # here, on the authenticated app id, exactly as bot reviews are.
+        if not isinstance(app, dict) or app.get("databaseId") != GREPTILE_APP_ID:
+            continue
+        check_runs = suite.get("checkRuns")
+        if not isinstance(check_runs, dict):
+            return [], False
+        run_nodes = check_runs.get("nodes")
+        run_total = check_runs.get("totalCount")
+        if (
+            not isinstance(run_nodes, list)
+            or isinstance(run_total, bool)
+            or not isinstance(run_total, int)
+            or run_total > len(run_nodes)
+        ):
+            return [], False
+        runs.extend(run for run in run_nodes if isinstance(run, dict))
+    return runs, True
+
+
+def _greptile_run_is_clean(run: dict[str, Any]) -> bool:
+    """A completed Greptile run that added no comments.
+
+    ``conclusion`` alone is never the verdict: a review that reported
+    ``7 files reviewed, 3 comments added.`` on this repository's PR #2203 still
+    concluded ``SUCCESS``. Cleanliness is the counter, and the conclusion is
+    required on top of it so a confidence-threshold failure cannot pass.
+    """
+    if run.get("status") != "COMPLETED" or run.get("conclusion") != "SUCCESS":
+        return False
+    if run.get("name") != GREPTILE_CHECK_RUN_NAME:
+        return False
+    summary = run.get("summary")
+    if not isinstance(summary, str):
+        return False
+    match = GREPTILE_CHECK_SUMMARY.fullmatch(summary)
+    # The reviewed-file count is deliberately not compared against GitHub's
+    # changed-file count. It is asserted in the same generated string as the
+    # verdict, so comparing them buys no trust (#2248), and Greptile's own path
+    # filters make a smaller count legitimate.
+    return match is not None and match.group("comments") == "0"
+
+
+def _greptile_activity(
+    repository: dict[str, Any],
+    head_epoch: datetime,
+) -> datetime | None:
+    """Read Greptile's verdict from the check run GitHub binds to the head commit.
+
+    Greptile publishes three artifacts and only this one can carry a clean
+    verdict:
+
+    * The **formal review** exists only when Greptile has findings. Of 429
+      reviews sampled across four repositories, 427 carried at least one inline
+      comment and an empty body, and the only two carrying zero comments carried
+      its "Your free trial has ended" billing notice. Reading
+      ``comments.totalCount == 0`` as clean would therefore accept a refusal to
+      review as a passing gate — the #2248/#2256 failure mode.
+    * The **summary issue comment** is edited in place on every re-review, so it
+      fails the immutability rule every other provider's envelope is held to.
+    * The **check run** is bound to ``head_sha`` by GitHub rather than
+      self-reported, is attributable to the app by id, and carries Greptile's own
+      counter in a fixed template.
+    """
+    runs, complete = _greptile_check_runs(repository.get("greptileHeadObject"))
+    if not complete or not runs:
+        return None
+    completions: list[tuple[datetime, dict[str, Any]]] = []
+    for run in runs:
+        completed_at = run.get("completedAt")
+        if not isinstance(completed_at, str):
+            return None
+        try:
+            when = _parse_utc(completed_at)
+        except ValueError:
+            return None
+        if when > head_epoch:
+            completions.append((when, run))
+    if not completions:
+        return None
+    latest = max(when for when, _ in completions)
+    if not all(_greptile_run_is_clean(run) for when, run in completions if when == latest):
+        return None
+    return latest
 
 
 def _bot_activity(
@@ -2039,15 +2248,26 @@ def validate_context(
     for gate, actor_id in BOT_ACTOR_IDS.items():
         if gate not in required:
             continue
-        activity = _bot_activity(
-            pull_request,
-            gate,
-            actor_id,
-            head_sha,
-            head_epoch,
-            codex_head_safe,
-            schema_version,
-        )
+        if gate == GREPTILE_GATE:
+            # Greptile's only clean artifact is a check run, not a review or a
+            # comment, so it does not go through `_bot_activity`.
+            if _changes_greptile_config(files):
+                errors.append(
+                    "Greptile cannot review a change to its own configuration; "
+                    "select another hosted reviewer"
+                )
+                continue
+            activity = _greptile_activity(repository, head_epoch)
+        else:
+            activity = _bot_activity(
+                pull_request,
+                gate,
+                actor_id,
+                head_sha,
+                head_epoch,
+                codex_head_safe,
+                schema_version,
+            )
         if activity is None:
             errors.append(f"no verified current-head GitHub activity for: {gate}")
         else:

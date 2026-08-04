@@ -31,6 +31,10 @@ on:
 # Actions app, is the only acceptable source for the required `Review Route`
 # status. It needs Issues: read, Pull requests: read, and Statuses: write.
 # Reading and rechecking `refs/heads/main` also requires Contents: read.
+# The Greptile lane (#2251) reads its verdict from a check run, which requires
+# Checks: read. That permission must be granted to the app itself: requesting a
+# permission the app does not hold makes the token mint fail, which would stop
+# every route validation, not just a Greptile one.
 permissions:
   contents: read
   pull-requests: read
@@ -788,6 +792,7 @@ jobs:
           permission-pull-requests: read
           permission-statuses: write
           permission-contents: read
+          permission-checks: read
 
       - name: Pre-invalidate event head, resolve PR, and mark current head pending
         env:

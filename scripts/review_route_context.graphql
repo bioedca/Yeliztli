@@ -11,6 +11,37 @@ query ReviewRouteContext(
       oid
       abbreviatedOid
     }
+    # Greptile's only clean artifact is a check run. It submits a formal review
+    # solely when it has findings — a zero-comment Greptile review is its
+    # "free trial has ended" notice — and it edits its summary comment in place,
+    # so neither can carry a clean verdict. GitHub binds this check run to the
+    # head commit itself, so the exact-head property is not self-reported.
+    greptileHeadObject: object(oid: $headOid) {
+      __typename
+      ... on Commit {
+        oid
+        checkSuites(first: 20, filterBy: {appId: 867647}) {
+          totalCount
+          nodes {
+            app {
+              __typename
+              databaseId
+            }
+            checkRuns(first: 20) {
+              totalCount
+              nodes {
+                databaseId
+                name
+                status
+                conclusion
+                summary
+                completedAt
+              }
+            }
+          }
+        }
+      }
+    }
     pullRequest(number: $number) {
       number
       author {
