@@ -7199,3 +7199,73 @@ def test_a_duplicated_greptile_checkbox_is_still_rejected() -> None:
     assert "expected each automated reviewer checkbox exactly once" in (
         validate_context(context, files, now=NOW)
     )
+
+
+def test_greptile_rejects_a_review_that_covered_zero_files() -> None:
+    """A clean verdict over nothing is not a review.
+
+    Greptile applies its own path filters, so a pull request whose changed files
+    are all filtered out can produce `0 files reviewed, 0 comments added.` On v3
+    nothing else stands between that and a merge.
+    """
+    context, files = _greptile_context(
+        runs=[_greptile_check_run(files_reviewed=0, comments_added=0)]
+    )
+    assert "no verified current-head GitHub activity for: Greptile clean review check run" in (
+        validate_context(context, files, now=NOW)
+    )
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "greptile.json",
+        ".greptile/config.json",
+        ".greptile/rules.md",
+        ".greptile/nested/deep.md",
+    ],
+)
+def test_greptile_cannot_review_its_own_configuration(path: str) -> None:
+    """Greptile reads its configuration from the pull request's source branch.
+
+    Trusted `main` keeps a pull request from rewriting the validator that clears
+    it; nothing gives Greptile the same protection, so a branch could relax the
+    reviewer and then be cleared by it.
+    """
+    files = [ChangedFile(path)]
+    context = _context("Load-bearing", files, automated_gates={GREPTILE_GATE}, schema_version=3)
+    pull_request = context["data"]["repository"]["pullRequest"]
+    pull_request["reviews"]["nodes"] = [
+        review
+        for review in pull_request["reviews"]["nodes"]
+        if review["author"]["databaseId"] != HUMAN_ID
+    ]
+    pull_request["reviews"]["totalCount"] = len(pull_request["reviews"]["nodes"])
+    pull_request["latestHumanOpinions"] = {"totalCount": 0, "nodes": []}
+    assert (
+        "Greptile cannot review a change to its own configuration; select another hosted reviewer"
+    ) in validate_context(context, files, now=NOW)
+
+
+def test_greptile_config_rename_away_is_also_refused() -> None:
+    files = [ChangedFile("docs/unrelated.md", previous_filename="greptile.json")]
+    context = _context("Load-bearing", files, automated_gates={GREPTILE_GATE}, schema_version=3)
+    assert any(
+        "Greptile cannot review a change to its own configuration" in error
+        for error in validate_context(context, files, now=NOW)
+    )
+
+
+def test_another_provider_may_review_the_greptile_configuration() -> None:
+    """The refusal is scoped to Greptile, not to the files."""
+    files = [ChangedFile("greptile.json")]
+    context = _context("Load-bearing", files, automated_gates={CODEX_GATE}, schema_version=3)
+    pull_request = context["data"]["repository"]["pullRequest"]
+    pull_request["reviews"]["nodes"] = [
+        review
+        for review in pull_request["reviews"]["nodes"]
+        if review["author"]["databaseId"] != HUMAN_ID
+    ]
+    pull_request["reviews"]["totalCount"] = len(pull_request["reviews"]["nodes"])
+    pull_request["latestHumanOpinions"] = {"totalCount": 0, "nodes": []}
+    assert validate_context(context, files, now=NOW) == []

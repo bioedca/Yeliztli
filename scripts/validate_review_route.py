@@ -55,11 +55,21 @@ GREPTILE_CHECK_RUN_NAME = "Greptile Review"
 # Greptile's own counter, in a fixed template. `M == 0` is the whole clean test:
 # there is no sentence to match and no model-authored flourish to overflow, which
 # is what makes this the only envelope here not keyed on provider prose.
+# The reviewed-file count must be positive. Greptile applies its own path
+# filters, so a pull request whose changed files are all filtered out can report
+# `0 files reviewed, 0 comments added.` — a clean verdict over nothing, which on
+# v3 carries a merge with no human approval behind it.
 GREPTILE_CHECK_SUMMARY = re.compile(
     r"^Greptile has reviewed the Pull Request\.\n\n"
-    r"(?P<files>0|[1-9][0-9]*) files? reviewed, "
+    r"(?P<files>[1-9][0-9]*) files? reviewed, "
     r"(?P<comments>0|[1-9][0-9]*) comments? added\.$"
 )
+# Greptile reads `greptile.json` and `.greptile/` from the pull request's own
+# source branch (#2249), so a pull request can weaken the reviewer that is about
+# to clear it. Trusted `main` protects the validator from that; nothing protects
+# Greptile from it, so the lane refuses to review its own configuration.
+GREPTILE_CONFIG_EXACT = frozenset({"greptile.json"})
+GREPTILE_CONFIG_PREFIXES = (".greptile/",)
 LOAD_BEARING_EXACT = {
     ".coderabbit.yaml",
     ".gitattributes",
@@ -359,6 +369,19 @@ def _gate_labels_for_schema(schema_version: int | None) -> tuple[str, ...]:
 
 def _review_choices_for_schema(schema_version: int | None) -> dict[str, str]:
     return V3_AUTOMATED_REVIEW_CHOICES if schema_version == 3 else AUTOMATED_REVIEW_CHOICES
+
+
+def _changes_greptile_config(files: list[ChangedFile]) -> bool:
+    """Whether the diff can alter the configuration Greptile reviews under."""
+    for changed in files:
+        for path in (changed.filename, changed.previous_filename):
+            if not path:
+                continue
+            # `lstrip("./")` would strip the leading dot of `.greptile/`.
+            lowered = path.lower().removeprefix("./")
+            if lowered in GREPTILE_CONFIG_EXACT or lowered.startswith(GREPTILE_CONFIG_PREFIXES):
+                return True
+    return False
 
 
 def _is_optional_gate(gate: str, schema_version: int | None) -> bool:
@@ -2228,6 +2251,12 @@ def validate_context(
         if gate == GREPTILE_GATE:
             # Greptile's only clean artifact is a check run, not a review or a
             # comment, so it does not go through `_bot_activity`.
+            if _changes_greptile_config(files):
+                errors.append(
+                    "Greptile cannot review a change to its own configuration; "
+                    "select another hosted reviewer"
+                )
+                continue
             activity = _greptile_activity(repository, head_epoch)
         else:
             activity = _bot_activity(
