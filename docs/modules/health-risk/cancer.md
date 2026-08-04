@@ -88,9 +88,9 @@ Institute*. 2015;107(5):djv036. [PMID:25855707](https://pubmed.ncbi.nlm.nih.gov/
 (accessed 2026-08-03).
 
 [3] Yeliztli cancer PRS panel version 1.2.0, breast-cancer PRS77
-`model_provenance.current_allele_audit` (Ensembl Variation GRCh38 audit checked 2026-07-16;
-[DOI:10.1093/database/bay119](https://doi.org/10.1093/database/bay119)).
-[Immutable source](https://github.com/bioedca/Yeliztli/blob/e5dbc9c8128fd57ce825b239c589365db924466b/backend/data/panels/cancer_prs_weights.json)
+`model_provenance.current_allele_audit` in `backend/data/panels/cancer_prs_weights.json`
+(Ensembl Variation GRCh38 audit checked 2026-07-16;
+[DOI:10.1093/database/bay119](https://doi.org/10.1093/database/bay119))
 (accessed 2026-08-03).
 
 [^clingen-risk-allele]: Schmidt RJ, et al. [Recommendations for risk allele evidence

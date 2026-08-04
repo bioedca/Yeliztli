@@ -274,31 +274,25 @@ def test_cancer_docs_distinguish_the_runtime_block_from_ancestry_withholding() -
         f"{panel_version!r}"
     )
     _assert_real_access_date(audit_reference, "breast PRS allele-audit reference [3]")
-    # The "immutable source" link is the reader's route to the audited panel, so
-    # it must actually name that panel. Otherwise a regenerated audit can satisfy
-    # the counts and the version while the link still resolves to a stale blob or
-    # an unrelated file entirely.
-    panel_rel = _PANEL_PATH.relative_to(REPO_ROOT).as_posix()
-    immutable = re.search(
-        r"https://github\.com/\S*?/blob/(?P<sha>[0-9a-f]{40})/(?P<path>\S+?)\)",
-        audit_reference,
+    # Reference [3] deliberately carries no commit permalink. A pinned 40-hex blob
+    # link asserts that a particular historical commit holds the audit being cited,
+    # and nothing here can check that: CI runs `actions/checkout` at depth 1, so the
+    # linked object is absent in the only environment that gates merges, and a test
+    # that silently skips there reads as coverage while providing none. Any 40-hex
+    # string would satisfy a path-only assertion, including an all-zero commit. The
+    # reference instead names the bundled panel by path, version, and the audit's
+    # own source/assembly/check date -- each compared against the shipped panel
+    # above, in every checkout.
+    assert "/blob/" not in audit_reference, (
+        "breast PRS allele-audit reference [3] must not pin a commit permalink: this "
+        "guard cannot verify that the linked commit holds the cited audit, so the link "
+        f"would be an unchecked provenance claim; reference reads: {audit_reference}"
     )
-    assert immutable, (
-        "breast PRS allele-audit reference [3] must link an immutable blob of the panel; "
+    panel_rel = _PANEL_PATH.relative_to(REPO_ROOT).as_posix()
+    assert panel_rel in audit_reference, (
+        f"breast PRS allele-audit reference [3] must name the bundled panel {panel_rel}; "
         f"reference reads: {audit_reference}"
     )
-    assert immutable.group("path") == panel_rel, (
-        f"reference [3]'s immutable link points at {immutable.group('path')}, not the "
-        f"bundled panel {panel_rel}"
-    )
-    # The link's *content* is deliberately not verified here. Doing so requires
-    # reading the linked commit, and CI checks out at depth 1
-    # (`actions/checkout` with no `fetch-depth`), so that object is absent in the
-    # only environment that gates merges. A check that silently skips exactly
-    # where it would matter is worse than no check: it reads as coverage while
-    # providing none. Verifying the blob would need either a network fetch from a
-    # test or a CI fetch-depth change; both belong in their own change, not in a
-    # documentation fix. The path assertion above holds in every checkout.
 
 
 def test_breast_prs_references_carry_a_science_evidence_packet() -> None:
