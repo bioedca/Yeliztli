@@ -319,7 +319,7 @@ def run_cancer_prs(
     skipped_traits: list[str] = []
 
     for ws in weight_sets:
-        if not ws.scoring_enabled or ws.runtime_scoring_blocked:
+        if not ws.is_runtime_scored:
             skipped_traits.append(ws.trait)
             logger.warning(
                 "cancer_prs_trait_skipped",
@@ -398,7 +398,7 @@ def store_cancer_prs_findings(
     enabled_model_fingerprints = {
         weight_set.trait: prs_model_fingerprint(weight_set)
         for weight_set in load_cancer_prs_weights()
-        if weight_set.scoring_enabled and not weight_set.runtime_scoring_blocked
+        if weight_set.is_runtime_scored
     }
     eligible_results: list[PRSResult] = []
     for result in cancer_result.results:

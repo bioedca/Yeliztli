@@ -229,6 +229,19 @@ class PRSWeightSet:
         self.higher_is = normalize_prs_higher_is(self.higher_is)
 
     @property
+    def is_runtime_scored(self) -> bool:
+        """Whether this model is actually scored and surfaced at runtime.
+
+        Both halves must hold: ``scoring_enabled`` is the curator's switch, and
+        ``runtime_scoring_blocked`` is the durable fail-closed marker a caller
+        cannot clear by flipping that switch.  This is the single definition of
+        "is this model scored" -- callers must not re-implement the predicate,
+        because the module documentation pages advertise exactly this set and
+        their consistency guards bind to it.
+        """
+        return self.scoring_enabled and not self.runtime_scoring_blocked
+
+    @property
     def snp_count(self) -> int:
         """Number of SNPs in the weight set."""
         return len(self.weights)
@@ -621,7 +634,7 @@ def compute_prs(
     Returns:
         PRSResult with raw_score and per-SNP contributions.
     """
-    if not weight_set.scoring_enabled or weight_set.runtime_scoring_blocked:
+    if not weight_set.is_runtime_scored:
         state = "runtime-blocked" if weight_set.runtime_scoring_blocked else "disabled"
         raise ValueError(f"PRS weight set {weight_set.name!r} is {state} and cannot be scored")
 
