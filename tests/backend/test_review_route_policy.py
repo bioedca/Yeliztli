@@ -27,6 +27,7 @@ from scripts.validate_review_route import (
     GREPTILE_GATE,
     HUMAN_GATE,
     LEGACY_SCHEMA_MARKER,
+    LOAD_BEARING_EXACT,
     RENDERED_ROUTE_ERROR,
     SCHEMA_MARKER,
     V3_BOT_GATES,
@@ -2176,6 +2177,12 @@ def test_protected_rename_raises_route_floor() -> None:
         ".gitignore",
         ".gitmodules",
         ".graphifyignore",
+        # The fleet contract that gates every other change, including merge
+        # authorisation. Both files are `.md` and matched nothing else, so the
+        # floor used to call an edit to them `Low` while both route tables call
+        # it Load-bearing (#2259).
+        "AGENTS.md",
+        "CLAUDE.md",
         "CITATION.cff",
         "CHANGELOG.md",
         "GOVERNANCE.md",
@@ -2339,6 +2346,29 @@ def test_sensitive_path_case_variants_remain_load_bearing(path: str) -> None:
 )
 def test_non_sensitive_paths_keep_lower_route_floors(path: str, route: str) -> None:
     assert minimum_route([ChangedFile(path)]) == route
+
+
+def test_every_exact_load_bearing_path_is_lowercase_and_reaches_the_top_route() -> None:
+    """`LOAD_BEARING_EXACT` is matched against `path.lower()`.
+
+    A capitalized entry therefore matches nothing and silently lowers the floor
+    for the file it was added to protect. Nothing checked the constant itself,
+    which is how `AGENTS.md`/`CLAUDE.md` sat outside it while both route tables
+    called an edit to them Load-bearing (#2259). Deriving the assertion from the
+    constant keeps a future addition honest without hand-maintaining a list.
+    """
+    assert LOAD_BEARING_EXACT, "the exact-path set must not be empty"
+    assert sorted(LOAD_BEARING_EXACT) == sorted(path.lower() for path in LOAD_BEARING_EXACT)
+    for path in sorted(LOAD_BEARING_EXACT):
+        assert minimum_route([ChangedFile(path)]) == "Load-bearing", path
+        assert minimum_route([ChangedFile(path.upper())]) == "Load-bearing", path
+
+
+def test_the_agent_contract_files_are_load_bearing_by_floor() -> None:
+    """Both halves of the fleet contract, at their real on-disk spelling."""
+    for path in ("AGENTS.md", "CLAUDE.md"):
+        assert (Path(__file__).resolve().parents[2] / path).is_file(), path
+        assert minimum_route([ChangedFile(path)]) == "Load-bearing", path
 
 
 def test_changed_file_count_mismatch_fails_closed() -> None:
