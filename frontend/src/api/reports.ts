@@ -72,7 +72,7 @@ export function useFhirExportEligibility(sampleId: number | null) {
       })
       const res = await fetch(`/api/export/fhir/eligibility?${params}`)
       if (!res.ok) {
-        throw new Error(`FHIR export eligibility failed: ${res.status}`)
+        await throwApiError(res, `FHIR export eligibility check failed.`)
       }
       return res.json()
     },

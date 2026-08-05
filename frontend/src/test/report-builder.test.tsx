@@ -376,6 +376,14 @@ describe("ReportBuilder", () => {
     expect(
       screen.getByText(/FHIR export is disabled because it would create more than/),
     ).toBeInTheDocument()
+    // The FHIR selection is full-sample and ignores the module checkboxes
+    // (#2100), so the banner has to say that reducing the selection will not
+    // help. Without this the copy reads as if the user could act on it.
+    expect(
+      screen.getByText(
+        /covers every carried variant in the sample rather than the modules selected above/,
+      ),
+    ).toBeInTheDocument()
   })
 
   it("does not mount the preview iframe when returned HTML exceeds the inline limit", async () => {

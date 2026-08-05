@@ -206,7 +206,7 @@ export default function ReportBuilder() {
       : fhirEligibilityQuery.data?.reason === "too_large"
         ? `FHIR export is disabled because it would create more than ${formatCount(
             fhirEligibilityQuery.data.max_observations,
-          )} Observations.`
+          )} Observations. It covers every carried variant in the sample rather than the modules selected above, so selecting fewer modules does not reduce it.`
         : fhirEligibilityQuery.data?.reason === "no_annotated_variants"
           ? "FHIR export is disabled because this sample has no annotated variants. Run annotation first."
           : fhirEligibilityQuery.data?.exportable === false
