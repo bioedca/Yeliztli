@@ -370,8 +370,20 @@ COPILOT_V3_CLEAN_VERDICT = "no comments"
 # nothing, and not that every file was read.
 CODEX_CLEAN_COMPLETION_PREFIX = "Codex Review: Didn't find any major issues."
 CODEX_CLEAN_COMPLETION_MARKER = f"{CODEX_CLEAN_COMPLETION_PREFIX} What shall we delve into next?"
+# The trailing flourish is unbounded on purpose. Nothing downstream reads it:
+# the verdict is the prefix, the author is the app id plus the `Bot` typename,
+# immutability is `created == updated` with a null `lastEditedAt`, and the head
+# binding is the `**Reviewed commit:**` marker. A length cap therefore
+# constrained only how verbose Codex chose to be about why it found nothing --
+# and when it wrote three sentences instead of one (286 characters on PR #2254),
+# its own canonical clean comment was rejected and the pull request could not
+# finalize on that head. Same class as #2248: pinning provider prose kills a
+# working lane silently, because a v3 validation failure publishes `pending`.
+# What is still enforced is that the verdict occupies a single line, so a
+# multi-paragraph comment cannot be read as a terse clean verdict. Tracked in
+# #2255.
 CODEX_CLEAN_COMPLETION_LINE = re.compile(
-    rf"^{re.escape(CODEX_CLEAN_COMPLETION_PREFIX)}(?: [^\r\n]{{1,160}})?$"
+    rf"^{re.escape(CODEX_CLEAN_COMPLETION_PREFIX)}(?: [^\r\n]+)?$"
 )
 CODEX_REVIEWED_COMMIT_LINE = re.compile(
     r"(?m)^\*\*Reviewed commit:\*\* `(?P<sha>[0-9a-f]{10})`\s*$"
