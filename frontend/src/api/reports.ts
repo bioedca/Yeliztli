@@ -2,7 +2,7 @@
 
 import { throwApiError } from "@/api/errors"
 
-import { useMutation, useQuery } from "@tanstack/react-query"
+import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query"
 
 export interface ReportRequest {
   sample_id: number
@@ -51,6 +51,9 @@ export async function fetchReportPreview(request: ReportRequest): Promise<string
 export interface FhirExportRequest {
   sample_id: number
   include_all?: boolean
+  /** Report modules to scope the bundle to. Omit for the full-sample
+   * selection; an empty array exports nothing. */
+  modules?: string[]
 }
 
 export interface FhirExportEligibility {
@@ -60,16 +63,42 @@ export interface FhirExportEligibility {
   reason: "too_large" | "no_annotated_variants" | null
 }
 
-/** Verify the actual FHIR Observation selection before enabling export. */
-export function useFhirExportEligibility(sampleId: number | null) {
+/** Sort so a selection is keyed and requested by its members, not by the order
+ * the user happened to click them — otherwise the same scope produces different
+ * cache entries and re-requests an answer already held. */
+function normaliseModules(modules: string[] | undefined): string[] | undefined {
+  return modules ? [...new Set(modules)].sort() : undefined
+}
+
+/** Verify the actual FHIR Observation selection before enabling export.
+ *
+ * `modules` must match what the export will send, or eligibility answers a
+ * different question than the one the button acts on. */
+export function useFhirExportEligibility(
+  sampleId: number | null,
+  modules?: string[],
+  { enabled = true }: { enabled?: boolean } = {},
+) {
+  const scoped = normaliseModules(modules)
   return useQuery<FhirExportEligibility>({
-    queryKey: ["fhir-export-eligibility", sampleId],
-    enabled: sampleId != null,
+    queryKey: ["fhir-export-eligibility", sampleId, scoped ?? null],
+    // Callers hold this until their selection exists. Asking about an empty
+    // selection the user never made spends a request whose answer is discarded
+    // the moment the real selection arrives.
+    enabled: sampleId != null && enabled,
+    // Every checkbox toggle changes the key, and without this each toggle would
+    // re-enter `isPending` and disable the button mid-interaction — the flicker
+    // #2225 removed, reintroduced by scoping. Holding the previous answer means
+    // the action can briefly reflect the scope the user just left; the server
+    // re-checks and returns 413, so the worst case is a refused click rather
+    // than an oversized export.
+    placeholderData: keepPreviousData,
     queryFn: async () => {
       const params = new URLSearchParams({
         sample_id: String(sampleId),
         include_all: "true",
       })
+      for (const module of scoped ?? []) params.append("modules", module)
       const res = await fetch(`/api/export/fhir/eligibility?${params}`)
       if (!res.ok) {
         await throwApiError(res, `FHIR export eligibility check failed.`)

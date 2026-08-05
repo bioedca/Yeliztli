@@ -20,10 +20,10 @@ import time
 from collections.abc import Iterable, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 import sqlalchemy as sa
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -124,6 +124,14 @@ class ExportFhirRequest(BaseModel):
         description=(
             "If true, include all annotated variants. "
             "If false, only include variants with ClinVar annotations."
+        ),
+    )
+    modules: list[str] | None = Field(
+        None,
+        description=(
+            "Report modules to scope the bundle to, matching the Report Builder "
+            "selection. Omit for the full-sample selection; an empty list "
+            "exports nothing."
         ),
     )
 
@@ -494,15 +502,23 @@ def export_sql(body: ExportSqlRequest) -> StreamingResponse:
 def get_fhir_export_eligibility(
     sample_id: int,
     include_all: bool = True,
+    modules: Annotated[list[str] | None, Query()] = None,
 ) -> FhirExportEligibilityResponse:
     """Fail-closed preflight against the actual FHIR Observation selection."""
     require_fresh_sample(sample_id)
-    from backend.reports.fhir_export import MAX_FHIR_OBSERVATIONS, count_fhir_observations
+    from backend.reports.fhir_export import (
+        MAX_FHIR_OBSERVATIONS,
+        count_fhir_observations,
+        effective_fhir_modules,
+    )
 
     sample_engine = _get_sample_engine(sample_id)
+    # Resolve the scope the same way the bundle will, so eligibility answers the
+    # question the export is actually going to ask.
     observation_count = count_fhir_observations(
         sample_engine,
         include_all=include_all,
+        modules=effective_fhir_modules(sample_engine, modules),
     )
     if observation_count == 0 and not _has_annotated_variants(sample_engine):
         exportable = False
@@ -536,6 +552,7 @@ def export_fhir(body: ExportFhirRequest) -> StreamingResponse:
         bundle = build_fhir_bundle(
             sample_id=body.sample_id,
             include_all=body.include_all,
+            modules=body.modules,
         )
     except FhirExportTooLargeError as exc:
         raise HTTPException(

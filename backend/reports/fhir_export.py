@@ -19,6 +19,7 @@ Usage::
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any
 
@@ -34,8 +35,9 @@ from backend.analysis.allelic_state import (
     allelic_state_coding as _allelic_state_coding,
 )
 from backend.analysis.zygosity import CARRIED_ZYGOSITIES
+from backend.api.gating import gated_modules_to_hide
 from backend.db.connection import get_registry
-from backend.db.tables import annotated_variants, samples
+from backend.db.tables import annotated_variants, findings, samples
 from backend.services.sex_inference import (
     get_recorded_biological_sex,
     infer_biological_sex,
@@ -476,7 +478,35 @@ def _variant_to_observation(
     return full_url, observation
 
 
-def _fhir_variant_clauses(*, include_all: bool) -> list[sa.ColumnElement[bool]]:
+def effective_fhir_modules(
+    engine: sa.Engine,
+    modules: Sequence[str] | None,
+) -> list[str] | None:
+    """Resolve a requested module scope against this sample's disclosure gates.
+
+    ``None`` means "do not scope by module" and keeps the historical full-sample
+    selection. Any list -- including an empty one -- scopes the bundle, and an
+    empty result yields an empty bundle rather than everything.
+
+    Gated modules are dropped here for the same reason the PDF path drops them
+    (``generator._load_findings``): an opt-in disclosure the user has not given
+    must not become exportable because a different surface reached the same
+    rows. Resolving it once, where the scope is decided, keeps the preflight and
+    the bundle answering the same question.
+    """
+    if modules is None:
+        return None
+    hidden = set(gated_modules_to_hide(engine))
+    # dict.fromkeys keeps first-seen order and drops duplicates, so a repeated
+    # query parameter cannot change the selection.
+    return [module for module in dict.fromkeys(modules) if module not in hidden]
+
+
+def _fhir_variant_clauses(
+    *,
+    include_all: bool,
+    modules: Sequence[str] | None,
+) -> list[sa.ColumnElement[bool]]:
     """Return the SQL predicates shared by FHIR preflight and generation."""
     clauses: list[sa.ColumnElement[bool]] = [
         annotated_variants.c.zygosity.in_(sorted(CARRIED_ZYGOSITIES))
@@ -488,6 +518,18 @@ def _fhir_variant_clauses(*, include_all: bool) -> list[sa.ColumnElement[bool]]:
                 annotated_variants.c.clinvar_significance != "",
             ]
         )
+    if modules is not None:
+        # The bundle is built from `annotated_variants`, but the report the user
+        # curated lives in `findings`. rsID is the only join between them, so a
+        # module-scoped export is the carried variants that some finding in a
+        # selected module points at. Findings carrying no rsID -- a PRS score, a
+        # haplogroup call -- name no variant and are correctly absent.
+        scoped_rsids = sa.select(findings.c.rsid).where(
+            findings.c.module.in_(list(modules)),
+            findings.c.rsid.is_not(None),
+            findings.c.rsid != "",
+        )
+        clauses.append(annotated_variants.c.rsid.in_(scoped_rsids))
     return clauses
 
 
@@ -495,11 +537,12 @@ def count_fhir_observations(
     engine: sa.Engine,
     *,
     include_all: bool,
+    modules: Sequence[str] | None = None,
 ) -> int:
     """Count only up to one Observation beyond the supported output ceiling."""
     bounded_selection = (
         sa.select(sa.literal(1).label("selected"))
-        .where(sa.and_(*_fhir_variant_clauses(include_all=include_all)))
+        .where(sa.and_(*_fhir_variant_clauses(include_all=include_all, modules=modules)))
         .limit(MAX_FHIR_OBSERVATIONS + 1)
         .subquery()
     )
@@ -512,6 +555,7 @@ def _load_annotated_variants(
     engine: sa.Engine,
     *,
     include_all: bool,
+    modules: Sequence[str] | None = None,
 ) -> list[dict[str, Any]]:
     """Load at most one carried variant beyond the FHIR output ceiling."""
     # Canonical chromosome sort order
@@ -527,7 +571,7 @@ def _load_annotated_variants(
     )
     query = (
         sa.select(annotated_variants)
-        .where(sa.and_(*_fhir_variant_clauses(include_all=include_all)))
+        .where(sa.and_(*_fhir_variant_clauses(include_all=include_all, modules=modules)))
         .order_by(chrom_expr.asc(), annotated_variants.c.pos.asc())
         .limit(MAX_FHIR_OBSERVATIONS + 1)
     )
@@ -547,6 +591,7 @@ def build_fhir_bundle(
     sample_id: int,
     *,
     include_all: bool = True,
+    modules: Sequence[str] | None = None,
 ) -> dict[str, Any]:
     """Build a FHIR R4 Bundle (type=collection) for a sample.
 
@@ -557,6 +602,11 @@ def build_fhir_bundle(
     include_all:
         If True, include all annotated variants. If False, only include
         variants with ClinVar annotations (non-null clinvar_significance).
+    modules:
+        Report modules to scope the bundle to, matching the Report Builder
+        selection. ``None`` keeps the historical full-sample selection; a list
+        restricts the bundle to carried variants named by findings in those
+        modules, and an empty list yields an empty bundle.
 
     Returns
     -------
@@ -587,12 +637,20 @@ def build_fhir_bundle(
 
     # Reject oversized direct POSTs with the bounded, unordered selection before
     # the canonical-order query can sort or materialize any selected rows.
-    if count_fhir_observations(sample_engine, include_all=include_all) > MAX_FHIR_OBSERVATIONS:
+    # Resolve the scope once so the preflight and the load cannot disagree about
+    # which modules are in play -- including after a disclosure gate removes one.
+    scoped_modules = effective_fhir_modules(sample_engine, modules)
+    if (
+        count_fhir_observations(sample_engine, include_all=include_all, modules=scoped_modules)
+        > MAX_FHIR_OBSERVATIONS
+    ):
         raise _fhir_export_too_large_error()
 
-    # Apply carriage and optional ClinVar filters in SQL. The limit remains a
-    # defense-in-depth recheck if rows change between the preflight and load.
-    all_variants = _load_annotated_variants(sample_engine, include_all=include_all)
+    # Apply carriage, module and optional ClinVar filters in SQL. The limit
+    # remains a defense-in-depth recheck if rows change between preflight and load.
+    all_variants = _load_annotated_variants(
+        sample_engine, include_all=include_all, modules=scoped_modules
+    )
     if not all_variants:
         # Preserve the existing distinction between a sample with no annotation
         # rows (an error) and one whose rows are all non-carried or filtered out

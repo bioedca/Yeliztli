@@ -22,26 +22,27 @@ Report Builder keeps interactive exports within fixed resource limits:
 
 - HTML preview and PDF generation accept at most **1,000 reportable findings**
   across the selected report modules.
-- FHIR export uses its separate, full-sample carried-variant selection and accepts
-  at most **1,000 `Observation` resources**. The PDF module checkboxes do not
-  change that FHIR selection.
+- FHIR export accepts at most **1,000 `Observation` resources**, and honours the
+  same module checkboxes as the PDF. Selecting fewer modules reduces the bundle;
+  selecting none disables the export, exactly as it disables Preview and
+  Download PDF.
 
 The page disables an action when its selection exceeds the applicable limit.
 The API repeats the same check and returns HTTP 413 before rendering or building
 resources, so direct requests cannot bypass the guard. FHIR export also stays
 disabled when its size cannot be verified or the sample has no annotated variants.
 
-!!! note "FHIR export is currently disabled on a fully annotated sample"
-    Because the FHIR selection covers every carried variant in the sample rather
-    than the modules you selected, a fully annotated consumer array exceeds the
-    1,000-`Observation` limit by a wide margin, and no module selection reduces
-    it. **Export FHIR R4 is therefore disabled on such samples**, and a direct
-    request returns HTTP 413.
+!!! note "What a module-scoped FHIR bundle contains"
+    The bundle is built from your annotated variants, while the report you curate
+    is built from findings. rsID is what links them, so a scoped export contains
+    the **carried variants that a finding in a selected module points at**.
 
-    This is the guard working as designed on a selection that has no way to be
-    made smaller. Scoping the FHIR bundle to the selected report modules — which
-    is what makes the limit reachable — is tracked separately; until that lands,
-    use **Download PDF** with a reduced module selection.
+    Two consequences worth knowing. A finding that names no variant — a
+    polygenic score, a haplogroup call — contributes no `Observation`, so a
+    selection made only of those produces a valid but empty bundle, and the page
+    says so before you download it. And a module whose disclosure gate you have
+    not acknowledged is withheld here just as it is from the PDF: selecting it
+    does not export its variants.
 
 !!! warning "The FHIR export is not a clinical diagnostic report"
     The **FHIR R4** export produces a `DiagnosticReport` resource using the standard
