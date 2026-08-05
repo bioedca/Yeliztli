@@ -72,7 +72,7 @@
 
 ## Hard review routes
 
-Classify at draft creation and before merge; mixed/uncertain scope rises. These are agent-hard gates even if platform rules are weaker: report rule drift, never use it as permission. All reviews bind to the head SHA.
+Classify at draft creation and before merge; mixed/uncertain scope rises. These are agent-hard gates even if platform rules are weaker: report rule drift, never use it as permission. All reviews bind to the head SHA. The scope column below is identical in `CLAUDE.md`; this file and that one are themselves in the changed-path floor, so an edit to either is `Load-bearing` by machine, not only by convention.
 
 | Route | Scope | Hosted lane |
 | --- | --- | --- |

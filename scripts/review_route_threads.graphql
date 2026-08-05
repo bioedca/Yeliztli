@@ -1,0 +1,25 @@
+query ReviewRouteThreadPages(
+  $owner: String!
+  $repo: String!
+  $number: Int!
+  $endCursor: String
+) {
+  repository(owner: $owner, name: $repo) {
+    pullRequest(number: $number) {
+      number
+      headRefOid
+      updatedAt
+      reviewThreads(first: 100, after: $endCursor) {
+        totalCount
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+        nodes {
+          id
+          isResolved
+        }
+      }
+    }
+  }
+}

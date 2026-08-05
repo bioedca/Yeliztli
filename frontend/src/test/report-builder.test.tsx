@@ -180,10 +180,7 @@ describe("ReportBuilder", () => {
     const fhirButton = await screen.findByLabelText("Export FHIR R4 Bundle")
     await waitFor(() => expect(fhirButton).toBeEnabled())
 
-    const refetch = queryClient.refetchQueries({
-      queryKey: ["fhir-export-eligibility", 1],
-      exact: true,
-    })
+    const refetch = queryClient.refetchQueries({ queryKey: ["fhir-export-eligibility", 1] })
     await waitFor(() => expect(eligibilityRequests).toBe(2))
 
     // The refetch has not resolved yet: the previous verified result still
@@ -198,7 +195,7 @@ describe("ReportBuilder", () => {
     expect(fhirButton).toBeEnabled()
   })
 
-  it("says the bundle will be empty when the sample carries no variants", async () => {
+  it("says the bundle will be empty when the selected modules carry no variants", async () => {
     // Annotated but nothing carried is a valid zero-Observation bundle, not a
     // blocked export -- that is the distinction against a never-annotated
     // sample. It stays downloadable, but the user is told before they download
@@ -232,7 +229,7 @@ describe("ReportBuilder", () => {
     await waitFor(() => expect(fhirButton).toBeEnabled())
     expect(
       screen.getByText(
-        /This sample has no carried variants, so the FHIR bundle will contain 0 Observations/,
+        /The selected modules carry no variants, so the FHIR bundle will contain 0 Observations/,
       ),
     ).toBeInTheDocument()
   })
@@ -265,10 +262,9 @@ describe("ReportBuilder", () => {
     const fhirButton = await screen.findByLabelText("Export FHIR R4 Bundle")
     await waitFor(() => expect(fhirButton).toBeEnabled())
 
-    await queryClient.refetchQueries({
-      queryKey: ["fhir-export-eligibility", 1],
-      exact: true,
-    })
+    // The key now carries the module scope, so match by prefix rather than
+    // pinning a shape that changes whenever the selection does.
+    await queryClient.refetchQueries({ queryKey: ["fhir-export-eligibility", 1] })
 
     expect(eligibilityRequests).toBe(2)
     await waitFor(() => expect(fhirButton).toBeDisabled())
@@ -467,16 +463,12 @@ describe("ReportBuilder", () => {
     expect(downloadButton).not.toBeDisabled()
     expect(fhirButton).toBeDisabled()
     expect(
-      screen.getByText(/FHIR export is disabled because it would create more than/),
+      screen.getByText(/FHIR export is disabled because the selected modules would create more than/),
     ).toBeInTheDocument()
     // The FHIR selection is full-sample and ignores the module checkboxes
     // (#2100), so the banner has to say that reducing the selection will not
     // help. Without this the copy reads as if the user could act on it.
-    expect(
-      screen.getByText(
-        /covers every carried variant in the sample rather than the modules selected above/,
-      ),
-    ).toBeInTheDocument()
+    expect(screen.getByText(/Select fewer modules/)).toBeInTheDocument()
   })
 
   it("does not mount the preview iframe when returned HTML exceeds the inline limit", async () => {
@@ -650,7 +642,13 @@ describe("ReportBuilder", () => {
     expect(screen.getByText("4 findings")).toBeInTheDocument()
   })
 
-  it("disables report actions but keeps independently verified FHIR enabled with no modules", async () => {
+  it("disables every report action, FHIR included, when no modules are selected", async () => {
+    // This inverts a previous assertion, deliberately. FHIR used to stay enabled
+    // at zero modules because its selection was full-sample and ignored the
+    // checkboxes entirely -- the complaint in #2100. The Report Summary read
+    // "Selected modules 0 / Total findings 0" while the one live button handed
+    // back every annotated variant. Now that the bundle is scoped by the same
+    // selection as the PDF, an empty selection means an empty export.
     mockSummaryFetch()
     const user = userEvent.setup()
     renderWithRoute(<ReportBuilder />, ["/reports?sample_id=1"])
@@ -663,7 +661,64 @@ describe("ReportBuilder", () => {
 
     expect(screen.getByLabelText("Preview report")).toBeDisabled()
     expect(screen.getByLabelText("Download PDF report")).toBeDisabled()
-    expect(screen.getByLabelText("Export FHIR R4 Bundle")).toBeEnabled()
+    expect(screen.getByLabelText("Export FHIR R4 Bundle")).toBeDisabled()
+    // ...and it must not blame the sample for the user's own empty selection.
+    expect(
+      screen.queryByText(/carry no variants, so the FHIR bundle will contain 0 Observations/),
+    ).not.toBeInTheDocument()
+  })
+
+  it("scopes the FHIR request and its preflight to the selected modules", async () => {
+    // The defect in #2100 was that handleFhirExport always sent
+    // `include_all: true` with no module field, so a curated selection still
+    // exported every annotated variant. Assert on the wire, not on the button.
+    const eligibilityUrls: string[] = []
+    let fhirBody: { sample_id: number; modules: string[] } | null = null
+    mockFetch.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (typeof url === "string" && url.includes("/api/analysis/findings/summary")) {
+        return {
+          ok: true,
+          json: async () => MOCK_SUMMARY,
+          text: async () => JSON.stringify(MOCK_SUMMARY),
+        }
+      }
+      if (typeof url === "string" && url.includes("/api/export/fhir/eligibility")) {
+        eligibilityUrls.push(url)
+        return {
+          ok: true,
+          json: async () => FHIR_ELIGIBLE,
+          text: async () => JSON.stringify(FHIR_ELIGIBLE),
+        }
+      }
+      if (typeof url === "string" && url.includes("/api/export/fhir")) {
+        fhirBody = JSON.parse(String(init?.body))
+        return { ok: true, blob: async () => new Blob(["{}"]) }
+      }
+      return { ok: false, status: 404, text: async () => "Not found" }
+    })
+    const user = userEvent.setup()
+    renderWithRoute(<ReportBuilder />, ["/reports?sample_id=1"])
+
+    const fhirButton = await screen.findByLabelText("Export FHIR R4 Bundle")
+    await waitFor(() => expect(fhirButton).toBeEnabled())
+
+    // The preflight asks about the selection, not about the whole sample.
+    await waitFor(() => expect(eligibilityUrls.at(-1)).toContain("modules="))
+    const latest = eligibilityUrls.at(-1) as string
+    expect(latest).toContain("modules=cancer")
+    expect(latest).toContain("modules=pharmacogenomics")
+    expect(latest).toContain("modules=nutrigenomics")
+
+    await user.click(fhirButton)
+
+    await waitFor(() => expect(fhirBody).not.toBeNull())
+    const sent = fhirBody as unknown as { sample_id: number; modules: string[] }
+    expect(sent.sample_id).toBe(1)
+    expect([...sent.modules].sort()).toEqual([
+      "cancer",
+      "nutrigenomics",
+      "pharmacogenomics",
+    ])
   })
 })
 
