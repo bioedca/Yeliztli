@@ -16,7 +16,7 @@ import userEvent from "@testing-library/user-event"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter } from "react-router-dom"
 import ReportBuilder, {
-  MAX_INLINE_PREVIEW_FINDINGS,
+  MAX_REPORT_FINDINGS,
   MAX_INLINE_PREVIEW_HTML_CHARS,
 } from "@/pages/ReportBuilder"
 import type { FindingsSummaryResponse } from "@/types/findings"
@@ -35,7 +35,7 @@ function renderWithRoute(ui: ReactElement, initialEntries: string[] = ["/"]) {
       </QueryClientProvider>
     )
   }
-  return rtlRender(ui, { wrapper: Wrapper })
+  return { ...rtlRender(ui, { wrapper: Wrapper }), queryClient }
 }
 
 // ── Mock data ──────────────────────────────────────────────────────
@@ -51,17 +51,31 @@ const MOCK_SUMMARY: FindingsSummaryResponse = {
 }
 
 const LARGE_SUMMARY: FindingsSummaryResponse = {
-  total_findings: MAX_INLINE_PREVIEW_FINDINGS + 2,
+  total_findings: MAX_REPORT_FINDINGS + 2,
   modules: [
     {
       module: "rare_variants",
-      count: MAX_INLINE_PREVIEW_FINDINGS + 1,
+      count: MAX_REPORT_FINDINGS + 1,
       max_evidence_level: 1,
       top_finding_text: "Large rare-variant inventory",
     },
     { module: "carrier", count: 1, max_evidence_level: 3, top_finding_text: "CFTR carrier" },
   ],
   high_confidence_findings: [],
+}
+
+const FHIR_ELIGIBLE = {
+  exportable: true,
+  max_observations: 1_000,
+  observation_count: 4,
+  reason: null,
+}
+
+const FHIR_TOO_LARGE = {
+  exportable: false,
+  max_observations: 1_000,
+  observation_count: null,
+  reason: "too_large",
 }
 
 const mockFetch = vi.fn()
@@ -82,6 +96,13 @@ function mockSummaryFetch() {
         ok: true,
         json: async () => MOCK_SUMMARY,
         text: async () => JSON.stringify(MOCK_SUMMARY),
+      }
+    }
+    if (typeof url === "string" && url.includes("/api/export/fhir/eligibility")) {
+      return {
+        ok: true,
+        json: async () => FHIR_ELIGIBLE,
+        text: async () => JSON.stringify(FHIR_ELIGIBLE),
       }
     }
     return { ok: false, status: 404, text: async () => "Not found" }
@@ -112,6 +133,183 @@ describe("ReportBuilder", () => {
 
     expect(screen.getByText("Pharmacogenomics")).toBeInTheDocument()
     expect(screen.getByText("Nutrigenomics")).toBeInTheDocument()
+  })
+
+  it("enables FHIR only after the actual export scope is verified", async () => {
+    mockSummaryFetch()
+    renderWithRoute(<ReportBuilder />, ["/reports?sample_id=1"])
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Export FHIR R4 Bundle")).toBeEnabled()
+    })
+  })
+
+  it("keeps FHIR export enabled while a background eligibility refetch is in flight", async () => {
+    // Gating on `isFetching` disabled the button for the duration of every
+    // background refetch, including the one TanStack Query fires on window
+    // focus, so the button flickered and the "being verified" banner flashed on
+    // each alt-tab. Hold the second request open to prove the enabled state
+    // survives an in-flight refetch; a refetch that fails is a separate case,
+    // covered by the test below.
+    let eligibilityRequests = 0
+    let releaseRefetch: (() => void) | undefined
+    const refetchInFlight = new Promise<void>((resolve) => {
+      releaseRefetch = resolve
+    })
+    mockFetch.mockImplementation(async (url: string) => {
+      if (typeof url === "string" && url.includes("/api/analysis/findings/summary")) {
+        return {
+          ok: true,
+          json: async () => MOCK_SUMMARY,
+          text: async () => JSON.stringify(MOCK_SUMMARY),
+        }
+      }
+      if (typeof url === "string" && url.includes("/api/export/fhir/eligibility")) {
+        eligibilityRequests += 1
+        if (eligibilityRequests > 1) await refetchInFlight
+        return {
+          ok: true,
+          json: async () => FHIR_ELIGIBLE,
+          text: async () => JSON.stringify(FHIR_ELIGIBLE),
+        }
+      }
+      return { ok: false, status: 404, text: async () => "Not found" }
+    })
+    const { queryClient } = renderWithRoute(<ReportBuilder />, ["/reports?sample_id=1"])
+
+    const fhirButton = await screen.findByLabelText("Export FHIR R4 Bundle")
+    await waitFor(() => expect(fhirButton).toBeEnabled())
+
+    const refetch = queryClient.refetchQueries({
+      queryKey: ["fhir-export-eligibility", 1],
+      exact: true,
+    })
+    await waitFor(() => expect(eligibilityRequests).toBe(2))
+
+    // The refetch has not resolved yet: the previous verified result still
+    // stands, so the action must not disappear from under the user.
+    expect(fhirButton).toBeEnabled()
+    expect(
+      screen.queryByText(/FHIR export is disabled while its size is being verified/),
+    ).not.toBeInTheDocument()
+
+    releaseRefetch?.()
+    await refetch
+    expect(fhirButton).toBeEnabled()
+  })
+
+  it("says the bundle will be empty when the sample carries no variants", async () => {
+    // Annotated but nothing carried is a valid zero-Observation bundle, not a
+    // blocked export -- that is the distinction against a never-annotated
+    // sample. It stays downloadable, but the user is told before they download
+    // an empty file rather than after.
+    mockFetch.mockImplementation(async (url: string) => {
+      if (typeof url === "string" && url.includes("/api/analysis/findings/summary")) {
+        return {
+          ok: true,
+          json: async () => MOCK_SUMMARY,
+          text: async () => JSON.stringify(MOCK_SUMMARY),
+        }
+      }
+      if (typeof url === "string" && url.includes("/api/export/fhir/eligibility")) {
+        const eligibility = {
+          exportable: true,
+          max_observations: 1_000,
+          observation_count: 0,
+          reason: null,
+        }
+        return {
+          ok: true,
+          json: async () => eligibility,
+          text: async () => JSON.stringify(eligibility),
+        }
+      }
+      return { ok: false, status: 404, text: async () => "Not found" }
+    })
+    renderWithRoute(<ReportBuilder />, ["/reports?sample_id=1"])
+
+    const fhirButton = await screen.findByLabelText("Export FHIR R4 Bundle")
+    await waitFor(() => expect(fhirButton).toBeEnabled())
+    expect(
+      screen.getByText(
+        /This sample has no carried variants, so the FHIR bundle will contain 0 Observations/,
+      ),
+    ).toBeInTheDocument()
+  })
+
+  it("fails closed when a verified FHIR eligibility result cannot be refreshed", async () => {
+    let eligibilityRequests = 0
+    mockFetch.mockImplementation(async (url: string) => {
+      if (typeof url === "string" && url.includes("/api/analysis/findings/summary")) {
+        return {
+          ok: true,
+          json: async () => MOCK_SUMMARY,
+          text: async () => JSON.stringify(MOCK_SUMMARY),
+        }
+      }
+      if (typeof url === "string" && url.includes("/api/export/fhir/eligibility")) {
+        eligibilityRequests += 1
+        if (eligibilityRequests === 1) {
+          return {
+            ok: true,
+            json: async () => FHIR_ELIGIBLE,
+            text: async () => JSON.stringify(FHIR_ELIGIBLE),
+          }
+        }
+        return { ok: false, status: 503, text: async () => "Unavailable" }
+      }
+      return { ok: false, status: 404, text: async () => "Not found" }
+    })
+    const { queryClient } = renderWithRoute(<ReportBuilder />, ["/reports?sample_id=1"])
+
+    const fhirButton = await screen.findByLabelText("Export FHIR R4 Bundle")
+    await waitFor(() => expect(fhirButton).toBeEnabled())
+
+    await queryClient.refetchQueries({
+      queryKey: ["fhir-export-eligibility", 1],
+      exact: true,
+    })
+
+    expect(eligibilityRequests).toBe(2)
+    await waitFor(() => expect(fhirButton).toBeDisabled())
+    expect(
+      screen.getByText(/FHIR export is disabled because its size could not be verified/),
+    ).toBeInTheDocument()
+  })
+
+  it("keeps FHIR disabled when the sample has no annotated variants", async () => {
+    mockFetch.mockImplementation(async (url: string) => {
+      if (typeof url === "string" && url.includes("/api/analysis/findings/summary")) {
+        return {
+          ok: true,
+          json: async () => MOCK_SUMMARY,
+          text: async () => JSON.stringify(MOCK_SUMMARY),
+        }
+      }
+      if (typeof url === "string" && url.includes("/api/export/fhir/eligibility")) {
+        const eligibility = {
+          exportable: false,
+          max_observations: 1_000,
+          observation_count: 0,
+          reason: "no_annotated_variants",
+        }
+        return {
+          ok: true,
+          json: async () => eligibility,
+          text: async () => JSON.stringify(eligibility),
+        }
+      }
+      return { ok: false, status: 404, text: async () => "Not found" }
+    })
+    renderWithRoute(<ReportBuilder />, ["/reports?sample_id=1"])
+
+    const fhirButton = await screen.findByLabelText("Export FHIR R4 Bundle")
+    await waitFor(() =>
+      expect(
+        screen.getByText(/this sample has no annotated variants. Run annotation first/),
+      ).toBeInTheDocument(),
+    )
+    expect(fhirButton).toBeDisabled()
   })
 
   it("auto-selects all modules on load", async () => {
@@ -208,13 +406,20 @@ describe("ReportBuilder", () => {
     expect(screen.getByLabelText("Close preview")).toBeInTheDocument()
   })
 
-  it("disables inline preview for reports with too many selected findings", async () => {
+  it("blocks every report action until an oversized selection is reduced", async () => {
     mockFetch.mockImplementation(async (url: string) => {
       if (typeof url === "string" && url.includes("/api/analysis/findings/summary")) {
         return { ok: true, json: async () => LARGE_SUMMARY, text: async () => JSON.stringify(LARGE_SUMMARY) }
       }
       if (typeof url === "string" && url.includes("/api/reports/preview")) {
         return { ok: true, text: async () => "<html><body>Too large</body></html>" }
+      }
+      if (typeof url === "string" && url.includes("/api/export/fhir/eligibility")) {
+        return {
+          ok: true,
+          json: async () => FHIR_TOO_LARGE,
+          text: async () => JSON.stringify(FHIR_TOO_LARGE),
+        }
       }
       return { ok: false, status: 404, text: async () => "Not found" }
     })
@@ -223,20 +428,55 @@ describe("ReportBuilder", () => {
     renderWithRoute(<ReportBuilder />, ["/reports?sample_id=1"])
 
     expect(await screen.findByText("Rare Variant Finder")).toBeInTheDocument()
-    expect(screen.getByText(/Inline preview is disabled for reports with more than/)).toBeInTheDocument()
+    expect(
+      screen.getByText(/Report actions are disabled for selections with more than/),
+    ).toBeInTheDocument()
 
     const previewButton = screen.getByLabelText("Preview report")
+    const downloadButton = screen.getByLabelText("Download PDF report")
+    const fhirButton = screen.getByLabelText("Export FHIR R4 Bundle")
     expect(previewButton).toBeDisabled()
-    expect(screen.getByLabelText("Download PDF report")).not.toBeDisabled()
+    expect(downloadButton).toBeDisabled()
+    expect(fhirButton).toBeDisabled()
 
     await user.click(previewButton)
+    await user.click(downloadButton)
+    await user.click(fhirButton)
 
     expect(
       mockFetch.mock.calls.some(
-        ([url]) => typeof url === "string" && url.includes("/api/reports/preview"),
+        ([url]) =>
+          typeof url === "string" &&
+          (url.includes("/api/reports/preview") ||
+            url.includes("/api/reports/generate") ||
+            (url.includes("/api/export/fhir") && !url.includes("/eligibility"))),
       ),
     ).toBe(false)
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+
+    await user.click(
+      screen.getByLabelText(
+        `Rare Variant Finder: ${MAX_REPORT_FINDINGS + 1} findings`,
+      ),
+    )
+
+    expect(
+      screen.queryByText(/Report actions are disabled for selections with more than/),
+    ).not.toBeInTheDocument()
+    expect(previewButton).not.toBeDisabled()
+    expect(downloadButton).not.toBeDisabled()
+    expect(fhirButton).toBeDisabled()
+    expect(
+      screen.getByText(/FHIR export is disabled because it would create more than/),
+    ).toBeInTheDocument()
+    // The FHIR selection is full-sample and ignores the module checkboxes
+    // (#2100), so the banner has to say that reducing the selection will not
+    // help. Without this the copy reads as if the user could act on it.
+    expect(
+      screen.getByText(
+        /covers every carried variant in the sample rather than the modules selected above/,
+      ),
+    ).toBeInTheDocument()
   })
 
   it("does not mount the preview iframe when returned HTML exceeds the inline limit", async () => {
@@ -410,7 +650,7 @@ describe("ReportBuilder", () => {
     expect(screen.getByText("4 findings")).toBeInTheDocument()
   })
 
-  it("disables preview and download buttons when no modules selected", async () => {
+  it("disables report actions but keeps independently verified FHIR enabled with no modules", async () => {
     mockSummaryFetch()
     const user = userEvent.setup()
     renderWithRoute(<ReportBuilder />, ["/reports?sample_id=1"])
@@ -423,6 +663,7 @@ describe("ReportBuilder", () => {
 
     expect(screen.getByLabelText("Preview report")).toBeDisabled()
     expect(screen.getByLabelText("Download PDF report")).toBeDisabled()
+    expect(screen.getByLabelText("Export FHIR R4 Bundle")).toBeEnabled()
   })
 })
 

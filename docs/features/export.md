@@ -16,6 +16,33 @@ Export your data in several formats from the variant table or from
 Exports reflect whatever filters or query you have applied, so you can export a focused
 subset rather than your whole genome.
 
+## Report Builder size safeguards
+
+Report Builder keeps interactive exports within fixed resource limits:
+
+- HTML preview and PDF generation accept at most **1,000 reportable findings**
+  across the selected report modules.
+- FHIR export uses its separate, full-sample carried-variant selection and accepts
+  at most **1,000 `Observation` resources**. The PDF module checkboxes do not
+  change that FHIR selection.
+
+The page disables an action when its selection exceeds the applicable limit.
+The API repeats the same check and returns HTTP 413 before rendering or building
+resources, so direct requests cannot bypass the guard. FHIR export also stays
+disabled when its size cannot be verified or the sample has no annotated variants.
+
+!!! note "FHIR export is currently disabled on a fully annotated sample"
+    Because the FHIR selection covers every carried variant in the sample rather
+    than the modules you selected, a fully annotated consumer array exceeds the
+    1,000-`Observation` limit by a wide margin, and no module selection reduces
+    it. **Export FHIR R4 is therefore disabled on such samples**, and a direct
+    request returns HTTP 413.
+
+    This is the guard working as designed on a selection that has no way to be
+    made smaller. Scoping the FHIR bundle to the selected report modules — which
+    is what makes the limit reachable — is tracked separately; until that lands,
+    use **Download PDF** with a reduced module selection.
+
 !!! warning "The FHIR export is not a clinical diagnostic report"
     The **FHIR R4** export produces a `DiagnosticReport` resource using the standard
     genomics-reporting format, purely for interoperability with research/genomics
