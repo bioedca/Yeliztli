@@ -23,19 +23,68 @@ COPILOT_GATE = "Copilot PR review"
 CODEX_GATE = "Codex @codex review"
 CODERABBIT_GATE = "Manual CodeRabbit reservation and @coderabbitai full review"
 CODERABBIT_V3_GATE = "CodeRabbit structured clean review"
+GREPTILE_GATE = "Greptile clean review check run"
 HUMAN_GATE = "Independent human maintainer review"
 BOT_GATES = (COPILOT_GATE, CODEX_GATE, CODERABBIT_GATE)
 GATES = (*BOT_GATES, HUMAN_GATE)
+# Greptile is a v3-only lane. `BOT_GATES` is shared with the legacy human-gated
+# schema, so adding it there would retroactively demand a fourth evidence row
+# and a fourth reviewer checkbox from every open v2 pull request.
+V3_BOT_GATES = (*BOT_GATES, GREPTILE_GATE)
 AUTOMATED_REVIEW_CHOICES = {
     "Copilot": COPILOT_GATE,
     "Codex": CODEX_GATE,
     "CodeRabbit": CODERABBIT_GATE,
 }
+V3_AUTOMATED_REVIEW_CHOICES = {
+    **AUTOMATED_REVIEW_CHOICES,
+    "Greptile": GREPTILE_GATE,
+}
 BOT_ACTOR_IDS = {
     COPILOT_GATE: 175728472,  # Copilot GitHub App
     CODEX_GATE: 199175422,  # ChatGPT Codex connector GitHub App
     CODERABBIT_GATE: 136622811,  # CodeRabbit GitHub App
+    GREPTILE_GATE: 165735046,  # Greptile GitHub App (`greptile-apps[bot]`)
 }
+# Never match Greptile on a login. A separate ordinary *User* account holds the
+# bare login `greptile-apps` (id 244718400), and GraphQL reports the bot's own
+# login without the `[bot]` suffix, so the two are string-identical there.
+# `greptile[bot]` (id 271099122) is a third, inactive Greptile app.
+GREPTILE_APP_ID = 867647
+GREPTILE_CHECK_RUN_NAME = "Greptile Review"
+# Greptile's own counter, in a fixed template. `M == 0` is the whole clean test:
+# there is no sentence to match and no model-authored flourish to overflow, which
+# is what makes this the only envelope here not keyed on provider prose.
+# The reviewed-file count must be positive. Greptile applies its own path
+# filters, so a pull request whose changed files are all filtered out can report
+# `0 files reviewed, 0 comments added.` — a clean verdict over nothing, which on
+# v3 carries a merge with no human approval behind it.
+GREPTILE_CHECK_SUMMARY = re.compile(
+    r"^Greptile has reviewed the Pull Request\.\n\n"
+    r"(?P<files>[1-9][0-9]*) files? reviewed, "
+    r"(?P<comments>0|[1-9][0-9]*) comments? added\.$"
+)
+# Greptile reads `greptile.json` and `.greptile/` from the pull request's own
+# source branch (#2249), so a pull request can weaken the reviewer that is about
+# to clear it. Trusted `main` protects the validator from that; nothing protects
+# Greptile from it, so the lane refuses to review its own configuration.
+GREPTILE_CONFIG_EXACT = frozenset({"greptile.json"})
+GREPTILE_CONFIG_PREFIXES = (".greptile/",)
+# This repository allows itself 16 Greptile reviews a month, and a re-trigger on
+# every push is the cheapest way to spend them. Two is one review plus one
+# re-review after fixing what it found.
+GREPTILE_PR_REVIEW_CAP = 2
+# Greptile bills completed reviews and says skipped ones don't count; a cancelled
+# run never finished either. Everything else did the work and spent the credit,
+# including a `NEUTRAL` confidence-threshold refusal and an in-flight run that
+# has no conclusion yet, so the count deliberately errs high.
+GREPTILE_UNBILLED_CONCLUSIONS = frozenset({"CANCELLED", "SKIPPED"})
+GREPTILE_LEDGER_UNAVAILABLE = "Greptile per-pull-request check-run ledger is unavailable"
+GREPTILE_LEDGER_TRUNCATED = "commit pagination cannot prove the Greptile per-pull-request budget"
+GREPTILE_LEDGER_FORCE_PUSHED = (
+    "Greptile per-pull-request budget cannot be proven after a force push; "
+    "select another hosted reviewer"
+)
 LOAD_BEARING_EXACT = {
     ".coderabbit.yaml",
     ".gitattributes",
@@ -52,6 +101,7 @@ LOAD_BEARING_EXACT = {
     "contributing.md",
     "dockerfile",
     "governance.md",
+    "greptile.json",
     "license",
     "makefile",
     "notice",
@@ -115,6 +165,10 @@ LOAD_BEARING_NAMES = {
 }
 LOAD_BEARING_PREFIXES = (
     ".github/",
+    # Greptile reads `.greptile/` in preference to the root `greptile.json`, so
+    # a file here can override the manual-only review guard. Without this the
+    # override would ride in on Standard, or on Low for `.greptile/rules.md`.
+    ".greptile/",
     "alembic/",
     "bundles/",
     "data/",
@@ -255,13 +309,44 @@ UTC_RESULT = re.compile(
 )
 TERMINAL_REVIEW_STATES = {"APPROVED", "COMMENTED"}
 HUMAN_ASSOCIATIONS = {"OWNER", "MEMBER", "COLLABORATOR"}
-COPILOT_V3_FINDINGS_BODY = re.compile(
-    r"\A## Copilot's findings\n"
-    r"(?:\n){5,6}"
-    r"- \*\*Files reviewed:\*\* "
-    r"(?P<reviewed>[1-9][0-9]*)/(?P<total>[1-9][0-9]*) changed files\n"
-    r"- \*\*Comments generated:\*\* 0 new\n\n\Z"
+# Copilot's review body is the ONLY thing distinguishing a review that found
+# nothing from one that never ran: a quota refusal is also a COMMENTED review
+# with zero attached comments, from the same authenticated app, immutable and
+# exact-head. 42 of the 46 Copilot submissions this repository has received are
+# that refusal, so accepting on authenticated fields alone would accept them.
+#
+# Exactly one thing is therefore read from the body — the coverage sentence
+# Copilot closes with — and nothing about where it sits. An earlier revision of
+# this envelope tried to bind it to Copilot's "### Reviewed changes" section, to
+# stop a pull request whose own files contain the sentence from inducing Copilot
+# to echo it. Holding that line meant deciding where the section ended, which
+# meant modelling every construct GitHub renders as a break: ATX and Setext
+# headings, <h2>, <hr>, </details>, blockquoted and list-item headings, then
+# unpaired closing tags, inline code spans, autolinks, <?processing ?> and
+# <![CDATA[]]>. That is a CommonMark and raw-HTML parser, arrived at one review
+# finding at a time, and each addition was a fresh chance to reject a real
+# review — one already did (#2248 review rounds 3-10).
+#
+# The file counts are deliberately NOT compared against changedFiles any more.
+# They were only ever asserted in that same prose, so a count taken from it is
+# not a stronger guarantee than the prose itself; keeping the comparison bought
+# no trust while forcing the parser that caused the churn. What remains is the
+# provider-authored `no comments` verdict, occurring exactly once so an echo
+# cannot sit alongside the real footer, on top of GitHub's own authenticated
+# attached-comment count. Trailing whitespace is tolerated because markdown
+# treats it as insignificant and rejecting on it would kill the lane over
+# something invisible.
+COPILOT_V3_COVERAGE_LINE = re.compile(
+    r"(?m)^Copilot reviewed (?P<reviewed>[1-9][0-9]*) out of (?P<total>[1-9][0-9]*) "
+    r"changed files in this pull request and generated "
+    r"(?P<verdict>no comments|[1-9][0-9]* comments?)\.[ \t]*$"
 )
+COPILOT_V3_CLEAN_VERDICT = "no comments"
+# Copilot can withhold low-confidence findings instead of posting them, and a
+# withheld finding never becomes an attached comment. There is deliberately no
+# prose scan for that: Copilot paraphrases the diff it read, so any pattern wide
+# enough to catch the wording variants also rejects a clean review of a change
+# that merely discusses suppression. Tracked in #2256.
 CODEX_CLEAN_COMPLETION_PREFIX = "Codex Review: Didn't find any major issues."
 CODEX_CLEAN_COMPLETION_MARKER = f"{CODEX_CLEAN_COMPLETION_PREFIX} What shall we delve into next?"
 CODEX_CLEAN_COMPLETION_LINE = re.compile(
@@ -288,13 +373,59 @@ FINALIZE_COMMAND = "/validate-route"
 
 
 def _gates_for_schema(schema_version: int | None) -> tuple[str, ...]:
-    return BOT_GATES if schema_version == 3 else GATES
+    return V3_BOT_GATES if schema_version == 3 else GATES
 
 
 def _gate_labels_for_schema(schema_version: int | None) -> tuple[str, ...]:
     if schema_version == 3:
-        return (COPILOT_GATE, CODEX_GATE, CODERABBIT_V3_GATE)
+        return (COPILOT_GATE, CODEX_GATE, CODERABBIT_V3_GATE, GREPTILE_GATE)
     return GATES
+
+
+def _review_choices_for_schema(schema_version: int | None) -> dict[str, str]:
+    return V3_AUTOMATED_REVIEW_CHOICES if schema_version == 3 else AUTOMATED_REVIEW_CHOICES
+
+
+def _changes_greptile_config(files: list[ChangedFile]) -> bool:
+    """Whether the diff can alter the configuration Greptile reviews under."""
+    for changed in files:
+        for path in (changed.filename, changed.previous_filename):
+            if not path:
+                continue
+            # `lstrip("./")` would strip the leading dot of `.greptile/`.
+            lowered = path.lower().removeprefix("./")
+            if lowered in GREPTILE_CONFIG_EXACT or lowered.startswith(GREPTILE_CONFIG_PREFIXES):
+                return True
+    return False
+
+
+def _is_optional_gate(gate: str, schema_version: int | None) -> bool:
+    """Whether a gate may be absent from an otherwise valid body of this schema.
+
+    Greptile joined schema v3 after v3 pull requests were already open. Making
+    its checkbox and evidence row mandatory would have broken the route on every
+    one of them the moment the lane merged, and each body edit needed to repair
+    one re-pends that route and spends a fresh hosted review. A body written
+    against the three-provider template stays valid; it simply cannot select
+    Greptile.
+    """
+    return schema_version == 3 and gate == GREPTILE_GATE
+
+
+def _present_gates(
+    schema_version: int | None, evidence: dict[str, Any]
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Return the gates and labels this particular body is required to carry."""
+    kept = [
+        (gate, label)
+        for gate, label in zip(
+            _gates_for_schema(schema_version),
+            _gate_labels_for_schema(schema_version),
+            strict=True,
+        )
+        if not _is_optional_gate(gate, schema_version) or gate in evidence
+    ]
+    return tuple(gate for gate, _ in kept), tuple(label for _, label in kept)
 
 
 @dataclass(frozen=True)
@@ -848,9 +979,16 @@ def _rendered_route_errors(
         )
 
     checklist_nodes = section_roots[:-1]
-    expected_checklist_sizes = (
-        [6] if schema_version in {2, 3} and combined_groups else [3] * len(checklist_nodes)
-    )
+    # The rendered controls must match the source body this was parsed from,
+    # which on v3 may or may not carry the optional Greptile pair.
+    present_gates, present_labels = _present_gates(schema_version, evidence)
+    provider_count = sum(1 for gate in present_gates if gate != HUMAN_GATE)
+    if schema_version in {2, 3} and combined_groups:
+        expected_checklist_sizes = [3 + provider_count]
+    elif schema_version in {2, 3}:
+        expected_checklist_sizes = [3, provider_count]
+    else:
+        expected_checklist_sizes = [3] * len(checklist_nodes)
     if any(
         not exact_checklist(node, expected_count)
         for node, expected_count in zip(
@@ -881,19 +1019,24 @@ def _rendered_route_errors(
         return [RENDERED_ROUTE_ERROR]
 
     if schema_version in {2, 3}:
-        provider_labels = ["Copilot", "Codex", "CodeRabbit"]
+        choices = {
+            label: gate
+            for label, gate in _review_choices_for_schema(schema_version).items()
+            if gate in present_gates
+        }
+        provider_labels = list(choices)
         provider_checkboxes = (
             first_checkboxes[3:] if combined_groups else section_roots[1]["checkboxes"]
         )
         checked_providers = task_rows(provider_checkboxes, provider_labels)
         if checked_providers is None:
             return [RENDERED_ROUTE_ERROR]
-        gate_to_label = {
-            COPILOT_GATE: "Copilot",
-            CODEX_GATE: "Codex",
-            CODERABBIT_GATE: "CodeRabbit",
-        }
-        expected_providers = [gate_to_label[gate] for gate in BOT_GATES if gate in selected_bots]
+        gate_to_label = {gate: label for label, gate in choices.items()}
+        expected_providers = [
+            gate_to_label[gate]
+            for gate in _gates_for_schema(schema_version)
+            if gate in selected_bots and gate in gate_to_label
+        ]
         if checked_providers != expected_providers:
             return [RENDERED_ROUTE_ERROR]
 
@@ -938,8 +1081,8 @@ def _rendered_route_errors(
         "Head SHA or N/A",
         "UTC time and status, or N/A",
     ]
-    expected_gates = _gates_for_schema(schema_version)
-    expected_labels = _gate_labels_for_schema(schema_version)
+    expected_gates = present_gates
+    expected_labels = present_labels
     if (
         len(rendered_rows) != len(expected_gates) + 1
         or rendered_rows[0] != header
@@ -1053,19 +1196,29 @@ def _parse_route_section(
 
     selected_bots: list[str] = []
     if schema_version in {2, 3}:
+        choices = _review_choices_for_schema(schema_version)
+        # Longest-first so `Codex` cannot shadow a longer name sharing its prefix.
+        alternation = "|".join(sorted(map(re.escape, choices), key=len, reverse=True))
         reviewer_rows = re.findall(
-            r"(?m)^[ ]{0,3}- \[([ xX])\] (Copilot|Codex|CodeRabbit)\b",
+            rf"(?m)^[ ]{{0,3}}- \[([ xX])\] ({alternation})\b",
             section,
         )
-        reviewer_counts = {name: 0 for name in AUTOMATED_REVIEW_CHOICES}
+        reviewer_counts = {name: 0 for name in choices}
         for mark, name in reviewer_rows:
             reviewer_counts[name] += 1
             if mark.lower() == "x":
-                selected_bots.append(AUTOMATED_REVIEW_CHOICES[name])
-        if any(count != 1 for count in reviewer_counts.values()):
+                selected_bots.append(choices[name])
+        if any(
+            count > 1 if _is_optional_gate(choices[name], schema_version) else count != 1
+            for name, count in reviewer_counts.items()
+        ):
             errors.append("expected each automated reviewer checkbox exactly once")
 
-    expected = set(_gates_for_schema(schema_version))
+    expected = {
+        gate
+        for gate in _gates_for_schema(schema_version)
+        if not _is_optional_gate(gate, schema_version)
+    }
     label_to_gate = dict(
         zip(
             _gate_labels_for_schema(schema_version),
@@ -1096,7 +1249,11 @@ def _parse_route_section(
                 head=cells[2],
                 status=cells[3],
             )
-    missing = expected - evidence.keys()
+    # An optional gate is only optional while it is unused. Selecting it without
+    # supplying its evidence row would otherwise leave the selection unprovable.
+    missing = (expected | {gate for gate in selected_bots if gate not in expected}) - (
+        evidence.keys()
+    )
     if missing:
         errors.append(
             "missing review evidence rows: "
@@ -1152,12 +1309,8 @@ def _v3_provenance_errors(
     exact_head = fields.get("Exact head SHA", "")
     if (exact_head or not allow_blank) and exact_head.lower() != head_sha.lower():
         errors.append("v3 provenance head does not match the current head SHA")
-    provider_labels = {
-        COPILOT_GATE: "Copilot",
-        CODEX_GATE: "Codex",
-        CODERABBIT_GATE: "CodeRabbit",
-    }
-    expected_provider = provider_labels[selected_bots[0]] if len(selected_bots) == 1 else None
+    provider_labels = {gate: label for label, gate in V3_AUTOMATED_REVIEW_CHOICES.items()}
+    expected_provider = provider_labels.get(selected_bots[0]) if len(selected_bots) == 1 else None
     selected_provider = fields.get("Selected hosted reviewer", "")
     if (selected_provider or not allow_blank) and (
         expected_provider is None or selected_provider != expected_provider
@@ -1266,12 +1419,12 @@ def _v3_formal_review_is_clean(
     if isinstance(changed_files, bool) or not isinstance(changed_files, int) or changed_files <= 0:
         return False
     if gate == COPILOT_GATE:
-        match = COPILOT_V3_FINDINGS_BODY.fullmatch(body)
-        return (
-            match is not None
-            and int(match.group("reviewed")) == changed_files
-            and int(match.group("total")) == changed_files
-        )
+        # Fenced/indented code and HTML comments are blanked first, so a
+        # sentence quoted in either cannot be read as the verdict. Position is
+        # not considered at all — see the note on COPILOT_V3_COVERAGE_LINE for
+        # why locating it structurally was abandoned.
+        coverage = list(COPILOT_V3_COVERAGE_LINE.finditer(_visible_markdown(body)))
+        return len(coverage) == 1 and coverage[0].group("verdict") == COPILOT_V3_CLEAN_VERDICT
     if gate != CODERABBIT_GATE:
         return False
     actionable = list(CODERABBIT_ACTIONABLE_COUNT.finditer(body))
@@ -1292,6 +1445,232 @@ def _v3_formal_review_is_clean(
         and body.count("Files selected for processing") == 1
         and int(selected[0].group("count")) == changed_files
     )
+
+
+def _greptile_check_runs(commit: Any) -> tuple[list[dict[str, Any]], bool]:
+    """Return Greptile's check runs on a commit, and whether the view is complete."""
+    if not isinstance(commit, dict) or commit.get("__typename") != "Commit":
+        return [], False
+    suites = commit.get("checkSuites")
+    if not isinstance(suites, dict):
+        return [], False
+    suite_nodes = suites.get("nodes")
+    suite_total = suites.get("totalCount")
+    if (
+        not isinstance(suite_nodes, list)
+        or isinstance(suite_total, bool)
+        or not isinstance(suite_total, int)
+        or suite_total > len(suite_nodes)
+    ):
+        return [], False
+    runs: list[dict[str, Any]] = []
+    for suite in suite_nodes:
+        if not isinstance(suite, dict):
+            return [], False
+        app = suite.get("app")
+        # The server-side app filter only narrows the page; identity is decided
+        # here, on the authenticated app id, exactly as bot reviews are.
+        if not isinstance(app, dict) or app.get("databaseId") != GREPTILE_APP_ID:
+            continue
+        check_runs = suite.get("checkRuns")
+        if not isinstance(check_runs, dict):
+            return [], False
+        run_nodes = check_runs.get("nodes")
+        run_total = check_runs.get("totalCount")
+        if (
+            not isinstance(run_nodes, list)
+            or isinstance(run_total, bool)
+            or not isinstance(run_total, int)
+            or run_total > len(run_nodes)
+        ):
+            return [], False
+        # A non-dictionary node still counts toward `totalCount`, so silently
+        # dropping one would let the length check agree while a billed run went
+        # unseen. Anything unreadable makes the whole view unproven.
+        if any(not isinstance(run, dict) for run in run_nodes):
+            return [], False
+        runs.extend(run_nodes)
+    return runs, True
+
+
+def _greptile_run_is_clean(run: dict[str, Any]) -> bool:
+    """A completed Greptile run that added no comments.
+
+    ``conclusion`` alone is never the verdict: a review that reported
+    ``7 files reviewed, 3 comments added.`` on this repository's PR #2203 still
+    concluded ``SUCCESS``. Cleanliness is the counter, and the conclusion is
+    required on top of it so a confidence-threshold failure cannot pass.
+    """
+    if run.get("status") != "COMPLETED" or run.get("conclusion") != "SUCCESS":
+        return False
+    if run.get("name") != GREPTILE_CHECK_RUN_NAME:
+        return False
+    summary = run.get("summary")
+    if not isinstance(summary, str):
+        return False
+    match = GREPTILE_CHECK_SUMMARY.fullmatch(summary)
+    # The reviewed-file count is deliberately not compared against GitHub's
+    # changed-file count. It is asserted in the same generated string as the
+    # verdict, so comparing them buys no trust (#2248), and Greptile's own path
+    # filters make a smaller count legitimate.
+    return match is not None and match.group("comments") == "0"
+
+
+def _greptile_activity(
+    repository: dict[str, Any],
+    head_epoch: datetime,
+) -> datetime | None:
+    """Read Greptile's verdict from the check run GitHub binds to the head commit.
+
+    Greptile publishes three artifacts and only this one can carry a clean
+    verdict:
+
+    * The **formal review** exists only when Greptile has findings. Of 429
+      reviews sampled across four repositories, 427 carried at least one inline
+      comment and an empty body, and the only two carrying zero comments carried
+      its "Your free trial has ended" billing notice. Reading
+      ``comments.totalCount == 0`` as clean would therefore accept a refusal to
+      review as a passing gate — the #2248/#2256 failure mode.
+    * The **summary issue comment** is edited in place on every re-review, so it
+      fails the immutability rule every other provider's envelope is held to.
+    * The **check run** is bound to ``head_sha`` by GitHub rather than
+      self-reported, is attributable to the app by id, and carries Greptile's own
+      counter in a fixed template.
+    """
+    runs, complete = _greptile_check_runs(repository.get("greptileHeadObject"))
+    if not complete or not runs:
+        return None
+    completions: list[tuple[datetime, dict[str, Any]]] = []
+    for run in runs:
+        completed_at = run.get("completedAt")
+        if not isinstance(completed_at, str):
+            return None
+        try:
+            when = _parse_utc(completed_at)
+        except ValueError:
+            return None
+        if when > head_epoch:
+            completions.append((when, run))
+    if not completions:
+        return None
+    latest = max(when for when, _ in completions)
+    if not all(_greptile_run_is_clean(run) for when, run in completions if when == latest):
+        return None
+    return latest
+
+
+def _greptile_run_is_billed(run: dict[str, Any]) -> bool:
+    """A Greptile run that consumed a review credit.
+
+    Cleanliness is irrelevant here — a review that finds nothing costs the same
+    as one that finds a bug. So is completion: an in-flight run has already been
+    triggered and already committed the credit, and carries no conclusion yet.
+
+    The name is checked because app 867647 is free to publish other check runs
+    and each would inflate the count. It is checked *in addition to* the app id
+    that `_greptile_check_runs` pins, never instead of it: any app holding
+    `checks: write` can publish a run called `Greptile Review`.
+    """
+    if run.get("name") != GREPTILE_CHECK_RUN_NAME:
+        return False
+    return run.get("conclusion") not in GREPTILE_UNBILLED_CONCLUSIONS
+
+
+def _greptile_run_spent_at(run: dict[str, Any]) -> datetime | None:
+    """When a run spent its credit, or ``None`` if that cannot be established.
+
+    ``startedAt`` first, because the credit is committed when the review is
+    triggered rather than when it finishes. Preferring ``completedAt`` would
+    charge a stacked child pull request for a run that began on its parent and
+    only finished after the child was opened.
+    """
+    for key in ("startedAt", "completedAt"):
+        value = run.get(key)
+        if value is None:
+            continue
+        if not isinstance(value, str):
+            return None
+        try:
+            return _parse_utc(value)
+        except ValueError:
+            return None
+    return None
+
+
+def _greptile_pr_budget_errors(
+    repository: dict[str, Any],
+    pull_request: dict[str, Any],
+) -> list[str]:
+    """Refuse the lane once this pull request has spent its Greptile allowance.
+
+    Greptile leaves exactly one artifact that is one-to-one with a billed credit:
+    the check run. A clean review posts no formal review and no comment, and the
+    summary comment it does post for a dirty one is edited in place, so neither
+    can be counted. Check runs live on the commit that was reviewed, which is why
+    this reads the pull request's own commits rather than only its head.
+
+    The count is bounded and provable, unlike a repository-wide one: every input
+    is a `totalCount` this query can compare against its own page.
+    """
+    force_pushes = (pull_request.get("timelineItems") or {}).get("nodes") or []
+    if force_pushes:
+        # A force push drops commits from this connection and takes their billed
+        # runs with them, leaving no truncation for the guards below to catch.
+        return [GREPTILE_LEDGER_FORCE_PUSHED]
+    commits = pull_request.get("greptileCommits")
+    if not isinstance(commits, dict):
+        return [GREPTILE_LEDGER_UNAVAILABLE]
+    nodes = commits.get("nodes")
+    total = commits.get("totalCount")
+    if (
+        not isinstance(nodes, list)
+        or isinstance(total, bool)
+        or not isinstance(total, int)
+        or total > len(nodes)
+    ):
+        return [GREPTILE_LEDGER_TRUNCATED]
+    created_raw = pull_request.get("createdAt")
+    if not isinstance(created_raw, str):
+        return [GREPTILE_LEDGER_TRUNCATED]
+    try:
+        created_at = _parse_utc(created_raw)
+    except ValueError:
+        return [GREPTILE_LEDGER_TRUNCATED]
+
+    views: list[Any] = [repository.get("greptileHeadObject")]
+    views.extend(node.get("commit") if isinstance(node, dict) else None for node in nodes)
+    # Deduplicate on the global node id, not `databaseId`. The schema declares
+    # `CheckRun.databaseId` a nullable 32-bit `Int` while GitHub returns values
+    # far past that range (91710286922 on PR #2203), so a future spec-compliant
+    # null there would refuse every Greptile lane. `id` is `ID!` — non-null by
+    # schema — and equally unique. `CheckRun` has no `fullDatabaseId`.
+    billed: set[str] = set()
+    for view in views:
+        runs, complete = _greptile_check_runs(view)
+        if not complete:
+            return [GREPTILE_LEDGER_TRUNCATED]
+        for run in runs:
+            if not _greptile_run_is_billed(run):
+                continue
+            spent_at = _greptile_run_spent_at(run)
+            if spent_at is None:
+                # A run that cannot be placed in time cannot be proven to belong
+                # to another pull request either.
+                return [GREPTILE_LEDGER_TRUNCATED]
+            if spent_at < created_at:
+                # A stacked branch inherits its parent's commits; those reviews
+                # were charged to the parent pull request, not to this one.
+                continue
+            run_id = run.get("id")
+            if not isinstance(run_id, str) or not run_id:
+                return [GREPTILE_LEDGER_TRUNCATED]
+            billed.add(run_id)
+    if len(billed) > GREPTILE_PR_REVIEW_CAP:
+        return [
+            "Greptile per-pull-request review budget exceeded: "
+            f"{len(billed)} > {GREPTILE_PR_REVIEW_CAP}"
+        ]
+    return []
 
 
 def _bot_activity(
@@ -2003,15 +2382,26 @@ def validate_context(
     for gate, actor_id in BOT_ACTOR_IDS.items():
         if gate not in required:
             continue
-        activity = _bot_activity(
-            pull_request,
-            gate,
-            actor_id,
-            head_sha,
-            head_epoch,
-            codex_head_safe,
-            schema_version,
-        )
+        if gate == GREPTILE_GATE:
+            # Greptile's only clean artifact is a check run, not a review or a
+            # comment, so it does not go through `_bot_activity`.
+            if _changes_greptile_config(files):
+                errors.append(
+                    "Greptile cannot review a change to its own configuration; "
+                    "select another hosted reviewer"
+                )
+                continue
+            activity = _greptile_activity(repository, head_epoch)
+        else:
+            activity = _bot_activity(
+                pull_request,
+                gate,
+                actor_id,
+                head_sha,
+                head_epoch,
+                codex_head_safe,
+                schema_version,
+            )
         if activity is None:
             errors.append(f"no verified current-head GitHub activity for: {gate}")
         else:
@@ -2036,6 +2426,9 @@ def validate_context(
             errors.append(
                 f"declared evidence time does not match verified GitHub activity: {gate}"
             )
+
+    if schema_version == 3 and GREPTILE_GATE in required:
+        errors.extend(_greptile_pr_budget_errors(repository, pull_request))
 
     if schema_version == 2 and selected_bots == [CODERABBIT_GATE] and CODERABBIT_GATE in observed:
         errors.extend(

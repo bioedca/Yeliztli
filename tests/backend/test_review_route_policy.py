@@ -22,10 +22,14 @@ from scripts.validate_review_route import (
     CODEX_TRIGGER,
     COPILOT_GATE,
     GATES,
+    GREPTILE_APP_ID,
+    GREPTILE_CHECK_RUN_NAME,
+    GREPTILE_GATE,
     HUMAN_GATE,
     LEGACY_SCHEMA_MARKER,
     RENDERED_ROUTE_ERROR,
     SCHEMA_MARKER,
+    V3_BOT_GATES,
     ChangedFile,
     _expected_snapshot_body,
     _merge_review_pages,
@@ -48,6 +52,7 @@ GATE_TIMES = {
     COPILOT_GATE: "2026-07-21T12:10:00Z",
     CODEX_GATE: "2026-07-21T12:20:00Z",
     CODERABBIT_GATE: "2026-07-21T12:30:00Z",
+    GREPTILE_GATE: "2026-07-21T12:35:00Z",
     HUMAN_GATE: "2026-07-21T12:40:00Z",
 }
 DEFAULT_AUTOMATED_GATE = {
@@ -111,11 +116,35 @@ def _review(
 
 
 def _copilot_v3_body(changed_files: int, *, generated_comments: int = 0) -> str:
+    """Reproduce the body Copilot actually posts.
+
+    Shape taken from the four substantive Copilot reviews this repository has
+    received: PRs #2183 (8/8, 1 comment), #2235 (21/22, no comments), #2237
+    (2/2, 1 comment) and #2238 (15/15, 2 comments). The prose overview, the
+    "**Changes:**" list and the per-file table are all present in the real
+    thing, so they must not break acceptance.
+    """
+    if generated_comments == 0:
+        verdict = "no comments"
+    elif generated_comments == 1:
+        verdict = "1 comment"
+    else:
+        verdict = f"{generated_comments} comments"
     return (
-        "## Copilot's findings"
-        + "\n" * 7
-        + f"- **Files reviewed:** {changed_files}/{changed_files} changed files\n"
-        + f"- **Comments generated:** {generated_comments} new\n\n"
+        "## Pull request overview\n\n"
+        "This PR adjusts the documented contract so the shipped behaviour and the\n"
+        "documentation agree.\n\n"
+        "**Changes:**\n"
+        "- Restates the contract to match what the validator enforces.\n\n"
+        "### Reviewed changes\n\n"
+        f"Copilot reviewed {changed_files} out of {changed_files} changed files in this "
+        f"pull request and generated {verdict}.\n\n"
+        "<details>\n"
+        "<summary>Show a summary per file</summary>\n\n"
+        "| File | Description |\n"
+        "| ---- | ----------- |\n"
+        "| `README.md` | Restates the contract. |\n\n"
+        "</details>\n\n\n\n"
     )
 
 
@@ -220,6 +249,84 @@ def _use_codex_clean_comment(
     return trigger, response
 
 
+def _greptile_check_run(
+    *,
+    files_reviewed: int = 3,
+    comments_added: int = 0,
+    status: str = "COMPLETED",
+    conclusion: str = "SUCCESS",
+    completed_at: str | None = GATE_TIMES[GREPTILE_GATE],
+    started_at: str | None = None,
+    name: str = GREPTILE_CHECK_RUN_NAME,
+    summary: str | None = None,
+    database_id: int = 91710286922,
+) -> dict[str, object]:
+    """Reproduce the check run Greptile actually publishes.
+
+    Template taken from 2341 live `Greptile Review` check runs across 55 public
+    repositories: the nouns stay plural at one, and the counter is the only part
+    that varies.
+
+    ``database_id`` is a parameter because the budget count deduplicates on it:
+    two runs sharing one id are one credit, and a fixture that always reused the
+    same id could never tell a real double spend from a double sighting.
+    """
+    if summary is None:
+        summary = (
+            "Greptile has reviewed the Pull Request.\n\n"
+            f"{files_reviewed} files reviewed, {comments_added} comments added."
+        )
+    return {
+        # `id` is `ID!`; `databaseId` is a nullable 32-bit `Int` that GitHub
+        # already overflows, so the count keys on `id` and never on `databaseId`.
+        "id": f"CR_kwDOtest{database_id}",
+        "databaseId": database_id,
+        "name": name,
+        "status": status,
+        "conclusion": conclusion,
+        "summary": summary,
+        "startedAt": started_at if started_at is not None else completed_at,
+        "completedAt": completed_at,
+    }
+
+
+def _greptile_head_object(runs: list[dict[str, object]] | None = None) -> dict[str, object]:
+    if runs is None:
+        runs = [_greptile_check_run()]
+    return {
+        "__typename": "Commit",
+        "oid": HEAD_SHA,
+        "checkSuites": {
+            "totalCount": 1,
+            "nodes": [
+                {
+                    "app": {"__typename": "App", "databaseId": GREPTILE_APP_ID},
+                    "checkRuns": {"totalCount": len(runs), "nodes": runs},
+                }
+            ],
+        },
+    }
+
+
+def _greptile_commits(
+    commit_runs: list[list[dict[str, object]]] | None = None,
+    *,
+    total_count: int | None = None,
+) -> dict[str, object]:
+    """The pull request's own commits, each carrying the Greptile runs it spent.
+
+    Defaults to a single commit holding the same run the head object holds, so a
+    context that has not opted into a budget scenario spends exactly one credit.
+    """
+    if commit_runs is None:
+        commit_runs = [[_greptile_check_run()]]
+    nodes = [{"commit": _greptile_head_object(runs)} for runs in commit_runs]
+    return {
+        "totalCount": len(nodes) if total_count is None else total_count,
+        "nodes": nodes,
+    }
+
+
 def _add_coderabbit_completion(context: dict[str, object], submitted_at: str) -> dict[str, object]:
     review = _review(
         BOT_ACTOR_IDS[CODERABBIT_GATE],
@@ -251,16 +358,14 @@ def _body(
         CODEX_GATE: "Codex",
         CODERABBIT_GATE: "CodeRabbit",
     }
+    if schema_version == 3:
+        reviewer_labels[GREPTILE_GATE] = "Greptile"
     selected_provider = next(
-        (
-            reviewer_labels[gate]
-            for gate in (COPILOT_GATE, CODEX_GATE, CODERABBIT_GATE)
-            if gate in selected_bots
-        ),
+        (reviewer_labels[gate] for gate in reviewer_labels if gate in selected_bots),
         "",
     )
     rows = []
-    evidence_gates = GATES if schema_version == 2 else tuple(GATES[:-1])
+    evidence_gates = GATES if schema_version == 2 else V3_BOT_GATES
     for gate in evidence_gates:
         label = (
             "CodeRabbit structured clean review"
@@ -326,21 +431,24 @@ def _rendered_route_html(
         f'<li><input type="checkbox"{" checked" if name == route else ""}> {name} — route</li>'
         for name in ("Low", "Standard", "Load-bearing")
     )
+    provider_labels = [
+        (COPILOT_GATE, "Copilot"),
+        (CODEX_GATE, "Codex"),
+        (CODERABBIT_GATE, "CodeRabbit"),
+    ]
+    if schema_version == 3:
+        provider_labels.append((GREPTILE_GATE, "Greptile"))
     provider_items = "".join(
         f'<li><input type="checkbox"{" checked" if gate in selected_bots else ""}> '
         f"{label} — automated review</li>"
-        for gate, label in (
-            (COPILOT_GATE, "Copilot"),
-            (CODEX_GATE, "Codex"),
-            (CODERABBIT_GATE, "CodeRabbit"),
-        )
+        for gate, label in provider_labels
     )
     provider_group = f"<ul>{provider_items}</ul>" if schema_version in {2, 3} else ""
     required = set(selected_bots)
     if schema_version != 3:
         required.add(HUMAN_GATE)
     evidence_rows = []
-    evidence_gates = tuple(GATES[:-1]) if schema_version == 3 else GATES
+    evidence_gates = V3_BOT_GATES if schema_version == 3 else GATES
     for gate in evidence_gates:
         label = (
             "CodeRabbit structured clean review"
@@ -469,6 +577,7 @@ def _context(
         "state": "OPEN",
         "updatedAt": PR_UPDATED_AT,
         "commits": {"nodes": [{"commit": {"committedDate": COMMITTED_AT}}]},
+        "greptileCommits": _greptile_commits(),
         "timelineItems": {"nodes": []},
         "reviews": {"totalCount": len(reviews), "nodes": reviews},
         "latestHumanOpinions": {"totalCount": 1, "nodes": [human_review]},
@@ -483,6 +592,7 @@ def _context(
                     "oid": HEAD_SHA,
                     "abbreviatedOid": HEAD_SHA[:7],
                 },
+                "greptileHeadObject": _greptile_head_object(),
                 "pullRequest": pull_request,
                 "openPullRequests": {
                     "totalCount": 1,
@@ -655,7 +765,7 @@ def test_v2_review_providers_are_interchangeable(route: str, path: str, gate: st
     assert validate_context(context, files, now=NOW) == []
 
 
-@pytest.mark.parametrize("gate", [COPILOT_GATE, CODEX_GATE, CODERABBIT_GATE])
+@pytest.mark.parametrize("gate", [COPILOT_GATE, CODEX_GATE, CODERABBIT_GATE, GREPTILE_GATE])
 def test_v3_accepts_one_clean_trusted_provider_without_human_approval(gate: str) -> None:
     files = [ChangedFile("README.md")]
     context = _context(
@@ -892,12 +1002,36 @@ def test_v3_provider_evidence_is_exact_head_immutable_and_nonblocking(mutation: 
 @pytest.mark.parametrize(
     "body",
     [
-        _copilot_v3_body(2).replace("2/2", "1/2"),
+        # THE critical case: a quota refusal is also a COMMENTED review with
+        # zero attached comments from the authenticated Copilot app, so the
+        # body is the only thing that separates "reviewed, found nothing" from
+        # "never ran". 42 of the 46 Copilot submissions this repository has
+        # received are exactly this.
+        "Copilot was unable to review this pull request because the user who "
+        "requested the review has reached their quota limit.",
+        # Copilot found something; a review with findings is not clean.
         _copilot_v3_body(2, generated_comments=1),
+        _copilot_v3_body(2, generated_comments=2),
+        # Quoted rather than asserted. _visible_markdown blanks fenced and
+        # indented code and strips HTML comments before anything is matched.
+        "## O\n\n### Reviewed changes\n\n```\nCopilot reviewed 2 out of 2 changed "
+        "files in this pull request and generated no comments.\n```\n",
+        "## O\n\n### Reviewed changes\n\n<!--\nCopilot reviewed 2 out of 2 changed "
+        "files in this pull request and generated no comments.\n-->\n",
+        "## O\n\n### Reviewed changes\n\n    Copilot reviewed 2 out of 2 changed "
+        "files in this pull request and generated no comments.\n",
+        # An echo cannot sit alongside the real footer: two occurrences is
+        # ambiguous about which one Copilot asserted, so neither is trusted.
+        _copilot_v3_body(2) + _copilot_v3_body(2),
+        # The dead pre-#2248 shape, which Copilot never emitted.
+        "## Copilot's findings"
+        + "\n" * 7
+        + "- **Files reviewed:** 2/2 changed files\n"
+        + "- **Comments generated:** 0 new\n\n",
         "No findings.",
     ],
 )
-def test_v3_copilot_requires_its_concise_exhaustive_zero_comment_envelope(body: str) -> None:
+def test_v3_copilot_rejects_anything_but_a_clean_coverage_verdict(body: str) -> None:
     files = [ChangedFile("README.md"), ChangedFile("GOVERNANCE.md")]
     context = _context(
         "Load-bearing",
@@ -916,6 +1050,89 @@ def test_v3_copilot_requires_its_concise_exhaustive_zero_comment_envelope(body: 
         files,
         now=NOW,
     )
+
+
+# Copied from the real Copilot review on PR #2238 (review 4839198937, head
+# 821266907d) with the verdict set to the clean case. Nothing else is reshaped.
+REAL_COPILOT_CLEAN_BODY = """## Pull request overview
+
+This PR fixes a scientific-validity defect in the MONDO/HPO ingestion pipeline \
+by preserving HPO annotations at their source-disease scope.
+
+**Changes:**
+- Reworks MONDO/HPO ingestion to keep HPO terms disease-scoped.
+
+### Reviewed changes
+
+Copilot reviewed 2 out of 2 changed files in this pull request and generated \
+no comments.
+
+<details>
+<summary>Show a summary per file</summary>
+
+| File | Description |
+| ---- | ----------- |
+| `README.md` | Updates the contract description. |
+
+</details>
+
+
+
+
+"""
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        REAL_COPILOT_CLEAN_BODY,
+        # Position is not read, so none of these matter: no heading at all, the
+        # sentence wrapped in raw HTML, a Setext rule after it, prose that
+        # repeats the phrase, or insignificant trailing whitespace and CRLF.
+        "## O\n\nCopilot reviewed 2 out of 2 changed files in this pull request and "
+        "generated no comments.\n",
+        "## O\n\n<pre>\nCopilot reviewed 2 out of 2 changed files in this pull request "
+        "and generated no comments.\n</pre>\n",
+        "## O\n\n### Reviewed changes\n\nCopilot reviewed 2 out of 2 changed files in "
+        "this pull request and generated no comments.\n---\n",
+        "## O\n\nCopilot reviewed the changes for correctness.\n\n### Reviewed changes\n\n"
+        "Copilot reviewed 2 out of 2 changed files in this pull request and generated "
+        "no comments.\n",
+        "## O\n\n### Reviewed changes\n\nCopilot reviewed 2 out of 2 changed files in "
+        "this pull request and generated no comments. \n",
+        "## O\r\n\r\n### Reviewed changes\r\n\r\nCopilot reviewed 2 out of 2 changed files "
+        "in this pull request and generated no comments.\r\n",
+        # Partial coverage. GitHub documents that Copilot skips files it judges
+        # low risk, and the counts are asserted in the same prose as the
+        # verdict, so they are no longer compared against changedFiles. PR #2235
+        # is the real case: 21 of 22, no comments — the only genuinely clean
+        # Copilot review this repository has ever received.
+        "## O\n\n### Reviewed changes\n\nCopilot reviewed 21 out of 22 changed files in "
+        "this pull request and generated no comments.\n",
+    ],
+)
+def test_v3_copilot_accepts_a_clean_verdict_wherever_it_sits(body: str) -> None:
+    """The envelope reads the verdict, never its position.
+
+    Locating the sentence structurally was abandoned after ten review rounds:
+    holding it meant modelling every construct GitHub renders as a section
+    break, which is a CommonMark and raw-HTML parser built one finding at a
+    time, and each addition risked rejecting a real review.
+    """
+    files = [ChangedFile("README.md"), ChangedFile("GOVERNANCE.md")]
+    context = _context(
+        "Load-bearing",
+        files,
+        automated_gates={COPILOT_GATE},
+        schema_version=3,
+    )
+    review = next(
+        item
+        for item in context["data"]["repository"]["pullRequest"]["reviews"]["nodes"]
+        if item["author"]["databaseId"] == BOT_ACTOR_IDS[COPILOT_GATE]
+    )
+    review["body"] = body
+    assert validate_context(context, files, now=NOW) == []
 
 
 @pytest.mark.parametrize(
@@ -2045,6 +2262,9 @@ def test_protected_rename_raises_route_floor() -> None:
         "frontend/src/pages/SetupWizard.tsx",
         "frontend/src/components/igv-browser/IgvBrowser.tsx",
         "services/pyproject.toml",
+        "greptile.json",
+        ".greptile/config.json",
+        ".greptile/rules.md",
         "launchd/com.yeliztli.api.plist",
         "mkdocs.yml",
         "systemd/yeliztli-huey.service",
@@ -6587,7 +6807,7 @@ def test_public_template_contains_only_hosted_review_gates() -> None:
     assert HUMAN_GATE not in template
     assert "Developer Certificate of Origin" not in template
     assert "Agent claim ID:" in template
-    assert "all changed files reviewed and zero generated/attached comments" in template
+    assert "zero-comment coverage verdict exactly once and zero attached comments" in template
     assert "zero actionable/attached comments, no ignored files" in template
     assert "empty zero-comment formal approval" in template
     assert "code block or raw HTML" in template
@@ -6674,4 +6894,772 @@ def test_graphql_context_tracks_comment_association_and_head_epoch() -> None:
             "state",
             "submittedAt",
         )
+    )
+
+
+def _greptile_context(
+    *,
+    runs: list[dict[str, object]] | None = None,
+    commit_runs: list[list[dict[str, object]]] | None = None,
+    commit_total_count: int | None = None,
+) -> tuple[dict[str, object], list[ChangedFile]]:
+    """A v3 pull request that selects Greptile and carries no human approval."""
+    files = [ChangedFile("README.md")]
+    context = _context(
+        "Load-bearing",
+        files,
+        automated_gates={GREPTILE_GATE},
+        schema_version=3,
+    )
+    repository = context["data"]["repository"]
+    if runs is not None:
+        repository["greptileHeadObject"] = _greptile_head_object(runs)
+    if commit_runs is not None or commit_total_count is not None:
+        repository["pullRequest"]["greptileCommits"] = _greptile_commits(
+            commit_runs if commit_runs is not None else [[_greptile_check_run()]],
+            total_count=commit_total_count,
+        )
+    pull_request = repository["pullRequest"]
+    pull_request["reviews"]["nodes"] = [
+        review
+        for review in pull_request["reviews"]["nodes"]
+        if review["author"]["databaseId"] != HUMAN_ID
+    ]
+    pull_request["reviews"]["totalCount"] = len(pull_request["reviews"]["nodes"])
+    pull_request["latestHumanOpinions"] = {"totalCount": 0, "nodes": []}
+    return context, files
+
+
+def test_greptile_accepts_a_clean_check_run_on_the_head_commit() -> None:
+    context, files = _greptile_context()
+    assert validate_context(context, files, now=NOW) == []
+
+
+def test_greptile_rejects_a_check_run_that_added_comments() -> None:
+    """`conclusion: SUCCESS` is completion, not cleanliness.
+
+    This repository's PR #2203 reported `7 files reviewed, 3 comments added.`
+    and still concluded `SUCCESS`, so the counter has to be the verdict.
+    """
+    context, files = _greptile_context(
+        runs=[_greptile_check_run(comments_added=3, conclusion="SUCCESS")]
+    )
+    assert "no verified current-head GitHub activity for: Greptile clean review check run" in (
+        validate_context(context, files, now=NOW)
+    )
+
+
+def test_greptile_rejects_a_zero_comment_formal_review_as_evidence() -> None:
+    """A Greptile review with no comments is a billing notice, not a clean pass.
+
+    Of 429 Greptile formal reviews sampled across four repositories, 427 carried
+    at least one inline comment and an empty body. The only two carrying zero
+    comments carried "Your free trial has ended. If you'd like to continue
+    receiving code reviews, you can add a payment method here." Reading zero
+    attached comments as a clean verdict — the shape every other provider's
+    envelope uses — would accept a refusal to review.
+    """
+    context, files = _greptile_context(runs=[])
+    pull_request = context["data"]["repository"]["pullRequest"]
+    refusal = _review(
+        BOT_ACTOR_IDS[GREPTILE_GATE],
+        GATE_TIMES[GREPTILE_GATE],
+        state="COMMENTED",
+        body=(
+            "Your free trial has ended. If you'd like to continue receiving code "
+            "reviews, you can add a payment method [here](https://app.greptile.com/review/github)."
+        ),
+        review_comment_count=0,
+    )
+    pull_request["reviews"]["nodes"].append(refusal)
+    pull_request["reviews"]["totalCount"] += 1
+    assert "no verified current-head GitHub activity for: Greptile clean review check run" in (
+        validate_context(context, files, now=NOW)
+    )
+
+
+@pytest.mark.parametrize(
+    "summary",
+    [
+        # Every non-counter summary observed across 2341 live check runs.
+        "Greptile confidence 3/5 is below the required 4/5.",
+        (
+            "Greptile reviewed this pull request successfully — this check reflects your "
+            "team's confidence threshold, not a review failure. The review scored 3/5, "
+            "below the 4/5 this repository requires for the check to pass."
+        ),
+        # Truncated: it claims a review happened but reports no counter at all.
+        "Greptile has reviewed the Pull Request.",
+        "Greptile Review is in progress",
+        "Review was cancelled",
+        (
+            "Greptile encountered an error while reviewing this PR. Please reach out to "
+            "support@greptile.com for assistance."
+        ),
+    ],
+)
+def test_greptile_rejects_every_summary_without_a_zero_counter(summary: str) -> None:
+    context, files = _greptile_context(runs=[_greptile_check_run(summary=summary)])
+    assert "no verified current-head GitHub activity for: Greptile clean review check run" in (
+        validate_context(context, files, now=NOW)
+    )
+
+
+@pytest.mark.parametrize("conclusion", ["NEUTRAL", "FAILURE", "CANCELLED", "SKIPPED", None])
+def test_greptile_requires_a_successful_conclusion(conclusion: str | None) -> None:
+    context, files = _greptile_context(runs=[_greptile_check_run(conclusion=conclusion)])
+    assert "no verified current-head GitHub activity for: Greptile clean review check run" in (
+        validate_context(context, files, now=NOW)
+    )
+
+
+def test_greptile_requires_a_completed_check_run() -> None:
+    context, files = _greptile_context(
+        runs=[_greptile_check_run(status="IN_PROGRESS", conclusion=None)]
+    )
+    assert "no verified current-head GitHub activity for: Greptile clean review check run" in (
+        validate_context(context, files, now=NOW)
+    )
+
+
+def test_greptile_rejects_a_check_run_from_another_app() -> None:
+    """Identity is the authenticated app id, never the check-run name.
+
+    Any app with `checks: write` can publish a check run called
+    `Greptile Review`; only Greptile's can carry app id 867647.
+    """
+    context, files = _greptile_context()
+    suite = context["data"]["repository"]["greptileHeadObject"]["checkSuites"]["nodes"][0]
+    suite["app"] = {"__typename": "App", "databaseId": GREPTILE_APP_ID + 1}
+    assert "no verified current-head GitHub activity for: Greptile clean review check run" in (
+        validate_context(context, files, now=NOW)
+    )
+
+
+def test_greptile_rejects_a_differently_named_check_run() -> None:
+    context, files = _greptile_context(runs=[_greptile_check_run(name="Greptile Summary")])
+    assert "no verified current-head GitHub activity for: Greptile clean review check run" in (
+        validate_context(context, files, now=NOW)
+    )
+
+
+def test_greptile_rejects_a_check_run_predating_the_head() -> None:
+    context, files = _greptile_context(
+        runs=[_greptile_check_run(completed_at="2026-07-21T11:00:00Z")]
+    )
+    assert "no verified current-head GitHub activity for: Greptile clean review check run" in (
+        validate_context(context, files, now=NOW)
+    )
+
+
+def test_greptile_rejects_a_stale_dirty_run_alongside_a_clean_one() -> None:
+    """The newest verdict decides, and a dirty newest verdict fails."""
+    stale = _greptile_check_run(
+        comments_added=0,
+        completed_at="2026-07-21T12:31:00Z",
+        database_id=91710286922,
+    )
+    newest = _greptile_check_run(
+        comments_added=2,
+        completed_at=GATE_TIMES[GREPTILE_GATE],
+        database_id=91710286923,
+    )
+    context, files = _greptile_context(runs=[stale, newest], commit_runs=[[stale, newest]])
+    assert "no verified current-head GitHub activity for: Greptile clean review check run" in (
+        validate_context(context, files, now=NOW)
+    )
+
+
+@pytest.mark.parametrize(
+    "head_object",
+    [
+        None,
+        {"__typename": "Tag"},
+        {"__typename": "Commit", "oid": HEAD_SHA},
+        {
+            "__typename": "Commit",
+            "oid": HEAD_SHA,
+            # More suites exist than were returned, so the page cannot prove
+            # that no other Greptile run contradicts this one.
+            "checkSuites": {"totalCount": 4, "nodes": []},
+        },
+    ],
+)
+def test_greptile_fails_closed_without_a_provable_check_run(head_object: object) -> None:
+    context, files = _greptile_context()
+    context["data"]["repository"]["greptileHeadObject"] = head_object
+    assert "no verified current-head GitHub activity for: Greptile clean review check run" in (
+        validate_context(context, files, now=NOW)
+    )
+
+
+def test_greptile_does_not_bind_the_reviewed_file_count_to_changed_files() -> None:
+    """Greptile's own path filters make a smaller reviewed count legitimate.
+
+    The reviewed-file count differed from GitHub's changed-file count in 522 of
+    2196 live check runs. It is also asserted in the same generated string as
+    the verdict, so comparing the two buys no trust (#2248) while rejecting
+    roughly one clean review in four.
+    """
+    context, files = _greptile_context()
+    context["data"]["repository"]["greptileHeadObject"] = _greptile_head_object(
+        [_greptile_check_run(files_reviewed=len(files) + 40, comments_added=0)]
+    )
+    assert validate_context(context, files, now=NOW) == []
+
+
+def test_greptile_lane_is_absent_from_schema_v2() -> None:
+    """v2 pull requests must not acquire a fourth checkbox or evidence row.
+
+    `BOT_GATES` is shared between the schemas, so a fourth gate added there
+    would retroactively demand a Greptile row and checkbox from every open
+    legacy pull request.
+    """
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, automated_gates={CODEX_GATE})
+    assert validate_context(context, files, now=NOW) == []
+    assert "Greptile" not in context["data"]["repository"]["pullRequest"]["body"]
+
+
+def test_greptile_evidence_row_is_unknown_on_a_v2_body() -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, automated_gates={CODEX_GATE})
+    pull_request = context["data"]["repository"]["pullRequest"]
+    pull_request["body"] = pull_request["body"].replace(
+        f"| {HUMAN_GATE} |",
+        f"| {GREPTILE_GATE} | scope | N/A | N/A |\n| {HUMAN_GATE} |",
+    )
+    errors = validate_context(context, files, now=NOW)
+    assert any("unknown review evidence rows" in error for error in errors)
+
+
+def test_route_context_query_reads_the_greptile_head_check_run() -> None:
+    root = Path(__file__).resolve().parents[2]
+    query = (root / "scripts/review_route_context.graphql").read_text(encoding="utf-8")
+    assert "greptileHeadObject: object(oid: $headOid)" in query
+    assert f"filterBy: {{appId: {GREPTILE_APP_ID}}}" in query
+    # Without `checkType: ALL` the connection returns only the newest run per
+    # name and reports a `totalCount` that agrees with it, so a superseded run on
+    # an unchanged commit is invisible to both the gate and its truncation guard.
+    assert "checkRuns(first: 20, filterBy: {checkType: ALL})" in query
+    assert "checkRuns(first: 20)" not in query
+    # `id` is `ID!`; `databaseId` is a nullable 32-bit `Int` GitHub already
+    # overflows, so the budget count keys on `id`.
+    for field in (
+        "id",
+        "databaseId",
+        "name",
+        "status",
+        "conclusion",
+        "summary",
+        "startedAt",
+        "completedAt",
+    ):
+        assert f"\n                {field}\n" in query
+
+
+def test_route_context_query_reads_every_greptile_run_this_pull_request_spent() -> None:
+    root = Path(__file__).resolve().parents[2]
+    query = (root / "scripts/review_route_context.graphql").read_text(encoding="utf-8")
+    # `commits` is ordered oldest-first, so `first:` would omit the head commit —
+    # the one carrying the accepted run — on any branch longer than the page.
+    assert "greptileCommits: commits(last: 100)" in query
+    assert "greptileCommits: commits(first:" not in query
+    # Both views must ask for the same thing, because `_greptile_check_runs`
+    # reads both and the budget count deduplicates across them.
+    assert query.count(f"filterBy: {{appId: {GREPTILE_APP_ID}}}") == 2
+    assert query.count("checkRuns(first: 20, filterBy: {checkType: ALL})") == 2
+    # `_greptile_check_runs` rejects anything that is not a Commit, so the commit
+    # nodes have to carry `__typename` or every one of them fails closed.
+    assert "\n          commit {\n            __typename\n" in query
+    for field in (
+        "id",
+        "databaseId",
+        "name",
+        "status",
+        "conclusion",
+        "summary",
+        "startedAt",
+        "completedAt",
+    ):
+        assert f"\n                    {field}\n" in query
+
+
+def test_pull_request_template_offers_the_greptile_lane_on_v3_only() -> None:
+    root = Path(__file__).resolve().parents[2]
+    template = (root / ".github/PULL_REQUEST_TEMPLATE.md").read_text(encoding="utf-8")
+    assert "- [ ] Greptile — alternate lane" in template
+    assert f"| {GREPTILE_GATE} |" in template
+    assert template.count("- [ ] Greptile") == 1
+    assert template.count(f"| {GREPTILE_GATE} |") == 1
+    assert AUTONOMOUS_SCHEMA_MARKER in template
+
+
+def _three_provider_v3_body(route: str, gate: str) -> str:
+    """A v3 body written against the template that shipped before Greptile."""
+    body = _body(route, automated_gates={gate}, schema_version=3)
+    return "\n".join(
+        line
+        for line in body.splitlines()
+        if not line.startswith("- [ ] Greptile") and not line.startswith(f"| {GREPTILE_GATE} |")
+    )
+
+
+@pytest.mark.parametrize("gate", [COPILOT_GATE, CODEX_GATE, CODERABBIT_GATE])
+def test_v3_bodies_written_before_the_greptile_lane_stay_valid(gate: str) -> None:
+    """Already-open v3 pull requests must not break when the lane merges.
+
+    Their bodies carry three provider checkboxes and three evidence rows.
+    Requiring the Greptile pair would put every one of them at `pending` on
+    merge, and the body edit needed to repair one re-pends its route and spends
+    a fresh hosted review.
+    """
+    files = [ChangedFile("README.md")]
+    context = _context(
+        "Load-bearing",
+        files,
+        automated_gates={gate},
+        schema_version=3,
+        body=_three_provider_v3_body("Load-bearing", gate),
+    )
+    pull_request = context["data"]["repository"]["pullRequest"]
+    pull_request["reviews"]["nodes"] = [
+        review
+        for review in pull_request["reviews"]["nodes"]
+        if review["author"]["databaseId"] != HUMAN_ID
+    ]
+    pull_request["reviews"]["totalCount"] = len(pull_request["reviews"]["nodes"])
+    pull_request["latestHumanOpinions"] = {"totalCount": 0, "nodes": []}
+    assert validate_context(context, files, now=NOW) == []
+
+
+def test_a_three_provider_v3_body_survives_the_rendered_route_check() -> None:
+    """Rendered parity must track the body, not the newest template."""
+    files = [ChangedFile("README.md")]
+    body = _three_provider_v3_body("Load-bearing", CODEX_GATE)
+    rendered = (
+        _rendered_route_html("Load-bearing", automated_gates={CODEX_GATE}, schema_version=3)
+        .replace('<li><input type="checkbox"> Greptile — automated review</li>', "")
+        .replace(f"<tr><td>{GREPTILE_GATE}</td><td>scope</td><td>N/A</td><td>N/A</td></tr>", "")
+    )
+    context = _context(
+        "Load-bearing", files, automated_gates={CODEX_GATE}, schema_version=3, body=body
+    )
+    pull_request = context["data"]["repository"]["pullRequest"]
+    pull_request["reviews"]["nodes"] = [
+        review
+        for review in pull_request["reviews"]["nodes"]
+        if review["author"]["databaseId"] != HUMAN_ID
+    ]
+    pull_request["reviews"]["totalCount"] = len(pull_request["reviews"]["nodes"])
+    pull_request["latestHumanOpinions"] = {"totalCount": 0, "nodes": []}
+    assert _validate_rendered(context, files, rendered) == []
+
+
+def test_selecting_greptile_without_its_evidence_row_is_rejected() -> None:
+    """Optional only while unused: a selected gate must still prove itself."""
+    files = [ChangedFile("README.md")]
+    body = _body("Load-bearing", automated_gates={GREPTILE_GATE}, schema_version=3)
+    body = "\n".join(
+        line for line in body.splitlines() if not line.startswith(f"| {GREPTILE_GATE} |")
+    )
+    context = _context(
+        "Load-bearing", files, automated_gates={GREPTILE_GATE}, schema_version=3, body=body
+    )
+    errors = validate_context(context, files, now=NOW)
+    assert any("missing review evidence rows" in error for error in errors)
+
+
+def test_a_duplicated_greptile_checkbox_is_still_rejected() -> None:
+    files = [ChangedFile("README.md")]
+    body = _body("Load-bearing", automated_gates={CODEX_GATE}, schema_version=3)
+    body = body.replace(
+        "- [ ] Greptile — automated review",
+        "- [ ] Greptile — automated review\n- [ ] Greptile — automated review",
+    )
+    context = _context(
+        "Load-bearing", files, automated_gates={CODEX_GATE}, schema_version=3, body=body
+    )
+    assert "expected each automated reviewer checkbox exactly once" in (
+        validate_context(context, files, now=NOW)
+    )
+
+
+def test_greptile_rejects_a_review_that_covered_zero_files() -> None:
+    """A clean verdict over nothing is not a review.
+
+    Greptile applies its own path filters, so a pull request whose changed files
+    are all filtered out can produce `0 files reviewed, 0 comments added.` On v3
+    nothing else stands between that and a merge.
+    """
+    context, files = _greptile_context(
+        runs=[_greptile_check_run(files_reviewed=0, comments_added=0)]
+    )
+    assert "no verified current-head GitHub activity for: Greptile clean review check run" in (
+        validate_context(context, files, now=NOW)
+    )
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "greptile.json",
+        ".greptile/config.json",
+        ".greptile/rules.md",
+        ".greptile/nested/deep.md",
+    ],
+)
+def test_greptile_cannot_review_its_own_configuration(path: str) -> None:
+    """Greptile reads its configuration from the pull request's source branch.
+
+    Trusted `main` keeps a pull request from rewriting the validator that clears
+    it; nothing gives Greptile the same protection, so a branch could relax the
+    reviewer and then be cleared by it.
+    """
+    files = [ChangedFile(path)]
+    context = _context("Load-bearing", files, automated_gates={GREPTILE_GATE}, schema_version=3)
+    pull_request = context["data"]["repository"]["pullRequest"]
+    pull_request["reviews"]["nodes"] = [
+        review
+        for review in pull_request["reviews"]["nodes"]
+        if review["author"]["databaseId"] != HUMAN_ID
+    ]
+    pull_request["reviews"]["totalCount"] = len(pull_request["reviews"]["nodes"])
+    pull_request["latestHumanOpinions"] = {"totalCount": 0, "nodes": []}
+    assert (
+        "Greptile cannot review a change to its own configuration; select another hosted reviewer"
+    ) in validate_context(context, files, now=NOW)
+
+
+def test_greptile_config_rename_away_is_also_refused() -> None:
+    files = [ChangedFile("docs/unrelated.md", previous_filename="greptile.json")]
+    context = _context("Load-bearing", files, automated_gates={GREPTILE_GATE}, schema_version=3)
+    assert any(
+        "Greptile cannot review a change to its own configuration" in error
+        for error in validate_context(context, files, now=NOW)
+    )
+
+
+def test_another_provider_may_review_the_greptile_configuration() -> None:
+    """The refusal is scoped to Greptile, not to the files."""
+    files = [ChangedFile("greptile.json")]
+    context = _context("Load-bearing", files, automated_gates={CODEX_GATE}, schema_version=3)
+    pull_request = context["data"]["repository"]["pullRequest"]
+    pull_request["reviews"]["nodes"] = [
+        review
+        for review in pull_request["reviews"]["nodes"]
+        if review["author"]["databaseId"] != HUMAN_ID
+    ]
+    pull_request["reviews"]["totalCount"] = len(pull_request["reviews"]["nodes"])
+    pull_request["latestHumanOpinions"] = {"totalCount": 0, "nodes": []}
+    assert validate_context(context, files, now=NOW) == []
+
+
+def _billed_run(database_id: int, completed_at: str) -> dict[str, object]:
+    """A run that spent a credit. Cleanliness is irrelevant to the budget."""
+    return _greptile_check_run(
+        comments_added=0,
+        completed_at=completed_at,
+        database_id=database_id,
+    )
+
+
+def test_greptile_budget_accepts_a_pull_request_that_spent_its_whole_allowance() -> None:
+    """One review plus one re-review after fixing what it found."""
+    first = _billed_run(91710286900, "2026-07-21T12:10:00Z")
+    second = _billed_run(91710286922, GATE_TIMES[GREPTILE_GATE])
+    context, files = _greptile_context(commit_runs=[[first], [second]])
+    assert validate_context(context, files, now=NOW) == []
+
+
+def test_greptile_budget_refuses_a_third_review_on_one_pull_request() -> None:
+    runs = [
+        [_billed_run(91710286900, "2026-07-21T12:05:00Z")],
+        [_billed_run(91710286901, "2026-07-21T12:10:00Z")],
+        [_billed_run(91710286922, GATE_TIMES[GREPTILE_GATE])],
+    ]
+    context, files = _greptile_context(commit_runs=runs)
+    assert "Greptile per-pull-request review budget exceeded: 3 > 2" in (
+        validate_context(context, files, now=NOW)
+    )
+
+
+def test_greptile_budget_counts_one_run_once_however_many_views_show_it() -> None:
+    """The head object and the commit page both carry the head commit's runs."""
+    head_runs = [
+        _billed_run(91710286900, "2026-07-21T12:10:00Z"),
+        _billed_run(91710286922, GATE_TIMES[GREPTILE_GATE]),
+    ]
+    context, files = _greptile_context(runs=head_runs, commit_runs=[head_runs, head_runs])
+    assert validate_context(context, files, now=NOW) == []
+
+
+@pytest.mark.parametrize("conclusion", ["CANCELLED", "SKIPPED"])
+def test_greptile_budget_does_not_charge_for_an_unbilled_run(conclusion: str) -> None:
+    """Greptile's billing page: skipped reviews don't count, and neither did a
+    run that never finished."""
+    unbilled = [
+        _greptile_check_run(
+            conclusion=conclusion,
+            completed_at="2026-07-21T12:05:00Z",
+            database_id=91710286900,
+        ),
+        _greptile_check_run(
+            conclusion=conclusion,
+            completed_at="2026-07-21T12:10:00Z",
+            database_id=91710286901,
+        ),
+    ]
+    context, files = _greptile_context(
+        commit_runs=[unbilled, [_billed_run(91710286922, GATE_TIMES[GREPTILE_GATE])]],
+    )
+    assert validate_context(context, files, now=NOW) == []
+
+
+def test_greptile_budget_charges_for_a_review_that_is_still_running() -> None:
+    """The credit is committed at trigger time, not at completion, and an
+    in-flight run carries no conclusion and no `completedAt` to place it by."""
+    in_flight = [
+        _greptile_check_run(
+            status="QUEUED",
+            conclusion=None,
+            completed_at=None,
+            started_at="2026-07-21T12:05:00Z",
+            database_id=91710286900,
+        ),
+        _greptile_check_run(
+            status="IN_PROGRESS",
+            conclusion=None,
+            completed_at=None,
+            started_at="2026-07-21T12:10:00Z",
+            database_id=91710286901,
+        ),
+    ]
+    context, files = _greptile_context(
+        commit_runs=[in_flight, [_billed_run(91710286922, GATE_TIMES[GREPTILE_GATE])]],
+    )
+    assert "Greptile per-pull-request review budget exceeded: 3 > 2" in (
+        validate_context(context, files, now=NOW)
+    )
+
+
+def test_greptile_budget_ignores_reviews_charged_to_a_parent_branch() -> None:
+    """A stacked branch inherits its parent's commits; those runs predate this
+    pull request and were charged to the one that triggered them."""
+    inherited = [
+        _billed_run(91710286800, "2026-07-20T09:00:00Z"),
+        _billed_run(91710286801, "2026-07-20T10:00:00Z"),
+    ]
+    context, files = _greptile_context(
+        commit_runs=[inherited, [_billed_run(91710286922, GATE_TIMES[GREPTILE_GATE])]],
+    )
+    assert validate_context(context, files, now=NOW) == []
+
+
+def test_greptile_budget_fails_closed_when_the_commit_page_is_truncated() -> None:
+    """More commits exist than were returned, so an unseen one could carry the
+    run that crosses the cap. That is a different failure from exceeding it."""
+    context, files = _greptile_context(commit_total_count=101)
+    errors = validate_context(context, files, now=NOW)
+    assert "commit pagination cannot prove the Greptile per-pull-request budget" in errors
+    assert not any("budget exceeded" in error for error in errors)
+
+
+def test_greptile_budget_fails_closed_without_a_commit_ledger() -> None:
+    context, files = _greptile_context()
+    del context["data"]["repository"]["pullRequest"]["greptileCommits"]
+    assert "Greptile per-pull-request check-run ledger is unavailable" in (
+        validate_context(context, files, now=NOW)
+    )
+
+
+@pytest.mark.parametrize(
+    "commit",
+    [
+        None,
+        {"__typename": "Tag"},
+        {"__typename": "Commit", "oid": HEAD_SHA},
+        {
+            "__typename": "Commit",
+            "oid": HEAD_SHA,
+            "checkSuites": {"totalCount": 4, "nodes": []},
+        },
+        {
+            "__typename": "Commit",
+            "oid": HEAD_SHA,
+            "checkSuites": {
+                "totalCount": 1,
+                "nodes": [
+                    {
+                        "app": {"__typename": "App", "databaseId": GREPTILE_APP_ID},
+                        "checkRuns": {"totalCount": 3, "nodes": []},
+                    }
+                ],
+            },
+        },
+    ],
+)
+def test_greptile_budget_fails_closed_on_an_unprovable_commit(commit: object) -> None:
+    context, files = _greptile_context()
+    context["data"]["repository"]["pullRequest"]["greptileCommits"]["nodes"] = [{"commit": commit}]
+    assert "commit pagination cannot prove the Greptile per-pull-request budget" in (
+        validate_context(context, files, now=NOW)
+    )
+
+
+def test_greptile_budget_fails_closed_on_a_run_it_cannot_place_in_time() -> None:
+    unplaceable = _greptile_check_run(completed_at=None, started_at=None, database_id=91710286900)
+    context, files = _greptile_context(
+        commit_runs=[[unplaceable], [_billed_run(91710286922, GATE_TIMES[GREPTILE_GATE])]],
+    )
+    assert "commit pagination cannot prove the Greptile per-pull-request budget" in (
+        validate_context(context, files, now=NOW)
+    )
+
+
+def test_greptile_budget_fails_closed_after_a_force_push() -> None:
+    """A force push drops commits from the connection and takes their billed runs
+    with them, leaving no truncation for the guards to catch."""
+    context, files = _greptile_context()
+    context["data"]["repository"]["pullRequest"]["timelineItems"] = {
+        "nodes": [{"createdAt": "2026-07-21T11:55:00Z"}]
+    }
+    errors = validate_context(context, files, now=NOW)
+    assert any(
+        "Greptile per-pull-request budget cannot be proven after a force push" in error
+        for error in errors
+    )
+
+
+def test_greptile_budget_does_not_charge_a_run_from_another_app() -> None:
+    context, files = _greptile_context()
+    commits = context["data"]["repository"]["pullRequest"]["greptileCommits"]
+    impostor = _greptile_head_object(
+        [
+            _billed_run(91710286800, "2026-07-21T12:05:00Z"),
+            _billed_run(91710286801, "2026-07-21T12:06:00Z"),
+        ]
+    )
+    impostor["checkSuites"]["nodes"][0]["app"]["databaseId"] = GREPTILE_APP_ID + 1
+    commits["nodes"].append({"commit": impostor})
+    commits["totalCount"] = len(commits["nodes"])
+    assert validate_context(context, files, now=NOW) == []
+
+
+def test_greptile_budget_does_not_charge_a_differently_named_check_run() -> None:
+    """App 867647 may publish other check runs; only its review spends a credit."""
+    other = [
+        _greptile_check_run(
+            name="Greptile Indexing",
+            completed_at="2026-07-21T12:05:00Z",
+            database_id=91710286800,
+        ),
+        _greptile_check_run(
+            name="Greptile Indexing",
+            completed_at="2026-07-21T12:06:00Z",
+            database_id=91710286801,
+        ),
+    ]
+    context, files = _greptile_context(
+        commit_runs=[other, [_billed_run(91710286922, GATE_TIMES[GREPTILE_GATE])]],
+    )
+    assert validate_context(context, files, now=NOW) == []
+
+
+@pytest.mark.parametrize("gate", [COPILOT_GATE, CODEX_GATE, CODERABBIT_GATE])
+def test_lanes_other_than_greptile_do_not_need_the_commit_ledger(gate: str) -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, automated_gates={gate}, schema_version=3)
+    del context["data"]["repository"]["pullRequest"]["greptileCommits"]
+    assert validate_context(context, files, now=NOW) == []
+
+
+def test_schema_v2_does_not_need_the_greptile_commit_ledger() -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, automated_gates={CODERABBIT_GATE})
+    del context["data"]["repository"]["pullRequest"]["greptileCommits"]
+    assert validate_context(context, files, now=NOW) == []
+
+
+def test_greptile_budget_places_a_run_by_when_it_started_not_when_it_finished() -> None:
+    """The credit is committed at trigger time.
+
+    A stacked child inherits a parent's commits, and a run can begin on the
+    parent and finish after the child was opened. Placing it by `completedAt`
+    would charge the child for its parent's review and refuse a lane that has
+    spent nothing.
+    """
+    straddling = _greptile_check_run(
+        started_at="2026-07-21T11:45:00Z",  # before CREATED_AT
+        completed_at="2026-07-21T12:15:00Z",  # after CREATED_AT
+        database_id=91710286800,
+    )
+    # Two runs genuinely belong to this pull request, so the straddling one is
+    # what decides the cap: charge it and the count is three.
+    context, files = _greptile_context(
+        commit_runs=[
+            [straddling],
+            [_billed_run(91710286801, "2026-07-21T12:10:00Z")],
+            [_billed_run(91710286922, GATE_TIMES[GREPTILE_GATE])],
+        ],
+    )
+    pull_request = context["data"]["repository"]["pullRequest"]
+    assert pull_request["createdAt"] == CREATED_AT == "2026-07-21T11:50:00Z"
+    assert validate_context(context, files, now=NOW) == []
+
+
+def test_greptile_budget_fails_closed_on_an_unreadable_run_node() -> None:
+    """A null node still counts toward `totalCount`.
+
+    Dropping it silently would leave the length check agreeing with the page
+    while a third billed run went unseen — the one direction a budget must not
+    fail in.
+    """
+    context, files = _greptile_context(
+        commit_runs=[[_billed_run(91710286922, GATE_TIMES[GREPTILE_GATE])]],
+    )
+    commit = context["data"]["repository"]["pullRequest"]["greptileCommits"]["nodes"][0]["commit"]
+    check_runs = commit["checkSuites"]["nodes"][0]["checkRuns"]
+    check_runs["nodes"] = [None, *check_runs["nodes"]]
+    check_runs["totalCount"] = len(check_runs["nodes"])
+    assert "commit pagination cannot prove the Greptile per-pull-request budget" in (
+        validate_context(context, files, now=NOW)
+    )
+
+
+def test_greptile_lane_fails_closed_on_an_unreadable_head_run_node() -> None:
+    """Same hole on the acceptance path the lane already shipped."""
+    context, files = _greptile_context()
+    head = context["data"]["repository"]["greptileHeadObject"]
+    check_runs = head["checkSuites"]["nodes"][0]["checkRuns"]
+    check_runs["nodes"] = [None, *check_runs["nodes"]]
+    check_runs["totalCount"] = len(check_runs["nodes"])
+    assert "no verified current-head GitHub activity for: Greptile clean review check run" in (
+        validate_context(context, files, now=NOW)
+    )
+
+
+def test_greptile_budget_survives_a_null_check_run_database_id() -> None:
+    """`CheckRun.databaseId` is a nullable 32-bit `Int` that GitHub already
+    overflows — PR #2203's run is 91710286922. Keying the count on it would
+    refuse every Greptile lane the day GitHub starts honouring the schema, so
+    the count keys on the non-null global `id` instead."""
+    runs = [_billed_run(91710286922, GATE_TIMES[GREPTILE_GATE])]
+    for run in runs:
+        run["databaseId"] = None
+    context, files = _greptile_context(runs=runs, commit_runs=[runs])
+    assert validate_context(context, files, now=NOW) == []
+
+
+def test_greptile_budget_fails_closed_without_a_check_run_node_id() -> None:
+    """Two runs indistinguishable by id could be one credit or two."""
+    runs = [
+        _billed_run(91710286900, "2026-07-21T12:10:00Z"),
+        _billed_run(91710286922, GATE_TIMES[GREPTILE_GATE]),
+    ]
+    for run in runs:
+        del run["id"]
+    context, files = _greptile_context(runs=runs, commit_runs=[runs])
+    assert "commit pagination cannot prove the Greptile per-pull-request budget" in (
+        validate_context(context, files, now=NOW)
     )

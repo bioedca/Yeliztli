@@ -1,0 +1,143 @@
+{
+  "accessed": "2026-07-31",
+  "citation": "PMID:38054408; DOI:10.1016/j.gim.2023.101036 (accessed 2026-07-31)",
+  "claim": "ClinGen provides distinct evidence-curation, classification, and reporting recommendations for risk alleles and low-penetrance variants.",
+  "source_versions_and_licenses": {
+    "_why": "Version/build and licence or terms for every source and service, so an auditor can establish which source state produced each retained payload and on what basis retaining it is permitted. A field that genuinely does not exist is recorded as unavailable together with the boundary that follows, not left blank.",
+    "PMID:38054408 / DOI:10.1016/j.gim.2023.101036": {
+      "version_or_build": "Version of record, Genetics in Medicine 2024;26(3):101036. The retained PubMed record carries a revision date of 2026-05-18; that revision stamp plus the 2026-07-31 access date are the retrieval-version boundary.",
+      "license_or_terms": "No reuse licence is stated by the publisher. Scite reports the record as bronze open access, meaning free to read at the publisher without an accompanying open licence.",
+      "retention_basis": "Bibliographic metadata only. The publisher abstract and its all-rights-reserved CopyrightInformation are removed, and public author contact emails are redacted. Facts of this kind are not the publisher's copyrightable expression, so retention does not depend on a reuse grant.",
+      "unavailable_fields": [
+        "license (not stated by the publisher)"
+      ]
+    },
+    "PMID:31147632 / DOI:10.1038/s41436-019-0560-8": {
+      "version_or_build": "Version of record, Genet Med. 2019;21(12):2765-2773. No build identifier exists; the 2026-08-03 access date is the retrieval-version boundary.",
+      "license_or_terms": "No reuse licence retrieved. Recorded as unavailable rather than inferred.",
+      "retention_basis": "Bibliographic metadata only, with the abstract omitted and affiliation contact emails redacted. Retained solely to document author overlap with the primary source; it supports no claim.",
+      "unavailable_fields": [
+        "license (not retrieved)"
+      ]
+    },
+    "NCBI Entrez / PubMed (service)": {
+      "version_or_build": "esummary response version 0.3, recorded in the retained payload. The EFetch PubMed XML exposes no separate service version; its record revision date of 2026-05-18 is the closest available boundary.",
+      "license_or_terms": "NLM Copyright Information & Downloading NLM Data: no signed licence is required for publicly accessible NLM data, subject to source acknowledgement, non-endorsement, and currentness disclosure. The terms snapshot is retained at raw/nlm-copyright-download-terms-2026-07-31.html.",
+      "retention_basis": "Bibliographic metadata only, attributed to NLM/PubMed, with the access date preserved as a fixed historical snapshot.",
+      "unavailable_fields": []
+    },
+    "Consensus (service)": {
+      "version_or_build": "Unavailable. The MCP interface returns no service version, model version, or index build stamp with a search response, so the 2026-08-03 access date is the only retrieval-version boundary and the result is not reproducible against a pinned index state.",
+      "license_or_terms": "Consensus terms of service. Provider output is treated as a discovery aid, not as evidence.",
+      "retention_basis": "Only the query string, result ranks, and the bibliographic identity of the retained hits are recorded. No generated summary or provider narrative is retained, and no Consensus result supports any claim in this packet.",
+      "unavailable_fields": [
+        "version_or_build (not exposed by the service)"
+      ]
+    },
+    "Scite (service)": {
+      "version_or_build": "Unavailable. The MCP interface returns no service version or citation-index build stamp, so the recorded citation tallies are a point-in-time reading bounded only by the 2026-08-03 access date and will drift.",
+      "license_or_terms": "Scite terms of service. Provider output is treated as a screening aid, not as evidence.",
+      "retention_basis": "Only bibliographic fields, the editorial-notice screening outcome, and point-in-time citation counts are recorded. No Smart Citation snippets quoting third-party papers and no signed access URL are retained. The screening outcome is used to check for retractions, not to support a scientific claim.",
+      "unavailable_fields": [
+        "version_or_build (not exposed by the service)"
+      ]
+    },
+    "PubMed MCP connector": {
+      "role": "Narrowest specialist connector used to retrieve PMID:31147632 bibliographic metadata for the rank-2 author-overlap check.",
+      "version_or_build": "Unavailable — the connector exposes no service, build, or index-version stamp in its responses, and none was returned with the retrieved record.",
+      "boundary_that_follows": "Because no version is exposed, the 2026-08-03 access date is the only retrieval-version boundary for the metadata it returned, and that retrieval is not reproducible against a pinned service state. The underlying record is separately pinned by PMID and DOI, which are stable, and the author-overlap check rests on those identifiers rather than on the connector.",
+      "license_or_terms": "NCBI/NLM public data; no signed licence required, subject to source acknowledgement, non-endorsement, and currentness disclosure. Same NLM terms recorded above for the Entrez route.",
+      "what_is_retained": "Bibliographic metadata only, at derived/pubmed-31147632-metadata.json. No abstract and no full text."
+    }
+  },
+  "queries": [
+    {
+      "service": "Consensus",
+      "attempt": 1,
+      "accessed": "2026-07-31",
+      "query": "PMID 38054408 ClinGen low penetrance risk allele terminology working group year:2023-2024",
+      "status": "unavailable",
+      "reason": "Monthly 250-search quota exhausted; service reported an August 1 reset."
+    },
+    {
+      "service": "Consensus",
+      "attempt": 2,
+      "accessed": "2026-08-03",
+      "query": "ClinGen Low Penetrance Risk Allele Working Group recommendations risk allele evidence curation classification reporting",
+      "status": "success",
+      "reason": "Re-run after the reported August 1 quota reset.",
+      "result": "Returned the packet's primary source as rank 1 (Schmidt et al., Genetics in Medicine), its conference abstract as rank 3, and the 2019 Senol-Cosar framework paper as rank 2. Rank 2 shares authors Schmidt RJ and Lebo MS with the primary source and is therefore recorded as a documented antecedent, not an independent second source.",
+      "derived_payload": "data/science-evidence/2026-07-31-clingen-risk-allele-2052/derived/consensus-search-2026-08-03.json",
+      "raw_payload_retained": false,
+      "raw_payload_note": "Complete provider response not retained; see artifact_type and payload_completeness in the derived file."
+    },
+    {
+      "service": "Scite",
+      "attempt": 1,
+      "accessed": "2026-07-31",
+      "doi": "10.1016/j.gim.2023.101036",
+      "term": "low penetrance risk allele terminology classification reporting",
+      "status": "unavailable",
+      "reason": "Monthly MCP quota exhausted; service reported a 2026-08-03 UTC reset."
+    },
+    {
+      "service": "Scite",
+      "attempt": 2,
+      "accessed": "2026-08-03",
+      "endpoint": "search_literature",
+      "doi": "10.1016/j.gim.2023.101036",
+      "status": "success",
+      "reason": "Re-run after the reported 2026-08-03 UTC quota reset.",
+      "result": "Verified DOI, title, journal, volume 26, issue 3, page 101036, and 2024-03-01 publication date. Returned zero editorial notices (no retraction, correction, expression of concern, or erratum), independently agreeing with the NCBI EFetch typed CommentsCorrectionsList screening. Citation tally: 31 total, 1 supporting, 0 contrasting, 30 mentioning, 72 citing publications. Scite's three-author subset is not the leading three of the NCBI author list, so authorship attribution follows the NCBI esummary record.",
+      "derived_payload": "data/science-evidence/2026-07-31-clingen-risk-allele-2052/derived/scite-doi-lookup-2026-08-03.json",
+      "raw_payload_retained": false,
+      "raw_payload_note": "Complete provider response not retained; the file is a packet-authored capture. See artifact_type and payload_completeness in it."
+    },
+    {
+      "service": "PubMed connector",
+      "accessed": "2026-08-03",
+      "endpoint": "esearch + article metadata",
+      "purpose": "Resolve the authoritative PMID/DOI for the Consensus rank-2 antecedent and check its author overlap with the primary source",
+      "status": "success",
+      "result": "PMID:31147632; DOI:10.1038/s41436-019-0560-8; Genet Med. 2019;21(12):2765-2773. Confirms Schmidt RJ and Lebo MS are shared authors with PMID:38054408, so the paper is not an independent source.",
+      "derived_payload": "data/science-evidence/2026-07-31-clingen-risk-allele-2052/derived/pubmed-31147632-metadata.json",
+      "raw_payload_retained": false,
+      "raw_payload_note": "Complete provider response not retained; the file is a packet-authored capture. See artifact_type and payload_completeness in it."
+    },
+    {
+      "service": "NCBI Entrez",
+      "route": "life-science-research:ncbi-entrez-skill",
+      "runner": "scripts/ncbi_entrez.py",
+      "endpoint": "esummary",
+      "params": {
+        "db": "pubmed",
+        "id": "38054408",
+        "retmode": "json"
+      },
+      "status": "success",
+      "result": "The bundled skill runner returned ok=true, source=ncbi-entrez, no warnings, and the expected article title for PMID:38054408.",
+      "raw_payload": "data/science-evidence/2026-07-31-clingen-risk-allele-2052/raw/pubmed-esummary-38054408.json"
+    },
+    {
+      "service": "NCBI Entrez",
+      "endpoint": "efetch",
+      "purpose": "Typed PubMed CommentsCorrectionsList and publication-type correction/retraction check",
+      "params": {
+        "db": "pubmed",
+        "id": "38054408",
+        "retmode": "xml"
+      },
+      "status": "success",
+      "result": "The PubMed XML record has no CommentsCorrectionsList element; its publication types are Journal Article and Research Support, N.I.H., Extramural. The source-native response starts its first ReferenceList/Citation at 'ssing heritability of complex diseases'; a fresh response on 2026-07-31 reproduced that upstream truncation, which is retained verbatim and is not used for the claim.",
+      "raw_payload": "data/science-evidence/2026-07-31-clingen-risk-allele-2052/raw/pubmed-efetch-38054408.xml"
+    },
+    {
+      "service": "National Library of Medicine",
+      "endpoint": "GET https://www.nlm.nih.gov/databases/download.html",
+      "purpose": "Authoritative copyright and redistribution terms for the stored PubMed metadata",
+      "status": "success",
+      "result": "NLM does not require a signed license for publicly accessible data and requires source acknowledgement, non-endorsement, and currentness disclosure.",
+      "raw_payload": "data/science-evidence/2026-07-31-clingen-risk-allele-2052/raw/nlm-copyright-download-terms-2026-07-31.html"
+    }
+  ]
+}
