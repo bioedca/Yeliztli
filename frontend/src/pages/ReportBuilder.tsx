@@ -136,7 +136,13 @@ export default function ReportBuilder() {
   const summaryQuery = useFindingsSummary(sampleId)
   const generateMutation = useGenerateReport()
   const fhirMutation = useExportFhir()
-  const fhirEligibilityQuery = useFhirExportEligibility(sampleId)
+  // The FHIR bundle is scoped by the same checkboxes as the PDF (#2100), so
+  // eligibility has to be asked about the current selection rather than about
+  // the whole sample -- otherwise the button reports on a bundle nobody exports.
+  const selectedModuleList = useMemo(() => [...selectedModules], [selectedModules])
+  const fhirEligibilityQuery = useFhirExportEligibility(sampleId, selectedModuleList, {
+    enabled: initialized,
+  })
 
   // Every module that actually has findings, ordered by MODULE_ORDER where known
   // and appended (alphabetically) otherwise. Driving this off the summary data —
@@ -202,28 +208,35 @@ export default function ReportBuilder() {
   // refetch that *fails* still disables, via `isError` below, so the fail-closed
   // property that matters is unchanged.
   const canExportFhir =
+    selectedCount > 0 &&
     !fhirEligibilityQuery.isPending &&
     !fhirEligibilityQuery.isError &&
     fhirEligibilityQuery.data?.exportable === true &&
     !fhirMutation.isPending
-  const fhirEligibilityMessage = fhirEligibilityQuery.isError
-    ? "FHIR export is disabled because its size could not be verified."
-    : fhirEligibilityQuery.isPending
-      ? "FHIR export is disabled while its size is being verified."
-      : fhirEligibilityQuery.data?.reason === "too_large"
-        ? `FHIR export is disabled because it would create more than ${formatCount(
-            fhirEligibilityQuery.data.max_observations,
-          )} Observations. It covers every carried variant in the sample rather than the modules selected above, so selecting fewer modules does not reduce it.`
-        : fhirEligibilityQuery.data?.reason === "no_annotated_variants"
-          ? "FHIR export is disabled because this sample has no annotated variants. Run annotation first."
-          : fhirEligibilityQuery.data?.exportable === false
-            ? "FHIR export is disabled because its eligibility could not be confirmed."
-            : // Annotated, but nothing carried. The bundle is valid and stays
-              // downloadable — that is the distinction between a sample with no
-              // carried variants and one that was never annotated — but say so
-              // first, rather than handing back an empty file unannounced.
-              fhirEligibilityQuery.data?.observation_count === 0
-              ? "This sample has no carried variants, so the FHIR bundle will contain 0 Observations."
+  const fhirEligibilityMessage = // With nothing selected the export is disabled
+    // for the same reason Preview and Download PDF are, and the module list says
+    // so already. Reporting zero Observations here would blame the sample for
+    // the user's own empty selection.
+    selectedCount === 0
+      ? null
+      : fhirEligibilityQuery.isError
+        ? "FHIR export is disabled because its size could not be verified."
+        : fhirEligibilityQuery.isPending
+          ? "FHIR export is disabled while its size is being verified."
+          : fhirEligibilityQuery.data?.reason === "too_large"
+            ? `FHIR export is disabled because the selected modules would create more than ${formatCount(
+                fhirEligibilityQuery.data.max_observations,
+              )} Observations. Select fewer modules.`
+            : fhirEligibilityQuery.data?.reason === "no_annotated_variants"
+              ? "FHIR export is disabled because this sample has no annotated variants. Run annotation first."
+              : fhirEligibilityQuery.data?.exportable === false
+                ? "FHIR export is disabled because its eligibility could not be confirmed."
+                : // Selected modules carry no exportable variant. The bundle is
+                  // valid and stays downloadable — that is the distinction from a
+                  // sample that was never annotated — but say so first, rather
+                  // than handing back an empty file unannounced.
+                  fhirEligibilityQuery.data?.observation_count === 0
+                  ? "The selected modules carry no variants, so the FHIR bundle will contain 0 Observations."
               : null
 
   const handlePreview = useCallback(async () => {
@@ -287,7 +300,7 @@ export default function ReportBuilder() {
   const handleFhirExport = useCallback(() => {
     if (!sampleId || !canExportFhir) return
     fhirMutation.mutate(
-      { sample_id: sampleId, include_all: true },
+      { sample_id: sampleId, include_all: true, modules: selectedModuleList },
       {
         onSuccess: (blob) => {
           const url = URL.createObjectURL(blob)
@@ -301,7 +314,7 @@ export default function ReportBuilder() {
         },
       },
     )
-  }, [sampleId, canExportFhir, fhirMutation])
+  }, [sampleId, canExportFhir, fhirMutation, selectedModuleList])
 
   const closePreview = useCallback(() => {
     setPreviewHtml(null)

@@ -365,10 +365,31 @@ COPILOT_V3_COVERAGE_LINE = re.compile(
 )
 COPILOT_V3_CLEAN_VERDICT = "no comments"
 # Copilot can withhold low-confidence findings instead of posting them, and a
-# withheld finding never becomes an attached comment. There is deliberately no
-# prose scan for that: Copilot paraphrases the diff it read, so any pattern wide
-# enough to catch the wording variants also rejects a clean review of a change
-# that merely discusses suppression. Tracked in #2256.
+# withheld finding never becomes an attached comment, so `comments.totalCount`
+# stays 0 and this envelope cannot see it. That gap is accepted, deliberately,
+# and #2256 records the decision rather than leaving it an omission.
+#
+# There is no prose scan, because Copilot paraphrases the diff it read: any
+# pattern wide enough to catch the undocumented wording variants also rejects a
+# clean review of a change that merely discusses suppression. PR #2254 was the
+# worked example -- a clean review of that pull request would have been refused
+# by its own fixture. On v3 a false positive fails closed and publishes
+# `pending` with no visible cause, so a guessed pattern trades a documented
+# false negative for an undiagnosable false positive. Same class as #2248/#2255.
+#
+# An authenticated field would be trustworthy in the way prose is not. There
+# isn't one, measured 2026-08-05: no field on `PullRequestReview` reports a
+# withheld or suppressed count, a sweep of all 1821 GraphQL types matched
+# nothing on suppress/withheld/low-confidence, and the REST review object
+# carries only 11 keys, none related. `CopilotCodeReviewParameters` exposes just
+# `reviewDraftPullRequests` and `reviewOnPush`, so the analysis-depth setting is
+# not reachable through the API either -- requiring a depth is not enforceable
+# from here. Re-probe before assuming this is still true.
+#
+# So the residual exposure is real and bounded: a Copilot review that suppressed
+# a low-confidence finding can be recorded as clean route evidence. What the
+# envelope asserts is that Copilot posted nothing actionable -- not that it found
+# nothing, and not that every file was read.
 CODEX_CLEAN_COMPLETION_PREFIX = "Codex Review: Didn't find any major issues."
 CODEX_CLEAN_COMPLETION_MARKER = f"{CODEX_CLEAN_COMPLETION_PREFIX} What shall we delve into next?"
 # The trailing flourish is unbounded on purpose. Nothing downstream reads it:

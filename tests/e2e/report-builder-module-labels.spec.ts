@@ -141,6 +141,8 @@ test.describe('Report Builder module labels and export guard (#1497, #1559, #199
     await expect(page.getByRole('button', { name: 'Preview report' })).toBeEnabled()
     await expect(page.getByRole('button', { name: 'Download PDF report' })).toBeEnabled()
     await expect(page.getByRole('button', { name: 'Export FHIR R4 Bundle' })).toBeDisabled()
-    await expect(page.getByText(/FHIR export is disabled because it would create more than/)).toBeVisible()
+    await expect(
+      page.getByText(/FHIR export is disabled because the selected modules would create more than/),
+    ).toBeVisible()
   })
 })
