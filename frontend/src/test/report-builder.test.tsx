@@ -144,6 +144,99 @@ describe("ReportBuilder", () => {
     })
   })
 
+  it("keeps FHIR export enabled while a background eligibility refetch is in flight", async () => {
+    // Gating on `isFetching` disabled the button for the duration of every
+    // background refetch, including the one TanStack Query fires on window
+    // focus, so the button flickered and the "being verified" banner flashed on
+    // each alt-tab. Hold the second request open to prove the enabled state
+    // survives an in-flight refetch; a refetch that fails is a separate case,
+    // covered by the test below.
+    let eligibilityRequests = 0
+    let releaseRefetch: (() => void) | undefined
+    const refetchInFlight = new Promise<void>((resolve) => {
+      releaseRefetch = resolve
+    })
+    mockFetch.mockImplementation(async (url: string) => {
+      if (typeof url === "string" && url.includes("/api/analysis/findings/summary")) {
+        return {
+          ok: true,
+          json: async () => MOCK_SUMMARY,
+          text: async () => JSON.stringify(MOCK_SUMMARY),
+        }
+      }
+      if (typeof url === "string" && url.includes("/api/export/fhir/eligibility")) {
+        eligibilityRequests += 1
+        if (eligibilityRequests > 1) await refetchInFlight
+        return {
+          ok: true,
+          json: async () => FHIR_ELIGIBLE,
+          text: async () => JSON.stringify(FHIR_ELIGIBLE),
+        }
+      }
+      return { ok: false, status: 404, text: async () => "Not found" }
+    })
+    const { queryClient } = renderWithRoute(<ReportBuilder />, ["/reports?sample_id=1"])
+
+    const fhirButton = await screen.findByLabelText("Export FHIR R4 Bundle")
+    await waitFor(() => expect(fhirButton).toBeEnabled())
+
+    const refetch = queryClient.refetchQueries({
+      queryKey: ["fhir-export-eligibility", 1],
+      exact: true,
+    })
+    await waitFor(() => expect(eligibilityRequests).toBe(2))
+
+    // The refetch has not resolved yet: the previous verified result still
+    // stands, so the action must not disappear from under the user.
+    expect(fhirButton).toBeEnabled()
+    expect(
+      screen.queryByText(/FHIR export is disabled while its size is being verified/),
+    ).not.toBeInTheDocument()
+
+    releaseRefetch?.()
+    await refetch
+    expect(fhirButton).toBeEnabled()
+  })
+
+  it("says the bundle will be empty when the sample carries no variants", async () => {
+    // Annotated but nothing carried is a valid zero-Observation bundle, not a
+    // blocked export -- that is the distinction against a never-annotated
+    // sample. It stays downloadable, but the user is told before they download
+    // an empty file rather than after.
+    mockFetch.mockImplementation(async (url: string) => {
+      if (typeof url === "string" && url.includes("/api/analysis/findings/summary")) {
+        return {
+          ok: true,
+          json: async () => MOCK_SUMMARY,
+          text: async () => JSON.stringify(MOCK_SUMMARY),
+        }
+      }
+      if (typeof url === "string" && url.includes("/api/export/fhir/eligibility")) {
+        const eligibility = {
+          exportable: true,
+          max_observations: 1_000,
+          observation_count: 0,
+          reason: null,
+        }
+        return {
+          ok: true,
+          json: async () => eligibility,
+          text: async () => JSON.stringify(eligibility),
+        }
+      }
+      return { ok: false, status: 404, text: async () => "Not found" }
+    })
+    renderWithRoute(<ReportBuilder />, ["/reports?sample_id=1"])
+
+    const fhirButton = await screen.findByLabelText("Export FHIR R4 Bundle")
+    await waitFor(() => expect(fhirButton).toBeEnabled())
+    expect(
+      screen.getByText(
+        /This sample has no carried variants, so the FHIR bundle will contain 0 Observations/,
+      ),
+    ).toBeInTheDocument()
+  })
+
   it("fails closed when a verified FHIR eligibility result cannot be refreshed", async () => {
     let eligibilityRequests = 0
     mockFetch.mockImplementation(async (url: string) => {

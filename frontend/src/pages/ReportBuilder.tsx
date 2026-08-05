@@ -194,14 +194,21 @@ export default function ReportBuilder() {
   const hasExportableSelection = selectedCount > 0 && !isReportTooLarge
   const canPreview = hasExportableSelection && !previewLoading
   const canDownload = hasExportableSelection && !generateMutation.isPending
+  // Gate on `isPending` (no verified result yet), not `isFetching` (any request
+  // in flight). Both are fail-closed before the first answer arrives, but
+  // `isFetching` is also true for every background refetch — including the one
+  // TanStack Query fires on window focus — so the button flickered disabled and
+  // the "being verified" banner flashed every time the user alt-tabbed back. A
+  // refetch that *fails* still disables, via `isError` below, so the fail-closed
+  // property that matters is unchanged.
   const canExportFhir =
-    !fhirEligibilityQuery.isFetching &&
+    !fhirEligibilityQuery.isPending &&
     !fhirEligibilityQuery.isError &&
     fhirEligibilityQuery.data?.exportable === true &&
     !fhirMutation.isPending
   const fhirEligibilityMessage = fhirEligibilityQuery.isError
     ? "FHIR export is disabled because its size could not be verified."
-    : fhirEligibilityQuery.isFetching
+    : fhirEligibilityQuery.isPending
       ? "FHIR export is disabled while its size is being verified."
       : fhirEligibilityQuery.data?.reason === "too_large"
         ? `FHIR export is disabled because it would create more than ${formatCount(
@@ -211,7 +218,13 @@ export default function ReportBuilder() {
           ? "FHIR export is disabled because this sample has no annotated variants. Run annotation first."
           : fhirEligibilityQuery.data?.exportable === false
             ? "FHIR export is disabled because its eligibility could not be confirmed."
-            : null
+            : // Annotated, but nothing carried. The bundle is valid and stays
+              // downloadable — that is the distinction between a sample with no
+              // carried variants and one that was never annotated — but say so
+              // first, rather than handing back an empty file unannounced.
+              fhirEligibilityQuery.data?.observation_count === 0
+              ? "This sample has no carried variants, so the FHIR bundle will contain 0 Observations."
+              : null
 
   const handlePreview = useCallback(async () => {
     if (!sampleId || selectedCount === 0) return
