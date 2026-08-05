@@ -13,7 +13,11 @@ from fastapi import APIRouter, HTTPException
 
 from backend.api.sse import job_progress_stream, sse_response
 from backend.db.connection import get_registry
-from backend.tasks.huey_tasks import create_annotation_job, run_annotation_task
+from backend.services.sample_operation_lock import (
+    ACTIVE_ANNOTATION_STATUSES,
+    SampleOperationUnavailableError,
+)
+from backend.tasks.huey_tasks import AnnotationEnqueueError, enqueue_annotation_job
 
 logger = logging.getLogger(__name__)
 
@@ -28,12 +32,20 @@ async def start_annotation(sample_id: int) -> dict:
     Rejects if an annotation is already running for this sample.
     """
     try:
-        job_id = create_annotation_job(sample_id)
+        job_id = enqueue_annotation_job(sample_id)
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-
-    # Enqueue the Huey background task
-    run_annotation_task(sample_id, job_id)
+    except SampleOperationUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except AnnotationEnqueueError as exc:
+        logger.exception(
+            "annotation_enqueue_failed",
+            extra={"sample_id": sample_id},
+        )
+        raise HTTPException(
+            status_code=503,
+            detail="Unable to queue annotation; retry the request.",
+        ) from exc
 
     logger.info(
         "annotation_job_enqueued",
@@ -45,7 +57,7 @@ async def start_annotation(sample_id: int) -> dict:
 
 @router.get("/active/{sample_id}")
 async def get_active_annotation(sample_id: int) -> dict:
-    """Return the currently running or pending annotation job for a sample.
+    """Return the pending, running, or cancelling annotation job for a sample.
 
     Returns 200 with job info if an active job exists, or 404 if none.
     Used by the frontend to reconnect to in-progress annotations on page load.
@@ -60,7 +72,7 @@ async def get_active_annotation(sample_id: int) -> dict:
             sa.select(jobs.c.job_id, jobs.c.status, jobs.c.progress_pct, jobs.c.message)
             .where(jobs.c.sample_id == sample_id)
             .where(jobs.c.job_type == "annotation")
-            .where(jobs.c.status.in_(["pending", "running"]))
+            .where(jobs.c.status.in_(ACTIVE_ANNOTATION_STATUSES))
             .order_by(jobs.c.updated_at.desc())
             .limit(1)
         ).fetchone()
@@ -97,25 +109,36 @@ async def cancel_annotation(job_id: str) -> dict:
     registry = get_registry()
 
     with registry.reference_engine.begin() as conn:
-        row = conn.execute(sa.select(jobs.c.status).where(jobs.c.job_id == job_id)).fetchone()
+        result = conn.execute(
+            jobs.update()
+            .where(jobs.c.job_id == job_id)
+            .where(jobs.c.job_type == "annotation")
+            .where(jobs.c.status.in_(("pending", "running")))
+            .values(
+                status="cancelling",
+                message="Cancellation requested",
+                updated_at=datetime.now(UTC),
+            )
+        )
+        if result.rowcount == 1:
+            return {"job_id": job_id, "status": "cancelling"}
 
-        if row is None:
+        row = conn.execute(
+            sa.select(jobs.c.status, jobs.c.job_type).where(jobs.c.job_id == job_id)
+        ).fetchone()
+
+        if row is None or row.job_type != "annotation":
             raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
 
-        if row.status in ("complete", "failed", "cancelled"):
+        if row.status in ("complete", "partial", "failed", "cancelled"):
             raise HTTPException(
                 status_code=409,
                 detail=f"Job {job_id} already in terminal state: {row.status}",
             )
 
-        conn.execute(
-            jobs.update()
-            .where(jobs.c.job_id == job_id)
-            .values(
-                status="cancelled",
-                message="Cancelled by user",
-                updated_at=datetime.now(UTC),
-            )
+        if row.status == "cancelling":
+            return {"job_id": job_id, "status": "cancelling"}
+        raise HTTPException(
+            status_code=409,
+            detail=f"Job {job_id} cannot be cancelled from state: {row.status}",
         )
-
-    return {"job_id": job_id, "status": "cancelled"}
