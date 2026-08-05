@@ -18,7 +18,7 @@ class JobStatus:
     """Snapshot of a job's current state from the jobs table."""
 
     job_id: str
-    status: str  # pending | running | complete | failed | cancelled
+    status: str  # pending | running | cancelling | complete | failed | cancelled
     progress_pct: float
     message: str
     error: str | None = None

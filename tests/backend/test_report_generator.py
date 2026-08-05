@@ -22,14 +22,17 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 import sqlalchemy as sa
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
+from backend.api.dependencies import sample_export_guard
 from backend.config import Settings
 from backend.db.connection import reset_registry
 from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import (
     apoe_gate,
     findings,
+    jobs,
     reference_metadata,
     samples,
 )
@@ -46,6 +49,7 @@ from backend.reports.generator import (
     render_report_html,
 )
 from backend.reports.module_disclaimers import MODULE_DISCLAIMERS, MODULE_DISPLAY_NAMES
+from backend.services.sample_operation_lock import SAMPLE_EXPORT_JOB_TYPE
 
 # ── Fixtures ────────────────────────────────────────────────────────
 
@@ -240,6 +244,24 @@ def _insert_report_findings(
     ]
     with sample_engine.begin() as conn:
         conn.execute(findings.insert(), rows)
+
+
+def _insert_active_annotation_job(
+    ref_engine: sa.Engine,
+    sample_id: int = 1,
+    *,
+    status: str = "running",
+) -> None:
+    """Seed a running annotation job for export interlock tests."""
+    with ref_engine.begin() as conn:
+        conn.execute(
+            jobs.insert().values(
+                job_id=f"annotation-{sample_id}",
+                sample_id=sample_id,
+                job_type="annotation",
+                status=status,
+            )
+        )
 
 
 def _acknowledge_gate(sample_engine: sa.Engine, gate_table: sa.Table) -> None:
@@ -875,6 +897,25 @@ class TestModuleDisclaimers:
 # ── Integration tests: API endpoints ──────────────────────────────
 
 
+def test_annotation_idle_gate_fails_closed_when_job_state_is_unavailable() -> None:
+    error = sa.exc.OperationalError(
+        "SELECT jobs",
+        {},
+        RuntimeError("reference database unavailable"),
+    )
+    with patch("backend.api.dependencies.get_registry") as get_registry_mock:
+        get_registry_mock.return_value.reference_engine.connect.side_effect = error
+
+        with pytest.raises(HTTPException) as exc_info:
+            with sample_export_guard(1, operation="test export"):
+                raise AssertionError("unreachable")
+
+    assert exc_info.value.status_code == 503
+    assert exc_info.value.detail == (
+        "Unable to verify annotation status for sample 1; the export was not started."
+    )
+
+
 class TestReportAPI:
     def test_preview_endpoint(self, report_client: TestClient) -> None:
         resp = report_client.post(
@@ -931,6 +972,45 @@ class TestReportAPI:
         assert "attachment" in resp.headers["content-disposition"]
         assert resp.content == fake_pdf
 
+    def test_generate_holds_export_lease_during_pdf_rendering(
+        self,
+        report_client: TestClient,
+    ) -> None:
+        from backend.db.connection import get_registry
+
+        async def assert_lease_held(_html: str) -> bytes:
+            with get_registry().reference_engine.connect() as conn:
+                row = conn.execute(
+                    sa.select(jobs.c.status).where(
+                        jobs.c.sample_id == 1,
+                        jobs.c.job_type == SAMPLE_EXPORT_JOB_TYPE,
+                    )
+                ).fetchone()
+            assert row is not None
+            assert row.status == "running"
+            return b"%PDF-1.4 leased"
+
+        with patch(
+            "backend.reports.generator._html_to_pdf",
+            new_callable=AsyncMock,
+            side_effect=assert_lease_held,
+        ):
+            resp = report_client.post(
+                "/api/reports/generate",
+                json={"sample_id": 1},
+            )
+
+        assert resp.status_code == 200
+        with get_registry().reference_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(jobs.c.status).where(
+                    jobs.c.sample_id == 1,
+                    jobs.c.job_type == SAMPLE_EXPORT_JOB_TYPE,
+                )
+            ).fetchone()
+        assert row is not None
+        assert row.status == "complete"
+
     def test_generate_with_module_filter(self, report_client: TestClient) -> None:
         fake_pdf = b"%PDF-1.4 filtered report"
 
@@ -970,6 +1050,29 @@ class TestReportAPI:
         )
         html_to_pdf.assert_not_awaited()
 
+    def test_generate_rejects_active_annotation_before_pdf_rendering(
+        self,
+        report_client: TestClient,
+        sample_with_findings: tuple,
+    ) -> None:
+        ref_engine, _, _ = sample_with_findings
+        _insert_active_annotation_job(ref_engine)
+
+        with patch(
+            "backend.reports.generator._html_to_pdf",
+            new_callable=AsyncMock,
+        ) as html_to_pdf:
+            resp = report_client.post(
+                "/api/reports/generate",
+                json={"sample_id": 1},
+            )
+
+        assert resp.status_code == 409
+        assert resp.json()["detail"] == (
+            "Annotation is in progress for sample 1; retry the export after it completes."
+        )
+        html_to_pdf.assert_not_awaited()
+
     def test_preview_rejects_oversized_selection_before_html_rendering(
         self,
         report_client: TestClient,
@@ -987,6 +1090,26 @@ class TestReportAPI:
         assert resp.json()["detail"] == (
             "Report selection exceeds the maximum of 1,000 findings; select fewer modules."
         )
+
+    def test_preview_rejects_active_annotation_before_html_rendering(
+        self,
+        report_client: TestClient,
+        sample_with_findings: tuple,
+    ) -> None:
+        ref_engine, _, _ = sample_with_findings
+        _insert_active_annotation_job(ref_engine, status="cancelling")
+
+        with patch("backend.reports.generator.render_report_html") as render_html:
+            resp = report_client.post(
+                "/api/reports/preview",
+                json={"sample_id": 1},
+            )
+
+        assert resp.status_code == 409
+        assert resp.json()["detail"] == (
+            "Annotation is in progress for sample 1; retry the export after it completes."
+        )
+        render_html.assert_not_called()
 
     def test_generate_nonexistent_sample(self, report_client: TestClient) -> None:
         resp = report_client.post(
