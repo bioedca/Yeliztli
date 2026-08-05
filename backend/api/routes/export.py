@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 import sqlalchemy as sa
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -126,6 +126,18 @@ class ExportFhirRequest(BaseModel):
             "If false, only include variants with ClinVar annotations."
         ),
     )
+
+
+class FhirExportEligibilityResponse(BaseModel):
+    """Bounded preflight result for the full-sample FHIR export."""
+
+    exportable: bool
+    max_observations: int = Field(
+        ...,
+        description="Maximum number of FHIR Observations allowed in one export.",
+    )
+    observation_count: int | None
+    reason: Literal["too_large", "no_annotated_variants"] | None = None
 
 
 # ── Helpers ──────────────────────────────────────────────────────────
@@ -478,6 +490,37 @@ def export_sql(body: ExportSqlRequest) -> StreamingResponse:
 # ── FHIR R4 export (P4-12a) ────────────────────────────────────────
 
 
+@router.get("/fhir/eligibility", response_model=FhirExportEligibilityResponse)
+def get_fhir_export_eligibility(
+    sample_id: int,
+    include_all: bool = True,
+) -> FhirExportEligibilityResponse:
+    """Fail-closed preflight against the actual FHIR Observation selection."""
+    require_fresh_sample(sample_id)
+    from backend.reports.fhir_export import MAX_FHIR_OBSERVATIONS, count_fhir_observations
+
+    sample_engine = _get_sample_engine(sample_id)
+    observation_count = count_fhir_observations(
+        sample_engine,
+        include_all=include_all,
+    )
+    if observation_count == 0 and not _has_annotated_variants(sample_engine):
+        exportable = False
+        reason: Literal["too_large", "no_annotated_variants"] | None = "no_annotated_variants"
+    elif observation_count > MAX_FHIR_OBSERVATIONS:
+        exportable = False
+        reason = "too_large"
+    else:
+        exportable = True
+        reason = None
+    return FhirExportEligibilityResponse(
+        exportable=exportable,
+        max_observations=MAX_FHIR_OBSERVATIONS,
+        observation_count=None if reason == "too_large" else observation_count,
+        reason=reason,
+    )
+
+
 @router.post("/fhir")
 def export_fhir(body: ExportFhirRequest) -> StreamingResponse:
     """Export a FHIR R4 Bundle (DiagnosticReport + Observations).
@@ -487,13 +530,18 @@ def export_fhir(body: ExportFhirRequest) -> StreamingResponse:
     core resources — no Condition or MedicationStatement (R-17 mitigation).
     """
     require_fresh_sample(body.sample_id)
-    from backend.reports.fhir_export import build_fhir_bundle
+    from backend.reports.fhir_export import FhirExportTooLargeError, build_fhir_bundle
 
     try:
         bundle = build_fhir_bundle(
             sample_id=body.sample_id,
             include_all=body.include_all,
         )
+    except FhirExportTooLargeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            detail=str(exc),
+        ) from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
