@@ -19,12 +19,14 @@ from backend.db.connection import reset_registry
 from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import (
     annotated_variants,
+    findings,
     jobs,
     raw_variants,
     reference_metadata,
     samples,
 )
 from backend.reports.fhir_export import (
+    DBSNP_SYSTEM,
     FHIR_GENOME_BUILD,
     FHIR_MITOCHONDRIAL_REFERENCE,
     HGNC_SYSTEM,
@@ -40,6 +42,10 @@ from backend.reports.fhir_export import (
     _clinical_significance_value,
     _load_annotated_variants,
     _variant_to_observation,
+    build_fhir_bundle,
+    count_fhir_observations,
+    effective_fhir_modules,
+    resolve_fhir_scope,
 )
 from backend.services.sample_operation_lock import SAMPLE_EXPORT_JOB_TYPE
 
@@ -234,6 +240,7 @@ def _setup_client(
     tmp_data_dir: Path,
     variants: list[dict],
     raw_variant_rows: list[dict] | None = None,
+    finding_rows: list[dict] | None = None,
 ):
     """Create a TestClient with annotated sample data.
 
@@ -267,6 +274,12 @@ def _setup_client(
     if raw_variant_rows:
         with sample_engine.begin() as conn:
             conn.execute(sa.insert(raw_variants), raw_variant_rows)
+    if finding_rows:
+        # rsID is the only join between the curated report and the exported
+        # variants, so module scoping is exercised by seeding findings that
+        # point at a subset of the annotated rows (#2100).
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(findings), finding_rows)
     sample_engine.dispose()
 
     with (
@@ -1200,3 +1213,199 @@ class TestFhirBundleValidation:
         # Expected order: chr1 (rs1801133), chr15 (rs12913832),
         # chr17 (rs80357906), chr19 (rs429358)
         assert rsids == ["rs1801133", "rs12913832", "rs80357906", "rs429358"]
+
+
+# ══════════════════════════════════════════════════════════════════════
+# Module scoping (#2100)
+# ══════════════════════════════════════════════════════════════════════
+
+# Findings pointing at a strict subset of ANNOTATED_VARIANTS. rs429358 is the
+# APOE locus and `apoe` is a disclosure-gated module, which is what makes the
+# gate test below discriminating rather than incidental.
+_SCOPE_FINDINGS = [
+    {"module": "cancer", "category": "risk", "rsid": "rs80357906", "finding_text": "BRCA1"},
+    {"module": "methylation", "category": "risk", "rsid": "rs1801133", "finding_text": "MTHFR"},
+    {"module": "apoe", "category": "risk", "rsid": "rs429358", "finding_text": "APOE"},
+    # No rsID: names no variant, so it can never contribute an Observation.
+    {"module": "cancer", "category": "risk", "rsid": None, "finding_text": "Cancer PRS"},
+]
+
+
+@pytest.fixture
+def scoped_client(tmp_data_dir: Path):
+    """Client whose findings map modules onto a subset of the annotated rows."""
+    yield from _setup_client(tmp_data_dir, ANNOTATED_VARIANTS, finding_rows=_SCOPE_FINDINGS)
+
+
+@pytest.fixture
+def hom_ref_scoped_client(tmp_data_dir: Path):
+    """A `carrier` finding naming the hom_ref locus rs334 (#890 control)."""
+    yield from _setup_client(
+        tmp_data_dir,
+        ANNOTATED_VARIANTS,
+        finding_rows=[
+            {"module": "carrier", "category": "carrier", "rsid": "rs334", "finding_text": "HBB"}
+        ],
+    )
+
+
+def _observation_rsids(bundle: dict) -> set[str]:
+    return {
+        coding["code"]
+        for entry in bundle["entry"]
+        if entry["resource"]["resourceType"] == "Observation"
+        for component in entry["resource"].get("component", [])
+        for coding in component.get("valueCodeableConcept", {}).get("coding", [])
+        if coding.get("system") == DBSNP_SYSTEM
+    }
+
+
+class TestFhirModuleScope:
+    """The bundle honours the Report Builder selection (#2100)."""
+
+    def test_selecting_one_module_exports_only_its_variants(self, scoped_client) -> None:
+        _, sid = scoped_client
+        bundle = build_fhir_bundle(sample_id=sid, modules=["cancer"])
+        # rs80357906 is the only carried variant a `cancer` finding names. Without
+        # the join every carried variant in the sample would come back.
+        assert _observation_rsids(bundle) == {"rs80357906"}
+
+    def test_unscoped_export_is_unchanged(self, scoped_client) -> None:
+        """`modules=None` must keep the historical full-sample selection."""
+        _, sid = scoped_client
+        scoped = _observation_rsids(build_fhir_bundle(sample_id=sid, modules=["cancer"]))
+        unscoped = _observation_rsids(build_fhir_bundle(sample_id=sid))
+        assert scoped < unscoped
+        assert "rs1801133" in unscoped
+
+    def test_empty_selection_exports_nothing(self, scoped_client) -> None:
+        """The headline defect: 0 modules selected must not mean "everything"."""
+        _, sid = scoped_client
+        bundle = build_fhir_bundle(sample_id=sid, modules=[])
+        assert _observation_rsids(bundle) == set()
+
+    def test_a_gated_module_cannot_be_exported_by_selecting_it(self, scoped_client) -> None:
+        """An unacknowledged disclosure gate withholds its variants here too.
+
+        `apoe` is gated, and the fixture never acknowledges it. Scoping must not
+        become a way to reach findings the PDF path would hide.
+        """
+        _, sid = scoped_client
+        bundle = build_fhir_bundle(sample_id=sid, modules=["apoe"])
+        assert _observation_rsids(bundle) == set()
+        assert "rs429358" not in _observation_rsids(bundle)
+
+    def test_scope_resolution_drops_gated_modules_and_deduplicates(
+        self, scoped_client, tmp_data_dir: Path
+    ) -> None:
+        _, sid = scoped_client
+        engine = sa.create_engine(f"sqlite:///{tmp_data_dir / 'samples' / 'sample_1.db'}")
+        try:
+            assert effective_fhir_modules(engine, None) is None
+            assert effective_fhir_modules(engine, []) == []
+            assert effective_fhir_modules(engine, ["cancer", "cancer"]) == ["cancer"]
+            assert effective_fhir_modules(engine, ["cancer", "apoe"]) == ["cancer"]
+        finally:
+            engine.dispose()
+
+    def test_carriage_gate_still_applies_within_a_scope(self, hom_ref_scoped_client) -> None:
+        """hom_ref negative control: scoping must not reintroduce non-carriers.
+
+        rs334 is seeded hom_ref and a `carrier` finding names it, so selecting
+        `carrier` still exports nothing for it. Without this the module join
+        could be read as the only filter that matters.
+        """
+        _, sid = hom_ref_scoped_client
+        assert _observation_rsids(build_fhir_bundle(sample_id=sid, modules=["carrier"])) == set()
+
+    def test_eligibility_count_follows_the_scope(self, scoped_client, tmp_data_dir: Path) -> None:
+        _, _sid = scoped_client
+        engine = sa.create_engine(f"sqlite:///{tmp_data_dir / 'samples' / 'sample_1.db'}")
+        try:
+            unscoped = count_fhir_observations(engine, include_all=True)
+            scoped = count_fhir_observations(engine, include_all=True, modules=["cancer"])
+            empty = count_fhir_observations(engine, include_all=True, modules=[])
+            assert scoped == 1
+            assert empty == 0
+            assert unscoped > scoped
+        finally:
+            engine.dispose()
+
+    def test_eligibility_endpoint_scopes_by_module(self, scoped_client) -> None:
+        tc, sid = scoped_client
+        resp = tc.get(
+            "/api/export/fhir/eligibility",
+            params={"sample_id": sid, "include_all": "true", "modules": ["cancer"]},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["observation_count"] == 1
+
+    def test_export_endpoint_scopes_by_module(self, scoped_client) -> None:
+        tc, sid = scoped_client
+        resp = tc.post("/api/export/fhir", json={"sample_id": sid, "modules": ["cancer"]})
+        assert resp.status_code == 200
+        assert _observation_rsids(resp.json()) == {"rs80357906"}
+
+
+class TestFhirDisclosureGate:
+    """An unacknowledged gate withholds variants from EVERY export shape (#2100).
+
+    Scoping made the gate reachable, but the gate is not part of the scope: an
+    export that omitted `modules` would otherwise be the way around it, which is
+    strictly easier than selecting the gated module.
+    """
+
+    def test_unscoped_export_withholds_a_gated_only_variant(self, scoped_client) -> None:
+        _, sid = scoped_client
+        rsids = _observation_rsids(build_fhir_bundle(sample_id=sid))
+        # rs429358 is named only by the gated `apoe` finding, and the gate is
+        # never acknowledged in this fixture.
+        assert "rs429358" not in rsids
+        # …while everything else the sample carries is still exported.
+        assert "rs80357906" in rsids
+        assert "rs1801133" in rsids
+
+    def test_a_variant_a_visible_module_also_names_is_still_exported(
+        self, tmp_data_dir: Path
+    ) -> None:
+        """The gate withholds a variant only when a gated module is its sole reason.
+
+        This mirrors the PDF path, which filters *findings* rather than variants:
+        an rsID reachable through a visible module is legitimately disclosed by
+        that module. Without this the gate would over-withhold.
+        """
+        gen = _setup_client(
+            tmp_data_dir,
+            ANNOTATED_VARIANTS,
+            finding_rows=[
+                {"module": "apoe", "category": "risk", "rsid": "rs429358", "finding_text": "APOE"},
+                {
+                    "module": "cardiovascular",
+                    "category": "risk",
+                    "rsid": "rs429358",
+                    "finding_text": "Lipids",
+                },
+            ],
+        )
+        _tc, sid = next(gen)
+        try:
+            assert "rs429358" in _observation_rsids(build_fhir_bundle(sample_id=sid))
+        finally:
+            gen.close()
+
+    def test_the_eligibility_count_reflects_the_gate(
+        self, scoped_client, tmp_data_dir: Path
+    ) -> None:
+        """Preflight and bundle must agree, or the button gates on a lie."""
+        _, sid = scoped_client
+        engine = sa.create_engine(f"sqlite:///{tmp_data_dir / 'samples' / 'sample_1.db'}")
+        try:
+            scope, hidden = resolve_fhir_scope(engine, None)
+            assert scope is None
+            assert "apoe" in hidden
+            counted = count_fhir_observations(
+                engine, include_all=True, modules=scope, hidden_modules=hidden
+            )
+        finally:
+            engine.dispose()
+        assert counted == len(_observation_rsids(build_fhir_bundle(sample_id=sid)))
