@@ -1061,6 +1061,24 @@ jobs:
               --review-pages "$RUNNER_TEMP/review-route-review-pages.json"
             )
           fi
+          thread_page_args=()
+          if jq -e '
+            .data.repository.pullRequest.reviewThreads as $threads |
+            ($threads | type) == "object" and
+            ($threads.totalCount | type) == "number" and
+            ($threads.nodes | type) == "array" and
+            $threads.totalCount > ($threads.nodes | length)
+          ' "$RUNNER_TEMP/review-route-context.json" > /dev/null; then
+            gh api graphql --paginate --slurp \
+              -F owner="$OWNER" \
+              -F repo="$REPO" \
+              -F number="$PR_NUMBER" \
+              -F query=@scripts/review_route_threads.graphql \
+              > "$RUNNER_TEMP/review-route-thread-pages.json"
+            thread_page_args=(
+              --thread-pages "$RUNNER_TEMP/review-route-thread-pages.json"
+            )
+          fi
           gh api --paginate --slurp \
             "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" \
             > "$RUNNER_TEMP/review-route-files.json"
@@ -1105,6 +1123,7 @@ jobs:
             --rendered-body "$RUNNER_TEMP/review-route-rendered.html" \
             --render-nonce "$render_nonce" \
             "${review_page_args[@]}" \
+            "${thread_page_args[@]}" \
             "${finalizer_args[@]}"
 
       - name: Publish required status on PR head
