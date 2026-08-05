@@ -85,6 +85,16 @@ GREPTILE_LEDGER_FORCE_PUSHED = (
     "Greptile per-pull-request budget cannot be proven after a force push; "
     "select another hosted reviewer"
 )
+# Entries are compared against `path.lower()`, so every member must be lowercase.
+# `agents.md` and `claude.md` are the fleet contract that gates every other
+# change, including merge authorisation. Both route tables call an edit to them
+# Load-bearing, but until they were listed here the floor said `Low` -- they are
+# `.md` and matched nothing else -- and the two halves of the repository
+# disagreed with each other. Precedent split along exactly that line: #2197
+# routed Load-bearing and #2199 routed Low, both agent-contract edits, both
+# valid, because the floor is a minimum and either route sits at or above it.
+# Listing them makes the classification machine-checked instead of advisory
+# (#2259).
 LOAD_BEARING_EXACT = {
     ".coderabbit.yaml",
     ".gitattributes",
@@ -95,9 +105,11 @@ LOAD_BEARING_EXACT = {
     ".github/copilot-instructions.md",
     ".github/dependabot.yml",
     ".github/pull_request_template.md",
+    "agents.md",
     "changelog.md",
     "code_of_conduct.md",
     "citation.cff",
+    "claude.md",
     "contributing.md",
     "dockerfile",
     "governance.md",
