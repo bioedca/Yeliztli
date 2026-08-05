@@ -53,6 +53,19 @@ SEQUENCE_ONTOLOGY = "http://www.sequenceontology.org"
 
 FHIR_GENOME_BUILD = "GRCh37/hg19"
 FHIR_MITOCHONDRIAL_REFERENCE = "rCRS"
+MAX_FHIR_OBSERVATIONS = 1_000
+
+
+class FhirExportTooLargeError(ValueError):
+    """Raised before resource construction when a FHIR export is oversized."""
+
+
+def _fhir_export_too_large_error() -> FhirExportTooLargeError:
+    return FhirExportTooLargeError(
+        "FHIR export exceeds the maximum of "
+        f"{MAX_FHIR_OBSERVATIONS:,} Observations; narrow the export."
+    )
+
 
 # LOINC codes for genomics reporting
 LOINC_MASTER_PANEL = "81247-9"  # Master HL7 genetic variant reporting panel
@@ -463,8 +476,44 @@ def _variant_to_observation(
     return full_url, observation
 
 
-def _load_annotated_variants(engine: sa.Engine) -> list[dict[str, Any]]:
-    """Load all annotated variants from a sample database."""
+def _fhir_variant_clauses(*, include_all: bool) -> list[sa.ColumnElement[bool]]:
+    """Return the SQL predicates shared by FHIR preflight and generation."""
+    clauses: list[sa.ColumnElement[bool]] = [
+        annotated_variants.c.zygosity.in_(sorted(CARRIED_ZYGOSITIES))
+    ]
+    if not include_all:
+        clauses.extend(
+            [
+                annotated_variants.c.clinvar_significance.is_not(None),
+                annotated_variants.c.clinvar_significance != "",
+            ]
+        )
+    return clauses
+
+
+def count_fhir_observations(
+    engine: sa.Engine,
+    *,
+    include_all: bool,
+) -> int:
+    """Count only up to one Observation beyond the supported output ceiling."""
+    bounded_selection = (
+        sa.select(sa.literal(1).label("selected"))
+        .where(sa.and_(*_fhir_variant_clauses(include_all=include_all)))
+        .limit(MAX_FHIR_OBSERVATIONS + 1)
+        .subquery()
+    )
+    with engine.connect() as conn:
+        count = conn.scalar(sa.select(sa.func.count()).select_from(bounded_selection))
+    return int(count or 0)
+
+
+def _load_annotated_variants(
+    engine: sa.Engine,
+    *,
+    include_all: bool,
+) -> list[dict[str, Any]]:
+    """Load at most one carried variant beyond the FHIR output ceiling."""
     # Canonical chromosome sort order
     chrom_order: dict[str, int] = {
         **{str(i): i for i in range(1, 23)},
@@ -476,12 +525,18 @@ def _load_annotated_variants(engine: sa.Engine) -> list[dict[str, Any]]:
         *[(annotated_variants.c.chrom == k, v) for k, v in chrom_order.items()],
         else_=99,
     )
-    query = sa.select(annotated_variants).order_by(
-        chrom_expr.asc(), annotated_variants.c.pos.asc()
+    query = (
+        sa.select(annotated_variants)
+        .where(sa.and_(*_fhir_variant_clauses(include_all=include_all)))
+        .order_by(chrom_expr.asc(), annotated_variants.c.pos.asc())
+        .limit(MAX_FHIR_OBSERVATIONS + 1)
     )
 
     with engine.connect() as conn:
         rows = conn.execute(query).fetchall()
+
+    if len(rows) > MAX_FHIR_OBSERVATIONS:
+        raise _fhir_export_too_large_error()
 
     return [
         {col.name: getattr(r, col.name, None) for col in annotated_variants.columns} for r in rows
@@ -530,24 +585,29 @@ def build_fhir_bundle(
 
     sample_engine = registry.get_sample_engine(sample_db_path)
 
-    # Load variants
-    all_variants = _load_annotated_variants(sample_engine)
+    # Reject oversized direct POSTs with the bounded, unordered selection before
+    # the canonical-order query can sort or materialize any selected rows.
+    if count_fhir_observations(sample_engine, include_all=include_all) > MAX_FHIR_OBSERVATIONS:
+        raise _fhir_export_too_large_error()
+
+    # Apply carriage and optional ClinVar filters in SQL. The limit remains a
+    # defense-in-depth recheck if rows change between the preflight and load.
+    all_variants = _load_annotated_variants(sample_engine, include_all=include_all)
     if not all_variants:
-        raise ValueError(f"Sample {sample_id} has no annotated variants. Run annotation first.")
-
-    # Carriage-gate the exported Observations (#890). A FHIR genetic-variant
-    # Observation asserts the variant is *present* in the sample, so only export
-    # positions actually carried — het / hom_alt — matching the carriage gate the
-    # cancer/carrier/cardiovascular pipelines apply (CARRIED_ZYGOSITIES). hom_ref
-    # positions carry no variant; exporting them (with the variant's ClinVar
-    # significance and a "Homozygous" allelic state indistinguishable from hom_alt)
-    # is a false clinical assertion — thousands of false homozygous-pathogenic rows
-    # per healthy sample.
-    all_variants = [v for v in all_variants if v.get("zygosity") in CARRIED_ZYGOSITIES]
-
-    # Filter if requested
-    if not include_all:
-        all_variants = [v for v in all_variants if v.get("clinvar_significance")]
+        # Preserve the existing distinction between a sample with no annotation
+        # rows (an error) and one whose rows are all non-carried or filtered out
+        # (a valid DiagnosticReport with zero Observations).
+        with sample_engine.connect() as conn:
+            has_annotated_variants = (
+                conn.execute(
+                    sa.select(sa.literal(1)).select_from(annotated_variants).limit(1)
+                ).first()
+                is not None
+            )
+        if not has_annotated_variants:
+            raise ValueError(
+                f"Sample {sample_id} has no annotated variants. Run annotation first."
+            )
 
     # Resolve biological sex once, only when a carried variant sits on chrX/chrY
     # — that is the sole place sex changes the allelic state (a male non-PAR

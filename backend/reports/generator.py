@@ -41,6 +41,12 @@ logger = structlog.get_logger(__name__)
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 VERSION = "0.1.0"
+MAX_REPORT_FINDINGS = 1_000
+
+
+class ReportTooLargeError(ValueError):
+    """Raised before rendering when a report selection exceeds its safe bound."""
+
 
 # Module display order (determines section order in report)
 MODULE_ORDER = [
@@ -115,18 +121,44 @@ def _load_findings(
     if hidden_modules:
         clauses.append(findings.c.module.not_in(hidden_modules))
 
-    stmt = sa.select(findings)
-    if clauses:
-        stmt = stmt.where(sa.and_(*clauses))
+    where_clause = sa.and_(*clauses)
+    bounded_selection = (
+        sa.select(sa.literal(1).label("selected"))
+        .where(where_clause)
+        .limit(MAX_REPORT_FINDINGS + 1)
+        .subquery()
+    )
 
-    stmt = stmt.order_by(
-        sa.desc(sa.func.coalesce(findings.c.evidence_level, 0)),
-        findings.c.module,
-        findings.c.id,
+    stmt = (
+        sa.select(findings)
+        .where(where_clause)
+        .order_by(
+            sa.desc(sa.func.coalesce(findings.c.evidence_level, 0)),
+            findings.c.module,
+            findings.c.id,
+        )
+        .limit(MAX_REPORT_FINDINGS + 1)
     )
 
     with engine.connect() as conn:
+        # Prove the selection is bounded before SQLite evaluates the report's
+        # presentation ordering. Without this unordered preflight, an oversized
+        # request can still sort every matching row before LIMIT returns 1,001.
+        selection_count = conn.scalar(sa.select(sa.func.count()).select_from(bounded_selection))
+        if int(selection_count or 0) > MAX_REPORT_FINDINGS:
+            raise ReportTooLargeError(
+                "Report selection exceeds the maximum of "
+                f"{MAX_REPORT_FINDINGS:,} findings; select fewer modules."
+            )
+
+        # Keep LIMIT + 1 on the ordered load as a defense-in-depth recheck.
         rows = conn.execute(stmt).fetchall()
+
+    if len(rows) > MAX_REPORT_FINDINGS:
+        raise ReportTooLargeError(
+            "Report selection exceeds the maximum of "
+            f"{MAX_REPORT_FINDINGS:,} findings; select fewer modules."
+        )
 
     result = []
     for row in rows:
