@@ -185,12 +185,17 @@ def recover_worker_orphaned_jobs(
         & ((jobs.c.created_at.is_(None)) | (jobs.c.created_at < pending_cutoff))
         & jobs.c.job_id.not_in(queued_job_ids)
     )
-    # A row is only claimed by *this* worker if it carries this owner and epoch.
-    # Anything else is either unclaimed or held by a predecessor, which is what
-    # makes "the owner is gone" provable instead of assumed (#2232).
-    not_mine = (jobs.c.owner_id.is_(None)) | (jobs.c.owner_id != owner_id)
+    # Provably *someone else's* lease -- not merely "not proven to be mine".
+    # A NULL owner is unclaimed, and unclaimed is exactly what a job type that
+    # never takes a lease looks like: only annotation claims one, so a download
+    # or backup export runs its whole life with `owner_id IS NULL`. Treating
+    # that as abandoned would let the five-minutely sweep fail a task that is
+    # still executing, which is the opposite of what the lease is for. An
+    # unclaimed row is left to the startup sweep, where a restart is itself the
+    # proof that nothing is still running (#2232).
+    not_mine = jobs.c.owner_id.is_not(None) & (jobs.c.owner_id != owner_id)
     if owner_epoch is not None:
-        not_mine |= jobs.c.owner_epoch != owner_epoch
+        not_mine |= jobs.c.owner_id.is_not(None) & (jobs.c.owner_epoch != owner_epoch)
     # A lease whose heartbeat has gone quiet past the grace period is abandoned
     # even if the owner never came back to say so.
     heartbeat_expired = (jobs.c.heartbeat_at.is_(None)) | (jobs.c.heartbeat_at < heartbeat_cutoff)

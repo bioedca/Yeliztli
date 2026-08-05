@@ -680,6 +680,112 @@ class TestRecoverOrphanedJobs:
             status = conn.scalar(sa.select(jobs.c.status).where(jobs.c.job_id == "running-live"))
         assert status == "running"
 
+    @pytest.mark.parametrize("job_type", ["backup_export", HUEY_DOWNLOAD_JOB_TYPE])
+    def test_periodic_sweep_never_fails_a_lease_less_job_type_mid_flight(
+        self,
+        annotation_env: dict,
+        job_type: str,
+    ) -> None:
+        """Only annotation takes a lease; the rest run their whole life unclaimed.
+
+        A download or backup export never calls `_claim_annotation_job`, so its
+        `owner_id` stays NULL and its heartbeat goes quiet whenever it works for
+        longer than the grace period without reporting progress -- which is
+        exactly what a long download does. Reading "unclaimed" as "abandoned"
+        would fail it while it is still executing and drop the interlock it
+        holds. Unclaimed rows belong to the startup sweep, where the restart is
+        itself the proof that nothing is running.
+        """
+        from backend.db.connection import get_registry
+        from backend.tasks.huey_tasks import worker_lease_identity
+
+        owner_id, owner_epoch = worker_lease_identity()
+        recovery_time = datetime.now(UTC)
+        # Well past HUEY_HEARTBEAT_GRACE, and unclaimed, so both halves of the
+        # abandonment test would fire if NULL counted as someone else's.
+        stale = recovery_time - timedelta(hours=6)
+        registry = get_registry()
+        with registry.reference_engine.begin() as conn:
+            conn.execute(
+                jobs.insert(),
+                [
+                    {
+                        "job_id": "unclaimed-live",
+                        "sample_id": annotation_env["sample_id"],
+                        "job_type": job_type,
+                        "status": "running",
+                        "created_at": stale,
+                        "updated_at": stale,
+                        "owner_id": None,
+                        "owner_epoch": None,
+                        "heartbeat_at": stale,
+                    }
+                ],
+            )
+
+        assert (
+            recover_worker_orphaned_jobs(
+                registry.reference_engine,
+                # Executing tasks are already dequeued, so an in-flight job is
+                # absent from this set. It cannot be what protects the row.
+                queued_job_ids=set(),
+                recovery_time=recovery_time,
+                recover_running=False,
+                owner_id=owner_id,
+                owner_epoch=owner_epoch,
+            )
+            == 0
+        )
+        with registry.reference_engine.connect() as conn:
+            status = conn.scalar(sa.select(jobs.c.status).where(jobs.c.job_id == "unclaimed-live"))
+        assert status == "running"
+
+    def test_startup_sweep_still_releases_an_unclaimed_running_row(
+        self,
+        annotation_env: dict,
+    ) -> None:
+        """The negative control for the case above: a restart does release it.
+
+        If mid-flight preservation also survived startup, an orphaned unclaimed
+        row would hold its interlock forever -- the failure #2232 exists to fix.
+        """
+        from backend.db.connection import get_registry
+
+        recovery_time = datetime.now(UTC)
+        registry = get_registry()
+        with registry.reference_engine.begin() as conn:
+            conn.execute(
+                jobs.insert(),
+                [
+                    {
+                        "job_id": "unclaimed-orphan",
+                        "sample_id": annotation_env["sample_id"],
+                        "job_type": "backup_export",
+                        "status": "running",
+                        "created_at": recovery_time,
+                        "updated_at": recovery_time,
+                        "owner_id": None,
+                        "owner_epoch": None,
+                        "heartbeat_at": recovery_time,
+                    }
+                ],
+            )
+
+        assert (
+            recover_worker_orphaned_jobs(
+                registry.reference_engine,
+                queued_job_ids=set(),
+                recovery_time=recovery_time,
+                recover_running=True,
+            )
+            == 1
+        )
+        with registry.reference_engine.connect() as conn:
+            status = conn.scalar(
+                sa.select(jobs.c.status).where(jobs.c.job_id == "unclaimed-orphan")
+            )
+        assert status == "failed"
+
     def test_claiming_a_job_records_the_lease(self, annotation_env: dict) -> None:
         """A claimed row must name its holder, or death cannot be proven later."""
         from backend.db.connection import get_registry
