@@ -156,9 +156,13 @@ query ReviewRouteContext(
           updatedAt
         }
       }
+      # `id` is the dedupe key the pagination fallback merges on, exactly as
+      # `reviews` does. Without it a truncated thread window could never be
+      # completed, so a pull request past 100 threads stayed unprovable for
+      # every subsequent head (#2262).
       reviewThreads(first: 100) {
         totalCount
-        nodes { isResolved }
+        nodes { id isResolved }
       }
     }
     openPullRequests: pullRequests(first: 100, states: OPEN, baseRefName: "main") {
