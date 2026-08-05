@@ -8414,6 +8414,15 @@ def test_greptile_sweep_shell_stops_at_the_window_edge_and_keeps_pages_in_order(
     )
 
     context, _ = _greptile_context()
+    # Two open pull requests, so the shell has to hand jq a multi-element JSON
+    # array and the loop has to keep paging until the dormant one is seen.
+    context["data"]["repository"]["openPullRequests"] = {
+        "totalCount": 2,
+        "nodes": [
+            {"headRefOid": HEAD_SHA, "number": 42},
+            {"headRefOid": "b" * 40, "number": 7},
+        ],
+    }
     (tmp_path / "review-route-context.json").write_text(json.dumps(context), encoding="utf-8")
     (tmp_path / "pr.json").write_text(
         json.dumps(
@@ -8439,7 +8448,7 @@ def test_greptile_sweep_shell_stops_at_the_window_edge_and_keeps_pages_in_order(
     (pages_dir / "page-2.json").write_text(
         json.dumps(
             _ledger_sweep_page(
-                numbers=[41],
+                numbers=[7, 41],
                 updated_at="2026-06-01T00:00:00Z",
                 has_next_page=True,
                 end_cursor="cursor-2",
@@ -8504,7 +8513,7 @@ cat "$PAGES_DIR/page-$count.json"
         node["number"]
         for page in merged
         for node in page["data"]["repository"]["greptileLedger"]["nodes"]
-    ] == [42, 41]
+    ] == [42, 7, 41]
     # And the merged file is exactly what the validator accepts.
     merged_context: dict[str, object] = {"data": {"repository": {}}}
     assert _merge_greptile_ledger_pages(merged_context, merged) == []
