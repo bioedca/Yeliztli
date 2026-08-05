@@ -919,10 +919,9 @@ def merge_samples(
     # to keep the service free of Huey at import time (tests can monkey-patch
     # via ``backend.tasks.huey_tasks``).
     try:
-        from backend.tasks.huey_tasks import create_annotation_job, run_annotation_task
+        from backend.tasks.huey_tasks import enqueue_annotation_job
 
-        job_id = create_annotation_job(new_sample_id)
-        run_annotation_task(new_sample_id, job_id)
+        enqueue_annotation_job(new_sample_id)
     except Exception as exc:  # noqa: BLE001
         # A failure to enqueue is non-fatal at the merge boundary — the merged
         # sample exists and the user can retry annotation via the

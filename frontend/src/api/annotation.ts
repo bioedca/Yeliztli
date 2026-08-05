@@ -24,7 +24,9 @@ export interface AnnotationJobResult {
 
 export interface AnnotationProgress {
   job_id: string
-  status: "pending" | "running" | "complete" | "failed" | "cancelled"
+  // `cancelling` is an ACTIVE state, not a terminal one: the row still holds the
+  // annotation/export interlock until the worker acknowledges the cancel (#2232).
+  status: "pending" | "running" | "cancelling" | "complete" | "failed" | "cancelled"
   progress_pct: number
   message: string
   error: string | null
@@ -105,7 +107,10 @@ export function useCancelAnnotation() {
 export interface ActiveAnnotationJob {
   job_id: string
   sample_id: number
-  status: "pending" | "running"
+  // Includes `cancelling`, which the API reports while a cancel is pending
+  // acknowledgement. Consumers gate on the job being present rather than on its
+  // status, so omitting it here would only make the type lie (#2232).
+  status: "pending" | "running" | "cancelling"
   progress_pct: number
   message: string
 }
@@ -189,6 +194,10 @@ const SAMPLE_DERIVED_QUERY_KEY_SHAPES: ReadonlyArray<{
   { prefix: ["overlay-results"], sampleIdIndex: 2 },
   { prefix: ["updates", "prompts"], sampleIdIndex: 2 },
   { prefix: ["updates", "finding-changes"], sampleIdIndex: 2 },
+  // Annotation changes which variants exist, so it changes whether a FHIR export
+  // is eligible and how many Observations it would produce. Without this the
+  // Report Builder keeps showing a verdict computed before the run (#2232).
+  { prefix: ["fhir-export-eligibility"], sampleIdIndex: 1 },
 ]
 
 function isSampleDerivedQueryKey(queryKey: readonly unknown[], sampleId: number): boolean {

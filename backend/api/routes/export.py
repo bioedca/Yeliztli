@@ -28,7 +28,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from backend.analysis.zygosity import CARRIED_ZYGOSITIES, ZYG_HOM_REF
-from backend.api.dependencies import require_fresh_sample
+from backend.api.dependencies import require_fresh_sample, sample_export_guard
 from backend.db.connection import get_registry
 from backend.db.tables import annotated_variants, samples
 from backend.ingestion.vcf_export import export_vcf_from_rows
@@ -499,26 +499,30 @@ def get_fhir_export_eligibility(
     require_fresh_sample(sample_id)
     from backend.reports.fhir_export import MAX_FHIR_OBSERVATIONS, count_fhir_observations
 
-    sample_engine = _get_sample_engine(sample_id)
-    observation_count = count_fhir_observations(
-        sample_engine,
-        include_all=include_all,
-    )
-    if observation_count == 0 and not _has_annotated_variants(sample_engine):
-        exportable = False
-        reason: Literal["too_large", "no_annotated_variants"] | None = "no_annotated_variants"
-    elif observation_count > MAX_FHIR_OBSERVATIONS:
-        exportable = False
-        reason = "too_large"
-    else:
-        exportable = True
-        reason = None
-    return FhirExportEligibilityResponse(
-        exportable=exportable,
-        max_observations=MAX_FHIR_OBSERVATIONS,
-        observation_count=None if reason == "too_large" else observation_count,
-        reason=reason,
-    )
+    with sample_export_guard(
+        sample_id,
+        operation="FHIR export eligibility check",
+    ):
+        sample_engine = _get_sample_engine(sample_id)
+        observation_count = count_fhir_observations(
+            sample_engine,
+            include_all=include_all,
+        )
+        if observation_count == 0 and not _has_annotated_variants(sample_engine):
+            exportable = False
+            reason: Literal["too_large", "no_annotated_variants"] | None = "no_annotated_variants"
+        elif observation_count > MAX_FHIR_OBSERVATIONS:
+            exportable = False
+            reason = "too_large"
+        else:
+            exportable = True
+            reason = None
+        return FhirExportEligibilityResponse(
+            exportable=exportable,
+            max_observations=MAX_FHIR_OBSERVATIONS,
+            observation_count=None if reason == "too_large" else observation_count,
+            reason=reason,
+        )
 
 
 @router.post("/fhir")
@@ -533,10 +537,14 @@ def export_fhir(body: ExportFhirRequest) -> StreamingResponse:
     from backend.reports.fhir_export import FhirExportTooLargeError, build_fhir_bundle
 
     try:
-        bundle = build_fhir_bundle(
-            sample_id=body.sample_id,
-            include_all=body.include_all,
-        )
+        with sample_export_guard(
+            body.sample_id,
+            operation="FHIR bundle generation",
+        ):
+            bundle = build_fhir_bundle(
+                sample_id=body.sample_id,
+                include_all=body.include_all,
+            )
     except FhirExportTooLargeError as exc:
         raise HTTPException(
             status_code=status.HTTP_413_CONTENT_TOO_LARGE,

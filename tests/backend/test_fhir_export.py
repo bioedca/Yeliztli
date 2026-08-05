@@ -19,6 +19,7 @@ from backend.db.connection import reset_registry
 from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import (
     annotated_variants,
+    jobs,
     raw_variants,
     reference_metadata,
     samples,
@@ -40,6 +41,7 @@ from backend.reports.fhir_export import (
     _load_annotated_variants,
     _variant_to_observation,
 )
+from backend.services.sample_operation_lock import SAMPLE_EXPORT_JOB_TYPE
 
 # ── Test data ────────────────────────────────────────────────────────
 
@@ -970,6 +972,64 @@ class TestFhirErrors:
         # gate passed a missing sample through to build_fhir_bundle's ValueError.
         assert resp.status_code == 404
 
+    def test_active_annotation_is_rejected_before_bundle_building(self, client) -> None:
+        tc, sid = client
+        from backend.db.connection import get_registry
+
+        with get_registry().reference_engine.begin() as conn:
+            conn.execute(
+                jobs.insert().values(
+                    job_id="annotation-active",
+                    sample_id=sid,
+                    job_type="annotation",
+                    status="running",
+                )
+            )
+
+        with patch("backend.reports.fhir_export.build_fhir_bundle") as build_bundle:
+            resp = tc.post("/api/export/fhir", json={"sample_id": sid})
+
+        assert resp.status_code == 409
+        assert resp.json()["detail"] == (
+            f"Annotation is in progress for sample {sid}; retry the export after it completes."
+        )
+        build_bundle.assert_not_called()
+
+    def test_export_holds_lease_during_bundle_building(self, client) -> None:
+        tc, sid = client
+        from backend.db.connection import get_registry
+
+        def assert_lease_held(*, sample_id: int, include_all: bool) -> dict:
+            assert sample_id == sid
+            assert include_all is True
+            with get_registry().reference_engine.connect() as conn:
+                row = conn.execute(
+                    sa.select(jobs.c.status).where(
+                        jobs.c.sample_id == sid,
+                        jobs.c.job_type == SAMPLE_EXPORT_JOB_TYPE,
+                    )
+                ).fetchone()
+            assert row is not None
+            assert row.status == "running"
+            return {"resourceType": "Bundle", "type": "collection", "entry": []}
+
+        with patch(
+            "backend.reports.fhir_export.build_fhir_bundle",
+            side_effect=assert_lease_held,
+        ):
+            resp = tc.post("/api/export/fhir", json={"sample_id": sid})
+
+        assert resp.status_code == 200
+        with get_registry().reference_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(jobs.c.status).where(
+                    jobs.c.sample_id == sid,
+                    jobs.c.job_type == SAMPLE_EXPORT_JOB_TYPE,
+                )
+            ).fetchone()
+        assert row is not None
+        assert row.status == "complete"
+
     def test_no_annotated_variants(self, empty_client) -> None:
         tc, sid = empty_client
         resp = tc.post("/api/export/fhir", json={"sample_id": sid})
@@ -995,6 +1055,32 @@ class TestFhirEligibility:
             "observation_count": 4,
             "reason": None,
         }
+
+    def test_active_annotation_is_rejected_before_eligibility_counting(self, client) -> None:
+        tc, sid = client
+        from backend.db.connection import get_registry
+
+        with get_registry().reference_engine.begin() as conn:
+            conn.execute(
+                jobs.insert().values(
+                    job_id="annotation-active",
+                    sample_id=sid,
+                    job_type="annotation",
+                    status="pending",
+                )
+            )
+
+        with patch("backend.reports.fhir_export.count_fhir_observations") as count:
+            resp = tc.get(
+                "/api/export/fhir/eligibility",
+                params={"sample_id": sid, "include_all": True},
+            )
+
+        assert resp.status_code == 409
+        assert resp.json()["detail"] == (
+            f"Annotation is in progress for sample {sid}; retry the export after it completes."
+        )
+        count.assert_not_called()
 
     def test_oversized_export_is_ineligible_without_counting_every_row(
         self,
