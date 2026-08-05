@@ -1012,9 +1012,14 @@ class TestFhirErrors:
         tc, sid = client
         from backend.db.connection import get_registry
 
-        def assert_lease_held(*, sample_id: int, include_all: bool) -> dict:
+        def assert_lease_held(
+            *, sample_id: int, include_all: bool, modules: list[str] | None
+        ) -> dict:
             assert sample_id == sid
             assert include_all is True
+            # An unscoped request reaches the builder as `None` rather than an
+            # empty list; the two mean opposite things to the scope resolver.
+            assert modules is None
             with get_registry().reference_engine.connect() as conn:
                 row = conn.execute(
                     sa.select(jobs.c.status).where(
