@@ -7,7 +7,7 @@ import os
 import subprocess
 import textwrap
 from copy import deepcopy
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -17,6 +17,7 @@ from scripts.validate_review_route import (
     BOT_ACTOR_IDS,
     CODERABBIT_COMPLETION_MARKER,
     CODERABBIT_GATE,
+    CODERABBIT_V3_GATE,
     CODEX_CLEAN_COMPLETION_MARKER,
     CODEX_CLEAN_COMPLETION_PREFIX,
     CODEX_GATE,
@@ -26,6 +27,9 @@ from scripts.validate_review_route import (
     GREPTILE_APP_ID,
     GREPTILE_CHECK_RUN_NAME,
     GREPTILE_GATE,
+    GREPTILE_LEDGER_WINDOW,
+    GREPTILE_MONTH_LEDGER_UNPROVEN,
+    GREPTILE_MONTHLY_ALLOWANCE,
     HUMAN_GATE,
     LEGACY_SCHEMA_MARKER,
     LOAD_BEARING_EXACT,
@@ -34,10 +38,14 @@ from scripts.validate_review_route import (
     V3_BOT_GATES,
     ChangedFile,
     _expected_snapshot_body,
+    _merge_greptile_ledger_pages,
     _merge_review_pages,
     _merge_thread_pages,
+    _parse_utc,
+    greptile_ledger_fetch_plan,
     minimum_route,
     needs_coderabbit_ledger,
+    needs_greptile_ledger,
     render_probe_body,
     validate_context,
 )
@@ -330,6 +338,45 @@ def _greptile_commits(
     }
 
 
+def _greptile_ledger(
+    pull_requests: list[dict[str, object]] | None = None,
+    *,
+    exhausted: bool = False,
+) -> dict[str, object]:
+    """The merged repository-wide sweep, as `_merge_greptile_ledger_pages` leaves it.
+
+    Defaults to the coverage the argument needs and nothing more: this pull
+    request, spending the one credit the head object holds, plus a neighbour old
+    enough to prove the sweep reached past the window start.
+    """
+    if pull_requests is None:
+        pull_requests = [
+            _greptile_ledger_pull_request(number=42, updated_at=PR_UPDATED_AT),
+            _greptile_ledger_pull_request(
+                number=41,
+                updated_at="2026-06-01T00:00:00Z",
+                commit_runs=[],
+            ),
+        ]
+    return {"nodes": pull_requests, "exhausted": exhausted}
+
+
+def _greptile_ledger_pull_request(
+    *,
+    number: int,
+    updated_at: str,
+    commit_runs: list[list[dict[str, object]]] | None = None,
+) -> dict[str, object]:
+    if commit_runs is None:
+        commit_runs = [[_greptile_check_run()]]
+    return {
+        "id": f"PR_kwDOledger{number}",
+        "number": number,
+        "updatedAt": updated_at,
+        "greptileCommits": _greptile_commits(commit_runs),
+    }
+
+
 def _add_coderabbit_completion(context: dict[str, object], submitted_at: str) -> dict[str, object]:
     review = _review(
         BOT_ACTOR_IDS[CODERABBIT_GATE],
@@ -596,6 +643,7 @@ def _context(
                     "abbreviatedOid": HEAD_SHA[:7],
                 },
                 "greptileHeadObject": _greptile_head_object(),
+                "greptileLedger": _greptile_ledger(),
                 "pullRequest": pull_request,
                 "openPullRequests": {
                     "totalCount": 1,
@@ -4707,6 +4755,12 @@ def test_pagination_workflow_fetches_only_a_truncated_ledger(
         json.dumps({"data": {"repository": {"pullRequest": pull_request}}}),
         encoding="utf-8",
     )
+    # The slice now also carries the Greptile sweep selector, which reads the
+    # REST snapshot. This route selects Codex, so the sweep must stay unfetched.
+    (tmp_path / "pr.json").write_text(
+        json.dumps({"body": _body("Standard", automated_gates=[CODEX_GATE], schema_version=3)}),
+        encoding="utf-8",
+    )
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
     gh_log = tmp_path / "gh.log"
@@ -4749,6 +4803,7 @@ printf '[{"data":{"repository":{"pullRequest":{}}}}]\n'
         gh_calls = gh_log.read_text(encoding="utf-8")
         assert "--paginate --slurp" in gh_calls
         assert f"scripts/{query_file}.graphql" in gh_calls
+        assert "review_route_greptile_ledger.graphql" not in gh_calls
     else:
         assert not args_log.exists()
 
@@ -7175,6 +7230,8 @@ def _greptile_context(
     runs: list[dict[str, object]] | None = None,
     commit_runs: list[list[dict[str, object]]] | None = None,
     commit_total_count: int | None = None,
+    ledger: dict[str, object] | None = None,
+    drop_ledger: bool = False,
 ) -> tuple[dict[str, object], list[ChangedFile]]:
     """A v3 pull request that selects Greptile and carries no human approval."""
     files = [ChangedFile("README.md")]
@@ -7185,6 +7242,10 @@ def _greptile_context(
         schema_version=3,
     )
     repository = context["data"]["repository"]
+    if ledger is not None:
+        repository["greptileLedger"] = ledger
+    if drop_ledger:
+        del repository["greptileLedger"]
     if runs is not None:
         repository["greptileHeadObject"] = _greptile_head_object(runs)
     if commit_runs is not None or commit_total_count is not None:
@@ -7936,3 +7997,589 @@ def test_greptile_budget_fails_closed_without_a_check_run_node_id() -> None:
     assert "commit pagination cannot prove the Greptile per-pull-request budget" in (
         validate_context(context, files, now=NOW)
     )
+
+
+def _ledger_run(database_id: int, spent_at: str) -> dict[str, object]:
+    """A billed run placed in time, for counting rather than for cleanliness."""
+    return _greptile_check_run(database_id=database_id, completed_at=spent_at)
+
+
+def _ledger_of(spend: list[str], *, number: int = 42) -> dict[str, object]:
+    """One in-window pull request spending `spend`, plus proof of window coverage."""
+    return _greptile_ledger(
+        [
+            _greptile_ledger_pull_request(
+                number=number,
+                updated_at=PR_UPDATED_AT,
+                commit_runs=[[_ledger_run(91710280000 + i, when)] for i, when in enumerate(spend)],
+            ),
+            _greptile_ledger_pull_request(
+                number=41, updated_at="2026-06-01T00:00:00Z", commit_runs=[]
+            ),
+        ]
+    )
+
+
+def test_greptile_month_ledger_accepts_spend_at_the_allowance() -> None:
+    """Sixteen is the allowance, not the first refusal."""
+    context, files = _greptile_context(
+        ledger=_ledger_of(["2026-07-01T00:00:00Z"] * GREPTILE_MONTHLY_ALLOWANCE)
+    )
+    assert validate_context(context, files, now=NOW) == []
+
+
+def test_greptile_month_ledger_refuses_one_review_past_the_allowance() -> None:
+    """The error names the bound, because the number is a lower bound."""
+    over = GREPTILE_MONTHLY_ALLOWANCE + 1
+    context, files = _greptile_context(ledger=_ledger_of(["2026-07-01T00:00:00Z"] * over))
+    assert (
+        "Greptile rolling-30-day review count (lower bound) exceeds the "
+        f"{GREPTILE_MONTHLY_ALLOWANCE} allowance: {over} > {GREPTILE_MONTHLY_ALLOWANCE}"
+    ) in validate_context(context, files, now=NOW)
+
+
+def test_greptile_month_ledger_counts_one_credit_per_run_not_per_sighting() -> None:
+    """A commit shared by two pull requests bills once, so it must count once.
+
+    Without deduplication on the node id, a stacked branch would inflate the
+    count by exactly the number of pull requests carrying the same commit and
+    refuse a lane that had spent nothing extra.
+    """
+    # The counts have to be able to disagree: sixteen runs each sighted twice is
+    # thirty-two sightings against sixteen credits, so counting sightings refuses
+    # a lane that is exactly at its allowance.
+    shared = [
+        [_ledger_run(91710286900 + i, "2026-07-01T00:00:00Z")]
+        for i in range(GREPTILE_MONTHLY_ALLOWANCE)
+    ]
+    sightings = [
+        _greptile_ledger_pull_request(number=number, updated_at=PR_UPDATED_AT, commit_runs=shared)
+        for number in (42, 43)
+    ]
+    sightings.append(
+        _greptile_ledger_pull_request(number=41, updated_at="2026-06-01T00:00:00Z", commit_runs=[])
+    )
+    context, files = _greptile_context(ledger=_greptile_ledger(sightings))
+    assert validate_context(context, files, now=NOW) == []
+
+
+@pytest.mark.parametrize(
+    "spent_at",
+    [
+        pytest.param("2026-06-21T12:34:59Z", id="one-second-before-the-window"),
+        pytest.param("2026-07-21T12:35:01Z", id="one-second-after-the-anchor"),
+    ],
+)
+def test_greptile_month_ledger_counts_only_inside_the_anchored_window(spent_at: str) -> None:
+    """The window is closed on both ends and anchored on the accepted run.
+
+    Anchoring on `now()` instead would let a re-run of an unchanged head reach a
+    different verdict, which is the one thing a published status must not do.
+    """
+    over = GREPTILE_MONTHLY_ALLOWANCE + 1
+    context, files = _greptile_context(ledger=_ledger_of([spent_at] * over))
+    assert validate_context(context, files, now=NOW) == []
+
+
+def test_greptile_month_window_is_thirty_days_before_the_accepted_run() -> None:
+    anchor = _parse_utc(GATE_TIMES[GREPTILE_GATE])
+    inside = (anchor - GREPTILE_LEDGER_WINDOW + timedelta(seconds=1)).strftime(
+        "%Y-%m-%dT%H:%M:%SZ"
+    )
+    over = GREPTILE_MONTHLY_ALLOWANCE + 1
+    context, files = _greptile_context(ledger=_ledger_of([inside] * over))
+    assert any(
+        error.startswith("Greptile rolling-30-day review count")
+        for error in validate_context(context, files, now=NOW)
+    )
+
+
+def test_greptile_month_ledger_is_required_when_the_lane_is_selected() -> None:
+    """A missing sweep is the workflow failing to fetch one, not proof of zero."""
+    context, files = _greptile_context(drop_ledger=True)
+    assert GREPTILE_MONTH_LEDGER_UNPROVEN in validate_context(context, files, now=NOW)
+
+
+def test_greptile_month_ledger_fails_closed_before_the_window_start_is_reached() -> None:
+    """Stopping short of the window edge leaves in-window spend unread."""
+    context, files = _greptile_context(
+        ledger=_greptile_ledger(
+            [_greptile_ledger_pull_request(number=42, updated_at=PR_UPDATED_AT)]
+        )
+    )
+    assert GREPTILE_MONTH_LEDGER_UNPROVEN in validate_context(context, files, now=NOW)
+
+
+def test_greptile_month_ledger_accepts_an_exhausted_repository_without_an_older_pull_request() -> (
+    None
+):
+    """Running out of pull requests covers the window just as reaching past it does."""
+    context, files = _greptile_context(
+        ledger=_greptile_ledger(
+            [_greptile_ledger_pull_request(number=42, updated_at=PR_UPDATED_AT)],
+            exhausted=True,
+        )
+    )
+    assert validate_context(context, files, now=NOW) == []
+
+
+def test_greptile_month_ledger_fails_closed_when_an_open_pull_request_is_unseen() -> None:
+    """Coverage is *(open) ∪ (updated in-window)*; a dormant open one is in the first half.
+
+    Labelling a pull request does not bump `updatedAt`, and neither does a check
+    run completing, so an open pull request reviewed today can sit arbitrarily
+    far down an `UPDATED_AT` ledger.
+    """
+    context, files = _greptile_context()
+    context["data"]["repository"]["openPullRequests"] = {
+        "totalCount": 2,
+        "nodes": [
+            {"headRefOid": HEAD_SHA, "number": 42},
+            {"headRefOid": "b" * 40, "number": 7},
+        ],
+    }
+    assert GREPTILE_MONTH_LEDGER_UNPROVEN in validate_context(context, files, now=NOW)
+
+
+def test_greptile_month_ledger_fails_closed_on_an_unplaceable_run() -> None:
+    """A run with no timestamp cannot be proven in the window, nor out of it."""
+    run = _ledger_run(91710286111, "2026-07-01T00:00:00Z")
+    run["startedAt"] = None
+    run["completedAt"] = None
+    context, files = _greptile_context(
+        ledger=_greptile_ledger(
+            [
+                _greptile_ledger_pull_request(
+                    number=42, updated_at=PR_UPDATED_AT, commit_runs=[[run]]
+                ),
+                _greptile_ledger_pull_request(
+                    number=41, updated_at="2026-06-01T00:00:00Z", commit_runs=[]
+                ),
+            ]
+        )
+    )
+    assert GREPTILE_MONTH_LEDGER_UNPROVEN in validate_context(context, files, now=NOW)
+
+
+def test_greptile_month_ledger_fails_closed_on_a_truncated_commit_window() -> None:
+    ledger = _ledger_of(["2026-07-01T00:00:00Z"])
+    ledger["nodes"][0]["greptileCommits"]["totalCount"] = 101
+    context, files = _greptile_context(ledger=ledger)
+    assert GREPTILE_MONTH_LEDGER_UNPROVEN in validate_context(context, files, now=NOW)
+
+
+def test_greptile_month_ledger_does_not_charge_a_cancelled_run() -> None:
+    """Unbilled conclusions are the one thing that provably cost nothing."""
+    over = GREPTILE_MONTHLY_ALLOWANCE + 1
+    ledger = _greptile_ledger(
+        [
+            _greptile_ledger_pull_request(
+                number=42,
+                updated_at=PR_UPDATED_AT,
+                commit_runs=[
+                    [
+                        _greptile_check_run(
+                            database_id=91710281000 + i,
+                            completed_at="2026-07-01T00:00:00Z",
+                            conclusion="CANCELLED",
+                        )
+                    ]
+                    for i in range(over)
+                ],
+            ),
+            _greptile_ledger_pull_request(
+                number=41, updated_at="2026-06-01T00:00:00Z", commit_runs=[]
+            ),
+        ]
+    )
+    context, files = _greptile_context(ledger=ledger)
+    assert validate_context(context, files, now=NOW) == []
+
+
+@pytest.mark.parametrize(
+    "gate",
+    [gate for gate in V3_BOT_GATES if gate != GREPTILE_GATE],
+)
+def test_lanes_other_than_greptile_do_not_need_the_month_ledger(gate: str) -> None:
+    """The sweep costs ~840 GraphQL points; only the lane that can spend pays."""
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, automated_gates={gate}, schema_version=3)
+    del context["data"]["repository"]["greptileLedger"]
+    assert GREPTILE_MONTH_LEDGER_UNPROVEN not in validate_context(context, files, now=NOW)
+
+
+def _ledger_page(
+    numbers: list[int],
+    *,
+    has_next_page: bool,
+    end_cursor: str | None,
+    updated_at: str = PR_UPDATED_AT,
+) -> dict[str, object]:
+    return {
+        "data": {
+            "repository": {
+                "greptileLedger": {
+                    "pageInfo": {"hasNextPage": has_next_page, "endCursor": end_cursor},
+                    "nodes": [
+                        _greptile_ledger_pull_request(number=number, updated_at=updated_at)
+                        for number in numbers
+                    ],
+                }
+            }
+        }
+    }
+
+
+def test_greptile_ledger_pages_merge_into_the_context() -> None:
+    context: dict[str, object] = {"data": {"repository": {}}}
+    pages = [
+        _ledger_page([42, 43], has_next_page=True, end_cursor="cursor-1"),
+        _ledger_page([41], has_next_page=False, end_cursor="cursor-2"),
+    ]
+    assert _merge_greptile_ledger_pages(context, pages) == []
+    ledger = context["data"]["repository"]["greptileLedger"]
+    assert [node["number"] for node in ledger["nodes"]] == [42, 43, 41]
+    # The last page reported no successor, so the sweep read every pull request
+    # in the repository and the window is covered without an older neighbour.
+    assert ledger["exhausted"] is True
+
+
+def test_greptile_ledger_merge_records_a_sweep_that_stopped_at_the_window_edge() -> None:
+    context: dict[str, object] = {"data": {"repository": {}}}
+    pages = [_ledger_page([42], has_next_page=False, end_cursor="cursor-1")]
+    assert _merge_greptile_ledger_pages(context, pages) == []
+    assert context["data"]["repository"]["greptileLedger"]["exhausted"] is True
+
+
+@pytest.mark.parametrize(
+    "pages",
+    [
+        pytest.param([], id="no-pages"),
+        pytest.param("not-a-list", id="not-a-list"),
+        pytest.param(
+            [
+                _ledger_page([42], has_next_page=False, end_cursor="cursor-1"),
+                _ledger_page([41], has_next_page=False, end_cursor="cursor-2"),
+            ],
+            id="page-in-the-middle-denies-its-successor",
+        ),
+        pytest.param(
+            [
+                _ledger_page([42], has_next_page=True, end_cursor="cursor-1"),
+                _ledger_page([41], has_next_page=False, end_cursor="cursor-1"),
+            ],
+            id="repeated-cursor",
+        ),
+        pytest.param(
+            [
+                _ledger_page([42], has_next_page=True, end_cursor="cursor-1"),
+                _ledger_page([42], has_next_page=False, end_cursor="cursor-2"),
+            ],
+            id="duplicate-pull-request-node",
+        ),
+        pytest.param(
+            [{"errors": [{"message": "rate limited"}]}],
+            id="graphql-errors",
+        ),
+        pytest.param([{"data": {"repository": {}}}], id="missing-connection"),
+    ],
+)
+def test_greptile_ledger_merge_fails_closed_on_an_unprovable_sweep(pages: object) -> None:
+    """Every one of these silently *lowers* the count, and a lower count reads as
+    "under budget" -- so none of them may be tolerated."""
+    context: dict[str, object] = {"data": {"repository": {}}}
+    assert _merge_greptile_ledger_pages(context, pages) == [GREPTILE_MONTH_LEDGER_UNPROVEN]
+    assert "greptileLedger" not in context["data"]["repository"]
+
+
+@pytest.mark.parametrize(
+    ("schema_version", "gates", "expected"),
+    [
+        pytest.param(3, {GREPTILE_GATE}, True, id="v3-greptile"),
+        pytest.param(3, {CODEX_GATE}, False, id="v3-codex"),
+        pytest.param(3, {CODERABBIT_V3_GATE}, False, id="v3-coderabbit"),
+        pytest.param(2, {CODERABBIT_GATE}, False, id="v2-coderabbit"),
+    ],
+)
+def test_needs_greptile_ledger_gates_the_sweep_on_the_selected_lane(
+    schema_version: int, gates: set[str], expected: bool
+) -> None:
+    body = _body("Load-bearing", automated_gates=gates, schema_version=schema_version)
+    assert needs_greptile_ledger(body) is expected
+
+
+def test_needs_greptile_ledger_refuses_an_invalid_route_section() -> None:
+    assert needs_greptile_ledger("no route section here") is False
+
+
+def test_greptile_ledger_fetch_plan_matches_the_window_the_validator_judges() -> None:
+    """The fetch loop and the verdict must share one window definition.
+
+    A shell that stopped short of the validator's window start would fail closed
+    on every sweep; one that ran past it would pay for pages nobody reads.
+    """
+    context, _ = _greptile_context()
+    window_start, open_numbers = greptile_ledger_fetch_plan(context).split(" ", 1)
+    anchor = _parse_utc(GATE_TIMES[GREPTILE_GATE])
+    assert _parse_utc(window_start) == anchor - GREPTILE_LEDGER_WINDOW
+    assert json.loads(open_numbers) == [42]
+
+
+def test_greptile_ledger_fetch_plan_refuses_a_context_without_an_anchor() -> None:
+    context, _ = _greptile_context()
+    context["data"]["repository"]["greptileHeadObject"] = _greptile_head_object([])
+    with pytest.raises(SystemExit):
+        greptile_ledger_fetch_plan(context)
+
+
+def test_greptile_ledger_query_never_trims_what_it_cannot_afford_to_miss() -> None:
+    root = Path(__file__).resolve().parents[2]
+    query = (root / "scripts/review_route_greptile_ledger.graphql").read_text(encoding="utf-8")
+    # `first: 5` on commits measurably lost PR #2203's run at commit 21 of 44.
+    assert "commits(last: 100)" in query
+    assert "commits(first:" not in query
+    # `checkType` defaults to `LATEST`, which hides a superseded run while
+    # `totalCount` still agrees with the shortened page.
+    assert "filterBy: {checkType: ALL}" in query
+    assert f"filterBy: {{appId: {GREPTILE_APP_ID}}}" in query
+    # The coverage proof rests on this ordering being monotonic.
+    assert "orderBy: {field: UPDATED_AT, direction: DESC}" in query
+    assert "states: [OPEN, MERGED, CLOSED]" in query
+    # Trimming suites is what makes the sweep affordable; trimming anything else
+    # is not.
+    assert "checkSuites(first: 1" in query
+    # `id` is the dedupe key for both connections it appears in.
+    assert "$endCursor: String" in query
+
+
+def test_greptile_month_sweep_is_fetched_once_and_reused_after_success() -> None:
+    """`after-success` runs once the status is already published.
+
+    A ~840-point sweep rate-limited there would replace a legitimately green
+    route with `pending` and force a re-run against a drained budget, so the
+    snapshot script must reuse the job's file rather than fetch its own.
+    """
+    root = Path(__file__).resolve().parents[2]
+    workflow = (root / ".github/workflows/review-route.yml").read_text(encoding="utf-8")
+    snapshot = (root / "scripts/validate_review_route_snapshot.sh").read_text(encoding="utf-8")
+    assert workflow.count("scripts/review_route_greptile_ledger.graphql") == 2
+    assert "review_route_greptile_ledger.graphql" not in snapshot
+    assert "--greptile-ledger-pages" in workflow
+    assert "$RUNNER_TEMP/review-route-greptile-ledger.json" in snapshot
+    assert "needs_greptile_ledger" in workflow
+    assert "needs_greptile_ledger" not in snapshot
+
+
+def _ledger_sweep_page(
+    *, numbers: list[int], updated_at: str, has_next_page: bool, end_cursor: str
+) -> dict[str, object]:
+    return {
+        "data": {
+            "repository": {
+                "greptileLedger": {
+                    "pageInfo": {"hasNextPage": has_next_page, "endCursor": end_cursor},
+                    "nodes": [
+                        {"id": f"PR_{number}", "number": number, "updatedAt": updated_at}
+                        for number in numbers
+                    ],
+                }
+            }
+        }
+    }
+
+
+def test_greptile_sweep_shell_stops_at_the_window_edge_and_keeps_pages_in_order(
+    tmp_path: Path,
+) -> None:
+    """The fetch loop must stop on coverage, not on exhaustion.
+
+    Paginating the whole repository would cost ~40 points a page against a
+    5,000/hour budget shared by the fleet, so the loop stops as soon as the
+    coverage set is provably whole -- one pull request older than the window
+    start plus every open one seen -- even though GitHub still reports more.
+
+    Page ordering is load-bearing too: the validator walks the cursor chain in
+    file order, and an unpadded `page-10` sorts before `page-2`.
+    """
+    root = Path(__file__).resolve().parents[2]
+    workflow = (root / ".github/workflows/review-route.yml").read_text(encoding="utf-8")
+    shell = _workflow_step_script(workflow, "Validate live route state")
+    start = shell.index("include_greptile_ledger=\"$(python -c '")
+    end = shell.index(
+        "gh api --paginate --slurp \\\n"
+        '  "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100"'
+    )
+    sweep_shell = (
+        shell[start:end] + '\nprintf \'%s\\n\' "${greptile_ledger_args[@]}" >> "$ARGS_LOG"\n'
+    )
+
+    context, _ = _greptile_context()
+    # Two open pull requests, so the shell has to hand jq a multi-element JSON
+    # array and the loop has to keep paging until the dormant one is seen.
+    context["data"]["repository"]["openPullRequests"] = {
+        "totalCount": 2,
+        "nodes": [
+            {"headRefOid": HEAD_SHA, "number": 42},
+            {"headRefOid": "b" * 40, "number": 7},
+        ],
+    }
+    (tmp_path / "review-route-context.json").write_text(json.dumps(context), encoding="utf-8")
+    (tmp_path / "pr.json").write_text(
+        json.dumps(
+            {"body": _body("Load-bearing", automated_gates={GREPTILE_GATE}, schema_version=3)}
+        ),
+        encoding="utf-8",
+    )
+    pages_dir = tmp_path / "pages"
+    pages_dir.mkdir()
+    # Page 2 still claims a successor; stopping there proves the loop stops on
+    # the window rule rather than on running out of pull requests.
+    (pages_dir / "page-1.json").write_text(
+        json.dumps(
+            _ledger_sweep_page(
+                numbers=[42],
+                updated_at=PR_UPDATED_AT,
+                has_next_page=True,
+                end_cursor="cursor-1",
+            )
+        ),
+        encoding="utf-8",
+    )
+    (pages_dir / "page-2.json").write_text(
+        json.dumps(
+            _ledger_sweep_page(
+                numbers=[7, 41],
+                updated_at="2026-06-01T00:00:00Z",
+                has_next_page=True,
+                end_cursor="cursor-2",
+            )
+        ),
+        encoding="utf-8",
+    )
+
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    counter = tmp_path / "counter"
+    counter.write_text("0", encoding="utf-8")
+    gh_log = tmp_path / "gh.log"
+    fake_gh = fake_bin / "gh"
+    fake_gh.write_text(
+        """#!/usr/bin/env bash
+set -eu
+printf '%s\n' "$*" >> "$GH_LOG"
+count=$(( $(cat "$COUNTER") + 1 ))
+printf '%s' "$count" > "$COUNTER"
+cat "$PAGES_DIR/page-$count.json"
+""",
+        encoding="utf-8",
+    )
+    fake_gh.chmod(0o755)
+    args_log = tmp_path / "args.log"
+    completed = subprocess.run(
+        ["bash", "-e", "-o", "pipefail", "-c", sweep_shell],
+        check=False,
+        capture_output=True,
+        cwd=root,
+        env={
+            **os.environ,
+            "ARGS_LOG": str(args_log),
+            "COUNTER": str(counter),
+            "GH_LOG": str(gh_log),
+            "OWNER": "bioedca",
+            "PAGES_DIR": str(pages_dir),
+            "PATH": f"{fake_bin}:{os.environ['PATH']}",
+            "PR_NUMBER": "2183",
+            "REPO": "Yeliztli",
+            "RUNNER_TEMP": str(tmp_path),
+        },
+        text=True,
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert counter.read_text(encoding="utf-8") == "2"
+    gh_calls = gh_log.read_text(encoding="utf-8").splitlines()
+    assert all("review_route_greptile_ledger.graphql" in call for call in gh_calls)
+    # The first page must not carry a cursor, and the second must carry the
+    # first's, or the chain the validator checks is not the chain that was read.
+    assert "endCursor" not in gh_calls[0]
+    assert "endCursor=cursor-1" in gh_calls[1]
+    assert args_log.read_text(encoding="utf-8").splitlines() == [
+        "--greptile-ledger-pages",
+        str(tmp_path / "review-route-greptile-ledger.json"),
+    ]
+    merged = json.loads(
+        (tmp_path / "review-route-greptile-ledger.json").read_text(encoding="utf-8")
+    )
+    assert [
+        node["number"]
+        for page in merged
+        for node in page["data"]["repository"]["greptileLedger"]["nodes"]
+    ] == [42, 7, 41]
+    # And the merged file is exactly what the validator accepts.
+    merged_context: dict[str, object] = {"data": {"repository": {}}}
+    assert _merge_greptile_ledger_pages(merged_context, merged) == []
+
+
+def test_greptile_sweep_shell_does_not_run_for_an_unselected_lane(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[2]
+    workflow = (root / ".github/workflows/review-route.yml").read_text(encoding="utf-8")
+    shell = _workflow_step_script(workflow, "Validate live route state")
+    start = shell.index("include_greptile_ledger=\"$(python -c '")
+    end = shell.index(
+        "gh api --paginate --slurp \\\n"
+        '  "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100"'
+    )
+    sweep_shell = (
+        shell[start:end] + '\nprintf \'%s\' "${#greptile_ledger_args[@]}" > "$ARGS_LOG"\n'
+    )
+    context, _ = _greptile_context()
+    (tmp_path / "review-route-context.json").write_text(json.dumps(context), encoding="utf-8")
+    (tmp_path / "pr.json").write_text(
+        json.dumps(
+            {"body": _body("Load-bearing", automated_gates={CODEX_GATE}, schema_version=3)}
+        ),
+        encoding="utf-8",
+    )
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    gh_log = tmp_path / "gh.log"
+    fake_gh = fake_bin / "gh"
+    fake_gh.write_text(
+        '#!/usr/bin/env bash\nset -eu\nprintf \'%s\\n\' "$*" >> "$GH_LOG"\nexit 1\n',
+        encoding="utf-8",
+    )
+    fake_gh.chmod(0o755)
+    args_log = tmp_path / "args.log"
+    completed = subprocess.run(
+        ["bash", "-e", "-o", "pipefail", "-c", sweep_shell],
+        check=False,
+        capture_output=True,
+        cwd=root,
+        env={
+            **os.environ,
+            "ARGS_LOG": str(args_log),
+            "GH_LOG": str(gh_log),
+            "OWNER": "bioedca",
+            "PATH": f"{fake_bin}:{os.environ['PATH']}",
+            "PR_NUMBER": "2183",
+            "REPO": "Yeliztli",
+            "RUNNER_TEMP": str(tmp_path),
+        },
+        text=True,
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert not gh_log.exists()
+    assert args_log.read_text(encoding="utf-8") == "0"
+
+
+def test_greptile_ledger_merge_allows_a_deliberate_early_stop() -> None:
+    """A last page still reporting a successor is the sweep stopping on coverage.
+
+    Unlike the `reviews`/`reviewThreads` fallbacks, which run to exhaustion under
+    `gh api --paginate`, this sweep stops as soon as the coverage set is whole.
+    Rejecting that here would refuse every real sweep; instead the merge records
+    that the repository was *not* exhausted and the coverage check earns the rest.
+    """
+    context: dict[str, object] = {"data": {"repository": {}}}
+    pages = [_ledger_page([42], has_next_page=True, end_cursor="cursor-1")]
+    assert _merge_greptile_ledger_pages(context, pages) == []
+    assert context["data"]["repository"]["greptileLedger"]["exhausted"] is False

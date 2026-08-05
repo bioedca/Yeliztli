@@ -85,6 +85,16 @@ GREPTILE_LEDGER_FORCE_PUSHED = (
     "Greptile per-pull-request budget cannot be proven after a force push; "
     "select another hosted reviewer"
 )
+# The self-allocated monthly share -- 50 credits split across 3 repositories --
+# and the window it is spent over. The per-pull-request cap above stops the
+# cheapest way to burn a month; this bounds how many pull requests may spend at
+# all. Neither is the whole truth: credits pool per author across every
+# repository, so this repository can only ever prove a lower bound on the pool.
+GREPTILE_MONTHLY_ALLOWANCE = 16
+GREPTILE_LEDGER_WINDOW = timedelta(days=30)
+GREPTILE_MONTH_LEDGER_UNPROVEN = (
+    "Greptile rolling-30-day ledger cannot be proven complete; select another hosted reviewer"
+)
 # Entries are compared against `path.lower()`, so every member must be lowercase.
 # `agents.md` and `claude.md` are the fleet contract that gates every other
 # change, including merge authorisation. Both route tables call an edit to them
@@ -1384,6 +1394,17 @@ def needs_coderabbit_ledger(body: str) -> bool:
     return not errors and schema_version == 2 and selected_bots == [CODERABBIT_GATE]
 
 
+def needs_greptile_ledger(body: str) -> bool:
+    """Return whether a valid v3 route selected the repository-wide Greptile sweep.
+
+    The sweep costs roughly 840 GraphQL points against the 5,000-an-hour budget
+    the whole fleet shares, so only the finalizations that can actually spend a
+    Greptile credit pay for it.
+    """
+    _, schema_version, selected_bots, _, errors = _parse_route_section(body)
+    return not errors and schema_version == 3 and selected_bots == [GREPTILE_GATE]
+
+
 def _is_load_bearing(path: str) -> bool:
     lowered = path.lower()
     name = Path(path).name.lower()
@@ -1714,6 +1735,247 @@ def _greptile_pr_budget_errors(
         return [
             "Greptile per-pull-request review budget exceeded: "
             f"{len(billed)} > {GREPTILE_PR_REVIEW_CAP}"
+        ]
+    return []
+
+
+def greptile_ledger_fetch_plan(context: dict[str, Any]) -> str:
+    """Print the window start and the open pull requests the sweep has to reach.
+
+    The fetch loop needs the same window the validator will judge against, or it
+    stops in the wrong place: too early and validation fails closed on an
+    uncovered window, too late and the sweep pays for pages nobody reads. Both
+    inputs already exist in the context snapshot -- the anchor is the accepted
+    run's ``completedAt`` on the head commit, and the open pull requests are the
+    set the head-uniqueness check already fetches -- so deriving them here keeps
+    one definition rather than a shell reimplementation free to drift from it.
+
+    Output is one line: the ISO-8601 window start, then a JSON array of the open
+    pull request numbers.
+    """
+    data = context.get("data")
+    repository = data.get("repository") if isinstance(data, dict) else None
+    if not isinstance(repository, dict):
+        raise SystemExit("Greptile ledger context is malformed")
+    runs, complete = _greptile_check_runs(repository.get("greptileHeadObject"))
+    completions: list[datetime] = []
+    for run in runs if complete else []:
+        completed_at = run.get("completedAt")
+        if not isinstance(completed_at, str):
+            continue
+        try:
+            completions.append(_parse_utc(completed_at))
+        except ValueError:
+            continue
+    if not completions:
+        raise SystemExit("Greptile ledger context has no anchor check run")
+    window_start = max(completions) - GREPTILE_LEDGER_WINDOW
+    open_nodes = (repository.get("openPullRequests") or {}).get("nodes") or []
+    numbers = sorted(
+        node["number"]
+        for node in open_nodes
+        if isinstance(node, dict) and isinstance(node.get("number"), int)
+    )
+    return f"{window_start.strftime('%Y-%m-%dT%H:%M:%SZ')} {json.dumps(numbers)}"
+
+
+def _greptile_ledger_pull_requests(pages: Any) -> tuple[list[dict[str, Any]], bool, list[str]]:
+    """Flatten the repository-wide sweep, refusing anything it cannot prove.
+
+    The cursor chain has to be whole for the coverage argument below to mean
+    anything: a dropped page silently lowers the count, and a lower count reads
+    as "under budget". `totalCount` is deliberately *not* required to hold still,
+    unlike the per-pull-request ledgers. This connection spans the whole
+    repository, so a pull request opened mid-sweep legitimately changes it, and
+    failing on that would make the lane unusable whenever the fleet is busy.
+    """
+    if not isinstance(pages, list) or not pages:
+        return [], False, [GREPTILE_MONTH_LEDGER_UNPROVEN]
+    nodes: list[dict[str, Any]] = []
+    seen_ids: set[str] = set()
+    seen_cursors: set[str] = set()
+    exhausted = False
+    for index, page in enumerate(pages):
+        if not isinstance(page, dict) or page.get("errors"):
+            return [], False, [GREPTILE_MONTH_LEDGER_UNPROVEN]
+        page_data = page.get("data")
+        repository = page_data.get("repository") if isinstance(page_data, dict) else None
+        source = repository.get("greptileLedger") if isinstance(repository, dict) else None
+        if not isinstance(source, dict):
+            return [], False, [GREPTILE_MONTH_LEDGER_UNPROVEN]
+        page_nodes = source.get("nodes")
+        page_info = source.get("pageInfo")
+        if not isinstance(page_nodes, list) or not isinstance(page_info, dict):
+            return [], False, [GREPTILE_MONTH_LEDGER_UNPROVEN]
+        has_next_page = page_info.get("hasNextPage")
+        end_cursor = page_info.get("endCursor")
+        if index < len(pages) - 1:
+            # A page in the middle that denies a successor means the chain was
+            # reordered or a page was dropped.
+            if has_next_page is not True:
+                return [], False, [GREPTILE_MONTH_LEDGER_UNPROVEN]
+        elif not isinstance(has_next_page, bool):
+            return [], False, [GREPTILE_MONTH_LEDGER_UNPROVEN]
+        else:
+            # Unlike the `--paginate` fallbacks, this sweep is *meant* to stop
+            # early: paging the whole repository would cost far more than the
+            # coverage argument needs. So the last page may still report a
+            # successor -- it just no longer proves the window was reached, and
+            # the coverage check has to earn that separately.
+            exhausted = has_next_page is False
+        if end_cursor is not None:
+            if not isinstance(end_cursor, str) or not end_cursor or end_cursor in seen_cursors:
+                return [], False, [GREPTILE_MONTH_LEDGER_UNPROVEN]
+            seen_cursors.add(end_cursor)
+        for node in page_nodes:
+            node_id = node.get("id") if isinstance(node, dict) else None
+            if not isinstance(node_id, str) or not node_id or node_id in seen_ids:
+                return [], False, [GREPTILE_MONTH_LEDGER_UNPROVEN]
+            seen_ids.add(node_id)
+            nodes.append(node)
+    if not nodes and not exhausted:
+        return [], False, [GREPTILE_MONTH_LEDGER_UNPROVEN]
+    return nodes, exhausted, []
+
+
+def _merge_greptile_ledger_pages(context: dict[str, Any], pages: Any) -> list[str]:
+    """Fold the paginated sweep into the context the validator already reads.
+
+    The repository-wide ledger cannot ride in `review_route_context.graphql` --
+    it spans ~21 pages of 20 pull requests -- but it is still one more piece of
+    the same snapshot, so it lands in the same place as every other connection
+    rather than travelling beside it.
+    """
+    nodes, exhausted, errors = _greptile_ledger_pull_requests(pages)
+    if errors:
+        return errors
+    data = context.get("data")
+    repository = data.get("repository") if isinstance(data, dict) else None
+    if not isinstance(repository, dict):
+        return [GREPTILE_MONTH_LEDGER_UNPROVEN]
+    repository["greptileLedger"] = {"nodes": nodes, "exhausted": exhausted}
+    return []
+
+
+def _greptile_month_budget_errors(
+    repository: dict[str, Any],
+    anchor: datetime,
+) -> list[str]:
+    """Refuse the lane once a rolling 30 days has provably spent the allowance.
+
+    The published number is a **lower bound**, and saying so is the point. Three
+    truncations make an exact count impossible and none of them are fixable from
+    here: credits pool per author across every repository, labelling a pull
+    request does not bump its `updatedAt` and neither does a check run
+    completing, and a force push takes its billed runs out of `commits`
+    altogether. A bound that is honest about being a bound still does the job it
+    is for -- once even the provable subset exceeds 16, the month is spent.
+
+    Coverage is *(every open pull request)* ∪ *(every pull request updated inside
+    the window)*, which is exactly what the sweep can prove: `UPDATED_AT DESC` is
+    strictly monotonic, so reaching a pull request older than the window start
+    proves the second set is complete, and the first is read from the
+    already-fetched `openPullRequests`.
+
+    The window is anchored on the accepted run's `completedAt` rather than
+    ``now()`` so that re-running validation on an unchanged head cannot change
+    the verdict.
+    """
+    window_start = anchor - GREPTILE_LEDGER_WINDOW
+    ledger = repository.get("greptileLedger")
+    if not isinstance(ledger, dict):
+        # Absent is not empty. A missing sweep means the workflow never fetched
+        # one, which would silently retire the bound rather than satisfy it.
+        return [GREPTILE_MONTH_LEDGER_UNPROVEN]
+    nodes = ledger.get("nodes")
+    exhausted = ledger.get("exhausted")
+    if not isinstance(nodes, list) or not isinstance(exhausted, bool):
+        return [GREPTILE_MONTH_LEDGER_UNPROVEN]
+
+    open_pull_requests = repository.get("openPullRequests")
+    if not isinstance(open_pull_requests, dict):
+        return [GREPTILE_MONTH_LEDGER_UNPROVEN]
+    open_nodes = open_pull_requests.get("nodes")
+    open_total = open_pull_requests.get("totalCount")
+    if (
+        not isinstance(open_nodes, list)
+        or isinstance(open_total, bool)
+        or not isinstance(open_total, int)
+        or open_total != len(open_nodes)
+    ):
+        return [GREPTILE_MONTH_LEDGER_UNPROVEN]
+    open_numbers = set()
+    for node in open_nodes:
+        number = node.get("number") if isinstance(node, dict) else None
+        if isinstance(number, bool) or not isinstance(number, int):
+            return [GREPTILE_MONTH_LEDGER_UNPROVEN]
+        open_numbers.add(number)
+
+    seen_numbers: set[int] = set()
+    # Either terminator proves the window is covered: a pull request older than
+    # the window start (the ordering is strictly monotonic, so everything past it
+    # is older still) or the end of the repository's pull requests.
+    reached_window_edge = exhausted
+    billed: set[str] = set()
+    for node in nodes:
+        number = node.get("number")
+        updated_raw = node.get("updatedAt")
+        if isinstance(number, bool) or not isinstance(number, int):
+            return [GREPTILE_MONTH_LEDGER_UNPROVEN]
+        if not isinstance(updated_raw, str):
+            return [GREPTILE_MONTH_LEDGER_UNPROVEN]
+        try:
+            updated_at = _parse_utc(updated_raw)
+        except ValueError:
+            return [GREPTILE_MONTH_LEDGER_UNPROVEN]
+        seen_numbers.add(number)
+        if updated_at < window_start:
+            reached_window_edge = True
+        commits = node.get("greptileCommits")
+        if not isinstance(commits, dict):
+            return [GREPTILE_MONTH_LEDGER_UNPROVEN]
+        commit_nodes = commits.get("nodes")
+        commit_total = commits.get("totalCount")
+        if (
+            not isinstance(commit_nodes, list)
+            or isinstance(commit_total, bool)
+            or not isinstance(commit_total, int)
+            or commit_total > len(commit_nodes)
+        ):
+            return [GREPTILE_MONTH_LEDGER_UNPROVEN]
+        for commit_node in commit_nodes:
+            view = commit_node.get("commit") if isinstance(commit_node, dict) else None
+            runs, complete = _greptile_check_runs(view)
+            if not complete:
+                return [GREPTILE_MONTH_LEDGER_UNPROVEN]
+            for run in runs:
+                if not _greptile_run_is_billed(run):
+                    continue
+                spent_at = _greptile_run_spent_at(run)
+                if spent_at is None:
+                    # An unplaceable run cannot be proven inside the window, and
+                    # cannot be proven outside it either.
+                    return [GREPTILE_MONTH_LEDGER_UNPROVEN]
+                if not window_start <= spent_at <= anchor:
+                    continue
+                run_id = run.get("id")
+                if not isinstance(run_id, str) or not run_id:
+                    return [GREPTILE_MONTH_LEDGER_UNPROVEN]
+                # The same run reaches this loop once per pull request whose
+                # commits contain it, so the node id is what makes the count a
+                # count of credits rather than of sightings.
+                billed.add(run_id)
+
+    if not reached_window_edge or not open_numbers <= seen_numbers:
+        # Either the sweep stopped before the window start -- so a pull request
+        # updated inside it may never have been read -- or an open pull request
+        # never appeared, which the coverage argument requires.
+        return [GREPTILE_MONTH_LEDGER_UNPROVEN]
+    if len(billed) > GREPTILE_MONTHLY_ALLOWANCE:
+        return [
+            "Greptile rolling-30-day review count (lower bound) exceeds the "
+            f"{GREPTILE_MONTHLY_ALLOWANCE} allowance: "
+            f"{len(billed)} > {GREPTILE_MONTHLY_ALLOWANCE}"
         ]
     return []
 
@@ -2529,6 +2791,9 @@ def validate_context(
 
     if schema_version == 3 and GREPTILE_GATE in required:
         errors.extend(_greptile_pr_budget_errors(repository, pull_request))
+        anchor = observed.get(GREPTILE_GATE)
+        if anchor is not None:
+            errors.extend(_greptile_month_budget_errors(repository, anchor))
 
     if schema_version == 2 and selected_bots == [CODERABBIT_GATE] and CODERABBIT_GATE in observed:
         errors.extend(
@@ -2599,6 +2864,7 @@ def main() -> int:
     parser.add_argument("--files", type=Path, required=True)
     parser.add_argument("--review-pages", type=Path)
     parser.add_argument("--thread-pages", type=Path)
+    parser.add_argument("--greptile-ledger-pages", type=Path)
     parser.add_argument("--expected-head", required=True)
     parser.add_argument("--expected-draft", choices=("true", "false"), required=True)
     parser.add_argument("--expected-pr-updated-at", required=True)
@@ -2630,6 +2896,17 @@ def main() -> int:
         )
         if page_errors:
             for error in page_errors:
+                print(f"::error title=Review Route::{error}")
+            return 1
+    if args.greptile_ledger_pages is not None:
+        try:
+            ledger_pages = json.loads(args.greptile_ledger_pages.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            print("::error title=Review Route::Greptile ledger output is unreadable")
+            return 1
+        ledger_errors = _merge_greptile_ledger_pages(context, ledger_pages)
+        if ledger_errors:
+            for error in ledger_errors:
                 print(f"::error title=Review Route::{error}")
             return 1
     expected_snapshot = json.loads(args.expected_pr_snapshot.read_text(encoding="utf-8"))
