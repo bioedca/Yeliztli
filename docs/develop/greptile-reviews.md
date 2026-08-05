@@ -216,8 +216,9 @@ counting a *pull request's* commits, and none is closable from GitHub's data:
 - Closing a pull request and pushing the replacement on a different commit — the documented way
   to supersede your own — starts the count at zero.
 
-The first fails closed; the last two fail open. A repository-wide count is what would close
-them, and #2266 tracks publishing one as an explicit lower bound.
+The first fails closed; the last two fail open. The repository-wide bound below narrows them:
+a run that leaves one pull request's range is still counted against the month, because the
+sweep reads every pull request rather than one.
 
 Two details of the check-run query are load-bearing and easy to get wrong:
 
@@ -229,18 +230,49 @@ Two details of the check-run query are load-bearing and easy to get wrong:
 - `PullRequest.commits` is ordered oldest-first, so `commits(first: 100)` omits the head commit
   on a long branch — the one commit that must carry the accepted run. Use `last:`.
 
-**Not enforced: the 16 a month.** Three limits are structural, not implementation gaps:
+**The 16 a month is enforced as a lower bound** (#2266). Every finalization that selects
+Greptile sweeps the repository and refuses the lane once the *provable* spend over a rolling 30
+days exceeds 16:
+
+```text
+Greptile rolling-30-day review count (lower bound) exceeds the 16 allowance: 17 > 16
+```
+
+The word "lower bound" is doing real work. Three truncations make an exact count impossible,
+and none of them is an implementation gap:
 
 - Credits are billed **per author across every repository they open pull requests in**. The 16
   is our own split of a shared pool, not a limit Greptile enforces here, and no per-repository
-  count could see the other repositories drawing on it.
-- A repository-wide count cannot be proven complete. Labelling a pull request does not change
-  its `updatedAt`, and neither does a check run completing, so a ledger ordered by `updatedAt`
-  structurally misses a dormant pull request reviewed today. Any repository-wide figure is a
-  lower bound; #2266 tracks publishing one honestly rather than implying a count here.
-- Every such check runs *after* a review has been spent. It can refuse to honour the 17th
-  review, never prevent it — which is why the manual-only guard, not a count, is what actually
-  protects the budget.
+  count can see the other repositories drawing on it.
+- Labelling a pull request does not change its `updatedAt`, and neither does a check run
+  completing, so a ledger ordered by `updatedAt` structurally misses a *dormant* pull request
+  reviewed today.
+- Force-pushed commits vanish from `pullRequest.commits` and take their billed runs with them.
+
+So the count is only ever "at least this many", and a bound that is honest about being a bound
+still does the job: once even the provable subset passes 16, the month is spent.
+
+What the sweep *can* prove is its coverage: *(every open pull request)* ∪ *(every pull request
+updated inside the window)*. A pull request reviewed in-window and still open is in the first
+set; one closed after its review is in the second, because closing **does** bump `updatedAt`.
+`repository.pullRequests(orderBy: {field: UPDATED_AT, direction: DESC})` was verified strictly
+monotonic, so reaching a pull request older than the window start proves the second set is
+complete. Falling short of either half fails closed rather than reporting a smaller number.
+
+Two properties keep it affordable and reproducible:
+
+- The sweep is fetched **once per job** and the same file is handed to all three validator
+  invocations. `after-success` runs *after* `Review Route: success` is published, so a
+  rate-limited sweep there would demote a legitimately green route to `pending`. `checkSuites`
+  is trimmed to 1 (~40 points a page against the fleet's shared 5,000/hour, versus ~120);
+  `commits(last: 100)` is never trimmed, because a `first: 5` trim measurably lost PR #2203's
+  run at commit 21 of 44.
+- The window is anchored on the **accepted run's `completedAt`**, never `now()`, so re-running
+  validation on an unchanged head cannot reach a different verdict.
+
+One limit remains, and it is structural: the check runs *after* a review has been spent. It can
+refuse to honour the 17th review, never prevent it — which is why the manual-only trigger, not
+a count, is still what protects the budget day to day.
 
 ## Requesting a review
 
