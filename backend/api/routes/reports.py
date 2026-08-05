@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel, Field, field_validator
 
@@ -63,7 +63,7 @@ async def generate_report(request: ReportRequest) -> Response:
     Returns the PDF file as a downloadable response.
     """
     require_fresh_sample(request.sample_id)
-    from backend.reports.generator import generate_report_pdf
+    from backend.reports.generator import ReportTooLargeError, generate_report_pdf
 
     try:
         pdf_bytes = await generate_report_pdf(
@@ -71,6 +71,11 @@ async def generate_report(request: ReportRequest) -> Response:
             modules=request.modules,
             title=request.title,
         )
+    except ReportTooLargeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            detail=str(exc),
+        ) from exc
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except RuntimeError as exc:
@@ -92,7 +97,7 @@ async def preview_report(request: ReportRequest) -> HTMLResponse:
     the user commits to PDF generation.
     """
     require_fresh_sample(request.sample_id)
-    from backend.reports.generator import render_report_html
+    from backend.reports.generator import ReportTooLargeError, render_report_html
 
     try:
         html = render_report_html(
@@ -100,6 +105,11 @@ async def preview_report(request: ReportRequest) -> HTMLResponse:
             modules=request.modules,
             title=request.title,
         )
+    except ReportTooLargeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            detail=str(exc),
+        ) from exc
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 

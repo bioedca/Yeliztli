@@ -34,8 +34,10 @@ from backend.reports.fhir_export import (
     LOINC_POPULATION_AF,
     LOINC_SYSTEM,
     LOINC_VARIANT_EXACT_START,
+    MAX_FHIR_OBSERVATIONS,
     NCBI_NUCCORE_SYSTEM,
     _clinical_significance_value,
+    _load_annotated_variants,
     _variant_to_observation,
 )
 
@@ -286,6 +288,26 @@ def client(tmp_data_dir: Path):
 @pytest.fixture
 def empty_client(tmp_data_dir: Path):
     yield from _setup_client(tmp_data_dir, [])
+
+
+@pytest.fixture
+def oversized_client(tmp_data_dir: Path):
+    """Client whose FHIR selection exceeds the server output ceiling."""
+    variants = [
+        {
+            "rsid": f"rs_fhir_bound_{index}",
+            "chrom": "1",
+            "pos": 1_000_000 + index,
+            "ref": "A",
+            "alt": "G",
+            "genotype": "AG",
+            "zygosity": "het",
+            "gene_symbol": "TEST",
+            "clinvar_significance": "Pathogenic",
+        }
+        for index in range(MAX_FHIR_OBSERVATIONS + 1)
+    ]
+    yield from _setup_client(tmp_data_dir, variants)
 
 
 @pytest.fixture
@@ -911,6 +933,34 @@ class TestFhirAllelicStatePloidy:
 class TestFhirErrors:
     """Error handling for FHIR export."""
 
+    @pytest.mark.parametrize("include_all", [True, False])
+    def test_oversized_export_is_rejected_before_observation_building(
+        self,
+        oversized_client,
+        include_all: bool,
+    ) -> None:
+        tc, sid = oversized_client
+
+        with (
+            patch(
+                "backend.reports.fhir_export._load_annotated_variants",
+                wraps=_load_annotated_variants,
+            ) as load_variants,
+            patch("backend.reports.fhir_export._variant_to_observation") as build_observation,
+        ):
+            resp = tc.post(
+                "/api/export/fhir",
+                json={"sample_id": sid, "include_all": include_all},
+            )
+
+        assert resp.status_code == 413
+        assert resp.json()["detail"] == (
+            "FHIR export exceeds the maximum of "
+            f"{MAX_FHIR_OBSERVATIONS:,} Observations; narrow the export."
+        )
+        load_variants.assert_not_called()
+        build_observation.assert_not_called()
+
     def test_missing_sample(self, client) -> None:
         tc, _ = client
         resp = tc.post("/api/export/fhir", json={"sample_id": 999})
@@ -925,6 +975,61 @@ class TestFhirErrors:
         resp = tc.post("/api/export/fhir", json={"sample_id": sid})
         assert resp.status_code == 422
         assert "annotated variants" in resp.json()["detail"].lower()
+
+
+class TestFhirEligibility:
+    """The Report Builder preflight must reflect the actual FHIR output scope."""
+
+    def test_small_export_is_eligible_with_exact_count(self, client) -> None:
+        tc, sid = client
+
+        resp = tc.get(
+            "/api/export/fhir/eligibility",
+            params={"sample_id": sid, "include_all": True},
+        )
+
+        assert resp.status_code == 200
+        assert resp.json() == {
+            "exportable": True,
+            "max_observations": MAX_FHIR_OBSERVATIONS,
+            "observation_count": 4,
+            "reason": None,
+        }
+
+    def test_oversized_export_is_ineligible_without_counting_every_row(
+        self,
+        oversized_client,
+    ) -> None:
+        tc, sid = oversized_client
+
+        resp = tc.get(
+            "/api/export/fhir/eligibility",
+            params={"sample_id": sid, "include_all": True},
+        )
+
+        assert resp.status_code == 200
+        assert resp.json() == {
+            "exportable": False,
+            "max_observations": MAX_FHIR_OBSERVATIONS,
+            "observation_count": None,
+            "reason": "too_large",
+        }
+
+    def test_sample_without_annotations_is_ineligible(self, empty_client) -> None:
+        tc, sid = empty_client
+
+        resp = tc.get(
+            "/api/export/fhir/eligibility",
+            params={"sample_id": sid, "include_all": True},
+        )
+
+        assert resp.status_code == 200
+        assert resp.json() == {
+            "exportable": False,
+            "max_observations": MAX_FHIR_OBSERVATIONS,
+            "observation_count": 0,
+            "reason": "no_annotated_variants",
+        }
 
 
 class TestFhirBundleValidation:
