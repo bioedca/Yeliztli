@@ -35,6 +35,7 @@ from scripts.validate_review_route import (
     ChangedFile,
     _expected_snapshot_body,
     _merge_review_pages,
+    _merge_thread_pages,
     minimum_route,
     needs_coderabbit_ledger,
     render_probe_body,
@@ -657,6 +658,64 @@ def _review_pages(
             }
         )
     return pages
+
+
+def _thread_pages(
+    context: dict[str, object],
+    all_threads: list[dict[str, object]],
+    *,
+    page_size: int = 100,
+) -> list[dict[str, object]]:
+    materialized: list[dict[str, object]] = []
+    for index, thread in enumerate(all_threads):
+        node = deepcopy(thread)
+        node["id"] = f"PRRT_test_{index:04d}"
+        materialized.append(node)
+    pull_request = context["data"]["repository"]["pullRequest"]
+    pull_request["reviewThreads"] = {
+        "totalCount": len(materialized),
+        "nodes": deepcopy(materialized[:100]),
+    }
+    chunks = [
+        materialized[index : index + page_size] for index in range(0, len(materialized), page_size)
+    ] or [[]]
+    pages: list[dict[str, object]] = []
+    for index, chunk in enumerate(chunks):
+        pages.append(
+            {
+                "data": {
+                    "repository": {
+                        "pullRequest": {
+                            "number": pull_request["number"],
+                            "headRefOid": pull_request["headRefOid"],
+                            "updatedAt": pull_request["updatedAt"],
+                            "reviewThreads": {
+                                "totalCount": len(materialized),
+                                "pageInfo": {
+                                    "hasNextPage": index < len(chunks) - 1,
+                                    "endCursor": f"thread-cursor-{index}",
+                                },
+                                "nodes": deepcopy(chunk),
+                            },
+                        }
+                    }
+                }
+            }
+        )
+    return pages
+
+
+def _truncated_thread_fixture(
+    route: str = "Low",
+    *,
+    total: int = 105,
+    unresolved_index: int | None = None,
+) -> tuple[dict[str, object], list[dict[str, object]]]:
+    """Build a pull request past the 100-thread window, as #2203 was at 105."""
+    context = _context(route, [ChangedFile("docs/guide.md")])
+    threads = [{"isResolved": index != unresolved_index} for index in range(total)]
+    pages = _thread_pages(context, threads)
+    return context, pages
 
 
 def _truncated_review_fixture(
@@ -3663,6 +3722,118 @@ def test_review_page_merge_fails_closed_on_incomplete_or_drifting_ledger(
     assert any(expected_error in error for error in errors)
 
 
+def test_truncated_threads_are_unprovable_without_the_pagination_fallback() -> None:
+    """The #2262 defect itself: 105 threads against a 100-node window.
+
+    Thread count only grows and resolving does not decrement `totalCount`, so
+    without a fallback this pull request could never publish `success` again for
+    any head. #2203 was closed and replaced for exactly this reason.
+    """
+    files = [ChangedFile("docs/guide.md")]
+    context, _ = _truncated_thread_fixture()
+
+    assert "review-thread pagination is incomplete" in validate_context(context, files, now=NOW)
+
+
+def test_complete_paginated_threads_validate_beyond_first_hundred() -> None:
+    files = [ChangedFile("docs/guide.md")]
+    context, pages = _truncated_thread_fixture()
+    assert (
+        _merge_thread_pages(
+            context,
+            pages,
+            expected_head=HEAD_SHA,
+            expected_updated_at=PR_UPDATED_AT,
+        )
+        == []
+    )
+    assert len(context["data"]["repository"]["pullRequest"]["reviewThreads"]["nodes"]) == 105
+    assert validate_context(context, files, now=NOW) == []
+
+
+def test_paginated_threads_still_report_an_unresolved_thread_past_the_window() -> None:
+    """Completing the window must not soften the gate it exists to evaluate.
+
+    The unresolved thread sits at index 104, outside the first 100 nodes, so it
+    is only visible once the fallback has merged every page.
+    """
+    files = [ChangedFile("docs/guide.md")]
+    context, pages = _truncated_thread_fixture(unresolved_index=104)
+    assert (
+        _merge_thread_pages(
+            context,
+            pages,
+            expected_head=HEAD_SHA,
+            expected_updated_at=PR_UPDATED_AT,
+        )
+        == []
+    )
+
+    assert "unresolved review threads remain" in validate_context(context, files, now=NOW)
+
+
+@pytest.mark.parametrize(
+    ("mode", "expected_error"),
+    [
+        ("missing-final-page", "page sequence is incomplete"),
+        ("changed-total", "total changed between requests"),
+        ("duplicate-thread", "missing or duplicate review-thread ID"),
+        ("duplicate-cursor", "cursor is missing or duplicated"),
+        ("empty-terminal-page", "page sequence is incomplete"),
+        ("graphql-error", "GraphQL errors or malformed data"),
+        ("malformed-data", "GraphQL errors or malformed data"),
+        ("changed-head", "snapshot changed between requests"),
+        ("changed-update-time", "snapshot changed between requests"),
+        ("changed-overlap", "disagrees with the original review-thread snapshot"),
+        ("no-pages", "pages are missing or malformed"),
+    ],
+)
+def test_thread_page_merge_fails_closed_on_incomplete_or_drifting_ledger(
+    mode: str,
+    expected_error: str,
+) -> None:
+    context, pages = _truncated_thread_fixture()
+    threads_of = lambda page: page["data"]["repository"]["pullRequest"]["reviewThreads"]  # noqa: E731
+    if mode == "missing-final-page":
+        pages.pop()
+    elif mode == "changed-total":
+        threads_of(pages[1])["totalCount"] += 1
+    elif mode == "duplicate-thread":
+        threads_of(pages[1])["nodes"][0]["id"] = threads_of(pages[0])["nodes"][0]["id"]
+    elif mode == "duplicate-cursor":
+        threads_of(pages[1])["pageInfo"]["endCursor"] = threads_of(pages[0])["pageInfo"][
+            "endCursor"
+        ]
+    elif mode == "empty-terminal-page":
+        threads_of(pages[1])["pageInfo"] = {
+            "hasNextPage": True,
+            "endCursor": "thread-cursor-extra",
+        }
+        terminal = deepcopy(pages[1])
+        threads_of(terminal)["pageInfo"] = {"hasNextPage": False, "endCursor": None}
+        threads_of(terminal)["nodes"] = []
+        pages.append(terminal)
+    elif mode == "graphql-error":
+        pages[1]["errors"] = [{"message": "injected failure"}]
+    elif mode == "malformed-data":
+        pages[1]["data"] = []
+    elif mode == "changed-head":
+        pages[1]["data"]["repository"]["pullRequest"]["headRefOid"] = "b" * 40
+    elif mode == "changed-update-time":
+        pages[1]["data"]["repository"]["pullRequest"]["updatedAt"] = "2026-07-21T12:59:00Z"
+    elif mode == "changed-overlap":
+        threads_of(pages[0])["nodes"][0]["isResolved"] = False
+    elif mode == "no-pages":
+        pages = []
+    errors = _merge_thread_pages(
+        context,
+        pages,
+        expected_head=HEAD_SHA,
+        expected_updated_at=PR_UPDATED_AT,
+    )
+    assert any(expected_error in error for error in errors)
+
+
 def test_truncated_comment_page_uses_update_order_for_completeness() -> None:
     files = [ChangedFile("README.md")]
     context = _context("Low", files)
@@ -4471,6 +4642,18 @@ def test_v3_workflow_invalidates_to_pending_and_audits_one_published_success() -
 
 
 @pytest.mark.parametrize(
+    ("connection", "flag", "pages_file", "query_file"),
+    [
+        ("reviews", "--review-pages", "review-route-review-pages.json", "review_route_reviews"),
+        (
+            "reviewThreads",
+            "--thread-pages",
+            "review-route-thread-pages.json",
+            "review_route_threads",
+        ),
+    ],
+)
+@pytest.mark.parametrize(
     ("truncated", "fetch_fails", "expected_returncode", "expected_fetch"),
     [
         (True, False, 0, True),
@@ -4478,13 +4661,24 @@ def test_v3_workflow_invalidates_to_pending_and_audits_one_published_success() -
         (False, True, 0, False),
     ],
 )
-def test_review_pagination_workflow_fetches_only_a_truncated_ledger(
+def test_pagination_workflow_fetches_only_a_truncated_ledger(
     tmp_path: Path,
+    connection: str,
+    flag: str,
+    pages_file: str,
+    query_file: str,
     truncated: bool,
     fetch_fails: bool,
     expected_returncode: int,
     expected_fetch: bool,
 ) -> None:
+    """Both fallbacks must fetch only when their own window is truncated.
+
+    `reviews` and `reviewThreads` are probed independently, so a complete
+    connection must not pay for a page fetch just because its sibling was
+    truncated -- and a fetch failure must still abort rather than validate
+    against a partial ledger.
+    """
     root = Path(__file__).resolve().parents[2]
     workflow = (root / ".github/workflows/review-route.yml").read_text(encoding="utf-8")
     shell = _workflow_step_script(workflow, "Validate live route state")
@@ -4495,26 +4689,22 @@ def test_review_pagination_workflow_fetches_only_a_truncated_ledger(
     )
     pagination_shell = (
         shell[start:end]
-        + '\nif [ "${#review_page_args[@]}" -gt 0 ]; then\n'
-        + '  printf \'%s\\n\' "${review_page_args[@]}" > "$ARGS_LOG"\n'
-        + "fi\n"
+        + '\nfor arg in "${review_page_args[@]}" "${thread_page_args[@]}"; do\n'
+        + '  printf \'%s\\n\' "$arg" >> "$ARGS_LOG"\n'
+        + "done\n"
     )
+    # Only the parametrized connection is truncated; the sibling is complete, so
+    # each case proves the probes are independent rather than coupled.
+    pull_request = {
+        name: {
+            "totalCount": 104 if (truncated and name == connection) else 100,
+            "nodes": [{} for _ in range(100)],
+        }
+        for name in ("reviews", "reviewThreads")
+    }
     context_path = tmp_path / "review-route-context.json"
     context_path.write_text(
-        json.dumps(
-            {
-                "data": {
-                    "repository": {
-                        "pullRequest": {
-                            "reviews": {
-                                "totalCount": 104 if truncated else 100,
-                                "nodes": [{} for _ in range(100)],
-                            }
-                        }
-                    }
-                }
-            }
-        ),
+        json.dumps({"data": {"repository": {"pullRequest": pull_request}}}),
         encoding="utf-8",
     )
     fake_bin = tmp_path / "bin"
@@ -4553,10 +4743,12 @@ printf '[{"data":{"repository":{"pullRequest":{}}}}]\n'
     assert gh_log.exists() is expected_fetch
     if expected_returncode == 0 and expected_fetch:
         assert args_log.read_text(encoding="utf-8").splitlines() == [
-            "--review-pages",
-            str(tmp_path / "review-route-review-pages.json"),
+            flag,
+            str(tmp_path / pages_file),
         ]
-        assert "--paginate --slurp" in gh_log.read_text(encoding="utf-8")
+        gh_calls = gh_log.read_text(encoding="utf-8")
+        assert "--paginate --slurp" in gh_calls
+        assert f"scripts/{query_file}.graphql" in gh_calls
     else:
         assert not args_log.exists()
 
@@ -6962,6 +7154,20 @@ def test_graphql_context_tracks_comment_association_and_head_epoch() -> None:
             "submittedAt",
         )
     )
+    # The thread window carries the same `id` the fallback merges on. Without it
+    # the main query cannot be reconciled against the paginated pages, so every
+    # pull request past 100 threads would keep failing closed (#2262).
+    thread_query = (root / "scripts/review_route_threads.graphql").read_text(encoding="utf-8")
+    assert "reviewThreads(first: 100) {\n        totalCount\n        nodes { id isResolved }" in (
+        query
+    )
+    assert "$endCursor: String" in thread_query
+    assert "reviewThreads(first: 100, after: $endCursor)" in thread_query
+    assert "pageInfo {\n          hasNextPage\n          endCursor" in thread_query
+    assert "nodes {\n          id\n          isResolved\n        }" in thread_query
+    # The page query must rebind to the same pull request snapshot the context
+    # query saw, or a merged ledger could describe a different head.
+    assert all(field in thread_query for field in ("number", "headRefOid", "updatedAt"))
 
 
 def _greptile_context(
