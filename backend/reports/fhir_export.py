@@ -478,34 +478,57 @@ def _variant_to_observation(
     return full_url, observation
 
 
+def resolve_fhir_scope(
+    engine: sa.Engine,
+    modules: Sequence[str] | None,
+) -> tuple[list[str] | None, list[str]]:
+    """Resolve a requested module scope, and this sample's withheld modules.
+
+    Returns ``(scope, hidden)``. ``scope`` is ``None`` when the caller asked for
+    no module filter, which keeps the historical full-sample selection; any list
+    -- including an empty one -- scopes the bundle, and an empty scope yields an
+    empty bundle rather than everything.
+
+    ``hidden`` is returned **separately and unconditionally**, because the
+    disclosure gate is not part of the scope: it applies whether or not the
+    caller chose one. Folding it into the scope alone would leave omitting
+    `modules` as a way to reach findings the PDF path withholds.
+    """
+    hidden = gated_modules_to_hide(engine)
+    if modules is None:
+        return None, hidden
+    withheld = set(hidden)
+    # dict.fromkeys keeps first-seen order and drops duplicates, so a repeated
+    # query parameter cannot change the selection.
+    return [module for module in dict.fromkeys(modules) if module not in withheld], hidden
+
+
 def effective_fhir_modules(
     engine: sa.Engine,
     modules: Sequence[str] | None,
 ) -> list[str] | None:
-    """Resolve a requested module scope against this sample's disclosure gates.
+    """Return only the resolved scope. See :func:`resolve_fhir_scope`."""
+    return resolve_fhir_scope(engine, modules)[0]
 
-    ``None`` means "do not scope by module" and keeps the historical full-sample
-    selection. Any list -- including an empty one -- scopes the bundle, and an
-    empty result yields an empty bundle rather than everything.
 
-    Gated modules are dropped here for the same reason the PDF path drops them
-    (``generator._load_findings``): an opt-in disclosure the user has not given
-    must not become exportable because a different surface reached the same
-    rows. Resolving it once, where the scope is decided, keeps the preflight and
-    the bundle answering the same question.
+def _rsids_named_by(modules_clause: sa.ColumnElement[bool]) -> sa.Select:
+    """rsIDs named by findings matching ``modules_clause``.
+
+    Findings carrying no rsID -- a polygenic score, a haplogroup call -- name no
+    variant, so they can neither include nor withhold one.
     """
-    if modules is None:
-        return None
-    hidden = set(gated_modules_to_hide(engine))
-    # dict.fromkeys keeps first-seen order and drops duplicates, so a repeated
-    # query parameter cannot change the selection.
-    return [module for module in dict.fromkeys(modules) if module not in hidden]
+    return sa.select(findings.c.rsid).where(
+        modules_clause,
+        findings.c.rsid.is_not(None),
+        findings.c.rsid != "",
+    )
 
 
 def _fhir_variant_clauses(
     *,
     include_all: bool,
     modules: Sequence[str] | None,
+    hidden_modules: Sequence[str] = (),
 ) -> list[sa.ColumnElement[bool]]:
     """Return the SQL predicates shared by FHIR preflight and generation."""
     clauses: list[sa.ColumnElement[bool]] = [
@@ -522,14 +545,29 @@ def _fhir_variant_clauses(
         # The bundle is built from `annotated_variants`, but the report the user
         # curated lives in `findings`. rsID is the only join between them, so a
         # module-scoped export is the carried variants that some finding in a
-        # selected module points at. Findings carrying no rsID -- a PRS score, a
-        # haplogroup call -- name no variant and are correctly absent.
-        scoped_rsids = sa.select(findings.c.rsid).where(
-            findings.c.module.in_(list(modules)),
-            findings.c.rsid.is_not(None),
-            findings.c.rsid != "",
+        # selected module points at.
+        clauses.append(
+            annotated_variants.c.rsid.in_(_rsids_named_by(findings.c.module.in_(list(modules))))
         )
-        clauses.append(annotated_variants.c.rsid.in_(scoped_rsids))
+    if hidden_modules:
+        # Applied whether or not a scope was requested. An unacknowledged
+        # disclosure gate withholds a variant from the report and findings paths,
+        # and an export that ignored the gate would simply be the way around it —
+        # omitting `modules` must not disclose more than selecting them does.
+        #
+        # A variant is withheld only when a gated module is its *sole* reason to
+        # appear: an rsID also named by a visible module's finding is legitimately
+        # disclosed through that module, which is exactly how the PDF path behaves
+        # (it filters findings, not variants).
+        withheld = list(hidden_modules)
+        clauses.append(
+            sa.not_(
+                annotated_variants.c.rsid.in_(_rsids_named_by(findings.c.module.in_(withheld)))
+                & annotated_variants.c.rsid.not_in(
+                    _rsids_named_by(findings.c.module.not_in(withheld))
+                )
+            )
+        )
     return clauses
 
 
@@ -538,11 +576,18 @@ def count_fhir_observations(
     *,
     include_all: bool,
     modules: Sequence[str] | None = None,
+    hidden_modules: Sequence[str] = (),
 ) -> int:
     """Count only up to one Observation beyond the supported output ceiling."""
     bounded_selection = (
         sa.select(sa.literal(1).label("selected"))
-        .where(sa.and_(*_fhir_variant_clauses(include_all=include_all, modules=modules)))
+        .where(
+            sa.and_(
+                *_fhir_variant_clauses(
+                    include_all=include_all, modules=modules, hidden_modules=hidden_modules
+                )
+            )
+        )
         .limit(MAX_FHIR_OBSERVATIONS + 1)
         .subquery()
     )
@@ -556,6 +601,7 @@ def _load_annotated_variants(
     *,
     include_all: bool,
     modules: Sequence[str] | None = None,
+    hidden_modules: Sequence[str] = (),
 ) -> list[dict[str, Any]]:
     """Load at most one carried variant beyond the FHIR output ceiling."""
     # Canonical chromosome sort order
@@ -571,7 +617,13 @@ def _load_annotated_variants(
     )
     query = (
         sa.select(annotated_variants)
-        .where(sa.and_(*_fhir_variant_clauses(include_all=include_all, modules=modules)))
+        .where(
+            sa.and_(
+                *_fhir_variant_clauses(
+                    include_all=include_all, modules=modules, hidden_modules=hidden_modules
+                )
+            )
+        )
         .order_by(chrom_expr.asc(), annotated_variants.c.pos.asc())
         .limit(MAX_FHIR_OBSERVATIONS + 1)
     )
@@ -637,11 +689,17 @@ def build_fhir_bundle(
 
     # Reject oversized direct POSTs with the bounded, unordered selection before
     # the canonical-order query can sort or materialize any selected rows.
-    # Resolve the scope once so the preflight and the load cannot disagree about
-    # which modules are in play -- including after a disclosure gate removes one.
-    scoped_modules = effective_fhir_modules(sample_engine, modules)
+    # Resolve the scope and the disclosure gate once so the preflight and the
+    # load cannot disagree about which modules are in play, or about which are
+    # withheld.
+    scoped_modules, hidden_modules = resolve_fhir_scope(sample_engine, modules)
     if (
-        count_fhir_observations(sample_engine, include_all=include_all, modules=scoped_modules)
+        count_fhir_observations(
+            sample_engine,
+            include_all=include_all,
+            modules=scoped_modules,
+            hidden_modules=hidden_modules,
+        )
         > MAX_FHIR_OBSERVATIONS
     ):
         raise _fhir_export_too_large_error()
@@ -649,7 +707,10 @@ def build_fhir_bundle(
     # Apply carriage, module and optional ClinVar filters in SQL. The limit
     # remains a defense-in-depth recheck if rows change between preflight and load.
     all_variants = _load_annotated_variants(
-        sample_engine, include_all=include_all, modules=scoped_modules
+        sample_engine,
+        include_all=include_all,
+        modules=scoped_modules,
+        hidden_modules=hidden_modules,
     )
     if not all_variants:
         # Preserve the existing distinction between a sample with no annotation

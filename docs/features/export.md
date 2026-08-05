@@ -37,12 +37,20 @@ disabled when its size cannot be verified or the sample has no annotated variant
     is built from findings. rsID is what links them, so a scoped export contains
     the **carried variants that a finding in a selected module points at**.
 
-    Two consequences worth knowing. A finding that names no variant — a
-    polygenic score, a haplogroup call — contributes no `Observation`, so a
-    selection made only of those produces a valid but empty bundle, and the page
-    says so before you download it. And a module whose disclosure gate you have
-    not acknowledged is withheld here just as it is from the PDF: selecting it
-    does not export its variants.
+    A finding that names no variant — a polygenic score, a haplogroup call —
+    contributes no `Observation`, so a selection made only of those produces a
+    valid but empty bundle, and the page says so before you download it.
+
+!!! warning "Disclosure gates apply to FHIR export, including unscoped exports"
+    A module whose disclosure gate you have not acknowledged is withheld from the
+    FHIR bundle exactly as it is from the PDF — and that holds **whether or not
+    you scope the export by module**, so requesting an unscoped bundle is not a
+    way around it.
+
+    A variant is withheld only when a gated module is its *sole* reason to
+    appear. One that a non-gated module's finding also names is exported through
+    that module, which is how the PDF path behaves too: it filters findings, not
+    variants.
 
 !!! warning "The FHIR export is not a clinical diagnostic report"
     The **FHIR R4** export produces a `DiagnosticReport` resource using the standard

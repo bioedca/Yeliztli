@@ -509,16 +509,18 @@ def get_fhir_export_eligibility(
     from backend.reports.fhir_export import (
         MAX_FHIR_OBSERVATIONS,
         count_fhir_observations,
-        effective_fhir_modules,
+        resolve_fhir_scope,
     )
 
     sample_engine = _get_sample_engine(sample_id)
-    # Resolve the scope the same way the bundle will, so eligibility answers the
-    # question the export is actually going to ask.
+    # Resolve the scope and the disclosure gate the same way the bundle will, so
+    # eligibility answers the question the export is actually going to ask.
+    scoped_modules, hidden_modules = resolve_fhir_scope(sample_engine, modules)
     observation_count = count_fhir_observations(
         sample_engine,
         include_all=include_all,
-        modules=effective_fhir_modules(sample_engine, modules),
+        modules=scoped_modules,
+        hidden_modules=hidden_modules,
     )
     if observation_count == 0 and not _has_annotated_variants(sample_engine):
         exportable = False

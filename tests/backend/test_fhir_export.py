@@ -44,6 +44,7 @@ from backend.reports.fhir_export import (
     build_fhir_bundle,
     count_fhir_observations,
     effective_fhir_modules,
+    resolve_fhir_scope,
 )
 
 # ── Test data ────────────────────────────────────────────────────────
@@ -1258,3 +1259,67 @@ class TestFhirModuleScope:
         resp = tc.post("/api/export/fhir", json={"sample_id": sid, "modules": ["cancer"]})
         assert resp.status_code == 200
         assert _observation_rsids(resp.json()) == {"rs80357906"}
+
+
+class TestFhirDisclosureGate:
+    """An unacknowledged gate withholds variants from EVERY export shape (#2100).
+
+    Scoping made the gate reachable, but the gate is not part of the scope: an
+    export that omitted `modules` would otherwise be the way around it, which is
+    strictly easier than selecting the gated module.
+    """
+
+    def test_unscoped_export_withholds_a_gated_only_variant(self, scoped_client) -> None:
+        _, sid = scoped_client
+        rsids = _observation_rsids(build_fhir_bundle(sample_id=sid))
+        # rs429358 is named only by the gated `apoe` finding, and the gate is
+        # never acknowledged in this fixture.
+        assert "rs429358" not in rsids
+        # …while everything else the sample carries is still exported.
+        assert "rs80357906" in rsids
+        assert "rs1801133" in rsids
+
+    def test_a_variant_a_visible_module_also_names_is_still_exported(
+        self, tmp_data_dir: Path
+    ) -> None:
+        """The gate withholds a variant only when a gated module is its sole reason.
+
+        This mirrors the PDF path, which filters *findings* rather than variants:
+        an rsID reachable through a visible module is legitimately disclosed by
+        that module. Without this the gate would over-withhold.
+        """
+        gen = _setup_client(
+            tmp_data_dir,
+            ANNOTATED_VARIANTS,
+            finding_rows=[
+                {"module": "apoe", "category": "risk", "rsid": "rs429358", "finding_text": "APOE"},
+                {
+                    "module": "cardiovascular",
+                    "category": "risk",
+                    "rsid": "rs429358",
+                    "finding_text": "Lipids",
+                },
+            ],
+        )
+        _tc, sid = next(gen)
+        try:
+            assert "rs429358" in _observation_rsids(build_fhir_bundle(sample_id=sid))
+        finally:
+            gen.close()
+
+    def test_the_eligibility_count_reflects_the_gate(
+        self, scoped_client, tmp_data_dir: Path
+    ) -> None:
+        """Preflight and bundle must agree, or the button gates on a lie."""
+        _, sid = scoped_client
+        engine = sa.create_engine(f"sqlite:///{tmp_data_dir / 'samples' / 'sample_1.db'}")
+        try:
+            scope, hidden = resolve_fhir_scope(engine, None)
+            assert scope is None
+            assert "apoe" in hidden
+            counted = count_fhir_observations(
+                engine, include_all=True, modules=scope, hidden_modules=hidden
+            )
+        finally:
+            engine.dispose()
+        assert counted == len(_observation_rsids(build_fhir_bundle(sample_id=sid)))
