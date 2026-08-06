@@ -407,7 +407,20 @@ def evaluability_from_detail(
     snps_used = raw_used if counted else 0
 
     raw_froh = detail.get("froh")
-    has_metric = isinstance(raw_froh, int | float) and not isinstance(raw_froh, bool)
+    # FROH is the fraction of the autosomal genome in long homozygous runs, so
+    # it is bounded by [0, 1] by construction. Type-checking it without bounding
+    # it would vouch for a number no scan could have produced: a drifted blob
+    # holding -3 or 12 would pass every gate below, reach the evaluable exit,
+    # and be served as a measured FROH. That is the same substitution this
+    # function exists to prevent, one field over — and it is how every other
+    # field here is already treated (`autosomal_snps_used` must be >= 0,
+    # `evaluable` a real bool, `indeterminate_reason` a known reason).
+    # A NaN also fails this comparison, which is the correct outcome.
+    has_metric = (
+        isinstance(raw_froh, int | float)
+        and not isinstance(raw_froh, bool)
+        and 0.0 <= raw_froh <= 1.0
+    )
 
     observed = snps_used
     stored = detail.get("evaluable")

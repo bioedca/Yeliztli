@@ -747,6 +747,65 @@ class TestEvaluabilityAtTheApi:
         assert data["segments_truncated"] is False
         assert "typical result" not in data["finding_text"].lower()
 
+    def _insert_roh_row(self, engine: sa.Engine, detail: str) -> None:
+        from backend.db.tables import findings
+
+        with engine.begin() as conn:
+            conn.execute(
+                sa.insert(findings),
+                {
+                    "module": "roh",
+                    "category": "autozygosity",
+                    "evidence_level": 1,
+                    "finding_text": "stored narrative",
+                    "detail_json": detail,
+                },
+            )
+
+    @pytest.mark.parametrize("bad_froh", [-3, 12, -0.0001, 1.0001])
+    def test_out_of_range_froh_is_withheld_not_served(
+        self, _env: sa.Engine, client: TestClient, bad_froh: float
+    ) -> None:
+        # FROH is a fraction of the autosomal genome, so it is bounded by
+        # [0, 1] by construction. A drifted blob holding -3 or 12 is not a
+        # measurement, and serving it as one is the same substitution this
+        # module exists to prevent -- one field over. Every other field here is
+        # already validated against the values it may hold.
+        import json as _json
+
+        self._insert_roh_row(
+            _env,
+            _json.dumps({"froh": bad_froh, "autosomal_snps_used": 361, "n_segments": 1}),
+        )
+
+        response = client.get("/api/analysis/roh/findings?sample_id=1")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["evaluable"] is False
+        assert data["indeterminate_reason"] == "detail_unavailable"
+        assert data["froh"] is None
+        assert data["finding_text"] != "stored narrative"
+
+    @pytest.mark.parametrize("good_froh", [0.0, 0.25, 1.0])
+    def test_in_range_froh_is_still_served(
+        self, _env: sa.Engine, client: TestClient, good_froh: float
+    ) -> None:
+        # Counterpart control for the bound above: without it, a guard that
+        # rejected *every* stored FROH would still satisfy the rejection test,
+        # and the module would withhold every real measurement it ever made.
+        import json as _json
+
+        self._insert_roh_row(
+            _env,
+            _json.dumps({"froh": good_froh, "autosomal_snps_used": 361, "n_segments": 1}),
+        )
+
+        data = client.get("/api/analysis/roh/findings?sample_id=1").json()
+        assert data["evaluable"] is True
+        assert data["froh"] == good_froh
+        assert data["indeterminate_reason"] is None
+        assert data["finding_text"] == "stored narrative"
+
     def test_legacy_row_with_adequate_markers_is_untouched(
         self, _env: sa.Engine, client: TestClient
     ) -> None:
