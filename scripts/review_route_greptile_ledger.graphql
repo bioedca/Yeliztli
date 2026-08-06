@@ -1,0 +1,80 @@
+# Repository-wide Greptile spend, as a **lower bound** over a rolling 30 days.
+#
+# It can only ever be a lower bound, and that is a property of GitHub's data
+# rather than of this query. Credits are billed per author across every
+# repository they open pull requests in, so a per-repository count cannot see the
+# pool it guards. Labelling a pull request does not bump its `updatedAt`, and
+# neither does a check run completing, so a dormant pull request reviewed today
+# is invisible to any `UPDATED_AT` ledger. A force push drops commits from
+# `commits` and takes their billed runs with them.
+#
+# What *is* provable is the coverage set
+# *(every open pull request)* ∪ *(every pull request updated inside the window)*.
+# A pull request reviewed in-window and still open is in the first set; one
+# closed after its review is in the second, because closing does bump
+# `updatedAt`. `orderBy: {field: UPDATED_AT, direction: DESC}` was verified
+# strictly monotonic, so reaching a page older than the window start proves the
+# second half is complete.
+#
+# The shape is cost, not taste. Measured with `rateLimit { cost }` against the
+# 5,000-points/hour budget the whole fleet shares: `checkSuites(first: 5)` costs
+# ~120 points a page, `first: 1` costs ~40. `commits(last: 100)` is never
+# trimmed — a `first: 5` trim measurably lost PR #2203's run, which sits at
+# commit 21 of 44.
+query ReviewRouteGreptileLedger($owner: String!, $repo: String!, $endCursor: String) {
+  repository(owner: $owner, name: $repo) {
+    greptileLedger: pullRequests(
+      first: 20
+      after: $endCursor
+      orderBy: {field: UPDATED_AT, direction: DESC}
+      states: [OPEN, MERGED, CLOSED]
+    ) {
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+      nodes {
+        id
+        number
+        updatedAt
+        greptileCommits: commits(last: 100) {
+          totalCount
+          nodes {
+            commit {
+              __typename
+              oid
+              # One suite per commit is all that has been observed, and the known
+              # same-commit double review (bruin-data/bruin 37f776c5) sat in that
+              # same suite. `totalCount` is computed after `filterBy`, so a second
+              # Greptile suite would exceed this page and fail closed rather than
+              # go uncounted.
+              checkSuites(first: 1, filterBy: {appId: 867647}) {
+                totalCount
+                nodes {
+                  app {
+                    databaseId
+                  }
+                  # `checkType` defaults to `LATEST`, which hides a run superseded
+                  # on an unchanged commit while `totalCount` still agrees with
+                  # the shortened page — the exact shape that made a count look
+                  # verified while under-reporting it (#2265).
+                  checkRuns(first: 10, filterBy: {checkType: ALL}) {
+                    totalCount
+                    nodes {
+                      id
+                      name
+                      status
+                      conclusion
+                      startedAt
+                      completedAt
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

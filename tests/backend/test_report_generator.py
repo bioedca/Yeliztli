@@ -22,14 +22,17 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 import sqlalchemy as sa
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
+from backend.api.dependencies import sample_export_guard
 from backend.config import Settings
 from backend.db.connection import reset_registry
 from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import (
     apoe_gate,
     findings,
+    jobs,
     reference_metadata,
     samples,
 )
@@ -38,12 +41,15 @@ from backend.disclaimers import (
     CARRIER_STATUS_DISCLAIMER_TITLE,
 )
 from backend.reports.generator import (
+    MAX_REPORT_FINDINGS,
+    ReportTooLargeError,
     _group_findings_into_sections,
     _load_findings,
     _read_svg_content,
     render_report_html,
 )
 from backend.reports.module_disclaimers import MODULE_DISCLAIMERS, MODULE_DISPLAY_NAMES
+from backend.services.sample_operation_lock import SAMPLE_EXPORT_JOB_TYPE
 
 # ── Fixtures ────────────────────────────────────────────────────────
 
@@ -220,6 +226,44 @@ def _insert_gated_report_findings(sample_engine: sa.Engine) -> None:
             conn.execute(findings.insert().values(**finding))
 
 
+def _insert_report_findings(
+    sample_engine: sa.Engine,
+    count: int,
+    *,
+    module: str = "rare_variants",
+) -> None:
+    """Bulk-seed synthetic reportable findings for size-boundary tests."""
+    rows = [
+        {
+            "module": module,
+            "category": "rare_variant",
+            "evidence_level": 1,
+            "finding_text": f"Synthetic report finding {index}",
+        }
+        for index in range(count)
+    ]
+    with sample_engine.begin() as conn:
+        conn.execute(findings.insert(), rows)
+
+
+def _insert_active_annotation_job(
+    ref_engine: sa.Engine,
+    sample_id: int = 1,
+    *,
+    status: str = "running",
+) -> None:
+    """Seed a running annotation job for export interlock tests."""
+    with ref_engine.begin() as conn:
+        conn.execute(
+            jobs.insert().values(
+                job_id=f"annotation-{sample_id}",
+                sample_id=sample_id,
+                job_type="annotation",
+                status=status,
+            )
+        )
+
+
 def _acknowledge_gate(sample_engine: sa.Engine, gate_table: sa.Table) -> None:
     with sample_engine.begin() as conn:
         conn.execute(gate_table.insert().values(id=1, acknowledged=True))
@@ -354,6 +398,100 @@ class TestLoadFindings:
         roh = [r for r in _load_findings(sample_engine, modules=["roh"])]
         assert len(roh) == 1
         assert roh[0]["finding_text"] == stored
+
+    def test_allows_a_selection_at_the_report_limit(self, sample_with_findings: tuple) -> None:
+        _, sample_engine, _ = sample_with_findings
+        _insert_report_findings(sample_engine, MAX_REPORT_FINDINGS)
+
+        results = _load_findings(sample_engine, modules=["rare_variants"])
+
+        assert len(results) == MAX_REPORT_FINDINGS
+        assert all(result["module"] == "rare_variants" for result in results)
+
+    def test_rejects_a_selection_over_the_report_limit(self, sample_with_findings: tuple) -> None:
+        _, sample_engine, _ = sample_with_findings
+        _insert_report_findings(sample_engine, MAX_REPORT_FINDINGS + 1)
+        finding_selects: list[str] = []
+
+        def capture_finding_select(
+            _conn,
+            _cursor,
+            statement: str,
+            _parameters,
+            _context,
+            _executemany,
+        ) -> None:
+            if "FROM findings" in statement:
+                finding_selects.append(statement)
+
+        sa.event.listen(sample_engine, "before_cursor_execute", capture_finding_select)
+        try:
+            with pytest.raises(ReportTooLargeError, match="maximum of 1,000 findings"):
+                _load_findings(sample_engine, modules=["rare_variants"])
+        finally:
+            sa.event.remove(sample_engine, "before_cursor_execute", capture_finding_select)
+
+        assert len(finding_selects) == 1
+        assert "ORDER BY" not in finding_selects[0].upper()
+
+    def test_rejects_an_unfiltered_selection_over_the_report_limit(
+        self, sample_with_findings: tuple
+    ) -> None:
+        """The ``modules is None`` branch must be bounded too (#1990).
+
+        Every other boundary test passes an explicit module list, so they all
+        exercise only the filtered branch.  The default report applies no module
+        filter at all, and that unfiltered default is precisely the runaway this
+        guard exists for -- 311,467 findings in the issue's reproduction.
+
+        Asserting only that ``ReportTooLargeError`` is raised would *not*
+        discriminate this branch: the ordered ``LIMIT + 1`` recheck further down
+        raises the same error, so the test would still pass with the unordered
+        preflight disabled.  Pin the preflight itself, exactly as the filtered
+        case does -- the point of this guard is to refuse before SQLite sorts
+        every matching row.
+        """
+        _, sample_engine, _ = sample_with_findings
+        _insert_report_findings(sample_engine, MAX_REPORT_FINDINGS + 1)
+        finding_selects: list[str] = []
+
+        def capture_finding_select(
+            _conn,
+            _cursor,
+            statement: str,
+            _parameters,
+            _context,
+            _executemany,
+        ) -> None:
+            if "FROM findings" in statement:
+                finding_selects.append(statement)
+
+        sa.event.listen(sample_engine, "before_cursor_execute", capture_finding_select)
+        try:
+            with pytest.raises(ReportTooLargeError, match="maximum of 1,000 findings"):
+                _load_findings(sample_engine, modules=None)
+        finally:
+            sa.event.remove(sample_engine, "before_cursor_execute", capture_finding_select)
+
+        assert len(finding_selects) == 1
+        assert "ORDER BY" not in finding_selects[0].upper()
+
+    def test_allows_an_unfiltered_selection_at_the_report_limit(
+        self, sample_with_findings: tuple
+    ) -> None:
+        """Counterpart control for the unfiltered branch.
+
+        Without it, a guard that refused *every* unfiltered selection would
+        still satisfy the rejection test above.
+        """
+        _, sample_engine, _ = sample_with_findings
+        with sample_engine.begin() as conn:
+            conn.execute(sa.delete(findings))
+        _insert_report_findings(sample_engine, MAX_REPORT_FINDINGS)
+
+        results = _load_findings(sample_engine, modules=None)
+
+        assert len(results) == MAX_REPORT_FINDINGS
 
     def test_withholds_unqualified_local_ancestry(self, sample_with_findings: tuple) -> None:
         _, sample_engine, _ = sample_with_findings
@@ -838,6 +976,25 @@ class TestModuleDisclaimers:
 # ── Integration tests: API endpoints ──────────────────────────────
 
 
+def test_annotation_idle_gate_fails_closed_when_job_state_is_unavailable() -> None:
+    error = sa.exc.OperationalError(
+        "SELECT jobs",
+        {},
+        RuntimeError("reference database unavailable"),
+    )
+    with patch("backend.api.dependencies.get_registry") as get_registry_mock:
+        get_registry_mock.return_value.reference_engine.connect.side_effect = error
+
+        with pytest.raises(HTTPException) as exc_info:
+            with sample_export_guard(1, operation="test export"):
+                raise AssertionError("unreachable")
+
+    assert exc_info.value.status_code == 503
+    assert exc_info.value.detail == (
+        "Unable to verify annotation status for sample 1; the export was not started."
+    )
+
+
 class TestReportAPI:
     def test_preview_endpoint(self, report_client: TestClient) -> None:
         resp = report_client.post(
@@ -894,6 +1051,45 @@ class TestReportAPI:
         assert "attachment" in resp.headers["content-disposition"]
         assert resp.content == fake_pdf
 
+    def test_generate_holds_export_lease_during_pdf_rendering(
+        self,
+        report_client: TestClient,
+    ) -> None:
+        from backend.db.connection import get_registry
+
+        async def assert_lease_held(_html: str) -> bytes:
+            with get_registry().reference_engine.connect() as conn:
+                row = conn.execute(
+                    sa.select(jobs.c.status).where(
+                        jobs.c.sample_id == 1,
+                        jobs.c.job_type == SAMPLE_EXPORT_JOB_TYPE,
+                    )
+                ).fetchone()
+            assert row is not None
+            assert row.status == "running"
+            return b"%PDF-1.4 leased"
+
+        with patch(
+            "backend.reports.generator._html_to_pdf",
+            new_callable=AsyncMock,
+            side_effect=assert_lease_held,
+        ):
+            resp = report_client.post(
+                "/api/reports/generate",
+                json={"sample_id": 1},
+            )
+
+        assert resp.status_code == 200
+        with get_registry().reference_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(jobs.c.status).where(
+                    jobs.c.sample_id == 1,
+                    jobs.c.job_type == SAMPLE_EXPORT_JOB_TYPE,
+                )
+            ).fetchone()
+        assert row is not None
+        assert row.status == "complete"
+
     def test_generate_with_module_filter(self, report_client: TestClient) -> None:
         fake_pdf = b"%PDF-1.4 filtered report"
 
@@ -909,6 +1105,90 @@ class TestReportAPI:
 
         assert resp.status_code == 200
         assert resp.content == fake_pdf
+
+    def test_generate_rejects_oversized_selection_before_pdf_rendering(
+        self,
+        report_client: TestClient,
+        sample_with_findings: tuple,
+    ) -> None:
+        _, sample_engine, _ = sample_with_findings
+        _insert_report_findings(sample_engine, MAX_REPORT_FINDINGS + 1)
+
+        with patch(
+            "backend.reports.generator._html_to_pdf",
+            new_callable=AsyncMock,
+        ) as html_to_pdf:
+            resp = report_client.post(
+                "/api/reports/generate",
+                json={"sample_id": 1, "modules": ["rare_variants"]},
+            )
+
+        assert resp.status_code == 413
+        assert resp.json()["detail"] == (
+            "Report selection exceeds the maximum of 1,000 findings; select fewer modules."
+        )
+        html_to_pdf.assert_not_awaited()
+
+    def test_generate_rejects_active_annotation_before_pdf_rendering(
+        self,
+        report_client: TestClient,
+        sample_with_findings: tuple,
+    ) -> None:
+        ref_engine, _, _ = sample_with_findings
+        _insert_active_annotation_job(ref_engine)
+
+        with patch(
+            "backend.reports.generator._html_to_pdf",
+            new_callable=AsyncMock,
+        ) as html_to_pdf:
+            resp = report_client.post(
+                "/api/reports/generate",
+                json={"sample_id": 1},
+            )
+
+        assert resp.status_code == 409
+        assert resp.json()["detail"] == (
+            "Annotation is in progress for sample 1; retry the export after it completes."
+        )
+        html_to_pdf.assert_not_awaited()
+
+    def test_preview_rejects_oversized_selection_before_html_rendering(
+        self,
+        report_client: TestClient,
+        sample_with_findings: tuple,
+    ) -> None:
+        _, sample_engine, _ = sample_with_findings
+        _insert_report_findings(sample_engine, MAX_REPORT_FINDINGS + 1)
+
+        resp = report_client.post(
+            "/api/reports/preview",
+            json={"sample_id": 1, "modules": ["rare_variants"]},
+        )
+
+        assert resp.status_code == 413
+        assert resp.json()["detail"] == (
+            "Report selection exceeds the maximum of 1,000 findings; select fewer modules."
+        )
+
+    def test_preview_rejects_active_annotation_before_html_rendering(
+        self,
+        report_client: TestClient,
+        sample_with_findings: tuple,
+    ) -> None:
+        ref_engine, _, _ = sample_with_findings
+        _insert_active_annotation_job(ref_engine, status="cancelling")
+
+        with patch("backend.reports.generator.render_report_html") as render_html:
+            resp = report_client.post(
+                "/api/reports/preview",
+                json={"sample_id": 1},
+            )
+
+        assert resp.status_code == 409
+        assert resp.json()["detail"] == (
+            "Annotation is in progress for sample 1; retry the export after it completes."
+        )
+        render_html.assert_not_called()
 
     def test_generate_nonexistent_sample(self, report_client: TestClient) -> None:
         resp = report_client.post(

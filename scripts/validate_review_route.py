@@ -23,19 +23,88 @@ COPILOT_GATE = "Copilot PR review"
 CODEX_GATE = "Codex @codex review"
 CODERABBIT_GATE = "Manual CodeRabbit reservation and @coderabbitai full review"
 CODERABBIT_V3_GATE = "CodeRabbit structured clean review"
+GREPTILE_GATE = "Greptile clean review check run"
 HUMAN_GATE = "Independent human maintainer review"
 BOT_GATES = (COPILOT_GATE, CODEX_GATE, CODERABBIT_GATE)
 GATES = (*BOT_GATES, HUMAN_GATE)
+# Greptile is a v3-only lane. `BOT_GATES` is shared with the legacy human-gated
+# schema, so adding it there would retroactively demand a fourth evidence row
+# and a fourth reviewer checkbox from every open v2 pull request.
+V3_BOT_GATES = (*BOT_GATES, GREPTILE_GATE)
 AUTOMATED_REVIEW_CHOICES = {
     "Copilot": COPILOT_GATE,
     "Codex": CODEX_GATE,
     "CodeRabbit": CODERABBIT_GATE,
 }
+V3_AUTOMATED_REVIEW_CHOICES = {
+    **AUTOMATED_REVIEW_CHOICES,
+    "Greptile": GREPTILE_GATE,
+}
 BOT_ACTOR_IDS = {
     COPILOT_GATE: 175728472,  # Copilot GitHub App
     CODEX_GATE: 199175422,  # ChatGPT Codex connector GitHub App
     CODERABBIT_GATE: 136622811,  # CodeRabbit GitHub App
+    GREPTILE_GATE: 165735046,  # Greptile GitHub App (`greptile-apps[bot]`)
 }
+# Never match Greptile on a login. A separate ordinary *User* account holds the
+# bare login `greptile-apps` (id 244718400), and GraphQL reports the bot's own
+# login without the `[bot]` suffix, so the two are string-identical there.
+# `greptile[bot]` (id 271099122) is a third, inactive Greptile app.
+GREPTILE_APP_ID = 867647
+GREPTILE_CHECK_RUN_NAME = "Greptile Review"
+# Greptile's own counter, in a fixed template. `M == 0` is the whole clean test:
+# there is no sentence to match and no model-authored flourish to overflow, which
+# is what makes this the only envelope here not keyed on provider prose.
+# The reviewed-file count must be positive. Greptile applies its own path
+# filters, so a pull request whose changed files are all filtered out can report
+# `0 files reviewed, 0 comments added.` — a clean verdict over nothing, which on
+# v3 carries a merge with no human approval behind it.
+GREPTILE_CHECK_SUMMARY = re.compile(
+    r"^Greptile has reviewed the Pull Request\.\n\n"
+    r"(?P<files>[1-9][0-9]*) files? reviewed, "
+    r"(?P<comments>0|[1-9][0-9]*) comments? added\.$"
+)
+# Greptile reads `greptile.json` and `.greptile/` from the pull request's own
+# source branch (#2249), so a pull request can weaken the reviewer that is about
+# to clear it. Trusted `main` protects the validator from that; nothing protects
+# Greptile from it, so the lane refuses to review its own configuration.
+GREPTILE_CONFIG_EXACT = frozenset({"greptile.json"})
+GREPTILE_CONFIG_PREFIXES = (".greptile/",)
+# This repository allows itself 16 Greptile reviews a month, and a re-trigger on
+# every push is the cheapest way to spend them. Two is one review plus one
+# re-review after fixing what it found.
+GREPTILE_PR_REVIEW_CAP = 2
+# Greptile bills completed reviews and says skipped ones don't count; a cancelled
+# run never finished either. Everything else did the work and spent the credit,
+# including a `NEUTRAL` confidence-threshold refusal and an in-flight run that
+# has no conclusion yet, so the count deliberately errs high.
+GREPTILE_UNBILLED_CONCLUSIONS = frozenset({"CANCELLED", "SKIPPED"})
+GREPTILE_LEDGER_UNAVAILABLE = "Greptile per-pull-request check-run ledger is unavailable"
+GREPTILE_LEDGER_TRUNCATED = "commit pagination cannot prove the Greptile per-pull-request budget"
+GREPTILE_LEDGER_FORCE_PUSHED = (
+    "Greptile per-pull-request budget cannot be proven after a force push; "
+    "select another hosted reviewer"
+)
+# The self-allocated monthly share -- 50 credits split across 3 repositories --
+# and the window it is spent over. The per-pull-request cap above stops the
+# cheapest way to burn a month; this bounds how many pull requests may spend at
+# all. Neither is the whole truth: credits pool per author across every
+# repository, so this repository can only ever prove a lower bound on the pool.
+GREPTILE_MONTHLY_ALLOWANCE = 16
+GREPTILE_LEDGER_WINDOW = timedelta(days=30)
+GREPTILE_MONTH_LEDGER_UNPROVEN = (
+    "Greptile rolling-30-day ledger cannot be proven complete; select another hosted reviewer"
+)
+# Entries are compared against `path.lower()`, so every member must be lowercase.
+# `agents.md` and `claude.md` are the fleet contract that gates every other
+# change, including merge authorisation. Both route tables call an edit to them
+# Load-bearing, but until they were listed here the floor said `Low` -- they are
+# `.md` and matched nothing else -- and the two halves of the repository
+# disagreed with each other. Precedent split along exactly that line: #2197
+# routed Load-bearing and #2199 routed Low, both agent-contract edits, both
+# valid, because the floor is a minimum and either route sits at or above it.
+# Listing them makes the classification machine-checked instead of advisory
+# (#2259).
 LOAD_BEARING_EXACT = {
     ".coderabbit.yaml",
     ".gitattributes",
@@ -46,12 +115,15 @@ LOAD_BEARING_EXACT = {
     ".github/copilot-instructions.md",
     ".github/dependabot.yml",
     ".github/pull_request_template.md",
+    "agents.md",
     "changelog.md",
     "code_of_conduct.md",
     "citation.cff",
+    "claude.md",
     "contributing.md",
     "dockerfile",
     "governance.md",
+    "greptile.json",
     "license",
     "makefile",
     "notice",
@@ -115,6 +187,10 @@ LOAD_BEARING_NAMES = {
 }
 LOAD_BEARING_PREFIXES = (
     ".github/",
+    # Greptile reads `.greptile/` in preference to the root `greptile.json`, so
+    # a file here can override the manual-only review guard. Without this the
+    # override would ride in on Standard, or on Low for `.greptile/rules.md`.
+    ".greptile/",
     "alembic/",
     "bundles/",
     "data/",
@@ -289,14 +365,47 @@ COPILOT_V3_COVERAGE_LINE = re.compile(
 )
 COPILOT_V3_CLEAN_VERDICT = "no comments"
 # Copilot can withhold low-confidence findings instead of posting them, and a
-# withheld finding never becomes an attached comment. There is deliberately no
-# prose scan for that: Copilot paraphrases the diff it read, so any pattern wide
-# enough to catch the wording variants also rejects a clean review of a change
-# that merely discusses suppression. Tracked in #2256.
+# withheld finding never becomes an attached comment, so `comments.totalCount`
+# stays 0 and this envelope cannot see it. That gap is accepted, deliberately,
+# and #2256 records the decision rather than leaving it an omission.
+#
+# There is no prose scan, because Copilot paraphrases the diff it read: any
+# pattern wide enough to catch the undocumented wording variants also rejects a
+# clean review of a change that merely discusses suppression. PR #2254 was the
+# worked example -- a clean review of that pull request would have been refused
+# by its own fixture. On v3 a false positive fails closed and publishes
+# `pending` with no visible cause, so a guessed pattern trades a documented
+# false negative for an undiagnosable false positive. Same class as #2248/#2255.
+#
+# An authenticated field would be trustworthy in the way prose is not. There
+# isn't one, measured 2026-08-05: no field on `PullRequestReview` reports a
+# withheld or suppressed count, a sweep of all 1821 GraphQL types matched
+# nothing on suppress/withheld/low-confidence, and the REST review object
+# carries only 11 keys, none related. `CopilotCodeReviewParameters` exposes just
+# `reviewDraftPullRequests` and `reviewOnPush`, so the analysis-depth setting is
+# not reachable through the API either -- requiring a depth is not enforceable
+# from here. Re-probe before assuming this is still true.
+#
+# So the residual exposure is real and bounded: a Copilot review that suppressed
+# a low-confidence finding can be recorded as clean route evidence. What the
+# envelope asserts is that Copilot posted nothing actionable -- not that it found
+# nothing, and not that every file was read.
 CODEX_CLEAN_COMPLETION_PREFIX = "Codex Review: Didn't find any major issues."
 CODEX_CLEAN_COMPLETION_MARKER = f"{CODEX_CLEAN_COMPLETION_PREFIX} What shall we delve into next?"
+# The trailing flourish is unbounded on purpose. Nothing downstream reads it:
+# the verdict is the prefix, the author is the app id plus the `Bot` typename,
+# immutability is `created == updated` with a null `lastEditedAt`, and the head
+# binding is the `**Reviewed commit:**` marker. A length cap therefore
+# constrained only how verbose Codex chose to be about why it found nothing --
+# and when it wrote three sentences instead of one (286 characters on PR #2254),
+# its own canonical clean comment was rejected and the pull request could not
+# finalize on that head. Same class as #2248: pinning provider prose kills a
+# working lane silently, because a v3 validation failure publishes `pending`.
+# What is still enforced is that the verdict occupies a single line, so a
+# multi-paragraph comment cannot be read as a terse clean verdict. Tracked in
+# #2255.
 CODEX_CLEAN_COMPLETION_LINE = re.compile(
-    rf"^{re.escape(CODEX_CLEAN_COMPLETION_PREFIX)}(?: [^\r\n]{{1,160}})?$"
+    rf"^{re.escape(CODEX_CLEAN_COMPLETION_PREFIX)}(?: [^\r\n]+)?$"
 )
 CODEX_REVIEWED_COMMIT_LINE = re.compile(
     r"(?m)^\*\*Reviewed commit:\*\* `(?P<sha>[0-9a-f]{10})`\s*$"
@@ -319,13 +428,59 @@ FINALIZE_COMMAND = "/validate-route"
 
 
 def _gates_for_schema(schema_version: int | None) -> tuple[str, ...]:
-    return BOT_GATES if schema_version == 3 else GATES
+    return V3_BOT_GATES if schema_version == 3 else GATES
 
 
 def _gate_labels_for_schema(schema_version: int | None) -> tuple[str, ...]:
     if schema_version == 3:
-        return (COPILOT_GATE, CODEX_GATE, CODERABBIT_V3_GATE)
+        return (COPILOT_GATE, CODEX_GATE, CODERABBIT_V3_GATE, GREPTILE_GATE)
     return GATES
+
+
+def _review_choices_for_schema(schema_version: int | None) -> dict[str, str]:
+    return V3_AUTOMATED_REVIEW_CHOICES if schema_version == 3 else AUTOMATED_REVIEW_CHOICES
+
+
+def _changes_greptile_config(files: list[ChangedFile]) -> bool:
+    """Whether the diff can alter the configuration Greptile reviews under."""
+    for changed in files:
+        for path in (changed.filename, changed.previous_filename):
+            if not path:
+                continue
+            # `lstrip("./")` would strip the leading dot of `.greptile/`.
+            lowered = path.lower().removeprefix("./")
+            if lowered in GREPTILE_CONFIG_EXACT or lowered.startswith(GREPTILE_CONFIG_PREFIXES):
+                return True
+    return False
+
+
+def _is_optional_gate(gate: str, schema_version: int | None) -> bool:
+    """Whether a gate may be absent from an otherwise valid body of this schema.
+
+    Greptile joined schema v3 after v3 pull requests were already open. Making
+    its checkbox and evidence row mandatory would have broken the route on every
+    one of them the moment the lane merged, and each body edit needed to repair
+    one re-pends that route and spends a fresh hosted review. A body written
+    against the three-provider template stays valid; it simply cannot select
+    Greptile.
+    """
+    return schema_version == 3 and gate == GREPTILE_GATE
+
+
+def _present_gates(
+    schema_version: int | None, evidence: dict[str, Any]
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Return the gates and labels this particular body is required to carry."""
+    kept = [
+        (gate, label)
+        for gate, label in zip(
+            _gates_for_schema(schema_version),
+            _gate_labels_for_schema(schema_version),
+            strict=True,
+        )
+        if not _is_optional_gate(gate, schema_version) or gate in evidence
+    ]
+    return tuple(gate for gate, _ in kept), tuple(label for _, label in kept)
 
 
 @dataclass(frozen=True)
@@ -879,9 +1034,16 @@ def _rendered_route_errors(
         )
 
     checklist_nodes = section_roots[:-1]
-    expected_checklist_sizes = (
-        [6] if schema_version in {2, 3} and combined_groups else [3] * len(checklist_nodes)
-    )
+    # The rendered controls must match the source body this was parsed from,
+    # which on v3 may or may not carry the optional Greptile pair.
+    present_gates, present_labels = _present_gates(schema_version, evidence)
+    provider_count = sum(1 for gate in present_gates if gate != HUMAN_GATE)
+    if schema_version in {2, 3} and combined_groups:
+        expected_checklist_sizes = [3 + provider_count]
+    elif schema_version in {2, 3}:
+        expected_checklist_sizes = [3, provider_count]
+    else:
+        expected_checklist_sizes = [3] * len(checklist_nodes)
     if any(
         not exact_checklist(node, expected_count)
         for node, expected_count in zip(
@@ -912,19 +1074,24 @@ def _rendered_route_errors(
         return [RENDERED_ROUTE_ERROR]
 
     if schema_version in {2, 3}:
-        provider_labels = ["Copilot", "Codex", "CodeRabbit"]
+        choices = {
+            label: gate
+            for label, gate in _review_choices_for_schema(schema_version).items()
+            if gate in present_gates
+        }
+        provider_labels = list(choices)
         provider_checkboxes = (
             first_checkboxes[3:] if combined_groups else section_roots[1]["checkboxes"]
         )
         checked_providers = task_rows(provider_checkboxes, provider_labels)
         if checked_providers is None:
             return [RENDERED_ROUTE_ERROR]
-        gate_to_label = {
-            COPILOT_GATE: "Copilot",
-            CODEX_GATE: "Codex",
-            CODERABBIT_GATE: "CodeRabbit",
-        }
-        expected_providers = [gate_to_label[gate] for gate in BOT_GATES if gate in selected_bots]
+        gate_to_label = {gate: label for label, gate in choices.items()}
+        expected_providers = [
+            gate_to_label[gate]
+            for gate in _gates_for_schema(schema_version)
+            if gate in selected_bots and gate in gate_to_label
+        ]
         if checked_providers != expected_providers:
             return [RENDERED_ROUTE_ERROR]
 
@@ -969,8 +1136,8 @@ def _rendered_route_errors(
         "Head SHA or N/A",
         "UTC time and status, or N/A",
     ]
-    expected_gates = _gates_for_schema(schema_version)
-    expected_labels = _gate_labels_for_schema(schema_version)
+    expected_gates = present_gates
+    expected_labels = present_labels
     if (
         len(rendered_rows) != len(expected_gates) + 1
         or rendered_rows[0] != header
@@ -1084,19 +1251,29 @@ def _parse_route_section(
 
     selected_bots: list[str] = []
     if schema_version in {2, 3}:
+        choices = _review_choices_for_schema(schema_version)
+        # Longest-first so `Codex` cannot shadow a longer name sharing its prefix.
+        alternation = "|".join(sorted(map(re.escape, choices), key=len, reverse=True))
         reviewer_rows = re.findall(
-            r"(?m)^[ ]{0,3}- \[([ xX])\] (Copilot|Codex|CodeRabbit)\b",
+            rf"(?m)^[ ]{{0,3}}- \[([ xX])\] ({alternation})\b",
             section,
         )
-        reviewer_counts = {name: 0 for name in AUTOMATED_REVIEW_CHOICES}
+        reviewer_counts = {name: 0 for name in choices}
         for mark, name in reviewer_rows:
             reviewer_counts[name] += 1
             if mark.lower() == "x":
-                selected_bots.append(AUTOMATED_REVIEW_CHOICES[name])
-        if any(count != 1 for count in reviewer_counts.values()):
+                selected_bots.append(choices[name])
+        if any(
+            count > 1 if _is_optional_gate(choices[name], schema_version) else count != 1
+            for name, count in reviewer_counts.items()
+        ):
             errors.append("expected each automated reviewer checkbox exactly once")
 
-    expected = set(_gates_for_schema(schema_version))
+    expected = {
+        gate
+        for gate in _gates_for_schema(schema_version)
+        if not _is_optional_gate(gate, schema_version)
+    }
     label_to_gate = dict(
         zip(
             _gate_labels_for_schema(schema_version),
@@ -1127,7 +1304,11 @@ def _parse_route_section(
                 head=cells[2],
                 status=cells[3],
             )
-    missing = expected - evidence.keys()
+    # An optional gate is only optional while it is unused. Selecting it without
+    # supplying its evidence row would otherwise leave the selection unprovable.
+    missing = (expected | {gate for gate in selected_bots if gate not in expected}) - (
+        evidence.keys()
+    )
     if missing:
         errors.append(
             "missing review evidence rows: "
@@ -1183,12 +1364,8 @@ def _v3_provenance_errors(
     exact_head = fields.get("Exact head SHA", "")
     if (exact_head or not allow_blank) and exact_head.lower() != head_sha.lower():
         errors.append("v3 provenance head does not match the current head SHA")
-    provider_labels = {
-        COPILOT_GATE: "Copilot",
-        CODEX_GATE: "Codex",
-        CODERABBIT_GATE: "CodeRabbit",
-    }
-    expected_provider = provider_labels[selected_bots[0]] if len(selected_bots) == 1 else None
+    provider_labels = {gate: label for label, gate in V3_AUTOMATED_REVIEW_CHOICES.items()}
+    expected_provider = provider_labels.get(selected_bots[0]) if len(selected_bots) == 1 else None
     selected_provider = fields.get("Selected hosted reviewer", "")
     if (selected_provider or not allow_blank) and (
         expected_provider is None or selected_provider != expected_provider
@@ -1215,6 +1392,17 @@ def needs_coderabbit_ledger(body: str) -> bool:
     """Return whether a valid v2 route selected the global CodeRabbit ledger."""
     _, schema_version, selected_bots, _, errors = _parse_route_section(body)
     return not errors and schema_version == 2 and selected_bots == [CODERABBIT_GATE]
+
+
+def needs_greptile_ledger(body: str) -> bool:
+    """Return whether a valid v3 route selected the repository-wide Greptile sweep.
+
+    The sweep costs roughly 840 GraphQL points against the 5,000-an-hour budget
+    the whole fleet shares, so only the finalizations that can actually spend a
+    Greptile credit pay for it.
+    """
+    _, schema_version, selected_bots, _, errors = _parse_route_section(body)
+    return not errors and schema_version == 3 and selected_bots == [GREPTILE_GATE]
 
 
 def _is_load_bearing(path: str) -> bool:
@@ -1323,6 +1511,473 @@ def _v3_formal_review_is_clean(
         and body.count("Files selected for processing") == 1
         and int(selected[0].group("count")) == changed_files
     )
+
+
+def _greptile_check_runs(commit: Any) -> tuple[list[dict[str, Any]], bool]:
+    """Return Greptile's check runs on a commit, and whether the view is complete."""
+    if not isinstance(commit, dict) or commit.get("__typename") != "Commit":
+        return [], False
+    suites = commit.get("checkSuites")
+    if not isinstance(suites, dict):
+        return [], False
+    suite_nodes = suites.get("nodes")
+    suite_total = suites.get("totalCount")
+    if (
+        not isinstance(suite_nodes, list)
+        or isinstance(suite_total, bool)
+        or not isinstance(suite_total, int)
+        or suite_total > len(suite_nodes)
+    ):
+        return [], False
+    runs: list[dict[str, Any]] = []
+    for suite in suite_nodes:
+        if not isinstance(suite, dict):
+            return [], False
+        app = suite.get("app")
+        # The server-side app filter only narrows the page; identity is decided
+        # here, on the authenticated app id, exactly as bot reviews are.
+        if not isinstance(app, dict) or app.get("databaseId") != GREPTILE_APP_ID:
+            continue
+        check_runs = suite.get("checkRuns")
+        if not isinstance(check_runs, dict):
+            return [], False
+        run_nodes = check_runs.get("nodes")
+        run_total = check_runs.get("totalCount")
+        if (
+            not isinstance(run_nodes, list)
+            or isinstance(run_total, bool)
+            or not isinstance(run_total, int)
+            or run_total > len(run_nodes)
+        ):
+            return [], False
+        # A non-dictionary node still counts toward `totalCount`, so silently
+        # dropping one would let the length check agree while a billed run went
+        # unseen. Anything unreadable makes the whole view unproven.
+        if any(not isinstance(run, dict) for run in run_nodes):
+            return [], False
+        runs.extend(run_nodes)
+    return runs, True
+
+
+def _greptile_run_is_clean(run: dict[str, Any]) -> bool:
+    """A completed Greptile run that added no comments.
+
+    ``conclusion`` alone is never the verdict: a review that reported
+    ``7 files reviewed, 3 comments added.`` on this repository's PR #2203 still
+    concluded ``SUCCESS``. Cleanliness is the counter, and the conclusion is
+    required on top of it so a confidence-threshold failure cannot pass.
+    """
+    if run.get("status") != "COMPLETED" or run.get("conclusion") != "SUCCESS":
+        return False
+    if run.get("name") != GREPTILE_CHECK_RUN_NAME:
+        return False
+    summary = run.get("summary")
+    if not isinstance(summary, str):
+        return False
+    match = GREPTILE_CHECK_SUMMARY.fullmatch(summary)
+    # The reviewed-file count is deliberately not compared against GitHub's
+    # changed-file count. It is asserted in the same generated string as the
+    # verdict, so comparing them buys no trust (#2248), and Greptile's own path
+    # filters make a smaller count legitimate.
+    return match is not None and match.group("comments") == "0"
+
+
+def _greptile_activity(
+    repository: dict[str, Any],
+    head_epoch: datetime,
+) -> datetime | None:
+    """Read Greptile's verdict from the check run GitHub binds to the head commit.
+
+    Greptile publishes three artifacts and only this one can carry a clean
+    verdict:
+
+    * The **formal review** exists only when Greptile has findings. Of 429
+      reviews sampled across four repositories, 427 carried at least one inline
+      comment and an empty body, and the only two carrying zero comments carried
+      its "Your free trial has ended" billing notice. Reading
+      ``comments.totalCount == 0`` as clean would therefore accept a refusal to
+      review as a passing gate — the #2248/#2256 failure mode.
+    * The **summary issue comment** is edited in place on every re-review, so it
+      fails the immutability rule every other provider's envelope is held to.
+    * The **check run** is bound to ``head_sha`` by GitHub rather than
+      self-reported, is attributable to the app by id, and carries Greptile's own
+      counter in a fixed template.
+    """
+    runs, complete = _greptile_check_runs(repository.get("greptileHeadObject"))
+    if not complete or not runs:
+        return None
+    completions: list[tuple[datetime, dict[str, Any]]] = []
+    for run in runs:
+        completed_at = run.get("completedAt")
+        if not isinstance(completed_at, str):
+            return None
+        try:
+            when = _parse_utc(completed_at)
+        except ValueError:
+            return None
+        if when > head_epoch:
+            completions.append((when, run))
+    if not completions:
+        return None
+    latest = max(when for when, _ in completions)
+    if not all(_greptile_run_is_clean(run) for when, run in completions if when == latest):
+        return None
+    return latest
+
+
+def _greptile_run_is_billed(run: dict[str, Any]) -> bool:
+    """A Greptile run that consumed a review credit.
+
+    Cleanliness is irrelevant here — a review that finds nothing costs the same
+    as one that finds a bug. So is completion: an in-flight run has already been
+    triggered and already committed the credit, and carries no conclusion yet.
+
+    The name is checked because app 867647 is free to publish other check runs
+    and each would inflate the count. It is checked *in addition to* the app id
+    that `_greptile_check_runs` pins, never instead of it: any app holding
+    `checks: write` can publish a run called `Greptile Review`.
+    """
+    if run.get("name") != GREPTILE_CHECK_RUN_NAME:
+        return False
+    return run.get("conclusion") not in GREPTILE_UNBILLED_CONCLUSIONS
+
+
+def _greptile_run_spent_at(run: dict[str, Any]) -> datetime | None:
+    """When a run spent its credit, or ``None`` if that cannot be established.
+
+    ``startedAt`` first, because the credit is committed when the review is
+    triggered rather than when it finishes. Preferring ``completedAt`` would
+    charge a stacked child pull request for a run that began on its parent and
+    only finished after the child was opened.
+    """
+    for key in ("startedAt", "completedAt"):
+        value = run.get(key)
+        if value is None:
+            continue
+        if not isinstance(value, str):
+            return None
+        try:
+            return _parse_utc(value)
+        except ValueError:
+            return None
+    return None
+
+
+def _greptile_pr_budget_errors(
+    repository: dict[str, Any],
+    pull_request: dict[str, Any],
+) -> list[str]:
+    """Refuse the lane once this pull request has spent its Greptile allowance.
+
+    Greptile leaves exactly one artifact that is one-to-one with a billed credit:
+    the check run. A clean review posts no formal review and no comment, and the
+    summary comment it does post for a dirty one is edited in place, so neither
+    can be counted. Check runs live on the commit that was reviewed, which is why
+    this reads the pull request's own commits rather than only its head.
+
+    The count is bounded and provable, unlike a repository-wide one: every input
+    is a `totalCount` this query can compare against its own page.
+    """
+    force_pushes = (pull_request.get("timelineItems") or {}).get("nodes") or []
+    if force_pushes:
+        # A force push drops commits from this connection and takes their billed
+        # runs with them, leaving no truncation for the guards below to catch.
+        return [GREPTILE_LEDGER_FORCE_PUSHED]
+    commits = pull_request.get("greptileCommits")
+    if not isinstance(commits, dict):
+        return [GREPTILE_LEDGER_UNAVAILABLE]
+    nodes = commits.get("nodes")
+    total = commits.get("totalCount")
+    if (
+        not isinstance(nodes, list)
+        or isinstance(total, bool)
+        or not isinstance(total, int)
+        or total > len(nodes)
+    ):
+        return [GREPTILE_LEDGER_TRUNCATED]
+    created_raw = pull_request.get("createdAt")
+    if not isinstance(created_raw, str):
+        return [GREPTILE_LEDGER_TRUNCATED]
+    try:
+        created_at = _parse_utc(created_raw)
+    except ValueError:
+        return [GREPTILE_LEDGER_TRUNCATED]
+
+    views: list[Any] = [repository.get("greptileHeadObject")]
+    views.extend(node.get("commit") if isinstance(node, dict) else None for node in nodes)
+    # Deduplicate on the global node id, not `databaseId`. The schema declares
+    # `CheckRun.databaseId` a nullable 32-bit `Int` while GitHub returns values
+    # far past that range (91710286922 on PR #2203), so a future spec-compliant
+    # null there would refuse every Greptile lane. `id` is `ID!` — non-null by
+    # schema — and equally unique. `CheckRun` has no `fullDatabaseId`.
+    billed: set[str] = set()
+    for view in views:
+        runs, complete = _greptile_check_runs(view)
+        if not complete:
+            return [GREPTILE_LEDGER_TRUNCATED]
+        for run in runs:
+            if not _greptile_run_is_billed(run):
+                continue
+            spent_at = _greptile_run_spent_at(run)
+            if spent_at is None:
+                # A run that cannot be placed in time cannot be proven to belong
+                # to another pull request either.
+                return [GREPTILE_LEDGER_TRUNCATED]
+            if spent_at < created_at:
+                # A stacked branch inherits its parent's commits; those reviews
+                # were charged to the parent pull request, not to this one.
+                continue
+            run_id = run.get("id")
+            if not isinstance(run_id, str) or not run_id:
+                return [GREPTILE_LEDGER_TRUNCATED]
+            billed.add(run_id)
+    if len(billed) > GREPTILE_PR_REVIEW_CAP:
+        return [
+            "Greptile per-pull-request review budget exceeded: "
+            f"{len(billed)} > {GREPTILE_PR_REVIEW_CAP}"
+        ]
+    return []
+
+
+def greptile_ledger_fetch_plan(context: dict[str, Any]) -> str:
+    """Print the window start and the open pull requests the sweep has to reach.
+
+    The fetch loop needs the same window the validator will judge against, or it
+    stops in the wrong place: too early and validation fails closed on an
+    uncovered window, too late and the sweep pays for pages nobody reads. Both
+    inputs already exist in the context snapshot -- the anchor is the accepted
+    run's ``completedAt`` on the head commit, and the open pull requests are the
+    set the head-uniqueness check already fetches -- so deriving them here keeps
+    one definition rather than a shell reimplementation free to drift from it.
+
+    Output is one line: the ISO-8601 window start, then a JSON array of the open
+    pull request numbers.
+    """
+    data = context.get("data")
+    repository = data.get("repository") if isinstance(data, dict) else None
+    if not isinstance(repository, dict):
+        raise SystemExit("Greptile ledger context is malformed")
+    runs, complete = _greptile_check_runs(repository.get("greptileHeadObject"))
+    completions: list[datetime] = []
+    for run in runs if complete else []:
+        completed_at = run.get("completedAt")
+        if not isinstance(completed_at, str):
+            continue
+        try:
+            completions.append(_parse_utc(completed_at))
+        except ValueError:
+            continue
+    if not completions:
+        raise SystemExit("Greptile ledger context has no anchor check run")
+    window_start = max(completions) - GREPTILE_LEDGER_WINDOW
+    open_nodes = (repository.get("openPullRequests") or {}).get("nodes") or []
+    numbers = sorted(
+        node["number"]
+        for node in open_nodes
+        if isinstance(node, dict) and isinstance(node.get("number"), int)
+    )
+    return f"{window_start.strftime('%Y-%m-%dT%H:%M:%SZ')} {json.dumps(numbers)}"
+
+
+def _greptile_ledger_pull_requests(pages: Any) -> tuple[list[dict[str, Any]], bool, list[str]]:
+    """Flatten the repository-wide sweep, refusing anything it cannot prove.
+
+    The cursor chain has to be whole for the coverage argument below to mean
+    anything: a dropped page silently lowers the count, and a lower count reads
+    as "under budget". `totalCount` is deliberately *not* required to hold still,
+    unlike the per-pull-request ledgers. This connection spans the whole
+    repository, so a pull request opened mid-sweep legitimately changes it, and
+    failing on that would make the lane unusable whenever the fleet is busy.
+    """
+    if not isinstance(pages, list) or not pages:
+        return [], False, [GREPTILE_MONTH_LEDGER_UNPROVEN]
+    nodes: list[dict[str, Any]] = []
+    seen_ids: set[str] = set()
+    seen_cursors: set[str] = set()
+    exhausted = False
+    for index, page in enumerate(pages):
+        if not isinstance(page, dict) or page.get("errors"):
+            return [], False, [GREPTILE_MONTH_LEDGER_UNPROVEN]
+        page_data = page.get("data")
+        repository = page_data.get("repository") if isinstance(page_data, dict) else None
+        source = repository.get("greptileLedger") if isinstance(repository, dict) else None
+        if not isinstance(source, dict):
+            return [], False, [GREPTILE_MONTH_LEDGER_UNPROVEN]
+        page_nodes = source.get("nodes")
+        page_info = source.get("pageInfo")
+        if not isinstance(page_nodes, list) or not isinstance(page_info, dict):
+            return [], False, [GREPTILE_MONTH_LEDGER_UNPROVEN]
+        has_next_page = page_info.get("hasNextPage")
+        end_cursor = page_info.get("endCursor")
+        if index < len(pages) - 1:
+            # A page in the middle that denies a successor means the chain was
+            # reordered or a page was dropped.
+            if has_next_page is not True:
+                return [], False, [GREPTILE_MONTH_LEDGER_UNPROVEN]
+        elif not isinstance(has_next_page, bool):
+            return [], False, [GREPTILE_MONTH_LEDGER_UNPROVEN]
+        else:
+            # Unlike the `--paginate` fallbacks, this sweep is *meant* to stop
+            # early: paging the whole repository would cost far more than the
+            # coverage argument needs. So the last page may still report a
+            # successor -- it just no longer proves the window was reached, and
+            # the coverage check has to earn that separately.
+            exhausted = has_next_page is False
+        if end_cursor is not None:
+            if not isinstance(end_cursor, str) or not end_cursor or end_cursor in seen_cursors:
+                return [], False, [GREPTILE_MONTH_LEDGER_UNPROVEN]
+            seen_cursors.add(end_cursor)
+        for node in page_nodes:
+            node_id = node.get("id") if isinstance(node, dict) else None
+            if not isinstance(node_id, str) or not node_id or node_id in seen_ids:
+                return [], False, [GREPTILE_MONTH_LEDGER_UNPROVEN]
+            seen_ids.add(node_id)
+            nodes.append(node)
+    if not nodes and not exhausted:
+        return [], False, [GREPTILE_MONTH_LEDGER_UNPROVEN]
+    return nodes, exhausted, []
+
+
+def _merge_greptile_ledger_pages(context: dict[str, Any], pages: Any) -> list[str]:
+    """Fold the paginated sweep into the context the validator already reads.
+
+    The repository-wide ledger cannot ride in `review_route_context.graphql` --
+    it spans ~21 pages of 20 pull requests -- but it is still one more piece of
+    the same snapshot, so it lands in the same place as every other connection
+    rather than travelling beside it.
+    """
+    nodes, exhausted, errors = _greptile_ledger_pull_requests(pages)
+    if errors:
+        return errors
+    data = context.get("data")
+    repository = data.get("repository") if isinstance(data, dict) else None
+    if not isinstance(repository, dict):
+        return [GREPTILE_MONTH_LEDGER_UNPROVEN]
+    repository["greptileLedger"] = {"nodes": nodes, "exhausted": exhausted}
+    return []
+
+
+def _greptile_month_budget_errors(
+    repository: dict[str, Any],
+    anchor: datetime,
+) -> list[str]:
+    """Refuse the lane once a rolling 30 days has provably spent the allowance.
+
+    The published number is a **lower bound**, and saying so is the point. Three
+    truncations make an exact count impossible and none of them are fixable from
+    here: credits pool per author across every repository, labelling a pull
+    request does not bump its `updatedAt` and neither does a check run
+    completing, and a force push takes its billed runs out of `commits`
+    altogether. A bound that is honest about being a bound still does the job it
+    is for -- once even the provable subset exceeds 16, the month is spent.
+
+    Coverage is *(every open pull request)* ∪ *(every pull request updated inside
+    the window)*, which is exactly what the sweep can prove: `UPDATED_AT DESC` is
+    strictly monotonic, so reaching a pull request older than the window start
+    proves the second set is complete, and the first is read from the
+    already-fetched `openPullRequests`.
+
+    The window is anchored on the accepted run's `completedAt` rather than
+    ``now()`` so that re-running validation on an unchanged head cannot change
+    the verdict.
+    """
+    window_start = anchor - GREPTILE_LEDGER_WINDOW
+    ledger = repository.get("greptileLedger")
+    if not isinstance(ledger, dict):
+        # Absent is not empty. A missing sweep means the workflow never fetched
+        # one, which would silently retire the bound rather than satisfy it.
+        return [GREPTILE_MONTH_LEDGER_UNPROVEN]
+    nodes = ledger.get("nodes")
+    exhausted = ledger.get("exhausted")
+    if not isinstance(nodes, list) or not isinstance(exhausted, bool):
+        return [GREPTILE_MONTH_LEDGER_UNPROVEN]
+
+    open_pull_requests = repository.get("openPullRequests")
+    if not isinstance(open_pull_requests, dict):
+        return [GREPTILE_MONTH_LEDGER_UNPROVEN]
+    open_nodes = open_pull_requests.get("nodes")
+    open_total = open_pull_requests.get("totalCount")
+    if (
+        not isinstance(open_nodes, list)
+        or isinstance(open_total, bool)
+        or not isinstance(open_total, int)
+        or open_total != len(open_nodes)
+    ):
+        return [GREPTILE_MONTH_LEDGER_UNPROVEN]
+    open_numbers = set()
+    for node in open_nodes:
+        number = node.get("number") if isinstance(node, dict) else None
+        if isinstance(number, bool) or not isinstance(number, int):
+            return [GREPTILE_MONTH_LEDGER_UNPROVEN]
+        open_numbers.add(number)
+
+    seen_numbers: set[int] = set()
+    # Either terminator proves the window is covered: a pull request older than
+    # the window start (the ordering is strictly monotonic, so everything past it
+    # is older still) or the end of the repository's pull requests.
+    reached_window_edge = exhausted
+    billed: set[str] = set()
+    for node in nodes:
+        number = node.get("number")
+        updated_raw = node.get("updatedAt")
+        if isinstance(number, bool) or not isinstance(number, int):
+            return [GREPTILE_MONTH_LEDGER_UNPROVEN]
+        if not isinstance(updated_raw, str):
+            return [GREPTILE_MONTH_LEDGER_UNPROVEN]
+        try:
+            updated_at = _parse_utc(updated_raw)
+        except ValueError:
+            return [GREPTILE_MONTH_LEDGER_UNPROVEN]
+        seen_numbers.add(number)
+        if updated_at < window_start:
+            reached_window_edge = True
+        commits = node.get("greptileCommits")
+        if not isinstance(commits, dict):
+            return [GREPTILE_MONTH_LEDGER_UNPROVEN]
+        commit_nodes = commits.get("nodes")
+        commit_total = commits.get("totalCount")
+        if (
+            not isinstance(commit_nodes, list)
+            or isinstance(commit_total, bool)
+            or not isinstance(commit_total, int)
+            or commit_total > len(commit_nodes)
+        ):
+            return [GREPTILE_MONTH_LEDGER_UNPROVEN]
+        for commit_node in commit_nodes:
+            view = commit_node.get("commit") if isinstance(commit_node, dict) else None
+            runs, complete = _greptile_check_runs(view)
+            if not complete:
+                return [GREPTILE_MONTH_LEDGER_UNPROVEN]
+            for run in runs:
+                if not _greptile_run_is_billed(run):
+                    continue
+                spent_at = _greptile_run_spent_at(run)
+                if spent_at is None:
+                    # An unplaceable run cannot be proven inside the window, and
+                    # cannot be proven outside it either.
+                    return [GREPTILE_MONTH_LEDGER_UNPROVEN]
+                if not window_start <= spent_at <= anchor:
+                    continue
+                run_id = run.get("id")
+                if not isinstance(run_id, str) or not run_id:
+                    return [GREPTILE_MONTH_LEDGER_UNPROVEN]
+                # The same run reaches this loop once per pull request whose
+                # commits contain it, so the node id is what makes the count a
+                # count of credits rather than of sightings.
+                billed.add(run_id)
+
+    if not reached_window_edge or not open_numbers <= seen_numbers:
+        # Either the sweep stopped before the window start -- so a pull request
+        # updated inside it may never have been read -- or an open pull request
+        # never appeared, which the coverage argument requires.
+        return [GREPTILE_MONTH_LEDGER_UNPROVEN]
+    if len(billed) > GREPTILE_MONTHLY_ALLOWANCE:
+        return [
+            "Greptile rolling-30-day review count (lower bound) exceeds the "
+            f"{GREPTILE_MONTHLY_ALLOWANCE} allowance: "
+            f"{len(billed)} > {GREPTILE_MONTHLY_ALLOWANCE}"
+        ]
+    return []
 
 
 def _bot_activity(
@@ -1680,6 +2335,113 @@ def _coderabbit_trigger_state(
     return errors
 
 
+def _merge_connection_pages(
+    context: dict[str, Any],
+    pages: Any,
+    *,
+    connection: str,
+    noun: str,
+    expected_head: str,
+    expected_updated_at: str,
+) -> list[str]:
+    """Replace a truncated connection window with a complete, bound cursor ledger.
+
+    One implementation serves every paginated connection on the pull request.
+    `reviews` and `reviewThreads` need identical proof -- that the pages describe
+    the same pull request at the same head and `updatedAt`, that the cursor chain
+    is unbroken and non-repeating, that no node is missing or duplicated, and
+    that the merged view still contains the window the main query already saw.
+    Writing that twice would put the fail-closed guarantee in two places that can
+    drift apart, which is the duplication trap #2248/#2255/#2256 came from.
+    `noun` only shapes the diagnostics so a failure still names its connection.
+    """
+    if not isinstance(pages, list) or not pages:
+        return [f"{noun} pagination pages are missing or malformed"]
+    context_data = context.get("data")
+    repository = context_data.get("repository") if isinstance(context_data, dict) else None
+    pull_request = repository.get("pullRequest") if isinstance(repository, dict) else None
+    source = pull_request.get(connection) if isinstance(pull_request, dict) else None
+    if not isinstance(source, dict):
+        return [f"{noun} pagination source context is malformed"]
+    total_count = source.get("totalCount")
+    original_nodes = source.get("nodes")
+    if (
+        isinstance(total_count, bool)
+        or not isinstance(total_count, int)
+        or total_count < 0
+        or not isinstance(original_nodes, list)
+        or total_count < len(original_nodes)
+    ):
+        return [f"{noun} pagination source context is malformed"]
+
+    original_by_id: dict[str, dict[str, Any]] = {}
+    for node in original_nodes:
+        node_id = node.get("id") if isinstance(node, dict) else None
+        if not isinstance(node_id, str) or not node_id or node_id in original_by_id:
+            return [f"{noun} pagination source {noun} IDs are missing or duplicated"]
+        original_by_id[node_id] = node
+
+    expected_number = pull_request.get("number")
+    merged_nodes: list[dict[str, Any]] = []
+    seen_ids: set[str] = set()
+    seen_cursors: set[str] = set()
+    for index, page in enumerate(pages):
+        if not isinstance(page, dict) or page.get("errors"):
+            return [f"{noun} pagination page contains GraphQL errors or malformed data"]
+        page_data = page.get("data")
+        page_repository = page_data.get("repository") if isinstance(page_data, dict) else None
+        page_pull = (
+            page_repository.get("pullRequest") if isinstance(page_repository, dict) else None
+        )
+        if not isinstance(page_pull, dict):
+            return [f"{noun} pagination page contains GraphQL errors or malformed data"]
+        page_head = page_pull.get("headRefOid")
+        if (
+            page_pull.get("number") != expected_number
+            or not isinstance(page_head, str)
+            or page_head.lower() != expected_head.lower()
+            or page_pull.get("updatedAt") != expected_updated_at
+        ):
+            return [f"{noun} pagination pull request snapshot changed between requests"]
+        page_source = page_pull.get(connection)
+        if not isinstance(page_source, dict) or page_source.get("totalCount") != total_count:
+            return [f"{noun} pagination total changed between requests"]
+        page_nodes = page_source.get("nodes")
+        page_info = page_source.get("pageInfo")
+        if not isinstance(page_nodes, list) or not isinstance(page_info, dict):
+            return [f"{noun} pagination page contains GraphQL errors or malformed data"]
+        has_next_page = page_info.get("hasNextPage")
+        end_cursor = page_info.get("endCursor")
+        expected_has_next = index < len(pages) - 1
+        if has_next_page is not expected_has_next:
+            return [f"{noun} pagination page sequence is incomplete"]
+        if expected_has_next and (not isinstance(end_cursor, str) or not end_cursor):
+            return [f"{noun} pagination cursor is missing or duplicated"]
+        if end_cursor is not None:
+            if not isinstance(end_cursor, str) or not end_cursor or end_cursor in seen_cursors:
+                return [f"{noun} pagination cursor is missing or duplicated"]
+            seen_cursors.add(end_cursor)
+        if not page_nodes and total_count > 0:
+            return [f"{noun} pagination page sequence is incomplete"]
+        for node in page_nodes:
+            node_id = node.get("id") if isinstance(node, dict) else None
+            if not isinstance(node_id, str) or not node_id or node_id in seen_ids:
+                return [f"{noun} pagination contains a missing or duplicate {noun} ID"]
+            seen_ids.add(node_id)
+            merged_nodes.append(node)
+
+    if len(merged_nodes) != total_count:
+        return [f"{noun} pagination aggregate count does not match totalCount"]
+    merged_by_id = {node["id"]: node for node in merged_nodes}
+    if any(merged_by_id.get(node_id) != node for node_id, node in original_by_id.items()):
+        return [f"{noun} pagination disagrees with the original {noun} snapshot"]
+
+    complete = deepcopy(source)
+    complete["nodes"] = merged_nodes
+    pull_request[connection] = complete
+    return []
+
+
 def _merge_review_pages(
     context: dict[str, Any],
     pages: Any,
@@ -1688,91 +2450,39 @@ def _merge_review_pages(
     expected_updated_at: str,
 ) -> list[str]:
     """Replace a truncated review window with a complete, bound cursor ledger."""
-    if not isinstance(pages, list) or not pages:
-        return ["review pagination pages are missing or malformed"]
-    context_data = context.get("data")
-    repository = context_data.get("repository") if isinstance(context_data, dict) else None
-    pull_request = repository.get("pullRequest") if isinstance(repository, dict) else None
-    reviews = pull_request.get("reviews") if isinstance(pull_request, dict) else None
-    if not isinstance(reviews, dict):
-        return ["review pagination source context is malformed"]
-    total_count = reviews.get("totalCount")
-    original_nodes = reviews.get("nodes")
-    if (
-        isinstance(total_count, bool)
-        or not isinstance(total_count, int)
-        or total_count < 0
-        or not isinstance(original_nodes, list)
-        or total_count < len(original_nodes)
-    ):
-        return ["review pagination source context is malformed"]
+    return _merge_connection_pages(
+        context,
+        pages,
+        connection="reviews",
+        noun="review",
+        expected_head=expected_head,
+        expected_updated_at=expected_updated_at,
+    )
 
-    original_by_id: dict[str, dict[str, Any]] = {}
-    for node in original_nodes:
-        review_id = node.get("id") if isinstance(node, dict) else None
-        if not isinstance(review_id, str) or not review_id or review_id in original_by_id:
-            return ["review pagination source review IDs are missing or duplicated"]
-        original_by_id[review_id] = node
 
-    expected_number = pull_request.get("number")
-    merged_nodes: list[dict[str, Any]] = []
-    seen_ids: set[str] = set()
-    seen_cursors: set[str] = set()
-    for index, page in enumerate(pages):
-        if not isinstance(page, dict) or page.get("errors"):
-            return ["review pagination page contains GraphQL errors or malformed data"]
-        page_data = page.get("data")
-        page_repository = page_data.get("repository") if isinstance(page_data, dict) else None
-        page_pull = (
-            page_repository.get("pullRequest") if isinstance(page_repository, dict) else None
-        )
-        if not isinstance(page_pull, dict):
-            return ["review pagination page contains GraphQL errors or malformed data"]
-        page_head = page_pull.get("headRefOid")
-        if (
-            page_pull.get("number") != expected_number
-            or not isinstance(page_head, str)
-            or page_head.lower() != expected_head.lower()
-            or page_pull.get("updatedAt") != expected_updated_at
-        ):
-            return ["review pagination pull request snapshot changed between requests"]
-        page_reviews = page_pull.get("reviews")
-        if not isinstance(page_reviews, dict) or page_reviews.get("totalCount") != total_count:
-            return ["review pagination total changed between requests"]
-        page_nodes = page_reviews.get("nodes")
-        page_info = page_reviews.get("pageInfo")
-        if not isinstance(page_nodes, list) or not isinstance(page_info, dict):
-            return ["review pagination page contains GraphQL errors or malformed data"]
-        has_next_page = page_info.get("hasNextPage")
-        end_cursor = page_info.get("endCursor")
-        expected_has_next = index < len(pages) - 1
-        if has_next_page is not expected_has_next:
-            return ["review pagination page sequence is incomplete"]
-        if expected_has_next and (not isinstance(end_cursor, str) or not end_cursor):
-            return ["review pagination cursor is missing or duplicated"]
-        if end_cursor is not None:
-            if not isinstance(end_cursor, str) or not end_cursor or end_cursor in seen_cursors:
-                return ["review pagination cursor is missing or duplicated"]
-            seen_cursors.add(end_cursor)
-        if not page_nodes and total_count > 0:
-            return ["review pagination page sequence is incomplete"]
-        for node in page_nodes:
-            review_id = node.get("id") if isinstance(node, dict) else None
-            if not isinstance(review_id, str) or not review_id or review_id in seen_ids:
-                return ["review pagination contains a missing or duplicate review ID"]
-            seen_ids.add(review_id)
-            merged_nodes.append(node)
+def _merge_thread_pages(
+    context: dict[str, Any],
+    pages: Any,
+    *,
+    expected_head: str,
+    expected_updated_at: str,
+) -> list[str]:
+    """Replace a truncated review-thread window with a complete cursor ledger.
 
-    if len(merged_nodes) != total_count:
-        return ["review pagination aggregate count does not match totalCount"]
-    merged_by_id = {node["id"]: node for node in merged_nodes}
-    if any(merged_by_id.get(review_id) != node for review_id, node in original_by_id.items()):
-        return ["review pagination disagrees with the original review snapshot"]
-
-    complete_reviews = deepcopy(reviews)
-    complete_reviews["nodes"] = merged_nodes
-    pull_request["reviews"] = complete_reviews
-    return []
+    Threads were the one connection with no fallback, and crossing 100 of them
+    made a pull request permanently unprovable: `totalCount` only grows,
+    resolving a thread does not decrement it, and the truncation guard fails
+    closed on every subsequent head. #2203 died that way at 105 threads while its
+    142 reviews were rescued by the sibling fallback (#2262).
+    """
+    return _merge_connection_pages(
+        context,
+        pages,
+        connection="reviewThreads",
+        noun="review-thread",
+        expected_head=expected_head,
+        expected_updated_at=expected_updated_at,
+    )
 
 
 def _load_repository(context: dict[str, Any]) -> tuple[dict[str, Any] | None, list[str]]:
@@ -2034,15 +2744,26 @@ def validate_context(
     for gate, actor_id in BOT_ACTOR_IDS.items():
         if gate not in required:
             continue
-        activity = _bot_activity(
-            pull_request,
-            gate,
-            actor_id,
-            head_sha,
-            head_epoch,
-            codex_head_safe,
-            schema_version,
-        )
+        if gate == GREPTILE_GATE:
+            # Greptile's only clean artifact is a check run, not a review or a
+            # comment, so it does not go through `_bot_activity`.
+            if _changes_greptile_config(files):
+                errors.append(
+                    "Greptile cannot review a change to its own configuration; "
+                    "select another hosted reviewer"
+                )
+                continue
+            activity = _greptile_activity(repository, head_epoch)
+        else:
+            activity = _bot_activity(
+                pull_request,
+                gate,
+                actor_id,
+                head_sha,
+                head_epoch,
+                codex_head_safe,
+                schema_version,
+            )
         if activity is None:
             errors.append(f"no verified current-head GitHub activity for: {gate}")
         else:
@@ -2067,6 +2788,12 @@ def validate_context(
             errors.append(
                 f"declared evidence time does not match verified GitHub activity: {gate}"
             )
+
+    if schema_version == 3 and GREPTILE_GATE in required:
+        errors.extend(_greptile_pr_budget_errors(repository, pull_request))
+        anchor = observed.get(GREPTILE_GATE)
+        if anchor is not None:
+            errors.extend(_greptile_month_budget_errors(repository, anchor))
 
     if schema_version == 2 and selected_bots == [CODERABBIT_GATE] and CODERABBIT_GATE in observed:
         errors.extend(
@@ -2136,6 +2863,8 @@ def main() -> int:
     parser.add_argument("--context", type=Path, required=True)
     parser.add_argument("--files", type=Path, required=True)
     parser.add_argument("--review-pages", type=Path)
+    parser.add_argument("--thread-pages", type=Path)
+    parser.add_argument("--greptile-ledger-pages", type=Path)
     parser.add_argument("--expected-head", required=True)
     parser.add_argument("--expected-draft", choices=("true", "false"), required=True)
     parser.add_argument("--expected-pr-updated-at", required=True)
@@ -2148,20 +2877,36 @@ def main() -> int:
     parser.add_argument("--finalize-comment-actor-permission")
     args = parser.parse_args()
     context = json.loads(args.context.read_text(encoding="utf-8"))
-    if args.review_pages is not None:
+    for pages_path, noun, merge in (
+        (args.review_pages, "review", _merge_review_pages),
+        (args.thread_pages, "review-thread", _merge_thread_pages),
+    ):
+        if pages_path is None:
+            continue
         try:
-            review_pages = json.loads(args.review_pages.read_text(encoding="utf-8"))
+            fetched_pages = json.loads(pages_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
-            print("::error title=Review Route::review pagination output is unreadable")
+            print(f"::error title=Review Route::{noun} pagination output is unreadable")
             return 1
-        page_errors = _merge_review_pages(
+        page_errors = merge(
             context,
-            review_pages,
+            fetched_pages,
             expected_head=args.expected_head,
             expected_updated_at=args.expected_pr_updated_at,
         )
         if page_errors:
             for error in page_errors:
+                print(f"::error title=Review Route::{error}")
+            return 1
+    if args.greptile_ledger_pages is not None:
+        try:
+            ledger_pages = json.loads(args.greptile_ledger_pages.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            print("::error title=Review Route::Greptile ledger output is unreadable")
+            return 1
+        ledger_errors = _merge_greptile_ledger_pages(context, ledger_pages)
+        if ledger_errors:
+            for error in ledger_errors:
                 print(f"::error title=Review Route::{error}")
             return 1
     expected_snapshot = json.loads(args.expected_pr_snapshot.read_text(encoding="utf-8"))

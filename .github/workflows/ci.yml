@@ -101,6 +101,14 @@ jobs:
               # merge, the same trap as #1061/#1065 and #1965 above (#2247).
               - '.github/PULL_REQUEST_TEMPLATE.md'
               - 'CONTRIBUTING.md'
+              # Same trap again: tests/backend/test_greptile_config.py READS the
+              # Greptile review configuration and is the only gate that fails
+              # when the manual-only guard is weakened. Without these entries a
+              # config-only PR skips the backend suite entirely, so re-enabling
+              # automatic review — the exact thing the guard exists to prevent —
+              # would pass every pre-merge check (#2249).
+              - 'greptile.json'
+              - '.greptile/**'
             frontend:
               - 'frontend/**'
               - 'tests/frontend/**'

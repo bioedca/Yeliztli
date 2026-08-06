@@ -33,6 +33,9 @@ Drift guard lives at ``tests/backend/test_stale_sample_dependency.py``.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
+
 import sqlalchemy as sa
 from fastapi import HTTPException
 
@@ -41,6 +44,11 @@ from backend.db.database_registry import DATABASES
 from backend.db.manifest import get_bundle_info
 from backend.db.tables import annotation_state, samples
 from backend.db.vep_version import resolve_effective_vep_bundle_version
+from backend.services.sample_operation_lock import (
+    SampleOperationConflictError,
+    SampleOperationUnavailableError,
+    sample_export_lease,
+)
 from backend.services.staleness import get_recorded_bundle_version, is_sample_stale
 
 _BUNDLE_KEY = "vep_bundle"
@@ -195,6 +203,26 @@ def require_fresh_sample(sample_id: int) -> int:
         "reannotate_url": f"/api/annotation/{sample_id}",
     }
     raise HTTPException(status_code=423, detail=detail)
+
+
+@contextmanager
+def sample_export_guard(sample_id: int, *, operation: str) -> Iterator[None]:
+    """Translate the atomic sample-export lease into the HTTP API contract."""
+    registry = get_registry()
+    try:
+        with sample_export_lease(
+            registry.reference_engine,
+            sample_id,
+            operation=operation,
+        ):
+            yield
+    except SampleOperationConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except SampleOperationUnavailableError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=str(exc),
+        ) from exc
 
 
 def require_fresh_merged_sample(merged_id: int) -> int:

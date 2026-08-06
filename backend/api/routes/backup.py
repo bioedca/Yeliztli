@@ -22,6 +22,7 @@ from pydantic import BaseModel
 
 from backend.config import config_toml_path, get_settings
 from backend.db.database_registry import DATABASES
+from backend.services.sample_operation_lock import ACTIVE_JOB_STATUSES
 
 logger = structlog.get_logger(__name__)
 
@@ -197,7 +198,7 @@ def _has_running_backup() -> bool:
         row = conn.execute(
             sa.select(jobs.c.job_id).where(
                 jobs.c.job_type == "backup_export",
-                jobs.c.status.in_(["pending", "running"]),
+                jobs.c.status.in_(ACTIVE_JOB_STATUSES),
             )
         ).fetchone()
     return row is not None

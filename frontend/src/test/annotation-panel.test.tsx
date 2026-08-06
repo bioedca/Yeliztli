@@ -239,6 +239,33 @@ describe("AnnotationPanel", () => {
       })
     })
 
+    it("shows Cancelling... while the worker has not acknowledged the cancel", async () => {
+      // `cancelling` is an ACTIVE state (#2232): the sample stays interlocked
+      // until the worker acknowledges. Labelling it "Annotation Cancelled" — or
+      // falling through to the generic default — would tell the user the job had
+      // stopped while it is still writing.
+      mockStartAnnotation()
+      render(<AnnotationPanel sampleId={1} variantCount={1000} />)
+
+      fireEvent.click(screen.getByText("Run Annotation"))
+      await waitFor(() => expect(MockEventSource.instances.length).toBe(1))
+
+      act(() => {
+        MockEventSource.instances[0]._emit("progress", {
+          job_id: "test-job-123",
+          status: "cancelling",
+          progress_pct: 40.0,
+          message: "Cancellation requested",
+          error: null,
+        })
+      })
+
+      await waitFor(() => {
+        expect(screen.getByText("Cancelling...")).toBeInTheDocument()
+      })
+      expect(screen.queryByText("Annotation Cancelled")).not.toBeInTheDocument()
+    })
+
     it("shows Annotating... label when running", async () => {
       mockStartAnnotation()
       render(<AnnotationPanel sampleId={1} variantCount={1000} />)

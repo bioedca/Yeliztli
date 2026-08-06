@@ -101,6 +101,11 @@ ignore_decorators = [
     "@router.patch",
     "@huey.task",
     "@huey.periodic_task",
+    # Huey calls the startup hook itself, so vulture sees the function as
+    # unreferenced. It only escapes today because a test happens to call it
+    # directly; rename or restructure that test and `lint` reddens for the whole
+    # fleet with no product change behind it (#2232).
+    "@huey.on_startup",
     "@field_validator",
     "@model_validator",
     "@app.exception_handler",
