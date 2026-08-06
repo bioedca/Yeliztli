@@ -327,26 +327,10 @@ class TestLoadFindings:
         assert modules == {"cancer", "pharmacogenomics"}
 
     def _seed_eligible_markers(self, sample_engine: sa.Engine) -> None:
-        """200 markers spanning ~3980 kb on chr1 — a region a run could occupy.
+        """A region a run could occupy — the legacy rule re-derives from markers."""
+        from tests.backend._roh_fixtures import seed_segment_eligible_markers
 
-        The legacy rule is re-derived from the sample's own markers, so a row
-        claiming good coverage must be backed by a sample that actually has it.
-        """
-        from backend.db.tables import raw_variants
-
-        with sample_engine.begin() as conn:
-            conn.execute(
-                sa.insert(raw_variants),
-                [
-                    {
-                        "rsid": f"roh{i}",
-                        "chrom": "1",
-                        "pos": 1_000_000 + i * 20_000,
-                        "genotype": "AG",
-                    }
-                    for i in range(200)
-                ],
-            )
+        seed_segment_eligible_markers(sample_engine)
 
     def _insert_roh(self, sample_engine: sa.Engine, *, text: str, snps_used: int) -> None:
         from backend.db.tables import findings as findings_table

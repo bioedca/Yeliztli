@@ -529,24 +529,14 @@ class TestListFindings:
 
 class TestFindingsSummary:
     def _seed_eligible_markers(self, tmp_data_dir: Path) -> None:
-        """200 markers spanning ~3980 kb on chr1 — a region a run could occupy."""
-        from backend.db.tables import raw_variants
+        """A region a run could occupy — the legacy rule re-derives from markers."""
+        from tests.backend._roh_fixtures import seed_segment_eligible_markers
 
         engine = sa.create_engine(f"sqlite:///{tmp_data_dir / 'samples' / 'sample_1.db'}")
-        with engine.begin() as conn:
-            conn.execute(
-                sa.insert(raw_variants),
-                [
-                    {
-                        "rsid": f"roh{i}",
-                        "chrom": "1",
-                        "pos": 1_000_000 + i * 20_000,
-                        "genotype": "AG",
-                    }
-                    for i in range(200)
-                ],
-            )
-        engine.dispose()
+        try:
+            seed_segment_eligible_markers(engine)
+        finally:
+            engine.dispose()
 
     def _seed_legacy_roh(self, tmp_data_dir: Path, snps_used: int) -> None:
         from backend.db.tables import findings as findings_table

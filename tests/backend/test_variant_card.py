@@ -24,7 +24,7 @@ from fastapi.testclient import TestClient
 from backend.config import Settings
 from backend.db.connection import reset_registry
 from backend.db.sample_schema import create_sample_tables
-from backend.db.tables import findings, raw_variants, reference_metadata, samples
+from backend.db.tables import findings, reference_metadata, samples
 from backend.reports.variant_card import (
     _load_single_finding,
     render_variant_card_html,
@@ -269,20 +269,10 @@ class TestLoadSingleFinding:
         # Counterpart control: a well-covered ROH negative still renders. The
         # sample must actually carry an eligible region, since the legacy rule
         # is re-derived from its markers rather than trusting the stored count.
+        from tests.backend._roh_fixtures import seed_segment_eligible_markers
+
         _, sample_engine, _ = sample_with_findings
-        with sample_engine.begin() as conn:
-            conn.execute(
-                sa.insert(raw_variants),
-                [
-                    {
-                        "rsid": f"roh{i}",
-                        "chrom": "1",
-                        "pos": 1_000_000 + i * 20_000,
-                        "genotype": "AG",
-                    }
-                    for i in range(200)
-                ],
-            )
+        seed_segment_eligible_markers(sample_engine)
         finding_id = self._insert_legacy_roh(sample_engine, snps_used=600_000)
 
         result = _load_single_finding(sample_engine, finding_id=finding_id)
