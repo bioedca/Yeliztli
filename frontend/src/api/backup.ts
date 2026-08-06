@@ -1,6 +1,7 @@
 /** API hooks for backup/restore (P4-21c). */
 
 import { useQuery, useMutation } from '@tanstack/react-query'
+import { throwApiError } from '@/api/errors'
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -38,7 +39,7 @@ const BACKUP_ESTIMATE_KEY = ['backup', 'estimate'] as const
 
 async function fetchBackupEstimate(): Promise<BackupEstimate> {
   const res = await fetch('/api/backup/estimate')
-  if (!res.ok) throw new Error(`Failed to fetch backup estimate: ${res.status}`)
+  if (!res.ok) await throwApiError(res, 'Unable to load the backup estimate. Please try again.')
   return res.json()
 }
 
@@ -48,13 +49,13 @@ async function startBackupExport(includeReferenceDbs: boolean): Promise<BackupEx
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ include_reference_dbs: includeReferenceDbs }),
   })
-  if (!res.ok) throw new Error(`Failed to start backup: ${res.status}`)
+  if (!res.ok) await throwApiError(res, 'Unable to start the backup. Please try again.')
   return res.json()
 }
 
 async function fetchBackupStatus(jobId: string): Promise<BackupStatus> {
   const res = await fetch(`/api/backup/status/${jobId}`)
-  if (!res.ok) throw new Error(`Failed to fetch backup status: ${res.status}`)
+  if (!res.ok) await throwApiError(res, 'Unable to load backup status. Please try again.')
   return res.json()
 }
 

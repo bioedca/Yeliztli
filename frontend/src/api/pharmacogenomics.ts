@@ -1,5 +1,7 @@
 /** React Query hooks for pharmacogenomics API (P3-06). */
 
+import { throwApiError } from "@/api/errors"
+
 import { useQuery } from "@tanstack/react-query"
 import type {
   GeneSummaryResponse,
@@ -20,8 +22,7 @@ export function usePharmaGenes(sampleId: number | null) {
       const params = new URLSearchParams({ sample_id: String(sampleId!) })
       const res = await fetch(`/api/analysis/pharma/genes?${params}`)
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`Pharma genes failed: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `Pharma genes failed. Please try again.`)
       }
       return res.json()
     },
@@ -42,8 +43,7 @@ export function usePharmaDrugs() {
     queryFn: async (): Promise<DrugListResponse> => {
       const res = await fetch("/api/analysis/pharma/drugs")
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`Pharma drugs failed: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `Pharma drugs failed. Please try again.`)
       }
       return res.json()
     },
@@ -65,8 +65,7 @@ export function usePharmaDrugLookup(drugName: string | null, sampleId: number | 
         `/api/analysis/pharma/drug/${encodeURIComponent(drugName!)}?${params}`,
       )
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`Pharma drug lookup failed: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `Pharma drug lookup failed. Please try again.`)
       }
       return res.json()
     },
@@ -89,8 +88,7 @@ export function usePharmaReport(sampleId: number | null) {
       const params = new URLSearchParams({ sample_id: String(sampleId!) })
       const res = await fetch(`/api/analysis/pharma/report?${params}`)
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`Pharma report failed: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `Pharma report failed. Please try again.`)
       }
       return res.json()
     },

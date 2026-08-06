@@ -27,6 +27,7 @@ import { Loader2, X } from "lucide-react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 
 import { useAnnotationProgress } from "@/api/annotation"
+import { throwApiError } from "@/api/errors"
 import { useMigrateFromSources, SamplesApiError } from "@/api/samples"
 import { useDialogFocus } from "@/hooks/useDialogFocus"
 import type { MigrateFromSourcesCandidate } from "@/types/individuals"
@@ -68,8 +69,7 @@ async function postWatch(payload: RewatchPayload): Promise<void> {
     // exists on the merged sample, so treat it as success rather than
     // marking the row failed/retryable forever.
     if (res.status === 409) return
-    const text = await res.text().catch(() => "")
-    throw new Error(text || `Re-watch failed: ${res.status}`)
+    await throwApiError(res, "Re-watch failed. Please try again.")
   }
 }
 

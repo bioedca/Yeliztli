@@ -12,7 +12,7 @@ import {
   useQueryClient,
   type QueryClient,
 } from "@tanstack/react-query"
-import { qcMetricsQueryKey } from "@/api/qc"
+import { ApiError, throwApiError } from "@/api/errors"
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -24,7 +24,9 @@ export interface AnnotationJobResult {
 
 export interface AnnotationProgress {
   job_id: string
-  status: "pending" | "running" | "complete" | "failed" | "cancelled"
+  // `cancelling` is an ACTIVE state, not a terminal one: the row still holds the
+  // annotation/export interlock until the worker acknowledges the cancel (#2232).
+  status: "pending" | "running" | "cancelling" | "complete" | "failed" | "cancelled"
   progress_pct: number
   message: string
   error: string | null
@@ -40,15 +42,46 @@ export function useStartAnnotation() {
         method: "POST",
       })
       if (!res.ok) {
-        const body = await res.json().catch(() => null)
-        const detail = body?.detail || `Start annotation failed: ${res.status}`
-        throw new Error(detail)
+        await throwApiError(res, "Unable to start annotation. Please try again.")
       }
       return await res.json()
     },
-    onSuccess: (_result, sampleId) => {
-      queryClient.invalidateQueries({ queryKey: ["variants-count"] })
-      queryClient.invalidateQueries({ queryKey: qcMetricsQueryKey(sampleId) })
+    onSuccess: (result, sampleId) => {
+      // Starting a new annotation makes every cached result for this sample
+      // untrustworthy. Do this at launch rather than relying solely on an SSE
+      // observer: callers such as the individual page can start a job and
+      // navigate away before any progress listener reaches its terminal event.
+      // The running-job cache and staleness probe also notify an already-open
+      // route gate that it must re-check the server before trusting its data.
+      // Do not return any of these promises: an invalidated active result can
+      // wait on the backend, but the accepted job must immediately leave the
+      // mutation usable for callers that offer progress navigation.
+      const activeResult: ActiveAnnotationJob = {
+        ...result,
+        sample_id: sampleId,
+        progress_pct: 0,
+        message: "Queued for annotation",
+      }
+      queryClient.setQueryData(annotationActiveQueryKey(sampleId), activeResult)
+      void queryClient.invalidateQueries({
+        queryKey: sampleStalenessQueryKeyPrefix(sampleId),
+      })
+      void invalidateAnnotationResultQueries(queryClient, sampleId)
+    },
+    onError: (error, sampleId) => {
+      // A 409 means another request already started annotation. It carries the
+      // same cache-safety consequence as this request's accepted 202, and is
+      // especially important after a reload where no local progress observer
+      // is available to invalidate on the terminal event.
+      if (error instanceof ApiError && error.status === 409) {
+        void queryClient.invalidateQueries({
+          queryKey: annotationActiveQueryKey(sampleId),
+        })
+        void queryClient.invalidateQueries({
+          queryKey: sampleStalenessQueryKeyPrefix(sampleId),
+        })
+        void invalidateAnnotationResultQueries(queryClient, sampleId)
+      }
     },
   })
 }
@@ -62,9 +95,7 @@ export function useCancelAnnotation() {
         method: "POST",
       })
       if (!res.ok) {
-        const body = await res.json().catch(() => null)
-        const detail = body?.detail || `Cancel failed: ${res.status}`
-        throw new Error(detail)
+        await throwApiError(res, "Unable to cancel annotation. Please try again.")
       }
       return await res.json()
     },
@@ -76,7 +107,10 @@ export function useCancelAnnotation() {
 export interface ActiveAnnotationJob {
   job_id: string
   sample_id: number
-  status: "pending" | "running"
+  // Includes `cancelling`, which the API reports while a cancel is pending
+  // acknowledgement. Consumers gate on the job being present rather than on its
+  // status, so omitting it here would only make the type lie (#2232).
+  status: "pending" | "running" | "cancelling"
   progress_pct: number
   message: string
 }
@@ -84,21 +118,185 @@ export interface ActiveAnnotationJob {
 export const annotationActiveQueryKey = (sampleId: number | null) =>
   ["annotation-active", sampleId] as const
 
+/** Shared prefix for the route-scoped freshness probes of one sample. */
+export const sampleStalenessQueryKeyPrefix = (sampleId: number | null) =>
+  ["sample-staleness", sampleId] as const
+
+// Query-key contract for data scoped to one sample. Some keys place sampleId
+// after a detail selector, so matching every numeric key segment would corrupt
+// cache isolation when a pathway, limit, or overlay ID happens to equal a
+// different sample ID. Add new sample-derived query keys here alongside their
+// hook rather than relying on their positional coincidence.
+const SAMPLE_DERIVED_QUERY_KEY_SHAPES: ReadonlyArray<{
+  prefix: readonly unknown[]
+  sampleIdIndex: number
+}> = [
+  { prefix: ["samples"], sampleIdIndex: 1 },
+  { prefix: ["analysis-qc-metrics"], sampleIdIndex: 1 },
+  { prefix: ["variants"], sampleIdIndex: 1 },
+  { prefix: ["variants-count"], sampleIdIndex: 1 },
+  { prefix: ["variants-chromosomes"], sampleIdIndex: 1 },
+  { prefix: ["variants-qc-stats"], sampleIdIndex: 1 },
+  { prefix: ["variants-search"], sampleIdIndex: 1 },
+  { prefix: ["variants-total-count"], sampleIdIndex: 1 },
+  { prefix: ["variants-unannotated-count"], sampleIdIndex: 1 },
+  { prefix: ["findings"], sampleIdIndex: 1 },
+  { prefix: ["findings-summary"], sampleIdIndex: 1 },
+  { prefix: ["rare-variant-findings"], sampleIdIndex: 1 },
+  { prefix: ["variant-detail"], sampleIdIndex: 2 },
+  { prefix: ["gene-detail"], sampleIdIndex: 2 },
+  { prefix: ["gene-health-pathways"], sampleIdIndex: 1 },
+  { prefix: ["gene-health-pathway-detail"], sampleIdIndex: 2 },
+  { prefix: ["fitness-pathways"], sampleIdIndex: 1 },
+  { prefix: ["fitness-pathway-detail"], sampleIdIndex: 2 },
+  { prefix: ["traits-pathways"], sampleIdIndex: 1 },
+  { prefix: ["traits-pathway-detail"], sampleIdIndex: 2 },
+  { prefix: ["traits-prs"], sampleIdIndex: 1 },
+  { prefix: ["sleep-pathways"], sampleIdIndex: 1 },
+  { prefix: ["sleep-pathway-detail"], sampleIdIndex: 2 },
+  { prefix: ["methylation-pathways"], sampleIdIndex: 1 },
+  { prefix: ["methylation-pathway-detail"], sampleIdIndex: 2 },
+  { prefix: ["allergy-pathways"], sampleIdIndex: 1 },
+  { prefix: ["allergy-pathway-detail"], sampleIdIndex: 2 },
+  { prefix: ["skin-pathways"], sampleIdIndex: 1 },
+  { prefix: ["skin-pathway-detail"], sampleIdIndex: 2 },
+  { prefix: ["nutrigenomics-pathways"], sampleIdIndex: 1 },
+  { prefix: ["nutrigenomics-pathway-detail"], sampleIdIndex: 2 },
+  { prefix: ["hla-drug-hypersensitivity"], sampleIdIndex: 1 },
+  { prefix: ["hla-rule-outs"], sampleIdIndex: 1 },
+  { prefix: ["hla-susceptibility"], sampleIdIndex: 1 },
+  { prefix: ["hla-alleles"], sampleIdIndex: 1 },
+  { prefix: ["ancestry-findings"], sampleIdIndex: 1 },
+  { prefix: ["ancestry-pca-coordinates"], sampleIdIndex: 1 },
+  { prefix: ["ancestry-haplogroups"], sampleIdIndex: 1 },
+  { prefix: ["lai-results"], sampleIdIndex: 1 },
+  { prefix: ["lai-progress"], sampleIdIndex: 1 },
+  { prefix: ["carrier-variants"], sampleIdIndex: 1 },
+  { prefix: ["apoe-gate-status"], sampleIdIndex: 1 },
+  { prefix: ["apoe-genotype"], sampleIdIndex: 1 },
+  { prefix: ["apoe-findings"], sampleIdIndex: 1 },
+  { prefix: ["cardiovascular-variants"], sampleIdIndex: 1 },
+  { prefix: ["cardiovascular-fh-status"], sampleIdIndex: 1 },
+  { prefix: ["cancer-variants"], sampleIdIndex: 1 },
+  { prefix: ["cancer-prs"], sampleIdIndex: 1 },
+  { prefix: ["cancer-absolute-risk"], sampleIdIndex: 1 },
+  { prefix: ["metabolic-prs"], sampleIdIndex: 1 },
+  { prefix: ["metabolic-anchors"], sampleIdIndex: 1 },
+  { prefix: ["ebmd"], sampleIdIndex: 1 },
+  { prefix: ["fh-assessment"], sampleIdIndex: 1 },
+  { prefix: ["pgx-guidelines"], sampleIdIndex: 1 },
+  { prefix: ["pharma-genes"], sampleIdIndex: 1 },
+  { prefix: ["pharma-drug"], sampleIdIndex: 2 },
+  { prefix: ["pharma-report"], sampleIdIndex: 1 },
+  { prefix: ["watched-variants"], sampleIdIndex: 1 },
+  { prefix: ["tags"], sampleIdIndex: 1 },
+  { prefix: ["sql-schema"], sampleIdIndex: 1 },
+  { prefix: ["overlay-results"], sampleIdIndex: 2 },
+  { prefix: ["updates", "prompts"], sampleIdIndex: 2 },
+  { prefix: ["updates", "finding-changes"], sampleIdIndex: 2 },
+  // Annotation changes which variants exist, so it changes whether a FHIR export
+  // is eligible and how many Observations it would produce. Without this the
+  // Report Builder keeps showing a verdict computed before the run (#2232).
+  { prefix: ["fhir-export-eligibility"], sampleIdIndex: 1 },
+]
+
+function isSampleDerivedQueryKey(queryKey: readonly unknown[], sampleId: number): boolean {
+  return SAMPLE_DERIVED_QUERY_KEY_SHAPES.some(
+    ({ prefix, sampleIdIndex }) =>
+      queryKey[sampleIdIndex] === sampleId &&
+      prefix.every((segment, index) => queryKey[index] === segment),
+  )
+}
+
+function isIndividualDetailQueryForSample(
+  queryKey: readonly unknown[],
+  data: unknown,
+  sampleId: number,
+): boolean {
+  if (
+    queryKey[0] !== "individuals" ||
+    queryKey.length !== 2 ||
+    typeof queryKey[1] !== "number"
+  ) {
+    return false
+  }
+  if (!data || typeof data !== "object") return false
+
+  const linkedSamples = (data as { linked_samples?: unknown }).linked_samples
+  return (
+    Array.isArray(linkedSamples) &&
+    linkedSamples.some(
+      (sample) =>
+        !!sample &&
+        typeof sample === "object" &&
+        (sample as { id?: unknown }).id === sampleId,
+    )
+  )
+}
+
+const ACTIVE_ANNOTATION_PROBE_TIMEOUT_MS = 10_000
+
+export async function fetchActiveAnnotationJob(
+  sampleId: number,
+  querySignal: AbortSignal,
+): Promise<ActiveAnnotationJob | null> {
+  const requestController = new AbortController()
+  const timeoutId = setTimeout(
+    () => requestController.abort(),
+    ACTIVE_ANNOTATION_PROBE_TIMEOUT_MS,
+  )
+  const abortFromQuery = () => requestController.abort()
+  querySignal.addEventListener("abort", abortFromQuery, { once: true })
+
+  try {
+    const res = await fetch(`/api/annotation/active/${sampleId}`, {
+      signal: requestController.signal,
+    })
+    // A 404 is the only authoritative absence signal. Treat transport and
+    // non-404 HTTP failures as observable query errors so callers recovering
+    // from a 409 conflict can keep polling instead of mistaking an unavailable
+    // probe for a completed annotation.
+    if (res.status === 404) return null
+    if (!res.ok) {
+      await throwApiError(res, "Unable to check re-annotation status. Please try again.")
+    }
+    return await res.json()
+  } finally {
+    clearTimeout(timeoutId)
+    querySignal.removeEventListener("abort", abortFromQuery)
+  }
+}
+
+interface ActiveAnnotationJobQueryOptions {
+  /** Continue one-second probes after a 409 has confirmed an active job. */
+  pollWhenUnavailable?: boolean
+  /** Suppress initial-error retries for auxiliary callers such as the stale gate. */
+  retryOnInitialFailure?: boolean
+}
+
 /** Check if a sample has an active (pending/running) annotation job. */
-export function useActiveAnnotationJob(sampleId: number | null) {
+export function useActiveAnnotationJob(
+  sampleId: number | null,
+  {
+    pollWhenUnavailable = false,
+    retryOnInitialFailure = true,
+  }: ActiveAnnotationJobQueryOptions = {},
+) {
   return useQuery<ActiveAnnotationJob | null>({
     queryKey: annotationActiveQueryKey(sampleId),
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (sampleId == null) return null
-      const res = await fetch(`/api/annotation/active/${sampleId}`)
-      if (res.status === 404) return null
-      if (!res.ok) throw new Error(`Failed to check active job: ${res.status}`)
-      return await res.json()
+      return fetchActiveAnnotationJob(sampleId, signal)
     },
     enabled: sampleId != null,
     staleTime: 0,
+    // Ordinary consumers retain their QueryClient retry policy, so a transient
+    // active-job probe cannot expose a duplicate-start CTA. The stale gate
+    // explicitly opts out on its initial auxiliary probe, then polls after a
+    // 409 has authoritatively established that a job is active.
+    ...(retryOnInitialFailure ? {} : { retry: false }),
     refetchOnWindowFocus: false,
-    refetchInterval: ({ state: { data } }) => (data ? 1_000 : false),
+    refetchInterval: ({ state: { data } }) => (data || pollWhenUnavailable ? 1_000 : false),
   })
 }
 
@@ -107,6 +305,28 @@ export function invalidateAnnotationResultQueries(
   queryClient: QueryClient,
   sampleId: number | null = null,
 ) {
+  if (sampleId != null) {
+    // Annotation-result keys do not share one prefix and the sample identifier
+    // is not always in the same position (for example, `pharma-drug` includes
+    // a drug name before it). Match the explicit sample-key contract so a
+    // coincident pathway or pagination value cannot invalidate another sample.
+    const sampleResults = queryClient.invalidateQueries({
+      predicate: (query) => isSampleDerivedQueryKey(query.queryKey, sampleId),
+    })
+    // Individual details cache the server-side aggregate count, which includes
+    // every linked sample's findings. Refresh only the cached individual
+    // details that actually link this sample so a newly fresh summary cannot
+    // disagree with its header total.
+    const individualAggregates = queryClient.invalidateQueries({
+      predicate: (query) =>
+        isIndividualDetailQueryForSample(query.queryKey, query.state.data, sampleId),
+    })
+    return Promise.all([sampleResults, individualAggregates])
+  }
+
+  // Preserve the legacy all-samples behavior for callers that do not have a
+  // concrete sample identifier. Normal annotation completion always supplies
+  // one and takes the exhaustive predicate above.
   const invalidations = [
     queryClient.invalidateQueries({ queryKey: ["variants"] }),
     queryClient.invalidateQueries({ queryKey: ["variants-count"] }),
@@ -116,11 +336,6 @@ export function invalidateAnnotationResultQueries(
     queryClient.invalidateQueries({ queryKey: ["findings-summary"] }),
     queryClient.invalidateQueries({ queryKey: ["findings"] }),
   ]
-  if (sampleId != null) {
-    invalidations.push(
-      queryClient.invalidateQueries({ queryKey: qcMetricsQueryKey(sampleId) }),
-    )
-  }
   return Promise.all(invalidations)
 }
 

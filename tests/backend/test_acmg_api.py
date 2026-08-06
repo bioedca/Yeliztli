@@ -210,6 +210,7 @@ class TestAcmgEndpoint:
     def test_every_variant_is_draft_with_disclosure(self, acmg_client: TestClient) -> None:
         from backend.analysis.acmg import CITATION_PMIDS
 
+        assert "31479589" in CITATION_PMIDS  # ClinGen SVI BA1/BS1 frequency context
         data = acmg_client.get("/api/analysis/acmg?sample_id=1").json()
         assert data["truncated"] is False
         assert data["total_candidates"] == 6
@@ -218,6 +219,7 @@ class TestAcmgEndpoint:
             assert v["is_draft"] is True
             assert v["note"]
             assert set(CITATION_PMIDS) <= set(v["pmid_citations"])
+            assert "31479589" in v["pmid_citations"]
 
     def test_invalid_sample_returns_404(self, acmg_client: TestClient) -> None:
         assert acmg_client.get("/api/analysis/acmg?sample_id=999").status_code == 404

@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
+from pathlib import Path
+
 import pytest
 import sqlalchemy as sa
 
@@ -30,6 +34,55 @@ from backend.analysis.acmg import (
 )
 from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import annotated_variants, reference_metadata
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_EVIDENCE_DIR = _REPO_ROOT / "data" / "science-evidence" / "2026-08-02-acmg-bs1-founder-window"
+
+
+def _walk_json(value: object):
+    if isinstance(value, dict):
+        for key, child in value.items():
+            yield key, child
+            yield from _walk_json(child)
+    elif isinstance(value, list):
+        for child in value:
+            yield from _walk_json(child)
+
+
+def _assert_sanitized_payload(value: object, *, allowed_urls: tuple[str, ...] = ()) -> None:
+    forbidden_keys = {
+        "authors",
+        "authorlist",
+        "abstract",
+        "citations",
+        "fulltextexcerpts",
+        "access",
+        "url",
+        "affiliation",
+        "affiliationinfo",
+        "coistatement",
+    }
+    for key, child in _walk_json(value):
+        assert key.lower() not in forbidden_keys
+        if isinstance(child, str):
+            assert "utm_" not in child.lower()
+            assert "email=" not in child.lower()
+            assert "@" not in child
+            if child not in allowed_urls:
+                assert "http://" not in child.lower()
+                assert "https://" not in child.lower()
+
+
+def _resolve_json_pointer(value: object, pointer: str) -> object:
+    assert pointer.startswith("/")
+    resolved = value
+    for segment in pointer.removeprefix("/").split("/"):
+        if isinstance(resolved, list):
+            resolved = resolved[int(segment)]
+        else:
+            assert isinstance(resolved, dict)
+            resolved = resolved[segment]
+    return resolved
 
 
 def _ba1_evidence(
@@ -206,6 +259,18 @@ class TestOtherCriteria:
             is None
         )
 
+    def test_ba1_uses_lower_supported_general_continental_frequency(self) -> None:
+        criterion = criterion_ba1(
+            AcmgEvidence(
+                gnomad_af_afr=0.06,
+                gnomad_an_afr=BA1_MIN_OBSERVED_ALLELES - 1,
+                gnomad_af_eur=0.055,
+                gnomad_an_eur=BA1_MIN_OBSERVED_ALLELES,
+            )
+        )
+        assert criterion is not None and criterion.code == "BA1" and criterion.points == -8
+        assert "EUR/NFE" in criterion.rationale
+
     def test_ba1_ignores_global_or_popmax_without_continental_population(self) -> None:
         assert (
             criterion_ba1(
@@ -274,6 +339,42 @@ class TestOtherCriteria:
             **{af_field: 0.06, an_field: BA1_MIN_OBSERVED_ALLELES},
         )
         assert criterion_ba1(ev) is None
+
+    @pytest.mark.parametrize(
+        ("af_field", "an_field"),
+        [
+            ("gnomad_af_fin", "gnomad_an_fin"),
+            ("gnomad_af_asj", "gnomad_an_asj"),
+        ],
+    )
+    def test_bs1_excludes_founder_population_only_frequency(
+        self, af_field: str, an_field: str
+    ) -> None:
+        ev = AcmgEvidence(
+            gnomad_af_popmax=0.02,
+            gnomad_an_popmax=BA1_MIN_OBSERVED_ALLELES,
+            **{af_field: 0.02, an_field: BA1_MIN_OBSERVED_ALLELES},
+        )
+        assert criterion_bs1(ev) is None
+
+    def test_bs1_withholds_global_only_frequency_without_general_continent(self) -> None:
+        ev = AcmgEvidence(
+            gnomad_af_global=0.02,
+            gnomad_an_global=BA1_MIN_OBSERVED_ALLELES,
+        )
+        assert criterion_bs1(ev) is None
+
+    def test_bs1_uses_lower_supported_general_continental_frequency(self) -> None:
+        criterion = criterion_bs1(
+            AcmgEvidence(
+                gnomad_af_afr=0.03,
+                gnomad_an_afr=BA1_MIN_OBSERVED_ALLELES - 1,
+                gnomad_af_eur=0.02,
+                gnomad_an_eur=BA1_MIN_OBSERVED_ALLELES,
+            )
+        )
+        assert criterion is not None and criterion.points == -4
+        assert "EUR/NFE" in criterion.rationale
 
     @pytest.mark.parametrize(
         ("af_field", "an_field", "label"),
@@ -351,23 +452,26 @@ class TestOtherCriteria:
         assert any(c.code == "BA1" for c in result.criteria)
 
     def test_bs1_above_1pct(self) -> None:
-        assert (
-            criterion_bs1(
-                AcmgEvidence(
-                    gnomad_af_popmax=0.02,
-                    gnomad_an_popmax=BA1_MIN_OBSERVED_ALLELES,
-                )
-            ).points
-            == -4
+        criterion = criterion_bs1(
+            AcmgEvidence(
+                gnomad_af_popmax=0.04,
+                gnomad_an_popmax=BA1_MIN_OBSERVED_ALLELES,
+                gnomad_af_asj=0.04,
+                gnomad_an_asj=BA1_MIN_OBSERVED_ALLELES,
+                gnomad_af_eur=0.02,
+                gnomad_an_eur=BA1_MIN_OBSERVED_ALLELES,
+            )
         )
+        assert criterion is not None and criterion.points == -4
+        assert "EUR/NFE" in criterion.rationale
 
     def test_bs1_requires_observed_allele_count(self) -> None:
-        assert criterion_bs1(AcmgEvidence(gnomad_af_popmax=0.02)) is None
+        assert criterion_bs1(AcmgEvidence(gnomad_af_eur=0.02)) is None
         assert (
             criterion_bs1(
                 AcmgEvidence(
-                    gnomad_af_popmax=0.02,
-                    gnomad_an_popmax=BA1_MIN_OBSERVED_ALLELES - 1,
+                    gnomad_af_eur=0.02,
+                    gnomad_an_eur=BA1_MIN_OBSERVED_ALLELES - 1,
                 )
             )
             is None
@@ -388,10 +492,14 @@ class TestOtherCriteria:
             rsid=rsid,
             gnomad_af_popmax=af,
             gnomad_an_popmax=BA1_MIN_OBSERVED_ALLELES,
+            gnomad_af_eur=af,
+            gnomad_an_eur=BA1_MIN_OBSERVED_ALLELES,
         )
         control = AcmgEvidence(
             gnomad_af_popmax=af,
             gnomad_an_popmax=BA1_MIN_OBSERVED_ALLELES,
+            gnomad_af_eur=af,
+            gnomad_an_eur=BA1_MIN_OBSERVED_ALLELES,
         )
 
         assert criterion_bs1(exception) is None
@@ -400,29 +508,37 @@ class TestOtherCriteria:
         assert control_criterion.points == -4
 
     def test_bs1_not_applied_in_ba1_range(self) -> None:
-        assert criterion_bs1(AcmgEvidence(gnomad_af_popmax=0.06)) is None
+        assert (
+            criterion_bs1(
+                AcmgEvidence(
+                    gnomad_af_eur=0.06,
+                    gnomad_an_eur=BA1_MIN_OBSERVED_ALLELES,
+                )
+            )
+            is None
+        )
 
     def test_bs1_boundary_is_above_one_pct_through_ba1_cutoff(self) -> None:
         lower_eps = BS1_AF_MIN / 10
         upper_eps = BA1_AF_MIN / 100
         just_above_lower = criterion_bs1(
             AcmgEvidence(
-                gnomad_af_popmax=BS1_AF_MIN + lower_eps,
-                gnomad_an_popmax=BA1_MIN_OBSERVED_ALLELES,
+                gnomad_af_eur=BS1_AF_MIN + lower_eps,
+                gnomad_an_eur=BA1_MIN_OBSERVED_ALLELES,
             )
         )
         at_upper = criterion_bs1(
             AcmgEvidence(
-                gnomad_af_popmax=BA1_AF_MIN,
-                gnomad_an_popmax=BA1_MIN_OBSERVED_ALLELES,
+                gnomad_af_eur=BA1_AF_MIN,
+                gnomad_an_eur=BA1_MIN_OBSERVED_ALLELES,
             )
         )
         assert just_above_lower is not None and just_above_lower.points == -4
         assert (
             criterion_bs1(
                 AcmgEvidence(
-                    gnomad_af_popmax=BS1_AF_MIN,
-                    gnomad_an_popmax=BA1_MIN_OBSERVED_ALLELES,
+                    gnomad_af_eur=BS1_AF_MIN,
+                    gnomad_an_eur=BA1_MIN_OBSERVED_ALLELES,
                 )
             )
             is None
@@ -431,8 +547,8 @@ class TestOtherCriteria:
         assert (
             criterion_bs1(
                 AcmgEvidence(
-                    gnomad_af_popmax=BA1_AF_MIN + upper_eps,
-                    gnomad_an_popmax=BA1_MIN_OBSERVED_ALLELES,
+                    gnomad_af_eur=BA1_AF_MIN + upper_eps,
+                    gnomad_an_eur=BA1_MIN_OBSERVED_ALLELES,
                 )
             )
             is None
@@ -538,9 +654,12 @@ class TestClassifyAcmg:
             consequence="missense_variant",
             gnomad_af_popmax=0.02,
             gnomad_an_popmax=BA1_MIN_OBSERVED_ALLELES,
+            gnomad_af_eur=0.02,
+            gnomad_an_eur=BA1_MIN_OBSERVED_ALLELES,
         )
         result = classify_acmg(ev)
         assert result.classification == LIKELY_BENIGN
+        assert "31479589" in result.pmid_citations
 
     @pytest.mark.parametrize(
         ("evidence", "expected_codes"),
@@ -551,6 +670,8 @@ class TestClassifyAcmg:
                     gene_symbol="CFTR",
                     consequence="inframe_deletion",
                     gnomad_af_popmax=0.0132,
+                    gnomad_af_eur=0.0132,
+                    gnomad_an_eur=BA1_MIN_OBSERVED_ALLELES,
                     clinvar_significance="Pathogenic",
                 ),
                 {"PM4"},
@@ -561,6 +682,8 @@ class TestClassifyAcmg:
                     gene_symbol="F2",
                     consequence="3_prime_UTR_variant",
                     gnomad_af_popmax=0.0124,
+                    gnomad_af_eur=0.0124,
+                    gnomad_an_eur=BA1_MIN_OBSERVED_ALLELES,
                     clinvar_significance="Pathogenic",
                 ),
                 set(),
@@ -571,6 +694,8 @@ class TestClassifyAcmg:
                     gene_symbol="F5",
                     consequence="missense_variant",
                     gnomad_af_popmax=0.02,
+                    gnomad_af_eur=0.02,
+                    gnomad_an_eur=BA1_MIN_OBSERVED_ALLELES,
                     clinvar_significance="Pathogenic",
                 ),
                 set(),
@@ -628,3 +753,289 @@ class TestAssessSampleAcmg:
         variant = result["variants"][0]
         assert variant["acmg_classification"] == BENIGN
         assert any(c["code"] == "BA1" for c in variant["criteria"])
+
+    @pytest.mark.parametrize(
+        ("af_field", "an_field"),
+        [
+            ("gnomad_af_fin", "gnomad_an_fin"),
+            ("gnomad_af_asj", "gnomad_an_asj"),
+        ],
+    )
+    @pytest.mark.parametrize(
+        ("consequence", "revel", "expected_codes"),
+        [
+            ("missense_variant", 0.9, {"PP3"}),
+            ("stop_gained", None, set()),
+            ("inframe_deletion", None, {"PM4"}),
+        ],
+    )
+    @pytest.mark.parametrize(
+        ("popmax", "global_af"),
+        [
+            (0.02, None),
+            (None, 0.02),
+        ],
+    )
+    @pytest.mark.parametrize(
+        ("general_af", "general_an"),
+        [
+            (0.002, BA1_MIN_OBSERVED_ALLELES),
+            (BS1_AF_MIN, BA1_MIN_OBSERVED_ALLELES),
+            (0.02, BA1_MIN_OBSERVED_ALLELES - 1),
+            (0.02, None),
+        ],
+    )
+    def test_sample_query_keeps_founder_frequency_candidate_without_clinvar(
+        self,
+        tmp_path,
+        af_field: str,
+        an_field: str,
+        consequence: str,
+        revel: float | None,
+        expected_codes: set[str],
+        popmax: float | None,
+        global_af: float | None,
+        general_af: float,
+        general_an: int | None,
+    ) -> None:
+        reference_engine = sa.create_engine("sqlite:///:memory:")
+        sample_engine = sa.create_engine(f"sqlite:///{tmp_path / 'sample.db'}")
+        reference_metadata.create_all(reference_engine)
+        create_sample_tables(sample_engine)
+
+        with sample_engine.begin() as conn:
+            conn.execute(
+                annotated_variants.insert().values(
+                    rsid="rs_founder_only_bs1",
+                    chrom="1",
+                    pos=100,
+                    genotype="AG",
+                    zygosity="het",
+                    gene_symbol="G",
+                    consequence=consequence,
+                    gnomad_af_global=global_af,
+                    gnomad_af_popmax=popmax,
+                    gnomad_an_popmax=BA1_MIN_OBSERVED_ALLELES,
+                    gnomad_af_eur=general_af,
+                    gnomad_an_eur=general_an,
+                    revel=revel,
+                    **{af_field: 0.02, an_field: BA1_MIN_OBSERVED_ALLELES},
+                )
+            )
+
+        result = assess_sample_acmg(sample_engine, reference_engine)
+
+        assert result["total_candidates"] == 1
+        variant = result["variants"][0]
+        assert variant["clinvar_significance"] is None
+        assert variant["acmg_classification"] == UNCERTAIN
+        assert {c["code"] for c in variant["criteria"]} == expected_codes
+
+    def test_sample_query_excludes_common_nonfounder_frequency_without_clinvar(
+        self, tmp_path
+    ) -> None:
+        reference_engine = sa.create_engine("sqlite:///:memory:")
+        sample_engine = sa.create_engine(f"sqlite:///{tmp_path / 'sample.db'}")
+        reference_metadata.create_all(reference_engine)
+        create_sample_tables(sample_engine)
+
+        with sample_engine.begin() as conn:
+            conn.execute(
+                annotated_variants.insert().values(
+                    rsid="rs_common_nonfounder_without_clinvar",
+                    chrom="1",
+                    pos=100,
+                    genotype="AG",
+                    zygosity="het",
+                    gene_symbol="G",
+                    consequence="missense_variant",
+                    gnomad_af_popmax=0.02,
+                    gnomad_an_popmax=BA1_MIN_OBSERVED_ALLELES,
+                    gnomad_af_fin=0.02,
+                    gnomad_an_fin=BA1_MIN_OBSERVED_ALLELES,
+                    gnomad_af_eur=0.02,
+                    gnomad_an_eur=BA1_MIN_OBSERVED_ALLELES,
+                    revel=0.9,
+                )
+            )
+
+        result = assess_sample_acmg(sample_engine, reference_engine)
+
+        assert result["total_candidates"] == 0
+        assert result["variants"] == []
+
+    def test_sample_query_excludes_hom_ref_negative_control(self, tmp_path) -> None:
+        reference_engine = sa.create_engine("sqlite:///:memory:")
+        sample_engine = sa.create_engine(f"sqlite:///{tmp_path / 'sample.db'}")
+        reference_metadata.create_all(reference_engine)
+        create_sample_tables(sample_engine)
+
+        with sample_engine.begin() as conn:
+            conn.execute(
+                annotated_variants.insert().values(
+                    rsid="rs_hom_ref_founder_control",
+                    chrom="1",
+                    pos=100,
+                    genotype="AA",
+                    zygosity="hom_ref",
+                    gene_symbol="G",
+                    consequence="missense_variant",
+                    clinvar_significance="Pathogenic",
+                    gnomad_af_popmax=0.02,
+                    gnomad_an_popmax=BA1_MIN_OBSERVED_ALLELES,
+                    gnomad_af_fin=0.02,
+                    gnomad_an_fin=BA1_MIN_OBSERVED_ALLELES,
+                )
+            )
+
+        result = assess_sample_acmg(sample_engine, reference_engine)
+
+        assert result["total_candidates"] == 0
+        assert result["variants"] == []
+
+
+class TestBs1EvidencePacket:
+    def test_generic_faf_scope_is_explicitly_bounded(self) -> None:
+        inventory = json.loads(
+            (_EVIDENCE_DIR / "source-inventory.json").read_text(encoding="utf-8")
+        )
+        criteria = inventory["benign_frequency_criteria"]
+        faf_scope = criteria["generic_faf_data_eligibility"]
+        ba1_source = criteria["ba1_selector_primary_source"]
+        founder_source = criteria["founder_effect_corroboration"]
+
+        assert faf_scope["criteria"] == ["BA1", "BS1"]
+        assert "10.1002/cphg.93" in faf_scope["source"]
+        assert "Finnish" in faf_scope["guidance"]
+        assert "Ashkenazi Jewish" in faf_scope["guidance"]
+        assert "does not ingest FAF" in faf_scope["implementation_limit"]
+        assert "does not calculate FAF" in faf_scope["implementation_limit"]
+        assert "disease-specific threshold" in faf_scope["implementation_limit"]
+        assert "10.1002/humu.23642" in ba1_source["source"]
+        assert "not used to calibrate BS1" in ba1_source["scope"]
+        assert "10.1002/humu.24152" in founder_source["source"]
+        assert "TP53" in founder_source["scope"]
+        assert "not a universal BA1/BS1 threshold" in founder_source["scope"]
+        assert (
+            "not present either as an independent empirical frequency measurement"
+            in founder_source["independence_note"]
+        )
+        selection_rule = criteria["selection_rule"]
+        assert "allele frequency (AF)" in selection_rule
+        assert "allele number (AN)" in selection_rule
+        assert "Allele count (AC)" in selection_rule
+        assert "neither ingested nor used" in selection_rule
+        assert inventory["not_parsed_or_persisted_fields"] == ["FAF", "OTH", "AC"]
+
+    def test_sanitized_provider_responses_are_retained_and_linked(self) -> None:
+        index = json.loads(
+            (_EVIDENCE_DIR / "source-response-index.json").read_text(encoding="utf-8")
+        )
+        entries = {entry["key"]: entry for entry in index["entries"]}
+        expected_keys = {
+            "consensus-ghosh-search",
+            "consensus-ghosh-fetch",
+            "scite-ghosh-metadata",
+            "scite-cphg-faf-context",
+            "scite-tp53-founder-context",
+        }
+        assert set(entries) == expected_keys
+        _assert_sanitized_payload(index)
+
+        for entry in entries.values():
+            payload = _REPO_ROOT / entry["payload_path"]
+            assert payload.is_file()
+            assert hashlib.sha256(payload.read_bytes()).hexdigest() == entry["sanitized_sha256"]
+            assert entry["unredacted_response_sha256"] is None
+            assert entry["unredacted_response_sha256_note"].startswith("Not recorded because")
+            resolved = _resolve_json_pointer(
+                json.loads(payload.read_text(encoding="utf-8")), entry["json_pointer"]
+            )
+
+            if entry["service"] == "Consensus":
+                response = resolved["sanitized_provider_envelope"]["content"][0]["response"]
+                returned_identifier = (
+                    response["selected_result"]["id"]
+                    if entry["operation"] == "consensus_search"
+                    else response["id"]
+                )
+                assert returned_identifier == entry["identifier"]
+            else:
+                assert resolved["key"] == entry["key"]
+                response = resolved["sanitized_provider_envelope"]["content"][0]["response"]
+                assert response["hits"][0]["doi"] == entry["doi"]
+
+        consensus = json.loads(
+            (_EVIDENCE_DIR / "raw" / "consensus-search-fetch-sanitized.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        assert consensus["search"]["sanitized_provider_envelope"]["isError"] is False
+        assert consensus["fetch"]["sanitized_provider_envelope"]["isError"] is False
+        assert (
+            consensus["fetch"]["sanitized_provider_envelope"]["content"][0]["response"]["id"]
+            == "4439bbb6071d5097972fac0f2fea8fb0"
+        )
+
+        scite = json.loads(
+            (_EVIDENCE_DIR / "raw" / "scite-targeted-doi-responses-sanitized.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        responses = {response["key"]: response for response in scite["responses"]}
+        assert set(responses) == {
+            "scite-ghosh-metadata",
+            "scite-cphg-faf-context",
+            "scite-tp53-founder-context",
+        }
+        assert all(
+            response["sanitized_provider_envelope"]["isError"] is False
+            and response["response_field_presence"]["hits[0].retraction_notices"] is False
+            for response in responses.values()
+        )
+        assert [
+            hit["doi"]
+            for hit in responses["scite-ghosh-metadata"]["sanitized_provider_envelope"]["content"][
+                0
+            ]["response"]["hits"]
+        ] == ["10.1002/humu.23642", "10.1002/cphg.93", "10.1002/humu.24152"]
+        assert (
+            responses["scite-cphg-faf-context"]["sanitized_provider_envelope"]["content"][0][
+                "response"
+            ]["hits"][0]["retained_short_context"]["source_field"]
+            == "fulltextExcerpts[2]"
+        )
+        assert (
+            responses["scite-tp53-founder-context"]["sanitized_provider_envelope"]["content"][0][
+                "response"
+            ]["hits"][0]["retained_short_context"]["source_field"]
+            == "citations[1].snippet"
+        )
+
+        _assert_sanitized_payload(consensus)
+        _assert_sanitized_payload(scite)
+
+        correction_path = _EVIDENCE_DIR / "pubmed-efetch-corrections-sanitized.json"
+        correction_payload = json.loads(correction_path.read_text(encoding="utf-8"))
+        assert correction_payload["claim_ids"] == ["C1", "C3"]
+        public_request_url = correction_payload["source_snapshot"]["request"]
+        assert public_request_url.startswith("https://eutils.ncbi.nlm.nih.gov/entrez/eutils/")
+        _assert_sanitized_payload(correction_payload, allowed_urls=(public_request_url,))
+        assert (
+            hashlib.sha256(correction_path.read_bytes()).hexdigest()
+            == index["related_correction_snapshot"]["sanitized_sha256"]
+        )
+        correction_records = {record["pmid"]: record for record in correction_payload["records"]}
+        assert set(correction_records) == {
+            "30311383",
+            "32461654",
+            "28518168",
+            "31479589",
+            "33300245",
+        }
+        assert correction_records["30311383"]["comments_corrections"] == []
+        assert correction_records["31479589"]["comments_corrections"] == []
+        assert correction_records["33300245"]["comments_corrections"] == []
+        assert {
+            link["ref_type"] for link in correction_records["32461654"]["comments_corrections"]
+        } == {"CommentIn", "ErratumIn"}

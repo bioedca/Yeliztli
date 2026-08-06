@@ -19,6 +19,7 @@ Usage::
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any
 
@@ -34,8 +35,9 @@ from backend.analysis.allelic_state import (
     allelic_state_coding as _allelic_state_coding,
 )
 from backend.analysis.zygosity import CARRIED_ZYGOSITIES
+from backend.api.gating import gated_modules_to_hide
 from backend.db.connection import get_registry
-from backend.db.tables import annotated_variants, samples
+from backend.db.tables import annotated_variants, findings, samples
 from backend.services.sex_inference import (
     get_recorded_biological_sex,
     infer_biological_sex,
@@ -53,6 +55,19 @@ SEQUENCE_ONTOLOGY = "http://www.sequenceontology.org"
 
 FHIR_GENOME_BUILD = "GRCh37/hg19"
 FHIR_MITOCHONDRIAL_REFERENCE = "rCRS"
+MAX_FHIR_OBSERVATIONS = 1_000
+
+
+class FhirExportTooLargeError(ValueError):
+    """Raised before resource construction when a FHIR export is oversized."""
+
+
+def _fhir_export_too_large_error() -> FhirExportTooLargeError:
+    return FhirExportTooLargeError(
+        "FHIR export exceeds the maximum of "
+        f"{MAX_FHIR_OBSERVATIONS:,} Observations; narrow the export."
+    )
+
 
 # LOINC codes for genomics reporting
 LOINC_MASTER_PANEL = "81247-9"  # Master HL7 genetic variant reporting panel
@@ -463,8 +478,132 @@ def _variant_to_observation(
     return full_url, observation
 
 
-def _load_annotated_variants(engine: sa.Engine) -> list[dict[str, Any]]:
-    """Load all annotated variants from a sample database."""
+def resolve_fhir_scope(
+    engine: sa.Engine,
+    modules: Sequence[str] | None,
+) -> tuple[list[str] | None, list[str]]:
+    """Resolve a requested module scope, and this sample's withheld modules.
+
+    Returns ``(scope, hidden)``. ``scope`` is ``None`` when the caller asked for
+    no module filter, which keeps the historical full-sample selection; any list
+    -- including an empty one -- scopes the bundle, and an empty scope yields an
+    empty bundle rather than everything.
+
+    ``hidden`` is returned **separately and unconditionally**, because the
+    disclosure gate is not part of the scope: it applies whether or not the
+    caller chose one. Folding it into the scope alone would leave omitting
+    `modules` as a way to reach findings the PDF path withholds.
+    """
+    hidden = gated_modules_to_hide(engine)
+    if modules is None:
+        return None, hidden
+    withheld = set(hidden)
+    # dict.fromkeys keeps first-seen order and drops duplicates, so a repeated
+    # query parameter cannot change the selection.
+    return [module for module in dict.fromkeys(modules) if module not in withheld], hidden
+
+
+def effective_fhir_modules(
+    engine: sa.Engine,
+    modules: Sequence[str] | None,
+) -> list[str] | None:
+    """Return only the resolved scope. See :func:`resolve_fhir_scope`."""
+    return resolve_fhir_scope(engine, modules)[0]
+
+
+def _rsids_named_by(modules_clause: sa.ColumnElement[bool]) -> sa.Select:
+    """rsIDs named by findings matching ``modules_clause``.
+
+    Findings carrying no rsID -- a polygenic score, a haplogroup call -- name no
+    variant, so they can neither include nor withhold one.
+    """
+    return sa.select(findings.c.rsid).where(
+        modules_clause,
+        findings.c.rsid.is_not(None),
+        findings.c.rsid != "",
+    )
+
+
+def _fhir_variant_clauses(
+    *,
+    include_all: bool,
+    modules: Sequence[str] | None,
+    hidden_modules: Sequence[str] = (),
+) -> list[sa.ColumnElement[bool]]:
+    """Return the SQL predicates shared by FHIR preflight and generation."""
+    clauses: list[sa.ColumnElement[bool]] = [
+        annotated_variants.c.zygosity.in_(sorted(CARRIED_ZYGOSITIES))
+    ]
+    if not include_all:
+        clauses.extend(
+            [
+                annotated_variants.c.clinvar_significance.is_not(None),
+                annotated_variants.c.clinvar_significance != "",
+            ]
+        )
+    if modules is not None:
+        # The bundle is built from `annotated_variants`, but the report the user
+        # curated lives in `findings`. rsID is the only join between them, so a
+        # module-scoped export is the carried variants that some finding in a
+        # selected module points at.
+        clauses.append(
+            annotated_variants.c.rsid.in_(_rsids_named_by(findings.c.module.in_(list(modules))))
+        )
+    if hidden_modules:
+        # Applied whether or not a scope was requested. An unacknowledged
+        # disclosure gate withholds a variant from the report and findings paths,
+        # and an export that ignored the gate would simply be the way around it —
+        # omitting `modules` must not disclose more than selecting them does.
+        #
+        # A variant is withheld only when a gated module is its *sole* reason to
+        # appear: an rsID also named by a visible module's finding is legitimately
+        # disclosed through that module, which is exactly how the PDF path behaves
+        # (it filters findings, not variants).
+        withheld = list(hidden_modules)
+        clauses.append(
+            sa.not_(
+                annotated_variants.c.rsid.in_(_rsids_named_by(findings.c.module.in_(withheld)))
+                & annotated_variants.c.rsid.not_in(
+                    _rsids_named_by(findings.c.module.not_in(withheld))
+                )
+            )
+        )
+    return clauses
+
+
+def count_fhir_observations(
+    engine: sa.Engine,
+    *,
+    include_all: bool,
+    modules: Sequence[str] | None = None,
+    hidden_modules: Sequence[str] = (),
+) -> int:
+    """Count only up to one Observation beyond the supported output ceiling."""
+    bounded_selection = (
+        sa.select(sa.literal(1).label("selected"))
+        .where(
+            sa.and_(
+                *_fhir_variant_clauses(
+                    include_all=include_all, modules=modules, hidden_modules=hidden_modules
+                )
+            )
+        )
+        .limit(MAX_FHIR_OBSERVATIONS + 1)
+        .subquery()
+    )
+    with engine.connect() as conn:
+        count = conn.scalar(sa.select(sa.func.count()).select_from(bounded_selection))
+    return int(count or 0)
+
+
+def _load_annotated_variants(
+    engine: sa.Engine,
+    *,
+    include_all: bool,
+    modules: Sequence[str] | None = None,
+    hidden_modules: Sequence[str] = (),
+) -> list[dict[str, Any]]:
+    """Load at most one carried variant beyond the FHIR output ceiling."""
     # Canonical chromosome sort order
     chrom_order: dict[str, int] = {
         **{str(i): i for i in range(1, 23)},
@@ -476,12 +615,24 @@ def _load_annotated_variants(engine: sa.Engine) -> list[dict[str, Any]]:
         *[(annotated_variants.c.chrom == k, v) for k, v in chrom_order.items()],
         else_=99,
     )
-    query = sa.select(annotated_variants).order_by(
-        chrom_expr.asc(), annotated_variants.c.pos.asc()
+    query = (
+        sa.select(annotated_variants)
+        .where(
+            sa.and_(
+                *_fhir_variant_clauses(
+                    include_all=include_all, modules=modules, hidden_modules=hidden_modules
+                )
+            )
+        )
+        .order_by(chrom_expr.asc(), annotated_variants.c.pos.asc())
+        .limit(MAX_FHIR_OBSERVATIONS + 1)
     )
 
     with engine.connect() as conn:
         rows = conn.execute(query).fetchall()
+
+    if len(rows) > MAX_FHIR_OBSERVATIONS:
+        raise _fhir_export_too_large_error()
 
     return [
         {col.name: getattr(r, col.name, None) for col in annotated_variants.columns} for r in rows
@@ -492,6 +643,7 @@ def build_fhir_bundle(
     sample_id: int,
     *,
     include_all: bool = True,
+    modules: Sequence[str] | None = None,
 ) -> dict[str, Any]:
     """Build a FHIR R4 Bundle (type=collection) for a sample.
 
@@ -502,6 +654,11 @@ def build_fhir_bundle(
     include_all:
         If True, include all annotated variants. If False, only include
         variants with ClinVar annotations (non-null clinvar_significance).
+    modules:
+        Report modules to scope the bundle to, matching the Report Builder
+        selection. ``None`` keeps the historical full-sample selection; a list
+        restricts the bundle to carried variants named by findings in those
+        modules, and an empty list yields an empty bundle.
 
     Returns
     -------
@@ -530,24 +687,46 @@ def build_fhir_bundle(
 
     sample_engine = registry.get_sample_engine(sample_db_path)
 
-    # Load variants
-    all_variants = _load_annotated_variants(sample_engine)
+    # Reject oversized direct POSTs with the bounded, unordered selection before
+    # the canonical-order query can sort or materialize any selected rows.
+    # Resolve the scope and the disclosure gate once so the preflight and the
+    # load cannot disagree about which modules are in play, or about which are
+    # withheld.
+    scoped_modules, hidden_modules = resolve_fhir_scope(sample_engine, modules)
+    if (
+        count_fhir_observations(
+            sample_engine,
+            include_all=include_all,
+            modules=scoped_modules,
+            hidden_modules=hidden_modules,
+        )
+        > MAX_FHIR_OBSERVATIONS
+    ):
+        raise _fhir_export_too_large_error()
+
+    # Apply carriage, module and optional ClinVar filters in SQL. The limit
+    # remains a defense-in-depth recheck if rows change between preflight and load.
+    all_variants = _load_annotated_variants(
+        sample_engine,
+        include_all=include_all,
+        modules=scoped_modules,
+        hidden_modules=hidden_modules,
+    )
     if not all_variants:
-        raise ValueError(f"Sample {sample_id} has no annotated variants. Run annotation first.")
-
-    # Carriage-gate the exported Observations (#890). A FHIR genetic-variant
-    # Observation asserts the variant is *present* in the sample, so only export
-    # positions actually carried — het / hom_alt — matching the carriage gate the
-    # cancer/carrier/cardiovascular pipelines apply (CARRIED_ZYGOSITIES). hom_ref
-    # positions carry no variant; exporting them (with the variant's ClinVar
-    # significance and a "Homozygous" allelic state indistinguishable from hom_alt)
-    # is a false clinical assertion — thousands of false homozygous-pathogenic rows
-    # per healthy sample.
-    all_variants = [v for v in all_variants if v.get("zygosity") in CARRIED_ZYGOSITIES]
-
-    # Filter if requested
-    if not include_all:
-        all_variants = [v for v in all_variants if v.get("clinvar_significance")]
+        # Preserve the existing distinction between a sample with no annotation
+        # rows (an error) and one whose rows are all non-carried or filtered out
+        # (a valid DiagnosticReport with zero Observations).
+        with sample_engine.connect() as conn:
+            has_annotated_variants = (
+                conn.execute(
+                    sa.select(sa.literal(1)).select_from(annotated_variants).limit(1)
+                ).first()
+                is not None
+            )
+        if not has_annotated_variants:
+            raise ValueError(
+                f"Sample {sample_id} has no annotated variants. Run annotation first."
+            )
 
     # Resolve biological sex once, only when a carried variant sits on chrX/chrY
     # — that is the sole place sex changes the allelic state (a male non-PAR

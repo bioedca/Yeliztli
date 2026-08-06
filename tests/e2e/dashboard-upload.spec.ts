@@ -58,4 +58,39 @@ test.describe('Dashboard upload', () => {
     ).toBeVisible()
     expect(ingestRequests).toBe(0)
   })
+
+  test('shows curated remediation for a typed unsupported-build response', async ({ page }) => {
+    await mockEmptyDashboard(page)
+
+    const rawDiagnostic = 'GRCh38 at /private/imports/user-42.txt'
+    await page.route('**/api/ingest', (route) =>
+      route.fulfill({
+        status: 422,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          detail: {
+            code: 'unsupported_genome_build',
+            diagnostic: rawDiagnostic,
+          },
+        }),
+      }),
+    )
+
+    await page.goto('/')
+    await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
+
+    await page.locator('input[type="file"]').setInputFiles({
+      name: 'unsupported-build.txt',
+      mimeType: 'text/plain',
+      buffer: Buffer.from('unsupported build fixture'),
+    })
+
+    await expect(page.getByText('Upload failed')).toBeVisible()
+    await expect(
+      page.getByText(
+        'This file uses an unsupported genome build. Upload a GRCh37 (build 37) export, such as 23andMe v4/v5 or AncestryDNA.',
+      ),
+    ).toBeVisible()
+    await expect(page.getByText(rawDiagnostic)).toHaveCount(0)
+  })
 })

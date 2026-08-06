@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import os
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from io import BytesIO
 from pathlib import Path
 from threading import Lock
@@ -21,6 +21,7 @@ from sqlalchemy.exc import OperationalError
 
 from backend.config import config_toml_path, get_settings
 from backend.db.build_guard import build_lock
+from backend.db.download_manager import HUEY_DOWNLOAD_JOB_TYPE
 from backend.logging_config import configure_logging
 
 logger = structlog.get_logger(__name__)
@@ -82,68 +83,100 @@ huey = SqliteHuey(
     immediate=_immediate,
 )
 
+HUEY_PENDING_ENQUEUE_GRACE = timedelta(minutes=5)
+# How long a claimed job may go without refreshing its heartbeat before the
+# lease is treated as abandoned. The heartbeat rides on progress reporting rather
+# than a fixed tick, so this has to be long enough to cover the quietest stretch
+# a healthy job can have between progress updates -- a slow annotation chunk must
+# never look like a death.
+HUEY_HEARTBEAT_GRACE = timedelta(minutes=15)
+
+# Identity of *this* worker process. `_WORKER_OWNER_ID` is stable for the life of
+# the process and `_WORKER_EPOCH` marks this particular run, so a row carrying an
+# older epoch is provably held by a predecessor even if the pid was reused. Both
+# are module state rather than configuration: nothing outside this process may
+# claim to be it.
+_WORKER_OWNER_ID = f"huey:{uuid.uuid4()}"
+_WORKER_EPOCH = f"{os.getpid()}:{uuid.uuid4()}"
+
+
+def worker_lease_identity() -> tuple[str, str]:
+    """Return this worker's (owner_id, owner_epoch) lease identity."""
+    return _WORKER_OWNER_ID, _WORKER_EPOCH
+
+
+_HUEY_JOB_TASKS: dict[str, tuple[str, str, int]] = {
+    "run_annotation_task": ("annotation", "job_id", 1),
+    "run_lai_task": ("lai_analysis", "job_id", 1),
+    "run_update_check_task": ("update_check", "job_id", 0),
+    "run_database_update_task": ("database_update", "job_id", 0),
+    "run_backup_export_task": ("backup_export", "job_id", 0),
+}
+_HUEY_OWNED_JOB_TYPES = frozenset(
+    {
+        *(spec[0] for spec in _HUEY_JOB_TASKS.values()),
+        HUEY_DOWNLOAD_JOB_TYPE,
+    }
+)
+
 
 # ── Job record helpers ──────────────────────────────────────────────────
 
 
 def create_annotation_job(sample_id: int) -> str:
     """Create a job record for an annotation run. Returns the job_id."""
-    import sqlalchemy as sa
-
     from backend.db.connection import get_registry
-    from backend.db.tables import jobs
+    from backend.services.sample_operation_lock import (
+        SampleOperationConflictError,
+        reserve_annotation_job,
+    )
 
     job_id = str(uuid.uuid4())
     now = datetime.now(UTC)
     registry = get_registry()
-
-    with registry.reference_engine.begin() as conn:
-        # Check for an already-running annotation job on this sample
-        existing = conn.execute(
-            sa.select(jobs.c.job_id).where(
-                jobs.c.sample_id == sample_id,
-                jobs.c.job_type == "annotation",
-                jobs.c.status.in_(["pending", "running"]),
-            )
-        ).fetchone()
-        if existing is not None:
-            raise ValueError(
-                f"Annotation already in progress for sample {sample_id} (job {existing.job_id})"
-            )
-
-        conn.execute(
-            jobs.insert().values(
-                job_id=job_id,
-                sample_id=sample_id,
-                job_type="annotation",
-                status="pending",
-                progress_pct=0.0,
-                message="Queued for annotation",
-                created_at=now,
-                updated_at=now,
-            )
+    try:
+        reserve_annotation_job(
+            registry.reference_engine,
+            sample_id=sample_id,
+            job_id=job_id,
+            created_at=now,
         )
+    except SampleOperationConflictError as exc:
+        raise ValueError(str(exc)) from exc
 
     return job_id
 
 
 def recover_orphaned_jobs(engine) -> int:
-    """Mark any jobs left in 'running'/'pending' state as failed.
+    """Fail process-owned leases abandoned by an API restart.
 
-    Called at backend startup. A worker that gets killed mid-task leaves its
-    jobs row stuck — there is no in-process recovery, so the UI keeps showing
-    a stale progress bar forever. This sweeps those rows on boot.
+    Huey runs in a separate process in both systemd and Docker deployments.
+    An API-only restart therefore cannot prove that a pending/running/cancelling
+    Huey job is orphaned; changing one to ``failed`` would release the export
+    interlock while the worker may still be mutating the sample. Immediate mode
+    instead runs Huey inside the API process, so those jobs are process-owned
+    and must be recovered by this sweep as well.
     """
     from backend.db.tables import jobs
+    from backend.services.sample_operation_lock import SAMPLE_EXPORT_JOB_TYPE
+
+    recoverable_job_types = {
+        SAMPLE_EXPORT_JOB_TYPE,
+        "database_download",
+        "download",
+    }
+    if huey.immediate:
+        recoverable_job_types.update(_HUEY_OWNED_JOB_TYPES)
 
     with engine.begin() as conn:
         result = conn.execute(
             jobs.update()
-            .where(jobs.c.status.in_(("running", "pending")))
+            .where(jobs.c.job_type.in_(tuple(sorted(recoverable_job_types))))
+            .where(jobs.c.status.in_(("pending", "running", "cancelling")))
             .values(
                 status="failed",
-                error="Worker terminated (backend restarted while task was in progress)",
-                message="Interrupted by backend restart",
+                error="API restarted while the operation was in progress",
+                message="Operation interrupted by backend restart",
                 updated_at=datetime.now(UTC),
             )
         )
@@ -151,6 +184,142 @@ def recover_orphaned_jobs(engine) -> int:
     if count:
         logger.info("orphaned_jobs_recovered", count=count)
     return count
+
+
+def recover_worker_orphaned_jobs(
+    engine,
+    *,
+    queued_job_ids: set[str],
+    recovery_time: datetime,
+    recover_running: bool,
+    owner_id: str | None = None,
+    owner_epoch: str | None = None,
+) -> int:
+    """Release durable rows proven abandoned by the sole Huey worker.
+
+    At worker startup, any ``running`` row belonged to the stopped predecessor.
+    A pending row is abandoned only after the reservation-to-enqueue grace
+    period and when its task is absent from the persistent queue. The periodic
+    single-worker sweep revisits rows protected by that grace period without
+    touching a task that can still be executing.
+    """
+    from backend.db.tables import jobs
+
+    pending_cutoff = recovery_time - HUEY_PENDING_ENQUEUE_GRACE
+    heartbeat_cutoff = recovery_time - HUEY_HEARTBEAT_GRACE
+    orphaned_pending = (
+        (jobs.c.status == "pending")
+        & ((jobs.c.created_at.is_(None)) | (jobs.c.created_at < pending_cutoff))
+        & jobs.c.job_id.not_in(queued_job_ids)
+    )
+    # Provably *someone else's* lease -- not merely "not proven to be mine".
+    # A NULL owner is unclaimed, and unclaimed is exactly what a job type that
+    # never takes a lease looks like: only annotation claims one, so a download
+    # or backup export runs its whole life with `owner_id IS NULL`. Treating
+    # that as abandoned would let the five-minutely sweep fail a task that is
+    # still executing, which is the opposite of what the lease is for. An
+    # unclaimed row is left to the startup sweep, where a restart is itself the
+    # proof that nothing is still running (#2232).
+    not_mine = jobs.c.owner_id.is_not(None) & (jobs.c.owner_id != owner_id)
+    if owner_epoch is not None:
+        not_mine |= jobs.c.owner_id.is_not(None) & (jobs.c.owner_epoch != owner_epoch)
+    # A lease whose heartbeat has gone quiet past the grace period is abandoned
+    # even if the owner never came back to say so.
+    heartbeat_expired = (jobs.c.heartbeat_at.is_(None)) | (jobs.c.heartbeat_at < heartbeat_cutoff)
+    abandoned_active = not_mine & heartbeat_expired
+
+    orphaned = orphaned_pending
+    if recover_running:
+        # At startup every active row belongs to the stopped predecessor.
+        orphaned |= jobs.c.status == "running"
+    else:
+        # Mid-flight, only release a running row whose owner is provably gone.
+        orphaned |= (jobs.c.status == "running") & abandoned_active
+
+    # `cancelling` is an ACTIVE state: it still holds the annotation/export
+    # interlock, deliberately, until the worker acknowledges the cancel. It must
+    # therefore be gated exactly like `running` — the previous unconditional
+    # sweep flipped every cancelling row to `cancelled` on a 5-minutely tick,
+    # releasing the interlock while the live worker was still inside
+    # run_annotation() writing the sample database, which is the invariant the
+    # state exists to protect.
+    cancelling_orphaned = jobs.c.status == "cancelling"
+    if not recover_running:
+        cancelling_orphaned &= abandoned_active & jobs.c.job_id.not_in(queued_job_ids)
+
+    with engine.begin() as conn:
+        failed = conn.execute(
+            jobs.update()
+            .where(jobs.c.job_type.in_(_HUEY_OWNED_JOB_TYPES))
+            .where(orphaned)
+            .values(
+                status="failed",
+                error="Huey worker stopped before the background job completed",
+                message="Background job interrupted by worker restart",
+                updated_at=recovery_time,
+            )
+        )
+        cancelled = conn.execute(
+            jobs.update()
+            .where(jobs.c.job_type.in_(_HUEY_OWNED_JOB_TYPES))
+            .where(cancelling_orphaned)
+            .values(
+                status="cancelled",
+                message="Cancelled during worker restart",
+                updated_at=recovery_time,
+            )
+        )
+        count = (failed.rowcount or 0) + (cancelled.rowcount or 0)
+    if count:
+        logger.info("worker_orphaned_jobs_recovered", count=count)
+    return count
+
+
+def _fail_annotation_reservation(job_id: str, *, error: str) -> None:
+    """Release a pending annotation reservation after Huey enqueue fails."""
+    from backend.db.connection import get_registry
+    from backend.db.tables import jobs
+
+    registry = get_registry()
+    with registry.reference_engine.begin() as conn:
+        result = conn.execute(
+            jobs.update()
+            .where(jobs.c.job_id == job_id)
+            .where(jobs.c.job_type == "annotation")
+            .where(jobs.c.status == "pending")
+            .values(
+                status="failed",
+                error=error,
+                message="Annotation could not be queued",
+                updated_at=datetime.now(UTC),
+            )
+        )
+        released = result.rowcount == 1
+    if not released:
+        logger.warning(
+            "annotation_reservation_release_skipped",
+            extra={"job_id": job_id},
+        )
+
+
+class AnnotationEnqueueError(RuntimeError):
+    """Huey rejected an annotation after its durable reservation was created."""
+
+
+def enqueue_annotation_job(sample_id: int) -> str:
+    """Reserve and enqueue annotation, releasing the reservation on failure."""
+    job_id = create_annotation_job(sample_id)
+    try:
+        run_annotation_task(sample_id, job_id)
+    except Exception as exc:
+        try:
+            _fail_annotation_reservation(job_id, error=str(exc))
+        except Exception as cleanup_exc:
+            raise AnnotationEnqueueError(
+                "Unable to queue annotation or release its reservation"
+            ) from cleanup_exc
+        raise AnnotationEnqueueError("Unable to queue annotation") from exc
+    return job_id
 
 
 def _update_job(
@@ -168,23 +337,76 @@ def _update_job(
 
     registry = get_registry()
     with registry.reference_engine.begin() as conn:
-        result = conn.execute(
+        update = jobs.update().where(jobs.c.job_id == job_id)
+        if status not in ("cancelled", "failed"):
+            # A worker update racing a cancellation request must not reopen the
+            # job as running/complete before the worker acknowledges it.
+            update = update.where(jobs.c.status.not_in(("cancelling", "cancelled")))
+        now = datetime.now(UTC)
+        values: dict[str, object] = {
+            "status": status,
+            "progress_pct": progress_pct,
+            "message": message,
+            "error": error,
+            "updated_at": now,
+        }
+        if status in ("pending", "running", "cancelling"):
+            # Progress reporting doubles as the liveness signal, so a job that is
+            # genuinely working can never look abandoned. A terminal status stops
+            # refreshing: the lease is over, not stale.
+            values["heartbeat_at"] = now
+        result = conn.execute(update.values(**values))
+        updated = result.rowcount != 0
+    if not updated:
+        logger.warning(
+            "job_update_skipped",
+            extra={"job_id": job_id, "attempted_status": status},
+        )
+
+
+def _claim_annotation_job(job_id: str) -> bool:
+    """Atomically claim a pending row before touching sample data."""
+    from backend.db.connection import get_registry
+    from backend.db.tables import jobs
+
+    registry = get_registry()
+    now = datetime.now(UTC)
+    with registry.reference_engine.begin() as conn:
+        claimed = conn.execute(
             jobs.update()
             .where(jobs.c.job_id == job_id)
+            .where(jobs.c.job_type == "annotation")
+            .where(jobs.c.status == "pending")
             .values(
-                status=status,
-                progress_pct=progress_pct,
-                message=message,
-                error=error,
+                status="running",
+                message="Annotating…",
+                updated_at=now,
+                # Take the lease in the same atomic statement that takes the row.
+                # Claiming without recording the owner would leave a running job
+                # nobody can be shown to hold, which is the state #2232 is about.
+                owner_id=_WORKER_OWNER_ID,
+                owner_epoch=_WORKER_EPOCH,
+                heartbeat_at=now,
+            )
+        )
+        if claimed.rowcount == 1:
+            return True
+        conn.execute(
+            jobs.update()
+            .where(jobs.c.job_id == job_id)
+            .where(jobs.c.job_type == "annotation")
+            .where(jobs.c.status == "cancelling")
+            .values(
+                status="cancelled",
+                message="Cancelled by user",
                 updated_at=datetime.now(UTC),
             )
         )
-        if result.rowcount == 0:
-            logger.warning("_update_job: no job found", extra={"job_id": job_id})
+    return False
 
 
 def _is_job_cancelled(job_id: str) -> bool:
-    """Check if a job has been cancelled by the user."""
+    """Check if cancellation was requested or acknowledged."""
     import sqlalchemy as sa
 
     from backend.db.connection import get_registry
@@ -194,7 +416,59 @@ def _is_job_cancelled(job_id: str) -> bool:
     with registry.reference_engine.connect() as conn:
         row = conn.execute(sa.select(jobs.c.status).where(jobs.c.job_id == job_id)).fetchone()
 
-    return row is not None and row.status == "cancelled"
+    return row is not None and row.status in ("cancelling", "cancelled")
+
+
+def _finalize_annotation_job(
+    job_id: str,
+    *,
+    status: str,
+    progress_pct: float,
+    message: str,
+    error: str | None = None,
+) -> str | None:
+    """Commit success/partial or acknowledge a racing cancellation atomically."""
+    import sqlalchemy as sa
+
+    from backend.db.connection import get_registry
+    from backend.db.tables import jobs
+
+    cancellation_requested = jobs.c.status.in_(("cancelling", "cancelled"))
+    registry = get_registry()
+    with registry.reference_engine.begin() as conn:
+        result = conn.execute(
+            jobs.update()
+            .where(jobs.c.job_id == job_id)
+            .where(jobs.c.job_type == "annotation")
+            .values(
+                status=sa.case((cancellation_requested, "cancelled"), else_=status),
+                progress_pct=sa.case(
+                    (cancellation_requested, jobs.c.progress_pct),
+                    else_=progress_pct,
+                ),
+                message=sa.case(
+                    (cancellation_requested, "Cancelled by user"),
+                    else_=message,
+                ),
+                error=sa.case(
+                    (cancellation_requested, jobs.c.error),
+                    else_=error,
+                ),
+                updated_at=datetime.now(UTC),
+            )
+        )
+        found = result.rowcount == 1
+        row = (
+            conn.execute(sa.select(jobs.c.status).where(jobs.c.job_id == job_id)).fetchone()
+            if found
+            else None
+        )
+    if not found:
+        logger.warning(
+            "_finalize_annotation_job: no annotation job found",
+            extra={"job_id": job_id},
+        )
+    return None if row is None else row.status
 
 
 class AnnotationCancelledError(Exception):
@@ -254,13 +528,21 @@ def run_annotation_task(sample_id: int, job_id: str) -> None:
 
     registry = get_registry()
 
+    if not _claim_annotation_job(job_id):
+        logger.info(
+            "annotation_task_skipped_inactive",
+            extra={"job_id": job_id, "sample_id": sample_id},
+        )
+        return
+
     try:
         # Look up sample DB path and get engine
         db_path = _get_sample_db_path(sample_id)
         sample_db_full = registry.settings.data_dir / db_path
         sample_engine = registry.get_sample_engine(sample_db_full)
 
-        _update_job(job_id, status="running", message="Annotating…")
+        if _is_job_cancelled(job_id):
+            raise AnnotationCancelledError(f"Job {job_id} cancelled by user")
 
         def progress_callback(variants_done: int, total: int) -> None:
             if _is_job_cancelled(job_id):
@@ -305,6 +587,9 @@ def run_annotation_task(sample_id: int, job_id: str) -> None:
             )
 
         # Run all analysis modules to populate findings
+        if _is_job_cancelled(job_id):
+            raise AnnotationCancelledError(f"Job {job_id} cancelled by user")
+
         _update_job(
             job_id,
             status="running",
@@ -520,7 +805,10 @@ def run_annotation_task(sample_id: int, job_id: str) -> None:
             final_status = "complete"
             status_note = ""
 
-        _update_job(
+        if _is_job_cancelled(job_id):
+            raise AnnotationCancelledError(f"Job {job_id} cancelled by user")
+
+        resolved_status = _finalize_annotation_job(
             job_id,
             status=final_status,
             progress_pct=100.0,
@@ -533,6 +821,13 @@ def run_annotation_task(sample_id: int, job_id: str) -> None:
             ),
             error=error_summary,
         )
+
+        if resolved_status == "cancelled":
+            logger.info(
+                "annotation_task_cancelled",
+                extra={"job_id": job_id, "sample_id": sample_id},
+            )
+            return
 
         logger.info(
             "annotation_task_complete",
@@ -549,7 +844,11 @@ def run_annotation_task(sample_id: int, job_id: str) -> None:
             "annotation_task_cancelled",
             extra={"job_id": job_id, "sample_id": sample_id},
         )
-        # Status already set to "cancelled" by the cancel endpoint
+        _update_job(
+            job_id,
+            status="cancelled",
+            message="Cancelled by user",
+        )
 
     except Exception as exc:
         logger.exception(
@@ -564,6 +863,71 @@ def run_annotation_task(sample_id: int, job_id: str) -> None:
         )
 
 
+def _worker_job_from_task(task) -> tuple[str, str] | None:
+    """Extract ``(job_type, job_id)`` from a durable Huey task."""
+    spec = _HUEY_JOB_TASKS.get(getattr(task, "name", None))
+    if spec is None:
+        return None
+    job_type, parameter_name, position = spec
+    try:
+        args, kwargs = task.data
+    except (AttributeError, TypeError, ValueError):
+        return None
+    job_id = kwargs.get(parameter_name) if isinstance(kwargs, dict) else None
+    if job_id is None and isinstance(args, (list, tuple)) and len(args) > position:
+        job_id = args[position]
+    return (job_type, job_id) if isinstance(job_id, str) else None
+
+
+def _queued_worker_job_ids() -> set[str] | None:
+    """Return a complete queue snapshot, or ``None`` when it is unavailable."""
+    try:
+        queued_tasks = [*huey.pending(), *huey.scheduled()]
+    except Exception:
+        logger.exception("worker_queue_snapshot_failed")
+        return None
+    return {
+        worker_job[1]
+        for task in queued_tasks
+        if (worker_job := _worker_job_from_task(task)) is not None
+    }
+
+
+@huey.on_startup(name="recover_worker_jobs")
+def _recover_jobs_on_worker_startup() -> None:
+    """Fence rows owned by the stopped predecessor worker."""
+    from backend.db.connection import get_registry
+
+    queued_job_ids = _queued_worker_job_ids()
+    if queued_job_ids is None:
+        return
+    recover_worker_orphaned_jobs(
+        get_registry().reference_engine,
+        queued_job_ids=queued_job_ids,
+        recovery_time=datetime.now(UTC),
+        recover_running=True,
+    )
+
+
+@huey.periodic_task(crontab(minute="*/5"))
+def recover_stale_pending_worker_jobs() -> None:
+    """Revisit enqueue-window rows without releasing a live worker task."""
+    from backend.db.connection import get_registry
+
+    queued_job_ids = _queued_worker_job_ids()
+    if queued_job_ids is None:
+        return
+    owner_id, owner_epoch = worker_lease_identity()
+    recover_worker_orphaned_jobs(
+        get_registry().reference_engine,
+        queued_job_ids=queued_job_ids,
+        recovery_time=datetime.now(UTC),
+        recover_running=False,
+        owner_id=owner_id,
+        owner_epoch=owner_epoch,
+    )
+
+
 # ── LAI analysis task (AMv2 Step 4) ───────────────────────────────────
 
 
@@ -573,6 +937,7 @@ def create_lai_job(sample_id: int) -> str:
 
     from backend.db.connection import get_registry
     from backend.db.tables import jobs
+    from backend.services.sample_operation_lock import ACTIVE_JOB_STATUSES
 
     job_id = str(uuid.uuid4())
     now = datetime.now(UTC)
@@ -584,7 +949,7 @@ def create_lai_job(sample_id: int) -> str:
             sa.select(jobs.c.job_id).where(
                 jobs.c.sample_id == sample_id,
                 jobs.c.job_type == "lai_analysis",
-                jobs.c.status.in_(["pending", "running"]),
+                jobs.c.status.in_(ACTIVE_JOB_STATUSES),
             )
         ).fetchone()
         if existing is not None:
@@ -628,6 +993,9 @@ def run_lai_task(sample_id: int, job_id: str) -> None:
         db_path = _get_sample_db_path(sample_id)
         sample_db_full = registry.settings.data_dir / db_path
         sample_engine = registry.get_sample_engine(sample_db_full)
+
+        if _is_job_cancelled(job_id):
+            raise AnnotationCancelledError(f"Job {job_id} cancelled by user")
 
         _update_job(job_id, status="running", message="Starting LAI analysis")
 
@@ -681,6 +1049,11 @@ def run_lai_task(sample_id: int, job_id: str) -> None:
 
     except AnnotationCancelledError:
         logger.info("lai_task_cancelled", job_id=job_id, sample_id=sample_id)
+        _update_job(
+            job_id,
+            status="cancelled",
+            message="Cancelled by user",
+        )
 
     except LAICoveragePolicyUnavailableError as exc:
         logger.info(
@@ -743,13 +1116,15 @@ def run_update_check_task(job_id: str) -> None:
     This is the on-demand / startup update check task.
     """
     from backend.db.connection import get_registry
+    from backend.db.download_manager import huey_download_job_ownership
     from backend.db.update_manager import run_scheduled_update_check
 
     try:
         _update_job(job_id, status="running", message="Checking for database updates")
 
         registry = get_registry()
-        result = run_scheduled_update_check(registry)
+        with huey_download_job_ownership():
+            result = run_scheduled_update_check(registry)
 
         msg_parts = []
         if result.available:
@@ -801,6 +1176,7 @@ def run_database_update_task(job_id: str, db_name: str) -> None:
     """
     from backend.db.build_guard import build_claim
     from backend.db.connection import get_registry
+    from backend.db.download_manager import huey_download_job_ownership
 
     settings = get_registry().settings
     with build_claim(db_name, settings.data_dir) as acquired:
@@ -819,7 +1195,8 @@ def run_database_update_task(job_id: str, db_name: str) -> None:
                 extra={"job_id": job_id, "db_name": db_name},
             )
             return
-        _execute_database_update(job_id, db_name)
+        with huey_download_job_ownership():
+            _execute_database_update(job_id, db_name)
 
 
 def _execute_database_update(job_id: str, db_name: str) -> None:

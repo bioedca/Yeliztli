@@ -1,0 +1,72 @@
+{
+  "schema_version": "1.0",
+  "claim_ids": ["C3"],
+  "source": "Consensus",
+  "accessed": "2026-08-03",
+  "payload_type": "sanitized raw service responses",
+  "search": {
+    "request": {
+      "operation": "consensus_search",
+      "query": "ACMG BS1 BA1 allele frequency founder populations Ashkenazi Jewish Finnish filtering allele frequency ClinGen SVI"
+    },
+    "sanitized_provider_envelope": {
+      "content": [
+        {
+          "type": "text",
+          "response": {
+            "returned_results": 20,
+            "selected_result_rank": 6,
+            "selected_result": {
+              "id": "4439bbb6071d5097972fac0f2fea8fb0",
+              "title": "Updated recommendation for the benign stand‐alone ACMG/AMP criterion"
+            }
+          }
+        }
+      ],
+      "structuredContent": {
+        "query": "ACMG BS1 BA1 allele frequency founder populations Ashkenazi Jewish Finnish filtering allele frequency ClinGen SVI",
+        "total_results": 20,
+        "returned_results": 20
+      },
+      "isError": false
+    }
+  },
+  "fetch": {
+    "request": {
+      "operation": "consensus_fetch",
+      "id": "4439bbb6071d5097972fac0f2fea8fb0"
+    },
+    "sanitized_provider_envelope": {
+      "content": [
+        {
+          "type": "text",
+          "response": {
+            "id": "4439bbb6071d5097972fac0f2fea8fb0",
+            "title": "Updated Recommendation for the Benign Stand Alone ACMG/AMP Criterion",
+            "metadata": {
+              "publish_year": "2018",
+              "journal": "Human mutation",
+              "volume": "39",
+              "pages": "1525 - 1530",
+              "citation_count": "151"
+            }
+          }
+        }
+      ],
+      "structuredContent": null,
+      "isError": false
+    }
+  },
+  "redaction": {
+    "removed_response_fields": [
+      "search results other than the selected record",
+      "search result text snippets",
+      "search result URLs and UTM parameters",
+      "fetch text containing article abstract and generated takeaway",
+      "fetch URL and UTM parameters",
+      "fetch metadata.authors"
+    ],
+    "reason": "Retain provider-returned identifiers and citation metadata needed to reproduce source selection, while excluding article text and user-specific service links."
+  },
+  "license_or_terms": "No abstract, full text, author/affiliation detail, or service access URL is redistributed."
+}

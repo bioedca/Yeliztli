@@ -526,7 +526,7 @@ def get_system_status() -> SystemStatus:
     active_jobs: list[ActiveJob] = []
     try:
         with registry.reference_engine.connect() as conn:
-            q = sa.select(jobs).where(jobs.c.status.in_(["pending", "running"]))
+            q = sa.select(jobs).where(jobs.c.status.in_(["pending", "running", "cancelling"]))
             rows = conn.execute(q).mappings().all()
             for r in rows:
                 created = r["created_at"]

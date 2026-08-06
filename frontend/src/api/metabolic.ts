@@ -1,6 +1,8 @@
 /** Metabolic module API hooks (SW-B5). Route-only module: a POST /run computes
  * the scores, then the GET endpoints read them back. */
 
+import { throwApiError } from "@/api/errors"
+
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type {
   MetabolicAnchorListResponse,
@@ -10,8 +12,7 @@ import type {
 async function getJson<T>(url: string, label: string): Promise<T> {
   const res = await fetch(url)
   if (!res.ok) {
-    const text = await res.text().catch(() => "")
-    throw new Error(`${label} failed: ${res.status}${text ? ` - ${text}` : ""}`)
+    await throwApiError(res, `${label} could not be loaded. Please try again.`)
   }
   return res.json()
 }
@@ -52,8 +53,7 @@ export function useRunMetabolic(sampleId: number | null) {
         method: "POST",
       })
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`Metabolic run failed: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `Metabolic run failed. Please try again.`)
       }
       return res.json()
     },

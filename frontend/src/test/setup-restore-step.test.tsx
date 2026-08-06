@@ -186,9 +186,12 @@ describe('ImportBackupStep — bundle-version mismatch wiring', () => {
     // Generic error state — banner must NOT appear.
     await waitFor(() => {
       expect(
-        screen.getByText(/a backup export is already in progress/i),
+        screen.getByText('Unable to import the backup. Please try again.'),
       ).toBeInTheDocument()
     })
+    expect(
+      screen.queryByText(/a backup export is already in progress/i),
+    ).not.toBeInTheDocument()
     expect(
       screen.queryByTestId('restore-bundle-mismatch'),
     ).not.toBeInTheDocument()

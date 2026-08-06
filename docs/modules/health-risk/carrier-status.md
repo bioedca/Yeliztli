@@ -21,6 +21,10 @@ pattern, each with ClinVar significance, review stars, an evidence rating, the a
 condition, and reproductive context. A single recessive variant means you are typically an
 **unaffected carrier**, so these findings are framed around reproductive risk and partner testing.
 
+ClinVar lower-penetrance/risk-allele findings are stored under a distinct findings category
+from high-penetrance P/LP carrier findings, although the current page displays both categories
+together.[^clingen-risk-allele]
+
 For **autosomal-recessive** genes, the module also surfaces **biallelic** patterns as
 **affected-status** findings — worded as a disease-state result rather than a "typically
 unaffected" carrier, with copy-number caveats and a prompt to confirm with clinical-grade
@@ -52,3 +56,9 @@ testing:
   sequencing.
 
 [^smn1]: [The clinical utility of a risk-modifying SNP to detect carriers for spinal muscular atrophy with increased sensitivity](https://doi.org/10.1002/mgg3.1897) (Ware et al., 2022, *Mol. Genet. Genomic Med.*) — routine *SMN1* copy-number assessment detects ~96% of carriers; current guidelines recommend pan-ethnic SMA carrier screening.
+
+[^clingen-risk-allele]: Schmidt RJ, et al. [Recommendations for risk allele evidence
+    curation, classification, and reporting from the ClinGen Low Penetrance/Risk Allele
+    Working Group](https://doi.org/10.1016/j.gim.2023.101036). *Genetics in Medicine*.
+    2024;26(3):101036. PMID:38054408; DOI:10.1016/j.gim.2023.101036
+    (accessed 2026-07-31).

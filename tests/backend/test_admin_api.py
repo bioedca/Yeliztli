@@ -813,7 +813,7 @@ class TestSystemStatus:
 
     def test_active_jobs_excludes_terminal_status(self, admin_client: TestClient) -> None:
         """#808: the Active Jobs panel filters the jobs table to in-flight
-        statuses (pending/running). Seed terminal-status jobs alongside the
+        statuses (pending/running/cancelling). Seed terminal-status jobs alongside the
         running one and assert /status returns ONLY the active job.
 
         The single-running-job fixture could not distinguish "filter to active"
@@ -829,6 +829,14 @@ class TestSystemStatus:
             conn.execute(
                 sa.insert(jobs),
                 [
+                    {
+                        "job_id": "test-job-cancelling",
+                        "sample_id": 1,
+                        "job_type": "annotation",
+                        "status": "cancelling",
+                        "progress_pct": 45.0,
+                        "message": "Cancellation requested",
+                    },
                     {
                         "job_id": "test-job-completed",
                         "sample_id": 1,
@@ -851,11 +859,14 @@ class TestSystemStatus:
         resp = admin_client.get("/api/admin/status")
         data = resp.json()
         active_ids = {j["job_id"] for j in data["active_jobs"]}
-        # Only the running job is active; the terminal-status jobs are excluded.
-        assert active_ids == {"test-job-1"}
+        # Running and cancellation-acknowledgement jobs are active; terminal
+        # statuses remain excluded.
+        assert active_ids == {"test-job-1", "test-job-cancelling"}
         assert "test-job-completed" not in active_ids
         assert "test-job-failed" not in active_ids
-        assert all(j["status"] in {"pending", "running"} for j in data["active_jobs"])
+        assert all(
+            j["status"] in {"pending", "running", "cancelling"} for j in data["active_jobs"]
+        )
 
     def test_total_samples(self, admin_client: TestClient) -> None:
         """Total samples count matches seeded data."""

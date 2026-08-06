@@ -1,5 +1,7 @@
 /** React Query hooks for VUS watch/unwatch API (P4-21j). */
 
+import { throwApiError } from "@/api/errors"
+
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 
 export interface WatchedVariant {
@@ -38,8 +40,7 @@ export function useWatchVariant(sampleId: number | null) {
         body: JSON.stringify({ sample_id: sampleId, rsid }),
       })
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(text || "Failed to watch variant")
+        await throwApiError(res, "Failed to watch variant")
       }
       return res.json() as Promise<WatchedVariant>
     },
@@ -62,8 +63,7 @@ export function useUnwatchVariant(sampleId: number | null) {
         { method: "DELETE" },
       )
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(text || "Failed to unwatch variant")
+        await throwApiError(res, "Failed to unwatch variant")
       }
     },
     onSuccess: () => {

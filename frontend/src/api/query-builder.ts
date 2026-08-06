@@ -1,5 +1,7 @@
 /** React Query hooks for the query builder API (P4-02) and SQL console (P4-04). */
 
+import { throwApiError } from "@/api/errors"
+
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import type {
   QueryMetaResponse,
@@ -22,8 +24,7 @@ export function useQueryFields() {
     queryFn: async (): Promise<QueryMetaResponse> => {
       const res = await fetch("/api/query/fields")
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`Failed to fetch query fields: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `Failed to fetch query fields. Please try again.`)
       }
       return res.json()
     },
@@ -60,8 +61,7 @@ export function useRunQuery() {
         }),
       })
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`Query execution failed: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `Query execution failed. Please try again.`)
       }
       return res.json()
     },
@@ -76,8 +76,7 @@ export function useSavedQueries() {
     queryFn: async (): Promise<SavedQuery[]> => {
       const res = await fetch("/api/saved-queries")
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`Failed to fetch saved queries: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `Failed to fetch saved queries. Please try again.`)
       }
       const data: SavedQueryListResponse = await res.json()
       return data.queries
@@ -96,8 +95,7 @@ export function useSaveQuery() {
         body: JSON.stringify(body),
       })
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(text || "Failed to save query")
+        await throwApiError(res, "Failed to save query")
       }
       return res.json()
     },
@@ -122,8 +120,7 @@ export function useUpdateSavedQuery() {
         body: JSON.stringify(body),
       })
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(text || "Failed to update saved query")
+        await throwApiError(res, "Failed to update saved query")
       }
       return res.json()
     },
@@ -139,8 +136,7 @@ export function useDeleteSavedQuery() {
         method: "DELETE",
       })
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(text || "Failed to delete saved query")
+        await throwApiError(res, "Failed to delete saved query")
       }
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["saved-queries"] }),
@@ -167,9 +163,7 @@ export function useExecuteSql() {
         body: JSON.stringify({ sample_id: sampleId, sql, limit }),
       })
       if (!res.ok) {
-        const data = await res.json().catch(() => null)
-        const detail = data?.detail || `SQL execution failed: ${res.status}`
-        throw new Error(detail)
+        await throwApiError(res, "SQL execution failed. Please try again.")
       }
       return res.json()
     },
@@ -266,8 +260,7 @@ export function useExportQuery() {
         }),
       })
       if (!res.ok) {
-        const data = await res.json().catch(() => null)
-        throw new Error(data?.detail || `Export failed: ${res.status}`)
+        await throwApiError(res, "Export failed. Please try again.")
       }
       const blob = await res.blob()
       const disposition = res.headers.get("content-disposition") || ""
@@ -294,8 +287,7 @@ export function useExportSql() {
         body: JSON.stringify({ sample_id: sampleId, sql, format }),
       })
       if (!res.ok) {
-        const data = await res.json().catch(() => null)
-        throw new Error(data?.detail || `Export failed: ${res.status}`)
+        await throwApiError(res, "Export failed. Please try again.")
       }
       const blob = await res.blob()
       const disposition = res.headers.get("content-disposition") || ""

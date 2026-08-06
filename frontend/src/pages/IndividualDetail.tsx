@@ -24,15 +24,19 @@ import { useMemo, useState } from "react"
 import { Link, useParams, useNavigate } from "react-router-dom"
 import { useQueries, useQuery } from "@tanstack/react-query"
 import {
+  AlertTriangle,
   ArrowLeft,
   FlaskConical,
   GitMerge,
+  RefreshCw,
   Star,
   User,
   Users,
 } from "lucide-react"
 
 import { useIndividual } from "@/api/individuals"
+import { ApiError, throwApiError } from "@/api/errors"
+import { useStartAnnotation } from "@/api/annotation"
 import { MergeWizard } from "@/components/individuals/MergeWizard"
 import type { LinkedSample } from "@/types/individuals"
 import type {
@@ -184,21 +188,35 @@ function LinkedSampleRow({ sample }: { sample: LinkedSample }) {
   const {
     data: variantCount,
     isLoading: countLoading,
+    isFetching: countFetching,
+    isFetchedAfterMount: countFetchedAfterMount,
     isError: countError,
+    error: countErrorDetail,
   } = useQuery({
     queryKey: ["variants-total-count", sample.id],
     queryFn: async () => {
       const res = await fetch(`/api/variants/count?sample_id=${sample.id}`)
-      if (!res.ok) return null
+      if (!res.ok) {
+        await throwApiError(res, "Unable to load the variant count. Please try again.")
+      }
       const body = (await res.json()) as { total?: number }
       return body.total ?? null
     },
     staleTime: Infinity,
+    // A linked sample can become stale while this individual page is away.
+    // Recheck every new page observer before treating its cached count as ready.
+    refetchOnMount: "always",
   })
 
-  const statusLabel = countLoading
+  const countAwaitingFreshness = countFetching && !countFetchedAfterMount
+  const requiresReannotation =
+    countErrorDetail instanceof ApiError && countErrorDetail.status === 423
+
+  const statusLabel = countLoading || countAwaitingFreshness
     ? "Loading…"
-    : countError
+    : requiresReannotation
+      ? "Re-annotation required"
+      : countError
       ? "Unavailable"
       : variantCount == null || variantCount === 0
         ? "No variants"
@@ -224,15 +242,93 @@ function LinkedSampleRow({ sample }: { sample: LinkedSample }) {
         {formatFileFormat(sample.file_format)}
       </td>
       <td className="px-4 py-2 text-sm text-right tabular-nums text-foreground">
-        {countLoading || countError || variantCount == null
+        {countLoading || countAwaitingFreshness || countError || variantCount == null
           ? "—"
           : formatNumber(variantCount)}
       </td>
-      <td className="px-4 py-2 text-xs text-muted-foreground">{statusLabel}</td>
+      <td className="px-4 py-2 text-xs text-muted-foreground">
+        {requiresReannotation ? (
+          <Link
+            to={`/?sample_id=${sample.id}`}
+            className="text-amber-700 hover:underline dark:text-amber-400"
+            data-testid={`linked-sample-reannotate-${sample.id}`}
+          >
+            {statusLabel}
+          </Link>
+        ) : (
+          statusLabel
+        )}
+      </td>
       <td className="px-4 py-2 text-xs text-muted-foreground">
         {formatTimestamp(sample.created_at)}
       </td>
     </tr>
+  )
+}
+
+function ReannotateLinkedSampleButton({ sample }: { sample: LinkedSample }) {
+  const reannotate = useStartAnnotation()
+  // useStartAnnotation invalidates this sample's result caches as soon as the
+  // job is accepted. The Track link's gate still waits for the backend's fresh
+  // response before allowing analysis views to render.
+  const annotationAlreadyRunning =
+    reannotate.error instanceof ApiError && reannotate.error.status === 409
+
+  return (
+    <li className="flex flex-wrap items-center gap-2 text-sm">
+      <span className="font-medium text-foreground">{sample.name}</span>
+      {reannotate.isSuccess || annotationAlreadyRunning ? (
+        <Link
+          to={`/?sample_id=${sample.id}`}
+          className="text-primary underline hover:no-underline"
+        >
+          Track re-annotation
+        </Link>
+      ) : (
+        <button
+          type="button"
+          onClick={() => reannotate.mutate(sample.id)}
+          disabled={reannotate.isPending}
+          className="inline-flex items-center gap-1 rounded-md border border-input bg-background px-2.5 py-1 text-xs font-medium hover:bg-accent disabled:opacity-60"
+          data-testid={`individual-reannotate-${sample.id}`}
+        >
+          <RefreshCw className="h-3 w-3" />
+          {reannotate.isPending ? "Starting…" : "Re-annotate"}
+        </button>
+      )}
+      {reannotate.isError && !annotationAlreadyRunning ? (
+        <span className="text-xs text-destructive" role="alert">
+          Unable to start re-annotation. Please try again.
+        </span>
+      ) : null}
+    </li>
+  )
+}
+
+function StaleLinkedSamplesNotice({ samples }: { samples: LinkedSample[] }) {
+  return (
+    <section
+      className="rounded-lg border border-amber-500/50 bg-amber-500/5 p-4"
+      data-testid="individual-stale-sample-gate"
+      role="alert"
+    >
+      <div className="flex items-start gap-3">
+        <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
+        <div className="space-y-2">
+          <p className="font-medium text-foreground">
+            Linked samples require re-annotation
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Re-annotate each affected sample before viewing its latest findings.
+          </p>
+          <ul className="space-y-1">
+            {samples.map((sample) => (
+              <ReannotateLinkedSampleButton key={sample.id} sample={sample} />
+            ))}
+          </ul>
+        </div>
+      </div>
+    </section>
   )
 }
 
@@ -284,13 +380,25 @@ export default function IndividualDetail() {
           `/api/analysis/findings/summary?sample_id=${sample.id}`,
         )
         if (!res.ok) {
-          throw new Error(`Findings summary failed: ${res.status}`)
+          await throwApiError(res, "Unable to load the findings summary. Please try again.")
         }
         return (await res.json()) as FindingsSummaryResponse
       },
       staleTime: Infinity,
+      // Findings stay cached during a visit, but a new individual-detail
+      // observer must obtain a current server response before rendering them.
+      refetchOnMount: "always",
     })),
   })
+
+  // A cached result may be retained while the mount-time probe is pending or
+  // after it receives a 423. Only aggregate a successful response fetched by
+  // this observer, so an old finding cannot bypass the re-annotation notice.
+  const verifiedFindings = findingsQueries.map((query) =>
+    query.isSuccess && query.isFetchedAfterMount
+      ? query.data?.high_confidence_findings
+      : undefined,
+  )
 
   // findingsQueries identity churns each render; key the memo on a
   // fingerprint of the resolved findings so we recompute whenever the
@@ -299,10 +407,10 @@ export default function IndividualDetail() {
   // module, rsid, gene_symbol, finding_text) — not just finding ids —
   // so an updated payload reusing the same ids still recomputes.
   const sampleIdsKey = linkedSamples.map((s) => s.id).join(",")
-  const findingsFingerprint = findingsQueries
+  const findingsFingerprint = verifiedFindings
     .map(
-      (q) =>
-        q.data?.high_confidence_findings
+      (findings) =>
+        findings
           ?.map((f) =>
             [
               f.id,
@@ -321,7 +429,7 @@ export default function IndividualDetail() {
       aggregateFindings(
         linkedSamples.map((sample, idx) => ({
           sample,
-          findings: findingsQueries[idx]?.data?.high_confidence_findings,
+          findings: verifiedFindings[idx],
         })),
       ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -360,18 +468,27 @@ export default function IndividualDetail() {
   }
 
   const anyFindingsLoading = findingsQueries.some(
-    (q) => linkedSamples.length > 0 && q.isPending,
+    (q) =>
+      linkedSamples.length > 0 &&
+      (q.isPending || (q.isFetching && !q.isFetchedAfterMount)),
   )
   const failedFindingsQueries = findingsQueries.flatMap((query, index) => {
     const sample = linkedSamples[index]
     return query.isError && sample ? [{ query, sample }] : []
   })
+  const staleFindingsQueries = failedFindingsQueries.filter(
+    ({ query }) => query.error instanceof ApiError && query.error.status === 423,
+  )
+  const retryableFindingsQueries = failedFindingsQueries.filter(
+    ({ query }) =>
+      !(query.error instanceof ApiError && query.error.status === 423),
+  )
   const hasFindingsErrors = failedFindingsQueries.length > 0
-  const failedSampleLabels = failedFindingsQueries
+  const failedSampleLabels = retryableFindingsQueries
     .map(({ sample }) => sampleLabel(sample))
     .join(", ")
   const retryFailedFindings = () => {
-    for (const { query } of failedFindingsQueries) {
+    for (const { query } of retryableFindingsQueries) {
       void query.refetch()
     }
   }
@@ -533,7 +650,12 @@ export default function IndividualDetail() {
           <PageLoading message="Aggregating findings…" />
         ) : (
           <div className="space-y-3">
-            {hasFindingsErrors && (
+            {staleFindingsQueries.length > 0 && (
+              <StaleLinkedSamplesNotice
+                samples={staleFindingsQueries.map(({ sample }) => sample)}
+              />
+            )}
+            {retryableFindingsQueries.length > 0 && (
               <SectionError
                 label="high-confidence findings"
                 message={`The latest findings for ${failedSampleLabels} could not be loaded, so this aggregate may be incomplete.`}
