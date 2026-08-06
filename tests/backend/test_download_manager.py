@@ -23,11 +23,13 @@ import sqlalchemy as sa
 from backend.annotation.bulk_load import BUSY_TIMEOUT_BACKSTOP_RETRIES
 from backend.db.download_manager import (
     CHECKPOINT_INTERVAL,
+    HUEY_DOWNLOAD_JOB_TYPE,
     ChecksumMismatchError,
     DownloadError,
     DownloadManager,
     DownloadResult,
     _compute_sha256,
+    huey_download_job_ownership,
 )
 from backend.db.tables import downloads, jobs, reference_metadata
 
@@ -559,6 +561,20 @@ def test_job_type_is_download(
         ).fetchone()
     assert job is not None
     assert job.job_type == "download"
+
+
+def test_huey_download_context_marks_worker_owned_job(
+    manager: DownloadManager,
+    ref_engine: sa.Engine,
+    http_server: HTTPServer,
+) -> None:
+    """Nested worker downloads are distinguishable from API downloads."""
+    with huey_download_job_ownership():
+        result = manager.start(server_url(http_server), "huey_job_type_test.db")
+
+    with ref_engine.connect() as conn:
+        job_type = conn.scalar(sa.select(jobs.c.job_type).where(jobs.c.job_id == result.job_id))
+    assert job_type == HUEY_DOWNLOAD_JOB_TYPE
 
 
 # ═══════════════════════════════════════════════════════════════════════

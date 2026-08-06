@@ -126,6 +126,32 @@ if jq -e '
     > "$snapshot_dir/review-pages.json"
   review_page_args=(--review-pages "$snapshot_dir/review-pages.json")
 fi
+thread_page_args=()
+if jq -e '
+  .data.repository.pullRequest.reviewThreads as $threads |
+  ($threads | type) == "object" and
+  ($threads.totalCount | type) == "number" and
+  ($threads.nodes | type) == "array" and
+  $threads.totalCount > ($threads.nodes | length)
+' "$snapshot_dir/context.json" > /dev/null; then
+  gh api graphql --paginate --slurp \
+    -F owner="$OWNER" \
+    -F repo="$REPO" \
+    -F number="$PR_NUMBER" \
+    -F query=@scripts/review_route_threads.graphql \
+    > "$snapshot_dir/thread-pages.json"
+  thread_page_args=(--thread-pages "$snapshot_dir/thread-pages.json")
+fi
+# Deliberately reuses the sweep the job already fetched rather than running its
+# own. `after-success` executes once `Review Route: success` is published, so a
+# ~840-point query rate-limited here would demote a legitimately green route to
+# `pending` and force a re-run against an already-drained budget.
+greptile_ledger_args=()
+if [ -f "$RUNNER_TEMP/review-route-greptile-ledger.json" ]; then
+  greptile_ledger_args=(
+    --greptile-ledger-pages "$RUNNER_TEMP/review-route-greptile-ledger.json"
+  )
+fi
 gh api --paginate --slurp \
   "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" \
   > "$snapshot_dir/files.json"
@@ -156,6 +182,8 @@ python scripts/validate_review_route.py \
   --rendered-body "$snapshot_dir/rendered.html" \
   --render-nonce "$render_nonce" \
   "${review_page_args[@]}" \
+  "${thread_page_args[@]}" \
+  "${greptile_ledger_args[@]}" \
   --finalize-comment-node-id "$FINALIZE_COMMENT_NODE_ID" \
   --finalize-comment-created-at "$FINALIZE_COMMENT_CREATED_AT" \
   --finalize-comment-actor-id "$FINALIZE_COMMENT_ACTOR_ID" \

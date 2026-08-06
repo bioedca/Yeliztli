@@ -21,6 +21,7 @@ are mocked so the tests exercise only the wrapper, not the analysis.
 
 from __future__ import annotations
 
+from contextlib import nullcontext
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
@@ -281,9 +282,16 @@ class TestRunUpdateCheckTask:
         job_id = create_update_check_job()
         result = SimpleNamespace(available=["clinvar"], up_to_date=["vep", "gnomad"], errors=[])
 
-        with patch("backend.db.update_manager.run_scheduled_update_check", return_value=result):
+        with (
+            patch("backend.db.update_manager.run_scheduled_update_check", return_value=result),
+            patch(
+                "backend.db.download_manager.huey_download_job_ownership",
+                return_value=nullcontext(),
+            ) as ownership,
+        ):
             run_update_check_task.call_local(job_id)
 
+        ownership.assert_called_once_with()
         row = _job_row(job_id)
         assert row.status == "complete"
         assert row.progress_pct == 100.0
@@ -481,9 +489,16 @@ class TestRunDatabaseUpdateTaskClaim:
         _make_job(job_id, "database_update")
 
         # Claim free → the wrapper delegates to the (stubbed) build path.
-        with patch("backend.tasks.huey_tasks._execute_database_update") as exec_mock:
+        with (
+            patch("backend.tasks.huey_tasks._execute_database_update") as exec_mock,
+            patch(
+                "backend.db.download_manager.huey_download_job_ownership",
+                return_value=nullcontext(),
+            ) as ownership,
+        ):
             run_database_update_task.call_local(job_id, "clinvar")
 
+        ownership.assert_called_once_with()
         exec_mock.assert_called_once_with(job_id, "clinvar")
 
 

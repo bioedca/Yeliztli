@@ -63,6 +63,7 @@ from backend.db.db_health import (
 from backend.db.download_manager import DownloadManager
 from backend.db.manifest import get_bundle_info
 from backend.db.tables import download_session_jobs, download_sessions, jobs
+from backend.services.sample_operation_lock import ACTIVE_JOB_STATUSES
 
 logger = structlog.get_logger(__name__)
 
@@ -753,7 +754,7 @@ def _get_in_flight_db_names(engine: sa.Engine) -> set[str]:
         rows = conn.execute(
             sa.select(download_session_jobs.c.db_name)
             .join(jobs, download_session_jobs.c.job_id == jobs.c.job_id)
-            .where(jobs.c.status.in_(("pending", "running")))
+            .where(jobs.c.status.in_(ACTIVE_JOB_STATUSES))
         ).fetchall()
     return {row.db_name for row in rows}
 
