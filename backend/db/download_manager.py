@@ -20,6 +20,9 @@ from __future__ import annotations
 import hashlib
 import time
 import uuid
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -41,6 +44,12 @@ if TYPE_CHECKING:
 
 logger = structlog.get_logger(__name__)
 
+HUEY_DOWNLOAD_JOB_TYPE = "huey_download"
+_download_job_type: ContextVar[str] = ContextVar(
+    "download_job_type",
+    default="download",
+)
+
 # How often to flush byte-offset to the downloads table (bytes).
 CHECKPOINT_INTERVAL = 1_048_576  # 1 MiB
 
@@ -59,6 +68,16 @@ DEFAULT_TOTAL_TIMEOUT = 3600.0  # 1 hour for large files
 # (resumable = INCOMPLETE − active), so the two modules cannot drift on which
 # states carry a resumable partial.
 INCOMPLETE_DOWNLOAD_STATES: frozenset[str] = frozenset({"pending", "downloading", "failed"})
+
+
+@contextmanager
+def huey_download_job_ownership() -> Iterator[None]:
+    """Label nested download progress rows as owned by the Huey worker."""
+    token = _download_job_type.set(HUEY_DOWNLOAD_JOB_TYPE)
+    try:
+        yield
+    finally:
+        _download_job_type.reset(token)
 
 
 @dataclass
@@ -577,7 +596,7 @@ class DownloadManager:
             jobs.insert().values(
                 job_id=job_id,
                 sample_id=None,
-                job_type="download",
+                job_type=_download_job_type.get(),
                 status="pending",
                 progress_pct=0.0,
                 message=f"Download #{download_id} queued",

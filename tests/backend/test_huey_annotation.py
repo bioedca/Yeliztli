@@ -14,15 +14,18 @@ Covers:
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 import sqlalchemy as sa
 from fastapi.testclient import TestClient
+from huey.signals import SIGNAL_INTERRUPTED
 
 from backend.config import Settings
 from backend.db.connection import reset_registry
+from backend.db.download_manager import HUEY_DOWNLOAD_JOB_TYPE
 from backend.db.sample_schema import (
     CYP2C9_PHENYTOIN_REANALYSIS_STATE_KEY,
     create_sample_tables,
@@ -38,11 +41,25 @@ from backend.db.tables import (
     reference_metadata,
     samples,
 )
+from backend.services.sample_operation_lock import SAMPLE_EXPORT_JOB_TYPE
 from backend.tasks.huey_tasks import (
+    HUEY_PENDING_ENQUEUE_GRACE,
+    AnnotationEnqueueError,
+    _finalize_annotation_job,
     _get_sample_db_path,
+    _recover_jobs_on_worker_startup,
     _update_job,
+    _worker_job_from_task,
     create_annotation_job,
+    enqueue_annotation_job,
+    huey,
+    recover_orphaned_jobs,
+    recover_worker_orphaned_jobs,
     run_annotation_task,
+    run_backup_export_task,
+    run_database_update_task,
+    run_lai_task,
+    run_update_check_task,
 )
 from tests.backend.vep_bundle_test_utils import seed_embedded_vep_bundle_version
 
@@ -189,6 +206,695 @@ class TestCreateAnnotationJob:
         job_id2 = create_annotation_job(sample_id)
         assert job_id2 != job_id
 
+    def test_rejects_annotation_while_export_lease_is_held(
+        self,
+        annotation_env: dict,
+    ) -> None:
+        from backend.db.connection import get_registry
+        from backend.services.sample_operation_lock import sample_export_lease
+
+        sample_id = annotation_env["sample_id"]
+        registry = get_registry()
+
+        with sample_export_lease(
+            registry.reference_engine,
+            sample_id,
+            operation="test export",
+        ):
+            with pytest.raises(ValueError, match="export is in progress"):
+                create_annotation_job(sample_id)
+
+        job_id = create_annotation_job(sample_id)
+        assert job_id
+
+
+class TestRecoverOrphanedJobs:
+    def test_recovers_api_exports_without_releasing_live_huey_jobs(
+        self,
+        annotation_env: dict,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from backend.db.connection import get_registry
+        from backend.tasks.huey_tasks import huey
+
+        sample_id = annotation_env["sample_id"]
+        annotation_job_id = create_annotation_job(sample_id)
+        registry = get_registry()
+        monkeypatch.setattr(huey, "immediate", False)
+        with registry.reference_engine.begin() as conn:
+            conn.execute(
+                jobs.insert(),
+                [
+                    {
+                        "job_id": "api-export-lease",
+                        "sample_id": sample_id,
+                        "job_type": SAMPLE_EXPORT_JOB_TYPE,
+                        "status": "running",
+                    },
+                    {
+                        "job_id": "api-database-download",
+                        "sample_id": None,
+                        "job_type": "database_download",
+                        "status": "pending",
+                    },
+                    {
+                        "job_id": "huey-lai",
+                        "sample_id": sample_id,
+                        "job_type": "lai_analysis",
+                        "status": "running",
+                    },
+                    {
+                        "job_id": "api-download",
+                        "sample_id": None,
+                        "job_type": "download",
+                        "status": "running",
+                    },
+                    {
+                        "job_id": "huey-download",
+                        "sample_id": None,
+                        "job_type": HUEY_DOWNLOAD_JOB_TYPE,
+                        "status": "running",
+                    },
+                ],
+            )
+
+        assert recover_orphaned_jobs(registry.reference_engine) == 3
+
+        with registry.reference_engine.connect() as conn:
+            statuses = dict(
+                conn.execute(
+                    sa.select(jobs.c.job_id, jobs.c.status).where(
+                        jobs.c.job_id.in_(
+                            (
+                                annotation_job_id,
+                                "api-export-lease",
+                                "api-database-download",
+                                "huey-lai",
+                                "api-download",
+                                "huey-download",
+                            )
+                        )
+                    )
+                ).all()
+            )
+        assert statuses == {
+            annotation_job_id: "pending",
+            "api-export-lease": "failed",
+            "api-database-download": "failed",
+            "huey-lai": "running",
+            "api-download": "failed",
+            "huey-download": "running",
+        }
+
+    def test_immediate_mode_recovers_huey_jobs_with_the_api_process(
+        self,
+        annotation_env: dict,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from backend.db.connection import get_registry
+        from backend.tasks.huey_tasks import huey
+
+        sample_id = annotation_env["sample_id"]
+        registry = get_registry()
+        monkeypatch.setattr(huey, "immediate", True)
+        with registry.reference_engine.begin() as conn:
+            conn.execute(
+                jobs.insert(),
+                [
+                    {
+                        "job_id": "immediate-annotation",
+                        "sample_id": sample_id,
+                        "job_type": "annotation",
+                        "status": "running",
+                    },
+                    {
+                        "job_id": "immediate-lai",
+                        "sample_id": sample_id,
+                        "job_type": "lai_analysis",
+                        "status": "pending",
+                    },
+                    {
+                        "job_id": "immediate-download",
+                        "sample_id": None,
+                        "job_type": HUEY_DOWNLOAD_JOB_TYPE,
+                        "status": "cancelling",
+                    },
+                    {
+                        "job_id": "unowned-job",
+                        "sample_id": None,
+                        "job_type": "external",
+                        "status": "running",
+                    },
+                ],
+            )
+
+        assert recover_orphaned_jobs(registry.reference_engine) == 3
+
+        with registry.reference_engine.connect() as conn:
+            statuses = dict(
+                conn.execute(
+                    sa.select(jobs.c.job_id, jobs.c.status).where(
+                        jobs.c.job_id.in_(
+                            (
+                                "immediate-annotation",
+                                "immediate-lai",
+                                "immediate-download",
+                                "unowned-job",
+                            )
+                        )
+                    )
+                ).all()
+            )
+        assert statuses == {
+            "immediate-annotation": "failed",
+            "immediate-lai": "failed",
+            "immediate-download": "failed",
+            "unowned-job": "running",
+        }
+
+    def test_worker_startup_reconciles_every_proven_huey_orphan(
+        self,
+        annotation_env: dict,
+    ) -> None:
+        from backend.db.connection import get_registry
+
+        sample_id = annotation_env["sample_id"]
+        recovery_time = datetime.now(UTC)
+        stale = recovery_time - HUEY_PENDING_ENQUEUE_GRACE - timedelta(seconds=1)
+        fresh = recovery_time - HUEY_PENDING_ENQUEUE_GRACE + timedelta(seconds=1)
+        registry = get_registry()
+        with registry.reference_engine.begin() as conn:
+            conn.execute(
+                jobs.insert(),
+                [
+                    {
+                        "job_id": "queued-pending",
+                        "sample_id": sample_id,
+                        "job_type": "annotation",
+                        "status": "pending",
+                        "created_at": stale,
+                        "updated_at": stale,
+                    },
+                    {
+                        "job_id": "orphaned-lai-pending",
+                        "sample_id": sample_id,
+                        "job_type": "lai_analysis",
+                        "status": "pending",
+                        "created_at": stale,
+                        "updated_at": stale,
+                    },
+                    {
+                        "job_id": "fresh-pending",
+                        "sample_id": None,
+                        "job_type": "update_check",
+                        "status": "pending",
+                        "created_at": fresh,
+                        "updated_at": fresh,
+                    },
+                    {
+                        "job_id": "orphaned-database-update",
+                        "sample_id": None,
+                        "job_type": "database_update",
+                        "status": "running",
+                        "created_at": stale,
+                        "updated_at": stale,
+                    },
+                    {
+                        "job_id": "orphaned-backup",
+                        "sample_id": None,
+                        "job_type": "backup_export",
+                        "status": "running",
+                        "created_at": stale,
+                        "updated_at": stale,
+                    },
+                    {
+                        "job_id": "orphaned-huey-download",
+                        "sample_id": None,
+                        "job_type": HUEY_DOWNLOAD_JOB_TYPE,
+                        "status": "running",
+                        "created_at": stale,
+                        "updated_at": stale,
+                    },
+                    {
+                        "job_id": "orphaned-cancelling",
+                        "sample_id": sample_id,
+                        "job_type": "annotation",
+                        "status": "cancelling",
+                        "created_at": stale,
+                        "updated_at": stale,
+                    },
+                    {
+                        "job_id": "live-api-download",
+                        "sample_id": None,
+                        "job_type": "database_download",
+                        "status": "running",
+                        "created_at": stale,
+                        "updated_at": stale,
+                    },
+                ],
+            )
+
+        assert (
+            recover_worker_orphaned_jobs(
+                registry.reference_engine,
+                queued_job_ids={"queued-pending"},
+                recovery_time=recovery_time,
+                recover_running=True,
+            )
+            == 5
+        )
+
+        with registry.reference_engine.connect() as conn:
+            statuses = dict(
+                conn.execute(
+                    sa.select(jobs.c.job_id, jobs.c.status).where(
+                        jobs.c.job_id.in_(
+                            (
+                                "queued-pending",
+                                "orphaned-lai-pending",
+                                "fresh-pending",
+                                "orphaned-database-update",
+                                "orphaned-backup",
+                                "orphaned-huey-download",
+                                "orphaned-cancelling",
+                                "live-api-download",
+                            )
+                        )
+                    )
+                ).all()
+            )
+        assert statuses == {
+            "queued-pending": "pending",
+            "orphaned-lai-pending": "failed",
+            "fresh-pending": "pending",
+            "orphaned-database-update": "failed",
+            "orphaned-backup": "failed",
+            "orphaned-huey-download": "failed",
+            "orphaned-cancelling": "cancelled",
+            "live-api-download": "running",
+        }
+
+    def test_worker_queue_snapshot_extracts_every_durable_job_type(
+        self,
+        annotation_env: dict,
+    ) -> None:
+        tasks = [
+            run_annotation_task.s(1, "annotation-job"),
+            run_lai_task.s(1, "lai-job"),
+            run_update_check_task.s("check-job"),
+            run_database_update_task.s("database-job", "clinvar"),
+            run_backup_export_task.s("backup-job", False),
+        ]
+
+        assert [_worker_job_from_task(task) for task in tasks] == [
+            ("annotation", "annotation-job"),
+            ("lai_analysis", "lai-job"),
+            ("update_check", "check-job"),
+            ("database_update", "database-job"),
+            ("backup_export", "backup-job"),
+        ]
+
+        with (
+            patch.object(huey, "pending", return_value=tasks),
+            patch.object(huey, "scheduled", return_value=[]),
+            patch("backend.tasks.huey_tasks.recover_worker_orphaned_jobs") as recover_jobs,
+        ):
+            _recover_jobs_on_worker_startup()
+
+        assert recover_jobs.call_args.kwargs["queued_job_ids"] == {
+            "annotation-job",
+            "lai-job",
+            "check-job",
+            "database-job",
+            "backup-job",
+        }
+        assert recover_jobs.call_args.kwargs["recover_running"] is True
+
+    def test_periodic_sweep_leaves_a_live_worker_cancelling_row_alone(
+        self,
+        annotation_env: dict,
+    ) -> None:
+        """The `cancelling` sweep must be gated exactly like `running`.
+
+        `cancelling` is an ACTIVE state: it holds the annotation/export interlock
+        until the worker acknowledges the cancel. The periodic sweep runs every
+        five minutes with ``recover_running=False``, and an ungated sweep flipped
+        every cancelling row to `cancelled` -- releasing the interlock while the
+        live worker was still inside ``run_annotation()`` writing the sample
+        database, which is the invariant the state exists to protect (#2232).
+        """
+        from backend.db.connection import get_registry
+        from backend.tasks.huey_tasks import worker_lease_identity
+
+        owner_id, owner_epoch = worker_lease_identity()
+        recovery_time = datetime.now(UTC)
+        registry = get_registry()
+        with registry.reference_engine.begin() as conn:
+            conn.execute(
+                jobs.insert(),
+                [
+                    {
+                        "job_id": "cancelling-live",
+                        "sample_id": annotation_env["sample_id"],
+                        "job_type": "annotation",
+                        "status": "cancelling",
+                        "created_at": recovery_time,
+                        "updated_at": recovery_time,
+                        "owner_id": owner_id,
+                        "owner_epoch": owner_epoch,
+                        "heartbeat_at": recovery_time,
+                    }
+                ],
+            )
+
+        assert (
+            recover_worker_orphaned_jobs(
+                registry.reference_engine,
+                queued_job_ids={"cancelling-live"},
+                recovery_time=recovery_time,
+                recover_running=False,
+                owner_id=owner_id,
+                owner_epoch=owner_epoch,
+            )
+            == 0
+        )
+        with registry.reference_engine.connect() as conn:
+            status = conn.scalar(
+                sa.select(jobs.c.status).where(jobs.c.job_id == "cancelling-live")
+            )
+        assert status == "cancelling"
+
+    def test_periodic_sweep_releases_a_cancelling_row_whose_owner_is_gone(
+        self,
+        annotation_env: dict,
+    ) -> None:
+        """The other half: a dead owner's lease must not be held forever.
+
+        Without an owner and a heartbeat the API could not tell this row from the
+        live one above, which is why recovery had to choose between releasing a
+        live lease and leaving a dead one active indefinitely.
+        """
+        from backend.db.connection import get_registry
+        from backend.tasks.huey_tasks import HUEY_HEARTBEAT_GRACE, worker_lease_identity
+
+        owner_id, owner_epoch = worker_lease_identity()
+        recovery_time = datetime.now(UTC)
+        dead_heartbeat = recovery_time - HUEY_HEARTBEAT_GRACE - timedelta(seconds=1)
+        registry = get_registry()
+        with registry.reference_engine.begin() as conn:
+            conn.execute(
+                jobs.insert(),
+                [
+                    {
+                        "job_id": "cancelling-dead",
+                        "sample_id": annotation_env["sample_id"],
+                        "job_type": "annotation",
+                        "status": "cancelling",
+                        "created_at": dead_heartbeat,
+                        "updated_at": dead_heartbeat,
+                        "owner_id": "huey:a-previous-worker",
+                        "owner_epoch": "1:a-previous-run",
+                        "heartbeat_at": dead_heartbeat,
+                    }
+                ],
+            )
+
+        assert (
+            recover_worker_orphaned_jobs(
+                registry.reference_engine,
+                queued_job_ids=set(),
+                recovery_time=recovery_time,
+                recover_running=False,
+                owner_id=owner_id,
+                owner_epoch=owner_epoch,
+            )
+            == 1
+        )
+        with registry.reference_engine.connect() as conn:
+            status = conn.scalar(
+                sa.select(jobs.c.status).where(jobs.c.job_id == "cancelling-dead")
+            )
+        assert status == "cancelled"
+
+    def test_periodic_sweep_preserves_a_running_lease_with_a_live_heartbeat(
+        self,
+        annotation_env: dict,
+    ) -> None:
+        """An API-only restart must not release a lease the worker still holds."""
+        from backend.db.connection import get_registry
+        from backend.tasks.huey_tasks import worker_lease_identity
+
+        owner_id, owner_epoch = worker_lease_identity()
+        recovery_time = datetime.now(UTC)
+        registry = get_registry()
+        with registry.reference_engine.begin() as conn:
+            conn.execute(
+                jobs.insert(),
+                [
+                    {
+                        "job_id": "running-live",
+                        "sample_id": annotation_env["sample_id"],
+                        "job_type": "annotation",
+                        "status": "running",
+                        "created_at": recovery_time,
+                        "updated_at": recovery_time,
+                        "owner_id": owner_id,
+                        "owner_epoch": owner_epoch,
+                        "heartbeat_at": recovery_time,
+                    }
+                ],
+            )
+
+        assert (
+            recover_worker_orphaned_jobs(
+                registry.reference_engine,
+                queued_job_ids={"running-live"},
+                recovery_time=recovery_time,
+                recover_running=False,
+                owner_id=owner_id,
+                owner_epoch=owner_epoch,
+            )
+            == 0
+        )
+        with registry.reference_engine.connect() as conn:
+            status = conn.scalar(sa.select(jobs.c.status).where(jobs.c.job_id == "running-live"))
+        assert status == "running"
+
+    @pytest.mark.parametrize("job_type", ["backup_export", HUEY_DOWNLOAD_JOB_TYPE])
+    def test_periodic_sweep_never_fails_a_lease_less_job_type_mid_flight(
+        self,
+        annotation_env: dict,
+        job_type: str,
+    ) -> None:
+        """Only annotation takes a lease; the rest run their whole life unclaimed.
+
+        A download or backup export never calls `_claim_annotation_job`, so its
+        `owner_id` stays NULL and its heartbeat goes quiet whenever it works for
+        longer than the grace period without reporting progress -- which is
+        exactly what a long download does. Reading "unclaimed" as "abandoned"
+        would fail it while it is still executing and drop the interlock it
+        holds. Unclaimed rows belong to the startup sweep, where the restart is
+        itself the proof that nothing is running.
+        """
+        from backend.db.connection import get_registry
+        from backend.tasks.huey_tasks import worker_lease_identity
+
+        owner_id, owner_epoch = worker_lease_identity()
+        recovery_time = datetime.now(UTC)
+        # Well past HUEY_HEARTBEAT_GRACE, and unclaimed, so both halves of the
+        # abandonment test would fire if NULL counted as someone else's.
+        stale = recovery_time - timedelta(hours=6)
+        registry = get_registry()
+        with registry.reference_engine.begin() as conn:
+            conn.execute(
+                jobs.insert(),
+                [
+                    {
+                        "job_id": "unclaimed-live",
+                        "sample_id": annotation_env["sample_id"],
+                        "job_type": job_type,
+                        "status": "running",
+                        "created_at": stale,
+                        "updated_at": stale,
+                        "owner_id": None,
+                        "owner_epoch": None,
+                        "heartbeat_at": stale,
+                    }
+                ],
+            )
+
+        assert (
+            recover_worker_orphaned_jobs(
+                registry.reference_engine,
+                # Executing tasks are already dequeued, so an in-flight job is
+                # absent from this set. It cannot be what protects the row.
+                queued_job_ids=set(),
+                recovery_time=recovery_time,
+                recover_running=False,
+                owner_id=owner_id,
+                owner_epoch=owner_epoch,
+            )
+            == 0
+        )
+        with registry.reference_engine.connect() as conn:
+            status = conn.scalar(sa.select(jobs.c.status).where(jobs.c.job_id == "unclaimed-live"))
+        assert status == "running"
+
+    def test_startup_sweep_still_releases_an_unclaimed_running_row(
+        self,
+        annotation_env: dict,
+    ) -> None:
+        """The negative control for the case above: a restart does release it.
+
+        If mid-flight preservation also survived startup, an orphaned unclaimed
+        row would hold its interlock forever -- the failure #2232 exists to fix.
+        """
+        from backend.db.connection import get_registry
+
+        recovery_time = datetime.now(UTC)
+        registry = get_registry()
+        with registry.reference_engine.begin() as conn:
+            conn.execute(
+                jobs.insert(),
+                [
+                    {
+                        "job_id": "unclaimed-orphan",
+                        "sample_id": annotation_env["sample_id"],
+                        "job_type": "backup_export",
+                        "status": "running",
+                        "created_at": recovery_time,
+                        "updated_at": recovery_time,
+                        "owner_id": None,
+                        "owner_epoch": None,
+                        "heartbeat_at": recovery_time,
+                    }
+                ],
+            )
+
+        assert (
+            recover_worker_orphaned_jobs(
+                registry.reference_engine,
+                queued_job_ids=set(),
+                recovery_time=recovery_time,
+                recover_running=True,
+            )
+            == 1
+        )
+        with registry.reference_engine.connect() as conn:
+            status = conn.scalar(
+                sa.select(jobs.c.status).where(jobs.c.job_id == "unclaimed-orphan")
+            )
+        assert status == "failed"
+
+    def test_claiming_a_job_records_the_lease(self, annotation_env: dict) -> None:
+        """A claimed row must name its holder, or death cannot be proven later."""
+        from backend.db.connection import get_registry
+        from backend.tasks.huey_tasks import _claim_annotation_job, worker_lease_identity
+
+        job_id = create_annotation_job(annotation_env["sample_id"])
+        assert _claim_annotation_job(job_id) is True
+
+        owner_id, owner_epoch = worker_lease_identity()
+        registry = get_registry()
+        with registry.reference_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(jobs.c.owner_id, jobs.c.owner_epoch, jobs.c.heartbeat_at).where(
+                    jobs.c.job_id == job_id
+                )
+            ).one()
+        assert row.owner_id == owner_id
+        assert row.owner_epoch == owner_epoch
+        assert row.heartbeat_at is not None
+
+    def test_enqueue_grace_is_revisited_after_it_expires(
+        self,
+        annotation_env: dict,
+    ) -> None:
+        from backend.db.connection import get_registry
+
+        recovery_time = datetime.now(UTC)
+        job_id = create_annotation_job(annotation_env["sample_id"])
+        registry = get_registry()
+
+        assert (
+            recover_worker_orphaned_jobs(
+                registry.reference_engine,
+                queued_job_ids=set(),
+                recovery_time=recovery_time,
+                recover_running=False,
+            )
+            == 0
+        )
+        assert (
+            recover_worker_orphaned_jobs(
+                registry.reference_engine,
+                queued_job_ids=set(),
+                recovery_time=recovery_time + HUEY_PENDING_ENQUEUE_GRACE + timedelta(seconds=1),
+                recover_running=False,
+            )
+            == 1
+        )
+        with registry.reference_engine.connect() as conn:
+            status = conn.scalar(sa.select(jobs.c.status).where(jobs.c.job_id == job_id))
+        assert status == "failed"
+
+    def test_enqueue_failure_releases_annotation_reservation(
+        self,
+        annotation_env: dict,
+    ) -> None:
+        from backend.db.connection import get_registry
+
+        sample_id = annotation_env["sample_id"]
+        with (
+            patch(
+                "backend.tasks.huey_tasks.run_annotation_task",
+                side_effect=OSError("huey queue unavailable"),
+            ),
+            pytest.raises(AnnotationEnqueueError, match="Unable to queue annotation"),
+        ):
+            enqueue_annotation_job(sample_id)
+
+        registry = get_registry()
+        with registry.reference_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(jobs.c.status, jobs.c.error)
+                .where(jobs.c.sample_id == sample_id)
+                .where(jobs.c.job_type == "annotation")
+            ).fetchone()
+        assert row is not None
+        assert row.status == "failed"
+        assert row.error == "huey queue unavailable"
+        assert create_annotation_job(sample_id)
+
+    def test_interrupted_signal_keeps_annotation_lease_until_worker_restart(
+        self,
+        annotation_env: dict,
+    ) -> None:
+        from backend.db.connection import get_registry
+
+        sample_id = annotation_env["sample_id"]
+        job_id = create_annotation_job(sample_id)
+        registry = get_registry()
+        with registry.reference_engine.begin() as conn:
+            conn.execute(jobs.update().where(jobs.c.job_id == job_id).values(status="running"))
+
+        task = run_annotation_task.s(sample_id, job_id)
+        huey._signal.send(SIGNAL_INTERRUPTED, task)
+
+        with registry.reference_engine.connect() as conn:
+            status = conn.scalar(sa.select(jobs.c.status).where(jobs.c.job_id == job_id))
+        assert status == "running"
+
+        recover_worker_orphaned_jobs(
+            registry.reference_engine,
+            queued_job_ids=set(),
+            recovery_time=datetime.now(UTC),
+            recover_running=True,
+        )
+        with registry.reference_engine.connect() as conn:
+            status = conn.scalar(sa.select(jobs.c.status).where(jobs.c.job_id == job_id))
+        assert status == "failed"
+
 
 # ═══════════════════════════════════════════════════════════════════════
 # _update_job()
@@ -231,6 +937,94 @@ class TestUpdateJob:
 
         assert row.status == "failed"
         assert row.error == "something broke"
+
+    def test_worker_update_cannot_overwrite_cancellation_request(
+        self,
+        annotation_env: dict,
+    ) -> None:
+        from backend.db.connection import get_registry
+
+        sample_id = annotation_env["sample_id"]
+        job_id = create_annotation_job(sample_id)
+        registry = get_registry()
+        with registry.reference_engine.begin() as conn:
+            conn.execute(jobs.update().where(jobs.c.job_id == job_id).values(status="cancelling"))
+
+        _update_job(job_id, status="running", message="Worker started")
+
+        with registry.reference_engine.connect() as conn:
+            row = conn.execute(sa.select(jobs.c.status).where(jobs.c.job_id == job_id)).fetchone()
+        assert row is not None
+        assert row.status == "cancelling"
+
+    def test_skipped_worker_update_logs_after_write_transaction_closes(
+        self,
+        annotation_env: dict,
+    ) -> None:
+        import backend.tasks.huey_tasks as huey_tasks
+        from backend.db.connection import get_registry
+
+        sample_id = annotation_env["sample_id"]
+        job_id = create_annotation_job(sample_id)
+        registry = get_registry()
+        with registry.reference_engine.begin() as conn:
+            conn.execute(jobs.update().where(jobs.c.job_id == job_id).values(status="cancelling"))
+
+        def write_from_warning(*_args, **_kwargs) -> None:
+            with registry.reference_engine.begin() as conn:
+                conn.exec_driver_sql("PRAGMA busy_timeout = 50")
+                conn.execute(
+                    jobs.update()
+                    .where(jobs.c.job_id == job_id)
+                    .values(message="warning emitted after commit")
+                )
+
+        with patch.object(huey_tasks.logger, "warning", side_effect=write_from_warning) as warning:
+            _update_job(job_id, status="running", message="Worker update")
+
+        warning.assert_called_once()
+        with registry.reference_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(jobs.c.status, jobs.c.message).where(jobs.c.job_id == job_id)
+            ).fetchone()
+        assert row is not None
+        assert row.status == "cancelling"
+        assert row.message == "warning emitted after commit"
+
+    def test_finalization_acknowledges_a_racing_cancellation(
+        self,
+        annotation_env: dict,
+    ) -> None:
+        from backend.db.connection import get_registry
+
+        sample_id = annotation_env["sample_id"]
+        job_id = create_annotation_job(sample_id)
+        registry = get_registry()
+        with registry.reference_engine.begin() as conn:
+            conn.execute(
+                jobs.update()
+                .where(jobs.c.job_id == job_id)
+                .values(status="cancelling", progress_pct=99.0)
+            )
+
+        resolved_status = _finalize_annotation_job(
+            job_id,
+            status="complete",
+            progress_pct=100.0,
+            message="Annotation complete",
+        )
+
+        with registry.reference_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(jobs.c.status, jobs.c.progress_pct, jobs.c.message).where(
+                    jobs.c.job_id == job_id
+                )
+            ).fetchone()
+        assert resolved_status == "cancelled"
+        assert row is not None
+        assert row.status == "cancelled"
+        assert row.progress_pct == 99.0
+        assert row.message == "Cancelled by user"
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -359,9 +1153,17 @@ class TestRunAnnotationTask:
         with patch("backend.tasks.huey_tasks._update_job", side_effect=tracking_update):
             run_annotation_task.call_local(sample_id, job_id)
 
-        # Should have at least "running" + progress + "complete" updates
-        assert len(progress_updates) >= 2
-        assert progress_updates[-1] == 100.0
+        # Intermediate writes still report progress; atomic finalization owns
+        # the terminal 100% write so cancellation cannot race it.
+        assert progress_updates
+        assert any(0.0 < progress < 100.0 for progress in progress_updates)
+        from backend.db.connection import get_registry
+
+        with get_registry().reference_engine.connect() as conn:
+            final_progress = conn.execute(
+                sa.select(jobs.c.progress_pct).where(jobs.c.job_id == job_id)
+            ).scalar_one()
+        assert final_progress == 100.0
 
     def test_task_handles_failure(self, annotation_env: dict) -> None:
         """Task marks job as failed when annotation raises."""
@@ -421,16 +1223,21 @@ class TestRunAnnotationTask:
         sample_id = annotation_env["sample_id"]
         job_id = create_annotation_job(sample_id)
 
-        # Mark job as cancelled before the progress callback fires
-        with patch("backend.tasks.huey_tasks._is_job_cancelled", return_value=True):
+        # A cancellation request made before worker pickup must prevent the
+        # mutating annotation engine from starting at all.
+        with (
+            patch("backend.tasks.huey_tasks._is_job_cancelled", return_value=True),
+            patch("backend.annotation.engine.run_annotation") as run_annotation,
+        ):
             run_annotation_task.call_local(sample_id, job_id)
+        run_annotation.assert_not_called()
 
         registry = get_registry()
         with registry.reference_engine.connect() as conn:
             row = conn.execute(sa.select(jobs).where(jobs.c.job_id == job_id)).fetchone()
 
-        # Should remain "cancelled", not overwritten to "complete"
-        assert row.status in ("cancelled", "running")
+        # Worker acknowledgement is terminal and cannot be overwritten by success.
+        assert row.status == "cancelled"
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -833,7 +1640,23 @@ class TestAnnotationStateGate:
         job_id = create_annotation_job(sample_id)
 
         messages: list[str] = []
-        from backend.tasks.huey_tasks import _update_job as _real_update_job
+        from backend.db.connection import get_registry
+        from backend.tasks.huey_tasks import (
+            _claim_annotation_job as _real_claim_annotation_job,
+        )
+        from backend.tasks.huey_tasks import (
+            _update_job as _real_update_job,
+        )
+
+        def capture_claim(jid: str) -> bool:
+            claimed = _real_claim_annotation_job(jid)
+            if claimed:
+                with get_registry().reference_engine.connect() as conn:
+                    message = conn.execute(
+                        sa.select(jobs.c.message).where(jobs.c.job_id == jid)
+                    ).scalar_one()
+                messages.append(message)
+            return claimed
 
         def capture(jid, *, status, progress_pct=0.0, message="", **kwargs):
             messages.append(message)
@@ -841,7 +1664,13 @@ class TestAnnotationStateGate:
                 jid, status=status, progress_pct=progress_pct, message=message, **kwargs
             )
 
-        with patch("backend.tasks.huey_tasks._update_job", side_effect=capture):
+        with (
+            patch(
+                "backend.tasks.huey_tasks._claim_annotation_job",
+                side_effect=capture_claim,
+            ),
+            patch("backend.tasks.huey_tasks._update_job", side_effect=capture),
+        ):
             run_annotation_task.call_local(sample_id, job_id)
 
         assert "Annotating…" in messages
@@ -907,7 +1736,7 @@ class TestAnnotationAPI:
         self, annotation_client: TestClient, annotation_env: dict
     ) -> None:
         """POST /api/annotation/{sample_id} returns 202 with job_id."""
-        with patch("backend.api.routes.annotation.run_annotation_task") as mock_run:
+        with patch("backend.tasks.huey_tasks.run_annotation_task") as mock_run:
             resp = annotation_client.post("/api/annotation/1")
 
         assert resp.status_code == 202
@@ -921,7 +1750,7 @@ class TestAnnotationAPI:
         self, annotation_client: TestClient, annotation_env: dict
     ) -> None:
         """POST /api/annotation/{sample_id} returns 409 if already running."""
-        with patch("backend.api.routes.annotation.run_annotation_task") as mock_run:
+        with patch("backend.tasks.huey_tasks.run_annotation_task") as mock_run:
             resp1 = annotation_client.post("/api/annotation/1")
             assert resp1.status_code == 202
             job_id = resp1.json()["job_id"]
@@ -930,6 +1759,30 @@ class TestAnnotationAPI:
             assert resp2.status_code == 409
 
         mock_run.assert_called_once_with(1, job_id)
+
+    def test_start_annotation_enqueue_failure_returns_503_and_releases_reservation(
+        self,
+        annotation_client: TestClient,
+        annotation_env: dict,
+    ) -> None:
+        from backend.db.connection import get_registry
+
+        with patch(
+            "backend.tasks.huey_tasks.run_annotation_task",
+            side_effect=OSError("huey queue unavailable"),
+        ):
+            resp = annotation_client.post("/api/annotation/1")
+
+        assert resp.status_code == 503
+        assert resp.json()["detail"] == "Unable to queue annotation; retry the request."
+        with get_registry().reference_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(jobs.c.status)
+                .where(jobs.c.sample_id == 1)
+                .where(jobs.c.job_type == "annotation")
+            ).fetchone()
+        assert row is not None
+        assert row.status == "failed"
 
     def test_status_endpoint_returns_sse(
         self, annotation_client: TestClient, annotation_env: dict
@@ -962,8 +1815,8 @@ class TestAnnotationAPI:
         assert "complete" in resp.text
 
     def test_cancel_annotation(self, annotation_client: TestClient, annotation_env: dict) -> None:
-        """POST /api/annotation/cancel/{job_id} cancels a running job."""
-        with patch("backend.api.routes.annotation.run_annotation_task") as mock_run:
+        """Cancellation remains active until the worker acknowledges it."""
+        with patch("backend.tasks.huey_tasks.run_annotation_task") as mock_run:
             resp = annotation_client.post("/api/annotation/1")
             job_id = resp.json()["job_id"]
 
@@ -971,7 +1824,19 @@ class TestAnnotationAPI:
 
         resp = annotation_client.post(f"/api/annotation/cancel/{job_id}")
         assert resp.status_code == 200
-        assert resp.json()["status"] == "cancelled"
+        assert resp.json()["status"] == "cancelling"
+
+        from backend.db.connection import get_registry
+
+        with get_registry().reference_engine.connect() as conn:
+            row = conn.execute(sa.select(jobs.c.status).where(jobs.c.job_id == job_id)).fetchone()
+        assert row is not None
+        assert row.status == "cancelling"
+
+        active = annotation_client.get("/api/annotation/active/1")
+        assert active.status_code == 200
+        assert active.json()["job_id"] == job_id
+        assert active.json()["status"] == "cancelling"
 
     def test_cancel_nonexistent_returns_404(
         self, annotation_client: TestClient, annotation_env: dict

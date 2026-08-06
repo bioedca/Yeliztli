@@ -1,0 +1,264 @@
+{
+  "header": {
+    "type": "esummary",
+    "version": "0.3"
+  },
+  "result": {
+    "uids": [
+      "38054408"
+    ],
+    "38054408": {
+      "uid": "38054408",
+      "pubdate": "2024 Mar",
+      "epubdate": "2023 Dec 3",
+      "source": "Genet Med",
+      "authors": [
+        {
+          "name": "Schmidt RJ",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Steeves M",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Bayrak-Toydemir P",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Benson KA",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Coe BP",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Conlin LK",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Ganapathi M",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Garcia J",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Gollob MH",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Jobanputra V",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Luo M",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Ma D",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Maston G",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "McGoldrick K",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Palculict TB",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Pesaran T",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Pollin TI",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Qian E",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Rehm HL",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Riggs ER",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Schilit SLP",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Sergouniotis PI",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Tvrdik T",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Watkins N",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Zec L",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Zhang W",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "Lebo MS",
+          "authtype": "Author",
+          "clusterid": ""
+        },
+        {
+          "name": "ClinGen Low Penetrance/Risk Allele Working Group",
+          "authtype": "CollectiveName",
+          "clusterid": ""
+        }
+      ],
+      "lastauthor": "Lebo MS",
+      "title": "Recommendations for risk allele evidence curation, classification, and reporting from the ClinGen Low Penetrance/Risk Allele Working Group.",
+      "sorttitle": "recommendations for risk allele evidence curation classification and reporting from the clingen low penetrance risk allele working group",
+      "volume": "26",
+      "issue": "3",
+      "pages": "101036",
+      "lang": [
+        "eng"
+      ],
+      "nlmuniqueid": "9815831",
+      "issn": "1098-3600",
+      "essn": "1530-0366",
+      "pubtype": [
+        "Journal Article",
+        "Research Support, N.I.H., Extramural"
+      ],
+      "recordstatus": "PubMed - indexed for MEDLINE",
+      "pubstatus": "256",
+      "articleids": [
+        {
+          "idtype": "pubmed",
+          "idtypen": 1,
+          "value": "38054408"
+        },
+        {
+          "idtype": "mid",
+          "idtypen": 8,
+          "value": "NIHMS1951003"
+        },
+        {
+          "idtype": "pmc",
+          "idtypen": 8,
+          "value": "PMC10939896"
+        },
+        {
+          "idtype": "pmcid",
+          "idtypen": 5,
+          "value": "pmc-id: PMC10939896;manuscript-id: NIHMS1951003;"
+        },
+        {
+          "idtype": "doi",
+          "idtypen": 3,
+          "value": "10.1016/j.gim.2023.101036"
+        },
+        {
+          "idtype": "pii",
+          "idtypen": 4,
+          "value": "S1098-3600(23)01052-3"
+        }
+      ],
+      "history": [
+        {
+          "pubstatus": "received",
+          "date": "2023/06/22 00:00"
+        },
+        {
+          "pubstatus": "revised",
+          "date": "2023/11/28 00:00"
+        },
+        {
+          "pubstatus": "accepted",
+          "date": "2023/11/30 00:00"
+        },
+        {
+          "pubstatus": "medline",
+          "date": "2024/03/11 06:42"
+        },
+        {
+          "pubstatus": "pubmed",
+          "date": "2023/12/06 06:41"
+        },
+        {
+          "pubstatus": "entrez",
+          "date": "2023/12/06 05:59"
+        },
+        {
+          "pubstatus": "pmc-release",
+          "date": "2025/03/01 00:00"
+        }
+      ],
+      "references": [],
+      "attributes": [
+        "Has Abstract"
+      ],
+      "pmcrefcount": 32,
+      "fulljournalname": "Genetics in medicine : official journal of the American College of Medical Genetics",
+      "elocationid": "doi: 10.1016/j.gim.2023.101036",
+      "doctype": "citation",
+      "srccontriblist": [],
+      "booktitle": "",
+      "medium": "",
+      "edition": "",
+      "publisherlocation": "",
+      "publishername": "",
+      "srcdate": "",
+      "reportnumber": "",
+      "availablefromurl": "",
+      "locationlabel": "",
+      "doccontriblist": [],
+      "docdate": "",
+      "bookname": "",
+      "chapter": "",
+      "sortpubdate": "2024/03/01 00:00",
+      "sortfirstauthor": "Schmidt RJ",
+      "vernaculartitle": ""
+    }
+  }
+}
