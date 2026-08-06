@@ -622,7 +622,7 @@ class TestFindingsSummary:
         assert all(f["evidence_level"] >= 3 for f in high_conf)
         assert all(f["module"] != "gene_health" for f in high_conf)
 
-    async def test_summary_high_confidence_selects_strongest_top_five(self, monkeypatch, tmp_path):
+    def test_summary_high_confidence_selects_strongest_top_five(self, monkeypatch, tmp_path):
         import backend.api.routes.findings as findings_route
 
         sample_engine = sa.create_engine(f"sqlite:///{tmp_path / 'summary_sample.db'}")
@@ -698,7 +698,7 @@ class TestFindingsSummary:
 class TestLAIPolicyQuarantine:
     """Pre-policy local ancestry must not leak through generic finding surfaces."""
 
-    async def test_list_summary_and_svg_withhold_unqualified_local_ancestry(
+    def test_list_summary_and_svg_withhold_unqualified_local_ancestry(
         self,
         monkeypatch,
         tmp_path,

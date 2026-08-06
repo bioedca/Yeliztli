@@ -166,6 +166,10 @@ def _load_findings(
     for row in rows:
         pmids_raw = _parse_json_field(row.pmid_citations)
         pmids = pmids_raw if isinstance(pmids_raw, list) else []
+        # Parsed once per row: two consumers below read the same column, and a
+        # report loads up to MAX_REPORT_FINDINGS rows. Sharing one parse also
+        # means the two cannot drift apart on what they read.
+        detail_blob = _parse_json_field(row.detail_json)
 
         result.append(
             {
@@ -182,7 +186,7 @@ def _load_findings(
                     row.module,
                     row.category,
                     row.finding_text,
-                    _parse_json_field(row.detail_json),
+                    detail_blob,
                     engine,
                 ),
                 "phenotype": row.phenotype,
@@ -204,7 +208,7 @@ def _load_findings(
                 # Coverage-aware label so an incomplete Standard pathway can't render
                 # a plain green Standard badge in exported reports (#1651).
                 "pathway_level_display": pathway_level_display_label(
-                    row.pathway_level, _parse_json_field(row.detail_json)
+                    row.pathway_level, detail_blob
                 ),
                 "svg_path": row.svg_path,
                 "pmid_citations": pmids,
