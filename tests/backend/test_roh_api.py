@@ -709,6 +709,44 @@ class TestEvaluabilityAtTheApi:
         assert "typical result" not in data["finding_text"].lower()
         assert "could not be read" in data["finding_text"].lower()
 
+    @pytest.mark.parametrize("blob", ["[]", "5", '"text"', "null"])
+    def test_valid_json_that_is_not_an_object_withholds_instead_of_500(
+        self, _env: sa.Engine, client: TestClient, blob: str
+    ) -> None:
+        # Distinct from the malformed-JSON case above: these all *parse*, so
+        # json.JSONDecodeError never fires. They parse to a list/int/str/None,
+        # and `segments_truncated` calls `.get` before its `and evaluable` can
+        # short-circuit — an AttributeError that the route's except tuple does
+        # not catch, so the response was a 500 rather than the withheld result.
+        # A 500 is the one outcome this route exists to prevent: it tells the
+        # caller nothing, where the contract is to withhold and say why.
+        from backend.db.tables import findings
+
+        with _env.begin() as conn:
+            conn.execute(
+                sa.insert(findings),
+                {
+                    "module": "roh",
+                    "category": "autozygosity",
+                    "evidence_level": 1,
+                    "finding_text": (
+                        "No long runs of homozygosity were detected (FROH ≈ 0). "
+                        "This is the typical result."
+                    ),
+                    "detail_json": blob,
+                },
+            )
+
+        response = client.get("/api/analysis/roh/findings?sample_id=1")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["evaluable"] is False
+        assert data["indeterminate_reason"] == "detail_unavailable"
+        assert data["froh"] is None
+        assert data["segments"] == []
+        assert data["segments_truncated"] is False
+        assert "typical result" not in data["finding_text"].lower()
+
     def test_legacy_row_with_adequate_markers_is_untouched(
         self, _env: sa.Engine, client: TestClient
     ) -> None:

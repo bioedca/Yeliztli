@@ -88,7 +88,19 @@ def list_findings(
     # unexpected segment shape) must not 500 — fall back to the plain
     # finding_text with zeroed metrics.
     try:
-        detail: dict[str, Any] = json.loads(row.detail_json) if row.detail_json else {}
+        parsed = json.loads(row.detail_json) if row.detail_json else {}
+        # json.loads returns whatever JSON type was stored, so a drifted or
+        # hand-edited row holding `[]`, `5` or `"text"` parses to a list, int or
+        # str — and the `dict[str, Any]` annotation below would be a lie. Only a
+        # JSON object can carry readable state; anything else is normalised to
+        # {} so `evaluability_from_detail` classifies it as detail_unavailable.
+        # This must happen at the parse site rather than at each use: the metric
+        # expressions are guarded by `if evaluable` and so never call `.get`,
+        # but `segments_truncated` evaluates `.get` *before* its `and evaluable`
+        # short-circuits, and AttributeError is not in the except tuple below —
+        # so a non-object blob would 500 instead of withholding, which is the
+        # one outcome this route exists to prevent.
+        detail: dict[str, Any] = parsed if isinstance(parsed, dict) else {}
         # One shared rule, also used by the unified findings API and the report
         # generator, so a pre-gate row reclassifies identically on every path.
         evaluable, snps_used, reason = evaluability_from_detail(detail, engine)
