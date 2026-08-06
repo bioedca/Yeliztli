@@ -227,7 +227,9 @@ export default function AnnotationPanel({ sampleId, variantCount }: AnnotationPa
       {/* Status message */}
       <div className="mt-2 flex items-center justify-between">
         <p className="text-xs text-muted-foreground truncate">
-          {progress?.message ?? "Queued for annotation..."}
+          {progress?.status === "failed"
+            ? "Annotation failed."
+            : progress?.message ?? "Queued for annotation..."}
         </p>
         <span className="text-xs text-muted-foreground tabular-nums ml-2 shrink-0">
           {(progress?.progress_pct ?? 0).toFixed(1)}%
@@ -235,9 +237,9 @@ export default function AnnotationPanel({ sampleId, variantCount }: AnnotationPa
       </div>
 
       {/* Error message */}
-      {progress?.error && (
+      {progress?.status === "failed" && (
         <p className="mt-2 text-xs text-destructive" role="alert">
-          {progress.error}
+          Annotation failed. Please try again.
         </p>
       )}
     </div>
@@ -254,6 +256,11 @@ function StatusIcon({ status }: { status: AnnotationProgress["status"] }) {
       return <CheckCircle2 className="h-4 w-4 text-green-500" />
     case "failed":
       return <XCircle className="h-4 w-4 text-destructive" />
+    case "cancelling":
+      // Still working: the worker has not acknowledged the cancel yet, and the
+      // sample stays interlocked until it does. A Ban icon here would say the
+      // job had stopped when it hasn't (#2232).
+      return <Loader2 className="h-4 w-4 animate-spin text-yellow-500" />
     case "cancelled":
       return <Ban className="h-4 w-4 text-yellow-500" />
     default:
@@ -271,6 +278,8 @@ function statusLabel(status: AnnotationProgress["status"]): string {
       return "Annotation Complete"
     case "failed":
       return "Annotation Failed"
+    case "cancelling":
+      return "Cancelling..."
     case "cancelled":
       return "Annotation Cancelled"
     default:

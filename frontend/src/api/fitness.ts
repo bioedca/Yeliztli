@@ -1,5 +1,7 @@
 /** React Query hooks for Gene Fitness API (P3-47). */
 
+import { throwApiError } from "@/api/errors"
+
 import { useQuery } from "@tanstack/react-query"
 import type { PathwaysResponse, PathwayDetailResponse } from "@/types/fitness"
 
@@ -16,8 +18,7 @@ export function useFitnessPathways(sampleId: number | null) {
       const params = new URLSearchParams({ sample_id: String(sampleId!) })
       const res = await fetch(`/api/analysis/fitness/pathways?${params}`)
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`Fitness pathways failed: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `Fitness pathways failed. Please try again.`)
       }
       return res.json()
     },
@@ -44,10 +45,7 @@ export function useFitnessPathwayDetail(
         `/api/analysis/fitness/pathway/${encodeURIComponent(pathwayId!)}?${params}`,
       )
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(
-          `Fitness pathway detail failed: ${res.status}${text ? ` - ${text}` : ""}`,
-        )
+        await throwApiError(res, `Fitness pathway detail failed. Please try again.`)
       }
       return res.json()
     },

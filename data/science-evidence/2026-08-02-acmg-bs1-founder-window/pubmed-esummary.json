@@ -1,0 +1,34 @@
+{
+  "claim_ids": ["C3"],
+  "source": "NCBI Entrez ESummary",
+  "accessed": "2026-08-02",
+  "payload_type": "sanitized source-response extract",
+  "sanitized_payload_path": "data/science-evidence/2026-08-02-acmg-bs1-founder-window/pubmed-esummary.json",
+  "retention": "Citation metadata only; no article content, abstract, author details, affiliation, or full-text material is retained.",
+  "license_or_terms": "N/A for retained citation metadata: no licensed article content is copied.",
+  "request": {
+    "db": "pubmed",
+    "ids": ["30311383", "32461654", "28518168"]
+  },
+  "records": [
+    {
+      "pmid": "30311383",
+      "title": "Updated recommendation for the benign stand-alone ACMG/AMP criterion.",
+      "journal": "Hum Mutat",
+      "published": "2018 Nov"
+    },
+    {
+      "pmid": "32461654",
+      "title": "The mutational constraint spectrum quantified from variation in 141,456 humans.",
+      "journal": "Nature",
+      "published": "2020 May"
+    },
+    {
+      "pmid": "28518168",
+      "title": "Using high-resolution variant frequencies to empower clinical genome interpretation.",
+      "journal": "Genet Med",
+      "published": "2017 Oct"
+    }
+  ],
+  "sanitization": "Citation metadata only; abstracts, author details, affiliations, and full text are intentionally omitted."
+}

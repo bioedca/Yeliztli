@@ -10,7 +10,7 @@ separately estimates polygenic risk for a few common cancers.
 A **28-gene** hereditary-cancer panel, including *BRCA1*, *BRCA2*, *TP53*, *PALB2*, *ATM*,
 *CHEK2*, the Lynch-syndrome mismatch-repair genes (*MLH1*, *MSH2*, *MSH6*, *PMS2*), *APC*,
 *MUTYH*, *PTEN*, *STK11*, *CDH1*, and others. It also computes **polygenic risk scores**
-(PRS) for breast, prostate, colorectal, and melanoma.
+(PRS) for prostate, colorectal, and melanoma.
 
 ## What you'll see
 
@@ -19,6 +19,9 @@ A **28-gene** hereditary-cancer panel, including *BRCA1*, *BRCA2*, *TP53*, *PALB
   pattern, and an evidence rating. For recessive genes, you're told whether you're a
   *carrier* versus *affected*. *BRCA1/BRCA2* findings cross-reference the
   [carrier module](carrier-status.md), where they also appear in a reproductive context.
+  ClinVar lower-penetrance/risk-allele findings are stored under a distinct findings category
+  from high-penetrance P/LP cancer-predisposition variants, although the current page displays
+  both categories together.[^clingen-risk-allele]
 - **Polygenic scores** — shown as a **population percentile**, never as a raw score,
   confidence interval, or absolute risk. This statement is specific to cancer PRS output:
   PRS percentiles are explicitly research-use-only and are kept separate from the optional
@@ -28,6 +31,14 @@ A **28-gene** hereditary-cancer panel, including *BRCA1*, *BRCA2*, *TP53*, *PALB
   from NCI SEER with published female-carrier penetrance estimates for *BRCA1*/*BRCA2*
   Pathogenic/Likely-Pathogenic findings [1]. This is not a PRS-derived estimate and not a
   personalized clinical risk model.
+
+!!! note "Breast-cancer PRS is currently unavailable"
+    The source-verified breast-cancer PRS77 [2] is not scored or reported. The bundled GRCh38
+    allele audit [3] records 39 multiallelic primary loci and 2 additional biallelic loci that
+    are palindromic without trusted effect-allele strand provenance. The current sample schema
+    does not preserve enough allele context to harmonize those loci safely. This is a runtime
+    limitation, not an ancestry-calibration result; the percentile note below applies only to
+    models that are scored.
 
 !!! note "Percentiles can be withheld"
     A polygenic percentile is only shown when the score is properly calibrated for your
@@ -70,3 +81,20 @@ sex cannot be resolved from array data, sex-specific numeric penetrance is withh
 [1] Kuchenbaecker KB, Hopper JL, Barnes DR, et al. [Risks of breast, ovarian, and
 contralateral breast cancer for BRCA1 and BRCA2 mutation carriers](https://doi.org/10.1001/jama.2017.7112).
 *JAMA*. 2017;317(23):2402-2416. [PMID 28632866](https://pubmed.ncbi.nlm.nih.gov/28632866/).
+
+[2] Mavaddat N, et al. [Prediction of breast cancer risk based on profiling with common
+genetic variants](https://doi.org/10.1093/jnci/djv036). *Journal of the National Cancer
+Institute*. 2015;107(5):djv036. [PMID:25855707](https://pubmed.ncbi.nlm.nih.gov/25855707/)
+(accessed 2026-08-03).
+
+[3] Yeliztli cancer PRS panel version 1.2.0, breast-cancer PRS77
+`model_provenance.current_allele_audit` in `backend/data/panels/cancer_prs_weights.json`
+(Ensembl Variation GRCh38 audit checked 2026-07-16;
+[DOI:10.1093/database/bay119](https://doi.org/10.1093/database/bay119))
+(accessed 2026-08-03).
+
+[^clingen-risk-allele]: Schmidt RJ, et al. [Recommendations for risk allele evidence
+    curation, classification, and reporting from the ClinGen Low Penetrance/Risk Allele
+    Working Group](https://doi.org/10.1016/j.gim.2023.101036). *Genetics in Medicine*.
+    2024;26(3):101036. PMID:38054408; DOI:10.1016/j.gim.2023.101036
+    (accessed 2026-07-31).

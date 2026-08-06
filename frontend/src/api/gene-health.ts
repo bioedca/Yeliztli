@@ -1,5 +1,7 @@
 /** React Query hooks for Gene Health API (P3-66). */
 
+import { throwApiError } from "@/api/errors"
+
 import { useQuery } from "@tanstack/react-query"
 import type { PathwaysResponse, PathwayDetailResponse } from "@/types/gene-health"
 
@@ -16,8 +18,7 @@ export function useGeneHealthPathways(sampleId: number | null) {
       const params = new URLSearchParams({ sample_id: String(sampleId!) })
       const res = await fetch(`/api/analysis/gene_health/pathways?${params}`)
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`Gene Health pathways failed: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `Gene Health pathways failed. Please try again.`)
       }
       return res.json()
     },
@@ -44,10 +45,7 @@ export function useGeneHealthPathwayDetail(
         `/api/analysis/gene_health/pathway/${encodeURIComponent(pathwayId!)}?${params}`,
       )
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(
-          `Gene Health pathway detail failed: ${res.status}${text ? ` - ${text}` : ""}`,
-        )
+        await throwApiError(res, `Gene Health pathway detail failed. Please try again.`)
       }
       return res.json()
     },

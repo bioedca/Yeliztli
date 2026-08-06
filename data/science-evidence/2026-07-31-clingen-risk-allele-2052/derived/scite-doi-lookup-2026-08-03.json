@@ -1,0 +1,66 @@
+{
+ "artifact_type": "derived capture — NOT a raw provider payload",
+ "payload_completeness": "The complete provider response is NOT retained for this service. What is kept is a packet-authored capture: provider-reported values plus packet-authored fields the service never emitted. It is filed under derived/ so it is not mistaken for a raw payload. Re-running now would return a different service state, not the response this packet used, so the gap is disclosed rather than backfilled.",
+ "packet_authored_fields": [
+  "sanitization",
+  "record.authorship_note",
+  "correction_retraction_screening"
+ ],
+ "provider_reported_fields": [
+  "record.doi",
+  "record.title",
+  "record.journal",
+  "record.publisher",
+  "record.year",
+  "record.date",
+  "record.volume",
+  "record.issue",
+  "record.page",
+  "record.is_open_access",
+  "record.oa_status",
+  "record.authors_returned",
+  "citation_tally",
+  "editorial_notices",
+  "total_hits"
+ ],
+ "service": "Scite",
+ "accessed": "2026-08-03",
+ "endpoint": "search_literature",
+ "params": {
+  "dois": [
+   "10.1016/j.gim.2023.101036"
+  ],
+  "limit": 3
+ },
+ "status": "success",
+ "sanitization": "Bibliographic metadata, citation tally, and editorial-notice screening only. The resolved publisher access link is a signed, expiring redirect and is therefore not retained; the canonical DOI is retained instead. No full-text excerpt or abstract is stored.",
+ "total_hits": 1,
+ "record": {
+  "doi": "10.1016/j.gim.2023.101036",
+  "title": "Recommendations for risk allele evidence curation, classification, and reporting from the ClinGen Low Penetrance/Risk Allele Working Group",
+  "journal": "genetics in medicine",
+  "publisher": "Elsevier BV",
+  "year": 2024,
+  "date": "2024-03-01",
+  "volume": "26",
+  "issue": "3",
+  "page": "101036",
+  "is_open_access": true,
+  "oa_status": "bronze",
+  "authors_returned": [
+   "John Garcia",
+   "Vaidehi Jobanputra",
+   "Deqiong Ma"
+  ],
+  "authorship_note": "Scite returns only a three-author subset for this record and it is not the leading three of the NCBI author list. Authorship attribution for this packet follows the authoritative NCBI PubMed esummary record (first author Schmidt RJ), retained at raw/pubmed-esummary-38054408.json. Scite is used here for DOI/journal/date verification and editorial-notice screening only."
+ },
+ "citation_tally": {
+  "total": 31,
+  "supporting": 1,
+  "contrasting": 0,
+  "mentioning": 30,
+  "citing_publications": 72
+ },
+ "editorial_notices": [],
+ "correction_retraction_screening": "The Scite record carries no editorial notices (no retraction, correction, expression of concern, or erratum). This is an independent second screening alongside the NCBI EFetch typed CommentsCorrectionsList check already recorded in this packet; the two agree."
+}

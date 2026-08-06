@@ -1,5 +1,7 @@
 /** React Query hooks for Gene Allergy API (P3-61). */
 
+import { throwApiError } from "@/api/errors"
+
 import { useQuery } from "@tanstack/react-query"
 import type { PathwaysResponse, PathwayDetailResponse } from "@/types/allergy"
 
@@ -17,8 +19,7 @@ export function useAllergyPathways(sampleId: number | null) {
       const params = new URLSearchParams({ sample_id: String(sampleId!) })
       const res = await fetch(`/api/analysis/allergy/pathways?${params}`)
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`Allergy pathways failed: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `Allergy pathways failed. Please try again.`)
       }
       return res.json()
     },
@@ -45,10 +46,7 @@ export function useAllergyPathwayDetail(
         `/api/analysis/allergy/pathway/${encodeURIComponent(pathwayId!)}?${params}`,
       )
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(
-          `Allergy pathway detail failed: ${res.status}${text ? ` - ${text}` : ""}`,
-        )
+        await throwApiError(res, `Allergy pathway detail failed. Please try again.`)
       }
       return res.json()
     },

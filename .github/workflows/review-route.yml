@@ -31,6 +31,10 @@ on:
 # Actions app, is the only acceptable source for the required `Review Route`
 # status. It needs Issues: read, Pull requests: read, and Statuses: write.
 # Reading and rechecking `refs/heads/main` also requires Contents: read.
+# The Greptile lane (#2251) reads its verdict from a check run, which requires
+# Checks: read. That permission must be granted to the app itself: requesting a
+# permission the app does not hold makes the token mint fail, which would stop
+# every route validation, not just a Greptile one.
 permissions:
   contents: read
   pull-requests: read
@@ -788,6 +792,7 @@ jobs:
           permission-pull-requests: read
           permission-statuses: write
           permission-contents: read
+          permission-checks: read
 
       - name: Pre-invalidate event head, resolve PR, and mark current head pending
         env:
@@ -1056,6 +1061,121 @@ jobs:
               --review-pages "$RUNNER_TEMP/review-route-review-pages.json"
             )
           fi
+          thread_page_args=()
+          if jq -e '
+            .data.repository.pullRequest.reviewThreads as $threads |
+            ($threads | type) == "object" and
+            ($threads.totalCount | type) == "number" and
+            ($threads.nodes | type) == "array" and
+            $threads.totalCount > ($threads.nodes | length)
+          ' "$RUNNER_TEMP/review-route-context.json" > /dev/null; then
+            gh api graphql --paginate --slurp \
+              -F owner="$OWNER" \
+              -F repo="$REPO" \
+              -F number="$PR_NUMBER" \
+              -F query=@scripts/review_route_threads.graphql \
+              > "$RUNNER_TEMP/review-route-thread-pages.json"
+            thread_page_args=(
+              --thread-pages "$RUNNER_TEMP/review-route-thread-pages.json"
+            )
+          fi
+          # The repository-wide Greptile sweep is fetched exactly once, here, and
+          # the same file is handed to all three validator invocations. Fetching
+          # it again inside `validate_review_route_snapshot.sh` would put a
+          # ~840-point query after `Review Route: success` is already published,
+          # so a rate limit there would replace a legitimately green route with
+          # `pending`.
+          include_greptile_ledger="$(python -c '
+          import json, sys
+          from pathlib import Path
+          from scripts.validate_review_route import needs_greptile_ledger
+          body = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8")).get("body") or ""
+          print(str(needs_greptile_ledger(body)).lower())
+          ' "$RUNNER_TEMP/pr.json")"
+          case "$include_greptile_ledger" in
+            true|false) ;;
+            *) echo "::error title=Review Route::invalid Greptile ledger selector"; exit 1 ;;
+          esac
+          greptile_ledger_args=()
+          if [ "$include_greptile_ledger" = "true" ] && jq -e '
+            .data.repository.greptileHeadObject.checkSuites.nodes[]?.checkRuns.nodes[]?
+              | select(.completedAt != null)
+          ' "$RUNNER_TEMP/review-route-context.json" > /dev/null; then
+            ledger_plan="$(python -c '
+          import json, sys
+          from pathlib import Path
+          from scripts.validate_review_route import greptile_ledger_fetch_plan
+          print(greptile_ledger_fetch_plan(
+              json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          ))
+          ' "$RUNNER_TEMP/review-route-context.json")"
+            ledger_window_start="${ledger_plan%% *}"
+            ledger_open_numbers="${ledger_plan#* }"
+            ledger_dir="$RUNNER_TEMP/review-route-greptile-ledger"
+            rm -rf "$ledger_dir"
+            mkdir -p "$ledger_dir"
+            ledger_cursor=""
+            ledger_page=1
+            while :; do
+              ledger_file="$(printf '%s/page-%03d.json' "$ledger_dir" "$ledger_page")"
+              if [ -z "$ledger_cursor" ]; then
+                gh api graphql \
+                  -F owner="$OWNER" \
+                  -F repo="$REPO" \
+                  -F query=@scripts/review_route_greptile_ledger.graphql \
+                  > "$ledger_file"
+              else
+                gh api graphql \
+                  -F owner="$OWNER" \
+                  -F repo="$REPO" \
+                  -f endCursor="$ledger_cursor" \
+                  -F query=@scripts/review_route_greptile_ledger.graphql \
+                  > "$ledger_file"
+              fi
+              if ! jq -e '
+                (.data.repository.greptileLedger.pageInfo | type) == "object" and
+                (.data.repository.greptileLedger.nodes | type) == "array"
+              ' "$ledger_file" > /dev/null; then
+                echo "::error title=Review Route::Greptile ledger page is malformed"
+                exit 1
+              fi
+              if [ "$(jq -r '.data.repository.greptileLedger.pageInfo.hasNextPage' \
+                "$ledger_file")" != "true" ]; then
+                break
+              fi
+              # Stop as soon as the coverage set is provably whole: one pull
+              # request older than the window start (the ordering is strictly
+              # monotonic) plus every open pull request seen.
+              if jq -e -s \
+                --arg start "$ledger_window_start" \
+                --argjson open "$ledger_open_numbers" '
+                  [.[].data.repository.greptileLedger.nodes[]] as $all |
+                  (($all | map(select(.updatedAt < $start)) | length) > 0) and
+                  ((($open - ($all | map(.number))) | length) == 0)
+                ' "$ledger_dir"/page-*.json > /dev/null; then
+                break
+              fi
+              ledger_cursor="$(jq -r \
+                '.data.repository.greptileLedger.pageInfo.endCursor // ""' "$ledger_file")"
+              if [ -z "$ledger_cursor" ]; then
+                echo "::error title=Review Route::Greptile ledger cursor is missing"
+                exit 1
+              fi
+              ledger_page=$((ledger_page + 1))
+              if [ "$ledger_page" -gt 60 ]; then
+                echo "::error title=Review Route::Greptile ledger sweep did not converge"
+                exit 1
+              fi
+            done
+            # `page-%03d` keeps the glob in cursor order; `page-10` would
+            # otherwise sort before `page-2` and break the chain the validator
+            # checks.
+            jq -s '.' "$ledger_dir"/page-*.json \
+              > "$RUNNER_TEMP/review-route-greptile-ledger.json"
+            greptile_ledger_args=(
+              --greptile-ledger-pages "$RUNNER_TEMP/review-route-greptile-ledger.json"
+            )
+          fi
           gh api --paginate --slurp \
             "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" \
             > "$RUNNER_TEMP/review-route-files.json"
@@ -1100,6 +1220,8 @@ jobs:
             --rendered-body "$RUNNER_TEMP/review-route-rendered.html" \
             --render-nonce "$render_nonce" \
             "${review_page_args[@]}" \
+            "${thread_page_args[@]}" \
+            "${greptile_ledger_args[@]}" \
             "${finalizer_args[@]}"
 
       - name: Publish required status on PR head

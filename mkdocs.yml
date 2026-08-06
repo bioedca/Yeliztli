@@ -152,6 +152,7 @@ nav:
       - Testing: develop/testing.md
       - Contributing: develop/contributing.md
       - Labels & triage: develop/labels-and-triage.md
+      - Greptile reviews: develop/greptile-reviews.md
   - Maintainer:
       - maintainer/index.md
       - Bundle build & release: bundle-release-runbook.md

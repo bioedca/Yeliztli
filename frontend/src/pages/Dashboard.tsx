@@ -12,7 +12,6 @@ import AnnotationPanel from '@/components/dashboard/AnnotationPanel'
 import ModuleCardsGrid from '@/components/dashboard/ModuleCardsGrid'
 import FindingsPreview from '@/components/dashboard/FindingsPreview'
 import QualityControl from '@/components/dashboard/QualityControl'
-import StaleSampleGate from '@/components/layout/StaleSampleGate'
 import AppUpdateBanner from '@/components/layout/AppUpdateBanner'
 import { PostMergeRewatchModal } from '@/components/individuals/PostMergeRewatchModal'
 import { useSamples } from '@/api/samples'
@@ -110,7 +109,7 @@ export default function Dashboard() {
   // ── Active sample: full dashboard layout ──────────────────
 
   return (
-    <StaleSampleGate>
+    <>
       <div className="p-6 max-w-5xl mx-auto space-y-6">
         {/* App-update + LAI degraded-coverage advisories (Plan §6.7, Step 23/29) */}
         <AppUpdateBanner />
@@ -169,6 +168,6 @@ export default function Dashboard() {
           onClose={closePostMergeModal}
         />
       )}
-    </StaleSampleGate>
+    </>
   )
 }

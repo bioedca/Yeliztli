@@ -1,0 +1,154 @@
+{
+  "accessed": "2026-08-03",
+  "issue": "#2028",
+  "claim": "Source identity and provenance for the two references cited by the breast-cancer PRS77 availability note in docs/modules/health-risk/cancer.md. No biological, statistical, or clinical claim is asserted; the model is fail-closed and produces no score.",
+  "citations": [
+    "PMID:25855707; DOI:10.1093/jnci/djv036 (accessed 2026-08-03)",
+    "DOI:10.1093/database/bay119 (accessed 2026-08-03)",
+    "Ensembl Variation GRCh38 primary-mapping snapshot, SHA-256 7e212e701dfbb7d189155326683396785e6cd3018a4d0a1645650d067fda50b5 (accessed 2026-08-03)"
+  ],
+  "high_stakes_two_source_rule": "Not engaged. This packet records which published model and which annotation resource the bundled panel points at, not a patient-specific or quantitative clinical claim.",
+  "source_versions_and_licenses": {
+    "_why": "Recording the version/build and licence basis for every source and service, so a future auditor can establish which source state produced each retained payload and on what basis retaining it is permitted. Where a field is genuinely unavailable it is recorded as unavailable together with the resulting boundary, rather than left blank.",
+    "PMID:25855707 / DOI:10.1093/jnci/djv036": {
+      "version_or_build": "Version of record, JNCI volume 107 issue 5. No version or build identifier is issued beyond the DOI, and PubMed exposes no revision stamp for this record, so the 2026-08-03 access date is the retrieval-version boundary.",
+      "publication_date_note": "The two retained payloads disagree and the packet deliberately does not canonize either. PubMed records 2015-04-08 (raw/pubmed-25855707-metadata.json); Scite records 2015-04-02 (raw/scite-doi-lookup-2026-08-03.json). The two services do not label the semantics of their date fields, so which is the online-first date and which the indexing or issue date is NOT resolved here rather than guessed. Both are retained with their source named. DOI:10.1093/jnci/djv036 is the stable identifier and neither date is used as a version boundary for any claim.",
+      "license_or_terms": "CC BY 3.0. The article and its supplementary material are distributed under the Creative Commons Attribution 3.0 Unported licence, as recorded by this repository at backend/data/sources/breast_prs77/NOTICE.md and by the bundled panel's license_basis field ('Mavaddat 2015 article and supplement, CC BY 3.0'). Scite separately reports the record as bronze open access; that flag describes reader access at the publisher and is NOT evidence of the absence of a licence, so the repository's explicit licence record governs.",
+      "retention_basis": "CC BY 3.0 permits reuse with attribution, and the source is attributed by PMID and DOI. Independently of that grant, only bibliographic metadata is retained (identifiers, title, journal, dates, publication types, author names); the publisher abstract and full text are not.",
+      "unavailable_fields": [
+        "version_or_build (not issued by the source)"
+      ]
+    },
+    "DOI:10.1093/database/bay119": {
+      "version_or_build": "Version of record, Database volume 2018. The packet does NOT assert a publication date for this record: the only retained value is Scite's generic `date` field (2018-01-01), which carries no source-native publication-date semantics - the same limitation the packet records for the JNCI dates. The volume is the version boundary, and the 2026-08-03 access date bounds retrieval.",
+      "license_or_terms": "CC BY, version not established. Scite reports the record as gold open access with licence `cc-by` and no version field. The publisher's article page at the DOI was fetched on 2026-08-03 to resolve the version: it states CC BY and the copyright line 'The Author(s) 2018. Published by Oxford University Press', but does NOT state a version number. A specific version is therefore deliberately not asserted here.",
+      "license_version_note": "Review suggested this is CC BY 4.0. That was not confirmed by either retained payload or by the publisher page, so it is not recorded as fact. The DOI is the pointer to the publisher's authoritative terms. Nothing in this packet depends on the version: retention covers bibliographic metadata only, which does not rely on the licence grant.",
+      "retention_basis": "Only bibliographic metadata is retained and the source is attributed by DOI. CC BY at any version permits reuse with attribution, so the unresolved version does not affect the basis.",
+      "unavailable_fields": [
+        "license_version (not stated by Scite or by the publisher's article page)"
+      ]
+    },
+    "Consensus (service)": {
+      "version_or_build": "Unavailable. The MCP interface returns no service version, model version, or index build stamp with a search response. The 2026-08-03 access date is the only retrieval-version boundary, so this result is not reproducible against a pinned index state.",
+      "license_or_terms": "Consensus terms of service. Provider output is treated as a discovery aid, not as evidence.",
+      "retention_basis": "Only the query string, result ranks, and the bibliographic identity of the retained hits are recorded. No generated summary, abstract, or provider narrative is retained, and no Consensus result is cited as support for any claim; every claim rests on the primary records above.",
+      "unavailable_fields": [
+        "version_or_build (not exposed by the service)"
+      ]
+    },
+    "Scite (service)": {
+      "version_or_build": "Unavailable. The MCP interface returns no service version or citation-index build stamp. Citation tallies are therefore a point-in-time reading bounded only by the 2026-08-03 access date and will drift.",
+      "license_or_terms": "Scite terms of service. Provider output is treated as a screening aid, not as evidence.",
+      "retention_basis": "Only bibliographic fields, the editorial-notice screening outcome, and point-in-time citation counts are recorded. No Smart Citation snippets quoting third-party papers are retained, and no signed access URL is retained. The screening outcome is used to check for retractions, not as support for any scientific claim.",
+      "unavailable_fields": [
+        "version_or_build (not exposed by the service)"
+      ]
+    },
+    "PubMed connector (service)": {
+      "version_or_build": "Unavailable as a service version. The retrieved document summary carries no revision stamp for this record, so the 2026-08-03 access date is the retrieval-version boundary.",
+      "license_or_terms": "NCBI/NLM public data. NLM requires no signed licence for publicly accessible data, subject to source acknowledgement, non-endorsement, and currentness disclosure.",
+      "retention_basis": "Bibliographic metadata only, attributed to PubMed (NCBI/NLM) with the access date preserved as a fixed historical snapshot. The abstract is removed and author affiliation strings, which carry public contact emails, are not retained.",
+      "unavailable_fields": [
+        "version_or_build (not exposed for this record)"
+      ]
+    },
+    "Ensembl Variation snapshot (backend/data/sources/breast_prs77/ensembl_primary_grch38_2026-07-16.json)": {
+      "version_or_build": "Unavailable. The snapshot records assembly GRCh38, coord_system chromosome, mapping_policy and checked_on 2026-07-16, but names no Ensembl Variation release or database version - verified by searching it for 'release', 'version' and 'build', none of which appear. The snapshot is therefore re-usable but not re-fetchable-and-confirmable upstream. Tracked by #2246; a release is not invented here.",
+      "license_or_terms": "Ensembl data is released without restriction (the resource is cited as DOI:10.1093/database/bay119). The stored artifact holds coordinates, alleles and strand for 77 public rsIDs - factual annotation, no third-party expressive content.",
+      "retention_basis": "Retained verbatim in raw/ensembl_primary_grch38_2026-07-16.json so the packet is complete on its own, and bound by digest so the copy cannot drift: the guard requires its SHA-256 to equal both the canonical artifact at backend/data/sources/breast_prs77/ and the panel's model_provenance.reproducibility.checked_in_snapshot_sha256 pin.",
+      "unavailable_fields": [
+        "version_or_build (no release identifier recorded in the snapshot)"
+      ]
+    },
+    "OUP publisher article page (service)": {
+      "version_or_build": "Unavailable. A live publisher page has no version or build identifier; the 2026-08-03 access date is the only boundary, and the page may change.",
+      "license_or_terms": "Publisher-hosted page, all rights reserved. Only the two licence-bearing statements are retained verbatim - the minimum needed to evidence a negative finding - and no other page content: no abstract, no body text, no navigation.",
+      "retention_basis": "A minimal point-in-time extract is retained at raw/oup-bay119-licence-lookup-2026-08-03.json: the two licence-bearing statements verbatim and nothing else - no abstract, no body text, no navigation. The finding this lookup supports is a negative (no CC BY version stated) against a mutable page, so the evidence has to be checkable rather than asserted in prose.",
+      "unavailable_fields": [
+        "version_or_build (a live web page issues none)"
+      ]
+    }
+  },
+  "queries": [
+    {
+      "service": "Consensus",
+      "tier": "first",
+      "accessed": "2026-08-03",
+      "query": "77-SNP polygenic risk score breast cancer risk stratification Mavaddat common genetic variants",
+      "filters": "none",
+      "status": "success",
+      "result": "Rank 1 is the Mavaddat 2015 JNCI paper cited as reference [2], matching its title, first author, year, and journal. The complete 20-result ranking is retained in the payload. No other hit is relied on or characterized: an earlier revision described the rank-4 paper as an independent validation with a different cohort and author group, which the retained partial author lists cannot establish, so that characterization is withdrawn.",
+      "raw_payload": "data/science-evidence/2026-08-03-breast-prs77-availability-2028/raw/consensus-search-2026-08-03.json"
+    },
+    {
+      "service": "Scite",
+      "tier": "first",
+      "accessed": "2026-08-03",
+      "endpoint": "search_literature",
+      "dois": [
+        "10.1093/jnci/djv036",
+        "10.1093/database/bay119"
+      ],
+      "status": "success",
+      "result": "Both DOIs resolved. Zero editorial notices on each (no retraction, correction, expression of concern, or erratum) - this is the packet's correction/retraction screening. Verified journal, volume, issue and date for the JNCI record. The page number is NOT verified here: the retained Scite record carries no page field for that DOI. Volume 107 issue 5 and the article number djv036 come from the NCBI record. Also recorded the CC BY gold open-access status of the Ensembl record.",
+      "raw_payload": "data/science-evidence/2026-08-03-breast-prs77-availability-2028/raw/scite-doi-lookup-2026-08-03.json"
+    },
+    {
+      "service": "PubMed connector",
+      "tier": "narrowest specialist",
+      "accessed": "2026-08-03",
+      "endpoint": "get_article_metadata",
+      "params": {
+        "pmids": [
+          "25855707"
+        ]
+      },
+      "status": "success",
+      "result": "Confirms PMID:25855707 and DOI:10.1093/jnci/djv036 are the same record: 'Prediction of breast cancer risk based on profiling with common genetic variants', Journal of the National Cancer Institute, 2015, volume 107 issue 5, first author Mavaddat, 212 authors. Publication types are Journal Article; Research Support, N.I.H., Extramural; Research Support, Non-U.S. Gov't.",
+      "raw_payload": "data/science-evidence/2026-08-03-breast-prs77-availability-2028/raw/pubmed-25855707-metadata.json"
+    },
+    {
+      "service": "Ensembl Variation",
+      "tier": "authoritative database (not a discovery service)",
+      "accessed": "2026-08-03",
+      "original_retrieval": "2026-07-16, recorded as checked_on in the snapshot",
+      "endpoint": "primary GRCh38 chromosome mapping for the 77 PRS77 loci",
+      "status": "success",
+      "result": "77 records (rsid, alleles, location, strand) with assembly_name GRCh38, coord_system chromosome, and a mapping_policy excluding alternate scaffolds. scripts/build_breast_prs77.py re-derives the documented 39/2/41 classification from it.",
+      "repository_artifact": "backend/data/sources/breast_prs77/ensembl_primary_grch38_2026-07-16.json",
+      "artifact_sha256": "7e212e701dfbb7d189155326683396785e6cd3018a4d0a1645650d067fda50b5",
+      "raw_payload": "data/science-evidence/2026-08-03-breast-prs77-availability-2028/raw/ensembl_primary_grch38_2026-07-16.json",
+      "payload_note": "The packet retains its own copy so it is complete when archived or inspected independently. The copy is not an independent claim: the guard requires its SHA-256 to equal both the canonical repository artifact's digest and the panel's model_provenance.reproducibility.checked_in_snapshot_sha256 pin, so it cannot drift from the file that actually drives the build.",
+      "source_version": "not recorded; see the version_gap field",
+      "version_gap": "The snapshot names no Ensembl Variation release. Its only provenance fields are assembly_name GRCh38, checked_on 2026-07-16, coord_system chromosome, mapping_policy and raw_payload_sha256. This repository does record an Ensembl release where it has one - bundles/vep_bundle.db bundle_metadata carries ensembl_version 112 with build_date 2026-04-03 - so the convention exists and this artifact simply lacks it. That value cannot be transferred here: it belongs to the VEP annotation bundle, built 3.5 months before this audit through a different pathway, and Ensembl publishes several releases a year. No release is asserted rather than one inferred from a date. Consequence: the snapshot can be re-used and re-verified by digest, and the 39/2/41 classification re-derived from it offline, but it cannot be re-fetched from Ensembl and confirmed upstream. Tracked in #2246."
+    },
+    {
+      "service": "OUP publisher article page",
+      "tier": "direct source lookup",
+      "accessed": "2026-08-03",
+      "endpoint": "https://academic.oup.com/database/article/doi/10.1093/database/bay119/5255129 (via https://doi.org/10.1093/database/bay119, 302)",
+      "purpose": "Resolve whether the publisher states a CC BY version for the Ensembl Variation paper.",
+      "status": "success",
+      "result": "The rendered licence statement says CC BY and carries no version number, alongside the copyright line 'The Author(s) 2018. Published by Oxford University Press'. The packet records the version as not established rather than asserting no version exists anywhere on the page - the retained extract covers the rendered statement and copyright line only, not hyperlink targets or other licence text.",
+      "raw_payload": "data/science-evidence/2026-08-03-breast-prs77-availability-2028/raw/oup-bay119-licence-lookup-2026-08-03.json",
+      "payload_note": "Minimal extract: the two licence-bearing statements only. The finding is a negative, so the evidence for it has to be checkable rather than asserted in prose; the page is mutable and the DOI resolves only to its current contents."
+    }
+  ],
+  "panel_derived_values": {
+    "note": "The locus counts in cancer.md come from the bundled panel, not from either paper.",
+    "source": "backend/data/panels/cancer_prs_weights.json -> model_provenance.current_allele_audit on the weight set whose trait is breast_cancer. Identified by trait, not by position: the loader treats weight_sets order as insignificant.",
+    "audit_source": "Ensembl Variation, GRCh38, checked_on 2026-07-16",
+    "guard": "tests/backend/test_cancer_prs_docs_consistency.py derives the expected counts from the panel and cross-checks runtime_blocked_loci == multiallelic + biallelic.",
+    "audit_reproducibility": {
+      "_correction": "An earlier revision of this packet claimed the audit's inputs were absent from the repository. That was WRONG and review corrected it. The inputs are checked in and the counts are re-derivable offline.",
+      "stored_response": "backend/data/sources/breast_prs77/ensembl_primary_grch38_2026-07-16.json - 77 Ensembl records (rsid, alleles, location, strand) with assembly_name, coord_system, mapping_policy, checked_on 2026-07-16, and raw_payload_sha256 over the upstream payload.",
+      "generator": "scripts/build_breast_prs77.py deterministically re-derives the forward / reverse-complement / palindromic classification from that snapshot.",
+      "integrity_pin": "the breast_cancer weight set's model_provenance.reproducibility.checked_in_snapshot_sha256 pins the snapshot's SHA-256, so editing it breaks a recorded hash.",
+      "what_is_reproducible": "The documented 39 / 2 / 41 counts can be re-derived offline from repository contents.",
+      "what_is_not": "The Ensembl Variation RELEASE identifier is not recorded anywhere in the snapshot - verified by searching it for 'release', 'version' and 'build' tokens, none of which appear. The snapshot can therefore be re-used but not re-fetched and confirmed upstream, because the database state that produced it is unnamed.",
+      "not_invented": "A release identifier is deliberately not supplied here; a fabricated version would read as verified.",
+      "tracked_by": "#2246 - narrowed to recording the Ensembl Variation release identifier."
+    },
+    "counts": "Deliberately NOT duplicated here. The authoritative values live on the weight set whose trait is breast_cancer, at model_provenance.current_allele_audit in backend/data/panels/cancer_prs_weights.json, and tests/backend/test_cancer_prs_docs_consistency.py derives cancer.md's numbers from that weight set. It is identified by trait, never by position: the loader treats weight_sets order as insignificant. A second copy in this packet could drift from the panel just as the documentation could, so it is removed rather than guarded."
+  }
+}

@@ -229,6 +229,19 @@ class PRSWeightSet:
         self.higher_is = normalize_prs_higher_is(self.higher_is)
 
     @property
+    def is_runtime_scored(self) -> bool:
+        """Whether this model is actually scored and surfaced at runtime.
+
+        Both halves must hold: ``scoring_enabled`` is the curator's switch, and
+        ``runtime_scoring_blocked`` is the durable fail-closed marker a caller
+        cannot clear by flipping that switch.  This is the single definition of
+        "is this model scored" -- callers must not re-implement the predicate,
+        because the module documentation pages advertise exactly this set and
+        their consistency guards bind to it.
+        """
+        return self.scoring_enabled and not self.runtime_scoring_blocked
+
+    @property
     def snp_count(self) -> int:
         """Number of SNPs in the weight set."""
         return len(self.weights)
@@ -621,7 +634,7 @@ def compute_prs(
     Returns:
         PRSResult with raw_score and per-SNP contributions.
     """
-    if not weight_set.scoring_enabled or weight_set.runtime_scoring_blocked:
+    if not weight_set.is_runtime_scored:
         state = "runtime-blocked" if weight_set.runtime_scoring_blocked else "disabled"
         raise ValueError(f"PRS weight set {weight_set.name!r} is {state} and cannot be scored")
 
@@ -913,6 +926,28 @@ def check_ancestry_mismatch(
     # cross-ancestry-trained score as single-ancestry (issue #239).
     is_multi = result.multi_ancestry and bool(result.development_ancestries)
 
+    # Warning copy must describe only a value the result actually reports. The
+    # storage/API boundary withholds percentiles for insufficient, uncalibrated,
+    # or otherwise unreportable scores, so directing a user to interpret one
+    # would contradict the withheld-result state (#2018).
+    has_reported_percentile = (
+        result.is_sufficient and result.calibrated and result.percentile is not None
+    )
+    if not has_reported_percentile:
+        # The ancestry mismatch/inference warning itself remains useful, but it
+        # must not add calibration guidance for a value this result withholds.
+        background_caveat = ""
+        admixed_background_caveat = "."
+        interpretation_caveat = "."
+    else:
+        background_caveat = (
+            " Percentile estimates may be less accurate for your genetic background."
+        )
+        admixed_background_caveat = (
+            ". Percentile estimates may be less accurate for an admixed background."
+        )
+        interpretation_caveat = ". Interpret the percentile with caution."
+
     if inferred_ancestry is None:
         result.ancestry_mismatch = False
         if is_multi:
@@ -954,14 +989,14 @@ def check_ancestry_mismatch(
                 "Your genotype did not resolve to a single top ancestry (admixed "
                 "composition), so it cannot be matched to this score's development "
                 "population. PRS portability depends on ancestry composition, linkage "
-                "disequilibrium, and allele-frequency differences, so percentile "
-                "estimates may be less accurate for an admixed background."
+                "disequilibrium, and allele-frequency differences"
+                f"{admixed_background_caveat}"
             )
         else:  # UNCERTAIN
             result.ancestry_warning_text = (
                 "Ancestry could not be confidently inferred (insufficient data), so the "
                 "match between your background and this score's development population "
-                "cannot be assessed. Interpret the percentile with caution."
+                f"cannot be assessed{interpretation_caveat}"
             )
     else:
         if is_multi:
@@ -975,15 +1010,13 @@ def check_ancestry_mismatch(
                 dev = ", ".join(result.development_ancestries)
                 result.ancestry_warning_text = (
                     f"This PRS was developed across multiple ancestries ({dev}), none "
-                    f"matching your inferred ancestry ({inferred_ancestry}). Percentile "
-                    f"estimates may be less accurate for your genetic background."
+                    f"matching your inferred ancestry ({inferred_ancestry}).{background_caveat}"
                 )
             else:
                 result.ancestry_warning_text = (
                     f"This PRS was derived from a single-ancestry ({result.source_ancestry}) "
                     f"population study. Your inferred ancestry ({inferred_ancestry}) differs "
-                    f"from the source population. Percentile estimates may be less accurate "
-                    f"for your genetic background."
+                    f"from the source population.{background_caveat}"
                 )
         else:
             result.ancestry_mismatch = False

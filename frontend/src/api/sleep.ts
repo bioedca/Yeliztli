@@ -1,5 +1,7 @@
 /** React Query hooks for Gene Sleep API (P3-50). */
 
+import { throwApiError } from "@/api/errors"
+
 import { useQuery } from "@tanstack/react-query"
 import type { PathwaysResponse, PathwayDetailResponse } from "@/types/sleep"
 
@@ -17,8 +19,7 @@ export function useSleepPathways(sampleId: number | null) {
       const params = new URLSearchParams({ sample_id: String(sampleId!) })
       const res = await fetch(`/api/analysis/sleep/pathways?${params}`)
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(`Sleep pathways failed: ${res.status}${text ? ` - ${text}` : ""}`)
+        await throwApiError(res, `Sleep pathways failed. Please try again.`)
       }
       return res.json()
     },
@@ -45,10 +46,7 @@ export function useSleepPathwayDetail(
         `/api/analysis/sleep/pathway/${encodeURIComponent(pathwayId!)}?${params}`,
       )
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        throw new Error(
-          `Sleep pathway detail failed: ${res.status}${text ? ` - ${text}` : ""}`,
-        )
+        await throwApiError(res, `Sleep pathway detail failed. Please try again.`)
       }
       return res.json()
     },

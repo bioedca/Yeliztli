@@ -168,4 +168,51 @@ test.describe('System Health log level filtering', () => {
     )
     expect(detailText).not.toContain('\\n  File "/home/app/backend/api/routes/genes.py"')
   })
+
+  test('does not show a recovery warning for a ready database with a successful detail', async ({ page }) => {
+    // Routes registered later take precedence, so this replaces the empty
+    // health response installed by beforeEach for this one browser flow.
+    await page.route('**/api/databases/health', (route) =>
+      route.fulfill(
+        jsonRoute({
+          databases: [
+            {
+              name: 'clinvar',
+              display_name: 'ClinVar',
+              build_mode: 'download',
+              required: true,
+              state: 'ready',
+              present: true,
+              version: '20260315',
+              downloaded_at: '2026-03-15T00:00:00',
+              file_size_bytes: 250_000_000,
+              expected_size_bytes: 250_000_000,
+              integrity_ok: true,
+              integrity_detail: 'ok',
+              resumable: false,
+              download_id: null,
+              downloaded_bytes: null,
+              total_bytes: null,
+              progress_pct: null,
+              active_job_id: null,
+              last_error: null,
+              can_clean: false,
+              can_resume: false,
+              can_verify: true,
+            },
+          ],
+        }),
+      ),
+    )
+
+    await page.goto('/settings/health')
+    await waitForReactHydration(page)
+
+    await expect(page.getByText('ClinVar')).toBeVisible()
+    await expect(
+      page.getByText(
+        'Database integrity needs attention. Re-check or clean and re-download the database.',
+      ),
+    ).toHaveCount(0)
+  })
 })

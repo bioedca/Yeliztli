@@ -655,6 +655,235 @@ describe("IndividualDetail page", () => {
     expect(summaryCalls.get(41)).toBe(2)
   })
 
+  it("offers re-annotation for a stale linked sample instead of a dead retry", async () => {
+    const individual: MockIndividual = {
+      id: 17,
+      display_name: "Gina",
+      aggregated_findings_count: 1,
+      linked_samples: [
+        {
+          id: 61,
+          name: "gina_23andme.txt",
+          file_format: "23andme_v5",
+          vendor: "23andme",
+          variantCount: 600000,
+          highConfidenceFindings: [],
+        },
+      ],
+    }
+    const rawDiagnostic = "sqlite:///private/data/gina.db: stale bundle"
+    mockFetch.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString()
+      if (url === "/api/individuals/17") {
+        return Promise.resolve(jsonResponse(individualPayload(individual)))
+      }
+      if (url === "/api/variants/count?sample_id=61") {
+        return Promise.resolve(jsonResponse({ detail: rawDiagnostic }, 423))
+      }
+      if (url === "/api/analysis/findings/summary?sample_id=61") {
+        return Promise.resolve(jsonResponse({ detail: rawDiagnostic }, 423))
+      }
+      if (url === "/api/annotation/61" && init?.method === "POST") {
+        return Promise.resolve(
+          jsonResponse({ job_id: "annotation-61", sample_id: 61, status: "pending" }, 202),
+        )
+      }
+      return Promise.resolve(jsonResponse({ detail: "not mocked" }, 500))
+    })
+
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, gcTime: Infinity },
+        mutations: { retry: false },
+      },
+    })
+    queryClient.setQueryData(["pharma-genes", 61], { staleResult: true })
+    queryClient.setQueryData(["pharma-genes", 62], { otherSample: true })
+    const Wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/individuals/17"]}>
+          <Routes>
+            <Route path="/individuals/:id" element={children} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    render(<IndividualDetail />, { wrapper: Wrapper })
+
+    const staleGate = await screen.findByTestId("individual-stale-sample-gate")
+    expect(staleGate).toHaveTextContent("gina_23andme.txt")
+    expect(staleGate).toHaveTextContent("Re-annotate")
+    expect(screen.getByTestId("linked-sample-reannotate-61")).toHaveTextContent(
+      "Re-annotation required",
+    )
+    expect(document.body).not.toHaveTextContent(rawDiagnostic)
+    expect(screen.queryByRole("button", { name: /^retry$/i })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId("individual-reannotate-61"))
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/annotation/61",
+        expect.objectContaining({ method: "POST" }),
+      )
+    })
+    await waitFor(() => {
+      expect(queryClient.getQueryState(["pharma-genes", 61])?.isInvalidated).toBe(true)
+    })
+    expect(queryClient.getQueryState(["pharma-genes", 62])?.isInvalidated).not.toBe(true)
+    queryClient.clear()
+  })
+
+  it("revalidates cached linked findings before rendering a returning individual page", async () => {
+    const individual: MockIndividual = {
+      id: 19,
+      display_name: "Iris",
+      aggregated_findings_count: 1,
+      linked_samples: [
+        {
+          id: 64,
+          name: "iris_23andme.txt",
+          file_format: "23andme_v5",
+          vendor: "23andme",
+          variantCount: 600000,
+          highConfidenceFindings: [
+            {
+              id: 901,
+              module: "pharmacogenomics",
+              rsid: "rs4244285",
+              finding_text: "Cached finding must not survive a stale probe.",
+              evidence_level: 4,
+            },
+          ],
+        },
+      ],
+    }
+    installMocks(individual)
+    const successfulFetch = mockFetch.getMockImplementation()
+    if (!successfulFetch) throw new Error("installMocks must configure fetch")
+
+    let stale = false
+    let resolveCount: (() => void) | undefined
+    let resolveSummary: (() => void) | undefined
+    mockFetch.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString()
+      if (stale && url === "/api/variants/count?sample_id=64") {
+        return new Promise<Response>((resolve) => {
+          resolveCount = () => resolve(jsonResponse({ detail: "stale" }, 423))
+        })
+      }
+      if (stale && url === "/api/analysis/findings/summary?sample_id=64") {
+        return new Promise<Response>((resolve) => {
+          resolveSummary = () => resolve(jsonResponse({ detail: "stale" }, 423))
+        })
+      }
+      return successfulFetch(input, init)
+    })
+
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, gcTime: Infinity },
+        mutations: { retry: false },
+      },
+    })
+    const Wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/individuals/19"]}>
+          <Routes>
+            <Route path="/individuals/:id" element={children} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    const firstVisit = render(<IndividualDetail />, { wrapper: Wrapper })
+    expect(await screen.findByTestId("aggregated-finding-rsid:rs4244285")).toBeInTheDocument()
+    firstVisit.unmount()
+
+    stale = true
+    render(<IndividualDetail />, { wrapper: Wrapper })
+    await waitFor(() => {
+      expect(resolveCount).toBeDefined()
+      expect(resolveSummary).toBeDefined()
+    })
+
+    const row = screen.getByTestId("linked-sample-row-64")
+    expect(within(row).getByText("Loading…")).toBeInTheDocument()
+    expect(screen.queryByTestId("aggregated-finding-rsid:rs4244285")).not.toBeInTheDocument()
+
+    resolveCount?.()
+    resolveSummary?.()
+
+    expect(await screen.findByTestId("individual-stale-sample-gate")).toHaveTextContent(
+      "iris_23andme.txt",
+    )
+    expect(screen.queryByTestId("aggregated-finding-rsid:rs4244285")).not.toBeInTheDocument()
+    expect(
+      within(screen.getByTestId("linked-sample-row-64")).getByText("Re-annotation required"),
+    ).toBeInTheDocument()
+    queryClient.clear()
+  })
+
+  it("invalidates the target cache when re-annotation is already running", async () => {
+    const individual: MockIndividual = {
+      id: 18,
+      display_name: "Hana",
+      linked_samples: [
+        {
+          id: 63,
+          name: "hana_23andme.txt",
+          file_format: "23andme_v5",
+          vendor: "23andme",
+          variantCount: 600000,
+          highConfidenceFindings: [],
+        },
+      ],
+    }
+    mockFetch.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString()
+      if (url === "/api/individuals/18") {
+        return Promise.resolve(jsonResponse(individualPayload(individual)))
+      }
+      if (url === "/api/variants/count?sample_id=63") {
+        return Promise.resolve(jsonResponse({ detail: "stale" }, 423))
+      }
+      if (url === "/api/analysis/findings/summary?sample_id=63") {
+        return Promise.resolve(jsonResponse({ detail: "stale" }, 423))
+      }
+      if (url === "/api/annotation/63" && init?.method === "POST") {
+        return Promise.resolve(jsonResponse({ detail: "Already in progress" }, 409))
+      }
+      return Promise.resolve(jsonResponse({ detail: "not mocked" }, 500))
+    })
+
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, gcTime: Infinity },
+        mutations: { retry: false },
+      },
+    })
+    queryClient.setQueryData(["pharma-genes", 63], { staleResult: true })
+    const Wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/individuals/18"]}>
+          <Routes>
+            <Route path="/individuals/:id" element={children} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    render(<IndividualDetail />, { wrapper: Wrapper })
+    await screen.findByTestId("individual-stale-sample-gate")
+    fireEvent.click(screen.getByTestId("individual-reannotate-63"))
+
+    await waitFor(() => {
+      expect(queryClient.getQueryState(["pharma-genes", 63])?.isInvalidated).toBe(true)
+    })
+    expect(screen.getByRole("link", { name: "Track re-annotation" })).toBeInTheDocument()
+    queryClient.clear()
+  })
+
   it("surfaces a named partial failure without hiding successful findings", async () => {
     installMocks({
       id: 16,
