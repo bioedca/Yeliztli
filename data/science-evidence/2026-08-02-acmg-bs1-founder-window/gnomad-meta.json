@@ -1,0 +1,26 @@
+{
+  "claim_ids": ["C4"],
+  "source": "gnomAD GraphQL",
+  "source_identifier": "gnomAD GraphQL API",
+  "endpoint": "https://gnomad.broadinstitute.org/api",
+  "accessed": "2026-08-02",
+  "api_version": null,
+  "api_version_note": "The queried GraphQL metadata response did not expose an API version.",
+  "dataset_version": null,
+  "dataset_version_note": "No dataset, variant, sample, or genotype record was requested; the local bundle is documented separately as gnomAD r2.1.1 exomes on GRCh37/b37.",
+  "payload_type": "sanitized endpoint-metadata response",
+  "sanitized_payload_path": "data/science-evidence/2026-08-02-acmg-bs1-founder-window/gnomad-meta.json",
+  "retention": "Public endpoint availability metadata only; no variant, sample, genotype, or dataset record is retained.",
+  "license_or_terms": "N/A for retained endpoint metadata: no gnomAD dataset content is copied.",
+  "request": {
+    "method": "POST",
+    "query": "query { meta { clinvar_release_date } }",
+    "selected_fields": ["meta.clinvar_release_date"]
+  },
+  "response": {
+    "meta": {
+      "clinvar_release_date": "2026-06-06"
+    }
+  },
+  "sanitization": "Public endpoint metadata only; no variant, sample, genotype, or user data were requested."
+}

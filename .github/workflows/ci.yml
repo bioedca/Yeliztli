@@ -93,6 +93,22 @@ jobs:
               # generators, the CI startup witness), so a scripts-only change
               # must run the suite that depends on it.
               - 'scripts/**'
+              # tests/backend/test_review_route_policy.py READS these two files
+              # and asserts on their contents — the PR template is fed to the
+              # real validator, and CONTRIBUTING.md is checked for agreement
+              # with it. Without these entries a template- or CONTRIBUTING-only
+              # PR skips the backend suite and can only redden main after the
+              # merge, the same trap as #1061/#1065 and #1965 above (#2247).
+              - '.github/PULL_REQUEST_TEMPLATE.md'
+              - 'CONTRIBUTING.md'
+              # Same trap again: tests/backend/test_greptile_config.py READS the
+              # Greptile review configuration and is the only gate that fails
+              # when the manual-only guard is weakened. Without these entries a
+              # config-only PR skips the backend suite entirely, so re-enabling
+              # automatic review — the exact thing the guard exists to prevent —
+              # would pass every pre-merge check (#2249).
+              - 'greptile.json'
+              - '.greptile/**'
             frontend:
               - 'frontend/**'
               - 'tests/frontend/**'

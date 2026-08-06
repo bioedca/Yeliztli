@@ -79,13 +79,41 @@ jobs = sa.Table(
         sa.Text,
         nullable=False,
         server_default="pending",
-        comment="pending | running | complete | partial | failed | cancelled",
+        comment="pending | running | cancelling | complete | partial | failed | cancelled",
     ),
     sa.Column("progress_pct", sa.Float, server_default="0"),
     sa.Column("message", sa.Text, server_default=""),
     sa.Column("error", sa.Text),
     sa.Column("created_at", sa.DateTime, server_default=sa.func.now()),
     sa.Column("updated_at", sa.DateTime, server_default=sa.func.now()),
+    # Worker-lifecycle proof (#2232). Status and timestamps alone cannot tell an
+    # API-only restart (the Huey process may still be writing) from a worker that
+    # died, so recovery had to choose between releasing a live lease and leaving a
+    # dead one active forever. `owner_id` names the process that holds the row and
+    # `owner_epoch` distinguishes one run of it from the next, so a lease from a
+    # previous epoch is provably not the current worker's. `heartbeat_at` is what
+    # makes death observable rather than inferred: the owner refreshes it while it
+    # works, and a lease stale beyond a bounded margin can be released without
+    # guessing. All three are nullable because rows predating this migration, and
+    # rows nobody owns, still have to read correctly.
+    sa.Column(
+        "owner_id",
+        sa.Text,
+        nullable=True,
+        comment="Identity of the process holding this job, e.g. huey:<uuid>",
+    ),
+    sa.Column(
+        "owner_epoch",
+        sa.Text,
+        nullable=True,
+        comment="Start marker for the owning process; a new epoch means a new run",
+    ),
+    sa.Column(
+        "heartbeat_at",
+        sa.DateTime,
+        nullable=True,
+        comment="Last liveness refresh by the owner; NULL means never claimed",
+    ),
 )
 
 # ── Database Versions ──────────────────────────────────────────────────

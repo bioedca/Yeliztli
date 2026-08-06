@@ -1,0 +1,67 @@
+{
+  "schema_version": "1.0",
+  "accessed": "2026-08-03",
+  "purpose": "Maps each relied-upon Consensus or Scite source to its sanitized raw service response. Unredacted service responses are never persisted because they can contain copyrighted text and user-specific access URLs.",
+  "entries": [
+    {
+      "key": "consensus-ghosh-search",
+      "service": "Consensus",
+      "identifier": "4439bbb6071d5097972fac0f2fea8fb0",
+      "operation": "consensus_search",
+      "payload_path": "data/science-evidence/2026-08-02-acmg-bs1-founder-window/raw/consensus-search-fetch-sanitized.json",
+      "json_pointer": "/search",
+      "unredacted_response_sha256": null,
+      "unredacted_response_sha256_note": "Not recorded because the unredacted provider response is deliberately not persisted.",
+      "sanitized_sha256": "307707afc0b811718c3f99e6d428fc6749ec86be70948b2a8b4f0d375ec30508"
+    },
+    {
+      "key": "consensus-ghosh-fetch",
+      "service": "Consensus",
+      "identifier": "4439bbb6071d5097972fac0f2fea8fb0",
+      "doi": "10.1002/humu.23642",
+      "operation": "consensus_fetch",
+      "payload_path": "data/science-evidence/2026-08-02-acmg-bs1-founder-window/raw/consensus-search-fetch-sanitized.json",
+      "json_pointer": "/fetch",
+      "unredacted_response_sha256": null,
+      "unredacted_response_sha256_note": "Not recorded because the unredacted provider response is deliberately not persisted.",
+      "sanitized_sha256": "307707afc0b811718c3f99e6d428fc6749ec86be70948b2a8b4f0d375ec30508"
+    },
+    {
+      "key": "scite-ghosh-metadata",
+      "service": "Scite",
+      "doi": "10.1002/humu.23642",
+      "operation": "scite_search_literature",
+      "payload_path": "data/science-evidence/2026-08-02-acmg-bs1-founder-window/raw/scite-targeted-doi-responses-sanitized.json",
+      "json_pointer": "/responses/0",
+      "unredacted_response_sha256": null,
+      "unredacted_response_sha256_note": "Not recorded because the unredacted provider response contains service access URLs and article text.",
+      "sanitized_sha256": "64bf3733bf9fd2fcef561e9753c197737e872c470ad047a83d964ab25dd23a1b"
+    },
+    {
+      "key": "scite-cphg-faf-context",
+      "service": "Scite",
+      "doi": "10.1002/cphg.93",
+      "operation": "scite_search_literature",
+      "payload_path": "data/science-evidence/2026-08-02-acmg-bs1-founder-window/raw/scite-targeted-doi-responses-sanitized.json",
+      "json_pointer": "/responses/1",
+      "unredacted_response_sha256": null,
+      "unredacted_response_sha256_note": "Not recorded because the unredacted provider response contains service access URLs and article text.",
+      "sanitized_sha256": "64bf3733bf9fd2fcef561e9753c197737e872c470ad047a83d964ab25dd23a1b"
+    },
+    {
+      "key": "scite-tp53-founder-context",
+      "service": "Scite",
+      "doi": "10.1002/humu.24152",
+      "operation": "scite_search_literature",
+      "payload_path": "data/science-evidence/2026-08-02-acmg-bs1-founder-window/raw/scite-targeted-doi-responses-sanitized.json",
+      "json_pointer": "/responses/2",
+      "unredacted_response_sha256": null,
+      "unredacted_response_sha256_note": "Not recorded because the unredacted provider response contains service access URLs and article text.",
+      "sanitized_sha256": "64bf3733bf9fd2fcef561e9753c197737e872c470ad047a83d964ab25dd23a1b"
+    }
+  ],
+  "related_correction_snapshot": {
+    "payload_path": "data/science-evidence/2026-08-02-acmg-bs1-founder-window/pubmed-efetch-corrections-sanitized.json",
+    "sanitized_sha256": "aebe8698901850a503bd4885e57c4589b09d8c6a294c2d7b32540a2481b10699"
+  }
+}

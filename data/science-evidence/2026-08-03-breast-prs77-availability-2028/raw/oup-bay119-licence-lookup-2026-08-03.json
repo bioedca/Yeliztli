@@ -1,0 +1,21 @@
+{
+  "service": "OUP publisher article page",
+  "accessed": "2026-08-03",
+  "status": "success",
+  "resolved_from": "https://doi.org/10.1093/database/bay119 (302)",
+  "url": "https://academic.oup.com/database/article/doi/10.1093/database/bay119/5255129",
+  "purpose": "Determine whether the publisher states a CC BY *version* for the Ensembl Variation paper.",
+  "sanitization": "Only the two licence-bearing statements are retained, verbatim and in full, because the finding this lookup supports is a NEGATIVE - that no version is stated - and an auditor cannot check a negative against prose alone. Nothing else from the page is kept: no abstract, no body text, no navigation, no scripts. The page is mutable, so this is a point-in-time extract bounded by the access date.",
+  "records": [
+    {
+      "field": "licence",
+      "verbatim": "CC BY",
+      "note": "Stated without a version number in the rendered licence statement. This extract covers the rendered licence statement and the copyright line only; it does not cover hyperlink targets or any other licence text elsewhere on the page."
+    },
+    {
+      "field": "copyright_line",
+      "verbatim": "\u00a9 The Author(s) 2018. Published by Oxford University Press"
+    }
+  ],
+  "conclusion": "The rendered licence statement says CC BY and carries no version number. This supports recording the version as NOT ESTABLISHED - it is deliberately not stated as 'no version appears anywhere on the page', which this extract cannot evidence. A version could exist in a hyperlink target or adjacent text outside what is retained here; the packet therefore asserts no version at all rather than asserting its absence."
+}

@@ -1,0 +1,228 @@
+{
+  "schema_version": "1.0",
+  "claim_ids": ["C3"],
+  "source": "Scite",
+  "accessed": "2026-08-03",
+  "payload_type": "sanitized raw service responses",
+  "redaction": {
+    "removed_response_fields": [
+      "authors",
+      "abstract",
+      "citation snippets longer than the retained short context",
+      "fulltextExcerpts longer than the retained short context",
+      "access URLs, download URLs, tracking parameters, and email-bearing URLs",
+      "provider hints and transport metadata"
+    ],
+    "reason": "The retained envelopes preserve the direct DOI lookup, returned citation metadata, availability flags, exact source-field paths, and limited context needed for the scoped claim map without redistributing article text or user-specific links."
+  },
+  "responses": [
+    {
+      "key": "scite-ghosh-metadata",
+      "request": {
+        "operation": "scite_search_literature",
+        "dois": [
+          "10.1002/humu.23642",
+          "10.1002/cphg.93",
+          "10.1002/humu.24152"
+        ],
+        "term": null,
+        "limit": 3,
+        "offset": 0
+      },
+      "sanitized_provider_envelope": {
+        "content": [
+          {
+            "type": "text",
+            "response": {
+              "total": 3,
+              "count": 3,
+              "query": "",
+              "limit": 3,
+              "offset": 0,
+              "hits": [
+                {
+                  "doi": "10.1002/humu.23642",
+                  "title": "Updated recommendation for the benign stand‐alone ACMG/AMP criterion",
+                  "journal": "human mutation",
+                  "publisher": "Wiley",
+                  "year": 2018,
+                  "date": "2018-10-11",
+                  "volume": "39",
+                  "issue": "11",
+                  "page": "1525-1530",
+                  "tally": {
+                    "total": 116,
+                    "supporting": 1,
+                    "contrasting": 0,
+                    "mentioning": 115,
+                    "citingPublications": 194
+                  },
+                  "isOa": false,
+                  "contentDenied": true
+                },
+                {
+                  "doi": "10.1002/cphg.93",
+                  "title": "Overview of Specifications to the ACMG/AMP Variant Interpretation Guidelines",
+                  "journal": "current protocols in human genetics",
+                  "publisher": "Wiley",
+                  "year": 2019,
+                  "date": "2019-08-08",
+                  "volume": "103",
+                  "issue": "1",
+                  "tally": {
+                    "total": 186,
+                    "supporting": 2,
+                    "contrasting": 0,
+                    "mentioning": 182,
+                    "citingPublications": 245
+                  },
+                  "isOa": true,
+                  "contentDenied": false
+                },
+                {
+                  "doi": "10.1002/humu.24152",
+                  "title": "Specifications of the ACMG/AMP variant interpretation guidelines for germline TP53 variants",
+                  "journal": "human mutation",
+                  "publisher": "Wiley",
+                  "year": 2020,
+                  "date": "2020-12-25",
+                  "volume": "42",
+                  "issue": "3",
+                  "page": "223-236",
+                  "tally": {
+                    "total": 147,
+                    "supporting": 1,
+                    "contrasting": 0,
+                    "mentioning": 146,
+                    "citingPublications": 188
+                  },
+                  "isOa": true,
+                  "contentDenied": false
+                }
+              ]
+            }
+          }
+        ],
+        "structuredContent": null,
+        "isError": false
+      },
+      "response_field_presence": {
+        "hits[0].retraction_notices": false
+      }
+    },
+    {
+      "key": "scite-cphg-faf-context",
+      "request": {
+        "operation": "scite_search_literature",
+        "dois": ["10.1002/cphg.93"],
+        "term": "filtering allele frequency BA1 BS1",
+        "limit": 1,
+        "offset": 0
+      },
+      "sanitized_provider_envelope": {
+        "content": [
+          {
+            "type": "text",
+            "response": {
+              "total": 1,
+              "count": 1,
+              "query": "filtering allele frequency BA1 BS1",
+              "limit": 1,
+              "offset": 0,
+              "hits": [
+                {
+                  "doi": "10.1002/cphg.93",
+                  "title": "Overview of Specifications to the ACMG/AMP Variant Interpretation Guidelines",
+                  "journal": "current protocols in human genetics",
+                  "publisher": "Wiley",
+                  "year": 2019,
+                  "date": "2019-08-08",
+                  "volume": "103",
+                  "issue": "1",
+                  "tally": {
+                    "total": 186,
+                    "supporting": 2,
+                    "contrasting": 0,
+                    "mentioning": 182,
+                    "citingPublications": 245
+                  },
+                  "isOa": true,
+                  "contentDenied": false,
+                  "retained_short_context": {
+                    "source_field": "fulltextExcerpts[2]",
+                    "quote": "If a variant has an FAF above BA1 or BS1 thresholds for a condition of interest, then BA1 or BS1 can confidently be applied",
+                    "quote_word_count": 24,
+                    "truncated": true
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "structuredContent": null,
+        "isError": false
+      },
+      "response_field_presence": {
+        "hits[0].retraction_notices": false
+      }
+    },
+    {
+      "key": "scite-tp53-founder-context",
+      "request": {
+        "operation": "scite_search_literature",
+        "dois": ["10.1002/humu.24152"],
+        "term": "Ashkenazi Finnish BA1 BS1",
+        "limit": 1,
+        "offset": 0
+      },
+      "sanitized_provider_envelope": {
+        "content": [
+          {
+            "type": "text",
+            "response": {
+              "total": 1,
+              "count": 1,
+              "query": "Ashkenazi Finnish BA1 BS1",
+              "limit": 1,
+              "offset": 0,
+              "hits": [
+                {
+                  "doi": "10.1002/humu.24152",
+                  "title": "Specifications of the ACMG/AMP variant interpretation guidelines for germline TP53 variants",
+                  "journal": "human mutation",
+                  "publisher": "Wiley",
+                  "year": 2020,
+                  "date": "2020-12-25",
+                  "volume": "42",
+                  "issue": "3",
+                  "page": "223-236",
+                  "tally": {
+                    "total": 147,
+                    "supporting": 1,
+                    "contrasting": 0,
+                    "mentioning": 146,
+                    "citingPublications": 188
+                  },
+                  "isOa": true,
+                  "contentDenied": false,
+                  "retained_short_context": {
+                    "source_field": "citations[1].snippet",
+                    "quote": "ignore frequencies in Ashkenazi Jewish and Finnish populations due to founder effects",
+                    "quote_word_count": 11,
+                    "truncated": true
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "structuredContent": null,
+        "isError": false
+      },
+      "response_field_presence": {
+        "hits[0].retraction_notices": false
+      }
+    }
+  ],
+  "license_or_terms": "The only retained source text is one 24-word FAF-context quote and one 11-word TP53-context quote, each identified by its returned source-field path. No abstract, long publisher excerpt, author/affiliation detail, access URL, or user-specific query parameter is redistributed."
+}
