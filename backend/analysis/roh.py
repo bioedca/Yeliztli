@@ -442,6 +442,66 @@ _SEGMENT_FIELD_CHECKS: dict[str, Any] = {
 }
 
 
+def _metrics_agree(detail: dict[str, Any], segments: list[dict[str, Any]] | None) -> bool:
+    """Whether the stored metrics are consistent with each other.
+
+    Per-field validity is not enough: a blob can hold nothing but well-typed,
+    in-range values and still describe an impossible scan, and the APIs then
+    serve the contradiction verbatim -- `n_segments: 1` beside `segments: []`
+    and `segments_truncated: false` reports one segment and shows none.
+
+    The relations checked are read off ``store_roh_findings``, which is the only
+    writer, rather than accumulated one review round at a time. They are the ones
+    true of *any* correct ROH result, not of one cap or schema version: the
+    persisted list is the longest segments up to a cap, ``segments_truncated``
+    records whether that cap bit, and total/longest are sums and maxima over the
+    same set. Cap-specific relations (`len(segments) == the cap` when truncated)
+    are deliberately excluded -- a row written under a different
+    ``_MAX_PERSISTED_SEGMENTS`` is stale, not incoherent.
+
+    ``froh`` is deliberately not cross-checked against ``total_roh_kb`` either.
+    That relation depends on the denominator convention in force when the row was
+    written, and the blob records its own ``froh_denominator_kb``; inferring
+    which applies would be guessing at a value rather than reading one, and a
+    wrong guess withholds a real measurement. Withholding on evidence is the
+    point -- withholding on a supposition is the failure this module is about.
+
+    Only relations between fields that are *both present* are checked, so a
+    legacy blob recording a subset stays evaluable.
+    """
+    n_segments = detail.get("n_segments")
+    total = detail.get("total_roh_kb")
+    longest = detail.get("longest_kb")
+    truncated = bool(detail.get("segments_truncated", False))
+
+    if n_segments is not None and segments is not None:
+        # The list is capped, so it may be shorter than the count -- but only
+        # when the blob says so. Equality otherwise.
+        if truncated:
+            if len(segments) > n_segments:
+                return False
+        elif len(segments) != n_segments:
+            return False
+
+    # No segments means nothing was summed and nothing was longest.
+    empty = (n_segments == 0) or (segments == [] and not truncated)
+    if empty:
+        if (total is not None and total != 0) or (longest is not None and longest != 0):
+            return False
+
+    # The longest segment is one of those summed, so it cannot exceed the total.
+    if total is not None and longest is not None and longest > total:
+        return False
+
+    # ...and it cannot be shorter than a segment the blob itself lists. The cap
+    # keeps the longest, so this holds whether or not the list was truncated.
+    if longest is not None and segments:
+        if longest < max(segment["length_kb"] for segment in segments):
+            return False
+
+    return True
+
+
 def _companion_metrics_readable(detail: dict[str, Any]) -> bool:
     """Whether every companion metric a consumer will serve is actually readable.
 
@@ -472,15 +532,18 @@ def _companion_metrics_readable(detail: dict[str, Any]) -> bool:
     # blob that raised in the ROH route. `total_roh_kb` and friends are
     # `float | None` in the response, so an explicit null is legitimate there.
     if "segments" not in detail:
-        return True
+        return _metrics_agree(detail, None)
     segments = detail["segments"]
     if not isinstance(segments, list):
         return False
-    return all(
+    if not all(
         isinstance(segment, dict)
         and all(check(segment.get(field)) for field, check in _SEGMENT_FIELD_CHECKS.items())
+        and segment["end"] >= segment["start"]
         for segment in segments
-    )
+    ):
+        return False
+    return _metrics_agree(detail, segments)
 
 
 def evaluability_from_detail(

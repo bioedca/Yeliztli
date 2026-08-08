@@ -166,6 +166,17 @@ def findings_client(
 
 # ── List findings tests ─────────────────────────────────────────────
 
+# One well-formed persisted ROH segment, matching what `store_roh_findings`
+# writes. Shared so the metric-consistency cases below differ only in the one
+# relation under test.
+_SEG = {
+    "chrom": "1",
+    "start": 1_000_000,
+    "end": 7_200_000,
+    "length_kb": 6200.0,
+    "n_snps": 620,
+}
+
 
 class TestListFindings:
     def test_list_all_findings(self, findings_client):
@@ -567,6 +578,95 @@ class TestListFindings:
         assert response.detail["froh"] == 0.004
         assert response.detail["n_segments"] == 1
         assert response.finding_text == "stored narrative"
+
+    @pytest.mark.parametrize(
+        ("label", "overrides"),
+        [
+            # count vs list, with and without the truncation flag that would
+            # legitimately excuse a short list
+            ("count_exceeds_list", {"n_segments": 1, "segments": []}),
+            ("list_exceeds_count", {"n_segments": 0, "segments": [_SEG]}),
+            ("truncated_list_longer_than_count", {"n_segments": 1, "segments": [_SEG, _SEG]}),
+            # zero segments cannot have summed to anything
+            (
+                "zero_segments_nonzero_total",
+                {"n_segments": 0, "segments": [], "total_roh_kb": 900.0},
+            ),
+            (
+                "zero_segments_nonzero_longest",
+                {"n_segments": 0, "segments": [], "longest_kb": 900.0},
+            ),
+            # the longest segment is one of those summed
+            ("longest_exceeds_total", {"total_roh_kb": 100.0, "longest_kb": 900.0}),
+            # ...and cannot be shorter than a segment the blob itself lists
+            ("longest_below_a_listed_segment", {"longest_kb": 10.0, "segments": [_SEG]}),
+            # a segment that runs backwards is not a coordinate range
+            ("segment_ends_before_it_starts", {"segments": [{**_SEG, "start": 9_000_000}]}),
+        ],
+    )
+    def test_internally_contradictory_metrics_are_withheld(self, label, overrides):
+        # Per-field validity is not enough: these blobs hold nothing but
+        # well-typed, in-range values and still describe an impossible scan.
+        # Served verbatim they contradict themselves -- `n_segments: 1` beside
+        # an empty list reports one segment and shows none. The relations are
+        # read off `store_roh_findings`, the only writer, rather than
+        # accumulated one review round at a time.
+        detail = {
+            "froh": 0.004,
+            "autosomal_snps_used": 600_000,
+            "total_roh_kb": 6200.0,
+            "longest_kb": 6200.0,
+            "n_segments": 1,
+            "segments": [_SEG],
+            **overrides,
+        }
+        response = _row_to_response(self._roh_row(finding_text="stored narrative", detail=detail))
+
+        assert response.detail["evaluable"] is False, label
+        assert response.detail["indeterminate_reason"] == "detail_unavailable", label
+        assert response.detail["froh"] is None, label
+
+    @pytest.mark.parametrize(
+        ("label", "overrides"),
+        [
+            ("exact_agreement", {}),
+            # a genuinely truncated row: the cap bit, so the list is shorter
+            # than the count and says so
+            ("truncated_row", {"n_segments": 40, "segments": [_SEG], "segments_truncated": True}),
+            # a legacy blob recording only a subset stays evaluable
+            ("no_segment_list", {"segments": None, "n_segments": None}),
+            ("only_froh_and_count", {"total_roh_kb": None, "longest_kb": None}),
+            (
+                "genuine_empty_scan",
+                {
+                    "n_segments": 0,
+                    "segments": [],
+                    "total_roh_kb": 0.0,
+                    "longest_kb": 0.0,
+                },
+            ),
+        ],
+    )
+    def test_self_consistent_metrics_are_still_served(self, label, overrides):
+        # Counterpart controls. Without these, a check that rejected every blob
+        # with more than one metric would satisfy the parametrisation above
+        # while withholding every real scan this module has recorded -- and the
+        # truncated and legacy shapes are exactly the ones a too-strict relation
+        # would silently eat.
+        detail = {
+            "froh": 0.004,
+            "autosomal_snps_used": 600_000,
+            "total_roh_kb": 6200.0,
+            "longest_kb": 6200.0,
+            "n_segments": 1,
+            "segments": [_SEG],
+            **overrides,
+        }
+        detail = {k: v for k, v in detail.items() if not (k in overrides and v is None)}
+        response = _row_to_response(self._roh_row(finding_text="stored narrative", detail=detail))
+
+        assert response.detail["froh"] == 0.004, label
+        assert response.finding_text == "stored narrative", label
 
     def test_stored_reason_its_own_count_contradicts_is_downgraded(self):
         # A drifted row can store `evaluable: false` with
