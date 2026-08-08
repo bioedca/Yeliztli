@@ -1,0 +1,176 @@
+Yeliztli — Third-Party Data Attribution
+============================================
+
+This product redistributes data derived from the following sources, and also records selected
+provider-fetched or local-build inputs that Yeliztli can use when an operator installs them.
+Each entry's scope says whether Yeliztli redistributes the data or only consumes a local
+operator-built artifact. This file is the companion to the MIT LICENSE (which covers
+Yeliztli's own source code).
+
+gnomAD (Genome Aggregation Database)
+------------------------------------
+Source:   https://gnomad.broadinstitute.org/
+License:  CC0 1.0 (public domain dedication) — primary allele-frequency data.
+Scope:    Allele frequencies and homozygous counts only (table `gnomad_af`).
+          No SpliceAI, CADD, REVEL, SIFT, PolyPhen, or any CC-BY-NC /
+          academic-license-restricted predictor columns are included.
+Version:  gnomAD v2.1.1 (GRCh37 exomes).
+Citation: Karczewski, K.J., Francioli, L.C., Tiao, G. et al.
+          "The mutational constraint spectrum quantified from variation in
+          141,456 humans." Nature 581, 434–443 (2020).
+          doi:10.1038/s41586-020-2308-7
+
+"gnomAD" and "Broad Institute" are trademarks of their respective owners and
+are used here solely for source attribution. Yeliztli is an independent
+project and is not affiliated with or endorsed by the Broad Institute.
+
+ClinGen (Clinical Genome Resource) — Gene-Disease Validity
+----------------------------------------------------------
+Source:   https://search.clinicalgenome.org/kb/gene-validity
+License:  CC0 1.0 (public domain dedication). ClinGen requests attribution and
+          the date accessed even though CC0 imposes no legal requirement; we
+          honor that request here.
+Scope:    Gene-disease validity classifications (Definitive / Strong / Moderate /
+          Limited / Disputed / Refuted / No Known Disease Relationship) only,
+          used as a context-only guardrail (table `clingen_gene_validity`). No
+          ClinGen logo is used.
+Accessed: 2026-06-11 (file build date stamped in the bundled snapshot).
+Citation: Strande, N.T., Riggs, E.R., Buchanan, A.H. et al. "Evaluating the
+          Clinical Validity of Gene-Disease Associations: An Evidence-Based
+          Framework Developed by the Clinical Genome Resource."
+          Am. J. Hum. Genet. 100(6), 895–906 (2017). doi:10.1016/j.ajhg.2017.04.015
+          See clinicalgenome.org for current classifications.
+
+"ClinGen" and "Clinical Genome Resource" are used here solely for source
+attribution. Yeliztli is an independent project and is not affiliated with or
+endorsed by ClinGen or the NIH.
+
+AlphaMissense (proteome-wide missense pathogenicity)
+----------------------------------------------------
+Source:   https://zenodo.org/records/10813168 (DOI 10.5281/zenodo.10813168)
+License:  CC-BY-4.0 — per the Zenodo record's authoritative metadata grant, the
+          deliberately-chosen redistributable release (distinct from the original
+          CC-BY-NC-SA records 8208688 / 8360242). NOTE: the data file still embeds
+          a stale "# Licensed under CC BY-NC-SA 4.0" header from that original
+          release; the record-level CC-BY-4.0 grant governs this redistribution.
+Scope:    hg19 (GRCh37) per-variant am_pathogenicity + am_class only (standalone
+          `alphamissense.db`), used as a context-only complement to REVEL — never
+          a separate ACMG in-silico vote.
+Version:  AlphaMissense hg19 predictions, Zenodo record 10813168 (v3, 2023-09-19).
+Citation: Cheng, J., Novati, G., Pan, J. et al. "Accurate proteome-wide missense
+          variant effect prediction with AlphaMissense." Science 381, eadg7492
+          (2023). doi:10.1126/science.adg7492
+
+"AlphaMissense" and "Google DeepMind" are used here solely for source attribution.
+Yeliztli is an independent project and is not affiliated with or endorsed by
+Google DeepMind.
+
+PharmGKB (cross-source pharmacogenomic evidence: LoE + DPWG)
+-----------------------------------------------------------
+Source:   https://www.pharmgkb.org/ (clinical annotations, guideline annotations,
+          drug labels — downloads accessed 2026-06-11)
+License:  CC-BY-4.0 ShareAlike (CC-BY-SA 4.0). **ShareAlike honored:** the
+          PharmGKB-derived data redistributed here (the PharmGKB Level of Evidence
+          and DPWG-guideline-presence columns of
+          `backend/data/pgx/pgx_guideline_sources.csv`) is itself made available
+          under CC-BY-SA 4.0; recipients who reuse it are subject to the same
+          license. PharmGKB data is not sold for commercial use.
+Scope:    Per-(gene, drug) best PharmGKB Level of Evidence (1A-4) and whether a
+          DPWG recommendation exists — context-only evidence layered over CPIC,
+          never altering a finding or recommendation.
+Citation: Whirl-Carrillo, M., Huddart, R., Gong, L. et al. "An Evidence-Based
+          Framework for Evaluating Pharmacogenomics Knowledge for Personalized
+          Medicine." Clin. Pharmacol. Ther. 110(3), 563-572 (2021).
+          doi:10.1002/cpt.2350 — and cite PharmGKB per
+          https://www.pharmgkb.org/page/citingPharmgkb
+
+"PharmGKB" and "DPWG" are used here solely for source attribution. Yeliztli is an
+independent project and is not affiliated with or endorsed by PharmGKB, Stanford
+University, or the Royal Dutch Pharmacists Association (KNMP).
+
+FDA Pharmacogenomic Labeling (via PharmGKB)
+-------------------------------------------
+Underlying authority: U.S. Food & Drug Administration pharmacogenomic drug
+          labeling ("Table of Pharmacogenomic Biomarkers in Drug Labeling") — the
+          FDA label *content* is a U.S. Government work in the public domain
+          (17 U.S.C. § 105).
+Data used here: the per-(gene, drug) FDA **testing-level classification** (e.g.
+          "Actionable PGx", "Testing Required") is taken from **PharmGKB's
+          FDA-sourced drug-label annotations** (drugLabels download, accessed
+          2026-06-11), i.e. PharmGKB's curation of the FDA labels. As a PharmGKB
+          derivative, this column is governed by **CC-BY-SA 4.0** (see the PharmGKB
+          entry above; share-alike honored), not by the public-domain status of
+          the underlying FDA text.
+Scope:    Context-only evidence layered over CPIC, never altering a finding.
+
+"FDA" and "PharmGKB" are used here solely for source attribution. Yeliztli is an
+independent project and is not affiliated with or endorsed by the U.S. FDA or
+PharmGKB.
+
+GTEx (eQTL regulatory associations)
+-----------------------------------
+Source:   GTEx Portal v8 (https://gtexportal.org/) — significant cis-eQTL
+          variant-gene pairs + the WGS variant→rsID lookup table.
+License:  GTEx **open-access summary statistics** (the eQTL association results)
+          are freely available for use and redistribution. The protected
+          individual-level GTEx data (WGS genotypes) is dbGaP-controlled and is
+          NOT used or redistributed here — only the summary-level eQTL results.
+Scope:    Per-(rsID, gene, tissue) cis-eQTL association (p-value + effect size),
+          stored rsID-keyed (mapped from GRCh38 variant_id via GTEx's lookup) as a
+          context-only regulatory layer — never a causal-mechanism claim and never
+          ACMG evidence.
+Citation: GTEx Consortium. "The GTEx Consortium atlas of genetic regulatory
+          effects across human tissues." Science 369, 1318-1330 (2020).
+          doi:10.1126/science.aaz1776
+
+"GTEx" is used here solely for source attribution. Yeliztli is an independent
+project and is not affiliated with or endorsed by the GTEx Consortium or the NIH.
+
+PGS Catalog (polygenic scores)
+------------------------------
+Source:   PGS Catalog (https://www.pgscatalog.org/) — GRCh37-harmonized scoring
+          files (hmPOS) for published polygenic scores, ingested into a standalone
+          pgs_scores.db for the Wave-B disease-PRS modules.
+License:  Per-score. Only clearly redistributable scores are bundled here — all
+          three are Creative Commons Attribution 4.0 (CC-BY-4.0): PGS000713
+          (type 2 diabetes; Sinnott-Armstrong, Tanigawa et al. 2021), PGS005198
+          (body mass index, multi-ancestry PRS-CS; Smit et al. 2025), and
+          PGS000688 (LDL cholesterol; Sinnott-Armstrong, Tanigawa et al. 2021).
+          Non-commercial / author-restricted scores are NOT bundled (user-fetch
+          only); see backend/annotation/pgs_catalog.classify_pgs_license.
+Scope:    Per-variant effect weights (GRCh37 coordinates + effect/other allele)
+          used as Research-Use-Only polygenic context, never clinical risk.
+Citation: Lambert, S.A., Wingfield, B., Gibson, J.T. et al. "Enhancing the
+          Polygenic Score Catalog with tools for score calculation and ancestry
+          normalization." Nat. Genet. 56, 1989-1994 (2024).
+          doi:10.1038/s41588-024-01937-x  — plus each score's own publication
+          (PMIDs 33462484, 40691366) recorded in pgs_score_metadata.citation.
+
+"PGS Catalog" is used here solely for source attribution. Yeliztli is an
+independent project and is not affiliated with or endorsed by the PGS Catalog,
+EMBL-EBI, or the score authors.
+
+UCSC Genome Browser hg19 + RefSeq gene annotations
+--------------------------------------------------
+Source:   UCSC Genome Browser downloads:
+          https://hgdownload.soe.ucsc.edu/goldenPath/hg19/bigZips/hg19.fa.gz
+          https://hgdownload.soe.ucsc.edu/goldenPath/hg19/database/refGene.txt.gz
+License:  UCSC Genome Browser data-file terms. UCSC states that raw data files
+          and database table dumps used by the Genome Browser are freely
+          available for public and commercial use, while noting that source
+          databases may impose separate terms.
+Scope:    Optional local Genome Browser reference files (`grch37.fa`,
+          `grch37.fa.fai`, `grch37_refseq.bed`) built by
+          `scripts/build_genome_browser_reference.py` and installed by an
+          operator into the user's data directory. Yeliztli does not redistribute
+          this local artifact as an official release asset. These files let
+          IGV.js render GRCh37/hg19 sequence context and RefSeq genes without
+          hosted reference requests when installed locally.
+Accessed: Recorded in the generated
+          `genome_browser_reference_manifest.json` for each build.
+Citation: Please cite the UCSC Genome Browser and source downloads when using
+          this local reference bundle.
+
+"UCSC Genome Browser" and "RefSeq" are used here solely for source attribution.
+Yeliztli is an independent project and is not affiliated with or endorsed by
+UCSC, the Genome Browser project, or NCBI RefSeq.
