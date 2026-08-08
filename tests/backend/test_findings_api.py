@@ -495,6 +495,27 @@ class TestListFindings:
             {"total_roh_kb": "lots"},
             {"longest_kb": []},
             {"n_segments": "many"},
+            # Well-typed but impossible: every metric here is a length, a count
+            # or a fraction, so none can be negative, and a NaN additionally has
+            # no JSON form and can break serialization of the response serving
+            # it. Type-checking alone vouched for all of these.
+            {"total_roh_kb": -1},
+            {"longest_kb": float("nan")},
+            {"longest_kb": float("inf")},
+            {"n_segments": -2},
+            {"segments": [{"chrom": "1", "start": -1, "end": 2, "length_kb": 1.0, "n_snps": 3}]},
+            {
+                "segments": [
+                    {
+                        "chrom": "1",
+                        "start": 1,
+                        "end": 2,
+                        "length_kb": float("nan"),
+                        "n_snps": 3,
+                    }
+                ]
+            },
+            {"segments": [{"chrom": "1", "start": 1, "end": 2, "length_kb": -5.0, "n_snps": 3}]},
         ],
     )
     def test_unreadable_companion_metric_withholds_like_the_roh_route(self, companion):
@@ -546,6 +567,50 @@ class TestListFindings:
         assert response.detail["froh"] == 0.004
         assert response.detail["n_segments"] == 1
         assert response.finding_text == "stored narrative"
+
+    def test_stored_reason_its_own_count_contradicts_is_downgraded(self):
+        # A drifted row can store `evaluable: false` with
+        # `insufficient_autosomal_markers` beside a well-typed count at or above
+        # the floor. Honouring that pair made the narrative state, verbatim,
+        # that 600000 callable SNPs are "fewer than the 100" required -- a
+        # sentence its own number contradicts. The verdict is unchanged (still
+        # withheld); only the explanation is replaced by one that claims nothing.
+        response = _row_to_response(
+            self._roh_row(
+                finding_text="No long runs of homozygosity were detected (FROH ≈ 0).",
+                detail={
+                    "froh": 0.0,
+                    "evaluable": False,
+                    "indeterminate_reason": "insufficient_autosomal_markers",
+                    "autosomal_snps_used": 600_000,
+                },
+            )
+        )
+
+        assert response.detail["evaluable"] is False
+        assert response.detail["indeterminate_reason"] == "detail_unavailable"
+        assert "fewer than" not in response.finding_text
+        assert "600000" not in response.finding_text
+        assert "could not be read" in response.finding_text.lower()
+
+    def test_stored_reason_its_count_does_support_is_honoured(self):
+        # Counterpart control: the downgrade must fire on the contradiction
+        # only, not on every stored reason -- otherwise a genuinely
+        # low-coverage row would lose the cause that actually explains it.
+        response = _row_to_response(
+            self._roh_row(
+                finding_text="No long runs of homozygosity were detected (FROH ≈ 0).",
+                detail={
+                    "froh": 0.0,
+                    "evaluable": False,
+                    "indeterminate_reason": "insufficient_autosomal_markers",
+                    "autosomal_snps_used": 30,
+                },
+            )
+        )
+
+        assert response.detail["indeterminate_reason"] == "insufficient_autosomal_markers"
+        assert "30 callable autosomal SNP(s)" in response.finding_text
 
     def test_evaluable_roh_text_is_untouched_in_generic_api(self):
         # Counterpart control: a well-covered ROH row keeps its stored text, so

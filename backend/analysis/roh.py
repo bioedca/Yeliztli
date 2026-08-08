@@ -47,6 +47,7 @@ post-annotation finding set (and its validation golden snapshot) unchanged.
 from __future__ import annotations
 
 import json
+import math
 from collections import deque
 from dataclasses import dataclass, field
 from typing import Any
@@ -377,21 +378,57 @@ def _sample_coverage(sample_engine: sa.Engine) -> tuple[int, bool]:
     return sum(len(v) for v in by_chrom.values()), _segment_eligible_region_exists(by_chrom)
 
 
-def _is_real_number(value: Any) -> bool:
-    """Whether ``value`` is a number a scan could have written (never a bool)."""
-    return isinstance(value, int | float) and not isinstance(value, bool)
+def _is_measured_quantity(value: Any) -> bool:
+    """Whether ``value`` is a quantity a scan could actually have emitted.
+
+    Every metric in this blob is a length, a count or a fraction, so all of them
+    are finite and non-negative by construction. Checking only the Python type
+    would vouch for `total_roh_kb: -1` -- a measurement the detector cannot
+    produce -- and for a NaN, which additionally has no JSON representation and
+    so can break serialization of the very response that serves it. This is the
+    same bound already applied to `froh`, which is why NaN fails there too:
+    `0.0 <= nan <= 1.0` is False.
+    """
+    return (
+        isinstance(value, int | float)
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+        and value >= 0
+    )
+
+
+def _reason_supported_by(count: int, reason: str) -> str:
+    """Downgrade an indeterminate reason the marker count cannot justify.
+
+    A schema-drifted row can store `evaluable: false` with
+    `insufficient_autosomal_markers` beside a well-typed count at or above the
+    floor. Honouring that pair made `unevaluable_text` state, verbatim, that
+    600000 callable SNPs are "fewer than the 100" required -- a sentence its own
+    number contradicts, on the dedicated, generic and report paths alike. The
+    verdict stands (the row is still withheld); only the explanation is replaced
+    by one that claims nothing. `no_segment_eligible_region` needs no such check
+    -- it quotes the count parenthetically and is consistent at any value.
+    """
+    if reason == INSUFFICIENT_AUTOSOMAL_MARKERS and count >= MIN_EVALUABLE_AUTOSOMAL_SNPS:
+        return DETAIL_UNAVAILABLE
+    return reason
 
 
 # The shape `detect_roh` actually writes, stated once. Only these keys are
 # served as measurements, so only these are checked; `segments_truncated` is
 # read through `bool(...)`, which cannot fail, and `froh` has its own bounded
 # check in `evaluability_from_detail`.
+def _is_count(value: Any) -> bool:
+    """A non-negative integer — coordinates and marker tallies are never below 0."""
+    return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+
+
 _SEGMENT_FIELD_CHECKS: dict[str, Any] = {
     "chrom": lambda v: isinstance(v, str),
-    "start": lambda v: isinstance(v, int) and not isinstance(v, bool),
-    "end": lambda v: isinstance(v, int) and not isinstance(v, bool),
-    "length_kb": _is_real_number,
-    "n_snps": lambda v: isinstance(v, int) and not isinstance(v, bool),
+    "start": _is_count,
+    "end": _is_count,
+    "length_kb": _is_measured_quantity,
+    "n_snps": _is_count,
 }
 
 
@@ -413,12 +450,10 @@ def _companion_metrics_readable(detail: dict[str, Any]) -> bool:
     """
     for key in ("total_roh_kb", "longest_kb"):
         value = detail.get(key)
-        if value is not None and not _is_real_number(value):
+        if value is not None and not _is_measured_quantity(value):
             return False
     n_segments = detail.get("n_segments")
-    if n_segments is not None and (
-        not isinstance(n_segments, int) or isinstance(n_segments, bool)
-    ):
+    if n_segments is not None and not _is_count(n_segments):
         return False
     # Absent and explicitly-null differ here, so membership is tested rather
     # than `.get(...) is None`. The consumers read `detail.get("segments", [])`,
@@ -503,12 +538,15 @@ def evaluability_from_detail(
             # narrative, so honouring one without a recorded count would assert
             # "0 callable autosomal SNP(s)" for a sample nobody counted. Read
             # the sample, or fall back to a reason that claims nothing.
+            # Both exits below route the resolved reason through
+            # `_reason_supported_by`: a stored reason is honoured only if the
+            # count it will be narrated with can actually justify it.
             if reason != DETAIL_UNAVAILABLE and not counted:
                 if sample_engine is None:
                     return False, 0, DETAIL_UNAVAILABLE
                 observed, _eligible = _sample_coverage(sample_engine)
-                return False, observed, str(reason)
-            return False, snps_used, str(reason)
+                return False, observed, _reason_supported_by(observed, str(reason))
+            return False, snps_used, _reason_supported_by(snps_used, str(reason))
         # An explicit `true` is not self-certifying either: it falls through to
         # the same coverage gates below. Our own writer computes the verdict
         # structurally, so a fresh row re-passes them — but a row whose sample
