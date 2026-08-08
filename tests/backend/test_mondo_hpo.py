@@ -123,8 +123,17 @@ def reference_engine() -> sa.Engine:
 
 @pytest.fixture
 def loaded_engine(reference_engine: sa.Engine) -> sa.Engine:
-    """Reference engine loaded with seed CSV data."""
+    """Reference engine loaded with seed CSV data, stamped as a real install is.
+
+    The stamp matters: `load_mondo_hpo_from_csv` is a test-only helper with no
+    production caller, so on its own it produces rows with **no**
+    `database_versions` row — a combination `load_mondo_hpo` never leaves behind,
+    since it always records a version. Without the stamp every lookup here is
+    correctly withheld as unproven, and these tests would have been asserting
+    against a state that cannot occur.
+    """
     load_mondo_hpo_from_csv(GENE_PHENOTYPE_SEED_CSV, reference_engine, clear_existing=False)
+    record_mondo_hpo_version(reference_engine, version=f"20260801+{MONDO_HPO_INGESTION_REVISION}")
     return reference_engine
 
 
@@ -1235,21 +1244,40 @@ class TestDownloadAndLoad:
         opened_target_fds: list[int] = []
         interrupted = False
 
+        # Descriptors are matched to directories by (st_dev, st_ino) identity
+        # rather than resolved through `/proc/self/fd`. That bridge is Linux
+        # only: the required macOS lane has no procfs, and `/dev/fd/N` there is
+        # a character device rather than a symlink, so `os.readlink` would raise
+        # `FileNotFoundError` before any assertion in this test ran. The
+        # production helper already treats both bridges as optional, identity
+        # comparison needs neither, and it is the idiom the sibling tests in
+        # this class already use. It is also stronger, since a symlinked path
+        # that resolves elsewhere cannot satisfy it.
+        def identity_of(path: Path) -> tuple[int, int] | None:
+            try:
+                return mondo_hpo._source_bundle_identity(path.stat())
+            except OSError:
+                return None
+
         def track_open(path, flags, mode=0o777, *, dir_fd=None):
             if dir_fd is None:
                 fd = real_open(path, flags, mode)
-                opened_path = Path(path)
             else:
                 fd = real_open(path, flags, mode, dir_fd=dir_fd)
-                opened_path = Path(os.readlink(f"/proc/self/fd/{dir_fd}")) / os.fspath(path)
-            if opened_path in {downloads.parent, downloads}:
+            opened = mondo_hpo._source_bundle_identity(real_fstat(fd))
+            if opened in {identity_of(downloads.parent), identity_of(downloads)}:
                 opened_target_fds.append(fd)
             return fd
 
         def interrupt_after_final_child_fstat(fd):
             nonlocal interrupted
             result = real_fstat(fd)
-            if not interrupted and Path(os.readlink(f"/proc/self/fd/{fd}")) == downloads:
+            downloads_identity = identity_of(downloads)
+            if (
+                not interrupted
+                and downloads_identity is not None
+                and mondo_hpo._source_bundle_identity(result) == downloads_identity
+            ):
                 interrupted = True
                 raise KeyboardInterrupt
             return result
@@ -2831,6 +2859,36 @@ class TestLookup:
         record_mondo_hpo_version(loaded_engine, version="20270101")
 
         results = lookup_gene_phenotypes(["BRCA1"], loaded_engine)
+        assert [annotation.source for annotation in results["BRCA1"]] == ["omim"]
+        assert lookup_gene_phenotypes(["BRCA1"], loaded_engine, source_filter="mondo_hpo") == {}
+
+    def test_withholds_when_cleanup_removed_the_version_stamp(
+        self, loaded_engine: sa.Engine
+    ) -> None:
+        # `clean_database_artifacts` deletes the mondo_hpo `database_versions`
+        # row for a partial or corrupt install while deliberately retaining the
+        # reference-resident `gene_phenotype` rows. Reading a missing stamp as
+        # "not legacy" served those rows as disease-scoped on the strength of a
+        # stamp that had just been removed -- and database health reports the
+        # source as not installed at the same time. Proof has to be positive.
+        with loaded_engine.begin() as conn:
+            conn.execute(
+                gene_phenotype.insert().values(
+                    gene_symbol="BRCA1",
+                    disease_name="External curated disease",
+                    disease_id="OMIM:604370",
+                    hpo_terms='["HP:0003002"]',
+                    source="omim",
+                    inheritance="AD",
+                )
+            )
+            # Exactly what cleanup leaves behind: no stamp, rows retained.
+            conn.execute(
+                database_versions.delete().where(database_versions.c.db_name == "mondo_hpo")
+            )
+
+        results = lookup_gene_phenotypes(["BRCA1"], loaded_engine)
+
         assert [annotation.source for annotation in results["BRCA1"]] == ["omim"]
         assert lookup_gene_phenotypes(["BRCA1"], loaded_engine, source_filter="mondo_hpo") == {}
 

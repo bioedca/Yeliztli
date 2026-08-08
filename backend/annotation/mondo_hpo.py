@@ -2105,8 +2105,22 @@ def _has_current_secondary_validators(
 
 
 def _is_legacy_disease_scope_install(version: str | None) -> bool:
-    """Whether an installed version lacks proof of disease-scoped HPO rows."""
-    return version is not None and not _has_current_ingestion_revision(version)
+    """Whether an installed version lacks proof of disease-scoped HPO rows.
+
+    A **missing** stamp is unproven too, not exempt. ``clean_database_artifacts``
+    deletes this row for a partial or corrupt install while deliberately
+    retaining the reference-resident ``gene_phenotype`` rows, so reading ``None``
+    as "not legacy" served those rows as disease-scoped on the strength of a
+    stamp that had just been removed -- the exact cross-disease leakage this gate
+    exists to suppress, and while database health reported the source as not
+    installed.
+
+    Proof has to be positive: rows are served because a version records the
+    current loader revision, never because nothing contradicts them. A machine
+    with no MONDO/HPO install at all is unaffected, since withholding rows that
+    do not exist is a no-op.
+    """
+    return not _has_current_ingestion_revision(version or "")
 
 
 def _positive_content_length_or_none(response: httpx.Response) -> int | None:

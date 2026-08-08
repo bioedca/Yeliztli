@@ -20,6 +20,10 @@ import pytest
 import sqlalchemy as sa
 from fastapi.testclient import TestClient
 
+from backend.annotation.mondo_hpo import (
+    MONDO_HPO_INGESTION_REVISION,
+    record_mondo_hpo_version,
+)
 from backend.config import Settings
 from backend.db.connection import reset_registry
 from backend.db.sample_schema import create_sample_tables
@@ -72,6 +76,10 @@ def gene_detail_client(
             )
         )
 
+    # Stamp the install as `load_mondo_hpo` always does. Seeding rows without a
+    # `database_versions` row is a state production never produces, and a
+    # disease-scope lookup correctly withholds unproven mondo_hpo rows -- so
+    # without this the assertions below would test an impossible state.
     # Seed gene-phenotype records
     with ref_engine.begin() as conn:
         conn.execute(
@@ -112,6 +120,7 @@ def gene_detail_client(
                 },
             ],
         )
+    record_mondo_hpo_version(ref_engine, version=f"20260801+{MONDO_HPO_INGESTION_REVISION}")
 
     # Seed annotated variants for BRCA1
     with sample_engine.begin() as conn:

@@ -14,6 +14,10 @@ import pytest
 import sqlalchemy as sa
 from fastapi.testclient import TestClient
 
+from backend.annotation.mondo_hpo import (
+    MONDO_HPO_INGESTION_REVISION,
+    record_mondo_hpo_version,
+)
 from backend.config import Settings
 from backend.db.connection import DBRegistry, reset_registry
 from backend.db.sample_schema import create_sample_tables
@@ -276,6 +280,12 @@ def _setup_client(tmp_data_dir: Path, variants: list[dict], gene_pheno: list[dic
         # Insert gene-phenotype data
         if gene_pheno:
             conn.execute(gene_phenotype.insert(), gene_pheno)
+    if gene_pheno:
+        # Stamp the install as `load_mondo_hpo` always does. Rows without a
+        # `database_versions` row are a state production never produces, and a
+        # disease-scope lookup correctly withholds unproven mondo_hpo rows -- so
+        # without this these assertions would test an impossible state.
+        record_mondo_hpo_version(ref_engine, version=f"20260801+{MONDO_HPO_INGESTION_REVISION}")
     ref_engine.dispose()
 
     sample_db_path = tmp_data_dir / "samples" / "sample_1.db"
