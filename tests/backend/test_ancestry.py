@@ -1143,6 +1143,62 @@ class TestStoreAncestryFindings:
         assert response is not None
         assert response.quality_flags == []
 
+    def test_routes_skip_newer_unsafe_ancestry_rows_for_older_safe_results(
+        self,
+        small_bundle: AncestryBundle,
+        eur_sample: sa.Engine,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """A quarantined legacy row cannot erase a prior usable ancestry result."""
+        result = infer_ancestry(small_bundle, eur_sample)
+        store_ancestry_findings(result, eur_sample)
+        unsafe_detail = json.dumps(
+            {
+                "top_population": "AFR",
+                "legacy": {
+                    "gene": "CYP2D6",
+                    "drug": "tamoxifen",
+                    "recommendation": "Must not replace safe ancestry output.",
+                },
+            }
+        )
+        with eur_sample.begin() as conn:
+            conn.execute(
+                sa.insert(findings),
+                [
+                    {
+                        "module": "ancestry",
+                        "category": category,
+                        "evidence_level": 2,
+                        "finding_text": "Unsafe newer ancestry result",
+                        "detail_json": unsafe_detail,
+                    }
+                    for category in ("pca_projection", "nnls_admixture", "knn_admixture")
+                ],
+            )
+
+        from backend.api.routes import ancestry as ancestry_routes
+
+        monkeypatch.setattr(ancestry_routes, "_get_sample_engine", lambda _sample_id: eur_sample)
+        monkeypatch.setattr(ancestry_routes, "_get_ancestry_bundle", lambda: small_bundle)
+
+        finding_response = ancestry_routes.get_ancestry_findings(sample_id=123)
+        pca_response = ancestry_routes.get_pca_coordinates_endpoint(sample_id=123)
+
+        assert finding_response is not None
+        assert result.top_population != "AFR"
+        assert finding_response.top_population == result.top_population
+        assert finding_response.top_population != "AFR"
+        assert pca_response is not None
+        assert pca_response.top_population == result.top_population
+        assert pca_response.top_population != "AFR"
+
+        finding_payload = json.dumps(finding_response.model_dump(mode="json")).lower()
+        pca_payload = json.dumps(pca_response.model_dump(mode="json")).lower()
+        for payload in (finding_payload, pca_payload):
+            assert "tamoxifen" not in payload
+            assert "unsafe newer ancestry result" not in payload
+
     def test_evidence_level_2(
         self,
         small_bundle: AncestryBundle,

@@ -1,10 +1,11 @@
 """PDF report generator via Playwright page.pdf() (P4-07).
 
 Generates modular PDF reports from analysis findings stored in the
-per-sample ``findings`` table.  Findings are grouped by module, sorted
-by evidence level (highest first), and rendered through a Jinja2 HTML
-template.  Pre-rendered SVGs (created at analysis time) are embedded
-inline.  Playwright's headless Chromium converts the final HTML to PDF.
+per-sample ``findings`` table. Findings are grouped by module, sorted by
+evidence level (highest first), and rendered through a Jinja2 HTML template.
+Cards are generated freshly from the gated structured finding rather than from
+persisted SVG artifacts. Playwright's headless Chromium converts the final HTML
+to PDF.
 
 Usage::
 
@@ -29,6 +30,12 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from backend.analysis.clinvar_conditions import format_clinvar_conditions_text
 from backend.analysis.pathway_coverage import pathway_level_display_label
+from backend.analysis.pharmacogenomics import (
+    is_patient_presentable_finding_payload,
+    is_patient_presentable_response_payload,
+    patient_visible_finding_clause,
+)
+from backend.analysis.svg_renderer import is_safe_svg_marker, render_finding_svg
 from backend.api.gating import gated_modules_to_hide
 from backend.db.connection import get_registry
 from backend.db.tables import findings, samples
@@ -113,7 +120,10 @@ def _load_findings(
     modules: list[str] | None,
 ) -> list[dict[str, Any]]:
     """Query reportable findings from sample DB, sorted by evidence."""
-    clauses = [policy_qualified_finding_clause(findings.c.category)]
+    clauses = [
+        policy_qualified_finding_clause(findings.c.category),
+        patient_visible_finding_clause(findings.c),
+    ]
     if modules:
         clauses.append(findings.c.module.in_(modules))
 
@@ -162,6 +172,8 @@ def _load_findings(
 
     result = []
     for row in rows:
+        if not is_patient_presentable_finding_payload(row._mapping):
+            continue
         pmids_raw = _parse_json_field(row.pmid_citations)
         pmids = pmids_raw if isinstance(pmids_raw, list) else []
 
@@ -197,51 +209,33 @@ def _load_findings(
                 ),
                 "svg_path": row.svg_path,
                 "pmid_citations": pmids,
+                # Keep the complete, already-gated source record private until
+                # the card is freshly rendered below. It is never sent to the
+                # Jinja template or serialized in report evidence.
+                "_svg_render_input": dict(row._mapping),
             }
         )
 
-    return result
-
-
-def _read_svg_content(sample_dir: Path, svg_path: str | None) -> str | None:
-    """Read an SVG file from disk and return its content for inline embedding.
-
-    Returns None if the SVG path is empty or the file doesn't exist.
-    """
-    if not svg_path:
-        return None
-    svg_file = sample_dir / svg_path
-    # Prevent path traversal attacks
-    try:
-        svg_file = svg_file.resolve()
-        sample_dir_resolved = sample_dir.resolve()
-        if not svg_file.is_relative_to(sample_dir_resolved):
-            logger.warning("SVG path traversal attempt blocked: %s", svg_path)
-            return None
-    except (ValueError, OSError):
-        return None
-    if not svg_file.exists():
-        logger.warning("SVG file not found: %s", svg_file)
-        return None
-    try:
-        content = svg_file.read_text(encoding="utf-8")
-        # Strip XML declaration for inline embedding
-        if content.startswith("<?xml"):
-            end_idx = content.find("?>")
-            if end_idx != -1:
-                content = content[end_idx + 2 :].lstrip()
-        return content
-    except Exception:
-        logger.exception("Failed to read SVG: %s", svg_file)
-        return None
+    # The report template renders all selected findings in one document. Keep
+    # complete source-row boundaries, but withhold the dynamic report body if
+    # separately safe legacy fragments would assemble a held pair on the page.
+    evidence_rows = [
+        {
+            key: value
+            for key, value in result_row.items()
+            if key not in {"_svg_render_input", "svg_path"} and value is not None
+        }
+        for result_row in result
+    ]
+    return result if is_patient_presentable_response_payload(evidence_rows) else []
 
 
 def _group_findings_into_sections(
     finding_rows: list[dict[str, Any]],
-    sample_dir: Path,
+    _sample_dir: Path,
     modules: list[str] | None,
 ) -> list[dict[str, Any]]:
-    """Group findings by module into ordered sections with embedded SVGs."""
+    """Group findings by module with freshly rendered SVG cards."""
     # Group by module
     by_module: dict[str, list[dict[str, Any]]] = {}
     for f in finding_rows:
@@ -264,9 +258,16 @@ def _group_findings_into_sections(
     sections = []
     for mod in ordered_modules:
         mod_findings = by_module[mod]
-        # Embed SVG content into each finding
+        # Stored SVG files are mutable artifacts and are never embedded in a
+        # patient report. Preserve their presence as an availability marker,
+        # then generate a fresh card from the already-gated source record.
         for f in mod_findings:
-            f["svg_content"] = _read_svg_content(sample_dir, f.get("svg_path"))
+            render_input = f.pop("_svg_render_input", None)
+            f["svg_content"] = (
+                render_finding_svg(render_input)
+                if is_safe_svg_marker(f.get("svg_path")) and isinstance(render_input, dict)
+                else None
+            )
 
         disclaimer_info = MODULE_DISCLAIMERS.get(mod)
         sections.append(
@@ -279,6 +280,28 @@ def _group_findings_into_sections(
                 "disclaimer": disclaimer_info["text"] if disclaimer_info else None,
             }
         )
+
+    # The report body was checked before rendering, and cards are generated
+    # only from gated records. Recheck the complete dynamic document evidence
+    # after card generation as defense in depth for cross-record assembly.
+    report_evidence = []
+    for section in sections:
+        for finding in section["findings"]:
+            svg_content = finding.get("svg_content")
+            report_evidence.append(
+                {
+                    **{
+                        key: value
+                        for key, value in finding.items()
+                        if key not in {"svg_content", "svg_path"} and value is not None
+                    },
+                    **({"svg_content": svg_content} if isinstance(svg_content, str) else {}),
+                }
+            )
+    if not is_patient_presentable_response_payload(report_evidence):
+        for section in sections:
+            for finding in section["findings"]:
+                finding["svg_content"] = None
 
     return sections
 
@@ -340,8 +363,8 @@ async def generate_report_pdf(
     """Generate a PDF report for the given sample.
 
     Uses Playwright's headless Chromium to render the Jinja2 HTML template
-    to PDF via ``page.pdf()``.  Pre-rendered SVGs are embedded inline in
-    the HTML before conversion.
+    to PDF via ``page.pdf()``. Fresh SVG cards are embedded inline in the HTML
+    before conversion.
 
     Parameters
     ----------

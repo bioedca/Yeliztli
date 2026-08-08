@@ -200,7 +200,29 @@ def test_cyp2d6_as_1_25_and_1_5_diplotypes_are_normal_metabolizers(
     assert alerts, f"expected CYP2D6 prescribing alerts for {expected_diplotype}"
     assert {alert.phenotype for alert in alerts} == {"Normal Metabolizer"}
 
+    assert all(alert.drug != "tamoxifen" for alert in alerts)
+
+
+@pytest.mark.parametrize(
+    ("overrides", "expected_phenotype"),
+    [
+        pytest.param({}, "Normal Metabolizer", id="normal"),
+        pytest.param({"rs3892097": "CT"}, "Intermediate Metabolizer", id="intermediate"),
+        pytest.param({"rs3892097": "TT"}, "Poor Metabolizer", id="poor"),
+    ],
+)
+def test_cyp2d6_tamoxifen_alerts_are_withheld_for_every_phenotype(
+    reference_engine: sa.Engine,
+    overrides: dict[str, str],
+    expected_phenotype: str,
+) -> None:
+    """CPIC source rows never become prescribing output before validation (#2019)."""
+    sample = _sample(**overrides)
+    results = call_all_star_alleles(reference_engine, sample, genes=frozenset({"CYP2D6"}))
+    (result,) = results
+    assert result.phenotype == expected_phenotype
+
+    alerts = generate_prescribing_alerts(results, reference_engine)
     tamoxifen = [alert for alert in alerts if alert.drug == "tamoxifen"]
-    assert len(tamoxifen) == 1
-    assert tamoxifen[0].recommendation == "Use label-recommended dosing."
-    assert "alternative therapy" not in tamoxifen[0].recommendation.lower()
+    assert tamoxifen == []
+    assert any(alert.drug == "codeine" for alert in alerts)

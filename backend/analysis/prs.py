@@ -66,6 +66,7 @@ from backend.analysis.evidence import PRS_EVIDENCE_LEVEL
 from backend.analysis.finding_gate import imputed_variant_surfaceable
 from backend.analysis.imputation_input import AUTOSOMAL_INPUT_CHROMOSOMES
 from backend.analysis.imputation_runner import ImputedVariant
+from backend.analysis.pharmacogenomics import is_patient_presentable_finding_payload
 from backend.analysis.prs_calibration import (
     PRS_CALIBRATION_PMIDS,
     continuous_reference_distribution,
@@ -1082,7 +1083,7 @@ def annotate_monogenic_exclusion(
     if checkable:
         with sample_engine.connect() as conn:
             rows = conn.execute(
-                sa.select(findings.c.gene_symbol)
+                sa.select(findings)
                 .where(
                     findings.c.category == "monogenic_variant",
                     findings.c.gene_symbol.in_(checkable),
@@ -1090,7 +1091,13 @@ def annotate_monogenic_exclusion(
                 )
                 .distinct()
             ).fetchall()
-        carriers = sorted({r.gene_symbol for r in rows if r.gene_symbol})
+        carriers = sorted(
+            {
+                row.gene_symbol
+                for row in rows
+                if row.gene_symbol and is_patient_presentable_finding_payload(row._mapping)
+            }
+        )
 
     result.monogenic_carrier_genes = carriers
 

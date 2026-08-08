@@ -97,8 +97,10 @@ from backend.db.database_registry import (
     check_genome_build_consistency,
 )
 from backend.db.db_health import recover_orphaned_downloads
-from backend.db.reference_schema import ensure_reference_schema_current
-from backend.db.tables import reference_metadata
+from backend.db.reference_schema import (
+    bootstrap_reference_schema_tables,
+    ensure_reference_schema_current,
+)
 from backend.logging_config import configure_logging
 from backend.tasks.huey_tasks import recover_orphaned_jobs
 
@@ -182,8 +184,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         (settings.data_dir / "samples").mkdir(exist_ok=True)
         # Initialize the DB registry (creates reference engine, etc.)
         registry = get_registry()
-        # Ensure reference tables exist (safe on existing DBs via checkfirst)
-        reference_metadata.create_all(registry.reference_engine, checkfirst=True)
+        # Ensure reference tables exist under SQLite's cross-process DDL lock.
+        bootstrap_reference_schema_tables(registry.reference_engine)
         # create_all only creates missing *tables*, never adds *columns* to
         # pre-existing ones. Backfill additive columns (e.g. samples.individual_id)
         # so DBs that predate a column-adding revision keep working.

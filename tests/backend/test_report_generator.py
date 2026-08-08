@@ -45,7 +45,6 @@ from backend.reports.generator import (
     ReportTooLargeError,
     _group_findings_into_sections,
     _load_findings,
-    _read_svg_content,
     render_report_html,
 )
 from backend.reports.module_disclaimers import MODULE_DISCLAIMERS, MODULE_DISPLAY_NAMES
@@ -434,6 +433,81 @@ class TestLoadFindings:
         assert all(result["category"] != "local_ancestry" for result in all_results)
         assert all(result["category"] != "local_ancestry" for result in ancestry_results)
 
+    def test_withholds_retained_custom_tamoxifen_alert(self, sample_with_findings: tuple) -> None:
+        """#2019: PDF/preview inputs cannot re-render a held alert row."""
+        _, sample_engine, _ = sample_with_findings
+        with sample_engine.begin() as conn:
+            conn.execute(
+                findings.insert().values(
+                    module="medication_review",
+                    category="prescribing_alert",
+                    evidence_level=4,
+                    gene_symbol=" CYP2D6 ",
+                    drug="\ttamoxifen\n",
+                    finding_text="Custom retained tamoxifen clinical advice.",
+                )
+            )
+            conn.execute(
+                findings.insert().values(
+                    module="pharmacogenomics",
+                    category="prescribing_alert",
+                    evidence_level=4,
+                    gene_symbol="CYP2C19",
+                    drug="clopidogrel",
+                    finding_text="Nested payload shell must not reach the report.",
+                    detail_json=json.dumps(
+                        {
+                            "legacy": {
+                                " Gene ": "CYP2D6",
+                                "DRUG": "tamoxifen",
+                                "recommendation": "Nested tamoxifen guidance must not render.",
+                            }
+                        }
+                    ),
+                )
+            )
+
+        results = _load_findings(sample_engine, modules=None)
+
+        assert "CYP2D6 *1/*4 — Intermediate Metabolizer for codeine" in {
+            result["finding_text"] for result in results
+        }
+        assert "Custom retained tamoxifen clinical advice." not in {
+            result["finding_text"] for result in results
+        }
+        assert "Nested payload shell must not reach the report." not in {
+            result["finding_text"] for result in results
+        }
+
+    def test_withholds_report_when_safe_rows_assemble_a_held_pair(
+        self, sample_with_findings: tuple
+    ) -> None:
+        _, sample_engine, _ = sample_with_findings
+        with sample_engine.begin() as conn:
+            conn.execute(
+                findings.insert(),
+                [
+                    {
+                        "module": "fitness",
+                        "category": "pathway_summary",
+                        "evidence_level": 4,
+                        "gene_symbol": "CYP2D6",
+                        "drug": None,
+                        "finding_text": "Safe source row one",
+                    },
+                    {
+                        "module": "fitness",
+                        "category": "legacy_note",
+                        "evidence_level": 4,
+                        "gene_symbol": None,
+                        "drug": "tamoxifen",
+                        "finding_text": "Safe source row two",
+                    },
+                ],
+            )
+
+        assert _load_findings(sample_engine, modules=["fitness"]) == []
+
     def test_sorted_by_evidence_level_desc(
         self, tmp_data_dir: Path, sample_with_findings: tuple
     ) -> None:
@@ -482,29 +556,28 @@ class TestLoadFindings:
         assert results[0]["finding_text"] == "Sensitive APOE report narrative"
 
 
-# ── Unit tests: SVG reading ──────────────────────────────────────
+# ── Unit tests: fresh SVG rendering ──────────────────────────────
 
 
-class TestSvgReading:
-    def test_reads_svg_content(self, sample_with_findings: tuple) -> None:
-        _, _, sample_dir = sample_with_findings
-        content = _read_svg_content(sample_dir, "svgs/1.svg")
-        assert content is not None
-        assert "<svg" in content
-        # XML declaration should be stripped for inline embedding
-        assert "<?xml" not in content
+class TestFreshSvgRendering:
+    def test_ignores_persisted_artifact_and_renders_from_gated_source(
+        self, sample_with_findings: tuple
+    ) -> None:
+        _, sample_engine, sample_dir = sample_with_findings
+        (sample_dir / "svgs" / "1.svg").write_text(
+            '<svg xmlns="http://www.w3.org/2000/svg">'
+            "<text>CYP2D6 tamoxifen dose guidance</text></svg>",
+            encoding="utf-8",
+        )
 
-    def test_returns_none_for_missing_svg(self, tmp_path: Path) -> None:
-        assert _read_svg_content(tmp_path, "nonexistent.svg") is None
+        rows = _load_findings(sample_engine, modules=["cancer"])
+        sections = _group_findings_into_sections(rows, sample_dir, modules=["cancer"])
+        finding = next(item for item in sections[0]["findings"] if item["id"] == 1)
 
-    def test_returns_none_for_empty_path(self, tmp_path: Path) -> None:
-        assert _read_svg_content(tmp_path, None) is None
-        assert _read_svg_content(tmp_path, "") is None
-
-    def test_blocks_path_traversal(self, sample_with_findings: tuple) -> None:
-        _, _, sample_dir = sample_with_findings
-        assert _read_svg_content(sample_dir, "../../etc/passwd") is None
-        assert _read_svg_content(sample_dir, "../../../etc/shadow") is None
+        assert finding["svg_content"] is not None
+        assert "<svg" in finding["svg_content"]
+        assert "tamoxifen" not in finding["svg_content"].lower()
+        assert "_svg_render_input" not in finding
 
 
 # ── Unit tests: section grouping ──────────────────────────────────
@@ -717,6 +790,29 @@ class TestHtmlRendering:
         assert "Sensitive APOE report narrative" not in html
         assert "Sensitive Parkinsons report narrative" not in html
         assert "Sensitive aneuploidy report narrative" not in html
+
+    def test_render_report_html_hides_retained_custom_tamoxifen_alert(
+        self,
+        tmp_data_dir: Path,
+        sample_with_findings: tuple,
+    ) -> None:
+        _, sample_engine, _ = sample_with_findings
+        with sample_engine.begin() as conn:
+            conn.execute(
+                findings.insert().values(
+                    module="medication_review",
+                    category="prescribing_alert",
+                    evidence_level=4,
+                    gene_symbol=" CYP2D6 ",
+                    drug="\ttamoxifen\n",
+                    finding_text="Custom retained tamoxifen clinical advice.",
+                )
+            )
+
+        html = _render_html_helper(tmp_data_dir, sample_with_findings)
+
+        assert "CYP2D6 *1/*4 — Intermediate Metabolizer for codeine" in html
+        assert "Custom retained tamoxifen clinical advice." not in html
 
     def test_render_report_html_hides_explicit_unacknowledged_gated_module(
         self,

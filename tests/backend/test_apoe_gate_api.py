@@ -27,6 +27,7 @@ from backend.config import Settings
 from backend.db.connection import reset_registry
 from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import (
+    findings,
     raw_variants,
     reference_metadata,
     samples,
@@ -392,6 +393,41 @@ class TestAPOEGenotype:
         assert data["has_e4"] is True
         assert data["e4_count"] == 1
 
+    def test_acknowledged_genotype_omits_legacy_held_payload(
+        self,
+        apoe_client: TestClient,
+        tmp_data_dir: Path,
+    ) -> None:
+        """A legacy genotype detail shell must not leak after acknowledgement."""
+        apoe_client.post("/api/analysis/apoe/run", params={"sample_id": 1})
+        apoe_client.post("/api/analysis/apoe/acknowledge-gate", params={"sample_id": 1})
+        sample_engine = sa.create_engine(f"sqlite:///{tmp_data_dir / 'samples' / 'sample_1.db'}")
+        try:
+            with sample_engine.begin() as conn:
+                conn.execute(
+                    sa.update(findings)
+                    .where(
+                        findings.c.module == "apoe",
+                        findings.c.category == "genotype",
+                    )
+                    .values(
+                        detail_json=json.dumps(
+                            {
+                                "rs429358_genotype": "CYP2D6 tamoxifen dose guidance",
+                                "rs7412_genotype": "CC",
+                            }
+                        )
+                    )
+                )
+
+            resp = apoe_client.get("/api/analysis/apoe/genotype", params={"sample_id": 1})
+
+            assert resp.status_code == 200
+            assert resp.json()["status"] == "not_run"
+            assert "tamoxifen" not in resp.text.lower()
+        finally:
+            sample_engine.dispose()
+
 
 # ═══════════════════════════════════════════════════════════════════════
 # GET /api/analysis/apoe/findings (gate-protected)
@@ -416,6 +452,45 @@ class TestAPOEFindings:
         assert resp.status_code == 200
         data = resp.json()
         assert data["total"] == 3
+
+    def test_acknowledged_findings_omit_nested_held_payload(
+        self,
+        apoe_client: TestClient,
+        tmp_data_dir: Path,
+    ) -> None:
+        """A raw-detail APOE response cannot reintroduce a held legacy pair."""
+        apoe_client.post("/api/analysis/apoe/run", params={"sample_id": 1})
+        apoe_client.post("/api/analysis/apoe/acknowledge-gate", params={"sample_id": 1})
+        sample_engine = sa.create_engine(f"sqlite:///{tmp_data_dir / 'samples' / 'sample_1.db'}")
+        try:
+            with sample_engine.begin() as conn:
+                conn.execute(
+                    findings.insert().values(
+                        module="apoe",
+                        category="legacy_payload",
+                        evidence_level=6,
+                        gene_symbol="CYP2C19",
+                        drug="clopidogrel",
+                        finding_text="Scalar-safe legacy shell",
+                        detail_json=json.dumps(
+                            {
+                                "legacy": {
+                                    " Gene ": "CYP2D6",
+                                    "DRUG": "tamoxifen",
+                                    "recommendation": "Must not reach APOE details.",
+                                }
+                            }
+                        ),
+                    )
+                )
+
+            resp = apoe_client.get("/api/analysis/apoe/findings", params={"sample_id": 1})
+
+            assert resp.status_code == 200
+            assert resp.json()["total"] == 3
+            assert "tamoxifen" not in resp.text.lower()
+        finally:
+            sample_engine.dispose()
 
     def test_findings_contain_three_categories(self, apoe_client: TestClient) -> None:
         """Findings should contain CV, Alzheimer's, and lipid/dietary."""

@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils"
 import { getClinvarSignificanceTextClass } from "@/lib/clinvar-significance"
 import type { FHStatusResponse } from "@/types/cardiovascular"
 import EvidenceStars from "@/components/ui/EvidenceStars"
-import { HeartPulse, ShieldCheck } from "lucide-react"
+import { CircleAlert, HeartPulse, ShieldCheck } from "lucide-react"
 
 interface FHStatusCardProps {
   fhStatus: FHStatusResponse
@@ -16,14 +16,28 @@ interface FHStatusCardProps {
 
 export default function FHStatusCard({ fhStatus }: FHStatusCardProps) {
   const isPositive = fhStatus.status === "Positive"
+  const isUnavailable = fhStatus.status === "Unavailable"
+  const cardTone = isPositive
+    ? "border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/30"
+    : isUnavailable
+      ? "border-border bg-muted/40"
+      : "border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/30"
+  const iconTone = isPositive
+    ? "bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400"
+    : isUnavailable
+      ? "bg-muted text-muted-foreground"
+      : "bg-green-100 dark:bg-green-900/50 text-green-600 dark:text-green-400"
+  const badgeTone = isPositive
+    ? "bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300"
+    : isUnavailable
+      ? "bg-muted text-muted-foreground"
+      : "bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300"
 
   return (
     <div
       className={cn(
         "rounded-lg border p-5",
-        isPositive
-          ? "border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/30"
-          : "border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/30",
+        cardTone,
       )}
       data-testid="fh-status-card"
     >
@@ -31,13 +45,13 @@ export default function FHStatusCard({ fhStatus }: FHStatusCardProps) {
         <div
           className={cn(
             "flex h-10 w-10 items-center justify-center rounded-lg shrink-0",
-            isPositive
-              ? "bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400"
-              : "bg-green-100 dark:bg-green-900/50 text-green-600 dark:text-green-400",
+            iconTone,
           )}
         >
           {isPositive ? (
             <HeartPulse className="h-5 w-5" />
+          ) : isUnavailable ? (
+            <CircleAlert className="h-5 w-5" />
           ) : (
             <ShieldCheck className="h-5 w-5" />
           )}
@@ -51,9 +65,7 @@ export default function FHStatusCard({ fhStatus }: FHStatusCardProps) {
             <span
               className={cn(
                 "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium",
-                isPositive
-                  ? "bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300"
-                  : "bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300",
+                badgeTone,
               )}
               data-testid="fh-status-badge"
             >

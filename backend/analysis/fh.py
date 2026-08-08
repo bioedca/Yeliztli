@@ -30,6 +30,7 @@ import sqlalchemy as sa
 import structlog
 
 from backend.analysis.pgs_bridge import build_trait_weight_set, load_pgs_registry
+from backend.analysis.pharmacogenomics import is_patient_presentable_finding_payload
 from backend.analysis.prs import PRSResult, run_prs, store_prs_findings
 from backend.db.tables import annotated_variants, findings
 
@@ -126,6 +127,14 @@ class FhMonogenicVariant:
 
 
 @dataclass
+class FhMonogenicDetection:
+    """Safe monogenic findings plus whether a candidate source was withheld."""
+
+    variants: list[FhMonogenicVariant] = field(default_factory=list)
+    source_withheld: bool = False
+
+
+@dataclass
 class FHAssessment:
     """Composed FH assessment: monogenic + APOB FDB + LDL-C PRS."""
 
@@ -141,8 +150,8 @@ class FHAssessment:
 # ── Detection ──────────────────────────────────────────────────────────────
 
 
-def detect_fh_monogenic(sample_engine: sa.Engine) -> list[FhMonogenicVariant]:
-    """Read monogenic FH variants (LDLR/APOB/PCSK9 P/LP) from stored findings."""
+def detect_fh_monogenic_with_status(sample_engine: sa.Engine) -> FhMonogenicDetection:
+    """Read FH candidates without turning a withheld source into a negative result."""
     with sample_engine.connect() as conn:
         rows = conn.execute(
             sa.select(findings)
@@ -153,17 +162,28 @@ def detect_fh_monogenic(sample_engine: sa.Engine) -> list[FhMonogenicVariant]:
             )
             .order_by(findings.c.gene_symbol)
         ).fetchall()
-    return [
-        FhMonogenicVariant(
-            gene=r.gene_symbol or "",
-            rsid=r.rsid,
-            clinvar_significance=r.clinvar_significance,
-            zygosity=r.zygosity,
-            evidence_level=r.evidence_level or 0,
+    detection = FhMonogenicDetection()
+    for row in rows:
+        if not _is_fh_monogenic_finding(row):
+            continue
+        if not is_patient_presentable_finding_payload(row._mapping):
+            detection.source_withheld = True
+            continue
+        detection.variants.append(
+            FhMonogenicVariant(
+                gene=row.gene_symbol or "",
+                rsid=row.rsid,
+                clinvar_significance=row.clinvar_significance,
+                zygosity=row.zygosity,
+                evidence_level=row.evidence_level or 0,
+            )
         )
-        for r in rows
-        if _is_fh_monogenic_finding(r)
-    ]
+    return detection
+
+
+def detect_fh_monogenic(sample_engine: sa.Engine) -> list[FhMonogenicVariant]:
+    """Read patient-presentable monogenic FH variants from stored findings."""
+    return detect_fh_monogenic_with_status(sample_engine).variants
 
 
 def detect_apob_fdb(sample_engine: sa.Engine) -> ApobFdbResult:

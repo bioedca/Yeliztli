@@ -88,8 +88,10 @@ def _env(tmp_path: Path) -> Generator[sa.Engine, None, None]:
     reset_registry()
     registry = DBRegistry(settings)
     with (
+        patch("backend.api.dependencies.get_registry", return_value=registry),
         patch("backend.api.routes.risk_common.get_registry", return_value=registry),
         patch("backend.api.routes.qc.get_registry", return_value=registry),
+        patch("backend.services.staleness.get_registry", return_value=registry),
     ):
         yield sample_engine
     registry.dispose_all()
@@ -228,8 +230,10 @@ def het_cohort_client(tmp_path: Path):
         registry = DBRegistry(settings)
         created.append(registry)
         with (
+            patch("backend.api.dependencies.get_registry", return_value=registry),
             patch("backend.api.routes.risk_common.get_registry", return_value=registry),
             patch("backend.api.routes.qc.get_registry", return_value=registry),
+            patch("backend.services.staleness.get_registry", return_value=registry),
         ):
             from backend.api.routes.qc import router
 
