@@ -694,6 +694,37 @@ class TestListFindings:
                 "params_matching_this_detector",
                 {"params": {"min_roh_kb": 1500, "min_roh_snps": 100}},
             ),
+            # A span landing exactly on a one-decimal rounding tie. 2_048_250 bp
+            # is 2048.25 kb, which the writer stores as round(...,1) == 2048.2,
+            # and the raw gap between them evaluates to 0.0500000000001819 --
+            # fractionally MORE than half a step. A nominal 0.05 tolerance
+            # therefore withheld this freshly written, entirely genuine result,
+            # so the comparison reproduces the writer's rounding instead.
+            (
+                "segment_on_a_rounding_tie",
+                {
+                    "segments": [
+                        {**_SEG, "end": 3_048_250, "length_kb": 2048.2, "n_snps": 620},
+                    ],
+                    "total_roh_kb": 2048.2,
+                    "longest_kb": 2048.2,
+                },
+            ),
+            # ...and the total over two such segments, which the writer stores
+            # as round(sum, 1). The comparison applies the same rounding, so a
+            # float sum that is not bit-exact still matches.
+            (
+                "total_summed_over_rounded_segments",
+                {
+                    "n_segments": 2,
+                    "segments": [
+                        {**_SEG, "end": 3_048_200, "length_kb": 2048.2, "n_snps": 620},
+                        {**_SEG, "end": 3_048_200, "length_kb": 2048.2, "n_snps": 620},
+                    ],
+                    "total_roh_kb": 4096.4,
+                    "longest_kb": 2048.2,
+                },
+            ),
             # a legacy blob recording only a subset stays evaluable
             ("no_segment_list", {"segments": None, "n_segments": None}),
             ("only_froh_and_count", {"total_roh_kb": None, "longest_kb": None}),

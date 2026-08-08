@@ -437,11 +437,15 @@ def _reason_supported_by(count: int, reason: str, eligible: bool | None = None) 
 # bound as the kb metrics. Nothing on an autosome sits past it.
 _AUTOSOMAL_GENOME_BP = AUTOSOMAL_GENOME_KB * 1000
 
-# The writer stores every kb quantity as `round(x, 1)`, so a stored value and a
-# value recomputed from the same data may differ by half a step. Comparisons
-# against stored kb use this slack: a rounding artefact must never withhold a
-# real measurement, which would be this module's own failure mode reversed.
-_ROUNDING_SLACK_KB = 0.05
+# The writer stores every kb quantity as `round(x, 1)`. Comparisons therefore
+# apply the same rounding and check for equality, rather than allowing a half-
+# step tolerance: a half-step allowance is itself wrong at a rounding tie, where
+# binary float makes the gap fractionally *larger* than half a step. A real
+# 2_048_250 bp span rounds to 2048.2 while the unrounded value is 2048.25, and
+# their difference evaluates to 0.0500000000001819 -- so a nominal 0.05 slack
+# withheld a freshly written, entirely genuine result. This epsilon absorbs only
+# float representation, never a rounding step.
+_KB_EPSILON = 1e-6
 
 
 def _is_count(value: Any) -> bool:
@@ -493,9 +497,10 @@ def _segments_clear_emission_thresholds(
         if segment["length_kb"] < MIN_ROH_KB or segment["n_snps"] < MIN_ROH_SNPS:
             return False
         # The length is a measurement *of* the coordinates, so it has to agree
-        # with them. Written as `round(span_kb, 1)`, hence the 0.05 tolerance.
+        # with them -- reproducing the writer's own `round(span_kb, 1)` rather
+        # than allowing a half-step, which misfires at a rounding tie.
         span_kb = (segment["end"] - segment["start"]) / 1000
-        if abs(segment["length_kb"] - span_kb) > _ROUNDING_SLACK_KB:
+        if abs(segment["length_kb"] - round(span_kb, 1)) > _KB_EPSILON:
             return False
     return True
 
@@ -570,15 +575,15 @@ def _metrics_agree(detail: dict[str, Any], segments: list[dict[str, Any]] | None
     # Without this, a blob listing two 6200 kb runs could record a 6200 kb total
     # and be served as a total smaller than its own segments.
     if total is not None and segments:
-        listed = sum(segment["length_kb"] for segment in segments)
-        # Tolerantly, not exactly: the writer stores `round(sum(lengths), 1)`
-        # over lengths that are themselves rounded, so the stored total and the
-        # sum of the stored lengths can legitimately differ by half a step.
-        # A relative epsilon was too tight for that and could have withheld a
-        # genuine row on a rounding artefact alone.
-        if total < listed - _ROUNDING_SLACK_KB or (
-            not truncated and total > listed + _ROUNDING_SLACK_KB
-        ):
+        # Same rule as the segment lengths: apply the writer's own rounding and
+        # compare, since the writer stores `round(sum(lengths), 1)`. When the
+        # list is complete that sum is over exactly these segments, so equality
+        # holds; when the cap bit, the unlisted segments counted too, so the
+        # total may only be larger. A half-step tolerance would misfire here for
+        # the same tie reason -- `round(4096.45, 1)` is 4096.4 and the raw gap
+        # evaluates to 0.0500000000001819.
+        listed = round(sum(segment["length_kb"] for segment in segments), 1)
+        if total < listed - _KB_EPSILON or (not truncated and total > listed + _KB_EPSILON):
             return False
 
     return True
