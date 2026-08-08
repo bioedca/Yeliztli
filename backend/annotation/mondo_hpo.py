@@ -73,6 +73,12 @@ HPO_GENES_TO_PHENOTYPE_URL = "https://purl.obolibrary.org/obo/hp/hpoa/genes_to_p
 # only ``skos:exactMatch`` records from this authoritative MONDO export.
 MONDO_SSSOM_URL = "https://purl.obolibrary.org/obo/mondo/mappings/mondo.sssom.tsv"
 
+# The upstream URLs whose paths are safe to record verbatim. Anything else is an
+# operator override whose path is untrusted -- see `_public_source_url`.
+_CANONICAL_SOURCE_URLS = frozenset(
+    {MONDO_GENE_DISEASE_URL, HPO_GENES_TO_PHENOTYPE_URL, MONDO_SSSOM_URL}
+)
+
 # A loader revision marker lets the update check rebuild labelled-but-gene-wide
 # installations once, without conflating source release dates with schema data.
 MONDO_HPO_INGESTION_REVISION = "disease-scope-v2"
@@ -618,6 +624,20 @@ def _public_source_url(url: str) -> str:
     Source URLs are operator-supplied overrides in tests and maintenance tools,
     so a durable manifest and structured log must never retain a signed URL,
     password, query parameter, or fragment.
+
+    **The path carries credentials too.** Stripping userinfo, query and fragment
+    while keeping ``parsed.path`` verbatim left a path-based bearer or share
+    token -- ``https://host/token/SECRET/file.tsv`` -- written unaltered into the
+    append-only source-bundle manifest and the structured log. That is precisely
+    what this helper promises not to do, and append-only means it cannot be
+    scrubbed afterwards.
+
+    Only the canonical upstream URLs keep their path: those paths are module
+    constants, carry no secret, and are the provenance a reader actually needs.
+    Any other URL is an operator override whose path is untrusted, so it is
+    reduced to scheme, host and a digest of the whole URL. Someone holding the
+    URL can still confirm which one was used; the manifest simply stops being
+    the place the secret lives.
     """
     try:
         parsed = urlsplit(url)
@@ -628,7 +648,10 @@ def _public_source_url(url: str) -> str:
         port = f":{parsed.port}" if parsed.port is not None else ""
     except ValueError:
         return "<invalid source URL>"
-    return urlunsplit((parsed.scheme, f"{host}{port}", parsed.path, "", ""))
+    if url in _CANONICAL_SOURCE_URLS:
+        return urlunsplit((parsed.scheme, f"{host}{port}", parsed.path, "", ""))
+    digest = hashlib.sha256(url.encode("utf-8")).hexdigest()[:16]
+    return urlunsplit((parsed.scheme, f"{host}{port}", f"/<redacted:{digest}>", "", ""))
 
 
 def _write_source_manifest(

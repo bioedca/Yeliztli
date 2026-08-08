@@ -803,11 +803,17 @@ class TestDownloadAndLoad:
             "mondo_sssom_exact_cross_references",
         }
         assert all(source["sha256"] for source in manifest["sources"])
-        assert {source["url"] for source in manifest["sources"]} == {
-            "https://source.example/mondo.tsv",
-            "https://source.example/hpo.txt",
-            "https://source.example/mondo.sssom.tsv",
-        }
+        # These are operator overrides, not the canonical upstream URLs, so their
+        # paths are untrusted and are redacted to a digest. This assertion used
+        # to pin the sanitized paths verbatim, which encoded the weaker contract
+        # that let a path-based bearer token reach the append-only manifest. What
+        # matters is the property, not the exact strings: nothing secret survives,
+        # and the host is still recorded so the provenance stays readable.
+        manifest_urls = {source["url"] for source in manifest["sources"]}
+        assert len(manifest_urls) == 3
+        assert all(url.startswith("https://source.example/") for url in manifest_urls)
+        for secret in ("credential", "opaque", "fragment", "signature", "secret"):
+            assert not any(secret in url for url in manifest_urls), secret
         assert prior_source.read_text(encoding="utf-8") == "prior source bytes\n"
 
         with reference_engine.connect() as conn:
@@ -2378,6 +2384,39 @@ class TestDownloadAndLoad:
                 download_and_load_mondo_hpo(reference_engine, downloads_link)
         finally:
             os.chmod(shared, 0o700)
+
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "https://source.example/token/SUPERSECRET/genes_to_phenotype.txt",
+            "https://user:pw@source.example/a/b.tsv",
+            "https://source.example/f.tsv?sig=SECRET",
+            "https://source.example/f.tsv#SECRET",
+        ],
+    )
+    def test_override_url_never_reaches_the_manifest_verbatim(self, url: str) -> None:
+        # The manifest is append-only, so a credential written into it cannot be
+        # scrubbed afterwards. Stripping userinfo, query and fragment while
+        # keeping the path verbatim left a path-based bearer or share token
+        # durably stored -- the one thing this helper promises not to do.
+        public = mondo_hpo._public_source_url(url)
+
+        assert "SUPERSECRET" not in public
+        assert "SECRET" not in public
+        assert "pw" not in public
+        assert public.startswith("https://source.example/")
+
+    def test_canonical_source_urls_keep_their_path(self) -> None:
+        # Counterpart control: the upstream paths are module constants carrying
+        # no secret, and they are the provenance a reader actually needs. A
+        # sanitizer that redacted everything would satisfy the test above while
+        # making every manifest useless.
+        for url in (
+            mondo_hpo.MONDO_GENE_DISEASE_URL,
+            mondo_hpo.HPO_GENES_TO_PHENOTYPE_URL,
+            mondo_hpo.MONDO_SSSOM_URL,
+        ):
+            assert mondo_hpo._public_source_url(url) == url
 
     def test_installs_on_a_platform_with_no_descriptor_bridge(
         self, monkeypatch, tmp_path: Path
