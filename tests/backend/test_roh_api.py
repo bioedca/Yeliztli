@@ -806,6 +806,51 @@ class TestEvaluabilityAtTheApi:
         assert data["indeterminate_reason"] is None
         assert data["finding_text"] == "stored narrative"
 
+    def test_drifted_marker_count_is_reported_as_observed_not_stored(
+        self, _env: sa.Engine, client: TestClient
+    ) -> None:
+        # `_sample_coverage` was already being called on this path, but only its
+        # eligibility flag was kept and the stored count was served as though it
+        # had been observed. This sample holds 361 callable autosomal markers
+        # (160 chr1 + 200 chr2 + 1 chr3 het; the no-call and the chrX call are
+        # excluded), so a blob asserting 600000 must not be able to report
+        # 600000 callable markers -- that is a measurement nothing took.
+        import json as _json
+
+        self._insert_roh_row(
+            _env,
+            _json.dumps({"froh": 0.0, "autosomal_snps_used": 600_000, "n_segments": 0}),
+        )
+
+        data = client.get("/api/analysis/roh/findings?sample_id=1").json()
+        assert data["evaluable"] is True
+        assert data["autosomal_snps_used"] == 361
+
+    def test_stored_count_below_the_floor_is_not_rescued_by_the_sample(
+        self, _env: sa.Engine, client: TestClient
+    ) -> None:
+        # The other half of the same change, and the reason the observed count
+        # does not simply replace the stored one: this sample *could* be
+        # assessed today, but the row records a marker count below the floor, so
+        # its stored FROH cannot be this sample's. Letting the sample's coverage
+        # rescue it would reinstate #2177 from the other side -- serving a
+        # measurement computed from a marker set that is not this sample's.
+        import json as _json
+
+        self._insert_roh_row(
+            _env,
+            _json.dumps({"froh": 0.0, "autosomal_snps_used": 30, "n_segments": 0}),
+        )
+
+        data = client.get("/api/analysis/roh/findings?sample_id=1").json()
+        assert data["evaluable"] is False
+        assert data["froh"] is None
+        assert data["indeterminate_reason"] == "insufficient_autosomal_markers"
+        # The quoted count is the one that explains the withholding. Reporting
+        # the 361 the sample holds beside "insufficient markers" would state a
+        # cause its own number contradicts.
+        assert "30 callable autosomal SNP(s)" in data["finding_text"]
+
     def test_legacy_row_with_adequate_markers_is_untouched(
         self, _env: sa.Engine, client: TestClient
     ) -> None:

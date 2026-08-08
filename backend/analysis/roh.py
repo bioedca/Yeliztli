@@ -377,6 +377,67 @@ def _sample_coverage(sample_engine: sa.Engine) -> tuple[int, bool]:
     return sum(len(v) for v in by_chrom.values()), _segment_eligible_region_exists(by_chrom)
 
 
+def _is_real_number(value: Any) -> bool:
+    """Whether ``value`` is a number a scan could have written (never a bool)."""
+    return isinstance(value, int | float) and not isinstance(value, bool)
+
+
+# The shape `detect_roh` actually writes, stated once. Only these keys are
+# served as measurements, so only these are checked; `segments_truncated` is
+# read through `bool(...)`, which cannot fail, and `froh` has its own bounded
+# check in `evaluability_from_detail`.
+_SEGMENT_FIELD_CHECKS: dict[str, Any] = {
+    "chrom": lambda v: isinstance(v, str),
+    "start": lambda v: isinstance(v, int) and not isinstance(v, bool),
+    "end": lambda v: isinstance(v, int) and not isinstance(v, bool),
+    "length_kb": _is_real_number,
+    "n_snps": lambda v: isinstance(v, int) and not isinstance(v, bool),
+}
+
+
+def _companion_metrics_readable(detail: dict[str, Any]) -> bool:
+    """Whether every companion metric a consumer will serve is actually readable.
+
+    Vouching on ``froh`` alone let the two read paths disagree about the same
+    row. The dedicated ROH route materialises ``segments`` into response models
+    inside a ``try``, so a blob holding ``"segments": null`` raised there and
+    was reported ``detail_unavailable`` — while the generic findings API and the
+    report generator, which only consult the verdict, kept serving the stored
+    "typical result" narrative for that very row. A row is vouched for on every
+    path or none.
+
+    Absent is not malformed: a pre-gate blob may record only ``froh``, and the
+    consumers already serve the rest as ``null`` in that case. This rejects
+    values that are *present and not what a scan writes* — the same rule already
+    applied to ``froh``, ``autosomal_snps_used`` and ``evaluable``.
+    """
+    for key in ("total_roh_kb", "longest_kb"):
+        value = detail.get(key)
+        if value is not None and not _is_real_number(value):
+            return False
+    n_segments = detail.get("n_segments")
+    if n_segments is not None and (
+        not isinstance(n_segments, int) or isinstance(n_segments, bool)
+    ):
+        return False
+    # Absent and explicitly-null differ here, so membership is tested rather
+    # than `.get(...) is None`. The consumers read `detail.get("segments", [])`,
+    # whose default applies only when the key is missing: a stored
+    # `"segments": null` returns None and is then iterated, which is the exact
+    # blob that raised in the ROH route. `total_roh_kb` and friends are
+    # `float | None` in the response, so an explicit null is legitimate there.
+    if "segments" not in detail:
+        return True
+    segments = detail["segments"]
+    if not isinstance(segments, list):
+        return False
+    return all(
+        isinstance(segment, dict)
+        and all(check(segment.get(field)) for field, check in _SEGMENT_FIELD_CHECKS.items())
+        for segment in segments
+    )
+
+
 def evaluability_from_detail(
     detail: dict[str, Any] | None, sample_engine: sa.Engine | None = None
 ) -> tuple[bool, int, str | None]:
@@ -461,18 +522,37 @@ def evaluability_from_detail(
         observed, eligible = _sample_coverage(sample_engine)
         if not eligible:
             return False, observed, NO_SEGMENT_ELIGIBLE_REGION
-    else:
+    elif sample_engine is not None:
+        # `_sample_coverage` was already being called here, but only its
+        # eligibility flag was kept and the stored count was served as though it
+        # were an observation. A drifted blob claiming 600000 markers over a
+        # 100-marker sample was therefore reported as 600000 callable markers on
+        # every path. Both values are used now, at no extra scan cost.
+        #
+        # The observed count gates and is reported; the stored count still has
+        # to clear the floor on its own. Letting the sample's markers *rescue* a
+        # row that records too few would vouch for a stored FROH computed from a
+        # marker set that is not this sample's — reinstating #2177 from the
+        # other side. So each floor withholds independently, and the count each
+        # one quotes is the count that explains it: a narrative reading
+        # "insufficient markers" beside the 361 the sample does hold would state
+        # a cause its own number contradicts.
+        observed, eligible = _sample_coverage(sample_engine)
+        if observed < MIN_EVALUABLE_AUTOSOMAL_SNPS:
+            return False, observed, INSUFFICIENT_AUTOSOMAL_MARKERS
         if snps_used < MIN_EVALUABLE_AUTOSOMAL_SNPS:
             return False, snps_used, INSUFFICIENT_AUTOSOMAL_MARKERS
-        if sample_engine is not None and not _sample_coverage(sample_engine)[1]:
-            return False, snps_used, NO_SEGMENT_ELIGIBLE_REGION
+        if not eligible:
+            return False, observed, NO_SEGMENT_ELIGIBLE_REGION
+    elif snps_used < MIN_EVALUABLE_AUTOSOMAL_SNPS:
+        return False, snps_used, INSUFFICIENT_AUTOSOMAL_MARKERS
 
     # The only exit that vouches for a row, so the invariant is stated once: a
     # verdict is usable only when a result accompanies it. Neither an explicit
     # stored `evaluable: true` nor a re-read of the sample's coverage can
     # reconstruct a measurement that was never recorded — establishing that a
     # scan *could* have run is not the same as having its result.
-    if not has_metric:
+    if not has_metric or not _companion_metrics_readable(detail):
         return False, observed, DETAIL_UNAVAILABLE
     return True, observed, None
 
@@ -510,9 +590,17 @@ def _withheld_detail(
     alongside the exact ``froh: 0.0`` it withholds — one payload asserting both.
     Returns a copy so the caller's parsed blob is not mutated.
     """
-    if not isinstance(detail, dict):
-        return detail
-    corrected = dict(detail)
+    if detail is None:
+        return None
+    # Valid JSON that is not an object (`[]`, `5`, `"text"`) is unreadable, not
+    # absent, so it cannot be handed back verbatim: `FindingResponse.detail` is
+    # `dict | None`, and returning a list/int/str made `/api/analysis/findings`
+    # raise a Pydantic error and 500 on exactly the blobs the dedicated ROH
+    # route already withholds — it normalises at its parse site (`roh.py`). The
+    # fix belongs here rather than at a second parse site so every consumer of
+    # the shared rule agrees; withheld state is built from empty rather than
+    # from the unreadable value.
+    corrected = dict(detail) if isinstance(detail, dict) else {}
     # Every measured quantity is withheld, not just FROH: "0 kb total, 0
     # segments" beside a withheld FROH is the same measured absence in another
     # field. The marker count stays because it is observed, not derived.

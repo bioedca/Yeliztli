@@ -463,6 +463,90 @@ class TestListFindings:
         assert response.detail["froh"] == 0.0
         assert "indeterminate_reason" not in response.detail
 
+    @pytest.mark.parametrize("blob", ["[]", "5", '"text"', "true"])
+    def test_non_object_roh_detail_is_withheld_not_a_500(self, blob):
+        # Valid JSON that is not an object parses to a list/int/str/bool and
+        # reached `_withheld_detail`, which handed it straight back. That put a
+        # non-dict into `FindingResponse.detail: dict | None`, so this route
+        # raised a Pydantic error and 500'd on exactly the blobs the dedicated
+        # ROH route already withholds -- the earlier fix normalised at that
+        # route's parse site and so reached only one of the two representations.
+        row = self._roh_row(finding_text="placeholder", detail={})
+        row.finding_text = (
+            "No long runs of homozygosity were detected (FROH ≈ 0). This is the typical result."
+        )
+        row.detail_json = blob
+
+        response = _row_to_response(row)
+
+        assert isinstance(response.detail, dict)
+        assert response.detail["evaluable"] is False
+        assert response.detail["indeterminate_reason"] == "detail_unavailable"
+        assert response.detail["froh"] is None
+        assert "typical result" not in response.finding_text.lower()
+
+    @pytest.mark.parametrize(
+        "companion",
+        [
+            {"segments": None},
+            {"segments": "chr1:1-2"},
+            {"segments": [{"chrom": "1", "start": 1, "end": 2, "length_kb": 1.0}]},
+            {"segments": [{"chrom": 1, "start": 1, "end": 2, "length_kb": 1.0, "n_snps": 3}]},
+            {"total_roh_kb": "lots"},
+            {"longest_kb": []},
+            {"n_segments": "many"},
+        ],
+    )
+    def test_unreadable_companion_metric_withholds_like_the_roh_route(self, companion):
+        # Vouching on `froh` alone let the two read paths disagree about one
+        # row. The dedicated ROH route materialises `segments` into response
+        # models inside a `try`, so a blob holding `"segments": null` raised
+        # there and was reported `detail_unavailable` -- while this path, which
+        # only consults the verdict, kept serving the stored negative for that
+        # very row. A row is vouched for on every path or none.
+        detail = {"froh": 0.004, "autosomal_snps_used": 600_000, **companion}
+        response = _row_to_response(
+            self._roh_row(
+                finding_text="No long runs of homozygosity were detected (FROH ≈ 0).",
+                detail=detail,
+            )
+        )
+
+        assert response.detail["evaluable"] is False
+        assert response.detail["indeterminate_reason"] == "detail_unavailable"
+        assert response.detail["froh"] is None
+        assert "typical" not in response.finding_text.lower()
+
+    def test_wellformed_companion_metrics_are_still_served(self):
+        # Counterpart control for the parametrisation above: without it a guard
+        # that rejected *every* companion blob would satisfy those cases while
+        # withholding every real scan this module has ever recorded.
+        response = _row_to_response(
+            self._roh_row(
+                finding_text="stored narrative",
+                detail={
+                    "froh": 0.004,
+                    "autosomal_snps_used": 600_000,
+                    "total_roh_kb": 6200.0,
+                    "longest_kb": 6200.0,
+                    "n_segments": 1,
+                    "segments": [
+                        {
+                            "chrom": "1",
+                            "start": 1_000_000,
+                            "end": 7_200_000,
+                            "length_kb": 6200.0,
+                            "n_snps": 620,
+                        }
+                    ],
+                },
+            )
+        )
+
+        assert response.detail["froh"] == 0.004
+        assert response.detail["n_segments"] == 1
+        assert response.finding_text == "stored narrative"
+
     def test_evaluable_roh_text_is_untouched_in_generic_api(self):
         # Counterpart control: a well-covered ROH row keeps its stored text, so
         # the correction cannot silently rewrite every finding in the explorer.
