@@ -2379,6 +2379,61 @@ class TestDownloadAndLoad:
         finally:
             os.chmod(shared, 0o700)
 
+    def test_installs_on_a_platform_with_no_descriptor_bridge(
+        self, monkeypatch, tmp_path: Path
+    ) -> None:
+        # macOS has no procfs, and its `/dev/fd/N` is a character-device entry
+        # whose stat identity is the device's rather than the directory's, so no
+        # bridge can ever resolve there. Raising meant every native macOS
+        # install failed before downloading anything, because this helper is
+        # called unconditionally while creating the staging directory. Linux
+        # always resolves /proc/self/fd, so emptying the bridge list is the only
+        # way to exercise that platform here.
+        monkeypatch.setattr(mondo_hpo, "_FD_PATH_BRIDGES", ())
+        target = tmp_path / "downloads"
+        target.mkdir()
+        fd = os.open(target, os.O_RDONLY)
+        try:
+            resolved = mondo_hpo._fd_backed_path(fd, target)
+            assert mondo_hpo._source_bundle_identity(
+                resolved.stat()
+            ) == mondo_hpo._source_bundle_identity(os.fstat(fd))
+        finally:
+            os.close(fd)
+
+    def test_rejects_a_lexical_path_that_is_not_the_pinned_directory(
+        self, monkeypatch, tmp_path: Path
+    ) -> None:
+        # The fallback is only safe because it verifies identity: a lexical path
+        # naming some *other* directory must still be refused, or the no-bridge
+        # platform would silently accept a substituted staging root.
+        monkeypatch.setattr(mondo_hpo, "_FD_PATH_BRIDGES", ())
+        pinned = tmp_path / "pinned"
+        pinned.mkdir()
+        impostor = tmp_path / "impostor"
+        impostor.mkdir()
+        fd = os.open(pinned, os.O_RDONLY)
+        try:
+            with pytest.raises(OSError, match="cannot expose a pinned"):
+                mondo_hpo._fd_backed_path(fd, impostor)
+        finally:
+            os.close(fd)
+
+    def test_staging_creation_needs_no_descriptor_bridge(
+        self, monkeypatch, tmp_path: Path
+    ) -> None:
+        # Staging is created relative to the pinned parent descriptor, so it
+        # must succeed with no bridge at all -- this is the call that failed
+        # first on macOS.
+        monkeypatch.setattr(mondo_hpo, "_FD_PATH_BRIDGES", ())
+        downloads = tmp_path / "one" / "downloads"
+
+        with mondo_hpo._create_pinned_staged_source_bundle(downloads) as staging:
+            assert (downloads / staging.name).is_dir()
+            assert staging.name.startswith(".mondo-hpo-")
+
+        assert downloads.is_dir()
+
     def test_refuses_foreign_owned_sticky_source_bundle_ancestor(
         self,
         monkeypatch,
@@ -2391,7 +2446,10 @@ class TestDownloadAndLoad:
         downloads.mkdir(parents=True)
         os.chmod(shared, 0o1777)
         original_lstat = os.lstat
-        monkeypatch.setattr(mondo_hpo.tempfile, "tempdir", str(shared))
+        # No tempdir redirect: staging is now created relative to the pinned
+        # parent descriptor rather than through `tempfile.mkdtemp`, and
+        # `downloads` already sits under the foreign-owned sticky `shared`,
+        # which is what this test is about.
         foreign_uid = os.stat("/").st_uid
         if foreign_uid in {os.geteuid(), 0}:
             foreign_uid += 1

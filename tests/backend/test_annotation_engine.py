@@ -67,7 +67,11 @@ from backend.annotation.gnomad import (
     _create_gnomad_table,
     lookup_gnomad_by_rsids,
 )
-from backend.annotation.mondo_hpo import load_mondo_hpo_from_csv
+from backend.annotation.mondo_hpo import (
+    MONDO_HPO_INGESTION_REVISION,
+    load_mondo_hpo_from_csv,
+    record_mondo_hpo_version,
+)
 from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import (
     annotated_variants,
@@ -236,8 +240,12 @@ def reference_engine() -> sa.Engine:
     reference_metadata.create_all(engine)
     with engine.begin() as conn:
         conn.execute(clinvar_variants.insert(), SEED_CLINVAR)
-    # Load gene-phenotype seed data
+    # Load gene-phenotype seed data, stamped as a real install is. Without the
+    # `database_versions` row a disease-scope lookup correctly withholds the
+    # mondo_hpo rows as unproven -- and rows-without-a-stamp is a state
+    # production cannot produce, since `load_mondo_hpo` always records one.
     load_mondo_hpo_from_csv(GENE_PHENOTYPE_SEED_CSV, engine)
+    record_mondo_hpo_version(engine, version=f"20260801+{MONDO_HPO_INGESTION_REVISION}")
     return engine
 
 

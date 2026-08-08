@@ -28,8 +28,8 @@ import gzip
 import hashlib
 import json
 import os
+import secrets
 import stat
-import tempfile
 from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -104,6 +104,16 @@ BATCH_SIZE = 10_000
 SOURCE_BUNDLE_DIRECTORY = "mondo_hpo_sources"
 SOURCE_BUNDLE_MANIFEST = "mondo_hpo_sources.json"
 SOURCE_BUNDLE_PENDING = ".mondo-hpo-pending"
+
+# Retries for a staging-directory name collision. Names carry 64 bits of
+# entropy, so a single clash is already vanishingly unlikely; this bounds the
+# loop rather than expressing an expected retry count.
+_STAGING_NAME_ATTEMPTS = 8
+
+# Descriptor->pathname bridges, most trustworthy first. Named as a constant so
+# a test can empty it and exercise the no-bridge platform (macOS) on Linux,
+# where /proc/self/fd always resolves and would otherwise hide that path.
+_FD_PATH_BRIDGES = (Path("/proc/self/fd"), Path("/dev/fd"))
 
 
 # ── Data classes ─────────────────────────────────────────────────────────
@@ -1052,17 +1062,31 @@ class _PublishedSourceBundle:
     identity: tuple[int, int]
 
 
-def _fd_backed_path(fd: int) -> Path:
-    """Return a path bridge that resolves through an already-pinned descriptor.
+def _fd_backed_path(fd: int, lexical: Path) -> Path:
+    """Return a path that is verified to name the already-pinned descriptor.
 
-    The downloader and parsers use :class:`~pathlib.Path`, while publication
-    needs descriptor authority.  Linux ``/proc/self/fd`` and Unix ``/dev/fd``
-    bridge those interfaces without reopening the mutable staging pathname.
-    Refuse to download when neither bridge is available rather than falling
-    back to a lexical path that a concurrent writer could replace.
+    The downloader, `build_claim` and the parsers take a
+    :class:`~pathlib.Path`, while publication needs descriptor authority. Linux
+    ``/proc/self/fd`` bridges those interfaces without reopening the mutable
+    staging pathname, and is preferred whenever it resolves.
+
+    macOS has no procfs, and its ``/dev/fd/N`` is a character-device entry whose
+    stat identity is the device's rather than the directory's, so it can never
+    match. Raising there meant **every native macOS install failed before
+    downloading anything** -- this helper is called unconditionally while
+    creating the staging directory. So where no bridge resolves, the caller's
+    lexical path is accepted only after its identity is checked against the
+    pinned descriptor, and rejected otherwise.
+
+    That fallback is weaker than the bridge -- identity is verified at this
+    instant rather than held open -- and the difference is deliberate: the
+    descriptor stays pinned for the operations that matter (publication renames
+    below use ``dir_fd``), while a path that has been proven to name the pinned
+    directory is strictly better than refusing to run at all. Callers that need
+    no pathname do not come here: staging creation is descriptor-relative.
     """
     expected = _source_bundle_identity(os.fstat(fd))
-    for bridge in (Path("/proc/self/fd"), Path("/dev/fd")):
+    for bridge in _FD_PATH_BRIDGES:
         candidate = bridge / str(fd)
         try:
             current = candidate.stat()
@@ -1070,6 +1094,11 @@ def _fd_backed_path(fd: int) -> Path:
             continue
         if _source_bundle_identity(current) == expected:
             return candidate
+    try:
+        if _source_bundle_identity(lexical.stat()) == expected:
+            return lexical
+    except OSError:
+        pass
     raise OSError("The platform cannot expose a pinned MONDO/HPO directory descriptor")
 
 
@@ -1088,15 +1117,28 @@ def _create_pinned_staged_source_bundle(dest_dir: Path) -> Iterator[_StagedSourc
         parent_stat = os.fstat(parent_fd)
         _assert_private_source_bundle_directory(parent_stat, dest_dir)
         _assert_source_bundle_ancestor_chain_is_trusted(dest_dir)
-        try:
-            staging_path = Path(
-                tempfile.mkdtemp(prefix=".mondo-hpo-", dir=_fd_backed_path(parent_fd))
-            )
-        except OSError as exc:
-            raise ValueError(f"Unable to create MONDO/HPO staging directory: {dest_dir}") from exc
-        staging_name = staging_path.name
-        if staging_name in {"", ".", ".."}:
-            raise ValueError(f"Invalid MONDO/HPO staging directory: {staging_path}")
+        # Created relative to the pinned descriptor rather than through a path
+        # bridge. `os.mkdir(..., dir_fd=)` is supported on every platform this
+        # ships to, so staging needs no procfs and no `/dev/fd` -- which is what
+        # made this the first thing to fail on macOS. It is also the stronger
+        # form: the name is resolved against the descriptor already proven
+        # private, never against a pathname a concurrent writer could redirect.
+        staging_name = ""
+        for _ in range(_STAGING_NAME_ATTEMPTS):
+            candidate = f".mondo-hpo-{secrets.token_hex(8)}"
+            try:
+                os.mkdir(candidate, 0o700, dir_fd=parent_fd)
+            except FileExistsError:
+                continue
+            except OSError as exc:
+                raise ValueError(
+                    f"Unable to create MONDO/HPO staging directory: {dest_dir}"
+                ) from exc
+            staging_name = candidate
+            break
+        if not staging_name:
+            raise ValueError(f"Unable to create MONDO/HPO staging directory: {dest_dir}")
+        staging_path = dest_dir / staging_name
         try:
             staging_fd = os.open(
                 staging_name,
@@ -1128,7 +1170,7 @@ def _create_pinned_staged_source_bundle(dest_dir: Path) -> Iterator[_StagedSourc
             yield _StagedSourceBundle(
                 dest_dir=dest_dir,
                 name=staging_name,
-                path=_fd_backed_path(staging_fd),
+                path=_fd_backed_path(staging_fd, staging_path),
                 parent_fd=parent_fd,
                 parent_identity=_source_bundle_identity(parent_stat),
                 fd=staging_fd,
@@ -2448,7 +2490,7 @@ def download_and_load_mondo_hpo(
                     raise RuntimeError("MONDO/HPO database update is already in progress")
                 with build_claim(
                     "mondo_hpo_source_bundles",
-                    _fd_backed_path(staging.parent_fd),
+                    _fd_backed_path(staging.parent_fd, staging.dest_dir),
                 ) as source_acquired:
                     if not source_acquired:
                         raise RuntimeError("MONDO/HPO source bundle update is already in progress")
