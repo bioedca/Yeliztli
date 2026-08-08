@@ -397,19 +397,29 @@ def _is_measured_quantity(value: Any) -> bool:
     )
 
 
-def _reason_supported_by(count: int, reason: str) -> str:
-    """Downgrade an indeterminate reason the marker count cannot justify.
+def _reason_supported_by(count: int, reason: str, eligible: bool | None = None) -> str:
+    """Downgrade an indeterminate reason the evidence cannot justify.
 
-    A schema-drifted row can store `evaluable: false` with
-    `insufficient_autosomal_markers` beside a well-typed count at or above the
-    floor. Honouring that pair made `unevaluable_text` state, verbatim, that
-    600000 callable SNPs are "fewer than the 100" required -- a sentence its own
-    number contradicts, on the dedicated, generic and report paths alike. The
-    verdict stands (the row is still withheld); only the explanation is replaced
-    by one that claims nothing. `no_segment_eligible_region` needs no such check
-    -- it quotes the count parenthetically and is consistent at any value.
+    Each stored reason makes a factual claim, and each is checked against the
+    evidence that would refute it. `insufficient_autosomal_markers` claims the
+    count is below the floor: honouring it beside a well-typed count at or above
+    the floor made `unevaluable_text` state, verbatim, that 600000 callable SNPs
+    are "fewer than the 100" required. `no_segment_eligible_region` claims no
+    autosome carries a qualifying block: honouring it while the sample proves
+    otherwise asserts a structural absence the sample refutes -- which happens
+    whenever the sample is re-imported after the row was written.
+
+    `eligible` is tri-state on purpose. ``None`` means the coverage scan was not
+    run, and an unmeasured claim cannot be contradicted, so the reason stands;
+    only an observed ``True`` refutes it. Downgrading on a value we never
+    measured would be the same substitution this module exists to prevent.
+
+    In both cases the verdict stands -- the row was withheld and stays withheld
+    -- and only the explanation is replaced by one that claims nothing.
     """
     if reason == INSUFFICIENT_AUTOSOMAL_MARKERS and count >= MIN_EVALUABLE_AUTOSOMAL_SNPS:
+        return DETAIL_UNAVAILABLE
+    if reason == NO_SEGMENT_ELIGIBLE_REGION and eligible:
         return DETAIL_UNAVAILABLE
     return reason
 
@@ -538,14 +548,23 @@ def evaluability_from_detail(
             # narrative, so honouring one without a recorded count would assert
             # "0 callable autosomal SNP(s)" for a sample nobody counted. Read
             # the sample, or fall back to a reason that claims nothing.
-            # Both exits below route the resolved reason through
-            # `_reason_supported_by`: a stored reason is honoured only if the
-            # count it will be narrated with can actually justify it.
+            #
+            # Every exit routes the resolved reason through
+            # `_reason_supported_by`, so a stored reason is honoured only if the
+            # evidence it will be narrated with can actually justify it. The
+            # sample is read when the reason makes a claim only the sample can
+            # refute: `no_segment_eligible_region` asserts a structural absence,
+            # which a re-imported sample can disprove, and the count alone
+            # cannot. `insufficient_autosomal_markers` needs no scan -- its
+            # claim is about the count, which is already in hand.
             if reason != DETAIL_UNAVAILABLE and not counted:
                 if sample_engine is None:
                     return False, 0, DETAIL_UNAVAILABLE
-                observed, _eligible = _sample_coverage(sample_engine)
-                return False, observed, _reason_supported_by(observed, str(reason))
+                observed, eligible = _sample_coverage(sample_engine)
+                return False, observed, _reason_supported_by(observed, str(reason), eligible)
+            if reason == NO_SEGMENT_ELIGIBLE_REGION and sample_engine is not None:
+                observed, eligible = _sample_coverage(sample_engine)
+                return False, observed, _reason_supported_by(observed, str(reason), eligible)
             return False, snps_used, _reason_supported_by(snps_used, str(reason))
         # An explicit `true` is not self-certifying either: it falls through to
         # the same coverage gates below. Our own writer computes the verdict

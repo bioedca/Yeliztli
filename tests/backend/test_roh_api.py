@@ -826,6 +826,77 @@ class TestEvaluabilityAtTheApi:
         assert data["evaluable"] is True
         assert data["autosomal_snps_used"] == 361
 
+    def test_structural_reason_the_sample_refutes_is_downgraded(
+        self, _env: sa.Engine, client: TestClient
+    ) -> None:
+        # `no_segment_eligible_region` asserts that no autosome carries a
+        # qualifying block. This sample has one (160 chr1 markers spanning
+        # 1.59 Mb without a gap), so honouring the stored reason would state a
+        # structural absence the sample itself refutes -- which is what happens
+        # whenever a sample is re-imported after the row was written. Unlike the
+        # count-based reason, only a coverage scan can catch this, so the scan
+        # is run for this reason specifically.
+        import json as _json
+
+        self._insert_roh_row(
+            _env,
+            _json.dumps(
+                {
+                    "froh": 0.0,
+                    "evaluable": False,
+                    "indeterminate_reason": "no_segment_eligible_region",
+                    "autosomal_snps_used": 600_000,
+                }
+            ),
+        )
+
+        data = client.get("/api/analysis/roh/findings?sample_id=1").json()
+        assert data["evaluable"] is False
+        assert data["froh"] is None
+        assert data["indeterminate_reason"] == "detail_unavailable"
+        assert "without a coverage gap" not in data["finding_text"]
+        assert "could not be read" in data["finding_text"].lower()
+
+    def test_structural_reason_the_sample_confirms_is_honoured(
+        self, _env: sa.Engine, client: TestClient
+    ) -> None:
+        # Counterpart control: the downgrade must fire only when the sample
+        # actually refutes the reason. These markers clear the count floor but
+        # sit 5 Mb apart, so every gap exceeds MAX_GAP_KB and no run could
+        # occupy any of them -- the stored reason is true and must survive.
+        import json as _json
+
+        self._reseed(
+            _env,
+            [
+                {
+                    "rsid": f"sparse{i}",
+                    "chrom": "1",
+                    "pos": 1_000_000 + i * 5_000_000,
+                    "genotype": "CC",
+                }
+                for i in range(150)
+            ],
+        )
+        self._insert_roh_row(
+            _env,
+            _json.dumps(
+                {
+                    "froh": 0.0,
+                    "evaluable": False,
+                    "indeterminate_reason": "no_segment_eligible_region",
+                    "autosomal_snps_used": 600_000,
+                }
+            ),
+        )
+
+        data = client.get("/api/analysis/roh/findings?sample_id=1").json()
+        assert data["evaluable"] is False
+        assert data["indeterminate_reason"] == "no_segment_eligible_region"
+        assert "without a coverage gap" in data["finding_text"]
+        # The count narrated is the observed one, not the drifted 600000.
+        assert data["autosomal_snps_used"] == 150
+
     def test_stored_count_below_the_floor_is_not_rescued_by_the_sample(
         self, _env: sa.Engine, client: TestClient
     ) -> None:
