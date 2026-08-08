@@ -54,7 +54,7 @@ from scripts.benchmark import (
 # environment instead of the OS. (Closing the 10× gap to the PRD < 2 min
 # target is a pipeline-perf concern, tracked separately — out of scope here.)
 #
-# 2026-06-18 recalibration (#1062): a graphify-out-only commit (no annotation-code
+# 2026-06-18 recalibration (#1062): a generated-artifact-only commit (no annotation-code
 # change) flaked this assertion at 2716 s — 16 s past the old 2700 s ceiling. That
 # ceiling's "< 60-min job timeout" rationale was stale: the slow-tier job actually
 # allows 120 min (nightly.yml `timeout-minutes: 120`), so 45 min was needlessly tight

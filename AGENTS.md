@@ -36,7 +36,6 @@
 - Use Context7 for external library/framework/SDK/API/CLI/cloud syntax, setup, configuration, migration, version, or tool-specific debugging. Unless the user supplied `/org/project[/version]`, run `npx ctx7@latest library <official-name> "<full question>"`; then run `npx ctx7@latest docs <id> "<full question>"`.
 - Run Context7 outside the sandbox, at most three commands per question, with no secrets. Retry DNS/network failure outside the sandbox; on quota failure report it and suggest `npx ctx7@latest login` or `CONTEXT7_API_KEY`, never guess.
 - Do not use Context7 for refactoring, scratch scripts, business-logic debugging, code review, or general programming concepts.
-- When `graphify-out/graph.json` exists and matches the inspected commit, query Graphify before raw searches. If stale/unconfirmed, use raw repository search. Keep generated graph changes out of issue commits.
 - For UI changes use `$playwright` in a real browser, verify the affected flow and accessibility, then run targeted Playwright tests. Keep sanitized artifacts under ignored `output/playwright/`.
 - Prefer the GitHub connector for GitHub state/actions, local `git` for branches/worktrees, and `gh` for Actions logs or unsupported operations.
 - Put questions/early ideas in Discussions, actionable work in issues, and durable guidance in MkDocs. Wiki notes are not source of truth.
