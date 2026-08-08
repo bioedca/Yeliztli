@@ -29,14 +29,21 @@ from pathlib import Path, PurePosixPath
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-# Representative path under each directory the agent contract or tooling writes to.
-# A directory-level ignore rule is only useful if it covers files *inside* it, which is
-# what these probe.
+# A path under each directory the agent contract or tooling writes to. A directory-level
+# ignore rule is only useful if it covers files *inside* it, which is what these probe.
+#
+# Deliberately EXTENSIONLESS. The real artifacts are `console-*.log`, `page-*.yml`,
+# screenshots and traces, but probing those would let an unrelated `*.log` / `*.png` rule
+# keep this guard green after the directory rules were deleted — leaving siblings such as
+# `.playwright-mcp/snapshot.json` committable while the test still passed. An
+# extensionless sentinel can only be matched by a rule that covers the directory itself,
+# which is the behaviour being protected. The nested entry additionally pins that the rule
+# reaches below the directory's top level.
 MUST_BE_IGNORED = (
-    "output/playwright/flow-screenshot.png",
-    "output/playwright/trace.zip",
-    ".playwright-mcp/console-2026-01-01T00-00-00-000Z.log",
-    ".playwright-cli/page-2026-01-01T00-00-00-000Z.yml",
+    "output/playwright/probe",
+    "output/playwright/nested/probe",
+    ".playwright-mcp/probe",
+    ".playwright-cli/probe",
 )
 
 # Directory *names*, deliberately not ``.gitignore`` pattern text: git reports a pattern
