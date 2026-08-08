@@ -60,12 +60,12 @@ jobs:
           # diff it cannot generate in time:
           #   Server Error: Sorry, this diff is taking too long to generate.
           #   {"resource":"PullRequest","field":"diff","code":"not_available"}
-          # The knowledge graph (graphify-out/graph.json, ~32 MB / ~940k lines)
-          # crossed that threshold, so a graph-refresh PR failed this step
-          # outright — and because every downstream job keys off these outputs,
-          # all of them skipped and the PR could not go green (#2173). That file
-          # is no longer committed, but keep git-based detection: it is what
-          # makes this step independent of how large a generated artifact gets,
+          # A committed generated artifact crossed that threshold here: a single
+          # file of ~32 MB / ~940k lines, so the PR that refreshed it failed this
+          # step outright — and because every downstream job keys off these
+          # outputs, all of them skipped and the PR could not go green (#2173).
+          # That artifact is gone, but keep git-based detection: it is what makes
+          # this step independent of how large any future generated file gets,
           # and locally the same diff takes ~4s, so it is no slower here.
           token: ''
           # Keep filters broad: the Docker image bundles backend + a frontend
@@ -77,12 +77,6 @@ jobs:
               - 'backend/**'
               - 'tests/**'
               - 'pyproject.toml'
-              # Committed knowledge-graph artifacts index the whole tree, so a
-              # graphify-out-only refresh can still break tree-scanning backend
-              # tests (e.g. test_rename_guard.py's git-grep). Without this, such
-              # a PR skipped the backend suite and reddened main, caught only by
-              # the nightly (#1061/#1065). Run the backend suite on these too.
-              - 'graphify-out/**'
               # The backend suite (its interpreter matrix, timeouts, the witness
               # step) is DEFINED here, so a change to this workflow must exercise
               # it — otherwise a backend-lane edit ships without ever running the
