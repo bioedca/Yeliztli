@@ -801,12 +801,22 @@ def _lookup_gene_phenotype(
     # Batch lookup
     gene_pheno_map = lookup_gene_phenotypes(list(unique_genes), reference_engine)
 
-    # Map back to rsids — use the first record per gene (primary association)
+    # Map back to rsids. Only one association is persisted per variant, so the
+    # choice decides which disease's HPO scope a variant carries -- and
+    # `lookup_gene_phenotypes` orders by disease ID, which is lexicographic and
+    # says nothing about which disease actually resolved. Taking `annots[0]`
+    # unconditionally therefore discarded real disease-scoped HPO terms whenever
+    # a gene's alphabetically-first MONDO disease happened to be one that did
+    # not map, which is the very data this module exists to preserve. Prefer the
+    # first association that carries HPO terms; fall back to the first overall
+    # so a gene whose diseases all lack terms is still summarised. Both branches
+    # keep the disease-ID order, so the result stays deterministic, and every
+    # association remains available through `lookup_gene_phenotypes`.
     results: dict[str, dict] = {}
     for rsid, gene in rsid_to_gene.items():
         annots = gene_pheno_map.get(gene)
         if annots:
-            primary = annots[0]
+            primary = next((annot for annot in annots if annot.hpo_terms), annots[0])
             results[rsid] = {
                 "disease_name": primary.disease_name,
                 "disease_id": primary.disease_id,

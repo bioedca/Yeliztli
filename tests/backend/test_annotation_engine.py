@@ -3635,6 +3635,85 @@ class TestGenePhenotypeAnnotation:
         result = run_annotation(sample_with_variants, mock_registry)
         assert result.gene_phenotype_matched > 0
 
+    def test_single_summary_prefers_a_disease_that_actually_resolved(self, tmp_path: Path) -> None:
+        # Only one association is persisted per variant, and
+        # `lookup_gene_phenotypes` orders by disease ID -- which is lexicographic
+        # and says nothing about which disease resolved. Taking annots[0]
+        # unconditionally discarded real disease-scoped HPO terms whenever a
+        # gene's alphabetically-first MONDO disease was one that did not map.
+        # MONDO:0000001 sorts first and has no terms; MONDO:0009061 has them.
+        from backend.annotation.engine import _lookup_gene_phenotype
+
+        ref_db = tmp_path / "ref.db"
+        engine = sa.create_engine(f"sqlite:///{ref_db}")
+        reference_metadata.create_all(engine)
+        with engine.begin() as conn:
+            conn.execute(
+                gene_phenotype.insert(),
+                [
+                    {
+                        "gene_symbol": "CFTR",
+                        "disease_name": "Unmapped first-by-id disease",
+                        "disease_id": "MONDO:0000001",
+                        "hpo_terms": None,
+                        "source": "mondo_hpo",
+                        "inheritance": None,
+                    },
+                    {
+                        "gene_symbol": "CFTR",
+                        "disease_name": "Cystic fibrosis",
+                        "disease_id": "MONDO:0009061",
+                        "hpo_terms": json.dumps([{"id": "HP:0002110", "name": "Bronchiectasis"}]),
+                        "source": "mondo_hpo",
+                        "inheritance": "AR",
+                    },
+                ],
+            )
+        record_mondo_hpo_version(engine, version=f"20260801+{MONDO_HPO_INGESTION_REVISION}")
+
+        result = _lookup_gene_phenotype({"rs1": {"gene_symbol": "CFTR"}}, engine)
+
+        assert result["rs1"]["disease_id"] == "MONDO:0009061"
+        assert result["rs1"]["inheritance_pattern"] == "AR"
+        assert json.loads(result["rs1"]["hpo_terms"]) == ["HP:0002110"]
+
+    def test_single_summary_falls_back_when_no_disease_resolved(self, tmp_path: Path) -> None:
+        # Counterpart control: a gene whose diseases all lack terms must still be
+        # summarised, and must still take the first by disease ID so the choice
+        # stays deterministic.
+        from backend.annotation.engine import _lookup_gene_phenotype
+
+        ref_db = tmp_path / "ref2.db"
+        engine = sa.create_engine(f"sqlite:///{ref_db}")
+        reference_metadata.create_all(engine)
+        with engine.begin() as conn:
+            conn.execute(
+                gene_phenotype.insert(),
+                [
+                    {
+                        "gene_symbol": "CFTR",
+                        "disease_name": "First by id",
+                        "disease_id": "MONDO:0000001",
+                        "hpo_terms": None,
+                        "source": "mondo_hpo",
+                        "inheritance": None,
+                    },
+                    {
+                        "gene_symbol": "CFTR",
+                        "disease_name": "Second by id",
+                        "disease_id": "MONDO:0009061",
+                        "hpo_terms": None,
+                        "source": "mondo_hpo",
+                        "inheritance": None,
+                    },
+                ],
+            )
+        record_mondo_hpo_version(engine, version=f"20260801+{MONDO_HPO_INGESTION_REVISION}")
+
+        result = _lookup_gene_phenotype({"rs1": {"gene_symbol": "CFTR"}}, engine)
+
+        assert result["rs1"]["disease_id"] == "MONDO:0000001"
+
     def test_gene_phenotype_columns_in_upsert(self) -> None:
         """P2-15: Gene-phenotype columns are in _UPSERT_COLUMNS."""
         from backend.annotation.engine import _UPSERT_COLUMNS
