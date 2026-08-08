@@ -582,6 +582,35 @@ class TestListFindings:
     @pytest.mark.parametrize(
         ("label", "overrides"),
         [
+            # the total is a sum over every segment, so it must cover the
+            # listed ones -- a blob whose own segments outweigh its total
+            (
+                "total_below_the_listed_segments",
+                {"n_segments": 2, "segments": [_SEG, _SEG], "total_roh_kb": 6200.0},
+            ),
+            (
+                "total_above_a_complete_list",
+                {"n_segments": 1, "segments": [_SEG], "total_roh_kb": 99_000.0},
+            ),
+            # the detector cannot emit a run with no length and no markers
+            ("zero_length_segment", {"segments": [{**_SEG, "length_kb": 0.0, "n_snps": 0}]}),
+            (
+                "segment_below_the_rows_own_recorded_thresholds",
+                {
+                    "segments": [{**_SEG, "length_kb": 10.0, "n_snps": 4}],
+                    "total_roh_kb": 10.0,
+                    "longest_kb": 10.0,
+                    "params": {"min_roh_kb": 1500, "min_roh_snps": 100},
+                },
+            ),
+            # the truncation flag is the one field that EXCUSES a short list, so
+            # a drifted string here would wave the count/list check through
+            ("truncation_flag_not_a_boolean", {"segments_truncated": "false"}),
+            ("truncation_flag_is_a_string", {"segments_truncated": "yes"}),
+            # a validator that raises is a liability: math.isfinite threw
+            # OverflowError here and turned withholding into a 500
+            ("oversized_integer_total", {"total_roh_kb": 10**400}),
+            ("oversized_integer_segment_length", {"segments": [{**_SEG, "length_kb": 10**400}]}),
             # count vs list, with and without the truncation flag that would
             # legitimately excuse a short list
             ("count_exceeds_list", {"n_segments": 1, "segments": []}),
@@ -631,8 +660,38 @@ class TestListFindings:
         [
             ("exact_agreement", {}),
             # a genuinely truncated row: the cap bit, so the list is shorter
-            # than the count and says so
-            ("truncated_row", {"n_segments": 40, "segments": [_SEG], "segments_truncated": True}),
+            # than the count and says so -- and its total legitimately EXCEEDS
+            # the segments it lists, because the unlisted ones counted too
+            (
+                "truncated_row",
+                {
+                    "n_segments": 40,
+                    "segments": [_SEG],
+                    "segments_truncated": True,
+                    "total_roh_kb": 240_000.0,
+                },
+            ),
+            # a row written when the thresholds were lower is stale, not
+            # incoherent: its own recorded params are what it is judged against
+            (
+                "segment_meeting_the_rows_own_older_thresholds",
+                {
+                    "segments": [{**_SEG, "length_kb": 900.0, "n_snps": 40}],
+                    "total_roh_kb": 900.0,
+                    "longest_kb": 900.0,
+                    "params": {"min_roh_kb": 800, "min_roh_snps": 30},
+                },
+            ),
+            # ...and one recording no thresholds at all is judged only against
+            # the floor no configuration could go below
+            (
+                "no_recorded_thresholds",
+                {
+                    "segments": [{**_SEG, "length_kb": 12.0, "n_snps": 3}],
+                    "total_roh_kb": 12.0,
+                    "longest_kb": 12.0,
+                },
+            ),
             # a legacy blob recording only a subset stays evaluable
             ("no_segment_list", {"segments": None, "n_segments": None}),
             ("only_froh_and_count", {"total_roh_kb": None, "longest_kb": None}),

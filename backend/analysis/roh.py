@@ -47,7 +47,6 @@ post-annotation finding set (and its validation golden snapshot) unchanged.
 from __future__ import annotations
 
 import json
-import math
 from collections import deque
 from dataclasses import dataclass, field
 from typing import Any
@@ -378,23 +377,29 @@ def _sample_coverage(sample_engine: sa.Engine) -> tuple[int, bool]:
     return sum(len(v) for v in by_chrom.values()), _segment_eligible_region_exists(by_chrom)
 
 
-def _is_measured_quantity(value: Any) -> bool:
-    """Whether ``value`` is a quantity a scan could actually have emitted.
+def _in_range(value: Any, ceiling: float) -> bool:
+    """Whether ``value`` is a number within ``[0, ceiling]``, by comparison only.
 
-    Every metric in this blob is a length, a count or a fraction, so all of them
-    are finite and non-negative by construction. Checking only the Python type
-    would vouch for `total_roh_kb: -1` -- a measurement the detector cannot
-    produce -- and for a NaN, which additionally has no JSON representation and
-    so can break serialization of the very response that serves it. This is the
-    same bound already applied to `froh`, which is why NaN fails there too:
-    `0.0 <= nan <= 1.0` is False.
+    Deliberately a pure comparison and never a conversion. ``math.isfinite`` was
+    used here and raised ``OverflowError`` on a large stored integer such as
+    ``10**400`` -- turning a validator whose whole purpose is to withhold into a
+    500 on every user-visible read path, since neither the ROH route's except
+    tuple nor the generic normalizers catch it. Python compares an int of any
+    size against a float exactly and without converting, so a bounded comparison
+    rejects that value, a NaN (all comparisons false) and an infinity alike, and
+    cannot itself raise. A validator that can throw is a liability, not a guard.
     """
-    return (
-        isinstance(value, int | float)
-        and not isinstance(value, bool)
-        and math.isfinite(value)
-        and value >= 0
-    )
+    return isinstance(value, int | float) and not isinstance(value, bool) and 0 <= value <= ceiling
+
+
+def _is_measured_quantity(value: Any) -> bool:
+    """Whether ``value`` is a length in kb a scan could actually have emitted.
+
+    Bounded by the autosomal genome itself: no run, and no sum of runs, can span
+    more than the genome they lie in. Type-checking alone vouched for
+    `total_roh_kb: -1`, a measurement the detector cannot produce.
+    """
+    return _in_range(value, AUTOSOMAL_GENOME_KB)
 
 
 def _reason_supported_by(count: int, reason: str, eligible: bool | None = None) -> str:
@@ -425,12 +430,17 @@ def _reason_supported_by(count: int, reason: str, eligible: bool | None = None) 
 
 
 # The shape `detect_roh` actually writes, stated once. Only these keys are
-# served as measurements, so only these are checked; `segments_truncated` is
-# read through `bool(...)`, which cannot fail, and `froh` has its own bounded
+# served as measurements, so only these are checked; `froh` has its own bounded
 # check in `evaluability_from_detail`.
+
+# Base-pair ceiling for a coordinate or a marker tally, from the same genome
+# bound as the kb metrics. Nothing on an autosome sits past it.
+_AUTOSOMAL_GENOME_BP = AUTOSOMAL_GENOME_KB * 1000
+
+
 def _is_count(value: Any) -> bool:
-    """A non-negative integer — coordinates and marker tallies are never below 0."""
-    return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+    """A non-negative integer coordinate or tally, bounded by the genome."""
+    return isinstance(value, int) and _in_range(value, _AUTOSOMAL_GENOME_BP)
 
 
 _SEGMENT_FIELD_CHECKS: dict[str, Any] = {
@@ -440,6 +450,41 @@ _SEGMENT_FIELD_CHECKS: dict[str, Any] = {
     "length_kb": _is_measured_quantity,
     "n_snps": _is_count,
 }
+
+
+def _segments_clear_emission_thresholds(
+    detail: dict[str, Any], segments: list[dict[str, Any]]
+) -> bool:
+    """Whether every listed segment is one the detector could have emitted.
+
+    ``_scan_chromosome`` records a run only once it spans ``MIN_ROH_KB`` and
+    holds ``MIN_ROH_SNPS`` homozygous calls, so a stored `length_kb: 0,
+    n_snps: 0` segment is not a short run -- it is not a run at all, and both
+    APIs were serving it as a zero-length ROH.
+
+    The thresholds are read from the row's **own** recorded ``params`` rather
+    than from today's constants. A row written when ``MIN_ROH_KB`` was lower is
+    stale, not incoherent, and rejecting it would withhold a real measurement to
+    satisfy a value it never claimed -- the same reasoning that keeps ``froh``
+    from being cross-checked against a denominator convention it records for
+    itself. Where the blob states no threshold, only the version-independent
+    floor applies: a segment with no length and no markers is impossible under
+    any threshold anyone could have configured.
+    """
+    params = detail.get("params")
+    params = params if isinstance(params, dict) else {}
+    min_kb = params.get("min_roh_kb")
+    min_snps = params.get("min_roh_snps")
+    length_floor = min_kb if _is_measured_quantity(min_kb) and min_kb > 0 else None
+    snp_floor = min_snps if _is_count(min_snps) and min_snps > 0 else None
+    for segment in segments:
+        if segment["length_kb"] <= 0 or segment["n_snps"] <= 0:
+            return False
+        if length_floor is not None and segment["length_kb"] < length_floor:
+            return False
+        if snp_floor is not None and segment["n_snps"] < snp_floor:
+            return False
+    return True
 
 
 def _metrics_agree(detail: dict[str, Any], segments: list[dict[str, Any]] | None) -> bool:
@@ -472,7 +517,15 @@ def _metrics_agree(detail: dict[str, Any], segments: list[dict[str, Any]] | None
     n_segments = detail.get("n_segments")
     total = detail.get("total_roh_kb")
     longest = detail.get("longest_kb")
-    truncated = bool(detail.get("segments_truncated", False))
+
+    # Read as a boolean, never coerced. `bool("false")` is True, and this flag is
+    # the one field that *excuses* a short segment list -- so a drifted string
+    # here would wave the count/list check through and report a truncation that
+    # never happened. The writer emits a real bool; anything else is unreadable.
+    raw_truncated = detail.get("segments_truncated", False)
+    if not isinstance(raw_truncated, bool):
+        return False
+    truncated = raw_truncated
 
     if n_segments is not None and segments is not None:
         # The list is capped, so it may be shorter than the count -- but only
@@ -497,6 +550,21 @@ def _metrics_agree(detail: dict[str, Any], segments: list[dict[str, Any]] | None
     # keeps the longest, so this holds whether or not the list was truncated.
     if longest is not None and segments:
         if longest < max(segment["length_kb"] for segment in segments):
+            return False
+
+    # The total is a sum over every segment, so it must cover the ones listed --
+    # exactly when the list is complete, and with room to spare when the cap bit.
+    # Without this, a blob listing two 6200 kb runs could record a 6200 kb total
+    # and be served as a total smaller than its own segments.
+    if total is not None and segments:
+        listed = sum(segment["length_kb"] for segment in segments)
+        # Compared with a relative tolerance, not exactly. The writer sums in
+        # detection order while the persisted list is sorted by length, so the
+        # two float additions can differ in the last bits on the same data --
+        # and withholding a real measurement over a rounding artefact is the
+        # failure mode this module exists to avoid, pointed the other way.
+        slack = 1e-6 * max(1.0, listed)
+        if total < listed - slack or (not truncated and total > listed + slack):
             return False
 
     return True
@@ -542,6 +610,8 @@ def _companion_metrics_readable(detail: dict[str, Any]) -> bool:
         and segment["end"] >= segment["start"]
         for segment in segments
     ):
+        return False
+    if not _segments_clear_emission_thresholds(detail, segments):
         return False
     return _metrics_agree(detail, segments)
 
