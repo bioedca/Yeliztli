@@ -16,6 +16,10 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
+from backend.analysis.pharmacogenomics import (
+    is_patient_presentable_finding_payload,
+    is_patient_presentable_response_payload,
+)
 from backend.api.dependencies import require_fresh_sample
 from backend.db.connection import get_registry
 from backend.db.tables import findings, haplogroup_assignments, samples
@@ -265,6 +269,22 @@ def _lai_reason_response(
 # ── Endpoints ─────────────────────────────────────────────────────────────
 
 
+def _latest_presentable_ancestry_finding(
+    connection: sa.Connection,
+    category: str,
+) -> sa.Row | None:
+    """Return the newest presentable row without letting a held row erase history."""
+    rows = connection.execute(
+        sa.select(findings)
+        .where(findings.c.module == "ancestry", findings.c.category == category)
+        .order_by(findings.c.id.desc())
+    ).fetchall()
+    return next(
+        (row for row in rows if is_patient_presentable_finding_payload(row._mapping)),
+        None,
+    )
+
+
 @router.get("/findings", dependencies=[Depends(require_fresh_sample)])
 def get_ancestry_findings(
     sample_id: int = Query(..., description="Sample ID"),
@@ -277,38 +297,11 @@ def get_ancestry_findings(
     sample_engine = _get_sample_engine(sample_id)
 
     with sample_engine.connect() as conn:
-        # Fetch PCA projection finding (has pc_scores, distances, ranking)
-        pca_row = conn.execute(
-            sa.select(findings)
-            .where(
-                findings.c.module == "ancestry",
-                findings.c.category == "pca_projection",
-            )
-            .order_by(findings.c.id.desc())
-            .limit(1)
-        ).fetchone()
-
-        # Fetch NNLS admixture finding (has confidence, method, fractions)
-        nnls_row = conn.execute(
-            sa.select(findings)
-            .where(
-                findings.c.module == "ancestry",
-                findings.c.category == "nnls_admixture",
-            )
-            .order_by(findings.c.id.desc())
-            .limit(1)
-        ).fetchone()
-
-        # Fetch kNN admixture finding
-        knn_row = conn.execute(
-            sa.select(findings)
-            .where(
-                findings.c.module == "ancestry",
-                findings.c.category == "knn_admixture",
-            )
-            .order_by(findings.c.id.desc())
-            .limit(1)
-        ).fetchone()
+        # Each category can retain a newer audit-only legacy row. Scan newest
+        # first so it cannot erase an older, independently safe result.
+        pca_row = _latest_presentable_ancestry_finding(conn, "pca_projection")
+        nnls_row = _latest_presentable_ancestry_finding(conn, "nnls_admixture")
+        knn_row = _latest_presentable_ancestry_finding(conn, "knn_admixture")
 
     if pca_row is None:
         return None
@@ -336,7 +329,7 @@ def get_ancestry_findings(
     # Use NNLS finding text if available, otherwise PCA
     finding_text = (nnls_row.finding_text if nnls_row else None) or pca_row.finding_text or ""
 
-    return AncestryFindingResponse(
+    response = AncestryFindingResponse(
         top_population=top_population,
         pc_scores=pca_detail.get("pc_scores", []),
         population_distances=pca_detail.get("population_distances", {}),
@@ -362,6 +355,12 @@ def get_ancestry_findings(
         nnls_ci_low=nnls_detail.get("ci_low"),
         nnls_ci_high=nnls_detail.get("ci_high"),
     )
+    # PCA, NNLS, and kNN records are independently valid sources, but their
+    # fields become one patient-visible response here. Recheck the decoded DTO
+    # so a held pair cannot be assembled across otherwise safe source rows.
+    if not is_patient_presentable_response_payload(response.model_dump(mode="json")):
+        return None
+    return response
 
 
 @router.post("/run", dependencies=[Depends(require_fresh_sample)])
@@ -404,15 +403,7 @@ def get_pca_coordinates_endpoint(
     sample_engine = _get_sample_engine(sample_id)
 
     with sample_engine.connect() as conn:
-        row = conn.execute(
-            sa.select(findings)
-            .where(
-                findings.c.module == "ancestry",
-                findings.c.category == "pca_projection",
-            )
-            .order_by(findings.c.id.desc())
-            .limit(1)
-        ).fetchone()
+        row = _latest_presentable_ancestry_finding(conn, "pca_projection")
 
     if row is None:
         return None
@@ -462,12 +453,16 @@ def get_pca_coordinates_endpoint(
 def _build_haplogroup_assignment_response(
     ha_row: sa.Row,
     finding_row: sa.Row | None,
-) -> HaplogroupAssignmentResponse:
+) -> HaplogroupAssignmentResponse | None:
     """Build a HaplogroupAssignmentResponse from DB rows."""
     traversal_path: list[HaplogroupTraversalStepResponse] = []
     finding_text = ""
 
-    if finding_row and finding_row.detail_json:
+    if (
+        finding_row
+        and is_patient_presentable_finding_payload(finding_row._mapping)
+        and finding_row.detail_json
+    ):
         detail = json.loads(finding_row.detail_json)
         traversal_path = [
             HaplogroupTraversalStepResponse(
@@ -479,7 +474,7 @@ def _build_haplogroup_assignment_response(
         ]
         finding_text = finding_row.finding_text or ""
 
-    return HaplogroupAssignmentResponse(
+    response = HaplogroupAssignmentResponse(
         type=ha_row.type,
         haplogroup=ha_row.haplogroup,
         confidence=ha_row.confidence or 0.0,
@@ -488,6 +483,12 @@ def _build_haplogroup_assignment_response(
         traversal_path=traversal_path,
         finding_text=finding_text,
     )
+    # Assignment-table values and the ancestry finding become one child DTO.
+    # The assignment column is legacy unconstrained text, so validate the
+    # decoded combined response rather than trusting the finding row alone.
+    if not is_patient_presentable_response_payload(response.model_dump(mode="json")):
+        return None
+    return response
 
 
 @router.get("/haplogroups", dependencies=[Depends(require_fresh_sample)])
@@ -523,9 +524,19 @@ def get_haplogroup_assignments(
                 .limit(1)
             ).fetchone()
 
-            assignments.append(_build_haplogroup_assignment_response(ha_row, finding_row))
+            assignment = _build_haplogroup_assignment_response(ha_row, finding_row)
+            if assignment is not None:
+                assignments.append(assignment)
 
-    return HaplogroupResponse(assignments=assignments)
+    response = HaplogroupResponse(assignments=assignments)
+    # Each stored assignment may be independently presentable, while a legacy
+    # collection can still join two held identifiers in one patient response.
+    # Fail closed rather than returning a partially misleading assignment list.
+    return (
+        response
+        if is_patient_presentable_response_payload(response.model_dump(mode="json"))
+        else HaplogroupResponse(assignments=[])
+    )
 
 
 @router.post("/haplogroups/run", dependencies=[Depends(require_fresh_sample)])
@@ -578,7 +589,14 @@ def run_haplogroup(
             )
         )
 
-    return HaplogroupRunResponse(assignments=assignments)
+    response = HaplogroupRunResponse(assignments=assignments)
+    # The run result is also a single patient-visible collection, so it needs
+    # the same aggregate check as the persisted-assignment endpoint.
+    return (
+        response
+        if is_patient_presentable_response_payload(response.model_dump(mode="json"))
+        else HaplogroupRunResponse(assignments=[])
+    )
 
 
 # ── LAI status endpoint ────────────────────────────────────────────────────

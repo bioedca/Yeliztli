@@ -113,6 +113,20 @@ def ac_client(tmp_data_dir: Path) -> Generator[TestClient, None, None]:
                     clinvar_significance=sig,
                 )
             )
+        # #2019: retained custom/legacy prescribing alerts must not reappear
+        # through a generic P/LP-derived clinical-analysis endpoint.
+        conn.execute(
+            findings.insert().values(
+                module="medication_review",
+                category="prescribing_alert",
+                evidence_level=4,
+                gene_symbol="\u00a0CYP2D6\u2003",
+                rsid="synthetic-cyp2d6-tamoxifen",
+                drug="\vTamOxIfEn\f",
+                finding_text="Retained tamoxifen clinical advice.",
+                clinvar_significance="Pathogenic",
+            )
+        )
 
     ref_engine.dispose()
     sample_engine.dispose()
@@ -134,6 +148,47 @@ def ac_client(tmp_data_dir: Path) -> Generator[TestClient, None, None]:
 
 
 class TestArrayConfidenceEndpoint:
+    def test_withholds_held_pair_assembled_by_response_rows(self, monkeypatch) -> None:
+        """The badge endpoint must gate its assembled patient payload, not rows alone."""
+        import backend.api.routes.array_confidence as route
+
+        row = {
+            "module": "cancer",
+            "clinvar_significance": "Pathogenic",
+            "reliability": "high",
+            "label": "Array confidence: high",
+            "detail": "Synthetic test result.",
+            "gnomad_af_popmax": 0.1,
+            "is_novel": False,
+            "confirm_in_clia_recommended": False,
+            "context_only": True,
+            "pmid_citations": ["1"],
+            "note": "Static array-confidence context.",
+        }
+        monkeypatch.setattr(route, "resolve_sample_engine", lambda sample_id: object())
+        monkeypatch.setattr(
+            route,
+            "assess_pathogenic_findings",
+            lambda engine: [
+                {
+                    **row,
+                    "finding_id": 1,
+                    "gene_symbol": "CYP2D6",
+                    "rsid": "safe-gene-row",
+                    "finding_text": "Synthetic source row one.",
+                },
+                {
+                    **row,
+                    "finding_id": 2,
+                    "gene_symbol": "SAFE1",
+                    "rsid": "safe-drug-row",
+                    "finding_text": "tamoxifen dose guidance",
+                },
+            ],
+        )
+
+        assert route.list_array_confidence(sample_id=1) == []
+
     def test_only_pathogenic_findings_flagged(self, ac_client: TestClient) -> None:
         resp = ac_client.get("/api/analysis/array-confidence?sample_id=1")
         assert resp.status_code == 200

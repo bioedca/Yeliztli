@@ -15,6 +15,7 @@ import pytest
 import sqlalchemy as sa
 
 from backend.analysis.finding_diff import (
+    DIFF_STATE_KEY,
     compute_and_store_finding_diff,
     compute_finding_diff,
     dismiss_finding_diff,
@@ -23,7 +24,7 @@ from backend.analysis.finding_diff import (
     snapshot_findings,
 )
 from backend.db.sample_schema import create_sample_tables
-from backend.db.tables import database_versions, findings, reference_metadata
+from backend.db.tables import annotation_state, database_versions, findings, reference_metadata
 from tests.backend.vep_bundle_test_utils import seed_embedded_vep_bundle_version
 
 SYNTHETIC_RECLASSIFICATION_RSID = "synthetic-reclassification-variant"
@@ -519,6 +520,66 @@ class TestSnapshotFindings:
         assert by_text["BRCA1 Pathogenic"]["trait"] is None
         assert by_text["Malformed trait PRS"]["trait"] is None
 
+    def test_withheld_tamoxifen_alert_is_not_snapshotted_for_future_diff(
+        self,
+        sample_engine: sa.Engine,
+    ) -> None:
+        _insert_findings(
+            sample_engine,
+            [
+                {
+                    "module": "pharmacogenomics",
+                    "category": "prescribing_alert",
+                    "gene_symbol": "CYP2D6",
+                    "drug": "codeine",
+                    "finding_text": "CYP2D6/codeine control alert",
+                },
+                {
+                    "module": "medication_review",
+                    "category": "prescribing_alert",
+                    "gene_symbol": " CYP2D6 ",
+                    "drug": "\ttamoxifen\n",
+                    "finding_text": "Custom retained tamoxifen clinical advice.",
+                },
+                {
+                    "module": "medication_review",
+                    "category": "legacy_note",
+                    "gene_symbol": "CYP2D6",
+                    "drug": "tamoxifen",
+                    "finding_text": "Relabeled tamoxifen clinical advice.",
+                },
+                {
+                    "module": "medication_review",
+                    "category": "prescribing_alert",
+                    "gene_symbol": " ",
+                    "drug": "tamoxifen",
+                    "finding_text": "Blank-gene clinical advice.",
+                },
+                {
+                    # A scalar-safe legacy shell must not create an update
+                    # notification when its nested payload carries a held pair.
+                    "module": "pharmacogenomics",
+                    "category": "prescribing_alert",
+                    "gene_symbol": "CYP2C19",
+                    "drug": "clopidogrel",
+                    "finding_text": "Nested tamoxifen clinical advice.",
+                    "detail_json": json.dumps(
+                        {
+                            "legacy": {
+                                "gene": "CYP2D6",
+                                "drug": "tamoxifen",
+                                "recommendation": "Must not appear in a finding diff.",
+                            }
+                        }
+                    ),
+                },
+            ],
+        )
+
+        records = snapshot_findings(sample_engine)
+
+        assert [record["finding_text"] for record in records] == ["CYP2D6/codeine control alert"]
+
 
 class TestComputeAndStoreRoundTrip:
     def test_store_read_dismiss(
@@ -646,3 +707,18 @@ class TestComputeAndStoreRoundTrip:
     def test_dismiss_without_stored_diff_returns_false(self, sample_engine: sa.Engine) -> None:
         assert dismiss_finding_diff(sample_engine) is False
         assert read_finding_diff(sample_engine) is None
+
+    def test_read_and_dismiss_reject_ambiguous_persisted_diff(
+        self, sample_engine: sa.Engine
+    ) -> None:
+        """#2019: duplicated JSON keys are unsafe for both diff read paths."""
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotation_state).values(
+                    key=DIFF_STATE_KEY,
+                    value='{"dismissed":false,"dismissed":true}',
+                )
+            )
+
+        assert read_finding_diff(sample_engine) is None
+        assert dismiss_finding_diff(sample_engine) is False

@@ -1,0 +1,113 @@
+<?xml version='1.0' encoding='utf-8'?>
+<PubmedArticleSet accessed="2026-08-01">
+  <PubmedArticle>
+    <MedlineCitation>
+      <PMID Version="1">29385237</PMID>
+      <DateRevised>
+        <Year>2024</Year>
+        <Month>08</Month>
+        <Day>29</Day>
+      </DateRevised>
+      <Article>
+        <ArticleTitle>Clinical Pharmacogenetics Implementation Consortium (CPIC) Guideline for CYP2D6 and Tamoxifen Therapy.</ArticleTitle>
+      </Article>
+      <CommentsCorrectionsList />
+    </MedlineCitation>
+    <PubmedData>
+      <ArticleIdList>
+        <ArticleId IdType="pubmed">29385237</ArticleId>
+        <ArticleId IdType="doi">10.1002/cpt.1007</ArticleId>
+      </ArticleIdList>
+    </PubmedData>
+  </PubmedArticle>
+  <PubmedArticle>
+    <MedlineCitation>
+      <PMID Version="1">26211827</PMID>
+      <DateRevised>
+        <Year>2025</Year>
+        <Month>05</Month>
+        <Day>29</Day>
+      </DateRevised>
+      <Article>
+        <ArticleTitle>Aromatase inhibitors versus tamoxifen in early breast cancer: patient-level meta-analysis of the randomised trials.</ArticleTitle>
+      </Article>
+      <CommentsCorrectionsList>
+        <CommentsCorrections RefType="CommentIn">
+          <RefSource>Lancet. 2015 Oct 3;386(10001):1317-1319. doi: 10.1016/S0140-6736(15)61206-5.</RefSource>
+          <PMID Version="1">26211823</PMID>
+        </CommentsCorrections>
+      </CommentsCorrectionsList>
+    </MedlineCitation>
+    <PubmedData>
+      <ArticleIdList>
+        <ArticleId IdType="pubmed">26211827</ArticleId>
+        <ArticleId IdType="doi">10.1016/S0140-6736(15)61074-1</ArticleId>
+      </ArticleIdList>
+    </PubmedData>
+  </PubmedArticle>
+  <PubmedArticle>
+    <MedlineCitation>
+      <PMID Version="1">27226358</PMID>
+      <DateRevised>
+        <Year>2018</Year>
+        <Month>11</Month>
+        <Day>13</Day>
+      </DateRevised>
+      <Article>
+        <ArticleTitle>Tamoxifen Dose Escalation in Patients With Diminished CYP2D6 Activity Normalizes Endoxifen Concentrations Without Increasing Toxicity.</ArticleTitle>
+      </Article>
+      <CommentsCorrectionsList />
+    </MedlineCitation>
+    <PubmedData>
+      <ArticleIdList>
+        <ArticleId IdType="pubmed">27226358</ArticleId>
+        <ArticleId IdType="doi">10.1634/theoncologist.2015-0480</ArticleId>
+      </ArticleIdList>
+    </PubmedData>
+  </PubmedArticle>
+  <PubmedArticle>
+    <MedlineCitation>
+      <PMID Version="1">23213055</PMID>
+      <DateRevised>
+        <Year>2025</Year>
+        <Month>04</Month>
+        <Day>28</Day>
+      </DateRevised>
+      <Article>
+        <ArticleTitle>CYP2D6 metabolism and patient outcome in the Austrian Breast and Colorectal Cancer Study Group trial (ABCSG) 8.</ArticleTitle>
+      </Article>
+      <CommentsCorrectionsList />
+    </MedlineCitation>
+    <PubmedData>
+      <ArticleIdList>
+        <ArticleId IdType="pubmed">23213055</ArticleId>
+        <ArticleId IdType="doi">10.1158/1078-0432.CCR-12-2153</ArticleId>
+      </ArticleIdList>
+    </PubmedData>
+  </PubmedArticle>
+  <PubmedArticle>
+    <MedlineCitation>
+      <PMID Version="1">21768473</PMID>
+      <DateRevised>
+        <Year>2021</Year>
+        <Month>10</Month>
+        <Day>20</Day>
+      </DateRevised>
+      <Article>
+        <ArticleTitle>Genotype-guided tamoxifen dosing increases active metabolite exposure in women with reduced CYP2D6 metabolism: a multicenter study.</ArticleTitle>
+      </Article>
+      <CommentsCorrectionsList>
+        <CommentsCorrections RefType="CommentIn">
+          <RefSource>J Clin Oncol. 2011 Aug 20;29(24):3206-8. doi: 10.1200/JCO.2011.36.3895.</RefSource>
+          <PMID Version="1">21768456</PMID>
+        </CommentsCorrections>
+      </CommentsCorrectionsList>
+    </MedlineCitation>
+    <PubmedData>
+      <ArticleIdList>
+        <ArticleId IdType="pubmed">21768473</ArticleId>
+        <ArticleId IdType="doi">10.1200/JCO.2010.31.4427</ArticleId>
+      </ArticleIdList>
+    </PubmedData>
+  </PubmedArticle>
+</PubmedArticleSet>

@@ -377,6 +377,11 @@ uniprot_cache = sa.Table(
 
 # ── Log Entries ────────────────────────────────────────────────────────
 
+# A durable attestation that a row was normalized and redacted by the current
+# patient-presentation policy before it was persisted. Both newly created and
+# migrated databases default un-attested/raw rows to version 0.
+LOG_ENTRY_PRESENTATION_POLICY_VERSION = 1
+
 log_entries = sa.Table(
     "log_entries",
     reference_metadata,
@@ -386,9 +391,21 @@ log_entries = sa.Table(
     sa.Column("logger", sa.Text),
     sa.Column("message", sa.Text),
     sa.Column("event_data", sa.Text, comment="JSON structured log data"),
+    sa.Column(
+        "presentation_policy_version",
+        sa.Integer,
+        nullable=False,
+        server_default=sa.text("0"),
+        comment="Writer-attested patient-presentation policy version",
+    ),
 )
 
 sa.Index("idx_log_timestamp", log_entries.c.timestamp)
+sa.Index(
+    "idx_log_entries_presentation_policy_id",
+    log_entries.c.presentation_policy_version,
+    log_entries.c.id.desc(),
+)
 
 # ── Re-annotation Prompt State ─────────────────────────────────────────
 

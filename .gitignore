@@ -68,6 +68,13 @@ htmlcov/
 test-results/
 playwright-report/
 blob-report/
+# Scratch dirs the Playwright MCP plugin and CLI write into the repo root on every run.
+.playwright-mcp/
+.playwright-cli/
+
+# Agent verification artifacts. CLAUDE.md and AGENTS.md route sanitized Playwright
+# output here and describe the path as ignored — this is what makes that true.
+output/
 
 # Documentation site (MkDocs build output — published via CI, never committed)
 /site/

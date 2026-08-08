@@ -9,6 +9,7 @@ Provides endpoints for the Settings > System Health page:
 
 from __future__ import annotations
 
+import json
 import shutil
 import time
 from datetime import datetime
@@ -19,6 +20,7 @@ from fastapi import APIRouter, Query
 from pydantic import BaseModel
 from sqlalchemy.pool import NullPool
 
+from backend.analysis.pharmacogenomics import is_patient_presentable_response_payload
 from backend.config import get_settings
 from backend.db.connection import get_registry
 from backend.db.database_registry import DATABASES, DatabaseInfo
@@ -30,6 +32,7 @@ from backend.db.db_health import (
     validate_database,
 )
 from backend.db.tables import (
+    LOG_ENTRY_PRESENTATION_POLICY_VERSION,
     database_versions,
     jobs,
     log_entries,
@@ -47,6 +50,61 @@ def _format_ts(val: object) -> str | None:
     if isinstance(val, datetime):
         return val.isoformat()
     return str(val) if val is not None else None
+
+
+def _reject_duplicate_json_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    """Build a JSON object while rejecting ambiguous duplicate keys."""
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON key: {key}")
+        result[key] = value
+    return result
+
+
+def _reject_non_json_constant(value: str) -> None:
+    """Reject JavaScript-style constants that strict JSON does not permit."""
+    raise ValueError(f"non-JSON constant: {value}")
+
+
+def _is_patient_presentable_log_page(rows: list[sa.RowMapping]) -> bool:
+    """Validate the fully assembled log page with decoded event-data objects.
+
+    Per-row screening prevents a legacy event from rendering by itself. A page
+    can nevertheless combine safe fragments from separate rows, so evaluate
+    the exact dynamic DTO shape before returning it. Event data is parsed
+    strictly here rather than checked as a raw JSON string, which prevents
+    escaped identifiers from bypassing the aggregate gate.
+    """
+    normalized_entries: list[dict[str, object]] = []
+    for row in rows:
+        event_data = row["event_data"]
+        decoded_event_data: object = None
+        if event_data is not None:
+            try:
+                decoded_event_data = json.loads(
+                    event_data,
+                    object_pairs_hook=_reject_duplicate_json_keys,
+                    parse_constant=_reject_non_json_constant,
+                )
+            except (TypeError, ValueError, RecursionError):
+                return False
+            if not isinstance(decoded_event_data, dict):
+                return False
+        normalized_entries.append(
+            {
+                "id": row["id"],
+                "timestamp": _format_ts(row["timestamp"]),
+                "level": row["level"],
+                "logger": row["logger"],
+                "message": row["message"],
+                "event_data": decoded_event_data,
+            }
+        )
+    try:
+        return is_patient_presentable_response_payload(normalized_entries)
+    except RecursionError:
+        return False
 
 
 # ── Response models ──────────────────────────────────────────────────
@@ -136,10 +194,16 @@ def get_logs(
     """Paginated log explorer with faceted filtering."""
     registry = get_registry()
     engine = registry.reference_engine
+    offset = (page - 1) * page_size
 
     with engine.connect() as conn:
-        # Build WHERE clause
-        conditions: list[sa.ColumnElement] = []
+        # The writer attests that a row was normalized/redacted under the
+        # current presentation policy.  Legacy rows stay on version 0 rather
+        # than being reparsed at request time, so count and pagination remain
+        # exact without a raw-history scan or a size-dependent failure oracle.
+        conditions: list[sa.ColumnElement] = [
+            log_entries.c.presentation_policy_version == LOG_ENTRY_PRESENTATION_POLICY_VERSION
+        ]
         if level:
             conditions.append(log_entries.c.level == level.upper())
         if component:
@@ -151,22 +215,21 @@ def get_logs(
         if search:
             conditions.append(log_entries.c.message.contains(search))
 
-        where = sa.and_(*conditions) if conditions else sa.true()
-
-        # Total count
-        count_q = sa.select(sa.func.count()).select_from(log_entries).where(where)
-        total = conn.execute(count_q).scalar() or 0
-
-        # Paginated query (newest first)
-        offset = (page - 1) * page_size
-        q = (
-            sa.select(log_entries)
-            .where(where)
-            .order_by(log_entries.c.id.desc())
-            .limit(page_size)
-            .offset(offset)
+        where = sa.and_(*conditions)
+        total = conn.execute(
+            sa.select(sa.func.count()).select_from(log_entries).where(where)
+        ).scalar_one()
+        page_rows = (
+            conn.execute(
+                sa.select(log_entries)
+                .where(where)
+                .order_by(log_entries.c.id.desc())
+                .offset(offset)
+                .limit(page_size)
+            )
+            .mappings()
+            .all()
         )
-        rows = conn.execute(q).mappings().all()
 
     entries = [
         LogEntry(
@@ -177,15 +240,27 @@ def get_logs(
             message=r["message"],
             event_data=r["event_data"],
         )
-        for r in rows
+        for r in page_rows
     ]
+
+    # The attestation is per row, but the actual response is a collection. Do
+    # not serialize rows that would assemble held guidance after pagination,
+    # including through escaped JSON event-data values.
+    if not _is_patient_presentable_log_page(page_rows):
+        return LogResponse(
+            entries=[],
+            total=0,
+            page=page,
+            page_size=page_size,
+            has_more=False,
+        )
 
     return LogResponse(
         entries=entries,
         total=total,
         page=page,
         page_size=page_size,
-        has_more=(offset + page_size) < total,
+        has_more=(offset + len(entries)) < total,
     )
 
 

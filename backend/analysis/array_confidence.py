@@ -37,6 +37,10 @@ from typing import Any
 import sqlalchemy as sa
 
 from backend.analysis.clinvar_significance import pathogenic_significance_filter
+from backend.analysis.pharmacogenomics import (
+    is_patient_presentable_finding_payload,
+    patient_visible_finding_clause,
+)
 from backend.db.tables import annotated_variants, findings
 from backend.disclaimers import ARRAY_CONFIDENCE_CONTEXT_ONLY
 
@@ -269,16 +273,23 @@ def assess_pathogenic_findings(sample_engine: sa.Engine) -> list[dict[str, Any]]
         sa.select(
             findings.c.id,
             findings.c.module,
+            findings.c.category,
             findings.c.gene_symbol,
+            findings.c.drug,
             findings.c.rsid,
             findings.c.clinvar_significance,
             findings.c.finding_text,
+            findings.c.detail_json,
+            findings.c.provenance,
             av.c.gnomad_af_popmax,
             av.c.clinvar_significance.label("av_clinvar_significance"),
             av.c.clinvar_accession.label("av_clinvar_accession"),
         )
         .select_from(join)
-        .where(pathogenic_significance_filter(findings.c.clinvar_significance))
+        .where(
+            pathogenic_significance_filter(findings.c.clinvar_significance),
+            patient_visible_finding_clause(findings.c),
+        )
         .order_by(findings.c.id)
     )
     with sample_engine.connect() as conn:
@@ -286,6 +297,8 @@ def assess_pathogenic_findings(sample_engine: sa.Engine) -> list[dict[str, Any]]
 
     out: list[dict[str, Any]] = []
     for row in rows:
+        if not is_patient_presentable_finding_payload(row._mapping):
+            continue
         catalogued = _is_catalogued(
             row.rsid,
             row.clinvar_significance or row.av_clinvar_significance,

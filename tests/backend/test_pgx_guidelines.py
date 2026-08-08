@@ -97,6 +97,26 @@ class TestAssessSample:
         result = assess_sample_pgx_guidelines(engine)
         assert len(result["alerts"]) == 1
 
+    def test_withheld_pair_is_not_exposed_as_cross_source_evidence(self) -> None:
+        engine = _sample_with_alerts([("CYP2C19", "clopidogrel")])
+        # This deliberately custom/malformed form survives v25's exact-match
+        # migration, so presentation must apply the runtime policy itself.
+        with engine.begin() as conn:
+            conn.execute(
+                findings.insert().values(
+                    module="medication_review",
+                    category="prescribing_alert",
+                    gene_symbol=" CYP2D6 ",
+                    drug="\ttamoxifen\n",
+                    metabolizer_status="Intermediate Metabolizer",
+                    finding_text="Custom retained tamoxifen clinical advice.",
+                )
+            )
+
+        result = assess_sample_pgx_guidelines(engine)
+
+        assert [alert["gene_symbol"] for alert in result["alerts"]] == ["CYP2C19"]
+
     def test_context_only_disclosure_and_citation(self) -> None:
         engine = _sample_with_alerts([("CYP2C19", "clopidogrel")])
         result = assess_sample_pgx_guidelines(engine)

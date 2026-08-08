@@ -10,10 +10,16 @@ import sqlalchemy as sa
 import structlog
 
 from backend.config import get_settings
-from backend.db.tables import log_entries, reference_metadata
+from backend.db.connection import get_registry, reset_registry
+from backend.db.tables import (
+    LOG_ENTRY_PRESENTATION_POLICY_VERSION,
+    log_entries,
+    reference_metadata,
+)
 from backend.logging_config import (
     _REDACTED_LOG_VALUE,
     _redact_sensitive_log_fields,
+    _redact_withheld_prescribing_alert_fields,
     configure_logging,
 )
 
@@ -50,6 +56,62 @@ def test_redact_sensitive_log_fields_recursively() -> None:
     assert redacted["input_gt"] == _REDACTED_LOG_VALUE
 
 
+def test_withheld_prescribing_alert_log_keeps_only_neutral_metadata() -> None:
+    event_dict = {
+        "event": "pgx_prescribing_alert",
+        "logger": "backend.analysis.pharmacogenomics",
+        "gene": " CYP2D6 ",
+        "drug": "\ttamoxifen\n",
+        "recommendation": "Escalate tamoxifen to 40 mg/day.",
+        "classification": "A",
+    }
+
+    redacted = _redact_withheld_prescribing_alert_fields(event_dict)
+
+    assert redacted == {
+        "event": "clinical_guidance_withheld",
+        "clinical_guidance_withheld": True,
+    }
+
+
+def test_nested_or_aliased_withheld_log_fields_keep_only_neutral_metadata() -> None:
+    """#2019: legacy nested aliases cannot reach a sink as guidance."""
+    event_dict = {
+        "event": "legacy_pgx_event",
+        "logger": "backend.analysis.pharmacogenomics",
+        "nested": {
+            " gene": " CYP2D6 ",
+            " drug": "\ttamoxifen\n",
+            "recommendation": "Use alternate hormonal therapy.",
+        },
+    }
+
+    redacted = _redact_withheld_prescribing_alert_fields(event_dict)
+
+    assert redacted == {
+        "event": "clinical_guidance_withheld",
+        "clinical_guidance_withheld": True,
+    }
+
+
+def test_malformed_prescribing_identifier_pair_keeps_only_neutral_metadata() -> None:
+    """#2019: blank canonical identifiers cannot send legacy guidance to a sink."""
+    event_dict = {
+        "event": "legacy_pgx_event",
+        "logger": "backend.analysis.pharmacogenomics",
+        "gene": " \t",
+        "drug": "tamoxifen",
+        "recommendation": "Use alternate hormonal therapy.",
+    }
+
+    redacted = _redact_withheld_prescribing_alert_fields(event_dict)
+
+    assert redacted == {
+        "event": "clinical_guidance_withheld",
+        "clinical_guidance_withheld": True,
+    }
+
+
 def test_configured_logging_redacts_before_db_and_console(
     tmp_path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -80,12 +142,14 @@ def test_configured_logging_redacts_before_db_and_console(
 
         with engine.connect() as conn:
             row = conn.execute(
-                sa.select(log_entries.c.event_data).where(
-                    log_entries.c.message == "analysis_event"
-                )
+                sa.select(
+                    log_entries.c.event_data,
+                    log_entries.c.presentation_policy_version,
+                ).where(log_entries.c.message == "analysis_event")
             ).one()
 
         event_data = json.loads(row.event_data)
+        assert row.presentation_policy_version == LOG_ENTRY_PRESENTATION_POLICY_VERSION
         assert event_data["genotype"] == _REDACTED_LOG_VALUE
         assert event_data["diplotype"] == _REDACTED_LOG_VALUE
         assert event_data["rs429358_genotype"] == _REDACTED_LOG_VALUE
@@ -94,6 +158,118 @@ def test_configured_logging_redacts_before_db_and_console(
             "gene": "APOE",
         }
         assert event_data["rsid"] == "rs123"
+    finally:
+        structlog.reset_defaults()
+        engine.dispose()
+
+
+def test_configured_logging_redacts_nested_guidance_before_db_and_console(
+    tmp_path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """#2019: a nested legacy PGx payload is redacted before either log sink."""
+    structlog.reset_defaults()
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'reference.db'}")
+    reference_metadata.create_all(engine)
+
+    try:
+        configure_logging(engine_getter=lambda: engine)
+        structlog.get_logger("tests.logging_privacy").info(
+            "legacy_pgx_event",
+            nested={
+                " gene": "CYP2D6",
+                " drug": "tamoxifen",
+                "recommendation": "Use alternate hormonal therapy.",
+            },
+        )
+
+        stdout = capsys.readouterr().out
+        assert "CYP2D6" not in stdout
+        assert "tamoxifen" not in stdout
+        assert "alternate hormonal" not in stdout
+
+        with engine.connect() as conn:
+            row = conn.execute(
+                sa.select(
+                    log_entries.c.event_data,
+                    log_entries.c.presentation_policy_version,
+                ).where(log_entries.c.message == "clinical_guidance_withheld")
+            ).one()
+
+        stored = json.loads(row.event_data)
+        assert stored == {"clinical_guidance_withheld": True}
+        assert row.presentation_policy_version == LOG_ENTRY_PRESENTATION_POLICY_VERSION
+    finally:
+        structlog.reset_defaults()
+        engine.dispose()
+
+
+def test_configured_logging_redacts_held_event_and_logger_metadata(
+    tmp_path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A held pair split across event and logger cannot survive either sink."""
+    structlog.reset_defaults()
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'reference.db'}")
+    reference_metadata.create_all(engine)
+
+    try:
+        configure_logging(engine_getter=lambda: engine)
+        structlog.get_logger("CYP2D6").info("tamoxifen treatment instruction")
+
+        stdout = capsys.readouterr().out.lower()
+        assert "cyp2d6" not in stdout
+        assert "tamoxifen" not in stdout
+
+        with engine.connect() as conn:
+            logger_name, message, event_data, presentation_policy_version = conn.execute(
+                sa.select(
+                    log_entries.c.logger,
+                    log_entries.c.message,
+                    log_entries.c.event_data,
+                    log_entries.c.presentation_policy_version,
+                ).where(log_entries.c.message == "clinical_guidance_withheld")
+            ).one()
+
+        assert logger_name is None
+        assert message == "clinical_guidance_withheld"
+        assert json.loads(event_data) == {"clinical_guidance_withheld": True}
+        assert presentation_policy_version == LOG_ENTRY_PRESENTATION_POLICY_VERSION
+    finally:
+        structlog.reset_defaults()
+        engine.dispose()
+
+
+def test_configured_logging_redacts_held_exception_text(
+    tmp_path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Traceback rendering cannot create a late prescribing-guidance sink."""
+    structlog.reset_defaults()
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'reference.db'}")
+    reference_metadata.create_all(engine)
+
+    try:
+        configure_logging(engine_getter=lambda: engine)
+        try:
+            raise ValueError("CYP2D6 tamoxifen dose escalation")
+        except ValueError:
+            structlog.get_logger("tests.logging_privacy").exception("ordinary failure")
+
+        stdout = capsys.readouterr().out.lower()
+        assert "cyp2d6" not in stdout
+        assert "tamoxifen" not in stdout
+        assert "dose escalation" not in stdout
+
+        with engine.connect() as conn:
+            message, event_data, presentation_policy_version = conn.execute(
+                sa.select(
+                    log_entries.c.message,
+                    log_entries.c.event_data,
+                    log_entries.c.presentation_policy_version,
+                ).where(log_entries.c.message == "clinical_guidance_withheld")
+            ).one()
+
+        assert message == "clinical_guidance_withheld"
+        assert json.loads(event_data) == {"clinical_guidance_withheld": True}
+        assert presentation_policy_version == LOG_ENTRY_PRESENTATION_POLICY_VERSION
     finally:
         structlog.reset_defaults()
         engine.dispose()
@@ -136,12 +312,14 @@ def test_console_exception_logging_does_not_warn_and_persists_traceback(
 
         with engine.connect() as conn:
             row = conn.execute(
-                sa.select(log_entries.c.event_data).where(
-                    log_entries.c.message == "exception_event"
-                )
+                sa.select(
+                    log_entries.c.event_data,
+                    log_entries.c.presentation_policy_version,
+                ).where(log_entries.c.message == "exception_event")
             ).one()
 
         event_data = json.loads(row.event_data)
+        assert row.presentation_policy_version == LOG_ENTRY_PRESENTATION_POLICY_VERSION
         assert event_data["genotype"] == _REDACTED_LOG_VALUE
         assert event_data["nested"] == {
             "haplotype": _REDACTED_LOG_VALUE,
@@ -160,12 +338,35 @@ def test_huey_worker_logging_bootstrap_redacts_without_api_startup(
     tmp_path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    monkeypatch.setenv("YELIZTLI_DATA_DIR", str(tmp_path / "data"))
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    monkeypatch.setenv("YELIZTLI_DATA_DIR", str(data_dir))
     get_settings.cache_clear()
+    reset_registry()
+    legacy_engine = sa.create_engine(f"sqlite:///{data_dir / 'reference.db'}")
+    with legacy_engine.begin() as conn:
+        conn.execute(
+            sa.text(
+                "CREATE TABLE log_entries ("
+                "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                "timestamp DATETIME, level TEXT NOT NULL, logger TEXT, "
+                "message TEXT, event_data TEXT)"
+            )
+        )
+        conn.execute(
+            sa.text(
+                "INSERT INTO log_entries (level, logger, message, event_data) VALUES "
+                "('WARNING', 'backend.analysis.pharmacogenomics', "
+                "'pgx_prescribing_alert', "
+                '\'{"gene": "CYP2D6", "drug": "tamoxifen"}\')'
+            )
+        )
+    legacy_engine.dispose()
     structlog.reset_defaults()
     try:
         from backend.tasks import huey_tasks
 
+        huey_tasks._worker_logging_schema_engine = None
         huey_tasks._configure_worker_logging()
         logger = structlog.get_logger("tests.worker_logging_privacy")
 
@@ -183,8 +384,32 @@ def test_huey_worker_logging_bootstrap_redacts_without_api_startup(
         assert "AG" not in stdout
         assert _REDACTED_LOG_VALUE in stdout
         assert "rs429358" in stdout
+
+        with get_registry().reference_engine.connect() as conn:
+            legacy_version = conn.execute(
+                sa.select(log_entries.c.presentation_policy_version).where(
+                    log_entries.c.message == "pgx_prescribing_alert"
+                )
+            ).scalar_one()
+            policy_version = conn.execute(
+                sa.select(log_entries.c.presentation_policy_version).where(
+                    log_entries.c.message == "worker_analysis_event"
+                )
+            ).scalar_one()
+            indexes = {row[1] for row in conn.exec_driver_sql("PRAGMA index_list(log_entries)")}
+            jobs_table = conn.exec_driver_sql(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'jobs'"
+            ).scalar()
+
+        assert legacy_version == 0
+        assert policy_version == LOG_ENTRY_PRESENTATION_POLICY_VERSION
+        assert "idx_log_entries_presentation_policy_id" in indexes
+        assert jobs_table == 1
     finally:
         structlog.reset_defaults()
+        reset_registry()
+        if "huey_tasks" in locals():
+            huey_tasks._worker_logging_schema_engine = None
         get_settings.cache_clear()
 
 

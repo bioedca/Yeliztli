@@ -69,12 +69,18 @@ function GeneEffectCard({
   const confidence = effect.call_confidence
   const Icon = confidence ? CONFIDENCE_ICON[confidence] : null
   const color = confidence ? CONFIDENCE_COLOR[confidence] : ""
+  const recommendationWithheld = effect.recommendation_status === "withheld"
 
   return (
     <div className="rounded-lg border bg-card p-4">
       <div className="flex items-center justify-between gap-2 mb-2">
         <h4 className="font-semibold text-sm">{effect.gene}</h4>
-        {effect.not_assessed ? (
+        {recommendationWithheld ? (
+          <span className="flex items-center gap-1 text-xs font-medium text-amber-700 dark:text-amber-400">
+            <MinusCircle className="h-3.5 w-3.5" />
+            Clinical recommendation withheld
+          </span>
+        ) : effect.not_assessed ? (
           <span className="flex items-center gap-1 text-xs font-medium text-amber-700 dark:text-amber-400">
             <MinusCircle className="h-3.5 w-3.5" />
             Not assessed
@@ -92,7 +98,17 @@ function GeneEffectCard({
 
       {/* Uncalled guideline gene (#905): make the missing result explicit so a bare
           "CPIC Level {x}" line can't read as evaluated-and-normal. */}
-      {effect.not_assessed && (
+      {recommendationWithheld && (
+        <div className="rounded-md border border-amber-300 bg-amber-50 p-3 mb-2 dark:border-amber-800 dark:bg-amber-950/30">
+          <p className="text-xs text-amber-800 dark:text-amber-300">
+            Clinical recommendation withheld — Yeliztli does not provide patient-specific
+            prescribing guidance for this gene-drug pair while independent clinical validation
+            is unresolved.
+          </p>
+        </div>
+      )}
+
+      {effect.not_assessed && !recommendationWithheld && (
         <div className="rounded-md border border-amber-300 bg-amber-50 p-3 mb-2 dark:border-amber-800 dark:bg-amber-950/30">
           <p className="text-xs text-amber-800 dark:text-amber-300">
             Not assessed — {effect.gene} could not be called from this sample's array, so its
@@ -109,7 +125,7 @@ function GeneEffectCard({
         <p className="text-sm text-muted-foreground mb-2">{effect.metabolizer_status}</p>
       )}
 
-      {effect.recommendation && (
+      {!recommendationWithheld && effect.recommendation && (
         <div className="rounded-md bg-muted/50 p-3 mb-2">
           <p className="text-xs font-medium text-muted-foreground mb-1">Recommendation</p>
           <p className="text-sm">{effect.recommendation}</p>
@@ -117,7 +133,7 @@ function GeneEffectCard({
       )}
 
       <div className="flex items-center justify-between text-xs text-muted-foreground">
-        {effect.classification && (
+        {!recommendationWithheld && effect.classification && (
           <span>CPIC Level {effect.classification}</span>
         )}
         {effect.activity_score != null && (
@@ -129,7 +145,7 @@ function GeneEffectCard({
         <p className="text-xs text-muted-foreground italic mt-2">{effect.confidence_note}</p>
       )}
 
-      {effect.guideline_url && (
+      {!recommendationWithheld && effect.guideline_url && (
         <a
           href={effect.guideline_url}
           target="_blank"
@@ -140,7 +156,7 @@ function GeneEffectCard({
         </a>
       )}
 
-      {sources?.has_sources && <PgxEvidenceStrip sources={sources} />}
+      {!recommendationWithheld && sources?.has_sources && <PgxEvidenceStrip sources={sources} />}
     </div>
   )
 }

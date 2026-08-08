@@ -289,6 +289,53 @@ class TestLoadSingleFinding:
         with pytest.raises(ValueError, match="Finding 99 not found"):
             _load_single_finding(sample_engine, finding_id=99)
 
+    def test_withholds_retained_custom_tamoxifen_alert(self, sample_with_findings: tuple) -> None:
+        """#2019: direct PNG/PDF/HTML card generation cannot bypass the hold."""
+        _, sample_engine, _ = sample_with_findings
+        with sample_engine.begin() as conn:
+            conn.execute(
+                findings.insert().values(
+                    id=2019,
+                    module="medication_review",
+                    category="prescribing_alert",
+                    evidence_level=4,
+                    gene_symbol=" CYP2D6 ",
+                    drug="\ttamoxifen\n",
+                    finding_text="Custom retained tamoxifen clinical advice.",
+                )
+            )
+
+        with pytest.raises(ValueError, match="Finding 2019 not found"):
+            _load_single_finding(sample_engine, finding_id=2019)
+
+    def test_withholds_nested_tamoxifen_payload_shell(self, sample_with_findings: tuple) -> None:
+        """#2019: a scalar-safe shell cannot generate a shareable evidence card."""
+        _, sample_engine, _ = sample_with_findings
+        with sample_engine.begin() as conn:
+            conn.execute(
+                findings.insert().values(
+                    id=2020,
+                    module="pharmacogenomics",
+                    category="prescribing_alert",
+                    evidence_level=4,
+                    gene_symbol="CYP2C19",
+                    drug="clopidogrel",
+                    finding_text="Nested payload shell must not reach a card.",
+                    detail_json=json.dumps(
+                        {
+                            "legacy": {
+                                " Gene ": "CYP2D6",
+                                "DRUG": "tamoxifen",
+                                "recommendation": "Nested tamoxifen guidance must not render.",
+                            }
+                        }
+                    ),
+                )
+            )
+
+        with pytest.raises(ValueError, match="Finding 2020 not found"):
+            _load_single_finding(sample_engine, finding_id=2020)
+
     def test_clinvar_conditions_cleaned(self, sample_with_findings: tuple) -> None:
         """#918: the raw CLNDN blob is cleaned for display — no | separators, no
         not provided/not specified placeholders, no drug-response entries, and
@@ -471,6 +518,43 @@ class TestVariantCardHtml:
         assert "svg-section" in html
         assert "<svg" in html
         assert "Visualization" in html
+
+    def test_regenerates_svg_instead_of_embedding_persisted_artifact(
+        self, tmp_data_dir: Path, sample_with_findings: tuple
+    ) -> None:
+        ref_engine, sample_engine, _ = sample_with_findings
+        (tmp_data_dir / "samples" / "svgs" / "cross_pair.svg").write_text(
+            '<svg xmlns="http://www.w3.org/2000/svg"><text>tamoxifen</text></svg>',
+            encoding="utf-8",
+        )
+        with sample_engine.begin() as conn:
+            conn.execute(
+                findings.update()
+                .where(findings.c.id == 1)
+                .values(
+                    gene_symbol="CYP2D6",
+                    finding_text="Synthetic source result.",
+                    svg_path="svgs/cross_pair.svg",
+                )
+            )
+
+        settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
+        with (
+            patch("backend.reports.generator.get_registry") as mock_reg,
+            patch("backend.db.connection.get_settings", return_value=settings),
+        ):
+            registry = mock_reg.return_value
+            registry.settings = settings
+            registry.reference_engine = ref_engine
+            registry.get_sample_engine.return_value = sa.create_engine(
+                f"sqlite:///{tmp_data_dir / 'samples' / 'sample_1.db'}"
+            )
+
+            html = render_variant_card_html(sample_id=1, finding_id=1)
+
+        assert "CYP2D6" in html
+        assert "<svg" in html
+        assert "tamoxifen" not in html.lower()
 
     def test_contains_module_disclaimer(
         self, tmp_data_dir: Path, sample_with_findings: tuple

@@ -51,7 +51,11 @@ def _env(tmp_path: Path) -> Generator[sa.Engine, None, None]:
     settings = Settings(data_dir=data_dir)
     reset_registry()
     registry = DBRegistry(settings)
-    with patch("backend.api.routes.risk_common.get_registry", return_value=registry):
+    with (
+        patch("backend.api.dependencies.get_registry", return_value=registry),
+        patch("backend.api.routes.risk_common.get_registry", return_value=registry),
+        patch("backend.services.staleness.get_registry", return_value=registry),
+    ):
         yield sample_engine
     registry.dispose_all()
     reset_registry()
@@ -107,6 +111,7 @@ class TestGateFlow:
         # Now findings are visible.
         listing = client.get("/api/analysis/parkinsons/findings?sample_id=1")
         assert listing.status_code == 200
+        assert listing.json()["total"] == 1
         item = listing.json()["items"][0]
         assert item["gene_symbol"] == "LRRK2"
         assert item["evidence_level"] == 2
