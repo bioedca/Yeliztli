@@ -595,13 +595,29 @@ class TestListFindings:
             # the detector cannot emit a run with no length and no markers
             ("zero_length_segment", {"segments": [{**_SEG, "length_kb": 0.0, "n_snps": 0}]}),
             (
-                "segment_below_the_rows_own_recorded_thresholds",
+                "segment_below_the_emission_thresholds",
                 {
-                    "segments": [{**_SEG, "length_kb": 10.0, "n_snps": 4}],
+                    "segments": [{**_SEG, "end": 1_010_000, "length_kb": 10.0, "n_snps": 4}],
                     "total_roh_kb": 10.0,
                     "longest_kb": 10.0,
-                    "params": {"min_roh_kb": 1500, "min_roh_snps": 100},
                 },
+            ),
+            # A row produced by a different algorithm version is not this
+            # algorithm's result. The previous revision honoured such a row
+            # under its own recorded thresholds, which left two sources of truth
+            # -- the coverage gate kept using MIN_EVALUABLE_AUTOSOMAL_SNPS while
+            # this validator honoured the row, so one blob could pass one and
+            # fail the other. Withholding is the safe direction and
+            # detail_unavailable already says "re-run the analysis".
+            (
+                "params_from_a_different_detector_version",
+                {"params": {"min_roh_kb": 800, "min_roh_snps": 30}},
+            ),
+            # a length that disagrees with its own coordinates is not a
+            # measurement of them: 1000 kb of span labelled 6200 kb
+            (
+                "length_disagrees_with_coordinates",
+                {"segments": [{**_SEG, "end": 2_000_000}]},
             ),
             # the truncation flag is the one field that EXCUSES a short list, so
             # a drifted string here would wave the count/list check through
@@ -671,26 +687,12 @@ class TestListFindings:
                     "total_roh_kb": 240_000.0,
                 },
             ),
-            # a row written when the thresholds were lower is stale, not
-            # incoherent: its own recorded params are what it is judged against
+            # a row recording exactly this detector's thresholds is current, so
+            # it is judged and served normally -- the discriminating control for
+            # the version-mismatch rule below
             (
-                "segment_meeting_the_rows_own_older_thresholds",
-                {
-                    "segments": [{**_SEG, "length_kb": 900.0, "n_snps": 40}],
-                    "total_roh_kb": 900.0,
-                    "longest_kb": 900.0,
-                    "params": {"min_roh_kb": 800, "min_roh_snps": 30},
-                },
-            ),
-            # ...and one recording no thresholds at all is judged only against
-            # the floor no configuration could go below
-            (
-                "no_recorded_thresholds",
-                {
-                    "segments": [{**_SEG, "length_kb": 12.0, "n_snps": 3}],
-                    "total_roh_kb": 12.0,
-                    "longest_kb": 12.0,
-                },
+                "params_matching_this_detector",
+                {"params": {"min_roh_kb": 1500, "min_roh_snps": 100}},
             ),
             # a legacy blob recording only a subset stays evaluable
             ("no_segment_list", {"segments": None, "n_segments": None}),
@@ -728,6 +730,9 @@ class TestListFindings:
         assert response.finding_text == "stored narrative", label
 
     def test_stored_reason_its_own_count_contradicts_is_downgraded(self):
+        # See also test_evaluable_true_beside_a_reason_is_withheld for the
+        # mirror-image contradiction on the true branch.
+        #
         # A drifted row can store `evaluable: false` with
         # `insufficient_autosomal_markers` beside a well-typed count at or above
         # the floor. Honouring that pair made the narrative state, verbatim,
@@ -751,6 +756,51 @@ class TestListFindings:
         assert "fewer than" not in response.finding_text
         assert "600000" not in response.finding_text
         assert "could not be read" in response.finding_text.lower()
+
+    @pytest.mark.parametrize(
+        "reason", ["no_segment_eligible_region", "insufficient_autosomal_markers", "who_knows"]
+    )
+    def test_evaluable_true_beside_a_reason_is_withheld(self, reason):
+        # A true verdict carries no reason, by construction: the writer sets
+        # `indeterminate_reason` exactly when `froh` is None. A row asserting
+        # both was served as `evaluable: true` beside a reason -- the dedicated
+        # route happens to blank the reason on its way out, but
+        # `normalize_legacy_row` hands the stored blob back untouched, so the
+        # two representations disagreed about one row. Withheld on both now.
+        response = _row_to_response(
+            self._roh_row(
+                finding_text="No long runs of homozygosity were detected (FROH ≈ 0).",
+                detail={
+                    "froh": 0.0,
+                    "evaluable": True,
+                    "indeterminate_reason": reason,
+                    "autosomal_snps_used": 600_000,
+                },
+            )
+        )
+
+        assert response.detail["evaluable"] is False
+        assert response.detail["indeterminate_reason"] == "detail_unavailable"
+        assert response.detail["froh"] is None
+
+    def test_evaluable_true_without_a_reason_is_served(self):
+        # Counterpart control: the check must fire on the contradiction, not on
+        # every stored true verdict -- otherwise every fresh row this module
+        # writes would be withheld by its own validator.
+        response = _row_to_response(
+            self._roh_row(
+                finding_text="stored narrative",
+                detail={
+                    "froh": 0.0,
+                    "evaluable": True,
+                    "indeterminate_reason": None,
+                    "autosomal_snps_used": 600_000,
+                },
+            )
+        )
+
+        assert response.detail["froh"] == 0.0
+        assert response.finding_text == "stored narrative"
 
     def test_stored_reason_its_count_does_support_is_honoured(self):
         # Counterpart control: the downgrade must fire on the contradiction

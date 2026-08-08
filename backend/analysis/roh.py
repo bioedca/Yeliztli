@@ -437,6 +437,12 @@ def _reason_supported_by(count: int, reason: str, eligible: bool | None = None) 
 # bound as the kb metrics. Nothing on an autosome sits past it.
 _AUTOSOMAL_GENOME_BP = AUTOSOMAL_GENOME_KB * 1000
 
+# The writer stores every kb quantity as `round(x, 1)`, so a stored value and a
+# value recomputed from the same data may differ by half a step. Comparisons
+# against stored kb use this slack: a rounding artefact must never withhold a
+# real measurement, which would be this module's own failure mode reversed.
+_ROUNDING_SLACK_KB = 0.05
+
 
 def _is_count(value: Any) -> bool:
     """A non-negative integer coordinate or tally, bounded by the genome."""
@@ -455,34 +461,41 @@ _SEGMENT_FIELD_CHECKS: dict[str, Any] = {
 def _segments_clear_emission_thresholds(
     detail: dict[str, Any], segments: list[dict[str, Any]]
 ) -> bool:
-    """Whether every listed segment is one the detector could have emitted.
+    """Whether every listed segment is one *this* detector could have emitted.
 
     ``_scan_chromosome`` records a run only once it spans ``MIN_ROH_KB`` and
-    holds ``MIN_ROH_SNPS`` homozygous calls, so a stored `length_kb: 0,
-    n_snps: 0` segment is not a short run -- it is not a run at all, and both
-    APIs were serving it as a zero-length ROH.
+    holds ``MIN_ROH_SNPS`` homozygous calls, and writes ``length_kb`` as
+    ``round((end - start) / 1000, 1)``. A stored `length_kb: 0, n_snps: 0`
+    segment is not a short run -- it is not a run at all -- and a length that
+    disagrees with its own coordinates is not a measurement of them.
 
-    The thresholds are read from the row's **own** recorded ``params`` rather
-    than from today's constants. A row written when ``MIN_ROH_KB`` was lower is
-    stale, not incoherent, and rejecting it would withhold a real measurement to
-    satisfy a value it never claimed -- the same reasoning that keeps ``froh``
-    from being cross-checked against a denominator convention it records for
-    itself. Where the blob states no threshold, only the version-independent
-    floor applies: a segment with no length and no markers is impossible under
-    any threshold anyone could have configured.
+    Thresholds come from today's constants, and a row whose recorded ``params``
+    name *different* ones is rejected outright rather than honoured under its
+    own. The previous revision honoured recorded thresholds, which put two
+    sources of truth in the module: the coverage gate went on using
+    ``MIN_EVALUABLE_AUTOSOMAL_SNPS`` while this validator honoured the row, so
+    the same blob could pass one and fail the other. One rule replaces both --
+    a result computed by a different algorithm version is not this algorithm's
+    result, and ``detail_unavailable`` already tells the reader exactly what to
+    do about that ("re-running the analysis will produce a current result").
+    Withholding a stale measurement is the safe direction; serving it as though
+    it were current is the substitution this module exists to prevent.
     """
     params = detail.get("params")
     params = params if isinstance(params, dict) else {}
-    min_kb = params.get("min_roh_kb")
-    min_snps = params.get("min_roh_snps")
-    length_floor = min_kb if _is_measured_quantity(min_kb) and min_kb > 0 else None
-    snp_floor = min_snps if _is_count(min_snps) and min_snps > 0 else None
+    for key, current in (("min_roh_kb", MIN_ROH_KB), ("min_roh_snps", MIN_ROH_SNPS)):
+        recorded = params.get(key)
+        if recorded is not None and recorded != current:
+            return False
     for segment in segments:
         if segment["length_kb"] <= 0 or segment["n_snps"] <= 0:
             return False
-        if length_floor is not None and segment["length_kb"] < length_floor:
+        if segment["length_kb"] < MIN_ROH_KB or segment["n_snps"] < MIN_ROH_SNPS:
             return False
-        if snp_floor is not None and segment["n_snps"] < snp_floor:
+        # The length is a measurement *of* the coordinates, so it has to agree
+        # with them. Written as `round(span_kb, 1)`, hence the 0.05 tolerance.
+        span_kb = (segment["end"] - segment["start"]) / 1000
+        if abs(segment["length_kb"] - span_kb) > _ROUNDING_SLACK_KB:
             return False
     return True
 
@@ -558,13 +571,14 @@ def _metrics_agree(detail: dict[str, Any], segments: list[dict[str, Any]] | None
     # and be served as a total smaller than its own segments.
     if total is not None and segments:
         listed = sum(segment["length_kb"] for segment in segments)
-        # Compared with a relative tolerance, not exactly. The writer sums in
-        # detection order while the persisted list is sorted by length, so the
-        # two float additions can differ in the last bits on the same data --
-        # and withholding a real measurement over a rounding artefact is the
-        # failure mode this module exists to avoid, pointed the other way.
-        slack = 1e-6 * max(1.0, listed)
-        if total < listed - slack or (not truncated and total > listed + slack):
+        # Tolerantly, not exactly: the writer stores `round(sum(lengths), 1)`
+        # over lengths that are themselves rounded, so the stored total and the
+        # sum of the stored lengths can legitimately differ by half a step.
+        # A relative epsilon was too tight for that and could have withheld a
+        # genuine row on a rounding artefact alone.
+        if total < listed - _ROUNDING_SLACK_KB or (
+            not truncated and total > listed + _ROUNDING_SLACK_KB
+        ):
             return False
 
     return True
@@ -699,6 +713,15 @@ def evaluability_from_detail(
                 observed, eligible = _sample_coverage(sample_engine)
                 return False, observed, _reason_supported_by(observed, str(reason), eligible)
             return False, snps_used, _reason_supported_by(snps_used, str(reason))
+        # A true verdict carries no reason, by construction: the writer sets
+        # `indeterminate_reason` exactly when `froh` is None. A row asserting
+        # both was being served with `evaluable: true` beside
+        # `indeterminate_reason: "no_segment_eligible_region"` on the generic
+        # findings API -- the dedicated route happens to blank the reason, but
+        # `normalize_legacy_row` hands the stored blob back untouched, so the
+        # two representations disagreed about one row again.
+        elif detail.get("indeterminate_reason") is not None:
+            return False, snps_used, DETAIL_UNAVAILABLE
         # An explicit `true` is not self-certifying either: it falls through to
         # the same coverage gates below. Our own writer computes the verdict
         # structurally, so a fresh row re-passes them — but a row whose sample
