@@ -103,6 +103,13 @@ jobs:
               # would pass every pre-merge check (#2249).
               - 'greptile.json'
               - '.greptile/**'
+              # And again for .gitignore: test_agent_artifact_paths_ignored.py
+              # READS it through git's ignore matcher, and test_rename_guard.py
+              # allow-lists one of its lines. Deleting the agent-artifact rules
+              # is a .gitignore-only diff, so without this entry the very guard
+              # that exists to catch that would never run on the PR doing it
+              # (#2279).
+              - '.gitignore'
             frontend:
               - 'frontend/**'
               - 'tests/frontend/**'
