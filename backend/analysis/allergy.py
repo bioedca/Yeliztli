@@ -808,7 +808,6 @@ def _generate_cross_module_findings(
     pathway_results: list[PathwayResult],
     panel: AllergyPanel,
     hla_proxy_info: dict[str, HLAProxyInfo],
-    covered_gene_drugs: set[tuple[str, str]],
 ) -> list[CrossModuleFinding]:
     """Generate cross-module reference findings.
 
@@ -821,10 +820,10 @@ def _generate_cross_module_findings(
       - Celiac DQ2/DQ8 → Nutrigenomics (gluten)
 
     The finding is always emitted — it is the vehicle for the drug
-    hypersensitivity alert — but ``pgx_guidance_available`` is only true when
-    ``covered_gene_drugs`` holds this finding's own gene paired with the drug
-    the panel names, so the UI can withhold a handoff the destination cannot
-    honour (#2020).
+    hypersensitivity alert — and records the drug the handoff names. Whether
+    the handoff is actually offered is decided per request by the pathways
+    route, which can see the destination's *current* capability rather than
+    whatever it was when this sample was scored (#2020).
     """
     cross_findings: list[CrossModuleFinding] = []
     seen_keys: set[tuple[str, str]] = set()
@@ -841,15 +840,9 @@ def _generate_cross_module_findings(
 
             target_module = panel_snp.cross_module["module"]
             note = panel_snp.cross_module["note"]
+            # The drug this handoff is about. Non-PGx targets (Skin,
+            # Nutrigenomics) name none (#2020).
             drug = panel_snp.cross_module.get("drug")
-            # Offer the PGx handoff only when PGx holds a guideline for this
-            # drug. Non-PGx targets (Skin, Nutrigenomics) name no drug and are
-            # unaffected (#2020).
-            pgx_guidance_available = (
-                target_module == "pharmacogenomics"
-                and drug is not None
-                and (snp_result.gene.strip().upper(), drug.strip().lower()) in covered_gene_drugs
-            )
 
             # Build cross-module finding text
             if snp_result.hla_proxy is not None:
@@ -906,7 +899,6 @@ def _generate_cross_module_findings(
                         "source_pathway": pr.pathway_name,
                         "target_module": target_module,
                         "cross_module_note": note,
-                        "pgx_guidance_available": pgx_guidance_available,
                         # Omitted rather than null on the non-PGx cross-links:
                         # a present-but-null ``drug`` key reads as an ambiguous
                         # prescribing identifier downstream.
@@ -1042,7 +1034,6 @@ def score_allergy_pathways(
         pathway_results,
         panel,
         hla_proxy_info,
-        pgx_covered_gene_drugs(reference_engine),
     )
 
     # Identify GWAS-matched rsids for annotation_coverage bitmask

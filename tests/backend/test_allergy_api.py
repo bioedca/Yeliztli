@@ -27,6 +27,7 @@ from backend.config import Settings
 from backend.db.connection import DBRegistry, reset_registry
 from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import (
+    cpic_guidelines,
     findings,
     raw_variants,
     reference_metadata,
@@ -555,21 +556,17 @@ class TestRunScoring:
 # ── PGx handoff availability at read time (#2020) ─────────────────────
 
 
-def _covered_cross_module_finding() -> dict:
-    """A cross-module finding whose module-level PGx coverage check passed."""
-    return {
-        **CROSS_MODULE_FINDING,
-        "detail_json": json.dumps(
-            {
-                "source_module": "allergy",
-                "target_module": "pharmacogenomics",
-                "genotype": "TG",
-                "cross_module_note": "Abacavir/HLA-B*57:01 drug-safety finding.",
-                "drug": "abacavir",
-                "pgx_guidance_available": True,
-            }
-        ),
+def _cross_module_finding(drug: str | None = "abacavir") -> dict:
+    """An allergy cross-module drug alert, optionally naming its drug."""
+    detail: dict = {
+        "source_module": "allergy",
+        "target_module": "pharmacogenomics",
+        "genotype": "TG",
+        "cross_module_note": "Abacavir/HLA-B*57:01 drug-safety finding.",
     }
+    if drug is not None:
+        detail["drug"] = drug
+    return {**CROSS_MODULE_FINDING, "detail_json": json.dumps(detail)}
 
 
 def _pgx_prescribing_alert(drug: str, gene: str = "HLA-B") -> dict:
@@ -597,6 +594,22 @@ def _pgx_prescribing_alert(drug: str, gene: str = "HLA-B") -> dict:
     }
 
 
+def _seed_guideline(ref_engine: sa.Engine, gene: str, drug: str) -> None:
+    with ref_engine.begin() as conn:
+        conn.execute(
+            sa.insert(cpic_guidelines),
+            {
+                "gene": gene,
+                "drug": drug,
+                "phenotype": "Positive",
+                "activity_score": None,
+                "recommendation": "Do not prescribe.",
+                "classification": "A",
+                "guideline_url": "https://example.invalid/guideline",
+            },
+        )
+
+
 def _client_with(sample_engine: sa.Engine, rows: list[dict]) -> TestClient:
     with sample_engine.begin() as conn:
         # One statement per row: an executemany binds the *first* mapping's keys,
@@ -615,12 +628,13 @@ def _client_with(sample_engine: sa.Engine, rows: list[dict]) -> TestClient:
 
 
 class TestPGxHandoffAvailability:
-    """A PGx handoff also needs a result for *this* sample (#2020).
+    """The PGx handoff is decided per request, against live capability (#2020).
 
-    ``drug_lookup`` renders a guideline with no sample finding as
-    ``not_assessed``, so module-level coverage alone can still send the user to
-    a page that assesses nothing. Evaluated per request rather than stored, so
-    the answer cannot go stale against the order Allergy and PGx were run in.
+    Two conditions, both evaluated now rather than when the sample was scored:
+    the module must hold a guideline for this alert's *gene* and drug that it
+    can actually call, and this sample must have a presentable PGx result for
+    that same pair. ``drug_lookup`` renders a guideline with no sample finding
+    as ``not_assessed``, so neither condition alone is enough.
     """
 
     def _cross_module(self, client: TestClient) -> dict:
@@ -630,77 +644,125 @@ class TestPGxHandoffAvailability:
         assert cross, "cross-module drug alert must be present"
         return cross[0]
 
-    def test_offered_when_the_sample_has_a_pgx_result(
-        self, _env: tuple[sa.Engine, sa.Engine]
+    def _make_hla_callable(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from backend.annotation.cpic import CPIC_GENES
+
+        monkeypatch.setattr("backend.analysis.allergy.CPIC_GENES", CPIC_GENES | {"HLA-B"})
+
+    def test_offered_when_module_and_sample_both_cover_the_pair(
+        self, _env: tuple[sa.Engine, sa.Engine], monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        sample_engine, _ = _env
+        sample_engine, ref_engine = _env
+        self._make_hla_callable(monkeypatch)
+        _seed_guideline(ref_engine, "HLA-B", "abacavir")
         client = _client_with(
             sample_engine,
             [
                 *PATHWAY_SUMMARY_FINDINGS,
-                _covered_cross_module_finding(),
+                _cross_module_finding(),
                 _pgx_prescribing_alert("abacavir"),
             ],
         )
         assert self._cross_module(client)["pgx_guidance_available"] is True
 
-    def test_withheld_when_the_sample_has_no_pgx_result(
+    def test_withheld_when_the_module_cannot_call_the_gene(
         self, _env: tuple[sa.Engine, sa.Engine]
     ) -> None:
-        """Same covered drug, no stored PGx alert — the destination would say
-        'not assessed', so the link is withheld."""
-        sample_engine, _ = _env
-        client = _client_with(
-            sample_engine,
-            [*PATHWAY_SUMMARY_FINDINGS, _covered_cross_module_finding()],
-        )
-        assert self._cross_module(client)["pgx_guidance_available"] is False
-
-    def test_withheld_when_the_pgx_result_is_for_another_drug(
-        self, _env: tuple[sa.Engine, sa.Engine]
-    ) -> None:
-        """A PGx result for a different drug must not license this handoff."""
-        sample_engine, _ = _env
+        """Today's state: an HLA-B guideline exists but PGx cannot call HLA-B."""
+        sample_engine, ref_engine = _env
+        _seed_guideline(ref_engine, "HLA-B", "abacavir")
         client = _client_with(
             sample_engine,
             [
                 *PATHWAY_SUMMARY_FINDINGS,
-                _covered_cross_module_finding(),
+                _cross_module_finding(),
+                _pgx_prescribing_alert("abacavir"),
+            ],
+        )
+        assert self._cross_module(client)["pgx_guidance_available"] is False
+
+    def test_withheld_when_the_sample_has_no_pgx_result(
+        self, _env: tuple[sa.Engine, sa.Engine], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Covered by the module, not assessed for this sample."""
+        sample_engine, ref_engine = _env
+        self._make_hla_callable(monkeypatch)
+        _seed_guideline(ref_engine, "HLA-B", "abacavir")
+        client = _client_with(sample_engine, [*PATHWAY_SUMMARY_FINDINGS, _cross_module_finding()])
+        assert self._cross_module(client)["pgx_guidance_available"] is False
+
+    def test_withheld_when_the_pgx_result_is_for_another_drug(
+        self, _env: tuple[sa.Engine, sa.Engine], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        sample_engine, ref_engine = _env
+        self._make_hla_callable(monkeypatch)
+        _seed_guideline(ref_engine, "HLA-B", "abacavir")
+        client = _client_with(
+            sample_engine,
+            [
+                *PATHWAY_SUMMARY_FINDINGS,
+                _cross_module_finding(),
                 _pgx_prescribing_alert("warfarin"),
             ],
         )
         assert self._cross_module(client)["pgx_guidance_available"] is False
 
     def test_withheld_when_the_pgx_result_is_for_another_gene(
-        self, _env: tuple[sa.Engine, sa.Engine]
+        self, _env: tuple[sa.Engine, sa.Engine], monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """A same-drug result on an unrelated gene does not interpret this alert.
 
         The alert is about HLA-B*57:01; a CYP2C9/abacavir result says nothing
         about it, so the handoff stays withheld.
         """
-        sample_engine, _ = _env
+        sample_engine, ref_engine = _env
+        self._make_hla_callable(monkeypatch)
+        _seed_guideline(ref_engine, "HLA-B", "abacavir")
+        _seed_guideline(ref_engine, "CYP2C9", "abacavir")
         client = _client_with(
             sample_engine,
             [
                 *PATHWAY_SUMMARY_FINDINGS,
-                _covered_cross_module_finding(),
+                _cross_module_finding(),
                 _pgx_prescribing_alert("abacavir", gene="CYP2C9"),
             ],
         )
         assert self._cross_module(client)["pgx_guidance_available"] is False
 
-    def test_module_coverage_false_is_never_upgraded(
-        self, _env: tuple[sa.Engine, sa.Engine]
+    def test_withheld_when_the_finding_names_no_drug(
+        self, _env: tuple[sa.Engine, sa.Engine], monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """A stored coverage of False stays False even with a PGx result present."""
-        sample_engine, _ = _env
+        """A finding stored before #2020 names no drug, so it cannot be matched."""
+        sample_engine, ref_engine = _env
+        self._make_hla_callable(monkeypatch)
+        _seed_guideline(ref_engine, "HLA-B", "abacavir")
         client = _client_with(
             sample_engine,
             [
                 *PATHWAY_SUMMARY_FINDINGS,
-                CROSS_MODULE_FINDING,
+                _cross_module_finding(drug=None),
                 _pgx_prescribing_alert("abacavir"),
             ],
         )
         assert self._cross_module(client)["pgx_guidance_available"] is False
+
+    def test_capability_added_after_scoring_needs_no_allergy_rescore(
+        self, _env: tuple[sa.Engine, sa.Engine], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The production sequence: score Allergy, then extend and run PGx.
+
+        The allergy finding is stored while PGx covers nothing, so the handoff
+        is withheld. A release that teaches PGx to call HLA-B, a reference
+        update carrying the guideline, and a PGx run then restore the link on
+        the very next request — with the stored allergy finding untouched.
+        """
+        sample_engine, ref_engine = _env
+        client = _client_with(sample_engine, [*PATHWAY_SUMMARY_FINDINGS, _cross_module_finding()])
+        assert self._cross_module(client)["pgx_guidance_available"] is False
+
+        self._make_hla_callable(monkeypatch)
+        _seed_guideline(ref_engine, "HLA-B", "abacavir")
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(findings), _pgx_prescribing_alert("abacavir"))
+
+        assert self._cross_module(client)["pgx_guidance_available"] is True

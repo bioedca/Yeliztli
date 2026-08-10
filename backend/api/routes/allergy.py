@@ -20,6 +20,7 @@ import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
+from backend.analysis.allergy import pgx_covered_gene_drugs
 from backend.analysis.pharmacogenomics import (
     is_patient_presentable_finding_payload,
     is_patient_presentable_response_payload,
@@ -229,13 +230,12 @@ def _assessed_pgx_gene_drugs(
 ) -> set[tuple[str, str]]:
     """Of ``gene_drugs``, the pairs this sample has a presentable PGx alert for.
 
-    The stored ``pgx_guidance_available`` flag records what the destination
-    *module* can do; this adds what it can do *for this sample*, evaluated at
-    read time so it cannot go stale against the order the two modules were run
-    in. ``drug_lookup`` renders a guideline with no sample finding as
-    ``not_assessed``, so without this the handoff can still land on a page that
-    assesses nothing. The gene is matched too: a result for the same drug on an
-    unrelated gene does not interpret this alert's gene (#2020).
+    ``pgx_covered_gene_drugs`` says what the destination *module* can do; this
+    says what it can do *for this sample*. ``drug_lookup`` renders a guideline
+    with no sample finding as ``not_assessed``, so without this the handoff can
+    still land on a page that assesses nothing. The gene is matched too: a
+    result for the same drug on an unrelated gene does not interpret this
+    alert's gene (#2020).
     """
     if not gene_drugs:
         return set()
@@ -339,14 +339,17 @@ def list_pathways(
     # Offer a PGx handoff only for a drug the module can advise on (recorded at
     # scoring time) AND that this sample has a presentable PGx result for
     # (checked now, so the answer cannot go stale against module run order).
-    module_covered = {
+    requested = {
         (str(cf["gene_symbol"]).strip().upper(), str(cf["detail"]["drug"]).strip().lower())
         for cf in cross_findings
-        if cf["detail"].get("pgx_guidance_available")
-        and cf["detail"].get("drug")
-        and cf["gene_symbol"]
+        if cf["detail"].get("drug") and cf["gene_symbol"]
     }
-    assessed = _assessed_pgx_gene_drugs(sample_engine, module_covered)
+    # Both halves are decided now, not when this sample was scored: the module's
+    # current capability from the reference DB, and this sample's current PGx
+    # result. Extending PGx and re-running it therefore restores the handoff
+    # with no Allergy re-score (#2020).
+    covered = requested & pgx_covered_gene_drugs(get_registry().reference_engine)
+    assessed = _assessed_pgx_gene_drugs(sample_engine, covered)
     cross_items: list[CrossModuleItem] = []
     for cf in cross_findings:
         detail = cf["detail"]
@@ -361,8 +364,7 @@ def list_pathways(
                 finding_text=cf["finding_text"] or "",
                 evidence_level=cf["evidence_level"] if cf["evidence_level"] is not None else 1,
                 pmids=cf["pmids"],
-                pgx_guidance_available=bool(detail.get("pgx_guidance_available", False))
-                and bool(drug)
+                pgx_guidance_available=bool(drug)
                 and bool(gene)
                 and (str(gene).strip().upper(), str(drug).strip().lower()) in assessed,
             )
