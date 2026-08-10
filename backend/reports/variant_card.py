@@ -25,6 +25,7 @@ from typing import Any
 import sqlalchemy as sa
 import structlog
 from jinja2 import Environment, FileSystemLoader, select_autoescape
+from starlette.concurrency import run_in_threadpool
 
 from backend.analysis.clinvar_conditions import format_clinvar_conditions_text
 from backend.analysis.pathway_coverage import pathway_level_display_label
@@ -33,6 +34,7 @@ from backend.analysis.pharmacogenomics import (
     is_patient_presentable_response_payload,
     patient_visible_finding_clause,
 )
+from backend.analysis.roh import normalize_legacy_finding_text
 from backend.analysis.svg_renderer import is_safe_svg_marker, render_finding_svg
 from backend.api.gating import gated_modules_to_hide
 from backend.db.tables import findings
@@ -115,7 +117,11 @@ def _load_single_finding(
         "evidence_level": row.evidence_level,
         "gene_symbol": row.gene_symbol,
         "rsid": row.rsid,
-        "finding_text": row.finding_text,
+        # A shareable card is a user-visible render path too, so a pre-gate ROH
+        # row must not carry "typical result" onto one (#2177).
+        "finding_text": normalize_legacy_finding_text(
+            row.module, row.category, row.finding_text, detail, engine
+        ),
         "phenotype": row.phenotype,
         # Clean the raw CLNDN blob for display (#918): drop | separators, the
         # not provided/not specified placeholders, and drug-response entries.
@@ -305,7 +311,9 @@ async def generate_variant_card_pdf(
     RuntimeError
         If Playwright browsers are not installed.
     """
-    html = render_variant_card_html(sample_id, finding_id)
+    # Offloaded: this render performs the ROH coverage scan, and running it
+    # inline would block the event loop before the first await below.
+    html = await run_in_threadpool(render_variant_card_html, sample_id, finding_id)
     pdf_bytes = await _html_to_pdf_single_page(html)
     logger.info(
         "variant_card_pdf_generated",
@@ -341,7 +349,9 @@ async def generate_variant_card_png(
     RuntimeError
         If Playwright browsers are not installed.
     """
-    html = render_variant_card_html(sample_id, finding_id)
+    # Offloaded for the same reason as the PDF path: this render performs the
+    # ROH coverage scan and would block the loop before the await below.
+    html = await run_in_threadpool(render_variant_card_html, sample_id, finding_id)
     png_bytes = await _html_to_png(html)
     logger.info(
         "variant_card_png_generated",

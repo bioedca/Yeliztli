@@ -27,6 +27,7 @@ from typing import Any
 import sqlalchemy as sa
 import structlog
 from jinja2 import Environment, FileSystemLoader, select_autoescape
+from starlette.concurrency import run_in_threadpool
 
 from backend.analysis.clinvar_conditions import format_clinvar_conditions_text
 from backend.analysis.pathway_coverage import pathway_level_display_label
@@ -35,6 +36,7 @@ from backend.analysis.pharmacogenomics import (
     is_patient_presentable_response_payload,
     patient_visible_finding_clause,
 )
+from backend.analysis.roh import normalize_legacy_finding_text
 from backend.analysis.svg_renderer import is_safe_svg_marker, render_finding_svg
 from backend.api.gating import gated_modules_to_hide
 from backend.db.connection import get_registry
@@ -176,6 +178,10 @@ def _load_findings(
             continue
         pmids_raw = _parse_json_field(row.pmid_citations)
         pmids = pmids_raw if isinstance(pmids_raw, list) else []
+        # Parsed once per row: two consumers below read the same column, and a
+        # report loads up to MAX_REPORT_FINDINGS rows. Sharing one parse also
+        # means the two cannot drift apart on what they read.
+        detail_blob = _parse_json_field(row.detail_json)
 
         result.append(
             {
@@ -185,7 +191,16 @@ def _load_findings(
                 "evidence_level": row.evidence_level,
                 "gene_symbol": row.gene_symbol,
                 "rsid": row.rsid,
-                "finding_text": row.finding_text,
+                # A stored ROH narrative written before the evaluability gate
+                # asserts a "typical" FROH ≈ 0 for a sample whose markers cannot
+                # produce a segment (#2177); other modules are untouched.
+                "finding_text": normalize_legacy_finding_text(
+                    row.module,
+                    row.category,
+                    row.finding_text,
+                    detail_blob,
+                    engine,
+                ),
                 "phenotype": row.phenotype,
                 # Clean the raw CLNDN blob for display (#918), mirroring the
                 # frontend helper (#917); raw value stays in the DB. (The current
@@ -205,7 +220,7 @@ def _load_findings(
                 # Coverage-aware label so an incomplete Standard pathway can't render
                 # a plain green Standard badge in exported reports (#1651).
                 "pathway_level_display": pathway_level_display_label(
-                    row.pathway_level, _parse_json_field(row.detail_json)
+                    row.pathway_level, detail_blob
                 ),
                 "svg_path": row.svg_path,
                 "pmid_citations": pmids,
@@ -387,7 +402,9 @@ async def generate_report_pdf(
     RuntimeError
         If Playwright browsers are not installed.
     """
-    html = render_report_html(sample_id, modules=modules, title=title)
+    # Offloaded: this render performs the ROH coverage scan, and running it
+    # inline would block the event loop before the first await below.
+    html = await run_in_threadpool(render_report_html, sample_id, modules=modules, title=title)
     pdf_bytes = await _html_to_pdf(html)
     logger.info(
         "report_generated",
