@@ -610,8 +610,28 @@ class TestListFindings:
             # fail the other. Withholding is the safe direction and
             # detail_unavailable already says "re-run the analysis".
             (
-                "params_from_a_different_detector_version",
-                {"params": {"min_roh_kb": 800, "min_roh_snps": 30}},
+                "minimum_length_from_a_different_detector_version",
+                {"params": {"min_roh_kb": 800}},
+            ),
+            (
+                "minimum_marker_count_from_a_different_detector_version",
+                {"params": {"min_roh_snps": 30}},
+            ),
+            (
+                "max_gap_from_a_different_detector_version",
+                {"params": {"max_gap_kb": 9999}},
+            ),
+            (
+                "het_window_size_from_a_different_detector_version",
+                {"params": {"het_window_snps": 1}},
+            ),
+            (
+                "het_tolerance_from_a_different_detector_version",
+                {"params": {"het_window_tolerance": 999}},
+            ),
+            (
+                "boolean_het_tolerance_is_not_integer_provenance",
+                {"params": {"het_window_tolerance": True}},
             ),
             # a length that disagrees with its own coordinates is not a
             # measurement of them: 1000 kb of span labelled 6200 kb
@@ -632,6 +652,10 @@ class TestListFindings:
             ("count_exceeds_list", {"n_segments": 1, "segments": []}),
             ("list_exceeds_count", {"n_segments": 0, "segments": [_SEG]}),
             ("truncated_list_longer_than_count", {"n_segments": 1, "segments": [_SEG, _SEG]}),
+            (
+                "truncated_list_equals_count",
+                {"n_segments": 1, "segments": [_SEG], "segments_truncated": True},
+            ),
             # zero segments cannot have summed to anything
             (
                 "zero_segments_nonzero_total",
@@ -731,6 +755,8 @@ class TestListFindings:
                     "params": {"froh_denominator_kb": 2_770_001},
                 },
             ),
+            # Present null is a malformed verdict, not an absent legacy field.
+            ("explicit_null_evaluability_verdict", {"evaluable": None}),
         ],
     )
     def test_internally_contradictory_metrics_are_withheld(self, label, overrides):
@@ -755,6 +781,25 @@ class TestListFindings:
         assert response.detail["indeterminate_reason"] == "detail_unavailable", label
         assert response.detail["froh"] is None, label
 
+    def test_stale_detector_params_without_a_segment_list_are_withheld(self):
+        # A legacy subset may omit the segment list, but FROH itself is still a
+        # product of the segmentation rules. Recorded stale provenance cannot
+        # become trusted merely because the detailed intervals are absent.
+        response = _row_to_response(
+            self._roh_row(
+                finding_text="stored narrative",
+                detail={
+                    "froh": 0.004,
+                    "autosomal_snps_used": 600_000,
+                    "params": {"max_gap_kb": 9999},
+                },
+            )
+        )
+
+        assert response.detail["evaluable"] is False
+        assert response.detail["indeterminate_reason"] == "detail_unavailable"
+        assert response.detail["froh"] is None
+
     @pytest.mark.parametrize(
         ("label", "overrides"),
         [
@@ -776,7 +821,15 @@ class TestListFindings:
             # the version-mismatch rule below
             (
                 "params_matching_this_detector",
-                {"params": {"min_roh_kb": 1500, "min_roh_snps": 100}},
+                {
+                    "params": {
+                        "min_roh_kb": 1500,
+                        "min_roh_snps": 100,
+                        "max_gap_kb": 1000,
+                        "het_window_snps": 50,
+                        "het_window_tolerance": 1,
+                    }
+                },
             ),
             # A span landing exactly on a one-decimal rounding tie. 2_048_250 bp
             # is 2048.25 kb, which the writer stores as round(...,1) == 2048.2,
@@ -851,6 +904,20 @@ class TestListFindings:
             ),
             # a legacy blob recording only a subset stays evaluable
             ("no_segment_list", {"segments": None, "n_segments": None}),
+            (
+                "matching_params_without_a_segment_list",
+                {
+                    "segments": None,
+                    "n_segments": None,
+                    "params": {
+                        "min_roh_kb": 1500,
+                        "min_roh_snps": 100,
+                        "max_gap_kb": 1000,
+                        "het_window_snps": 50,
+                        "het_window_tolerance": 1,
+                    },
+                },
+            ),
             ("only_froh_and_count", {"total_roh_kb": None, "longest_kb": None}),
             (
                 "genuine_empty_scan",

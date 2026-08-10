@@ -462,6 +462,34 @@ _SEGMENT_FIELD_CHECKS: dict[str, Any] = {
     "n_snps": _is_count,
 }
 
+_DETECTOR_PARAMS = (
+    ("min_roh_kb", MIN_ROH_KB),
+    ("min_roh_snps", MIN_ROH_SNPS),
+    ("max_gap_kb", MAX_GAP_KB),
+    ("het_window_snps", HET_WINDOW_SNPS),
+    ("het_window_tolerance", HET_WINDOW_TOLERANCE),
+)
+
+
+def _detector_params_match(detail: dict[str, Any]) -> bool:
+    """Whether every present segment-defining parameter matches this writer."""
+    if "params" not in detail:
+        return True
+    params = detail["params"]
+    if not isinstance(params, dict):
+        return False
+    for key, current in _DETECTOR_PARAMS:
+        if key not in params:
+            continue
+        recorded = params[key]
+        # A present parameter is writer provenance, not an optional hint. Keep
+        # legacy rows that omit it readable, but require a present value to
+        # match both the value and integer type this detector writes (``True``
+        # otherwise compares equal to ``1`` in Python).
+        if type(recorded) is not type(current) or recorded != current:
+            return False
+    return True
+
 
 def _segments_are_disjoint(segments: list[dict[str, Any]]) -> bool:
     """Whether no stored interval is repeated or overlaps on one chromosome.
@@ -481,9 +509,7 @@ def _segments_are_disjoint(segments: list[dict[str, Any]]) -> bool:
     return True
 
 
-def _segments_clear_emission_thresholds(
-    detail: dict[str, Any], segments: list[dict[str, Any]]
-) -> bool:
+def _segments_clear_emission_thresholds(segments: list[dict[str, Any]]) -> bool:
     """Whether every listed segment is one *this* detector could have emitted.
 
     ``_scan_chromosome`` records a run only once it spans ``MIN_ROH_KB`` and
@@ -492,24 +518,12 @@ def _segments_clear_emission_thresholds(
     segment is not a short run -- it is not a run at all -- and a length that
     disagrees with its own coordinates is not a measurement of them.
 
-    Thresholds come from today's constants, and a row whose recorded ``params``
-    name *different* ones is rejected outright rather than honoured under its
-    own. The previous revision honoured recorded thresholds, which put two
-    sources of truth in the module: the coverage gate went on using
-    ``MIN_EVALUABLE_AUTOSOMAL_SNPS`` while this validator honoured the row, so
-    the same blob could pass one and fail the other. One rule replaces both --
-    a result computed by a different algorithm version is not this algorithm's
-    result, and ``detail_unavailable`` already tells the reader exactly what to
-    do about that ("re-running the analysis will produce a current result").
-    Withholding a stale measurement is the safe direction; serving it as though
-    it were current is the substitution this module exists to prevent.
+    Thresholds come from today's constants. ``_detector_params_match`` first
+    rejects a row whose recorded parameters name different ones rather than
+    honouring a second source of truth. A result computed by another algorithm
+    version is not this algorithm's result, and ``detail_unavailable`` tells the
+    reader to rerun the analysis under the current rules.
     """
-    params = detail.get("params")
-    params = params if isinstance(params, dict) else {}
-    for key, current in (("min_roh_kb", MIN_ROH_KB), ("min_roh_snps", MIN_ROH_SNPS)):
-        recorded = params.get(key)
-        if recorded is not None and recorded != current:
-            return False
     for segment in segments:
         if segment["length_kb"] <= 0 or segment["n_snps"] <= 0:
             return False
@@ -583,9 +597,11 @@ def _metrics_agree(
 
     if n_segments is not None and segments is not None:
         # The list is capped, so it may be shorter than the count -- but only
-        # when the blob says so. Equality otherwise.
+        # when the blob says so. A true cap bit therefore requires a strict
+        # shortfall; equality would claim truncation while naming every segment
+        # and would incorrectly allow an unexplained excess in the stored total.
         if truncated:
-            if len(segments) > n_segments:
+            if len(segments) >= n_segments:
                 return False
         elif len(segments) != n_segments:
             return False
@@ -652,6 +668,11 @@ def _companion_metrics_readable(detail: dict[str, Any], callable_snps: int) -> b
     values that are *present and not what a scan writes* — the same rule already
     applied to ``froh``, ``autosomal_snps_used`` and ``evaluable``.
     """
+    # FROH and totals are products of the segmentation rules even when a
+    # legacy/subset payload omits the segment list itself. Validate recorded
+    # detector provenance before taking that optional-list branch.
+    if not _detector_params_match(detail):
+        return False
     for key in ("total_roh_kb", "longest_kb"):
         value = detail.get(key)
         if value is not None and not _is_measured_quantity(value):
@@ -677,7 +698,7 @@ def _companion_metrics_readable(detail: dict[str, Any], callable_snps: int) -> b
         for segment in segments
     ):
         return False
-    if not _segments_clear_emission_thresholds(detail, segments):
+    if not _segments_clear_emission_thresholds(segments):
         return False
     return _metrics_agree(detail, segments, callable_snps)
 
@@ -729,11 +750,11 @@ def evaluability_from_detail(
 
     observed = snps_used
     stored = detail.get("evaluable")
-    if stored is not None:
+    if "evaluable" in detail:
         # Must be an actual boolean. A schema-drifted `"evaluable": "false"` is
-        # a truthy string, and reading it as a true verdict would skip both the
-        # count floor and the structural check — vouching for a row on the
-        # strength of a value that says the opposite.
+        # a truthy string, while an explicit null is not an absent legacy
+        # verdict. Reading either as usable would vouch for a row on the
+        # strength of a value this writer cannot emit.
         if not isinstance(stored, bool):
             return False, snps_used, DETAIL_UNAVAILABLE
         if not stored:
