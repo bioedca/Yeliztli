@@ -68,6 +68,15 @@ class RohRunResponse(BaseModel):
     findings_count: int
 
 
+def _unreadable_finding_response() -> RohFindingResponse:
+    """Return a content-free response for an unreadable presentable ROH row."""
+    return RohFindingResponse(
+        finding_text=unevaluable_text(0, DETAIL_UNAVAILABLE),
+        evaluable=False,
+        indeterminate_reason=DETAIL_UNAVAILABLE,
+    )
+
+
 @router.get("/disclaimer")
 def get_disclaimer() -> RohDisclaimerResponse:
     return RohDisclaimerResponse(title=ROH_DISCLAIMER_TITLE, text=ROH_DISCLAIMER_TEXT)
@@ -83,11 +92,14 @@ def list_findings(
             sa.select(findings).where(findings.c.module == MODULE, findings.c.category == CATEGORY)
         ).fetchone()
     if row is None or not is_patient_presentable_finding_payload(row._mapping):
+        # A quarantined row must remain indistinguishable from no row.  This is
+        # stricter than the fallback below because even confirming that a
+        # hidden clinical payload exists would leak patient-facing state.
         return None
-    # Parse detail_json and build the response defensively: a malformed or
-    # schema-drifted detail blob (e.g. a row written by an older version, or an
-    # unexpected segment shape) must not 500 — fall back to the plain
-    # finding_text with zeroed metrics.
+    # Parse detail_json and build the response defensively: a presentable but
+    # schema-drifted detail object (for example, an unexpected segment shape)
+    # must not 500 or echo an untrusted narrative — fall back to the standard
+    # content-free indeterminate response.
     try:
         parsed = json.loads(row.detail_json) if row.detail_json else {}
         # json.loads returns whatever JSON type was stored, so a drifted or
@@ -136,11 +148,7 @@ def list_findings(
         # froh stays None rather than defaulting to a reassuring 0.0. The stored
         # narrative is replaced too: serving "typical result" beside
         # evaluable=false would state both at once.
-        return RohFindingResponse(
-            finding_text=unevaluable_text(0, DETAIL_UNAVAILABLE),
-            evaluable=False,
-            indeterminate_reason=DETAIL_UNAVAILABLE,
-        )
+        return _unreadable_finding_response()
 
 
 @router.post("/run", dependencies=[Depends(require_fresh_sample)])

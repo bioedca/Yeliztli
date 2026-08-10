@@ -1274,7 +1274,7 @@ class TestLAIPolicyQuarantine:
 class TestWithheldPrescribingAlertPresentation:
     """#2019: a retained custom alert cannot bypass generic finding surfaces."""
 
-    async def test_list_summary_and_svg_hide_whitespace_wrapped_target(
+    def test_list_summary_and_svg_hide_whitespace_wrapped_target(
         self,
         monkeypatch,
         tmp_path,
@@ -1484,7 +1484,7 @@ class TestWithheldPrescribingAlertPresentation:
             )
             monkeypatch.setattr(findings_route, "gated_modules_to_hide", lambda engine: set())
 
-            listed = await findings_route.list_findings(
+            listed = findings_route.list_findings(
                 sample_id=1,
                 module=None,
                 category=None,
@@ -1494,7 +1494,7 @@ class TestWithheldPrescribingAlertPresentation:
             )
             assert [finding.finding_text for finding in listed] == ["CYP2D6/codeine control alert"]
 
-            first_page = await findings_route.list_findings(
+            first_page = findings_route.list_findings(
                 sample_id=1,
                 module=None,
                 category=None,
@@ -1509,7 +1509,7 @@ class TestWithheldPrescribingAlertPresentation:
             # moved ahead of pagination, the leading evidence-level-6 legacy
             # row made this first page empty instead.
             assert (
-                await findings_route.list_findings(
+                findings_route.list_findings(
                     sample_id=1,
                     module=None,
                     category=None,
@@ -1519,7 +1519,7 @@ class TestWithheldPrescribingAlertPresentation:
                 )
             ) == []
 
-            summary = await findings_route.findings_summary(sample_id=1)
+            summary = findings_route.findings_summary(sample_id=1)
             assert summary.total_findings == 1
             assert summary.modules[0].top_finding_text == "CYP2D6/codeine control alert"
             assert "tamoxifen" not in summary.model_dump_json().lower()
@@ -1527,21 +1527,21 @@ class TestWithheldPrescribingAlertPresentation:
             # The backing SVG exists, so a 404 proves the row predicate rather
             # than a missing-file fallback.
             with pytest.raises(HTTPException) as caught:
-                await findings_route.get_finding_svg(finding_id=2019, sample_id=1)
+                findings_route.get_finding_svg(finding_id=2019, sample_id=1)
             assert caught.value.status_code == 404
             with pytest.raises(HTTPException) as caught:
-                await findings_route.get_finding_svg(finding_id=2020, sample_id=1)
+                findings_route.get_finding_svg(finding_id=2020, sample_id=1)
             assert caught.value.status_code == 404
             with pytest.raises(HTTPException) as caught:
-                await findings_route.get_finding_svg(finding_id=2021, sample_id=1)
+                findings_route.get_finding_svg(finding_id=2021, sample_id=1)
             assert caught.value.status_code == 404
             with pytest.raises(HTTPException) as caught:
-                await findings_route.get_finding_svg(finding_id=2022, sample_id=1)
+                findings_route.get_finding_svg(finding_id=2022, sample_id=1)
             assert caught.value.status_code == 404
         finally:
             sample_engine.dispose()
 
-    async def test_svg_artifact_cannot_reintroduce_held_pair(self, monkeypatch, tmp_path):
+    def test_svg_artifact_cannot_reintroduce_held_pair(self, monkeypatch, tmp_path):
         """A source-safe row cannot serve stale held guidance from its SVG."""
         import backend.api.routes.findings as findings_route
 
@@ -1577,7 +1577,7 @@ class TestWithheldPrescribingAlertPresentation:
             )
             monkeypatch.setattr(findings_route, "gated_modules_to_hide", lambda engine: set())
 
-            response = await findings_route.get_finding_svg(finding_id=2019, sample_id=1)
+            response = findings_route.get_finding_svg(finding_id=2019, sample_id=1)
             assert response.status_code == 200
             body = response.body.decode()
             assert "<svg" in body
@@ -1586,7 +1586,7 @@ class TestWithheldPrescribingAlertPresentation:
         finally:
             sample_engine.dispose()
 
-    async def test_svg_route_blocks_stored_path_traversal(self, monkeypatch, tmp_path):
+    def test_svg_route_blocks_stored_path_traversal(self, monkeypatch, tmp_path):
         """A corrupt SVG path must not turn the by-id endpoint into a file reader."""
         from fastapi import HTTPException
 
@@ -1622,13 +1622,13 @@ class TestWithheldPrescribingAlertPresentation:
             monkeypatch.setattr(findings_route, "gated_modules_to_hide", lambda engine: set())
 
             with pytest.raises(HTTPException) as caught:
-                await findings_route.get_finding_svg(finding_id=2020, sample_id=1)
+                findings_route.get_finding_svg(finding_id=2020, sample_id=1)
             assert caught.value.status_code == 404
             assert sentinel in outside.read_text(encoding="utf-8")
         finally:
             sample_engine.dispose()
 
-    async def test_list_and_summary_withhold_split_pair_across_safe_rows(
+    def test_list_and_summary_withhold_split_pair_across_safe_rows(
         self,
         monkeypatch,
         tmp_path,
@@ -1668,7 +1668,7 @@ class TestWithheldPrescribingAlertPresentation:
             monkeypatch.setattr(findings_route, "gated_modules_to_hide", lambda _engine: set())
 
             assert (
-                await findings_route.list_findings(
+                findings_route.list_findings(
                     sample_id=1,
                     module=None,
                     category=None,
@@ -1678,7 +1678,7 @@ class TestWithheldPrescribingAlertPresentation:
                 )
             ) == []
             assert (
-                await findings_route.list_findings(
+                findings_route.list_findings(
                     sample_id=1,
                     module=None,
                     category=None,
@@ -1688,7 +1688,7 @@ class TestWithheldPrescribingAlertPresentation:
                 )
             ) == []
 
-            summary = await findings_route.findings_summary(sample_id=1)
+            summary = findings_route.findings_summary(sample_id=1)
             assert summary.total_findings == 0
             assert summary.modules == []
             assert summary.high_confidence_findings == []
