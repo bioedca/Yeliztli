@@ -741,7 +741,10 @@ def evaluability_from_detail(
             # this value, so an unrecognised one would fall through to the
             # marker-region wording and state a cause the data never supported.
             reason = detail.get("indeterminate_reason")
-            if reason not in _KNOWN_INDETERMINATE_REASONS:
+            # Type-check before membership: JSON arrays and objects are valid
+            # stored values but unhashable, so asking whether either is in the
+            # reason set would raise instead of withholding the drifted row.
+            if not isinstance(reason, str) or reason not in _KNOWN_INDETERMINATE_REASONS:
                 return False, snps_used, DETAIL_UNAVAILABLE
             # The coverage-dependent reasons quote the marker count in their
             # narrative, so honouring one without a recorded count would assert

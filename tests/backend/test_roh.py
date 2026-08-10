@@ -18,11 +18,13 @@ import sqlalchemy as sa
 
 from backend.analysis.roh import (
     AUTOSOMAL_GENOME_KB,
+    DETAIL_UNAVAILABLE,
     MIN_ROH_SNPS,
     MODULE,
     NO_SEGMENT_ELIGIBLE_REGION,
     _genotype_state,
     detect_roh,
+    evaluability_from_detail,
     store_roh_findings,
 )
 from backend.db.tables import findings, raw_variants
@@ -93,6 +95,19 @@ class TestFrohDenominator:
         # Guard against an order-of-magnitude regression independent of the exact
         # literal: the autosomal genome is ~2.6–2.9 Gb of called sequence.
         assert 2_600_000 <= AUTOSOMAL_GENOME_KB <= 2_900_000
+
+
+class TestStoredEvaluability:
+    @pytest.mark.parametrize("reason", [[], {}])
+    def test_unhashable_reason_is_withheld_without_raising(self, reason: object) -> None:
+        assert evaluability_from_detail(
+            {
+                "evaluable": False,
+                "indeterminate_reason": reason,
+                "froh": None,
+                "autosomal_snps_used": 361,
+            }
+        ) == (False, 361, DETAIL_UNAVAILABLE)
 
 
 class TestDetection:
