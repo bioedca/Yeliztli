@@ -23,6 +23,7 @@ from pydantic import BaseModel
 from backend.analysis.pharmacogenomics import (
     is_patient_presentable_finding_payload,
     is_patient_presentable_response_payload,
+    patient_visible_finding_clause,
 )
 from backend.api.dependencies import require_fresh_sample
 from backend.db.connection import get_registry
@@ -222,6 +223,37 @@ def _fetch_allergy_findings(
     return result
 
 
+def _drugs_with_available_pgx_result(sample_engine: sa.Engine, drugs: set[str]) -> set[str]:
+    """Of ``drugs``, those this sample has a presentable PGx alert for.
+
+    The stored ``pgx_guidance_available`` flag records what the destination
+    *module* can do; this adds what it can do *for this sample*, evaluated at
+    read time so it cannot go stale against the order the two modules were run
+    in. ``drug_lookup`` renders a guideline with no sample finding as
+    ``not_assessed``, so without this the handoff can still land on a page that
+    assesses nothing (#2020).
+    """
+    if not drugs:
+        return set()
+    lowered = {drug.lower() for drug in drugs}
+    with sample_engine.connect() as conn:
+        rows = conn.execute(
+            sa.select(findings).where(
+                sa.and_(
+                    findings.c.module == "pharmacogenomics",
+                    findings.c.category == "prescribing_alert",
+                    sa.func.lower(findings.c.drug).in_(lowered),
+                    patient_visible_finding_clause(findings.c),
+                )
+            )
+        ).fetchall()
+    return {
+        row.drug.strip().lower()
+        for row in rows
+        if row.drug and is_patient_presentable_finding_payload(row._mapping)
+    }
+
+
 # ── Endpoints ────────────────────────────────────────────────────────
 
 
@@ -299,9 +331,19 @@ def list_pathways(
 
     # Cross-module findings
     cross_findings = [f for f in all_findings if f["category"] == "cross_module"]
+    # Offer a PGx handoff only for a drug the module can advise on (recorded at
+    # scoring time) AND that this sample has a presentable PGx result for
+    # (checked now, so the answer cannot go stale against module run order).
+    module_covered_drugs = {
+        str(cf["detail"]["drug"])
+        for cf in cross_findings
+        if cf["detail"].get("pgx_guidance_available") and cf["detail"].get("drug")
+    }
+    assessed_drugs = _drugs_with_available_pgx_result(sample_engine, module_covered_drugs)
     cross_items: list[CrossModuleItem] = []
     for cf in cross_findings:
         detail = cf["detail"]
+        drug = detail.get("drug")
         cross_items.append(
             CrossModuleItem(
                 rsid=cf["rsid"] or "",
@@ -311,7 +353,9 @@ def list_pathways(
                 finding_text=cf["finding_text"] or "",
                 evidence_level=cf["evidence_level"] if cf["evidence_level"] is not None else 1,
                 pmids=cf["pmids"],
-                pgx_guidance_available=bool(detail.get("pgx_guidance_available", False)),
+                pgx_guidance_available=bool(detail.get("pgx_guidance_available", False))
+                and bool(drug)
+                and str(drug).strip().lower() in assessed_drugs,
             )
         )
 

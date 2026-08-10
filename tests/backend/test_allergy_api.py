@@ -550,3 +550,138 @@ class TestRunScoring:
         data = resp.json()
         assert data["findings_count"] > 0
         assert data["pathways_scored"] == 4
+
+
+# ── PGx handoff availability at read time (#2020) ─────────────────────
+
+
+def _covered_cross_module_finding() -> dict:
+    """A cross-module finding whose module-level PGx coverage check passed."""
+    return {
+        **CROSS_MODULE_FINDING,
+        "detail_json": json.dumps(
+            {
+                "source_module": "allergy",
+                "target_module": "pharmacogenomics",
+                "genotype": "TG",
+                "cross_module_note": "Abacavir/HLA-B*57:01 drug-safety finding.",
+                "drug": "abacavir",
+                "pgx_guidance_available": True,
+            }
+        ),
+    }
+
+
+def _pgx_prescribing_alert(drug: str) -> dict:
+    """A presentable Pharmacogenomics prescribing alert for ``drug``."""
+    return {
+        "module": "pharmacogenomics",
+        "category": "prescribing_alert",
+        "evidence_level": 4,
+        "gene_symbol": "HLA-B",
+        "rsid": None,
+        "finding_text": f"{drug} prescribing alert.",
+        "diplotype": "*57:01/*57:01",
+        "metabolizer_status": "Positive",
+        "drug": drug,
+        "pathway": None,
+        "pathway_level": None,
+        "pmid_citations": json.dumps(["18256392"]),
+        "detail_json": json.dumps(
+            {
+                "recommendation": "Do not prescribe.",
+                "classification": "A",
+                "guideline_url": "https://example.invalid/guideline",
+            }
+        ),
+    }
+
+
+def _client_with(sample_engine: sa.Engine, rows: list[dict]) -> TestClient:
+    with sample_engine.begin() as conn:
+        # One statement per row: an executemany binds the *first* mapping's keys,
+        # which would silently drop `drug` from the pharmacogenomics row and make
+        # the positive case unreachable for reasons unrelated to the gate.
+        for row in rows:
+            conn.execute(sa.insert(findings), row)
+
+    from fastapi import FastAPI
+
+    from backend.api.routes.allergy import router
+
+    app = FastAPI()
+    app.include_router(router, prefix="/api")
+    return TestClient(app)
+
+
+class TestPGxHandoffAvailability:
+    """A PGx handoff also needs a result for *this* sample (#2020).
+
+    ``drug_lookup`` renders a guideline with no sample finding as
+    ``not_assessed``, so module-level coverage alone can still send the user to
+    a page that assesses nothing. Evaluated per request rather than stored, so
+    the answer cannot go stale against the order Allergy and PGx were run in.
+    """
+
+    def _cross_module(self, client: TestClient) -> dict:
+        resp = client.get("/api/analysis/allergy/pathways?sample_id=1")
+        assert resp.status_code == 200
+        cross = resp.json()["cross_module"]
+        assert cross, "cross-module drug alert must be present"
+        return cross[0]
+
+    def test_offered_when_the_sample_has_a_pgx_result(
+        self, _env: tuple[sa.Engine, sa.Engine]
+    ) -> None:
+        sample_engine, _ = _env
+        client = _client_with(
+            sample_engine,
+            [
+                *PATHWAY_SUMMARY_FINDINGS,
+                _covered_cross_module_finding(),
+                _pgx_prescribing_alert("abacavir"),
+            ],
+        )
+        assert self._cross_module(client)["pgx_guidance_available"] is True
+
+    def test_withheld_when_the_sample_has_no_pgx_result(
+        self, _env: tuple[sa.Engine, sa.Engine]
+    ) -> None:
+        """Same covered drug, no stored PGx alert — the destination would say
+        'not assessed', so the link is withheld."""
+        sample_engine, _ = _env
+        client = _client_with(
+            sample_engine,
+            [*PATHWAY_SUMMARY_FINDINGS, _covered_cross_module_finding()],
+        )
+        assert self._cross_module(client)["pgx_guidance_available"] is False
+
+    def test_withheld_when_the_pgx_result_is_for_another_drug(
+        self, _env: tuple[sa.Engine, sa.Engine]
+    ) -> None:
+        """A PGx result for a different drug must not license this handoff."""
+        sample_engine, _ = _env
+        client = _client_with(
+            sample_engine,
+            [
+                *PATHWAY_SUMMARY_FINDINGS,
+                _covered_cross_module_finding(),
+                _pgx_prescribing_alert("warfarin"),
+            ],
+        )
+        assert self._cross_module(client)["pgx_guidance_available"] is False
+
+    def test_module_coverage_false_is_never_upgraded(
+        self, _env: tuple[sa.Engine, sa.Engine]
+    ) -> None:
+        """A stored coverage of False stays False even with a PGx result present."""
+        sample_engine, _ = _env
+        client = _client_with(
+            sample_engine,
+            [
+                *PATHWAY_SUMMARY_FINDINGS,
+                CROSS_MODULE_FINDING,
+                _pgx_prescribing_alert("abacavir"),
+            ],
+        )
+        assert self._cross_module(client)["pgx_guidance_available"] is False
