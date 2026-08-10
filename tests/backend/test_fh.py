@@ -403,6 +403,86 @@ class TestAssessAndStore:
         assert len(fdb) == 1 and fdb[0].gene_symbol == "APOB"  # carrier finding intact
 
 
+def _stored_fdb_finding(engine: sa.Engine) -> sa.Row | None:
+    a = assess_fh(engine, None, inferred_ancestry="EUR")
+    store_fh_findings(a, engine)
+    with engine.connect() as conn:
+        return conn.execute(
+            sa.select(findings).where(
+                findings.c.module == "fh", findings.c.category == "fdb_variant"
+            )
+        ).fetchone()
+
+
+class TestApobFdbPathogenicClassification:
+    """The FDB significance predicate must actually decide.
+
+    Every pre-existing fixture fed it ``"Pathogenic"``, so its False branches
+    never ran and the whole predicate could be ``return True`` with the suite
+    still green. These cases pin both sides, and lock the ClinGen
+    lower-penetrance / risk-allele boundary that ``clinvar_significance``
+    already enforces for the other eleven consumers (#910; #987/#1027,
+    PMID:38054408).
+    """
+
+    @pytest.mark.parametrize(
+        "significance",
+        [
+            "Pathogenic",
+            "Likely pathogenic",
+            "Pathogenic|drug response",  # compound primary token survives (#813)
+            "Likely pathogenic,risk factor",
+        ],
+    )
+    def test_primary_pathogenic_is_a_pathogenic_carrier(
+        self, sample_engine: sa.Engine, significance: str
+    ) -> None:
+        _insert_apob_fdb(sample_engine, genotype="CT", sig=significance, zygosity="het")
+        row = _stored_fdb_finding(sample_engine)
+        assert row is not None
+        assert row.evidence_level == 4
+        assert "(pathogenic carrier)" in row.finding_text
+        assert json.loads(row.detail_json)["is_pathogenic"] is True
+
+    @pytest.mark.parametrize(
+        "significance",
+        [
+            None,
+            "Uncertain significance",
+            "Conflicting classifications of pathogenicity",
+            "Established risk allele",
+            # ClinGen lower-penetrance / risk-allele assertions are a distinct
+            # category — they must not read as ordinary high-penetrance P/LP.
+            "Pathogenic, low penetrance",
+            "Likely pathogenic, low penetrance",
+            "Pathogenic/Established risk allele",
+            # Pathogenic is present but is not the primary classification.
+            "Uncertain significance|Pathogenic",
+        ],
+    )
+    def test_non_primary_pathogenic_is_a_plain_carrier(
+        self, sample_engine: sa.Engine, significance: str | None
+    ) -> None:
+        _insert_apob_fdb(sample_engine, genotype="CT", sig=significance, zygosity="het")
+        row = _stored_fdb_finding(sample_engine)
+        assert row is not None  # still a carrier finding — only the claim is downgraded
+        assert row.evidence_level == 2
+        assert "(carrier)" in row.finding_text
+        assert "pathogenic carrier" not in row.finding_text
+        assert json.loads(row.detail_json)["is_pathogenic"] is False
+
+    @pytest.mark.parametrize(
+        "significance", ["Pathogenic", "Pathogenic, low penetrance", "Uncertain significance"]
+    )
+    def test_hom_ref_non_carrier_emits_nothing_whatever_the_significance(
+        self, sample_engine: sa.Engine, significance: str
+    ) -> None:
+        # Negative control: the finding is carriage-gated before the predicate
+        # runs, so no significance value may resurrect it for a non-carrier.
+        _insert_apob_fdb(sample_engine, genotype="CC", sig=significance, zygosity="hom_ref")
+        assert _stored_fdb_finding(sample_engine) is None
+
+
 class TestFhAssessmentPresentation:
     def test_withheld_legacy_payload_is_unavailable_not_a_false_negative(
         self,
