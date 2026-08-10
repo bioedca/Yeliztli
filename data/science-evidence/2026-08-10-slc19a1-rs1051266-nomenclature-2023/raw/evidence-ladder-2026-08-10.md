@@ -1,0 +1,69 @@
+# Consensus / Scite ladder outcomes, 2026-08-10
+
+Recorded because the repository's evidence ladder requires the discovery services
+to be invoked and their outcomes retained, including when they do not decide the
+claim. Neither service is load-bearing for the reference-base claim — that rests
+on RefSeq, Ensembl and UniProt — but both were run, and one changed the wording
+that shipped.
+
+## Consensus
+
+- Service: Consensus MCP, `search`. Available; no quota fallback needed.
+- Query: `SLC19A1 RFC1 rs1051266 A80G G80A polymorphism nomenclature reduced folate carrier`
+- Filters: none.
+- Returned: 20 papers.
+
+**Outcome — the naming split is real, widespread, and extends to HGVS `c.`
+notation, not just the legacy shorthand.** Both spellings appear in peer-reviewed
+titles and abstracts for the same rsID:
+
+| Spelling | Examples from the result set |
+| --- | --- |
+| `G80A` / `c.80G>A` / `80G>A` | Dufficy 2006 (PMID:16750224); He 2014 (PMID:24597986); Wang 2006, Eur J Cancer; Stanisławska-Sachadyn 2009, Ann Hum Genet (`c.80G>A`); Coppedè 2014, BioMed Res Int (`c.80G>A`); Kurzawski 2010, Biomarkers (`rs1051266:G>A, 80G>A`); Gregers 2010, Blood (`80G>A`) |
+| `A80G` / `c.80A>G` / `80A>G` | Yi 2021 (PMID:33935279); Coppedè 2013, Nutrients (`c.80A>G`); Naushad 2021, Ann Pharmacother (`c.80A>G`); Imani 2019, Arch Oral Biol |
+
+This is why the shipped `recommendation_text` says the literature "names this SNP
+G80A **or c.80G>A**, taking the opposite base as the reference" rather than
+offering a historical explanation: the search establishes *that* both frames are
+in active use, and does not establish *why*. An earlier draft attributed the
+legacy frame to the ancestral allele; that was an inference about authors' intent
+and was removed.
+
+**Outcome — direction of effect is contested, which is why this PR does not touch
+it.** Among the returned papers, on the same allele:
+
+- Stanisławska-Sachadyn 2009 (Ann Hum Genet): women with GA and AA had *higher*
+  red-cell folate than GG.
+- Naushad 2021 (Ann Pharmacother, 18 studies, 3592 RA patients): the 80A allele
+  *increased* methotrexate efficacy and safety.
+- Wang 2006 (Eur J Cancer): 80AA associated with *increased* gastro-oesophageal
+  cancer risk.
+- Yue 2026 (World J Surg Oncol, 13 studies): 80AA associated with *greater*
+  methotrexate toxicity in paediatric ALL.
+- He 2014 (PMID:24597986, the row's own citation): no influence of G80A on
+  methotrexate toxicity.
+
+The panel's `genotype_effects` call AA "reduced folate carrier efficiency", which
+at least Stanisławska-Sachadyn 2009 contradicts. That conflict is **not**
+adjudicated here and is filed separately; this PR changes no category, no
+`risk_allele`/`ref_allele`, and no evidence level.
+
+## Scite
+
+- Service: Scite MCP, `search_literature` by DOI. Available; no quota fallback needed.
+- Query: `dois: ["10.12659/MSM.929911", "10.1016/j.lfs.2006.05.009", "10.3109/10428194.2014.898761"]`, no term (metadata + editorial notices).
+- Returned: 3 of 3 records.
+
+**Outcome — correction/retraction check performed, negative for all three.** No
+record carried an `editorialNotices` entry (retraction, correction, concern or
+erratum). Cross-checked against PubMed `article_types` for the same three PMIDs,
+which likewise carry no `Retracted Publication` or `Erratum` type:
+
+| PMID | DOI | Scite editorial notices | PubMed article types |
+| --- | --- | --- | --- |
+| 33935279 | 10.12659/MSM.929911 | none | Journal Article; Meta-Analysis |
+| 16750224 | 10.1016/j.lfs.2006.05.009 | none | Journal Article |
+| 24597986 | 10.3109/10428194.2014.898761 | none | Journal Article; Meta-Analysis |
+
+Bibliographic metadata retrieved from PubMed (https://pubmed.ncbi.nlm.nih.gov/);
+DOIs above resolve at https://doi.org/.

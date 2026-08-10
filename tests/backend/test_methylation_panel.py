@@ -348,11 +348,13 @@ class TestSLC19A1Nomenclature:
     The row used to pair the legacy ancestral-frame shorthand ``G80A`` with the
     reference-frame ``p.His27Arg``. Both spellings are real — two of the row's own
     three citations say G80A (PMID:16750224, PMID:24597986) and the third says
-    A80G (PMID:33935279) — but only one can sit next to ``His27Arg``: the GRCh37
-    reference carries 80A/His27. NCBI dbSNP RefSNP v2 gives
-    ``NM_194255.4:c.80A>G`` with ``NP_919231.1`` residue 27 H→R, and Ensembl
-    GRCh37 puts the *ancestral* allele on the other base (both accessed
-    2026-08-10). Evidence packet:
+    A80G (PMID:33935279), and peer-reviewed papers write both ``c.80G>A`` and
+    ``c.80A>G`` for this rsID — but only one can sit next to ``His27Arg``: the
+    GRCh37 reference carries 80A/His27. NCBI dbSNP RefSNP v2 gives
+    ``NM_194255.4:c.80A>G`` with ``NP_919231.1`` residue 27 H→R, and UniProtKB
+    ``P41440`` independently carries His at residue 27 of the canonical sequence
+    (both accessed 2026-08-10). Ensembl agrees but does not count as a second
+    source — it imports its variant records from dbSNP. Evidence packet:
     ``data/science-evidence/2026-08-10-slc19a1-rs1051266-nomenclature-2023/``.
 
     The general codon-direction invariant lives in

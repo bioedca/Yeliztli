@@ -171,7 +171,7 @@
           },
           "evidence_level": 1,
           "pmids": ["33935279", "16750224", "24597986"],
-          "recommendation_text": "SLC19A1 encodes the reduced folate carrier (RFC1), the primary transporter for folate into cells. AA carriers may have reduced folate transport efficiency. Much of the literature names this SNP G80A, written against the ancestral allele; against the GRCh37 reference it is c.80A>G (p.His27Arg)."
+          "recommendation_text": "SLC19A1 encodes the reduced folate carrier (RFC1), the primary transporter for folate into cells. AA carriers may have reduced folate transport efficiency. Much of the literature names this SNP G80A or c.80G>A, taking the opposite base as the reference; against the GRCh37 reference sequence it is c.80A>G (p.His27Arg)."
         },
         {
           "rsid": "rs202676",

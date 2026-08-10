@@ -37,6 +37,19 @@ first carries ``ref`` and the second carries ``alt``. Deliberately *not* checked
   through only if C→T reached Arg from a His codon, which it does not, but it
   would blunt the guard everywhere else.
 
+**The check has a real blind spot, and it is asserted rather than assumed.** For
+some amino-acid pairs *both* directions are reachable through different codon
+pairs — Arg→Ser is reachable by A→C (``AGA``→``AGC``) and by C→A
+(``CGT``→``AGT``) — so reversing such a shorthand would still satisfy the
+predicate. Measured over the standard code, **124 of the 324 reachable
+(from, to, ref, alt) combinations (38.3%) are direction-undecidable this way**,
+so this is a large gap rather than a corner case. Two tests below pin it: one
+asserts no *non-synonymous* panel row currently falls in it, and one records that
+*synonymous* rows are structurally undecidable (Tyr→Tyr is symmetric by
+construction, so CBS ``rs234706 C699T (Tyr233Tyr)`` cannot be direction-checked
+here at all). Deciding those needs the actual transcript codon, not the code
+table.
+
 This is a SELF-DISCOVERING guard (mirroring ``test_panel_risk_ref_invariant.py``
 and ``test_panel_effect_summary_consistency.py``): it walks every
 ``backend/data/panels/*.json`` node, so a newly added or edited shorthand is
@@ -136,6 +149,23 @@ def _substitution_reaches(ref: str, alt: str, from_aa: str, to_aa: str) -> bool:
     return False
 
 
+def _direction_is_decidable(ref: str, alt: str, from_aa: str, to_aa: str) -> bool:
+    """Whether the code table can tell this shorthand apart from its reverse.
+
+    True when exactly one of the two directions reaches the amino-acid change, so
+    the shorthand's polarity carries information. False when *both* reach it —
+    the guard would then accept the shorthand written either way round and proves
+    nothing about direction for that row.
+
+    A row where the forward direction fails is a plain violation, not an
+    ambiguity: it is decidably backwards, and
+    ``test_every_panel_shorthand_agrees_with_its_amino_acid_change`` reports it.
+    """
+    forward = _substitution_reaches(ref, alt, from_aa, to_aa)
+    reverse = _substitution_reaches(alt, ref, from_aa, to_aa)
+    return forward and not reverse
+
+
 def _is_protein_shorthand(ref: str, position: int, alt: str, change: tuple[str, int, str]) -> bool:
     """Whether the shorthand is really a one-letter *amino-acid* label that only
     looks nucleotide-like because A/C/G/T are also amino-acid codes.
@@ -196,6 +226,25 @@ def test_protein_shorthand_is_not_read_as_nucleotides() -> None:
     assert not _is_protein_shorthand("C", 677, "T", ("A", 222, "V"))
 
 
+def test_ambiguous_amino_acid_pairs_are_reported_as_undecidable() -> None:
+    """The decidability helper must recognise the pairs this guard cannot judge.
+
+    Arg→Ser is the worked case: ``AGA``→``AGC`` makes it reachable by A→C, and
+    ``CGT``→``AGT`` by C→A, so a reversed ``A123C``/``C123A`` shorthand would
+    satisfy the forward check either way round. His→Arg, the #2023 case, is
+    reachable in one direction only and so is genuinely decidable.
+    """
+    assert _substitution_reaches("A", "C", "R", "S")
+    assert _substitution_reaches("C", "A", "R", "S")
+    assert not _direction_is_decidable("A", "C", "R", "S")
+
+    assert _direction_is_decidable("A", "G", "H", "R")
+    assert _direction_is_decidable("C", "T", "A", "V")
+
+    # Synonymous changes are symmetric by construction and never decidable here.
+    assert not _direction_is_decidable("C", "T", "Y", "Y")
+
+
 def test_discovery_finds_the_panel_shorthand_loci() -> None:
     """Sanity: the walker must keep finding the curated shorthand rows, so the
     invariant below cannot pass vacuously after a schema or path change."""
@@ -226,4 +275,56 @@ def test_every_panel_shorthand_agrees_with_its_amino_acid_change() -> None:
             )
     assert not offenders, (
         "panel nucleotide shorthand contradicts its own amino-acid change: " + "; ".join(offenders)
+    )
+
+
+def _decidability_split() -> tuple[list[str], list[str]]:
+    """``(undecidable_nonsynonymous, undecidable_synonymous)`` panel row labels."""
+    non_synonymous: list[str] = []
+    synonymous: list[str] = []
+    for label, name, _panel, change in _discover_shorthand_loci():
+        match = _NUCLEOTIDE_SHORTHAND.match(name)
+        assert match is not None  # guaranteed by discovery
+        ref, position, alt = match.group(1), int(match.group(2)), match.group(3)
+        if _is_protein_shorthand(ref, position, alt, change) or ref == alt:
+            continue
+        from_aa, _protein_position, to_aa = change
+        if not _substitution_reaches(ref, alt, from_aa, to_aa):
+            continue  # a violation, reported by the guard above — not an ambiguity
+        if _direction_is_decidable(ref, alt, from_aa, to_aa):
+            continue
+        (synonymous if from_aa == to_aa else non_synonymous).append(f"{label} {name!r}")
+    return non_synonymous, synonymous
+
+
+def test_no_nonsynonymous_shorthand_escapes_the_direction_check() -> None:
+    """Coverage honesty: the guard above must not be silently vacuous for a row.
+
+    For 38.3% of reachable (from, to, ref, alt) combinations both directions
+    satisfy the predicate, so the guard would accept such a shorthand reversed.
+    No non-synonymous panel row is in that state today; if one is ever added,
+    this fails and says so, because verifying it needs the real transcript codon
+    rather than the code table — silently passing it would be the
+    non-discriminating-guard failure this file exists to prevent.
+    """
+    non_synonymous, _ = _decidability_split()
+    assert not non_synonymous, (
+        "panel shorthand whose direction this guard cannot decide (both "
+        "substitution directions reach the declared amino-acid change); verify "
+        "against the transcript codon: " + "; ".join(non_synonymous)
+    )
+
+
+def test_synonymous_shorthand_is_recorded_as_structurally_undecidable() -> None:
+    """Synonymous rows cannot be direction-checked by codon reachability at all.
+
+    Tyr→Tyr is symmetric by construction (``TAT``↔``TAC``), so both C→T and T→C
+    satisfy the predicate. CBS ``rs234706 C699T (Tyr233Tyr)`` is the current
+    example. Asserting the set explicitly keeps the guard's real coverage
+    visible instead of letting these rows look checked when they are not.
+    """
+    _, synonymous = _decidability_split()
+    assert [entry.split()[0] for entry in synonymous] == ["methylation_panel.json::rs234706"], (
+        "the set of structurally-undecidable synonymous shorthands changed; "
+        "update this lock deliberately: " + "; ".join(synonymous)
     )
