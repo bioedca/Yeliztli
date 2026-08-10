@@ -556,17 +556,30 @@ class TestRunScoring:
 # ── PGx handoff availability at read time (#2020) ─────────────────────
 
 
-def _cross_module_finding(drug: str | None = "abacavir") -> dict:
+LEGACY_NOTE = (
+    "Abacavir/HLA-B*57:01 finding cross-links bi-directionally with the "
+    "Pharmacogenomics module. See PGx for prescribing guidance."
+)
+
+
+def _cross_module_finding(
+    drug: str | None = "abacavir",
+    note: str = "Abacavir/HLA-B*57:01 drug-safety finding.",
+) -> dict:
     """An allergy cross-module drug alert, optionally naming its drug."""
     detail: dict = {
         "source_module": "allergy",
         "target_module": "pharmacogenomics",
         "genotype": "TG",
-        "cross_module_note": "Abacavir/HLA-B*57:01 drug-safety finding.",
+        "cross_module_note": note,
     }
     if drug is not None:
         detail["drug"] = drug
-    return {**CROSS_MODULE_FINDING, "detail_json": json.dumps(detail)}
+    return {
+        **CROSS_MODULE_FINDING,
+        "finding_text": f"HLA-B*57:01 proxy (rs2395029, TG) — {note}",
+        "detail_json": json.dumps(detail),
+    }
 
 
 def _pgx_prescribing_alert(drug: str, gene: str = "HLA-B") -> dict:
@@ -786,3 +799,60 @@ class TestPGxHandoffAvailability:
             conn.execute(sa.insert(findings), _pgx_prescribing_alert("abacavir"))
 
         assert self._cross_module(client)["pgx_guidance_available"] is True
+
+
+class TestLegacyHandoffProse:
+    """A finding scored before #2020 must not still point the user at PGx.
+
+    Withholding the link is not enough on its own: the stored ``finding_text``
+    carries the retired "See PGx for prescribing guidance" sentence, which
+    directs the user to the same unsupported destination. The note is refreshed
+    from the panel at read time so an existing sample needs no re-score.
+    """
+
+    def _cross_module(self, client: TestClient) -> dict:
+        resp = client.get("/api/analysis/allergy/pathways?sample_id=1")
+        assert resp.status_code == 200
+        cross = resp.json()["cross_module"]
+        assert cross
+        return cross[0]
+
+    def test_retired_note_is_replaced_by_the_current_panel_note(
+        self, _env: tuple[sa.Engine, sa.Engine]
+    ) -> None:
+        sample_engine, _ = _env
+        client = _client_with(
+            sample_engine,
+            [*PATHWAY_SUMMARY_FINDINGS, _cross_module_finding(drug=None, note=LEGACY_NOTE)],
+        )
+
+        text = self._cross_module(client)["finding_text"]
+        assert "See PGx for prescribing guidance" not in text
+        assert "cross-links" not in text
+        # The panel's current wording, and the actionable instruction with it.
+        assert "Confirmatory high-resolution HLA-B*57:01 typing" in text
+        # The sample-specific prefix is preserved verbatim.
+        assert text.startswith("HLA-B*57:01 proxy (rs2395029, TG) — ")
+
+    def test_current_note_is_returned_unchanged(self, _env: tuple[sa.Engine, sa.Engine]) -> None:
+        """A freshly scored finding already carries the panel note."""
+        sample_engine, _ = _env
+        current = (
+            "Abacavir/HLA-B*57:01 drug-safety finding. Confirmatory "
+            "high-resolution HLA-B*57:01 typing is required before any abacavir "
+            "prescribing decision."
+        )
+        client = _client_with(
+            sample_engine, [*PATHWAY_SUMMARY_FINDINGS, _cross_module_finding(note=current)]
+        )
+        assert self._cross_module(client)["finding_text"].endswith(current)
+
+    def test_unrecognised_text_is_left_alone(self, _env: tuple[sa.Engine, sa.Engine]) -> None:
+        """Never rewrite text that does not end in the note the finding recorded."""
+        sample_engine, _ = _env
+        row = _cross_module_finding(drug=None, note=LEGACY_NOTE)
+        row["finding_text"] = "Hand-edited text that ends differently."
+        client = _client_with(sample_engine, [*PATHWAY_SUMMARY_FINDINGS, row])
+        assert (
+            self._cross_module(client)["finding_text"] == "Hand-edited text that ends differently."
+        )

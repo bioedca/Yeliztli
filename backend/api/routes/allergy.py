@@ -247,6 +247,44 @@ def _panel_pgx_handoffs() -> dict[str, tuple[str, str]]:
     return handoffs
 
 
+@lru_cache(maxsize=1)
+def _panel_pgx_notes() -> dict[str, str]:
+    """Map rsid → the note the panel currently gives each PGx handoff."""
+    notes: dict[str, str] = {}
+    for pathway in load_allergy_panel().pathways:
+        for snp in pathway.snps:
+            cross = snp.cross_module
+            if cross and cross.get("module") == "pharmacogenomics" and cross.get("note"):
+                notes[snp.rsid] = str(cross["note"])
+    return notes
+
+
+def _refreshed_finding_text(finding: dict[str, Any]) -> str:
+    """Serve the panel's current handoff note rather than the stored copy.
+
+    A finding scored before #2020 has the retired "cross-links with PGx module
+    for prescribing guidance" wording baked into ``finding_text``. Withholding
+    the link alone would leave that sentence still directing the user to a
+    destination that cannot help, so the note is refreshed here — the same
+    read-time-policy-over-stored-rows shape the prescribing hold uses.
+
+    Only the trailing note is replaced, and only when the stored text actually
+    ends with the note the finding recorded; the sample-specific prefix (proxy
+    allele, genotype, r²) is never rewritten. Anything unrecognised is returned
+    untouched.
+    """
+    text = finding["finding_text"] or ""
+    if finding["detail"].get("target_module") != "pharmacogenomics":
+        return text
+    stored_note = finding["detail"].get("cross_module_note")
+    current_note = _panel_pgx_notes().get(finding["rsid"] or "")
+    if not stored_note or not current_note or stored_note == current_note:
+        return text
+    if not text.endswith(str(stored_note)):
+        return text
+    return text[: -len(str(stored_note))] + current_note
+
+
 def _handoff_gene_drug(finding: dict[str, Any]) -> tuple[str, str] | None:
     """The ``(GENE, drug)`` a stored cross-module finding hands off to, if any."""
     if finding["detail"].get("target_module") != "pharmacogenomics":
@@ -395,7 +433,7 @@ def list_pathways(
                 gene=cf["gene_symbol"] or "",
                 source_module=detail.get("source_module", "allergy"),
                 target_module=detail.get("target_module", ""),
-                finding_text=cf["finding_text"] or "",
+                finding_text=_refreshed_finding_text(cf),
                 evidence_level=cf["evidence_level"] if cf["evidence_level"] is not None else 1,
                 pmids=cf["pmids"],
                 pgx_guidance_available=handoff is not None and handoff in assessed,
