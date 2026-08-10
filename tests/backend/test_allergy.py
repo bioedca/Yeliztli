@@ -40,6 +40,7 @@ from backend.analysis.allergy import (
     _score_snp,
     _stored_snp_detail,
     load_allergy_panel,
+    pgx_covered_drugs,
     score_allergy_pathways,
     store_allergy_findings,
     update_annotation_coverage_gwas,
@@ -47,6 +48,7 @@ from backend.analysis.allergy import (
 from backend.annotation.engine import GWAS_BIT
 from backend.db.tables import (
     annotated_variants,
+    cpic_guidelines,
     findings,
     gwas_associations,
     hla_proxy_lookup,
@@ -2141,3 +2143,142 @@ class TestEvidenceGatingCap:
     def test_evidence_level_2_allows_elevated(self) -> None:
         result = _score_snp(self._snp(evidence_level=2, aa_category=ELEVATED), "AA")
         assert result.category == ELEVATED
+
+
+# ── PGx handoff gating (#2020) ────────────────────────────────────────────
+
+
+def _seed_cpic_guidelines(engine: sa.Engine, drugs: list[str]) -> None:
+    """Seed cpic_guidelines with one row per drug the PGx module can advise on."""
+    with engine.begin() as conn:
+        conn.execute(
+            sa.insert(cpic_guidelines),
+            [
+                {
+                    "gene": "HLA-B",
+                    "drug": drug,
+                    "phenotype": "Positive",
+                    "activity_score": None,
+                    "recommendation": "Test recommendation.",
+                    "classification": "A",
+                    "guideline_url": "https://example.invalid/guideline",
+                }
+                for drug in drugs
+            ],
+        )
+
+
+class TestPGxHandoffGating:
+    """The Allergy drug alert may only offer a PGx link PGx can honour (#2020).
+
+    The Pharmacogenomics module is a CYP/UGT/SLCO/DPYD/NUDT15/TPMT diplotype
+    module: it covers no HLA gene, and ``cpic_guidelines`` carries no
+    carbamazepine, allopurinol, or abacavir row. Every drug hypersensitivity
+    alert nevertheless rendered a "View in Pharmacogenomics" link.
+    """
+
+    def _drug_alert(self, result: object) -> object | None:
+        for cross in result.cross_module_findings:  # type: ignore[attr-defined]
+            if cross.rsid == "rs2395029":
+                return cross
+        return None
+
+    def test_uncovered_drug_withholds_the_handoff(
+        self,
+        panel: AllergyPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """Abacavir carrier: alert still emitted, but the PGx link is withheld."""
+        _seed_variants(sample_engine, [("rs2395029", "6", 31431780, "TG")])
+        _seed_hla_proxies(reference_engine)
+        # The bundled guideline table's real drug set — abacavir is not in it.
+        _seed_cpic_guidelines(reference_engine, ["warfarin", "clopidogrel", "codeine"])
+
+        result = score_allergy_pathways(panel, sample_engine, reference_engine)
+
+        alert = self._drug_alert(result)
+        assert alert is not None, "drug hypersensitivity alert must survive the fix"
+        assert alert.target_module == "pharmacogenomics"
+        assert alert.detail["drug"] == "abacavir"
+        assert alert.detail["pgx_guidance_available"] is False
+
+    def test_covered_drug_offers_the_handoff(
+        self,
+        panel: AllergyPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """Ingesting the CPIC abacavir guideline restores the link, no code change.
+
+        Discriminates the gate from a hardcoded ``False``: same sample, same
+        panel, only the reference table differs.
+        """
+        _seed_variants(sample_engine, [("rs2395029", "6", 31431780, "TG")])
+        _seed_hla_proxies(reference_engine)
+        _seed_cpic_guidelines(reference_engine, ["warfarin", "Abacavir"])
+
+        result = score_allergy_pathways(panel, sample_engine, reference_engine)
+
+        alert = self._drug_alert(result)
+        assert alert is not None
+        assert alert.detail["pgx_guidance_available"] is True
+
+    def test_hom_ref_non_carrier_emits_no_drug_alert(
+        self,
+        panel: AllergyPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """Negative control: a hom-ref sample gets no drug alert at all.
+
+        Without this, a gate that always emitted the alert would still pass the
+        two carrier assertions above.
+        """
+        _seed_variants(sample_engine, [("rs2395029", "6", 31431780, "TT")])
+        _seed_hla_proxies(reference_engine)
+        _seed_cpic_guidelines(reference_engine, ["warfarin", "Abacavir"])
+
+        result = score_allergy_pathways(panel, sample_engine, reference_engine)
+
+        assert self._drug_alert(result) is None
+
+    def test_non_pgx_cross_link_carries_no_drug_key(
+        self,
+        panel: AllergyPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """Skin/Nutrigenomics handoffs name no drug and must not emit a null one.
+
+        A present-but-null ``drug`` reads as an ambiguous prescribing
+        identifier downstream, and the response guard fails closed on it —
+        blanking the whole allergy page.
+        """
+        _seed_variants(sample_engine, [("rs20541", "5", 131995964, "AA")])
+        _seed_hla_proxies(reference_engine)
+        _seed_cpic_guidelines(reference_engine, ["warfarin"])
+
+        result = score_allergy_pathways(panel, sample_engine, reference_engine)
+
+        skin_links = [c for c in result.cross_module_findings if c.target_module == "skin"]
+        assert skin_links, "IL13 → Skin cross-link expected for a risk homozygote"
+        for cross in skin_links:
+            assert "drug" not in cross.detail
+            assert cross.detail["pgx_guidance_available"] is False
+
+
+class TestPGxCoveredDrugs:
+    """``pgx_covered_drugs`` reads the PGx module's own guideline table."""
+
+    def test_returns_lowercased_drug_names(self, reference_engine: sa.Engine) -> None:
+        _seed_cpic_guidelines(reference_engine, ["Warfarin", " clopidogrel "])
+        assert pgx_covered_drugs(reference_engine) == {"warfarin", "clopidogrel"}
+
+    def test_empty_table_yields_no_coverage(self, reference_engine: sa.Engine) -> None:
+        assert pgx_covered_drugs(reference_engine) == set()
+
+    def test_missing_table_fails_closed(self, tmp_path: Path) -> None:
+        """An un-built reference DB withholds every link rather than raising."""
+        engine = sa.create_engine(f"sqlite:///{tmp_path / 'bare.db'}")
+        assert pgx_covered_drugs(engine) == set()

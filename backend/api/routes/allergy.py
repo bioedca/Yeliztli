@@ -113,6 +113,14 @@ class CrossModuleItem(BaseModel):
     finding_text: str
     evidence_level: int
     pmids: list[str] = []
+    # Whether the destination module actually holds prescribing guidance for
+    # the drug this handoff names. False withholds the "View in
+    # Pharmacogenomics" link rather than sending the user to a module that
+    # covers no HLA gene and none of these drugs (#2020). The drug name stays
+    # out of the response: a structured ``drug`` key would have to be null on
+    # the non-PGx cross-links, which the prescribing-identifier guard reads as
+    # an ambiguous identifier and fails closed on.
+    pgx_guidance_available: bool = False
 
 
 class PathwaysResponse(BaseModel):
@@ -303,6 +311,7 @@ def list_pathways(
                 finding_text=cf["finding_text"] or "",
                 evidence_level=cf["evidence_level"] if cf["evidence_level"] is not None else 1,
                 pmids=cf["pmids"],
+                pgx_guidance_available=bool(detail.get("pgx_guidance_available", False)),
             )
         )
 

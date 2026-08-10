@@ -4,7 +4,8 @@ Implements P3-60:
   - ~30 trait findings across 4 pathway cards (Atopic Conditions,
     Drug Hypersensitivity, Food Sensitivity, Histamine Metabolism).
   - HLA proxy calling with r²/ancestry display from hla_proxy_lookup table.
-  - Abacavir/HLA-B*57:01 bi-directional cross-link with Pharmacogenomics.
+  - Abacavir/HLA-B*57:01 drug-safety finding, cross-linked to Pharmacogenomics
+    only when PGx actually carries a guideline for the named drug (#2020).
   - Celiac DQ2/DQ8 combined assessment at ★★★☆ with NPV >99% framing.
   - Histamine metabolism at ★☆☆☆ visually de-emphasized.
   - Cross-links to PGx (drug hypersensitivity), Skin (IL13/atopic dermatitis),
@@ -58,6 +59,7 @@ from backend.annotation.engine import GWAS_BIT
 from backend.annotation.gwas import gwas_matched_rsids
 from backend.db.tables import (
     annotated_variants,
+    cpic_guidelines,
     findings,
     hla_proxy_lookup,
     panel_coverage,
@@ -746,20 +748,47 @@ def _compute_histamine_combined(
 # ── Cross-module references ──────────────────────────────────────────────
 
 
+def pgx_covered_drugs(reference_engine: sa.Engine) -> set[str]:
+    """Return the lowercased drug names Pharmacogenomics can advise on.
+
+    A cross-module handoff to PGx is only honest when the destination holds a
+    CPIC guideline for the named drug. ``cpic_guidelines`` is the PGx module's
+    own source of truth, so asking it directly keeps the two in step: ingesting
+    the CPIC HLA guidelines would restore the handoff with no code change.
+
+    Fails closed — a missing or unreadable ``cpic_guidelines`` table yields an
+    empty set, which withholds the link rather than promising guidance that the
+    reference database cannot back (#2020).
+    """
+    try:
+        with reference_engine.connect() as conn:
+            rows = conn.execute(sa.select(cpic_guidelines.c.drug).distinct()).fetchall()
+    except sa.exc.SQLAlchemyError:
+        logger.warning("allergy_pgx_coverage_unavailable")
+        return set()
+    return {row[0].strip().lower() for row in rows if row[0]}
+
+
 def _generate_cross_module_findings(
     pathway_results: list[PathwayResult],
     panel: AllergyPanel,
     hla_proxy_info: dict[str, HLAProxyInfo],
+    covered_drugs: set[str],
 ) -> list[CrossModuleFinding]:
     """Generate cross-module reference findings.
 
     Cross-links:
-      - HLA-B*57:01 (rs2395029) → Pharmacogenomics (abacavir) — bi-directional
+      - HLA-B*57:01 (rs2395029) → Pharmacogenomics (abacavir)
       - HLA-B*15:02 (rs144012689) → Pharmacogenomics (carbamazepine)
       - HLA-A*31:01 (rs1061235) → Pharmacogenomics (carbamazepine)
       - HLA-B*58:01 (rs9263726) → Pharmacogenomics (allopurinol)
       - IL13 (rs20541) → Skin (atopic dermatitis)
       - Celiac DQ2/DQ8 → Nutrigenomics (gluten)
+
+    The finding is always emitted — it is the vehicle for the drug
+    hypersensitivity alert — but ``pgx_guidance_available`` is only true when
+    ``covered_drugs`` holds the drug the panel names, so the UI can withhold a
+    handoff the destination cannot honour (#2020).
     """
     cross_findings: list[CrossModuleFinding] = []
     seen_keys: set[tuple[str, str]] = set()
@@ -776,6 +805,15 @@ def _generate_cross_module_findings(
 
             target_module = panel_snp.cross_module["module"]
             note = panel_snp.cross_module["note"]
+            drug = panel_snp.cross_module.get("drug")
+            # Offer the PGx handoff only when PGx holds a guideline for this
+            # drug. Non-PGx targets (Skin, Nutrigenomics) name no drug and are
+            # unaffected (#2020).
+            pgx_guidance_available = (
+                target_module == "pharmacogenomics"
+                and drug is not None
+                and drug.strip().lower() in covered_drugs
+            )
 
             # Build cross-module finding text
             if snp_result.hla_proxy is not None:
@@ -832,6 +870,11 @@ def _generate_cross_module_findings(
                         "source_pathway": pr.pathway_name,
                         "target_module": target_module,
                         "cross_module_note": note,
+                        "pgx_guidance_available": pgx_guidance_available,
+                        # Omitted rather than null on the non-PGx cross-links:
+                        # a present-but-null ``drug`` key reads as an ambiguous
+                        # prescribing identifier downstream.
+                        **({"drug": drug} if drug else {}),
                     },
                 )
             )
@@ -963,6 +1006,7 @@ def score_allergy_pathways(
         pathway_results,
         panel,
         hla_proxy_info,
+        pgx_covered_drugs(reference_engine),
     )
 
     # Identify GWAS-matched rsids for annotation_coverage bitmask
