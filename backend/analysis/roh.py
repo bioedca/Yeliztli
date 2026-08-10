@@ -606,11 +606,23 @@ def _metrics_agree(
         elif len(segments) != n_segments:
             return False
 
-    # No segments means nothing was summed and nothing was longest.
-    empty = (n_segments == 0) or (segments == [] and not truncated)
-    if empty:
-        if (total is not None and total != 0) or (longest is not None and longest != 0):
-            return False
+    # Every summary describes the same set of emitted segments, so all present
+    # summaries must agree on whether that set is empty. Missing fields remain a
+    # valid legacy projection; contradictory zero/positive evidence does not.
+    # A non-empty list and a true truncation bit prove that segments exist, while
+    # a complete empty list proves that none do. This stays independent of the
+    # optional count/list fields and of the current persistence cap.
+    summaries = (detail.get("froh"), n_segments, total, longest)
+    zero_evidence = any(value == 0 for value in summaries if value is not None)
+    positive_evidence = any(value > 0 for value in summaries if value is not None)
+    if segments:
+        positive_evidence = True
+    elif segments == [] and not truncated:
+        zero_evidence = True
+    if truncated:
+        positive_evidence = True
+    if zero_evidence and positive_evidence:
+        return False
 
     # The longest segment is one of those summed, so it cannot exceed the total.
     if total is not None and longest is not None and longest > total:
@@ -833,6 +845,14 @@ def evaluability_from_detail(
             return False, snps_used, INSUFFICIENT_AUTOSOMAL_MARKERS
         if not eligible:
             return False, observed, NO_SEGMENT_ELIGIBLE_REGION
+        # Once both snapshots clear the structural floor they still have to be
+        # the same snapshot. Otherwise the stored FROH/segments were measured
+        # against a different marker set and cannot be combined with today's
+        # count. Marker identity is not persisted, so exact count equality is
+        # necessary rather than sufficient; a mismatch is definitive evidence
+        # to withhold until the analysis is rerun.
+        if snps_used != observed:
+            return False, observed, DETAIL_UNAVAILABLE
     elif snps_used < MIN_EVALUABLE_AUTOSOMAL_SNPS:
         return False, snps_used, INSUFFICIENT_AUTOSOMAL_MARKERS
 
@@ -841,9 +861,9 @@ def evaluability_from_detail(
     # stored `evaluable: true` nor a re-read of the sample's coverage can
     # reconstruct a measurement that was never recorded — establishing that a
     # scan *could* have run is not the same as having its result.
-    # A re-imported sample and its stored row can disagree about coverage. A
-    # listed segment must fit both the count used when the row was written and
-    # the currently observed sample, so the lower measured bound governs.
+    # With a live sample, a recorded count mismatch has already been withheld.
+    # Without one, the recorded count is the only available bound. For a legacy
+    # row with no recorded count, the current observation supplies that bound.
     callable_snps = min(snps_used, observed) if counted else observed
     if not has_metric or not _companion_metrics_readable(detail, callable_snps):
         return False, observed, DETAIL_UNAVAILABLE

@@ -373,10 +373,12 @@ class TestLoadFindings:
     ) -> None:
         # Counterpart control: a densely covered ROH negative must still read as
         # a genuine negative in the report.
+        from tests.backend._roh_fixtures import ELIGIBLE_MARKER_COUNT
+
         _, sample_engine, _ = sample_with_findings
         self._seed_eligible_markers(sample_engine)
         stored = _LEGACY_ROH_TEXT
-        self._insert_roh(sample_engine, text=stored, snps_used=600_000)
+        self._insert_roh(sample_engine, text=stored, snps_used=ELIGIBLE_MARKER_COUNT)
 
         roh = [r for r in _load_findings(sample_engine, modules=["roh"])]
         assert len(roh) == 1

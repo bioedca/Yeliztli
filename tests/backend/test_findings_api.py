@@ -665,6 +665,16 @@ class TestListFindings:
                 "zero_segments_nonzero_longest",
                 {"n_segments": 0, "segments": [], "longest_kb": 900.0},
             ),
+            (
+                "zero_segments_nonzero_froh",
+                {
+                    "froh": 0.004,
+                    "n_segments": 0,
+                    "segments": [],
+                    "total_roh_kb": 0.0,
+                    "longest_kb": 0.0,
+                },
+            ),
             # the longest segment is one of those summed
             ("longest_exceeds_total", {"total_roh_kb": 100.0, "longest_kb": 900.0}),
             # ...and cannot be shorter than a segment the blob itself lists
@@ -780,6 +790,62 @@ class TestListFindings:
         assert response.detail["evaluable"] is False, label
         assert response.detail["indeterminate_reason"] == "detail_unavailable", label
         assert response.detail["froh"] is None, label
+
+    @pytest.mark.parametrize(
+        "contradiction",
+        [
+            {"froh": 0.0, "n_segments": 1},
+            {"froh": 0.004, "n_segments": 0},
+            {"froh": 0.0, "total_roh_kb": 6200.0},
+            {"froh": 0.004, "total_roh_kb": 0.0},
+            {"froh": 0.0, "longest_kb": 6200.0},
+            {"froh": 0.004, "longest_kb": 0.0},
+            {"froh": 0.0, "segments": [_SEG]},
+            {"froh": 0.0, "segments_truncated": True},
+            {"froh": 0.004, "segments": []},
+        ],
+        ids=[
+            "positive_count_zero_froh",
+            "zero_count_positive_froh",
+            "positive_total_zero_froh",
+            "zero_total_positive_froh",
+            "positive_longest_zero_froh",
+            "zero_longest_positive_froh",
+            "nonempty_list_zero_froh",
+            "truncated_zero_froh",
+            "complete_empty_list_positive_froh",
+        ],
+    )
+    def test_summary_polarity_contradictions_without_complete_shape_are_withheld(
+        self, contradiction
+    ):
+        # Legacy rows may omit any companion field, but every field that remains
+        # still describes the same empty or non-empty segment set. Each case has
+        # only the two conflicting facts, so no count/list or arithmetic guard
+        # can accidentally make this matrix pass.
+        detail = {"autosomal_snps_used": 600_000, **contradiction}
+        response = _row_to_response(self._roh_row(finding_text="stored narrative", detail=detail))
+
+        assert response.detail["evaluable"] is False
+        assert response.detail["indeterminate_reason"] == "detail_unavailable"
+        assert response.detail["froh"] is None
+
+    def test_positive_summary_without_segment_list_is_still_served(self):
+        # Counterpart control: omitting the optional interval list is a supported
+        # legacy subset when the recorded positive summaries agree.
+        detail = {
+            "froh": 0.00224,
+            "autosomal_snps_used": 600_000,
+            "n_segments": 1,
+            "total_roh_kb": 6200.0,
+            "longest_kb": 6200.0,
+            "params": {"froh_denominator_kb": 2_770_000},
+        }
+        response = _row_to_response(self._roh_row(finding_text="stored narrative", detail=detail))
+
+        assert "evaluable" not in response.detail
+        assert response.detail["froh"] == 0.00224
+        assert response.finding_text == "stored narrative"
 
     def test_stale_detector_params_without_a_segment_list_are_withheld(self):
         # A legacy subset may omit the segment list, but FROH itself is still a
@@ -922,6 +988,7 @@ class TestListFindings:
             (
                 "genuine_empty_scan",
                 {
+                    "froh": 0.0,
                     "n_segments": 0,
                     "segments": [],
                     "total_roh_kb": 0.0,
@@ -1158,8 +1225,10 @@ class TestFindingsSummary:
         # Counterpart control: a well-covered ROH negative keeps its preview.
         # The sample carries a genuinely eligible region, because the legacy
         # rule is re-derived from its markers, not from the stored count.
+        from tests.backend._roh_fixtures import ELIGIBLE_MARKER_COUNT
+
         self._seed_eligible_markers(tmp_data_dir)
-        self._seed_legacy_roh(tmp_data_dir, snps_used=600_000)
+        self._seed_legacy_roh(tmp_data_dir, snps_used=ELIGIBLE_MARKER_COUNT)
 
         data = findings_client.get("/api/analysis/findings/summary?sample_id=1").json()
         roh = next(m for m in data["modules"] if m["module"] == "roh")

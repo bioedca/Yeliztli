@@ -785,6 +785,22 @@ class TestEvaluabilityAtTheApi:
                 },
             )
 
+    def _read_direct_paths(self, engine: sa.Engine):
+        """Read one stored row through both patient-visible production mappers."""
+        import backend.api.routes.roh as roh_route
+        from backend.api.routes.findings import _row_to_response
+        from backend.db.tables import findings
+
+        with patch.object(roh_route, "resolve_sample_engine", return_value=engine):
+            dedicated = roh_route.list_findings(sample_id=1)
+        with engine.connect() as conn:
+            row = conn.execute(
+                sa.select(findings).where(
+                    findings.c.module == "roh", findings.c.category == "autozygosity"
+                )
+            ).one()
+        return dedicated, _row_to_response(row, engine)
+
     @pytest.mark.parametrize("bad_froh", [-3, 12, -0.0001, 1.0001])
     def test_out_of_range_froh_is_withheld_not_served(
         self, _env: sa.Engine, client: TestClient, bad_froh: float
@@ -820,7 +836,13 @@ class TestEvaluabilityAtTheApi:
 
         self._insert_roh_row(
             _env,
-            _json.dumps({"froh": good_froh, "autosomal_snps_used": 361, "n_segments": 1}),
+            _json.dumps(
+                {
+                    "froh": good_froh,
+                    "autosomal_snps_used": 361,
+                    "n_segments": 0 if good_froh == 0 else 1,
+                }
+            ),
         )
 
         data = client.get("/api/analysis/roh/findings?sample_id=1").json()
@@ -829,25 +851,37 @@ class TestEvaluabilityAtTheApi:
         assert data["indeterminate_reason"] is None
         assert data["finding_text"] == "stored narrative"
 
-    def test_drifted_marker_count_is_reported_as_observed_not_stored(
-        self, _env: sa.Engine, client: TestClient
-    ) -> None:
-        # `_sample_coverage` was already being called on this path, but only its
-        # eligibility flag was kept and the stored count was served as though it
-        # had been observed. This sample holds 361 callable autosomal markers
-        # (160 chr1 + 200 chr2 + 1 chr3 het; the no-call and the chrX call are
-        # excluded), so a blob asserting 600000 must not be able to report
-        # 600000 callable markers -- that is a measurement nothing took.
+    def test_drifted_marker_count_withholds_across_read_paths(self, _env: sa.Engine) -> None:
+        # This sample holds 361 callable autosomal markers (160 chr1 + 200 chr2
+        # + 1 chr3 het; the no-call and chrX call are excluded). A stored result
+        # claiming 600000 belongs to a different marker snapshot: reporting the
+        # current count beside that old FROH would combine two measurements,
+        # while retaining 600000 would expose a count this sample does not have.
+        # Both the dedicated response and the shared generic normalizer must
+        # therefore withhold and report only the observed current count.
         import json as _json
 
+        detail = {"froh": 0.0, "autosomal_snps_used": 600_000, "n_segments": 0}
         self._insert_roh_row(
             _env,
-            _json.dumps({"froh": 0.0, "autosomal_snps_used": 600_000, "n_segments": 0}),
+            _json.dumps(detail),
         )
 
-        data = client.get("/api/analysis/roh/findings?sample_id=1").json()
-        assert data["evaluable"] is True
-        assert data["autosomal_snps_used"] == 361
+        dedicated, generic = self._read_direct_paths(_env)
+        assert dedicated is not None
+        assert dedicated.evaluable is False
+        assert dedicated.froh is None
+        assert dedicated.indeterminate_reason == "detail_unavailable"
+        assert dedicated.autosomal_snps_used == 361
+        assert dedicated.segments == []
+
+        assert generic.detail is not None
+        assert generic.detail["evaluable"] is False
+        assert generic.detail["froh"] is None
+        assert generic.detail["segments"] == []
+        assert generic.detail["indeterminate_reason"] == "detail_unavailable"
+        assert generic.detail["autosomal_snps_used"] == 361
+        assert generic.finding_text != "stored narrative"
 
     def test_structural_reason_the_sample_refutes_is_downgraded(
         self, _env: sa.Engine, client: TestClient
@@ -945,9 +979,7 @@ class TestEvaluabilityAtTheApi:
         # cause its own number contradicts.
         assert "30 callable autosomal SNP(s)" in data["finding_text"]
 
-    def test_legacy_row_with_adequate_markers_is_untouched(
-        self, _env: sa.Engine, client: TestClient
-    ) -> None:
+    def test_legacy_row_with_adequate_markers_is_untouched(self, _env: sa.Engine) -> None:
         # The counterpart control: a well-covered legacy row must keep serving
         # its stored negative, so the re-derivation cannot quietly withhold
         # every finding written before the gate.
@@ -968,7 +1000,7 @@ class TestEvaluabilityAtTheApi:
                             {
                                 "froh": 0.0,
                                 "n_segments": 0,
-                                "autosomal_snps_used": 600_000,
+                                "autosomal_snps_used": 361,
                                 "segments": [],
                             }
                         ),
@@ -976,12 +1008,17 @@ class TestEvaluabilityAtTheApi:
                 ],
             )
 
-        data = client.get("/api/analysis/roh/findings?sample_id=1").json()
-        assert data["evaluable"] is True
-        assert data["froh"] == 0.0
-        assert data["indeterminate_reason"] is None
-        assert data["finding_text"].startswith("No long runs")
+        dedicated, generic = self._read_direct_paths(_env)
+        assert dedicated is not None
+        assert dedicated.evaluable is True
+        assert dedicated.froh == 0.0
+        assert dedicated.indeterminate_reason is None
+        assert dedicated.finding_text.startswith("No long runs")
         # Recorded metrics are served; unrecorded ones stay null.
-        assert data["n_segments"] == 0
-        assert data["total_roh_kb"] is None
-        assert data["longest_kb"] is None
+        assert dedicated.n_segments == 0
+        assert dedicated.total_roh_kb is None
+        assert dedicated.longest_kb is None
+
+        assert generic.detail is not None
+        assert generic.detail["froh"] == 0.0
+        assert generic.finding_text.startswith("No long runs")

@@ -269,11 +269,14 @@ class TestLoadSingleFinding:
         # Counterpart control: a well-covered ROH negative still renders. The
         # sample must actually carry an eligible region, since the legacy rule
         # is re-derived from its markers rather than trusting the stored count.
-        from tests.backend._roh_fixtures import seed_segment_eligible_markers
+        from tests.backend._roh_fixtures import (
+            ELIGIBLE_MARKER_COUNT,
+            seed_segment_eligible_markers,
+        )
 
         _, sample_engine, _ = sample_with_findings
         seed_segment_eligible_markers(sample_engine)
-        finding_id = self._insert_legacy_roh(sample_engine, snps_used=600_000)
+        finding_id = self._insert_legacy_roh(sample_engine, snps_used=ELIGIBLE_MARKER_COUNT)
 
         result = _load_single_finding(sample_engine, finding_id=finding_id)
 
