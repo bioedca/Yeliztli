@@ -801,6 +801,54 @@ class TestEvaluabilityAtTheApi:
             ).one()
         return dedicated, _row_to_response(row, engine)
 
+    def test_generic_bound_failure_is_upgraded_across_public_read_paths(
+        self, _env: sa.Engine
+    ) -> None:
+        # The interim guard used the generic reason. When the live sample still
+        # reproduces the coordinate failure, both public mappers may replace
+        # that old non-cause with the new, actionable measurement explanation.
+        import json as _json
+
+        with _env.begin() as conn:
+            conn.execute(sa.delete(raw_variants))
+            conn.execute(
+                sa.insert(raw_variants),
+                [
+                    {
+                        "rsid": f"out_of_bounds_{index}",
+                        "chrom": "1",
+                        "pos": 2_800_000_000 + index * 10_000,
+                        "genotype": "AG",
+                    }
+                    for index in range(200)
+                ],
+            )
+        self._insert_roh_row(
+            _env,
+            _json.dumps(
+                {
+                    "evaluable": False,
+                    "indeterminate_reason": "detail_unavailable",
+                    "froh": None,
+                    "autosomal_snps_used": 200,
+                }
+            ),
+        )
+
+        dedicated, generic = self._read_direct_paths(_env)
+        assert dedicated is not None
+        assert dedicated.evaluable is False
+        assert dedicated.froh is None
+        assert dedicated.indeterminate_reason == "measurement_out_of_bounds"
+        assert "expected grch37 coordinates" in dedicated.finding_text.lower()
+        assert "re-running" not in dedicated.finding_text.lower()
+
+        assert generic.detail is not None
+        assert generic.detail["evaluable"] is False
+        assert generic.detail["froh"] is None
+        assert generic.detail["indeterminate_reason"] == "measurement_out_of_bounds"
+        assert "expected grch37 coordinates" in generic.finding_text.lower()
+
     @pytest.mark.parametrize("bad_froh", [-3, 12, -0.0001, 1.0001])
     def test_out_of_range_froh_is_withheld_not_served(
         self, _env: sa.Engine, client: TestClient, bad_froh: float

@@ -86,12 +86,18 @@ MIN_EVALUABLE_AUTOSOMAL_SNPS = MIN_ROH_SNPS
 # ``RohResult.indeterminate_reason`` vocabulary.
 INSUFFICIENT_AUTOSOMAL_MARKERS = "insufficient_autosomal_markers"
 NO_SEGMENT_ELIGIBLE_REGION = "no_segment_eligible_region"
+MEASUREMENT_OUT_OF_BOUNDS = "measurement_out_of_bounds"
 DETAIL_UNAVAILABLE = "detail_unavailable"
 
 # A stored reason is honoured only if it is one of these: the narrative branches
 # on the value, so an unrecognised one would silently take another cause's wording.
 _KNOWN_INDETERMINATE_REASONS = frozenset(
-    {INSUFFICIENT_AUTOSOMAL_MARKERS, NO_SEGMENT_ELIGIBLE_REGION, DETAIL_UNAVAILABLE}
+    {
+        INSUFFICIENT_AUTOSOMAL_MARKERS,
+        NO_SEGMENT_ELIGIBLE_REGION,
+        MEASUREMENT_OUT_OF_BOUNDS,
+        DETAIL_UNAVAILABLE,
+    }
 )
 
 # FROH denominator: the autosomal genome length (~2.77 Gb), McQuillan 2008
@@ -218,6 +224,17 @@ def _segment_eligible_region_exists(by_chrom: dict[str, list[tuple[int, str]]]) 
     return False
 
 
+def _coordinates_within_measurement_bounds(
+    by_chrom: dict[str, list[tuple[int, str]]],
+) -> bool:
+    """Whether every callable coordinate fits the persisted ROH shape."""
+    return all(
+        0 <= position <= _AUTOSOMAL_GENOME_BP
+        for chromosome in by_chrom.values()
+        for position, _state in chromosome
+    )
+
+
 def _scan_chromosome(chrom: str, snps: list[tuple[int, str]]) -> list[RohSegment]:
     """Detect non-overlapping ROH with a local heterozygote-density guard.
 
@@ -273,16 +290,12 @@ def detect_roh(sample_engine: sa.Engine) -> RohResult:
     # autosomal upper bound. Keep the detector/reader contract fail-closed: a
     # scan containing a coordinate the persisted-shape validator cannot vouch
     # for must never write an evaluable row that becomes unreadable immediately.
-    if any(
-        position < 0 or position > _AUTOSOMAL_GENOME_BP
-        for chromosome in by_chrom.values()
-        for position, _state in chromosome
-    ):
+    if not _coordinates_within_measurement_bounds(by_chrom):
         logger.warning(
             "roh_coordinate_out_of_range",
             autosomal_snps=autosomal_snps,
             coordinate_ceiling_bp=_AUTOSOMAL_GENOME_BP,
-            reason=DETAIL_UNAVAILABLE,
+            reason=MEASUREMENT_OUT_OF_BOUNDS,
         )
         return RohResult(
             segments=[],
@@ -290,7 +303,7 @@ def detect_roh(sample_engine: sa.Engine) -> RohResult:
             total_roh_kb=0.0,
             longest_kb=0.0,
             autosomal_snps_used=autosomal_snps,
-            indeterminate_reason=DETAIL_UNAVAILABLE,
+            indeterminate_reason=MEASUREMENT_OUT_OF_BOUNDS,
         )
 
     # Evaluability is decided before any segment interpretation: if no region
@@ -333,7 +346,7 @@ def detect_roh(sample_engine: sa.Engine) -> RohResult:
             total_roh_kb=total_kb,
             froh_denominator_kb=AUTOSOMAL_GENOME_KB,
             autosomal_snps=autosomal_snps,
-            reason=DETAIL_UNAVAILABLE,
+            reason=MEASUREMENT_OUT_OF_BOUNDS,
         )
         return RohResult(
             segments=[],
@@ -341,7 +354,7 @@ def detect_roh(sample_engine: sa.Engine) -> RohResult:
             total_roh_kb=0.0,
             longest_kb=0.0,
             autosomal_snps_used=autosomal_snps,
-            indeterminate_reason=DETAIL_UNAVAILABLE,
+            indeterminate_reason=MEASUREMENT_OUT_OF_BOUNDS,
         )
     longest_kb = max((s.length_kb for s in segments), default=0.0)
     froh = round(total_kb / AUTOSOMAL_GENOME_KB, 5) if total_kb else 0.0
@@ -367,14 +380,25 @@ def unevaluable_text(autosomal_snps_used: int, reason: str) -> str:
 
     Kept separate and public so the API can serve it for findings persisted
     before the evaluability gate existed, whose stored text asserts the very
-    negative this gate withholds. The cause is stated explicitly because the
-    two reasons are genuinely different: too few markers overall, versus enough
-    markers that are nowhere arranged into a region a run could occupy.
+    negative this gate withholds. Supported causes have distinct wording: an
+    unreadable stored blob, a measurement outside the method's fixed bounds,
+    too few markers overall, or enough markers that are nowhere arranged into
+    a region a run could occupy.
 
     ``reason`` is deliberately required. It once defaulted, and a caller that
     resolved the correct reason then omitted it silently paired that reason
     with the other cause's wording — every call site must state which applies.
     """
+    if reason == MEASUREMENT_OUT_OF_BOUNDS:
+        return (
+            "Runs of homozygosity are not being reported: the imported autosomal "
+            "coordinate range or the resulting ROH spans fell outside the fixed "
+            "measurement bounds used for FROH, so no bounded estimate can be shown. "
+            "Check that the imported file uses the expected GRCh37 coordinates and "
+            "that its positions are intact. If those are correct, this fixed-"
+            "denominator method cannot report FROH for this input. This is a "
+            "measurement-consistency limitation, not a finding about your genome."
+        )
     if reason == DETAIL_UNAVAILABLE:
         return (
             "Runs of homozygosity are not being reported: the stored result for "
@@ -389,13 +413,18 @@ def unevaluable_text(autosomal_snps_used: int, reason: str) -> str:
             f"fewer than the {MIN_ROH_SNPS} homozygous SNPs any single reported "
             f"run must itself contain"
         )
-    else:
+    elif reason == NO_SEGMENT_ELIGIBLE_REGION:
         cause = (
             f"no autosome carries {MIN_ROH_SNPS} typed markers spanning "
             f"{MIN_ROH_KB} kb without a coverage gap, which is the smallest "
             f"region a reported run could occupy ({autosomal_snps_used} "
             f"callable autosomal SNP(s) in total)"
         )
+    else:
+        # Direct callers get the same fail-closed behavior as stored-detail
+        # validation: a future/unrecognized reason must not silently inherit a
+        # factual coverage narrative it never established.
+        return unevaluable_text(autosomal_snps_used, DETAIL_UNAVAILABLE)
     return (
         f"Runs of homozygosity were not assessed: {cause}, so no run could have "
         f"been reported whatever the genome contains. No FROH estimate is given, "
@@ -405,8 +434,8 @@ def unevaluable_text(autosomal_snps_used: int, reason: str) -> str:
     )
 
 
-def _sample_coverage(sample_engine: sa.Engine) -> tuple[int, bool]:
-    """Return ``(callable_autosomal_markers, could_emit_a_segment)`` for a sample.
+def _sample_coverage(sample_engine: sa.Engine) -> tuple[int, bool, bool]:
+    """Return marker count, segment eligibility, and coordinate validity.
 
     Lets a *legacy* row — which records a marker count at best — be judged by
     the same rule as a fresh scan, and lets a row that records no count at all
@@ -428,7 +457,11 @@ def _sample_coverage(sample_engine: sa.Engine) -> tuple[int, bool]:
     fix is a cheaper eligibility probe, not trusting the blob again.
     """
     by_chrom = _read_autosomal_states(sample_engine)
-    return sum(len(v) for v in by_chrom.values()), _segment_eligible_region_exists(by_chrom)
+    return (
+        sum(len(v) for v in by_chrom.values()),
+        _segment_eligible_region_exists(by_chrom),
+        _coordinates_within_measurement_bounds(by_chrom),
+    )
 
 
 def _in_range(value: Any, ceiling: float) -> bool:
@@ -455,6 +488,19 @@ def _is_measured_quantity(value: Any) -> bool:
     publish.
     """
     return _in_range(value, AUTOSOMAL_GENOME_KB)
+
+
+def _stored_measurement_exceeds_bounds(detail: dict[str, Any]) -> bool:
+    """Whether a legacy blob itself records an over-bound FROH or total."""
+    raw_froh = detail.get("froh")
+    total_kb = detail.get("total_roh_kb")
+    return (
+        isinstance(raw_froh, int | float) and not isinstance(raw_froh, bool) and raw_froh > 1.0
+    ) or (
+        isinstance(total_kb, int | float)
+        and not isinstance(total_kb, bool)
+        and total_kb > AUTOSOMAL_GENOME_KB
+    )
 
 
 def _reason_supported_by(count: int, reason: str, eligible: bool | None = None) -> str:
@@ -1079,7 +1125,7 @@ def evaluability_from_detail(
     # so the dedicated and generic read paths expose the same safe metadata.
     if count_present and not counted:
         if sample_engine is not None:
-            observed, _eligible = _sample_coverage(sample_engine)
+            observed, _eligible, _coordinates_valid = _sample_coverage(sample_engine)
             return False, observed, DETAIL_UNAVAILABLE
         return False, 0, DETAIL_UNAVAILABLE
 
@@ -1118,6 +1164,20 @@ def evaluability_from_detail(
             # reason set would raise instead of withholding the drifted row.
             if not isinstance(reason, str) or reason not in _KNOWN_INDETERMINATE_REASONS:
                 return False, snps_used, DETAIL_UNAVAILABLE
+            # Unlike a generic unreadable-detail verdict, this reason records a
+            # concrete measurement outcome. Re-run the current detector before
+            # repeating it so a re-imported sample cannot inherit a stale cause.
+            if (
+                reason in {MEASUREMENT_OUT_OF_BOUNDS, DETAIL_UNAVAILABLE}
+                and sample_engine is not None
+            ):
+                current = detect_roh(sample_engine)
+                supported = current.indeterminate_reason == MEASUREMENT_OUT_OF_BOUNDS
+                return (
+                    False,
+                    current.autosomal_snps_used,
+                    MEASUREMENT_OUT_OF_BOUNDS if supported else DETAIL_UNAVAILABLE,
+                )
             # The coverage-dependent reasons quote the marker count in their
             # narrative, so honouring one without a recorded count would assert
             # "0 callable autosomal SNP(s)" for a sample nobody counted. Read
@@ -1134,10 +1194,14 @@ def evaluability_from_detail(
             if reason != DETAIL_UNAVAILABLE and not counted:
                 if sample_engine is None:
                     return False, 0, DETAIL_UNAVAILABLE
-                observed, eligible = _sample_coverage(sample_engine)
+                observed, eligible, coordinates_valid = _sample_coverage(sample_engine)
+                if not coordinates_valid:
+                    return False, observed, MEASUREMENT_OUT_OF_BOUNDS
                 return False, observed, _reason_supported_by(observed, str(reason), eligible)
             if reason == NO_SEGMENT_ELIGIBLE_REGION and sample_engine is not None:
-                observed, eligible = _sample_coverage(sample_engine)
+                observed, eligible, coordinates_valid = _sample_coverage(sample_engine)
+                if not coordinates_valid:
+                    return False, observed, MEASUREMENT_OUT_OF_BOUNDS
                 return False, observed, _reason_supported_by(observed, str(reason), eligible)
             return False, snps_used, _reason_supported_by(snps_used, str(reason))
         # An explicit `true` is not self-certifying either: it falls through to
@@ -1152,7 +1216,7 @@ def evaluability_from_detail(
     # the observed count in both corrected representations.
     if detail.get("indeterminate_reason") is not None:
         if sample_engine is not None:
-            observed, _eligible = _sample_coverage(sample_engine)
+            observed, _eligible, _coordinates_valid = _sample_coverage(sample_engine)
             return False, observed, DETAIL_UNAVAILABLE
         return False, snps_used, DETAIL_UNAVAILABLE
     if not counted:
@@ -1160,7 +1224,9 @@ def evaluability_from_detail(
         # state is unavailable — never split the difference.
         if sample_engine is None:
             return False, 0, DETAIL_UNAVAILABLE
-        observed, eligible = _sample_coverage(sample_engine)
+        observed, eligible, coordinates_valid = _sample_coverage(sample_engine)
+        if not coordinates_valid:
+            return False, observed, MEASUREMENT_OUT_OF_BOUNDS
         if not eligible:
             return False, observed, NO_SEGMENT_ELIGIBLE_REGION
     elif sample_engine is not None:
@@ -1178,7 +1244,9 @@ def evaluability_from_detail(
         # one quotes is the count that explains it: a narrative reading
         # "insufficient markers" beside the 361 the sample does hold would state
         # a cause its own number contradicts.
-        observed, eligible = _sample_coverage(sample_engine)
+        observed, eligible, coordinates_valid = _sample_coverage(sample_engine)
+        if not coordinates_valid:
+            return False, observed, MEASUREMENT_OUT_OF_BOUNDS
         if observed < MIN_EVALUABLE_AUTOSOMAL_SNPS:
             return False, observed, INSUFFICIENT_AUTOSOMAL_MARKERS
         if snps_used < MIN_EVALUABLE_AUTOSOMAL_SNPS:
@@ -1206,6 +1274,15 @@ def evaluability_from_detail(
     # row with no recorded count, the current observation supplies that bound.
     callable_snps = min(snps_used, observed) if counted else observed
     if not has_metric or not _companion_metrics_readable(detail, callable_snps):
+        # Results written before the bounded-measurement reason existed may
+        # carry the exact over-bound metric that the current detector now
+        # withholds, or only the older generic failure. Upgrade the explanation
+        # only after today's sample independently reproduces that outcome; a
+        # malformed/stale blob must never self-certify the more specific cause.
+        if sample_engine is not None and _stored_measurement_exceeds_bounds(detail):
+            current = detect_roh(sample_engine)
+            if current.indeterminate_reason == MEASUREMENT_OUT_OF_BOUNDS:
+                return False, current.autosomal_snps_used, MEASUREMENT_OUT_OF_BOUNDS
         return False, observed, DETAIL_UNAVAILABLE
     return True, observed, None
 

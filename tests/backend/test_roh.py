@@ -19,6 +19,7 @@ import sqlalchemy as sa
 from backend.analysis.roh import (
     AUTOSOMAL_GENOME_KB,
     DETAIL_UNAVAILABLE,
+    MEASUREMENT_OUT_OF_BOUNDS,
     MIN_ROH_SNPS,
     MODULE,
     NO_SEGMENT_ELIGIBLE_REGION,
@@ -26,6 +27,7 @@ from backend.analysis.roh import (
     detect_roh,
     evaluability_from_detail,
     store_roh_findings,
+    unevaluable_text,
 )
 from backend.db.tables import findings, raw_variants
 
@@ -138,6 +140,101 @@ class TestStoredEvaluability:
                 "autosomal_snps_used": 361,
             }
         ) == (False, 361, DETAIL_UNAVAILABLE)
+
+    def test_unknown_direct_reason_uses_generic_narrative(self) -> None:
+        text = unevaluable_text(361, "some_future_reason").lower()
+
+        assert "could not be read or validated" in text
+        assert "no autosome carries" not in text
+
+    def test_legacy_metric_cannot_bypass_current_coordinate_bounds(
+        self, sample_engine: sa.Engine
+    ) -> None:
+        # This is the pre-gate shape from the final local-review witness: a
+        # measured zero with no explicit verdict. Ingestion permits the 2.8-Gb
+        # positions, but a fresh detector withholds them, so legacy validation
+        # must reach the same result rather than serving FROH=0.
+        _seed(sample_engine, _run("1", 2_800_000_000, 200, genotype="AG"))
+        detail = {
+            "froh": 0.0,
+            "total_roh_kb": 0.0,
+            "longest_kb": 0.0,
+            "n_segments": 0,
+            "autosomal_snps_used": 200,
+            "segments": [],
+        }
+
+        assert evaluability_from_detail(detail, sample_engine) == (
+            False,
+            200,
+            MEASUREMENT_OUT_OF_BOUNDS,
+        )
+
+    def test_stored_measurement_reason_is_revalidated_against_current_sample(
+        self, sample_engine: sa.Engine
+    ) -> None:
+        # A re-import can replace the input beneath a persisted finding. Do not
+        # keep claiming an out-of-bounds measurement after the current detector
+        # proves the ordinary replacement sample is measurable.
+        _seed(sample_engine, _run("1", 1_000_000, 200))
+        detail = {
+            "evaluable": False,
+            "indeterminate_reason": MEASUREMENT_OUT_OF_BOUNDS,
+            "froh": None,
+            "autosomal_snps_used": 200,
+        }
+
+        assert evaluability_from_detail(detail, sample_engine) == (
+            False,
+            200,
+            DETAIL_UNAVAILABLE,
+        )
+
+    @pytest.mark.parametrize("stored_count", [None, 30], ids=["missing", "stale"])
+    def test_generic_reason_reports_current_count_after_revalidation(
+        self, sample_engine: sa.Engine, stored_count: int | None
+    ) -> None:
+        # Once the current detector has run to check whether the generic reason
+        # can be upgraded, its observed count is authoritative. Do not pair the
+        # resulting current verdict with a missing-count default or stale count.
+        _seed(sample_engine, _run("1", 1_000_000, 200))
+        detail = {
+            "evaluable": False,
+            "indeterminate_reason": DETAIL_UNAVAILABLE,
+            "froh": None,
+        }
+        if stored_count is not None:
+            detail["autosomal_snps_used"] = stored_count
+
+        assert evaluability_from_detail(detail, sample_engine) == (
+            False,
+            200,
+            DETAIL_UNAVAILABLE,
+        )
+
+    def test_unrelated_malformed_metric_reads_current_sample_once(
+        self, sample_engine: sa.Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # A malformed value that is not an old over-bound writer result stays
+        # generic. Re-running the full detector after the coverage scan would
+        # read a 594k-marker sample twice merely to rediscover that safe answer.
+        import backend.analysis.roh as roh
+
+        _seed(sample_engine, _run("1", 1_000_000, 200))
+        original = roh._read_autosomal_states
+        reads = 0
+
+        def counted_read(engine: sa.Engine):
+            nonlocal reads
+            reads += 1
+            return original(engine)
+
+        monkeypatch.setattr(roh, "_read_autosomal_states", counted_read)
+
+        assert evaluability_from_detail(
+            {"froh": -3, "autosomal_snps_used": 200}, sample_engine
+        ) == (False, 200, DETAIL_UNAVAILABLE)
+        assert reads == 1
 
 
 class TestDetection:
@@ -427,7 +524,7 @@ class TestStorage:
         result = detect_roh(sample_engine)
 
         assert not result.evaluable
-        assert result.indeterminate_reason == DETAIL_UNAVAILABLE
+        assert result.indeterminate_reason == MEASUREMENT_OUT_OF_BOUNDS
         assert result.autosomal_snps_used == 200
         assert result.froh is None
         assert result.segments == []
@@ -444,8 +541,10 @@ class TestStorage:
         assert evaluability_from_detail(detail, sample_engine) == (
             False,
             200,
-            DETAIL_UNAVAILABLE,
+            MEASUREMENT_OUT_OF_BOUNDS,
         )
+        assert "expected grch37 coordinates" in row.finding_text.lower()
+        assert "re-running" not in row.finding_text.lower()
 
     def test_coordinate_span_above_denominator_is_withheld_end_to_end(
         self, sample_engine: sa.Engine
@@ -478,10 +577,24 @@ class TestStorage:
         assert round(candidate_total / 2_770_000, 5) == 1.02271
 
         _seed(sample_engine, rows)
+        # A pre-guard writer could have persisted this exact over-bound shape.
+        # Its generic parse failure is upgraded only because the current scan
+        # independently reproduces the bounded-measurement failure.
+        assert evaluability_from_detail(
+            {
+                "froh": 1.02271,
+                "total_roh_kb": candidate_total,
+                "longest_kb": max(candidate_lengths),
+                "n_segments": 21,
+                "autosomal_snps_used": 5_798,
+            },
+            sample_engine,
+        ) == (False, 5_798, MEASUREMENT_OUT_OF_BOUNDS)
+
         result = detect_roh(sample_engine)
 
         assert not result.evaluable
-        assert result.indeterminate_reason == DETAIL_UNAVAILABLE
+        assert result.indeterminate_reason == MEASUREMENT_OUT_OF_BOUNDS
         assert result.autosomal_snps_used == 5_798
         assert result.froh is None
         assert result.segments == []
@@ -493,7 +606,7 @@ class TestStorage:
             row = conn.execute(sa.select(findings).where(findings.c.module == MODULE)).one()
         detail = json.loads(row.detail_json)
         assert detail["evaluable"] is False
-        assert detail["indeterminate_reason"] == DETAIL_UNAVAILABLE
+        assert detail["indeterminate_reason"] == MEASUREMENT_OUT_OF_BOUNDS
         assert detail["froh"] is None
         assert detail["total_roh_kb"] is None
         assert detail["longest_kb"] is None
@@ -502,9 +615,10 @@ class TestStorage:
         assert evaluability_from_detail(detail, sample_engine) == (
             False,
             5_798,
-            DETAIL_UNAVAILABLE,
+            MEASUREMENT_OUT_OF_BOUNDS,
         )
-        assert "could not be read or validated" in row.finding_text.lower()
+        assert "fixed-denominator method" in row.finding_text.lower()
+        assert "re-running" not in row.finding_text.lower()
 
     def test_stores_single_summary_finding(self, sample_engine: sa.Engine) -> None:
         _seed(sample_engine, _run("1", 1_000_000, 200))
