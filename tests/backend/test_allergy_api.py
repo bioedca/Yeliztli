@@ -572,13 +572,13 @@ def _covered_cross_module_finding() -> dict:
     }
 
 
-def _pgx_prescribing_alert(drug: str) -> dict:
-    """A presentable Pharmacogenomics prescribing alert for ``drug``."""
+def _pgx_prescribing_alert(drug: str, gene: str = "HLA-B") -> dict:
+    """A presentable Pharmacogenomics prescribing alert for ``gene``/``drug``."""
     return {
         "module": "pharmacogenomics",
         "category": "prescribing_alert",
         "evidence_level": 4,
-        "gene_symbol": "HLA-B",
+        "gene_symbol": gene,
         "rsid": None,
         "finding_text": f"{drug} prescribing alert.",
         "diplotype": "*57:01/*57:01",
@@ -667,6 +667,25 @@ class TestPGxHandoffAvailability:
                 *PATHWAY_SUMMARY_FINDINGS,
                 _covered_cross_module_finding(),
                 _pgx_prescribing_alert("warfarin"),
+            ],
+        )
+        assert self._cross_module(client)["pgx_guidance_available"] is False
+
+    def test_withheld_when_the_pgx_result_is_for_another_gene(
+        self, _env: tuple[sa.Engine, sa.Engine]
+    ) -> None:
+        """A same-drug result on an unrelated gene does not interpret this alert.
+
+        The alert is about HLA-B*57:01; a CYP2C9/abacavir result says nothing
+        about it, so the handoff stays withheld.
+        """
+        sample_engine, _ = _env
+        client = _client_with(
+            sample_engine,
+            [
+                *PATHWAY_SUMMARY_FINDINGS,
+                _covered_cross_module_finding(),
+                _pgx_prescribing_alert("abacavir", gene="CYP2C9"),
             ],
         )
         assert self._cross_module(client)["pgx_guidance_available"] is False

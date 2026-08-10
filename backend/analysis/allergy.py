@@ -750,26 +750,34 @@ def _compute_histamine_combined(
 # ── Cross-module references ──────────────────────────────────────────────
 
 
-def _pgx_can_call_gene(gene: str) -> bool:
-    """Whether the PGx diplotype caller supports this guideline's gene.
+def _callable_guideline_genes(gene: str) -> list[str]:
+    """Split a guideline's gene key into the genes the PGx caller supports.
 
     Multi-gene guidelines are stored under a synthetic ``A/B`` key (#2007), so
-    every component must be callable for the joint recommendation to resolve.
+    every component must be callable for the joint recommendation to resolve;
+    when it does, the row covers each component gene.
     """
     parts = [part.strip().upper() for part in gene.split("/") if part.strip()]
-    return bool(parts) and all(part in CPIC_GENES for part in parts)
+    if not parts or not all(part in CPIC_GENES for part in parts):
+        return []
+    return parts
 
 
-def pgx_covered_drugs(reference_engine: sa.Engine) -> set[str]:
-    """Return the lowercased drug names Pharmacogenomics can advise on.
+def pgx_covered_gene_drugs(reference_engine: sa.Engine) -> set[tuple[str, str]]:
+    """Return the ``(GENE, drug)`` pairs Pharmacogenomics can advise on.
 
     A cross-module handoff to PGx is only honest when the destination can
-    actually produce guidance, which takes more than a guideline row: the row's
-    gene must be one the PGx caller supports (``CPIC_GENES`` — no HLA gene is,
-    and a row PGx cannot call renders as ``not_assessed``), and the gene-drug
-    pair must not be under a prescribing hold. Reading the PGx module's own
-    guideline table and gene set keeps the two in step, so extending PGx to the
-    CPIC HLA guidelines would restore the handoff with no change here.
+    actually produce guidance *for the gene the alert is about*, which takes
+    more than a guideline row naming the drug: the row's gene must be one the
+    PGx caller supports (``CPIC_GENES`` — no HLA gene is, and a row PGx cannot
+    call renders as ``not_assessed``), and the pair must not be under a
+    prescribing hold. The gene is carried through rather than collapsed, so a
+    guideline for the same drug on an unrelated callable gene cannot license an
+    HLA handoff that PGx still cannot interpret.
+
+    Reading the PGx module's own guideline table and gene set keeps the two in
+    step, so extending PGx to the CPIC HLA guidelines would restore the handoff
+    with no change here.
 
     Fails closed — a missing or unreadable ``cpic_guidelines`` table yields an
     empty set, which withholds the link rather than promising guidance that the
@@ -783,21 +791,24 @@ def pgx_covered_drugs(reference_engine: sa.Engine) -> set[str]:
     except sa.exc.SQLAlchemyError:
         logger.warning("allergy_pgx_coverage_unavailable")
         return set()
-    return {
-        drug.strip().lower()
-        for gene, drug in rows
-        if gene
-        and drug
-        and _pgx_can_call_gene(gene)
-        and not is_prescribing_alert_withheld(gene, drug)
-    }
+
+    covered: set[tuple[str, str]] = set()
+    for gene, drug in rows:
+        if not gene or not drug:
+            continue
+        normalized_drug = drug.strip().lower()
+        for component in _callable_guideline_genes(gene):
+            if is_prescribing_alert_withheld(component, drug):
+                continue
+            covered.add((component, normalized_drug))
+    return covered
 
 
 def _generate_cross_module_findings(
     pathway_results: list[PathwayResult],
     panel: AllergyPanel,
     hla_proxy_info: dict[str, HLAProxyInfo],
-    covered_drugs: set[str],
+    covered_gene_drugs: set[tuple[str, str]],
 ) -> list[CrossModuleFinding]:
     """Generate cross-module reference findings.
 
@@ -811,8 +822,9 @@ def _generate_cross_module_findings(
 
     The finding is always emitted — it is the vehicle for the drug
     hypersensitivity alert — but ``pgx_guidance_available`` is only true when
-    ``covered_drugs`` holds the drug the panel names, so the UI can withhold a
-    handoff the destination cannot honour (#2020).
+    ``covered_gene_drugs`` holds this finding's own gene paired with the drug
+    the panel names, so the UI can withhold a handoff the destination cannot
+    honour (#2020).
     """
     cross_findings: list[CrossModuleFinding] = []
     seen_keys: set[tuple[str, str]] = set()
@@ -836,7 +848,7 @@ def _generate_cross_module_findings(
             pgx_guidance_available = (
                 target_module == "pharmacogenomics"
                 and drug is not None
-                and drug.strip().lower() in covered_drugs
+                and (snp_result.gene.strip().upper(), drug.strip().lower()) in covered_gene_drugs
             )
 
             # Build cross-module finding text
@@ -1030,7 +1042,7 @@ def score_allergy_pathways(
         pathway_results,
         panel,
         hla_proxy_info,
-        pgx_covered_drugs(reference_engine),
+        pgx_covered_gene_drugs(reference_engine),
     )
 
     # Identify GWAS-matched rsids for annotation_coverage bitmask

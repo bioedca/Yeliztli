@@ -40,7 +40,7 @@ from backend.analysis.allergy import (
     _score_snp,
     _stored_snp_detail,
     load_allergy_panel,
-    pgx_covered_drugs,
+    pgx_covered_gene_drugs,
     score_allergy_pathways,
     store_allergy_findings,
     update_annotation_coverage_gwas,
@@ -2229,6 +2229,23 @@ class TestPGxHandoffGating:
         assert alert is not None
         assert alert.detail["pgx_guidance_available"] is False
 
+    def test_same_drug_on_another_gene_still_withholds_the_handoff(
+        self,
+        panel: AllergyPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """Abacavir guidance on an unrelated callable gene is not HLA-B guidance."""
+        _seed_variants(sample_engine, [("rs2395029", "6", 31431780, "TG")])
+        _seed_hla_proxies(reference_engine)
+        _seed_cpic_guidelines(reference_engine, [("CYP2C9", "abacavir")])
+
+        result = score_allergy_pathways(panel, sample_engine, reference_engine)
+
+        alert = self._drug_alert(result)
+        assert alert is not None
+        assert alert.detail["pgx_guidance_available"] is False
+
     def test_covered_drug_offers_the_handoff(
         self,
         panel: AllergyPanel,
@@ -2307,15 +2324,18 @@ class TestPGxHandoffGating:
             assert cross.detail["pgx_guidance_available"] is False
 
 
-class TestPGxCoveredDrugs:
-    """``pgx_covered_drugs`` reads the PGx module's own capability, not a row count."""
+class TestPGxCoveredGeneDrugs:
+    """``pgx_covered_gene_drugs`` reads capability per gene, not a drug name."""
 
-    def test_returns_lowercased_callable_drug_names(self, reference_engine: sa.Engine) -> None:
+    def test_returns_callable_gene_drug_pairs(self, reference_engine: sa.Engine) -> None:
         _seed_cpic_guidelines(
             reference_engine,
             [("CYP2C9", "Warfarin"), ("CYP2C19", " clopidogrel ")],
         )
-        assert pgx_covered_drugs(reference_engine) == {"warfarin", "clopidogrel"}
+        assert pgx_covered_gene_drugs(reference_engine) == {
+            ("CYP2C9", "warfarin"),
+            ("CYP2C19", "clopidogrel"),
+        }
 
     def test_uncallable_gene_is_not_coverage(self, reference_engine: sa.Engine) -> None:
         """No HLA gene is in CPIC_GENES, so its rows render as not_assessed."""
@@ -2323,7 +2343,20 @@ class TestPGxCoveredDrugs:
             reference_engine,
             [("HLA-B", "abacavir"), ("HLA-A", "carbamazepine"), ("CYP2C9", "warfarin")],
         )
-        assert pgx_covered_drugs(reference_engine) == {"warfarin"}
+        assert pgx_covered_gene_drugs(reference_engine) == {("CYP2C9", "warfarin")}
+
+    def test_same_drug_on_another_gene_does_not_cover_this_gene(
+        self, reference_engine: sa.Engine
+    ) -> None:
+        """A callable but unrelated gene cannot license an HLA handoff.
+
+        A CYP2C9/abacavir guideline means PGx can say something about abacavir
+        — but nothing about HLA-B*57:01, which is what the allergy alert is.
+        """
+        _seed_cpic_guidelines(reference_engine, [("CYP2C9", "abacavir")])
+        covered = pgx_covered_gene_drugs(reference_engine)
+        assert ("CYP2C9", "abacavir") in covered
+        assert ("HLA-B", "abacavir") not in covered
 
     def test_withheld_pair_is_not_coverage(self, reference_engine: sa.Engine) -> None:
         """A held gene-drug pair renders as ``withheld``, never as guidance."""
@@ -2331,7 +2364,7 @@ class TestPGxCoveredDrugs:
             reference_engine,
             [("CYP2D6", "tamoxifen"), ("CYP2D6", "codeine")],
         )
-        assert pgx_covered_drugs(reference_engine) == {"codeine"}
+        assert pgx_covered_gene_drugs(reference_engine) == {("CYP2D6", "codeine")}
 
     def test_multi_gene_key_needs_every_component_callable(
         self, reference_engine: sa.Engine
@@ -2341,12 +2374,15 @@ class TestPGxCoveredDrugs:
             reference_engine,
             [("TPMT/NUDT15", "azathioprine"), ("TPMT/HLA-B", "fictional")],
         )
-        assert pgx_covered_drugs(reference_engine) == {"azathioprine"}
+        assert pgx_covered_gene_drugs(reference_engine) == {
+            ("TPMT", "azathioprine"),
+            ("NUDT15", "azathioprine"),
+        }
 
     def test_empty_table_yields_no_coverage(self, reference_engine: sa.Engine) -> None:
-        assert pgx_covered_drugs(reference_engine) == set()
+        assert pgx_covered_gene_drugs(reference_engine) == set()
 
     def test_missing_table_fails_closed(self, tmp_path: Path) -> None:
         """An un-built reference DB withholds every link rather than raising."""
         engine = sa.create_engine(f"sqlite:///{tmp_path / 'bare.db'}")
-        assert pgx_covered_drugs(engine) == set()
+        assert pgx_covered_gene_drugs(engine) == set()
