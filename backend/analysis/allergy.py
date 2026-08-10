@@ -54,7 +54,9 @@ from backend.analysis.pathway_coverage import (
     missing_rsid_groups,
     pathway_summary_text,
 )
+from backend.analysis.pharmacogenomics import is_prescribing_alert_withheld
 from backend.analysis.zygosity import is_no_call
+from backend.annotation.cpic import CPIC_GENES
 from backend.annotation.engine import GWAS_BIT
 from backend.annotation.gwas import gwas_matched_rsids
 from backend.db.tables import (
@@ -748,13 +750,26 @@ def _compute_histamine_combined(
 # ── Cross-module references ──────────────────────────────────────────────
 
 
+def _pgx_can_call_gene(gene: str) -> bool:
+    """Whether the PGx diplotype caller supports this guideline's gene.
+
+    Multi-gene guidelines are stored under a synthetic ``A/B`` key (#2007), so
+    every component must be callable for the joint recommendation to resolve.
+    """
+    parts = [part.strip().upper() for part in gene.split("/") if part.strip()]
+    return bool(parts) and all(part in CPIC_GENES for part in parts)
+
+
 def pgx_covered_drugs(reference_engine: sa.Engine) -> set[str]:
     """Return the lowercased drug names Pharmacogenomics can advise on.
 
-    A cross-module handoff to PGx is only honest when the destination holds a
-    CPIC guideline for the named drug. ``cpic_guidelines`` is the PGx module's
-    own source of truth, so asking it directly keeps the two in step: ingesting
-    the CPIC HLA guidelines would restore the handoff with no code change.
+    A cross-module handoff to PGx is only honest when the destination can
+    actually produce guidance, which takes more than a guideline row: the row's
+    gene must be one the PGx caller supports (``CPIC_GENES`` — no HLA gene is,
+    and a row PGx cannot call renders as ``not_assessed``), and the gene-drug
+    pair must not be under a prescribing hold. Reading the PGx module's own
+    guideline table and gene set keeps the two in step, so extending PGx to the
+    CPIC HLA guidelines would restore the handoff with no change here.
 
     Fails closed — a missing or unreadable ``cpic_guidelines`` table yields an
     empty set, which withholds the link rather than promising guidance that the
@@ -762,11 +777,20 @@ def pgx_covered_drugs(reference_engine: sa.Engine) -> set[str]:
     """
     try:
         with reference_engine.connect() as conn:
-            rows = conn.execute(sa.select(cpic_guidelines.c.drug).distinct()).fetchall()
+            rows = conn.execute(
+                sa.select(cpic_guidelines.c.gene, cpic_guidelines.c.drug).distinct()
+            ).fetchall()
     except sa.exc.SQLAlchemyError:
         logger.warning("allergy_pgx_coverage_unavailable")
         return set()
-    return {row[0].strip().lower() for row in rows if row[0]}
+    return {
+        drug.strip().lower()
+        for gene, drug in rows
+        if gene
+        and drug
+        and _pgx_can_call_gene(gene)
+        and not is_prescribing_alert_withheld(gene, drug)
+    }
 
 
 def _generate_cross_module_findings(

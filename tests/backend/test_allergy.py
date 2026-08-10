@@ -45,6 +45,7 @@ from backend.analysis.allergy import (
     store_allergy_findings,
     update_annotation_coverage_gwas,
 )
+from backend.annotation.cpic import CPIC_GENES
 from backend.annotation.engine import GWAS_BIT
 from backend.db.tables import (
     annotated_variants,
@@ -2148,22 +2149,22 @@ class TestEvidenceGatingCap:
 # ── PGx handoff gating (#2020) ────────────────────────────────────────────
 
 
-def _seed_cpic_guidelines(engine: sa.Engine, drugs: list[str]) -> None:
-    """Seed cpic_guidelines with one row per drug the PGx module can advise on."""
+def _seed_cpic_guidelines(engine: sa.Engine, pairs: list[tuple[str, str]]) -> None:
+    """Seed cpic_guidelines with one (gene, drug) row per pair."""
     with engine.begin() as conn:
         conn.execute(
             sa.insert(cpic_guidelines),
             [
                 {
-                    "gene": "HLA-B",
+                    "gene": gene,
                     "drug": drug,
-                    "phenotype": "Positive",
+                    "phenotype": "Poor Metabolizer",
                     "activity_score": None,
                     "recommendation": "Test recommendation.",
                     "classification": "A",
                     "guideline_url": "https://example.invalid/guideline",
                 }
-                for drug in drugs
+                for gene, drug in pairs
             ],
         )
 
@@ -2192,8 +2193,11 @@ class TestPGxHandoffGating:
         """Abacavir carrier: alert still emitted, but the PGx link is withheld."""
         _seed_variants(sample_engine, [("rs2395029", "6", 31431780, "TG")])
         _seed_hla_proxies(reference_engine)
-        # The bundled guideline table's real drug set — abacavir is not in it.
-        _seed_cpic_guidelines(reference_engine, ["warfarin", "clopidogrel", "codeine"])
+        # The bundled guideline table's real shape — abacavir is not in it.
+        _seed_cpic_guidelines(
+            reference_engine,
+            [("CYP2C9", "warfarin"), ("CYP2C19", "clopidogrel"), ("CYP2D6", "codeine")],
+        )
 
         result = score_allergy_pathways(panel, sample_engine, reference_engine)
 
@@ -2203,20 +2207,50 @@ class TestPGxHandoffGating:
         assert alert.detail["drug"] == "abacavir"
         assert alert.detail["pgx_guidance_available"] is False
 
-    def test_covered_drug_offers_the_handoff(
+    def test_uncallable_gene_row_still_withholds_the_handoff(
         self,
         panel: AllergyPanel,
         sample_engine: sa.Engine,
         reference_engine: sa.Engine,
     ) -> None:
-        """Ingesting the CPIC abacavir guideline restores the link, no code change.
+        """A guideline row PGx cannot call is not coverage.
 
-        Discriminates the gate from a hardcoded ``False``: same sample, same
-        panel, only the reference table differs.
+        Ingesting CPIC's HLA-B/abacavir guideline without teaching the PGx
+        caller to call HLA-B leaves the destination rendering ``not_assessed``,
+        so row presence alone must not restore the link.
         """
         _seed_variants(sample_engine, [("rs2395029", "6", 31431780, "TG")])
         _seed_hla_proxies(reference_engine)
-        _seed_cpic_guidelines(reference_engine, ["warfarin", "Abacavir"])
+        _seed_cpic_guidelines(reference_engine, [("HLA-B", "abacavir")])
+
+        result = score_allergy_pathways(panel, sample_engine, reference_engine)
+
+        alert = self._drug_alert(result)
+        assert alert is not None
+        assert alert.detail["pgx_guidance_available"] is False
+
+    def test_covered_drug_offers_the_handoff(
+        self,
+        panel: AllergyPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Extending PGx to call HLA-B restores the link, with no change here.
+
+        Discriminates the gate from a hardcoded ``False``: same sample, same
+        panel, only the destination's capability differs.
+        """
+        monkeypatch.setattr(
+            "backend.analysis.allergy.CPIC_GENES",
+            CPIC_GENES | {"HLA-B"},
+        )
+        _seed_variants(sample_engine, [("rs2395029", "6", 31431780, "TG")])
+        _seed_hla_proxies(reference_engine)
+        _seed_cpic_guidelines(
+            reference_engine,
+            [("CYP2C9", "warfarin"), ("HLA-B", "Abacavir")],
+        )
 
         result = score_allergy_pathways(panel, sample_engine, reference_engine)
 
@@ -2229,15 +2263,20 @@ class TestPGxHandoffGating:
         panel: AllergyPanel,
         sample_engine: sa.Engine,
         reference_engine: sa.Engine,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Negative control: a hom-ref sample gets no drug alert at all.
 
-        Without this, a gate that always emitted the alert would still pass the
-        two carrier assertions above.
+        Seeded so that a carrier *would* be offered the link, so a gate that
+        always emitted the alert would still pass the assertions above.
         """
+        monkeypatch.setattr(
+            "backend.analysis.allergy.CPIC_GENES",
+            CPIC_GENES | {"HLA-B"},
+        )
         _seed_variants(sample_engine, [("rs2395029", "6", 31431780, "TT")])
         _seed_hla_proxies(reference_engine)
-        _seed_cpic_guidelines(reference_engine, ["warfarin", "Abacavir"])
+        _seed_cpic_guidelines(reference_engine, [("HLA-B", "abacavir")])
 
         result = score_allergy_pathways(panel, sample_engine, reference_engine)
 
@@ -2257,7 +2296,7 @@ class TestPGxHandoffGating:
         """
         _seed_variants(sample_engine, [("rs20541", "5", 131995964, "AA")])
         _seed_hla_proxies(reference_engine)
-        _seed_cpic_guidelines(reference_engine, ["warfarin"])
+        _seed_cpic_guidelines(reference_engine, [("CYP2C9", "warfarin")])
 
         result = score_allergy_pathways(panel, sample_engine, reference_engine)
 
@@ -2269,11 +2308,40 @@ class TestPGxHandoffGating:
 
 
 class TestPGxCoveredDrugs:
-    """``pgx_covered_drugs`` reads the PGx module's own guideline table."""
+    """``pgx_covered_drugs`` reads the PGx module's own capability, not a row count."""
 
-    def test_returns_lowercased_drug_names(self, reference_engine: sa.Engine) -> None:
-        _seed_cpic_guidelines(reference_engine, ["Warfarin", " clopidogrel "])
+    def test_returns_lowercased_callable_drug_names(self, reference_engine: sa.Engine) -> None:
+        _seed_cpic_guidelines(
+            reference_engine,
+            [("CYP2C9", "Warfarin"), ("CYP2C19", " clopidogrel ")],
+        )
         assert pgx_covered_drugs(reference_engine) == {"warfarin", "clopidogrel"}
+
+    def test_uncallable_gene_is_not_coverage(self, reference_engine: sa.Engine) -> None:
+        """No HLA gene is in CPIC_GENES, so its rows render as not_assessed."""
+        _seed_cpic_guidelines(
+            reference_engine,
+            [("HLA-B", "abacavir"), ("HLA-A", "carbamazepine"), ("CYP2C9", "warfarin")],
+        )
+        assert pgx_covered_drugs(reference_engine) == {"warfarin"}
+
+    def test_withheld_pair_is_not_coverage(self, reference_engine: sa.Engine) -> None:
+        """A held gene-drug pair renders as ``withheld``, never as guidance."""
+        _seed_cpic_guidelines(
+            reference_engine,
+            [("CYP2D6", "tamoxifen"), ("CYP2D6", "codeine")],
+        )
+        assert pgx_covered_drugs(reference_engine) == {"codeine"}
+
+    def test_multi_gene_key_needs_every_component_callable(
+        self, reference_engine: sa.Engine
+    ) -> None:
+        """The synthetic ``A/B`` joint key (#2007) resolves only if both are callable."""
+        _seed_cpic_guidelines(
+            reference_engine,
+            [("TPMT/NUDT15", "azathioprine"), ("TPMT/HLA-B", "fictional")],
+        )
+        assert pgx_covered_drugs(reference_engine) == {"azathioprine"}
 
     def test_empty_table_yields_no_coverage(self, reference_engine: sa.Engine) -> None:
         assert pgx_covered_drugs(reference_engine) == set()
