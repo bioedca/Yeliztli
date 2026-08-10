@@ -33,6 +33,8 @@ export interface DrugListItem {
   drug: string
   genes: string[]
   classification: string | null
+  /** Every pair for this drug is held from patient-specific prescribing output. */
+  prescribing_guidance_withheld?: boolean
 }
 
 export interface DrugListResponse {
@@ -56,6 +58,9 @@ export interface GeneEffect {
   involved_rsids: string[]
   /** See {@link GeneSummary.gene_caveat}. Mirrors a backend disclaimer (SW-E5). */
   gene_caveat: string | null
+  /** Whether this endpoint can provide patient-specific prescribing guidance.
+   * `withheld` is an evidence hold, not a failed gene call or normal result. */
+  recommendation_status: "available" | "not_assessed" | "withheld"
   /** True when the guideline gene has no sample finding (Insufficient/uncallable on
    *  the array, or not-yet-annotated): the result fields are null because it was NOT
    *  assessed, not evaluated-and-normal. Drives the "Not assessed" card state (#905). */

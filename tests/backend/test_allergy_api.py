@@ -346,7 +346,11 @@ def _env(tmp_path: Path) -> Generator[tuple[sa.Engine, sa.Engine], None, None]:
     reset_registry()
     registry = DBRegistry(settings)
 
-    with patch("backend.api.routes.allergy.get_registry", return_value=registry):
+    with (
+        patch("backend.api.dependencies.get_registry", return_value=registry),
+        patch("backend.api.routes.allergy.get_registry", return_value=registry),
+        patch("backend.services.staleness.get_registry", return_value=registry),
+    ):
         yield sample_engine, ref_engine
 
     reset_registry()
@@ -393,6 +397,30 @@ def seeded_client(
 
 
 class TestListPathways:
+    def test_sample_gate_uses_fixture_registry_not_global_singleton(
+        self,
+        seeded_client: TestClient,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """A prior test's singleton must not decide this fixture's sample gate."""
+        from backend.db import connection
+
+        unrelated_data_dir = tmp_path / "unrelated_global_registry"
+        unrelated_data_dir.mkdir()
+        (unrelated_data_dir / "samples").mkdir()
+        unrelated_engine = sa.create_engine(f"sqlite:///{unrelated_data_dir / 'reference.db'}")
+        reference_metadata.create_all(unrelated_engine)
+        unrelated_engine.dispose()
+        unrelated_registry = DBRegistry(Settings(data_dir=unrelated_data_dir))
+
+        try:
+            monkeypatch.setattr(connection, "_registry", unrelated_registry)
+            response = seeded_client.get("/api/analysis/allergy/pathways?sample_id=1")
+            assert response.status_code == 200
+        finally:
+            unrelated_registry.dispose_all()
+
     def test_returns_pathways(self, seeded_client: TestClient) -> None:
         resp = seeded_client.get("/api/analysis/allergy/pathways?sample_id=1")
         assert resp.status_code == 200

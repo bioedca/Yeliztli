@@ -39,6 +39,7 @@ function effect(over: Partial<GeneEffect> = {}): GeneEffect {
     ehr_notation: null,
     involved_rsids: [],
     gene_caveat: null,
+    recommendation_status: "available",
     not_assessed: false,
     ...over,
   }
@@ -63,6 +64,16 @@ const UNCALLED = effect({
   classification: "A",
   guideline_url: "https://cpicpgx.org/guidelines/thiopurines/",
   not_assessed: true,
+  recommendation_status: "not_assessed",
+})
+
+const WITHHELD = effect({
+  gene: "CYP2D6",
+  recommendation: "This source wording must not render.",
+  classification: "A",
+  guideline_url: "https://cpicpgx.org/guidelines/cpic-guideline-for-tamoxifen-based-on-cyp2d6/",
+  not_assessed: false,
+  recommendation_status: "withheld",
 })
 
 beforeEach(() => {
@@ -127,6 +138,25 @@ describe("DrugDetailPanel — uncalled guideline gene (#905)", () => {
     expect(screen.getByText(/NUDT15 could not be called/i)).toBeInTheDocument()
     // Exactly one gene is flagged not-assessed (NUDT15, not TPMT).
     expect(screen.getAllByText("Not assessed")).toHaveLength(1)
+  })
+})
+
+describe("DrugDetailPanel — withheld clinical recommendation (#2019)", () => {
+  it("shows an evidence hold without misrepresenting a gene as uncallable or leaking advice", () => {
+    mockLookup.mockReturnValue(q({ data: { drug: "tamoxifen", gene_effects: [WITHHELD] } }))
+    mockPgx.mockReturnValue(
+      pgxResult([sources({ gene_symbol: "CYP2D6", drug: "tamoxifen" })]),
+    )
+
+    render(<DrugDetailPanel drugName="tamoxifen" sampleId={1} onClose={vi.fn()} />)
+
+    expect(screen.getAllByText("Clinical recommendation withheld")).toHaveLength(1)
+    expect(screen.getByText(/independent clinical validation is unresolved/i)).toBeInTheDocument()
+    expect(screen.queryByText("Not assessed")).not.toBeInTheDocument()
+    expect(screen.queryByText("This source wording must not render.")).not.toBeInTheDocument()
+    expect(screen.queryByText("CPIC Level A")).not.toBeInTheDocument()
+    expect(screen.queryByText("CPIC Guideline")).not.toBeInTheDocument()
+    expect(screen.queryByText("Cross-source evidence")).not.toBeInTheDocument()
   })
 })
 

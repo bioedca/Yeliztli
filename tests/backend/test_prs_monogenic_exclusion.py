@@ -119,6 +119,49 @@ class TestAnnotateMonogenicExclusion:
         assert "You carry a reportable monogenic finding in BRCA2" in out.monogenic_note
         assert "dominant result" in out.monogenic_note
 
+    def test_nested_held_payload_does_not_derive_a_carrier_notice(
+        self,
+        sample_engine: sa.Engine,
+    ) -> None:
+        """A retained source row cannot reappear through derived PRS context."""
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(findings).values(
+                    module="cancer",
+                    category="monogenic_variant",
+                    gene_symbol="BRCA2",
+                    zygosity="het",
+                    finding_text="Scalar-safe carrier shell",
+                    evidence_level=4,
+                    detail_json=json.dumps(
+                        {
+                            "legacy": {
+                                "gene": "CYP2D6",
+                                "drug": "tamoxifen",
+                                "recommendation": "Must not enter PRS context.",
+                            }
+                        }
+                    ),
+                )
+            )
+        result = PRSResult(
+            weight_set_name="x",
+            trait="breast_cancer",
+            module="cancer",
+            source_ancestry="EUR",
+            source_study="s",
+            source_pmid="1",
+            sample_size=1,
+            raw_score=0.0,
+            monogenic_genes=["BRCA2"],
+        )
+
+        out = annotate_monogenic_exclusion(result, sample_engine)
+
+        assert out.monogenic_carrier_genes == []
+        assert out.monogenic_note is not None
+        assert "You carry" not in out.monogenic_note
+
     def test_homref_carrier_excluded(self, sample_engine: sa.Engine) -> None:
         # A non-carrier zygosity must not count as a carrier overlap.
         _insert_monogenic(sample_engine, module="cancer", gene="BRCA1", zygosity="hom_ref")

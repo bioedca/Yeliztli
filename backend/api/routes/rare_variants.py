@@ -21,6 +21,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from starlette.responses import StreamingResponse
 
+from backend.analysis.pharmacogenomics import (
+    is_patient_presentable_finding_payload,
+    is_patient_presentable_response_payload,
+)
 from backend.analysis.rare_variant_finder import (
     DEFAULT_AF_THRESHOLD,
     RareVariantFilter,
@@ -164,6 +168,23 @@ class RareVariantRunResponse(BaseModel):
 
 
 # ── Helpers ──────────────────────────────────────────────────────────
+
+
+def _payload_gate_projection(payload: dict[str, Any]) -> dict[str, Any]:
+    """Omit only an absent intergenic gene label for aggregate gating.
+
+    Stored rows first pass the full finding gate. A response model legitimately
+    represents an intergenic locus as ``gene_symbol=None``; the generic
+    prescribing gate reserves a present-but-blank identifier for malformed
+    legacy clinical records. Keep the public DTO unchanged while omitting only
+    None or empty labels from the gate-only projection. Whitespace or non-string
+    values remain visible to the generic gate and therefore fail closed.
+    """
+    return {
+        key: value
+        for key, value in payload.items()
+        if key != "gene_symbol" or not (value is None or isinstance(value, str) and value == "")
+    }
 
 
 def _get_sample_engine(sample_id: int) -> sa.Engine:
@@ -330,18 +351,25 @@ def list_rare_variant_findings(
 
     with sample_engine.connect() as conn:
         where_clause = findings.c.module == "rare_variants"
-        total = conn.execute(
-            sa.select(sa.func.count()).select_from(findings).where(where_clause)
-        ).scalar_one()
-
         query = (
             sa.select(findings)
             .where(where_clause)
             .order_by(findings.c.evidence_level.desc(), findings.c.gene_symbol, findings.c.id)
         )
-        if limit is not None:
-            query = query.limit(limit).offset(offset)
-        rows = conn.execute(query).fetchall()
+        # Apply pagination only after the full payload gate. A scalar-safe
+        # legacy row can otherwise consume a raw SQL page and leak its
+        # existence through the response total or leave a later presentable row
+        # unreachable. Stream all rows to preserve the safe total without
+        # materializing a large rare-variant table for a bounded page.
+        rows: list[sa.Row] = []
+        total = 0
+        page_end = offset + limit if limit is not None else None
+        for row in conn.execute(query):
+            if not is_patient_presentable_finding_payload(row._mapping):
+                continue
+            if page_end is None or offset <= total < page_end:
+                rows.append(row)
+            total += 1
 
     items: list[RareVariantFindingResponse] = []
     for row in rows:
@@ -365,7 +393,12 @@ def list_rare_variant_findings(
             )
         )
 
-    return RareVariantFindingsListResponse(items=items, total=total)
+    response = RareVariantFindingsListResponse(items=items, total=total)
+    if not is_patient_presentable_response_payload(
+        [_payload_gate_projection(item.model_dump(mode="json")) for item in items]
+    ):
+        return RareVariantFindingsListResponse(items=[], total=0)
+    return response
 
 
 @router.post("/run")
@@ -424,8 +457,37 @@ def export_rare_variants_tsv(
             .order_by(findings.c.evidence_level.desc(), findings.c.gene_symbol)
         ).fetchall()
 
+    export_rows: list[dict[str, Any]] = []
+    for row in rows:
+        if not is_patient_presentable_finding_payload(row._mapping):
+            continue
+        detail = _parse_detail_json(row.id, row.detail_json)
+        export_rows.append(
+            {
+                "rsid": row.rsid or "",
+                "gene_symbol": row.gene_symbol or "",
+                "category": row.category or "",
+                "evidence_level": row.evidence_level or 1,
+                "zygosity": row.zygosity or "",
+                "clinvar_significance": row.clinvar_significance or "",
+                "conditions": row.conditions or "",
+                "consequence": detail.get("consequence", ""),
+                "gnomad_af_global": detail.get("af_global"),
+                "cadd_phred": detail.get("cadd_phred"),
+                "revel": detail.get("revel"),
+                "finding_text": row.finding_text or "",
+            }
+        )
+
+    # Rows have already passed their own stored-payload gate. Recheck the
+    # decoded export DTOs as one response so safe fragments cannot reassemble
+    # a held prescribing pair across separate source records.
+    if not is_patient_presentable_response_payload(
+        [_payload_gate_projection(row) for row in export_rows]
+    ):
+        export_rows = []
+
     buf = io.StringIO()
-    # Header
     tsv_columns = [
         "rsid",
         "gene_symbol",
@@ -442,21 +504,20 @@ def export_rare_variants_tsv(
     ]
     buf.write("\t".join(tsv_columns) + "\n")
 
-    for row in rows:
-        detail = _parse_detail_json(row.id, row.detail_json)
+    for row in export_rows:
         values = [
-            row.rsid or "",
-            row.gene_symbol or "",
-            row.category or "",
-            str(row.evidence_level or 1),
-            row.zygosity or "",
-            row.clinvar_significance or "",
-            row.conditions or "",
-            detail.get("consequence", ""),
-            str(detail.get("af_global", "")) if detail.get("af_global") is not None else "",
-            str(detail.get("cadd_phred", "")) if detail.get("cadd_phred") is not None else "",
-            str(detail.get("revel", "")) if detail.get("revel") is not None else "",
-            row.finding_text or "",
+            row["rsid"],
+            row["gene_symbol"],
+            row["category"],
+            str(row["evidence_level"]),
+            row["zygosity"],
+            row["clinvar_significance"],
+            row["conditions"],
+            row["consequence"],
+            str(row["gnomad_af_global"]) if row["gnomad_af_global"] is not None else "",
+            str(row["cadd_phred"]) if row["cadd_phred"] is not None else "",
+            str(row["revel"]) if row["revel"] is not None else "",
+            row["finding_text"],
         ]
         buf.write("\t".join(values) + "\n")
 
@@ -491,14 +552,7 @@ def export_rare_variants_vcf(
 
     with sample_engine.connect() as conn:
         finding_rows = conn.execute(
-            sa.select(
-                findings.c.id,
-                findings.c.rsid,
-                findings.c.gene_symbol,
-                findings.c.clinvar_significance,
-                findings.c.evidence_level,
-                findings.c.detail_json,
-            ).where(findings.c.module == "rare_variants")
+            sa.select(findings).where(findings.c.module == "rare_variants")
         ).fetchall()
 
     # Rebuild each record from the finding's own stored locus/allele identity,
@@ -506,6 +560,8 @@ def export_rare_variants_vcf(
     # records whose stored chrom/pos is missing sort last).
     records: list[dict[str, Any]] = []
     for row in finding_rows:
+        if not is_patient_presentable_finding_payload(row._mapping):
+            continue
         detail = _parse_detail_json(row.id, row.detail_json)
         records.append(
             {
@@ -521,6 +577,13 @@ def export_rare_variants_vcf(
                 "evidence_level": row.evidence_level,
             }
         )
+    # The VCF body is derived from these decoded records. Gate the complete
+    # collection before legacy coordinate backfill or serialization so an
+    # unsafe aggregate produces the established header-only export.
+    if not is_patient_presentable_response_payload(
+        [_payload_gate_projection(record) for record in records]
+    ):
+        records = []
     # Backward-compat backfill: findings stored before #1575 have no chrom/pos in
     # detail_json. For those (only), fall back to the annotated_variants row for
     # the finding's rsid so an already-analysed sample that has not been re-run

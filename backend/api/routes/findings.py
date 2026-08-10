@@ -22,7 +22,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 from pydantic import BaseModel
 
+from backend.analysis.pharmacogenomics import (
+    is_patient_presentable_finding_payload,
+    is_patient_presentable_response_payload,
+    patient_visible_finding_clause,
+)
 from backend.analysis.roh import normalize_legacy_finding_text, normalize_legacy_row
+from backend.analysis.svg_renderer import is_safe_svg_marker, render_finding_svg
 from backend.api.dependencies import require_fresh_sample
 from backend.api.gating import gated_modules_to_hide
 from backend.db.connection import get_registry
@@ -30,6 +36,8 @@ from backend.db.tables import findings, samples
 from backend.services.lai_production_coverage import policy_qualified_finding_clause
 
 logger = logging.getLogger(__name__)
+
+_PAYLOAD_FILTER_BATCH_SIZE = 500
 
 
 router = APIRouter(
@@ -123,6 +131,11 @@ def _get_sample_engine(sample_id: int) -> sa.Engine:
     return engine
 
 
+def _is_patient_presentable_row(row: sa.Row) -> bool:
+    """Apply the structured-payload presentation gate to one database row."""
+    return is_patient_presentable_finding_payload(row._mapping)
+
+
 def _row_to_response(row: sa.Row, sample_engine: sa.Engine | None = None) -> FindingResponse:
     """Convert a findings table row to a FindingResponse."""
     pmids: list[str] = []
@@ -189,6 +202,13 @@ def _row_to_response(row: sa.Row, sample_engine: sa.Engine | None = None) -> Fin
     )
 
 
+def _responses_are_patient_presentable(responses: list[FindingResponse]) -> bool:
+    """Check an assembled findings collection without conflating null fields."""
+    return is_patient_presentable_response_payload(
+        [response.model_dump(mode="json", exclude_none=True) for response in responses]
+    )
+
+
 # ── Endpoints ────────────────────────────────────────────────────────
 
 
@@ -220,7 +240,10 @@ def list_findings(
     """
     engine = _get_sample_engine(sample_id)
 
-    clauses = [policy_qualified_finding_clause(findings.c.category)]
+    clauses = [
+        policy_qualified_finding_clause(findings.c.category),
+        patient_visible_finding_clause(findings.c),
+    ]
     if module:
         clauses.append(findings.c.module == module)
     if category:
@@ -249,15 +272,35 @@ def list_findings(
         findings.c.id,
     )
 
-    # Bound the response when paginating (#1303). The deterministic order above
-    # makes limit/offset stable across pages.
-    if limit is not None:
-        stmt = stmt.limit(limit).offset(offset)
+    if limit is None:
+        with engine.connect() as conn:
+            rows = conn.execute(stmt).fetchall()
+        response = [
+            _row_to_response(row, engine) for row in rows if _is_patient_presentable_row(row)
+        ]
+        return response if _responses_are_patient_presentable(response) else []
 
+    # Apply limit/offset after the payload gate. A raw SQL window can contain
+    # quarantined legacy rows, so slicing it first would produce short pages and
+    # make callers falsely infer that no later presentable rows exist.
+    visible_rows: list[sa.Row] = []
+    raw_offset = 0
+    required_visible_rows = offset + limit
     with engine.connect() as conn:
-        rows = conn.execute(stmt).fetchall()
+        while len(visible_rows) < required_visible_rows:
+            batch = conn.execute(
+                stmt.limit(_PAYLOAD_FILTER_BATCH_SIZE).offset(raw_offset)
+            ).fetchall()
+            if not batch:
+                break
+            visible_rows.extend(row for row in batch if _is_patient_presentable_row(row))
+            raw_offset += len(batch)
+            if len(batch) < _PAYLOAD_FILTER_BATCH_SIZE:
+                break
 
-    return [_row_to_response(r, engine) for r in rows]
+    page = visible_rows[offset:required_visible_rows]
+    response = [_row_to_response(row, engine) for row in page]
+    return response if _responses_are_patient_presentable(response) else []
 
 
 @router.get("/summary", response_model=FindingsSummaryResponse)
@@ -274,47 +317,15 @@ def findings_summary(
     hidden_modules = gated_modules_to_hide(engine)
 
     with engine.connect() as conn:
-        # Per-module aggregation
-        agg_stmt = (
-            sa.select(
-                findings.c.module,
-                sa.func.count().label("cnt"),
-                sa.func.max(findings.c.evidence_level).label("max_ev"),
-            )
-            .where(policy_qualified_finding_clause(findings.c.category))
-            .group_by(findings.c.module)
-            .order_by(sa.desc("max_ev"))
-        )
-        if hidden_modules:
-            agg_stmt = agg_stmt.where(findings.c.module.not_in(hidden_modules))
-        agg_rows = conn.execute(agg_stmt).fetchall()
-
-        # True evidence-tier totals for the page headers.  The findings list is
-        # deliberately windowed (#1303), so counting its loaded rows makes the
-        # lowest visible tier look complete and silently changes the number on
-        # every "Load more" click (#1994).  Aggregate here over the same policy
-        # and disclosure-gate scope as the rest of the summary.  NULL evidence
-        # levels normalize to 0 because the frontend renders both as its single
-        # "Unknown Evidence" group.
-        normalized_evidence_level = sa.func.coalesce(findings.c.evidence_level, 0)
-        evidence_agg_stmt = (
-            sa.select(
-                findings.c.module,
-                normalized_evidence_level.label("evidence_level"),
-                sa.func.count().label("cnt"),
-            )
-            .where(policy_qualified_finding_clause(findings.c.category))
-            .group_by(findings.c.module, normalized_evidence_level)
-            .order_by(sa.desc(normalized_evidence_level), findings.c.module)
-        )
-        if hidden_modules:
-            evidence_agg_stmt = evidence_agg_stmt.where(findings.c.module.not_in(hidden_modules))
-        evidence_agg_rows = conn.execute(evidence_agg_stmt).fetchall()
-
-        # All findings for top finding per module
+        # The complete row set is already needed for each module's top finding.
+        # Aggregate it below after the Python payload gate so counts cannot
+        # disclose an unsafe legacy payload that SQL scalar columns cannot see.
         all_stmt = (
             sa.select(findings)
-            .where(policy_qualified_finding_clause(findings.c.category))
+            .where(
+                policy_qualified_finding_clause(findings.c.category),
+                patient_visible_finding_clause(findings.c),
+            )
             .order_by(
                 sa.desc(sa.func.coalesce(findings.c.evidence_level, 0)),
                 findings.c.module,
@@ -324,23 +335,32 @@ def findings_summary(
             all_stmt = all_stmt.where(findings.c.module.not_in(hidden_modules))
         all_rows = conn.execute(all_stmt).fetchall()
 
-    # Build per-module summary
-    total = 0
-    modules: list[FindingSummaryItem] = []
+    all_rows = [row for row in all_rows if _is_patient_presentable_row(row)]
+
+    # Build per-module and evidence summaries from the same payload-safe rows.
+    module_counts: dict[str, int] = {}
+    module_max_evidence: dict[str, int | None] = {}
     evidence_counts: dict[int, int] = {}
-    evidence_counts_by_module: dict[str, list[FindingEvidenceLevelCount]] = {}
-
-    for agg in evidence_agg_rows:
-        level = int(agg.evidence_level)
-        count = int(agg.cnt)
-        evidence_counts[level] = evidence_counts.get(level, 0) + count
-        evidence_counts_by_module.setdefault(agg.module, []).append(
-            FindingEvidenceLevelCount(evidence_level=level, count=count)
-        )
-
-    # Index findings by module for top finding lookup
+    evidence_counts_by_module: dict[str, dict[int, int]] = {}
     top_by_module: dict[str, str] = {}
+
     for r in all_rows:
+        module = r.module
+        module_counts[module] = module_counts.get(module, 0) + 1
+        if (
+            module not in module_max_evidence
+            or r.evidence_level is not None
+            and (
+                module_max_evidence[module] is None
+                or r.evidence_level > module_max_evidence[module]
+            )
+        ):
+            module_max_evidence[module] = r.evidence_level
+
+        level = int(r.evidence_level or 0)
+        evidence_counts[level] = evidence_counts.get(level, 0) + 1
+        per_module = evidence_counts_by_module.setdefault(module, {})
+        per_module[level] = per_module.get(level, 0) + 1
         if r.module not in top_by_module:
             # ReportBuilder renders this preview, so an uncorrected pre-gate ROH
             # row would keep showing "typical result" on the module card while
@@ -355,23 +375,31 @@ def findings_summary(
                 r.module, r.category, r.finding_text, detail_blob, engine
             )
 
-    for agg in agg_rows:
-        total += agg.cnt
+    modules = []
+    for module in sorted(
+        module_counts,
+        key=lambda current: (-(module_max_evidence[current] or 0), current),
+    ):
         modules.append(
             FindingSummaryItem(
-                module=agg.module,
-                count=agg.cnt,
-                max_evidence_level=agg.max_ev,
-                top_finding_text=top_by_module.get(agg.module),
-                evidence_level_counts=evidence_counts_by_module.get(agg.module, []),
+                module=module,
+                count=module_counts[module],
+                max_evidence_level=module_max_evidence[module],
+                top_finding_text=top_by_module.get(module),
+                evidence_level_counts=[
+                    FindingEvidenceLevelCount(evidence_level=level, count=count)
+                    for level, count in sorted(
+                        evidence_counts_by_module[module].items(), reverse=True
+                    )
+                ],
             )
         )
 
     # High-confidence: top 5 findings with >=3 stars
     high_conf = [_row_to_response(r, engine) for r in all_rows if (r.evidence_level or 0) >= 3][:5]
 
-    return FindingsSummaryResponse(
-        total_findings=total,
+    response = FindingsSummaryResponse(
+        total_findings=sum(module_counts.values()),
         modules=modules,
         evidence_level_counts=[
             FindingEvidenceLevelCount(evidence_level=level, count=count)
@@ -379,6 +407,16 @@ def findings_summary(
         ],
         high_confidence_findings=high_conf,
     )
+    if not is_patient_presentable_response_payload(
+        response.model_dump(mode="json", exclude_none=True)
+    ):
+        return FindingsSummaryResponse(
+            total_findings=0,
+            modules=[],
+            evidence_level_counts=[],
+            high_confidence_findings=[],
+        )
+    return response
 
 
 @router.get("/{finding_id}/svg")
@@ -386,18 +424,19 @@ def get_finding_svg(
     finding_id: int,
     sample_id: int = Query(..., description="Sample ID"),
 ) -> Response:
-    """Return the pre-rendered SVG for a finding."""
-    engine, sample_dir = _get_sample_engine_and_dir(sample_id)
+    """Return a freshly rendered SVG card for a presentable finding."""
+    engine, _sample_dir = _get_sample_engine_and_dir(sample_id)
 
     with engine.connect() as conn:
         row = conn.execute(
-            sa.select(findings.c.module, findings.c.svg_path).where(
+            sa.select(findings).where(
                 findings.c.id == finding_id,
                 policy_qualified_finding_clause(findings.c.category),
+                patient_visible_finding_clause(findings.c),
             )
         ).fetchone()
 
-    if row is None:
+    if row is None or not _is_patient_presentable_row(row):
         raise HTTPException(status_code=404, detail="Finding not found")
 
     # A gated module's SVG card (e.g. the APOE ε4/Alzheimer card) renders the same
@@ -409,13 +448,12 @@ def get_finding_svg(
         raise HTTPException(status_code=404, detail="Finding not found")
 
     svg_path_str = row.svg_path
-    if not svg_path_str:
+    if not is_safe_svg_marker(svg_path_str):
         raise HTTPException(status_code=404, detail="No SVG available for this finding")
 
-    # svg_path is stored relative to the sample directory for portability
-    svg_file = sample_dir / svg_path_str
-    if not svg_file.exists():
-        raise HTTPException(status_code=404, detail="SVG file not found on disk")
-
-    svg_content = svg_file.read_text(encoding="utf-8")
+    # Persisted SVGs are untrusted legacy artifacts. Regenerate this card from
+    # the already-gated structured finding instead of serving a mutable file.
+    svg_content = render_finding_svg(dict(row._mapping))
+    if svg_content is None:
+        raise HTTPException(status_code=404, detail="No SVG available for this finding")
     return Response(content=svg_content, media_type="image/svg+xml")

@@ -18,6 +18,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from backend.analysis.ebmd_prs import EBMD_CONTEXT, EBMD_PGS_ID
+from backend.analysis.pharmacogenomics import is_patient_presentable_finding_payload
 from backend.analysis.prs import PRS_HIGHER_IS_PROTECTIVE
 from backend.api.dependencies import require_fresh_sample
 from backend.db.connection import get_registry
@@ -105,7 +106,7 @@ def get_ebmd_prs(
         ).fetchone()
 
     prs = None
-    if row is not None:
+    if row is not None and is_patient_presentable_finding_payload(row._mapping):
         d = _parse_detail(row)
         prs = EbmdPrsResponse(
             name=d.get("name", ""),

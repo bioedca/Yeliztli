@@ -156,7 +156,7 @@ def test_v22_repairs_all_exact_legacy_alerts_in_place(sample_engine: sa.Engine) 
         migrated = list(rows)
         version = conn.execute(sa.text("PRAGMA user_version")).scalar_one()
 
-    assert version == SAMPLE_SCHEMA_VERSION == 24
+    assert version == SAMPLE_SCHEMA_VERSION == 25
     assert [row["id"] for row in migrated] == [101, 102, 103, 104]
     for row in migrated:
         drug = row["drug"]
@@ -268,7 +268,7 @@ def test_v22_leaves_malformed_current_custom_and_near_miss_alerts_untouched(
 
     assert after == before
     assert len(after) == len(rows)
-    assert version == 24
+    assert version == SAMPLE_SCHEMA_VERSION
 
 
 def test_v22_removes_only_exact_legacy_diff_entries_and_recomputes_counts(
@@ -357,7 +357,7 @@ def test_v22_leaves_malformed_diff_json_untouched(sample_engine: sa.Engine) -> N
             ).scalar_one()
             == "{not-json"
         )
-        assert conn.execute(sa.text("PRAGMA user_version")).scalar_one() == 24
+        assert conn.execute(sa.text("PRAGMA user_version")).scalar_one() == SAMPLE_SCHEMA_VERSION
 
 
 def test_v22_repairs_legacy_alert_when_provenance_column_is_absent() -> None:
@@ -410,7 +410,7 @@ def test_v22_repairs_legacy_alert_when_provenance_column_is_absent() -> None:
         "azathioprine", CURRENT_RECOMMENDATIONS["azathioprine"]
     )
     assert json.loads(row.detail_json)["recommendation"] == CURRENT_RECOMMENDATIONS["azathioprine"]
-    assert version == 24
+    assert version == SAMPLE_SCHEMA_VERSION
 
 
 def test_v22_locks_before_reading_or_writing_findings_and_diff(

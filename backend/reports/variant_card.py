@@ -29,10 +29,16 @@ from starlette.concurrency import run_in_threadpool
 
 from backend.analysis.clinvar_conditions import format_clinvar_conditions_text
 from backend.analysis.pathway_coverage import pathway_level_display_label
+from backend.analysis.pharmacogenomics import (
+    is_patient_presentable_finding_payload,
+    is_patient_presentable_response_payload,
+    patient_visible_finding_clause,
+)
 from backend.analysis.roh import normalize_legacy_finding_text
+from backend.analysis.svg_renderer import is_safe_svg_marker, render_finding_svg
 from backend.api.gating import gated_modules_to_hide
 from backend.db.tables import findings
-from backend.reports.generator import _get_sample_info, _read_svg_content
+from backend.reports.generator import _get_sample_info
 from backend.reports.module_disclaimers import MODULE_DISCLAIMERS, MODULE_DISPLAY_NAMES
 from backend.services.lai_production_coverage import policy_qualified_finding_clause
 
@@ -66,12 +72,13 @@ def _load_single_finding(
     stmt = sa.select(findings).where(
         findings.c.id == finding_id,
         policy_qualified_finding_clause(findings.c.category),
+        patient_visible_finding_clause(findings.c),
     )
 
     with engine.connect() as conn:
         row = conn.execute(stmt).fetchone()
 
-    if row is None:
+    if row is None or not is_patient_presentable_finding_payload(row._mapping):
         raise ValueError(f"Finding {finding_id} not found")
 
     # Disclosure gate (#963): the variant-card endpoints take a small, enumerable
@@ -135,6 +142,9 @@ def _load_single_finding(
         "pathway_level_display": pathway_level_display_label(row.pathway_level, detail),
         "svg_path": row.svg_path,
         "pmid_citations": pmids,
+        # This private source record is used only for fresh card generation;
+        # it must not reach the HTML template or patient-facing evidence DTO.
+        "_svg_render_input": dict(row._mapping),
     }
 
 
@@ -159,11 +169,28 @@ def render_variant_card_html(
     str
         Fully rendered HTML suitable for Playwright PDF/PNG conversion.
     """
-    engine, sample_dir, sample_name = _get_sample_info(sample_id)
+    engine, _sample_dir, sample_name = _get_sample_info(sample_id)
     finding = _load_single_finding(engine, finding_id)
 
-    # Embed SVG content
-    finding["svg_content"] = _read_svg_content(sample_dir, finding.get("svg_path"))
+    # Never embed a persisted SVG artifact. It can have changed after the
+    # source finding was evaluated, so regenerate it from the gated record.
+    render_input = finding.pop("_svg_render_input", None)
+    finding["svg_content"] = (
+        render_finding_svg(render_input)
+        if is_safe_svg_marker(finding.get("svg_path")) and isinstance(render_input, dict)
+        else None
+    )
+    svg_content = finding.get("svg_content")
+    card_evidence = {
+        **{
+            key: value
+            for key, value in finding.items()
+            if key not in {"svg_content", "svg_path", "_svg_render_input"} and value is not None
+        },
+        **({"svg_content": svg_content} if isinstance(svg_content, str) else {}),
+    }
+    if not is_patient_presentable_response_payload(card_evidence):
+        finding["svg_content"] = None
 
     # Module display name and disclaimer
     module = finding["module"]

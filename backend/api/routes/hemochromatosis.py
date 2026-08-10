@@ -17,6 +17,10 @@ import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
+from backend.analysis.pharmacogenomics import (
+    is_patient_presentable_finding_payload,
+    is_patient_presentable_response_payload,
+)
 from backend.api.dependencies import require_fresh_sample
 from backend.db.connection import get_registry
 from backend.db.tables import findings, samples
@@ -101,6 +105,8 @@ def _fetch_findings(sample_engine: sa.Engine) -> list[dict[str, Any]]:
 
     result: list[dict[str, Any]] = []
     for row in rows:
+        if not is_patient_presentable_finding_payload(row._mapping):
+            continue
         detail: dict[str, Any] = {}
         if row.detail_json:
             try:
@@ -153,7 +159,10 @@ def list_hemochromatosis_findings(
     sample_engine = _get_sample_engine(sample_id)
     raw = _fetch_findings(sample_engine)
     items = [HemochromatosisFindingResponse(**f) for f in raw]
-    return HemochromatosisFindingsListResponse(items=items, total=len(items))
+    response = HemochromatosisFindingsListResponse(items=items, total=len(items))
+    if not is_patient_presentable_response_payload(response.model_dump(mode="json")):
+        return HemochromatosisFindingsListResponse(items=[], total=0)
+    return response
 
 
 @router.post("/run", dependencies=[Depends(require_fresh_sample)])

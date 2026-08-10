@@ -18,6 +18,7 @@ from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 
 from backend.analysis.gene_validity import assess_finding_gene_validity
+from backend.analysis.pharmacogenomics import is_patient_presentable_response_payload
 from backend.api.dependencies import require_fresh_sample
 from backend.api.routes.risk_common import resolve_sample_engine
 from backend.db.connection import get_registry
@@ -82,7 +83,19 @@ def list_gene_validity(
     """
     sample_engine = resolve_sample_engine(sample_id)
     reference_engine = get_registry().reference_engine
-    return [
+    response = [
         GeneValidityResponse(**item)
         for item in assess_finding_gene_validity(sample_engine, reference_engine)
     ]
+    if not is_patient_presentable_response_payload(
+        [
+            item.model_dump(
+                mode="json",
+                exclude={"note", "pmid_citations"},
+                exclude_none=True,
+            )
+            for item in response
+        ]
+    ):
+        return []
+    return response

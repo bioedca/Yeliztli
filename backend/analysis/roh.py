@@ -446,6 +446,7 @@ _AUTOSOMAL_GENOME_BP = AUTOSOMAL_GENOME_KB * 1000
 # withheld a freshly written, entirely genuine result. This epsilon absorbs only
 # float representation, never a rounding step.
 _KB_EPSILON = 1e-6
+_FROH_EPSILON = 1e-12
 
 
 def _is_count(value: Any) -> bool:
@@ -454,12 +455,30 @@ def _is_count(value: Any) -> bool:
 
 
 _SEGMENT_FIELD_CHECKS: dict[str, Any] = {
-    "chrom": lambda v: isinstance(v, str),
+    "chrom": lambda v: isinstance(v, str) and v in _AUTOSOMES,
     "start": _is_count,
     "end": _is_count,
     "length_kb": _is_measured_quantity,
     "n_snps": _is_count,
 }
+
+
+def _segments_are_disjoint(segments: list[dict[str, Any]]) -> bool:
+    """Whether no stored interval is repeated or overlaps on one chromosome.
+
+    ``_scan_chromosome`` advances beyond each emitted marker before looking for
+    another run, but distinct rsIDs can occupy the same coordinate. Consecutive
+    runs may therefore touch at an endpoint while covering no shared span.
+    Summing a duplicate or true overlap as two independent runs would fabricate
+    both segment count and total length.
+    """
+    last_end_by_chrom: dict[str, int] = {}
+    for segment in sorted(segments, key=lambda item: (int(item["chrom"]), item["start"])):
+        previous_end = last_end_by_chrom.get(segment["chrom"])
+        if previous_end is not None and segment["start"] < previous_end:
+            return False
+        last_end_by_chrom[segment["chrom"]] = segment["end"]
+    return True
 
 
 def _segments_clear_emission_thresholds(
@@ -505,7 +524,11 @@ def _segments_clear_emission_thresholds(
     return True
 
 
-def _metrics_agree(detail: dict[str, Any], segments: list[dict[str, Any]] | None) -> bool:
+def _metrics_agree(
+    detail: dict[str, Any],
+    segments: list[dict[str, Any]] | None,
+    callable_snps: int,
+) -> bool:
     """Whether the stored metrics are consistent with each other.
 
     Per-field validity is not enough: a blob can hold nothing but well-typed,
@@ -522,12 +545,10 @@ def _metrics_agree(detail: dict[str, Any], segments: list[dict[str, Any]] | None
     are deliberately excluded -- a row written under a different
     ``_MAX_PERSISTED_SEGMENTS`` is stale, not incoherent.
 
-    ``froh`` is deliberately not cross-checked against ``total_roh_kb`` either.
-    That relation depends on the denominator convention in force when the row was
-    written, and the blob records its own ``froh_denominator_kb``; inferring
-    which applies would be guessing at a value rather than reading one, and a
-    wrong guess withholds a real measurement. Withholding on evidence is the
-    point -- withholding on a supposition is the failure this module is about.
+    ``froh`` is cross-checked only when the row records its own denominator.
+    That reads the convention from the blob instead of guessing which version
+    applied; a legacy row without it remains readable, while a row that does
+    record it cannot report a fraction inconsistent with its own total.
 
     Only relations between fields that are *both present* are checked, so a
     legacy blob recording a subset stays evaluable.
@@ -535,6 +556,21 @@ def _metrics_agree(detail: dict[str, Any], segments: list[dict[str, Any]] | None
     n_segments = detail.get("n_segments")
     total = detail.get("total_roh_kb")
     longest = detail.get("longest_kb")
+
+    params = detail.get("params")
+    if "params" in detail and not isinstance(params, dict):
+        return False
+    if isinstance(params, dict) and "froh_denominator_kb" in params:
+        denominator = params["froh_denominator_kb"]
+        froh = detail.get("froh")
+        if not _is_measured_quantity(denominator) or denominator <= 0:
+            return False
+        if (
+            total is not None
+            and froh is not None
+            and abs(froh - round(total / denominator, 5)) > _FROH_EPSILON
+        ):
+            return False
 
     # Read as a boolean, never coerced. `bool("false")` is True, and this flag is
     # the one field that *excuses* a short segment list -- so a drifted string
@@ -564,10 +600,21 @@ def _metrics_agree(detail: dict[str, Any], segments: list[dict[str, Any]] | None
     if total is not None and longest is not None and longest > total:
         return False
 
-    # ...and it cannot be shorter than a segment the blob itself lists. The cap
-    # keeps the longest, so this holds whether or not the list was truncated.
+    # ...and because persistence keeps the longest entries first, the recorded
+    # longest must equal the maximum listed value even when the list is capped.
     if longest is not None and segments:
-        if longest < max(segment["length_kb"] for segment in segments):
+        if abs(longest - max(segment["length_kb"] for segment in segments)) > _KB_EPSILON:
+            return False
+
+    if segments:
+        # Each segment's homozygous markers are drawn from the callable sample,
+        # and emitted runs are disjoint. Neither one segment nor their sum can
+        # therefore exceed the callable coverage used to vouch for this row.
+        if any(segment["n_snps"] > callable_snps for segment in segments):
+            return False
+        if sum(segment["n_snps"] for segment in segments) > callable_snps:
+            return False
+        if not _segments_are_disjoint(segments):
             return False
 
     # The total is a sum over every segment, so it must cover the ones listed --
@@ -589,7 +636,7 @@ def _metrics_agree(detail: dict[str, Any], segments: list[dict[str, Any]] | None
     return True
 
 
-def _companion_metrics_readable(detail: dict[str, Any]) -> bool:
+def _companion_metrics_readable(detail: dict[str, Any], callable_snps: int) -> bool:
     """Whether every companion metric a consumer will serve is actually readable.
 
     Vouching on ``froh`` alone let the two read paths disagree about the same
@@ -619,7 +666,7 @@ def _companion_metrics_readable(detail: dict[str, Any]) -> bool:
     # blob that raised in the ROH route. `total_roh_kb` and friends are
     # `float | None` in the response, so an explicit null is legitimate there.
     if "segments" not in detail:
-        return _metrics_agree(detail, None)
+        return _metrics_agree(detail, None, callable_snps)
     segments = detail["segments"]
     if not isinstance(segments, list):
         return False
@@ -632,7 +679,7 @@ def _companion_metrics_readable(detail: dict[str, Any]) -> bool:
         return False
     if not _segments_clear_emission_thresholds(detail, segments):
         return False
-    return _metrics_agree(detail, segments)
+    return _metrics_agree(detail, segments, callable_snps)
 
 
 def evaluability_from_detail(
@@ -770,7 +817,11 @@ def evaluability_from_detail(
     # stored `evaluable: true` nor a re-read of the sample's coverage can
     # reconstruct a measurement that was never recorded — establishing that a
     # scan *could* have run is not the same as having its result.
-    if not has_metric or not _companion_metrics_readable(detail):
+    # A re-imported sample and its stored row can disagree about coverage. A
+    # listed segment must fit both the count used when the row was written and
+    # the currently observed sample, so the lower measured bound governs.
+    callable_snps = min(snps_used, observed) if counted else observed
+    if not has_metric or not _companion_metrics_readable(detail, callable_snps):
         return False, observed, DETAIL_UNAVAILABLE
     return True, observed, None
 

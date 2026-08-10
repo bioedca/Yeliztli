@@ -21,6 +21,10 @@ import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
+from backend.analysis.pharmacogenomics import (
+    is_patient_presentable_finding_payload,
+    is_patient_presentable_response_payload,
+)
 from backend.analysis.traits import INDETERMINATE
 from backend.api.dependencies import require_fresh_sample
 from backend.db.connection import get_registry
@@ -206,6 +210,8 @@ def _fetch_traits_findings(
 
     result: list[dict[str, Any]] = []
     for row in rows:
+        if not is_patient_presentable_finding_payload(row._mapping):
+            continue
         detail: dict[str, Any] = {}
         if row.detail_json:
             try:
@@ -320,12 +326,18 @@ def list_pathways(
 
     panel = load_traits_panel()
 
-    return PathwaysResponse(
+    response = PathwaysResponse(
         items=items,
         total=len(items),
         cross_module=cross_items,
         module_disclaimer=panel.module_disclaimer,
     )
+    # The panel disclaimer is fixed reference text, not patient-result data.
+    if not is_patient_presentable_response_payload(
+        response.model_dump(mode="json", exclude={"module_disclaimer"})
+    ):
+        return PathwaysResponse(items=[], total=0, module_disclaimer=panel.module_disclaimer)
+    return response
 
 
 @router.get("/pathway/{pathway_id}", dependencies=[Depends(require_fresh_sample)])
@@ -378,24 +390,24 @@ def pathway_detail(
         recommendation = snp_finding_detail.get("recommendation")
         pmids = snp_finding.get("pmids", [])
 
-        snp_details.append(
-            SNPDetail(
-                rsid=rsid,
-                gene=sd.get("gene", ""),
-                variant_name=sd.get("variant_name", ""),
-                genotype=sd.get("genotype"),
-                category=sd.get("category", "Standard"),
-                effect_summary=sd.get("effect_summary", ""),
-                evidence_level=sd.get("evidence_level", 1),
-                trait_domain=sd.get("trait_domain"),
-                recommendation=recommendation,
-                pmids=pmids,
-                coverage_note=sd.get("coverage_note"),
-                cross_module=snp_finding_detail.get("cross_module"),
-            )
+        snp_detail = SNPDetail(
+            rsid=rsid,
+            gene=sd.get("gene", ""),
+            variant_name=sd.get("variant_name", ""),
+            genotype=sd.get("genotype"),
+            category=sd.get("category", "Standard"),
+            effect_summary=sd.get("effect_summary", ""),
+            evidence_level=sd.get("evidence_level", 1),
+            trait_domain=sd.get("trait_domain"),
+            recommendation=recommendation,
+            pmids=pmids,
+            coverage_note=sd.get("coverage_note"),
+            cross_module=snp_finding_detail.get("cross_module"),
         )
+        if is_patient_presentable_response_payload(snp_detail.model_dump(mode="json")):
+            snp_details.append(snp_detail)
 
-    return PathwayDetailResponse(
+    response = PathwayDetailResponse(
         pathway_id=pathway_id,
         pathway_name=pathway_name,
         level=(
@@ -417,6 +429,9 @@ def pathway_detail(
         pmids=pathway_summary["pmids"],
         snp_details=snp_details,
     )
+    if not is_patient_presentable_response_payload(response.model_dump(mode="json")):
+        raise HTTPException(status_code=404, detail="Pathway not found for sample.")
+    return response
 
 
 @router.get("/prs", dependencies=[Depends(require_fresh_sample)])
@@ -473,11 +488,18 @@ def list_prs(
 
     panel = load_traits_panel()
 
-    return PRSResponse(
+    response = PRSResponse(
         items=items,
         total=len(items),
         module_disclaimer=panel.module_disclaimer,
     )
+    # The panel disclaimer is code-owned reference text. The PRS findings are
+    # dynamically assembled from patient records and must be checked together.
+    if not is_patient_presentable_response_payload(
+        response.model_dump(mode="json", exclude={"module_disclaimer"})
+    ):
+        return PRSResponse(items=[], total=0, module_disclaimer=panel.module_disclaimer)
+    return response
 
 
 @router.get("/disclaimer")

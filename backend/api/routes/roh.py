@@ -15,6 +15,7 @@ import sqlalchemy as sa
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 
+from backend.analysis.pharmacogenomics import is_patient_presentable_finding_payload
 from backend.analysis.roh import (
     CATEGORY,
     DETAIL_UNAVAILABLE,
@@ -81,7 +82,7 @@ def list_findings(
         row = conn.execute(
             sa.select(findings).where(findings.c.module == MODULE, findings.c.category == CATEGORY)
         ).fetchone()
-    if row is None:
+    if row is None or not is_patient_presentable_finding_payload(row._mapping):
         return None
     # Parse detail_json and build the response defensively: a malformed or
     # schema-drifted detail blob (e.g. a row written by an older version, or an

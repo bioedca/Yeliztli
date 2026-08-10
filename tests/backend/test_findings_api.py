@@ -645,8 +645,92 @@ class TestListFindings:
             ("longest_exceeds_total", {"total_roh_kb": 100.0, "longest_kb": 900.0}),
             # ...and cannot be shorter than a segment the blob itself lists
             ("longest_below_a_listed_segment", {"longest_kb": 10.0, "segments": [_SEG]}),
+            # The persisted list is longest-first, including when truncated,
+            # so a longest value that names no listed segment is fabricated.
+            (
+                "longest_above_every_listed_segment",
+                {
+                    "n_segments": 3,
+                    "segments_truncated": True,
+                    "segments": [_SEG, {**_SEG, "chrom": "2"}],
+                    "total_roh_kb": 18600.0,
+                    "longest_kb": 10000.0,
+                },
+            ),
             # a segment that runs backwards is not a coordinate range
             ("segment_ends_before_it_starts", {"segments": [{**_SEG, "start": 9_000_000}]}),
+            # `_read_autosomal_states` can never emit these chromosomes.
+            ("segment_is_not_autosomal", {"segments": [{**_SEG, "chrom": "X"}]}),
+            # One detector run cannot emit the same marker interval twice, nor
+            # emit overlapping runs on one chromosome.
+            (
+                "duplicate_segment_interval",
+                {
+                    "n_segments": 2,
+                    "segments": [_SEG, _SEG],
+                    "total_roh_kb": 12400.0,
+                },
+            ),
+            (
+                "overlapping_segment_intervals",
+                {
+                    "n_segments": 2,
+                    "segments": [
+                        _SEG,
+                        {**_SEG, "start": 7_000_000, "end": 13_200_000},
+                    ],
+                    "total_roh_kb": 12400.0,
+                },
+            ),
+            # A segment's homozygous calls are a subset of all callable calls,
+            # and the detector's disjoint runs make that true of their sum too.
+            (
+                "segment_count_exceeds_callable_coverage",
+                {"autosomal_snps_used": 200, "segments": [{**_SEG, "n_snps": 1000}]},
+            ),
+            (
+                "segment_count_sum_exceeds_callable_coverage",
+                {
+                    "autosomal_snps_used": 200,
+                    "n_segments": 2,
+                    "segments": [
+                        {**_SEG, "n_snps": 120},
+                        {**_SEG, "chrom": "2", "n_snps": 120},
+                    ],
+                    "total_roh_kb": 12400.0,
+                },
+            ),
+            # The writer records its denominator, so a rounded FROH that does
+            # not equal total / that denominator is internally impossible.
+            (
+                "froh_disagrees_with_recorded_denominator",
+                {
+                    "froh": 1.0,
+                    "n_segments": 0,
+                    "segments": [],
+                    "total_roh_kb": 0.0,
+                    "longest_kb": 0.0,
+                    "params": {"froh_denominator_kb": 2_770_000},
+                },
+            ),
+            # Present-but-corrupt provenance is not the same thing as an absent
+            # legacy field, and an impossible denominator stays impossible even
+            # when the row omits the total needed for the arithmetic cross-check.
+            ("params_is_not_an_object", {"params": "corrupt"}),
+            (
+                "recorded_denominator_is_zero_without_total",
+                {
+                    "total_roh_kb": None,
+                    "params": {"froh_denominator_kb": 0},
+                },
+            ),
+            (
+                "recorded_denominator_exceeds_the_autosomal_genome",
+                {
+                    "total_roh_kb": None,
+                    "params": {"froh_denominator_kb": 2_770_001},
+                },
+            ),
         ],
     )
     def test_internally_contradictory_metrics_are_withheld(self, label, overrides):
@@ -719,10 +803,50 @@ class TestListFindings:
                     "n_segments": 2,
                     "segments": [
                         {**_SEG, "end": 3_048_200, "length_kb": 2048.2, "n_snps": 620},
-                        {**_SEG, "end": 3_048_200, "length_kb": 2048.2, "n_snps": 620},
+                        {
+                            **_SEG,
+                            "start": 4_000_000,
+                            "end": 6_048_200,
+                            "length_kb": 2048.2,
+                            "n_snps": 620,
+                        },
                     ],
                     "total_roh_kb": 4096.4,
                     "longest_kb": 2048.2,
+                },
+            ),
+            (
+                "segment_counts_fit_callable_coverage",
+                {
+                    "autosomal_snps_used": 240,
+                    "n_segments": 2,
+                    "segments": [
+                        {**_SEG, "n_snps": 120},
+                        {**_SEG, "chrom": "2", "n_snps": 120},
+                    ],
+                    "total_roh_kb": 12400.0,
+                },
+            ),
+            (
+                "segments_touch_at_colocated_markers_without_overlapping",
+                {
+                    "n_segments": 2,
+                    "segments": [
+                        _SEG,
+                        {
+                            **_SEG,
+                            "start": 7_200_000,
+                            "end": 13_400_000,
+                        },
+                    ],
+                    "total_roh_kb": 12400.0,
+                },
+            ),
+            (
+                "froh_matches_recorded_denominator",
+                {
+                    "froh": 0.00224,
+                    "params": {"froh_denominator_kb": 2_770_000},
                 },
             ),
             # a legacy blob recording only a subset stays evaluable
@@ -757,7 +881,7 @@ class TestListFindings:
         detail = {k: v for k, v in detail.items() if not (k in overrides and v is None)}
         response = _row_to_response(self._roh_row(finding_text="stored narrative", detail=detail))
 
-        assert response.detail["froh"] == 0.004, label
+        assert response.detail["froh"] == detail["froh"], label
         assert response.finding_text == "stored narrative", label
 
     def test_stored_reason_its_own_count_contradicts_is_downgraded(self):
@@ -1143,6 +1267,431 @@ class TestLAIPolicyQuarantine:
             with pytest.raises(HTTPException) as caught:
                 findings_route.get_finding_svg(finding_id=2, sample_id=1)
             assert caught.value.status_code == 404
+        finally:
+            sample_engine.dispose()
+
+
+class TestWithheldPrescribingAlertPresentation:
+    """#2019: a retained custom alert cannot bypass generic finding surfaces."""
+
+    async def test_list_summary_and_svg_hide_whitespace_wrapped_target(
+        self,
+        monkeypatch,
+        tmp_path,
+    ):
+        from fastapi import HTTPException
+
+        import backend.api.routes.findings as findings_route
+
+        sample_engine = sa.create_engine(f"sqlite:///{tmp_path / 'withheld_alert.db'}")
+        try:
+            create_sample_tables(sample_engine)
+            svg_dir = tmp_path / "svgs"
+            svg_dir.mkdir()
+            (svg_dir / "held.svg").write_text(
+                '<svg xmlns="http://www.w3.org/2000/svg"><text>stale advice</text></svg>',
+                encoding="utf-8",
+            )
+            (svg_dir / "nested.svg").write_text(
+                '<svg xmlns="http://www.w3.org/2000/svg"><text>nested advice</text></svg>',
+                encoding="utf-8",
+            )
+            (svg_dir / "duplicate.svg").write_text(
+                '<svg xmlns="http://www.w3.org/2000/svg"><text>duplicate advice</text></svg>',
+                encoding="utf-8",
+            )
+            (svg_dir / "split.svg").write_text(
+                '<svg xmlns="http://www.w3.org/2000/svg"><text>split advice</text></svg>',
+                encoding="utf-8",
+            )
+            with sample_engine.begin() as conn:
+                conn.execute(
+                    findings.insert().values(
+                        id=1,
+                        module="pharmacogenomics",
+                        category="prescribing_alert",
+                        evidence_level=4,
+                        gene_symbol="CYP2D6",
+                        drug="codeine",
+                        finding_text="CYP2D6/codeine control alert",
+                    )
+                )
+                conn.execute(
+                    findings.insert().values(
+                        id=2019,
+                        # Deliberately not the canonical module and with
+                        # whitespace/case variation: v25 preserves this row.
+                        module="medication_review",
+                        category="prescribing_alert",
+                        evidence_level=4,
+                        gene_symbol="\u00a0CYP2D6\u2003",
+                        drug="\vTamOxIfEn\f",
+                        finding_text="Custom retained tamoxifen clinical advice.",
+                        svg_path="svgs/held.svg",
+                    )
+                )
+                conn.execute(
+                    findings.insert().values(
+                        id=2020,
+                        # A scalar-safe shell cannot reintroduce a held pair
+                        # through recursively nested legacy detail payloads.
+                        module="pharmacogenomics",
+                        category="prescribing_alert",
+                        evidence_level=6,
+                        gene_symbol="CYP2C19",
+                        drug="clopidogrel",
+                        finding_text="CYP2C19/clopidogrel nested legacy shell",
+                        detail_json=json.dumps(
+                            {
+                                "legacy": {
+                                    " Gene ": "CYP2D6",
+                                    "DRUG": "tamoxifen",
+                                    "recommendation": "Nested tamoxifen guidance must not render.",
+                                }
+                            }
+                        ),
+                        svg_path="svgs/nested.svg",
+                    )
+                )
+                conn.execute(
+                    findings.insert().values(
+                        id=2021,
+                        # A permissive JSON parser would overwrite the first
+                        # held gene before the payload reaches the response.
+                        module="pharmacogenomics",
+                        category="prescribing_alert",
+                        evidence_level=6,
+                        gene_symbol="CYP2C19",
+                        drug="clopidogrel",
+                        finding_text="CYP2C19/clopidogrel duplicate legacy shell",
+                        detail_json=(
+                            '{"gene":"CYP2D6","gene":"CYP2C19","drug":"tamoxifen",'
+                            '"recommendation":"Duplicate tamoxifen guidance must not render."}'
+                        ),
+                        svg_path="svgs/duplicate.svg",
+                    )
+                )
+                conn.execute(
+                    findings.insert().values(
+                        id=2022,
+                        # Canonical keys can also be split across nested legacy
+                        # objects, where no one dictionary contains both fields.
+                        module="pharmacogenomics",
+                        category="prescribing_alert",
+                        evidence_level=6,
+                        gene_symbol="CYP2C19",
+                        drug="clopidogrel",
+                        finding_text="CYP2C19/clopidogrel split legacy shell",
+                        detail_json=json.dumps(
+                            {
+                                "gene": "CYP2D6",
+                                "legacy": {
+                                    "drug": "tamoxifen",
+                                    "recommendation": "Split tamoxifen guidance must not render.",
+                                },
+                            }
+                        ),
+                        svg_path="svgs/split.svg",
+                    )
+                )
+                conn.execute(
+                    findings.insert().values(
+                        id=2023,
+                        # Sibling legacy fragments can also conceal the pair;
+                        # no single object is allowed to make this appear safe.
+                        module="pharmacogenomics",
+                        category="prescribing_alert",
+                        evidence_level=6,
+                        gene_symbol="CYP2C19",
+                        drug="clopidogrel",
+                        finding_text="CYP2C19/clopidogrel fragmented legacy shell",
+                        detail_json=json.dumps(
+                            {
+                                "legacy": [
+                                    {"gene": "CYP2D6"},
+                                    {
+                                        "drug": "tamoxifen",
+                                        "recommendation": (
+                                            "Fragmented tamoxifen guidance must not render."
+                                        ),
+                                    },
+                                ]
+                            }
+                        ),
+                    )
+                )
+                conn.execute(
+                    findings.insert().values(
+                        id=2024,
+                        # A scalar-safe row may not move held guidance into
+                        # free text while leaving its structured payload empty.
+                        module="pharmacogenomics",
+                        category="prescribing_alert",
+                        evidence_level=6,
+                        gene_symbol="CYP2C19",
+                        drug="clopidogrel",
+                        finding_text="CYP2D6/tamoxifen: escalate dose",
+                        detail_json=json.dumps({}),
+                    )
+                )
+                conn.execute(
+                    findings.insert().values(
+                        id=2025,
+                        # Nested sibling maps are one ambiguous legacy shell,
+                        # even though no child object contains both identifiers.
+                        module="pharmacogenomics",
+                        category="prescribing_alert",
+                        evidence_level=6,
+                        gene_symbol="CYP2C19",
+                        drug="clopidogrel",
+                        finding_text="CYP2C19/clopidogrel sibling legacy shell",
+                        detail_json=json.dumps(
+                            {
+                                "advice": {"gene": "CYP2D6"},
+                                "medication": {
+                                    "drug": "tamoxifen",
+                                    "recommendation": "Sibling map guidance must not render.",
+                                },
+                            }
+                        ),
+                    )
+                )
+                conn.execute(
+                    findings.insert().values(
+                        id=2026,
+                        # Generic findings serialize phenotype directly, so it
+                        # must receive the same fail-closed presentation gate.
+                        module="pharmacogenomics",
+                        category="prescribing_alert",
+                        evidence_level=6,
+                        gene_symbol="CYP2C19",
+                        drug="clopidogrel",
+                        finding_text="CYP2C19/clopidogrel scalar legacy shell",
+                        phenotype="CYP2D6 tamoxifen dose guidance",
+                        detail_json=json.dumps({}),
+                    )
+                )
+
+            monkeypatch.setattr(
+                findings_route,
+                "_get_sample_engine",
+                lambda sample_id: sample_engine,
+            )
+            monkeypatch.setattr(
+                findings_route,
+                "_get_sample_engine_and_dir",
+                lambda sample_id: (sample_engine, tmp_path),
+            )
+            monkeypatch.setattr(findings_route, "gated_modules_to_hide", lambda engine: set())
+
+            listed = await findings_route.list_findings(
+                sample_id=1,
+                module=None,
+                category=None,
+                min_stars=None,
+                limit=None,
+                offset=0,
+            )
+            assert [finding.finding_text for finding in listed] == ["CYP2D6/codeine control alert"]
+
+            first_page = await findings_route.list_findings(
+                sample_id=1,
+                module=None,
+                category=None,
+                min_stars=None,
+                limit=1,
+                offset=0,
+            )
+            assert [finding.finding_text for finding in first_page] == [
+                "CYP2D6/codeine control alert"
+            ]
+            # Visible pagination has no second page. Before the payload gate
+            # moved ahead of pagination, the leading evidence-level-6 legacy
+            # row made this first page empty instead.
+            assert (
+                await findings_route.list_findings(
+                    sample_id=1,
+                    module=None,
+                    category=None,
+                    min_stars=None,
+                    limit=1,
+                    offset=1,
+                )
+            ) == []
+
+            summary = await findings_route.findings_summary(sample_id=1)
+            assert summary.total_findings == 1
+            assert summary.modules[0].top_finding_text == "CYP2D6/codeine control alert"
+            assert "tamoxifen" not in summary.model_dump_json().lower()
+
+            # The backing SVG exists, so a 404 proves the row predicate rather
+            # than a missing-file fallback.
+            with pytest.raises(HTTPException) as caught:
+                await findings_route.get_finding_svg(finding_id=2019, sample_id=1)
+            assert caught.value.status_code == 404
+            with pytest.raises(HTTPException) as caught:
+                await findings_route.get_finding_svg(finding_id=2020, sample_id=1)
+            assert caught.value.status_code == 404
+            with pytest.raises(HTTPException) as caught:
+                await findings_route.get_finding_svg(finding_id=2021, sample_id=1)
+            assert caught.value.status_code == 404
+            with pytest.raises(HTTPException) as caught:
+                await findings_route.get_finding_svg(finding_id=2022, sample_id=1)
+            assert caught.value.status_code == 404
+        finally:
+            sample_engine.dispose()
+
+    async def test_svg_artifact_cannot_reintroduce_held_pair(self, monkeypatch, tmp_path):
+        """A source-safe row cannot serve stale held guidance from its SVG."""
+        import backend.api.routes.findings as findings_route
+
+        sample_engine = sa.create_engine(f"sqlite:///{tmp_path / 'stale_svg.db'}")
+        try:
+            create_sample_tables(sample_engine)
+            svg_dir = tmp_path / "svgs"
+            svg_dir.mkdir()
+            (svg_dir / "stale.svg").write_text(
+                '<svg xmlns="http://www.w3.org/2000/svg">'
+                "<text><tspan>CYP2</tspan><tspan>D6</tspan>"
+                "<tspan> tamoxifen dose guidance</tspan></text></svg>",
+                encoding="utf-8",
+            )
+            with sample_engine.begin() as conn:
+                conn.execute(
+                    findings.insert().values(
+                        id=2019,
+                        module="pharmacogenomics",
+                        category="prescribing_alert",
+                        evidence_level=4,
+                        gene_symbol="CYP2D6",
+                        drug="codeine",
+                        finding_text="CYP2D6/codeine control alert",
+                        svg_path="svgs/stale.svg",
+                    )
+                )
+
+            monkeypatch.setattr(
+                findings_route,
+                "_get_sample_engine_and_dir",
+                lambda sample_id: (sample_engine, tmp_path),
+            )
+            monkeypatch.setattr(findings_route, "gated_modules_to_hide", lambda engine: set())
+
+            response = await findings_route.get_finding_svg(finding_id=2019, sample_id=1)
+            assert response.status_code == 200
+            body = response.body.decode()
+            assert "<svg" in body
+            assert "Drug: codeine" in body
+            assert "tamoxifen" not in body.lower()
+        finally:
+            sample_engine.dispose()
+
+    async def test_svg_route_blocks_stored_path_traversal(self, monkeypatch, tmp_path):
+        """A corrupt SVG path must not turn the by-id endpoint into a file reader."""
+        from fastapi import HTTPException
+
+        import backend.api.routes.findings as findings_route
+
+        sample_engine = sa.create_engine(f"sqlite:///{tmp_path / 'svg_path.db'}")
+        try:
+            create_sample_tables(sample_engine)
+            outside = tmp_path.parent / "outside.svg"
+            sentinel = "outside SVG sentinel must never be served"
+            outside.write_text(
+                f'<svg xmlns="http://www.w3.org/2000/svg"><text>{sentinel}</text></svg>',
+                encoding="utf-8",
+            )
+            with sample_engine.begin() as conn:
+                conn.execute(
+                    findings.insert().values(
+                        id=2020,
+                        module="cancer",
+                        category="monogenic_variant",
+                        evidence_level=4,
+                        gene_symbol="BRCA1",
+                        finding_text="Safe control finding",
+                        svg_path="../outside.svg",
+                    )
+                )
+
+            monkeypatch.setattr(
+                findings_route,
+                "_get_sample_engine_and_dir",
+                lambda sample_id: (sample_engine, tmp_path),
+            )
+            monkeypatch.setattr(findings_route, "gated_modules_to_hide", lambda engine: set())
+
+            with pytest.raises(HTTPException) as caught:
+                await findings_route.get_finding_svg(finding_id=2020, sample_id=1)
+            assert caught.value.status_code == 404
+            assert sentinel in outside.read_text(encoding="utf-8")
+        finally:
+            sample_engine.dispose()
+
+    async def test_list_and_summary_withhold_split_pair_across_safe_rows(
+        self,
+        monkeypatch,
+        tmp_path,
+    ):
+        """A generic aggregate cannot recombine fields from safe source rows."""
+        import backend.api.routes.findings as findings_route
+
+        sample_engine = sa.create_engine(f"sqlite:///{tmp_path / 'split_pair_rows.db'}")
+        try:
+            create_sample_tables(sample_engine)
+            with sample_engine.begin() as conn:
+                conn.execute(
+                    findings.insert(),
+                    [
+                        {
+                            "module": "fitness",
+                            "category": "pathway_summary",
+                            "evidence_level": 4,
+                            "gene_symbol": "CYP2D6",
+                            "drug": None,
+                            "finding_text": "Safe source row one",
+                        },
+                        {
+                            "module": "fitness",
+                            "category": "legacy_note",
+                            "evidence_level": 4,
+                            "gene_symbol": None,
+                            "drug": "tamoxifen",
+                            "finding_text": "Safe source row two",
+                        },
+                    ],
+                )
+
+            monkeypatch.setattr(
+                findings_route, "_get_sample_engine", lambda _sample_id: sample_engine
+            )
+            monkeypatch.setattr(findings_route, "gated_modules_to_hide", lambda _engine: set())
+
+            assert (
+                await findings_route.list_findings(
+                    sample_id=1,
+                    module=None,
+                    category=None,
+                    min_stars=None,
+                    limit=None,
+                    offset=0,
+                )
+            ) == []
+            assert (
+                await findings_route.list_findings(
+                    sample_id=1,
+                    module=None,
+                    category=None,
+                    min_stars=None,
+                    limit=10,
+                    offset=0,
+                )
+            ) == []
+
+            summary = await findings_route.findings_summary(sample_id=1)
+            assert summary.total_findings == 0
+            assert summary.modules == []
+            assert summary.high_confidence_findings == []
         finally:
             sample_engine.dispose()
 
@@ -1822,4 +2371,5 @@ class TestParkinsonsSvgGate:
         resp = parkinsons_svg_client.get("/api/analysis/findings/1/svg?sample_id=1")
         assert resp.status_code == 200
         assert resp.headers["content-type"].startswith("image/svg+xml")
-        assert "G2019S" in resp.text
+        assert "<svg" in resp.text
+        assert "LRRK2 G2019S" not in resp.text

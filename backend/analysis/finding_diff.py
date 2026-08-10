@@ -40,6 +40,7 @@ from typing import Any
 import sqlalchemy as sa
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
+from backend.analysis.pharmacogenomics import is_patient_presentable_finding_payload
 from backend.analysis.provenance import read_release_snapshot
 from backend.db.tables import annotation_state, findings
 from backend.services.reference_versions import ReferenceVersionSnapshot
@@ -164,6 +165,10 @@ def snapshot_findings(sample_engine: sa.Engine) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
     for row in rows:
         mapping = row._mapping
+        if not is_patient_presentable_finding_payload(mapping):
+            # Keep the source-faithful row in storage, but do not create a new
+            # patient-facing change notice for a clinically withheld payload.
+            continue
         record: dict[str, Any] = {name: mapping[name] for name in _SNAPSHOT_COLUMNS}
         # PRS findings carry their distinguishing trait only in detail_json (#1283).
         record["trait"] = _extract_prs_trait(mapping["category"], mapping["detail_json"])
@@ -417,18 +422,34 @@ def compute_and_store_finding_diff(
     return diff
 
 
+def _reject_duplicate_json_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    """Build a JSON object while rejecting ambiguous duplicate keys."""
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON key: {key}")
+        result[key] = value
+    return result
+
+
+def _parse_finding_diff(value: object) -> dict[str, Any] | None:
+    """Parse an unambiguous top-level finding-diff object, if valid."""
+    try:
+        parsed = json.loads(value, object_pairs_hook=_reject_duplicate_json_keys)
+    except (TypeError, ValueError, RecursionError):
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
 def read_finding_diff(sample_engine: sa.Engine) -> dict[str, Any] | None:
-    """Read the stored finding diff, or None when absent/unparseable."""
+    """Read the stored finding diff, or None when absent or unsafe to present."""
     with sample_engine.connect() as conn:
         row = conn.execute(
             sa.select(annotation_state.c.value).where(annotation_state.c.key == DIFF_STATE_KEY)
         ).fetchone()
     if row is None:
         return None
-    try:
-        return json.loads(row.value)
-    except (json.JSONDecodeError, TypeError):
-        return None
+    return _parse_finding_diff(row.value)
 
 
 def dismiss_finding_diff(sample_engine: sa.Engine) -> bool:
@@ -444,12 +465,15 @@ def dismiss_finding_diff(sample_engine: sa.Engine) -> bool:
         ).fetchone()
         if row is None:
             return False
-        try:
-            diff = json.loads(row.value)
-        except (json.JSONDecodeError, TypeError):
+        diff = _parse_finding_diff(row.value)
+        if diff is None:
             return False
         diff["dismissed"] = True
-        stmt = sqlite_insert(annotation_state).values(key=DIFF_STATE_KEY, value=json.dumps(diff))
+        try:
+            serialized = json.dumps(diff)
+        except (TypeError, ValueError, RecursionError):
+            return False
+        stmt = sqlite_insert(annotation_state).values(key=DIFF_STATE_KEY, value=serialized)
         stmt = stmt.on_conflict_do_update(
             index_elements=[annotation_state.c.key],
             set_={"value": stmt.excluded.value, "updated_at": datetime.now(UTC)},

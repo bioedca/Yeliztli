@@ -19,6 +19,11 @@ import SampleMetadataEditor from '@/components/settings/SampleMetadataEditor'
 import { useAppUpdate } from '@/api/updates'
 import { parseSampleId } from '@/lib/format'
 import { withActiveSample } from '@/lib/navigation'
+import sourceLicenseText from '@/assets/legal/LICENSE.txt?raw'
+import thirdPartyAttributionText from '@/assets/legal/NOTICE.txt?raw'
+
+const EXTERNAL_LINK_CLASS =
+  'underline hover:no-underline hover:text-foreground transition-colors'
 
 const NAV_ITEMS = [
   { to: '/settings/general', label: 'General', icon: Settings2 },
@@ -98,7 +103,7 @@ function AboutPage() {
           About Yeliztli
         </h2>
         <p className="text-sm text-muted-foreground">
-          Version information and update notifications.
+          Version information, licensing, attribution, and update notifications.
         </p>
       </div>
 
@@ -167,10 +172,41 @@ function AboutPage() {
         )}
       </div>
 
-      {/* License */}
-      <div className="rounded-lg border bg-card p-4">
-        <p className="text-sm font-medium text-foreground mb-1">License</p>
-        <p className="text-sm text-muted-foreground">MIT License</p>
+      {/* Licensing and attribution */}
+      <div className="rounded-lg border bg-card p-4 space-y-2">
+        <p className="text-sm font-medium text-foreground">Licensing &amp; attribution</p>
+        <p className="text-sm text-muted-foreground">
+          Yeliztli source code is released under the MIT License.
+        </p>
+        <p className="text-sm text-muted-foreground">
+          Bundled reference data retains its own licenses, including{' '}
+          CC0 / CC-BY-4.0 / CC-BY-SA-4.0. See the full third-party data
+          attribution below for source-specific terms.
+        </p>
+        <div className="space-y-2 pt-1">
+          <details className="rounded-md border border-border px-3 py-2">
+            <summary className="cursor-pointer text-sm font-medium text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+              Read the full MIT source license
+            </summary>
+            <textarea
+              aria-label="Full MIT source license"
+              className="mt-3 h-96 w-full resize-y overflow-auto whitespace-pre-wrap break-words border-0 border-t border-border bg-transparent p-0 pt-3 font-mono text-xs leading-relaxed text-muted-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+              readOnly
+              value={sourceLicenseText}
+            />
+          </details>
+          <details className="rounded-md border border-border px-3 py-2">
+            <summary className="cursor-pointer text-sm font-medium text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+              Read the full third-party data attribution
+            </summary>
+            <textarea
+              aria-label="Full third-party data attribution"
+              className="mt-3 h-96 w-full resize-y overflow-auto whitespace-pre-wrap break-words border-0 border-t border-border bg-transparent p-0 pt-3 font-mono text-xs leading-relaxed text-muted-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+              readOnly
+              value={thirdPartyAttributionText}
+            />
+          </details>
+        </div>
       </div>
 
       {/* Links */}
@@ -182,7 +218,7 @@ function AboutPage() {
               href="https://github.com/bioedca/Yeliztli"
               target="_blank"
               rel="noopener noreferrer"
-              className="underline hover:no-underline hover:text-foreground transition-colors"
+              className={EXTERNAL_LINK_CLASS}
             >
               GitHub Repository
             </a>
@@ -192,9 +228,49 @@ function AboutPage() {
               href="https://github.com/bioedca/Yeliztli/issues"
               target="_blank"
               rel="noopener noreferrer"
-              className="underline hover:no-underline hover:text-foreground transition-colors"
+              className={EXTERNAL_LINK_CLASS}
             >
               Report an Issue
+            </a>
+          </li>
+          <li>
+            <a
+              href="https://github.com/bioedca/Yeliztli/blob/main/LICENSE"
+              target="_blank"
+              rel="noopener noreferrer"
+              className={EXTERNAL_LINK_CLASS}
+            >
+              MIT source license (LICENSE)
+            </a>
+          </li>
+          <li>
+            <a
+              href="https://github.com/bioedca/Yeliztli/blob/main/NOTICE"
+              target="_blank"
+              rel="noopener noreferrer"
+              className={EXTERNAL_LINK_CLASS}
+            >
+              Third-party data attribution (NOTICE)
+            </a>
+          </li>
+          <li>
+            <a
+              href="https://bioedca.github.io/Yeliztli/attribution/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className={EXTERNAL_LINK_CLASS}
+            >
+              Data sources and attribution documentation
+            </a>
+          </li>
+          <li>
+            <a
+              href="https://bioedca.github.io/Yeliztli/external-inputs-strategy/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className={EXTERNAL_LINK_CLASS}
+            >
+              External inputs licensing strategy (working document)
             </a>
           </li>
         </ul>

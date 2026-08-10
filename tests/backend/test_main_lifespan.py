@@ -25,7 +25,7 @@ def lifespan_dependencies(tmp_path: Path) -> Iterator[SimpleNamespace]:
     with (
         patch("backend.main.get_settings", return_value=settings),
         patch("backend.main.get_registry", return_value=registry) as get_registry,
-        patch("backend.main.reference_metadata.create_all"),
+        patch("backend.main.bootstrap_reference_schema_tables") as bootstrap_schema,
         patch("backend.main.ensure_reference_schema_current") as ensure_schema,
         patch("backend.main.load_hla_proxy_data", return_value=0),
         patch("backend.main.check_genome_build_consistency", return_value={}),
@@ -38,6 +38,7 @@ def lifespan_dependencies(tmp_path: Path) -> Iterator[SimpleNamespace]:
         patch("backend.main.reset_registry") as reset_registry,
     ):
         yield SimpleNamespace(
+            bootstrap_schema=bootstrap_schema,
             ensure_schema=ensure_schema,
             get_registry=get_registry,
             reset_registry=reset_registry,
@@ -92,6 +93,9 @@ async def test_lifespan_normal_exit_runs_teardown(
         lifespan_dependencies.shutdown_executor.assert_not_called()
         lifespan_dependencies.reset_registry.assert_not_called()
 
+    lifespan_dependencies.bootstrap_schema.assert_called_once_with(
+        lifespan_dependencies.get_registry.return_value.reference_engine
+    )
     lifespan_dependencies.shutdown_executor.assert_called_once_with()
     lifespan_dependencies.reset_registry.assert_called_once_with()
     assert teardown_order == ["shutdown_executor", "reset_registry"]

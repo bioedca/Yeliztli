@@ -39,7 +39,7 @@ interface FHVariantSummary {
 
 /** FH status determination for a sample (P3-20). */
 export interface FHStatusResponse {
-  status: "Positive" | "Negative"
+  status: "Positive" | "Negative" | "Unavailable"
   summary_text: string
   affected_genes: string[]
   variant_count: number

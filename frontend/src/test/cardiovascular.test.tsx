@@ -94,6 +94,16 @@ const FH_NEGATIVE: FHStatusResponse = {
   variants: [],
 }
 
+const FH_UNAVAILABLE: FHStatusResponse = {
+  status: "Unavailable",
+  summary_text: "FH status is unavailable because the stored result could not be safely presented.",
+  affected_genes: [],
+  variant_count: 0,
+  has_homozygous: false,
+  highest_evidence_level: 0,
+  variants: [],
+}
+
 const FH_HOMOZYGOUS: FHStatusResponse = {
   status: "Positive",
   summary_text:
@@ -239,6 +249,13 @@ describe("FHStatusCard", () => {
   it("renders negative status badge", () => {
     render(<FHStatusCard fhStatus={FH_NEGATIVE} />)
     expect(screen.getByTestId("fh-status-badge")).toHaveTextContent("Negative")
+  })
+
+  it("renders unavailable status without a negative clinical conclusion", () => {
+    render(<FHStatusCard fhStatus={FH_UNAVAILABLE} />)
+    expect(screen.getByTestId("fh-status-badge")).toHaveTextContent("Unavailable")
+    expect(screen.getByText(FH_UNAVAILABLE.summary_text)).toBeInTheDocument()
+    expect(screen.queryByText(/variant found/)).not.toBeInTheDocument()
   })
 
   it("renders summary text", () => {

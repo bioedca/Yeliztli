@@ -21,6 +21,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from backend.analysis.metabolic_prs import COVERAGE_CONTEXT
+from backend.analysis.pharmacogenomics import (
+    is_patient_presentable_finding_payload,
+    is_patient_presentable_response_payload,
+)
 from backend.api.dependencies import require_fresh_sample
 from backend.db.connection import get_registry
 from backend.db.tables import findings, samples
@@ -152,6 +156,8 @@ def list_metabolic_prs(
 
     items: list[MetabolicPRSResponse] = []
     for row in rows:
+        if not is_patient_presentable_finding_payload(row._mapping):
+            continue
         d = _parse_detail(row)
         items.append(
             MetabolicPRSResponse(
@@ -181,7 +187,14 @@ def list_metabolic_prs(
                 source_url=d.get("source_url"),
             )
         )
-    return MetabolicPRSListResponse(items=items, total=len(items))
+    response = MetabolicPRSListResponse(items=items, total=len(items))
+    # Coverage context is fixed reference text; only patient-derived DTOs form
+    # the aggregate that can expose a cross-record prescribing pair.
+    if not is_patient_presentable_response_payload(
+        response.model_dump(mode="json", exclude={"coverage_context"})
+    ):
+        return MetabolicPRSListResponse(items=[], total=0)
+    return response
 
 
 @router.get("/anchors")
@@ -199,6 +212,8 @@ def list_metabolic_anchors(
 
     items: list[MetabolicAnchorResponse] = []
     for row in rows:
+        if not is_patient_presentable_finding_payload(row._mapping):
+            continue
         d = _parse_detail(row)
         pmids: list[str] = []
         if row.pmid_citations:
@@ -221,7 +236,10 @@ def list_metabolic_anchors(
                 pmids=pmids,
             )
         )
-    return MetabolicAnchorListResponse(items=items, total=len(items))
+    response = MetabolicAnchorListResponse(items=items, total=len(items))
+    if not is_patient_presentable_response_payload(response.model_dump(mode="json")):
+        return MetabolicAnchorListResponse(items=[], total=0)
+    return response
 
 
 @router.post("/run")
