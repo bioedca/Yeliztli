@@ -29,6 +29,7 @@ from dataclasses import dataclass, field
 import sqlalchemy as sa
 import structlog
 
+from backend.analysis.clinvar_significance import is_pathogenic_primary
 from backend.analysis.pgs_bridge import build_trait_weight_set, load_pgs_registry
 from backend.analysis.pharmacogenomics import is_patient_presentable_finding_payload
 from backend.analysis.prs import PRSResult, run_prs, store_prs_findings
@@ -72,16 +73,6 @@ FH_CRITERIA_CONTEXT: dict[str, str] = {
         "lipid testing and FH evaluation with a clinician or genetic counsellor."
     ),
 }
-
-
-def _is_pathogenic(significance: str | None) -> bool:
-    """Whether a ClinVar significance string is (likely) pathogenic, not conflicting."""
-    if not significance:
-        return False
-    s = significance.lower()
-    if "conflicting" in s:
-        return False
-    return "pathogenic" in s  # matches both "pathogenic" and "likely_pathogenic"
 
 
 def _is_fh_monogenic_finding(row: sa.Row) -> bool:
@@ -292,7 +283,13 @@ def store_fh_findings(assessment: FHAssessment, sample_engine: sa.Engine) -> int
         # allele (het/hom_alt). A typed homozygous-reference genotype is a
         # non-carrier and is intentionally not surfaced as a finding.
         if fdb is not None and fdb.is_carrier:
-            is_pathogenic = _is_pathogenic(fdb.clinvar_significance)
+            # Shared ClinVar filter, not a local substring test (#910 sweep; this
+            # module was its straggler). The primary-token rule keeps compounds
+            # like "Pathogenic|drug response" while excluding a Conflicting
+            # aggregate, and — decisively here — it refuses to promote a
+            # "low penetrance" / "risk allele" assertion into the ordinary
+            # high-penetrance P/LP path (#987/#1027, PMID:38054408).
+            is_pathogenic = is_pathogenic_primary(fdb.clinvar_significance)
             status = "pathogenic carrier" if is_pathogenic else "carrier"
             conn.execute(
                 sa.insert(findings),
