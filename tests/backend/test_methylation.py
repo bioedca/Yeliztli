@@ -1336,6 +1336,77 @@ class TestStoreFindingsIntegration:
         assert detail["multiple_moderate_findings"] is False
 
 
+class TestSLC19A1ComplementaryStrandRendering:
+    """#2023: the rendered SLC19A1 finding must read correctly on either strand.
+
+    SLC19A1 is a minus-strand gene, so ``methylation_panel.json`` keys its
+    ``genotype_effects`` on the coding strand (GG/GA/AG/AA) while the arrays
+    report the plus strand (CC/CT/TC/TT). ``lookup_by_genotype`` reconciles the
+    two, but ``SNPResult`` keeps and ``store_methylation_findings`` prints the
+    *observed* genotype, so the effect summary is rendered next to a plus-strand
+    call. Prose naming a coding-strand base — "one copy of the 80A allele" — then
+    prints an allele the displayed genotype does not contain.
+
+    Every pre-existing fixture for this row seeded coding-strand genotypes only
+    (AA, GG), so the complementary path was entirely uncovered. These seed the
+    plus-strand calls a real AncestryDNA/23andMe file actually carries.
+    """
+
+    def _scored_snp(
+        self,
+        panel: MethylationPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+        genotype: str,
+    ) -> SNPResult:
+        _seed_variants(sample_engine, [("rs1051266", "21", 46957794, genotype)])
+        result = score_methylation_pathways(panel, sample_engine, reference_engine)
+        return next(
+            s for pr in result.pathway_results for s in pr.called_snps if s.rsid == "rs1051266"
+        )
+
+    @pytest.mark.parametrize(
+        ("genotype", "expected"),
+        [
+            ("CT", "SLC19A1 A80G (His27Arg) (CT) — Heterozygous at RFC1 codon 27 (His/Arg)."),
+            ("TC", "SLC19A1 A80G (His27Arg) (TC) — Heterozygous at RFC1 codon 27 (His/Arg)."),
+            ("TT", "SLC19A1 A80G (His27Arg) (TT) — Homozygous His27 at RFC1."),
+            ("GA", "SLC19A1 A80G (His27Arg) (GA) — Heterozygous at RFC1 codon 27 (His/Arg)."),
+            ("AA", "SLC19A1 A80G (His27Arg) (AA) — Homozygous His27 at RFC1."),
+        ],
+    )
+    def test_rendered_text_never_names_an_absent_allele(
+        self,
+        panel: MethylationPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+        genotype: str,
+        expected: str,
+    ) -> None:
+        """The effect prose must not assert a base the shown genotype lacks.
+
+        ``TT`` is the decisive case: it is the plus-strand spelling of coding AA,
+        so a coding-strand summary would print "two copies of the 80A allele"
+        beside a genotype with no A in it.
+
+        Scoped to ``effect_summary``. ``variant_name`` legitimately carries the
+        coding-strand nomenclature ``A80G`` beside a plus-strand genotype — that
+        mismatch is inherent to labelling a minus-strand gene in HGVS, predates
+        this row, affects every such locus in every panel, and is filed
+        separately rather than papered over here.
+        """
+        snp = self._scored_snp(panel, sample_engine, reference_engine, genotype)
+        text = f"{snp.gene} {snp.variant_name} ({snp.genotype}) — {snp.effect_summary}"
+        assert text.startswith(expected), text
+        for base in "ACGT":
+            if base in genotype:
+                continue
+            assert f"80{base}" not in snp.effect_summary, (
+                f"effect prose names allele 80{base}, absent from displayed "
+                f"{genotype!r}: {snp.effect_summary}"
+            )
+
+
 # ── PathwayResult properties ────────────────────────────────────────────
 
 

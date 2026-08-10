@@ -1,9 +1,15 @@
 # Consensus / Scite ladder outcomes, 2026-08-10
 
+> **This file is analysis, not a source payload.** It is the prose reading of the
+> two record-level artifacts in this directory —
+> `consensus-search-2026-08-10.json` (all 20 Consensus records) and
+> `scite-and-pubmed-notices-2026-08-10.json` (all 3 Scite and all 3 PubMed
+> records). Check claims here against those, not the other way round.
+
 Recorded because the repository's evidence ladder requires the discovery services
 to be invoked and their outcomes retained, including when they do not decide the
 claim. Neither service is load-bearing for the reference-base claim — that rests
-on RefSeq, Ensembl and UniProt — but both were run, and one changed the wording
+on RefSeq and UniProt — but both were run, and one changed the wording
 that shipped.
 
 ## Consensus

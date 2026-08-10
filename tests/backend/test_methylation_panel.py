@@ -19,6 +19,7 @@ Covers:
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -408,6 +409,29 @@ class TestSLC19A1Nomenclature:
             genotype: effect["effect_summary"]
             for genotype, effect in snp["genotype_effects"].items()
             if "A" in genotype and "variant" in effect["effect_summary"].lower()
+        }
+        assert offenders == {}
+
+    def test_effect_prose_names_no_nucleotide_allele(self, panel_data: dict) -> None:
+        """The prose must stay in the strand-free protein frame.
+
+        The panel's ``genotype_effects`` keys are coding-strand, but the genotype
+        *rendered* beside them is whatever the array reported — plus-strand for
+        this minus-strand gene. A plus-strand ``CT`` call resolves through the
+        ``GA`` key and is displayed as ``CT``, so a summary reading "one copy of
+        the 80A allele" would print an allele the shown genotype does not
+        contain. That is #2023's defect again on the strand axis rather than the
+        reference axis, so the summaries name residues (His/Arg), which mean the
+        same thing on either strand.
+
+        The residual coding-vs-displayed mismatch between ``variant_name`` and
+        the rendered genotype predates this row and is filed separately.
+        """
+        snp = self._snp(panel_data)
+        offenders = {
+            genotype: effect["effect_summary"]
+            for genotype, effect in snp["genotype_effects"].items()
+            if re.search(r"\b80[ACGT]\b|\b[ACGT] allele\b", effect["effect_summary"])
         }
         assert offenders == {}
 

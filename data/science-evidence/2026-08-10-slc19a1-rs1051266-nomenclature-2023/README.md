@@ -68,11 +68,14 @@ ancestral-allele and frequency context. The in-repo
 `tests/fixtures/seed_csvs/vep_seed.csv` row (`ref=T`, `alt=C`, `c.80A>G`,
 `p.His27Arg`) agrees and is recorded as corroboration, not as a source.
 
-**Note the locus is tri-allelic.** dbSNP records `c.80A>C` (His27Pro) and
-`c.80A>T` (His27Leu) alongside `c.80A>G`, and the Ensembl `allele_string` is
-`T/C/G`. So 80G/Arg27 is *the A>G alternate* and the one the panel models — not
-"the" alternate. Nothing here implies that every rs1051266 alternate produces
-Arg27.
+**Note the locus is multi-allelic, and the two sources disagree on how
+multi-allelic.** dbSNP records three alternates on `NM_194255.4` — `c.80A>G`
+(His27Arg), `c.80A>C` (His27Pro) and `c.80A>T` (His27Leu) — so that record is
+four-allelic. Ensembl's GRCh37 `allele_string` is narrower at `T/C/G`, i.e. two
+alternates. This packet reports both counts rather than reconciling them; nothing
+here depends on which is right. What matters is that 80G/Arg27 is *the A>G
+alternate* and the one the panel models — not "the" alternate — so nothing here
+implies that every rs1051266 alternate produces Arg27.
 
 ## Why the literature disagrees with itself, and what the row now says
 
@@ -85,7 +88,7 @@ split between them:
 | 24597986 | G80A |
 | 33935279 | A80G |
 
-A Consensus search (retained in `raw/evidence-ladder-2026-08-10.md`) shows the
+A Consensus search (all 20 records in `raw/consensus-search-2026-08-10.json`) shows the
 split is not confined to the legacy shorthand: peer-reviewed papers write
 `c.80G>A` and `c.80A>G` for the same rsID.
 
@@ -119,8 +122,9 @@ first of those. That question is filed separately and is not decided here.
 Checked, not argued. All three cited PMIDs were queried through Scite by DOI and
 none carries an editorial notice (retraction, correction, concern or erratum);
 PubMed likewise records no `Retracted Publication` or `Erratum` article type for
-any of them. dbSNP reports rs1051266 as not merged. Detail and the per-record
-table are in `raw/evidence-ladder-2026-08-10.md`.
+any of them. dbSNP reports rs1051266 as not merged. The per-record status is in
+`raw/scite-and-pubmed-notices-2026-08-10.json`; the reading of it is in
+`raw/evidence-ladder-2026-08-10.md`.
 
 ## A contradicting in-repo artifact, retained deliberately
 
@@ -135,7 +139,12 @@ correspondingly inverted for the whole T/C class — rs1051266, PON1 rs662
 `p.Lys23Glu`) are all reversed relative to `vep_seed.csv`.
 
 The exact queries and their results are in `queries.json` under
-`in-repo-bundle-crosscheck`, and the retained record is in `raw/`. The artifact
+`in-repo-bundle-crosscheck`, including the full join accounting: of the 679 seed
+rows, 44 match the bundle on `(rsid, pos)` — 12 in the same orientation, 6
+reversed, and 26 that name a different allele pair entirely and so cannot be
+scored for orientation at all. Those 26 are a further discrepancy class between
+the two artifacts, not evidence for the ordering finding, which rests on the
+102,254/102,254 count above. The retained record is in `raw/`. The artifact
 itself is written up as a separate issue; it is a live trap for anyone who reads
 it as authoritative, which is exactly how #2023 described it.
 
@@ -146,8 +155,21 @@ it as authoritative, which is exactly how #2023 described it.
 - `raw/dbsnp-refsnp-1051266-nm194255-extract-2026-08-10.json` — derived extract of the `NM_194255.4` placements, retained alongside the source-native payload for readability.
 - `raw/ensembl-grch37-rs1051266-2026-08-10.json` — full Ensembl response.
 - `raw/uniprot-P41440-2026-08-10.json` — full UniProtKB response, including the canonical sequence.
-- `raw/evidence-ladder-2026-08-10.md` — Consensus and Scite invocations and outcomes, including the correction/retraction check.
+- `raw/consensus-search-2026-08-10.json` — all 20 Consensus records, abstracts omitted (see below).
+- `raw/scite-and-pubmed-notices-2026-08-10.json` — all 3 Scite and all 3 PubMed records with their editorial-notice status, abstracts omitted.
+- `raw/evidence-ladder-2026-08-10.md` — the prose *reading* of those two artifacts. This is analysis, not a source payload.
 - `raw/in-repo-vep-bundle-rs1051266-DISCREPANT-2026-08-10.json` — the contradicting in-repo artifact and the measurement that disqualifies it.
+
+**On the discovery artifacts.** Consensus, Scite and PubMed are reached over MCP,
+which returns results into the conversation rather than as files, so their bytes
+cannot be preserved. The two JSON artifacts above are transcriptions, labelled as
+such in `queries.json`. They are complete with respect to *records* — all 20
+Consensus results and all 3 of 3 Scite/PubMed records, none selected away — and
+drop only abstracts and other copyrighted body text, following the same
+bibliographic-metadata-only retention rule the earlier packets in this directory
+record. A reviewer can therefore check what was returned and what was omitted,
+which is the property that matters; what they cannot do is re-derive an abstract
+from here, which is intended.
 
 No sample, genotype or other personal data was read, transmitted or stored at any
 point; the external lookups are single-identifier metadata queries and a

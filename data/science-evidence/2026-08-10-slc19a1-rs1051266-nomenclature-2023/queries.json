@@ -22,7 +22,7 @@
       "raw_is_reduced": false,
       "derived_extract": "raw/dbsnp-refsnp-1051266-nm194255-extract-2026-08-10.json",
       "derived_extract_rule": "Retains identity, merge status and every NM_194255.4 placement with its NP_919231.1 protein consequence. Kept for readability only; the source-native 250974-byte response is retained in full alongside it, so any selection or transcription can be checked.",
-      "result_used": "rs1051266 is not merged. NM_194255.4:c.80= maps to NP_919231.1 residue 27 H->H, establishing His as the reference residue; NM_194255.4:c.80A>G maps to residue 27 H->R as a missense_variant. The same transcript also carries c.80A>C (H->P) and c.80A>T (H->L), so the locus is tri-allelic and A>G is one alternate among three.",
+      "result_used": "rs1051266 is not merged. NM_194255.4:c.80= maps to NP_919231.1 residue 27 H->H, establishing His as the reference residue; NM_194255.4:c.80A>G maps to residue 27 H->R as a missense_variant. The same transcript also carries c.80A>C (H->P) and c.80A>T (H->L), so dbSNP records THREE alternates and the record is four-allelic (A reference plus G, C, T). Ensembl's GRCh37 allele_string is narrower at T/C/G, i.e. two alternates; the packet reports both rather than reconciling them. Either way, A>G is one alternate among several and not 'the' alternate.",
       "supports": "A80G (His27Arg) is the reference-frame spelling; G80A is not."
     },
     {
@@ -46,8 +46,8 @@
       "accessed": "2026-08-10",
       "raw": "raw/ensembl-grch37-rs1051266-2026-08-10.json",
       "raw_is_reduced": false,
-      "result_used": "chr21:46,957,794 plus strand, allele_string T/C/G, ancestral_allele C, minor_allele C at MAF 0.4886. SLC19A1 is on the minus strand, so plus-strand T is coding A (reference) and plus-strand C is coding G.",
-      "supports": "Corroboration only, NOT an independent vote: the response declares its own source as variants imported from dbSNP, so it shares an upstream with the RefSNP record. Retained for the tri-allelic allele string, the ancestral allele and the frequency."
+      "result_used": "chr21:46,957,794 plus strand, allele_string T/C/G, ancestral_allele C, minor_allele C at MAF 0.4886. SLC19A1 is on the minus strand, so plus-strand T is coding A (reference) and plus-strand C is coding G. Note this lists two alternates where dbSNP lists three; the two sources disagree on the allele count and this packet does not resolve that.",
+      "supports": "Corroboration only, NOT an independent vote: the response declares its own source as variants imported from dbSNP, so it shares an upstream with the RefSNP record. Retained for its allele string, the ancestral allele and the frequency."
     },
     {
       "id": "consensus-nomenclature-and-direction",
@@ -55,12 +55,14 @@
       "method": "MCP tool call",
       "url": null,
       "accessed": "2026-08-10",
-      "raw": "raw/evidence-ladder-2026-08-10.md",
       "query_text": "SLC19A1 RFC1 rs1051266 A80G G80A polymorphism nomenclature reduced folate carrier",
       "filters": "none",
       "quota_fallback": "none required; service available",
       "result_used": "20 papers. Both spellings are in active peer-reviewed use for this rsID, including in HGVS c. form (c.80G>A and c.80A>G). Separately, the direction of effect is contested across the returned papers.",
-      "supports": "The shipped recommendation_text wording ('names this SNP G80A or c.80G>A, taking the opposite base as the reference'), and the decision NOT to touch the direction of effect in this change."
+      "supports": "The shipped recommendation_text wording ('names this SNP G80A or c.80G>A, taking the opposite base as the reference'), and the decision NOT to touch the direction of effect in this change.",
+      "artifact": "raw/consensus-search-2026-08-10.json",
+      "artifact_is_transcription": true,
+      "artifact_transcription_note": "MCP responses are returned into the conversation, not as files, so the bytes cannot be preserved. The artifact is complete with respect to RECORDS (no selection) and drops only abstracts and other copyrighted body text, per this repository's bibliographic-metadata-only retention rule. The prose reading of the same response is in raw/evidence-ladder-2026-08-10.md, which is analysis and is not labelled raw."
     },
     {
       "id": "scite-editorial-notices",
@@ -68,11 +70,13 @@
       "method": "MCP tool call",
       "url": null,
       "accessed": "2026-08-10",
-      "raw": "raw/evidence-ladder-2026-08-10.md",
       "query_text": "dois: [\"10.12659/MSM.929911\", \"10.1016/j.lfs.2006.05.009\", \"10.3109/10428194.2014.898761\"] (no term; metadata and editorial notices)",
       "quota_fallback": "none required; service available",
       "result_used": "3 of 3 records returned; none carries an editorialNotices entry (retraction, correction, concern or erratum).",
-      "supports": "The corrections/retractions check below."
+      "supports": "The corrections/retractions check below.",
+      "artifact": "raw/scite-and-pubmed-notices-2026-08-10.json",
+      "artifact_is_transcription": true,
+      "artifact_transcription_note": "MCP responses are returned into the conversation, not as files, so the bytes cannot be preserved. The artifact is complete with respect to RECORDS (no selection) and drops only abstracts and other copyrighted body text, per this repository's bibliographic-metadata-only retention rule. The prose reading of the same response is in raw/evidence-ladder-2026-08-10.md, which is analysis and is not labelled raw."
     },
     {
       "id": "pubmed-bibliographic",
@@ -80,10 +84,12 @@
       "method": "MCP tool call",
       "url": "https://pubmed.ncbi.nlm.nih.gov/",
       "accessed": "2026-08-10",
-      "raw": "raw/evidence-ladder-2026-08-10.md",
       "query_text": "pmids: [\"33935279\", \"16750224\", \"24597986\"]",
       "result_used": "DOIs resolved (10.12659/MSM.929911, 10.1016/j.lfs.2006.05.009, 10.3109/10428194.2014.898761) and article_types read; none carries Retracted Publication or Erratum.",
-      "supports": "Title spellings used in the README table, and the second leg of the corrections/retractions check."
+      "supports": "Title spellings used in the README table, and the second leg of the corrections/retractions check.",
+      "artifact": "raw/scite-and-pubmed-notices-2026-08-10.json",
+      "artifact_is_transcription": true,
+      "artifact_transcription_note": "MCP responses are returned into the conversation, not as files, so the bytes cannot be preserved. The artifact is complete with respect to RECORDS (no selection) and drops only abstracts and other copyrighted body text, per this repository's bibliographic-metadata-only retention rule. The prose reading of the same response is in raw/evidence-ladder-2026-08-10.md, which is analysis and is not labelled raw."
     },
     {
       "id": "in-repo-bundle-crosscheck",
@@ -109,9 +115,19 @@
         "bundle_metadata": "ensembl_version=112, build_date=2026-04-03, variant_count=102254, schema_version=1"
       },
       "corroborating_query": {
-        "description": "Same committed bundle joined against the committed tests/fixtures/seed_csvs/vep_seed.csv on (rsid, pos), comparing the (ref, alt) pair.",
+        "description": "Same committed bundle joined against the committed tests/fixtures/seed_csvs/vep_seed.csv on (rsid, pos). The recorded statement matches on (rsid, pos) ALONE; the orientation split below then applies a further filter on the unordered allele pair, which the SQL does not express.",
         "sql": "select ref,alt,hgvs_protein,strand from vep_annotations where rsid=? and pos=?;",
-        "result": "679 seed rows; 18 present in the bundle at the same position; 12 agree, 6 reversed, and all 6 reversals are exactly the T/C <-> C/T pair (rs1051266, rs662, rs5219, rs174547, rs1440985, rs41432549)."
+        "accounting": {
+          "seed_rows": 679,
+          "matched_on_rsid_and_pos": 44,
+          "same_unordered_allele_pair": 18,
+          "of_which_same_orientation": 12,
+          "of_which_reversed_orientation": 6,
+          "different_allele_pair_excluded_from_the_orientation_split": 26,
+          "absent_from_bundle": 635
+        },
+        "why_26_are_excluded": "Orientation is undefined when the two sources do not name the same two alleles, so those 26 cannot be scored as agreeing or reversed and are counted separately rather than dropped silently. They differ by more than orientation - some are strand complements (rs5026665 seed T/C vs bundle A/G), others name a different alternate entirely (rs913722 seed A/T vs bundle C/T; rs7601387 seed A/T vs bundle A/G). They are a further discrepancy class between the two artifacts and are NOT evidence for the alphabetical-ordering finding, which rests on the 102254/102254 count above.",
+        "result": "44 matched; 12 same orientation, 6 reversed, 26 different allele pair, 635 absent."
       },
       "supports": "Nothing. Retained as the record of a contradicting in-repo artifact that must not be used as authority; written up separately."
     }

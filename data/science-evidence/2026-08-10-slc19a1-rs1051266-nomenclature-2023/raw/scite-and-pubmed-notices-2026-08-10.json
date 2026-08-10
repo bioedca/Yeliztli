@@ -1,0 +1,100 @@
+{
+  "_artifact_note": "Transcription of the Scite and PubMed MCP responses of 2026-08-10, not the raw bytes: the MCP transport returns results into the conversation rather than as files, so they cannot be byte-preserved. COMPLETE with respect to records — all 3 of 3 requested DOIs and all 3 of 3 requested PMIDs are present, none omitted — and each keeps every field bearing on the correction/retraction question. Abstracts, Smart-Citation snippets, MeSH terms and full author lists are dropped: they are publisher- or index-copyrighted and bear on no claim here, and this repository's packets retain bibliographic metadata only.",
+  "accessed": "2026-08-10",
+  "abstracts_retained": false,
+  "scite": {
+    "service": "Scite MCP, search_literature",
+    "request": {"dois": ["10.12659/MSM.929911", "10.1016/j.lfs.2006.05.009", "10.3109/10428194.2014.898761"], "term": null, "limit": 5},
+    "quota_fallback": "none required; service available",
+    "response_total": 3,
+    "response_count": 3,
+    "records": [
+      {
+        "doi": "10.1016/j.lfs.2006.05.009",
+        "pmid": "16750224",
+        "title": "G80A reduced folate carrier SNP influences the absorption and cellular translocation of dietary folate and its association with blood pressure in an elderly population",
+        "first_authors": ["Lisa Dufficy", "Nenad Naumovski", "Xiaowei Ng"],
+        "journal": "life sciences",
+        "publisher": "Elsevier BV",
+        "year": 2006,
+        "date": "2006-08-01",
+        "volume": "79", "issue": "10", "page": "957-966",
+        "tally": {"total": 33, "supporting": 3, "contrasting": 1, "mentioning": 29, "citingPublications": 41},
+        "isOa": false, "oaStatus": "closed",
+        "editorialNotices": null,
+        "editorial_notices_present": false
+      },
+      {
+        "doi": "10.12659/msm.929911",
+        "pmid": "33935279",
+        "title": "The Roles of Reduced Folate Carrier-1 (RFC1) A80G (rs1051266) Polymorphism in Congenital Heart Disease: A Meta-Analysis",
+        "first_authors": ["Yi Kang", "MA Yu-hu", "Wei Wang"],
+        "journal": "medical science monitor",
+        "publisher": "International Scientific Information, Inc.",
+        "year": 2021,
+        "date": "2021-02-22",
+        "volume": "27",
+        "tally": {"total": 4, "supporting": 0, "contrasting": 1, "mentioning": 2, "citingPublications": 12},
+        "isOa": true, "oaStatus": "hybrid", "license": "cc-by-nc-nd",
+        "editorialNotices": null,
+        "editorial_notices_present": false
+      },
+      {
+        "doi": "10.3109/10428194.2014.898761",
+        "pmid": "24597986",
+        "title": "Association between reduced folate carrier G80A polymorphism and methotrexate toxicity in childhood acute lymphoblastic leukemia: a meta-analysis",
+        "first_authors": ["Hairong He", "Ping Liu", "Gong-Hao He"],
+        "journal": "leukemia & lymphoma",
+        "publisher": "Informa UK Limited",
+        "year": 2014,
+        "date": "2014-04-03",
+        "volume": "55", "issue": "12", "page": "2793-2800",
+        "tally": {"total": 13, "supporting": 0, "contrasting": 0, "mentioning": 12, "citingPublications": 20},
+        "isOa": false, "oaStatus": "closed",
+        "editorialNotices": null,
+        "editorial_notices_present": false
+      }
+    ],
+    "conclusion": "No record carried an editorialNotices entry. Scite returns that field when a retraction, correction, concern or erratum exists; its absence on all three is the negative result relied on."
+  },
+  "pubmed": {
+    "service": "PubMed MCP, get_article_metadata",
+    "attribution": "Bibliographic metadata retrieved from PubMed (https://pubmed.ncbi.nlm.nih.gov/). DOIs resolve at https://doi.org/.",
+    "request": {"pmids": ["33935279", "16750224", "24597986"]},
+    "response_count": 3,
+    "records": [
+      {
+        "pmid": "33935279",
+        "doi": "10.12659/MSM.929911",
+        "pmc": "PMC8103792",
+        "title": "The Roles of Reduced Folate Carrier-1 (RFC1) A80G (rs1051266) Polymorphism in Congenital Heart Disease: A Meta-Analysis.",
+        "journal": "Medical science monitor : international medical journal of experimental and clinical research",
+        "publication_date": "2021-05-03",
+        "citation": {"volume": "27", "pages": "e929911"},
+        "article_types": ["Journal Article", "Meta-Analysis"],
+        "retraction_or_erratum_type_present": false
+      },
+      {
+        "pmid": "16750224",
+        "doi": "10.1016/j.lfs.2006.05.009",
+        "title": "G80A reduced folate carrier SNP influences the absorption and cellular translocation of dietary folate and its association with blood pressure in an elderly population.",
+        "journal": "Life sciences",
+        "publication_date": "2006-05-17",
+        "citation": {"volume": "79", "issue": "10", "pages": "957-66"},
+        "article_types": ["Journal Article"],
+        "retraction_or_erratum_type_present": false
+      },
+      {
+        "pmid": "24597986",
+        "doi": "10.3109/10428194.2014.898761",
+        "title": "Association between reduced folate carrier G80A polymorphism and methotrexate toxicity in childhood acute lymphoblastic leukemia: a meta-analysis.",
+        "journal": "Leukemia & lymphoma",
+        "publication_date": "2014-04-03",
+        "citation": {"volume": "55", "issue": "12", "pages": "2793-800"},
+        "article_types": ["Journal Article", "Meta-Analysis", "Research Support, Non-U.S. Gov't"],
+        "retraction_or_erratum_type_present": false
+      }
+    ],
+    "conclusion": "No record carries a Retracted Publication or Erratum article type. This is the independent second leg of the correction/retraction check; it agrees with Scite."
+  }
+}
