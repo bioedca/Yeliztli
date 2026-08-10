@@ -147,7 +147,7 @@
         {
           "rsid": "rs1051266",
           "gene": "SLC19A1",
-          "variant_name": "G80A (His27Arg)",
+          "variant_name": "A80G (His27Arg)",
           "hgvs_protein": "p.His27Arg",
           "risk_allele": "A",
           "ref_allele": "G",
@@ -158,20 +158,20 @@
             },
             "GA": {
               "category": "Moderate",
-              "effect_summary": "Heterozygous RFC1 variant. May modestly reduce folate transport into cells."
+              "effect_summary": "One copy of the 80A allele. May modestly reduce folate transport into cells."
             },
             "AG": {
               "category": "Moderate",
-              "effect_summary": "Heterozygous RFC1 variant. May modestly reduce folate transport into cells."
+              "effect_summary": "One copy of the 80A allele. May modestly reduce folate transport into cells."
             },
             "AA": {
               "category": "Moderate",
-              "effect_summary": "Homozygous RFC1 variant. Reduced folate carrier efficiency. May require higher dietary folate intake to maintain adequate intracellular folate levels."
+              "effect_summary": "Two copies of the 80A allele. Reduced folate carrier efficiency. May require higher dietary folate intake to maintain adequate intracellular folate levels."
             }
           },
           "evidence_level": 1,
           "pmids": ["33935279", "16750224", "24597986"],
-          "recommendation_text": "SLC19A1 encodes the reduced folate carrier (RFC1), the primary transporter for folate into cells. AA carriers may have reduced folate transport efficiency."
+          "recommendation_text": "SLC19A1 encodes the reduced folate carrier (RFC1), the primary transporter for folate into cells. AA carriers may have reduced folate transport efficiency. Much of the literature names this SNP G80A, written against the ancestral allele; against the GRCh37 reference it is c.80A>G (p.His27Arg)."
         },
         {
           "rsid": "rs202676",

@@ -342,6 +342,84 @@ class TestCholineBetaineAlleleFrames:
         assert "protective" in all_text
 
 
+class TestSLC19A1Nomenclature:
+    """Issue #2023: rs1051266's rendered label must sit in one frame, not two.
+
+    The row used to pair the legacy ancestral-frame shorthand ``G80A`` with the
+    reference-frame ``p.His27Arg``. Both spellings are real — two of the row's own
+    three citations say G80A (PMID:16750224, PMID:24597986) and the third says
+    A80G (PMID:33935279) — but only one can sit next to ``His27Arg``: the GRCh37
+    reference carries 80A/His27. NCBI dbSNP RefSNP v2 gives
+    ``NM_194255.4:c.80A>G`` with ``NP_919231.1`` residue 27 H→R, and Ensembl
+    GRCh37 puts the *ancestral* allele on the other base (both accessed
+    2026-08-10). Evidence packet:
+    ``data/science-evidence/2026-08-10-slc19a1-rs1051266-nomenclature-2023/``.
+
+    The general codon-direction invariant lives in
+    ``test_panel_variant_name_codon_consistency.py``; this pins the specific row
+    and the prose that renders beside it.
+    """
+
+    def _snp(self, panel_data: dict) -> dict:
+        for pathway in panel_data["pathways"]:
+            for snp in pathway["snps"]:
+                if snp["rsid"] == "rs1051266":
+                    return snp
+        pytest.fail("rs1051266 not found in panel")
+
+    def test_label_is_written_in_the_reference_frame(self, panel_data: dict) -> None:
+        snp = self._snp(panel_data)
+        assert snp["gene"] == "SLC19A1"
+        assert snp["variant_name"] == "A80G (His27Arg)"
+        assert snp["hgvs_protein"] == "p.His27Arg"
+
+    def test_dosage_frame_and_scoring_are_untouched(self, panel_data: dict) -> None:
+        """This was a nomenclature fix, not a direction call.
+
+        ``ref_allele`` is the non-risk allele of the ``{risk, ref}`` dosage pair,
+        not the genome-reference base, so renaming the label implies no change
+        here — and which rs1051266 allele actually reduces folate transport is a
+        separate, contested question this row does not settle.
+        """
+        snp = self._snp(panel_data)
+        assert (snp["risk_allele"], snp["ref_allele"]) == ("A", "G")
+        assert set(snp["genotype_effects"]) == {"GG", "GA", "AG", "AA"}
+        assert snp["genotype_effects"]["GG"]["category"] == "Standard"
+        assert {
+            genotype: effect["category"]
+            for genotype, effect in snp["genotype_effects"].items()
+            if genotype != "GG"
+        } == {"GA": "Moderate", "AG": "Moderate", "AA": "Moderate"}
+        assert snp["evidence_level"] == 1
+
+    def test_a_bearing_genotypes_are_not_called_the_variant(self, panel_data: dict) -> None:
+        """``A80G`` puts A in the reference position, so prose calling an
+        A-bearing genotype "the RFC1 variant" would move #2023's contradiction
+        into the effect summary rather than remove it — the two strings render
+        together in ``methylation.store_methylation_findings``.
+
+        Scoped to A-bearing genotypes so a future, evidence-backed direction flip
+        (which would make GG the variant genotype) is not blocked by this lock.
+        """
+        snp = self._snp(panel_data)
+        offenders = {
+            genotype: effect["effect_summary"]
+            for genotype, effect in snp["genotype_effects"].items()
+            if "A" in genotype and "variant" in effect["effect_summary"].lower()
+        }
+        assert offenders == {}
+
+    def test_legacy_spelling_is_documented_not_rendered_as_the_label(
+        self, panel_data: dict
+    ) -> None:
+        """A reader who follows the row's citations meets ``G80A``, so the row has
+        to say so somewhere — just not in the field printed beside His27Arg."""
+        snp = self._snp(panel_data)
+        assert "G80A" not in snp["variant_name"]
+        assert "G80A" in snp["recommendation_text"]
+        assert "c.80A>G" in snp["recommendation_text"]
+
+
 # ── MTHFR flagship variant tests ────────────────────────────────────────
 
 
@@ -995,7 +1073,7 @@ class TestMethylationCitationRemediation:
 
     # rsid -> exact verified on-topic PMID set the row must cite:
     _REMEDIATED: dict[str, set[str]] = {
-        "rs1051266": {"33935279", "16750224", "24597986"},  # SLC19A1 RFC1 G80A
+        "rs1051266": {"33935279", "16750224", "24597986"},  # SLC19A1 RFC1 A80G (legacy G80A)
         "rs202676": {"22918695", "30120883"},  # FOLH1 folate hydrolase
         "rs3758149": {"31739835", "14597182", "15564880"},  # GGH -401C>T
         "rs1979277": {"16137637", "17446168", "11386852"},  # SHMT1 L474F

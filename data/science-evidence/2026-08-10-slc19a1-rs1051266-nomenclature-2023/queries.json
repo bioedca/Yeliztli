@@ -1,0 +1,69 @@
+{
+  "accessed": "2026-08-10",
+  "issue": "#2023",
+  "claim": "Which base the GRCh37 reference carries at SLC19A1 c.80, and therefore which direction the coding shorthand in methylation_panel.json must run to agree with the row's own p.His27Arg. No biological, statistical or clinical claim is asserted; in particular no claim is made about which rs1051266 allele affects folate transport, and the row's risk/ref dosage pair and genotype_effects categories are unchanged.",
+  "citations": [
+    "dbSNP:rs1051266 (NCBI RefSNP v2, RefSeq NM_194255.4 / NP_919231.1) (accessed 2026-08-10)",
+    "Ensembl GRCh37 variation record rs1051266 (accessed 2026-08-10)",
+    "PMID:16750224 (accessed 2026-08-10)",
+    "PMID:24597986 (accessed 2026-08-10)",
+    "PMID:33935279 (accessed 2026-08-10)"
+  ],
+  "high_stakes_two_source_rule": "Engaged and satisfied. The reference-base claim is carried in a durable artifact (the rendered panel label), so it is backed by two sources that share neither a dataset nor an assertion chain: NCBI dbSNP/RefSeq and Ensembl GRCh37. They agree that the reference is 80A/His27 and the alternate 80G/Arg27. The His->Arg = A->G step itself is the standard genetic code and is not sourced.",
+  "queries": [
+    {
+      "id": "dbsnp-refsnp",
+      "service": "NCBI Variation Services, RefSNP v2",
+      "method": "GET",
+      "url": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/1051266",
+      "accessed": "2026-08-10",
+      "raw": "raw/dbsnp-refsnp-1051266-nm194255-extract-2026-08-10.json",
+      "raw_is_reduced": true,
+      "reduction_rule": "Retained identity, merge status and every NM_194255.4 placement with its NP_919231.1 protein consequence. Dropped the other 24 transcripts, frequency studies, submissions and citations. Full response was 250974 bytes.",
+      "result_used": "rs1051266 is not merged. NM_194255.4:c.80= maps to NP_919231.1 residue 27 H->H, establishing His as the reference residue; NM_194255.4:c.80A>G maps to residue 27 H->R as a missense_variant.",
+      "supports": "A80G (His27Arg) is the reference-frame spelling; G80A is not."
+    },
+    {
+      "id": "ensembl-grch37",
+      "service": "Ensembl GRCh37 REST",
+      "method": "GET",
+      "url": "https://grch37.rest.ensembl.org/variation/human/rs1051266?content-type=application/json",
+      "accessed": "2026-08-10",
+      "raw": "raw/ensembl-grch37-rs1051266-2026-08-10.json",
+      "raw_is_reduced": false,
+      "result_used": "chr21:46,957,794 plus strand, allele_string T/C/G, ancestral_allele C, minor_allele C at MAF 0.4886. SLC19A1 is on the minus strand, so plus-strand T is coding A (reference) and plus-strand C is coding G (ancestral).",
+      "supports": "Independent confirmation of the reference base, and the explanation for the split literature naming: the reference carries the derived allele at this locus."
+    },
+    {
+      "id": "in-repo-bundle-crosscheck",
+      "service": "local, read-only SQLite query against the repository working tree",
+      "method": "sqlite3 read-only",
+      "url": null,
+      "accessed": "2026-08-10",
+      "raw": "raw/in-repo-vep-bundle-rs1051266-DISCREPANT-2026-08-10.json",
+      "raw_is_reduced": false,
+      "result_used": "bundles/vep_bundle.db at origin/main 26cf641e reports ref=C alt=T hgvs_protein=p.Arg27His for rs1051266, contradicting both external sources. All 102254 of its single-base rows order ref alphabetically before alt with zero exceptions, so the columns are not reference/alternate and the derived hgvs_protein is inverted for the T/C class.",
+      "supports": "Nothing. Retained as the record of a contradicting in-repo artifact that must not be used as authority; written up separately."
+    }
+  ],
+  "source_versions_and_licenses": {
+    "_why": "Recording the version/build and licence basis for every source, so a future auditor can establish which source state produced each retained payload and on what basis retaining it is permitted.",
+    "NCBI dbSNP RefSNP v2": {
+      "version_or_build": "Response carries the RefSNP's own last_update_build_id and dates; the 2026-08-10 access date bounds retrieval. No API version beyond the v0 path segment is issued.",
+      "license_or_terms": "US Government work produced by the National Library of Medicine; NCBI databases are in the public domain in the United States.",
+      "retention_basis": "Public domain. Only variant metadata for a single rsID is retained; no human subject data is involved."
+    },
+    "Ensembl GRCh37 REST": {
+      "version_or_build": "GRCh37 archive endpoint. The response does not carry a release number, so the 2026-08-10 access date is the retrieval-version boundary. The GRCh37 site is a frozen mirror and lags current dbSNP, which is why dbSNP rather than Ensembl is the primary source for the identity and merge status of the rsID.",
+      "license_or_terms": "Ensembl data are released under the Apache License 2.0.",
+      "retention_basis": "Apache 2.0 permits redistribution with attribution. Only the single-rsID variation record is retained."
+    },
+    "PMID:16750224 / PMID:24597986 / PMID:33935279": {
+      "version_or_build": "Version of record. These are the three citations already carried by the panel row; only their titles are used here, and only as evidence of which spelling each uses.",
+      "license_or_terms": "Titles only, used as bibliographic fact. No abstract or full text is retained or reproduced.",
+      "retention_basis": "Bibliographic metadata, attributed by PMID. The titles were read from the repository's own tests/fixtures/pmid_metadata_snapshot.json rather than re-fetched."
+    }
+  },
+  "corrections_and_retractions_checked": "The three PMIDs are pre-existing citations on the row and are not the basis of any claim in this packet beyond which spelling their titles use; no claim of theirs is relied on, so no correction or retraction status could change a conclusion here. dbSNP was checked for a merge and reports rs1051266 as not merged.",
+  "privacy": "No sample, genotype, or other personal data was read, transmitted or stored. Both external requests are single-rsID metadata lookups; the local query is read-only against a reference artifact."
+}
