@@ -40,6 +40,7 @@ import pytest
 import sqlalchemy as sa
 from sqlalchemy.pool import StaticPool
 
+from backend.analysis.clinvar_significance import is_pathogenic_primary
 from backend.annotation.engine import run_annotation
 from backend.config import get_settings
 from backend.db.sample_schema import create_sample_tables
@@ -62,17 +63,6 @@ CLINVAR_PLP_HIT_RATE_FLOOR = 0.85
 # Production releases are hundreds of MB; anything smaller than 100 MB is
 # treated as a development stub and the slow-tier test stays dormant.
 _REAL_VEP_BUNDLE_MIN_BYTES = 100_000_000
-
-# ClinVar significance strings that ClinVar's parser writes for P / LP records.
-# The parser lowercases the CLNSIG underscores into spaces and keeps native
-# casing (see :func:`backend.annotation.clinvar.parse_clinvar_vcf_line`);
-# these are the canonical post-parse values.
-_PATHOGENIC_TOKENS = (
-    "pathogenic",
-    "likely pathogenic",
-    "pathogenic, low penetrance",
-    "likely pathogenic, low penetrance",
-)
 
 FIXTURES_DIR = Path(__file__).resolve().parent.parent / "fixtures"
 SYNTHETIC_FIXTURE = FIXTURES_DIR / "synthetic_eur_ancestrydna.txt"
@@ -256,14 +246,6 @@ def registry(real_vep_engine: sa.Engine, reference_engine_with_clinvar: sa.Engin
 # ── Helpers ──────────────────────────────────────────────────────────────
 
 
-def _is_pathogenic(significance: str | None) -> bool:
-    """Return True if the ClinVar significance string is P or LP."""
-    if not significance:
-        return False
-    sig_lower = significance.strip().lower()
-    return any(sig_lower == token for token in _PATHOGENIC_TOKENS)
-
-
 def _plp_keys_in_clinvar(reference_engine: sa.Engine) -> tuple[set[str], set[tuple[str, int]]]:
     """Return (rsids, (chrom, pos) pairs) for all ClinVar P/LP rows in scope."""
     plp_rsids: set[str] = set()
@@ -278,13 +260,62 @@ def _plp_keys_in_clinvar(reference_engine: sa.Engine) -> tuple[set[str], set[tup
             )
         ).fetchall()
     for row in rows:
-        if not _is_pathogenic(row.significance):
+        if not is_pathogenic_primary(row.significance):
             continue
         if row.rsid:
             plp_rsids.add(row.rsid)
         if row.chrom and row.pos is not None:
             plp_coords.add((row.chrom, int(row.pos)))
     return plp_rsids, plp_coords
+
+
+def test_plp_keys_follow_shared_pathogenicity_boundary() -> None:
+    """Coverage keys include compound P/LP and exclude lower-penetrance calls."""
+    engine = sa.create_engine("sqlite://")
+    reference_metadata.create_all(engine)
+    with engine.begin() as conn:
+        conn.execute(
+            clinvar_variants.insert(),
+            [
+                {
+                    "rsid": "rs-compound",
+                    "chrom": "1",
+                    "pos": 101,
+                    "ref": "A",
+                    "alt": "G",
+                    "significance": "Pathogenic|drug response",
+                },
+                {
+                    "rsid": "rs-primary",
+                    "chrom": "2",
+                    "pos": 202,
+                    "ref": "C",
+                    "alt": "T",
+                    "significance": "Likely pathogenic",
+                },
+                {
+                    "rsid": "rs-low-penetrance",
+                    "chrom": "3",
+                    "pos": 303,
+                    "ref": "G",
+                    "alt": "A",
+                    "significance": "Pathogenic, low penetrance",
+                },
+                {
+                    "rsid": "rs-benign",
+                    "chrom": "4",
+                    "pos": 404,
+                    "ref": "T",
+                    "alt": "C",
+                    "significance": "Benign",
+                },
+            ],
+        )
+
+    rsids, coords = _plp_keys_in_clinvar(engine)
+
+    assert rsids == {"rs-compound", "rs-primary"}
+    assert coords == {("1", 101), ("2", 202)}
 
 
 # ── Tests ────────────────────────────────────────────────────────────────
@@ -368,7 +399,7 @@ class TestAncestryDNARealBundle:
         annotated_plp_rsids = {
             row.rsid
             for row in annotated_rows
-            if row.rsid in expected_keys and _is_pathogenic(row.clinvar_significance)
+            if row.rsid in expected_keys and is_pathogenic_primary(row.clinvar_significance)
         }
 
         hit_rate = len(annotated_plp_rsids) / len(expected_keys)
