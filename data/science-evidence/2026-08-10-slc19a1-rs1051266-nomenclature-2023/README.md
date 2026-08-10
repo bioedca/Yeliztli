@@ -109,13 +109,18 @@ as the reference.
 
 ## Direction of effect — contested, and untouched
 
-The Consensus results disagree about which allele does what: Stanisławska-Sachadyn
-2009 reports *higher* red-cell folate for GA/AA than GG; Naushad 2021 reports the
-80A allele *increasing* methotrexate efficacy and safety; Wang 2006 and Yue 2026
-report 80AA associated with *increased* cancer risk and *greater* methotrexate
-toxicity respectively; the row's own He 2014 finds no effect on toxicity. The
-panel's "AA → reduced folate carrier efficiency" is at least in tension with the
-first of those. That question is filed separately and is not decided here.
+The Consensus results disagree about which allele does what:
+
+| Source | Reported direction |
+| --- | --- |
+| PMID:19650776 (Stanisławska-Sachadyn 2009, Ann Hum Genet) | GA/AA had *higher* red-cell folate than GG; 80G homozygotes flagged as the at-risk group |
+| PMID:33749319 (Naushad 2021, Ann Pharmacother, 18 studies) | 80A allele *increased* methotrexate efficacy and safety |
+| PMID:16962770 (Wang 2006, Eur J Cancer) | 80AA associated with *increased* gastro-oesophageal cancer risk |
+| PMID:41673870 (Yue 2026, World J Surg Oncol, 13 studies) | 80AA associated with *greater* methotrexate toxicity |
+| PMID:24597986 (He 2014) — the row's own citation | *No* influence of G80A on methotrexate toxicity |
+
+The panel's "AA → reduced folate carrier efficiency" is at least in tension with
+the first of those. That question is filed separately and is not decided here.
 
 ## Corrections and retractions
 

@@ -24,10 +24,18 @@ rather than reference-first, so its ``hgvs_protein`` is inverted for the whole
 T/C class — it reports ``p.Arg27His`` here. That artifact is the trap #2023's
 reporter narrowly missed, and it is written up separately.
 
-The check is purely combinatorial and needs no external reference: a shorthand
-``<ref><pos><alt>`` is consistent with ``<From><n><To>`` if some codon encoding
-``From`` and some codon encoding ``To`` differ at exactly one position, where the
-first carries ``ref`` and the second carries ``alt``. Deliberately *not* checked:
+The check itself is combinatorial: a shorthand ``<ref><pos><alt>`` is consistent
+with ``<From><n><To>`` if some codon encoding ``From`` and some codon encoding
+``To`` differ at exactly one position, where the first carries ``ref`` and the
+second carries ``alt``. It does, however, rest on one external scientific fact —
+the genetic code — and that is **sourced, not remembered**: the codon table is
+derived from ``tests/fixtures/ncbi_genetic_code_table1.json``, a verbatim
+transcription of NCBI translation table 1 (``gc.prt`` version 4.6, accessed
+2026-08-10), down to the codon ordering. A mis-transcribed table would otherwise
+redefine which labels this suite accepts, with the tests below simply agreeing
+with the damage.
+
+Deliberately *not* checked:
 
 * that ``pos`` falls inside codon ``n``. The shorthands use legacy transcript
   numbering — MTHFR ``C677T`` is ``p.Ala222Val``, whose codon is c.664-666 — so a
@@ -58,21 +66,34 @@ covered with no allow-list to update.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from pathlib import Path
 
 PANEL_DIR = Path(__file__).resolve().parents[2] / "backend" / "data" / "panels"
+_GENETIC_CODE_FIXTURE = (
+    Path(__file__).resolve().parents[1] / "fixtures" / "ncbi_genetic_code_table1.json"
+)
 
-# Standard genetic code (NCBI translation table 1), generated in TCAG codon order.
-_CODON_TABLE = {
-    f"{first}{second}{third}": amino
-    for (first, second, third), amino in zip(
-        ((a, b, c) for a in "TCAG" for b in "TCAG" for c in "TCAG"),
-        "FFLLSSSSYY**CC*WLLLLPPPPHHQQRRRRIIIMTTTTNNKKSSRRVVVVAAAADDEEGGGG",
-        strict=True,
-    )
-}
+
+def _load_codon_table() -> dict[str, str]:
+    """Standard genetic code, derived from the retained NCBI translation table 1.
+
+    This decides which panel labels the guard accepts, so it is a biological fact
+    the suite must not carry from memory. ``tests/fixtures/ncbi_genetic_code_table1.json``
+    is a verbatim transcription of NCBI's own ``gc.prt`` entry, and the codon
+    order comes from that file's ``Base1``/``Base2``/``Base3`` lines rather than
+    from an assumption about how the table is laid out — so a wrong assumption
+    about the ordering cannot silently redefine the check either.
+    """
+    fixture = json.loads(_GENETIC_CODE_FIXTURE.read_text(encoding="utf-8"))
+    base1, base2, base3 = fixture["base1"], fixture["base2"], fixture["base3"]
+    amino_acids = fixture["ncbieaa"]
+    return {base1[i] + base2[i] + base3[i]: amino_acids[i] for i in range(len(amino_acids))}
+
+
+_CODON_TABLE = _load_codon_table()
 
 _THREE_TO_ONE = {
     "Ala": "A",
@@ -115,20 +136,39 @@ def _walk_dicts(node: object):
             yield from _walk_dicts(item)
 
 
-def _protein_change(node: dict) -> tuple[str, int, str] | None:
-    """``(from_aa, position, to_aa)`` in one-letter form, from ``hgvs_protein`` if
-    present, else from a ``(His27Arg)`` parenthetical inside ``variant_name``."""
-    raw = node.get("hgvs_protein")
-    match = _HGVS_PROTEIN.match(raw) if isinstance(raw, str) else None
-    if match is None:
-        name = node.get("variant_name")
-        match = _PARENTHETICAL_PROTEIN.search(name) if isinstance(name, str) else None
+def _one_letter(match: re.Match[str] | None) -> tuple[str, int, str] | None:
+    """``(from_aa, position, to_aa)`` in one-letter form, or ``None``."""
     if match is None:
         return None
     first, position, second = match.group(1), int(match.group(2)), match.group(3)
     if first not in _THREE_TO_ONE or second not in _THREE_TO_ONE:
         return None
     return _THREE_TO_ONE[first], position, _THREE_TO_ONE[second]
+
+
+def _declared_protein_changes(node: dict) -> tuple[tuple[str, int, str] | None, ...]:
+    """Both amino-acid declarations a row can carry: ``hgvs_protein`` and the
+    ``(His27Arg)`` parenthetical inside ``variant_name``, in that order."""
+    raw = node.get("hgvs_protein")
+    name = node.get("variant_name")
+    return (
+        _one_letter(_HGVS_PROTEIN.match(raw) if isinstance(raw, str) else None),
+        _one_letter(_PARENTHETICAL_PROTEIN.search(name) if isinstance(name, str) else None),
+    )
+
+
+def _protein_change(node: dict) -> tuple[str, int, str] | None:
+    """The row's amino-acid change: ``hgvs_protein`` if present, else the
+    parenthetical inside ``variant_name``.
+
+    Where both exist they must agree — that is enforced separately by
+    ``test_every_row_declares_one_amino_acid_change``, because preferring one
+    silently would let ``A80G (His27Pro)`` beside ``p.His27Arg`` satisfy the
+    direction guard while the user-visible label stays self-contradictory. This
+    helper is only reached once that agreement holds.
+    """
+    hgvs, parenthetical = _declared_protein_changes(node)
+    return hgvs if hgvs is not None else parenthetical
 
 
 def _codons_for(amino: str) -> list[str]:
@@ -196,6 +236,44 @@ def _discover_shorthand_loci() -> list[tuple[str, str, str, tuple[str, int, str]
     return found
 
 
+def test_genetic_code_fixture_is_well_formed_ncbi_table_1() -> None:
+    """The sourced table must be intact and complete before anything trusts it.
+
+    Checks the fixture against NCBI's own structure rather than against a second
+    copy of the same assertion: 64 positions in every parallel string, exactly
+    the 64 distinct ACGT codons, the documented stop and start codons, and the
+    table identity NCBI ships. A truncated or mis-transcribed fixture would
+    otherwise redefine which panel labels are accepted, with the tests below
+    merely agreeing with the damage.
+    """
+    fixture = json.loads(_GENETIC_CODE_FIXTURE.read_text(encoding="utf-8"))
+    assert fixture["id"] == 1
+    assert fixture["name"] == "Standard"
+    assert fixture["_source_version"] == "4.6"
+    for key in ("ncbieaa", "sncbieaa", "base1", "base2", "base3"):
+        assert len(fixture[key]) == 64, f"{key} is not 64 long"
+
+    # The code is redundant, so corrupting one codon of a multi-codon amino acid
+    # changes no reachability result and is invisible to every other check here.
+    # Pin the transcription itself.
+    payload = "|".join(fixture[k] for k in ("ncbieaa", "sncbieaa", "base1", "base2", "base3"))
+    assert hashlib.sha256(payload.encode()).hexdigest() == fixture["_transcription_sha256"], (
+        "the retained NCBI table has been edited; re-derive it from gc.prt rather "
+        "than updating the digest to match"
+    )
+
+    assert len(_CODON_TABLE) == 64
+    assert set(_CODON_TABLE) == {a + b + c for a in "ACGT" for b in "ACGT" for c in "ACGT"}
+    assert {c for c, aa in _CODON_TABLE.items() if aa == "*"} == {"TAA", "TAG", "TGA"}
+    starts = {
+        fixture["base1"][i] + fixture["base2"][i] + fixture["base3"][i]
+        for i, flag in enumerate(fixture["sncbieaa"])
+        if flag == "M"
+    }
+    assert starts == {"TTG", "CTG", "ATG"}
+    assert _CODON_TABLE["ATG"] == "M"
+
+
 def test_detector_rejects_the_2023_label_and_accepts_its_fix() -> None:
     """The detector must actually discriminate: it has to reject the shipped
     ``G80A (His27Arg)`` and accept the canonical ``A80G (His27Arg)``.
@@ -243,6 +321,32 @@ def test_ambiguous_amino_acid_pairs_are_reported_as_undecidable() -> None:
 
     # Synonymous changes are symmetric by construction and never decidable here.
     assert not _direction_is_decidable("C", "T", "Y", "Y")
+
+
+def test_every_row_declares_one_amino_acid_change() -> None:
+    """A row carrying both ``hgvs_protein`` and a parenthetical must agree.
+
+    The guard's job is that the *rendered label* cannot contradict itself, and
+    the parenthetical is part of that label. ``A80G (His27Pro)`` beside
+    ``p.His27Arg`` would otherwise pass the direction check — A→G does reach
+    His→Arg — while the string the user reads still says two different things.
+    Self-discovering across every panel, not just the rows with a shorthand.
+    """
+    offenders = []
+    for path in sorted(PANEL_DIR.glob("*.json")):
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        for node in _walk_dicts(raw):
+            hgvs, parenthetical = _declared_protein_changes(node)
+            if hgvs is None or parenthetical is None or hgvs == parenthetical:
+                continue
+            offenders.append(
+                f"{path.name}::{node.get('rsid')} variant_name={node.get('variant_name')!r} "
+                f"declares {parenthetical} but hgvs_protein={node.get('hgvs_protein')!r} "
+                f"declares {hgvs}"
+            )
+    assert not offenders, "panel row declares two different amino-acid changes: " + "; ".join(
+        offenders
+    )
 
 
 def test_discovery_finds_the_panel_shorthand_loci() -> None:
@@ -312,6 +416,38 @@ def test_no_nonsynonymous_shorthand_escapes_the_direction_check() -> None:
         "panel shorthand whose direction this guard cannot decide (both "
         "substitution directions reach the declared amino-acid change); verify "
         "against the transcript codon: " + "; ".join(non_synonymous)
+    )
+
+
+def test_protein_shorthand_rows_are_listed_rather_than_silently_skipped() -> None:
+    """Every row the guard reads as an amino-acid label is named here.
+
+    ``A/C/G/T`` double as amino-acid codes, so ``<X><n><Y>`` is genuinely
+    ambiguous and no rule reads it correctly from the label alone. The guard
+    resolves it by asking whether the label matches the row's own declared
+    protein change exactly — under which reading the row is self-consistent, so
+    there is nothing for a self-contradiction guard to report. A row like
+    ``A80G (Ala80Gly)`` is skipped for the same reason: read as Ala80Gly it says
+    one thing, not two.
+
+    What that reading costs is that a row *intending* nucleotides, but whose
+    bases and position happen to coincide with its residues, escapes the
+    direction check. Nothing in the panel schema distinguishes the two, and
+    adding a notation field to defend against a row nobody has written is the
+    wrong trade. Instead the skip is made visible: exactly one row is skipped
+    today, and a second one has to be looked at deliberately.
+    """
+    skipped = []
+    for label, name, _panel, change in _discover_shorthand_loci():
+        match = _NUCLEOTIDE_SHORTHAND.match(name)
+        assert match is not None  # guaranteed by discovery
+        ref, position, alt = match.group(1), int(match.group(2)), match.group(3)
+        if _is_protein_shorthand(ref, position, alt, change):
+            skipped.append(label)
+    assert skipped == ["gene_health_panel.json::rs2241880"], (
+        "the set of rows read as amino-acid labels rather than nucleotide "
+        "shorthand changed; confirm each new one really is a protein label and "
+        "update this lock deliberately: " + "; ".join(skipped)
     )
 
 

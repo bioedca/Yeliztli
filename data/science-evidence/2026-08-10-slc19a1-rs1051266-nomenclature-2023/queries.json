@@ -6,9 +6,14 @@
     "dbSNP:rs1051266 (NCBI RefSNP v2, RefSeq NM_194255.4 / NP_919231.1) (accessed 2026-08-10)",
     "UniProtKB:P41440 (S19A1_HUMAN, canonical sequence version 3, CRC64 0437B1615F5517EB) (accessed 2026-08-10)",
     "Ensembl GRCh37 variation record rs1051266 (accessed 2026-08-10)",
+    "NCBI genetic code table 1, gc.prt version 4.6 (accessed 2026-08-10)",
     "PMID:16750224 (accessed 2026-08-10)",
     "PMID:24597986 (accessed 2026-08-10)",
-    "PMID:33935279 (accessed 2026-08-10)"
+    "PMID:33935279 / DOI:10.12659/MSM.929911 (accessed 2026-08-10)",
+    "PMID:19650776 / DOI:10.1111/j.1469-1809.2009.00529.x (accessed 2026-08-10)",
+    "PMID:33749319 / DOI:10.1177/10600280211002053 (accessed 2026-08-10)",
+    "PMID:16962770 / DOI:10.1016/j.ejca.2006.04.022 (accessed 2026-08-10)",
+    "PMID:41673870 (accessed 2026-08-10)"
   ],
   "high_stakes_two_source_rule": "Engaged and satisfied, after a correction. The reference-base claim is carried in a durable artifact (the rendered panel label), so it needs two agreeing sources that share neither a dataset nor an assertion chain. An earlier version of this packet named NCBI dbSNP and Ensembl GRCh37 as the two; that was WRONG, because the retained Ensembl response declares its own source as 'Variants (including SNPs and indels) imported from dbSNP', so the two share an upstream. The independent pair is instead NCBI RefSeq/dbSNP (NM_194255.4/NP_919231.1) and UniProtKB P41440, which is curated by the UniProt consortium from EMBL/GenBank/DDBJ translations and the literature rather than from dbSNP, and which establishes the reference RESIDUE (His at position 27) directly rather than by way of the variant record. Ensembl is retained as corroboration and as the source of ancestral-allele and frequency context, not as an independent vote. The His->Arg = A->G step itself is the standard genetic code and is not sourced.",
   "queries": [
@@ -62,7 +67,8 @@
       "supports": "The shipped recommendation_text wording ('names this SNP G80A or c.80G>A, taking the opposite base as the reference'), and the decision NOT to touch the direction of effect in this change.",
       "artifact": "raw/consensus-search-2026-08-10.json",
       "artifact_is_transcription": true,
-      "artifact_transcription_note": "MCP responses are returned into the conversation, not as files, so the bytes cannot be preserved. The artifact is complete with respect to RECORDS (no selection) and drops only abstracts and other copyrighted body text, per this repository's bibliographic-metadata-only retention rule. The prose reading of the same response is in raw/evidence-ladder-2026-08-10.md, which is analysis and is not labelled raw."
+      "artifact_transcription_note": "MCP responses are returned into the conversation, not as files, so the bytes cannot be preserved. The artifact is complete with respect to RECORDS (no selection) and drops only abstracts and other copyrighted body text, per this repository's bibliographic-metadata-only retention rule. The prose reading of the same response is in raw/evidence-ladder-2026-08-10.md, which is analysis and is not labelled raw.",
+      "identifiers_note": "Consensus returns no PMID or DOI. Identifiers were resolved via PubMed on 2026-08-10 for every record cited in a claim and recorded per-record in the artifact under pmid/doi, flagged by used_in_packet_claim. Uncited records carry no asserted identifier and are retained only so the result set stays complete."
     },
     {
       "id": "scite-editorial-notices",
@@ -130,6 +136,18 @@
         "result": "44 matched; 12 same orientation, 6 reversed, 26 different allele pair, 635 absent."
       },
       "supports": "Nothing. Retained as the record of a contradicting in-repo artifact that must not be used as authority; written up separately."
+    },
+    {
+      "id": "ncbi-genetic-code",
+      "service": "NCBI genetic code tables",
+      "method": "GET",
+      "url": "https://ftp.ncbi.nlm.nih.gov/entrez/misc/data/gc.prt",
+      "accessed": "2026-08-10",
+      "artifact": "../../../tests/fixtures/ncbi_genetic_code_table1.json",
+      "artifact_is_transcription": true,
+      "artifact_transcription_note": "Verbatim transcription of the id 1 (Standard) entry from gc.prt version 4.6: the ncbieaa/sncbieaa strings and the file's own Base1/Base2/Base3 codon-order lines, plus a SHA-256 over those five strings. It lives under tests/fixtures/ rather than here because tests/backend/test_panel_variant_name_codon_consistency.py reads it at import time to build its codon table.",
+      "result_used": "Translation table 1 (Standard), 64 codons; stops TAA/TAG/TGA; starts TTG/CTG/ATG. The guard derives which base substitutions can produce which amino-acid changes from this.",
+      "supports": "That the genetic code underpinning the new panel-label guard is sourced rather than encoded from memory. The digest is pinned because the code is redundant: corrupting one codon of a multi-codon amino acid changes no reachability result and would otherwise be invisible."
     }
   ],
   "source_versions_and_licenses": {
@@ -158,6 +176,11 @@
       "version_or_build": "Version of record. These are the three citations already carried by the panel row; only their titles and editorial-notice status are used here.",
       "license_or_terms": "Titles only, used as bibliographic fact. No abstract or full text is retained or reproduced.",
       "retention_basis": "Bibliographic metadata, attributed by PMID and DOI."
+    },
+    "NCBI genetic code table 1": {
+      "version_or_build": "gc.prt version 4.6, as stated in the file header. Accessed 2026-08-10.",
+      "license_or_terms": "US Government work produced by the National Library of Medicine; NCBI data are in the public domain in the United States.",
+      "retention_basis": "Public domain. Only the id 1 (Standard) table is retained."
     }
   },
   "corrections_and_retractions_checked": "Yes, performed rather than argued. All three cited PMIDs were queried through Scite by DOI on 2026-08-10; none returned an editorialNotices entry (retraction, correction, concern or erratum). Cross-checked against PubMed article_types for the same three PMIDs, none of which carries Retracted Publication or Erratum. dbSNP separately reports rs1051266 as not merged. Per-record table in raw/evidence-ladder-2026-08-10.md.",

@@ -25,8 +25,8 @@ titles and abstracts for the same rsID:
 
 | Spelling | Examples from the result set |
 | --- | --- |
-| `G80A` / `c.80G>A` / `80G>A` | Dufficy 2006 (PMID:16750224); He 2014 (PMID:24597986); Wang 2006, Eur J Cancer; Stanisławska-Sachadyn 2009, Ann Hum Genet (`c.80G>A`); Coppedè 2014, BioMed Res Int (`c.80G>A`); Kurzawski 2010, Biomarkers (`rs1051266:G>A, 80G>A`); Gregers 2010, Blood (`80G>A`) |
-| `A80G` / `c.80A>G` / `80A>G` | Yi 2021 (PMID:33935279); Coppedè 2013, Nutrients (`c.80A>G`); Naushad 2021, Ann Pharmacother (`c.80A>G`); Imani 2019, Arch Oral Biol |
+| `G80A` / `c.80G>A` / `80G>A` | PMID:16750224 (Dufficy 2006); PMID:24597986 (He 2014); PMID:16962770 (Wang 2006); PMID:19650776 (Stanisławska-Sachadyn 2009, `c.80G>A`); Coppedè 2014, BioMed Res Int (`c.80G>A`); Kurzawski 2010, Biomarkers (`rs1051266:G>A, 80G>A`); Gregers 2010, Blood (`80G>A`) |
+| `A80G` / `c.80A>G` / `80A>G` | PMID:33935279 (Yi 2021); Coppedè 2013, Nutrients (`c.80A>G`); PMID:33749319 (Naushad 2021, `c.80A>G`); Imani 2019, Arch Oral Biol |
 
 This is why the shipped `recommendation_text` says the literature "names this SNP
 G80A **or c.80G>A**, taking the opposite base as the reference" rather than
@@ -38,15 +38,15 @@ and was removed.
 **Outcome — direction of effect is contested, which is why this PR does not touch
 it.** Among the returned papers, on the same allele:
 
-- Stanisławska-Sachadyn 2009 (Ann Hum Genet): women with GA and AA had *higher*
-  red-cell folate than GG.
-- Naushad 2021 (Ann Pharmacother, 18 studies, 3592 RA patients): the 80A allele
-  *increased* methotrexate efficacy and safety.
-- Wang 2006 (Eur J Cancer): 80AA associated with *increased* gastro-oesophageal
-  cancer risk.
-- Yue 2026 (World J Surg Oncol, 13 studies): 80AA associated with *greater*
-  methotrexate toxicity in paediatric ALL.
-- He 2014 (PMID:24597986, the row's own citation): no influence of G80A on
+- PMID:19650776 (Stanisławska-Sachadyn 2009, Ann Hum Genet): women with GA and AA
+  had *higher* red-cell folate than GG.
+- PMID:33749319 (Naushad 2021, Ann Pharmacother, 18 studies, 3592 RA patients): the
+  80A allele *increased* methotrexate efficacy and safety.
+- PMID:16962770 (Wang 2006, Eur J Cancer): 80AA associated with *increased*
+  gastro-oesophageal cancer risk.
+- PMID:41673870 (Yue 2026, World J Surg Oncol, 13 studies): 80AA associated with
+  *greater* methotrexate toxicity in paediatric ALL.
+- PMID:24597986 (He 2014, the row's own citation): no influence of G80A on
   methotrexate toxicity.
 
 The panel's `genotype_effects` call AA "reduced folate carrier efficiency", which
@@ -73,3 +73,13 @@ which likewise carry no `Retracted Publication` or `Erratum` type:
 
 Bibliographic metadata retrieved from PubMed (https://pubmed.ncbi.nlm.nih.gov/);
 DOIs above resolve at https://doi.org/.
+
+## Identifiers
+
+Consensus returns its own paper URLs but no PMID or DOI. Identifiers were resolved
+separately via PubMed on 2026-08-10 for every record cited in a claim above, and are
+recorded per-record in `consensus-search-2026-08-10.json` under `pmid`/`doi`, with
+`used_in_packet_claim` marking which ones those are. Records left without an
+identifier are the ones no claim rests on; they are retained so the result set stays
+complete and it is visible what was *not* selected. Bibliographic metadata from
+PubMed (https://pubmed.ncbi.nlm.nih.gov/); DOIs resolve at https://doi.org/.
