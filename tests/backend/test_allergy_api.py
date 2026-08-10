@@ -729,22 +729,42 @@ class TestPGxHandoffAvailability:
         )
         assert self._cross_module(client)["pgx_guidance_available"] is False
 
-    def test_withheld_when_the_finding_names_no_drug(
+    def test_legacy_finding_without_a_drug_is_gated_the_same_way(
         self, _env: tuple[sa.Engine, sa.Engine], monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """A finding stored before #2020 names no drug, so it cannot be matched."""
+        """A finding stored before #2020 records no drug and still gates correctly.
+
+        The pair is read from the panel by rsid — stable metadata every
+        cross-module finding already carries — so an existing sample needs no
+        backfill and no Allergy re-score to follow the destination's capability.
+        """
+        sample_engine, ref_engine = _env
+        legacy = _cross_module_finding(drug=None)
+        client = _client_with(
+            sample_engine,
+            [*PATHWAY_SUMMARY_FINDINGS, legacy, _pgx_prescribing_alert("abacavir")],
+        )
+        # Today's state: PGx cannot call HLA-B, so the handoff is withheld.
+        assert self._cross_module(client)["pgx_guidance_available"] is False
+
+        # Extend PGx and land the guideline — the same legacy row now qualifies.
+        self._make_hla_callable(monkeypatch)
+        _seed_guideline(ref_engine, "HLA-B", "abacavir")
+        assert self._cross_module(client)["pgx_guidance_available"] is True
+
+    def test_unknown_rsid_falls_back_to_the_recorded_drug(
+        self, _env: tuple[sa.Engine, sa.Engine], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A finding for an rsid the panel no longer declares uses its own record."""
         sample_engine, ref_engine = _env
         self._make_hla_callable(monkeypatch)
         _seed_guideline(ref_engine, "HLA-B", "abacavir")
+        retired = {**_cross_module_finding(), "rsid": "rs00000000"}
         client = _client_with(
             sample_engine,
-            [
-                *PATHWAY_SUMMARY_FINDINGS,
-                _cross_module_finding(drug=None),
-                _pgx_prescribing_alert("abacavir"),
-            ],
+            [*PATHWAY_SUMMARY_FINDINGS, retired, _pgx_prescribing_alert("abacavir")],
         )
-        assert self._cross_module(client)["pgx_guidance_available"] is False
+        assert self._cross_module(client)["pgx_guidance_available"] is True
 
     def test_capability_added_after_scoring_needs_no_allergy_rescore(
         self, _env: tuple[sa.Engine, sa.Engine], monkeypatch: pytest.MonkeyPatch

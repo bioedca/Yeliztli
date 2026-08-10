@@ -14,13 +14,14 @@ from __future__ import annotations
 
 import json
 import logging
+from functools import lru_cache
 from typing import Any
 
 import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
-from backend.analysis.allergy import pgx_covered_gene_drugs
+from backend.analysis.allergy import load_allergy_panel, pgx_covered_gene_drugs
 from backend.analysis.pharmacogenomics import (
     is_patient_presentable_finding_payload,
     is_patient_presentable_response_payload,
@@ -224,6 +225,43 @@ def _fetch_allergy_findings(
     return result
 
 
+@lru_cache(maxsize=1)
+def _panel_pgx_handoffs() -> dict[str, tuple[str, str]]:
+    """Map rsid → ``(GENE, drug)`` for every PGx handoff the panel declares.
+
+    Read from the panel rather than the stored finding so a sample scored
+    before the drug was recorded still gets the same gate: ``rsid`` is stable
+    metadata every cross-module finding already carries, and the panel is the
+    definition of what the handoff is about (#2020).
+    """
+    handoffs: dict[str, tuple[str, str]] = {}
+    for pathway in load_allergy_panel().pathways:
+        for snp in pathway.snps:
+            cross = snp.cross_module
+            if not cross or cross.get("module") != "pharmacogenomics":
+                continue
+            drug = cross.get("drug")
+            if not drug:
+                continue
+            handoffs[snp.rsid] = (snp.gene.strip().upper(), str(drug).strip().lower())
+    return handoffs
+
+
+def _handoff_gene_drug(finding: dict[str, Any]) -> tuple[str, str] | None:
+    """The ``(GENE, drug)`` a stored cross-module finding hands off to, if any."""
+    if finding["detail"].get("target_module") != "pharmacogenomics":
+        return None
+    from_panel = _panel_pgx_handoffs().get(finding["rsid"] or "")
+    if from_panel is not None:
+        return from_panel
+    # Panel no longer declares this rsid: fall back to what the finding recorded.
+    drug = finding["detail"].get("drug")
+    gene = finding["gene_symbol"]
+    if not drug or not gene:
+        return None
+    return (str(gene).strip().upper(), str(drug).strip().lower())
+
+
 def _assessed_pgx_gene_drugs(
     sample_engine: sa.Engine,
     gene_drugs: set[tuple[str, str]],
@@ -339,11 +377,8 @@ def list_pathways(
     # Offer a PGx handoff only for a drug the module can advise on (recorded at
     # scoring time) AND that this sample has a presentable PGx result for
     # (checked now, so the answer cannot go stale against module run order).
-    requested = {
-        (str(cf["gene_symbol"]).strip().upper(), str(cf["detail"]["drug"]).strip().lower())
-        for cf in cross_findings
-        if cf["detail"].get("drug") and cf["gene_symbol"]
-    }
+    handoffs = {id(cf): _handoff_gene_drug(cf) for cf in cross_findings}
+    requested = {pair for pair in handoffs.values() if pair is not None}
     # Both halves are decided now, not when this sample was scored: the module's
     # current capability from the reference DB, and this sample's current PGx
     # result. Extending PGx and re-running it therefore restores the handoff
@@ -353,8 +388,7 @@ def list_pathways(
     cross_items: list[CrossModuleItem] = []
     for cf in cross_findings:
         detail = cf["detail"]
-        drug = detail.get("drug")
-        gene = cf["gene_symbol"]
+        handoff = handoffs[id(cf)]
         cross_items.append(
             CrossModuleItem(
                 rsid=cf["rsid"] or "",
@@ -364,9 +398,7 @@ def list_pathways(
                 finding_text=cf["finding_text"] or "",
                 evidence_level=cf["evidence_level"] if cf["evidence_level"] is not None else 1,
                 pmids=cf["pmids"],
-                pgx_guidance_available=bool(drug)
-                and bool(gene)
-                and (str(gene).strip().upper(), str(drug).strip().lower()) in assessed,
+                pgx_guidance_available=handoff is not None and handoff in assessed,
             )
         )
 
