@@ -830,6 +830,374 @@ class TestListFindings:
         assert response.detail["indeterminate_reason"] == "detail_unavailable"
         assert response.detail["froh"] is None
 
+    @pytest.mark.parametrize(
+        ("label", "summary"),
+        [
+            (
+                "positive_froh_below_one_minimum_segment",
+                {"froh": 0.00001},
+            ),
+            (
+                "froh_has_non_writer_precision",
+                {
+                    "froh": 0.000541,
+                    "autosomal_snps_used": 100,
+                    "n_segments": 1,
+                    "params": {"froh_denominator_kb": 2_770_000},
+                },
+            ),
+            (
+                "total_has_non_writer_precision",
+                {
+                    "froh": 0.00054,
+                    "autosomal_snps_used": 100,
+                    "n_segments": 1,
+                    "total_roh_kb": 1500.05,
+                    "params": {"froh_denominator_kb": 2_770_000},
+                },
+            ),
+            (
+                "longest_has_non_writer_precision",
+                {
+                    "froh": 0.00054,
+                    "autosomal_snps_used": 100,
+                    "n_segments": 1,
+                    "longest_kb": 1500.05,
+                    "params": {"froh_denominator_kb": 2_770_000},
+                },
+            ),
+            (
+                "froh_below_two_segment_minimum",
+                {"froh": 0.00054, "n_segments": 2},
+            ),
+            (
+                "froh_below_recorded_total",
+                {"froh": 0.00054, "total_roh_kb": 6200.0},
+            ),
+            (
+                "froh_below_recorded_longest",
+                {"froh": 0.00054, "longest_kb": 6200.0},
+            ),
+            (
+                "froh_omits_other_segment_minimum",
+                {
+                    "froh": 0.00224,
+                    "autosomal_snps_used": 200,
+                    "n_segments": 2,
+                    "longest_kb": 6200.0,
+                    "params": {"froh_denominator_kb": 2_770_000},
+                },
+            ),
+            (
+                "froh_ignores_smaller_recorded_denominator",
+                {
+                    "froh": 0.00054,
+                    "autosomal_snps_used": 100,
+                    "n_segments": 1,
+                    "params": {"froh_denominator_kb": 1_000_000},
+                },
+            ),
+            (
+                "froh_below_complete_list_total",
+                {
+                    "froh": 0.00054,
+                    "segments": [_SEG],
+                    "params": {"froh_denominator_kb": 2_770_000},
+                },
+            ),
+            (
+                "truncated_list_froh_omits_one_hidden_minimum",
+                {
+                    "froh": 0.00224,
+                    "segments": [_SEG],
+                    "segments_truncated": True,
+                    "params": {"froh_denominator_kb": 2_770_000},
+                },
+            ),
+            (
+                "froh_above_count_times_longest",
+                {
+                    "froh": 1.0,
+                    "autosomal_snps_used": 100,
+                    "n_segments": 1,
+                    "longest_kb": 1500.0,
+                    "params": {"froh_denominator_kb": 2_770_000},
+                },
+            ),
+            (
+                "froh_above_complete_list_total",
+                {
+                    "froh": 1.0,
+                    "segments": [_SEG],
+                    "params": {"froh_denominator_kb": 2_770_000},
+                },
+            ),
+            (
+                "truncated_total_omits_hidden_minimum",
+                {
+                    "froh": 0.00278,
+                    "autosomal_snps_used": 720,
+                    "n_segments": 2,
+                    "total_roh_kb": 6200.0,
+                    "segments": [_SEG],
+                    "segments_truncated": True,
+                },
+            ),
+            (
+                "truncated_marker_count_omits_hidden_minimum",
+                {
+                    "froh": 0.00278,
+                    "autosomal_snps_used": 620,
+                    "n_segments": 2,
+                    "total_roh_kb": 7700.0,
+                    "segments": [_SEG],
+                    "segments_truncated": True,
+                    "params": {"froh_denominator_kb": 2_770_000},
+                },
+            ),
+            (
+                "truncated_top_k_bounds_total_above",
+                {
+                    "froh": 0.0065,
+                    "autosomal_snps_used": 1220,
+                    "n_segments": 3,
+                    "total_roh_kb": 18005.0,
+                    "segments": [
+                        _SEG,
+                        {
+                            **_SEG,
+                            "chrom": "2",
+                            "end": 6_000_000,
+                            "length_kb": 5000.0,
+                            "n_snps": 500,
+                        },
+                    ],
+                    "segments_truncated": True,
+                },
+            ),
+            (
+                "truncated_top_k_bounds_froh_above",
+                {
+                    "froh": 0.0065,
+                    "autosomal_snps_used": 1220,
+                    "n_segments": 3,
+                    "segments": [
+                        _SEG,
+                        {
+                            **_SEG,
+                            "chrom": "2",
+                            "end": 6_000_000,
+                            "length_kb": 5000.0,
+                            "n_snps": 500,
+                        },
+                    ],
+                    "segments_truncated": True,
+                    "params": {"froh_denominator_kb": 2_770_000},
+                },
+            ),
+            (
+                "callable_markers_bound_countless_longest_total",
+                {
+                    "froh": 0.00108,
+                    "autosomal_snps_used": 100,
+                    "total_roh_kb": 3000.0,
+                    "longest_kb": 1500.0,
+                },
+            ),
+            (
+                "callable_markers_bound_countless_longest_froh",
+                {
+                    "froh": 1.0,
+                    "autosomal_snps_used": 100,
+                    "longest_kb": 1500.0,
+                    "params": {"froh_denominator_kb": 2_770_000},
+                },
+            ),
+            (
+                "remaining_markers_bound_countless_truncated_froh",
+                {
+                    "froh": 0.01,
+                    "autosomal_snps_used": 720,
+                    "segments": [_SEG],
+                    "segments_truncated": True,
+                    "params": {"froh_denominator_kb": 2_770_000},
+                },
+            ),
+            (
+                "countless_total_falls_between_one_and_two_runs",
+                {
+                    "froh": 0.00253,
+                    "autosomal_snps_used": 200,
+                    "total_roh_kb": 7000.0,
+                    "longest_kb": 6200.0,
+                    "params": {"froh_denominator_kb": 2_770_000},
+                },
+            ),
+            (
+                "countless_total_falls_between_two_and_three_runs",
+                {
+                    "froh": 0.00162,
+                    "autosomal_snps_used": 300,
+                    "total_roh_kb": 4500.0,
+                    "longest_kb": 2000.0,
+                    "params": {"froh_denominator_kb": 2_770_000},
+                },
+            ),
+            (
+                "countless_truncated_hidden_total_falls_between_run_counts",
+                {
+                    "froh": 0.00126,
+                    "autosomal_snps_used": 300,
+                    "total_roh_kb": 3500.0,
+                    "segments": [
+                        {
+                            **_SEG,
+                            "end": 2_500_000,
+                            "length_kb": 1500.0,
+                            "n_snps": 100,
+                        }
+                    ],
+                    "segments_truncated": True,
+                    "params": {"froh_denominator_kb": 2_770_000},
+                },
+            ),
+            (
+                "countless_froh_bin_falls_between_one_and_two_runs",
+                {
+                    "froh": 0.00253,
+                    "autosomal_snps_used": 200,
+                    "longest_kb": 6200.0,
+                    "params": {"froh_denominator_kb": 2_770_000},
+                },
+            ),
+            (
+                "countless_truncated_froh_bin_falls_between_run_counts",
+                {
+                    "froh": 0.00162,
+                    "autosomal_snps_used": 300,
+                    "segments": [
+                        {
+                            **_SEG,
+                            "end": 3_000_000,
+                            "length_kb": 2000.0,
+                            "n_snps": 100,
+                        }
+                    ],
+                    "segments_truncated": True,
+                    "params": {"froh_denominator_kb": 2_770_000},
+                },
+            ),
+            (
+                "known_count_froh_has_no_one_decimal_writer_total",
+                {
+                    "froh": 0.75001,
+                    "autosomal_snps_used": 100,
+                    "n_segments": 1,
+                    "params": {"froh_denominator_kb": 2000},
+                },
+            ),
+            (
+                "omitted_count_froh_has_no_one_decimal_writer_total",
+                {
+                    "froh": 0.75001,
+                    "autosomal_snps_used": 100,
+                    "params": {"froh_denominator_kb": 2000},
+                },
+            ),
+            (
+                "positive_total_below_one_minimum_segment",
+                {"froh": 0.004, "total_roh_kb": 10.0},
+            ),
+            (
+                "positive_longest_below_one_minimum_segment",
+                {"froh": 0.004, "longest_kb": 10.0},
+            ),
+            (
+                "two_segments_cannot_sum_to_one_minimum_segment",
+                {"froh": 0.004, "n_segments": 2, "total_roh_kb": 1500.0},
+            ),
+            (
+                "two_segments_need_two_marker_minima",
+                {"froh": 0.004, "autosomal_snps_used": 100, "n_segments": 2},
+            ),
+            (
+                "one_thousand_segments_need_their_length_minima",
+                {
+                    "froh": 0.004,
+                    "n_segments": 1000,
+                    "total_roh_kb": 6200.0,
+                    "longest_kb": 6200.0,
+                },
+            ),
+            (
+                "total_exceeds_count_times_longest",
+                {
+                    "froh": 0.004,
+                    "n_segments": 2,
+                    "total_roh_kb": 5000.0,
+                    "longest_kb": 2000.0,
+                },
+            ),
+            (
+                "total_omits_the_other_segment_minimum",
+                {
+                    "froh": 0.004,
+                    "n_segments": 2,
+                    "total_roh_kb": 4000.0,
+                    "longest_kb": 3000.0,
+                },
+            ),
+        ],
+    )
+    def test_summary_only_metrics_below_writer_floors_are_withheld(self, label, summary):
+        # Omitting the interval list preserves a supported legacy projection;
+        # it does not make impossible writer summaries trustworthy. Each case
+        # violates one independent emission bound while remaining positive and
+        # well-typed, so neither the zero/positive check nor schema validation
+        # can make this matrix pass accidentally.
+        detail = {"autosomal_snps_used": 600_000, **summary}
+        response = _row_to_response(self._roh_row(finding_text="stored narrative", detail=detail))
+
+        assert response.detail["evaluable"] is False, label
+        assert response.detail["indeterminate_reason"] == "detail_unavailable", label
+        assert response.detail["froh"] is None, label
+
+    @pytest.mark.parametrize("bad_count", [2_770_000_001, 10**400], ids=["above_bound", "huge"])
+    def test_out_of_range_stored_count_is_withheld_without_a_live_sample(self, bad_count):
+        # Isolate persisted-count validation from the live snapshot mismatch
+        # guard: the old non-negative-int check accepted both values here when
+        # no engine was available to contradict them.
+        response = _row_to_response(
+            self._roh_row(
+                finding_text="stored narrative",
+                detail={"froh": 0.0, "autosomal_snps_used": bad_count, "n_segments": 0},
+            )
+        )
+
+        assert response.detail["evaluable"] is False
+        assert response.detail["indeterminate_reason"] == "detail_unavailable"
+        assert response.detail["autosomal_snps_used"] == 0
+        assert response.detail["froh"] is None
+
+    def test_stored_count_at_writer_bound_is_served_without_a_live_sample(self):
+        # Boundary control for `_is_count`: the genome-sized ceiling itself is
+        # inclusive, so a `<` mutation must not quarantine a valid zero result.
+        response = _row_to_response(
+            self._roh_row(
+                finding_text="stored narrative",
+                detail={
+                    "froh": 0.0,
+                    "autosomal_snps_used": 2_770_000_000,
+                    "n_segments": 0,
+                },
+            )
+        )
+
+        assert "evaluable" not in response.detail
+        assert response.detail["autosomal_snps_used"] == 2_770_000_000
+        assert response.detail["froh"] == 0.0
+        assert response.finding_text == "stored narrative"
+
     def test_positive_summary_without_segment_list_is_still_served(self):
         # Counterpart control: omitting the optional interval list is a supported
         # legacy subset when the recorded positive summaries agree.
@@ -845,6 +1213,271 @@ class TestListFindings:
 
         assert "evaluable" not in response.detail
         assert response.detail["froh"] == 0.00224
+        assert response.finding_text == "stored narrative"
+
+    def test_two_segment_summary_without_segment_list_is_still_served(self):
+        # Full current-writer-shaped counterpart for every aggregate bound
+        # above: two minimum-clearing runs, their exact sum/maximum, sufficient
+        # callable markers, and a FROH tied to the recorded denominator.
+        detail = {
+            "froh": 0.00224,
+            "autosomal_snps_used": 600_000,
+            "n_segments": 2,
+            "total_roh_kb": 6200.0,
+            "longest_kb": 3100.0,
+            "params": {"froh_denominator_kb": 2_770_000},
+        }
+        response = _row_to_response(self._roh_row(finding_text="stored narrative", detail=detail))
+
+        assert "evaluable" not in response.detail
+        assert response.detail["froh"] == 0.00224
+        assert response.detail["n_segments"] == 2
+        assert response.finding_text == "stored narrative"
+
+    def test_exact_minimum_summary_without_segment_list_is_still_served(self):
+        # Boundary control for every strict emission floor. A one-segment writer
+        # result may land exactly on all minima; using <= in any guard would
+        # silently quarantine this valid current shape.
+        detail = {
+            "froh": 0.00054,
+            "autosomal_snps_used": 100,
+            "n_segments": 1,
+            "total_roh_kb": 1500.0,
+            "longest_kb": 1500.0,
+            "params": {"froh_denominator_kb": 2_770_000},
+        }
+        response = _row_to_response(self._roh_row(finding_text="stored narrative", detail=detail))
+
+        assert "evaluable" not in response.detail
+        assert response.detail["froh"] == 0.00054
+        assert response.detail["autosomal_snps_used"] == 100
+        assert response.finding_text == "stored narrative"
+
+    def test_count_and_longest_implied_froh_boundary_is_still_served(self):
+        # Two segments with a 6200 kb longest run imply at least one additional
+        # 1500 kb run. This exact rounded lower bound must remain inclusive.
+        detail = {
+            "froh": 0.00278,
+            "autosomal_snps_used": 200,
+            "n_segments": 2,
+            "longest_kb": 6200.0,
+            "params": {"froh_denominator_kb": 2_770_000},
+        }
+        response = _row_to_response(self._roh_row(finding_text="stored narrative", detail=detail))
+
+        assert "evaluable" not in response.detail
+        assert response.detail["froh"] == 0.00278
+        assert response.detail["n_segments"] == 2
+        assert response.finding_text == "stored narrative"
+
+    @pytest.mark.parametrize(
+        "detail",
+        [
+            {
+                "froh": 0.0015,
+                "autosomal_snps_used": 100,
+                "n_segments": 1,
+                "params": {"froh_denominator_kb": 1_000_000},
+            },
+            {
+                "froh": 0.00054,
+                "autosomal_snps_used": 100,
+                "n_segments": 1,
+                "longest_kb": 1500.0,
+                "params": {"froh_denominator_kb": 2_770_000},
+            },
+            {
+                "froh": 0.00224,
+                "autosomal_snps_used": 620,
+                "segments": [_SEG],
+                "params": {"froh_denominator_kb": 2_770_000},
+            },
+            {
+                "froh": 0.00278,
+                "autosomal_snps_used": 720,
+                "segments": [_SEG],
+                "segments_truncated": True,
+                "params": {"froh_denominator_kb": 2_770_000},
+            },
+            {
+                "froh": 0.00224,
+                "autosomal_snps_used": 200,
+                "total_roh_kb": 6200.0,
+                "longest_kb": 6200.0,
+                "params": {"froh_denominator_kb": 2_770_000},
+            },
+            {
+                "froh": 0.00278,
+                "autosomal_snps_used": 200,
+                "total_roh_kb": 7700.0,
+                "longest_kb": 6200.0,
+                "params": {"froh_denominator_kb": 2_770_000},
+            },
+            {
+                "froh": 0.00108,
+                "autosomal_snps_used": 200,
+                "total_roh_kb": 3000.0,
+                "segments": [
+                    {
+                        **_SEG,
+                        "end": 2_500_000,
+                        "length_kb": 1500.0,
+                        "n_snps": 100,
+                    }
+                ],
+                "segments_truncated": True,
+                "params": {"froh_denominator_kb": 2_770_000},
+            },
+            {
+                "froh": 0.00162,
+                "autosomal_snps_used": 300,
+                "total_roh_kb": 4500.0,
+                "segments": [
+                    {
+                        **_SEG,
+                        "end": 2_500_000,
+                        "length_kb": 1500.0,
+                        "n_snps": 100,
+                    }
+                ],
+                "segments_truncated": True,
+                "params": {"froh_denominator_kb": 2_770_000},
+            },
+            {
+                "froh": 0.00224,
+                "autosomal_snps_used": 200,
+                "longest_kb": 6200.0,
+                "params": {"froh_denominator_kb": 2_770_000},
+            },
+            {
+                "froh": 0.00278,
+                "autosomal_snps_used": 200,
+                "longest_kb": 6200.0,
+                "params": {"froh_denominator_kb": 2_770_000},
+            },
+            {
+                "froh": 0.00144,
+                "autosomal_snps_used": 300,
+                "segments": [
+                    {
+                        **_SEG,
+                        "end": 3_000_000,
+                        "length_kb": 2000.0,
+                        "n_snps": 100,
+                    }
+                ],
+                "segments_truncated": True,
+                "params": {"froh_denominator_kb": 2_770_000},
+            },
+            {
+                "froh": 0.00181,
+                "autosomal_snps_used": 300,
+                "segments": [
+                    {
+                        **_SEG,
+                        "end": 3_000_000,
+                        "length_kb": 2000.0,
+                        "n_snps": 100,
+                    }
+                ],
+                "segments_truncated": True,
+                "params": {"froh_denominator_kb": 2_770_000},
+            },
+            {
+                "froh": 0.75,
+                "autosomal_snps_used": 100,
+                "n_segments": 1,
+                "params": {"froh_denominator_kb": 2000},
+            },
+            {
+                "froh": 0.75,
+                "autosomal_snps_used": 100,
+                "params": {"froh_denominator_kb": 2000},
+            },
+            {
+                "froh": 0.00751,
+                "autosomal_snps_used": 100,
+                "longest_kb": 1501.0,
+                "params": {"froh_denominator_kb": 200_000},
+            },
+            {
+                "froh": 0.00751,
+                "autosomal_snps_used": 100,
+                "longest_kb": 1503.0,
+                "params": {"froh_denominator_kb": 200_000},
+            },
+            {
+                "froh": 0.00585,
+                "autosomal_snps_used": 1220,
+                "n_segments": 3,
+                "total_roh_kb": 16200.0,
+                "segments": [
+                    _SEG,
+                    {
+                        **_SEG,
+                        "chrom": "2",
+                        "end": 6_000_000,
+                        "length_kb": 5000.0,
+                        "n_snps": 500,
+                    },
+                ],
+                "segments_truncated": True,
+                "params": {"froh_denominator_kb": 2_770_000},
+            },
+            {
+                "froh": 0.00054,
+                "autosomal_snps_used": 100,
+                "longest_kb": 1500.0,
+                "params": {"froh_denominator_kb": 2_770_000},
+            },
+            {
+                "froh": 0.00448,
+                "autosomal_snps_used": 720,
+                "segments": [_SEG],
+                "segments_truncated": True,
+                "params": {"froh_denominator_kb": 2_770_000},
+            },
+            {
+                "froh": 0.00278,
+                "autosomal_snps_used": 720,
+                "n_segments": 2,
+                "total_roh_kb": 7700.0,
+                "segments": [_SEG],
+                "segments_truncated": True,
+                "params": {"froh_denominator_kb": 2_770_000},
+            },
+        ],
+        ids=[
+            "smaller_denominator_lower_bound",
+            "count_longest_exact_bound",
+            "complete_list_exact_bound",
+            "truncated_list_hidden_minimum_bound",
+            "truncated_top_k_upper_bound",
+            "countless_longest_marker_upper_bound",
+            "countless_truncated_marker_upper_bound",
+            "truncated_list_total_and_marker_bound",
+            "countless_one_run_exact_total",
+            "countless_two_run_minimum_total",
+            "countless_truncated_one_hidden_run",
+            "countless_truncated_two_hidden_runs",
+            "countless_froh_one_run_band",
+            "countless_froh_two_run_band",
+            "countless_truncated_froh_one_hidden_band",
+            "countless_truncated_froh_two_hidden_band",
+            "known_count_one_decimal_froh_grid",
+            "omitted_count_one_decimal_froh_grid",
+            "python_rounds_lower_half_up",
+            "python_rounds_upper_half_down",
+        ],
+    )
+    def test_partial_summary_froh_boundaries_are_still_served(self, detail):
+        # Inclusive boundary controls for every inferred lower/upper source.
+        # Each is a projection of a writer-emittable result with omitted
+        # companions, never an excuse to reject all partial legacy summaries.
+        response = _row_to_response(self._roh_row(finding_text="stored narrative", detail=detail))
+
+        assert "evaluable" not in response.detail
+        assert response.detail["froh"] == detail["froh"]
         assert response.finding_text == "stored narrative"
 
     def test_stale_detector_params_without_a_segment_list_are_withheld(self):
@@ -876,6 +1509,7 @@ class TestListFindings:
             (
                 "truncated_row",
                 {
+                    "froh": 0.08664,
                     "n_segments": 40,
                     "segments": [_SEG],
                     "segments_truncated": True,
@@ -937,6 +1571,7 @@ class TestListFindings:
             (
                 "segment_counts_fit_callable_coverage",
                 {
+                    "froh": 0.00448,
                     "autosomal_snps_used": 240,
                     "n_segments": 2,
                     "segments": [
@@ -949,6 +1584,7 @@ class TestListFindings:
             (
                 "segments_touch_at_colocated_markers_without_overlapping",
                 {
+                    "froh": 0.00448,
                     "n_segments": 2,
                     "segments": [
                         _SEG,

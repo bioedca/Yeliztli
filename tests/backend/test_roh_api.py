@@ -883,6 +883,84 @@ class TestEvaluabilityAtTheApi:
         assert generic.detail["autosomal_snps_used"] == 361
         assert generic.finding_text != "stored narrative"
 
+    @pytest.mark.parametrize(
+        "bad_count",
+        [-1, "361", 361.0, True, None, 10**400],
+        ids=["negative", "string", "float", "boolean", "null", "oversized"],
+    )
+    def test_malformed_stored_count_is_not_rescued_across_read_paths(
+        self, _env: sa.Engine, bad_count
+    ) -> None:
+        # Missing coverage is a legitimate legacy subset, but a present value
+        # this writer cannot emit proves the persisted metrics are malformed.
+        # Re-reading today's sample must not bless those old metrics; both
+        # patient-visible mappers withhold them and report only the observed
+        # current count.
+        import json as _json
+
+        self._insert_roh_row(
+            _env,
+            _json.dumps({"froh": 0.0, "autosomal_snps_used": bad_count, "n_segments": 0}),
+        )
+
+        dedicated, generic = self._read_direct_paths(_env)
+        assert dedicated is not None
+        assert dedicated.evaluable is False
+        assert dedicated.froh is None
+        assert dedicated.indeterminate_reason == "detail_unavailable"
+        assert dedicated.autosomal_snps_used == 361
+        assert dedicated.segments == []
+
+        assert generic.detail is not None
+        assert generic.detail["evaluable"] is False
+        assert generic.detail["froh"] is None
+        assert generic.detail["indeterminate_reason"] == "detail_unavailable"
+        assert generic.detail["autosomal_snps_used"] == 361
+        assert generic.detail["segments"] == []
+        assert generic.finding_text != "stored narrative"
+
+    @pytest.mark.parametrize(
+        ("orphan_reason", "include_count"),
+        [
+            ("no_segment_eligible_region", True),
+            ("some_future_reason", True),
+            ([], True),
+            ("no_segment_eligible_region", False),
+        ],
+        ids=["known", "unknown", "non_string", "missing_count"],
+    )
+    def test_reason_without_false_verdict_is_withheld_across_read_paths(
+        self, _env: sa.Engine, orphan_reason, include_count: bool
+    ) -> None:
+        # The writer records a reason only beside `evaluable: false`. A legacy
+        # row that omits the verdict but carries a reason is not a supported
+        # projection: the generic mapper previously preserved the orphan while
+        # the dedicated mapper blanked it, yielding two accounts of one row.
+        import json as _json
+
+        detail = {
+            "froh": 0.0,
+            "n_segments": 0,
+            "indeterminate_reason": orphan_reason,
+        }
+        if include_count:
+            detail["autosomal_snps_used"] = 361
+        self._insert_roh_row(_env, _json.dumps(detail))
+
+        dedicated, generic = self._read_direct_paths(_env)
+        assert dedicated is not None
+        assert dedicated.evaluable is False
+        assert dedicated.froh is None
+        assert dedicated.indeterminate_reason == "detail_unavailable"
+        assert dedicated.autosomal_snps_used == 361
+
+        assert generic.detail is not None
+        assert generic.detail["evaluable"] is False
+        assert generic.detail["froh"] is None
+        assert generic.detail["indeterminate_reason"] == "detail_unavailable"
+        assert generic.detail["autosomal_snps_used"] == 361
+        assert generic.finding_text != "stored narrative"
+
     def test_structural_reason_the_sample_refutes_is_downgraded(
         self, _env: sa.Engine, client: TestClient
     ) -> None:

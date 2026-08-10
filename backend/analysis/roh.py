@@ -47,6 +47,7 @@ post-annotation finding set (and its validation golden snapshot) unchanged.
 from __future__ import annotations
 
 import json
+import math
 from collections import deque
 from dataclasses import dataclass, field
 from typing import Any
@@ -454,6 +455,68 @@ def _is_count(value: Any) -> bool:
     return isinstance(value, int) and _in_range(value, _AUTOSOMAL_GENOME_BP)
 
 
+def _run_count_can_cover_total(
+    total_kb: float,
+    *,
+    minimum_count: int,
+    maximum_count: int,
+    maximum_length_kb: float,
+) -> bool:
+    """Whether some integer run count can sum to ``total_kb``.
+
+    Each run contributes between ``MIN_ROH_KB`` and ``maximum_length_kb``.
+    The feasible totals are therefore a union of intervals, one per integer
+    count, rather than every value between the overall minimum and maximum.
+    """
+    if total_kb < -_KB_EPSILON or maximum_count < minimum_count:
+        return False
+    if abs(total_kb) <= _KB_EPSILON:
+        return minimum_count == 0
+    if maximum_length_kb < MIN_ROH_KB:
+        return False
+    least_for_total = math.ceil((total_kb - _KB_EPSILON) / maximum_length_kb)
+    most_for_total = math.floor((total_kb + _KB_EPSILON) / MIN_ROH_KB)
+    return max(minimum_count, least_for_total) <= min(maximum_count, most_for_total)
+
+
+def _rounded_froh_has_feasible_total(
+    froh: float,
+    denominator_kb: float,
+    *,
+    fixed_total_kb: float,
+    minimum_hidden: int,
+    maximum_hidden: int,
+    hidden_length_ceiling_kb: float,
+) -> bool:
+    """Whether a one-decimal writer total can round to ``froh``.
+
+    A five-decimal FROH bin spans at most 27.7 kb under the largest accepted
+    denominator, so checking every one-decimal total in that narrow bin is
+    bounded (at most 278 candidates) and reproduces Python's exact rounding,
+    including ties, instead of approximating the bin edges.
+    """
+    half_bin = 0.5 * 10**-5
+    lower_kb = max(0.0, (froh - half_bin) * denominator_kb - _KB_EPSILON)
+    upper_kb = min(
+        AUTOSOMAL_GENOME_KB,
+        (froh + half_bin) * denominator_kb + _KB_EPSILON,
+    )
+    first_tenth = math.ceil(lower_kb * 10)
+    last_tenth = math.floor(upper_kb * 10)
+    for tenth in range(first_tenth, last_tenth + 1):
+        candidate_total = tenth / 10
+        if abs(round(candidate_total / denominator_kb, 5) - froh) > _FROH_EPSILON:
+            continue
+        if _run_count_can_cover_total(
+            candidate_total - fixed_total_kb,
+            minimum_count=minimum_hidden,
+            maximum_count=maximum_hidden,
+            maximum_length_kb=hidden_length_ceiling_kb,
+        ):
+            return True
+    return False
+
+
 _SEGMENT_FIELD_CHECKS: dict[str, Any] = {
     "chrom": lambda v: isinstance(v, str) and v in _AUTOSOMES,
     "start": _is_count,
@@ -570,15 +633,30 @@ def _metrics_agree(
     n_segments = detail.get("n_segments")
     total = detail.get("total_roh_kb")
     longest = detail.get("longest_kb")
+    froh = detail.get("froh")
+
+    # Persisted precision is part of the writer contract, not presentation.
+    # Accepting extra digits lets a well-typed blob assert a measurement the
+    # detector never emitted and can also slip between rounded relation bounds.
+    if froh is not None and abs(froh - round(froh, 5)) > _FROH_EPSILON:
+        return False
+    if any(
+        value is not None and abs(value - round(value, 1)) > _KB_EPSILON
+        for value in (total, longest)
+    ):
+        return False
 
     params = detail.get("params")
+    denominator_recorded = False
+    froh_denominator = AUTOSOMAL_GENOME_KB
     if "params" in detail and not isinstance(params, dict):
         return False
     if isinstance(params, dict) and "froh_denominator_kb" in params:
         denominator = params["froh_denominator_kb"]
-        froh = detail.get("froh")
         if not _is_measured_quantity(denominator) or denominator <= 0:
             return False
+        denominator_recorded = True
+        froh_denominator = denominator
         if (
             total is not None
             and froh is not None
@@ -624,9 +702,205 @@ def _metrics_agree(
     if zero_evidence and positive_evidence:
         return False
 
+    listed_total: float | int | None = None
+    minimum_from_list: float | int | None = None
+    omitted_segments = 0
+    known_longest = longest
+    listed_markers = 0
+    if segments is not None:
+        listed_total = round(sum(segment["length_kb"] for segment in segments), 1)
+        listed_markers = sum(segment["n_snps"] for segment in segments)
+        if known_longest is None and segments:
+            known_longest = max(segment["length_kb"] for segment in segments)
+        if truncated:
+            # A true cap bit proves at least one omitted run even if a legacy
+            # projection dropped the count. With a count, its exact shortfall
+            # names how many minimum-length runs remain hidden.
+            omitted_segments = n_segments - len(segments) if n_segments is not None else 1
+            minimum_from_list = listed_total + omitted_segments * MIN_ROH_KB
+        else:
+            # A non-truncated list is complete, including in a legacy
+            # projection that omitted n_segments or the total itself.
+            minimum_from_list = listed_total
+
+        # Listed and omitted runs consume disjoint callable markers. Enforce the
+        # exact listed usage plus the minimum for every omission before using
+        # the remaining marker budget to derive any upper bound.
+        if listed_markers + omitted_segments * MIN_ROH_SNPS > callable_snps:
+            return False
+
+    # The retained intervals are the longest ones. Their shortest length is
+    # therefore an upper bound for every omitted run, while callable markers
+    # bound how many runs can exist when a legacy projection dropped the exact
+    # count. This yields a total-length ceiling without relying on today's
+    # persistence cap.
+    maximum_from_shape: float | int | None = None
+    if segments is not None:
+        if not truncated:
+            maximum_from_shape = listed_total
+        else:
+            maximum_hidden = (
+                n_segments - len(segments)
+                if n_segments is not None
+                else (callable_snps - listed_markers) // MIN_ROH_SNPS
+            )
+            hidden_length_ceiling = min(
+                (segment["length_kb"] for segment in segments),
+                default=known_longest,
+            )
+            if hidden_length_ceiling is not None:
+                maximum_from_shape = listed_total + maximum_hidden * hidden_length_ceiling
+    elif known_longest is not None:
+        maximum_segments = n_segments if n_segments is not None else callable_snps // MIN_ROH_SNPS
+        maximum_from_shape = maximum_segments * known_longest
+
+    # One descriptor covers exact and omitted segment counts for both a stored
+    # total and the narrow total bin implied by a recorded-denominator FROH.
+    # It states the fixed retained length, allowed hidden-count range, and the
+    # largest any hidden run may be.
+    run_count_shape: tuple[float | int, int, int, float | int]
+    if segments is not None and not truncated:
+        run_count_shape = (
+            listed_total,
+            0,
+            0,
+            known_longest or AUTOSOMAL_GENOME_KB,
+        )
+    elif segments:
+        if n_segments is not None:
+            minimum_hidden = maximum_hidden = n_segments - len(segments)
+        else:
+            minimum_hidden = 1
+            maximum_hidden = (callable_snps - listed_markers) // MIN_ROH_SNPS
+        run_count_shape = (
+            listed_total,
+            minimum_hidden,
+            maximum_hidden,
+            min(segment["length_kb"] for segment in segments),
+        )
+    elif known_longest is not None:
+        if n_segments is not None:
+            minimum_hidden = maximum_hidden = n_segments - 1
+        else:
+            minimum_hidden = 0
+            maximum_hidden = callable_snps // MIN_ROH_SNPS - 1
+        run_count_shape = (
+            known_longest,
+            minimum_hidden,
+            maximum_hidden,
+            known_longest,
+        )
+    else:
+        if n_segments is not None:
+            minimum_hidden = maximum_hidden = n_segments
+        else:
+            minimum_hidden = 1 if truncated else 0
+            maximum_hidden = callable_snps // MIN_ROH_SNPS
+        run_count_shape = (
+            0,
+            minimum_hidden,
+            maximum_hidden,
+            AUTOSOMAL_GENOME_KB,
+        )
+
+    # Even a summary-only legacy projection must describe segments this writer
+    # could have emitted. Every positive run is at least MIN_ROH_KB long and
+    # contains MIN_ROH_SNPS callable markers, so a positive summary below those
+    # floors cannot be rescued merely by omitting the interval list. A present
+    # positive count/total/longest strengthens the minimum total length implied
+    # by that projection, and therefore its minimum possible rounded FROH. The
+    # current denominator is conservative when provenance is absent; a smaller
+    # validated recorded denominator supplies the stronger factual bound.
+    if froh is not None and froh > 0:
+        implied_total = MIN_ROH_KB
+        if n_segments is not None and n_segments > 0:
+            implied_total = max(implied_total, n_segments * MIN_ROH_KB)
+        if total is not None and total > 0:
+            implied_total = max(implied_total, total)
+        if longest is not None and longest > 0:
+            implied_total = max(implied_total, longest)
+        if minimum_from_list is not None:
+            implied_total = max(implied_total, minimum_from_list)
+
+        if n_segments is not None and n_segments > 0 and known_longest is not None:
+            implied_total = max(
+                implied_total,
+                known_longest + (n_segments - 1) * MIN_ROH_KB,
+            )
+        minimum_froh = round(implied_total / froh_denominator, 5)
+        if froh < minimum_froh - _FROH_EPSILON:
+            return False
+
+        # An upper FROH bound needs a known denominator; absent legacy
+        # provenance could have used any smaller historical denominator. A
+        # recorded denominator plus the retained count/list/coverage shape
+        # supplies a safe upper bound.
+        maximum_total = total
+        if maximum_from_shape is not None:
+            maximum_total = (
+                maximum_from_shape
+                if maximum_total is None
+                else min(maximum_total, maximum_from_shape)
+            )
+        if denominator_recorded and maximum_total is not None:
+            maximum_froh = round(maximum_total / froh_denominator, 5)
+            if froh > maximum_froh + _FROH_EPSILON:
+                return False
+        if denominator_recorded and total is None:
+            fixed_total, minimum_hidden, maximum_hidden, hidden_ceiling = run_count_shape
+            if not _rounded_froh_has_feasible_total(
+                froh,
+                froh_denominator,
+                fixed_total_kb=fixed_total,
+                minimum_hidden=minimum_hidden,
+                maximum_hidden=maximum_hidden,
+                hidden_length_ceiling_kb=hidden_ceiling,
+            ):
+                return False
+    if total is not None and 0 < total < MIN_ROH_KB:
+        return False
+    if longest is not None and 0 < longest < MIN_ROH_KB:
+        return False
+    if (
+        total is not None
+        and maximum_from_shape is not None
+        and total > maximum_from_shape + _KB_EPSILON
+    ):
+        return False
+    if n_segments is not None and n_segments > 0:
+        # Emitted runs are disjoint in marker-index space, so their minimum
+        # marker requirements cannot collectively exceed callable coverage.
+        if n_segments * MIN_ROH_SNPS > callable_snps:
+            return False
+        if total is not None and total < n_segments * MIN_ROH_KB - _KB_EPSILON:
+            return False
+        if total is not None and longest is not None:
+            # The longest is an upper bound for every segment; the remaining
+            # n-1 segments each contribute at least the emission floor.
+            if total > n_segments * longest + _KB_EPSILON:
+                return False
+            minimum_total = longest + (n_segments - 1) * MIN_ROH_KB
+            if total < minimum_total - _KB_EPSILON:
+                return False
+
     # The longest segment is one of those summed, so it cannot exceed the total.
     if total is not None and longest is not None and longest > total:
         return False
+
+    # With an omitted segment count, the broad minimum/maximum bounds above are
+    # not sufficient: feasible totals form one interval per *integer* run
+    # count, and those intervals can have gaps. Treat one known longest run (or
+    # every retained top-k run) as fixed, then ask whether any permitted number
+    # of remaining runs can cover the residual total.
+    if total is not None:
+        fixed_total, minimum_hidden, maximum_hidden, hidden_ceiling = run_count_shape
+        if not _run_count_can_cover_total(
+            total - fixed_total,
+            minimum_count=minimum_hidden,
+            maximum_count=maximum_hidden,
+            maximum_length_kb=hidden_ceiling,
+        ):
+            return False
 
     # ...and because persistence keeps the longest entries first, the recorded
     # longest must equal the maximum listed value even when the list is capped.
@@ -634,13 +908,14 @@ def _metrics_agree(
         if abs(longest - max(segment["length_kb"] for segment in segments)) > _KB_EPSILON:
             return False
 
-    if segments:
+    if segments is not None:
         # Each segment's homozygous markers are drawn from the callable sample,
         # and emitted runs are disjoint. Neither one segment nor their sum can
         # therefore exceed the callable coverage used to vouch for this row.
+        # The aggregate (including omissions) was checked above while deriving
+        # shape bounds; retain the direct per-segment guard and disjointness
+        # check here beside the other interval relations.
         if any(segment["n_snps"] > callable_snps for segment in segments):
-            return False
-        if sum(segment["n_snps"] for segment in segments) > callable_snps:
             return False
         if not _segments_are_disjoint(segments):
             return False
@@ -649,7 +924,7 @@ def _metrics_agree(
     # exactly when the list is complete, and with room to spare when the cap bit.
     # Without this, a blob listing two 6200 kb runs could record a 6200 kb total
     # and be served as a total smaller than its own segments.
-    if total is not None and segments:
+    if total is not None and listed_total is not None:
         # Same rule as the segment lengths: apply the writer's own rounding and
         # compare, since the writer stores `round(sum(lengths), 1)`. When the
         # list is complete that sum is over exactly these segments, so equality
@@ -657,8 +932,10 @@ def _metrics_agree(
         # total may only be larger. A half-step tolerance would misfire here for
         # the same tie reason -- `round(4096.45, 1)` is 4096.4 and the raw gap
         # evaluates to 0.0500000000001819.
-        listed = round(sum(segment["length_kb"] for segment in segments), 1)
-        if total < listed - _KB_EPSILON or (not truncated and total > listed + _KB_EPSILON):
+        minimum_list_total = minimum_from_list if truncated else listed_total
+        if total < minimum_list_total - _KB_EPSILON:
+            return False
+        if not truncated and total > listed_total + _KB_EPSILON:
             return False
 
     return True
@@ -740,9 +1017,21 @@ def evaluability_from_detail(
     # An absent count is not a count of zero. Defaulting it would manufacture
     # the claim "0 callable autosomal SNP(s)" for a blob that simply never
     # recorded coverage — asserting a measurement nothing performed.
+    count_present = "autosomal_snps_used" in detail
     raw_used = detail.get("autosomal_snps_used")
-    counted = isinstance(raw_used, int) and not isinstance(raw_used, bool) and raw_used >= 0
+    counted = _is_count(raw_used)
     snps_used = raw_used if counted else 0
+
+    # Missing coverage is a supported legacy projection and can be recomputed.
+    # A present malformed value is different: it proves the persisted result is
+    # not a shape this writer emitted. Never let today's sample scan "rescue"
+    # that stale/corrupt row, but report the observed count when one is available
+    # so the dedicated and generic read paths expose the same safe metadata.
+    if count_present and not counted:
+        if sample_engine is not None:
+            observed, _eligible = _sample_coverage(sample_engine)
+            return False, observed, DETAIL_UNAVAILABLE
+        return False, 0, DETAIL_UNAVAILABLE
 
     raw_froh = detail.get("froh")
     # FROH is the fraction of the autosomal genome in long homozygous runs, so
@@ -801,20 +1090,21 @@ def evaluability_from_detail(
                 observed, eligible = _sample_coverage(sample_engine)
                 return False, observed, _reason_supported_by(observed, str(reason), eligible)
             return False, snps_used, _reason_supported_by(snps_used, str(reason))
-        # A true verdict carries no reason, by construction: the writer sets
-        # `indeterminate_reason` exactly when `froh` is None. A row asserting
-        # both was being served with `evaluable: true` beside
-        # `indeterminate_reason: "no_segment_eligible_region"` on the generic
-        # findings API -- the dedicated route happens to blank the reason, but
-        # `normalize_legacy_row` hands the stored blob back untouched, so the
-        # two representations disagreed about one row again.
-        elif detail.get("indeterminate_reason") is not None:
-            return False, snps_used, DETAIL_UNAVAILABLE
         # An explicit `true` is not self-certifying either: it falls through to
         # the same coverage gates below. Our own writer computes the verdict
         # structurally, so a fresh row re-passes them — but a row whose sample
         # changed underneath it, or that some other writer produced, would
         # otherwise have its stored zero honoured on its own say-so.
+    # A reason belongs only to an explicit false verdict: the writer sets it
+    # exactly when FROH is unavailable. This also covers legacy rows that omit
+    # `evaluable`; otherwise their orphaned reason survived the generic mapper
+    # while the dedicated mapper silently blanked it. With a live sample, use
+    # the observed count in both corrected representations.
+    if detail.get("indeterminate_reason") is not None:
+        if sample_engine is not None:
+            observed, _eligible = _sample_coverage(sample_engine)
+            return False, observed, DETAIL_UNAVAILABLE
+        return False, snps_used, DETAIL_UNAVAILABLE
     if not counted:
         # Legacy row recording no coverage at all: read the sample or say the
         # state is unavailable — never split the difference.
