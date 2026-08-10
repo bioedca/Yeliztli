@@ -778,7 +778,7 @@ def _metrics_agree(
             maximum_hidden,
             min(segment["length_kb"] for segment in segments),
         )
-    elif known_longest is not None:
+    elif known_longest is not None and known_longest > 0:
         if n_segments is not None:
             minimum_hidden = maximum_hidden = n_segments - 1
         else:

@@ -1631,6 +1631,16 @@ class TestListFindings:
                     "longest_kb": 0.0,
                 },
             ),
+            (
+                "genuine_empty_scan_without_segment_list",
+                {
+                    "froh": 0.0,
+                    "n_segments": 0,
+                    "segments": None,
+                    "total_roh_kb": 0.0,
+                    "longest_kb": 0.0,
+                },
+            ),
         ],
     )
     def test_self_consistent_metrics_are_still_served(self, label, overrides):
@@ -1652,6 +1662,8 @@ class TestListFindings:
         response = _row_to_response(self._roh_row(finding_text="stored narrative", detail=detail))
 
         assert response.detail["froh"] == detail["froh"], label
+        assert "evaluable" not in response.detail, label
+        assert "indeterminate_reason" not in response.detail, label
         assert response.finding_text == "stored narrative", label
 
     def test_stored_reason_its_own_count_contradicts_is_downgraded(self):
