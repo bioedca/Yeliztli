@@ -166,12 +166,12 @@
             },
             "AA": {
               "category": "Moderate",
-              "effect_summary": "Homozygous His27 at RFC1. Reduced folate carrier efficiency. May require higher dietary folate intake to maintain adequate intracellular folate levels."
+              "effect_summary": "Homozygous His27 at RFC1. May reduce folate carrier efficiency, though published studies disagree on the direction. Adequate dietary folate is sensible regardless."
             }
           },
           "evidence_level": 1,
           "pmids": ["33935279", "16750224", "24597986"],
-          "recommendation_text": "SLC19A1 encodes the reduced folate carrier (RFC1), the primary transporter for folate into cells. His27 homozygotes may have reduced folate transport efficiency. Much of the literature names this SNP G80A or c.80G>A, taking the opposite base as the reference; on the RefSeq transcript NM_194255.4 it is c.80A>G (p.His27Arg)."
+          "recommendation_text": "SLC19A1 encodes the reduced folate carrier (RFC1), the primary transporter for folate into cells. Published studies disagree on which allele at codon 27 reduces folate transport, so treat this locus as weak context rather than a direction. Much of the literature names this SNP G80A or c.80G>A, taking the opposite base as the reference; on the RefSeq transcript NM_194255.4 it is c.80A>G (p.His27Arg)."
         },
         {
           "rsid": "rs202676",

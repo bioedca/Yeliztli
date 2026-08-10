@@ -31,7 +31,7 @@ substitution (Arg27His). The genetic code is settled and is not sourced here.
 What *does* need a source is which residue the reference carries, since that
 fixes which of the two spellings is the HGVS-conformant one.
 
-## Sources, and why the two-source rule cannot be met here
+## Sources, and why the two-source rule does not apply here
 
 - **NCBI dbSNP, RefSNP v2** — `rs1051266`, not merged, on the RefSeq transcript
   `NM_194255.4` with protein `NP_919231.1`. `NM_194255.4:c.80=` maps to residue
@@ -53,12 +53,25 @@ SNPs and indels) imported from dbSNP"`. The second named UniProt instead — but
 RefSeq records dbSNP reports against (`raw/uniprot-P41440-crossrefs-2026-08-10.json`).
 Both claims were wrong, and both were caught in review rather than here.
 
-**The rule cannot be satisfied for a claim of this kind, and pretending otherwise
-was the actual error.** "Which residue does the human reference carry at position
-27" is a lookup in a single curated artifact, not a replicated measurement. There
-is one GRCh37 and one RefSeq curation of SLC19A1; every database reports that same
-choice, so no second independent determination exists to be found. Hunting for one
-produces the appearance of corroboration, not corroboration.
+**The deeper error was invoking the gate at all.** The contract's high-stakes rule
+covers facts where being wrong changes a clinical interpretation — allele
+direction, risk-allele identity, a metabolizer call, a shipped threshold. *Which
+spelling names the SNP* is not one of those: no genotype call, category, evidence
+level or effect claim depends on it. Classifying a rendered string as high-stakes
+set up a gate that then could not be met, and two attempts to satisfy it named
+sources that were not independent.
+
+It could not have been met in any case. "Which residue does the human reference
+carry at position 27" is a lookup in a single curated artifact, not a replicated
+measurement. There is one GRCh37 and one RefSeq curation of SLC19A1; every database
+reports that same choice, so no second independent determination exists to be
+found. Hunting for one produces the appearance of corroboration, not corroboration.
+
+**The high-stakes fact at this locus is the direction of effect** — which allele
+reduces folate transport. That one *is* contested, *is* withheld, and *is* filed
+separately. This change does not touch it: `risk_allele`, `ref_allele`, every
+`genotype_effects` category and the evidence level are unchanged, and the effect
+prose was softened rather than sharpened once the conflict came to light.
 
 **What makes the change safe is that it asserts no new fact.** `hgvs_protein:
 p.His27Arg` was already in the row before this work, agrees with the committed
