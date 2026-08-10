@@ -4,7 +4,7 @@
   "claim": "Which base and residue the GRCh37 reference carries at SLC19A1 c.80 / residue 27, and therefore which direction the coding shorthand in methylation_panel.json must run to agree with the row's own p.His27Arg. No biological, statistical or clinical claim is asserted; in particular no claim is made about which rs1051266 allele affects folate transport, and the row's risk/ref dosage pair, genotype_effects categories and evidence level are unchanged.",
   "citations": [
     "dbSNP:rs1051266 (NCBI RefSNP v2, RefSeq NM_194255.4 / NP_919231.1) (accessed 2026-08-10)",
-    "UniProtKB:P41440 (S19A1_HUMAN, canonical sequence, CRC64 0437B1615F5517EB) (accessed 2026-08-10)",
+    "UniProtKB:P41440 (S19A1_HUMAN, canonical sequence version 3, CRC64 0437B1615F5517EB) (accessed 2026-08-10)",
     "Ensembl GRCh37 variation record rs1051266 (accessed 2026-08-10)",
     "PMID:16750224 (accessed 2026-08-10)",
     "PMID:24597986 (accessed 2026-08-10)",
@@ -35,7 +35,7 @@
       "raw_is_reduced": false,
       "raw_is_field_selected": true,
       "field_selection_note": "The request itself selected accession, id, sequence, protein name, gene names and sequence version. The response is retained exactly as returned; no post-hoc editing was applied.",
-      "result_used": "P41440 (S19A1_HUMAN), Reduced folate transporter, gene SLC19A1, canonical sequence 591 aa, CRC64 0437B1615F5517EB. Residues 20-35 are PELRSWRHLVCYLCFY, so residue 27 is H (His).",
+      "result_used": "P41440 (S19A1_HUMAN), Reduced folate transporter, gene SLC19A1, canonical sequence version 3 (entryAudit.sequenceVersion), 591 aa, CRC64 0437B1615F5517EB, MD5 24DE6A075D69E133471E1BC4916E1ED5. Residues 20-35 are PELRSWRHLVCYLCFY, so residue 27 is H (His).",
       "supports": "Independent confirmation that the reference residue at position 27 is His, hence p.His27Arg and not p.Arg27His. This is the second source for the high-stakes rule."
     },
     {
@@ -140,12 +140,9 @@
       "retention_basis": "Public domain. Only variant metadata for a single rsID is retained; no human subject data is involved."
     },
     "UniProtKB P41440": {
-      "version_or_build": "Canonical sequence identified by CRC64 0437B1615F5517EB and length 591. The field-selected response did not return an entry or sequence version number, so the CRC64 plus the 2026-08-10 access date is the version boundary asserted here; no numeric version is claimed.",
+      "version_or_build": "Canonical sequence version 3, read from entryAudit.sequenceVersion in the retained response, pinned further by CRC64 0437B1615F5517EB and MD5 24DE6A075D69E133471E1BC4916E1ED5 over a 591-residue sequence. Accessed 2026-08-10.",
       "license_or_terms": "UniProt data are distributed under CC BY 4.0.",
-      "retention_basis": "CC BY 4.0 permits redistribution with attribution, and the source is attributed by accession. Only the canonical protein record is retained.",
-      "unavailable_fields": [
-        "sequence version number (not returned by the field-selected response)"
-      ]
+      "retention_basis": "CC BY 4.0 permits redistribution with attribution, and the source is attributed by accession. Only the canonical protein record is retained."
     },
     "Ensembl GRCh37 REST": {
       "version_or_build": "GRCh37 archive endpoint. The response carries no release number, so the 2026-08-10 access date is the retrieval-version boundary. The GRCh37 site is a frozen mirror and lags current dbSNP, which is why dbSNP rather than Ensembl is the primary source for identity and merge status.",

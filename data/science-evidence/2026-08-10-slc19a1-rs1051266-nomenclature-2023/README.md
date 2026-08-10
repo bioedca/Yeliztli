@@ -45,8 +45,8 @@ Three records are used, but they are **not** three independent sources:
   transcribed from the minus strand, so plus-strand T is coding **A** (the
   reference) and plus-strand C is coding **G**. Apache 2.0. Accessed 2026-08-10.
 - **UniProtKB `P41440` (S19A1_HUMAN)** — canonical Reduced folate transporter
-  sequence, 591 aa, CRC64 `0437B1615F5517EB`. Residues 20-35 are
-  `PELRSWRHLVCYLCFY`, so **residue 27 is H (His)**. CC BY 4.0. Accessed
+  sequence, version 3, 591 aa, CRC64 `0437B1615F5517EB`. Residues 20-35
+  are `PELRSWRHLVCYLCFY`, so **residue 27 is H (His)**. CC BY 4.0. Accessed
   2026-08-10.
 
 **Ensembl does not count as independent of dbSNP for this claim.** The retained
