@@ -31,51 +31,62 @@ substitution (Arg27His). The genetic code is settled and is not sourced here.
 What *does* need a source is which residue the reference carries, since that
 fixes which of the two spellings is the HGVS-conformant one.
 
-## Sources, and an honest independence analysis
-
-Three records are used, but they are **not** three independent sources:
+## Sources, and why the two-source rule cannot be met here
 
 - **NCBI dbSNP, RefSNP v2** — `rs1051266`, not merged, on the RefSeq transcript
   `NM_194255.4` with protein `NP_919231.1`. `NM_194255.4:c.80=` maps to residue
   27 **H→H**, and `NM_194255.4:c.80A>G` to residue 27 **H→R**,
-  `missense_variant`. Public-domain US Government work (NLM). Accessed
-  2026-08-10.
+  `missense_variant`. Public domain (NLM). Accessed 2026-08-10.
+- **UniProtKB `P41440` (S19A1_HUMAN)** — canonical sequence version 3, 591 aa,
+  CRC64 `0437B1615F5517EB`. Residues 20-35 are `PELRSWRHLVCYLCFY`, so **residue
+  27 is H (His)**. CC BY 4.0. Accessed 2026-08-10.
 - **Ensembl GRCh37 REST** — chr21:46,957,794, plus strand, `allele_string`
   `T/C/G`, `ancestral_allele` `C`, `minor_allele` `C` (MAF 0.4886). SLC19A1 is
-  transcribed from the minus strand, so plus-strand T is coding **A** (the
-  reference) and plus-strand C is coding **G**. Apache 2.0. Accessed 2026-08-10.
-- **UniProtKB `P41440` (S19A1_HUMAN)** — canonical Reduced folate transporter
-  sequence, version 3, 591 aa, CRC64 `0437B1615F5517EB`. Residues 20-35
-  are `PELRSWRHLVCYLCFY`, so **residue 27 is H (His)**. CC BY 4.0. Accessed
-  2026-08-10.
+  minus-strand, so plus-strand T is coding **A** and plus-strand C is coding
+  **G**. Apache 2.0. Accessed 2026-08-10.
 
-**Ensembl does not count as independent of dbSNP for this claim.** The retained
-Ensembl response names its own provenance: `"source": "Variants (including SNPs
-and indels) imported from dbSNP"`. The two therefore share an upstream assertion
-chain for the variant record, and counting them as two sources would overstate
-the evidence. (This packet originally did exactly that; the error was caught in
-review.)
+**None of these is independent of the others, and this packet got that wrong
+twice before saying so.** The first version named dbSNP and Ensembl as the
+independent pair; Ensembl's own response declares `"source": "Variants (including
+SNPs and indels) imported from dbSNP"`. The second named UniProt instead — but
+`P41440` explicitly cross-references `NP_919231.1` / `NM_194255.4`, the exact
+RefSeq records dbSNP reports against (`raw/uniprot-P41440-crossrefs-2026-08-10.json`).
+Both claims were wrong, and both were caught in review rather than here.
 
-**UniProt is the genuinely independent second source.** It is curated by the
-UniProt consortium from EMBL/GenBank/DDBJ translations and the literature, not
-from dbSNP, and it establishes the reference *residue* directly rather than by
-way of the variant record: the canonical protein carries His at position 27. That
-is exactly the fact in dispute between `G80A (His27Arg)` and `A80G (His27Arg)`.
+**The rule cannot be satisfied for a claim of this kind, and pretending otherwise
+was the actual error.** "Which residue does the human reference carry at position
+27" is a lookup in a single curated artifact, not a replicated measurement. There
+is one GRCh37 and one RefSeq curation of SLC19A1; every database reports that same
+choice, so no second independent determination exists to be found. Hunting for one
+produces the appearance of corroboration, not corroboration.
 
-So the two agreeing, non-shared sources are **NCBI RefSeq/dbSNP** and
-**UniProtKB**, with Ensembl retained as corroboration and as the source of the
-ancestral-allele and frequency context. The in-repo
-`tests/fixtures/seed_csvs/vep_seed.csv` row (`ref=T`, `alt=C`, `c.80A>G`,
-`p.His27Arg`) agrees and is recorded as corroboration, not as a source.
+**What makes the change safe is that it asserts no new fact.** `hgvs_protein:
+p.His27Arg` was already in the row before this work, agrees with the committed
+`tests/fixtures/seed_csvs/vep_seed.csv`, and matches every database consulted. All
+this change does is conform the single outlier field — `variant_name` — to a claim
+the row already made. And the guard it adds enforces *internal consistency*, which
+is frame-independent: if the reference frame were ever shown wrong, the correct
+repair would be to change `hgvs_protein`, and the guard would then require
+`variant_name` to follow rather than stand in the way.
 
-**Note the locus is multi-allelic, and the two sources disagree on how
-multi-allelic.** dbSNP records three alternates on `NM_194255.4` — `c.80A>G`
-(His27Arg), `c.80A>C` (His27Pro) and `c.80A>T` (His27Leu) — so that record is
-four-allelic. Ensembl's GRCh37 `allele_string` is narrower at `T/C/G`, i.e. two
-alternates. This packet reports both counts rather than reconciling them; nothing
-here depends on which is right. What matters is that 80G/Arg27 is *the A>G
-alternate* and the one the panel models — not "the" alternate — so nothing here
-implies that every rs1051266 alternate produces Arg27.
+## The primary clones carry the other allele
+
+Following UniProt's EMBL cross-references to the original cDNA submissions turned
+up something the packet had previously only guessed at. All three of the earliest
+independent clones — `AAA98442.1` (placental folate transporter), `AAC50180.1`
+(reduced folate carrier protein) and `AAB35058.1` — are 591 aa with residues 20-35
+`PELRSWR**R**LVCYLCFY`: **residue 27 is Arg**, not His
+(`raw/genbank-primary-cdna-submissions-2026-08-10.fasta`, accessed 2026-08-10).
+
+That is not a contradiction of the reference; it is the polymorphism. At MAF
+≈ 0.49 a clone carrying either allele is unremarkable, and which allele the
+assembly later adopted is a separate matter. But it does explain the naming split
+with evidence rather than inference: **the first sequences in the literature
+carried G/Arg, so early papers naturally wrote the G allele as the reference and
+named the SNP `G80A`.** An earlier draft of the shipped text attributed the legacy
+name to the ancestral allele; that was an unsupported inference and was removed.
+This is the same story with a source behind it, and it is recorded here rather than
+in user-facing text because the user does not need it.
 
 ## Why the literature disagrees with itself, and what the row now says
 
@@ -160,6 +171,8 @@ it as authoritative, which is exactly how #2023 described it.
 - `raw/dbsnp-refsnp-1051266-nm194255-extract-2026-08-10.json` — derived extract of the `NM_194255.4` placements, retained alongside the source-native payload for readability.
 - `raw/ensembl-grch37-rs1051266-2026-08-10.json` — full Ensembl response.
 - `raw/uniprot-P41440-2026-08-10.json` — full UniProtKB response, including the canonical sequence.
+- `raw/uniprot-P41440-crossrefs-2026-08-10.json` — UniProt's RefSeq and EMBL cross-references, the evidence that it is not independent of RefSeq.
+- `raw/genbank-primary-cdna-submissions-2026-08-10.fasta` — the three original cDNA submissions, which carry Arg27.
 - `raw/consensus-search-2026-08-10.json` — all 20 Consensus records, abstracts omitted (see below).
 - `raw/scite-and-pubmed-notices-2026-08-10.json` — all 3 Scite and all 3 PubMed records with their editorial-notice status, abstracts omitted.
 - `raw/evidence-ladder-2026-08-10.md` — the prose *reading* of those two artifacts. This is analysis, not a source payload.

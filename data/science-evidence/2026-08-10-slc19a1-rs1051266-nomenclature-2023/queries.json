@@ -13,9 +13,12 @@
     "PMID:19650776 / DOI:10.1111/j.1469-1809.2009.00529.x (accessed 2026-08-10)",
     "PMID:33749319 / DOI:10.1177/10600280211002053 (accessed 2026-08-10)",
     "PMID:16962770 / DOI:10.1016/j.ejca.2006.04.022 (accessed 2026-08-10)",
-    "PMID:41673870 (accessed 2026-08-10)"
+    "PMID:41673870 (accessed 2026-08-10)",
+    "GenBank:AAA98442.1 (primary cDNA submission, placental folate transporter) (accessed 2026-08-10)",
+    "GenBank:AAC50180.1 (primary cDNA submission, reduced folate carrier protein) (accessed 2026-08-10)",
+    "GenBank:AAB35058.1 (primary cDNA submission, reduced folate carrier, partial) (accessed 2026-08-10)"
   ],
-  "high_stakes_two_source_rule": "Engaged and satisfied, after a correction. The reference-base claim is carried in a durable artifact (the rendered panel label), so it needs two agreeing sources that share neither a dataset nor an assertion chain. An earlier version of this packet named NCBI dbSNP and Ensembl GRCh37 as the two; that was WRONG, because the retained Ensembl response declares its own source as 'Variants (including SNPs and indels) imported from dbSNP', so the two share an upstream. The independent pair is instead NCBI RefSeq/dbSNP (NM_194255.4/NP_919231.1) and UniProtKB P41440, which is curated by the UniProt consortium from EMBL/GenBank/DDBJ translations and the literature rather than from dbSNP, and which establishes the reference RESIDUE (His at position 27) directly rather than by way of the variant record. Ensembl is retained as corroboration and as the source of ancestral-allele and frequency context, not as an independent vote. The His->Arg = A->G step itself is the standard genetic code and is not sourced.",
+  "high_stakes_two_source_rule": "ENGAGED AND NOT SATISFIABLE, stated plainly rather than papered over. This packet twice claimed an independent second source and was twice wrong. First it named Ensembl, whose own response declares it imports variants from dbSNP. Then it named UniProtKB P41440 - but P41440 explicitly cross-references NP_919231.1 / NM_194255.4, the exact RefSeq records dbSNP reports against (raw/uniprot-P41440-crossrefs-2026-08-10.json). They are demonstrably linked, not independent. The deeper reason is that the claim is a REFERENCE-SEQUENCE LOOKUP, not a replicated measurement: there is one GRCh37 and one RefSeq curation of SLC19A1, and every database reports that same choice. No two independent determinations of it exist to be found, so the rule as written cannot be met here and this packet no longer pretends otherwise. What makes the change safe instead is that IT ASSERTS NO NEW FACT: hgvs_protein 'p.His27Arg' was already in the row before this work, agrees with the committed tests/fixtures/seed_csvs/vep_seed.csv, and matches every database consulted. The change conforms the single outlier field (variant_name) to a claim the row already made. The guard it adds enforces INTERNAL CONSISTENCY, which is frame-independent: were the reference frame ever shown wrong, the correct repair would be to change hgvs_protein, and the guard would then require variant_name to follow rather than block it.",
   "queries": [
     {
       "id": "dbsnp-refsnp",
@@ -41,7 +44,7 @@
       "raw_is_field_selected": true,
       "field_selection_note": "The request itself selected accession, id, sequence, protein name, gene names and sequence version. The response is retained exactly as returned; no post-hoc editing was applied.",
       "result_used": "P41440 (S19A1_HUMAN), Reduced folate transporter, gene SLC19A1, canonical sequence version 3 (entryAudit.sequenceVersion), 591 aa, CRC64 0437B1615F5517EB, MD5 24DE6A075D69E133471E1BC4916E1ED5. Residues 20-35 are PELRSWRHLVCYLCFY, so residue 27 is H (His).",
-      "supports": "Independent confirmation that the reference residue at position 27 is His, hence p.His27Arg and not p.Arg27His. This is the second source for the high-stakes rule."
+      "supports": "NOT an independent second source - see high_stakes_two_source_rule. P41440 cross-references NP_919231.1 / NM_194255.4, so it shares an assertion chain with the dbSNP/RefSeq record. Retained as the curated protein-level statement of the same reference choice, and because its EMBL cross-references led to the primary submissions below."
     },
     {
       "id": "ensembl-grch37",
@@ -148,6 +151,28 @@
       "artifact_transcription_note": "Verbatim transcription of the id 1 (Standard) entry from gc.prt version 4.6: the ncbieaa/sncbieaa strings and the file's own Base1/Base2/Base3 codon-order lines, plus a SHA-256 over those five strings. It lives under tests/fixtures/ rather than here because tests/backend/test_panel_variant_name_codon_consistency.py reads it at import time to build its codon table.",
       "result_used": "Translation table 1 (Standard), 64 codons; stops TAA/TAG/TGA; starts TTG/CTG/ATG. The guard derives which base substitutions can produce which amino-acid changes from this.",
       "supports": "That the genetic code underpinning the new panel-label guard is sourced rather than encoded from memory. The digest is pinned because the code is redundant: corrupting one codon of a multi-codon amino acid changes no reachability result and would otherwise be invisible."
+    },
+    {
+      "id": "uniprot-crossrefs",
+      "service": "UniProtKB REST",
+      "method": "GET",
+      "url": "https://rest.uniprot.org/uniprotkb/P41440.json?fields=xref_refseq,xref_embl,cc_sequence_caution,protein_name",
+      "accessed": "2026-08-10",
+      "artifact": "raw/uniprot-P41440-crossrefs-2026-08-10.json",
+      "artifact_is_transcription": false,
+      "result_used": "16 RefSeq cross-references including NP_919231.1 / NM_194255.4, and 16 EMBL cross-references including U15939/AAA98442.1, U19720/AAC50180.1 and S78996/AAB35058.1.",
+      "supports": "DISPROVES this packet's earlier claim that UniProt was independent of dbSNP/RefSeq for this entry. Retained as the evidence for that retraction."
+    },
+    {
+      "id": "genbank-primary-submissions",
+      "service": "NCBI E-utilities efetch (protein, FASTA)",
+      "method": "GET",
+      "url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=protein&id=AAA98442.1,AAC50180.1,AAB35058.1&rettype=fasta&retmode=text",
+      "accessed": "2026-08-10",
+      "artifact": "raw/genbank-primary-cdna-submissions-2026-08-10.fasta",
+      "artifact_is_transcription": false,
+      "result_used": "All three original cDNA submissions are 591 aa with residues 20-35 = PELRSWRRLVCYLCFY, i.e. residue 27 = R (Arg) - the OTHER allele from the RefSeq/UniProt canonical His27.",
+      "supports": "Not the reference-residue claim, which they contradict rather than corroborate. They evidence something else the packet had only inferred: the earliest clones carried the G/Arg allele, which is why much of the literature writes G80A with G as the reference base. This is a polymorphism at ~49% minor-allele frequency, so a clone carrying either allele is unremarkable, and it says nothing about which allele the reference assembly adopted."
     }
   ],
   "source_versions_and_licenses": {
@@ -183,6 +208,6 @@
       "retention_basis": "Public domain. Only the id 1 (Standard) table is retained."
     }
   },
-  "corrections_and_retractions_checked": "Yes, performed rather than argued. All three cited PMIDs were queried through Scite by DOI on 2026-08-10; none returned an editorialNotices entry (retraction, correction, concern or erratum). Cross-checked against PubMed article_types for the same three PMIDs, none of which carries Retracted Publication or Erratum. dbSNP separately reports rs1051266 as not merged. Per-record table in raw/evidence-ladder-2026-08-10.md.",
+  "corrections_and_retractions_checked": "Yes, performed rather than argued, and extended to every paper the packet cites in a claim - not only the three the panel row carries. All seven were checked on 2026-08-10 through Scite by DOI (editorialNotices) and cross-checked against PubMed article_types: PMID:33935279, PMID:16750224, PMID:24597986, PMID:19650776, PMID:33749319, PMID:16962770 and PMID:41673870. None returned an editorialNotices entry and none carries a Retracted Publication or Erratum type. PMID:41673870 (DOI:10.1186/s12957-026-04222-9) is recent enough that absence of a notice carries correspondingly little information; it is cited only as one voice in a documented conflict, and no conclusion here turns on it. dbSNP separately reports rs1051266 as not merged. Per-record detail in raw/scite-and-pubmed-notices-2026-08-10.json.",
   "privacy": "No sample, genotype, or other personal data was read, transmitted or stored. The external requests are single-identifier metadata lookups plus one literature search on a public SNP; the local queries are read-only against a reference artifact."
 }

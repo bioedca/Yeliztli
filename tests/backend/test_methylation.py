@@ -1352,18 +1352,35 @@ class TestSLC19A1ComplementaryStrandRendering:
     plus-strand calls a real AncestryDNA/23andMe file actually carries.
     """
 
-    def _scored_snp(
+    def _stored_finding(
         self,
         panel: MethylationPanel,
         sample_engine: sa.Engine,
         reference_engine: sa.Engine,
         genotype: str,
-    ) -> SNPResult:
+    ) -> sa.Row:
+        """Score, persist, and read back the row the user is actually shown.
+
+        Deliberately goes through ``store_methylation_findings`` and the DB rather
+        than rebuilding the display string here: the contradiction this class
+        exists to catch is a property of the *stored* ``finding_text``, so a test
+        that formats its own copy would stay green through a storage-path change.
+        """
         _seed_variants(sample_engine, [("rs1051266", "21", 46957794, genotype)])
         result = score_methylation_pathways(panel, sample_engine, reference_engine)
-        return next(
-            s for pr in result.pathway_results for s in pr.called_snps if s.rsid == "rs1051266"
-        )
+        store_methylation_findings(result, sample_engine)
+        with sample_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(findings).where(
+                    sa.and_(
+                        findings.c.module == MODULE_NAME,
+                        findings.c.category == "snp_finding",
+                        findings.c.rsid == "rs1051266",
+                    )
+                )
+            ).first()
+        assert row is not None, f"no stored snp_finding for genotype {genotype!r}"
+        return row
 
     @pytest.mark.parametrize(
         ("genotype", "expected"),
@@ -1383,27 +1400,27 @@ class TestSLC19A1ComplementaryStrandRendering:
         genotype: str,
         expected: str,
     ) -> None:
-        """The effect prose must not assert a base the shown genotype lacks.
+        """The stored finding must not assert a base the shown genotype lacks.
 
         ``TT`` is the decisive case: it is the plus-strand spelling of coding AA,
         so a coding-strand summary would print "two copies of the 80A allele"
         beside a genotype with no A in it.
 
-        Scoped to ``effect_summary``. ``variant_name`` legitimately carries the
-        coding-strand nomenclature ``A80G`` beside a plus-strand genotype — that
-        mismatch is inherent to labelling a minus-strand gene in HGVS, predates
-        this row, affects every such locus in every panel, and is filed
-        separately rather than papered over here.
+        The allele check is scoped to the effect prose. ``variant_name``
+        legitimately carries the coding-strand nomenclature ``A80G`` beside a
+        plus-strand genotype — that mismatch is inherent to labelling a
+        minus-strand gene in HGVS, predates this row, affects every such locus in
+        every panel, and is filed separately rather than papered over here.
         """
-        snp = self._scored_snp(panel, sample_engine, reference_engine, genotype)
-        text = f"{snp.gene} {snp.variant_name} ({snp.genotype}) — {snp.effect_summary}"
-        assert text.startswith(expected), text
+        row = self._stored_finding(panel, sample_engine, reference_engine, genotype)
+        assert row.finding_text.startswith(expected), row.finding_text
+        prose = row.finding_text.split(" — ", 1)[1]
         for base in "ACGT":
             if base in genotype:
                 continue
-            assert f"80{base}" not in snp.effect_summary, (
-                f"effect prose names allele 80{base}, absent from displayed "
-                f"{genotype!r}: {snp.effect_summary}"
+            assert f"80{base}" not in prose, (
+                f"stored effect prose names allele 80{base}, absent from displayed "
+                f"{genotype!r}: {row.finding_text}"
             )
 
 

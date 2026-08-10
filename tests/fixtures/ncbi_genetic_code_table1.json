@@ -3,7 +3,7 @@
   "_source_version": "4.6",
   "_accessed": "2026-08-10",
   "_license": "US Government work produced by the National Library of Medicine; NCBI data are in the public domain in the United States.",
-  "_why": "tests/backend/test_panel_variant_name_codon_consistency.py decides which panel labels are accepted by asking whether a base substitution can produce a declared amino-acid change. That decision rests on the genetic code, which is a biological fact and must not be encoded from memory. This fixture is a verbatim transcription of NCBI translation table 1 - including its own Base1/Base2/Base3 codon-order lines, so even the codon ordering comes from the source rather than from an assumption - and the guard derives its codon table from here.",
+  "_why": "tests/backend/test_panel_variant_name_codon_consistency.py decides which panel labels are accepted by asking whether a base substitution can produce a declared amino-acid change. That rests on the genetic code, a biological fact that must not be encoded from memory. Both this extract and the guard's table come from the retained NCBI file, down to the codon ordering.",
   "id": 1,
   "name": "Standard",
   "ncbieaa": "FFLLSSSSYY**CC*WLLLLPPPPHHQQRRRRIIIMTTTTNNKKSSRRVVVVAAAADDEEGGGG",
@@ -11,6 +11,7 @@
   "base1": "TTTTTTTTTTTTTTTTCCCCCCCCCCCCCCCCAAAAAAAAAAAAAAAAGGGGGGGGGGGGGGGG",
   "base2": "TTTTCCCCAAAAGGGGTTTTCCCCAAAAGGGGTTTTCCCCAAAAGGGGTTTTCCCCAAAAGGGG",
   "base3": "TCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAG",
-  "_transcription_sha256": "57d3fef2362f4934e9c3158e5c9b05da92a7b0a6616a93938f2c912913d0fe9b",
-  "_transcription_sha256_note": "SHA-256 over 'ncbieaa|sncbieaa|base1|base2|base3' as transcribed from NCBI gc.prt on 2026-08-10. Pinned because the genetic code is redundant: corrupting one codon of a multi-codon amino acid changes no reachability result and so is invisible to every other check here. Regenerate deliberately, and only when NCBI publishes a new table version."
+  "_source_file": "tests/fixtures/ncbi_gc.prt",
+  "_source_sha256": "2aecbdd09ecc5e0d233c105090a593737298ef93d88f6bc0c1bef26df6051a04",
+  "_authority_note": "This file is a READABLE EXTRACT, not the authority. The authority is the source-native tests/fixtures/ncbi_gc.prt as retrieved from NCBI on 2026-08-10, and the guard parses its codon table straight out of those bytes. A digest over this extract alone would have been circular - a transcription slip would produce a matching digest - so the pinned digest is over the source file, and every field here is asserted equal to what is parsed from it."
 }

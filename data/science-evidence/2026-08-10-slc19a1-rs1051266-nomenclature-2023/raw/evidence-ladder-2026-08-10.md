@@ -65,11 +65,22 @@ record carried an `editorialNotices` entry (retraction, correction, concern or
 erratum). Cross-checked against PubMed `article_types` for the same three PMIDs,
 which likewise carry no `Retracted Publication` or `Erratum` type:
 
+Extended to **every** paper the packet cites in a claim, not only the three the
+panel row carries:
+
 | PMID | DOI | Scite editorial notices | PubMed article types |
 | --- | --- | --- | --- |
 | 33935279 | 10.12659/MSM.929911 | none | Journal Article; Meta-Analysis |
 | 16750224 | 10.1016/j.lfs.2006.05.009 | none | Journal Article |
 | 24597986 | 10.3109/10428194.2014.898761 | none | Journal Article; Meta-Analysis |
+| 19650776 | 10.1111/j.1469-1809.2009.00529.x | none | Journal Article; Research Support |
+| 33749319 | 10.1177/10600280211002053 | none | Journal Article; Meta-Analysis |
+| 16962770 | 10.1016/j.ejca.2006.04.022 | none | Journal Article; Research Support |
+| 41673870 | 10.1186/s12957-026-04222-9 | not indexed | Journal Article; Meta-Analysis |
+
+PMID:41673870 published 2026-02-12, so the absence of a notice tells you very
+little at this date; it is cited as one voice in a documented conflict and no
+conclusion turns on it.
 
 Bibliographic metadata retrieved from PubMed (https://pubmed.ncbi.nlm.nih.gov/);
 DOIs above resolve at https://doi.org/.

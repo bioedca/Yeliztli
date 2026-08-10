@@ -72,24 +72,48 @@ import re
 from pathlib import Path
 
 PANEL_DIR = Path(__file__).resolve().parents[2] / "backend" / "data" / "panels"
-_GENETIC_CODE_FIXTURE = (
-    Path(__file__).resolve().parents[1] / "fixtures" / "ncbi_genetic_code_table1.json"
+_FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
+_GENETIC_CODE_SOURCE = _FIXTURES / "ncbi_gc.prt"
+_GENETIC_CODE_FIXTURE = _FIXTURES / "ncbi_genetic_code_table1.json"
+
+_GC_TABLE_1 = re.compile(
+    r"\n  id 1 ,\s*\n"
+    r'\s*ncbieaa\s+"(?P<ncbieaa>[^"]+)",\s*\n'
+    r'\s*sncbieaa\s+"(?P<sncbieaa>[^"]+)"\s*\n'
+    r"\s*-- Base1\s+(?P<base1>\S+)\s*\n"
+    r"\s*-- Base2\s+(?P<base2>\S+)\s*\n"
+    r"\s*-- Base3\s+(?P<base3>\S+)\s*\n"
 )
 
 
+def _parse_source_table_1() -> dict[str, str]:
+    """Translation table 1, parsed straight out of NCBI's own ``gc.prt`` bytes."""
+    match = _GC_TABLE_1.search(_GENETIC_CODE_SOURCE.read_text(encoding="utf-8"))
+    assert match is not None, "could not locate id 1 in the retained NCBI gc.prt"
+    return match.groupdict()
+
+
 def _load_codon_table() -> dict[str, str]:
-    """Standard genetic code, derived from the retained NCBI translation table 1.
+    """Standard genetic code, parsed from the retained source-native NCBI file.
 
     This decides which panel labels the guard accepts, so it is a biological fact
-    the suite must not carry from memory. ``tests/fixtures/ncbi_genetic_code_table1.json``
-    is a verbatim transcription of NCBI's own ``gc.prt`` entry, and the codon
-    order comes from that file's ``Base1``/``Base2``/``Base3`` lines rather than
-    from an assumption about how the table is laid out — so a wrong assumption
-    about the ordering cannot silently redefine the check either.
+    the suite must not carry from memory. The authority is
+    ``tests/fixtures/ncbi_gc.prt`` — NCBI's file as retrieved, byte for byte — and
+    the codon order comes from that file's own ``Base1``/``Base2``/``Base3``
+    lines rather than from an assumption about how the table is laid out.
+
+    ``ncbi_genetic_code_table1.json`` beside it is a readable extract, not the
+    authority: ``test_genetic_code_fixture_is_well_formed_ncbi_table_1`` checks it
+    against what is parsed here, so a transcription slip in the extract cannot
+    quietly redefine anything.
     """
-    fixture = json.loads(_GENETIC_CODE_FIXTURE.read_text(encoding="utf-8"))
-    base1, base2, base3 = fixture["base1"], fixture["base2"], fixture["base3"]
-    amino_acids = fixture["ncbieaa"]
+    table = _parse_source_table_1()
+    base1, base2, base3, amino_acids = (
+        table["base1"],
+        table["base2"],
+        table["base3"],
+        table["ncbieaa"],
+    )
     return {base1[i] + base2[i] + base3[i]: amino_acids[i] for i in range(len(amino_acids))}
 
 
@@ -250,16 +274,24 @@ def test_genetic_code_fixture_is_well_formed_ncbi_table_1() -> None:
     assert fixture["id"] == 1
     assert fixture["name"] == "Standard"
     assert fixture["_source_version"] == "4.6"
+
+    # The readable extract must agree with the source-native file, field by field.
+    # Without this the extract could drift and nothing would notice, because the
+    # code is redundant: flipping one codon of a multi-codon amino acid changes no
+    # reachability result at all.
+    source = _parse_source_table_1()
     for key in ("ncbieaa", "sncbieaa", "base1", "base2", "base3"):
         assert len(fixture[key]) == 64, f"{key} is not 64 long"
+        assert fixture[key] == source[key], (
+            f"the {key} extract disagrees with tests/fixtures/ncbi_gc.prt; "
+            "re-derive the extract rather than editing it to match"
+        )
 
-    # The code is redundant, so corrupting one codon of a multi-codon amino acid
-    # changes no reachability result and is invisible to every other check here.
-    # Pin the transcription itself.
-    payload = "|".join(fixture[k] for k in ("ncbieaa", "sncbieaa", "base1", "base2", "base3"))
-    assert hashlib.sha256(payload.encode()).hexdigest() == fixture["_transcription_sha256"], (
-        "the retained NCBI table has been edited; re-derive it from gc.prt rather "
-        "than updating the digest to match"
+    # Pin the retrieved bytes, so a later edit to the source file is caught too.
+    digest = hashlib.sha256(_GENETIC_CODE_SOURCE.read_bytes()).hexdigest()
+    assert digest == fixture["_source_sha256"], (
+        "tests/fixtures/ncbi_gc.prt has changed; re-retrieve it from NCBI and "
+        "re-derive the extract rather than updating the digest to match"
     )
 
     assert len(_CODON_TABLE) == 64
