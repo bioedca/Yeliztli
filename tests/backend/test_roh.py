@@ -57,6 +57,36 @@ def _run(
     ]
 
 
+# Independent GRCh37/hg19 autosome lengths from the vendored UCSC liftOver
+# chain at `backend/data/chains/hg19ToHg38.over.chain.gz`. The production
+# detector does not contain this table: the regression uses it only to construct
+# an accepted dense-coordinate witness for the numerator/denominator mismatch.
+_GRCH37_AUTOSOME_LENGTHS_BP = (
+    249_250_621,
+    243_199_373,
+    198_022_430,
+    191_154_276,
+    180_915_260,
+    171_115_067,
+    159_138_663,
+    146_364_022,
+    141_213_431,
+    135_534_747,
+    135_006_516,
+    133_851_895,
+    115_169_878,
+    107_349_540,
+    102_531_392,
+    90_354_753,
+    81_195_210,
+    78_077_248,
+    59_128_983,
+    63_025_520,
+    48_129_895,
+    51_304_566,
+)
+
+
 class TestGenotypeState:
     def test_homozygous(self) -> None:
         assert _genotype_state("AA") == "hom"
@@ -127,6 +157,39 @@ class TestDetection:
         # autosomal genome gives FROH = round(1990.0 / 2_770_000, 5) = 0.00072.
         assert seg.length_kb == 1990.0
         assert result.froh == pytest.approx(0.00072, abs=5e-6)
+
+    def test_span_equal_to_denominator_remains_measured(
+        self, sample_engine: sa.Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Pin the strict side of the writer guard: this ordinary 1,990 kb run is
+        # exactly one patched denominator, so changing `>` to `>=` would suppress
+        # a valid FROH=1 boundary result.
+        import backend.analysis.roh as roh
+
+        _seed(sample_engine, _run("1", 1_000_000, 200))
+        monkeypatch.setattr(roh, "AUTOSOMAL_GENOME_KB", 1_990.0)
+
+        result = roh.detect_roh(sample_engine)
+
+        assert result.evaluable
+        assert result.total_roh_kb == 1_990.0
+        assert result.froh == 1.0
+        assert result.indeterminate_reason is None
+
+    def test_coordinate_at_reader_ceiling_remains_measured(self, sample_engine: sa.Engine) -> None:
+        # The persisted-coordinate validator accepts the inclusive
+        # 2,770,000,000-bp ceiling. End a normal 1,990-kb run exactly there so a
+        # `>=` writer guard cannot silently make the two domains disagree.
+        _seed(sample_engine, _run("1", 2_768_010_000, 200))
+
+        result = detect_roh(sample_engine)
+
+        assert result.evaluable
+        assert len(result.segments) == 1
+        assert result.segments[0].start == 2_768_010_000
+        assert result.segments[0].end == 2_770_000_000
+        assert result.total_roh_kb == 1_990.0
+        assert result.froh == 0.00072
 
     def test_short_run_not_detected(self, sample_engine: sa.Engine) -> None:
         # 50 hom SNPs over ~490 kb — below both segment thresholds. The sample
@@ -353,6 +416,96 @@ class TestEvaluability:
 
 
 class TestStorage:
+    def test_coordinate_above_reader_ceiling_is_withheld_end_to_end(
+        self, sample_engine: sa.Engine
+    ) -> None:
+        # Ingestion accepts non-negative integer positions without a per-contig
+        # upper bound. Before the writer guard, this ordinary-length run was
+        # stored as evaluable and then rejected by its own coordinate validator.
+        _seed(sample_engine, _run("1", 2_800_000_000, 200))
+
+        result = detect_roh(sample_engine)
+
+        assert not result.evaluable
+        assert result.indeterminate_reason == DETAIL_UNAVAILABLE
+        assert result.autosomal_snps_used == 200
+        assert result.froh is None
+        assert result.segments == []
+
+        assert store_roh_findings(result, sample_engine) == 1
+        with sample_engine.connect() as conn:
+            row = conn.execute(sa.select(findings).where(findings.c.module == MODULE)).one()
+        detail = json.loads(row.detail_json)
+        assert detail["froh"] is None
+        assert detail["total_roh_kb"] is None
+        assert detail["longest_kb"] is None
+        assert detail["n_segments"] is None
+        assert detail["segments"] == []
+        assert evaluability_from_detail(detail, sample_engine) == (
+            False,
+            200,
+            DETAIL_UNAVAILABLE,
+        )
+
+    def test_coordinate_span_above_denominator_is_withheld_end_to_end(
+        self, sample_engine: sa.Engine
+    ) -> None:
+        # Markers every 500 kb plus each chromosome endpoint reproduce the
+        # accepted dense-input witness from final review. Chr21 has only 98
+        # markers and cannot emit, while the other 21 all-homozygous spans sum to
+        # 2,832,903.4 kb: divided by the fixed 2.77 Gb called-sequence denominator
+        # the old writer published 1.02271, which its own reader then rejected.
+        rows: list[dict] = []
+        candidate_lengths: list[float] = []
+        for chrom, chromosome_length in enumerate(_GRCH37_AUTOSOME_LENGTHS_BP, start=1):
+            positions = [*range(1, chromosome_length + 1, 500_000), chromosome_length]
+            rows.extend(
+                {
+                    "rsid": f"dense_{chrom}_{index}",
+                    "chrom": str(chrom),
+                    "pos": position,
+                    "genotype": "AA",
+                }
+                for index, position in enumerate(positions)
+            )
+            if len(positions) >= MIN_ROH_SNPS:
+                candidate_lengths.append(round((positions[-1] - positions[0]) / 1000, 1))
+
+        assert len(rows) == 5_798
+        assert len(candidate_lengths) == 21
+        candidate_total = round(sum(candidate_lengths), 1)
+        assert candidate_total == 2_832_903.4
+        assert round(candidate_total / 2_770_000, 5) == 1.02271
+
+        _seed(sample_engine, rows)
+        result = detect_roh(sample_engine)
+
+        assert not result.evaluable
+        assert result.indeterminate_reason == DETAIL_UNAVAILABLE
+        assert result.autosomal_snps_used == 5_798
+        assert result.froh is None
+        assert result.segments == []
+        assert result.total_roh_kb == 0.0
+        assert result.longest_kb == 0.0
+
+        assert store_roh_findings(result, sample_engine) == 1
+        with sample_engine.connect() as conn:
+            row = conn.execute(sa.select(findings).where(findings.c.module == MODULE)).one()
+        detail = json.loads(row.detail_json)
+        assert detail["evaluable"] is False
+        assert detail["indeterminate_reason"] == DETAIL_UNAVAILABLE
+        assert detail["froh"] is None
+        assert detail["total_roh_kb"] is None
+        assert detail["longest_kb"] is None
+        assert detail["n_segments"] is None
+        assert detail["segments"] == []
+        assert evaluability_from_detail(detail, sample_engine) == (
+            False,
+            5_798,
+            DETAIL_UNAVAILABLE,
+        )
+        assert "could not be read or validated" in row.finding_text.lower()
+
     def test_stores_single_summary_finding(self, sample_engine: sa.Engine) -> None:
         _seed(sample_engine, _run("1", 1_000_000, 200))
         result = detect_roh(sample_engine)

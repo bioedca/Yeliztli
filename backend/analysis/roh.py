@@ -98,6 +98,11 @@ _KNOWN_INDETERMINATE_REASONS = frozenset(
 # convention, so FROH is comparable across samples rather than array-relative.
 AUTOSOMAL_GENOME_KB = 2_770_000
 
+# Base-pair ceiling for a persisted coordinate or marker tally. The reader uses
+# this same bound, so detection must not publish a row whose coordinate fields it
+# will immediately reject on readback.
+_AUTOSOMAL_GENOME_BP = AUTOSOMAL_GENOME_KB * 1000
+
 _AUTOSOMES = frozenset(str(n) for n in range(1, 23))
 _ACGT = frozenset("ACGT")
 
@@ -264,6 +269,30 @@ def detect_roh(sample_engine: sa.Engine) -> RohResult:
     by_chrom = _read_autosomal_states(sample_engine)
     autosomal_snps = sum(len(v) for v in by_chrom.values())
 
+    # Ingestion currently rejects negative positions but does not impose an
+    # autosomal upper bound. Keep the detector/reader contract fail-closed: a
+    # scan containing a coordinate the persisted-shape validator cannot vouch
+    # for must never write an evaluable row that becomes unreadable immediately.
+    if any(
+        position < 0 or position > _AUTOSOMAL_GENOME_BP
+        for chromosome in by_chrom.values()
+        for position, _state in chromosome
+    ):
+        logger.warning(
+            "roh_coordinate_out_of_range",
+            autosomal_snps=autosomal_snps,
+            coordinate_ceiling_bp=_AUTOSOMAL_GENOME_BP,
+            reason=DETAIL_UNAVAILABLE,
+        )
+        return RohResult(
+            segments=[],
+            froh=None,
+            total_roh_kb=0.0,
+            longest_kb=0.0,
+            autosomal_snps_used=autosomal_snps,
+            indeterminate_reason=DETAIL_UNAVAILABLE,
+        )
+
     # Evaluability is decided before any segment interpretation: if no region
     # could satisfy the segment rules, the scan below is structurally incapable
     # of emitting anything, so its empty result would be a foregone conclusion
@@ -290,6 +319,30 @@ def detect_roh(sample_engine: sa.Engine) -> RohResult:
         segments.extend(_scan_chromosome(chrom, by_chrom[chrom]))
 
     total_kb = round(sum(s.length_kb for s in segments), 1)
+    # Segment lengths are coordinate spans, while the fixed FROH denominator is
+    # the smaller called-sequence convention. A dense accepted input can bridge
+    # enough reference-coordinate space for their sum to exceed that denominator
+    # even though every emitted interval clears the detector rules. Publishing
+    # the quotient would call a value above 1 a genomic fraction, while clamping
+    # either field would make the total, segment list, and FROH disagree. Withhold
+    # the measurement instead and retain only its observed callable-marker count.
+    if total_kb > AUTOSOMAL_GENOME_KB:
+        logger.warning(
+            "roh_span_exceeds_denominator",
+            segments=len(segments),
+            total_roh_kb=total_kb,
+            froh_denominator_kb=AUTOSOMAL_GENOME_KB,
+            autosomal_snps=autosomal_snps,
+            reason=DETAIL_UNAVAILABLE,
+        )
+        return RohResult(
+            segments=[],
+            froh=None,
+            total_roh_kb=0.0,
+            longest_kb=0.0,
+            autosomal_snps_used=autosomal_snps,
+            indeterminate_reason=DETAIL_UNAVAILABLE,
+        )
     longest_kb = max((s.length_kb for s in segments), default=0.0)
     froh = round(total_kb / AUTOSOMAL_GENOME_KB, 5) if total_kb else 0.0
 
@@ -325,10 +378,10 @@ def unevaluable_text(autosomal_snps_used: int, reason: str) -> str:
     if reason == DETAIL_UNAVAILABLE:
         return (
             "Runs of homozygosity are not being reported: the stored result for "
-            "this sample could not be read, so neither an FROH estimate nor the "
-            "coverage behind it can be shown. Re-running the analysis will "
-            "produce a current result. This says nothing about your genome "
-            "either way."
+            "this sample could not be read or validated, so neither an FROH "
+            "estimate nor the coverage behind it can be shown. Re-running the "
+            "analysis will produce a current result. This says nothing about "
+            "your genome either way."
         )
     if reason == INSUFFICIENT_AUTOSOMAL_MARKERS:
         cause = (
@@ -396,9 +449,10 @@ def _in_range(value: Any, ceiling: float) -> bool:
 def _is_measured_quantity(value: Any) -> bool:
     """Whether ``value`` is a length in kb a scan could actually have emitted.
 
-    Bounded by the autosomal genome itself: no run, and no sum of runs, can span
-    more than the genome they lie in. Type-checking alone vouched for
-    `total_roh_kb: -1`, a measurement the detector cannot produce.
+    A published measurement is bounded by the fixed FROH denominator;
+    ``detect_roh`` withholds a coordinate-span candidate above it. Type-checking
+    alone vouched for `total_roh_kb: -1`, a measurement the detector cannot
+    publish.
     """
     return _in_range(value, AUTOSOMAL_GENOME_KB)
 
@@ -433,10 +487,6 @@ def _reason_supported_by(count: int, reason: str, eligible: bool | None = None) 
 # The shape `detect_roh` actually writes, stated once. Only these keys are
 # served as measurements, so only these are checked; `froh` has its own bounded
 # check in `evaluability_from_detail`.
-
-# Base-pair ceiling for a coordinate or a marker tally, from the same genome
-# bound as the kb metrics. Nothing on an autosome sits past it.
-_AUTOSOMAL_GENOME_BP = AUTOSOMAL_GENOME_KB * 1000
 
 # The writer stores every kb quantity as `round(x, 1)`. Comparisons therefore
 # apply the same rounding and check for equality, rather than allowing a half-
@@ -1035,8 +1085,8 @@ def evaluability_from_detail(
 
     raw_froh = detail.get("froh")
     # FROH is the fraction of the autosomal genome in long homozygous runs, so
-    # it is bounded by [0, 1] by construction. Type-checking it without bounding
-    # it would vouch for a number no scan could have produced: a drifted blob
+    # every published result is bounded by [0, 1]. Type-checking it without
+    # bounding it would vouch for a number no scan may publish: a drifted blob
     # holding -3 or 12 would pass every gate below, reach the evaluable exit,
     # and be served as a measured FROH. That is the same substitution this
     # function exists to prevent, one field over — and it is how every other
