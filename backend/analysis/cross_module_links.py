@@ -117,3 +117,33 @@ def normalize_cross_module_row(
     if link.get("note"):
         corrected_detail["cross_module_note"] = link["note"]
     return refreshed_finding_text(finding, link), corrected_detail
+
+
+@cache
+def _recommendations_for_module(module: str) -> dict[str, str]:
+    """Map rsid -> the per-SNP recommendation the panel currently gives."""
+    target = _PANEL_LOADERS.get(module)
+    if target is None:
+        return {}
+    module_path, _, loader_name = target.partition(":")
+    panel = getattr(import_module(module_path), loader_name)()
+    return {
+        snp.rsid: snp.recommendation_text
+        for pathway in panel.pathways
+        for snp in pathway.snps
+        if getattr(snp, "recommendation_text", None)
+    }
+
+
+def current_recommendation(module: str | None, rsid: str | None, stored: str | None) -> str | None:
+    """The panel's current recommendation for a SNP, else what was stored.
+
+    ``recommendation_text`` is panel prose persisted into each SNP finding, so a
+    correction to it reaches an existing sample only on a re-score. The FTO row
+    advertised Nutrigenomics content that does not exist, and its detail panel
+    kept saying so even once the adjacent cross-module card had been retargeted
+    (#2021).
+    """
+    if not rsid:
+        return stored
+    return _recommendations_for_module(module or "").get(rsid, stored)

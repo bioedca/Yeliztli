@@ -20,6 +20,7 @@ from pydantic import BaseModel
 
 from backend.analysis.cross_module_links import (
     current_link,
+    current_recommendation,
     panel_cross_module_links,
     refreshed_finding_text,
 )
@@ -316,7 +317,11 @@ def pathway_detail(
         rsid = sd.get("rsid", "")
         snp_finding = snp_findings_map.get(rsid, {})
         snp_finding_detail = snp_finding.get("detail", {})
-        recommendation = snp_finding_detail.get("recommendation")
+        # Panel prose persisted at scoring time; serve the panel that is
+        # loaded so a corrected recommendation does not wait for a re-score.
+        recommendation = current_recommendation(
+            "gene_health", rsid, snp_finding_detail.get("recommendation")
+        )
         pmids = snp_finding.get("pmids", [])
 
         snp_detail = SNPDetail(

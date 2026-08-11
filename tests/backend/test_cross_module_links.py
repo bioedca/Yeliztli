@@ -12,6 +12,7 @@ from __future__ import annotations
 from backend.analysis.allergy import load_allergy_panel
 from backend.analysis.cross_module_links import (
     current_link,
+    current_recommendation,
     panel_cross_module_links,
     refreshed_finding_text,
 )
@@ -121,3 +122,36 @@ class TestPanelCrossModuleLinks:
         }
         assert set(links) == declared
         assert declared, "gene health panel declares no cross-links — guard is vacuous"
+
+
+class TestCurrentRecommendation:
+    """Per-SNP recommendation prose is panel data persisted into each finding.
+
+    The FTO row told the user to see Nutrigenomics for dietary considerations,
+    and the pathway-detail endpoint reads it straight from the stored row — so
+    the detail panel kept advertising content that does not exist even once the
+    adjacent cross-module card had been retargeted.
+    """
+
+    LEGACY = (
+        "FTO is the most replicated obesity GWAS locus. Risk allele effect on BMI is "
+        "attenuated by physical activity. Carriers benefit from regular exercise and "
+        "mindful eating. See the Nutrigenomics module for dietary considerations "
+        "related to FTO genotype."
+    )
+
+    def test_legacy_fto_recommendation_is_refreshed(self) -> None:
+        current = current_recommendation("gene_health", "rs9939609", self.LEGACY)
+        assert current is not None
+        assert "nutrigenomics" not in current.lower()
+        # The rest of the curated advice is retained, not truncated away.
+        assert "attenuated by physical activity" in current
+
+    def test_unknown_rsid_keeps_what_was_stored(self) -> None:
+        assert current_recommendation("gene_health", "rs00000000", "stored") == "stored"
+
+    def test_module_without_a_panel_keeps_what_was_stored(self) -> None:
+        assert current_recommendation("cancer", "rs1805007", "stored") == "stored"
+
+    def test_missing_rsid_keeps_what_was_stored(self) -> None:
+        assert current_recommendation("gene_health", None, "stored") == "stored"

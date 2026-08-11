@@ -30,6 +30,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from starlette.concurrency import run_in_threadpool
 
 from backend.analysis.clinvar_conditions import format_clinvar_conditions_text
+from backend.analysis.cross_module_links import normalize_cross_module_row
 from backend.analysis.pathway_coverage import pathway_level_display_label
 from backend.analysis.pharmacogenomics import (
     is_patient_presentable_finding_payload,
@@ -183,6 +184,26 @@ def _load_findings(
         # means the two cannot drift apart on what they read.
         detail_blob = _parse_json_field(row.detail_json)
 
+        # A report is a durable export, so a retired cross-module link would
+        # outlive every screen that has stopped showing it. Resolve the target
+        # and note against the panel that is loaded, and drop a link the panel
+        # no longer declares (#2021).
+        resolved_text = normalize_legacy_finding_text(
+            row.module, row.category, row.finding_text, detail_blob, engine
+        )
+        resolved = normalize_cross_module_row(
+            row.module,
+            row.category,
+            row.rsid,
+            resolved_text,
+            detail_blob if isinstance(detail_blob, dict) else None,
+        )
+        if resolved is None:
+            continue
+        resolved_text, resolved_detail = resolved
+        if isinstance(detail_blob, dict) and isinstance(resolved_detail, dict):
+            detail_blob = resolved_detail
+
         result.append(
             {
                 "id": row.id,
@@ -194,13 +215,7 @@ def _load_findings(
                 # A stored ROH narrative written before the evaluability gate
                 # asserts a "typical" FROH ≈ 0 for a sample whose markers cannot
                 # produce a segment (#2177); other modules are untouched.
-                "finding_text": normalize_legacy_finding_text(
-                    row.module,
-                    row.category,
-                    row.finding_text,
-                    detail_blob,
-                    engine,
-                ),
+                "finding_text": resolved_text,
                 "phenotype": row.phenotype,
                 # Clean the raw CLNDN blob for display (#918), mirroring the
                 # frontend helper (#917); raw value stays in the DB. (The current
