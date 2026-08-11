@@ -284,11 +284,16 @@ class TestCYP1A2Metabolizer:
         cyp = self._get_cyp1a2(panel_data)
         assert cyp["evidence_level"] == 2  # Well-replicated
 
-    def test_cyp1a2_has_cross_module(self, panel_data: dict) -> None:
-        """CYP1A2 must reference Pharmacogenomics cross-module."""
+    def test_cyp1a2_has_no_cross_module(self, panel_data: dict) -> None:
+        """CYP1A2 must NOT reference Pharmacogenomics (#2024).
+
+        Removed rather than reworded: the Sleep card already gives the
+        caffeine-metabolism interpretation inline, so the handoff carried
+        nothing but a pointer to a module that cannot call CYP1A2.
+        """
         cyp = self._get_cyp1a2(panel_data)
-        assert "cross_module" in cyp
-        assert cyp["cross_module"]["module"] == "pharmacogenomics"
+        assert "cross_module" not in cyp
+        assert "does not call CYP1A2" in cyp["recommendation_text"]
 
     def test_cyp1a2_metadata_does_not_emit_star_diplotypes(self, panel_data: dict) -> None:
         cyp = self._get_cyp1a2(panel_data)
