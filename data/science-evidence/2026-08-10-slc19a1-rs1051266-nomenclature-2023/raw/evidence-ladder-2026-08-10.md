@@ -88,7 +88,7 @@ DOIs above resolve at https://doi.org/.
 ## Identifiers
 
 Consensus returns its own paper URLs but no PMID or DOI. Identifiers were resolved
-separately via PubMed on 2026-08-10 for every record cited in a claim above, and are
+separately via PubMed for every record cited in a claim above (accessed 2026-08-10), and are
 recorded per-record in `consensus-search-2026-08-10.json` under `pmid`/`doi`, with
 `used_in_packet_claim` marking which ones those are. Records left without an
 identifier are the ones no claim rests on; they are retained so the result set stays

@@ -36,21 +36,21 @@ fixes which of the two spellings is the HGVS-conformant one.
 - **NCBI dbSNP, RefSNP v2** — `rs1051266`, not merged, on the RefSeq transcript
   `NM_194255.4` with protein `NP_919231.1`. `NM_194255.4:c.80=` maps to residue
   27 **H→H**, and `NM_194255.4:c.80A>G` to residue 27 **H→R**,
-  `missense_variant`. Public domain (NLM). Accessed 2026-08-10.
+  `missense_variant`. Public domain (NLM) (accessed 2026-08-10).
 - **UniProtKB `P41440` (S19A1_HUMAN)** — canonical sequence version 3, 591 aa,
   CRC64 `0437B1615F5517EB`. Residues 20-35 are `PELRSWRHLVCYLCFY`, so **residue
-  27 is H (His)**. CC BY 4.0. Accessed 2026-08-10.
+  27 is H (His)**. CC BY 4.0 (accessed 2026-08-10).
 - **Ensembl GRCh37 REST** — chr21:46,957,794, plus strand, `allele_string`
   `T/C/G`, `ancestral_allele` `C`, `minor_allele` `C` (MAF 0.4886). SLC19A1 is
   minus-strand, so plus-strand T is coding **A** and plus-strand C is coding
-  **G**. Apache 2.0. Accessed 2026-08-10.
+  **G**. Apache 2.0 (accessed 2026-08-10).
 
 **None of these is independent of the others, and this packet got that wrong
 twice before saying so.** The first version named dbSNP and Ensembl as the
 independent pair; Ensembl's own response declares `"source": "Variants (including
 SNPs and indels) imported from dbSNP"`. The second named UniProt instead — but
 `P41440` explicitly cross-references `NP_919231.1` / `NM_194255.4`, the exact
-RefSeq records dbSNP reports against (`raw/uniprot-P41440-crossrefs-2026-08-10.json`).
+RefSeq records dbSNP reports against (`raw/uniprot-P41440-crossrefs-2026-08-10.json`) (accessed 2026-08-10).
 Both claims were wrong, and both were caught in review rather than here.
 
 **The deeper error was invoking the gate at all.** The contract's high-stakes rule
@@ -84,98 +84,27 @@ repair would be to change `hgvs_protein`, and the guard would then require
 
 ## The primary clones carry the other allele
 
-Following UniProt's EMBL cross-references to the original cDNA submissions turned
-up something the packet had previously only guessed at. All three of the earliest
-independent clones — `AAA98442.1` (placental folate transporter), `AAC50180.1`
-(reduced folate carrier protein) and `AAB35058.1` — are 591 aa with residues 20-35
-`PELRSWR**R**LVCYLCFY`: **residue 27 is Arg**, not His
-(`raw/genbank-primary-cdna-submissions-2026-08-10.fasta`, accessed 2026-08-10).
+Following UniProt's EMBL cross-references to the cDNA submissions it derives from:
+`AAA98442.1` (placental folate transporter), `AAC50180.1` (reduced folate carrier
+protein) and `AAB35058.1` are each 591 aa with residues 20-35
+`PELRSWR**R**LVCYLCFY` — **residue 27 is Arg**, not His
+(`raw/genbank-primary-cdna-submissions-2026-08-10.fasta`) (accessed 2026-08-10).
 
 That is not a contradiction of the reference; it is the polymorphism. At MAF
 ≈ 0.49 a clone carrying either allele is unremarkable, and which allele the
-assembly later adopted is a separate matter. But it does explain the naming split
-with evidence rather than inference: **the first sequences in the literature
-carried G/Arg, so early papers naturally wrote the G allele as the reference and
-named the SNP `G80A`.** An earlier draft of the shipped text attributed the legacy
-name to the ancestral allele; that was an unsupported inference and was removed.
-This is the same story with a source behind it, and it is recorded here rather than
-in user-facing text because the user does not need it.
+assembly later adopted is a separate matter.
 
-## Why the literature disagrees with itself, and what the row now says
-
-The locus carries two competing names, and the row's own three citations are
-split between them:
-
-| PMID | Spelling used in the title |
-| --- | --- |
-| 16750224 | G80A |
-| 24597986 | G80A |
-| 33935279 | A80G |
-
-A Consensus search (all 20 records in `raw/consensus-search-2026-08-10.json`) shows the
-split is not confined to the legacy shorthand: peer-reviewed papers write
-`c.80G>A` and `c.80A>G` for the same rsID.
-
-The panel had one field from each frame — `variant_name` in the G-first frame,
-`hgvs_protein` in the reference frame — which is why the rendered string could
-not be read under either convention. The fix puts the rendered label in the
-reference frame, the frame `hgvs_protein` was already in and the one HGVS
-requires, and names the competing spelling in the row's prose so a reader
-following those citations is not left to rediscover the conflict.
-
-**What this packet deliberately does not claim** is *why* the G-first frame
-exists. Ensembl gives the ancestral coding allele as G, so the reference genome
-carries the derived allele here, and an earlier draft of the shipped text
-asserted that the legacy name was "written against the ancestral allele". That is
-an inference about authors' intent which nothing retained here establishes, so it
-was removed in favour of the observable fact: the two frames take opposite bases
-as the reference.
-
-## Direction of effect — contested, and untouched
-
-The Consensus results disagree about which allele does what:
-
-| Source | Reported direction |
-| --- | --- |
-| PMID:19650776 (Stanisławska-Sachadyn 2009, Ann Hum Genet) | GA/AA had *higher* red-cell folate than GG; 80G homozygotes flagged as the at-risk group |
-| PMID:33749319 (Naushad 2021, Ann Pharmacother, 18 studies) | 80A allele *increased* methotrexate efficacy and safety |
-| PMID:16962770 (Wang 2006, Eur J Cancer) | 80AA associated with *increased* gastro-oesophageal cancer risk |
-| PMID:41673870 (Yue 2026, World J Surg Oncol, 13 studies) | 80AA associated with *greater* methotrexate toxicity |
-| PMID:24597986 (He 2014) — the row's own citation | *No* influence of G80A on methotrexate toxicity |
-
-The panel's "AA → reduced folate carrier efficiency" is at least in tension with
-the first of those. That question is filed separately and is not decided here.
-
-## Corrections and retractions
-
-Checked, not argued. All three cited PMIDs were queried through Scite by DOI and
-none carries an editorial notice (retraction, correction, concern or erratum);
-PubMed likewise records no `Retracted Publication` or `Erratum` article type for
-any of them. dbSNP reports rs1051266 as not merged. The per-record status is in
-`raw/scite-and-pubmed-notices-2026-08-10.json`; the reading of it is in
-`raw/evidence-ladder-2026-08-10.md`.
-
-## A contradicting in-repo artifact, retained deliberately
-
-`bundles/vep_bundle.db` as committed at `origin/main` reports
-`hgvs_protein = p.Arg27His` for this rsID — the opposite polarity to every source
-above. It is **not** treated as evidence here, because it is demonstrably not
-recording reference/alternate at all: all 102,254 of its single-base rows have
-`ref` alphabetically before `alt`, with zero exceptions, where a genuine
-reference-first assignment would be near 50/50. Its `hgvs_protein` is
-correspondingly inverted for the whole T/C class — rs1051266, PON1 rs662
-(`p.Arg192Gln` for `p.Gln192Arg`) and KCNJ11 rs5219 (`p.Glu23Lys` for
-`p.Lys23Glu`) are all reversed relative to `vep_seed.csv`.
-
-The exact queries and their results are in `queries.json` under
-`in-repo-bundle-crosscheck`, including the full join accounting: of the 679 seed
-rows, 44 match the bundle on `(rsid, pos)` — 12 in the same orientation, 6
-reversed, and 26 that name a different allele pair entirely and so cannot be
-scored for orientation at all. Those 26 are a further discrepancy class between
-the two artifacts, not evidence for the ordering finding, which rests on the
-102,254/102,254 count above. The retained record is in `raw/`. The artifact
-itself is written up as a separate issue; it is a live trap for anyone who reads
-it as authoritative, which is exactly how #2023 described it.
+**Scope of what this supports, stated narrowly.** The retained artifact is FASTA —
+headers and sequence only. It establishes *that these three accessions carry
+Arg27*, and nothing else. It does **not** establish that they are the earliest
+submissions, that they were produced independently of one another, or that early
+authors named the SNP from them: no submission dates, submitters, publication
+links or inter-record relationships are retained, and none were checked. An
+earlier draft of this section asserted all three of those, which went beyond the
+evidence. The causal story about the literature's naming is therefore an unproven
+inference and is not relied on anywhere; the shipped user-facing text says only
+that the two frames take opposite bases as the reference, which is the observable
+fact.
 
 ## Files
 

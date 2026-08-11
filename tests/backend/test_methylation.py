@@ -1423,6 +1423,52 @@ class TestSLC19A1ComplementaryStrandRendering:
                 f"{genotype!r}: {row.finding_text}"
             )
 
+    @pytest.mark.parametrize("genotype", ["CC", "GG"])
+    def test_non_carrier_stores_no_snp_finding_on_either_strand(
+        self,
+        panel: MethylationPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+        genotype: str,
+    ) -> None:
+        """Negative control: the reference homozygote must emit nothing.
+
+        ``store_methylation_findings`` skips SNPs scored ``Standard``, so a
+        non-carrier produces no ``snp_finding`` row at all. Every other case in
+        this class asserts a row *exists*, which means none of them could catch a
+        strand-lookup change that starts reporting rs1051266 for non-carriers —
+        the reassuring-output-from-nothing failure this suite is meant to refuse.
+
+        Both spellings are covered deliberately: ``GG`` is the panel's own
+        coding-strand key, and ``CC`` is the plus-strand call a real array file
+        actually carries, which only resolves through the complement.
+        """
+        _seed_variants(sample_engine, [("rs1051266", "21", 46957794, genotype)])
+        result = score_methylation_pathways(panel, sample_engine, reference_engine)
+        scored = next(
+            s for pr in result.pathway_results for s in pr.called_snps if s.rsid == "rs1051266"
+        )
+        assert scored.category == STANDARD, (
+            f"{genotype!r} is the reference homozygote and must score Standard, "
+            f"got {scored.category}: {scored.effect_summary}"
+        )
+
+        store_methylation_findings(result, sample_engine)
+        with sample_engine.connect() as conn:
+            rows = conn.execute(
+                sa.select(findings).where(
+                    sa.and_(
+                        findings.c.module == MODULE_NAME,
+                        findings.c.category == "snp_finding",
+                        findings.c.rsid == "rs1051266",
+                    )
+                )
+            ).fetchall()
+        assert rows == [], (
+            f"non-carrier {genotype!r} stored an rs1051266 finding: "
+            f"{[r.finding_text for r in rows]}"
+        )
+
 
 # ── PathwayResult properties ────────────────────────────────────────────
 

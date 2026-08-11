@@ -79,9 +79,9 @@
       "method": "MCP tool call",
       "url": null,
       "accessed": "2026-08-10",
-      "query_text": "dois: [\"10.12659/MSM.929911\", \"10.1016/j.lfs.2006.05.009\", \"10.3109/10428194.2014.898761\"] (no term; metadata and editorial notices)",
+      "query_text": "dois: [\"10.12659/MSM.929911\", \"10.1016/j.lfs.2006.05.009\", \"10.3109/10428194.2014.898761\", \"10.1111/j.1469-1809.2009.00529.x\", \"10.1177/10600280211002053\", \"10.1016/j.ejca.2006.04.022\"] (no term; metadata and editorial notices). Six DOIs - PMID:41673870 is not indexed by Scite and is covered by PubMed only.",
       "quota_fallback": "none required; service available",
-      "result_used": "3 of 3 records returned; none carries an editorialNotices entry (retraction, correction, concern or erratum).",
+      "result_used": "6 of 6 requested records returned; none carries an editorialNotices entry (retraction, correction, concern or erratum). The seventh cited paper was not requested here because Scite does not index it.",
       "supports": "The corrections/retractions check below.",
       "artifact": "raw/scite-and-pubmed-notices-2026-08-10.json",
       "artifact_is_transcription": true,
@@ -93,8 +93,8 @@
       "method": "MCP tool call",
       "url": "https://pubmed.ncbi.nlm.nih.gov/",
       "accessed": "2026-08-10",
-      "query_text": "pmids: [\"33935279\", \"16750224\", \"24597986\"]",
-      "result_used": "DOIs resolved (10.12659/MSM.929911, 10.1016/j.lfs.2006.05.009, 10.3109/10428194.2014.898761) and article_types read; none carries Retracted Publication or Erratum.",
+      "query_text": "pmids: [\"33935279\", \"16750224\", \"24597986\", \"19650776\", \"33749319\", \"16962770\", \"41673870\"]",
+      "result_used": "7 of 7 records returned. DOIs resolved and article_types read; none carries Retracted Publication or Erratum. This is the only notice check covering PMID:41673870.",
       "supports": "Title spellings used in the README table, and the second leg of the corrections/retractions check.",
       "artifact": "raw/scite-and-pubmed-notices-2026-08-10.json",
       "artifact_is_transcription": true,
@@ -146,11 +146,12 @@
       "method": "GET",
       "url": "https://ftp.ncbi.nlm.nih.gov/entrez/misc/data/gc.prt",
       "accessed": "2026-08-10",
-      "artifact": "../../../tests/fixtures/ncbi_genetic_code_table1.json",
-      "artifact_is_transcription": true,
-      "artifact_transcription_note": "Verbatim transcription of the id 1 (Standard) entry from gc.prt version 4.6: the ncbieaa/sncbieaa strings and the file's own Base1/Base2/Base3 codon-order lines, plus a SHA-256 over those five strings. It lives under tests/fixtures/ rather than here because tests/backend/test_panel_variant_name_codon_consistency.py reads it at import time to build its codon table.",
+      "artifact": "../../../tests/fixtures/ncbi_gc.prt",
+      "artifact_is_transcription": false,
+      "artifact_transcription_note": "The retained artifact is NCBI's gc.prt as retrieved, 16444 bytes, and the SHA-256 above covers those complete bytes - not a digest over extracted strings. The guard parses translation table 1 straight out of this file. tests/fixtures/ncbi_genetic_code_table1.json beside it is a readable extract asserted field-by-field equal to that parse, and is not the authority; an earlier version of this entry pointed at the extract and described a digest over its five strings, which would have sent an auditor to the wrong artifact and the wrong checksum procedure.",
       "result_used": "Translation table 1 (Standard), 64 codons; stops TAA/TAG/TGA; starts TTG/CTG/ATG. The guard derives which base substitutions can produce which amino-acid changes from this.",
-      "supports": "That the genetic code underpinning the new panel-label guard is sourced rather than encoded from memory. The digest is pinned because the code is redundant: corrupting one codon of a multi-codon amino acid changes no reachability result and would otherwise be invisible."
+      "supports": "That the genetic code underpinning the new panel-label guard is sourced rather than encoded from memory. The digest is pinned because the code is redundant: corrupting one codon of a multi-codon amino acid changes no reachability result and would otherwise be invisible.",
+      "artifact_sha256": "2aecbdd09ecc5e0d233c105090a593737298ef93d88f6bc0c1bef26df6051a04"
     },
     {
       "id": "uniprot-crossrefs",
@@ -178,41 +179,46 @@
   "source_versions_and_licenses": {
     "_why": "Recording the version/build and licence basis for every source, so a future auditor can establish which source state produced each retained payload and on what basis retaining it is permitted.",
     "NCBI dbSNP RefSNP v2": {
-      "version_or_build": "The response carries the RefSNP's own last_update_build_id and dates; the 2026-08-10 access date bounds retrieval. No API version beyond the v0 path segment is issued.",
+      "version_or_build": "The response carries the RefSNP's own last_update_build_id and dates; the 2026-08-10 access date bounds retrieval. No API version beyond the v0 path segment is issued. (accessed 2026-08-10).",
       "license_or_terms": "US Government work produced by the National Library of Medicine; NCBI databases are in the public domain in the United States.",
       "retention_basis": "Public domain. Only variant metadata for a single rsID is retained; no human subject data is involved."
     },
     "UniProtKB P41440": {
-      "version_or_build": "Canonical sequence version 3, read from entryAudit.sequenceVersion in the retained response, pinned further by CRC64 0437B1615F5517EB and MD5 24DE6A075D69E133471E1BC4916E1ED5 over a 591-residue sequence. Accessed 2026-08-10.",
+      "version_or_build": "Canonical sequence version 3, read from entryAudit.sequenceVersion in the retained response, pinned further by CRC64 0437B1615F5517EB and MD5 24DE6A075D69E133471E1BC4916E1ED5 over a 591-residue sequence. Accessed 2026-08-10. (accessed 2026-08-10).",
       "license_or_terms": "UniProt data are distributed under CC BY 4.0.",
       "retention_basis": "CC BY 4.0 permits redistribution with attribution, and the source is attributed by accession. Only the canonical protein record is retained."
     },
     "Ensembl GRCh37 REST": {
-      "version_or_build": "GRCh37 archive endpoint. The response carries no release number, so the 2026-08-10 access date is the retrieval-version boundary. The GRCh37 site is a frozen mirror and lags current dbSNP, which is why dbSNP rather than Ensembl is the primary source for identity and merge status.",
+      "version_or_build": "GRCh37 archive endpoint. The response carries no release number, so the 2026-08-10 access date is the retrieval-version boundary. The GRCh37 site is a frozen mirror and lags current dbSNP, which is why dbSNP rather than Ensembl is the primary source for identity and merge status. (accessed 2026-08-10).",
       "license_or_terms": "Ensembl data are released under the Apache License 2.0.",
       "retention_basis": "Apache 2.0 permits redistribution with attribution. Only the single-rsID variation record is retained."
     },
     "Consensus and Scite": {
-      "version_or_build": "Neither service exposes a corpus version; the 2026-08-10 access date is the boundary.",
+      "version_or_build": "Neither service exposes a corpus version; the 2026-08-10 access date is the boundary. (accessed 2026-08-10).",
       "license_or_terms": "Only the outcome of each query is retained in prose - which spellings appear in titles/abstracts, and whether an editorial notice exists. No abstract or full text is reproduced beyond short bibliographic identification.",
       "retention_basis": "Bibliographic fact, attributed by PMID/DOI."
     },
     "PMID:16750224 / PMID:24597986 / PMID:33935279": {
-      "version_or_build": "Version of record. These are the three citations already carried by the panel row; only their titles and editorial-notice status are used here.",
+      "version_or_build": "Version of record. These are the three citations already carried by the panel row; only their titles and editorial-notice status are used here. (accessed 2026-08-10).",
       "license_or_terms": "Titles only, used as bibliographic fact. No abstract or full text is retained or reproduced.",
       "retention_basis": "Bibliographic metadata, attributed by PMID and DOI."
     },
     "NCBI genetic code table 1": {
-      "version_or_build": "gc.prt version 4.6, as stated in the file header. Accessed 2026-08-10.",
+      "version_or_build": "gc.prt version 4.6, as stated in the file header. Accessed 2026-08-10. (accessed 2026-08-10).",
       "license_or_terms": "US Government work produced by the National Library of Medicine; NCBI data are in the public domain in the United States.",
       "retention_basis": "Public domain. Only the id 1 (Standard) table is retained."
     },
     "GenBank AAA98442.1 / AAC50180.1 / AAB35058.1": {
-      "version_or_build": "Versioned accessions as retrieved: AAA98442.1, AAC50180.1, AAB35058.1. The trailing .1 is the sequence version, so the record state is pinned by the accession itself; the 2026-08-10 access date bounds retrieval.",
+      "version_or_build": "Versioned accessions as retrieved: AAA98442.1, AAC50180.1, AAB35058.1. The trailing .1 is the sequence version, so the record state is pinned by the accession itself; the 2026-08-10 access date bounds retrieval. (accessed 2026-08-10).",
       "license_or_terms": "US Government work produced by the National Library of Medicine; GenBank records are in the public domain in the United States. NCBI notes that some submitters may claim patent or other rights in the underlying sequences, which does not restrict redistribution of the records.",
       "retention_basis": "Public domain. Only the FASTA protein records for three accessions are retained (raw/genbank-primary-cdna-submissions-2026-08-10.fasta); no annotation, publication text or human subject data is involved. They are retained because they contradict the reference residue, which is exactly why they must be visible rather than summarized."
+    },
+    "PubMed (NCBI Entrez)": {
+      "version_or_build": "No corpus version is exposed; the access date is the retrieval-version boundary (accessed 2026-08-10). Records are identified by PMID, and each retained record carries its own DOI where one exists.",
+      "license_or_terms": "US Government work produced by the National Library of Medicine; PubMed records are in the public domain in the United States. Publisher abstracts are NOT public domain and are not retained - only identifiers, titles, journal, dates, citation and article_types.",
+      "retention_basis": "Bibliographic metadata only, attributed to PubMed with DOI links. Used for two purposes: resolving durable identifiers for the Consensus results, and the article_types leg of the correction/retraction check, which is the only leg covering PMID:41673870."
     }
   },
-  "corrections_and_retractions_checked": "Yes, performed rather than argued, and extended to every paper the packet cites in a claim - not only the three the panel row carries. All seven were checked on 2026-08-10 through Scite by DOI (editorialNotices) and cross-checked against PubMed article_types: PMID:33935279, PMID:16750224, PMID:24597986, PMID:19650776, PMID:33749319, PMID:16962770 and PMID:41673870. None returned an editorialNotices entry and none carries a Retracted Publication or Erratum type. PMID:41673870 (DOI:10.1186/s12957-026-04222-9) is recent enough that absence of a notice carries correspondingly little information; it is cited only as one voice in a documented conflict, and no conclusion here turns on it. dbSNP separately reports rs1051266 as not merged. Per-record detail in raw/scite-and-pubmed-notices-2026-08-10.json.",
+  "corrections_and_retractions_checked": "Yes, performed rather than argued, and covering every paper the packet cites in a claim. SIX were checked through Scite by DOI (accessed 2026-08-10) - PMID:33935279, PMID:16750224, PMID:24597986, PMID:19650776, PMID:33749319, PMID:16962770 - and none returned an editorialNotices entry. The SEVENTH, PMID:41673870 (DOI:10.1186/s12957-026-04222-9), was NOT checked through Scite: it is not in that index, so PubMed is the only leg covering it. All seven were checked through PubMed article_types and none carries Retracted Publication or Erratum. PMID:41673870 published 2026-02-12, so absence of a notice carries little information at this date; it is cited as one voice in a documented conflict and no conclusion turns on it. dbSNP separately reports rs1051266 as not merged. Per-record detail in raw/scite-and-pubmed-notices-2026-08-10.json.",
   "privacy": "No sample, genotype, or other personal data was read, transmitted or stored. The external requests are single-identifier metadata lookups plus one literature search on a public SNP; the local queries are read-only against a reference artifact."
 }

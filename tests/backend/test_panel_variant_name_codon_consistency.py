@@ -28,12 +28,19 @@ The check itself is combinatorial: a shorthand ``<ref><pos><alt>`` is consistent
 with ``<From><n><To>`` if some codon encoding ``From`` and some codon encoding
 ``To`` differ at exactly one position, where the first carries ``ref`` and the
 second carries ``alt``. It does, however, rest on one external scientific fact —
-the genetic code — and that is **sourced, not remembered**: the codon table is
-derived from ``tests/fixtures/ncbi_genetic_code_table1.json``, a verbatim
-transcription of NCBI translation table 1 (``gc.prt`` version 4.6, accessed
-2026-08-10), down to the codon ordering. A mis-transcribed table would otherwise
-redefine which labels this suite accepts, with the tests below simply agreeing
-with the damage.
+the genetic code — and that is **sourced, not remembered**. The authority is
+``tests/fixtures/ncbi_gc.prt``, NCBI's own file as retrieved (translation table 1,
+version 4.6, accessed 2026-08-10); the codon table is parsed out of those bytes,
+codon ordering included, and the JSON beside it is a readable extract asserted
+equal to that parse. A mis-transcribed table would otherwise redefine which
+labels this suite accepts, with the tests below simply agreeing with the damage.
+
+**Both production shorthand notations are discovered.** Panels write base-first
+(``A80G``, ``C1420T (Leu474Phe)``) and position-first (``+318A>C (Glu40Ala)``,
+``1083T>C (His361His)``); parenthetical residues come in three-letter
+``(His27Arg)`` and one-letter ``(M1T)`` forms. Recognising only one dialect would
+let a reversed label in the other pass unexamined — which it did until review
+caught it.
 
 Deliberately *not* checked:
 
@@ -143,10 +150,19 @@ _THREE_TO_ONE = {
     "Ter": "*",
 }
 
-# A leading ``<base><digits><base>`` shorthand, e.g. "A80G" or "C1420T (Leu474Phe)".
+# Two shorthand notations are in production use, and both must be discovered or
+# the guard silently skips the rows written in the other one:
+#   base-first      "A80G", "C1420T (Leu474Phe)"
+#   position-first  "+318A>C (Glu40Ala)", "1083T>C (His361His)", "-401C>T"
 _NUCLEOTIDE_SHORTHAND = re.compile(r"^([ACGT])(\d+)([ACGT])(?![A-Za-z0-9])")
+_POSITION_FIRST_SHORTHAND = re.compile(r"^[+-]?(\d+)([ACGT])>([ACGT])(?![A-Za-z0-9])")
+
 _HGVS_PROTEIN = re.compile(r"^p\.([A-Z][a-z]{2})(\d+)([A-Z][a-z]{2})$")
+# Parentheticals come in three-letter ``(His27Arg)`` and one-letter ``(M1T)``
+# forms; ``skin_panel.json`` rs2228570 uses the latter. Non-substitution
+# parentheticals like ``(MnSOD)`` match neither, which is what we want.
 _PARENTHETICAL_PROTEIN = re.compile(r"\(([A-Z][a-z]{2})(\d+)([A-Z][a-z]{2})\)")
+_PARENTHETICAL_PROTEIN_ONE_LETTER = re.compile(r"\(([A-Z])(\d+)([A-Z])\)")
 
 
 def _walk_dicts(node: object):
@@ -160,25 +176,53 @@ def _walk_dicts(node: object):
             yield from _walk_dicts(item)
 
 
+_ONE_LETTER_CODES = set(_THREE_TO_ONE.values())
+
+
 def _one_letter(match: re.Match[str] | None) -> tuple[str, int, str] | None:
-    """``(from_aa, position, to_aa)`` in one-letter form, or ``None``."""
+    """``(from_aa, position, to_aa)`` in one-letter form, or ``None``.
+
+    Accepts either the three-letter groups of ``(His27Arg)`` or the one-letter
+    groups of ``(M1T)``, validating both against the amino-acid alphabet so a
+    stray parenthetical cannot be read as a substitution.
+    """
     if match is None:
         return None
     first, position, second = match.group(1), int(match.group(2)), match.group(3)
-    if first not in _THREE_TO_ONE or second not in _THREE_TO_ONE:
-        return None
-    return _THREE_TO_ONE[first], position, _THREE_TO_ONE[second]
+    if first in _THREE_TO_ONE and second in _THREE_TO_ONE:
+        return _THREE_TO_ONE[first], position, _THREE_TO_ONE[second]
+    if first in _ONE_LETTER_CODES and second in _ONE_LETTER_CODES:
+        return first, position, second
+    return None
+
+
+def _parenthetical_protein(name: str) -> tuple[str, int, str] | None:
+    """The ``(His27Arg)`` or ``(M1T)`` substitution inside a display label."""
+    return _one_letter(_PARENTHETICAL_PROTEIN.search(name)) or _one_letter(
+        _PARENTHETICAL_PROTEIN_ONE_LETTER.search(name)
+    )
 
 
 def _declared_protein_changes(node: dict) -> tuple[tuple[str, int, str] | None, ...]:
     """Both amino-acid declarations a row can carry: ``hgvs_protein`` and the
-    ``(His27Arg)`` parenthetical inside ``variant_name``, in that order."""
+    parenthetical inside ``variant_name``, in that order."""
     raw = node.get("hgvs_protein")
     name = node.get("variant_name")
     return (
         _one_letter(_HGVS_PROTEIN.match(raw) if isinstance(raw, str) else None),
-        _one_letter(_PARENTHETICAL_PROTEIN.search(name) if isinstance(name, str) else None),
+        _parenthetical_protein(name) if isinstance(name, str) else None,
     )
+
+
+def _nucleotide_substitution(name: str) -> tuple[str, int, str] | None:
+    """``(ref, position, alt)`` from either shorthand notation, or ``None``."""
+    match = _NUCLEOTIDE_SHORTHAND.match(name)
+    if match is not None:
+        return match.group(1), int(match.group(2)), match.group(3)
+    match = _POSITION_FIRST_SHORTHAND.match(name)
+    if match is not None:
+        return match.group(2), int(match.group(1)), match.group(3)
+    return None
 
 
 def _protein_change(node: dict) -> tuple[str, int, str] | None:
@@ -251,7 +295,7 @@ def _discover_shorthand_loci() -> list[tuple[str, str, str, tuple[str, int, str]
         raw = json.loads(path.read_text(encoding="utf-8"))
         for node in _walk_dicts(raw):
             name = node.get("variant_name")
-            if not isinstance(name, str) or not _NUCLEOTIDE_SHORTHAND.match(name):
+            if not isinstance(name, str) or _nucleotide_substitution(name) is None:
                 continue
             change = _protein_change(node)
             if change is None:
@@ -385,7 +429,7 @@ def test_discovery_finds_the_panel_shorthand_loci() -> None:
     """Sanity: the walker must keep finding the curated shorthand rows, so the
     invariant below cannot pass vacuously after a schema or path change."""
     loci = _discover_shorthand_loci()
-    assert len(loci) >= 14, f"shorthand discovery regressed; found only {len(loci)}"
+    assert len(loci) >= 17, f"shorthand discovery regressed; found only {len(loci)}"
     assert any(label.endswith("::rs1051266") for label, _, _, _ in loci)
 
 
@@ -395,9 +439,9 @@ def test_every_panel_shorthand_agrees_with_its_amino_acid_change() -> None:
     the same row declares."""
     offenders = []
     for label, name, _panel, change in _discover_shorthand_loci():
-        match = _NUCLEOTIDE_SHORTHAND.match(name)
-        assert match is not None  # guaranteed by discovery
-        ref, position, alt = match.group(1), int(match.group(2)), match.group(3)
+        substitution = _nucleotide_substitution(name)
+        assert substitution is not None  # guaranteed by discovery
+        ref, position, alt = substitution
         if _is_protein_shorthand(ref, position, alt, change):
             continue
         from_aa, protein_position, to_aa = change
@@ -419,9 +463,9 @@ def _decidability_split() -> tuple[list[str], list[str]]:
     non_synonymous: list[str] = []
     synonymous: list[str] = []
     for label, name, _panel, change in _discover_shorthand_loci():
-        match = _NUCLEOTIDE_SHORTHAND.match(name)
-        assert match is not None  # guaranteed by discovery
-        ref, position, alt = match.group(1), int(match.group(2)), match.group(3)
+        substitution = _nucleotide_substitution(name)
+        assert substitution is not None  # guaranteed by discovery
+        ref, position, alt = substitution
         if _is_protein_shorthand(ref, position, alt, change) or ref == alt:
             continue
         from_aa, _protein_position, to_aa = change
@@ -471,9 +515,9 @@ def test_protein_shorthand_rows_are_listed_rather_than_silently_skipped() -> Non
     """
     skipped = []
     for label, name, _panel, change in _discover_shorthand_loci():
-        match = _NUCLEOTIDE_SHORTHAND.match(name)
-        assert match is not None  # guaranteed by discovery
-        ref, position, alt = match.group(1), int(match.group(2)), match.group(3)
+        substitution = _nucleotide_substitution(name)
+        assert substitution is not None  # guaranteed by discovery
+        ref, position, alt = substitution
         if _is_protein_shorthand(ref, position, alt, change):
             skipped.append(label)
     assert skipped == ["gene_health_panel.json::rs2241880"], (
@@ -487,12 +531,18 @@ def test_synonymous_shorthand_is_recorded_as_structurally_undecidable() -> None:
     """Synonymous rows cannot be direction-checked by codon reachability at all.
 
     Tyr→Tyr is symmetric by construction (``TAT``↔``TAC``), so both C→T and T→C
-    satisfy the predicate. CBS ``rs234706 C699T (Tyr233Tyr)`` is the current
-    example. Asserting the set explicitly keeps the guard's real coverage
-    visible instead of letting these rows look checked when they are not.
+    satisfy the predicate. Two rows are in this state: CBS
+    ``rs234706 C699T (Tyr233Tyr)`` and ADORA2A ``rs5751876 1083T>C (His361His)``
+    — the second only became visible once position-first notation was
+    discovered, which is the lock doing its job. Asserting the set explicitly
+    keeps the guard's real coverage visible instead of letting these rows look
+    checked when they are not.
     """
     _, synonymous = _decidability_split()
-    assert [entry.split()[0] for entry in synonymous] == ["methylation_panel.json::rs234706"], (
+    assert [entry.split()[0] for entry in synonymous] == [
+        "methylation_panel.json::rs234706",
+        "sleep_panel.json::rs5751876",
+    ], (
         "the set of structurally-undecidable synonymous shorthands changed; "
         "update this lock deliberately: " + "; ".join(synonymous)
     )
