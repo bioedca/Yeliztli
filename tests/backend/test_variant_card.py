@@ -1016,3 +1016,76 @@ class TestDisclosureGate:
         )
         assert resp.status_code == 200
         assert "APOE" in resp.text
+
+
+# ── Legacy cross-module links on shareable cards (#2021) ──────────────────
+
+
+class TestLegacyCrossModuleCards:
+    """A card is exported by finding_id, so a retired link stays reachable.
+
+    The full report drops a retired cross-module row by omitting it; a
+    single-finding export has to refuse it, and with the same not-found error
+    the disclosure gate raises so the no-leak posture is unchanged.
+    """
+
+    def _insert_cross_module(
+        self, sample_engine: sa.Engine, *, module: str, rsid: str, gene: str, note: str
+    ) -> int:
+        with sample_engine.begin() as conn:
+            return conn.execute(
+                findings.insert().values(
+                    module=module,
+                    category="cross_module",
+                    evidence_level=3,
+                    gene_symbol=gene,
+                    rsid=rsid,
+                    finding_text=f"{gene} card (AT) — {note}",
+                    detail_json=json.dumps(
+                        {
+                            "source_module": module,
+                            "target_module": "nutrigenomics",
+                            "cross_module_note": note,
+                        }
+                    ),
+                )
+            ).inserted_primary_key[0]
+
+    def test_retargeted_card_is_refreshed(self, sample_with_findings: tuple) -> None:
+        _, sample_engine, _ = sample_with_findings
+        finding_id = self._insert_cross_module(
+            sample_engine,
+            module="gene_health",
+            rsid="rs9939609",
+            gene="FTO",
+            note=(
+                "FTO rs9939609 influences appetite regulation and macronutrient "
+                "metabolism. See Nutrigenomics for dietary recommendations."
+            ),
+        )
+
+        result = _load_single_finding(sample_engine, finding_id=finding_id)
+
+        assert "See Nutrigenomics for dietary recommendations" not in result["finding_text"]
+        assert "Metabolic module" in result["finding_text"]
+
+    def test_retired_card_is_refused(self, sample_with_findings: tuple) -> None:
+        _, sample_engine, _ = sample_with_findings
+        finding_id = self._insert_cross_module(
+            sample_engine,
+            module="allergy",
+            rsid="rs2187668",
+            gene="HLA-DQA1",
+            note=(
+                "Celiac-related HLA-DQ2 finding may affect dietary considerations. "
+                "See Nutrigenomics for gluten-related nutrient interactions."
+            ),
+        )
+
+        with pytest.raises(ValueError, match="not found"):
+            _load_single_finding(sample_engine, finding_id=finding_id)
+
+    def test_unrelated_card_still_loads(self, sample_with_findings: tuple) -> None:
+        """Control: refusing a retired link must not break ordinary cards."""
+        _, sample_engine, _ = sample_with_findings
+        assert _load_single_finding(sample_engine, finding_id=1)["module"] == "cancer"

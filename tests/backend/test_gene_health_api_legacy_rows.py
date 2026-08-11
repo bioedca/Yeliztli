@@ -46,10 +46,21 @@ LEGACY_FINDINGS = [
         "detail_json": json.dumps(
             {
                 "pathway_id": "metabolic",
-                "called_snps": 1,
-                "total_snps": 1,
+                "called_snps": 2,
+                "total_snps": 2,
                 "missing_snps": [],
                 "snp_details": [
+                    {
+                        # A called Standard non-carrier: storage writes no
+                        # snp_finding row for it, so it has no recommendation.
+                        "rsid": "rs1801133",
+                        "gene": "MTHFR",
+                        "variant_name": "C677T",
+                        "genotype": "GG",
+                        "category": "Standard",
+                        "effect_summary": "No C677T variant.",
+                        "evidence_level": 3,
+                    },
                     {
                         "rsid": "rs9939609",
                         "gene": "FTO",
@@ -58,7 +69,7 @@ LEGACY_FINDINGS = [
                         "category": "Moderate",
                         "effect_summary": "One copy of FTO risk allele.",
                         "evidence_level": 3,
-                    }
+                    },
                 ],
             }
         ),
@@ -161,3 +172,25 @@ class TestLegacyGeneHealthRows:
         assert "nutrigenomics" not in recommendation.lower()
         # The rest of the curated advice survives — this is a refresh, not a wipe.
         assert "attenuated by physical activity" in recommendation
+
+
+class TestStandardGenotypeKeepsNoRecommendation:
+    """A hom-ref result must not inherit the panel's carrier-facing advice.
+
+    Storage writes no `snp_finding` row for a called Standard genotype, so the
+    detail panel shows no recommendation. Refreshing panel prose unconditionally
+    would have supplied one — carrier instructions, beside a result that says
+    the variant is absent.
+    """
+
+    def test_standard_snp_has_no_recommendation(
+        self, legacy_client: tuple[TestClient, int]
+    ) -> None:
+        client, sample_id = legacy_client
+        resp = client.get(f"/api/analysis/gene_health/pathway/metabolic?sample_id={sample_id}")
+        assert resp.status_code == 200
+        snps = {s["rsid"]: s for s in resp.json()["snp_details"]}
+        assert snps["rs1801133"]["category"] == "Standard"
+        assert not snps["rs1801133"]["recommendation"]
+        # ...while the carrier beside it still gets its refreshed one.
+        assert snps["rs9939609"]["recommendation"]

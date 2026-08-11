@@ -147,6 +147,16 @@ class TestCurrentRecommendation:
         # The rest of the curated advice is retained, not truncated away.
         assert "attenuated by physical activity" in current
 
+    def test_a_snp_with_no_stored_recommendation_gets_none(self) -> None:
+        """A called Standard non-carrier must not be handed carrier advice.
+
+        Storage deliberately writes no ``snp_finding`` row for a Standard
+        genotype, so the stored recommendation is absent. Looking the panel up
+        regardless would give a hom-ref user instructions written for carriers.
+        """
+        assert current_recommendation("gene_health", "rs9939609", None) is None
+        assert current_recommendation("gene_health", "rs9939609", "") == ""
+
     def test_unknown_rsid_keeps_what_was_stored(self) -> None:
         assert current_recommendation("gene_health", "rs00000000", "stored") == "stored"
 

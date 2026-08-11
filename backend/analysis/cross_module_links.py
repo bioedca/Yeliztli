@@ -144,6 +144,10 @@ def current_recommendation(module: str | None, rsid: str | None, stored: str | N
     kept saying so even once the adjacent cross-module card had been retargeted
     (#2021).
     """
-    if not rsid:
+    # Refresh only what a stored finding already supplied. A called Standard
+    # non-carrier deliberately gets no snp_finding row, so looking the panel up
+    # unconditionally would hand a hom-ref user the carrier-specific advice the
+    # storage layer withheld from them.
+    if not rsid or not stored:
         return stored
     return _recommendations_for_module(module or "").get(rsid, stored)
