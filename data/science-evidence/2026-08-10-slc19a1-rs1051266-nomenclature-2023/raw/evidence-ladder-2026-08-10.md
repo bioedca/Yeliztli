@@ -57,15 +57,15 @@ adjudicated here and is filed separately; this PR changes no category, no
 ## Scite
 
 - Service: Scite MCP, `search_literature` by DOI. Available; no quota fallback needed.
-- Query: `dois: ["10.12659/MSM.929911", "10.1016/j.lfs.2006.05.009", "10.3109/10428194.2014.898761"]`, no term (metadata + editorial notices).
-- Returned: 3 of 3 records.
+- Query: `dois: ["10.12659/MSM.929911", "10.1016/j.lfs.2006.05.009", "10.3109/10428194.2014.898761", "10.1111/j.1469-1809.2009.00529.x", "10.1177/10600280211002053", "10.1016/j.ejca.2006.04.022"]`, no term (metadata + editorial notices).
+- Returned: **6 of 6** records. The seventh cited paper, PMID:41673870, is **not indexed by Scite** and was not requested here; PubMed is its only notice check.
 
-**Outcome — correction/retraction check performed, negative for all three.** No
-record carried an `editorialNotices` entry (retraction, correction, concern or
-erratum). Cross-checked against PubMed `article_types` for the same three PMIDs,
-which likewise carry no `Retracted Publication` or `Erratum` type:
+**Outcome — correction/retraction check performed, negative throughout.** None of
+the six Scite records carried an `editorialNotices` entry (retraction, correction,
+concern or erratum). Cross-checked against PubMed `article_types` for **all seven**
+cited PMIDs, none of which carries a `Retracted Publication` or `Erratum` type.
 
-Extended to **every** paper the packet cites in a claim, not only the three the
+The check covers every paper the packet cites in a claim, not only the three the
 panel row carries:
 
 | PMID | DOI | Scite editorial notices | PubMed article types |

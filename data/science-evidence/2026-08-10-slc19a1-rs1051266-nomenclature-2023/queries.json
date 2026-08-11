@@ -204,9 +204,9 @@
       "retention_basis": "Bibliographic metadata, attributed by PMID and DOI."
     },
     "NCBI genetic code table 1": {
-      "version_or_build": "gc.prt version 4.6, as stated in the file header. Accessed 2026-08-10. (accessed 2026-08-10).",
+      "version_or_build": "gc.prt version 4.6, as stated in the retained file's own header; the id 1 entry is named 'Standard'. Pinned by SHA-256 2aecbdd09ecc5e0d233c105090a593737298ef93d88f6bc0c1bef26df6051a04 over the complete 16444-byte payload (accessed 2026-08-10).",
       "license_or_terms": "US Government work produced by the National Library of Medicine; NCBI data are in the public domain in the United States.",
-      "retention_basis": "Public domain. Only the id 1 (Standard) table is retained."
+      "retention_basis": "Public domain. The COMPLETE source-native file is retained at tests/fixtures/ncbi_gc.prt - 16444 bytes carrying all 27 translation tables (ids 1 through 33), exactly as NCBI serves it. Nothing was stripped: retaining the file whole is what lets the pinned SHA-256 cover the bytes as retrieved rather than a post-hoc excerpt. The guard parses only the id 1 (Standard) entry from it; the other tables are unused, not removed. An earlier version of this field said only table 1 was retained, which misdescribed both the payload scope and the redistribution basis."
     },
     "GenBank AAA98442.1 / AAC50180.1 / AAB35058.1": {
       "version_or_build": "Versioned accessions as retrieved: AAA98442.1, AAC50180.1, AAB35058.1. The trailing .1 is the sequence version, so the record state is pinned by the accession itself; the 2026-08-10 access date bounds retrieval. (accessed 2026-08-10).",
