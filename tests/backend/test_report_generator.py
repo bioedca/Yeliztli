@@ -802,6 +802,31 @@ def _render_html_helper(
 # ── Unit tests: HTML rendering ────────────────────────────────────
 
 
+class TestReportFooterVersion:
+    """#2025: the rendered footer must carry the running application's version.
+
+    Asserted against the HTML that ``render_report_html`` actually produces, not
+    against ``generator.VERSION``. Comparing module constants would stay green if
+    the renderer stopped passing ``version=``, passed the wrong template key, or
+    the footer template stopped displaying it — and the footer is the whole
+    user-visible surface of this defect.
+    """
+
+    def test_footer_shows_the_installed_app_version(
+        self, tmp_data_dir: Path, sample_with_findings: tuple
+    ) -> None:
+        from backend.main import VERSION as API_VERSION
+        from backend.version import app_version
+
+        html = _render_html_helper(tmp_data_dir, sample_with_findings)
+
+        assert f"Yeliztli v{app_version()}" in html
+        # The report must not claim a version the running application lacks.
+        assert f"Yeliztli v{API_VERSION}" in html
+        # The specific regression: the stale literal must not reappear anywhere.
+        assert "Yeliztli v0.1.0" not in html
+
+
 class TestHtmlRendering:
     def test_render_report_html_all_modules(
         self,
