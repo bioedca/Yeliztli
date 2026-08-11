@@ -16,7 +16,7 @@ import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
-from backend.api.dependencies import require_fresh_sample
+from backend.api.dependencies import require_fresh_sample, sample_export_guard
 from backend.db.connection import get_registry
 from backend.db.tables import annotated_variants, samples
 from backend.ingestion.liftover import batch_convert, convert_coordinate
@@ -101,6 +101,19 @@ def batch_liftover_sample(
     # Nothing invoked this route, so no test or user ever reached the failure.
     sample_engine = registry.get_sample_engine(registry.settings.data_dir / row.db_path)
 
+    # Hold the per-sample operation lease across the whole read → convert →
+    # write span. Annotation swaps the annotated_variants contents wholesale, so
+    # without this an initial annotation could make the batch observe zero rows
+    # and report success, and a re-annotation could either discard what the
+    # batch wrote or have coordinates computed from pre-swap positions applied
+    # by rsid to post-swap rows. The lease is the same one export and report
+    # rendering take, and it refuses to start while annotation is active (409).
+    with sample_export_guard(sample_id, operation="grch38_liftover"):
+        return _run_batch_liftover(sample_engine)
+
+
+def _run_batch_liftover(sample_engine: sa.Engine) -> BatchLiftoverStats:
+    """Read the unlifted rows, convert them, and write the coordinates back."""
     # Find variants that need liftover (no chrom_grch38 yet)
     with sample_engine.connect() as conn:
         # Check if the columns exist (schema may not be upgraded yet)

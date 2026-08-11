@@ -100,7 +100,8 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
   const [showUnannotated, setShowUnannotated] = useState(false)
   const [showConflictsOnly, setShowConflictsOnly] = useState(false)
   const [showGRCh38, setShowGRCh38] = useState(false)
-  const { mutate: runLiftover } = useBatchLiftover()
+  const { mutate: runLiftover, isPending: liftoverPending, isError: liftoverFailed } =
+    useBatchLiftover()
   // Samples the batch has already been requested for during this mount (#2029).
   // A set rather than a single id, so A → B → A does not re-request A.
   const liftoverRequestedRef = useRef<Set<number>>(new Set())
@@ -220,21 +221,33 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
   // Triggering here rather than at annotation time also repairs samples that
   // were annotated before this change; annotation-time only would leave every
   // existing sample blank forever.
+  const requestLiftover = useCallback(
+    (targetSampleId: number, { force = false }: { force?: boolean } = {}) => {
+      const requested = liftoverRequestedRef.current
+      if (!force && requested.has(targetSampleId)) return
+      // The endpoint is idempotent, but a POST per toggle would rescan the whole
+      // table for NULLs each time.
+      requested.add(targetSampleId)
+      runLiftover(targetSampleId, {
+        // A failure must not leave the sample latched, or the user can never
+        // retry without a reload.
+        onError: () => {
+          requested.delete(targetSampleId)
+        },
+      })
+    },
+    [runLiftover],
+  )
+
   useEffect(() => {
     if (!showGRCh38 || sampleId == null) return
-    const requested = liftoverRequestedRef.current
-    if (requested.has(sampleId)) return
-    // The endpoint is idempotent, but a POST per toggle would rescan the whole
-    // table for NULLs each time.
-    requested.add(sampleId)
-    runLiftover(sampleId, {
-      // A failure must not leave the sample latched, or the user can never
-      // retry without a reload.
-      onError: () => {
-        requested.delete(sampleId)
-      },
-    })
-  }, [showGRCh38, sampleId, runLiftover])
+    requestLiftover(sampleId)
+  }, [showGRCh38, sampleId, requestLiftover])
+
+  const handleRetryLiftover = useCallback(() => {
+    if (sampleId == null) return
+    requestLiftover(sampleId, { force: true })
+  }, [sampleId, requestLiftover])
 
   // GRCh38 liftover toggle (P4-20): show/hide GRCh38 columns independently of presets
   const handleToggleGRCh38 = useCallback(() => {
@@ -410,6 +423,9 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
         onTagFilter={setActiveTag}
         showGRCh38={showGRCh38}
         onToggleGRCh38={handleToggleGRCh38}
+        liftoverPending={liftoverPending}
+        liftoverFailed={liftoverFailed}
+        onRetryLiftover={handleRetryLiftover}
         isMergedSample={isMergedSample}
         sourceFilter={sourceFilter}
         onSourceFilter={setSourceFilter}

@@ -1056,6 +1056,42 @@ describe("GRCh38 liftover toggle (P4-20)", () => {
     expect(liftoverCalls()).toHaveLength(2)
   })
 
+  it("surfaces a liftover failure instead of presenting blank cells as final", async () => {
+    // The tooltip now tells users a blank GRCh38 cell means the position could
+    // not be lifted over. That is only true once the batch has run — so if it
+    // fails, silently showing empty columns misreports a failed computation as
+    // an unmappable genome position.
+    const page = makeVariantPage(2)
+    setupFetchMock(page, makeCountResponse(2))
+    mockFetch.mockImplementation(async (url: string) => {
+      if (url.includes("/api/column-presets"))
+        return { ok: true, json: async () => ({ presets: defaultPresets }) }
+      if (url.includes("/api/tags")) return { ok: true, json: async () => defaultTags }
+      if (url.includes("/api/variants/chromosomes"))
+        return { ok: true, json: async () => defaultChromCounts }
+      if (url.includes("/api/variants/count"))
+        return { ok: true, json: async () => makeCountResponse(2) }
+      if (url.includes("/api/liftover/"))
+        return { ok: false, status: 503, json: async () => ({ detail: "unavailable" }) }
+      if (url.includes("/api/variants")) return { ok: true, json: async () => page }
+      return { ok: false, status: 404 }
+    })
+
+    const user = userEvent.setup()
+    render(<VariantTable sampleId={1} />)
+
+    await waitFor(() => {
+      expect(screen.getByText("rs100")).toBeInTheDocument()
+    })
+    await user.click(screen.getByRole("button", { name: /show grch38 coordinates/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/could not be computed/i)).toBeInTheDocument()
+    })
+    // …and the user can retry without knowing to cycle the toggle.
+    expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument()
+  })
+
   it("GRCh38 columns are hidden by default", async () => {
     const page = makeVariantPage(2)
     setupFetchMock(page, makeCountResponse(2))

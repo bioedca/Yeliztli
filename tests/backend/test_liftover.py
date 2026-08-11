@@ -6,6 +6,7 @@ T4-19: pyliftover converts rs1801133 GRCh37 position to correct GRCh38 position.
 from __future__ import annotations
 
 from collections.abc import Generator
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import patch
 
@@ -17,7 +18,7 @@ from fastapi.testclient import TestClient
 from backend.config import Settings
 from backend.db.connection import reset_registry
 from backend.db.sample_schema import create_sample_tables
-from backend.db.tables import annotated_variants, reference_metadata, samples
+from backend.db.tables import annotated_variants, jobs, reference_metadata, samples
 from backend.ingestion import liftover as liftover_module
 from backend.ingestion.liftover import (
     batch_convert,
@@ -481,3 +482,37 @@ class TestBatchLiftoverRoute:
     def test_unknown_sample_returns_404(self, liftover_sample_client: TestClient) -> None:
         """A missing sample is 404, never a silent no-op."""
         assert liftover_sample_client.post("/api/liftover/9999").status_code == 404
+
+    def test_active_annotation_blocks_the_batch(
+        self, liftover_sample_client: TestClient, tmp_data_dir: Path
+    ) -> None:
+        """Liftover joins the per-sample operation lease (409 while annotating).
+
+        Annotation replaces the `annotated_variants` contents wholesale. Running
+        the batch across that swap can report success against rows that are
+        about to be discarded, or apply coordinates computed from pre-swap
+        positions to post-swap rows by rsid. The lease is the same one export
+        and report rendering take.
+        """
+        engine = sa.create_engine(f"sqlite:///{tmp_data_dir / 'reference.db'}")
+        try:
+            with engine.begin() as conn:
+                conn.execute(
+                    jobs.insert().values(
+                        job_id="annotation-in-flight",
+                        sample_id=1,
+                        job_type="annotation",
+                        status="running",
+                        progress_pct=10.0,
+                        message="annotating",
+                        created_at=datetime.now(UTC),
+                        updated_at=datetime.now(UTC),
+                    )
+                )
+        finally:
+            engine.dispose()
+
+        resp = liftover_sample_client.post("/api/liftover/1")
+        assert resp.status_code == 409, resp.text
+        # Nothing was written while the annotation held the sample.
+        assert _grch38_by_rsid(tmp_data_dir)["rs1801133"] == (None, None)
