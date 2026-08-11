@@ -182,3 +182,37 @@ def refreshed_detail_recommendation(
     if current == stored:
         return detail
     return {**detail, "recommendation": current}
+
+
+def live_cross_module_clause(columns: Any) -> Any:
+    """SQL predicate excluding cross-module rows whose link the panel retired.
+
+    Report generation bounds its selection with a COUNT before it sorts, so a
+    Python-side filter applied after loading would let a retired row push a
+    report over ``MAX_REPORT_FINDINGS`` and raise even though it would never be
+    rendered (#2021). Expressing the rule in SQL keeps the preflight, the load
+    and the rendered set counting the same rows.
+
+    Rows from unregistered modules, and non-cross-module rows, always pass.
+    """
+    import sqlalchemy as sa
+
+    retired = []
+    for module in _PANEL_LOADERS:
+        module_rows = sa.and_(
+            columns.module == module,
+            columns.category == CROSS_MODULE_CATEGORY,
+        )
+        live = _links_for_module(module)
+        # A registered module with no links left retires all of its rows; one
+        # with links retires only the rsids it no longer declares. A NULL rsid
+        # can never match a declared one, so it is retired either way.
+        retired.append(
+            module_rows
+            if not live
+            else sa.and_(
+                module_rows,
+                sa.or_(columns.rsid.is_(None), columns.rsid.notin_(sorted(live))),
+            )
+        )
+    return sa.not_(sa.or_(*retired)) if retired else sa.true()

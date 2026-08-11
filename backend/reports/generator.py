@@ -30,7 +30,10 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from starlette.concurrency import run_in_threadpool
 
 from backend.analysis.clinvar_conditions import format_clinvar_conditions_text
-from backend.analysis.cross_module_links import normalize_cross_module_row
+from backend.analysis.cross_module_links import (
+    live_cross_module_clause,
+    normalize_cross_module_row,
+)
 from backend.analysis.pathway_coverage import pathway_level_display_label
 from backend.analysis.pharmacogenomics import (
     is_patient_presentable_finding_payload,
@@ -130,6 +133,10 @@ def _load_findings(
     clauses = [
         policy_qualified_finding_clause(findings.c.category),
         patient_visible_finding_clause(findings.c),
+        # Excluded in SQL rather than after loading: the bounded preflight below
+        # counts before it sorts, so a retired row filtered in Python could push
+        # an otherwise-permissible report over the limit (#2021).
+        live_cross_module_clause(findings.c),
     ]
     if modules:
         clauses.append(findings.c.module.in_(modules))

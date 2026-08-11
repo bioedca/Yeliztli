@@ -1414,3 +1414,55 @@ class TestLegacyCrossModuleLinksInReports:
         """Control: normalization must not thin the report generally."""
         _, sample_engine, _ = sample_with_findings
         assert len(_load_findings(sample_engine, modules=None)) == 10
+
+
+class TestRetiredRowsDoNotConsumeTheReportLimit:
+    """A row that will never render must not push a report over the cap.
+
+    ``_load_findings`` bounds its selection with a COUNT *before* it sorts, so
+    filtering retired cross-module rows in Python after the load would let one
+    raise ReportTooLargeError for a report that would have fitted (#2021).
+    """
+
+    def _insert_retired_celiac(self, sample_engine: sa.Engine) -> None:
+        note = (
+            "Celiac-related HLA-DQ2 finding may affect dietary considerations. "
+            "See Nutrigenomics for gluten-related nutrient interactions."
+        )
+        with sample_engine.begin() as conn:
+            conn.execute(
+                findings.insert().values(
+                    module="allergy",
+                    category="cross_module",
+                    evidence_level=3,
+                    gene_symbol="HLA-DQA1",
+                    rsid="rs2187668",
+                    finding_text=f"HLA-DQ2.5 proxy (CT) — {note}",
+                    detail_json=json.dumps(
+                        {"target_module": "nutrigenomics", "cross_module_note": note}
+                    ),
+                )
+            )
+
+    def test_a_full_report_plus_a_retired_row_still_generates(
+        self, sample_with_findings: tuple
+    ) -> None:
+        """Exactly at the cap, plus one row that is never rendered."""
+        _, sample_engine, _ = sample_with_findings
+        _insert_report_findings(sample_engine, MAX_REPORT_FINDINGS)
+        self._insert_retired_celiac(sample_engine)
+
+        results = _load_findings(sample_engine, modules=["rare_variants", "allergy"])
+
+        assert len(results) == MAX_REPORT_FINDINGS
+        assert all(r["category"] != "cross_module" for r in results)
+
+    def test_a_genuinely_oversized_selection_is_still_rejected(
+        self, sample_with_findings: tuple
+    ) -> None:
+        """Control: excluding retired rows must not disable the cap."""
+        _, sample_engine, _ = sample_with_findings
+        _insert_report_findings(sample_engine, MAX_REPORT_FINDINGS + 1)
+
+        with pytest.raises(ReportTooLargeError):
+            _load_findings(sample_engine, modules=["rare_variants"])
