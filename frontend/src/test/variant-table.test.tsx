@@ -109,6 +109,14 @@ function setupFetchMock(
     if (url.includes("/api/variants/count")) {
       return { ok: true, json: async () => count }
     }
+    // The GRCh38 toggle triggers the liftover batch (#2029); without this branch
+    // every toggle-on test would exercise a failing POST.
+    if (url.includes("/api/liftover/")) {
+      return {
+        ok: true,
+        json: async () => ({ total: 2, converted: 2, failed: 0, already_lifted: 0 }),
+      }
+    }
     if (url.includes("/api/variants")) {
       return { ok: true, json: async () => page }
     }
@@ -927,15 +935,74 @@ describe("GRCh38 liftover toggle (P4-20)", () => {
       expect(toggle).toBeInTheDocument()
       expect(toggle).toHaveAttribute(
         "title",
-        "Show computational GRCh38/hg38 liftover columns. Default coordinate columns are native GRCh37/hg19; blank GRCh38 cells mean liftover was unavailable, including MT/mitochondrial variants.",
+        "Show computational GRCh38/hg38 liftover columns. Default coordinate columns are native GRCh37/hg19. GRCh38 coordinates are computed the first time you enable this, which takes a few seconds; afterwards a blank cell means that position could not be lifted over, as MT/mitochondrial variants never are.",
       )
       expect(toggle).toHaveAttribute("aria-describedby", "variant-table-grch38-toggle-help")
       expect(
         screen.getByText(
-          "Show computational GRCh38/hg38 liftover columns. Default coordinate columns are native GRCh37/hg19; blank GRCh38 cells mean liftover was unavailable, including MT/mitochondrial variants.",
+          "Show computational GRCh38/hg38 liftover columns. Default coordinate columns are native GRCh37/hg19. GRCh38 coordinates are computed the first time you enable this, which takes a few seconds; afterwards a blank cell means that position could not be lifted over, as MT/mitochondrial variants never are.",
         ),
       ).toHaveClass("sr-only")
     })
+  })
+
+  // #2029: the columns these tests assert were blank for 100% of variants of
+  // every sample, because POST /api/liftover/{sample_id} — the only thing that
+  // fills them — had no caller anywhere in the app. Every test above passed
+  // throughout: they check that the columns and their labels *render*, which is
+  // true of an empty column. What was missing was any assertion that something
+  // asks for the data.
+  const liftoverCalls = () =>
+    mockFetch.mock.calls.filter(
+      ([url, init]) =>
+        typeof url === "string" &&
+        url.includes("/api/liftover/") &&
+        (init as RequestInit | undefined)?.method === "POST",
+    )
+
+  it("requests the liftover batch when the toggle is switched on", async () => {
+    const page = makeVariantPage(2)
+    setupFetchMock(page, makeCountResponse(2))
+
+    const user = userEvent.setup()
+    render(<VariantTable sampleId={1} />)
+
+    await waitFor(() => {
+      expect(screen.getByText("rs100")).toBeInTheDocument()
+    })
+    // Nothing should be computed until the user asks to see the columns.
+    expect(liftoverCalls()).toHaveLength(0)
+
+    await user.click(screen.getByRole("button", { name: /show grch38 coordinates/i }))
+
+    await waitFor(() => {
+      expect(liftoverCalls()).toHaveLength(1)
+    })
+    expect(liftoverCalls()[0][0]).toBe("/api/liftover/1")
+  })
+
+  it("does not re-request the batch when the toggle is cycled", async () => {
+    const page = makeVariantPage(2)
+    setupFetchMock(page, makeCountResponse(2))
+
+    const user = userEvent.setup()
+    render(<VariantTable sampleId={1} />)
+
+    await waitFor(() => {
+      expect(screen.getByText("rs100")).toBeInTheDocument()
+    })
+
+    const toggle = screen.getByRole("button", { name: /show grch38 coordinates/i })
+    await user.click(toggle)
+    await waitFor(() => expect(liftoverCalls()).toHaveLength(1))
+
+    await user.click(toggle) // off — must not trigger anything
+    await user.click(toggle) // on again — already computed for this sample
+
+    await waitFor(() => {
+      expect(screen.getByText("Chr (GRCh38)")).toBeInTheDocument()
+    })
+    expect(liftoverCalls()).toHaveLength(1)
   })
 
   it("GRCh38 columns are hidden by default", async () => {
@@ -969,11 +1036,11 @@ describe("GRCh38 liftover toggle (P4-20)", () => {
     await waitFor(() => {
       expect(screen.getByText("Chr (GRCh38)")).toHaveAttribute(
         "title",
-        "Computational GRCh38/hg38 liftover from the native GRCh37 coordinate; blank means the position could not be lifted over, including MT/mitochondrial variants, which are never lifted.",
+        "Computational GRCh38/hg38 liftover from the native GRCh37 coordinate, computed when the GRCh38 toggle is first enabled. Once computed, blank means the position could not be lifted over, including MT/mitochondrial variants, which are never lifted.",
       )
       expect(screen.getByText("Pos (GRCh38)")).toHaveAttribute(
         "title",
-        "Computational GRCh38/hg38 liftover from the native GRCh37 coordinate; blank means the position could not be lifted over, including MT/mitochondrial variants, which are never lifted.",
+        "Computational GRCh38/hg38 liftover from the native GRCh37 coordinate, computed when the GRCh38 toggle is first enabled. Once computed, blank means the position could not be lifted over, including MT/mitochondrial variants, which are never lifted.",
       )
     })
     expect(toggle).toHaveAttribute("aria-pressed", "true")

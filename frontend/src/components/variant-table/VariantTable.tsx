@@ -22,6 +22,7 @@ import {
   useChromosomeCounts,
 } from "@/api/variants"
 import { useColumnPresets } from "@/api/columnPresets"
+import { useBatchLiftover } from "@/api/liftover"
 import { useMergeProvenance } from "@/api/samples"
 import { useTags } from "@/api/tags"
 import { SCORE_TOOLTIP_AFFORDANCE } from "@/lib/inSilicoScoreInfo"
@@ -99,6 +100,11 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
   const [showUnannotated, setShowUnannotated] = useState(false)
   const [showConflictsOnly, setShowConflictsOnly] = useState(false)
   const [showGRCh38, setShowGRCh38] = useState(false)
+  const batchLiftover = useBatchLiftover()
+  // Holds the sample the batch has already been requested for (#2029). Keyed by
+  // id rather than a boolean so switching samples does not inherit the previous
+  // sample's latch and leave the new one's columns blank.
+  const liftoverRequestedForRef = useRef<number | null>(null)
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
     chrom_grch38: false,
     pos_grch38: false,
@@ -202,6 +208,12 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
   )
 
   // GRCh38 liftover toggle (P4-20): show/hide GRCh38 columns independently of presets
+  //
+  // Switching it on also computes the coordinates. The batch is the only thing
+  // that fills these columns and nothing used to call it, so the toggle
+  // revealed two permanently-blank columns (#2029). Triggering here rather than
+  // at annotation time also repairs samples that were annotated before this
+  // change — annotation-time only would leave every existing sample blank.
   const handleToggleGRCh38 = useCallback(() => {
     setShowGRCh38((prev) => {
       const next = !prev
@@ -210,9 +222,23 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
         chrom_grch38: next,
         pos_grch38: next,
       }))
+      if (next && sampleId != null && liftoverRequestedForRef.current !== sampleId) {
+        // Once per sample per mount. The endpoint is idempotent, but a POST on
+        // every toggle would rescan the whole table for NULLs each time.
+        liftoverRequestedForRef.current = sampleId
+        batchLiftover.mutate(sampleId, {
+          // A failure must not leave the sample latched, or the user can never
+          // retry without a reload.
+          onError: () => {
+            if (liftoverRequestedForRef.current === sampleId) {
+              liftoverRequestedForRef.current = null
+            }
+          },
+        })
+      }
       return next
     })
-  }, [])
+  }, [sampleId, batchLiftover])
 
   // Server-side filter string (set by quick-apply suggestions in P1-15e, P2-22
   // conflicts toggle, Step 71 merged-sample source/concordance chips).

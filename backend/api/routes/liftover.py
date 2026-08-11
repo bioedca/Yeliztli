@@ -96,7 +96,10 @@ def batch_liftover_sample(
     if row is None:
         raise HTTPException(status_code=404, detail=f"Sample {sample_id} not found")
 
-    sample_engine = registry.get_sample_engine(sample_id)
+    # get_sample_engine takes the sample DB *path*, not the sample id — passing
+    # the int raised TypeError inside Path() and made every call 500 (#2029).
+    # Nothing invoked this route, so no test or user ever reached the failure.
+    sample_engine = registry.get_sample_engine(registry.settings.data_dir / row.db_path)
 
     # Find variants that need liftover (no chrom_grch38 yet)
     with sample_engine.connect() as conn:

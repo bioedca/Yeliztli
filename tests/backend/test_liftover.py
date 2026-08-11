@@ -5,10 +5,19 @@ T4-19: pyliftover converts rs1801133 GRCh37 position to correct GRCh38 position.
 
 from __future__ import annotations
 
+from collections.abc import Generator
+from pathlib import Path
+from unittest.mock import patch
+
 import pyliftover.liftover
 import pytest
+import sqlalchemy as sa
 from fastapi.testclient import TestClient
 
+from backend.config import Settings
+from backend.db.connection import reset_registry
+from backend.db.sample_schema import create_sample_tables
+from backend.db.tables import annotated_variants, reference_metadata, samples
 from backend.ingestion import liftover as liftover_module
 from backend.ingestion.liftover import (
     batch_convert,
@@ -317,3 +326,158 @@ class TestConvertRoute:
     def test_convert_missing_params_returns_422(self, test_client: TestClient) -> None:
         """Both `chrom` and `pos` are required query params."""
         assert test_client.get("/api/liftover/convert").status_code == 422
+
+
+# ── Route-level: POST /api/liftover/{sample_id} (issue #2029) ──────────
+
+
+@pytest.fixture
+def liftover_sample_client(tmp_data_dir: Path) -> Generator[TestClient, None, None]:
+    """A registered, freshly-annotated sample carrying liftable and unliftable rows.
+
+    ``rs1801133`` lifts (1:11856378 → 1:11796321, locked by
+    :class:`TestConvertCoordinate`); the mitochondrial rows must never lift
+    (F34), so they double as the negative control that stops a blanket write
+    from passing.
+    """
+    settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
+
+    ref_engine = sa.create_engine(f"sqlite:///{settings.reference_db_path}")
+    reference_metadata.create_all(ref_engine)
+
+    sample_db_path = tmp_data_dir / "samples" / "sample_1.db"
+    sample_db_path.parent.mkdir(parents=True, exist_ok=True)
+    sample_engine = sa.create_engine(f"sqlite:///{sample_db_path}")
+    create_sample_tables(sample_engine)
+
+    with ref_engine.begin() as conn:
+        conn.execute(
+            samples.insert().values(
+                id=1,
+                name="Liftover Sample",
+                db_path="samples/sample_1.db",
+                file_format="v5",
+                file_hash="liftover2029",
+            )
+        )
+
+    with sample_engine.begin() as conn:
+        conn.execute(
+            annotated_variants.insert(),
+            [
+                {"rsid": "rs1801133", "chrom": "1", "pos": 11856378, "genotype": "AG"},
+                {"rsid": "rs429358", "chrom": "19", "pos": 44908684, "genotype": "TC"},
+                # Realistic spelling as it appears in chip data…
+                {"rsid": "rs_mt_7028", "chrom": "MT", "pos": 7028, "genotype": "CC"},
+                # …and the spelling that actually discriminates. "M"/750 WOULD
+                # lift to a wrong GRCh38 coordinate if the F34 short-circuit were
+                # removed, whereas "MT" returns None via the chain regardless
+                # (no such chromosome name in it) and so cannot detect a
+                # regressed guard. Same reasoning as TestConvertRoute.
+                {"rsid": "rs_m_750", "chrom": "M", "pos": 750, "genotype": "CC"},
+            ],
+        )
+
+    ref_engine.dispose()
+    sample_engine.dispose()
+
+    with (
+        patch("backend.main.get_settings", return_value=settings),
+        patch("backend.db.connection.get_settings", return_value=settings),
+    ):
+        reset_registry()
+        from backend.main import create_app
+
+        with TestClient(create_app()) as tc:
+            yield tc
+        reset_registry()
+
+
+def _grch38_by_rsid(tmp_data_dir: Path) -> dict[str, tuple[str | None, int | None]]:
+    """Read the stored GRCh38 columns straight from the sample DB."""
+    engine = sa.create_engine(f"sqlite:///{tmp_data_dir / 'samples' / 'sample_1.db'}")
+    try:
+        with engine.connect() as conn:
+            rows = conn.execute(
+                sa.select(
+                    annotated_variants.c.rsid,
+                    annotated_variants.c.chrom_grch38,
+                    annotated_variants.c.pos_grch38,
+                )
+            ).fetchall()
+    finally:
+        engine.dispose()
+    return {r.rsid: (r.chrom_grch38, r.pos_grch38) for r in rows}
+
+
+class TestBatchLiftoverRoute:
+    """`POST /api/liftover/{sample_id}` had **no** route-level test at all.
+
+    The batch is what fills the Variant Explorer's ``Chr (GRCh38)`` /
+    ``Pos (GRCh38)`` columns; #2029 found those blank for 100% of variants
+    because nothing ever invoked it. These lock the write itself, so a
+    regression in the write-back cannot pass while the pure-conversion unit
+    tests above stay green.
+    """
+
+    def test_populates_grch38_for_a_liftable_variant(
+        self, liftover_sample_client: TestClient, tmp_data_dir: Path
+    ) -> None:
+        """The stored row gains the GRCh38 coordinate, not merely a 200."""
+        before = _grch38_by_rsid(tmp_data_dir)
+        assert before["rs1801133"] == (None, None), "precondition: nothing lifted yet"
+
+        resp = liftover_sample_client.post("/api/liftover/1")
+        assert resp.status_code == 200, resp.text
+
+        after = _grch38_by_rsid(tmp_data_dir)
+        assert after["rs1801133"] == ("1", 11796321)
+        assert after["rs429358"] == ("19", 44404524)
+
+    def test_unliftable_mt_row_stays_null(
+        self, liftover_sample_client: TestClient, tmp_data_dir: Path
+    ) -> None:
+        """Negative control (F34).
+
+        Without this, the assertion above is satisfiable by writing a coordinate
+        to every row indiscriminately. MT must never lift — UCSC hg19 chrM is
+        Yoruba, not rCRS — so it has to come back NULL from the same batch that
+        populated the autosomal rows.
+        """
+        assert liftover_sample_client.post("/api/liftover/1").status_code == 200
+
+        after = _grch38_by_rsid(tmp_data_dir)
+        assert after["rs_mt_7028"] == (None, None)
+        # The one that discriminates: "M"/750 lifts through the chain, so this
+        # is NULL only because convert_coordinate refuses it.
+        assert after["rs_m_750"] == (None, None)
+        # …and the batch genuinely ran, so this is not a vacuous pass.
+        assert after["rs1801133"] == ("1", 11796321)
+
+    def test_reported_counts_describe_the_write(self, liftover_sample_client: TestClient) -> None:
+        """`converted`/`failed` must reflect what happened, not the row total."""
+        body = liftover_sample_client.post("/api/liftover/1").json()
+        assert body["total"] == 4
+        assert body["converted"] == 2
+        assert body["failed"] == 2  # both mitochondrial rows
+        assert body["already_lifted"] == 0
+
+    def test_rerun_is_idempotent_and_reports_already_lifted(
+        self, liftover_sample_client: TestClient, tmp_data_dir: Path
+    ) -> None:
+        """Re-running converts nothing new and leaves the coordinates intact.
+
+        The lazy trigger fires whenever the GRCh38 toggle is switched on, so a
+        second call must be cheap and must not disturb stored values.
+        """
+        assert liftover_sample_client.post("/api/liftover/1").status_code == 200
+        first = _grch38_by_rsid(tmp_data_dir)
+
+        second = liftover_sample_client.post("/api/liftover/1").json()
+        assert second["already_lifted"] == 2
+        assert second["converted"] == 0
+        assert _grch38_by_rsid(tmp_data_dir) == first
+
+    def test_unknown_sample_returns_404(self, liftover_sample_client: TestClient) -> None:
+        """A missing sample is 404, never a silent no-op."""
+        assert liftover_sample_client.post("/api/liftover/9999").status_code == 404

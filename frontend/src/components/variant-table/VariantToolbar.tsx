@@ -27,7 +27,7 @@ import {
 
 const GRCH38_TOGGLE_HELP_ID = "variant-table-grch38-toggle-help"
 const GRCH38_TOGGLE_TOOLTIP =
-  "Show computational GRCh38/hg38 liftover columns. Default coordinate columns are native GRCh37/hg19; blank GRCh38 cells mean liftover was unavailable, including MT/mitochondrial variants."
+  "Show computational GRCh38/hg38 liftover columns. Default coordinate columns are native GRCh37/hg19. GRCh38 coordinates are computed the first time you enable this, which takes a few seconds; afterwards a blank cell means that position could not be lifted over, as MT/mitochondrial variants never are."
 
 interface VariantToolbarProps {
   searchQuery: string
