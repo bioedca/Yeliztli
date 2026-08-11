@@ -22,6 +22,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 from pydantic import BaseModel
 
+from backend.analysis.cross_module_links import normalize_cross_module_row
 from backend.analysis.pharmacogenomics import (
     is_patient_presentable_finding_payload,
     is_patient_presentable_response_payload,
@@ -131,9 +132,38 @@ def _get_sample_engine(sample_id: int) -> sa.Engine:
     return engine
 
 
+def _parse_detail_blob(raw: str | None) -> dict | None:
+    if not raw:
+        return None
+    try:
+        parsed = json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
+def _is_live_cross_module_row(row: sa.Row) -> bool:
+    """Whether a stored cross-module row still names a link the panel declares.
+
+    The aggregator renders persisted rows, so a handoff retired from a panel
+    would keep appearing here long after the module's own page stopped showing
+    it — the generic-aggregator bypass this repository has hit before (#2021).
+    """
+    return (
+        normalize_cross_module_row(
+            row.module,
+            row.category,
+            row.rsid,
+            row.finding_text,
+            _parse_detail_blob(row.detail_json),
+        )
+        is not None
+    )
+
+
 def _is_patient_presentable_row(row: sa.Row) -> bool:
     """Apply the structured-payload presentation gate to one database row."""
-    return is_patient_presentable_finding_payload(row._mapping)
+    return is_patient_presentable_finding_payload(row._mapping) and _is_live_cross_module_row(row)
 
 
 def _row_to_response(row: sa.Row, sample_engine: sa.Engine | None = None) -> FindingResponse:
@@ -159,6 +189,14 @@ def _row_to_response(row: sa.Row, sample_engine: sa.Engine | None = None) -> Fin
     corrected_text, detail = normalize_legacy_row(
         row.module, row.category, row.finding_text, detail, sample_engine
     )
+    # A cross-module row's target and note are panel data frozen at scoring
+    # time; resolve them against the panel that is loaded (#2021). Retired
+    # links are filtered out by `_is_patient_presentable_row` before this.
+    resolved = normalize_cross_module_row(
+        row.module, row.category, row.rsid, corrected_text, detail
+    )
+    if resolved is not None:
+        corrected_text, detail = resolved
 
     provenance: dict | None = None
     raw_provenance = row.provenance
@@ -371,9 +409,15 @@ def findings_summary(
                     detail_blob = json.loads(r.detail_json)
                 except (json.JSONDecodeError, TypeError):
                     detail_blob = None
-            top_by_module[r.module] = normalize_legacy_finding_text(
+            preview = normalize_legacy_finding_text(
                 r.module, r.category, r.finding_text, detail_blob, engine
             )
+            resolved_preview = normalize_cross_module_row(
+                r.module, r.category, r.rsid, preview, detail_blob
+            )
+            if resolved_preview is not None:
+                preview = resolved_preview[0]
+            top_by_module[r.module] = preview
 
     modules = []
     for module in sorted(

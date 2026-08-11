@@ -13,6 +13,8 @@ carries, and it is what the panel keys its links on.
 
 from __future__ import annotations
 
+from functools import cache
+from importlib import import_module
 from typing import Any
 
 
@@ -52,3 +54,64 @@ def refreshed_finding_text(finding: dict[str, Any], link: dict) -> str:
     if not text.endswith(str(stored_note)):
         return text
     return text[: -len(str(stored_note))] + str(current_note)
+
+
+# ── Generic findings path ────────────────────────────────────────────────
+
+# Source module -> its panel loader, as "module.path:callable". Lazy so importing
+# this module does not pull in every analysis module, and cached because the
+# generic findings endpoint resolves one row at a time.
+_PANEL_LOADERS: dict[str, str] = {
+    "allergy": "backend.analysis.allergy:load_allergy_panel",
+    "gene_health": "backend.analysis.gene_health:load_gene_health_panel",
+    "skin": "backend.analysis.skin:load_skin_panel",
+    "sleep": "backend.analysis.sleep:load_sleep_panel",
+    "traits": "backend.analysis.traits:load_traits_panel",
+}
+
+CROSS_MODULE_CATEGORY = "cross_module"
+
+
+@cache
+def _links_for_module(module: str) -> dict[str, dict]:
+    target = _PANEL_LOADERS.get(module)
+    if target is None:
+        return {}
+    module_path, _, loader_name = target.partition(":")
+    return panel_cross_module_links(getattr(import_module(module_path), loader_name)())
+
+
+def normalize_cross_module_row(
+    module: str | None,
+    category: str | None,
+    rsid: str | None,
+    finding_text: str | None,
+    detail: dict[str, Any] | None,
+) -> tuple[str | None, dict[str, Any] | None] | None:
+    """Bring one stored cross-module row up to the panel that is loaded.
+
+    Returns the corrected ``(finding_text, detail)``, or ``None`` when the panel
+    no longer declares the link and the row must not be rendered at all. Rows
+    from another category, or from a module that declares no links, pass through
+    untouched.
+
+    The dedicated pathway endpoints resolve their own rows, but the generic
+    findings aggregator renders the same rows and is the surface that has
+    repeatedly bypassed per-module gating (#2021).
+    """
+    if category != CROSS_MODULE_CATEGORY:
+        return finding_text, detail
+    links = _links_for_module(module or "")
+    if not links:
+        return finding_text, detail
+
+    finding = {"rsid": rsid, "finding_text": finding_text, "detail": detail}
+    link = current_link(links, finding)
+    if link is None:
+        return None
+
+    corrected_detail = dict(detail or {})
+    corrected_detail["target_module"] = link["module"]
+    if link.get("note"):
+        corrected_detail["cross_module_note"] = link["note"]
+    return refreshed_finding_text(finding, link), corrected_detail
