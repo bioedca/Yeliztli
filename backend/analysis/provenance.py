@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import json
 import logging
-from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +28,7 @@ from backend.services.reference_versions import (
     ReferenceVersionSnapshot,
     read_current_reference_snapshot,
 )
+from backend.version import app_version
 
 logger = logging.getLogger(__name__)
 
@@ -53,11 +53,12 @@ def pipeline_version() -> str:
     There is no git-SHA capture in the runtime, so the distribution version
     (pyproject ``yeliztli``) is the pinning identity. Returns ``"unknown"`` when
     the package is not installed as a distribution (e.g. a bare source checkout).
+
+    Delegates to :func:`backend.version.app_version` so the lookup itself exists
+    once: duplicating it here would be the same shape of defect as #2025, where
+    independent copies of the version drifted apart.
     """
-    try:
-        return version("yeliztli")
-    except PackageNotFoundError:
-        return "unknown"
+    return app_version()
 
 
 def decode_coverage(mask: int | None) -> list[str]:
