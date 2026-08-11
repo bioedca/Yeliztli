@@ -3,7 +3,7 @@
 > **This file is analysis, not a source payload.** It is the prose reading of the
 > two record-level artifacts in this directory —
 > `consensus-search-2026-08-10.json` (all 20 Consensus records) and
-> `scite-and-pubmed-notices-2026-08-10.json` (all 3 Scite and all 3 PubMed
+> `scite-and-pubmed-notices-2026-08-10.json` (all 6 Scite and all 7 PubMed
 > records). Check claims here against those, not the other way round.
 
 Recorded because the repository's evidence ladder requires the discovery services
