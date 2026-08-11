@@ -1,7 +1,7 @@
 {
   "module": "gene_health",
   "version": "1.0.0",
-  "description": "Curated Gene Health expansion panel for Yeliztli (P3-65). Covers 17 disease conditions across 4 body-system pathways (Neurological, Metabolic, Autoimmune, Sensory) with variants from ClinVar pathogenic classifications and replicated GWAS findings. Includes cross-module links to Allergy, Methylation, Nutrigenomics, and Traits modules. APOE epsilon-4 (rs429358) and LRRK2 G2019S (rs34637584) are deliberately NOT scored here — each is disclosed only through its gated opt-in module (APOE #329, Parkinson's #404).",
+  "description": "Curated Gene Health expansion panel for Yeliztli (P3-65). Covers 17 disease conditions across 4 body-system pathways (Neurological, Metabolic, Autoimmune, Sensory) with variants from ClinVar pathogenic classifications and replicated GWAS findings. Includes cross-module links to Allergy, Methylation, Metabolic, and Traits modules. APOE epsilon-4 (rs429358) and LRRK2 G2019S (rs34637584) are deliberately NOT scored here — each is disclosed only through its gated opt-in module (APOE #329, Parkinson's #404).",
   "evidence_cap": null,
   "module_disclaimer": "Gene Health findings are based on published genetic association studies and ClinVar pathogenic classifications. Results indicate statistical associations, not diagnoses. Many conditions have complex environmental and lifestyle components. Consult a healthcare provider or genetic counselor for clinical interpretation.",
   "pathways": [

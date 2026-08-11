@@ -209,3 +209,38 @@ class TestCeliacLinksDropped:
         panel = _panel(PANEL_DIR / "allergy_panel.json")
         combined = panel["special_calling"]["celiac_DQ2_DQ8_combined"]
         assert set(combined["rsids"]) == set(self.CELIAC_RSIDS)
+
+
+class TestPanelMetadataMatchesItsLinks:
+    """The panel's prose inventory must not drift from the links it declares."""
+
+    def test_gene_health_description_names_every_target(self) -> None:
+        panel = _panel(PANEL_DIR / "gene_health_panel.json")
+        declared = {
+            snp["cross_module"]["module"]
+            for pathway in panel["pathways"]
+            for snp in pathway["snps"]
+            if snp.get("cross_module")
+        }
+        description = panel["description"].lower()
+        for module in declared:
+            assert module.replace("_", " ") in description, (
+                f"panel declares a {module!r} cross-link its description omits"
+            )
+        # ...and does not advertise a target it no longer links to.
+        assert "nutrigenomics" not in description
+
+    def test_cross_module_links_inventory_matches_the_snp_blocks(self) -> None:
+        """The top-level cross_module_links list is a second representation."""
+        panel = _panel(PANEL_DIR / "gene_health_panel.json")
+        from_snps = {
+            snp["cross_module"]["module"]
+            for pathway in panel["pathways"]
+            for snp in pathway["snps"]
+            if snp.get("cross_module")
+        }
+        from_inventory = {link["to_module"] for link in panel["cross_module_links"]}
+        assert from_snps <= from_inventory, (
+            f"cross_module_links omits {sorted(from_snps - from_inventory)}"
+        )
+        assert "nutrigenomics" not in from_inventory
