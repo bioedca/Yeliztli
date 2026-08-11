@@ -166,6 +166,17 @@ def findings_client(
 
 # ── List findings tests ─────────────────────────────────────────────
 
+# One well-formed persisted ROH segment, matching what `store_roh_findings`
+# writes. Shared so the metric-consistency cases below differ only in the one
+# relation under test.
+_SEG = {
+    "chrom": "1",
+    "start": 1_000_000,
+    "end": 7_200_000,
+    "length_kb": 6200.0,
+    "n_snps": 620,
+}
+
 
 class TestListFindings:
     def test_list_all_findings(self, findings_client):
@@ -294,6 +305,1485 @@ class TestListFindings:
         assert response.detail["percentile"] is None
         assert response.detail["z_score"] is None
 
+    def _roh_row(self, *, finding_text: str, detail: dict):
+        return SimpleNamespace(
+            id=101,
+            module="roh",
+            category="autozygosity",
+            evidence_level=1,
+            gene_symbol=None,
+            rsid=None,
+            finding_text=finding_text,
+            phenotype=None,
+            conditions=None,
+            zygosity=None,
+            clinvar_significance=None,
+            diplotype=None,
+            metabolizer_status=None,
+            drug=None,
+            haplogroup=None,
+            prs_score=None,
+            prs_percentile=None,
+            pathway=None,
+            pathway_level=None,
+            svg_path=None,
+            pmid_citations=None,
+            detail_json=json.dumps(detail),
+            provenance=None,
+            related_module=None,
+            related_finding_id=None,
+            created_at=None,
+        )
+
+    def test_legacy_roh_typical_text_is_corrected_in_generic_api(self):
+        # #2177 — the unified findings explorer renders finding_text verbatim,
+        # so a row persisted before the ROH evaluability gate would otherwise
+        # keep presenting a "typical" negative for an unevaluable sample.
+        response = _row_to_response(
+            self._roh_row(
+                finding_text=(
+                    "No long runs of homozygosity were detected (FROH ≈ 0). "
+                    "This is the typical result."
+                ),
+                detail={"froh": 0.0, "n_segments": 0, "autosomal_snps_used": 30},
+            )
+        )
+
+        assert "typical result" not in response.finding_text.lower()
+        assert "not assessed" in response.finding_text.lower()
+
+    def test_evaluable_legacy_roh_row_scans_coverage_once(self, monkeypatch):
+        # Narrative and detail were normalized independently, so each evaluated
+        # the row and an evaluable legacy row triggered TWO full autosomal
+        # scans per request — on the 600-700k-marker samples this module is
+        # written for. Assert the scan count, not just the output.
+        from backend.analysis import roh as roh_module
+
+        calls = {"n": 0}
+        real = roh_module._read_autosomal_states
+
+        def counting(engine):
+            calls["n"] += 1
+            return real(engine)
+
+        monkeypatch.setattr(roh_module, "_read_autosomal_states", counting)
+
+        # The row must be genuinely EVALUABLE for this to bite: when it is
+        # withheld, the first helper returns a corrected blob carrying an
+        # `evaluable` key and the second short-circuits without scanning. The
+        # double scan only occurs on the evaluable path, where the original
+        # blob is returned unchanged.
+        engine = sa.create_engine("sqlite://")
+        create_sample_tables(engine)
+        from backend.db.tables import raw_variants
+
+        with engine.begin() as conn:
+            conn.execute(
+                sa.insert(raw_variants),
+                [
+                    {
+                        "rsid": f"roh{i}",
+                        "chrom": "1",
+                        "pos": 1_000_000 + i * 20_000,
+                        "genotype": "AG",
+                    }
+                    for i in range(200)
+                ],
+            )
+
+        row = self._roh_row(
+            finding_text="No long runs of homozygosity were detected (FROH ≈ 0).",
+            # Legacy shape: a stored metric but no evaluable/count keys, which
+            # is the case that has to consult the sample.
+            detail={"froh": 0.0},
+        )
+        response = _row_to_response(row, engine)
+
+        assert response.detail["froh"] == 0.0  # premise: the row IS evaluable
+        assert calls["n"] == 1
+
+    def test_roh_row_with_unreadable_detail_is_not_served_as_typical(self):
+        # The generic builders set detail to None when detail_json will not
+        # parse, so this is the path that reaches the non-dict branch — the
+        # dedicated route never does, because its own try/except catches the
+        # decode error first. A row whose state cannot be read must not keep
+        # asserting its stored negative.
+        row = self._roh_row(finding_text="placeholder", detail={})
+        row.finding_text = (
+            "No long runs of homozygosity were detected (FROH ≈ 0). This is the typical result."
+        )
+        row.detail_json = "{not valid json"
+
+        response = _row_to_response(row)
+
+        assert "typical result" not in response.finding_text.lower()
+        assert "could not be read" in response.finding_text.lower()
+
+    def test_legacy_roh_detail_withholds_the_measured_zero(self):
+        # Correcting only the narrative would hand clients a withheld
+        # conclusion next to the exact froh: 0.0 it withholds.
+        response = _row_to_response(
+            self._roh_row(
+                finding_text="No long runs of homozygosity were detected (FROH ≈ 0).",
+                detail={"froh": 0.0, "n_segments": 0, "autosomal_snps_used": 30},
+            )
+        )
+
+        assert response.detail["froh"] is None
+        assert response.detail["evaluable"] is False
+        assert response.detail["indeterminate_reason"] == "insufficient_autosomal_markers"
+
+    def test_withheld_roh_detail_drops_its_segments(self):
+        # The generic findings path has the same contradiction to avoid: a
+        # withheld detail blob must not keep concrete segment records beside
+        # its nulled summary.
+        response = _row_to_response(
+            self._roh_row(
+                finding_text="No long runs of homozygosity were detected (FROH ≈ 0).",
+                detail={
+                    "froh": 0.004,
+                    "n_segments": 1,
+                    "autosomal_snps_used": 30,
+                    "segments": [
+                        {
+                            "chrom": "4",
+                            "start": 1_000_000,
+                            "end": 7_200_000,
+                            "length_kb": 6200.0,
+                            "n_snps": 620,
+                        }
+                    ],
+                    "segments_truncated": True,
+                },
+            )
+        )
+
+        assert response.detail["froh"] is None
+        assert response.detail["n_segments"] is None
+        assert response.detail["segments"] == []
+        assert response.detail["segments_truncated"] is False
+
+    def test_evaluable_roh_detail_keeps_its_measured_value(self):
+        response = _row_to_response(
+            self._roh_row(
+                finding_text="No long runs of homozygosity were detected (FROH ≈ 0).",
+                detail={"froh": 0.0, "n_segments": 0, "autosomal_snps_used": 600_000},
+            )
+        )
+
+        assert response.detail["froh"] == 0.0
+        assert "indeterminate_reason" not in response.detail
+
+    @pytest.mark.parametrize("blob", ["[]", "5", '"text"', "true"])
+    def test_non_object_roh_detail_is_withheld_not_a_500(self, blob):
+        # Valid JSON that is not an object parses to a list/int/str/bool and
+        # reached `_withheld_detail`, which handed it straight back. That put a
+        # non-dict into `FindingResponse.detail: dict | None`, so this route
+        # raised a Pydantic error and 500'd on exactly the blobs the dedicated
+        # ROH route already withholds -- the earlier fix normalised at that
+        # route's parse site and so reached only one of the two representations.
+        row = self._roh_row(finding_text="placeholder", detail={})
+        row.finding_text = (
+            "No long runs of homozygosity were detected (FROH ≈ 0). This is the typical result."
+        )
+        row.detail_json = blob
+
+        response = _row_to_response(row)
+
+        assert isinstance(response.detail, dict)
+        assert response.detail["evaluable"] is False
+        assert response.detail["indeterminate_reason"] == "detail_unavailable"
+        assert response.detail["froh"] is None
+        assert "typical result" not in response.finding_text.lower()
+
+    @pytest.mark.parametrize(
+        "companion",
+        [
+            {"segments": None},
+            {"segments": "chr1:1-2"},
+            {"segments": [{"chrom": "1", "start": 1, "end": 2, "length_kb": 1.0}]},
+            {"segments": [{"chrom": 1, "start": 1, "end": 2, "length_kb": 1.0, "n_snps": 3}]},
+            {"total_roh_kb": "lots"},
+            {"longest_kb": []},
+            {"n_segments": "many"},
+            # Well-typed but impossible: every metric here is a length, a count
+            # or a fraction, so none can be negative, and a NaN additionally has
+            # no JSON form and can break serialization of the response serving
+            # it. Type-checking alone vouched for all of these.
+            {"total_roh_kb": -1},
+            {"longest_kb": float("nan")},
+            {"longest_kb": float("inf")},
+            {"n_segments": -2},
+            {"segments": [{"chrom": "1", "start": -1, "end": 2, "length_kb": 1.0, "n_snps": 3}]},
+            {
+                "segments": [
+                    {
+                        "chrom": "1",
+                        "start": 1,
+                        "end": 2,
+                        "length_kb": float("nan"),
+                        "n_snps": 3,
+                    }
+                ]
+            },
+            {"segments": [{"chrom": "1", "start": 1, "end": 2, "length_kb": -5.0, "n_snps": 3}]},
+        ],
+    )
+    def test_unreadable_companion_metric_withholds_like_the_roh_route(self, companion):
+        # Vouching on `froh` alone let the two read paths disagree about one
+        # row. The dedicated ROH route materialises `segments` into response
+        # models inside a `try`, so a blob holding `"segments": null` raised
+        # there and was reported `detail_unavailable` -- while this path, which
+        # only consults the verdict, kept serving the stored negative for that
+        # very row. A row is vouched for on every path or none.
+        detail = {"froh": 0.004, "autosomal_snps_used": 600_000, **companion}
+        response = _row_to_response(
+            self._roh_row(
+                finding_text="No long runs of homozygosity were detected (FROH ≈ 0).",
+                detail=detail,
+            )
+        )
+
+        assert response.detail["evaluable"] is False
+        assert response.detail["indeterminate_reason"] == "detail_unavailable"
+        assert response.detail["froh"] is None
+        assert "typical" not in response.finding_text.lower()
+
+    def test_wellformed_companion_metrics_are_still_served(self):
+        # Counterpart control for the parametrisation above: without it a guard
+        # that rejected *every* companion blob would satisfy those cases while
+        # withholding every real scan this module has ever recorded.
+        response = _row_to_response(
+            self._roh_row(
+                finding_text="stored narrative",
+                detail={
+                    "froh": 0.004,
+                    "autosomal_snps_used": 600_000,
+                    "total_roh_kb": 6200.0,
+                    "longest_kb": 6200.0,
+                    "n_segments": 1,
+                    "segments": [
+                        {
+                            "chrom": "1",
+                            "start": 1_000_000,
+                            "end": 7_200_000,
+                            "length_kb": 6200.0,
+                            "n_snps": 620,
+                        }
+                    ],
+                },
+            )
+        )
+
+        assert response.detail["froh"] == 0.004
+        assert response.detail["n_segments"] == 1
+        assert response.finding_text == "stored narrative"
+
+    @pytest.mark.parametrize(
+        ("label", "overrides"),
+        [
+            # the total is a sum over every segment, so it must cover the
+            # listed ones -- a blob whose own segments outweigh its total
+            (
+                "total_below_the_listed_segments",
+                {"n_segments": 2, "segments": [_SEG, _SEG], "total_roh_kb": 6200.0},
+            ),
+            (
+                "total_above_a_complete_list",
+                {"n_segments": 1, "segments": [_SEG], "total_roh_kb": 99_000.0},
+            ),
+            # the detector cannot emit a run with no length and no markers
+            ("zero_length_segment", {"segments": [{**_SEG, "length_kb": 0.0, "n_snps": 0}]}),
+            (
+                "segment_below_the_emission_thresholds",
+                {
+                    "segments": [{**_SEG, "end": 1_010_000, "length_kb": 10.0, "n_snps": 4}],
+                    "total_roh_kb": 10.0,
+                    "longest_kb": 10.0,
+                },
+            ),
+            # A row produced by a different algorithm version is not this
+            # algorithm's result. The previous revision honoured such a row
+            # under its own recorded thresholds, which left two sources of truth
+            # -- the coverage gate kept using MIN_EVALUABLE_AUTOSOMAL_SNPS while
+            # this validator honoured the row, so one blob could pass one and
+            # fail the other. Withholding is the safe direction and
+            # detail_unavailable already says "re-run the analysis".
+            (
+                "minimum_length_from_a_different_detector_version",
+                {"params": {"min_roh_kb": 800}},
+            ),
+            (
+                "minimum_marker_count_from_a_different_detector_version",
+                {"params": {"min_roh_snps": 30}},
+            ),
+            (
+                "max_gap_from_a_different_detector_version",
+                {"params": {"max_gap_kb": 9999}},
+            ),
+            (
+                "het_window_size_from_a_different_detector_version",
+                {"params": {"het_window_snps": 1}},
+            ),
+            (
+                "het_tolerance_from_a_different_detector_version",
+                {"params": {"het_window_tolerance": 999}},
+            ),
+            (
+                "boolean_het_tolerance_is_not_integer_provenance",
+                {"params": {"het_window_tolerance": True}},
+            ),
+            # a length that disagrees with its own coordinates is not a
+            # measurement of them: 1000 kb of span labelled 6200 kb
+            (
+                "length_disagrees_with_coordinates",
+                {"segments": [{**_SEG, "end": 2_000_000}]},
+            ),
+            # the truncation flag is the one field that EXCUSES a short list, so
+            # a drifted string here would wave the count/list check through
+            ("truncation_flag_not_a_boolean", {"segments_truncated": "false"}),
+            ("truncation_flag_is_a_string", {"segments_truncated": "yes"}),
+            # a validator that raises is a liability: math.isfinite threw
+            # OverflowError here and turned withholding into a 500
+            ("oversized_integer_total", {"total_roh_kb": 10**400}),
+            ("oversized_integer_segment_length", {"segments": [{**_SEG, "length_kb": 10**400}]}),
+            # count vs list, with and without the truncation flag that would
+            # legitimately excuse a short list
+            ("count_exceeds_list", {"n_segments": 1, "segments": []}),
+            ("list_exceeds_count", {"n_segments": 0, "segments": [_SEG]}),
+            ("truncated_list_longer_than_count", {"n_segments": 1, "segments": [_SEG, _SEG]}),
+            (
+                "truncated_list_equals_count",
+                {"n_segments": 1, "segments": [_SEG], "segments_truncated": True},
+            ),
+            # zero segments cannot have summed to anything
+            (
+                "zero_segments_nonzero_total",
+                {"n_segments": 0, "segments": [], "total_roh_kb": 900.0},
+            ),
+            (
+                "zero_segments_nonzero_longest",
+                {"n_segments": 0, "segments": [], "longest_kb": 900.0},
+            ),
+            (
+                "zero_segments_nonzero_froh",
+                {
+                    "froh": 0.004,
+                    "n_segments": 0,
+                    "segments": [],
+                    "total_roh_kb": 0.0,
+                    "longest_kb": 0.0,
+                },
+            ),
+            # the longest segment is one of those summed
+            ("longest_exceeds_total", {"total_roh_kb": 100.0, "longest_kb": 900.0}),
+            # ...and cannot be shorter than a segment the blob itself lists
+            ("longest_below_a_listed_segment", {"longest_kb": 10.0, "segments": [_SEG]}),
+            # The persisted list is longest-first, including when truncated,
+            # so a longest value that names no listed segment is fabricated.
+            (
+                "longest_above_every_listed_segment",
+                {
+                    "n_segments": 3,
+                    "segments_truncated": True,
+                    "segments": [_SEG, {**_SEG, "chrom": "2"}],
+                    "total_roh_kb": 18600.0,
+                    "longest_kb": 10000.0,
+                },
+            ),
+            # a segment that runs backwards is not a coordinate range
+            ("segment_ends_before_it_starts", {"segments": [{**_SEG, "start": 9_000_000}]}),
+            # `_read_autosomal_states` can never emit these chromosomes.
+            ("segment_is_not_autosomal", {"segments": [{**_SEG, "chrom": "X"}]}),
+            # One detector run cannot emit the same marker interval twice, nor
+            # emit overlapping runs on one chromosome.
+            (
+                "duplicate_segment_interval",
+                {
+                    "n_segments": 2,
+                    "segments": [_SEG, _SEG],
+                    "total_roh_kb": 12400.0,
+                },
+            ),
+            (
+                "overlapping_segment_intervals",
+                {
+                    "n_segments": 2,
+                    "segments": [
+                        _SEG,
+                        {**_SEG, "start": 7_000_000, "end": 13_200_000},
+                    ],
+                    "total_roh_kb": 12400.0,
+                },
+            ),
+            # A segment's homozygous calls are a subset of all callable calls,
+            # and the detector's disjoint runs make that true of their sum too.
+            (
+                "segment_count_exceeds_callable_coverage",
+                {"autosomal_snps_used": 200, "segments": [{**_SEG, "n_snps": 1000}]},
+            ),
+            (
+                "segment_count_sum_exceeds_callable_coverage",
+                {
+                    "autosomal_snps_used": 200,
+                    "n_segments": 2,
+                    "segments": [
+                        {**_SEG, "n_snps": 120},
+                        {**_SEG, "chrom": "2", "n_snps": 120},
+                    ],
+                    "total_roh_kb": 12400.0,
+                },
+            ),
+            # The writer records its denominator, so a rounded FROH that does
+            # not equal total / that denominator is internally impossible.
+            (
+                "froh_disagrees_with_recorded_denominator",
+                {
+                    "froh": 1.0,
+                    "n_segments": 0,
+                    "segments": [],
+                    "total_roh_kb": 0.0,
+                    "longest_kb": 0.0,
+                    "params": {"froh_denominator_kb": 2_770_000},
+                },
+            ),
+            # Present-but-corrupt provenance is not the same thing as an absent
+            # legacy field, and an impossible denominator stays impossible even
+            # when the row omits the total needed for the arithmetic cross-check.
+            ("params_is_not_an_object", {"params": "corrupt"}),
+            (
+                "recorded_denominator_is_zero_without_total",
+                {
+                    "total_roh_kb": None,
+                    "params": {"froh_denominator_kb": 0},
+                },
+            ),
+            (
+                "recorded_denominator_exceeds_the_autosomal_genome",
+                {
+                    "total_roh_kb": None,
+                    "params": {"froh_denominator_kb": 2_770_001},
+                },
+            ),
+            # Present null is a malformed verdict, not an absent legacy field.
+            ("explicit_null_evaluability_verdict", {"evaluable": None}),
+        ],
+    )
+    def test_internally_contradictory_metrics_are_withheld(self, label, overrides):
+        # Per-field validity is not enough: these blobs hold nothing but
+        # well-typed, in-range values and still describe an impossible scan.
+        # Served verbatim they contradict themselves -- `n_segments: 1` beside
+        # an empty list reports one segment and shows none. The relations are
+        # read off `store_roh_findings`, the only writer, rather than
+        # accumulated one review round at a time.
+        detail = {
+            "froh": 0.004,
+            "autosomal_snps_used": 600_000,
+            "total_roh_kb": 6200.0,
+            "longest_kb": 6200.0,
+            "n_segments": 1,
+            "segments": [_SEG],
+            **overrides,
+        }
+        response = _row_to_response(self._roh_row(finding_text="stored narrative", detail=detail))
+
+        assert response.detail["evaluable"] is False, label
+        assert response.detail["indeterminate_reason"] == "detail_unavailable", label
+        assert response.detail["froh"] is None, label
+
+    @pytest.mark.parametrize(
+        "contradiction",
+        [
+            {"froh": 0.0, "n_segments": 1},
+            {"froh": 0.004, "n_segments": 0},
+            {"froh": 0.0, "total_roh_kb": 6200.0},
+            {"froh": 0.004, "total_roh_kb": 0.0},
+            {"froh": 0.0, "longest_kb": 6200.0},
+            {"froh": 0.004, "longest_kb": 0.0},
+            {"froh": 0.0, "segments": [_SEG]},
+            {"froh": 0.0, "segments_truncated": True},
+            {"froh": 0.004, "segments": []},
+        ],
+        ids=[
+            "positive_count_zero_froh",
+            "zero_count_positive_froh",
+            "positive_total_zero_froh",
+            "zero_total_positive_froh",
+            "positive_longest_zero_froh",
+            "zero_longest_positive_froh",
+            "nonempty_list_zero_froh",
+            "truncated_zero_froh",
+            "complete_empty_list_positive_froh",
+        ],
+    )
+    def test_summary_polarity_contradictions_without_complete_shape_are_withheld(
+        self, contradiction
+    ):
+        # Legacy rows may omit any companion field, but every field that remains
+        # still describes the same empty or non-empty segment set. Each case has
+        # only the two conflicting facts, so no count/list or arithmetic guard
+        # can accidentally make this matrix pass.
+        detail = {"autosomal_snps_used": 600_000, **contradiction}
+        response = _row_to_response(self._roh_row(finding_text="stored narrative", detail=detail))
+
+        assert response.detail["evaluable"] is False
+        assert response.detail["indeterminate_reason"] == "detail_unavailable"
+        assert response.detail["froh"] is None
+
+    @pytest.mark.parametrize(
+        ("label", "summary"),
+        [
+            (
+                "positive_froh_below_one_minimum_segment",
+                {"froh": 0.00001},
+            ),
+            (
+                "froh_has_non_writer_precision",
+                {
+                    "froh": 0.000541,
+                    "autosomal_snps_used": 100,
+                    "n_segments": 1,
+                    "params": {"froh_denominator_kb": 2_770_000},
+                },
+            ),
+            (
+                "total_has_non_writer_precision",
+                {
+                    "froh": 0.00054,
+                    "autosomal_snps_used": 100,
+                    "n_segments": 1,
+                    "total_roh_kb": 1500.05,
+                    "params": {"froh_denominator_kb": 2_770_000},
+                },
+            ),
+            (
+                "longest_has_non_writer_precision",
+                {
+                    "froh": 0.00054,
+                    "autosomal_snps_used": 100,
+                    "n_segments": 1,
+                    "longest_kb": 1500.05,
+                    "params": {"froh_denominator_kb": 2_770_000},
+                },
+            ),
+            (
+                "froh_below_two_segment_minimum",
+                {"froh": 0.00054, "n_segments": 2},
+            ),
+            (
+                "froh_below_recorded_total",
+                {"froh": 0.00054, "total_roh_kb": 6200.0},
+            ),
+            (
+                "froh_below_recorded_longest",
+                {"froh": 0.00054, "longest_kb": 6200.0},
+            ),
+            (
+                "froh_omits_other_segment_minimum",
+                {
+                    "froh": 0.00224,
+                    "autosomal_snps_used": 200,
+                    "n_segments": 2,
+                    "longest_kb": 6200.0,
+                    "params": {"froh_denominator_kb": 2_770_000},
+                },
+            ),
+            (
+                "froh_ignores_smaller_recorded_denominator",
+                {
+                    "froh": 0.00054,
+                    "autosomal_snps_used": 100,
+                    "n_segments": 1,
+                    "params": {"froh_denominator_kb": 1_000_000},
+                },
+            ),
+            (
+                "froh_below_complete_list_total",
+                {
+                    "froh": 0.00054,
+                    "segments": [_SEG],
+                    "params": {"froh_denominator_kb": 2_770_000},
+                },
+            ),
+            (
+                "truncated_list_froh_omits_one_hidden_minimum",
+                {
+                    "froh": 0.00224,
+                    "segments": [_SEG],
+                    "segments_truncated": True,
+                    "params": {"froh_denominator_kb": 2_770_000},
+                },
+            ),
+            (
+                "froh_above_count_times_longest",
+                {
+                    "froh": 1.0,
+                    "autosomal_snps_used": 100,
+                    "n_segments": 1,
+                    "longest_kb": 1500.0,
+                    "params": {"froh_denominator_kb": 2_770_000},
+                },
+            ),
+            (
+                "froh_above_complete_list_total",
+                {
+                    "froh": 1.0,
+                    "segments": [_SEG],
+                    "params": {"froh_denominator_kb": 2_770_000},
+                },
+            ),
+            (
+                "truncated_total_omits_hidden_minimum",
+                {
+                    "froh": 0.00278,
+                    "autosomal_snps_used": 720,
+                    "n_segments": 2,
+                    "total_roh_kb": 6200.0,
+                    "segments": [_SEG],
+                    "segments_truncated": True,
+                },
+            ),
+            (
+                "truncated_marker_count_omits_hidden_minimum",
+                {
+                    "froh": 0.00278,
+                    "autosomal_snps_used": 620,
+                    "n_segments": 2,
+                    "total_roh_kb": 7700.0,
+                    "segments": [_SEG],
+                    "segments_truncated": True,
+                    "params": {"froh_denominator_kb": 2_770_000},
+                },
+            ),
+            (
+                "truncated_top_k_bounds_total_above",
+                {
+                    "froh": 0.0065,
+                    "autosomal_snps_used": 1220,
+                    "n_segments": 3,
+                    "total_roh_kb": 18005.0,
+                    "segments": [
+                        _SEG,
+                        {
+                            **_SEG,
+                            "chrom": "2",
+                            "end": 6_000_000,
+                            "length_kb": 5000.0,
+                            "n_snps": 500,
+                        },
+                    ],
+                    "segments_truncated": True,
+                },
+            ),
+            (
+                "truncated_top_k_bounds_froh_above",
+                {
+                    "froh": 0.0065,
+                    "autosomal_snps_used": 1220,
+                    "n_segments": 3,
+                    "segments": [
+                        _SEG,
+                        {
+                            **_SEG,
+                            "chrom": "2",
+                            "end": 6_000_000,
+                            "length_kb": 5000.0,
+                            "n_snps": 500,
+                        },
+                    ],
+                    "segments_truncated": True,
+                    "params": {"froh_denominator_kb": 2_770_000},
+                },
+            ),
+            (
+                "callable_markers_bound_countless_longest_total",
+                {
+                    "froh": 0.00108,
+                    "autosomal_snps_used": 100,
+                    "total_roh_kb": 3000.0,
+                    "longest_kb": 1500.0,
+                },
+            ),
+            (
+                "callable_markers_bound_countless_longest_froh",
+                {
+                    "froh": 1.0,
+                    "autosomal_snps_used": 100,
+                    "longest_kb": 1500.0,
+                    "params": {"froh_denominator_kb": 2_770_000},
+                },
+            ),
+            (
+                "remaining_markers_bound_countless_truncated_froh",
+                {
+                    "froh": 0.01,
+                    "autosomal_snps_used": 720,
+                    "segments": [_SEG],
+                    "segments_truncated": True,
+                    "params": {"froh_denominator_kb": 2_770_000},
+                },
+            ),
+            (
+                "countless_total_falls_between_one_and_two_runs",
+                {
+                    "froh": 0.00253,
+                    "autosomal_snps_used": 200,
+                    "total_roh_kb": 7000.0,
+                    "longest_kb": 6200.0,
+                    "params": {"froh_denominator_kb": 2_770_000},
+                },
+            ),
+            (
+                "countless_total_falls_between_two_and_three_runs",
+                {
+                    "froh": 0.00162,
+                    "autosomal_snps_used": 300,
+                    "total_roh_kb": 4500.0,
+                    "longest_kb": 2000.0,
+                    "params": {"froh_denominator_kb": 2_770_000},
+                },
+            ),
+            (
+                "countless_truncated_hidden_total_falls_between_run_counts",
+                {
+                    "froh": 0.00126,
+                    "autosomal_snps_used": 300,
+                    "total_roh_kb": 3500.0,
+                    "segments": [
+                        {
+                            **_SEG,
+                            "end": 2_500_000,
+                            "length_kb": 1500.0,
+                            "n_snps": 100,
+                        }
+                    ],
+                    "segments_truncated": True,
+                    "params": {"froh_denominator_kb": 2_770_000},
+                },
+            ),
+            (
+                "countless_froh_bin_falls_between_one_and_two_runs",
+                {
+                    "froh": 0.00253,
+                    "autosomal_snps_used": 200,
+                    "longest_kb": 6200.0,
+                    "params": {"froh_denominator_kb": 2_770_000},
+                },
+            ),
+            (
+                "countless_truncated_froh_bin_falls_between_run_counts",
+                {
+                    "froh": 0.00162,
+                    "autosomal_snps_used": 300,
+                    "segments": [
+                        {
+                            **_SEG,
+                            "end": 3_000_000,
+                            "length_kb": 2000.0,
+                            "n_snps": 100,
+                        }
+                    ],
+                    "segments_truncated": True,
+                    "params": {"froh_denominator_kb": 2_770_000},
+                },
+            ),
+            (
+                "known_count_froh_has_no_one_decimal_writer_total",
+                {
+                    "froh": 0.75001,
+                    "autosomal_snps_used": 100,
+                    "n_segments": 1,
+                    "params": {"froh_denominator_kb": 2000},
+                },
+            ),
+            (
+                "omitted_count_froh_has_no_one_decimal_writer_total",
+                {
+                    "froh": 0.75001,
+                    "autosomal_snps_used": 100,
+                    "params": {"froh_denominator_kb": 2000},
+                },
+            ),
+            (
+                "positive_total_below_one_minimum_segment",
+                {"froh": 0.004, "total_roh_kb": 10.0},
+            ),
+            (
+                "positive_longest_below_one_minimum_segment",
+                {"froh": 0.004, "longest_kb": 10.0},
+            ),
+            (
+                "two_segments_cannot_sum_to_one_minimum_segment",
+                {"froh": 0.004, "n_segments": 2, "total_roh_kb": 1500.0},
+            ),
+            (
+                "two_segments_need_two_marker_minima",
+                {"froh": 0.004, "autosomal_snps_used": 100, "n_segments": 2},
+            ),
+            (
+                "one_thousand_segments_need_their_length_minima",
+                {
+                    "froh": 0.004,
+                    "n_segments": 1000,
+                    "total_roh_kb": 6200.0,
+                    "longest_kb": 6200.0,
+                },
+            ),
+            (
+                "total_exceeds_count_times_longest",
+                {
+                    "froh": 0.004,
+                    "n_segments": 2,
+                    "total_roh_kb": 5000.0,
+                    "longest_kb": 2000.0,
+                },
+            ),
+            (
+                "total_omits_the_other_segment_minimum",
+                {
+                    "froh": 0.004,
+                    "n_segments": 2,
+                    "total_roh_kb": 4000.0,
+                    "longest_kb": 3000.0,
+                },
+            ),
+        ],
+    )
+    def test_summary_only_metrics_below_writer_floors_are_withheld(self, label, summary):
+        # Omitting the interval list preserves a supported legacy projection;
+        # it does not make impossible writer summaries trustworthy. Each case
+        # violates one independent emission bound while remaining positive and
+        # well-typed, so neither the zero/positive check nor schema validation
+        # can make this matrix pass accidentally.
+        detail = {"autosomal_snps_used": 600_000, **summary}
+        response = _row_to_response(self._roh_row(finding_text="stored narrative", detail=detail))
+
+        assert response.detail["evaluable"] is False, label
+        assert response.detail["indeterminate_reason"] == "detail_unavailable", label
+        assert response.detail["froh"] is None, label
+
+    @pytest.mark.parametrize("bad_count", [2_770_000_001, 10**400], ids=["above_bound", "huge"])
+    def test_out_of_range_stored_count_is_withheld_without_a_live_sample(self, bad_count):
+        # Isolate persisted-count validation from the live snapshot mismatch
+        # guard: the old non-negative-int check accepted both values here when
+        # no engine was available to contradict them.
+        response = _row_to_response(
+            self._roh_row(
+                finding_text="stored narrative",
+                detail={"froh": 0.0, "autosomal_snps_used": bad_count, "n_segments": 0},
+            )
+        )
+
+        assert response.detail["evaluable"] is False
+        assert response.detail["indeterminate_reason"] == "detail_unavailable"
+        assert response.detail["autosomal_snps_used"] == 0
+        assert response.detail["froh"] is None
+
+    def test_stored_count_at_writer_bound_is_served_without_a_live_sample(self):
+        # Boundary control for `_is_count`: the genome-sized ceiling itself is
+        # inclusive, so a `<` mutation must not quarantine a valid zero result.
+        response = _row_to_response(
+            self._roh_row(
+                finding_text="stored narrative",
+                detail={
+                    "froh": 0.0,
+                    "autosomal_snps_used": 2_770_000_000,
+                    "n_segments": 0,
+                },
+            )
+        )
+
+        assert "evaluable" not in response.detail
+        assert response.detail["autosomal_snps_used"] == 2_770_000_000
+        assert response.detail["froh"] == 0.0
+        assert response.finding_text == "stored narrative"
+
+    def test_positive_summary_without_segment_list_is_still_served(self):
+        # Counterpart control: omitting the optional interval list is a supported
+        # legacy subset when the recorded positive summaries agree.
+        detail = {
+            "froh": 0.00224,
+            "autosomal_snps_used": 600_000,
+            "n_segments": 1,
+            "total_roh_kb": 6200.0,
+            "longest_kb": 6200.0,
+            "params": {"froh_denominator_kb": 2_770_000},
+        }
+        response = _row_to_response(self._roh_row(finding_text="stored narrative", detail=detail))
+
+        assert "evaluable" not in response.detail
+        assert response.detail["froh"] == 0.00224
+        assert response.finding_text == "stored narrative"
+
+    def test_two_segment_summary_without_segment_list_is_still_served(self):
+        # Full current-writer-shaped counterpart for every aggregate bound
+        # above: two minimum-clearing runs, their exact sum/maximum, sufficient
+        # callable markers, and a FROH tied to the recorded denominator.
+        detail = {
+            "froh": 0.00224,
+            "autosomal_snps_used": 600_000,
+            "n_segments": 2,
+            "total_roh_kb": 6200.0,
+            "longest_kb": 3100.0,
+            "params": {"froh_denominator_kb": 2_770_000},
+        }
+        response = _row_to_response(self._roh_row(finding_text="stored narrative", detail=detail))
+
+        assert "evaluable" not in response.detail
+        assert response.detail["froh"] == 0.00224
+        assert response.detail["n_segments"] == 2
+        assert response.finding_text == "stored narrative"
+
+    def test_exact_minimum_summary_without_segment_list_is_still_served(self):
+        # Boundary control for every strict emission floor. A one-segment writer
+        # result may land exactly on all minima; using <= in any guard would
+        # silently quarantine this valid current shape.
+        detail = {
+            "froh": 0.00054,
+            "autosomal_snps_used": 100,
+            "n_segments": 1,
+            "total_roh_kb": 1500.0,
+            "longest_kb": 1500.0,
+            "params": {"froh_denominator_kb": 2_770_000},
+        }
+        response = _row_to_response(self._roh_row(finding_text="stored narrative", detail=detail))
+
+        assert "evaluable" not in response.detail
+        assert response.detail["froh"] == 0.00054
+        assert response.detail["autosomal_snps_used"] == 100
+        assert response.finding_text == "stored narrative"
+
+    def test_count_and_longest_implied_froh_boundary_is_still_served(self):
+        # Two segments with a 6200 kb longest run imply at least one additional
+        # 1500 kb run. This exact rounded lower bound must remain inclusive.
+        detail = {
+            "froh": 0.00278,
+            "autosomal_snps_used": 200,
+            "n_segments": 2,
+            "longest_kb": 6200.0,
+            "params": {"froh_denominator_kb": 2_770_000},
+        }
+        response = _row_to_response(self._roh_row(finding_text="stored narrative", detail=detail))
+
+        assert "evaluable" not in response.detail
+        assert response.detail["froh"] == 0.00278
+        assert response.detail["n_segments"] == 2
+        assert response.finding_text == "stored narrative"
+
+    @pytest.mark.parametrize(
+        "detail",
+        [
+            {
+                "froh": 0.0015,
+                "autosomal_snps_used": 100,
+                "n_segments": 1,
+                "params": {"froh_denominator_kb": 1_000_000},
+            },
+            {
+                "froh": 0.00054,
+                "autosomal_snps_used": 100,
+                "n_segments": 1,
+                "longest_kb": 1500.0,
+                "params": {"froh_denominator_kb": 2_770_000},
+            },
+            {
+                "froh": 0.00224,
+                "autosomal_snps_used": 620,
+                "segments": [_SEG],
+                "params": {"froh_denominator_kb": 2_770_000},
+            },
+            {
+                "froh": 0.00278,
+                "autosomal_snps_used": 720,
+                "segments": [_SEG],
+                "segments_truncated": True,
+                "params": {"froh_denominator_kb": 2_770_000},
+            },
+            {
+                "froh": 0.00224,
+                "autosomal_snps_used": 200,
+                "total_roh_kb": 6200.0,
+                "longest_kb": 6200.0,
+                "params": {"froh_denominator_kb": 2_770_000},
+            },
+            {
+                "froh": 0.00278,
+                "autosomal_snps_used": 200,
+                "total_roh_kb": 7700.0,
+                "longest_kb": 6200.0,
+                "params": {"froh_denominator_kb": 2_770_000},
+            },
+            {
+                "froh": 0.00108,
+                "autosomal_snps_used": 200,
+                "total_roh_kb": 3000.0,
+                "segments": [
+                    {
+                        **_SEG,
+                        "end": 2_500_000,
+                        "length_kb": 1500.0,
+                        "n_snps": 100,
+                    }
+                ],
+                "segments_truncated": True,
+                "params": {"froh_denominator_kb": 2_770_000},
+            },
+            {
+                "froh": 0.00162,
+                "autosomal_snps_used": 300,
+                "total_roh_kb": 4500.0,
+                "segments": [
+                    {
+                        **_SEG,
+                        "end": 2_500_000,
+                        "length_kb": 1500.0,
+                        "n_snps": 100,
+                    }
+                ],
+                "segments_truncated": True,
+                "params": {"froh_denominator_kb": 2_770_000},
+            },
+            {
+                "froh": 0.00224,
+                "autosomal_snps_used": 200,
+                "longest_kb": 6200.0,
+                "params": {"froh_denominator_kb": 2_770_000},
+            },
+            {
+                "froh": 0.00278,
+                "autosomal_snps_used": 200,
+                "longest_kb": 6200.0,
+                "params": {"froh_denominator_kb": 2_770_000},
+            },
+            {
+                "froh": 0.00144,
+                "autosomal_snps_used": 300,
+                "segments": [
+                    {
+                        **_SEG,
+                        "end": 3_000_000,
+                        "length_kb": 2000.0,
+                        "n_snps": 100,
+                    }
+                ],
+                "segments_truncated": True,
+                "params": {"froh_denominator_kb": 2_770_000},
+            },
+            {
+                "froh": 0.00181,
+                "autosomal_snps_used": 300,
+                "segments": [
+                    {
+                        **_SEG,
+                        "end": 3_000_000,
+                        "length_kb": 2000.0,
+                        "n_snps": 100,
+                    }
+                ],
+                "segments_truncated": True,
+                "params": {"froh_denominator_kb": 2_770_000},
+            },
+            {
+                "froh": 0.75,
+                "autosomal_snps_used": 100,
+                "n_segments": 1,
+                "params": {"froh_denominator_kb": 2000},
+            },
+            {
+                "froh": 0.75,
+                "autosomal_snps_used": 100,
+                "params": {"froh_denominator_kb": 2000},
+            },
+            {
+                "froh": 0.00751,
+                "autosomal_snps_used": 100,
+                "longest_kb": 1501.0,
+                "params": {"froh_denominator_kb": 200_000},
+            },
+            {
+                "froh": 0.00751,
+                "autosomal_snps_used": 100,
+                "longest_kb": 1503.0,
+                "params": {"froh_denominator_kb": 200_000},
+            },
+            {
+                "froh": 0.00585,
+                "autosomal_snps_used": 1220,
+                "n_segments": 3,
+                "total_roh_kb": 16200.0,
+                "segments": [
+                    _SEG,
+                    {
+                        **_SEG,
+                        "chrom": "2",
+                        "end": 6_000_000,
+                        "length_kb": 5000.0,
+                        "n_snps": 500,
+                    },
+                ],
+                "segments_truncated": True,
+                "params": {"froh_denominator_kb": 2_770_000},
+            },
+            {
+                "froh": 0.00054,
+                "autosomal_snps_used": 100,
+                "longest_kb": 1500.0,
+                "params": {"froh_denominator_kb": 2_770_000},
+            },
+            {
+                "froh": 0.00448,
+                "autosomal_snps_used": 720,
+                "segments": [_SEG],
+                "segments_truncated": True,
+                "params": {"froh_denominator_kb": 2_770_000},
+            },
+            {
+                "froh": 0.00278,
+                "autosomal_snps_used": 720,
+                "n_segments": 2,
+                "total_roh_kb": 7700.0,
+                "segments": [_SEG],
+                "segments_truncated": True,
+                "params": {"froh_denominator_kb": 2_770_000},
+            },
+        ],
+        ids=[
+            "smaller_denominator_lower_bound",
+            "count_longest_exact_bound",
+            "complete_list_exact_bound",
+            "truncated_list_hidden_minimum_bound",
+            "truncated_top_k_upper_bound",
+            "countless_longest_marker_upper_bound",
+            "countless_truncated_marker_upper_bound",
+            "truncated_list_total_and_marker_bound",
+            "countless_one_run_exact_total",
+            "countless_two_run_minimum_total",
+            "countless_truncated_one_hidden_run",
+            "countless_truncated_two_hidden_runs",
+            "countless_froh_one_run_band",
+            "countless_froh_two_run_band",
+            "countless_truncated_froh_one_hidden_band",
+            "countless_truncated_froh_two_hidden_band",
+            "known_count_one_decimal_froh_grid",
+            "omitted_count_one_decimal_froh_grid",
+            "python_rounds_lower_half_up",
+            "python_rounds_upper_half_down",
+        ],
+    )
+    def test_partial_summary_froh_boundaries_are_still_served(self, detail):
+        # Inclusive boundary controls for every inferred lower/upper source.
+        # Each is a projection of a writer-emittable result with omitted
+        # companions, never an excuse to reject all partial legacy summaries.
+        response = _row_to_response(self._roh_row(finding_text="stored narrative", detail=detail))
+
+        assert "evaluable" not in response.detail
+        assert response.detail["froh"] == detail["froh"]
+        assert response.finding_text == "stored narrative"
+
+    def test_stale_detector_params_without_a_segment_list_are_withheld(self):
+        # A legacy subset may omit the segment list, but FROH itself is still a
+        # product of the segmentation rules. Recorded stale provenance cannot
+        # become trusted merely because the detailed intervals are absent.
+        response = _row_to_response(
+            self._roh_row(
+                finding_text="stored narrative",
+                detail={
+                    "froh": 0.004,
+                    "autosomal_snps_used": 600_000,
+                    "params": {"max_gap_kb": 9999},
+                },
+            )
+        )
+
+        assert response.detail["evaluable"] is False
+        assert response.detail["indeterminate_reason"] == "detail_unavailable"
+        assert response.detail["froh"] is None
+
+    @pytest.mark.parametrize(
+        ("label", "overrides"),
+        [
+            ("exact_agreement", {}),
+            # a genuinely truncated row: the cap bit, so the list is shorter
+            # than the count and says so -- and its total legitimately EXCEEDS
+            # the segments it lists, because the unlisted ones counted too
+            (
+                "truncated_row",
+                {
+                    "froh": 0.08664,
+                    "n_segments": 40,
+                    "segments": [_SEG],
+                    "segments_truncated": True,
+                    "total_roh_kb": 240_000.0,
+                },
+            ),
+            # a row recording exactly this detector's thresholds is current, so
+            # it is judged and served normally -- the discriminating control for
+            # the version-mismatch rule below
+            (
+                "params_matching_this_detector",
+                {
+                    "params": {
+                        "min_roh_kb": 1500,
+                        "min_roh_snps": 100,
+                        "max_gap_kb": 1000,
+                        "het_window_snps": 50,
+                        "het_window_tolerance": 1,
+                    }
+                },
+            ),
+            # A span landing exactly on a one-decimal rounding tie. 2_048_250 bp
+            # is 2048.25 kb, which the writer stores as round(...,1) == 2048.2,
+            # and the raw gap between them evaluates to 0.0500000000001819 --
+            # fractionally MORE than half a step. A nominal 0.05 tolerance
+            # therefore withheld this freshly written, entirely genuine result,
+            # so the comparison reproduces the writer's rounding instead.
+            (
+                "segment_on_a_rounding_tie",
+                {
+                    "segments": [
+                        {**_SEG, "end": 3_048_250, "length_kb": 2048.2, "n_snps": 620},
+                    ],
+                    "total_roh_kb": 2048.2,
+                    "longest_kb": 2048.2,
+                },
+            ),
+            # ...and the total over two such segments, which the writer stores
+            # as round(sum, 1). The comparison applies the same rounding, so a
+            # float sum that is not bit-exact still matches.
+            (
+                "total_summed_over_rounded_segments",
+                {
+                    "n_segments": 2,
+                    "segments": [
+                        {**_SEG, "end": 3_048_200, "length_kb": 2048.2, "n_snps": 620},
+                        {
+                            **_SEG,
+                            "start": 4_000_000,
+                            "end": 6_048_200,
+                            "length_kb": 2048.2,
+                            "n_snps": 620,
+                        },
+                    ],
+                    "total_roh_kb": 4096.4,
+                    "longest_kb": 2048.2,
+                },
+            ),
+            (
+                "segment_counts_fit_callable_coverage",
+                {
+                    "froh": 0.00448,
+                    "autosomal_snps_used": 240,
+                    "n_segments": 2,
+                    "segments": [
+                        {**_SEG, "n_snps": 120},
+                        {**_SEG, "chrom": "2", "n_snps": 120},
+                    ],
+                    "total_roh_kb": 12400.0,
+                },
+            ),
+            (
+                "segments_touch_at_colocated_markers_without_overlapping",
+                {
+                    "froh": 0.00448,
+                    "n_segments": 2,
+                    "segments": [
+                        _SEG,
+                        {
+                            **_SEG,
+                            "start": 7_200_000,
+                            "end": 13_400_000,
+                        },
+                    ],
+                    "total_roh_kb": 12400.0,
+                },
+            ),
+            (
+                "froh_matches_recorded_denominator",
+                {
+                    "froh": 0.00224,
+                    "params": {"froh_denominator_kb": 2_770_000},
+                },
+            ),
+            # a legacy blob recording only a subset stays evaluable
+            ("no_segment_list", {"segments": None, "n_segments": None}),
+            (
+                "matching_params_without_a_segment_list",
+                {
+                    "segments": None,
+                    "n_segments": None,
+                    "params": {
+                        "min_roh_kb": 1500,
+                        "min_roh_snps": 100,
+                        "max_gap_kb": 1000,
+                        "het_window_snps": 50,
+                        "het_window_tolerance": 1,
+                    },
+                },
+            ),
+            ("only_froh_and_count", {"total_roh_kb": None, "longest_kb": None}),
+            (
+                "genuine_empty_scan",
+                {
+                    "froh": 0.0,
+                    "n_segments": 0,
+                    "segments": [],
+                    "total_roh_kb": 0.0,
+                    "longest_kb": 0.0,
+                },
+            ),
+            (
+                "genuine_empty_scan_without_segment_list",
+                {
+                    "froh": 0.0,
+                    "n_segments": 0,
+                    "segments": None,
+                    "total_roh_kb": 0.0,
+                    "longest_kb": 0.0,
+                },
+            ),
+        ],
+    )
+    def test_self_consistent_metrics_are_still_served(self, label, overrides):
+        # Counterpart controls. Without these, a check that rejected every blob
+        # with more than one metric would satisfy the parametrisation above
+        # while withholding every real scan this module has recorded -- and the
+        # truncated and legacy shapes are exactly the ones a too-strict relation
+        # would silently eat.
+        detail = {
+            "froh": 0.004,
+            "autosomal_snps_used": 600_000,
+            "total_roh_kb": 6200.0,
+            "longest_kb": 6200.0,
+            "n_segments": 1,
+            "segments": [_SEG],
+            **overrides,
+        }
+        detail = {k: v for k, v in detail.items() if not (k in overrides and v is None)}
+        response = _row_to_response(self._roh_row(finding_text="stored narrative", detail=detail))
+
+        assert response.detail["froh"] == detail["froh"], label
+        assert "evaluable" not in response.detail, label
+        assert "indeterminate_reason" not in response.detail, label
+        assert response.finding_text == "stored narrative", label
+
+    def test_stored_reason_its_own_count_contradicts_is_downgraded(self):
+        # See also test_evaluable_true_beside_a_reason_is_withheld for the
+        # mirror-image contradiction on the true branch.
+        #
+        # A drifted row can store `evaluable: false` with
+        # `insufficient_autosomal_markers` beside a well-typed count at or above
+        # the floor. Honouring that pair made the narrative state, verbatim,
+        # that 600000 callable SNPs are "fewer than the 100" required -- a
+        # sentence its own number contradicts. The verdict is unchanged (still
+        # withheld); only the explanation is replaced by one that claims nothing.
+        response = _row_to_response(
+            self._roh_row(
+                finding_text="No long runs of homozygosity were detected (FROH ≈ 0).",
+                detail={
+                    "froh": 0.0,
+                    "evaluable": False,
+                    "indeterminate_reason": "insufficient_autosomal_markers",
+                    "autosomal_snps_used": 600_000,
+                },
+            )
+        )
+
+        assert response.detail["evaluable"] is False
+        assert response.detail["indeterminate_reason"] == "detail_unavailable"
+        assert "fewer than" not in response.finding_text
+        assert "600000" not in response.finding_text
+        assert "could not be read" in response.finding_text.lower()
+
+    @pytest.mark.parametrize(
+        "reason", ["no_segment_eligible_region", "insufficient_autosomal_markers", "who_knows"]
+    )
+    def test_evaluable_true_beside_a_reason_is_withheld(self, reason):
+        # A true verdict carries no reason, by construction: the writer sets
+        # `indeterminate_reason` exactly when `froh` is None. A row asserting
+        # both was served as `evaluable: true` beside a reason -- the dedicated
+        # route happens to blank the reason on its way out, but
+        # `normalize_legacy_row` hands the stored blob back untouched, so the
+        # two representations disagreed about one row. Withheld on both now.
+        response = _row_to_response(
+            self._roh_row(
+                finding_text="No long runs of homozygosity were detected (FROH ≈ 0).",
+                detail={
+                    "froh": 0.0,
+                    "evaluable": True,
+                    "indeterminate_reason": reason,
+                    "autosomal_snps_used": 600_000,
+                },
+            )
+        )
+
+        assert response.detail["evaluable"] is False
+        assert response.detail["indeterminate_reason"] == "detail_unavailable"
+        assert response.detail["froh"] is None
+
+    def test_evaluable_true_without_a_reason_is_served(self):
+        # Counterpart control: the check must fire on the contradiction, not on
+        # every stored true verdict -- otherwise every fresh row this module
+        # writes would be withheld by its own validator.
+        response = _row_to_response(
+            self._roh_row(
+                finding_text="stored narrative",
+                detail={
+                    "froh": 0.0,
+                    "evaluable": True,
+                    "indeterminate_reason": None,
+                    "autosomal_snps_used": 600_000,
+                },
+            )
+        )
+
+        assert response.detail["froh"] == 0.0
+        assert response.finding_text == "stored narrative"
+
+    def test_stored_reason_its_count_does_support_is_honoured(self):
+        # Counterpart control: the downgrade must fire on the contradiction
+        # only, not on every stored reason -- otherwise a genuinely
+        # low-coverage row would lose the cause that actually explains it.
+        response = _row_to_response(
+            self._roh_row(
+                finding_text="No long runs of homozygosity were detected (FROH ≈ 0).",
+                detail={
+                    "froh": 0.0,
+                    "evaluable": False,
+                    "indeterminate_reason": "insufficient_autosomal_markers",
+                    "autosomal_snps_used": 30,
+                },
+            )
+        )
+
+        assert response.detail["indeterminate_reason"] == "insufficient_autosomal_markers"
+        assert "30 callable autosomal SNP(s)" in response.finding_text
+
+    def test_evaluable_roh_text_is_untouched_in_generic_api(self):
+        # Counterpart control: a well-covered ROH row keeps its stored text, so
+        # the correction cannot silently rewrite every finding in the explorer.
+        stored = "No long runs of homozygosity were detected (FROH ≈ 0)."
+        response = _row_to_response(
+            self._roh_row(
+                finding_text=stored,
+                detail={"froh": 0.0, "n_segments": 0, "autosomal_snps_used": 600_000},
+            )
+        )
+
+        assert response.finding_text == stored
+
+    def test_non_roh_finding_text_is_never_rewritten(self):
+        # The normalizer is module-scoped: a low-marker-count detail blob on
+        # another module must not trigger ROH wording.
+        stored = "Sparse coverage note for an unrelated module."
+        row = self._roh_row(
+            finding_text=stored,
+            detail={"autosomal_snps_used": 1},
+        )
+        row.module = "cancer"
+        row.category = "prs"
+
+        assert _row_to_response(row).finding_text == stored
+
     def test_finding_has_parsed_provenance(self, findings_client):
         resp = findings_client.get("/api/analysis/findings?sample_id=1&module=cancer")
         prov = resp.json()[0]["provenance"]
@@ -333,6 +1823,66 @@ class TestListFindings:
 
 
 class TestFindingsSummary:
+    def _seed_eligible_markers(self, tmp_data_dir: Path) -> None:
+        """A region a run could occupy — the legacy rule re-derives from markers."""
+        from tests.backend._roh_fixtures import seed_segment_eligible_markers
+
+        engine = sa.create_engine(f"sqlite:///{tmp_data_dir / 'samples' / 'sample_1.db'}")
+        try:
+            seed_segment_eligible_markers(engine)
+        finally:
+            engine.dispose()
+
+    def _seed_legacy_roh(self, tmp_data_dir: Path, snps_used: int) -> None:
+        from backend.db.tables import findings as findings_table
+
+        engine = sa.create_engine(f"sqlite:///{tmp_data_dir / 'samples' / 'sample_1.db'}")
+        with engine.begin() as conn:
+            conn.execute(
+                sa.insert(findings_table),
+                [
+                    {
+                        "module": "roh",
+                        "category": "autozygosity",
+                        "evidence_level": 1,
+                        "finding_text": (
+                            "No long runs of homozygosity were detected (FROH ≈ 0). "
+                            "This is the typical result."
+                        ),
+                        "detail_json": json.dumps(
+                            {"froh": 0.0, "n_segments": 0, "autosomal_snps_used": snps_used}
+                        ),
+                    }
+                ],
+            )
+        engine.dispose()
+
+    def test_summary_preview_corrects_legacy_roh_text(self, findings_client, tmp_data_dir):
+        # #2177 — ReportBuilder renders top_finding_text on the module card, so
+        # an uncorrected preview keeps showing "typical result" while the list
+        # and dedicated endpoints report the estimate withheld.
+        self._seed_legacy_roh(tmp_data_dir, snps_used=30)
+
+        data = findings_client.get("/api/analysis/findings/summary?sample_id=1").json()
+        roh = next(m for m in data["modules"] if m["module"] == "roh")
+
+        assert "typical result" not in roh["top_finding_text"].lower()
+        assert "not assessed" in roh["top_finding_text"].lower()
+
+    def test_summary_preview_keeps_evaluable_roh_text(self, findings_client, tmp_data_dir):
+        # Counterpart control: a well-covered ROH negative keeps its preview.
+        # The sample carries a genuinely eligible region, because the legacy
+        # rule is re-derived from its markers, not from the stored count.
+        from tests.backend._roh_fixtures import ELIGIBLE_MARKER_COUNT
+
+        self._seed_eligible_markers(tmp_data_dir)
+        self._seed_legacy_roh(tmp_data_dir, snps_used=ELIGIBLE_MARKER_COUNT)
+
+        data = findings_client.get("/api/analysis/findings/summary?sample_id=1").json()
+        roh = next(m for m in data["modules"] if m["module"] == "roh")
+
+        assert "typical result" in roh["top_finding_text"].lower()
+
     def test_summary_returns_all_modules(self, findings_client):
         resp = findings_client.get("/api/analysis/findings/summary?sample_id=1")
         assert resp.status_code == 200
@@ -359,7 +1909,7 @@ class TestFindingsSummary:
         assert all(f["evidence_level"] >= 3 for f in high_conf)
         assert all(f["module"] != "gene_health" for f in high_conf)
 
-    async def test_summary_high_confidence_selects_strongest_top_five(self, monkeypatch, tmp_path):
+    def test_summary_high_confidence_selects_strongest_top_five(self, monkeypatch, tmp_path):
         import backend.api.routes.findings as findings_route
 
         sample_engine = sa.create_engine(f"sqlite:///{tmp_path / 'summary_sample.db'}")
@@ -390,7 +1940,7 @@ class TestFindingsSummary:
             )
             monkeypatch.setattr(findings_route, "gated_modules_to_hide", lambda engine: set())
 
-            summary = await findings_route.findings_summary(sample_id=1)
+            summary = findings_route.findings_summary(sample_id=1)
             high_conf = summary.high_confidence_findings
 
             assert len(high_conf) == 5
@@ -435,7 +1985,7 @@ class TestFindingsSummary:
 class TestLAIPolicyQuarantine:
     """Pre-policy local ancestry must not leak through generic finding surfaces."""
 
-    async def test_list_summary_and_svg_withhold_unqualified_local_ancestry(
+    def test_list_summary_and_svg_withhold_unqualified_local_ancestry(
         self,
         monkeypatch,
         tmp_path,
@@ -480,7 +2030,7 @@ class TestLAIPolicyQuarantine:
             )
             monkeypatch.setattr(findings_route, "gated_modules_to_hide", lambda engine: set())
 
-            listed = await findings_route.list_findings(
+            listed = findings_route.list_findings(
                 sample_id=1,
                 module=None,
                 category=None,
@@ -490,7 +2040,7 @@ class TestLAIPolicyQuarantine:
             )
             assert [finding.finding_text for finding in listed] == ["Qualified Tier 1 ancestry"]
 
-            summary = await findings_route.findings_summary(sample_id=1)
+            summary = findings_route.findings_summary(sample_id=1)
             assert summary.total_findings == 1
             assert summary.modules[0].top_finding_text == "Qualified Tier 1 ancestry"
             assert [item.model_dump() for item in summary.evidence_level_counts] == [
@@ -499,7 +2049,7 @@ class TestLAIPolicyQuarantine:
             assert not summary.high_confidence_findings
 
             with pytest.raises(HTTPException) as caught:
-                await findings_route.get_finding_svg(finding_id=2, sample_id=1)
+                findings_route.get_finding_svg(finding_id=2, sample_id=1)
             assert caught.value.status_code == 404
         finally:
             sample_engine.dispose()
@@ -508,7 +2058,7 @@ class TestLAIPolicyQuarantine:
 class TestWithheldPrescribingAlertPresentation:
     """#2019: a retained custom alert cannot bypass generic finding surfaces."""
 
-    async def test_list_summary_and_svg_hide_whitespace_wrapped_target(
+    def test_list_summary_and_svg_hide_whitespace_wrapped_target(
         self,
         monkeypatch,
         tmp_path,
@@ -718,7 +2268,7 @@ class TestWithheldPrescribingAlertPresentation:
             )
             monkeypatch.setattr(findings_route, "gated_modules_to_hide", lambda engine: set())
 
-            listed = await findings_route.list_findings(
+            listed = findings_route.list_findings(
                 sample_id=1,
                 module=None,
                 category=None,
@@ -728,7 +2278,7 @@ class TestWithheldPrescribingAlertPresentation:
             )
             assert [finding.finding_text for finding in listed] == ["CYP2D6/codeine control alert"]
 
-            first_page = await findings_route.list_findings(
+            first_page = findings_route.list_findings(
                 sample_id=1,
                 module=None,
                 category=None,
@@ -743,7 +2293,7 @@ class TestWithheldPrescribingAlertPresentation:
             # moved ahead of pagination, the leading evidence-level-6 legacy
             # row made this first page empty instead.
             assert (
-                await findings_route.list_findings(
+                findings_route.list_findings(
                     sample_id=1,
                     module=None,
                     category=None,
@@ -753,7 +2303,7 @@ class TestWithheldPrescribingAlertPresentation:
                 )
             ) == []
 
-            summary = await findings_route.findings_summary(sample_id=1)
+            summary = findings_route.findings_summary(sample_id=1)
             assert summary.total_findings == 1
             assert summary.modules[0].top_finding_text == "CYP2D6/codeine control alert"
             assert "tamoxifen" not in summary.model_dump_json().lower()
@@ -761,21 +2311,21 @@ class TestWithheldPrescribingAlertPresentation:
             # The backing SVG exists, so a 404 proves the row predicate rather
             # than a missing-file fallback.
             with pytest.raises(HTTPException) as caught:
-                await findings_route.get_finding_svg(finding_id=2019, sample_id=1)
+                findings_route.get_finding_svg(finding_id=2019, sample_id=1)
             assert caught.value.status_code == 404
             with pytest.raises(HTTPException) as caught:
-                await findings_route.get_finding_svg(finding_id=2020, sample_id=1)
+                findings_route.get_finding_svg(finding_id=2020, sample_id=1)
             assert caught.value.status_code == 404
             with pytest.raises(HTTPException) as caught:
-                await findings_route.get_finding_svg(finding_id=2021, sample_id=1)
+                findings_route.get_finding_svg(finding_id=2021, sample_id=1)
             assert caught.value.status_code == 404
             with pytest.raises(HTTPException) as caught:
-                await findings_route.get_finding_svg(finding_id=2022, sample_id=1)
+                findings_route.get_finding_svg(finding_id=2022, sample_id=1)
             assert caught.value.status_code == 404
         finally:
             sample_engine.dispose()
 
-    async def test_svg_artifact_cannot_reintroduce_held_pair(self, monkeypatch, tmp_path):
+    def test_svg_artifact_cannot_reintroduce_held_pair(self, monkeypatch, tmp_path):
         """A source-safe row cannot serve stale held guidance from its SVG."""
         import backend.api.routes.findings as findings_route
 
@@ -811,7 +2361,7 @@ class TestWithheldPrescribingAlertPresentation:
             )
             monkeypatch.setattr(findings_route, "gated_modules_to_hide", lambda engine: set())
 
-            response = await findings_route.get_finding_svg(finding_id=2019, sample_id=1)
+            response = findings_route.get_finding_svg(finding_id=2019, sample_id=1)
             assert response.status_code == 200
             body = response.body.decode()
             assert "<svg" in body
@@ -820,7 +2370,7 @@ class TestWithheldPrescribingAlertPresentation:
         finally:
             sample_engine.dispose()
 
-    async def test_svg_route_blocks_stored_path_traversal(self, monkeypatch, tmp_path):
+    def test_svg_route_blocks_stored_path_traversal(self, monkeypatch, tmp_path):
         """A corrupt SVG path must not turn the by-id endpoint into a file reader."""
         from fastapi import HTTPException
 
@@ -856,13 +2406,13 @@ class TestWithheldPrescribingAlertPresentation:
             monkeypatch.setattr(findings_route, "gated_modules_to_hide", lambda engine: set())
 
             with pytest.raises(HTTPException) as caught:
-                await findings_route.get_finding_svg(finding_id=2020, sample_id=1)
+                findings_route.get_finding_svg(finding_id=2020, sample_id=1)
             assert caught.value.status_code == 404
             assert sentinel in outside.read_text(encoding="utf-8")
         finally:
             sample_engine.dispose()
 
-    async def test_list_and_summary_withhold_split_pair_across_safe_rows(
+    def test_list_and_summary_withhold_split_pair_across_safe_rows(
         self,
         monkeypatch,
         tmp_path,
@@ -902,7 +2452,7 @@ class TestWithheldPrescribingAlertPresentation:
             monkeypatch.setattr(findings_route, "gated_modules_to_hide", lambda _engine: set())
 
             assert (
-                await findings_route.list_findings(
+                findings_route.list_findings(
                     sample_id=1,
                     module=None,
                     category=None,
@@ -912,7 +2462,7 @@ class TestWithheldPrescribingAlertPresentation:
                 )
             ) == []
             assert (
-                await findings_route.list_findings(
+                findings_route.list_findings(
                     sample_id=1,
                     module=None,
                     category=None,
@@ -922,7 +2472,7 @@ class TestWithheldPrescribingAlertPresentation:
                 )
             ) == []
 
-            summary = await findings_route.findings_summary(sample_id=1)
+            summary = findings_route.findings_summary(sample_id=1)
             assert summary.total_findings == 0
             assert summary.modules == []
             assert summary.high_confidence_findings == []

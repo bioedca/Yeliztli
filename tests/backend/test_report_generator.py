@@ -296,6 +296,12 @@ def report_client(
 # ── Unit tests: findings loading ──────────────────────────────────
 
 
+# The exact narrative persisted by ROH before the #2177 evaluability gate.
+_LEGACY_ROH_TEXT = (
+    "No long runs of homozygosity were detected (FROH ≈ 0). This is the typical result."
+)
+
+
 class TestLoadFindings:
     """Test _load_findings helper."""
 
@@ -318,6 +324,65 @@ class TestLoadFindings:
         assert len(results) == 4
         modules = {r["module"] for r in results}
         assert modules == {"cancer", "pharmacogenomics"}
+
+    def _seed_eligible_markers(self, sample_engine: sa.Engine) -> None:
+        """A region a run could occupy — the legacy rule re-derives from markers."""
+        from tests.backend._roh_fixtures import seed_segment_eligible_markers
+
+        seed_segment_eligible_markers(sample_engine)
+
+    def _insert_roh(self, sample_engine: sa.Engine, *, text: str, snps_used: int) -> None:
+        from backend.db.tables import findings as findings_table
+
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(findings_table),
+                [
+                    {
+                        "module": "roh",
+                        "category": "autozygosity",
+                        "evidence_level": 1,
+                        "finding_text": text,
+                        "detail_json": json.dumps(
+                            {"froh": 0.0, "n_segments": 0, "autosomal_snps_used": snps_used}
+                        ),
+                    }
+                ],
+            )
+
+    def test_legacy_roh_typical_text_is_corrected_for_reports(
+        self, sample_with_findings: tuple
+    ) -> None:
+        # #2177 — generated reports render the persisted finding_text directly,
+        # so a pre-gate row would otherwise carry the "typical" negative into a
+        # PDF for a sample whose markers cannot produce a segment at all.
+        _, sample_engine, _ = sample_with_findings
+        self._insert_roh(
+            sample_engine,
+            text=_LEGACY_ROH_TEXT,
+            snps_used=30,
+        )
+
+        roh = [r for r in _load_findings(sample_engine, modules=["roh"])]
+        assert len(roh) == 1
+        assert "typical result" not in roh[0]["finding_text"].lower()
+        assert "not assessed" in roh[0]["finding_text"].lower()
+
+    def test_evaluable_roh_text_reaches_reports_unchanged(
+        self, sample_with_findings: tuple
+    ) -> None:
+        # Counterpart control: a densely covered ROH negative must still read as
+        # a genuine negative in the report.
+        from tests.backend._roh_fixtures import ELIGIBLE_MARKER_COUNT
+
+        _, sample_engine, _ = sample_with_findings
+        self._seed_eligible_markers(sample_engine)
+        stored = _LEGACY_ROH_TEXT
+        self._insert_roh(sample_engine, text=stored, snps_used=ELIGIBLE_MARKER_COUNT)
+
+        roh = [r for r in _load_findings(sample_engine, modules=["roh"])]
+        assert len(roh) == 1
+        assert roh[0]["finding_text"] == stored
 
     def test_allows_a_selection_at_the_report_limit(self, sample_with_findings: tuple) -> None:
         _, sample_engine, _ = sample_with_findings
