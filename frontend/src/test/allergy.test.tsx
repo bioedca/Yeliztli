@@ -9,6 +9,7 @@ import AllergyView from "@/pages/AllergyView"
 import { useAllergyPathwayDetail, useAllergyPathways } from "@/api/allergy"
 import type {
   CeliacCombinedItem,
+  CrossModuleItem,
   PathwaySummary,
   SNPDetail,
   PathwayDetailResponse,
@@ -461,5 +462,63 @@ describe("SNPRow Indeterminate category (#465)", () => {
     expect(badge).not.toHaveClass("text-emerald-700")
     // Strand caveat is surfaced so the user understands why the call is withheld.
     expect(screen.getByText(/palindromic/i)).toBeInTheDocument()
+  })
+})
+
+// ── Drug hypersensitivity alert: PGx handoff gating (#2020) ────────────
+
+describe("DrugHypersensitivityAlert PGx handoff", () => {
+  const ABACAVIR_ALERT: CrossModuleItem = {
+    rsid: "rs2395029",
+    gene: "HLA-B",
+    source_module: "allergy",
+    target_module: "pharmacogenomics",
+    finding_text:
+      "HLA-B*57:01 proxy (rs2395029, TG) (EUR: r²=1.00) — Abacavir/HLA-B*57:01 " +
+      "drug-safety finding. Confirmatory high-resolution HLA-B*57:01 typing is " +
+      "required before any abacavir prescribing decision.",
+    evidence_level: 4,
+    pmids: ["11888582"],
+    pgx_guidance_available: false,
+  }
+
+  function renderWithAlert(alert: CrossModuleItem): void {
+    mockUsePathways.mockReturnValue({
+      data: {
+        items: [DRUG_PATHWAY],
+        total: 1,
+        celiac_combined: null,
+        histamine_combined: null,
+        cross_module: [alert],
+      },
+      isLoading: false,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useAllergyPathways>)
+    render(<AllergyView />)
+  }
+
+  it("withholds the PGx link when PGx has no guideline for the drug", () => {
+    renderWithAlert(ABACAVIR_ALERT)
+
+    // The alert itself must survive — it is the only place the app carries
+    // this drug-safety finding.
+    expect(screen.getByText("Drug Alert")).toBeInTheDocument()
+    expect(screen.getByText(/HLA-B\*57:01 proxy/)).toBeInTheDocument()
+    // ...but not a link to a module that covers no HLA gene and no abacavir.
+    expect(
+      screen.queryByRole("link", { name: /View in Pharmacogenomics/i }),
+    ).toBeNull()
+    // The genuinely actionable instruction stays put.
+    expect(screen.getByText(/Confirmatory HLA typing recommended/i)).toBeInTheDocument()
+  })
+
+  it("offers the PGx link once PGx carries the drug", () => {
+    renderWithAlert({ ...ABACAVIR_ALERT, pgx_guidance_available: true })
+
+    const link = screen.getByRole("link", { name: /View in Pharmacogenomics/i })
+    expect(link).toHaveAttribute("href", "/pharmacogenomics?sample_id=1")
+    expect(screen.getByText(/Confirmatory HLA typing recommended/i)).toBeInTheDocument()
   })
 })
