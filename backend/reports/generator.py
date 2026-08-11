@@ -43,13 +43,17 @@ from backend.db.connection import get_registry
 from backend.db.tables import findings, samples
 from backend.reports.module_disclaimers import MODULE_DISCLAIMERS, MODULE_DISPLAY_NAMES
 from backend.services.lai_production_coverage import policy_qualified_finding_clause
+from backend.version import app_version
 
 logger = structlog.get_logger(__name__)
 
 # ── Constants ──────────────────────────────────────────────────────────
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
-VERSION = "0.1.0"
+# The version stamped into the footer of every artifact this module
+# emits. Sourced, not written out: this literal said 0.1.0 while the app
+# was 0.2.0, so exported documents misattributed themselves (#2025).
+VERSION = app_version()
 MAX_REPORT_FINDINGS = 1_000
 
 
