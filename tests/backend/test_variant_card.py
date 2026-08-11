@@ -433,6 +433,15 @@ class TestVariantCardHtml:
         assert "Variant Evidence Card" in html
         assert "Test Patient" in html
         assert "BRCA1" in html
+        # #2025: the card footer carries the running app version, rendered - not
+        # the module constant, which would stay green if the renderer or the
+        # template stopped emitting it.
+        from backend.main import VERSION as API_VERSION
+        from backend.version import app_version
+
+        assert f"Yeliztli v{app_version()}" in html
+        assert f"Yeliztli v{API_VERSION}" in html
+        assert "Yeliztli v0.1.0" not in html
         assert "rs80357906" in html
         assert "Pathogenic variant for Hereditary Breast Cancer" in html
 
