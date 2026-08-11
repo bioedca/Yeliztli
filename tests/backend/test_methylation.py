@@ -1385,11 +1385,33 @@ class TestSLC19A1ComplementaryStrandRendering:
     @pytest.mark.parametrize(
         ("genotype", "expected"),
         [
-            ("CT", "SLC19A1 A80G (His27Arg) (CT) — Heterozygous at RFC1 codon 27 (His/Arg)."),
-            ("TC", "SLC19A1 A80G (His27Arg) (TC) — Heterozygous at RFC1 codon 27 (His/Arg)."),
-            ("TT", "SLC19A1 A80G (His27Arg) (TT) — Homozygous His27 at RFC1."),
-            ("GA", "SLC19A1 A80G (His27Arg) (GA) — Heterozygous at RFC1 codon 27 (His/Arg)."),
-            ("AA", "SLC19A1 A80G (His27Arg) (AA) — Homozygous His27 at RFC1."),
+            (
+                "CT",
+                "SLC19A1 A80G (His27Arg) (CT) — Heterozygous at RFC1 codon 27 (His/Arg). "
+                "May modestly reduce folate transport into cells.",
+            ),
+            (
+                "TC",
+                "SLC19A1 A80G (His27Arg) (TC) — Heterozygous at RFC1 codon 27 (His/Arg). "
+                "May modestly reduce folate transport into cells.",
+            ),
+            (
+                "TT",
+                "SLC19A1 A80G (His27Arg) (TT) — Homozygous His27 at RFC1. May reduce folate "
+                "carrier efficiency, though published studies disagree on the direction. "
+                "Adequate dietary folate is sensible regardless.",
+            ),
+            (
+                "GA",
+                "SLC19A1 A80G (His27Arg) (GA) — Heterozygous at RFC1 codon 27 (His/Arg). "
+                "May modestly reduce folate transport into cells.",
+            ),
+            (
+                "AA",
+                "SLC19A1 A80G (His27Arg) (AA) — Homozygous His27 at RFC1. May reduce folate "
+                "carrier efficiency, though published studies disagree on the direction. "
+                "Adequate dietary folate is sensible regardless.",
+            ),
         ],
     )
     def test_rendered_text_never_names_an_absent_allele(
@@ -1411,9 +1433,15 @@ class TestSLC19A1ComplementaryStrandRendering:
         plus-strand genotype — that mismatch is inherent to labelling a
         minus-strand gene in HGVS, predates this row, affects every such locus in
         every panel, and is filed separately rather than papered over here.
+
+        The expected text is asserted in FULL rather than as a prefix. A prefix
+        stopping at ``Homozygous His27 at RFC1.`` would pass equally against the
+        earlier unhedged body, so the conflict disclosure added once the direction
+        of effect turned out to be contested would not have been locked by
+        anything — the wording could revert and this class would stay green.
         """
         row = self._stored_finding(panel, sample_engine, reference_engine, genotype)
-        assert row.finding_text.startswith(expected), row.finding_text
+        assert row.finding_text == expected, row.finding_text
         prose = row.finding_text.split(" — ", 1)[1]
         for base in "ACGT":
             if base in genotype:
@@ -1468,6 +1496,26 @@ class TestSLC19A1ComplementaryStrandRendering:
             f"non-carrier {genotype!r} stored an rs1051266 finding: "
             f"{[r.finding_text for r in rows]}"
         )
+
+    def test_stored_recommendation_keeps_the_conflict_disclosure(
+        self,
+        panel: MethylationPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """The recommendation persisted beside the finding must keep the caveat.
+
+        ``recommendation_text`` is stored in ``detail_json`` and rendered under the
+        effect summary, so it is the second place the contested direction reaches
+        the user. Locked here because it is the piece most likely to be tidied
+        back into a confident claim by someone who has not read the packet.
+        """
+        row = self._stored_finding(panel, sample_engine, reference_engine, "TT")
+        recommendation = json.loads(row.detail_json)["recommendation"]
+        assert "Published studies disagree on which allele at codon 27 reduces folate" in (
+            recommendation
+        ), recommendation
+        assert "weak context rather than a direction" in recommendation, recommendation
 
 
 # ── PathwayResult properties ────────────────────────────────────────────
