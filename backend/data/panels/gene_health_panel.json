@@ -464,10 +464,11 @@
           },
           "evidence_level": 3,
           "pmids": ["17434869", "18454148", "23563607"],
-          "recommendation_text": "FTO is the most replicated obesity GWAS locus. Risk allele effect on BMI is attenuated by physical activity. Carriers benefit from regular exercise and mindful eating. See the Nutrigenomics module for dietary considerations related to FTO genotype.",
+          "recommendation_text": "FTO is the most replicated obesity GWAS locus. Risk allele effect on BMI is attenuated by physical activity. Carriers benefit from regular exercise and mindful eating.",
           "cross_module": {
-            "module": "nutrigenomics",
-            "note": "FTO rs9939609 influences appetite regulation and macronutrient metabolism. See Nutrigenomics for dietary recommendations."
+            "module": "metabolic",
+            "target_rsids": ["rs9939609"],
+            "note": "FTO rs9939609 influences appetite regulation and body-weight set point. See the Metabolic module, which carries this variant as its BMI/adiposity anchor."
           }
         },
         {
@@ -1257,9 +1258,9 @@
       "description": "MTHFR C677T affects both migraine risk and methylation pathway"
     },
     {
-      "to_module": "nutrigenomics",
+      "to_module": "metabolic",
       "link_type": "shared_variant",
-      "description": "FTO rs9939609 relates to both obesity risk and nutrigenomic findings"
+      "description": "FTO rs9939609 relates to both obesity risk and the Metabolic module's BMI/adiposity anchor"
     },
     {
       "to_module": "traits",
@@ -1299,6 +1300,6 @@
     "elevated_requires_genotype": "clinically_meaningful",
     "pathway_level_determination": "highest_category_across_snps",
     "condition_grouping": "SNPs are grouped by disease condition within each pathway. Each condition may have multiple contributing variants. Pathway-level status reflects the highest-risk condition within that pathway.",
-        "cross_module_deduplication": "Shared variants (rs429358, rs34637584, rs9939609, rs1801133, rs747302) should not be double-counted in aggregate risk scores. The canonical finding resides in this module except for rs429358 (canonical in APOE module), rs34637584 (canonical in Parkinson's module), and rs9939609 (canonical in Nutrigenomics module)."
+        "cross_module_deduplication": "Shared variants (rs429358, rs34637584, rs9939609, rs1801133, rs747302) should not be double-counted in aggregate risk scores. The canonical finding resides in this module except for rs429358 (canonical in APOE module) and rs34637584 (canonical in Parkinson's module). rs9939609 is canonical here: the Nutrigenomics module lists it only under additional_genes and never scores it, so naming Nutrigenomics as its canonical home described a finding that does not exist (#2021)."
   }
 }

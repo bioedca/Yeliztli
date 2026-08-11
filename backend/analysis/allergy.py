@@ -53,6 +53,7 @@ from backend.analysis.pathway_coverage import (
     format_not_assessed,
     missing_rsid_groups,
     pathway_summary_text,
+    variant_label,
 )
 from backend.analysis.pharmacogenomics import is_prescribing_alert_withheld
 from backend.analysis.zygosity import is_no_call
@@ -868,7 +869,8 @@ def _generate_cross_module_findings(
                 )
             else:
                 cross_text = (
-                    f"{snp_result.gene} {snp_result.variant_name} ({snp_result.genotype}) — {note}"
+                    f"{variant_label(snp_result.gene, snp_result.variant_name)} "
+                    f"({snp_result.genotype}) — {note}"
                 )
 
             # Deduplicate at allele/drug-context granularity, not gene-only:

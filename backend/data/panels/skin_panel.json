@@ -330,7 +330,8 @@
           "recommendation_text": "VDR FokI (rs2228570) is a vitamin D receptor start-codon variant; the ff genotype yields a modestly less active receptor isoform. Its link to psoriasis/skin disease is inconsistent across populations (no association in the most recent meta-analysis), so this is research-grade context, not a deterministic skin-risk call. Adequate vitamin D status supports skin health across genotypes; discuss supplementation with a clinician.",
           "cross_module": {
             "module": "nutrigenomics",
-            "note": "VDR FokI is shared with the Nutrigenomics vitamin D pathway. See Nutrigenomics module for dietary vitamin D considerations."
+            "target_rsids": ["rs2282679", "rs7041", "rs12794714", "rs10741657"],
+            "note": "VDR FokI is a receptor-side variant and is not itself scored in Nutrigenomics. See the Nutrigenomics vitamin D pathway, which scores GC and CYP2R1 variants affecting vitamin D synthesis, transport, and metabolism."
           }
         },
         {
@@ -363,7 +364,8 @@
           "recommendation_text": "VDR BsmI (rs1544410) is a 3' tagging variant; its association with psoriasis/skin outcomes is population-specific and inconsistent (no association in the most recent meta-analysis), so this is research-grade context. Adequate vitamin D status supports skin health across genotypes.",
           "cross_module": {
             "module": "nutrigenomics",
-            "note": "VDR BsmI is relevant to the Nutrigenomics vitamin D pathway."
+            "target_rsids": ["rs2282679", "rs7041", "rs12794714", "rs10741657"],
+            "note": "VDR BsmI is a receptor-side variant and is not itself scored in Nutrigenomics. See the Nutrigenomics vitamin D pathway, which scores GC and CYP2R1 variants affecting vitamin D synthesis, transport, and metabolism."
           }
         }
       ]

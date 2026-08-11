@@ -44,7 +44,11 @@ from backend.analysis.genotype_lookup import (
     is_strand_ambiguous,
     lookup_by_genotype,
 )
-from backend.analysis.pathway_coverage import coverage_detail, pathway_summary_text
+from backend.analysis.pathway_coverage import (
+    coverage_detail,
+    pathway_summary_text,
+    variant_label,
+)
 from backend.analysis.zygosity import is_no_call
 from backend.annotation.engine import GWAS_BIT
 from backend.annotation.gwas import gwas_matched_rsids
@@ -533,7 +537,8 @@ def _generate_cross_module_findings(
 
             # Build cross-module finding text
             cross_text = (
-                f"{snp_result.gene} {snp_result.variant_name} ({snp_result.genotype}) — {note}"
+                f"{variant_label(snp_result.gene, snp_result.variant_name)} "
+                f"({snp_result.genotype}) — {note}"
             )
 
             # Deduplicate at variant granularity, not gene-only: distinct SNPs
