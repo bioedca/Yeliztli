@@ -193,6 +193,9 @@ def _walk_dicts(node: object):
 
 
 _ONE_LETTER_CODES = set(_THREE_TO_ONE.values())
+# Panels display a stop as the conventional ``X`` (``R577X``) while HGVS writes
+# ``Ter``. Without this the two sides of those rows never get compared.
+_ONE_LETTER_ALIASES = {"X": "*"}
 
 
 def _one_letter(match: re.Match[str] | None) -> tuple[str, int, str] | None:
@@ -207,6 +210,8 @@ def _one_letter(match: re.Match[str] | None) -> tuple[str, int, str] | None:
     first, position, second = match.group(1), int(match.group(2)), match.group(3)
     if first in _THREE_TO_ONE and second in _THREE_TO_ONE:
         return _THREE_TO_ONE[first], position, _THREE_TO_ONE[second]
+    first = _ONE_LETTER_ALIASES.get(first, first)
+    second = _ONE_LETTER_ALIASES.get(second, second)
     if first in _ONE_LETTER_CODES and second in _ONE_LETTER_CODES:
         return first, position, second
     return None
@@ -398,6 +403,39 @@ def test_detector_rejects_the_2023_label_and_accepts_its_fix() -> None:
     assert _substitution_reaches("A", "C", "E", "A")  # MTHFR A1298C / Glu429Ala
     assert _substitution_reaches("C", "T", "Y", "Y")  # CBS C699T / Tyr233Tyr
     assert _substitution_reaches("G", "A", "R", "Q")  # BHMT G742A / Arg239Gln
+
+
+def test_stop_codon_labels_are_compared_against_their_hgvs() -> None:
+    """``R577X`` and ``p.Arg577Ter`` are the same statement and must be compared.
+
+    Panels write a stop as the conventional ``X``; HGVS writes ``Ter``. Until the
+    alias was added, ``_one_letter`` returned ``None`` for every ``X`` label, so
+    ``test_every_row_declares_one_amino_acid_change`` silently skipped ACTN3
+    ``rs1815739``, FLG ``rs61816761`` and ``rs74315329`` — three production rows
+    whose displayed label could have drifted from their ``hgvs_protein`` unnoticed.
+    """
+    assert _one_letter(_DIRECT_PROTEIN_ONE_LETTER.match("R577X")) == ("R", 577, "*")
+    assert _one_letter(_HGVS_PROTEIN.match("p.Arg577Ter")) == ("R", 577, "*")
+
+    covered = []
+    for path in sorted(PANEL_DIR.glob("*.json")):
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        for node in _walk_dicts(raw):
+            name = node.get("variant_name")
+            if not isinstance(name, str) or "X" not in name:
+                continue
+            hgvs, label = _declared_protein_changes(node)
+            if hgvs is None or label is None:
+                continue
+            covered.append(f"{path.name}::{node.get('rsid')}")
+            assert hgvs == label, (
+                f"{path.name}::{node.get('rsid')} {name!r} vs {node['hgvs_protein']!r}"
+            )
+    assert sorted(covered) == [
+        "fitness_panel.json::rs1815739",
+        "gene_health_panel.json::rs74315329",
+        "skin_panel.json::rs61816761",
+    ], covered
 
 
 def test_protein_shorthand_is_not_read_as_nucleotides() -> None:
