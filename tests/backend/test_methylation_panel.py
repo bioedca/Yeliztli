@@ -352,10 +352,19 @@ class TestSLC19A1Nomenclature:
     A80G (PMID:33935279), and peer-reviewed papers write both ``c.80G>A`` and
     ``c.80A>G`` for this rsID — but only one can sit next to ``His27Arg``: the
     GRCh37 reference carries 80A/His27. NCBI dbSNP RefSNP v2 gives
-    ``NM_194255.4:c.80A>G`` with ``NP_919231.1`` residue 27 H→R, and UniProtKB
-    ``P41440`` independently carries His at residue 27 of the canonical sequence
-    (both accessed 2026-08-10). Ensembl agrees but does not count as a second
-    source — it imports its variant records from dbSNP. Evidence packet:
+    ``NM_194255.4:c.80A>G`` with ``NP_919231.1`` residue 27 H→R; UniProtKB
+    ``P41440`` and Ensembl GRCh37 report the same reference choice (all accessed
+    2026-08-10).
+
+    None of those three is independent of the others, and the packet says so
+    rather than counting them as corroboration: Ensembl imports its variant
+    records from dbSNP, and ``P41440`` cross-references the very RefSeq records
+    (``NP_919231.1``/``NM_194255.4``) that dbSNP reports against. There is one
+    GRCh37 and one RefSeq curation, so no second independent determination of the
+    reference residue exists to be had. What makes this row safe is not
+    corroboration but that it asserts nothing new — ``hgvs_protein`` already said
+    ``p.His27Arg`` before this change, and the guard below enforces internal
+    consistency, which is frame-independent. Evidence packet:
     ``data/science-evidence/2026-08-10-slc19a1-rs1051266-nomenclature-2023/``.
 
     The general codon-direction invariant lives in
