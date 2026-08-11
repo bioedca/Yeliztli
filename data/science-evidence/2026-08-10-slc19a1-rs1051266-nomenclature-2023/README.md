@@ -106,6 +106,87 @@ inference and is not relied on anywhere; the shipped user-facing text says only
 that the two frames take opposite bases as the reference, which is the observable
 fact.
 
+## Why the literature disagrees with itself, and what the row now says
+
+The locus carries two competing names, and the row's own three citations are
+split between them:
+
+| PMID | Spelling used in the title |
+| --- | --- |
+| 16750224 | G80A |
+| 24597986 | G80A |
+| 33935279 | A80G |
+
+A Consensus search (all 20 records in `raw/consensus-search-2026-08-10.json`) shows the
+split is not confined to the legacy shorthand: peer-reviewed papers write
+`c.80G>A` and `c.80A>G` for the same rsID.
+
+The panel had one field from each frame — `variant_name` in the G-first frame,
+`hgvs_protein` in the reference frame — which is why the rendered string could
+not be read under either convention. The fix puts the rendered label in the
+reference frame, the frame `hgvs_protein` was already in and the one HGVS
+requires, and names the competing spelling in the row's prose so a reader
+following those citations is not left to rediscover the conflict.
+
+**What this packet deliberately does not claim** is *why* the G-first frame
+exists. Ensembl gives the ancestral coding allele as G, so the reference genome
+carries the derived allele here, and an earlier draft of the shipped text
+asserted that the legacy name was "written against the ancestral allele". That is
+an inference about authors' intent which nothing retained here establishes, so it
+was removed in favour of the observable fact: the two frames take opposite bases
+as the reference.
+
+## Direction of effect — contested, and untouched
+
+The Consensus results disagree about which allele does what:
+
+| Source | Reported direction |
+| --- | --- |
+| PMID:19650776 (Stanisławska-Sachadyn 2009, Ann Hum Genet) | GA/AA had *higher* red-cell folate than GG; 80G homozygotes flagged as the at-risk group |
+| PMID:33749319 (Naushad 2021, Ann Pharmacother, 18 studies) | 80A allele *increased* methotrexate efficacy and safety |
+| PMID:16962770 (Wang 2006, Eur J Cancer) | 80AA associated with *increased* gastro-oesophageal cancer risk |
+| PMID:41673870 (Yue 2026, World J Surg Oncol, 13 studies) | 80AA associated with *greater* methotrexate toxicity |
+| PMID:24597986 (He 2014) — the row's own citation | *No* influence of G80A on methotrexate toxicity |
+
+The panel's "AA → reduced folate carrier efficiency" is at least in tension with
+the first of those. That question is filed separately and is not decided here.
+
+## Corrections and retractions
+
+Checked, not argued, and covering **all seven** papers the packet cites in a
+claim — not only the three the panel row carries. Six went through Scite by DOI
+and none carries an editorial notice (retraction, correction, concern or
+erratum). The seventh, PMID:41673870, is **not indexed by Scite**, so PubMed is
+its only notice check; all seven were checked there and none carries a
+`Retracted Publication` or `Erratum` article type. That paper published
+2026-02-12, so the absence of a notice tells you little at this date — it is
+cited as one voice in a documented conflict and no conclusion turns on it. dbSNP
+separately reports rs1051266 as not merged (accessed 2026-08-10). The per-record
+status is in `raw/scite-and-pubmed-notices-2026-08-10.json`; the reading of it is
+in `raw/evidence-ladder-2026-08-10.md`.
+
+## A contradicting in-repo artifact, retained deliberately
+
+`bundles/vep_bundle.db` as committed at `origin/main` reports
+`hgvs_protein = p.Arg27His` for this rsID — the opposite polarity to every source
+above. It is **not** treated as evidence here, because it is demonstrably not
+recording reference/alternate at all: all 102,254 of its single-base rows have
+`ref` alphabetically before `alt`, with zero exceptions, where a genuine
+reference-first assignment would be near 50/50. Its `hgvs_protein` is
+correspondingly inverted for the whole T/C class — rs1051266, PON1 rs662
+(`p.Arg192Gln` for `p.Gln192Arg`) and KCNJ11 rs5219 (`p.Glu23Lys` for
+`p.Lys23Glu`) are all reversed relative to `vep_seed.csv`.
+
+The exact queries and their results are in `queries.json` under
+`in-repo-bundle-crosscheck`, including the full join accounting: of the 679 seed
+rows, 44 match the bundle on `(rsid, pos)` — 12 in the same orientation, 6
+reversed, and 26 that name a different allele pair entirely and so cannot be
+scored for orientation at all. Those 26 are a further discrepancy class between
+the two artifacts, not evidence for the ordering finding, which rests on the
+102,254/102,254 count above. The retained record is in `raw/`. The artifact
+itself is written up as a separate issue; it is a live trap for anyone who reads
+it as authoritative, which is exactly how #2023 described it.
+
 ## Files
 
 - `queries.json` — the exact requests and SQL, with URLs, dates and result mapping.
@@ -116,7 +197,7 @@ fact.
 - `raw/uniprot-P41440-crossrefs-2026-08-10.json` — UniProt's RefSeq and EMBL cross-references, the evidence that it is not independent of RefSeq.
 - `raw/genbank-primary-cdna-submissions-2026-08-10.fasta` — the three original cDNA submissions, which carry Arg27.
 - `raw/consensus-search-2026-08-10.json` — all 20 Consensus records, abstracts omitted (see below).
-- `raw/scite-and-pubmed-notices-2026-08-10.json` — all 3 Scite and all 3 PubMed records with their editorial-notice status, abstracts omitted.
+- `raw/scite-and-pubmed-notices-2026-08-10.json` — all 6 Scite and all 7 PubMed records with their editorial-notice status, abstracts omitted.
 - `raw/evidence-ladder-2026-08-10.md` — the prose *reading* of those two artifacts. This is analysis, not a source payload.
 - `raw/in-repo-vep-bundle-rs1051266-DISCREPANT-2026-08-10.json` — the contradicting in-repo artifact and the measurement that disqualifies it.
 
@@ -124,7 +205,7 @@ fact.
 which returns results into the conversation rather than as files, so their bytes
 cannot be preserved. The two JSON artifacts above are transcriptions, labelled as
 such in `queries.json`. They are complete with respect to *records* — all 20
-Consensus results and all 3 of 3 Scite/PubMed records, none selected away — and
+Consensus results, all 6 of 6 Scite records and all 7 of 7 PubMed records, none selected away — and
 drop only abstracts and other copyrighted body text, following the same
 bibliographic-metadata-only retention rule the earlier packets in this directory
 record. A reviewer can therefore check what was returned and what was omitted,
