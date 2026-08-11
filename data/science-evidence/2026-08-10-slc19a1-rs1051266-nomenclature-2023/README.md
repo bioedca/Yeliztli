@@ -68,10 +68,22 @@ reports that same choice, so no second independent determination exists to be
 found. Hunting for one produces the appearance of corroboration, not corroboration.
 
 **The high-stakes fact at this locus is the direction of effect** — which allele
-reduces folate transport. That one *is* contested, *is* withheld, and *is* filed
-separately. This change does not touch it: `risk_allele`, `ref_allele`, every
-`genotype_effects` category and the evidence level are unchanged, and the effect
-prose was softened rather than sharpened once the conflict came to light.
+reduces folate transport. That one *is* contested and *is* filed separately.
+
+**It is not withheld, and saying so here was an overstatement.** The AA row still
+reads *"Homozygous His27 at RFC1. May reduce folate carrier efficiency, though
+published studies disagree on the direction. Adequate dietary folate is sensible
+regardless."* — so an AA user is still shown His27 associated with reduced
+transport, with the conflict disclosed beside it. What this change did was hedge
+an inherited claim and surface the disagreement in user-facing text; it did not
+remove the claim.
+
+Removing it is not the smaller act it sounds like. The row is categorised
+`Moderate`, and a Moderate finding with no stated effect is incoherent — so
+withholding properly means re-categorising the locus, which *is* the adjudication
+this change defers and which needs evidence not gathered here. `risk_allele`,
+`ref_allele`, every `genotype_effects` category and the evidence level are
+unchanged.
 
 **What makes the change safe is that it asserts no new fact.** `hgvs_protein:
 p.His27Arg` was already in the row before this work, agrees with the committed
@@ -201,7 +213,8 @@ it as authoritative, which is exactly how #2023 described it.
 - `raw/genbank-primary-cdna-submissions-2026-08-10.fasta` — the three versioned accessions `AAA98442.1`, `AAC50180.1` and `AAB35058.1`, whose retained sequences carry Arg27. Sequence only; nothing here establishes when or by whom they were submitted.
 - `raw/consensus-search-2026-08-10.json` — all 20 Consensus records, abstracts omitted (see below).
 - `raw/scite-and-pubmed-notices-2026-08-10.json` — all 6 Scite and all 7 PubMed records with their editorial-notice status, abstracts omitted.
-- `raw/pubmed-comments-corrections-2026-08-10.json` — all 7 records' `CommentsCorrections` links, the leg that can see a correction published as a *separate* record.
+- `raw/pubmed-efetch-sanitized-2026-08-10.xml` — the source-native PubMed response for all 7 cited PMIDs, abstracts removed and nothing else touched. The **authority** for the linked-notice check, because a negative result needs a payload an auditor can inspect for omissions.
+- `raw/pubmed-comments-corrections-2026-08-10.json` — the reduction of that XML to the notice fields, for reading.
 - `raw/evidence-ladder-2026-08-10.md` — the prose *reading* of the discovery artifacts. This is analysis, not a source payload.
 - `raw/in-repo-vep-bundle-rs1051266-DISCREPANT-2026-08-10.json` — the contradicting in-repo artifact and the measurement that disqualifies it.
 
