@@ -128,7 +128,15 @@ export default function WatchingSidebar({
                   type="button"
                   onClick={() => setSortMode(sortMode === "watched_at" ? "reclassified" : "watched_at")}
                   className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-                  aria-label={`Sort by ${sortMode === "watched_at" ? "reclassification status" : "date watched"}`}
+                  // WCAG 2.5.3: the accessible name must contain the visible text so
+                  // voice control can activate the button by the words on screen. This
+                  // used to name the mode a click switches *to* while the button showed
+                  // the current mode, so the two never overlapped in either state (#2027).
+                  aria-label={
+                    sortMode === "watched_at"
+                      ? "Sort: Date watched (activate to sort by reclassification status)"
+                      : "Sort: Reclassified first (activate to sort by date watched)"
+                  }
                 >
                   {sortMode === "watched_at" ? "Sort: Date watched" : "Sort: Reclassified first"}
                 </button>
