@@ -154,3 +154,31 @@ def current_recommendation(module: str | None, rsid: str | None, stored: str | N
     if not rsid or not stored:
         return stored
     return _recommendations_for_module(module or "").get(rsid, stored)
+
+
+# Categories whose stored ``detail`` carries the panel's per-SNP recommendation.
+RECOMMENDATION_CATEGORIES = frozenset({"snp_finding", "carrier_context"})
+
+
+def refreshed_detail_recommendation(
+    module: str | None,
+    category: str | None,
+    rsid: str | None,
+    detail: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    """Return ``detail`` with its ``recommendation`` resolved against the panel.
+
+    The generic findings aggregator hands back each stored ``detail`` blob as
+    it is, so the dedicated route's refresh alone would leave the legacy text
+    reachable through ``/api/analysis/findings`` and the summary's
+    high-confidence preview (#2021). Gated the same way: a category that never
+    stores a recommendation, or a row that has none, is left alone, so a
+    non-carrier is never handed carrier-facing advice.
+    """
+    if category not in RECOMMENDATION_CATEGORIES or not isinstance(detail, dict):
+        return detail
+    stored = detail.get("recommendation")
+    current = current_recommendation(module, rsid, stored)
+    if current == stored:
+        return detail
+    return {**detail, "recommendation": current}

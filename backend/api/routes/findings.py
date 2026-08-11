@@ -22,7 +22,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 from pydantic import BaseModel
 
-from backend.analysis.cross_module_links import normalize_cross_module_row
+from backend.analysis.cross_module_links import (
+    normalize_cross_module_row,
+    refreshed_detail_recommendation,
+)
 from backend.analysis.pharmacogenomics import (
     is_patient_presentable_finding_payload,
     is_patient_presentable_response_payload,
@@ -197,6 +200,9 @@ def _row_to_response(row: sa.Row, sample_engine: sa.Engine | None = None) -> Fin
     )
     if resolved is not None:
         corrected_text, detail = resolved
+    # The per-SNP recommendation is panel prose stored in the same blob, and
+    # this endpoint hands the blob back as-is (#2021).
+    detail = refreshed_detail_recommendation(row.module, row.category, row.rsid, detail)
 
     provenance: dict | None = None
     raw_provenance = row.provenance

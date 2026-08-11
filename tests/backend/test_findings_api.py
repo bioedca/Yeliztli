@@ -3215,6 +3215,34 @@ def legacy_cross_module_client(tmp_data_dir: Path) -> Generator[TestClient, None
                 }
             ),
         },
+        # A legacy SNP row whose stored recommendation names Nutrigenomics.
+        {
+            "module": "gene_health",
+            "category": "snp_finding",
+            "evidence_level": 3,
+            "gene_symbol": "FTO",
+            "rsid": "rs9939609",
+            "finding_text": "FTO FTO intron 1 (AT) — One copy of FTO risk allele.",
+            "detail_json": json.dumps(
+                {
+                    "recommendation": (
+                        "FTO is the most replicated obesity GWAS locus. See the "
+                        "Nutrigenomics module for dietary considerations related to "
+                        "FTO genotype."
+                    )
+                }
+            ),
+        },
+        # A Standard non-carrier: no recommendation stored, none may appear.
+        {
+            "module": "gene_health",
+            "category": "snp_finding",
+            "evidence_level": 3,
+            "gene_symbol": "MTHFR",
+            "rsid": "rs1801133",
+            "finding_text": "MTHFR C677T (GG) — No C677T variant.",
+            "detail_json": json.dumps({"genotype": "GG"}),
+        },
         # Retired: the panel no longer declares the celiac handoff at all.
         {
             "module": "allergy",
@@ -3277,7 +3305,11 @@ class TestCrossModuleLinksOnGenericFindings:
     def test_retargeted_link_is_served_with_the_current_target(
         self, legacy_cross_module_client: TestClient
     ) -> None:
-        fto = [f for f in self._rows(legacy_cross_module_client) if f["rsid"] == "rs9939609"]
+        fto = [
+            f
+            for f in self._rows(legacy_cross_module_client)
+            if f["rsid"] == "rs9939609" and f["category"] == "cross_module"
+        ]
         assert len(fto) == 1
         assert fto[0]["detail"]["target_module"] == "metabolic"
         assert "See Nutrigenomics for dietary recommendations" not in fto[0]["finding_text"]
@@ -3303,5 +3335,39 @@ class TestCrossModuleLinksOnGenericFindings:
         assert resp.status_code == 200
         modules = {m["module"]: m for m in resp.json()["modules"]}
         assert "allergy" not in modules
-        assert modules["gene_health"]["count"] == 1
+        # The retired allergy row is gone entirely; gene_health keeps its three
+        # (cross-module card, FTO snp_finding, MTHFR non-carrier snp_finding).
+        assert modules["gene_health"]["count"] == 3
         assert "Metabolic module" in modules["gene_health"]["top_finding_text"]
+
+
+class TestRecommendationRefreshOnGenericFindings:
+    """The aggregator hands back each stored detail blob, recommendation included.
+
+    Refreshing only the dedicated pathway route would leave the legacy text
+    reachable through `/api/analysis/findings` and the summary preview (#2021).
+    """
+
+    def _rows(self, client: TestClient) -> list[dict]:
+        resp = client.get("/api/analysis/findings?sample_id=1")
+        assert resp.status_code == 200
+        return resp.json()
+
+    def test_legacy_recommendation_is_refreshed(
+        self, legacy_cross_module_client: TestClient
+    ) -> None:
+        rows = self._rows(legacy_cross_module_client)
+        fto = [f for f in rows if f["rsid"] == "rs9939609" and f["category"] == "snp_finding"]
+        assert len(fto) == 1
+        recommendation = (fto[0]["detail"] or {}).get("recommendation") or ""
+        assert "nutrigenomics" not in recommendation.lower()
+        assert "attenuated by physical activity" in recommendation
+
+    def test_non_carrier_is_not_handed_a_recommendation(
+        self, legacy_cross_module_client: TestClient
+    ) -> None:
+        """A row that stored none must not acquire the panel's carrier advice."""
+        rows = self._rows(legacy_cross_module_client)
+        mthfr = [f for f in rows if f["rsid"] == "rs1801133"]
+        assert len(mthfr) == 1
+        assert not (mthfr[0]["detail"] or {}).get("recommendation")
