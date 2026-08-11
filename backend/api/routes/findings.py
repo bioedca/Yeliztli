@@ -27,6 +27,7 @@ from backend.analysis.pharmacogenomics import (
     is_patient_presentable_response_payload,
     patient_visible_finding_clause,
 )
+from backend.analysis.roh import normalize_legacy_finding_text, normalize_legacy_row
 from backend.analysis.svg_renderer import is_safe_svg_marker, render_finding_svg
 from backend.api.dependencies import require_fresh_sample
 from backend.api.gating import gated_modules_to_hide
@@ -135,7 +136,7 @@ def _is_patient_presentable_row(row: sa.Row) -> bool:
     return is_patient_presentable_finding_payload(row._mapping)
 
 
-def _row_to_response(row: sa.Row) -> FindingResponse:
+def _row_to_response(row: sa.Row, sample_engine: sa.Engine | None = None) -> FindingResponse:
     """Convert a findings table row to a FindingResponse."""
     pmids: list[str] = []
     raw_pmids = row.pmid_citations
@@ -152,6 +153,12 @@ def _row_to_response(row: sa.Row) -> FindingResponse:
             detail = json.loads(raw_detail)
         except (json.JSONDecodeError, TypeError):
             pass
+    # A pre-gate ROH blob still carries the measured froh: 0.0 the narrative
+    # withholds; correct both from ONE evaluability read, since evaluating
+    # twice means two full autosomal scans for a legacy row (#2177).
+    corrected_text, detail = normalize_legacy_row(
+        row.module, row.category, row.finding_text, detail, sample_engine
+    )
 
     provenance: dict | None = None
     raw_provenance = row.provenance
@@ -172,7 +179,7 @@ def _row_to_response(row: sa.Row) -> FindingResponse:
         evidence_level=row.evidence_level,
         gene_symbol=row.gene_symbol,
         rsid=row.rsid,
-        finding_text=row.finding_text,
+        finding_text=corrected_text,
         phenotype=row.phenotype,
         conditions=row.conditions,
         zygosity=row.zygosity,
@@ -206,7 +213,11 @@ def _responses_are_patient_presentable(responses: list[FindingResponse]) -> bool
 
 
 @router.get("", response_model=list[FindingResponse])
-async def list_findings(
+# Declared sync, not async: these read a sample DB synchronously, and an ROH row
+# triggers a coverage scan measured at 0.6-1.6 s for a dense array. On an
+# `async def` path operation that runs ON the event loop and stalls every other
+# request; as plain `def`, FastAPI offloads it to a threadpool.
+def list_findings(
     sample_id: int = Query(..., description="Sample ID"),
     module: str | None = Query(None, description="Filter by module"),
     category: str | None = Query(None, description="Filter by category"),
@@ -264,7 +275,9 @@ async def list_findings(
     if limit is None:
         with engine.connect() as conn:
             rows = conn.execute(stmt).fetchall()
-        response = [_row_to_response(row) for row in rows if _is_patient_presentable_row(row)]
+        response = [
+            _row_to_response(row, engine) for row in rows if _is_patient_presentable_row(row)
+        ]
         return response if _responses_are_patient_presentable(response) else []
 
     # Apply limit/offset after the payload gate. A raw SQL window can contain
@@ -286,12 +299,12 @@ async def list_findings(
                 break
 
     page = visible_rows[offset:required_visible_rows]
-    response = [_row_to_response(row) for row in page]
+    response = [_row_to_response(row, engine) for row in page]
     return response if _responses_are_patient_presentable(response) else []
 
 
 @router.get("/summary", response_model=FindingsSummaryResponse)
-async def findings_summary(
+def findings_summary(
     sample_id: int = Query(..., description="Sample ID"),
 ) -> FindingsSummaryResponse:
     """Per-module finding summary with counts and top findings."""
@@ -349,7 +362,18 @@ async def findings_summary(
         per_module = evidence_counts_by_module.setdefault(module, {})
         per_module[level] = per_module.get(level, 0) + 1
         if r.module not in top_by_module:
-            top_by_module[r.module] = r.finding_text
+            # ReportBuilder renders this preview, so an uncorrected pre-gate ROH
+            # row would keep showing "typical result" on the module card while
+            # the list and dedicated endpoints report the estimate withheld.
+            detail_blob: dict | None = None
+            if r.detail_json:
+                try:
+                    detail_blob = json.loads(r.detail_json)
+                except (json.JSONDecodeError, TypeError):
+                    detail_blob = None
+            top_by_module[r.module] = normalize_legacy_finding_text(
+                r.module, r.category, r.finding_text, detail_blob, engine
+            )
 
     modules = []
     for module in sorted(
@@ -372,7 +396,7 @@ async def findings_summary(
         )
 
     # High-confidence: top 5 findings with >=3 stars
-    high_conf = [_row_to_response(r) for r in all_rows if (r.evidence_level or 0) >= 3][:5]
+    high_conf = [_row_to_response(r, engine) for r in all_rows if (r.evidence_level or 0) >= 3][:5]
 
     response = FindingsSummaryResponse(
         total_findings=sum(module_counts.values()),
@@ -396,7 +420,7 @@ async def findings_summary(
 
 
 @router.get("/{finding_id}/svg")
-async def get_finding_svg(
+def get_finding_svg(
     finding_id: int,
     sample_id: int = Query(..., description="Sample ID"),
 ) -> Response:
