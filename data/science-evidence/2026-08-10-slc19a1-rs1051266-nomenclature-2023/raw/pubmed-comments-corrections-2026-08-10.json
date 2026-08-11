@@ -1,0 +1,82 @@
+{
+  "_artifact_note": "Extract of a PubMed efetch XML response (accessed 2026-08-10), reduced to the fields that bear on the correction/retraction question: for each cited PMID, every CommentsCorrections link and its RefType, plus the publication types. Titles and abstracts are dropped under this packet's bibliographic-metadata-only retention rule. Complete with respect to records - all seven requested PMIDs are present.",
+  "_url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=33935279,16750224,24597986,19650776,33749319,16962770,41673870&retmode=xml",
+  "_why": "article_types alone cannot detect a correction or retraction published as a SEPARATE PubMed record: the original stays typed 'Journal Article' and only the linked notice carries the type. PubMed is the sole notice check for PMID:41673870, so relying on article_types there left a real hole in the completeness claim. This query closes it by reading the CommentsCorrections links directly.",
+  "_notice_reftypes_searched": [
+    "CorrectedandRepublishedIn",
+    "ErratumIn",
+    "ExpressionOfConcernIn",
+    "PartialRetractionIn",
+    "RepublishedIn",
+    "RetractionIn",
+    "UpdateIn"
+  ],
+  "records": [
+    {
+      "pmid": "33935279",
+      "comments_corrections_total": 0,
+      "notice_links": [],
+      "publication_types": [
+        "Journal Article",
+        "Meta-Analysis"
+      ]
+    },
+    {
+      "pmid": "16750224",
+      "comments_corrections_total": 0,
+      "notice_links": [],
+      "publication_types": [
+        "Journal Article"
+      ]
+    },
+    {
+      "pmid": "24597986",
+      "comments_corrections_total": 0,
+      "notice_links": [],
+      "publication_types": [
+        "Journal Article",
+        "Meta-Analysis",
+        "Research Support, Non-U.S. Gov't"
+      ]
+    },
+    {
+      "pmid": "19650776",
+      "comments_corrections_total": 0,
+      "notice_links": [],
+      "publication_types": [
+        "Journal Article",
+        "Research Support, N.I.H., Extramural",
+        "Research Support, Non-U.S. Gov't"
+      ]
+    },
+    {
+      "pmid": "33749319",
+      "comments_corrections_total": 0,
+      "notice_links": [],
+      "publication_types": [
+        "Journal Article",
+        "Meta-Analysis",
+        "Research Support, Non-U.S. Gov't"
+      ]
+    },
+    {
+      "pmid": "16962770",
+      "comments_corrections_total": 0,
+      "notice_links": [],
+      "publication_types": [
+        "Journal Article",
+        "Research Support, Non-U.S. Gov't"
+      ]
+    },
+    {
+      "pmid": "41673870",
+      "comments_corrections_total": 0,
+      "notice_links": [],
+      "publication_types": [
+        "Journal Article",
+        "Meta-Analysis"
+      ]
+    }
+  ],
+  "conclusion": "No cited paper carries any CommentsCorrections link at all, so none carries an erratum, retraction, correction, republication or expression-of-concern link. Together with the Scite editorialNotices check on six of them and the article_types check on all seven, the correction/retraction status is negative on every leg available."
+}

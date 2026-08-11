@@ -158,7 +158,10 @@ claim — not only the three the panel row carries. Six went through Scite by DO
 and none carries an editorial notice (retraction, correction, concern or
 erratum). The seventh, PMID:41673870, is **not indexed by Scite**, so PubMed is
 its only notice check; all seven were checked there and none carries a
-`Retracted Publication` or `Erratum` article type. That paper published
+`Retracted Publication` or `Erratum` article type. Article types alone cannot
+see a correction published as a *separate* PubMed record, so all seven were also
+checked for `CommentsCorrections` links (`ErratumIn`, `RetractionIn`,
+`ExpressionOfConcernIn` and siblings): **none carries a link of any kind**. That paper published
 2026-02-12, so the absence of a notice tells you little at this date — it is
 cited as one voice in a documented conflict and no conclusion turns on it. dbSNP
 separately reports rs1051266 as not merged (accessed 2026-08-10). The per-record
@@ -192,13 +195,14 @@ it as authoritative, which is exactly how #2023 described it.
 - `queries.json` — the exact requests and SQL, with URLs, dates and result mapping.
 - `raw/dbsnp-refsnp-1051266-full-2026-08-10.json` — source-native dbSNP response, as retrieved.
 - `raw/dbsnp-refsnp-1051266-nm194255-extract-2026-08-10.json` — derived extract of the `NM_194255.4` placements, retained alongside the source-native payload for readability.
-- `raw/ensembl-grch37-rs1051266-2026-08-10.json` — full Ensembl response.
-- `raw/uniprot-P41440-2026-08-10.json` — full UniProtKB response, including the canonical sequence.
-- `raw/uniprot-P41440-crossrefs-2026-08-10.json` — UniProt's RefSeq and EMBL cross-references, the evidence that it is not independent of RefSeq.
-- `raw/genbank-primary-cdna-submissions-2026-08-10.fasta` — the three original cDNA submissions, which carry Arg27.
+- `raw/ensembl-grch37-rs1051266-2026-08-10.json` — the Ensembl GRCh37 variation response as retrieved, unreduced.
+- `raw/uniprot-P41440-2026-08-10.json` — the complete response to a **field-selected** UniProtKB request (`accession,id,sequence,protein_name,gene_names,sequence_version`). Not a full entry: cross-references, features, comments and evidence tags were never requested, so nothing about them was checked.
+- `raw/uniprot-P41440-crossrefs-2026-08-10.json` — the complete response to a second field-selected request (`xref_refseq,xref_embl,cc_sequence_caution,protein_name`); the evidence that P41440 is not independent of RefSeq.
+- `raw/genbank-primary-cdna-submissions-2026-08-10.fasta` — the three versioned accessions `AAA98442.1`, `AAC50180.1` and `AAB35058.1`, whose retained sequences carry Arg27. Sequence only; nothing here establishes when or by whom they were submitted.
 - `raw/consensus-search-2026-08-10.json` — all 20 Consensus records, abstracts omitted (see below).
 - `raw/scite-and-pubmed-notices-2026-08-10.json` — all 6 Scite and all 7 PubMed records with their editorial-notice status, abstracts omitted.
-- `raw/evidence-ladder-2026-08-10.md` — the prose *reading* of those two artifacts. This is analysis, not a source payload.
+- `raw/pubmed-comments-corrections-2026-08-10.json` — all 7 records' `CommentsCorrections` links, the leg that can see a correction published as a *separate* record.
+- `raw/evidence-ladder-2026-08-10.md` — the prose *reading* of the discovery artifacts. This is analysis, not a source payload.
 - `raw/in-repo-vep-bundle-rs1051266-DISCREPANT-2026-08-10.json` — the contradicting in-repo artifact and the measurement that disqualifies it.
 
 **On the discovery artifacts.** Consensus, Scite and PubMed are reached over MCP,

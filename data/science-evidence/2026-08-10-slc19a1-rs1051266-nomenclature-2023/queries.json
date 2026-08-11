@@ -174,6 +174,19 @@
       "artifact_is_transcription": false,
       "result_used": "The three requested accessions - AAA98442.1, AAC50180.1, AAB35058.1 - are each 591 aa with residues 20-35 = PELRSWRRLVCYLCFY, i.e. residue 27 = R (Arg), the OTHER allele from the RefSeq/UniProt canonical His27.",
       "supports": "ONLY the sequence fact: that these three accessions carry Arg27. Nothing more. The retained artifact is FASTA - headers and sequence - so it carries no submission dates, submitters, publication links or inter-record relationships, and none were checked. It therefore does NOT establish that these are the earliest submissions, that they were produced independently of one another, or that early authors named the SNP from them. An earlier version of this field asserted all three; that went beyond the evidence and the causal story about the literature's naming remains an unproven inference relied on nowhere. Note also that these records contradict rather than corroborate the reference-residue claim - at MAF about 0.49 a clone carrying either allele is unremarkable, and which allele the assembly adopted is a separate matter."
+    },
+    {
+      "id": "pubmed-linked-notices",
+      "service": "NCBI E-utilities efetch (pubmed, XML)",
+      "method": "GET",
+      "url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=33935279,16750224,24597986,19650776,33749319,16962770,41673870&retmode=xml",
+      "accessed": "2026-08-10",
+      "artifact": "raw/pubmed-comments-corrections-2026-08-10.json",
+      "artifact_is_transcription": false,
+      "artifact_is_reduced": true,
+      "reduction_rule": "Reduced to the fields bearing on the notice question: per PMID, every CommentsCorrections link with its RefType, plus publication types. Titles and abstracts dropped under the bibliographic-metadata-only retention rule. Complete with respect to records: all seven.",
+      "result_used": "All seven cited PMIDs carry ZERO CommentsCorrections links of any kind, so none has an ErratumIn, RetractionIn, CorrectedandRepublishedIn, ExpressionOfConcernIn, RepublishedIn, UpdateIn or PartialRetractionIn record.",
+      "supports": "The completeness of the correction/retraction check. article_types alone cannot detect a correction or retraction published as a SEPARATE PubMed record - the original stays typed 'Journal Article' and only the linked notice carries the type. Since PubMed is the sole notice check for PMID:41673870, that was a real hole in the claim that all seven were checked; this leg closes it."
     }
   ],
   "source_versions_and_licenses": {
@@ -219,6 +232,6 @@
       "retention_basis": "Bibliographic metadata only, attributed to PubMed with DOI links. Used for two purposes: resolving durable identifiers for the Consensus results, and the article_types leg of the correction/retraction check, which is the only leg covering PMID:41673870."
     }
   },
-  "corrections_and_retractions_checked": "Yes, performed rather than argued, and covering every paper the packet cites in a claim. SIX were checked through Scite by DOI (accessed 2026-08-10) - PMID:33935279, PMID:16750224, PMID:24597986, PMID:19650776, PMID:33749319, PMID:16962770 - and none returned an editorialNotices entry. The SEVENTH, PMID:41673870 (DOI:10.1186/s12957-026-04222-9), was NOT checked through Scite: it is not in that index, so PubMed is the only leg covering it. All seven were checked through PubMed article_types and none carries Retracted Publication or Erratum. PMID:41673870 published 2026-02-12, so absence of a notice carries little information at this date; it is cited as one voice in a documented conflict and no conclusion turns on it. dbSNP separately reports rs1051266 as not merged. Per-record detail in raw/scite-and-pubmed-notices-2026-08-10.json.",
+  "corrections_and_retractions_checked": "Yes, performed rather than argued, on three legs and covering every paper the packet cites in a claim. (1) Scite editorialNotices by DOI for SIX of them (accessed 2026-08-10) - PMID:41673870 is not in that index. (2) PubMed article_types for all seven. (3) PubMed CommentsCorrections links for all seven, which is the only leg that can see a correction or retraction published as a SEPARATE record: article_types leaves the original typed 'Journal Article' in that case, and since PubMed is the sole check for PMID:41673870 that was a real hole until this leg was added. All three legs are negative: no editorialNotices entry, no Retracted Publication or Erratum type, and zero CommentsCorrections links of any kind. PMID:41673870 published 2026-02-12, so absence of a notice still carries little information at this date; it is cited as one voice in a documented conflict and no conclusion turns on it. dbSNP separately reports rs1051266 as not merged. Per-record detail in raw/scite-and-pubmed-notices-2026-08-10.json and raw/pubmed-comments-corrections-2026-08-10.json.",
   "privacy": "No sample, genotype, or other personal data was read, transmitted or stored. The external requests are single-identifier metadata lookups plus one literature search on a public SNP; the local queries are read-only against a reference artifact."
 }
