@@ -468,7 +468,7 @@
           "cross_module": {
             "module": "metabolic",
             "target_rsids": ["rs9939609"],
-            "note": "FTO rs9939609 influences appetite regulation and body-weight set point. See the Metabolic module, which carries this variant as its BMI/adiposity anchor."
+            "note": "FTO rs9939609 influences appetite regulation. See the Metabolic module, which carries this variant as its BMI/adiposity anchor."
           }
         },
         {

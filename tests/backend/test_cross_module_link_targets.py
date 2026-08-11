@@ -150,6 +150,38 @@ class TestFtoLinkTarget:
                     return
         pytest.fail("rs9939609 not found in the gene health panel")
 
+    def test_note_reuses_curated_wording_for_both_halves(self) -> None:
+        """The note may not introduce a claim neither side already carries.
+
+        Retargeting is a wording change on a science panel, so each half has to
+        trace to curated text: the biology to this panel's own effect summaries,
+        the destination framing to the Metabolic anchor's own summary. An
+        earlier revision said "body-weight set point", which appears in neither.
+        """
+        from backend.analysis.metabolic_prs import ANCHOR_SNPS
+
+        note = self._fto_cross_module()["note"]
+        panel = _panel(PANEL_DIR / "gene_health_panel.json")
+        summaries = " ".join(
+            effect["effect_summary"]
+            for pathway in panel["pathways"]
+            for snp in pathway["snps"]
+            if snp["rsid"] == "rs9939609"
+            for effect in snp["genotype_effects"].values()
+        ).lower()
+        assert "appetite regulation" in note.lower()
+        assert "appetite regulation" in summaries
+
+        anchor = next(
+            a for anchors in ANCHOR_SNPS.values() for a in anchors if a["rsid"] == "rs9939609"
+        )
+        assert "bmi/adiposity" in note.lower()
+        assert "bmi/adiposity" in anchor["summary"].lower()
+
+        assert "set point" not in note.lower(), (
+            "uncited claim reintroduced — every claim must trace to curated text"
+        )
+
     def test_dedup_note_no_longer_names_nutrigenomics_as_canonical(self) -> None:
         """The panel contradicted itself: canonical in a module that never scores it."""
         panel = _panel(PANEL_DIR / "gene_health_panel.json")
