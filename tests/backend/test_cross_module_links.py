@@ -9,10 +9,13 @@ prompt to re-analyse.
 
 from __future__ import annotations
 
+import pytest
+
 from backend.analysis.allergy import load_allergy_panel
 from backend.analysis.cross_module_links import (
     current_link,
     current_recommendation,
+    normalize_cross_module_row,
     panel_cross_module_links,
     refreshed_finding_text,
 )
@@ -165,3 +168,42 @@ class TestCurrentRecommendation:
 
     def test_missing_rsid_keeps_what_was_stored(self) -> None:
         assert current_recommendation("gene_health", None, "stored") == "stored"
+
+
+class TestRegisteredModuleWithNoLinks:
+    """Removing a panel's last link must retire its stored rows everywhere.
+
+    ``_links_for_module`` returns an empty mapping both for a module nobody
+    registered and for a registered module whose last declaration was deleted.
+    Conflating the two would let the module's own page drop a row while the
+    aggregator, reports and cards kept serving it.
+    """
+
+    STORED = (
+        "gene_health",
+        "cross_module",
+        "rs9939609",
+        "FTO intron 1 (AT) — old note",
+        {"target_module": "nutrigenomics", "cross_module_note": "old note"},
+    )
+
+    def test_unregistered_module_passes_through(self) -> None:
+        text, detail = normalize_cross_module_row(
+            "cancer", "cross_module", "rs80357906", "kept", {"target_module": "carrier"}
+        )
+        assert text == "kept"
+        assert detail == {"target_module": "carrier"}
+
+    def test_registered_module_with_no_links_retires_every_row(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import backend.analysis.cross_module_links as module_under_test
+
+        monkeypatch.setattr(module_under_test, "_links_for_module", lambda _module: {})
+        assert normalize_cross_module_row(*self.STORED) is None
+
+    def test_registered_module_with_links_still_resolves(self) -> None:
+        """Control: the same row resolves normally when the panel declares it."""
+        resolved = normalize_cross_module_row(*self.STORED)
+        assert resolved is not None
+        assert resolved[1]["target_module"] == "metabolic"

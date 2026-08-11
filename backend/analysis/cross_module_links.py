@@ -103,9 +103,12 @@ def normalize_cross_module_row(
     """
     if category != CROSS_MODULE_CATEGORY:
         return finding_text, detail
-    links = _links_for_module(module or "")
-    if not links:
+    # An unregistered module is not resolved here at all; a *registered* module
+    # whose last link was removed retires every stored row, so "no links" must
+    # not be read as "not our concern".
+    if (module or "") not in _PANEL_LOADERS:
         return finding_text, detail
+    links = _links_for_module(module or "")
 
     finding = {"rsid": rsid, "finding_text": finding_text, "detail": detail}
     link = current_link(links, finding)

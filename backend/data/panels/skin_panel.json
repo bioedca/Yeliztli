@@ -331,7 +331,7 @@
           "cross_module": {
             "module": "nutrigenomics",
             "target_rsids": ["rs2282679", "rs7041", "rs12794714", "rs10741657"],
-            "note": "VDR FokI is a receptor-side variant and is not itself scored in Nutrigenomics. See the Nutrigenomics vitamin D pathway, which scores GC and CYP2R1 variants affecting vitamin D synthesis, transport, and metabolism."
+            "note": "VDR FokI is a receptor-side variant and is not itself scored in Nutrigenomics. See the Nutrigenomics vitamin D pathway for this sample's vitamin D findings."
           }
         },
         {
@@ -365,7 +365,7 @@
           "cross_module": {
             "module": "nutrigenomics",
             "target_rsids": ["rs2282679", "rs7041", "rs12794714", "rs10741657"],
-            "note": "VDR BsmI is a receptor-side variant and is not itself scored in Nutrigenomics. See the Nutrigenomics vitamin D pathway, which scores GC and CYP2R1 variants affecting vitamin D synthesis, transport, and metabolism."
+            "note": "VDR BsmI is a receptor-side variant and is not itself scored in Nutrigenomics. See the Nutrigenomics vitamin D pathway for this sample's vitamin D findings."
           }
         }
       ]

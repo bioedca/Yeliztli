@@ -88,6 +88,20 @@ class TestNutrigenomicsLinkTargets:
                     f"not score (additional_genes is a reference list, not coverage)"
                 )
 
+    def test_no_note_claims_anything_about_the_target_genes(self) -> None:
+        """A note may point at the target; it may not describe its biology.
+
+        The cross-module finding carries the *source* SNP's PMIDs, so a claim
+        about the target's genes would be rendered beside citations that do not
+        support it — including in generated reports.
+        """
+        for source, rsid, cross in self._links():
+            note = cross["note"]
+            for gene in ("GC", "CYP2R1", "DBP"):
+                assert gene not in note.split(), (
+                    f"{source}/{rsid} describes {gene}, whose evidence this finding does not carry"
+                )
+
     def test_no_link_promises_a_subject_the_panel_never_mentions(self) -> None:
         """The celiac links promised gluten from a panel with no gluten in it."""
         panel_text = NUTRIGENOMICS_PANEL.read_text(encoding="utf-8").lower()
