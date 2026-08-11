@@ -1005,6 +1005,57 @@ describe("GRCh38 liftover toggle (P4-20)", () => {
     expect(liftoverCalls()).toHaveLength(1)
   })
 
+  it("requests the batch for the new sample when the sample changes with columns on", async () => {
+    // VariantExplorer renders <VariantTable sampleId={…}/> without a key, so a
+    // sample change re-renders the same mounted component with showGRCh38 still
+    // true. A trigger living in the click handler never fires here and sample
+    // B's columns stay blank — the exact defect #2029 reports, one sample over.
+    const page = makeVariantPage(2)
+    setupFetchMock(page, makeCountResponse(2))
+
+    const user = userEvent.setup()
+    const { rerender } = render(<VariantTable sampleId={1} />)
+
+    await waitFor(() => {
+      expect(screen.getByText("rs100")).toBeInTheDocument()
+    })
+    await user.click(screen.getByRole("button", { name: /show grch38 coordinates/i }))
+    await waitFor(() => expect(liftoverCalls()).toHaveLength(1))
+    expect(liftoverCalls()[0][0]).toBe("/api/liftover/1")
+
+    rerender(<VariantTable sampleId={2} />)
+
+    await waitFor(() => {
+      expect(liftoverCalls()).toHaveLength(2)
+    })
+    expect(liftoverCalls()[1][0]).toBe("/api/liftover/2")
+  })
+
+  it("does not re-request a sample already lifted this mount when returning to it", async () => {
+    // A → B → A. A set rather than a single latched id, so coming back to A
+    // does not spend another round trip on work already done.
+    const page = makeVariantPage(2)
+    setupFetchMock(page, makeCountResponse(2))
+
+    const user = userEvent.setup()
+    const { rerender } = render(<VariantTable sampleId={1} />)
+
+    await waitFor(() => {
+      expect(screen.getByText("rs100")).toBeInTheDocument()
+    })
+    await user.click(screen.getByRole("button", { name: /show grch38 coordinates/i }))
+    await waitFor(() => expect(liftoverCalls()).toHaveLength(1))
+
+    rerender(<VariantTable sampleId={2} />)
+    await waitFor(() => expect(liftoverCalls()).toHaveLength(2))
+
+    rerender(<VariantTable sampleId={1} />)
+    await waitFor(() => {
+      expect(screen.getByText("Chr (GRCh38)")).toBeInTheDocument()
+    })
+    expect(liftoverCalls()).toHaveLength(2)
+  })
+
   it("GRCh38 columns are hidden by default", async () => {
     const page = makeVariantPage(2)
     setupFetchMock(page, makeCountResponse(2))

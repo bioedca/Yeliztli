@@ -100,11 +100,10 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
   const [showUnannotated, setShowUnannotated] = useState(false)
   const [showConflictsOnly, setShowConflictsOnly] = useState(false)
   const [showGRCh38, setShowGRCh38] = useState(false)
-  const batchLiftover = useBatchLiftover()
-  // Holds the sample the batch has already been requested for (#2029). Keyed by
-  // id rather than a boolean so switching samples does not inherit the previous
-  // sample's latch and leave the new one's columns blank.
-  const liftoverRequestedForRef = useRef<number | null>(null)
+  const { mutate: runLiftover } = useBatchLiftover()
+  // Samples the batch has already been requested for during this mount (#2029).
+  // A set rather than a single id, so A → B → A does not re-request A.
+  const liftoverRequestedRef = useRef<Set<number>>(new Set())
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
     chrom_grch38: false,
     pos_grch38: false,
@@ -207,13 +206,37 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
     [allColumnIds, showGRCh38, isMergedSample],
   )
 
-  // GRCh38 liftover toggle (P4-20): show/hide GRCh38 columns independently of presets
+  // Compute the GRCh38 coordinates whenever the columns are on for a sample that
+  // has not been lifted yet during this mount (#2029).
   //
-  // Switching it on also computes the coordinates. The batch is the only thing
-  // that fills these columns and nothing used to call it, so the toggle
-  // revealed two permanently-blank columns (#2029). Triggering here rather than
-  // at annotation time also repairs samples that were annotated before this
-  // change — annotation-time only would leave every existing sample blank.
+  // The batch is the only thing that fills these columns and nothing used to
+  // call it, so the toggle revealed two permanently-blank columns. Keying this
+  // to (sampleId, showGRCh38) rather than putting it in the click handler
+  // matters: VariantExplorer renders <VariantTable sampleId={…}/> with no key,
+  // so switching samples while the columns are already shown re-renders the
+  // same mounted component — a click-handler trigger would never fire, and the
+  // new sample's columns would stay blank.
+  //
+  // Triggering here rather than at annotation time also repairs samples that
+  // were annotated before this change; annotation-time only would leave every
+  // existing sample blank forever.
+  useEffect(() => {
+    if (!showGRCh38 || sampleId == null) return
+    const requested = liftoverRequestedRef.current
+    if (requested.has(sampleId)) return
+    // The endpoint is idempotent, but a POST per toggle would rescan the whole
+    // table for NULLs each time.
+    requested.add(sampleId)
+    runLiftover(sampleId, {
+      // A failure must not leave the sample latched, or the user can never
+      // retry without a reload.
+      onError: () => {
+        requested.delete(sampleId)
+      },
+    })
+  }, [showGRCh38, sampleId, runLiftover])
+
+  // GRCh38 liftover toggle (P4-20): show/hide GRCh38 columns independently of presets
   const handleToggleGRCh38 = useCallback(() => {
     setShowGRCh38((prev) => {
       const next = !prev
@@ -222,23 +245,9 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
         chrom_grch38: next,
         pos_grch38: next,
       }))
-      if (next && sampleId != null && liftoverRequestedForRef.current !== sampleId) {
-        // Once per sample per mount. The endpoint is idempotent, but a POST on
-        // every toggle would rescan the whole table for NULLs each time.
-        liftoverRequestedForRef.current = sampleId
-        batchLiftover.mutate(sampleId, {
-          // A failure must not leave the sample latched, or the user can never
-          // retry without a reload.
-          onError: () => {
-            if (liftoverRequestedForRef.current === sampleId) {
-              liftoverRequestedForRef.current = null
-            }
-          },
-        })
-      }
       return next
     })
-  }, [sampleId, batchLiftover])
+  }, [])
 
   // Server-side filter string (set by quick-apply suggestions in P1-15e, P2-22
   // conflicts toggle, Step 71 merged-sample source/concordance chips).
