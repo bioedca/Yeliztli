@@ -61,12 +61,14 @@ def refreshed_finding_text(finding: dict[str, Any], link: dict) -> str:
 # Source module -> its panel loader, as "module.path:callable". Lazy so importing
 # this module does not pull in every analysis module, and cached because the
 # generic findings endpoint resolves one row at a time.
+# Only modules whose links are keyed per SNP belong here. Traits builds its
+# cross-module findings from the panel-level ``cross_module_links`` list instead,
+# keyed on ``to_module`` rather than on an rsid, so resolving its rows this way
+# would drop every one of them.
 _PANEL_LOADERS: dict[str, str] = {
     "allergy": "backend.analysis.allergy:load_allergy_panel",
     "gene_health": "backend.analysis.gene_health:load_gene_health_panel",
     "skin": "backend.analysis.skin:load_skin_panel",
-    "sleep": "backend.analysis.sleep:load_sleep_panel",
-    "traits": "backend.analysis.traits:load_traits_panel",
 }
 
 CROSS_MODULE_CATEGORY = "cross_module"
