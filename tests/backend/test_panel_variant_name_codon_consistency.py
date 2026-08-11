@@ -52,18 +52,30 @@ Deliberately *not* checked:
   through only if C→T reached Arg from a His codon, which it does not, but it
   would blunt the guard everywhere else.
 
-**The check has a real blind spot, and it is asserted rather than assumed.** For
-some amino-acid pairs *both* directions are reachable through different codon
-pairs — Arg→Ser is reachable by A→C (``AGA``→``AGC``) and by C→A
-(``CGT``→``AGT``) — so reversing such a shorthand would still satisfy the
-predicate. Measured over the standard code, **124 of the 324 reachable
-(from, to, ref, alt) combinations (38.3%) are direction-undecidable this way**,
-so this is a large gap rather than a corner case. Two tests below pin it: one
-asserts no *non-synonymous* panel row currently falls in it, and one records that
-*synonymous* rows are structurally undecidable (Tyr→Tyr is symmetric by
-construction, so CBS ``rs234706 C699T (Tyr233Tyr)`` cannot be direction-checked
-here at all). Deciding those needs the actual transcript codon, not the code
-table.
+**What this proves is weaker than "the shorthand is right", and the gap is
+measured rather than hand-waved.** The search runs over *every* codon encoding
+each residue, so it establishes only that the base change works for *some* codon
+— not for the locus's actual one. Where a residue pair is reachable several ways,
+several different ``ref``/``alt`` pairs all pass. SHMT1 ``rs1979277 C1420T
+(Leu474Phe)`` is the worst case in the panels: Leu→Phe is reachable by A→C, A→T,
+C→T, G→C and G→T, so four wrong spellings satisfy this check, and the
+decidability helper accepts each of them too. **5 of the 16 checkable loci accept
+more than one pair** (also MTRR ``A66G``/Ile→Met with three, twice, and the two
+synonymous rows).
+
+So read the guard as: *a shorthand that contradicts its own amino-acid change is
+rejected* — which is #2023 — and not as *a shorthand that passes is correct*.
+Closing the rest needs the transcript's actual codon at that residue, which is
+real reference work and is filed rather than faked here.
+
+The direction sub-case is pinned separately because it is the one #2023 turned
+on. For some pairs *both* directions are reachable — Arg→Ser by A→C
+(``AGA``→``AGC``) and by C→A (``CGT``→``AGT``) — so a reversed shorthand would
+pass. Measured over the standard code, **124 of the 324 reachable
+(from, to, ref, alt) combinations (38.3%)** are undecidable that way. Three tests
+below hold the line: no *non-synonymous* row may sit in the undecidable set, the
+*synonymous* rows that structurally must are listed, and the loci accepting more
+than one base pair are listed too, so none of this can quietly widen.
 
 This is a SELF-DISCOVERING guard (mirroring ``test_panel_risk_ref_invariant.py``
 and ``test_panel_effect_summary_consistency.py``): it walks every
@@ -163,6 +175,10 @@ _HGVS_PROTEIN = re.compile(r"^p\.([A-Z][a-z]{2})(\d+)([A-Z][a-z]{2})$")
 # parentheticals like ``(MnSOD)`` match neither, which is what we want.
 _PARENTHETICAL_PROTEIN = re.compile(r"\(([A-Z][a-z]{2})(\d+)([A-Z][a-z]{2})\)")
 _PARENTHETICAL_PROTEIN_ONE_LETTER = re.compile(r"\(([A-Z])(\d+)([A-Z])\)")
+# Most rows put the protein change in the label itself rather than a parenthetical
+# — ``Pro198Leu``, ``R151C``, ``GC Asp432Glu``, ``Val16Ala (MnSOD)``.
+_DIRECT_PROTEIN = re.compile(r"(?:^|\s)([A-Z][a-z]{2})(\d+)([A-Z][a-z]{2})(?:\s|$|\s*\()")
+_DIRECT_PROTEIN_ONE_LETTER = re.compile(r"^([A-Z])(\d+)([A-Z])$")
 
 
 def _walk_dicts(node: object):
@@ -196,11 +212,28 @@ def _one_letter(match: re.Match[str] | None) -> tuple[str, int, str] | None:
     return None
 
 
-def _parenthetical_protein(name: str) -> tuple[str, int, str] | None:
-    """The ``(His27Arg)`` or ``(M1T)`` substitution inside a display label."""
-    return _one_letter(_PARENTHETICAL_PROTEIN.search(name)) or _one_letter(
-        _PARENTHETICAL_PROTEIN_ONE_LETTER.search(name)
-    )
+def _label_protein_change(name: str) -> tuple[str, int, str] | None:
+    """The amino-acid substitution a display label states, wherever it states it.
+
+    Covers all four forms in production use: a three-letter parenthetical
+    ``(His27Arg)``, a one-letter parenthetical ``(M1T)``, a three-letter label
+    ``Pro198Leu`` (with or without surrounding text, as in ``GC Asp432Glu`` and
+    ``Val16Ala (MnSOD)``), and a bare one-letter label ``R151C``.
+
+    The bare one-letter form is the delicate one: ``C677T`` is a *nucleotide*
+    shorthand, not Cys677Thr, and A/C/G/T double as amino-acid codes. So it is
+    read as a protein label only when the label cannot also be read as a
+    nucleotide substitution — ``R151C`` can't (R is no base), ``C677T`` can, and
+    ``T300A`` is resolved separately by ``_is_protein_shorthand`` against the row's
+    own ``hgvs_protein``.
+    """
+    for pattern in (_PARENTHETICAL_PROTEIN, _PARENTHETICAL_PROTEIN_ONE_LETTER, _DIRECT_PROTEIN):
+        change = _one_letter(pattern.search(name))
+        if change is not None:
+            return change
+    if _nucleotide_substitution(name) is None:
+        return _one_letter(_DIRECT_PROTEIN_ONE_LETTER.match(name.strip()))
+    return None
 
 
 def _declared_protein_changes(node: dict) -> tuple[tuple[str, int, str] | None, ...]:
@@ -210,7 +243,7 @@ def _declared_protein_changes(node: dict) -> tuple[tuple[str, int, str] | None, 
     name = node.get("variant_name")
     return (
         _one_letter(_HGVS_PROTEIN.match(raw) if isinstance(raw, str) else None),
-        _parenthetical_protein(name) if isinstance(name, str) else None,
+        _label_protein_change(name) if isinstance(name, str) else None,
     )
 
 
@@ -524,6 +557,47 @@ def test_protein_shorthand_rows_are_listed_rather_than_silently_skipped() -> Non
         "the set of rows read as amino-acid labels rather than nucleotide "
         "shorthand changed; confirm each new one really is a protein label and "
         "update this lock deliberately: " + "; ".join(skipped)
+    )
+
+
+def test_loci_with_multiple_reachable_base_pairs_are_listed() -> None:
+    """Coverage honesty: where reachability has several answers, say which loci.
+
+    ``_substitution_reaches`` searches every codon for each residue, so for a
+    residue pair reachable more than one way it accepts more than one
+    ``ref``/``alt`` spelling — SHMT1 Leu→Phe accepts five. Those rows are checked
+    for *possibility*, not correctness, and deciding them needs the transcript's
+    real codon.
+
+    Pinning the set means a newly added locus in this state has to be looked at
+    rather than inheriting a check that cannot judge it.
+    """
+    weak = {}
+    for label, name, _panel, change in _discover_shorthand_loci():
+        substitution = _nucleotide_substitution(name)
+        assert substitution is not None  # guaranteed by discovery
+        ref, position, alt = substitution
+        if _is_protein_shorthand(ref, position, alt, change):
+            continue
+        from_aa, _protein_position, to_aa = change
+        pairs = [
+            (r, a)
+            for r in "ACGT"
+            for a in "ACGT"
+            if r != a and _substitution_reaches(r, a, from_aa, to_aa)
+        ]
+        if len(pairs) > 1:
+            weak[label] = len(pairs)
+    assert weak == {
+        "methylation_panel.json::rs1979277": 5,
+        "methylation_panel.json::rs1801394": 3,
+        "methylation_panel.json::rs234706": 2,
+        "nutrigenomics_panel.json::rs1801394": 3,
+        "sleep_panel.json::rs5751876": 2,
+    }, (
+        "the set of loci whose amino-acid change is reachable by more than one base "
+        "pair changed; those rows are checked for possibility rather than "
+        "correctness, so update this lock deliberately: " + repr(weak)
     )
 
 

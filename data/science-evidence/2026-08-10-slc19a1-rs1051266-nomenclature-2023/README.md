@@ -26,7 +26,12 @@ Residue 27 is codon c.79-81, so c.80 is codon position 2.
 
 A single-base change producing His→Arg at that codon is therefore A→G, written
 `c.80A>G` and shortened to `A80G`. `G80A` asserts G→A, which is the reverse
-substitution (Arg27His). The genetic code is settled and is not sourced here.
+substitution (Arg27His). The genetic code is settled, but it is **sourced rather
+than assumed**: NCBI translation table 1, `gc.prt` version 4.6, retained whole at
+`raw/ncbi-gc-prt-4.6-2026-08-10.prt` (accessed 2026-08-10) and parsed straight
+from those bytes by the guard this change adds. An earlier draft said the code
+was not sourced here, which stopped being true once review pointed out that a
+table carried from memory decides which panel labels the suite accepts.
 
 What *does* need a source is which residue the reference carries, since that
 fixes which of the two spellings is the HGVS-conformant one.
@@ -87,7 +92,11 @@ unchanged.
 
 **What makes the change safe is that it asserts no new fact.** `hgvs_protein:
 p.His27Arg` was already in the row before this work, agrees with the committed
-`tests/fixtures/seed_csvs/vep_seed.csv`, and matches every database consulted. All
+`tests/fixtures/seed_csvs/vep_seed.csv`, and matches every **authoritative
+external** record consulted — dbSNP, UniProt and Ensembl. It does *not* match
+everything consulted: the committed `bundles/vep_bundle.db` reports the opposite
+polarity, and the section below explains why that artifact is disqualified rather
+than merely outvoted. All
 this change does is conform the single outlier field — `variant_name` — to a claim
 the row already made. And the guard it adds enforces *internal consistency*, which
 is frame-independent: if the reference frame were ever shown wrong, the correct
@@ -215,6 +224,7 @@ it as authoritative, which is exactly how #2023 described it.
 - `raw/scite-and-pubmed-notices-2026-08-10.json` — all 6 Scite and all 7 PubMed records with their editorial-notice status, abstracts omitted.
 - `raw/pubmed-efetch-sanitized-2026-08-10.xml` — the source-native PubMed response for all 7 cited PMIDs, abstracts removed and nothing else touched. The **authority** for the linked-notice check, because a negative result needs a payload an auditor can inspect for omissions.
 - `raw/pubmed-comments-corrections-2026-08-10.json` — the reduction of that XML to the notice fields, for reading.
+- `raw/ncbi-gc-prt-4.6-2026-08-10.prt` — NCBI's genetic code file as retrieved, all 27 tables, the authority for the codon table the new guard parses. Byte-identical copy at `tests/fixtures/ncbi_gc.prt`, which is where the guard reads it.
 - `raw/evidence-ladder-2026-08-10.md` — the prose *reading* of the discovery artifacts. This is analysis, not a source payload.
 - `raw/in-repo-vep-bundle-rs1051266-DISCREPANT-2026-08-10.json` — the contradicting in-repo artifact and the measurement that disqualifies it.
 

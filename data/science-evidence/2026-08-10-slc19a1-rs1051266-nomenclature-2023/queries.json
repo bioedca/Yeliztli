@@ -146,12 +146,13 @@
       "method": "GET",
       "url": "https://ftp.ncbi.nlm.nih.gov/entrez/misc/data/gc.prt",
       "accessed": "2026-08-10",
-      "artifact": "../../../tests/fixtures/ncbi_gc.prt",
+      "artifact": "raw/ncbi-gc-prt-4.6-2026-08-10.prt",
       "artifact_is_transcription": false,
-      "artifact_transcription_note": "The retained artifact is NCBI's gc.prt as retrieved, 16444 bytes, and the SHA-256 above covers those complete bytes - not a digest over extracted strings. The guard parses translation table 1 straight out of this file. tests/fixtures/ncbi_genetic_code_table1.json beside it is a readable extract asserted field-by-field equal to that parse, and is not the authority; an earlier version of this entry pointed at the extract and described a digest over its five strings, which would have sent an auditor to the wrong artifact and the wrong checksum procedure.",
+      "artifact_transcription_note": "Retained INSIDE this packet so it stays self-contained when copied or audited as a unit; byte-identical copy also lives at tests/fixtures/ncbi_gc.prt because the guard reads it at import time. Both are NCBI's gc.prt as retrieved: 16444 bytes, all 27 translation tables (ids 1-33), SHA-256 2aecbdd09ecc5e0d233c105090a593737298ef93d88f6bc0c1bef26df6051a04. Nothing was stripped - retaining the file whole is what lets the digest cover the bytes as retrieved. The guard parses only the id 1 (Standard) entry; the other tables are unused, not removed.",
       "result_used": "Translation table 1 (Standard), 64 codons; stops TAA/TAG/TGA; starts TTG/CTG/ATG. The guard derives which base substitutions can produce which amino-acid changes from this.",
       "supports": "That the genetic code underpinning the new panel-label guard is sourced rather than encoded from memory. The digest is pinned because the code is redundant: corrupting one codon of a multi-codon amino acid changes no reachability result and would otherwise be invisible.",
-      "artifact_sha256": "2aecbdd09ecc5e0d233c105090a593737298ef93d88f6bc0c1bef26df6051a04"
+      "artifact_sha256": "2aecbdd09ecc5e0d233c105090a593737298ef93d88f6bc0c1bef26df6051a04",
+      "also_at": "tests/fixtures/ncbi_gc.prt"
     },
     {
       "id": "uniprot-crossrefs",
@@ -229,8 +230,8 @@
     },
     "PubMed (NCBI Entrez)": {
       "version_or_build": "No corpus version is exposed; the access date is the retrieval-version boundary (accessed 2026-08-10). Records are identified by PMID, and each retained record carries its own DOI where one exists.",
-      "license_or_terms": "US Government work produced by the National Library of Medicine; PubMed records are in the public domain in the United States. Publisher abstracts are NOT public domain and are not retained - only identifiers, titles, journal, dates, citation and article_types.",
-      "retention_basis": "Bibliographic metadata only, attributed to PubMed with DOI links. Used for two purposes: resolving durable identifiers for the Consensus results, and the article_types leg of the correction/retraction check, which is the only leg covering PMID:41673870."
+      "license_or_terms": "US Government work produced by the National Library of Medicine; PubMed records are in the public domain in the United States. Publisher ABSTRACTS are not, and are the one thing removed from the retained XML.",
+      "retention_basis": "The retained raw/pubmed-efetch-sanitized-2026-08-10.xml is the efetch response with only <Abstract> elements removed; EVERYTHING ELSE PubMed returned is present, which includes author names and affiliations, MeSH and chemical lists, conflict-of-interest statements, grant and reference lists, and publication types. An earlier version of this entry described a much narrower payload (identifiers, titles, journal, dates, citation, article types) and was wrong about what is committed. The full record is kept deliberately: the notice finding is NEGATIVE - zero CommentsCorrections links - and a reduced payload could not be inspected for the omission that would produce the same result. All of it is public-domain NLM metadata."
     }
   },
   "corrections_and_retractions_checked": "Yes, performed rather than argued, on three legs and covering every paper the packet cites in a claim. (1) Scite editorialNotices by DOI for SIX of them (accessed 2026-08-10) - PMID:41673870 is not in that index. (2) PubMed article_types for all seven. (3) PubMed CommentsCorrections links for all seven, which is the only leg that can see a correction or retraction published as a SEPARATE record: article_types leaves the original typed 'Journal Article' in that case, and since PubMed is the sole check for PMID:41673870 that was a real hole until this leg was added. All three legs are negative: no editorialNotices entry, no Retracted Publication or Erratum type, and zero CommentsCorrections links of any kind. PMID:41673870 published 2026-02-12, so absence of a notice still carries little information at this date; it is cited as one voice in a documented conflict and no conclusion turns on it. dbSNP separately reports rs1051266 as not merged. Per-record detail in raw/scite-and-pubmed-notices-2026-08-10.json and raw/pubmed-comments-corrections-2026-08-10.json.",
