@@ -18,19 +18,29 @@ here should be read as this repository endorsing or re-deriving CPIC's position.
   `raw/cpic-api-clopidogrel-2026-08-11.json`. CPIC releases its guidelines and API
   under **CC0 1.0**.
 
-**The two-source rule is engaged but cannot be met by two independent sources, and
-this packet says so rather than manufacturing one.** The claim is "what does CPIC
-recommend" — a lookup in a single authority. The obvious second candidate, the
-guideline publication (PMID:35034351, DOI:10.1002/cpt.2526, indexed by PubMed as a
-*Practice Guideline*), is **the same working group's same assertion**: it is the
-paper the API serves. It is used here as a **cross-check against API or
-transcription error**, not as corroboration — its abstract independently confirms
-the direction of travel, listing *"increased strength of recommendation for
-CYP2C19 intermediate metabolizers"* among the 2022 update's changes, which is
-exactly the upgrade the shipped text had not taken up.
+**On the two-source rule: it is the wrong gate for this claim, and an earlier
+draft of this packet mis-applied it.** That rule exists for facts whose truth is
+established by evidence and where independent replication is therefore possible —
+which allele raises risk, which direction an effect runs. This change asserts
+something different: *that a named guideline says a particular thing.* CPIC is the
+sole authority on CPIC's own recommendations, so the correct verification is not
+corroboration but **faithfulness to the source**, and that is what was done — the
+API payload is retained verbatim and the shipped rows transcribe it.
 
-There is no second body that independently issues CPIC's recommendations, and
-pretending otherwise would be the error this repository has made before.
+The guideline publication (PMID:35034351, DOI:10.1002/cpt.2526, indexed by PubMed
+as a *Practice Guideline*) is **the same working group's same assertion** — it is
+the paper the API serves — so it is used as a **cross-check against API or
+transcription error**, not as corroboration. Its abstract does confirm the
+direction of travel, listing *"increased strength of recommendation for CYP2C19
+intermediate metabolizers"* among the 2022 update's changes: exactly the upgrade
+the shipped text had not taken up.
+
+Writing that the rule "cannot be met" invited the reading that this change
+proceeds past a failed evidence gate. It does not. The gate that applies is
+faithful transcription, and withholding instead would not return to a neutral
+state — it would keep shipping a *different population's weaker wording* as
+universal guidance, which is itself an unsourced clinical claim and the one
+causing harm.
 
 ## What CPIC says
 
