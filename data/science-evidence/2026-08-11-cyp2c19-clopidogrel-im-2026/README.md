@@ -14,8 +14,12 @@ here should be read as this repository endorsing or re-deriving CPIC's position.
 ## Source, and why there is only one
 
 - **CPIC API** — `GET https://api.cpicpgx.org/v1/recommendation?drugid=eq.RxNorm:32968`
-  (accessed 2026-08-11). Full retained payload in
-  `raw/cpic-api-clopidogrel-2026-08-11.json`. CPIC releases its guidelines and API
+  (accessed 2026-08-11). The **unfiltered** response is retained at
+  `raw/cpic-api-clopidogrel-full-2026-08-11.json` — that file is the authority.
+  `raw/cpic-api-clopidogrel-2026-08-11.json` beside it is a normalized subset kept
+  only for readability; an earlier draft called that subset the full payload while
+  applying a reduction rule, which would have stopped an auditor confirming that no
+  applicable row was dropped. CPIC releases its guidelines and API
   under **CC0 1.0**.
 
 **On the two-source rule: it is the wrong gate for this claim, and an earlier

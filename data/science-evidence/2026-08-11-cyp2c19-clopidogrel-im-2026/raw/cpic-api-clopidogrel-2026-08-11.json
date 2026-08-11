@@ -1,5 +1,5 @@
 {
-  "_source": "CPIC API, https://api.cpicpgx.org/v1/recommendation?drugid=eq.RxNorm:32968",
+  "_source": "CPIC API, https://api.cpicpgx.org/v1/recommendation?drugid=eq.RxNorm:32968 (subset of the response retained in full alongside)",
   "_accessed": "2026-08-11",
   "_reduction_rule": "Retained every CYP2C19 recommendation row for clopidogrel across all populations and the Normal/Intermediate/Poor phenotype families - the rows the shipped CSV generalises. Dropped rows for phenotypes the app does not call. Complete with respect to the populations and phenotypes any claim here rests on.",
   "_license": "CPIC guidelines and the CPIC API are released under CC0 1.0 (public domain dedication).",
@@ -109,5 +109,6 @@
       "drugrecommendation": "Avoid clopidogrel if possible. Consider an alternative P2Y12 inhibitor at standard dose if clinically indicated and no contraindication.",
       "implications": "Significantly reduced clopidogrel active metabolite formation; increased on-treatment platelet reactivity; increased risk for adverse cardiac and cerebrovascular events"
     }
-  ]
+  ],
+  "_artifact_role": "NORMALIZED SUBSET, not the raw payload. The unfiltered API response is retained beside it as cpic-api-clopidogrel-full-2026-08-11.json and is the authority; this file exists only to make the rows the shipped CSV generalises readable at a glance. An earlier version of this packet described this file as the full payload while applying a reduction rule, which would have left an auditor unable to confirm that no applicable row was dropped."
 }

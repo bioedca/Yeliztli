@@ -328,49 +328,52 @@ def _refresh_legacy_cyp2c9_phenytoin_guidelines(engine: sa.Engine) -> bool:
 _CYP2C19_CLOPIDOGREL_GUIDELINE_URL = (
     "https://cpicpgx.org/guidelines/guideline-for-clopidogrel-and-cyp2c19/"
 )
-# The exact pair of rows released before #2026. The Intermediate row carried
-# CPIC's *neurovascular* wording ("Consider…", Moderate) as universal guidance
-# while CPIC rates the ACS/PCI case Strong "avoid"; the Poor row was directive
-# but named no agent. Fingerprinting both together means a database that has
-# already been corrected, customised, or moved ahead is left alone.
-_LEGACY_CYP2C19_CLOPIDOGREL_FINGERPRINT = Counter(
-    {
-        (
-            "Intermediate Metabolizer",
-            None,
-            "Consider alternative antiplatelet therapy.",
-            "A",
-            _CYP2C19_CLOPIDOGREL_GUIDELINE_URL,
-        ): 1,
-        (
-            "Poor Metabolizer",
-            None,
-            "Use alternative antiplatelet therapy.",
-            "A",
-            _CYP2C19_CLOPIDOGREL_GUIDELINE_URL,
-        ): 1,
-    }
+_CYP2C19_CLOPIDOGREL_REDUCED_FUNCTION_PHENOTYPES = frozenset(
+    {"Intermediate Metabolizer", "Poor Metabolizer"}
 )
+# The exact rows released before #2026, fingerprinted per phenotype. The
+# Intermediate row carried CPIC's *neurovascular* wording ("Consider…", Moderate)
+# as universal guidance while CPIC rates the ACS/PCI case Strong "avoid"; the Poor
+# row was directive but named no agent.
+_LEGACY_CYP2C19_CLOPIDOGREL_FINGERPRINTS = {
+    "Intermediate Metabolizer": (
+        None,
+        "Consider alternative antiplatelet therapy.",
+        "A",
+        _CYP2C19_CLOPIDOGREL_GUIDELINE_URL,
+    ),
+    "Poor Metabolizer": (
+        None,
+        "Use alternative antiplatelet therapy.",
+        "A",
+        _CYP2C19_CLOPIDOGREL_GUIDELINE_URL,
+    ),
+}
 
 
 def _refresh_legacy_cyp2c19_clopidogrel_guidelines(engine: sa.Engine) -> bool:
-    """Replace only the exact pre-#2026 CYP2C19/clopidogrel reduced-function pair.
+    """Upgrade each exact pre-#2026 CYP2C19/clopidogrel reduced-function row.
 
     Bundled CSV changes do not reload an existing reference database, so without
     this an upgraded install keeps serving the under-warning indefinitely and only
     a fresh database gets the correction — the fix would reach nobody who already
     had the app.
 
-    Fingerprinted on the two reduced-function rows only. The Normal/Rapid/
-    Ultrarapid rows were already correct and are not touched, and a database whose
-    reduced-function rows are canonical, custom, duplicated, missing or ahead of
-    this release is left untouched.
+    **Each phenotype is fingerprinted independently**, mirroring the CYP2B6
+    repair. A pair-wide comparison would mean a customised, missing or duplicated
+    Poor row blocks repair of an Intermediate row that still carries the exact
+    released under-warning — leaving the more harmful of the two stale because its
+    companion was edited. A phenotype with duplicate, mixed, current, future or
+    custom content is untouched, and existing row IDs are retained.
+
+    Normal/Rapid/Ultrarapid rows were already correct and are never targeted.
     """
     inspector = sa.inspect(engine)
     if "cpic_guidelines" not in inspector.get_table_names():
         return False
     columns = {column["name"] for column in inspector.get_columns("cpic_guidelines")}
     required = {
+        "id",
         "gene",
         "drug",
         "phenotype",
@@ -384,22 +387,22 @@ def _refresh_legacy_cyp2c19_clopidogrel_guidelines(engine: sa.Engine) -> bool:
 
     from backend.db.tables import cpic_guidelines
 
-    reduced_function = ("Intermediate Metabolizer", "Poor Metabolizer")
     target = sa.and_(
         cpic_guidelines.c.gene == "CYP2C19",
         sa.func.lower(cpic_guidelines.c.drug) == "clopidogrel",
-        cpic_guidelines.c.phenotype.in_(reduced_function),
+        cpic_guidelines.c.phenotype.in_(_CYP2C19_CLOPIDOGREL_REDUCED_FUNCTION_PHENOTYPES),
     )
 
-    # Same reserved-lock discipline as the CYP2C9 repair: sqlite3's legacy
+    # Same reserved-lock discipline as the sibling repairs: sqlite3's legacy
     # transaction mode does not begin a DB transaction for SELECT, so take the
     # write lock before fingerprinting or a concurrent custom update could land
-    # between the SELECT and the DELETE.
+    # between the SELECT and the write.
     with engine.connect() as conn:
         conn.exec_driver_sql("BEGIN IMMEDIATE")
         try:
             rows = conn.execute(
                 sa.select(
+                    cpic_guidelines.c.id,
                     cpic_guidelines.c.phenotype,
                     cpic_guidelines.c.activity_score,
                     cpic_guidelines.c.recommendation,
@@ -407,17 +410,23 @@ def _refresh_legacy_cyp2c19_clopidogrel_guidelines(engine: sa.Engine) -> bool:
                     cpic_guidelines.c.guideline_url,
                 ).where(target)
             ).fetchall()
-            observed = Counter(
-                (
-                    row.phenotype,
-                    row.activity_score,
-                    row.recommendation,
-                    row.classification,
-                    row.guideline_url,
+            rows_by_phenotype = {
+                phenotype: [row for row in rows if row.phenotype == phenotype]
+                for phenotype in _CYP2C19_CLOPIDOGREL_REDUCED_FUNCTION_PHENOTYPES
+            }
+            legacy_rows = [
+                phenotype_rows[0]
+                for phenotype, phenotype_rows in rows_by_phenotype.items()
+                if len(phenotype_rows) == 1
+                and (
+                    phenotype_rows[0].activity_score,
+                    phenotype_rows[0].recommendation,
+                    phenotype_rows[0].classification,
+                    phenotype_rows[0].guideline_url,
                 )
-                for row in rows
-            )
-            if observed != _LEGACY_CYP2C19_CLOPIDOGREL_FINGERPRINT:
+                == _LEGACY_CYP2C19_CLOPIDOGREL_FINGERPRINTS[phenotype]
+            ]
+            if not legacy_rows:
                 conn.rollback()
                 return False
 
@@ -429,26 +438,34 @@ def _refresh_legacy_cyp2c19_clopidogrel_guidelines(engine: sa.Engine) -> bool:
                 for row in bundled_rows
                 if row["gene"] == "CYP2C19"
                 and row["drug"].lower() == "clopidogrel"
-                and row["phenotype"] in reduced_function
+                and row["phenotype"] in _CYP2C19_CLOPIDOGREL_REDUCED_FUNCTION_PHENOTYPES
             ]
-            canonical_phenotypes = {row["phenotype"] for row in canonical_rows}
-            if len(canonical_rows) != 2 or canonical_phenotypes != set(reduced_function):
-                raise RuntimeError(
-                    "Bundled CYP2C19/clopidogrel reduced-function rows are not canonical"
-                )
-            # Refuse to install a replacement that repeats the defect: both rows
-            # must be directive and name the agents CPIC names.
-            for row in canonical_rows:
-                recommendation = row["recommendation"].lower()
-                if not all(
-                    token in recommendation for token in ("avoid", "prasugrel", "ticagrelor")
-                ):
-                    raise RuntimeError(
-                        "Bundled CYP2C19/clopidogrel replacement is not the corrected guidance"
+            canonical_by_phenotype = {row["phenotype"]: row for row in canonical_rows}
+            if (
+                len(canonical_rows) != 2
+                or set(canonical_by_phenotype) != _CYP2C19_CLOPIDOGREL_REDUCED_FUNCTION_PHENOTYPES
+                or any(
+                    row["classification"] != "A"
+                    or row["guideline_url"] != _CYP2C19_CLOPIDOGREL_GUIDELINE_URL
+                    # Refuse to install a replacement that repeats the defect: both
+                    # rows must be directive and name the agents CPIC names.
+                    or not all(
+                        token in row["recommendation"].lower()
+                        for token in ("avoid", "prasugrel", "ticagrelor")
                     )
+                    for row in canonical_rows
+                )
+            ):
+                raise RuntimeError(
+                    "Bundled CYP2C19/clopidogrel reduced-function guidelines are not canonical"
+                )
 
-            conn.execute(sa.delete(cpic_guidelines).where(target))
-            conn.execute(cpic_guidelines.insert(), canonical_rows)
+            for legacy_row in sorted(legacy_rows, key=lambda row: row.phenotype):
+                conn.execute(
+                    sa.update(cpic_guidelines)
+                    .where(cpic_guidelines.c.id == legacy_row.id)
+                    .values(canonical_by_phenotype[legacy_row.phenotype])
+                )
             conn.commit()
         except BaseException:
             conn.rollback()
@@ -456,8 +473,7 @@ def _refresh_legacy_cyp2c19_clopidogrel_guidelines(engine: sa.Engine) -> bool:
 
     logger.warning(
         "legacy_cyp2c19_clopidogrel_guidelines_refreshed",
-        removed_rows=len(rows),
-        inserted_rows=len(canonical_rows),
+        updated_rows=len(legacy_rows),
     )
     return True
 
