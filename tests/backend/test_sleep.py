@@ -275,11 +275,17 @@ class TestCYP1A2Metabolizer:
         assert result.category == ELEVATED
         assert result.metabolizer_state == "Slow metabolizer"
 
-    def test_cyp1a2_has_cross_module(self, panel: SleepPanel) -> None:
-        """CYP1A2 must have cross-module reference to pharmacogenomics."""
+    def test_cyp1a2_has_no_cross_module(self, panel: SleepPanel) -> None:
+        """CYP1A2 must NOT cross-link to Pharmacogenomics (#2024).
+
+        That module covers no CYP1A2 and cpic_guidelines has no clozapine or
+        theophylline row, so the card promised a "full drug interaction profile
+        and star-allele interpretation" that does not exist. The caffeine
+        interpretation this module is actually for is unaffected.
+        """
         cyp = self._get_cyp1a2(panel)
-        assert cyp.cross_module is not None
-        assert cyp.cross_module["module"] == "pharmacogenomics"
+        assert cyp.cross_module is None
+        assert "caffeine half-life" in cyp.recommendation_text
 
     def test_cyp1a2_unmodeled_acgt_genotype_has_no_metabolizer_state(
         self, panel: SleepPanel

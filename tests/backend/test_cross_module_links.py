@@ -20,6 +20,7 @@ from backend.analysis.cross_module_links import (
     refreshed_finding_text,
 )
 from backend.analysis.gene_health import load_gene_health_panel
+from backend.analysis.sleep import load_sleep_panel
 
 LEGACY_FTO_NOTE = (
     "FTO rs9939609 influences appetite regulation and macronutrient metabolism. "
@@ -207,3 +208,38 @@ class TestRegisteredModuleWithNoLinks:
         resolved = normalize_cross_module_row(*self.STORED)
         assert resolved is not None
         assert resolved[1]["target_module"] == "metabolic"
+
+
+class TestLegacySleepCyp1a2Card:
+    """Sleep's only cross-link was retired, so its panel now declares none.
+
+    That makes it the live case for the registered-but-empty rule: an
+    unregistered module is passed through untouched, so registering Sleep is
+    exactly what retires the CYP1A2 rows already stored for existing samples
+    (#2024).
+    """
+
+    STORED = (
+        "sleep",
+        "cross_module",
+        "rs762551",
+        "CYP1A2 -163C>A (AC) — CYP1A2 is also a pharmacogene relevant to drug metabolism.",
+        {
+            "target_module": "pharmacogenomics",
+            "cross_module_note": "CYP1A2 is also a pharmacogene relevant to drug metabolism.",
+        },
+    )
+
+    def test_sleep_declares_no_cross_module_links(self) -> None:
+        assert panel_cross_module_links(load_sleep_panel()) == {}
+
+    def test_a_stored_cyp1a2_card_is_retired(self) -> None:
+        assert normalize_cross_module_row(*self.STORED) is None
+
+    def test_a_non_cross_module_sleep_row_is_untouched(self) -> None:
+        """Discriminates retirement from a blanket filter on the module."""
+        text, detail = normalize_cross_module_row(
+            "sleep", "snp_finding", "rs762551", "kept", {"recommendation": "kept too"}
+        )
+        assert text == "kept"
+        assert detail == {"recommendation": "kept too"}

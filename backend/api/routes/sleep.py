@@ -20,10 +20,16 @@ import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
+from backend.analysis.cross_module_links import (
+    current_link,
+    panel_cross_module_links,
+    refreshed_finding_text,
+)
 from backend.analysis.pharmacogenomics import (
     is_patient_presentable_finding_payload,
     is_patient_presentable_response_payload,
 )
+from backend.analysis.sleep import load_sleep_panel
 from backend.api.dependencies import require_fresh_sample
 from backend.db.connection import get_registry
 from backend.db.tables import findings, samples
@@ -230,16 +236,23 @@ def list_pathways(
 
     # Cross-module findings (CYP1A2 → PGx)
     cross_module_findings = [f for f in all_findings if f["category"] == "cross_module"]
+    # Resolve against the panel that is loaded, and drop a link it has since
+    # retired — the CYP1A2 -> Pharmacogenomics handoff — so a sample analysed
+    # before #2024 stops being sent there without a re-score (#2021 pattern).
+    links = panel_cross_module_links(load_sleep_panel())
     cross_items: list[CrossModuleItem] = []
     for cf in cross_module_findings:
         detail = cf["detail"]
+        link = current_link(links, cf)
+        if link is None:
+            continue
         cross_items.append(
             CrossModuleItem(
                 rsid=cf["rsid"] or "",
                 gene=cf["gene_symbol"] or "",
                 source_module=detail.get("source_module", "sleep"),
-                target_module=detail.get("target_module", ""),
-                finding_text=cf["finding_text"] or "",
+                target_module=link["module"],
+                finding_text=refreshed_finding_text(cf, link),
                 evidence_level=cf["evidence_level"] if cf["evidence_level"] is not None else 1,
                 pmids=cf["pmids"],
             )

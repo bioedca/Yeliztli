@@ -39,7 +39,8 @@
           "recommendation_text": "MC1R R151C is a well-established 'R' (strong loss-of-function) allele. Carriers should practice rigorous sun protection including SPF 30+ sunscreen, protective clothing, and avoidance of peak UV hours. Discuss melanoma screening with a dermatologist.",
           "cross_module": {
             "module": "cancer",
-            "note": "MC1R R151C is associated with melanoma predisposition. See Cancer module for melanoma risk assessment."
+            "target_genes": ["CDKN2A", "BAP1"],
+            "note": "MC1R R151C is associated with melanoma predisposition. The Cancer module assesses inherited melanoma risk through CDKN2A and BAP1; MC1R is not among the genes it evaluates. See Cancer module for melanoma risk assessment."
           }
         },
         {
@@ -73,7 +74,8 @@
           "recommendation_text": "MC1R R160W is a strong loss-of-function ('R') allele. Sun protection is essential for carriers. Discuss skin cancer screening with a healthcare provider.",
           "cross_module": {
             "module": "cancer",
-            "note": "MC1R R160W contributes to melanoma predisposition."
+            "target_genes": ["CDKN2A", "BAP1"],
+            "note": "MC1R R160W contributes to melanoma predisposition. The Cancer module assesses inherited melanoma risk through CDKN2A and BAP1; MC1R is not among the genes it evaluates."
           }
         },
         {
@@ -107,7 +109,8 @@
           "recommendation_text": "MC1R D294H is classified as a strong 'R' allele. Carriers have elevated melanoma risk and should follow dermatologist-recommended screening schedules.",
           "cross_module": {
             "module": "cancer",
-            "note": "MC1R D294H is associated with melanoma predisposition."
+            "target_genes": ["CDKN2A", "BAP1"],
+            "note": "MC1R D294H is associated with melanoma predisposition. The Cancer module assesses inherited melanoma risk through CDKN2A and BAP1; MC1R is not among the genes it evaluates."
           }
         },
         {
@@ -179,7 +182,8 @@
           "recommendation_text": "FLG loss-of-function variants are the strongest genetic risk factor for atopic dermatitis. Carriers benefit from regular emollient use to maintain skin barrier. Note: this result reflects only the assayed R501X site and may not capture all FLG mutations. Discuss comprehensive testing with a dermatologist if clinically relevant.",
           "cross_module": {
             "module": "allergy",
-            "note": "FLG barrier defects increase allergen penetration and are linked to the atopic march (eczema → rhinitis → asthma)."
+            "target_rsids": ["rs20541", "rs8076131", "rs324011"],
+            "note": "FLG barrier defects increase allergen penetration and are linked to the atopic march (eczema → rhinitis → asthma). See the Allergy module's atopic conditions, which cover IL13, ORMDL3 and STAT6 rather than FLG itself."
           }
         }
       ]

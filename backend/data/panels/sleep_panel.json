@@ -34,13 +34,9 @@
             }
           },
           "coverage_note": "The Sleep panel uses rs762551 only as a caffeine-metabolism marker; it is not a full CYP1A2 star-allele caller and does not report CYP1A2 diplotypes. PharmVar now assigns the former CYP1A2*1F-defining -163C>A core variant to the CYP1A2*30 allele group, and rs762551 can occur on multiple CYP1A2 haplotypes.",
-          "cross_module": {
-            "module": "pharmacogenomics",
-            "note": "CYP1A2 is also a pharmacogene relevant to drug metabolism (e.g., clozapine, theophylline). See Pharmacogenomics module for full drug interaction profile and star-allele interpretation."
-          },
           "evidence_level": 2,
           "pmids": ["16522833", "26378246", "37029915", "29282363", "41992662"],
-          "recommendation_text": "CYP1A2 determines caffeine half-life. Slow metabolizers may benefit from limiting caffeine intake to morning hours (before noon) to minimize sleep disruption. This variant also has pharmacogenomic relevance — see the Pharmacogenomics module."
+          "recommendation_text": "CYP1A2 determines caffeine half-life. Slow metabolizers may benefit from limiting caffeine intake to morning hours (before noon) to minimize sleep disruption. CYP1A2 also metabolises several medicines, but this app's Pharmacogenomics module does not call CYP1A2, so it offers no drug guidance for this variant."
         },
         {
           "rsid": "rs5751876",
