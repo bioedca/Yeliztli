@@ -1326,3 +1326,143 @@ class TestReportAPI:
             json={"sample_id": 1, "modules": []},
         )
         assert resp.status_code == 422
+
+
+# ── Legacy cross-module links in reports (#2021) ──────────────────────────
+
+
+class TestLegacyCrossModuleLinksInReports:
+    """A report is a durable export, so a dead link there outlives every screen.
+
+    `_load_findings` renders persisted rows directly, so without read-time
+    resolution a PDF generated for an existing sample would keep the retired
+    celiac card and keep pointing FTO at Nutrigenomics — after the list and
+    summary APIs had already stopped doing both.
+    """
+
+    def _insert_cross_module(
+        self,
+        sample_engine: sa.Engine,
+        *,
+        module: str,
+        rsid: str,
+        gene: str,
+        note: str,
+        text: str,
+    ) -> None:
+        with sample_engine.begin() as conn:
+            conn.execute(
+                findings.insert().values(
+                    module=module,
+                    category="cross_module",
+                    evidence_level=3,
+                    gene_symbol=gene,
+                    rsid=rsid,
+                    finding_text=text,
+                    detail_json=json.dumps(
+                        {
+                            "source_module": module,
+                            "target_module": "nutrigenomics",
+                            "cross_module_note": note,
+                        }
+                    ),
+                )
+            )
+
+    def test_retargeted_fto_link_is_corrected_for_reports(
+        self, sample_with_findings: tuple
+    ) -> None:
+        _, sample_engine, _ = sample_with_findings
+        note = (
+            "FTO rs9939609 influences appetite regulation and macronutrient "
+            "metabolism. See Nutrigenomics for dietary recommendations."
+        )
+        self._insert_cross_module(
+            sample_engine,
+            module="gene_health",
+            rsid="rs9939609",
+            gene="FTO",
+            note=note,
+            text=f"FTO FTO intron 1 (AT) — {note}",
+        )
+
+        rows = [r for r in _load_findings(sample_engine, modules=["gene_health"])]
+        cross = [r for r in rows if r["category"] == "cross_module"]
+        assert len(cross) == 1
+        assert "See Nutrigenomics for dietary recommendations" not in cross[0]["finding_text"]
+        assert "Metabolic module" in cross[0]["finding_text"]
+
+    def test_retired_celiac_link_is_absent_from_reports(self, sample_with_findings: tuple) -> None:
+        _, sample_engine, _ = sample_with_findings
+        note = (
+            "Celiac-related HLA-DQ2 finding may affect dietary considerations. "
+            "See Nutrigenomics for gluten-related nutrient interactions."
+        )
+        self._insert_cross_module(
+            sample_engine,
+            module="allergy",
+            rsid="rs2187668",
+            gene="HLA-DQA1",
+            note=note,
+            text=f"HLA-DQ2.5 proxy (CT) — {note}",
+        )
+
+        rows = _load_findings(sample_engine, modules=["allergy"])
+        assert [r for r in rows if r["category"] == "cross_module"] == []
+
+    def test_unrelated_findings_still_reach_reports(self, sample_with_findings: tuple) -> None:
+        """Control: normalization must not thin the report generally."""
+        _, sample_engine, _ = sample_with_findings
+        assert len(_load_findings(sample_engine, modules=None)) == 10
+
+
+class TestRetiredRowsDoNotConsumeTheReportLimit:
+    """A row that will never render must not push a report over the cap.
+
+    ``_load_findings`` bounds its selection with a COUNT *before* it sorts, so
+    filtering retired cross-module rows in Python after the load would let one
+    raise ReportTooLargeError for a report that would have fitted (#2021).
+    """
+
+    def _insert_retired_celiac(self, sample_engine: sa.Engine) -> None:
+        note = (
+            "Celiac-related HLA-DQ2 finding may affect dietary considerations. "
+            "See Nutrigenomics for gluten-related nutrient interactions."
+        )
+        with sample_engine.begin() as conn:
+            conn.execute(
+                findings.insert().values(
+                    module="allergy",
+                    category="cross_module",
+                    evidence_level=3,
+                    gene_symbol="HLA-DQA1",
+                    rsid="rs2187668",
+                    finding_text=f"HLA-DQ2.5 proxy (CT) — {note}",
+                    detail_json=json.dumps(
+                        {"target_module": "nutrigenomics", "cross_module_note": note}
+                    ),
+                )
+            )
+
+    def test_a_full_report_plus_a_retired_row_still_generates(
+        self, sample_with_findings: tuple
+    ) -> None:
+        """Exactly at the cap, plus one row that is never rendered."""
+        _, sample_engine, _ = sample_with_findings
+        _insert_report_findings(sample_engine, MAX_REPORT_FINDINGS)
+        self._insert_retired_celiac(sample_engine)
+
+        results = _load_findings(sample_engine, modules=["rare_variants", "allergy"])
+
+        assert len(results) == MAX_REPORT_FINDINGS
+        assert all(r["category"] != "cross_module" for r in results)
+
+    def test_a_genuinely_oversized_selection_is_still_rejected(
+        self, sample_with_findings: tuple
+    ) -> None:
+        """Control: excluding retired rows must not disable the cap."""
+        _, sample_engine, _ = sample_with_findings
+        _insert_report_findings(sample_engine, MAX_REPORT_FINDINGS + 1)
+
+        with pytest.raises(ReportTooLargeError):
+            _load_findings(sample_engine, modules=["rare_variants"])

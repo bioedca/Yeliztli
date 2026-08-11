@@ -318,7 +318,7 @@ class TestPanelLoading:
         assert len(hla_snps) == 6  # 4 drug + 2 celiac
 
     def test_cross_module_links_present(self, panel: AllergyPanel) -> None:
-        """Cross-links: abacavir→PGx, IL13→skin, celiac→nutrigenomics."""
+        """Cross-links: abacavir→PGx, IL13→skin. Celiac links dropped in #2021."""
         cross_modules: dict[str, str] = {}
         for pathway in panel.pathways:
             for snp in pathway.snps:
@@ -327,7 +327,10 @@ class TestPanelLoading:
 
         assert cross_modules.get("rs2395029") == "pharmacogenomics"  # abacavir
         assert cross_modules.get("rs20541") == "skin"  # IL13 R130Q
-        assert cross_modules.get("rs2187668") == "nutrigenomics"  # celiac DQ2
+        # The celiac proxies no longer cross-link: Nutrigenomics has no gluten or
+        # celiac content, and Allergy renders the DQ2/DQ8 assessment inline (#2021).
+        assert "rs2187668" not in cross_modules
+        assert "rs7454108" not in cross_modules
 
     def test_histamine_snps_are_star_1(self, panel: AllergyPanel) -> None:
         """Histamine metabolism SNPs are ★☆ evidence (candidate gene level)."""
@@ -1316,23 +1319,28 @@ class TestCrossModuleFindings:
         assert len(skin_links) == 1
         assert "IL13" in skin_links[0].finding_text
 
-    def test_celiac_nutrigenomics_cross_link(
+    def test_celiac_has_no_nutrigenomics_cross_link(
         self,
         panel: AllergyPanel,
         sample_engine: sa.Engine,
         reference_engine: sa.Engine,
     ) -> None:
-        """Celiac DQ2 carrier → Nutrigenomics cross-link."""
+        """Celiac DQ2 carrier gets NO Nutrigenomics cross-link (#2021).
+
+        The card promised "gluten-related nutrient interactions" from a panel
+        with zero occurrences of "gluten". The carrier keeps the module's own
+        celiac content — the combined DQ2/DQ8 assessment — and loses only the
+        link that led nowhere.
+        """
         _seed_variants(
             sample_engine,
             [("rs2187668", "6", 32605884, "CT")],
         )
         _seed_hla_proxies(reference_engine)
         result = score_allergy_pathways(panel, sample_engine, reference_engine)
-        nutri_links = [
-            f for f in result.cross_module_findings if f.target_module == "nutrigenomics"
-        ]
-        assert len(nutri_links) >= 1
+        assert not [f for f in result.cross_module_findings if f.target_module == "nutrigenomics"]
+        assert result.celiac_combined is not None
+        assert result.celiac_combined.state == "dq2_only"
 
     def test_standard_genotype_no_cross_link(
         self,

@@ -886,19 +886,34 @@ class TestAtopicCrossModule:
 # ── Celiac nutrigenomics cross-links ────────────────────────────────────
 
 
-class TestCeliacNutrigenomicsCrossLink:
-    """Celiac DQ2/DQ8 should cross-link to Nutrigenomics."""
+class TestCeliacCrossLinkDropped:
+    """Celiac DQ2/DQ8 must NOT cross-link to Nutrigenomics (#2021).
+
+    The note promised "gluten-related nutrient interactions"; the Nutrigenomics
+    panel has zero occurrences of "gluten" and its nearest pathway is lactose —
+    a different intolerance. The celiac assessment the user needs is rendered
+    inline by this module, so the link added nothing but a dead end.
+    """
 
     CELIAC_RSIDS = {"rs2187668", "rs7454108"}
 
-    def test_celiac_nutrigenomics_cross_link(self, panel_data: dict) -> None:
+    def test_celiac_has_no_cross_module_link(self, panel_data: dict) -> None:
+        checked = 0
         for pathway in panel_data["pathways"]:
             for snp in pathway["snps"]:
                 if snp["rsid"] in self.CELIAC_RSIDS:
-                    assert "cross_module" in snp, (
-                        f"{snp['rsid']} missing nutrigenomics cross_module"
+                    checked += 1
+                    assert "cross_module" not in snp, (
+                        f"{snp['rsid']} still cross-links to {snp['cross_module'].get('module')!r}"
                     )
-                    assert snp["cross_module"]["module"] == "nutrigenomics"
+        assert checked == len(self.CELIAC_RSIDS), (
+            f"expected {len(self.CELIAC_RSIDS)} celiac proxies, inspected {checked}"
+        )
+
+    def test_celiac_combined_assessment_is_still_declared(self, panel_data: dict) -> None:
+        """The inline content that makes the dropped link unnecessary."""
+        combined = panel_data["special_calling"]["celiac_DQ2_DQ8_combined"]
+        assert set(combined["rsids"]) == self.CELIAC_RSIDS
 
 
 # ── Scoring rules tests ─────────────────────────────────────────────────
