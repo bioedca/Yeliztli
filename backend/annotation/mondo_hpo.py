@@ -627,8 +627,8 @@ def _public_source_url(url: str) -> str:
 
     **The path carries credentials too.** Stripping userinfo, query and fragment
     while keeping ``parsed.path`` verbatim left a path-based bearer or share
-    token -- ``https://host/token/SECRET/file.tsv`` -- written unaltered into the
-    append-only source-bundle manifest and the structured log. That is precisely
+    token -- ``https://example.com/token/SECRET/file.tsv`` -- written unaltered into
+    the append-only source-bundle manifest and the structured log. That is precisely
     what this helper promises not to do, and append-only means it cannot be
     scrubbed afterwards.
 
