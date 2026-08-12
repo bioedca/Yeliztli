@@ -1527,6 +1527,59 @@ class TestSetStoragePath:
         assert resp.status_code == 400
         assert "owned by another user" in resp.json()["detail"]
 
+    def test_nested_storage_path_creates_every_parent_privately(
+        self, setup_client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Every component this call creates is private, not just the leaf.
+
+        ``mkdir(parents=True, mode=...)`` applies the mode to the leaf only, so
+        intermediate components inherit the umask. The loader rejects a
+        non-sticky group- or world-writable *ancestor* as well, so a cooperative
+        umask left the required build unable to run while setup reported success.
+        """
+        monkeypatch.setattr("backend.config.os.geteuid", os.geteuid)
+        previous_umask = os.umask(0o002)
+        try:
+            new_path = tmp_path / "deep" / "nested" / "storage"
+            assert not new_path.parent.exists(), "precondition: parents are missing"
+
+            resp = setup_client.post(
+                "/api/setup/set-storage-path",
+                json={"path": str(new_path)},
+            )
+            assert resp.status_code == 200, resp.json()
+        finally:
+            os.umask(previous_umask)
+
+        writable_by_others = stat.S_IWGRP | stat.S_IWOTH
+        for component in (tmp_path / "deep", tmp_path / "deep" / "nested", new_path):
+            mode = component.stat().st_mode
+            assert not mode & writable_by_others, f"{component} is {oct(stat.S_IMODE(mode))}"
+
+    def test_private_directory_owned_by_another_user_is_rejected(
+        self, setup_client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Ownership is checked even when no write bits need clearing.
+
+        A restored or provisioned ``downloads/`` at 0o755 is already private, so
+        a mode-only check returns success — and the loader then refuses it for
+        ownership inside a database build, where the message cannot name why.
+        """
+        new_path = tmp_path / "foreign-private"
+        new_path.mkdir()
+        new_path.chmod(0o755)
+        assert not new_path.stat().st_mode & (stat.S_IWGRP | stat.S_IWOTH)
+
+        another_uid = os.geteuid() + 1
+        monkeypatch.setattr("backend.config.os.geteuid", lambda: another_uid)
+
+        resp = setup_client.post(
+            "/api/setup/set-storage-path",
+            json={"path": str(new_path)},
+        )
+        assert resp.status_code == 400
+        assert "owned by another user" in resp.json()["detail"]
+
     def test_persists_data_dir_to_pointer_not_config_toml(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:

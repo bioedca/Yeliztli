@@ -537,24 +537,49 @@ def ensure_private_directory(path: Path, *, parents: bool = False) -> str | None
     operator granted deliberately is left alone. A directory created here gets
     the full private mode, since nothing has expressed an intent about it yet.
     """
-    try:
-        path.mkdir(mode=PRIVATE_DIR_MODE, parents=parents, exist_ok=True)
-    except OSError as exc:
-        return f"Cannot create directory at {path}: {exc}"
+    if parents:
+        # ``mkdir(parents=True, mode=...)`` applies ``mode`` to the leaf only;
+        # every intermediate component it creates inherits the umask instead. A
+        # nested path chosen under umask 0o002 therefore lands a private leaf
+        # under 0o775 parents, and the loader's ancestor-chain check rejects
+        # those — so this reported success while the required build still could
+        # not run. Each missing component is created here, shallowest first, so
+        # its mode is ours rather than the umask's.
+        missing = sorted(
+            (parent for parent in (path, *path.parents) if not parent.exists()),
+            key=lambda parent: len(parent.parts),
+        )
+        for component in missing:
+            try:
+                component.mkdir(mode=PRIVATE_DIR_MODE)
+            except FileExistsError:
+                continue
+            except OSError as exc:
+                return f"Cannot create directory at {component}: {exc}"
+    else:
+        try:
+            path.mkdir(mode=PRIVATE_DIR_MODE, exist_ok=True)
+        except OSError as exc:
+            return f"Cannot create directory at {path}: {exc}"
     try:
         info = path.stat()
     except OSError as exc:
         return f"Cannot inspect directory at {path}: {exc}"
     if not stat.S_ISDIR(info.st_mode):
         return f"Path at {path} is not a directory."
-    if not info.st_mode & (stat.S_IWGRP | stat.S_IWOTH):
-        return None
+    # Ownership is checked before the mode, not only when write bits need
+    # clearing. A directory can be perfectly private and still belong to another
+    # account — a restored or provisioned ``downloads/`` at 0o755 — and the
+    # loader requires current-user ownership regardless of mode. Returning early
+    # on the mode accepted that path here and then failed inside the database
+    # build, where the message could not name the real cause.
     if info.st_uid != os.geteuid():
         return (
-            f"Directory at {path} is group- or world-writable and owned by another user, "
-            "so reference-data downloads would be refused. Choose a directory this account "
-            "owns, or have its owner remove group and world write access."
+            f"Directory at {path} is owned by another user, so reference-data downloads "
+            "would be refused. Choose a directory this account owns."
         )
+    if not info.st_mode & (stat.S_IWGRP | stat.S_IWOTH):
+        return None
     try:
         path.chmod(info.st_mode & ~(stat.S_IWGRP | stat.S_IWOTH))
     except OSError as exc:
