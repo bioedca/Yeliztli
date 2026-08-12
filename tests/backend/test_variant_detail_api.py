@@ -593,6 +593,36 @@ class TestGetVariantDetail:
         assert data["phenotype_source"] is None
         assert data["hpo_terms"] is None
 
+    def test_keeps_omim_phenotype_context_on_a_pre_migration_sample(self, client, tmp_data_dir):
+        """OMIM enrichment survives the MONDO/HPO scope migration gate (#2163).
+
+        OMIM writes these same columns from its own loader, with a
+        phenotype-specific disease ID and inheritance; it never went through the
+        gene-wide MONDO/HPO merge, so a version-only gate would cost the user
+        valid context for a problem that summary does not have.
+        """
+        tc, sid = client
+        sample_db = tmp_data_dir / "samples" / f"sample_{sid}.db"
+        engine = sa.create_engine(f"sqlite:///{sample_db}")
+        with engine.begin() as conn:
+            conn.execute(
+                annotation_state.update()
+                .where(annotation_state.c.key == REFERENCE_VERSION_SNAPSHOT_KEY)
+                .values(value=json.dumps({"mondo_hpo": "20260101"}))
+            )
+            conn.execute(
+                annotated_variants.update()
+                .where(annotated_variants.c.rsid == "rs80357906")
+                .values(phenotype_source="omim")
+            )
+        engine.dispose()
+
+        data = tc.get(f"/api/variants/rs80357906?sample_id={sid}").json()
+
+        assert data["phenotype_source"] == "omim"
+        assert data["disease_name"] == "Hereditary breast cancer"
+        assert data["inheritance_pattern"] == "AD"
+
     def test_returns_coverage_and_flags(self, client):
         tc, sid = client
         data = tc.get(f"/api/variants/rs80357906?sample_id={sid}").json()

@@ -505,7 +505,14 @@ def get_variant_detail(
     # so rebuilding the reference install alone does not stop an upgraded user
     # seeing them. Withhold until the sample is re-annotated under a scoped
     # install; the sample's own recorded snapshot is what says which it was.
-    if not _sample_phenotype_scope_is_current(sample_engine):
+    # Scoped to mondo_hpo-sourced summaries only. OMIM enrichment writes these
+    # same columns from a separate loader with its own phenotype-specific
+    # disease ID and inheritance; it never went through the gene-wide MONDO/HPO
+    # merge, so clearing it would cost a user valid context for a problem it
+    # does not have.
+    if data.get("phenotype_source") == "mondo_hpo" and not _sample_phenotype_scope_is_current(
+        sample_engine
+    ):
         for field in ("disease_name", "disease_id", "phenotype_source", "hpo_terms"):
             data[field] = None
         data["inheritance_pattern"] = None
