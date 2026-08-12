@@ -62,47 +62,6 @@ def _immediate_transaction(engine: sa.Engine) -> Iterator[sa.Connection]:
         conn.close()
 
 
-def active_sample_operation(engine: sa.Engine, sample_id: int) -> str | None:
-    """Describe the annotation/export lease holding ``sample_id``, else ``None``.
-
-    A read-only counterpart to the two reservation paths below, for callers that
-    must refuse rather than take a lease. Destructive work is the case that
-    motivated it: deleting a sample out from under an in-flight operation lets
-    that operation reconnect through its already-open engine and recreate the
-    per-sample SQLite file it was writing, leaving a stale ``sample_<id>.db`` in
-    a namespace the next sample will reuse (#2029).
-
-    Raises :class:`SampleOperationUnavailableError` when the lease registry
-    cannot be read, so a caller that must not fail closed can decide for itself.
-    """
-    try:
-        with engine.connect() as conn:
-            annotation = conn.execute(
-                sa.select(jobs.c.job_id)
-                .where(jobs.c.sample_id == sample_id)
-                .where(jobs.c.job_type == "annotation")
-                .where(jobs.c.status.in_(ACTIVE_ANNOTATION_STATUSES))
-                .limit(1)
-            ).fetchone()
-            if annotation is not None:
-                return f"Annotation is in progress for sample {sample_id}"
-
-            export = conn.execute(
-                sa.select(jobs.c.job_id)
-                .where(jobs.c.sample_id == sample_id)
-                .where(jobs.c.job_type == SAMPLE_EXPORT_JOB_TYPE)
-                .where(jobs.c.status.in_(ACTIVE_EXPORT_STATUSES))
-                .limit(1)
-            ).fetchone()
-            if export is not None:
-                return f"An export is in progress for sample {sample_id}"
-    except sa.exc.SQLAlchemyError as exc:
-        raise SampleOperationUnavailableError(
-            f"Unable to read the operation lease for sample {sample_id}."
-        ) from exc
-    return None
-
-
 def reserve_annotation_job(
     engine: sa.Engine,
     *,
