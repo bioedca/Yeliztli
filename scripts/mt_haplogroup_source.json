@@ -28070,7 +28070,7 @@
       "type": "markerless_passthrough",
       "emitted_parent": "U",
       "source_status": "exact",
-      "reason": "Exact markerless U5 gateway retained for issue 1798 batch 13: direct C16192T is historical-only and C16270T is callable in only two of four primary exports, so emitting either available subset would block valid U5a/U5b descendants.",
+      "reason": "Exact markerless U5 gateway retained for issue 1798 batch 13: direct C16192T is historical-only and C16270T is callable in only two of four primary exports, so emitting either available subset would block valid U5a/U5b descendants. C16270T is retained as a U5-scoped optional conflict guard: missing data preserves pass-through, derived T permits descent, and an observed ancestral C vetoes the U5 subtree.",
       "source_node": "U5",
       "source_topology": {
         "status": "exact",
@@ -28078,6 +28078,27 @@
         "source_parent": "U",
         "flattened_source_path": []
       },
+      "optional_conflict_snps": [
+        {
+          "rsid": "i5016270",
+          "pos": 16270,
+          "ancestral_allele": "C",
+          "allele": "T",
+          "motif_owner": "U5",
+          "array_coverage": {
+            "cohort_id": "primary_four_23andme",
+            "position_present_in": [
+              "pgp_4139",
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ],
+            "callable_snv_in": [
+              "pgp_4187",
+              "pgp_huA08F4D"
+            ]
+          }
+        }
+      ],
       "direct_source_motif": [
         {
           "notation": "C16192T",
@@ -28095,7 +28116,7 @@
           "ancestral_allele": "C",
           "derived_allele": "T",
           "emitted": false,
-          "omission_reason": "callable only in pgp_4187 and pgp_huA08F4D; emitting it would block the U5 subtree in pgp_4139 and pgp_4162, so retain exact U5 as markerless"
+          "omission_reason": "callable only in pgp_4187 and pgp_huA08F4D; emitting it would block the U5 subtree in pgp_4139 and pgp_4162, so retain exact U5 as markerless with this source-backed optional conflict guard"
         }
       ],
       "emitted_snps": []
@@ -28779,8 +28800,8 @@
     "initial_pending_nodes_sha256": "996c2c96c22d37a2aa7edf1f4639d626ccc5199ecc5eb35984aa84204e05a591",
     "array_manifest_sha256": "42de22517a4644884596e36b0499a4fc45f264986c63f6fb239452b88719f977",
     "source_metadata_sha256": "13755a154c19c603bac63a2195287165271571ece1e36e178a666aa35184d04b",
-    "state_partition_sha256": "b4f46c5140936d99429b7f52f1a94c7ded344417ad579e7d381ba07dc56c9115",
+    "state_partition_sha256": "f9a0d2ecd09f05ae1d5fbd41123d0d9e63b79d8f08c2e3b1c4c1f873ebb6a1fd",
     "baseline_emitted_tree_sha256": "02a40be2096dd8c60e6e2934ba68a813f07478117a749e60e94e0608bed21914",
-    "locked_emitted_tree_sha256": "73323f94e8740b24faa0001065f0ca79a9a24c18554500545e65694b1f17a566"
+    "locked_emitted_tree_sha256": "0d3f25360e57573a61910787224ddfc701fb77515208857132791ec936570d31"
   }
 }

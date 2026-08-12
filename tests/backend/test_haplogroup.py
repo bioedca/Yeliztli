@@ -17,7 +17,9 @@ PAR-aware algorithm needs to confirm XY.
 
 from __future__ import annotations
 
+import io
 import json
+import sqlite3
 from functools import lru_cache
 from pathlib import Path
 
@@ -40,6 +42,7 @@ from backend.analysis.ancestry import (
     run_haplogroup_assignment,
     store_haplogroup_findings,
 )
+from backend.analysis.zygosity import MERGE_AMBIGUITY_SENTINEL, is_no_call
 from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import (
     annotated_variants,
@@ -47,6 +50,9 @@ from backend.db.tables import (
     haplogroup_assignments,
     raw_variants,
 )
+from backend.ingestion.parser_23andme import parse_23andme
+from backend.ingestion.parser_ancestrydna import parse_ancestrydna
+from backend.services.sample_merge import MergeStrategy, _apply_semantics
 
 # ── Paths ────────────────────────────────────────────────────────────────
 
@@ -1650,6 +1656,7 @@ _ISSUE_1798_BATCH13_PRIMARY_LAYOUT_CALLABLE_POSITIONS = {
             14182,
             15218,
             16256,
+            16270,
             16399,
             16526,
         }
@@ -1676,6 +1683,7 @@ _ISSUE_1798_BATCH13_PRIMARY_LAYOUT_CALLABLE_POSITIONS = {
             14182,
             15218,
             16256,
+            16270,
             16399,
             16526,
         }
@@ -1739,7 +1747,7 @@ class TestLoadHaplogroupBundle:
     """Test haplogroup bundle loading from JSON."""
 
     def test_loads_from_json(self, bundle: HaplogroupBundle) -> None:
-        assert bundle.version == "1.1.29"
+        assert bundle.version == "1.1.30"
         assert bundle.build == "GRCh37"
 
     def test_mt_tree_root(self, bundle: HaplogroupBundle) -> None:
@@ -5022,9 +5030,30 @@ class TestAssignHaplogroups:
         assert u5["emitted_parent"] == "U"
         assert u5["source_status"] == "exact"
         assert u5["emitted_snps"] == []
+        assert u5["optional_conflict_snps"] == [
+            {
+                "rsid": "i5016270",
+                "pos": 16270,
+                "ancestral_allele": "C",
+                "allele": "T",
+                "motif_owner": "U5",
+                "array_coverage": {
+                    "cohort_id": "primary_four_23andme",
+                    "position_present_in": ["pgp_4139", "pgp_4187", "pgp_huA08F4D"],
+                    "callable_snv_in": ["pgp_4187", "pgp_huA08F4D"],
+                },
+            }
+        ]
         assert [(row["pos"], row["emitted"]) for row in u5["direct_source_motif"]] == [
             (16192, False),
             (16270, False),
+        ]
+
+        u5_node = _find_mt_node(bundle.mt_tree, "U5")
+        assert u5_node is not None
+        assert u5_node.defining_snps == []
+        assert [(snp.rsid, snp.pos, snp.allele) for snp in u5_node.optional_conflict_snps] == [
+            ("i5016270", 16270, "T")
         ]
 
         assert _find_mt_node(bundle.mt_tree, "U5a'b") is None
@@ -5045,6 +5074,815 @@ class TestAssignHaplogroups:
         assert all(
             counts[12] == 0 for counts in _ISSUE_1798_BATCH13_PRIMARY_LAYOUT_COUNTS.values()
         )
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize(
+        ("layout_id", "guard_genotype"),
+        [
+            pytest.param("pgp_4139", None, id="untyped-pgp-4139"),
+            pytest.param("pgp_4162", None, id="untyped-pgp-4162"),
+            pytest.param("pgp_4187", None, id="missing-pgp-4187"),
+            pytest.param("pgp_huA08F4D", None, id="missing-pgp-huA08F4D"),
+            pytest.param("pgp_4187", "--", id="no-call-pgp-4187"),
+            pytest.param("pgp_4187", "TT", id="derived-pgp-4187"),
+            pytest.param("pgp_huA08F4D", "TT", id="derived-pgp-huA08F4D"),
+            pytest.param("pgp_4187", "CC", id="ancestral-pgp-4187"),
+            pytest.param("pgp_huA08F4D", "CC", id="ancestral-pgp-huA08F4D"),
+            pytest.param("pgp_4187", "CT", id="mixed-pgp-4187"),
+            pytest.param("pgp_huA08F4D", "TC", id="mixed-pgp-huA08F4D"),
+        ],
+    )
+    @pytest.mark.parametrize("target", ("U5a", "U5b"))
+    def test_issue_2165_u5_optional_guard_preserves_missing_and_blocks_ancestral(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        layout_id: str,
+        guard_genotype: str | None,
+        target: str,
+    ) -> None:
+        """m.16270 is optional when absent but vetoes a contradicted U5 descent."""
+        direct_calls = _ISSUE_1798_BATCH13_DIRECT_CASES[target][0]
+        assert 16270 not in {position for position, _allele in direct_calls}
+        if guard_genotype is not None:
+            assert 16270 in _ISSUE_1798_BATCH13_PRIMARY_LAYOUT_CALLABLE_POSITIONS[layout_id]
+
+        rows = [
+            {
+                **row,
+                "rsid": f"vendor_issue_2165_{layout_id}_{target}_{index}",
+                "chrom": "MT",
+            }
+            for index, row in enumerate(
+                [
+                    *_derived_mt_path_genotypes("R"),
+                    *(
+                        {"pos": position, "genotype": allele * 2}
+                        for position, allele in direct_calls
+                    ),
+                    *(
+                        [{"pos": 16270, "genotype": guard_genotype}]
+                        if guard_genotype is not None
+                        else []
+                    ),
+                ]
+            )
+        ]
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        if guard_genotype in {"CC", "CT", "TC"}:
+            assert mt.haplogroup == "U"
+            assert [step.haplogroup for step in mt.traversal_path] == ["L3", "N", "R", "U"]
+            assert all(not step.haplogroup.startswith("U5") for step in mt.traversal_path)
+        else:
+            assert mt.haplogroup == target
+            assert [step.haplogroup for step in mt.traversal_path] == list(
+                _ISSUE_1798_BATCH13_PATHS[target]
+            )
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize("target", ("U5a", "U5b"))
+    @pytest.mark.parametrize(
+        "guard_genotypes",
+        (("TT", "CC"), ("CC", "TT")),
+        ids=("derived-then-ancestral", "ancestral-then-derived"),
+    )
+    def test_issue_2165_u5_optional_guard_blocks_discordant_typed_probes(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        target: str,
+        guard_genotypes: tuple[str, str],
+    ) -> None:
+        """Discordant typed m.16270 probes withhold markerless U5 descent."""
+        direct_calls = _ISSUE_1798_BATCH13_DIRECT_CASES[target][0]
+        rows = [
+            {
+                **row,
+                "rsid": f"vendor_issue_2165_discordant_{target}_{index}",
+                "chrom": "MT",
+            }
+            for index, row in enumerate(
+                [
+                    *_derived_mt_path_genotypes("R"),
+                    *(
+                        {"pos": position, "genotype": allele * 2}
+                        for position, allele in direct_calls
+                    ),
+                    *({"pos": 16270, "genotype": genotype} for genotype in guard_genotypes),
+                ]
+            )
+        ]
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+
+        assert mt.haplogroup == "U"
+        assert [step.haplogroup for step in mt.traversal_path] == ["L3", "N", "R", "U"]
+        assert all(not step.haplogroup.startswith("U5") for step in mt.traversal_path)
+
+    @pytest.mark.parametrize("read_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize("target", ("U5a", "U5b"))
+    @pytest.mark.parametrize(
+        ("s1_guard", "s2_guard", "guard_blocks"),
+        [
+            pytest.param("CC", "TT", True, id="merged-discordant-s1-ancestral"),
+            pytest.param("TT", "CC", True, id="merged-discordant-s2-ancestral"),
+            pytest.param("CC", "CC", True, id="merged-concordant-ancestral"),
+            pytest.param("TT", "TT", False, id="merged-concordant-derived"),
+            pytest.param("--", "TT", False, id="merged-filled-nocall-derived"),
+            pytest.param("--", "--", False, id="merged-both-no-call"),
+            # The retained-sentinel negative control: ``??`` is an ordinary
+            # no-call token as well as the merge sentinel, so a locus nobody
+            # called must not read as conflicting evidence just because S1
+            # spelled its no-call that way.
+            pytest.param("??", "--", False, id="merged-both-no-call-s1-sentinel"),
+            pytest.param("??", "??", False, id="merged-both-no-call-sentinel-pair"),
+            pytest.param("--", "??", False, id="merged-both-no-call-s2-sentinel"),
+            pytest.param("??", "TT", False, id="merged-filled-sentinel-nocall-derived"),
+        ],
+    )
+    def test_issue_2165_u5_guard_reads_flag_only_merged_representation(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        read_table: sa.Table,
+        target: str,
+        s1_guard: str,
+        s2_guard: str,
+        guard_blocks: bool,
+    ) -> None:
+        """The guard sees a merged discordance through its production row shape.
+
+        ``flag_only`` is the default merge strategy and it does *not* keep both
+        conflicting calls: it writes one row carrying the merge-ambiguity
+        sentinel. Building the rows with the real ``_apply_semantics`` keeps this
+        test bound to that representation instead of to a hand-written literal,
+        so a merged sample whose sources disagree at m.16270 must withhold U5
+        exactly like two discordant probes in a single file.
+
+        The negative controls discriminate the two things that sentinel token
+        can mean. A merged locus where *both* sources were no-calls keeps S1's
+        token verbatim and is recorded as ``concordance='match'``; when S1 spells
+        its no-call ``??`` the resulting row is byte-identical to a collapsed
+        conflict, so only the merge provenance column separates them. Those rows
+        must remain missing evidence and still reach the U5 subtype.
+
+        The merged rows always land in ``raw_variants`` because that is the only
+        table carrying the Plan §10.4b provenance columns; ``read_table`` decides
+        whether the annotated projection the tree-walk prefers also exists, which
+        is the post-annotation shape of every merged sample.
+        """
+        direct_calls = _ISSUE_1798_BATCH13_DIRECT_CASES[target][0]
+        shared = [
+            *_derived_mt_path_genotypes("R"),
+            *({"pos": position, "genotype": allele * 2} for position, allele in direct_calls),
+        ]
+        s1_coords: dict[tuple[str, int], dict[str, str]] = {}
+        s2_coords: dict[tuple[str, int], dict[str, str]] = {}
+        for index, row in enumerate(shared):
+            coord = ("MT", int(row["pos"]))
+            entry = {"rsid": f"vendor_issue_2165_merged_{target}_{index}", **row}
+            s1_coords[coord] = dict(entry)
+            s2_coords[coord] = dict(entry)
+        guard_rsid = f"vendor_issue_2165_merged_{target}_guard"
+        s1_coords[("MT", 16270)] = {"rsid": guard_rsid, "genotype": s1_guard}
+        s2_coords[("MT", 16270)] = {"rsid": guard_rsid, "genotype": s2_guard}
+
+        merged_rows, _summary = _apply_semantics(
+            s1_coords,
+            s2_coords,
+            strategy=MergeStrategy.FLAG_ONLY,
+            rsids_in_bundle=set(),
+            s1_vendor="23andme",
+            s2_vendor="ancestrydna",
+        )
+        guard_row = next(row for row in merged_rows if row.pos == 16270)
+        merge_no_call_tokens = {"--", MERGE_AMBIGUITY_SENTINEL}
+        if s1_guard != s2_guard and not merge_no_call_tokens & {s1_guard, s2_guard}:
+            # Lock the production shape this test depends on: one collapsed row
+            # holding the sentinel, not the two source genotypes.
+            assert guard_row.concordance == "discordant"
+            assert guard_row.genotype == MERGE_AMBIGUITY_SENTINEL
+            assert is_no_call(guard_row.genotype)
+        if s1_guard in merge_no_call_tokens and s2_guard in merge_no_call_tokens:
+            # The retained no-call: same table, same column, no disagreement.
+            assert guard_row.concordance == "match"
+            assert guard_row.genotype == s1_guard
+            assert is_no_call(guard_row.genotype)
+        elif merge_no_call_tokens & {s1_guard, s2_guard}:
+            # Exactly one side no-call: the merge keeps the other side's real
+            # call, so the row carries ordinary typed evidence, not a conflict.
+            assert guard_row.concordance == "filled_nocall"
+            assert not is_no_call(guard_row.genotype)
+
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(raw_variants),
+                [
+                    {
+                        "rsid": row.rsid,
+                        "chrom": row.chrom,
+                        "pos": row.pos,
+                        "genotype": row.genotype,
+                        "source": row.source,
+                        "concordance": row.concordance,
+                        "discordant_alt_genotype": row.discordant_alt_genotype,
+                        "alt_rsid": row.alt_rsid,
+                    }
+                    for row in merged_rows
+                ],
+            )
+            if read_table is annotated_variants:
+                # annotated_variants has no provenance columns — annotation
+                # projects genotype only, which is exactly why the conflict set
+                # must be read from raw_variants regardless of the read table.
+                conn.execute(
+                    sa.insert(annotated_variants),
+                    [
+                        {
+                            "rsid": row.rsid,
+                            "chrom": row.chrom,
+                            "pos": row.pos,
+                            "genotype": row.genotype,
+                        }
+                        for row in merged_rows
+                    ],
+                )
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        if guard_blocks:
+            assert mt.haplogroup == "U"
+            assert [step.haplogroup for step in mt.traversal_path] == ["L3", "N", "R", "U"]
+            assert all(not step.haplogroup.startswith("U5") for step in mt.traversal_path)
+        else:
+            assert mt.haplogroup == target
+            assert [step.haplogroup for step in mt.traversal_path] == list(
+                _ISSUE_1798_BATCH13_PATHS[target]
+            )
+
+    @pytest.mark.parametrize("read_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize(
+        ("guard_allele", "expected_terminal", "expected_path"),
+        [
+            pytest.param(
+                "T",
+                "U5a",
+                _ISSUE_1798_BATCH13_PATHS["U5a"],
+                id="cross-vendor-derived-reaches-u5a",
+            ),
+            pytest.param(
+                "C",
+                "U",
+                ("L3", "N", "R", "U"),
+                id="cross-vendor-ancestral-still-vetoes",
+            ),
+        ],
+    )
+    def test_issue_2165_cross_vendor_haploid_mt_encoding_is_not_a_conflict(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        read_table: sa.Table,
+        guard_allele: str,
+        expected_terminal: str,
+        expected_path: tuple[str, ...],
+    ) -> None:
+        """A 23andMe + AncestryDNA merge disagrees on spelling, not on the call.
+
+        mtDNA is haploid and the two production parsers encode an unambiguous
+        call differently — this test reads the shapes out of the real parsers
+        rather than asserting them, then feeds those exact strings to the real
+        merge. ``_apply_semantics`` compares genotype strings, so it records
+        *every* cross-vendor mt locus as ``discordant`` and writes the ambiguity
+        sentinel; taking that at face value discards the whole mtDNA chromosome
+        of a mainstream merged sample and, at m.16270, vetoes U5 on two sources
+        that agree.
+
+        Both directions are covered, because normalising the encoding must not
+        become a way to lose evidence: an agreed *derived* T has to remain
+        scoreable all the way to U5a, and an agreed *ancestral* C has to reach
+        the guard and still stop the walk at U.
+        """
+        path_calls = [
+            (row["rsid"], int(row["pos"]), str(row["genotype"]))
+            for row in (
+                *_derived_mt_path_genotypes("R"),
+                *(
+                    {
+                        "rsid": f"i50{position:05d}",
+                        "pos": position,
+                        "genotype": allele * 2,
+                    }
+                    for position, allele in _ISSUE_1798_BATCH13_DIRECT_CASES["U5a"][0]
+                ),
+            )
+        ]
+        assert all(genotype[0] == genotype[1] for _rsid, _pos, genotype in path_calls)
+        alleles_by_rsid = {rsid: (pos, genotype[0]) for rsid, pos, genotype in path_calls}
+        alleles_by_rsid["i5016270"] = (16270, guard_allele)
+
+        twentythreeandme = parse_23andme(
+            io.StringIO(
+                "# This data file generated by 23andMe\n"
+                "# We are using the GRCh37 reference human assembly.\n"
+                "# rsid\tchromosome\tposition\tgenotype\n"
+                + "".join(
+                    f"{rsid}\tMT\t{pos}\t{allele}\n"
+                    for rsid, (pos, allele) in alleles_by_rsid.items()
+                )
+            )
+        )
+        ancestrydna = parse_ancestrydna(
+            io.StringIO(
+                "#AncestryDNA raw data download\n"
+                "# AncestryDNA array version: V2.0\n"
+                "rsid\tchromosome\tposition\tallele1\tallele2\n"
+                + "".join(
+                    f"{rsid}\t26\t{pos}\t{allele}\t{allele}\n"
+                    for rsid, (pos, allele) in alleles_by_rsid.items()
+                )
+            )
+        )
+
+        s1_by_rsid = {variant.rsid: variant for variant in twentythreeandme.variants}
+        s2_by_rsid = {variant.rsid: variant for variant in ancestrydna.variants}
+        assert set(s1_by_rsid) == set(alleles_by_rsid)
+        assert set(s2_by_rsid) == set(alleles_by_rsid)
+        # The premise, taken from the parsers rather than assumed: same call,
+        # different string, because mtDNA is haploid on one side and doubled on
+        # the other.
+        for rsid, (_pos, allele) in alleles_by_rsid.items():
+            assert s1_by_rsid[rsid].genotype != s2_by_rsid[rsid].genotype
+            assert set(s1_by_rsid[rsid].genotype) == set(s2_by_rsid[rsid].genotype) == {allele}
+
+        s1_coords = {
+            (variant.chrom, variant.pos): {"rsid": variant.rsid, "genotype": variant.genotype}
+            for variant in twentythreeandme.variants
+        }
+        s2_coords = {
+            (variant.chrom, variant.pos): {"rsid": variant.rsid, "genotype": variant.genotype}
+            for variant in ancestrydna.variants
+        }
+        merged_rows, summary = _apply_semantics(
+            s1_coords,
+            s2_coords,
+            strategy=MergeStrategy.FLAG_ONLY,
+            rsids_in_bundle=set(),
+            s1_vendor="23andme",
+            s2_vendor="ancestrydna",
+        )
+        # Lock the defect this normalisation exists for: the merge calls every
+        # one of these agreeing loci discordant and keeps no usable genotype.
+        assert summary.discordant == len(alleles_by_rsid)
+        assert summary.match == 0
+        assert all(row.concordance == "discordant" for row in merged_rows)
+        assert all(row.genotype == MERGE_AMBIGUITY_SENTINEL for row in merged_rows)
+        assert all(is_no_call(row.genotype) for row in merged_rows)
+
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(raw_variants),
+                [
+                    {
+                        "rsid": row.rsid,
+                        "chrom": row.chrom,
+                        "pos": row.pos,
+                        "genotype": row.genotype,
+                        "source": row.source,
+                        "concordance": row.concordance,
+                        "discordant_alt_genotype": row.discordant_alt_genotype,
+                        "alt_rsid": row.alt_rsid,
+                    }
+                    for row in merged_rows
+                ],
+            )
+            if read_table is annotated_variants:
+                conn.execute(
+                    sa.insert(annotated_variants),
+                    [
+                        {
+                            "rsid": row.rsid,
+                            "chrom": row.chrom,
+                            "pos": row.pos,
+                            "genotype": row.genotype,
+                        }
+                        for row in merged_rows
+                    ],
+                )
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+
+        assert mt.haplogroup == expected_terminal
+        assert [step.haplogroup for step in mt.traversal_path] == list(expected_path)
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize("target", ("U5a1", "U5b2"))
+    @pytest.mark.parametrize(
+        ("sibling", "sibling_calls"),
+        [
+            pytest.param("U2", ((16051, "G"),), id="competing-U2"),
+            pytest.param("U8", ((9698, "C"),), id="competing-U8"),
+        ],
+    )
+    def test_issue_2165_vetoed_u5_stops_at_u_instead_of_promoting_a_sibling(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        target: str,
+        sibling: str,
+        sibling_calls: tuple[tuple[int, str], ...],
+    ) -> None:
+        """A vetoed U5 that would have won fences the walk at U; it frees no sibling.
+
+        The evidence packet
+        (``data/science-evidence/2026-08-03-u5-16270-conflict-guard``, C5) records
+        that m.16270 back-mutates inside U5, so the guard withholds a subtype and
+        is explicitly not an exclusion. Merely dropping U5 from the sibling
+        comparison would let incidental evidence for another child of U publish a
+        positive assignment to the wrong sibling — a strictly worse outcome than
+        the documented "degrade to the less specific ancestor U". This sample
+        carries three derived markers down the U5 branch against the competing
+        child's one, so U5 is the branch the ranking selects and the branch the
+        guard contradicts.
+        """
+        direct_calls = _ISSUE_1798_BATCH13_DIRECT_CASES[target][0]
+        assert 16270 not in {position for position, _allele in direct_calls}
+        assert not set(sibling_calls) & set(direct_calls)
+
+        rows = [
+            {
+                **row,
+                "rsid": f"vendor_issue_2165_sibling_{sibling}_{target}_{index}",
+                "chrom": "MT",
+            }
+            for index, row in enumerate(
+                [
+                    *_derived_mt_path_genotypes("R"),
+                    *(
+                        {"pos": position, "genotype": allele * 2}
+                        for position, allele in (*direct_calls, *sibling_calls)
+                    ),
+                    {"pos": 16270, "genotype": "CC"},
+                ]
+            )
+        ]
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+
+        assert mt.haplogroup == "U"
+        assert [step.haplogroup for step in mt.traversal_path] == ["L3", "N", "R", "U"]
+        assert all(step.haplogroup != sibling for step in mt.traversal_path)
+        assert all(not step.haplogroup.startswith("U5") for step in mt.traversal_path)
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize(
+        ("weak_u5_call", "sibling_terminal", "sibling_calls", "sibling_path"),
+        [
+            pytest.param(
+                (16256, "T"),
+                "U2e",
+                _ISSUE_1798_BATCH12_DIRECT_CASES["U2e"][0],
+                _ISSUE_1798_BATCH12_DIRECT_CASES["U2e"][1],
+                id="weak-U5a-vs-strong-U2e",
+            ),
+            pytest.param(
+                (14182, "C"),
+                "K",
+                _ISSUE_1798_BATCH13_DIRECT_CASES["K"][0],
+                _ISSUE_1798_BATCH13_DIRECT_CASES["K"][1],
+                id="weak-U5b-vs-strong-K",
+            ),
+        ],
+    )
+    def test_issue_2165_stronger_sibling_outranks_a_vetoed_weak_u5(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        weak_u5_call: tuple[int, str],
+        sibling_terminal: str,
+        sibling_calls: tuple[tuple[int, str], ...],
+        sibling_path: tuple[str, ...],
+    ) -> None:
+        """A veto only withholds the branch the evidence actually selected.
+
+        Discriminating counterpart to the fencing test above. Here the vetoed U5
+        carries one marker while the competing branch carries a whole supported
+        subclade, so the ordinary ranking would never have reported U5 in the
+        first place. Fencing at U would discard a well-evidenced sibling call to
+        protect a branch that was not going to be published — the guard is scoped
+        to U5 and asserts nothing about U2 or U8.
+        """
+        assert weak_u5_call not in set(sibling_calls)
+        assert 16270 not in {position for position, _allele in sibling_calls}
+
+        rows = [
+            {
+                **row,
+                "rsid": f"vendor_issue_2165_ranked_{sibling_terminal}_{index}",
+                "chrom": "MT",
+            }
+            for index, row in enumerate(
+                [
+                    *_derived_mt_path_genotypes("R"),
+                    *(
+                        {"pos": position, "genotype": allele * 2}
+                        for position, allele in (*sibling_calls, weak_u5_call)
+                    ),
+                    {"pos": 16270, "genotype": "CC"},
+                ]
+            )
+        ]
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+
+        assert mt.haplogroup == sibling_terminal
+        assert [step.haplogroup for step in mt.traversal_path] == list(sibling_path)
+        assert all(not step.haplogroup.startswith("U5") for step in mt.traversal_path)
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize("target", ("U5a", "U5b"))
+    @pytest.mark.parametrize(
+        ("sibling", "sibling_calls"),
+        [
+            pytest.param("U2", ((16051, "G"),), id="competing-U2"),
+            pytest.param("U8", ((9698, "C"),), id="competing-U8"),
+        ],
+    )
+    def test_issue_2165_evenly_matched_sibling_keeps_the_existing_tie_break(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        target: str,
+        sibling: str,
+        sibling_calls: tuple[tuple[int, str], ...],
+    ) -> None:
+        """One U5 marker against one sibling marker resolves the way the walk already does.
+
+        The boundary between the two tests above. Both branches carry a single
+        derived clade-specific marker, so ``candidate_score`` ties, and
+        ``_tree_walk``'s pre-existing preference for a direct child over an
+        equally scored pass-through selects the sibling. The guard defers to that
+        ranking rather than imposing one of its own; this case is pinned so a
+        change to the tie-break is a visible decision rather than a side effect.
+        """
+        direct_calls = _ISSUE_1798_BATCH13_DIRECT_CASES[target][0]
+        rows = [
+            {
+                **row,
+                "rsid": f"vendor_issue_2165_tie_{sibling}_{target}_{index}",
+                "chrom": "MT",
+            }
+            for index, row in enumerate(
+                [
+                    *_derived_mt_path_genotypes("R"),
+                    *(
+                        {"pos": position, "genotype": allele * 2}
+                        for position, allele in (*direct_calls, *sibling_calls)
+                    ),
+                    {"pos": 16270, "genotype": "CC"},
+                ]
+            )
+        ]
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+
+        assert mt.haplogroup == sibling
+        assert [step.haplogroup for step in mt.traversal_path] == ["L3", "N", "R", "U", sibling]
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize(
+        ("sibling", "sibling_calls"),
+        [
+            pytest.param("U2", ((16051, "G"),), id="competing-U2"),
+            pytest.param("U8", ((9698, "C"),), id="competing-U8"),
+        ],
+    )
+    def test_issue_2165_unsupported_u5_veto_leaves_siblings_scorable(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        sibling: str,
+        sibling_calls: tuple[tuple[int, str], ...],
+    ) -> None:
+        """A veto with nothing behind it costs nothing — the fence is not blanket.
+
+        Discriminating counterpart to the fencing test above: same ancestral
+        m.16270, same competing-sibling evidence, but no U5 descendant support at
+        all. There is no finer U5 label being withheld here, so stopping at U
+        would discard a supported sibling call for nothing.
+        """
+        rows = [
+            {
+                **row,
+                "rsid": f"vendor_issue_2165_unsupported_{sibling}_{index}",
+                "chrom": "MT",
+            }
+            for index, row in enumerate(
+                [
+                    *_derived_mt_path_genotypes("R"),
+                    *(
+                        {"pos": position, "genotype": allele * 2}
+                        for position, allele in (
+                            *_ISSUE_1798_BATCH12_U_CALLS,
+                            *sibling_calls,
+                        )
+                    ),
+                    {"pos": 16270, "genotype": "CC"},
+                ]
+            )
+        ]
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+
+        assert mt.haplogroup == sibling
+        assert [step.haplogroup for step in mt.traversal_path] == ["L3", "N", "R", "U", sibling]
+
+    def test_issue_2165_guard_tolerates_a_sample_db_without_provenance_columns(
+        self, bundle: HaplogroupBundle
+    ) -> None:
+        """A pre-Plan-§10.4b ``raw_variants`` still assigns instead of raising.
+
+        The merge-conflict lookup queries ``raw_variants.concordance``, which a
+        sample DB imported from a pre-v8 backup does not have until the schema
+        upgrade runs. That absent column is verified by inspection, and it means
+        exactly one thing — this DB records no merge provenance, which an
+        unmerged legacy sample never had — so the assignment proceeds. The paired
+        test below covers the other side: an operational failure that is *not*
+        this schema fact must not be laundered into the same answer.
+        """
+        engine = sa.create_engine("sqlite://")
+        with engine.begin() as conn:
+            conn.exec_driver_sql(
+                "CREATE TABLE raw_variants (rsid TEXT PRIMARY KEY, chrom TEXT NOT NULL, "
+                "pos INTEGER NOT NULL, genotype TEXT NOT NULL)"
+            )
+            conn.execute(
+                sa.text(
+                    "INSERT INTO raw_variants (rsid, chrom, pos, genotype) "
+                    "VALUES (:rsid, 'MT', :pos, :genotype)"
+                ),
+                [
+                    {"rsid": row["rsid"], "pos": row["pos"], "genotype": row["genotype"]}
+                    for row in (
+                        *_derived_mt_path_genotypes("R"),
+                        *(
+                            {
+                                "rsid": f"i50{position:05d}",
+                                "pos": position,
+                                "genotype": allele * 2,
+                            }
+                            for position, allele in _ISSUE_1798_BATCH13_DIRECT_CASES["U5a"][0]
+                        ),
+                    )
+                ],
+            )
+
+        mt = next(
+            result for result in assign_haplogroups(bundle, engine) if result.tree_type == "mt"
+        )
+
+        assert mt.haplogroup == "U5a"
+        assert [step.haplogroup for step in mt.traversal_path] == list(
+            _ISSUE_1798_BATCH13_PATHS["U5a"]
+        )
+
+    def test_issue_2165_unreadable_provenance_is_not_treated_as_no_conflicts(
+        self, bundle: HaplogroupBundle, sample_engine: sa.Engine
+    ) -> None:
+        """A failing provenance read must propagate, not report "no conflicts".
+
+        The legacy missing column is a schema fact and is detected as one. A
+        lock, an I/O error, or a corrupt page is not: swallowing it would drop
+        the merge record, let the ambiguity sentinel fall through as an ordinary
+        no-call, and pass strong U5 evidence through a guard whose conflict
+        record could not be read — the exact fail-open this guard exists to
+        close. The sample below carries a genuine merged discordance at m.16270
+        that *would* veto U5, so a swallowed error is visible as a U5a call
+        rather than as an error.
+        """
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(raw_variants),
+                [
+                    {
+                        "rsid": row["rsid"],
+                        "chrom": "MT",
+                        "pos": row["pos"],
+                        "genotype": row["genotype"],
+                        "source": "both",
+                        "concordance": "match",
+                        "discordant_alt_genotype": "",
+                        "alt_rsid": "",
+                    }
+                    for row in (
+                        *_derived_mt_path_genotypes("R"),
+                        *(
+                            {
+                                "rsid": f"i50{position:05d}",
+                                "pos": position,
+                                "genotype": allele * 2,
+                            }
+                            for position, allele in _ISSUE_1798_BATCH13_DIRECT_CASES["U5a"][0]
+                        ),
+                    )
+                ],
+            )
+            conn.execute(
+                sa.insert(raw_variants),
+                [
+                    {
+                        "rsid": "i5016270",
+                        "chrom": "MT",
+                        "pos": 16270,
+                        "genotype": MERGE_AMBIGUITY_SENTINEL,
+                        "source": "both",
+                        "concordance": "discordant",
+                        "discordant_alt_genotype": "S1=CC;S2=TT",
+                        "alt_rsid": "",
+                    }
+                ],
+            )
+
+        @sa.event.listens_for(sample_engine, "before_cursor_execute")
+        def _fail_the_provenance_read(  # noqa: PLR0913
+            conn: sa.Connection,
+            cursor: object,
+            statement: str,
+            parameters: object,
+            context: object,
+            executemany: bool,
+        ) -> None:
+            if "discordant_alt_genotype" in statement:
+                raise sa.exc.OperationalError(
+                    statement, parameters, sqlite3.OperationalError("database is locked")
+                )
+
+        try:
+            with pytest.raises(sa.exc.OperationalError, match="database is locked"):
+                assign_haplogroups(bundle, sample_engine)
+        finally:
+            sa.event.remove(sample_engine, "before_cursor_execute", _fail_the_provenance_read)
+
+        # Control: with the read working again the recorded conflict is honoured,
+        # so the assertion above is about error handling and not about a sample
+        # that could never have reached U5a anyway.
+        mt = next(
+            result
+            for result in assign_haplogroups(bundle, sample_engine)
+            if result.tree_type == "mt"
+        )
+        assert mt.haplogroup == "U"
+        assert [step.haplogroup for step in mt.traversal_path] == ["L3", "N", "R", "U"]
 
     @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
     @pytest.mark.parametrize(

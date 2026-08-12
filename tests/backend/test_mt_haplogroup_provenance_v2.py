@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 from copy import deepcopy
+from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
@@ -58,9 +59,13 @@ INITIAL_DIRECT_MOTIF_PENDING_NAMES_SHA256 = (
 INITIAL_PENDING_NAMES_SHA256 = "996c2c96c22d37a2aa7edf1f4639d626ccc5199ecc5eb35984aa84204e05a591"
 ARRAY_MANIFEST_SHA256 = "42de22517a4644884596e36b0499a4fc45f264986c63f6fb239452b88719f977"
 SOURCE_METADATA_SHA256 = "13755a154c19c603bac63a2195287165271571ece1e36e178a666aa35184d04b"
-STATE_PARTITION_SHA256 = "b4f46c5140936d99429b7f52f1a94c7ded344417ad579e7d381ba07dc56c9115"
+STATE_PARTITION_SHA256 = "f9a0d2ecd09f05ae1d5fbd41123d0d9e63b79d8f08c2e3b1c4c1f873ebb6a1fd"
 BASELINE_EMITTED_TREE_SHA256 = "02a40be2096dd8c60e6e2934ba68a813f07478117a749e60e94e0608bed21914"
-LOCKED_EMITTED_TREE_SHA256 = "73323f94e8740b24faa0001065f0ca79a9a24c18554500545e65694b1f17a566"
+LOCKED_EMITTED_TREE_SHA256 = "0d3f25360e57573a61910787224ddfc701fb77515208857132791ec936570d31"
+U5_CONFLICT_EVIDENCE_PACKET = (
+    Path(__file__).resolve().parents[2]
+    / "data/science-evidence/2026-08-03-u5-16270-conflict-guard"
+)
 
 PRIMARY_EXPORTS = ["pgp_4139", "pgp_4162", "pgp_4187", "pgp_huA08F4D"]
 HISTORICAL_EXPORTS = [*PRIMARY_EXPORTS, "pgp_1050"]
@@ -1885,7 +1890,7 @@ BATCH13_NAMES = [
 ]
 BATCH13_REGULAR_NAMES = [name for name in BATCH13_NAMES if name != "U5"]
 BATCH13_RECORD_SHA256 = {
-    "U5": "63a51c17d94bfb4ac04f2cbd9421e22f20a51abd9409c730cbcc9ca258be68aa",
+    "U5": "b7ed525ea70d1ca8ce49ddb932cfd515993ce985de59fcc4414ee06c59a32389",
     "U5a": "3373c81e7b8d82455d54a850c851e0835880d37c67f7bcd0e8f64b05a4c78fbc",
     "U5a1": "9558abb8432f12aee723d941f50155eba55158e630c0cd5fd846b60ba39d7c18",
     "U5a2": "3e47cf1f7bcb6f288925efd563f1eedf12154f5307bbb2186bd6527061331a11",
@@ -2676,13 +2681,14 @@ def _tree_projection(tree: dict[str, Any]) -> list[dict[str, Any]]:
     projection: list[dict[str, Any]] = []
 
     def visit(node: dict[str, Any], parent: str | None) -> None:
-        projection.append(
-            {
-                "node": node["haplogroup"],
-                "parent": parent,
-                "defining_snps": node.get("defining_snps", []),
-            }
-        )
+        record = {
+            "node": node["haplogroup"],
+            "parent": parent,
+            "defining_snps": node.get("defining_snps", []),
+        }
+        if optional_conflict_snps := node.get("optional_conflict_snps"):
+            record["optional_conflict_snps"] = optional_conflict_snps
+        projection.append(record)
         for child in node.get("children", []):
             visit(child, node["haplogroup"])
 
@@ -7719,7 +7725,7 @@ def test_issue_1798_batch_13_records_are_exact_covered_and_tree_locked() -> None
 
 
 def test_issue_1798_batch_13_u5_is_an_exact_markerless_gateway() -> None:
-    """U5 keeps both reviewed direct events source-only so neither child is blocked."""
+    """U5 keeps its markerless gateway with a source-backed ancestral conflict guard."""
     record = _MT_SOURCE["structural_exceptions"]["U5"]
     inventory = _index_mt_tree(build_mt_tree())
 
@@ -7729,6 +7735,23 @@ def test_issue_1798_batch_13_u5_is_an_exact_markerless_gateway() -> None:
     )
     assert not any(mutation["emitted"] for mutation in record["direct_source_motif"])
     assert inventory.by_name["U5"].node["defining_snps"] == []
+    assert inventory.by_name["U5"].node["optional_conflict_snps"] == [
+        {"rsid": "i5016270", "pos": 16270, "allele": "T"}
+    ]
+    assert record["optional_conflict_snps"] == [
+        {
+            "rsid": "i5016270",
+            "pos": 16270,
+            "ancestral_allele": "C",
+            "allele": "T",
+            "motif_owner": "U5",
+            "array_coverage": {
+                "cohort_id": "primary_four_23andme",
+                "position_present_in": ["pgp_4139", "pgp_4187", "pgp_huA08F4D"],
+                "callable_snv_in": ["pgp_4187", "pgp_huA08F4D"],
+            },
+        }
+    ]
     assert [child["haplogroup"] for child in inventory.by_name["U5"].node["children"]] == [
         "U5a",
         "U5b",
@@ -7741,6 +7764,187 @@ def test_issue_1798_batch_13_u5_is_an_exact_markerless_gateway() -> None:
     text = _issues_text(_validate_mt_registry_against_tree(_MT_SOURCE, _index_mt_tree(tree)))
     assert "Structural mtDNA pass-through U5 must be markerless" in text
     assert "mtDNA emitted tree differs from its live locked fingerprint" in text
+
+
+def test_issue_2165_u5_conflict_evidence_packet_is_source_bound() -> None:
+    """Keep the public evidence packet bound to the exact U5 Build 17 edge."""
+    inventory_path = U5_CONFLICT_EVIDENCE_PACKET / "source-inventory.json"
+    extract_path = U5_CONFLICT_EVIDENCE_PACKET / "raw/phylotree-build17-u5-source-extract.json"
+    response_index_path = U5_CONFLICT_EVIDENCE_PACKET / "source-response-index.json"
+    pubmed_path = U5_CONFLICT_EVIDENCE_PACKET / "pubmed-esummary.json"
+    readme_path = U5_CONFLICT_EVIDENCE_PACKET / "README.md"
+
+    for path in (
+        inventory_path,
+        extract_path,
+        response_index_path,
+        pubmed_path,
+        readme_path,
+    ):
+        assert path.is_file(), path
+
+    inventory = json.loads(inventory_path.read_text(encoding="utf-8"))
+    extract = json.loads(extract_path.read_text(encoding="utf-8"))
+    response_index = json.loads(response_index_path.read_text(encoding="utf-8"))
+    pubmed = json.loads(pubmed_path.read_text(encoding="utf-8"))
+    source_u5 = _MT_SOURCE["structural_exceptions"]["U5"]
+    source_metadata = _MT_SOURCE["source"]
+
+    assert inventory["issue"] == 2165
+    assert inventory["accessed"] == "2026-08-03"
+    assert inventory["implementation"]["commit"] == ("aa3acc8df76f782de3ade41a95d6e5a1d9f96da4")
+    assert inventory["source_archive"]["version"] == source_metadata["version"]
+    assert inventory["source_archive"]["archive_url"] == source_metadata["archive_url"]
+    assert inventory["source_archive"]["archive_sha256"] == source_metadata["archive_sha256"]
+    assert inventory["source_archive"]["archive_accessed"] == source_metadata["accessed"]
+    assert inventory["source_archive"]["license_or_terms"]["status"] == (
+        "not_stated_on_inspected_official_pages"
+    )
+    expected_extract_source_archive = {
+        "name": source_metadata["name"],
+        "version": source_metadata["version"],
+        "archive_url": source_metadata["archive_url"],
+        "archive_sha256": source_metadata["archive_sha256"],
+        "archive_accessed": source_metadata["accessed"],
+    }
+    assert extract["source_archive"] == expected_extract_source_archive
+    assert extract["license_or_terms"]["status"] == ("not_stated_on_inspected_official_pages")
+
+    expected_motif = [
+        {
+            "notation": mutation["notation"],
+            "pos": mutation["pos"],
+            "ancestral_allele": mutation["ancestral_allele"],
+            "derived_allele": mutation["derived_allele"],
+            "emitted": mutation["emitted"],
+        }
+        for mutation in source_u5["direct_source_motif"]
+    ]
+    assert inventory["u5_guard"]["direct_source_motif"] == expected_motif
+    assert extract["u5"]["direct_source_motif"] == expected_motif
+    assert inventory["u5_guard"]["optional_conflict_snp"] == source_u5["optional_conflict_snps"][0]
+    assert extract["u5"]["optional_conflict_snp"] == source_u5["optional_conflict_snps"][0]
+    assert source_u5["emitted_snps"] == []
+
+    assert {(record["pmid"], record["doi"]) for record in pubmed["records"]} == {
+        ("18853457", "10.1002/humu.20921"),
+        ("34072215", "10.3390/ijms22115747"),
+        ("10712215", "10.1086/302802"),
+        # NCBI emits no DOI for this record; the packet records that rather than
+        # inventing an identifier, so ``None`` here is the asserted state.
+        ("11032788", None),
+    }
+    pubmed_by_pmid = {record["pmid"]: record for record in pubmed["records"]}
+    assert pubmed_by_pmid["11032788"]["publisher_item_identifier"] == "S0002-9297(07)62954-1", (
+        "the DOI-less record must keep a durable identifier of its own"
+    )
+    assert all(
+        record["correction_check"]["comments_corrections_list_emitted"] is False
+        for record in pubmed["records"]
+    )
+    assert (
+        "https://www.ncbi.nlm.nih.gov/books/NBK25497/"
+        in pubmed["license_or_terms"]["official_policy_urls"]
+    )
+
+    # C5 is the limiting claim: m.16270 back-mutates inside U5, so the guard is
+    # withholding rather than exclusion. Both supporting records must stay in the
+    # packet, must carry a paraphrase instead of retained source text, and must
+    # not be accompanied by an invented false-veto rate.
+    c5_records = [record for record in pubmed["records"] if "C5" in record.get("supports", [])]
+    assert {record["pmid"] for record in c5_records} == {"10712215", "11032788"}
+    for record in c5_records:
+        assert record["supporting_statement"]["location"] == "Abstract"
+        assert record["supporting_statement"]["verbatim_text_retained"] is False
+        assert record["supporting_statement"]["paraphrase"].strip()
+    assert "C5" in pubmed["claim_ids"]
+
+    readme = readme_path.read_text(encoding="utf-8")
+    assert "implementation-level source-conflict rule" in readme
+    assert "clinical, phenotypic, population, ancestry, or forensic conclusion" in readme
+    # The exclusion-flavoured wording an earlier revision used must stay retired.
+    assert "incompatible with descent" not in readme
+    assert "it does not assert that the sample is not U5" in readme.replace("\n", " ")
+    assert "PMID:10712215" in readme
+    assert "PMID:11032788" in readme
+    known_false_veto = inventory["u5_guard"]["known_false_veto"]
+    assert known_false_veto["rate_estimated"] is False
+    assert inventory["u5_guard"]["runtime_decision"]["semantics"] == "withholding, not exclusion"
+    assert inventory["u5_guard"]["runtime_decision"]["merged_flag_only_ambiguity_sentinel"]
+
+    assert {entry["service"] for entry in response_index["entries"]} == {
+        "repository source-audited registry",
+        "NCBI Entrez",
+    }
+    # Without this the per-entry payload/hash loop below would pass vacuously on
+    # an empty list, and the packet could silently stop being source-bound.
+    assert response_index["entries"]
+    for entry in response_index["entries"]:
+        payload_path = Path(__file__).resolve().parents[2] / entry["payload_path"]
+        assert payload_path.is_file(), payload_path
+        assert hashlib.sha256(payload_path.read_bytes()).hexdigest() == entry["sanitized_sha256"]
+
+    services = {entry["service"]: entry for entry in response_index["discovery_services"]}
+    assert set(services) == {"Consensus", "Scite"}
+    required_service_fields = {
+        "service",
+        "invoked_on",
+        "sanitized_query",
+        "purpose",
+        "provider_output_retained",
+        "provider_output_used_as_evidence",
+        "primary_source_ids_checked_independently",
+        "documentation_url",
+        "terms_url",
+    }
+    # Closed vocabulary: a discovery-service entry may record a fallback or an
+    # excluded provider finding, and nothing else. Anything outside this set
+    # would be undeclared provider content leaking into the packet.
+    optional_service_fields = {"unavailable_or_quota_events", "excluded_provider_findings"}
+    for service in services.values():
+        assert required_service_fields <= set(service)
+        assert set(service) <= required_service_fields | optional_service_fields
+        assert service["provider_output_retained"] is False
+        assert service["provider_output_used_as_evidence"] is False
+        assert {
+            "PMID:18853457",
+            "PMID:34072215",
+            "DOI:10.1002/humu.20921",
+            "DOI:10.3390/ijms22115747",
+        } <= set(service["primary_source_ids_checked_independently"])
+        for event in service.get("unavailable_or_quota_events", []):
+            assert event["error"] and event["action"]
+        for excluded in service.get("excluded_provider_findings", []):
+            assert excluded["used_as_evidence"] is False
+            assert excluded["excluded_because"].strip()
+    # Retention policy must describe what the files actually hold. Every URL the
+    # packet keeps is one of the three enumerated exceptions, so the README and
+    # the index cannot claim a blanket exclusion they do not honour.
+    retained_url_kinds = response_index["sanitization"]["retained"]
+    assert any("source-archive URL" in kind for kind in retained_url_kinds)
+    assert any("licence or reuse terms" in kind for kind in retained_url_kinds)
+    assert any("documentation and terms URLs" in kind for kind in retained_url_kinds)
+    assert "`source_archive.archive_url`" in readme
+    assert "explicit, enumerated exceptions" in readme
+    # The rate-limit and result-size fallbacks are recorded, not silently dropped.
+    assert services["Consensus"]["unavailable_or_quota_events"]
+    assert services["Scite"]["unavailable_or_quota_events"]
+    # Likewise the excluded corroborating passage. The loop over this list above
+    # would pass vacuously if the field were emptied or dropped, and the test
+    # would quietly stop checking that the exclusion stays documented.
+    assert services["Scite"]["excluded_provider_findings"]
+    assert {"PMID:10712215", "PMID:11032788"} <= set(
+        services["Scite"]["primary_source_ids_checked_independently"]
+    )
+    assert not (U5_CONFLICT_EVIDENCE_PACKET / "raw/consensus-search-fetch-sanitized.json").exists()
+    assert not (
+        U5_CONFLICT_EVIDENCE_PACKET / "raw/scite-targeted-doi-responses-sanitized.json"
+    ).exists()
+    assert not any(
+        provider in path.name.lower()
+        for path in (U5_CONFLICT_EVIDENCE_PACKET / "raw").iterdir()
+        for provider in ("consensus", "scite")
+    )
 
 
 def test_issue_1798_batch_13_flattened_helpers_are_exact_and_source_only() -> None:
@@ -8778,7 +8982,7 @@ def test_derived_provenance_metadata_and_bundle_compatibility_are_exact() -> Non
 
     bundle = build_bundle()
     mt_audit = bundle["sources"]["mt"]["audit"]
-    assert bundle["version"] == "1.1.29"
+    assert bundle["version"] == "1.1.30"
     assert bundle["stats"]["mt_haplogroups"] == 193
     assert bundle["stats"]["mt_defining_snps"] == 634
     assert bundle["stats"]["mt_unique_snps"] == 515
