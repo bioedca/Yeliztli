@@ -255,13 +255,20 @@ function DrugHypersensitivityAlert({
           </div>
           <p className="text-sm text-muted-foreground mb-2">{item.finding_text}</p>
           <div className="flex items-center gap-3">
-            <Link
-              to={`/pharmacogenomics?sample_id=${sampleId}`}
-              className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-            >
-              View in Pharmacogenomics
-              <ArrowRight className="h-3 w-3" aria-hidden="true" />
-            </Link>
+            {/* Only offer the handoff when Pharmacogenomics holds a CPIC
+                guideline for this drug. It covers no HLA gene, so the
+                carbamazepine / allopurinol / abacavir links landed the user on
+                18 unrelated drugs with no explanation (#2020). Confirmatory
+                HLA typing stays — it is the actionable next step either way. */}
+            {item.pgx_guidance_available && (
+              <Link
+                to={`/pharmacogenomics?sample_id=${sampleId}`}
+                className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+              >
+                View in Pharmacogenomics
+                <ArrowRight className="h-3 w-3" aria-hidden="true" />
+              </Link>
+            )}
             <span className="text-xs text-muted-foreground italic">
               Confirmatory HLA typing recommended
             </span>

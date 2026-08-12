@@ -23,6 +23,10 @@ import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
+from backend.analysis.pharmacogenomics import (
+    is_patient_presentable_finding_payload,
+    is_patient_presentable_response_payload,
+)
 from backend.api.dependencies import require_fresh_sample
 from backend.api.gating import apoe_gate_status
 from backend.db.connection import get_registry
@@ -289,6 +293,9 @@ def get_apoe_genotype(
             )
         ).fetchone()
 
+    if row is not None and not is_patient_presentable_finding_payload(row._mapping):
+        row = None
+
     if row is None:
         # No determined genotype is stored. Distinguish a genuinely un-run
         # analysis from one that ran but is un-callable (missing SNPs / no-call /
@@ -359,6 +366,8 @@ def list_apoe_findings(
 
     items: list[APOEFindingResponse] = []
     for row in rows:
+        if not is_patient_presentable_finding_payload(row._mapping):
+            continue
         detail: dict[str, Any] = {}
         if row.detail_json:
             try:
@@ -386,7 +395,10 @@ def list_apoe_findings(
             )
         )
 
-    return APOEFindingsListResponse(items=items, total=len(items))
+    response = APOEFindingsListResponse(items=items, total=len(items))
+    if not is_patient_presentable_response_payload(response.model_dump(mode="json")):
+        return APOEFindingsListResponse(items=[], total=0)
+    return response
 
 
 @router.post("/run", dependencies=[Depends(require_fresh_sample)])

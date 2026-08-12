@@ -94,7 +94,11 @@ async def generate_report(request: ReportRequest) -> Response:
 
 
 @router.post("/preview", response_class=HTMLResponse)
-async def preview_report(request: ReportRequest) -> HTMLResponse:
+# Sync, not async: rendering reads the sample DB and, for an ROH finding,
+# runs a coverage scan measured at 0.6-1.6 s. On an `async def` path operation
+# that blocks the event loop for every other request; as `def`, FastAPI
+# offloads it to a threadpool.
+def preview_report(request: ReportRequest) -> HTMLResponse:
     """Generate an HTML preview of the report (no PDF conversion).
 
     Useful for the report builder UI to show a live preview before
@@ -180,7 +184,7 @@ async def generate_variant_card_as_png(request: VariantCardRequest) -> Response:
 
 
 @router.post("/variant-card/preview", response_class=HTMLResponse)
-async def preview_variant_card(request: VariantCardRequest) -> HTMLResponse:
+def preview_variant_card(request: VariantCardRequest) -> HTMLResponse:
     """Generate an HTML preview of the variant evidence card."""
     require_fresh_sample(request.sample_id)
     from backend.reports.variant_card import render_variant_card_html

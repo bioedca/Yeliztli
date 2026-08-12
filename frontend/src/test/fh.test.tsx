@@ -45,6 +45,7 @@ const CRITERIA = {
 
 function assessment(over: Partial<FhAssessment> = {}): FhAssessment {
   return {
+    assessment_status: "available",
     has_monogenic: false,
     monogenic: [],
     apob_fdb: null,
@@ -181,6 +182,17 @@ describe("FHView — with a sample", () => {
     expect(
       screen.getByText("No reportable monogenic FH variant detected."),
     ).toBeInTheDocument()
+  })
+
+  it("does not render a negative result when the assessment is withheld", () => {
+    setAssessment(assessment({ assessment_status: "unavailable" }))
+    render(<FHView />)
+    expect(screen.getByText("FH assessment unavailable.")).toBeInTheDocument()
+    expect(screen.getByRole("region", { name: "FH assessment unavailable." })).toHaveTextContent(
+      "It is not a negative result.",
+    )
+    expect(screen.queryByText("No reportable monogenic FH variant detected.")).not.toBeInTheDocument()
+    expect(screen.queryByText("LDL-C polygenic score unavailable.")).not.toBeInTheDocument()
   })
 
   it("explains when the LDL-C polygenic score bundle is unavailable", () => {

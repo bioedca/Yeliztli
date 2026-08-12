@@ -13,6 +13,7 @@ Covers:
 
 from __future__ import annotations
 
+import json
 from collections.abc import Generator
 from pathlib import Path
 from unittest.mock import patch
@@ -714,6 +715,108 @@ class TestFindingsEndpoint:
         """Missing sample returns 404."""
         resp = empty_client.get("/api/analysis/rare-variants/findings?sample_id=999")
         assert resp.status_code == 404
+
+
+class TestPayloadGate:
+    """#2019: rare-variant views and exports share the payload boundary."""
+
+    def test_held_payload_is_absent_from_findings_and_exports(
+        self,
+        rare_client: TestClient,
+        sample_db_path: Path,
+    ) -> None:
+        seed_rare_variant_findings(sample_db_path)
+        sample_engine = sa.create_engine(f"sqlite:///{sample_db_path}")
+        try:
+            with sample_engine.begin() as conn:
+                conn.execute(
+                    findings.insert().values(
+                        module="rare_variants",
+                        category="clinvar_pathogenic",
+                        evidence_level=6,
+                        gene_symbol="CYP2C19",
+                        drug="clopidogrel",
+                        rsid="rs_held_payload",
+                        finding_text="Scalar-safe legacy shell",
+                        zygosity="het",
+                        detail_json=(
+                            '{"chrom":"1","pos":12345,"ref":"A","alt":"G",'
+                            '"legacy":{" Gene ":"CYP2D6","DRUG":"tamoxifen",'
+                            '"recommendation":"Must not reach exports."}}'
+                        ),
+                    )
+                )
+
+            findings_response = rare_client.get("/api/analysis/rare-variants/findings?sample_id=1")
+            first_page = rare_client.get(
+                "/api/analysis/rare-variants/findings?sample_id=1&limit=1&offset=0"
+            )
+            second_page = rare_client.get(
+                "/api/analysis/rare-variants/findings?sample_id=1&limit=1&offset=1"
+            )
+            tsv = rare_client.get("/api/analysis/rare-variants/export/tsv?sample_id=1")
+            vcf = rare_client.get("/api/analysis/rare-variants/export/vcf?sample_id=1")
+
+            assert findings_response.status_code == 200
+            assert findings_response.json()["total"] == 2
+            assert [item["rsid"] for item in first_page.json()["items"]] == ["rs_first"]
+            assert [item["rsid"] for item in second_page.json()["items"]] == ["rs_second"]
+            assert tsv.status_code == 200
+            assert vcf.status_code == 200
+            assert "rs_first" in tsv.text
+            assert "rs_second" in tsv.text
+            assert "rs_first" in vcf.text
+            assert "rs_second" in vcf.text
+            for response in (findings_response, tsv, vcf):
+                assert "rs_held_payload" not in response.text
+                assert "tamoxifen" not in response.text.lower()
+        finally:
+            sample_engine.dispose()
+
+    def test_intergenic_finding_survives_aggregate_payload_gates(
+        self,
+        rare_client: TestClient,
+        sample_db_path: Path,
+    ) -> None:
+        """A legitimate absent gene label is not a malformed clinical identifier."""
+        seed_rare_variant_findings(sample_db_path)
+        sample_engine = sa.create_engine(f"sqlite:///{sample_db_path}")
+        try:
+            with sample_engine.begin() as conn:
+                conn.execute(
+                    findings.insert().values(
+                        module="rare_variants",
+                        category="rare",
+                        evidence_level=1,
+                        gene_symbol=None,
+                        rsid="rs_intergenic",
+                        finding_text="Synthetic intergenic rare variant.",
+                        zygosity="het",
+                        detail_json=json.dumps(
+                            {
+                                "chrom": "1",
+                                "pos": 24680,
+                                "ref": "A",
+                                "alt": "G",
+                                "consequence": "intergenic_variant",
+                            }
+                        ),
+                    )
+                )
+
+            findings_response = rare_client.get("/api/analysis/rare-variants/findings?sample_id=1")
+            tsv = rare_client.get("/api/analysis/rare-variants/export/tsv?sample_id=1")
+            vcf = rare_client.get("/api/analysis/rare-variants/export/vcf?sample_id=1")
+
+            assert findings_response.status_code == 200
+            assert findings_response.json()["total"] == 3
+            assert "rs_intergenic" in [item["rsid"] for item in findings_response.json()["items"]]
+            assert tsv.status_code == 200
+            assert "rs_intergenic" in tsv.text
+            assert vcf.status_code == 200
+            assert "1\t24680\trs_intergenic\tA\tG" in vcf.text
+        finally:
+            sample_engine.dispose()
 
 
 # ═══════════════════════════════════════════════════════════════════════

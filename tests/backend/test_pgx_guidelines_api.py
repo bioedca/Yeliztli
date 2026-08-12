@@ -59,7 +59,17 @@ def pgx_client(tmp_data_dir: Path) -> Generator[TestClient, None, None]:
                     "drug": "clopidogrel",
                     "metabolizer_status": "Poor Metabolizer",
                     "finding_text": "CYP2C19/clopidogrel alert",
-                }
+                },
+                {
+                    # A non-canonical but retained record must not turn the
+                    # cross-source endpoint into a clinical association channel.
+                    "module": "medication_review",
+                    "category": "prescribing_alert",
+                    "gene_symbol": " CYP2D6 ",
+                    "drug": "\ttamoxifen\n",
+                    "metabolizer_status": "Intermediate Metabolizer",
+                    "finding_text": "Custom retained tamoxifen clinical advice.",
+                },
             ],
         )
 
@@ -94,6 +104,15 @@ class TestPgxGuidelinesEndpoint:
         assert data["context_only"] is True
         assert data["note"]
         assert data["pmid_citations"]
+
+    def test_withheld_pair_is_absent_from_cross_source_response(
+        self,
+        pgx_client: TestClient,
+    ) -> None:
+        data = pgx_client.get("/api/analysis/pgx-guidelines?sample_id=1").json()
+
+        assert "tamoxifen" not in str(data).lower()
+        assert [alert["gene_symbol"] for alert in data["alerts"]] == ["CYP2C19"]
 
     def test_invalid_sample_returns_404(self, pgx_client: TestClient) -> None:
         assert pgx_client.get("/api/analysis/pgx-guidelines?sample_id=999").status_code == 404

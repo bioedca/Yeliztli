@@ -84,87 +84,97 @@ export default function FHView() {
             </div>
           </div>
 
-          {/* Monogenic FH */}
-          <section aria-label="Monogenic FH variants" className="mb-8">
-            <h2 className="text-lg font-semibold mb-3">Monogenic findings (LDLR / APOB / PCSK9)</h2>
-            {a.has_monogenic ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {a.monogenic.map((m, i) => (
+          {a.assessment_status === "unavailable" ? (
+            <PageEmpty
+              icon={AlertTriangle}
+              title="FH assessment unavailable."
+              description="This assessment was withheld because some legacy result data cannot be safely presented. It is not a negative result."
+            />
+          ) : (
+            <>
+              {/* Monogenic FH */}
+              <section aria-label="Monogenic FH variants" className="mb-8">
+                <h2 className="text-lg font-semibold mb-3">Monogenic findings (LDLR / APOB / PCSK9)</h2>
+                {a.has_monogenic ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {a.monogenic.map((m, i) => (
+                      <article
+                        key={`${m.gene}-${m.rsid ?? "na"}-${i}`}
+                        className="rounded-lg border bg-card p-4"
+                        data-testid="fh-monogenic-card"
+                      >
+                        <h3 className="font-semibold text-sm">
+                          {m.gene}{" "}
+                          <span className="font-normal text-muted-foreground">{m.rsid ?? ""}</span>
+                        </h3>
+                        <p className="text-sm text-foreground">{m.clinvar_significance}</p>
+                        <p className="text-xs text-muted-foreground">Zygosity: {m.zygosity}</p>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <PageEmpty
+                    icon={HeartPulse}
+                    title="No reportable monogenic FH variant detected."
+                    description="This does not exclude FH; arrays cover a limited variant set."
+                  />
+                )}
+              </section>
+
+              {/* APOB FDB highlight */}
+              {a.apob_fdb && (
+                <section aria-label="APOB familial defective apoB-100" className="mb-8">
+                  <h2 className="text-lg font-semibold mb-3">APOB familial defective apoB-100</h2>
                   <article
-                    key={`${m.gene}-${m.rsid ?? "na"}-${i}`}
-                    className="rounded-lg border bg-card p-4"
-                    data-testid="fh-monogenic-card"
+                    className="rounded-lg border bg-card p-4 max-w-xl"
+                    data-testid="fh-apob-fdb-card"
                   >
                     <h3 className="font-semibold text-sm">
-                      {m.gene}{" "}
-                      <span className="font-normal text-muted-foreground">{m.rsid ?? ""}</span>
+                      APOB {a.apob_fdb.protein}{" "}
+                      <span className="font-normal text-muted-foreground">{a.apob_fdb.rsid}</span>
                     </h3>
-                    <p className="text-sm text-foreground">{m.clinvar_significance}</p>
-                    <p className="text-xs text-muted-foreground">Zygosity: {m.zygosity}</p>
+                    <p className="text-sm">
+                      Genotype <span className="font-mono">{a.apob_fdb.genotype}</span>
+                      {a.apob_fdb.is_pathogenic ? " — pathogenic carrier" : ""}
+                    </p>
+                    {a.apob_fdb.clinvar_significance && (
+                      <p className="text-xs text-muted-foreground">
+                        ClinVar: {a.apob_fdb.clinvar_significance}
+                      </p>
+                    )}
                   </article>
-                ))}
-              </div>
-            ) : (
-              <PageEmpty
-                icon={HeartPulse}
-                title="No reportable monogenic FH variant detected."
-                description="This does not exclude FH; arrays cover a limited variant set."
-              />
-            )}
-          </section>
+                </section>
+              )}
 
-          {/* APOB FDB highlight */}
-          {a.apob_fdb && (
-            <section aria-label="APOB familial defective apoB-100" className="mb-8">
-              <h2 className="text-lg font-semibold mb-3">APOB familial defective apoB-100</h2>
-              <article
-                className="rounded-lg border bg-card p-4 max-w-xl"
-                data-testid="fh-apob-fdb-card"
-              >
-                <h3 className="font-semibold text-sm">
-                  APOB {a.apob_fdb.protein}{" "}
-                  <span className="font-normal text-muted-foreground">{a.apob_fdb.rsid}</span>
-                </h3>
-                <p className="text-sm">
-                  Genotype <span className="font-mono">{a.apob_fdb.genotype}</span>
-                  {a.apob_fdb.is_pathogenic ? " — pathogenic carrier" : ""}
-                </p>
-                {a.apob_fdb.clinvar_significance && (
-                  <p className="text-xs text-muted-foreground">
-                    ClinVar: {a.apob_fdb.clinvar_significance}
-                  </p>
+              {/* LDL-C polygenic score */}
+              <section aria-label="LDL-C polygenic score" data-testid="fh-ldl-prs">
+                <h2 className="text-lg font-semibold mb-3">LDL-C polygenic score</h2>
+                {a.ldl_prs ? (
+                  <div className="max-w-sm">
+                    <PRSGaugeCard
+                      prs={toGaugePrs({
+                        trait: "ldl_cholesterol",
+                        ...a.ldl_prs,
+                        source_ancestry: "",
+                        sample_size: 0,
+                        source_url: a.ldl_prs.pgs_id
+                          ? `https://www.pgscatalog.org/score/${a.ldl_prs.pgs_id}/`
+                          : null,
+                        genome_build: null,
+                        variants_number: null,
+                      })}
+                    />
+                  </div>
+                ) : (
+                  <PageEmpty
+                    icon={HeartPulse}
+                    title="LDL-C polygenic score unavailable."
+                    description="The PGS score bundle may not be installed."
+                  />
                 )}
-              </article>
-            </section>
+              </section>
+            </>
           )}
-
-          {/* LDL-C polygenic score */}
-          <section aria-label="LDL-C polygenic score" data-testid="fh-ldl-prs">
-            <h2 className="text-lg font-semibold mb-3">LDL-C polygenic score</h2>
-            {a.ldl_prs ? (
-              <div className="max-w-sm">
-                <PRSGaugeCard
-                  prs={toGaugePrs({
-                    trait: "ldl_cholesterol",
-                    ...a.ldl_prs,
-                    source_ancestry: "",
-                    sample_size: 0,
-                    source_url: a.ldl_prs.pgs_id
-                      ? `https://www.pgscatalog.org/score/${a.ldl_prs.pgs_id}/`
-                      : null,
-                    genome_build: null,
-                    variants_number: null,
-                  })}
-                />
-              </div>
-            ) : (
-              <PageEmpty
-                icon={HeartPulse}
-                title="LDL-C polygenic score unavailable."
-                description="The PGS score bundle may not be installed."
-              />
-            )}
-          </section>
         </>
       )}
     </div>

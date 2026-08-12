@@ -246,6 +246,22 @@ describe("DrugTable", () => {
     expect(badges.length).toBe(3) // clopidogrel, codeine, warfarin
   })
 
+  it("labels an audit-only drug as guidance withheld instead of assigning a CPIC tier", () => {
+    const withheld: DrugListItem = {
+      drug: "tamoxifen",
+      genes: ["CYP2D6"],
+      classification: null,
+      prescribing_guidance_withheld: true,
+    }
+    render(
+      <DrugTable drugs={[...DRUG_LIST, withheld]} onSelectDrug={onSelectDrug} selectedDrug={null} />,
+    )
+
+    expect(screen.getByText("Guidance withheld")).toBeInTheDocument()
+    expect(screen.getByTitle("Clinical recommendation withheld")).toBeInTheDocument()
+    expect(screen.queryAllByTitle("CPIC Level A")).toHaveLength(3)
+  })
+
   it("shows empty state when no results match", async () => {
     const user = userEvent.setup()
     render(

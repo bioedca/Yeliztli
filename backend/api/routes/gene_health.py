@@ -18,6 +18,17 @@ import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
+from backend.analysis.cross_module_links import (
+    current_link,
+    current_recommendation,
+    panel_cross_module_links,
+    refreshed_finding_text,
+)
+from backend.analysis.gene_health import load_gene_health_panel
+from backend.analysis.pharmacogenomics import (
+    is_patient_presentable_finding_payload,
+    is_patient_presentable_response_payload,
+)
 from backend.api.dependencies import require_fresh_sample
 from backend.db.connection import get_registry
 from backend.db.tables import findings, samples
@@ -146,6 +157,8 @@ def _fetch_gene_health_findings(
 
     result: list[dict[str, Any]] = []
     for row in rows:
+        if not is_patient_presentable_finding_payload(row._mapping):
+            continue
         detail: dict[str, Any] = {}
         if row.detail_json:
             try:
@@ -214,18 +227,25 @@ def list_pathways(
             )
         )
 
-    # Cross-module findings
+    # Cross-module findings. Target and note are resolved against the panel that
+    # is loaded now, so a sample analysed before a link was corrected follows the
+    # correction on its next request rather than after a re-score (#2021).
     cross_findings = [f for f in all_findings if f["category"] == "cross_module"]
+    links = panel_cross_module_links(load_gene_health_panel())
     cross_items: list[CrossModuleItem] = []
     for cf in cross_findings:
         detail = cf["detail"]
+        link = current_link(links, cf)
+        if link is None:
+            # The panel no longer declares this handoff at all.
+            continue
         cross_items.append(
             CrossModuleItem(
                 rsid=cf["rsid"] or "",
                 gene=cf["gene_symbol"] or "",
                 source_module=detail.get("source_module", "gene_health"),
-                target_module=detail.get("target_module", ""),
-                finding_text=cf["finding_text"] or "",
+                target_module=link["module"],
+                finding_text=refreshed_finding_text(cf, link),
                 evidence_level=cf["evidence_level"] if cf["evidence_level"] is not None else 1,
                 pmids=cf["pmids"],
             )
@@ -236,12 +256,18 @@ def list_pathways(
     if pathway_summaries:
         module_disclaimer = pathway_summaries[0]["detail"].get("module_disclaimer")
 
-    return PathwaysResponse(
+    response = PathwaysResponse(
         items=items,
         total=len(items),
         cross_module=cross_items,
         module_disclaimer=module_disclaimer,
     )
+    # This value is reloaded from stored pathway-summary detail, so it remains
+    # dynamic result data at this boundary.  Gate it together with the assembled
+    # response rather than assuming persisted text still matches panel metadata.
+    if not is_patient_presentable_response_payload(response.model_dump(mode="json")):
+        return PathwaysResponse(items=[], total=0)
+    return response
 
 
 @router.get("/pathway/{pathway_id}")
@@ -291,27 +317,31 @@ def pathway_detail(
         rsid = sd.get("rsid", "")
         snp_finding = snp_findings_map.get(rsid, {})
         snp_finding_detail = snp_finding.get("detail", {})
-        recommendation = snp_finding_detail.get("recommendation")
+        # Panel prose persisted at scoring time; serve the panel that is
+        # loaded so a corrected recommendation does not wait for a re-score.
+        recommendation = current_recommendation(
+            "gene_health", rsid, snp_finding_detail.get("recommendation")
+        )
         pmids = snp_finding.get("pmids", [])
 
-        snp_details.append(
-            SNPDetail(
-                rsid=rsid,
-                gene=sd.get("gene", ""),
-                variant_name=sd.get("variant_name", ""),
-                genotype=sd.get("genotype"),
-                category=sd.get("category", "Standard"),
-                effect_summary=sd.get("effect_summary", ""),
-                evidence_level=sd.get("evidence_level", 1),
-                recommendation=recommendation,
-                pmids=pmids,
-                coverage_note=sd.get("coverage_note"),
-                ancestry_caveated=bool(sd.get("ancestry_caveated", False)),
-                cross_module=sd.get("cross_module"),
-            )
+        snp_detail = SNPDetail(
+            rsid=rsid,
+            gene=sd.get("gene", ""),
+            variant_name=sd.get("variant_name", ""),
+            genotype=sd.get("genotype"),
+            category=sd.get("category", "Standard"),
+            effect_summary=sd.get("effect_summary", ""),
+            evidence_level=sd.get("evidence_level", 1),
+            recommendation=recommendation,
+            pmids=pmids,
+            coverage_note=sd.get("coverage_note"),
+            ancestry_caveated=bool(sd.get("ancestry_caveated", False)),
+            cross_module=sd.get("cross_module"),
         )
+        if is_patient_presentable_response_payload(snp_detail.model_dump(mode="json")):
+            snp_details.append(snp_detail)
 
-    return PathwayDetailResponse(
+    response = PathwayDetailResponse(
         pathway_id=pathway_id,
         pathway_name=pathway_name,
         level=(
@@ -331,6 +361,9 @@ def pathway_detail(
         pmids=pathway_summary["pmids"],
         snp_details=snp_details,
     )
+    if not is_patient_presentable_response_payload(response.model_dump(mode="json")):
+        raise HTTPException(status_code=404, detail="Pathway not found for sample.")
+    return response
 
 
 @router.post("/run")

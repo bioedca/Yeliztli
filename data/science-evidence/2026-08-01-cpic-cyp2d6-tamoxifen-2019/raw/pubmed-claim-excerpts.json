@@ -1,0 +1,39 @@
+{
+  "accessed": "2026-08-01",
+  "source": "NCBI Entrez PubMed metadata and sanitized EFetch extract",
+  "provenance_records": [
+    {
+      "repository_provenance": "The normative CYP2D6/tamoxifen recommendation text was retrieved from the current CPIC record.",
+      "sources": [
+        "PMID:29385237",
+        "DOI:10.1002/cpt.1007"
+      ],
+      "scope": "CPIC guideline publication identity; the CPIC API payload remains the authoritative source for the exact current wording. This is not an independent clinical-evidence claim."
+    },
+    {
+      "repository_provenance": "These identifiers appear in the CPIC source text copied for the Intermediate and Poor Metabolizer rows.",
+      "sources": [
+        "PMID:26211827",
+        "DOI:10.1016/S0140-6736(15)61074-1",
+        "PMID:23213055",
+        "DOI:10.1158/1078-0432.CCR-12-2153"
+      ],
+      "scope": "Citation identity only; the repository copies CPIC's conditional wording and does not derive a treatment ranking, comparative-efficacy conclusion, or patient-specific recommendation."
+    },
+    {
+      "repository_provenance": "These identifiers appear in the CPIC source text copied for its 40 mg/day contingency.",
+      "sources": [
+        "PMID:27226358",
+        "DOI:10.1634/theoncologist.2015-0480",
+        "PMID:21768473",
+        "DOI:10.1200/JCO.2010.31.4427"
+      ],
+      "scope": "Citation identity only; the code retains CPIC's explicit contingency and does not make a new exposure, efficacy, or patient-outcome claim."
+    }
+  ],
+  "limitations": [
+    "This file is a provenance crosswalk, not a reproduction of article abstracts or full text.",
+    "The cited studies are not treated as independent confirmation of any single patient-level effect; cohort and upstream-assertion overlap have not been evaluated because no clinical conclusion is derived here.",
+    "The application remains a pharmacogenomics alerting aid; clinical decisions require clinician review and the full CPIC guideline context."
+  ]
+}

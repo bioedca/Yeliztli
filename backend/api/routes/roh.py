@@ -15,7 +15,15 @@ import sqlalchemy as sa
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 
-from backend.analysis.roh import CATEGORY, MODULE
+from backend.analysis.pharmacogenomics import is_patient_presentable_finding_payload
+from backend.analysis.roh import (
+    CATEGORY,
+    DETAIL_UNAVAILABLE,
+    INSUFFICIENT_AUTOSOMAL_MARKERS,
+    MODULE,
+    evaluability_from_detail,
+    unevaluable_text,
+)
 from backend.api.dependencies import require_fresh_sample
 from backend.api.routes.risk_common import resolve_sample_engine
 from backend.db.tables import findings
@@ -36,11 +44,17 @@ class RohSegmentResponse(BaseModel):
 
 class RohFindingResponse(BaseModel):
     finding_text: str
-    froh: float = 0.0
-    total_roh_kb: float = 0.0
-    longest_kb: float = 0.0
-    n_segments: int = 0
+    # ``None`` whenever autozygosity could not be assessed. Never 0.0 in that
+    # case: an unmeasurable genome must not be served as a measured absence.
+    froh: float | None = None
+    # Withheld alongside FROH: "0 kb total, 0 segments" is the same measured
+    # absence stated in another field.
+    total_roh_kb: float | None = None
+    longest_kb: float | None = None
+    n_segments: int | None = None
     autosomal_snps_used: int = 0
+    evaluable: bool = True
+    indeterminate_reason: str | None = None
     segments: list[RohSegmentResponse] = []
     segments_truncated: bool = False
 
@@ -52,6 +66,15 @@ class RohDisclaimerResponse(BaseModel):
 
 class RohRunResponse(BaseModel):
     findings_count: int
+
+
+def _unreadable_finding_response() -> RohFindingResponse:
+    """Return a content-free response for an unreadable presentable ROH row."""
+    return RohFindingResponse(
+        finding_text=unevaluable_text(0, DETAIL_UNAVAILABLE),
+        evaluable=False,
+        indeterminate_reason=DETAIL_UNAVAILABLE,
+    )
 
 
 @router.get("/disclaimer")
@@ -68,27 +91,64 @@ def list_findings(
         row = conn.execute(
             sa.select(findings).where(findings.c.module == MODULE, findings.c.category == CATEGORY)
         ).fetchone()
-    if row is None:
+    if row is None or not is_patient_presentable_finding_payload(row._mapping):
+        # A quarantined row must remain indistinguishable from no row.  This is
+        # stricter than the fallback below because even confirming that a
+        # hidden clinical payload exists would leak patient-facing state.
         return None
-    # Parse detail_json and build the response defensively: a malformed or
-    # schema-drifted detail blob (e.g. a row written by an older version, or an
-    # unexpected segment shape) must not 500 — fall back to the plain
-    # finding_text with zeroed metrics.
+    # Parse detail_json and build the response defensively: a presentable but
+    # schema-drifted detail object (for example, an unexpected segment shape)
+    # must not 500 or echo an untrusted narrative — fall back to the standard
+    # content-free indeterminate response.
     try:
-        detail: dict[str, Any] = json.loads(row.detail_json) if row.detail_json else {}
+        parsed = json.loads(row.detail_json) if row.detail_json else {}
+        # json.loads returns whatever JSON type was stored, so a drifted or
+        # hand-edited row holding `[]`, `5` or `"text"` parses to a list, int or
+        # str — and the `dict[str, Any]` annotation below would be a lie. Only a
+        # JSON object can carry readable state; anything else is normalised to
+        # {} so `evaluability_from_detail` classifies it as detail_unavailable.
+        # This must happen at the parse site rather than at each use: the metric
+        # expressions are guarded by `if evaluable` and so never call `.get`,
+        # but `segments_truncated` evaluates `.get` *before* its `and evaluable`
+        # short-circuits, and AttributeError is not in the except tuple below —
+        # so a non-object blob would 500 instead of withholding, which is the
+        # one outcome this route exists to prevent.
+        detail: dict[str, Any] = parsed if isinstance(parsed, dict) else {}
+        # One shared rule, also used by the unified findings API and the report
+        # generator, so a pre-gate row reclassifies identically on every path.
+        evaluable, snps_used, reason = evaluability_from_detail(detail, engine)
         return RohFindingResponse(
-            finding_text=row.finding_text or "",
-            froh=detail.get("froh", 0.0),
-            total_roh_kb=detail.get("total_roh_kb", 0.0),
-            longest_kb=detail.get("longest_kb", 0.0),
-            n_segments=detail.get("n_segments", 0),
-            autosomal_snps_used=detail.get("autosomal_snps_used", 0),
-            segments=[RohSegmentResponse(**s) for s in detail.get("segments", [])],
-            segments_truncated=detail.get("segments_truncated", False),
+            # The resolved reason is forwarded, never defaulted: a legacy row
+            # resolves to insufficient_autosomal_markers and must not be served
+            # with the marker-region wording.
+            finding_text=(row.finding_text or "")
+            if evaluable
+            else unevaluable_text(snps_used, reason or INSUFFICIENT_AUTOSOMAL_MARKERS),
+            # No defaults anywhere: an evaluable row is guaranteed a stored
+            # numeric FROH by evaluability_from_detail, and the companion
+            # metrics are served only if they were actually recorded. A legacy
+            # blob holding just `froh` must report the rest as null rather than
+            # 0.0 kb / 0 segments, which would state three measurements nothing
+            # took — the same substitution, one field over.
+            froh=detail.get("froh") if evaluable else None,
+            total_roh_kb=detail.get("total_roh_kb") if evaluable else None,
+            longest_kb=detail.get("longest_kb") if evaluable else None,
+            n_segments=detail.get("n_segments") if evaluable else None,
+            autosomal_snps_used=snps_used,
+            evaluable=evaluable,
+            indeterminate_reason=reason,
+            segments=[RohSegmentResponse(**s) for s in detail.get("segments", [])]
+            if evaluable
+            else [],
+            segments_truncated=bool(detail.get("segments_truncated", False)) and evaluable,
         )
     except (json.JSONDecodeError, TypeError, ValueError) as exc:
         logger.warning("Failed to build ROH response for finding id=%s: %s", row.id, exc)
-        return RohFindingResponse(finding_text=row.finding_text or "")
+        # The metrics could not be read, so none are asserted — in particular
+        # froh stays None rather than defaulting to a reassuring 0.0. The stored
+        # narrative is replaced too: serving "typical result" beside
+        # evaluable=false would state both at once.
+        return _unreadable_finding_response()
 
 
 @router.post("/run", dependencies=[Depends(require_fresh_sample)])

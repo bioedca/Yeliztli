@@ -11,7 +11,23 @@ interface DrugTableProps {
   selectedDrug: string | null
 }
 
-function ClassificationBadge({ classification }: { classification: string | null }) {
+function ClassificationBadge({
+  classification,
+  prescribingGuidanceWithheld = false,
+}: {
+  classification: string | null
+  prescribingGuidanceWithheld?: boolean
+}) {
+  if (prescribingGuidanceWithheld) {
+    return (
+      <span
+        className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
+        title="Clinical recommendation withheld"
+      >
+        Guidance withheld
+      </span>
+    )
+  }
   if (!classification) return null
   const colors: Record<string, string> = {
     A: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
@@ -106,7 +122,10 @@ export default function DrugTable({ drugs, onSelectDrug, selectedDrug }: DrugTab
                     {drug.genes.join(", ")}
                   </td>
                   <td className="px-4 py-2.5 text-center">
-                    <ClassificationBadge classification={drug.classification} />
+                    <ClassificationBadge
+                      classification={drug.classification}
+                      prescribingGuidanceWithheld={drug.prescribing_guidance_withheld}
+                    />
                   </td>
                   <td className="px-2 py-2.5">
                     <ChevronRight className="h-4 w-4 text-muted-foreground" />

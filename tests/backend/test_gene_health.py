@@ -289,7 +289,10 @@ class TestPanelLoading:
         # (rs429358, #329) and LRRK2 G2019S (rs34637584, #404).
         assert "rs429358" not in cross_modules
         assert "rs34637584" not in cross_modules
-        assert cross_modules.get("rs9939609") == "nutrigenomics"
+        # rs9939609 points at Metabolic, which carries it as the BMI/adiposity
+        # anchor. Nutrigenomics lists FTO under additional_genes and never scores
+        # it, so the old target could not deliver what the card promised (#2021).
+        assert cross_modules.get("rs9939609") == "metabolic"
         assert cross_modules.get("rs1801133") == "methylation"
         assert cross_modules.get("rs747302") == "traits"
         assert cross_modules.get("rs6822844") == "allergy"
@@ -1015,22 +1018,28 @@ class TestCrossModuleFindings:
         assert apoe_findings == []
         assert apoe_coverage == []
 
-    def test_fto_nutrigenomics_cross_link(
+    def test_fto_metabolic_cross_link(
         self,
         panel: GeneHealthPanel,
         sample_engine: sa.Engine,
         reference_engine: sa.Engine,
     ) -> None:
-        """rs9939609 carrier -> nutrigenomics cross-link."""
+        """rs9939609 carrier -> metabolic cross-link.
+
+        Retargeted from nutrigenomics in #2021: that module lists FTO under
+        ``additional_genes`` and never scores it, so the card pointed at seven
+        micronutrient pathways with no mention of FTO. Metabolic carries
+        rs9939609 as its BMI/adiposity anchor.
+        """
         _seed_variants(
             sample_engine,
             [("rs9939609", "16", 53820527, "TA")],
         )
         result = score_gene_health_pathways(panel, sample_engine, reference_engine)
-        nutri_links = [
-            f for f in result.cross_module_findings if f.target_module == "nutrigenomics"
-        ]
-        assert len(nutri_links) >= 1
+        fto_links = [f for f in result.cross_module_findings if f.rsid == "rs9939609"]
+        assert len(fto_links) == 1
+        assert fto_links[0].target_module == "metabolic"
+        assert not [f for f in result.cross_module_findings if f.target_module == "nutrigenomics"]
 
     def test_standard_genotype_no_cross_link(
         self,
@@ -1069,7 +1078,7 @@ class TestCrossModuleFindings:
             sample_engine,
             [
                 ("rs747302", "11", 637339, "CG"),  # DRD4 -> traits
-                ("rs9939609", "16", 53820527, "TA"),  # FTO -> nutrigenomics
+                ("rs9939609", "16", 53820527, "TA"),  # FTO -> metabolic (#2021)
                 ("rs1801133", "1", 11856378, "GA"),  # MTHFR -> methylation
             ],
         )
@@ -1077,7 +1086,7 @@ class TestCrossModuleFindings:
         # Each cross-module target should appear exactly once
         targets = [f.target_module for f in result.cross_module_findings]
         assert targets.count("traits") == 1
-        assert targets.count("nutrigenomics") == 1
+        assert targets.count("metabolic") == 1
         assert targets.count("methylation") == 1
 
     def test_cross_module_dedup_keys_on_rsid_not_gene(self) -> None:
@@ -2576,3 +2585,82 @@ class TestInsVntrRs689Direction:
             f"{minor_hom} (class III, protective) must be Standard — {minor['category']}"
         )
         assert "protective" in minor_summary
+
+
+# ── Cross-module card wording (#2021) ─────────────────────────────────────
+
+
+class TestCrossModuleCardWording:
+    """The card must not repeat the gene symbol it already carries.
+
+    Curated ``variant_name`` values often start with the gene ("FTO intron 1"),
+    so the naive f"{gene} {variant_name}" rendered "FTO FTO intron 1 (AT) — …"
+    on the card and in the API payload.
+    """
+
+    def _fto_cross_finding(
+        self,
+        panel: GeneHealthPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ):
+        _seed_variants(sample_engine, [("rs9939609", "16", 53820527, "AT")])
+        result = score_gene_health_pathways(panel, sample_engine, reference_engine)
+        for cross in result.cross_module_findings:
+            if cross.rsid == "rs9939609":
+                return cross
+        return None
+
+    def test_gene_symbol_is_not_doubled(
+        self,
+        panel: GeneHealthPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        cross = self._fto_cross_finding(panel, sample_engine, reference_engine)
+        assert cross is not None, "FTO carrier should produce a cross-module finding"
+        assert "FTO FTO" not in cross.finding_text
+        assert cross.finding_text.startswith("FTO intron 1 (")
+
+    def test_gene_prefix_survives_when_the_variant_name_omits_it(
+        self,
+        panel: GeneHealthPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """MTHFR C677T names no gene, so the prefix must still be added."""
+        _seed_variants(sample_engine, [("rs1801133", "1", 11856378, "AG")])
+        result = score_gene_health_pathways(panel, sample_engine, reference_engine)
+        cross = next((c for c in result.cross_module_findings if c.rsid == "rs1801133"), None)
+        assert cross is not None
+        assert cross.finding_text.startswith("MTHFR C677T (")
+
+    def test_hom_ref_non_carrier_emits_no_cross_module_finding(
+        self,
+        panel: GeneHealthPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """Negative control: the card is carriage-gated, so a hom-ref emits nothing.
+
+        Uses MTHFR C677T rather than FTO: rs9939609 is a palindromic A/T locus,
+        so *both* its homozygotes score Indeterminate rather than Standard and
+        it cannot express a non-carrier.
+        """
+        _seed_variants(sample_engine, [("rs1801133", "1", 11856378, "GG")])
+        result = score_gene_health_pathways(panel, sample_engine, reference_engine)
+        assert result.cross_module_findings == []
+
+    def test_fto_homozygotes_are_strand_indeterminate(
+        self,
+        panel: GeneHealthPanel,
+    ) -> None:
+        """Documents why the control above cannot use FTO.
+
+        rs9939609 is A/T, so neither homozygote's strand can be resolved from an
+        array call; only the heterozygote is callable.
+        """
+        snp = next(s for pw in panel.pathways for s in pw.snps if s.rsid == "rs9939609")
+        assert _score_snp(snp, "TT").category == INDETERMINATE
+        assert _score_snp(snp, "AA").category == INDETERMINATE
+        assert _score_snp(snp, "AT").category == MODERATE

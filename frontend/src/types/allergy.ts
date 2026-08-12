@@ -105,6 +105,11 @@ export interface CrossModuleItem {
   finding_text: string
   evidence_level: number
   pmids: string[]
+  /** True only when Pharmacogenomics holds a CPIC guideline for the drug this
+   *  handoff names. False withholds the "View in Pharmacogenomics" link — PGx
+   *  covers no HLA gene, so a carbamazepine / allopurinol / abacavir handoff
+   *  is a dead end (#2020). */
+  pgx_guidance_available: boolean
 }
 
 /** All pathway results for a sample. */

@@ -1,0 +1,660 @@
+"""Suite-wide guard: a panel's nucleotide shorthand must point the same way as
+the amino-acid change printed beside it.
+
+Curated panels label a locus with a legacy coding shorthand — ``C677T``,
+``A1298C``, ``A80G`` — and many of those rows also carry an amino-acid change in
+``hgvs_protein`` (or in a parenthetical inside ``variant_name``). Both strings are
+rendered together: ``methylation.store_methylation_findings`` builds
+``f"{gene} {variant_name} ({genotype}) — {effect_summary}"`` and
+``components/methylation/PathwayDetailPanel.tsx`` prints ``{gene} — {variant_name}``.
+So a shorthand whose reference and alternate bases are the wrong way round does
+not merely sit in a data file; it reaches the user as one self-contradictory
+string.
+
+That is #2023: ``methylation_panel.json`` shipped ``"G80A (His27Arg)"`` for
+SLC19A1 rs1051266. His is ``CAY`` and Arg is ``CGY``, so His→Arg is A→G at codon
+position 2 — the canonical ``c.80A>G`` (NCBI dbSNP RefSNP v2 on RefSeq
+``NM_194255.4``/``NP_919231.1``, and Ensembl GRCh37, both accessed 2026-08-10;
+in-repo, ``tests/fixtures/seed_csvs/vep_seed.csv`` agrees). ``G80A`` asserts the
+opposite polarity, and no genetic code reconciles the two halves of that label.
+
+Do **not** reach for the committed ``bundles/vep_bundle.db`` to settle a question
+like this: every single-base row in it orders the two alleles alphabetically
+rather than reference-first, so its ``hgvs_protein`` is inverted for the whole
+T/C class — it reports ``p.Arg27His`` here. That artifact is the trap #2023's
+reporter narrowly missed, and it is written up separately.
+
+The check itself is combinatorial: a shorthand ``<ref><pos><alt>`` is consistent
+with ``<From><n><To>`` if some codon encoding ``From`` and some codon encoding
+``To`` differ at exactly one position, where the first carries ``ref`` and the
+second carries ``alt``. It does, however, rest on one external scientific fact —
+the genetic code — and that is **sourced, not remembered**. The authority is
+``tests/fixtures/ncbi_gc.prt``, NCBI's own file as retrieved (translation table 1,
+version 4.6, accessed 2026-08-10); the codon table is parsed out of those bytes,
+codon ordering included, and the JSON beside it is a readable extract asserted
+equal to that parse. A mis-transcribed table would otherwise redefine which
+labels this suite accepts, with the tests below simply agreeing with the damage.
+
+**Both production shorthand notations are discovered.** Panels write base-first
+(``A80G``, ``C1420T (Leu474Phe)``) and position-first (``+318A>C (Glu40Ala)``,
+``1083T>C (His361His)``); parenthetical residues come in three-letter
+``(His27Arg)`` and one-letter ``(M1T)`` forms. Recognising only one dialect would
+let a reversed label in the other pass unexamined — which it did until review
+caught it.
+
+Deliberately *not* checked:
+
+* that ``pos`` falls inside codon ``n``. The shorthands use legacy transcript
+  numbering — MTHFR ``C677T`` is ``p.Ala222Val``, whose codon is c.664-666 — so a
+  positional check would fail on correct rows.
+* the reverse-complement spelling. ``variant_name`` is written on the same strand
+  as ``hgvs_protein``; accepting the complement as well would have let ``G80A``
+  through only if C→T reached Arg from a His codon, which it does not, but it
+  would blunt the guard everywhere else.
+
+**What this proves is weaker than "the shorthand is right", and the gap is
+measured rather than hand-waved.** The search runs over *every* codon encoding
+each residue, so it establishes only that the base change works for *some* codon
+— not for the locus's actual one. Where a residue pair is reachable several ways,
+several different ``ref``/``alt`` pairs all pass. SHMT1 ``rs1979277 C1420T
+(Leu474Phe)`` is the worst case in the panels: Leu→Phe is reachable by A→C, A→T,
+C→T, G→C and G→T, so four wrong spellings satisfy this check, and the
+decidability helper accepts each of them too. **5 of the 16 checkable loci accept
+more than one pair** (also MTRR ``A66G``/Ile→Met with three, twice, and the two
+synonymous rows).
+
+So read the guard as: *a shorthand that contradicts its own amino-acid change is
+rejected* — which is #2023 — and not as *a shorthand that passes is correct*.
+Closing the rest needs the transcript's actual codon at that residue, which is
+real reference work and is filed rather than faked here.
+
+The direction sub-case is pinned separately because it is the one #2023 turned
+on. For some pairs *both* directions are reachable — Arg→Ser by A→C
+(``AGA``→``AGC``) and by C→A (``CGT``→``AGT``) — so a reversed shorthand would
+pass. Measured over the standard code, **124 of the 324 reachable
+(from, to, ref, alt) combinations (38.3%)** are undecidable that way. Three tests
+below hold the line: no *non-synonymous* row may sit in the undecidable set, the
+*synonymous* rows that structurally must are listed, and the loci accepting more
+than one base pair are listed too, so none of this can quietly widen.
+
+This is a SELF-DISCOVERING guard (mirroring ``test_panel_risk_ref_invariant.py``
+and ``test_panel_effect_summary_consistency.py``): it walks every
+``backend/data/panels/*.json`` node, so a newly added or edited shorthand is
+covered with no allow-list to update.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import re
+from pathlib import Path
+
+PANEL_DIR = Path(__file__).resolve().parents[2] / "backend" / "data" / "panels"
+_FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
+_GENETIC_CODE_SOURCE = _FIXTURES / "ncbi_gc.prt"
+_GENETIC_CODE_FIXTURE = _FIXTURES / "ncbi_genetic_code_table1.json"
+
+_GC_TABLE_1 = re.compile(
+    r"\n  id 1 ,\s*\n"
+    r'\s*ncbieaa\s+"(?P<ncbieaa>[^"]+)",\s*\n'
+    r'\s*sncbieaa\s+"(?P<sncbieaa>[^"]+)"\s*\n'
+    r"\s*-- Base1\s+(?P<base1>\S+)\s*\n"
+    r"\s*-- Base2\s+(?P<base2>\S+)\s*\n"
+    r"\s*-- Base3\s+(?P<base3>\S+)\s*\n"
+)
+
+
+def _parse_source_table_1() -> dict[str, str]:
+    """Translation table 1, parsed straight out of NCBI's own ``gc.prt`` bytes."""
+    match = _GC_TABLE_1.search(_GENETIC_CODE_SOURCE.read_text(encoding="utf-8"))
+    assert match is not None, "could not locate id 1 in the retained NCBI gc.prt"
+    return match.groupdict()
+
+
+def _load_codon_table() -> dict[str, str]:
+    """Standard genetic code, parsed from the retained source-native NCBI file.
+
+    This decides which panel labels the guard accepts, so it is a biological fact
+    the suite must not carry from memory. The authority is
+    ``tests/fixtures/ncbi_gc.prt`` — NCBI's file as retrieved, byte for byte — and
+    the codon order comes from that file's own ``Base1``/``Base2``/``Base3``
+    lines rather than from an assumption about how the table is laid out.
+
+    ``ncbi_genetic_code_table1.json`` beside it is a readable extract, not the
+    authority: ``test_genetic_code_fixture_is_well_formed_ncbi_table_1`` checks it
+    against what is parsed here, so a transcription slip in the extract cannot
+    quietly redefine anything.
+    """
+    table = _parse_source_table_1()
+    base1, base2, base3, amino_acids = (
+        table["base1"],
+        table["base2"],
+        table["base3"],
+        table["ncbieaa"],
+    )
+    return {base1[i] + base2[i] + base3[i]: amino_acids[i] for i in range(len(amino_acids))}
+
+
+_CODON_TABLE = _load_codon_table()
+
+_THREE_TO_ONE = {
+    "Ala": "A",
+    "Arg": "R",
+    "Asn": "N",
+    "Asp": "D",
+    "Cys": "C",
+    "Gln": "Q",
+    "Glu": "E",
+    "Gly": "G",
+    "His": "H",
+    "Ile": "I",
+    "Leu": "L",
+    "Lys": "K",
+    "Met": "M",
+    "Phe": "F",
+    "Pro": "P",
+    "Ser": "S",
+    "Thr": "T",
+    "Trp": "W",
+    "Tyr": "Y",
+    "Val": "V",
+    "Ter": "*",
+}
+
+# Two shorthand notations are in production use, and both must be discovered or
+# the guard silently skips the rows written in the other one:
+#   base-first      "A80G", "C1420T (Leu474Phe)"
+#   position-first  "+318A>C (Glu40Ala)", "1083T>C (His361His)", "-401C>T"
+_NUCLEOTIDE_SHORTHAND = re.compile(r"^([ACGT])(\d+)([ACGT])(?![A-Za-z0-9])")
+_POSITION_FIRST_SHORTHAND = re.compile(r"^[+-]?(\d+)([ACGT])>([ACGT])(?![A-Za-z0-9])")
+
+_HGVS_PROTEIN = re.compile(r"^p\.([A-Z][a-z]{2})(\d+)([A-Z][a-z]{2})$")
+# Parentheticals come in three-letter ``(His27Arg)`` and one-letter ``(M1T)``
+# forms; ``skin_panel.json`` rs2228570 uses the latter. Non-substitution
+# parentheticals like ``(MnSOD)`` match neither, which is what we want.
+_PARENTHETICAL_PROTEIN = re.compile(r"\(([A-Z][a-z]{2})(\d+)([A-Z][a-z]{2})\)")
+_PARENTHETICAL_PROTEIN_ONE_LETTER = re.compile(r"\(([A-Z])(\d+)([A-Z])\)")
+# Most rows put the protein change in the label itself rather than a parenthetical
+# — ``Pro198Leu``, ``R151C``, ``GC Asp432Glu``, ``Val16Ala (MnSOD)``.
+_DIRECT_PROTEIN = re.compile(r"(?:^|\s)([A-Z][a-z]{2})(\d+)([A-Z][a-z]{2})(?:\s|$|\s*\()")
+_DIRECT_PROTEIN_ONE_LETTER = re.compile(r"^([A-Z])(\d+)([A-Z])$")
+
+
+def _walk_dicts(node: object):
+    """Yield every dict nested anywhere inside a parsed-JSON structure."""
+    if isinstance(node, dict):
+        yield node
+        for value in node.values():
+            yield from _walk_dicts(value)
+    elif isinstance(node, list):
+        for item in node:
+            yield from _walk_dicts(item)
+
+
+_ONE_LETTER_CODES = set(_THREE_TO_ONE.values())
+# Panels display a stop as the conventional ``X`` (``R577X``) while HGVS writes
+# ``Ter``. Without this the two sides of those rows never get compared.
+_ONE_LETTER_ALIASES = {"X": "*"}
+
+
+def _one_letter(match: re.Match[str] | None) -> tuple[str, int, str] | None:
+    """``(from_aa, position, to_aa)`` in one-letter form, or ``None``.
+
+    Accepts either the three-letter groups of ``(His27Arg)`` or the one-letter
+    groups of ``(M1T)``, validating both against the amino-acid alphabet so a
+    stray parenthetical cannot be read as a substitution.
+    """
+    if match is None:
+        return None
+    first, position, second = match.group(1), int(match.group(2)), match.group(3)
+    if first in _THREE_TO_ONE and second in _THREE_TO_ONE:
+        return _THREE_TO_ONE[first], position, _THREE_TO_ONE[second]
+    first = _ONE_LETTER_ALIASES.get(first, first)
+    second = _ONE_LETTER_ALIASES.get(second, second)
+    if first in _ONE_LETTER_CODES and second in _ONE_LETTER_CODES:
+        return first, position, second
+    return None
+
+
+def _label_protein_change(name: str) -> tuple[str, int, str] | None:
+    """The amino-acid substitution a display label states, wherever it states it.
+
+    Covers all four forms in production use: a three-letter parenthetical
+    ``(His27Arg)``, a one-letter parenthetical ``(M1T)``, a three-letter label
+    ``Pro198Leu`` (with or without surrounding text, as in ``GC Asp432Glu`` and
+    ``Val16Ala (MnSOD)``), and a bare one-letter label ``R151C``.
+
+    The bare one-letter form is the delicate one: ``C677T`` is a *nucleotide*
+    shorthand, not Cys677Thr, and A/C/G/T double as amino-acid codes. So it is
+    read as a protein label only when the label cannot also be read as a
+    nucleotide substitution — ``R151C`` can't (R is no base), ``C677T`` can, and
+    ``T300A`` is resolved separately by ``_is_protein_shorthand`` against the row's
+    own ``hgvs_protein``.
+    """
+    for pattern in (_PARENTHETICAL_PROTEIN, _PARENTHETICAL_PROTEIN_ONE_LETTER, _DIRECT_PROTEIN):
+        change = _one_letter(pattern.search(name))
+        if change is not None:
+            return change
+    if _nucleotide_substitution(name) is None:
+        return _one_letter(_DIRECT_PROTEIN_ONE_LETTER.match(name.strip()))
+    return None
+
+
+def _declared_protein_changes(node: dict) -> tuple[tuple[str, int, str] | None, ...]:
+    """Both amino-acid declarations a row can carry: ``hgvs_protein`` and the
+    parenthetical inside ``variant_name``, in that order."""
+    raw = node.get("hgvs_protein")
+    name = node.get("variant_name")
+    return (
+        _one_letter(_HGVS_PROTEIN.match(raw) if isinstance(raw, str) else None),
+        _label_protein_change(name) if isinstance(name, str) else None,
+    )
+
+
+def _nucleotide_substitution(name: str) -> tuple[str, int, str] | None:
+    """``(ref, position, alt)`` from either shorthand notation, or ``None``."""
+    match = _NUCLEOTIDE_SHORTHAND.match(name)
+    if match is not None:
+        return match.group(1), int(match.group(2)), match.group(3)
+    match = _POSITION_FIRST_SHORTHAND.match(name)
+    if match is not None:
+        return match.group(2), int(match.group(1)), match.group(3)
+    return None
+
+
+def _protein_change(node: dict) -> tuple[str, int, str] | None:
+    """The row's amino-acid change: ``hgvs_protein`` if present, else the
+    parenthetical inside ``variant_name``.
+
+    Where both exist they must agree — that is enforced separately by
+    ``test_every_row_declares_one_amino_acid_change``, because preferring one
+    silently would let ``A80G (His27Pro)`` beside ``p.His27Arg`` satisfy the
+    direction guard while the user-visible label stays self-contradictory. This
+    helper is only reached once that agreement holds.
+    """
+    hgvs, parenthetical = _declared_protein_changes(node)
+    return hgvs if hgvs is not None else parenthetical
+
+
+def _codons_for(amino: str) -> list[str]:
+    return [codon for codon, encoded in _CODON_TABLE.items() if encoded == amino]
+
+
+def _substitution_reaches(ref: str, alt: str, from_aa: str, to_aa: str) -> bool:
+    """Whether a single ``ref``→``alt`` base change can turn ``from_aa`` into
+    ``to_aa`` under the standard genetic code."""
+    for source in _codons_for(from_aa):
+        for target in _codons_for(to_aa):
+            differing = [i for i in range(3) if source[i] != target[i]]
+            if len(differing) != 1:
+                continue
+            index = differing[0]
+            if source[index] == ref and target[index] == alt:
+                return True
+    return False
+
+
+def _direction_is_decidable(ref: str, alt: str, from_aa: str, to_aa: str) -> bool:
+    """Whether the code table can tell this shorthand apart from its reverse.
+
+    True when exactly one of the two directions reaches the amino-acid change, so
+    the shorthand's polarity carries information. False when *both* reach it —
+    the guard would then accept the shorthand written either way round and proves
+    nothing about direction for that row.
+
+    A row where the forward direction fails is a plain violation, not an
+    ambiguity: it is decidably backwards, and
+    ``test_every_panel_shorthand_agrees_with_its_amino_acid_change`` reports it.
+    """
+    forward = _substitution_reaches(ref, alt, from_aa, to_aa)
+    reverse = _substitution_reaches(alt, ref, from_aa, to_aa)
+    return forward and not reverse
+
+
+def _is_protein_shorthand(ref: str, position: int, alt: str, change: tuple[str, int, str]) -> bool:
+    """Whether the shorthand is really a one-letter *amino-acid* label that only
+    looks nucleotide-like because A/C/G/T are also amino-acid codes.
+
+    ATG16L1 ``rs2241880`` in ``gene_health_panel.json`` is exactly this: ``T300A``
+    is Thr300Ala, not a T→A base change, and reading it as nucleotides would
+    manufacture a false failure.
+    """
+    from_aa, protein_position, to_aa = change
+    return position == protein_position and ref == from_aa and alt == to_aa
+
+
+def _discover_shorthand_loci() -> list[tuple[str, str, str, tuple[str, int, str]]]:
+    """``(label, variant_name, panel_file, protein_change)`` for every panel locus
+    whose ``variant_name`` opens with a nucleotide shorthand *and* carries an
+    amino-acid change to check it against."""
+    found: list[tuple[str, str, str, tuple[str, int, str]]] = []
+    for path in sorted(PANEL_DIR.glob("*.json")):
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        for node in _walk_dicts(raw):
+            name = node.get("variant_name")
+            if not isinstance(name, str) or _nucleotide_substitution(name) is None:
+                continue
+            change = _protein_change(node)
+            if change is None:
+                continue
+            found.append((f"{path.name}::{node.get('rsid')}", name, path.name, change))
+    return found
+
+
+def test_genetic_code_fixture_is_well_formed_ncbi_table_1() -> None:
+    """The sourced table must be intact and complete before anything trusts it.
+
+    Checks the fixture against NCBI's own structure rather than against a second
+    copy of the same assertion: 64 positions in every parallel string, exactly
+    the 64 distinct ACGT codons, the documented stop and start codons, and the
+    table identity NCBI ships. A truncated or mis-transcribed fixture would
+    otherwise redefine which panel labels are accepted, with the tests below
+    merely agreeing with the damage.
+    """
+    fixture = json.loads(_GENETIC_CODE_FIXTURE.read_text(encoding="utf-8"))
+    assert fixture["id"] == 1
+    assert fixture["name"] == "Standard"
+    assert fixture["_source_version"] == "4.6"
+
+    # The readable extract must agree with the source-native file, field by field.
+    # Without this the extract could drift and nothing would notice, because the
+    # code is redundant: flipping one codon of a multi-codon amino acid changes no
+    # reachability result at all.
+    source = _parse_source_table_1()
+    for key in ("ncbieaa", "sncbieaa", "base1", "base2", "base3"):
+        assert len(fixture[key]) == 64, f"{key} is not 64 long"
+        assert fixture[key] == source[key], (
+            f"the {key} extract disagrees with tests/fixtures/ncbi_gc.prt; "
+            "re-derive the extract rather than editing it to match"
+        )
+
+    # Pin the retrieved bytes, so a later edit to the source file is caught too.
+    digest = hashlib.sha256(_GENETIC_CODE_SOURCE.read_bytes()).hexdigest()
+    assert digest == fixture["_source_sha256"], (
+        "tests/fixtures/ncbi_gc.prt has changed; re-retrieve it from NCBI and "
+        "re-derive the extract rather than updating the digest to match"
+    )
+
+    assert len(_CODON_TABLE) == 64
+    assert set(_CODON_TABLE) == {a + b + c for a in "ACGT" for b in "ACGT" for c in "ACGT"}
+    assert {c for c, aa in _CODON_TABLE.items() if aa == "*"} == {"TAA", "TAG", "TGA"}
+    starts = {
+        fixture["base1"][i] + fixture["base2"][i] + fixture["base3"][i]
+        for i, flag in enumerate(fixture["sncbieaa"])
+        if flag == "M"
+    }
+    assert starts == {"TTG", "CTG", "ATG"}
+    assert _CODON_TABLE["ATG"] == "M"
+
+
+def test_detector_rejects_the_2023_label_and_accepts_its_fix() -> None:
+    """The detector must actually discriminate: it has to reject the shipped
+    ``G80A (His27Arg)`` and accept the canonical ``A80G (His27Arg)``.
+
+    Without this, a detector that silently matched nothing would let the guard
+    below pass while enforcing nothing.
+    """
+    assert not _substitution_reaches("G", "A", "H", "R")
+    assert _substitution_reaches("A", "G", "H", "R")
+
+    # The other real shorthands in the panels, as a spot-check of the code table.
+    assert _substitution_reaches("C", "T", "A", "V")  # MTHFR C677T / Ala222Val
+    assert _substitution_reaches("A", "C", "E", "A")  # MTHFR A1298C / Glu429Ala
+    assert _substitution_reaches("C", "T", "Y", "Y")  # CBS C699T / Tyr233Tyr
+    assert _substitution_reaches("G", "A", "R", "Q")  # BHMT G742A / Arg239Gln
+
+
+def test_stop_codon_labels_are_compared_against_their_hgvs() -> None:
+    """``R577X`` and ``p.Arg577Ter`` are the same statement and must be compared.
+
+    Panels write a stop as the conventional ``X``; HGVS writes ``Ter``. Until the
+    alias was added, ``_one_letter`` returned ``None`` for every ``X`` label, so
+    ``test_every_row_declares_one_amino_acid_change`` silently skipped ACTN3
+    ``rs1815739``, FLG ``rs61816761`` and ``rs74315329`` — three production rows
+    whose displayed label could have drifted from their ``hgvs_protein`` unnoticed.
+    """
+    assert _one_letter(_DIRECT_PROTEIN_ONE_LETTER.match("R577X")) == ("R", 577, "*")
+    assert _one_letter(_HGVS_PROTEIN.match("p.Arg577Ter")) == ("R", 577, "*")
+
+    covered = []
+    for path in sorted(PANEL_DIR.glob("*.json")):
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        for node in _walk_dicts(raw):
+            name = node.get("variant_name")
+            if not isinstance(name, str) or "X" not in name:
+                continue
+            hgvs, label = _declared_protein_changes(node)
+            if hgvs is None or label is None:
+                continue
+            covered.append(f"{path.name}::{node.get('rsid')}")
+            assert hgvs == label, (
+                f"{path.name}::{node.get('rsid')} {name!r} vs {node['hgvs_protein']!r}"
+            )
+    assert sorted(covered) == [
+        "fitness_panel.json::rs1815739",
+        "gene_health_panel.json::rs74315329",
+        "skin_panel.json::rs61816761",
+    ], covered
+
+
+def test_protein_shorthand_is_not_read_as_nucleotides() -> None:
+    """``T300A``/Thr300Ala must be recognised as an amino-acid label.
+
+    Thr→Ala needs A→G at codon position 1, so treating the label as a T→A base
+    change would report a false contradiction on a correct row.
+    """
+    assert _is_protein_shorthand("T", 300, "A", ("T", 300, "A"))
+    assert not _substitution_reaches("T", "A", "T", "A")
+    # A genuine nucleotide shorthand must not be mistaken for a protein one.
+    assert not _is_protein_shorthand("G", 80, "A", ("H", 27, "R"))
+    assert not _is_protein_shorthand("C", 677, "T", ("A", 222, "V"))
+
+
+def test_ambiguous_amino_acid_pairs_are_reported_as_undecidable() -> None:
+    """The decidability helper must recognise the pairs this guard cannot judge.
+
+    Arg→Ser is the worked case: ``AGA``→``AGC`` makes it reachable by A→C, and
+    ``CGT``→``AGT`` by C→A, so a reversed ``A123C``/``C123A`` shorthand would
+    satisfy the forward check either way round. His→Arg, the #2023 case, is
+    reachable in one direction only and so is genuinely decidable.
+    """
+    assert _substitution_reaches("A", "C", "R", "S")
+    assert _substitution_reaches("C", "A", "R", "S")
+    assert not _direction_is_decidable("A", "C", "R", "S")
+
+    assert _direction_is_decidable("A", "G", "H", "R")
+    assert _direction_is_decidable("C", "T", "A", "V")
+
+    # Synonymous changes are symmetric by construction and never decidable here.
+    assert not _direction_is_decidable("C", "T", "Y", "Y")
+
+
+def test_every_row_declares_one_amino_acid_change() -> None:
+    """A row carrying both ``hgvs_protein`` and a parenthetical must agree.
+
+    The guard's job is that the *rendered label* cannot contradict itself, and
+    the parenthetical is part of that label. ``A80G (His27Pro)`` beside
+    ``p.His27Arg`` would otherwise pass the direction check — A→G does reach
+    His→Arg — while the string the user reads still says two different things.
+    Self-discovering across every panel, not just the rows with a shorthand.
+    """
+    offenders = []
+    for path in sorted(PANEL_DIR.glob("*.json")):
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        for node in _walk_dicts(raw):
+            hgvs, parenthetical = _declared_protein_changes(node)
+            if hgvs is None or parenthetical is None or hgvs == parenthetical:
+                continue
+            offenders.append(
+                f"{path.name}::{node.get('rsid')} variant_name={node.get('variant_name')!r} "
+                f"declares {parenthetical} but hgvs_protein={node.get('hgvs_protein')!r} "
+                f"declares {hgvs}"
+            )
+    assert not offenders, "panel row declares two different amino-acid changes: " + "; ".join(
+        offenders
+    )
+
+
+def test_discovery_finds_the_panel_shorthand_loci() -> None:
+    """Sanity: the walker must keep finding the curated shorthand rows, so the
+    invariant below cannot pass vacuously after a schema or path change."""
+    loci = _discover_shorthand_loci()
+    assert len(loci) >= 17, f"shorthand discovery regressed; found only {len(loci)}"
+    assert any(label.endswith("::rs1051266") for label, _, _, _ in loci)
+
+
+def test_every_panel_shorthand_agrees_with_its_amino_acid_change() -> None:
+    """SELF-DISCOVERING durable guard (#2023): every ``<ref><pos><alt>`` shorthand
+    must be reachable, under the standard genetic code, as the amino-acid change
+    the same row declares."""
+    offenders = []
+    for label, name, _panel, change in _discover_shorthand_loci():
+        substitution = _nucleotide_substitution(name)
+        assert substitution is not None  # guaranteed by discovery
+        ref, position, alt = substitution
+        if _is_protein_shorthand(ref, position, alt, change):
+            continue
+        from_aa, protein_position, to_aa = change
+        if ref == alt:
+            offenders.append(f"{label} {name!r} has identical ref and alt bases")
+            continue
+        if not _substitution_reaches(ref, alt, from_aa, to_aa):
+            offenders.append(
+                f"{label} {name!r} says {ref}->{alt} but "
+                f"{from_aa}{protein_position}{to_aa} is unreachable that way"
+            )
+    assert not offenders, (
+        "panel nucleotide shorthand contradicts its own amino-acid change: " + "; ".join(offenders)
+    )
+
+
+def _decidability_split() -> tuple[list[str], list[str]]:
+    """``(undecidable_nonsynonymous, undecidable_synonymous)`` panel row labels."""
+    non_synonymous: list[str] = []
+    synonymous: list[str] = []
+    for label, name, _panel, change in _discover_shorthand_loci():
+        substitution = _nucleotide_substitution(name)
+        assert substitution is not None  # guaranteed by discovery
+        ref, position, alt = substitution
+        if _is_protein_shorthand(ref, position, alt, change) or ref == alt:
+            continue
+        from_aa, _protein_position, to_aa = change
+        if not _substitution_reaches(ref, alt, from_aa, to_aa):
+            continue  # a violation, reported by the guard above — not an ambiguity
+        if _direction_is_decidable(ref, alt, from_aa, to_aa):
+            continue
+        (synonymous if from_aa == to_aa else non_synonymous).append(f"{label} {name!r}")
+    return non_synonymous, synonymous
+
+
+def test_no_nonsynonymous_shorthand_escapes_the_direction_check() -> None:
+    """Coverage honesty: the guard above must not be silently vacuous for a row.
+
+    For 38.3% of reachable (from, to, ref, alt) combinations both directions
+    satisfy the predicate, so the guard would accept such a shorthand reversed.
+    No non-synonymous panel row is in that state today; if one is ever added,
+    this fails and says so, because verifying it needs the real transcript codon
+    rather than the code table — silently passing it would be the
+    non-discriminating-guard failure this file exists to prevent.
+    """
+    non_synonymous, _ = _decidability_split()
+    assert not non_synonymous, (
+        "panel shorthand whose direction this guard cannot decide (both "
+        "substitution directions reach the declared amino-acid change); verify "
+        "against the transcript codon: " + "; ".join(non_synonymous)
+    )
+
+
+def test_protein_shorthand_rows_are_listed_rather_than_silently_skipped() -> None:
+    """Every row the guard reads as an amino-acid label is named here.
+
+    ``A/C/G/T`` double as amino-acid codes, so ``<X><n><Y>`` is genuinely
+    ambiguous and no rule reads it correctly from the label alone. The guard
+    resolves it by asking whether the label matches the row's own declared
+    protein change exactly — under which reading the row is self-consistent, so
+    there is nothing for a self-contradiction guard to report. A row like
+    ``A80G (Ala80Gly)`` is skipped for the same reason: read as Ala80Gly it says
+    one thing, not two.
+
+    What that reading costs is that a row *intending* nucleotides, but whose
+    bases and position happen to coincide with its residues, escapes the
+    direction check. Nothing in the panel schema distinguishes the two, and
+    adding a notation field to defend against a row nobody has written is the
+    wrong trade. Instead the skip is made visible: exactly one row is skipped
+    today, and a second one has to be looked at deliberately.
+    """
+    skipped = []
+    for label, name, _panel, change in _discover_shorthand_loci():
+        substitution = _nucleotide_substitution(name)
+        assert substitution is not None  # guaranteed by discovery
+        ref, position, alt = substitution
+        if _is_protein_shorthand(ref, position, alt, change):
+            skipped.append(label)
+    assert skipped == ["gene_health_panel.json::rs2241880"], (
+        "the set of rows read as amino-acid labels rather than nucleotide "
+        "shorthand changed; confirm each new one really is a protein label and "
+        "update this lock deliberately: " + "; ".join(skipped)
+    )
+
+
+def test_loci_with_multiple_reachable_base_pairs_are_listed() -> None:
+    """Coverage honesty: where reachability has several answers, say which loci.
+
+    ``_substitution_reaches`` searches every codon for each residue, so for a
+    residue pair reachable more than one way it accepts more than one
+    ``ref``/``alt`` spelling — SHMT1 Leu→Phe accepts five. Those rows are checked
+    for *possibility*, not correctness, and deciding them needs the transcript's
+    real codon.
+
+    Pinning the set means a newly added locus in this state has to be looked at
+    rather than inheriting a check that cannot judge it.
+    """
+    weak = {}
+    for label, name, _panel, change in _discover_shorthand_loci():
+        substitution = _nucleotide_substitution(name)
+        assert substitution is not None  # guaranteed by discovery
+        ref, position, alt = substitution
+        if _is_protein_shorthand(ref, position, alt, change):
+            continue
+        from_aa, _protein_position, to_aa = change
+        pairs = [
+            (r, a)
+            for r in "ACGT"
+            for a in "ACGT"
+            if r != a and _substitution_reaches(r, a, from_aa, to_aa)
+        ]
+        if len(pairs) > 1:
+            weak[label] = len(pairs)
+    assert weak == {
+        "methylation_panel.json::rs1979277": 5,
+        "methylation_panel.json::rs1801394": 3,
+        "methylation_panel.json::rs234706": 2,
+        "nutrigenomics_panel.json::rs1801394": 3,
+        "sleep_panel.json::rs5751876": 2,
+    }, (
+        "the set of loci whose amino-acid change is reachable by more than one base "
+        "pair changed; those rows are checked for possibility rather than "
+        "correctness, so update this lock deliberately: " + repr(weak)
+    )
+
+
+def test_synonymous_shorthand_is_recorded_as_structurally_undecidable() -> None:
+    """Synonymous rows cannot be direction-checked by codon reachability at all.
+
+    Tyr→Tyr is symmetric by construction (``TAT``↔``TAC``), so both C→T and T→C
+    satisfy the predicate. Two rows are in this state: CBS
+    ``rs234706 C699T (Tyr233Tyr)`` and ADORA2A ``rs5751876 1083T>C (His361His)``
+    — the second only became visible once position-first notation was
+    discovered, which is the lock doing its job. Asserting the set explicitly
+    keeps the guard's real coverage visible instead of letting these rows look
+    checked when they are not.
+    """
+    _, synonymous = _decidability_split()
+    assert [entry.split()[0] for entry in synonymous] == [
+        "methylation_panel.json::rs234706",
+        "sleep_panel.json::rs5751876",
+    ], (
+        "the set of structurally-undecidable synonymous shorthands changed; "
+        "update this lock deliberately: " + "; ".join(synonymous)
+    )

@@ -1,0 +1,46 @@
+{
+  "purpose": "Sanitized public-source record for the #2019 fail-closed clinical-validation decision.",
+  "accessed": "2026-08-01",
+  "source_records": [
+    {
+      "source": "ESMO Clinical Practice Guideline for early breast cancer",
+      "accessed": "2026-08-01",
+      "identifiers": [
+        "PMID:31236598",
+        "DOI:10.1093/annonc/mdz173"
+      ],
+      "public_url": "https://academic.oup.com/annonc/article/30/8/1194/5499075",
+      "assessment": "Does not support using CYP2D6 polymorphisms as a decision aid for adjuvant tamoxifen outside a clinical trial."
+    },
+    {
+      "source": "Dutch Pharmacogenetics Working Group tamoxifen table",
+      "accessed": "2026-08-01",
+      "identifiers": [
+        "NCBI Bookshelf:NBK247013"
+      ],
+      "public_url": "https://www.ncbi.nlm.nih.gov/books/NBK247013/table/tamoxifen.T.dpwg_2015_cyp2d6_phenotypes/",
+      "assessment": "Uses a different intermediate-metabolizer alternative-or-dose-escalation presentation from the CPIC row ordering."
+    },
+    {
+      "source": "MHRA Drug Safety Update: Tamoxifen for breast cancer",
+      "accessed": "2026-08-01",
+      "identifiers": [
+        "GOV.UK:tamoxifen-for-breast-cancer"
+      ],
+      "public_url": "https://www.gov.uk/drug-safety-update/tamoxifen-for-breast-cancer",
+      "assessment": "Limits inhibitor avoidance to potent inhibitors where possible and describes genotype-outcome evidence as mixed or inconclusive."
+    },
+    {
+      "source": "Tamoxifen 40 mg dose-escalation reports",
+      "accessed": "2026-08-01",
+      "identifiers": [
+        "PMID:21768473",
+        "DOI:10.1200/JCO.2010.31.4427",
+        "PMID:27226358",
+        "DOI:10.1634/theoncologist.2015-0480"
+      ],
+      "assessment": "The later report expands or reanalyzes the earlier prospective dose-escalation study; these are not independent clinical-outcome validation cohorts."
+    }
+  ],
+  "decision": "The two-independent-source gate for displaying CYP2D6/tamoxifen treatment, dose, or inhibitor instructions is not met. Retain CPIC rows only as audit provenance and withhold new and persisted prescribing alerts."
+}

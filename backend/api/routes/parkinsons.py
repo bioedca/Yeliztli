@@ -19,6 +19,7 @@ import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
+from backend.analysis.pharmacogenomics import is_patient_presentable_response_payload
 from backend.api.dependencies import require_fresh_sample
 from backend.api.routes.risk_common import (
     RiskFindingResponse,
@@ -142,7 +143,10 @@ def list_findings(
     _ensure_gate_acknowledged(engine)
     raw = fetch_risk_findings(engine, MODULE)
     items = [RiskFindingResponse(**f) for f in raw]
-    return RiskFindingsListResponse(items=items, total=len(items))
+    response = RiskFindingsListResponse(items=items, total=len(items))
+    if not is_patient_presentable_response_payload(response.model_dump(mode="json")):
+        return RiskFindingsListResponse(items=[], total=0)
+    return response
 
 
 @router.post("/run", dependencies=[Depends(require_fresh_sample)])
