@@ -89,7 +89,7 @@ from backend.api.routes.variants import router as variants_router
 from backend.api.routes.warfarin import router as warfarin_router
 from backend.api.routes.watches import router as watches_router
 from backend.auth import AuthMiddleware
-from backend.config import Settings, get_settings
+from backend.config import Settings, ensure_private_directory, get_settings
 from backend.data.hla_proxy_loader import load_hla_proxy_data
 from backend.db.connection import get_registry, reset_registry
 from backend.db.database_registry import (
@@ -181,9 +181,20 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Startup / shutdown lifecycle for the FastAPI app."""
     propagating_exception = False
     try:
-        # Startup: ensure data directory exists before DB initialization
+        # Startup: ensure data directory exists before DB initialization.
+        # This runs on every launch, so it — not whichever downloader happens
+        # to create the downloads root first while inheriting the umask —
+        # decides the mode of both roots. The reference-data loaders refuse a
+        # group- or world-writable downloads root or ancestor, and a plain
+        # mkdir() under a cooperative umask such as 0o002 produces exactly
+        # that. A directory that cannot be made private is reported rather
+        # than fatal: the setup wizard is where the user picks another path,
+        # and it can only say so if the app comes up.
         settings = get_settings()
-        settings.data_dir.mkdir(parents=True, exist_ok=True)
+        for private_dir in (settings.data_dir, settings.downloads_dir):
+            directory_problem = ensure_private_directory(private_dir, parents=True)
+            if directory_problem is not None:
+                logger.warning("data_directory_not_private", detail=directory_problem)
         (settings.data_dir / "samples").mkdir(exist_ok=True)
         # Initialize the DB registry (creates reference engine, etc.)
         registry = get_registry()

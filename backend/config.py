@@ -5,6 +5,7 @@ variables (YELIZTLI_*).
 """
 
 import os
+import stat
 import threading
 from collections.abc import Mapping
 from functools import lru_cache
@@ -499,6 +500,66 @@ def write_config_toml(config_path: Path, content: dict[str, dict[str, object]]) 
 # concurrent saves each read the file, mutate their own key, and write back —
 # last-writer-wins silently drops the other's key.
 config_write_lock = threading.Lock()
+
+
+# Application-created data directories are task-owned and private.
+#
+# The MONDO/HPO loader refuses a downloads root — or any non-sticky ancestor —
+# that is group- or world-writable, because descriptor pinning cannot make a
+# namespace another local principal can write into trustworthy. A plain
+# ``mkdir()`` inherits the process umask, so under a cooperative umask such as
+# 0o002 it produces 0o775 and every subsequent reference-data build is rejected.
+# MONDO/HPO is required, so that combination leaves the setup wizard unable to
+# finish on an ordinary system. Create these directories with an explicit
+# private mode instead of whatever the umask happens to allow.
+PRIVATE_DIR_MODE = 0o700
+
+
+def ensure_private_directory(path: Path, *, parents: bool = False) -> str | None:
+    """Create *path* privately, or make an existing directory private.
+
+    Returns ``None`` when *path* ends up a directory this account owns that is
+    not group- or world-writable, otherwise a human-readable reason it could
+    not be made one.
+
+    ``mkdir`` applies ``mode`` only when it actually creates the directory, so
+    an existing path keeps whatever it already had: 0o775 from an earlier plain
+    ``mkdir`` under umask 0o002, a restored backup, or a group-writable
+    provisioned volume. Normalising is the deliberate choice for a directory
+    this account owns — the user asked for their data to live here, and
+    tightening our own directory is what that means. A directory owned by
+    another principal is not ours to re-permission, so it is reported instead
+    of being silently accepted and then refused later inside a database build,
+    where the message cannot name the real problem.
+
+    Only group and other *write* are cleared from an existing directory: those
+    are the exact bits the loaders reject, and read or traverse access an
+    operator granted deliberately is left alone. A directory created here gets
+    the full private mode, since nothing has expressed an intent about it yet.
+    """
+    try:
+        path.mkdir(mode=PRIVATE_DIR_MODE, parents=parents, exist_ok=True)
+    except OSError as exc:
+        return f"Cannot create directory at {path}: {exc}"
+    try:
+        info = path.stat()
+    except OSError as exc:
+        return f"Cannot inspect directory at {path}: {exc}"
+    if not stat.S_ISDIR(info.st_mode):
+        return f"Path at {path} is not a directory."
+    if not info.st_mode & (stat.S_IWGRP | stat.S_IWOTH):
+        return None
+    if info.st_uid != os.geteuid():
+        return (
+            f"Directory at {path} is group- or world-writable and owned by another user, "
+            "so reference-data downloads would be refused. Choose a directory this account "
+            "owns, or have its owner remove group and world write access."
+        )
+    try:
+        path.chmod(info.st_mode & ~(stat.S_IWGRP | stat.S_IWOTH))
+    except OSError as exc:
+        return f"Cannot remove group and world write access from {path}: {exc}"
+    return None
 
 
 def write_data_dir_pointer(data_dir: Path) -> None:

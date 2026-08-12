@@ -1819,16 +1819,16 @@ def _assert_mondo_hpo_source_is_not_older(
     if installed is None:
         return
     installed_version = installed[0]
-    installed_source = _mondo_hpo_source_version(installed_version)
+    # An unscoped legacy stamp may hold the installation date rather than a
+    # source release date, so it never orders a download chronologically.
+    installed_source = _trusted_installed_source_date(installed_version)
     candidate_source = _mondo_hpo_source_version(candidate_version)
-    if _is_mondo_hpo_source_date(installed_source) and not _is_mondo_hpo_source_date(
-        candidate_source
-    ):
+    if installed_source is not None and not _is_mondo_hpo_source_date(candidate_source):
         raise RuntimeError(
             "Unable to safely compare a dated installed MONDO/HPO source with an "
             "unverified download; retry with source release metadata"
         )
-    if _is_mondo_hpo_source_date(installed_source) and _is_mondo_hpo_source_date(candidate_source):
+    if installed_source is not None and _is_mondo_hpo_source_date(candidate_source):
         if candidate_source < installed_source:
             raise RuntimeError(
                 "Refusing to replace a newer installed MONDO/HPO source with an older download"
@@ -2205,6 +2205,27 @@ def _has_current_ingestion_revision(version: str) -> bool:
     return MONDO_HPO_INGESTION_REVISION in version.split("+")
 
 
+def _trusted_installed_source_date(version: str) -> str | None:
+    """Return an installed version's source release date, or ``None`` if untrusted.
+
+    Only a scoped install's date is a real source release date. A version
+    written before :data:`MONDO_HPO_INGESTION_REVISION` may instead carry the
+    local **installation** date, because that loader fell back to the wall clock
+    when the response arrived without release metadata. Ordering that fallback
+    as though it were a release date deadlocks the very upgrade the revision
+    gate is asking for: an August install of a July object compares newer than
+    the object itself, so :func:`check_mondo_hpo_update` offers no refresh and a
+    direct or setup rebuild is refused as a downgrade -- while the rows stay
+    withheld and health reports the install partial. Treat every unscoped
+    version as uncomparable so the rebuild can proceed without the user first
+    deleting the version stamp by hand.
+    """
+    source = _mondo_hpo_source_version(version)
+    if not _has_current_ingestion_revision(version) or not _is_mondo_hpo_source_date(source):
+        return None
+    return source
+
+
 def _has_current_secondary_validators(
     version: str,
     hpo_meta: dict[str, str],
@@ -2340,8 +2361,12 @@ def check_mondo_hpo_update(
     current_source_version: str | None = None
     legacy_noncanonical_version = False
     if current is not None:
-        current_source_version = _mondo_hpo_source_version(current)
-        if not _is_mondo_hpo_source_date(current_source_version):
+        # A legacy stamp's date can be the installation date, not the source's,
+        # so it is uncomparable no matter how well it parses.  Ordering it here
+        # would decline the refresh for exactly the installs whose rows are
+        # withheld.
+        current_source_version = _trusted_installed_source_date(current)
+        if current_source_version is None:
             if _has_current_ingestion_revision(current):
                 logger.warning("mondo_hpo_update_check_uncomparable_scoped_installed_version")
                 return None

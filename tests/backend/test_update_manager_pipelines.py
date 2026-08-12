@@ -955,14 +955,42 @@ class TestCheckMondoHpoUpdate:
         ]
 
     def test_newer_recorded_returns_none(self, tmp_path: Path, monkeypatch, reference_engine):
-        """Recorded date newer than remote Last-Modified → no downgrade offered."""
+        """Recorded date newer than remote Last-Modified → no downgrade offered.
+
+        Only a scoped stamp records a real source release date, so only a scoped
+        stamp can order the remote object.
+        """
+        path = _write_manifest(tmp_path, SAMPLE_MANIFEST)
+        monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(path))
+        _record_version_row(
+            reference_engine, "mondo_hpo", f"20270101+{MONDO_HPO_INGESTION_REVISION}"
+        )
+
+        mock_client, _ = _mock_head_client(last_modified=MONDO_HPO_LAST_MODIFIED_NEW)
+        with patch("backend.annotation.mondo_hpo.httpx.Client", mock_client):
+            assert check_mondo_hpo_update(reference_engine) is None
+
+    def test_unscoped_newer_dated_install_still_offers_the_scoped_rebuild(
+        self, tmp_path: Path, monkeypatch, reference_engine
+    ):
+        """A legacy stamp's date is an install date, so it cannot veto its own repair.
+
+        The pre-revision loader fell back to the wall clock when the response
+        carried no release metadata, so an August install of a July object is
+        stamped later than the object. Ordering that as a release date leaves the
+        user with withheld rows and no update on offer — the deadlock this
+        exists to prevent.
+        """
         path = _write_manifest(tmp_path, SAMPLE_MANIFEST)
         monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(path))
         _record_version_row(reference_engine, "mondo_hpo", "20270101")
 
         mock_client, _ = _mock_head_client(last_modified=MONDO_HPO_LAST_MODIFIED_NEW)
         with patch("backend.annotation.mondo_hpo.httpx.Client", mock_client):
-            assert check_mondo_hpo_update(reference_engine) is None
+            result = check_mondo_hpo_update(reference_engine)
+
+        assert isinstance(result, VersionInfo)
+        assert result.latest_version == MONDO_HPO_LAST_MODIFIED_NEW_VERSION
 
     def test_matching_version_with_legacy_terms_offers_label_refresh(
         self, tmp_path: Path, monkeypatch, reference_engine
@@ -1081,10 +1109,16 @@ class TestCheckMondoHpoUpdate:
     def test_newer_version_with_legacy_terms_never_downgrades(
         self, tmp_path: Path, monkeypatch, reference_engine
     ):
-        """A content migration must not replace a newer installed snapshot."""
+        """A content migration must not replace a newer installed snapshot.
+
+        Scoped, so its date is a real source release date and can order the
+        remote object; an unscoped date could be the installation date instead.
+        """
         path = _write_manifest(tmp_path, SAMPLE_MANIFEST)
         monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(path))
-        _record_version_row(reference_engine, "mondo_hpo", "20270101")
+        _record_version_row(
+            reference_engine, "mondo_hpo", f"20270101+{MONDO_HPO_INGESTION_REVISION}"
+        )
         with reference_engine.begin() as conn:
             conn.execute(
                 gene_phenotype.insert().values(

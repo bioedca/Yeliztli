@@ -2089,6 +2089,73 @@ class TestDownloadAndLoad:
         assert (external_bundle / "must-survive.txt").read_text(encoding="utf-8") == "external\n"
         assert first_path.is_dir()
 
+    def test_legacy_wall_clock_install_can_still_rebuild_into_scope(
+        self,
+        monkeypatch,
+        reference_engine: sa.Engine,
+        mondo_tsv_file: Path,
+        hpo_phenotype_file: Path,
+        mondo_sssom_file: Path,
+        tmp_path: Path,
+    ) -> None:
+        """An unscoped install dated after the source must not block its own repair.
+
+        The pre-revision loader stamped the local wall clock when a response
+        carried no release metadata, so an August install of a July object reads
+        as newer than the object. The revision gate withholds those rows, and
+        ordering that fallback as a release date would then refuse the rebuild
+        as a downgrade — leaving the user with empty phenotype annotations and
+        no supported way out short of deleting the version stamp by hand.
+        """
+        monkeypatch.setattr("backend.annotation.mondo_hpo.MINIMUM_UNAMBIGUOUS_MONDO_XREFS", 2)
+        source_files = {
+            "gene_disease.9606.tsv.gz": mondo_tsv_file,
+            "genes_to_phenotype.txt": hpo_phenotype_file,
+            "mondo.sssom.tsv": mondo_sssom_file,
+        }
+
+        def fake_download(url, dest_dir, filename, **kwargs):
+            target = dest_dir / filename
+            target.parent.mkdir(parents=True, exist_ok=True)
+            if filename.endswith(".gz"):
+                with gzip.open(target, "wb") as fh:
+                    fh.write(source_files[filename].read_bytes())
+            else:
+                target.write_bytes(source_files[filename].read_bytes())
+            meta = kwargs.get("meta")
+            if meta is not None:
+                meta.update(
+                    {
+                        "etag": f'"{filename}-etag"',
+                        "last_modified": "Wed, 15 Apr 2026 12:34:56 GMT",
+                        "version": "20260415",
+                    }
+                )
+            return target
+
+        monkeypatch.setattr("backend.annotation.mondo_hpo.download_file", fake_download)
+        # August install of the April object, stamped by the pre-revision loader.
+        record_mondo_hpo_version(
+            reference_engine,
+            version="20260801",
+            file_path="/legacy/reference/gene_disease.9606.tsv.gz",
+            checksum="legacy-checksum",
+        )
+        assert lookup_gene_phenotypes(["BRCA1"], reference_engine) == {}
+
+        stats = download_and_load_mondo_hpo(reference_engine, tmp_path / "downloads")
+
+        assert stats.version.startswith(f"20260415+{MONDO_HPO_INGESTION_REVISION}+hpo-")
+        with reference_engine.connect() as conn:
+            version = conn.execute(
+                sa.select(database_versions.c.version).where(
+                    database_versions.c.db_name == "mondo_hpo"
+                )
+            ).scalar_one()
+        assert version == stats.version
+        # The rebuild is only a repair if the rows come back.
+        assert lookup_gene_phenotypes(["BRCA1"], reference_engine)["BRCA1"]
+
     def test_refuses_older_comparable_direct_download(
         self,
         monkeypatch,

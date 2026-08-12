@@ -14,6 +14,8 @@ from __future__ import annotations
 import asyncio
 import io
 import json
+import os
+import stat
 import tarfile
 import tomllib
 from pathlib import Path
@@ -23,7 +25,10 @@ import pytest
 import sqlalchemy as sa
 from fastapi.testclient import TestClient
 
-from backend.annotation.mondo_hpo import MONDO_HPO_INGESTION_REVISION
+from backend.annotation.mondo_hpo import (
+    MONDO_HPO_INGESTION_REVISION,
+    download_and_load_mondo_hpo,
+)
 from backend.config import Settings
 from backend.db.connection import reset_registry
 from backend.db.tables import reference_metadata
@@ -1427,6 +1432,100 @@ class TestSetStoragePath:
         assert (new_path / "samples").is_dir()
         assert (new_path / "downloads").is_dir()
         assert (new_path / "logs").is_dir()
+
+    def test_cooperative_umask_still_admits_the_mondo_hpo_install(
+        self, setup_client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Storage selection under umask 0o002 must not brick required setup.
+
+        A plain ``mkdir()`` under a cooperative umask yields 0o775. The MONDO/HPO
+        loader refuses a group- or world-writable downloads root or non-sticky
+        ancestor, and MONDO/HPO is required, so the wizard would accept the path
+        and then never be able to finish. Exercises the whole setup-to-install
+        path: choose the storage location through the route, then take the real
+        loader up to its first request.
+        """
+        new_path = tmp_path / "cooperative_umask"
+        previous_umask = os.umask(0o002)
+        try:
+            resp = setup_client.post(
+                "/api/setup/set-storage-path",
+                json={"path": str(new_path)},
+            )
+        finally:
+            os.umask(previous_umask)
+        assert resp.status_code == 200, resp.json()
+
+        writable_by_others = stat.S_IWGRP | stat.S_IWOTH
+        for created in (new_path, new_path / "downloads"):
+            assert not created.stat().st_mode & writable_by_others, created
+
+        # The install half. download_and_load_mondo_hpo pins and validates the
+        # downloads root before its first transfer, so reaching the download at
+        # all proves the directory storage selection created is acceptable to
+        # the loader. A rejected root raises ValueError here instead.
+        class _ReachedTransfer(Exception):
+            pass
+
+        def refuse_to_download(*_args: object, **_kwargs: object) -> None:
+            raise _ReachedTransfer
+
+        monkeypatch.setattr("backend.annotation.mondo_hpo.download_file", refuse_to_download)
+        engine = sa.create_engine("sqlite://")
+        try:
+            reference_metadata.create_all(engine)
+            with pytest.raises(_ReachedTransfer):
+                download_and_load_mondo_hpo(engine, new_path / "downloads")
+        finally:
+            engine.dispose()
+
+    def test_existing_group_writable_directories_are_normalized(
+        self, setup_client: TestClient, tmp_path: Path
+    ) -> None:
+        """A provisioned or restored group-writable path is repaired, not accepted as-is.
+
+        ``mkdir(exist_ok=True)`` leaves an existing directory's mode alone, so an
+        explicit creation mode is not enough on its own.
+        """
+        new_path = tmp_path / "provisioned"
+        (new_path / "downloads").mkdir(parents=True)
+        new_path.chmod(0o775)
+        (new_path / "downloads").chmod(0o775)
+
+        resp = setup_client.post(
+            "/api/setup/set-storage-path",
+            json={"path": str(new_path)},
+        )
+        assert resp.status_code == 200, resp.json()
+
+        writable_by_others = stat.S_IWGRP | stat.S_IWOTH
+        for repaired in (new_path, new_path / "downloads"):
+            assert not repaired.stat().st_mode & writable_by_others, repaired
+        # Read and traverse access an operator granted deliberately is kept.
+        assert (new_path / "downloads").stat().st_mode & stat.S_IRGRP
+
+    def test_group_writable_directory_owned_by_another_user_is_rejected(
+        self, setup_client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Someone else's group-writable directory is refused where we can explain why.
+
+        It is not ours to re-permission, and silently accepting it only moves the
+        failure into a database build whose message cannot name the cause.
+        """
+        new_path = tmp_path / "foreign"
+        new_path.mkdir()
+        new_path.chmod(0o775)
+        # Nothing here can chown a directory to another account, so make this
+        # account look like a different one for the duration of the request.
+        another_uid = os.geteuid() + 1
+        monkeypatch.setattr("backend.config.os.geteuid", lambda: another_uid)
+
+        resp = setup_client.post(
+            "/api/setup/set-storage-path",
+            json={"path": str(new_path)},
+        )
+        assert resp.status_code == 400
+        assert "owned by another user" in resp.json()["detail"]
 
     def test_persists_data_dir_to_pointer_not_config_toml(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
