@@ -33,8 +33,9 @@ import numpy as np
 import pytest
 import sqlalchemy as sa
 
+from backend.annotation.mondo_hpo import MONDO_HPO_INGESTION_REVISION, lookup_gene_phenotypes
 from backend.config import Settings
-from backend.db.database_registry import _record_db_version, get_database
+from backend.db.database_registry import _record_db_version, get_database, get_database_status
 from backend.db.db_health import (
     _ACTIVE_DOWNLOAD_STATES,
     _RESUMABLE_DOWNLOAD_STATES,
@@ -1243,6 +1244,74 @@ class TestResumablePartialHealth:
         assert h.resumable is True
         assert h.total_bytes == db_info.expected_size_bytes
         assert h.progress_pct == round(300 / db_info.expected_size_bytes * 100.0, 1)
+
+
+class TestMondoHpoLegacyUpgradeReadiness:
+    """A stamped legacy MONDO/HPO install is an unfinished upgrade, not ready.
+
+    :func:`lookup_gene_phenotypes` withholds every ``mondo_hpo`` row whose
+    installed version predates :data:`MONDO_HPO_INGESTION_REVISION`. Readiness
+    has to reach the same verdict on the real upgrade path, or setup admits the
+    user and ``_run_build`` skips the rebuild while phenotype annotations come
+    back empty — and stay empty when automatic updates are off, deferred by the
+    bandwidth window, or unreachable.
+    """
+
+    _LEGACY_VERSION = "20260415"
+    _CURRENT_VERSION = f"20260415+{MONDO_HPO_INGESTION_REVISION}"
+
+    def test_current_revision_stamp_is_ready_and_serves_rows(
+        self, settings: Settings, ref_db: sa.Engine
+    ) -> None:
+        """Positive control: a current-revision install is ready and non-empty."""
+        _seed_mondo(ref_db)
+        _record_db_version(ref_db, "mondo_hpo", self._CURRENT_VERSION, 12345)
+
+        assert lookup_gene_phenotypes(["BRCA1"], ref_db)["BRCA1"]
+
+        health = _health(settings, ref_db, "mondo_hpo")
+        assert health.state == "ready"
+        assert health.version == self._CURRENT_VERSION
+        assert get_database_status(get_database("mondo_hpo"), settings)["downloaded"] is True
+
+    def test_legacy_revision_stamp_is_partial_not_ready(
+        self, settings: Settings, ref_db: sa.Engine
+    ) -> None:
+        """A nonempty, stamped, pre-revision install must not report ready."""
+        _seed_mondo(ref_db)
+        _record_db_version(ref_db, "mondo_hpo", self._LEGACY_VERSION, 12345)
+
+        # The lookup path already withholds these rows...
+        assert lookup_gene_phenotypes(["BRCA1"], ref_db) == {}
+
+        # ...so health must not call the install ready. The setup gate reads
+        # this same state, so anything but "ready" also keeps the wizard on the
+        # Databases step instead of admitting the user to an empty dashboard.
+        health = _health(settings, ref_db, "mondo_hpo")
+        assert health.state == "partial"
+        assert health.present is True
+        assert health.integrity_ok is True
+        assert health.can_clean is True
+
+    def test_legacy_revision_stamp_is_not_reported_downloaded(
+        self, settings: Settings, ref_db: sa.Engine
+    ) -> None:
+        """The build-skip predicate must not treat a legacy install as installed."""
+        _seed_mondo(ref_db)
+        _record_db_version(ref_db, "mondo_hpo", self._LEGACY_VERSION, 12345)
+
+        status = get_database_status(get_database("mondo_hpo"), settings)
+        assert status["downloaded"] is False
+
+    def test_other_reference_databases_keep_a_bare_version_stamp_ready(
+        self, settings: Settings, ref_db: sa.Engine
+    ) -> None:
+        """Only MONDO/HPO gates on an ingestion revision; the rest are unaffected."""
+        _seed_clinvar(ref_db)
+        _record_db_version(ref_db, "clinvar", self._LEGACY_VERSION, 12345)
+
+        assert _health(settings, ref_db, "clinvar").state == "ready"
+        assert get_database_status(get_database("clinvar"), settings)["downloaded"] is True
 
 
 class TestGetAllDatabaseHealth:

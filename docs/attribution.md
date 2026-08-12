@@ -34,8 +34,10 @@ redistribution.
 
 ## Downloaded from the provider
 
-These are fetched from their original sources during setup/updates and used locally; they
-are not redistributed by Yeliztli.
+The complete runtime exports are fetched from their original providers during setup/updates
+and used locally; Yeliztli does not redistribute those full runtime files. Compact public
+provenance excerpts may be retained under `data/science-evidence/` with their documented,
+artifact-specific terms.
 
 | Source | Used for | License |
 |--------|----------|---------|
@@ -45,7 +47,7 @@ are not redistributed by Yeliztli.
 | **PharmVar** | Star-allele definitions | Open |
 | **GWAS Catalog** (EBI) | Trait/disease associations | Open |
 | **dbSNP** (NCBI) | rsID identity resolution | Public domain |
-| **Mondo / HPO** (Monarch) | Disease & phenotype associations | Open |
+| **MONDO** / **Human Phenotype Ontology** | Disease-scoped phenotype associations | MONDO download formats: **CC BY 4.0**; HPO: project terms requiring acknowledgement/citation, displayed version/date, and unaltered HPO files |
 | **UCSC Genome Browser hg19 + RefSeq (`refGene`)** | Optional local Genome Browser reference sequence and gene track | UCSC Genome Browser data terms |
 | **Ensembl VEP** | Variant consequence predictions (the VEP bundle) | Open (Ensembl) |
 
@@ -53,6 +55,15 @@ are not redistributed by Yeliztli.
     Some sources — notably **dbNSFP** (academic/non-commercial) and the **share-alike**
     PharmGKB/FDA-derived data — carry conditions. If you build on Yeliztli or its data,
     make sure your use complies with each source's terms.
+
+!!! note "MONDO and HPO acknowledgement"
+    This service uses the Human Phenotype Ontology (HPO). HPO source versions and dates are
+    recorded with installed reference data and with any publicly displayed HPO excerpt; see
+    the [HPO license](https://human-phenotype-ontology.github.io/license.html) and requested
+    citation. MONDO's published download formats are listed as CC BY 4.0 on its
+    [download page](https://mondo.monarchinitiative.org/pages/download/). Individual mapping
+    artifacts can carry more specific or different metadata, so Yeliztli records source-level
+    terms rather than treating the broad MONDO notice as an automatic license for every file.
 
 ## Independence
 

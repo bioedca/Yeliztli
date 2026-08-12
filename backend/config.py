@@ -4,7 +4,9 @@ Layered: defaults -> ~/.yeliztli/config.toml ([yeliztli] table) -> environment
 variables (YELIZTLI_*).
 """
 
+import logging
 import os
+import stat
 import threading
 from collections.abc import Mapping
 from functools import lru_cache
@@ -13,6 +15,8 @@ from typing import Any, Literal
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
+
+logger = logging.getLogger(__name__)
 
 try:
     import tomllib
@@ -499,6 +503,102 @@ def write_config_toml(config_path: Path, content: dict[str, dict[str, object]]) 
 # concurrent saves each read the file, mutate their own key, and write back —
 # last-writer-wins silently drops the other's key.
 config_write_lock = threading.Lock()
+
+
+# Application-created data directories are task-owned and private.
+#
+# The MONDO/HPO loader refuses a downloads root — or any non-sticky ancestor —
+# that is group- or world-writable, because descriptor pinning cannot make a
+# namespace another local principal can write into trustworthy. A plain
+# ``mkdir()`` inherits the process umask, so under a cooperative umask such as
+# 0o002 it produces 0o775 and every subsequent reference-data build is rejected.
+# MONDO/HPO is required, so that combination leaves the setup wizard unable to
+# finish on an ordinary system. Create these directories with an explicit
+# private mode instead of whatever the umask happens to allow.
+PRIVATE_DIR_MODE = 0o700
+
+
+def ensure_private_directory(path: Path, *, parents: bool = False) -> str | None:
+    """Create *path* privately, or make an existing directory private.
+
+    Returns ``None`` when *path* ends up a directory this account owns that is
+    not group- or world-writable, otherwise a human-readable reason it could
+    not be made one.
+
+    ``mkdir`` applies ``mode`` only when it actually creates the directory, so
+    an existing path keeps whatever it already had: 0o775 from an earlier plain
+    ``mkdir`` under umask 0o002, a restored backup, or a group-writable
+    provisioned volume. Normalising is the deliberate choice for a directory
+    this account owns — the user asked for their data to live here, and
+    tightening our own directory is what that means. A directory owned by
+    another principal is not ours to re-permission, so it is reported instead
+    of being silently accepted and then refused later inside a database build,
+    where the message cannot name the real problem.
+
+    Only group and other *write* are cleared from an existing directory: those
+    are the exact bits the loaders reject, and read or traverse access an
+    operator granted deliberately is left alone. A directory created here gets
+    the full private mode, since nothing has expressed an intent about it yet.
+    """
+    if parents:
+        # ``mkdir(parents=True, mode=...)`` applies ``mode`` to the leaf only;
+        # every intermediate component it creates inherits the umask instead. A
+        # nested path chosen under umask 0o002 therefore lands a private leaf
+        # under 0o775 parents, and the loader's ancestor-chain check rejects
+        # those — so this reported success while the required build still could
+        # not run. Each missing component is created here, shallowest first, so
+        # its mode is ours rather than the umask's.
+        missing = sorted(
+            (parent for parent in (path, *path.parents) if not parent.exists()),
+            key=lambda parent: len(parent.parts),
+        )
+        for component in missing:
+            try:
+                component.mkdir(mode=PRIVATE_DIR_MODE)
+            except FileExistsError:
+                continue
+            except OSError as exc:
+                return f"Cannot create directory at {component}: {exc}"
+    else:
+        try:
+            path.mkdir(mode=PRIVATE_DIR_MODE, exist_ok=True)
+        except OSError as exc:
+            return f"Cannot create directory at {path}: {exc}"
+    try:
+        info = path.stat()
+    except OSError as exc:
+        return f"Cannot inspect directory at {path}: {exc}"
+    if not stat.S_ISDIR(info.st_mode):
+        return f"Path at {path} is not a directory."
+    # Ownership is checked before the mode, not only when write bits need
+    # clearing. A directory can be perfectly private and still belong to another
+    # account — a restored or provisioned ``downloads/`` at 0o755 — and the
+    # loader requires current-user ownership regardless of mode. Returning early
+    # on the mode accepted that path here and then failed inside the database
+    # build, where the message could not name the real cause.
+    if info.st_uid != os.geteuid():
+        # Advisory, not fatal (#2316). This directory is not ours to
+        # re-permission, but refusing the path outright made a required database
+        # unbuildable on ordinary deployments, and setup cannot finish without
+        # it. Report it and continue.
+        logger.warning(
+            "data_directory_owned_by_another_user: %s",
+            path,
+        )
+        return None
+    if not info.st_mode & (stat.S_IWGRP | stat.S_IWOTH):
+        return None
+    try:
+        path.chmod(info.st_mode & ~(stat.S_IWGRP | stat.S_IWOTH))
+    except OSError as exc:
+        # Best effort: we own it but could not tighten it. Worth surfacing,
+        # not worth refusing the location over.
+        logger.warning(
+            "data_directory_write_bits_not_cleared: %s (%s)",
+            path,
+            exc,
+        )
+    return None
 
 
 def write_data_dir_pointer(data_dir: Path) -> None:

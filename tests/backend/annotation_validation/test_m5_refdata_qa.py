@@ -110,10 +110,10 @@ def test_obsolete_mondo_terms_filtered(build_live_run) -> None:
     assert not label.startswith("obsolete"), f"obsolete term surfaced: {row.disease_name!r}"
 
 
-# ── F14: dominant genes must not be mislabelled recessive ─────────────────
+# ── Disease-scoped inheritance must not be overwritten by gene ────────────
 
 
-def test_dominant_gene_inheritance(build_live_run) -> None:
+def test_source_disease_inheritance_is_not_overridden(build_live_run) -> None:
     run = build_live_run(
         variants=[{"rsid": "rs_brca1", "chrom": "17", "pos": 43_094_000, "genotype": "GA"}],
         clinvar=[
@@ -137,7 +137,8 @@ def test_dominant_gene_inheritance(build_live_run) -> None:
                 "disease_id": "MONDO:0011450",
                 "hpo_terms": "[]",
                 "source": "mondo_hpo",
-                # The wrong current value the curated override must fix.
+                # This synthetic source value must reach the disease row as-is;
+                # a gene-wide override could be wrong for another BRCA1 disease.
                 "inheritance": "Autosomal recessive",
             }
         ],
@@ -145,7 +146,7 @@ def test_dominant_gene_inheritance(build_live_run) -> None:
     )
     row = run.annotated_by_rsid("rs_brca1")
     assert row is not None
-    assert row.inheritance_pattern == "Autosomal dominant"
+    assert row.inheritance_pattern == "Autosomal recessive"
 
 
 # ── F26: AF=0 (monomorphic) is not the same as observed-ultra-rare ────────

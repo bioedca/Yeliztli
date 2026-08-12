@@ -17,11 +17,21 @@ cross-module behavior change: every analysis module's no-call filter and the
 
 from __future__ import annotations
 
+# The exact sentinel the ``flag_only`` merge strategy writes at a discordant
+# locus (Plan §10.3 / Step 65; ``backend/services/sample_merge.py``). It is a
+# member of ``_NO_CALL_SENTINELS`` below, so every trait module keeps treating
+# it as unscoreable — but unlike an ordinary vendor no-call it records a *known*
+# disagreement between the merged sources rather than absent data. A reader that
+# must tell "conflicting evidence" apart from "no evidence" (the mtDNA
+# source-conflict guard, issue #2165) imports this name instead of respelling
+# the literal, so the two copies cannot drift.
+MERGE_AMBIGUITY_SENTINEL = "??"
+
 _NO_CALL_SENTINELS: frozenset[str] = frozenset(
     {
         "",  # empty / whitespace-only after strip
         "--",  # legacy 23andMe no-call
-        "??",  # merge ambiguity sentinel (Plan §10.3 / Step 65 flag_only)
+        MERGE_AMBIGUITY_SENTINEL,  # merge ambiguity (Plan §10.3 / Step 65 flag_only)
         "-",  # haploid 23andMe no-call on X/Y for XY individuals
         "0",  # legacy single-allele zero
         "00",  # AncestryDNA no-call leakage / legacy PRS branch

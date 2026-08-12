@@ -65,10 +65,17 @@ from backend.analysis.prs import _count_effect_allele
 from backend.analysis.risk_genotype import (
     _TRUE_NO_CALLS as _RISK_GENOTYPE_TRUE_NO_CALLS,
 )
-from backend.analysis.zygosity import _NO_CALL_SENTINELS
+from backend.analysis.zygosity import (
+    _NO_CALL_SENTINELS,
+    MERGE_AMBIGUITY_SENTINEL,
+    is_no_call,
+)
 from backend.api.routes.variants import _classify_genotype
 from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import raw_variants
+from backend.services.sample_merge import (
+    _NO_CALL_SENTINEL as _MERGE_WRITER_SENTINEL,
+)
 
 # ── Trait-style modules (8 modules sharing the _normalize_genotype contract) ─
 
@@ -323,6 +330,27 @@ _CLASSIFY_GENOTYPE_CALLED_INPUTS: list[tuple[str, str]] = [
 def test_classify_genotype_called_rows_unchanged(genotype: str, expected: str) -> None:
     """Called rows (het / hom) retain their pre-MRG-01a classification."""
     assert _classify_genotype(genotype) == expected
+
+
+# ── MERGE_AMBIGUITY_SENTINEL (the one sentinel that means "conflict") ───────
+#
+# Every sentinel above means "no evidence"; ``??`` alone means "the two merged
+# sources disagreed here" (Plan §10.3 flag_only). Issue #2165's mtDNA
+# source-conflict guard is the first reader that must tell those apart, so the
+# exported name has to keep denoting the exact literal the merge writer emits.
+
+
+def test_merge_ambiguity_sentinel_matches_the_merge_writer() -> None:
+    """The exported conflict sentinel is the merge writer's literal, and a no-call.
+
+    Two properties, both load-bearing for the #2165 guard: the analysis layer's
+    name must equal what ``sample_merge`` actually writes (or the guard silently
+    stops seeing merged discordance), and it must stay inside the shared no-call
+    set (or every trait module would start scoring an ambiguous locus).
+    """
+    assert MERGE_AMBIGUITY_SENTINEL == _MERGE_WRITER_SENTINEL
+    assert MERGE_AMBIGUITY_SENTINEL in _NO_CALL_SENTINELS
+    assert is_no_call(MERGE_AMBIGUITY_SENTINEL)
 
 
 # ── risk_genotype._TRUE_NO_CALLS (second hand-maintained sentinel set) ───────

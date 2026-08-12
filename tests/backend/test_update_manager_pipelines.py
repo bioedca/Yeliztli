@@ -10,9 +10,10 @@ same/newer recorded version → ``None``, network error → ``None``.
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 import httpx
 import pytest
@@ -21,7 +22,12 @@ from backend.annotation.cpic import check_cpic_update
 from backend.annotation.dbnsfp import check_dbnsfp_update
 from backend.annotation.dbsnp import check_dbsnp_update
 from backend.annotation.gwas import check_gwas_update
-from backend.annotation.mondo_hpo import check_mondo_hpo_update
+from backend.annotation.mondo_hpo import (
+    HPO_GENES_TO_PHENOTYPE_URL,
+    MONDO_HPO_INGESTION_REVISION,
+    MONDO_SSSOM_URL,
+    check_mondo_hpo_update,
+)
 from backend.db import manifest as manifest_mod
 from backend.db.manifest import reset_cache
 from backend.db.tables import database_versions, gene_phenotype
@@ -901,6 +907,19 @@ MONDO_HPO_LAST_MODIFIED_OLD = "Sun, 01 Mar 2026 00:00:00 GMT"
 MONDO_HPO_LAST_MODIFIED_OLD_VERSION = "20260301"
 
 
+def _current_mondo_hpo_version(
+    hpo_validator: str = MONDO_HPO_LAST_MODIFIED_NEW,
+    sssom_validator: str = MONDO_HPO_LAST_MODIFIED_NEW,
+) -> str:
+    """Build the installed v2 source-validator value used by update-check tests."""
+    hpo_fingerprint = hashlib.sha256(hpo_validator.encode()).hexdigest()[:16]
+    sssom_fingerprint = hashlib.sha256(sssom_validator.encode()).hexdigest()[:16]
+    return (
+        f"{MONDO_HPO_LAST_MODIFIED_NEW_VERSION}+{MONDO_HPO_INGESTION_REVISION}"
+        f"+hpo-{hpo_fingerprint}+mondo-sssom-{sssom_fingerprint}"
+    )
+
+
 class TestCheckMondoHpoUpdate:
     def test_older_recorded_returns_version_info(
         self, tmp_path: Path, monkeypatch, reference_engine
@@ -910,10 +929,15 @@ class TestCheckMondoHpoUpdate:
         monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(path))
         _record_version_row(reference_engine, "mondo_hpo", MONDO_HPO_LAST_MODIFIED_OLD_VERSION)
 
-        mock_client, _ = _mock_head_client(
+        mock_client, primary = _mock_head_client(
             content_length="98765432",
             last_modified=MONDO_HPO_LAST_MODIFIED_NEW,
         )
+        hpo = MagicMock(headers={"Content-Length": "20", "ETag": "hpo-current"})
+        hpo.raise_for_status = MagicMock()
+        sssom = MagicMock(headers={"Content-Length": "13", "ETag": "sssom-current"})
+        sssom.raise_for_status = MagicMock()
+        mock_client.return_value.head.side_effect = [primary, hpo, sssom]
         with patch("backend.annotation.mondo_hpo.httpx.Client", mock_client):
             result = check_mondo_hpo_update(reference_engine)
 
@@ -922,19 +946,51 @@ class TestCheckMondoHpoUpdate:
         assert result.db_name == "mondo_hpo"
         assert result.latest_version == MONDO_HPO_LAST_MODIFIED_NEW_VERSION
         assert result.download_url == MONDO_HPO_URL
-        assert result.download_size_bytes == 98_765_432
+        assert result.download_size_bytes == 98_765_465
         assert result.release_date == MONDO_HPO_LAST_MODIFIED_NEW_VERSION
-        mock_client.return_value.head.assert_called_once_with(MONDO_HPO_URL)
+        assert mock_client.return_value.head.call_args_list == [
+            call(MONDO_HPO_URL),
+            call(HPO_GENES_TO_PHENOTYPE_URL),
+            call(MONDO_SSSOM_URL),
+        ]
 
     def test_newer_recorded_returns_none(self, tmp_path: Path, monkeypatch, reference_engine):
-        """Recorded date newer than remote Last-Modified → no downgrade offered."""
+        """Recorded date newer than remote Last-Modified → no downgrade offered.
+
+        Only a scoped stamp records a real source release date, so only a scoped
+        stamp can order the remote object.
+        """
+        path = _write_manifest(tmp_path, SAMPLE_MANIFEST)
+        monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(path))
+        _record_version_row(
+            reference_engine, "mondo_hpo", f"20270101+{MONDO_HPO_INGESTION_REVISION}"
+        )
+
+        mock_client, _ = _mock_head_client(last_modified=MONDO_HPO_LAST_MODIFIED_NEW)
+        with patch("backend.annotation.mondo_hpo.httpx.Client", mock_client):
+            assert check_mondo_hpo_update(reference_engine) is None
+
+    def test_unscoped_newer_dated_install_still_offers_the_scoped_rebuild(
+        self, tmp_path: Path, monkeypatch, reference_engine
+    ):
+        """A legacy stamp's date is an install date, so it cannot veto its own repair.
+
+        The pre-revision loader fell back to the wall clock when the response
+        carried no release metadata, so an August install of a July object is
+        stamped later than the object. Ordering that as a release date leaves the
+        user with withheld rows and no update on offer — the deadlock this
+        exists to prevent.
+        """
         path = _write_manifest(tmp_path, SAMPLE_MANIFEST)
         monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(path))
         _record_version_row(reference_engine, "mondo_hpo", "20270101")
 
         mock_client, _ = _mock_head_client(last_modified=MONDO_HPO_LAST_MODIFIED_NEW)
         with patch("backend.annotation.mondo_hpo.httpx.Client", mock_client):
-            assert check_mondo_hpo_update(reference_engine) is None
+            result = check_mondo_hpo_update(reference_engine)
+
+        assert isinstance(result, VersionInfo)
+        assert result.latest_version == MONDO_HPO_LAST_MODIFIED_NEW_VERSION
 
     def test_matching_version_with_legacy_terms_offers_label_refresh(
         self, tmp_path: Path, monkeypatch, reference_engine
@@ -961,13 +1017,17 @@ class TestCheckMondoHpoUpdate:
         assert result is not None
         assert result.latest_version == MONDO_HPO_LAST_MODIFIED_NEW_VERSION
 
-    def test_matching_version_with_labelled_terms_returns_none(
+    def test_matching_version_with_current_revision_and_labelled_terms_returns_none(
         self, tmp_path: Path, monkeypatch, reference_engine
     ):
-        """The labelled storage shape does not repeatedly offer a rebuild."""
+        """Current labelled, disease-scoped data does not offer a rebuild."""
         path = _write_manifest(tmp_path, SAMPLE_MANIFEST)
         monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(path))
-        _record_version_row(reference_engine, "mondo_hpo", MONDO_HPO_LAST_MODIFIED_NEW_VERSION)
+        _record_version_row(
+            reference_engine,
+            "mondo_hpo",
+            _current_mondo_hpo_version(),
+        )
         with reference_engine.begin() as conn:
             conn.execute(
                 gene_phenotype.insert().values(
@@ -1013,15 +1073,52 @@ class TestCheckMondoHpoUpdate:
 
         mock_client, _ = _mock_head_client(last_modified=MONDO_HPO_LAST_MODIFIED_NEW)
         with patch("backend.annotation.mondo_hpo.httpx.Client", mock_client):
-            assert check_mondo_hpo_update(reference_engine) is not None
+            result = check_mondo_hpo_update(reference_engine)
+
+        assert result is not None
+        assert result.latest_version == MONDO_HPO_LAST_MODIFIED_NEW_VERSION
+
+    def test_matching_labelled_version_without_scope_revision_offers_refresh(
+        self, tmp_path: Path, monkeypatch, reference_engine
+    ):
+        """A formerly labelled but gene-wide install is rebuilt once for #2163."""
+        path = _write_manifest(tmp_path, SAMPLE_MANIFEST)
+        monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(path))
+        _record_version_row(reference_engine, "mondo_hpo", MONDO_HPO_LAST_MODIFIED_NEW_VERSION)
+        with reference_engine.begin() as conn:
+            conn.execute(
+                gene_phenotype.insert().values(
+                    gene_symbol="BRCA1",
+                    disease_name="Hereditary breast cancer",
+                    disease_id="MONDO:0005012",
+                    hpo_terms='[{"id": "HP:0003002", "name": "Breast carcinoma"}]',
+                    source="mondo_hpo",
+                )
+            )
+
+        mock_client, _ = _mock_head_client(last_modified=MONDO_HPO_LAST_MODIFIED_NEW)
+        with patch("backend.annotation.mondo_hpo.httpx.Client", mock_client):
+            result = check_mondo_hpo_update(reference_engine)
+
+        assert isinstance(result, VersionInfo)
+        assert result.db_name == "mondo_hpo"
+        assert result.latest_version == MONDO_HPO_LAST_MODIFIED_NEW_VERSION
+        assert result.download_url == MONDO_HPO_URL
+        assert result.release_date == MONDO_HPO_LAST_MODIFIED_NEW_VERSION
 
     def test_newer_version_with_legacy_terms_never_downgrades(
         self, tmp_path: Path, monkeypatch, reference_engine
     ):
-        """A content migration must not replace a newer installed snapshot."""
+        """A content migration must not replace a newer installed snapshot.
+
+        Scoped, so its date is a real source release date and can order the
+        remote object; an unscoped date could be the installation date instead.
+        """
         path = _write_manifest(tmp_path, SAMPLE_MANIFEST)
         monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(path))
-        _record_version_row(reference_engine, "mondo_hpo", "20270101")
+        _record_version_row(
+            reference_engine, "mondo_hpo", f"20270101+{MONDO_HPO_INGESTION_REVISION}"
+        )
         with reference_engine.begin() as conn:
             conn.execute(
                 gene_phenotype.insert().values(
@@ -1037,15 +1134,113 @@ class TestCheckMondoHpoUpdate:
         with patch("backend.annotation.mondo_hpo.httpx.Client", mock_client):
             assert check_mondo_hpo_update(reference_engine) is None
 
-    def test_matching_recorded_returns_none(self, tmp_path: Path, monkeypatch, reference_engine):
-        """Recorded date equals remote Last-Modified → already up to date."""
+    def test_matching_current_revision_returns_none(
+        self, tmp_path: Path, monkeypatch, reference_engine
+    ):
+        """Matching primary source and loader revision are already up to date."""
         path = _write_manifest(tmp_path, SAMPLE_MANIFEST)
         monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(path))
-        _record_version_row(reference_engine, "mondo_hpo", MONDO_HPO_LAST_MODIFIED_NEW_VERSION)
+        _record_version_row(
+            reference_engine,
+            "mondo_hpo",
+            _current_mondo_hpo_version(),
+        )
 
         mock_client, _ = _mock_head_client(last_modified=MONDO_HPO_LAST_MODIFIED_NEW)
         with patch("backend.annotation.mondo_hpo.httpx.Client", mock_client):
             assert check_mondo_hpo_update(reference_engine) is None
+
+    @pytest.mark.parametrize(
+        ("installed_version", "hpo_etag", "sssom_etag"),
+        [
+            (_current_mondo_hpo_version("hpo-old", "sssom-current"), "hpo-new", "sssom-current"),
+            (_current_mondo_hpo_version("hpo-current", "sssom-old"), "hpo-current", "sssom-new"),
+        ],
+        ids=["hpo", "mondo-sssom"],
+    )
+    def test_changed_secondary_validator_offers_refresh(
+        self,
+        tmp_path: Path,
+        monkeypatch,
+        reference_engine,
+        installed_version,
+        hpo_etag,
+        sssom_etag,
+    ):
+        """An HPO or SSSOM update is not hidden by an unchanged primary date."""
+        path = _write_manifest(tmp_path, SAMPLE_MANIFEST)
+        monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(path))
+        _record_version_row(
+            reference_engine,
+            "mondo_hpo",
+            installed_version,
+        )
+
+        primary = MagicMock(
+            headers={
+                "Content-Length": "98765432",
+                "Last-Modified": MONDO_HPO_LAST_MODIFIED_NEW,
+            }
+        )
+        primary.raise_for_status = MagicMock()
+        hpo = MagicMock(headers={"Content-Length": "20", "ETag": hpo_etag})
+        hpo.raise_for_status = MagicMock()
+        sssom = MagicMock(headers={"Content-Length": "13", "ETag": sssom_etag})
+        sssom.raise_for_status = MagicMock()
+        mock_client, _ = _mock_head_client(last_modified=MONDO_HPO_LAST_MODIFIED_NEW)
+        mock_client.return_value.head.side_effect = [primary, hpo, sssom]
+
+        with patch("backend.annotation.mondo_hpo.httpx.Client", mock_client):
+            result = check_mondo_hpo_update(reference_engine)
+
+        assert isinstance(result, VersionInfo)
+        assert result.download_url == MONDO_HPO_URL
+        assert mock_client.return_value.head.call_args_list == [
+            call(MONDO_HPO_URL),
+            call(HPO_GENES_TO_PHENOTYPE_URL),
+            call(MONDO_SSSOM_URL),
+        ]
+
+    @pytest.mark.parametrize(
+        "installed_version", ["vNext", "2026-04-x", "latest", "unknown", "99999999"]
+    )
+    def test_noncanonical_legacy_installed_version_offers_scoped_refresh(
+        self, tmp_path: Path, monkeypatch, reference_engine, installed_version: str
+    ):
+        """A withheld unproven install gets a recovery path, not a downgrade guess."""
+        path = _write_manifest(tmp_path, SAMPLE_MANIFEST)
+        monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(path))
+        _record_version_row(reference_engine, "mondo_hpo", installed_version)
+
+        mock_client, _ = _mock_head_client(last_modified=MONDO_HPO_LAST_MODIFIED_NEW)
+        with patch("backend.annotation.mondo_hpo.httpx.Client", mock_client):
+            result = check_mondo_hpo_update(reference_engine)
+
+        assert isinstance(result, VersionInfo)
+        assert result.latest_version == MONDO_HPO_LAST_MODIFIED_NEW_VERSION
+        assert mock_client.return_value.head.call_args_list == [
+            call(MONDO_HPO_URL),
+            call(HPO_GENES_TO_PHENOTYPE_URL),
+            call(MONDO_SSSOM_URL),
+        ]
+
+    def test_noncanonical_scoped_installed_version_is_not_overwritten(
+        self, tmp_path: Path, monkeypatch, reference_engine
+    ):
+        """A scope-proven but unorderable operator release is not replaced blindly."""
+        path = _write_manifest(tmp_path, SAMPLE_MANIFEST)
+        monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(path))
+        _record_version_row(
+            reference_engine,
+            "mondo_hpo",
+            f"vNext+{MONDO_HPO_INGESTION_REVISION}",
+        )
+
+        mock_client, _ = _mock_head_client(last_modified=MONDO_HPO_LAST_MODIFIED_NEW)
+        with patch("backend.annotation.mondo_hpo.httpx.Client", mock_client):
+            assert check_mondo_hpo_update(reference_engine) is None
+
+        mock_client.return_value.head.assert_called_once_with(MONDO_HPO_URL)
 
     def test_no_recorded_version_returns_version_info(
         self, tmp_path: Path, monkeypatch, reference_engine
@@ -1063,41 +1258,25 @@ class TestCheckMondoHpoUpdate:
 
         assert result is not None
         assert result.latest_version == MONDO_HPO_LAST_MODIFIED_NEW_VERSION
-        assert result.download_size_bytes == 98_765_432
+        assert result.download_size_bytes == 296_296_296
 
-    def test_head_missing_content_length_returns_zero_size(
-        self, tmp_path: Path, monkeypatch, reference_engine
+    @pytest.mark.parametrize(
+        "content_length",
+        [None, "not-a-number", "0", "-1", "+1", " 1", "1 ", "1_0", "1e2"],
+    )
+    def test_unknown_malformed_or_nonpositive_primary_content_length_withholds_update(
+        self, tmp_path: Path, monkeypatch, reference_engine, content_length: str | None
     ):
-        """HEAD succeeds without Content-Length → size defaults to 0."""
+        """The bandwidth gate cannot safely use an unknown primary transfer size."""
         path = _write_manifest(tmp_path, SAMPLE_MANIFEST)
         monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(path))
 
         mock_client, _ = _mock_head_client(
-            content_length=None,
+            content_length=content_length,
             last_modified=MONDO_HPO_LAST_MODIFIED_NEW,
         )
         with patch("backend.annotation.mondo_hpo.httpx.Client", mock_client):
-            result = check_mondo_hpo_update(reference_engine)
-
-        assert result is not None
-        assert result.download_size_bytes == 0
-
-    def test_head_unparseable_content_length_returns_zero_size(
-        self, tmp_path: Path, monkeypatch, reference_engine
-    ):
-        """Non-integer Content-Length header → size defaults to 0 (no crash)."""
-        path = _write_manifest(tmp_path, SAMPLE_MANIFEST)
-        monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(path))
-
-        mock_client, _ = _mock_head_client(
-            content_length="not-a-number",
-            last_modified=MONDO_HPO_LAST_MODIFIED_NEW,
-        )
-        with patch("backend.annotation.mondo_hpo.httpx.Client", mock_client):
-            result = check_mondo_hpo_update(reference_engine)
-
-        assert result is not None
-        assert result.download_size_bytes == 0
+            assert check_mondo_hpo_update(reference_engine) is None
 
     def test_head_missing_last_modified_returns_none(
         self, tmp_path: Path, monkeypatch, reference_engine
@@ -1143,6 +1322,116 @@ class TestCheckMondoHpoUpdate:
         with patch("backend.annotation.mondo_hpo.httpx.Client", mock_client):
             assert check_mondo_hpo_update(reference_engine) is None
 
+    def test_secondary_head_error_withholds_update_instead_of_understating_size(
+        self, tmp_path: Path, monkeypatch, reference_engine
+    ):
+        """A missing secondary validator cannot safely yield a partial size estimate."""
+        path = _write_manifest(tmp_path, SAMPLE_MANIFEST)
+        monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(path))
+
+        primary = MagicMock(
+            headers={
+                "Content-Length": "98765432",
+                "Last-Modified": MONDO_HPO_LAST_MODIFIED_NEW,
+            }
+        )
+        primary.raise_for_status = MagicMock()
+        hpo = MagicMock(headers={"Content-Length": "20", "ETag": "hpo-current"})
+        hpo.raise_for_status = MagicMock()
+        sssom = MagicMock(headers={"Content-Length": "13", "ETag": "sssom-current"})
+        sssom.raise_for_status.side_effect = httpx.HTTPStatusError(
+            "503", request=MagicMock(), response=MagicMock(status_code=503)
+        )
+        mock_client, _ = _mock_head_client(last_modified=MONDO_HPO_LAST_MODIFIED_NEW)
+        mock_client.return_value.head.side_effect = [primary, hpo, sssom]
+
+        with patch("backend.annotation.mondo_hpo.httpx.Client", mock_client):
+            assert check_mondo_hpo_update(reference_engine) is None
+
+        assert mock_client.return_value.head.call_args_list == [
+            call(MONDO_HPO_URL),
+            call(HPO_GENES_TO_PHENOTYPE_URL),
+            call(MONDO_SSSOM_URL),
+        ]
+
+    @pytest.mark.parametrize(
+        ("hpo_size", "sssom_size"),
+        [
+            (None, "13"),
+            ("20", None),
+            ("not-a-number", "13"),
+            ("20", "not-a-number"),
+            ("0", "13"),
+            ("20", "0"),
+            ("-1", "13"),
+            ("20", "-1"),
+            ("+1", "13"),
+            ("20", "+1"),
+            (" 1", "13"),
+            ("20", " 1"),
+            ("1 ", "13"),
+            ("20", "1 "),
+            ("1_0", "13"),
+            ("20", "1_0"),
+            ("1e2", "13"),
+            ("20", "1e2"),
+        ],
+        ids=[
+            "hpo-missing",
+            "sssom-missing",
+            "hpo-malformed",
+            "sssom-malformed",
+            "hpo-zero",
+            "sssom-zero",
+            "hpo-negative",
+            "sssom-negative",
+            "hpo-plus-sign",
+            "sssom-plus-sign",
+            "hpo-leading-space",
+            "sssom-leading-space",
+            "hpo-trailing-space",
+            "sssom-trailing-space",
+            "hpo-underscore",
+            "sssom-underscore",
+            "hpo-exponent",
+            "sssom-exponent",
+        ],
+    )
+    def test_unknown_malformed_or_nonpositive_secondary_content_length_withholds_update(
+        self,
+        tmp_path: Path,
+        monkeypatch,
+        reference_engine,
+        hpo_size: str | None,
+        sssom_size: str | None,
+    ):
+        """Any unknown secondary size must not understate the total transfer."""
+        path = _write_manifest(tmp_path, SAMPLE_MANIFEST)
+        monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(path))
+
+        primary = MagicMock(
+            headers={
+                "Content-Length": "98765432",
+                "Last-Modified": MONDO_HPO_LAST_MODIFIED_NEW,
+            }
+        )
+        primary.raise_for_status = MagicMock()
+        hpo_headers = {"ETag": "hpo-current"}
+        if hpo_size is not None:
+            hpo_headers["Content-Length"] = hpo_size
+        hpo = MagicMock(headers=hpo_headers)
+        hpo.raise_for_status = MagicMock()
+        sssom_headers = {"ETag": "sssom-current"}
+        if sssom_size is not None:
+            sssom_headers["Content-Length"] = sssom_size
+        sssom = MagicMock(headers=sssom_headers)
+        sssom.raise_for_status = MagicMock()
+        mock_client, _ = _mock_head_client(last_modified=MONDO_HPO_LAST_MODIFIED_NEW)
+        mock_client.return_value.head.side_effect = [primary, hpo, sssom]
+
+        with patch("backend.annotation.mondo_hpo.httpx.Client", mock_client):
+            assert check_mondo_hpo_update(reference_engine) is None
+
     def test_manifest_unreachable_returns_none(self, reference_engine):
         """Manifest fetch failure → None without attempting HEAD."""
         with patch(
@@ -1183,7 +1472,11 @@ class TestCheckMondoHpoUpdate:
         """Signature parity: ``settings`` is accepted positionally / by keyword."""
         path = _write_manifest(tmp_path, SAMPLE_MANIFEST)
         monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(path))
-        _record_version_row(reference_engine, "mondo_hpo", MONDO_HPO_LAST_MODIFIED_NEW_VERSION)
+        _record_version_row(
+            reference_engine,
+            "mondo_hpo",
+            _current_mondo_hpo_version(),
+        )
 
         mock_client, _ = _mock_head_client(last_modified=MONDO_HPO_LAST_MODIFIED_NEW)
         with patch("backend.annotation.mondo_hpo.httpx.Client", mock_client):
@@ -1301,4 +1594,4 @@ class TestCheckFnsRegistration:
         assert result is not None
         assert result.db_name == "mondo_hpo"
         assert result.latest_version == MONDO_HPO_LAST_MODIFIED_NEW_VERSION
-        assert result.download_size_bytes == 666_777
+        assert result.download_size_bytes == 2_000_331

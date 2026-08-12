@@ -1,6 +1,6 @@
 {
   "module": "haplogroup",
-  "version": "1.1.29",
+  "version": "1.1.30",
   "description": "Source-audited PhyloTree mtDNA + YBrowse Y-chromosome haplogroup defining SNP trees for haplogroup assignment via tree-walk algorithm. SNPs filtered to 23andMe v5-era array coverage. Resolution varies with the markers typed by each array revision.",
   "build": "GRCh37",
   "assignment": {
@@ -903,7 +903,7 @@
             "array_manifest_sha256": "42de22517a4644884596e36b0499a4fc45f264986c63f6fb239452b88719f977",
             "baseline_snapshot_sha256": "f8aecb8ba02e5c2becbccfc40846bd3c8668d4b8c6de5be1761ab78c0d83a87e",
             "baseline_emitted_tree_sha256": "02a40be2096dd8c60e6e2934ba68a813f07478117a749e60e94e0608bed21914",
-            "locked_emitted_tree_sha256": "73323f94e8740b24faa0001065f0ca79a9a24c18554500545e65694b1f17a566",
+            "locked_emitted_tree_sha256": "0d3f25360e57573a61910787224ddfc701fb77515208857132791ec936570d31",
             "baseline_exact_nodes_sha256": "3e3386bf2d57ce5814df595576223e08addccba96c92818b7d1cf338b02bf5d9",
             "baseline_v1_coverage_sha256": "d88d4491671f99175bea3c6188affb3b0bbbd31681e0f7c35103ac4f194da6e6",
             "baseline_v1_semantic_sha256": "c044b73c08b339d0be782306b84d593982b13242d995d541522da6f5bc9fc7c6",
@@ -918,7 +918,7 @@
             "locked_exact_coverage_membership_sha256": "6763bae78f35afc14e8782cdd0b179c06980db2836f43cb9c7d169794ec19d5f",
             "locked_exact_semantic_sha256": "5b2a64dc6b5328bdb4523938ebcfd079a2a6ea3129b5fda7d9cc379ea3649fe0",
             "source_metadata_sha256": "13755a154c19c603bac63a2195287165271571ece1e36e178a666aa35184d04b",
-            "state_partition_sha256": "b4f46c5140936d99429b7f52f1a94c7ded344417ad579e7d381ba07dc56c9115"
+            "state_partition_sha256": "f9a0d2ecd09f05ae1d5fbd41123d0d9e63b79d8f08c2e3b1c4c1f873ebb6a1fd"
           },
           "baseline_commit": "e463604fc5b4af4d5887c9e9a76c2f54598ef312"
         }
@@ -4642,6 +4642,13 @@
                         {
                           "haplogroup": "U5",
                           "defining_snps": [],
+                          "optional_conflict_snps": [
+                            {
+                              "rsid": "i5016270",
+                              "pos": 16270,
+                              "allele": "T"
+                            }
+                          ],
                           "children": [
                             {
                               "haplogroup": "U5a",

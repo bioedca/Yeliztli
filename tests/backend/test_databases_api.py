@@ -22,6 +22,7 @@ import pytest
 import sqlalchemy as sa
 from fastapi.testclient import TestClient
 
+from backend.annotation.mondo_hpo import MONDO_HPO_INGESTION_REVISION
 from backend.api.routes.databases import _active_sessions, _create_job_record, _execute_build
 from backend.config import Settings
 from backend.db.connection import reset_registry
@@ -355,6 +356,83 @@ def _recorded_version(data_dir: Path, db_name: str) -> str | None:
     finally:
         engine.dispose()
     return row.version if row else None
+
+
+class TestMondoHpoLegacyUpgradeBuild:
+    """``_run_build`` must not skip a MONDO/HPO install whose rows are withheld.
+
+    The skip is keyed on ``get_database_status(...)["downloaded"]``. An install
+    upgraded from a pre-``MONDO_HPO_INGESTION_REVISION`` loader keeps a stamped,
+    nonempty ``gene_phenotype`` table whose ``mondo_hpo`` rows the lookup path
+    withholds, so reading that stamp as "already downloaded" would leave
+    phenotype annotations permanently empty.
+    """
+
+    @staticmethod
+    def _seed_stamped_mondo_hpo(settings: Settings, version: str) -> None:
+        from backend.db.database_registry import _record_db_version
+        from backend.db.tables import gene_phenotype
+
+        engine = sa.create_engine(f"sqlite:///{settings.reference_db_path}")
+        try:
+            reference_metadata.create_all(engine)
+            with engine.begin() as conn:
+                conn.execute(
+                    gene_phenotype.insert(),
+                    [
+                        {
+                            "gene_symbol": "BRCA1",
+                            "disease_name": "HBOC",
+                            "disease_id": "MONDO:0011450",
+                            "source": "mondo_hpo",
+                        }
+                    ],
+                )
+            _record_db_version(engine, "mondo_hpo", version, 12345)
+        finally:
+            engine.dispose()
+
+    @staticmethod
+    def _build_ran(settings: Settings, monkeypatch: pytest.MonkeyPatch) -> bool:
+        """Run ``_run_build`` for mondo_hpo; report whether it reached the build."""
+        from backend.api.routes.databases import _run_build
+
+        executed: list[str] = []
+        monkeypatch.setattr(
+            "backend.api.routes.databases._execute_build",
+            lambda **kwargs: executed.append(kwargs["db_info"].name),
+        )
+        db_info = get_database("mondo_hpo")
+        assert db_info is not None
+        engine = sa.create_engine(f"sqlite:///{settings.reference_db_path}")
+        try:
+            _create_job_record(engine, "job-mondo-hpo", db_info.name)
+            _run_build(
+                db_info=db_info,
+                job_id="job-mondo-hpo",
+                engine=engine,
+                settings=settings,
+            )
+        finally:
+            engine.dispose()
+        return executed == ["mondo_hpo"]
+
+    def test_legacy_revision_install_still_builds(
+        self, tmp_data_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
+        self._seed_stamped_mondo_hpo(settings, "20260415")
+
+        assert self._build_ran(settings, monkeypatch) is True
+
+    def test_current_revision_install_is_skipped(
+        self, tmp_data_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Negative control: a serviceable install is still skipped as before."""
+        settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
+        self._seed_stamped_mondo_hpo(settings, f"20260415+{MONDO_HPO_INGESTION_REVISION}")
+
+        assert self._build_ran(settings, monkeypatch) is False
 
 
 class TestBundledInstall:
@@ -773,7 +851,9 @@ class TestTriggerDownload:
             # standalone). Bundled DBs (gnomad) are version-compared against the
             # manifest by _bundle_install_needed(), so record the manifest version
             # — a sentinel like "test" reads as "older than manifest" and would
-            # (re)queue the install, defeating the 409.
+            # (re)queue the install, defeating the 409. MONDO/HPO serves rows only
+            # while its stamp records the current ingestion revision, so a bare
+            # sentinel reads as a legacy upgrade and would requeue it too.
             for db in get_all_databases():
                 if not db.required:
                     continue
@@ -782,6 +862,8 @@ class TestTriggerDownload:
                 if db.build_mode == "bundled":
                     entry = get_bundle_info(db.name)
                     version = entry.version if entry is not None else "test"
+                elif db.name == "mondo_hpo":
+                    version = f"test+{MONDO_HPO_INGESTION_REVISION}"
                 else:
                     version = "test"
                 with engine.begin() as conn:
