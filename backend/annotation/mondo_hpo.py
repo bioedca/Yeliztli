@@ -1798,47 +1798,6 @@ def _write_source_bundle_pending(staging: _StagedSourceBundle) -> None:
         os.close(pending_fd)
 
 
-def _discard_staged_source_bundle(
-    staging: _StagedSourceBundle,
-    sources: list[dict[str, str | int | None]],
-) -> None:
-    """Remove a staging directory this run created and will not publish.
-
-    Only the names this module writes are unlinked, each through the retained
-    staging descriptor, and the directory itself is removed by name through the
-    pinned parent descriptor. That is deliberately not a recursive delete by
-    path: the downloads root may be reached through a configured symlink, and
-    the whole point of the descriptor pinning here is never to hand a pathname
-    a concurrent writer could redirect to something that deletes a tree.
-
-    Best-effort by design. Failing to reclaim a staging directory must not fail
-    an install whose sources are already published and verified; the residue is
-    an operator-visible ``.mondo-hpo-*`` directory, not data loss. Anything
-    unexpected inside it — a name this module never wrote — is left alone, and
-    the non-empty ``rmdir`` then fails harmlessly, so a surprise is preserved
-    for inspection rather than silently destroyed.
-    """
-    if not _staged_source_bundle_matches_fd(staging):
-        return
-    names = [SOURCE_BUNDLE_MANIFEST, SOURCE_BUNDLE_PENDING]
-    for source in sources:
-        filename = source.get("filename")
-        if isinstance(filename, str) and filename and Path(filename).name == filename:
-            names.append(filename)
-    for name in names:
-        try:
-            os.unlink(name, dir_fd=staging.fd)
-        except OSError:
-            continue
-    try:
-        os.rmdir(staging.name, dir_fd=staging.parent_fd)
-    except OSError:
-        logger.warning(
-            "mondo_hpo_staging_not_reclaimed",
-            staging=staging.name,
-        )
-
-
 @contextmanager
 def _publish_staged_source_bundle(
     managed: _ManagedSourceBundleDir,
@@ -1872,13 +1831,6 @@ def _publish_staged_source_bundle(
         if stat.S_ISLNK(existing.st_mode) or not stat.S_ISDIR(existing.st_mode):
             raise ValueError(f"Existing MONDO/HPO source bundle is not a directory: {bundle_id}")
         published = _open_published_source_bundle(managed, bundle_id)
-        # The sources were byte-identical, so the existing immutable bundle is
-        # kept and the staged copy is never renamed into place. Nothing else
-        # removes it: `_create_pinned_staged_source_bundle` closes descriptors
-        # only, deliberately, so a *failed* attempt survives for an operator to
-        # inspect. A reuse is not a failed attempt, and leaving it behind costs
-        # roughly 34 MB of the downloads volume per refresh or recovery retry.
-        _discard_staged_source_bundle(managed.staging, sources)
     try:
         _assert_published_source_bundle_contents(managed, published, sources)
         yield published
