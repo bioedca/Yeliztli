@@ -33,11 +33,13 @@ cost anything when a transfer would otherwise have failed outright.
 
 from __future__ import annotations
 
+import hashlib
 import random
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
+from urllib.parse import urlsplit, urlunsplit
 
 import httpx
 import structlog
@@ -197,6 +199,66 @@ def _validator(response: httpx.Response) -> str | None:
     return response.headers.get("ETag") or response.headers.get("Last-Modified")
 
 
+def _safe_log_url(url: str) -> str:
+    """Return a source URL safe for logs and user-facing download errors.
+
+    **The path is untrusted here too.** Stripping userinfo, query and fragment
+    while keeping ``parsed.path`` verbatim still leaks a path-based bearer or
+    share token -- ``https://example.com/token/SECRET/file.tsv`` -- into the
+    retry logs and into the reconstructed terminal error. This is the *generic*
+    downloader, so unlike a module with a fixed set of canonical endpoints there
+    is no URL here that can be assumed safe to echo: every caller supplies its
+    own.
+
+    The path is therefore reduced to a digest of the whole URL. Someone holding
+    the URL can still confirm which one was used, and callers already log the
+    context that identifies a transfer operationally -- database name and
+    destination path -- so no diagnostic worth the leak is lost.
+    """
+    try:
+        parsed = urlsplit(url)
+        if not parsed.scheme or not parsed.hostname:
+            return "<invalid download URL>"
+        hostname = parsed.hostname
+        host = f"[{hostname}]" if ":" in hostname else hostname
+        port = f":{parsed.port}" if parsed.port is not None else ""
+    except ValueError:
+        return "<invalid download URL>"
+    # No URL-reserved characters in the placeholder: this value is handed to
+    # `httpx.Request` when a terminal error is rebuilt, and httpx would
+    # percent-encode anything like angle brackets, so the string that reaches a
+    # log would no longer equal the one produced here.
+    digest = hashlib.sha256(url.encode("utf-8")).hexdigest()[:16]
+    return urlunsplit((parsed.scheme, f"{host}{port}", f"/redacted/{digest}", "", ""))
+
+
+def _safe_error_text(exc: BaseException, *, raw_url: str, safe_url: str) -> str:
+    """Remove the caller-supplied URL from a retry error before it is retained."""
+    if isinstance(exc, RETRYABLE_EXCEPTIONS):
+        # httpx transport messages can canonicalize or percent-encode a URL,
+        # making substring replacement insufficient for signed credentials.
+        return "transport failure"
+    return str(exc).replace(raw_url, safe_url)
+
+
+def _redacted_http_status_error(
+    response: httpx.Response,
+    *,
+    safe_url: str,
+) -> httpx.HTTPStatusError:
+    """Rebuild a non-retryable HTTP error without retaining a signed request."""
+    request = httpx.Request("GET", safe_url)
+    safe_response = httpx.Response(
+        response.status_code,
+        request=request,
+    )
+    return httpx.HTTPStatusError(
+        f"HTTP status {response.status_code} for {safe_url}",
+        request=request,
+        response=safe_response,
+    )
+
+
 def _validator_sidecar_path(tmp_path: Path) -> Path:
     """Path of the sidecar that persists a partial's ``If-Range`` validator."""
     return tmp_path.with_name(tmp_path.name + ".validator")
@@ -335,10 +397,13 @@ def stream_download(
         :class:`DownloadOutcome` describing the completed transfer.
 
     Raises:
-        DownloadError: On permanent failure (retry budget exhausted).  The
-            partial ``tmp_path`` is removed before raising.
-        httpx.HTTPStatusError: On a non-retryable HTTP status (e.g. 404).
+        DownloadError: On permanent failure (retry budget exhausted) or a
+            non-retryable request failure. The partial tmp_path is removed
+            before raising.
+        httpx.HTTPStatusError: On a non-retryable HTTP status (e.g. 404), with
+            a redacted request and response.
     """
+    safe_url = _safe_log_url(url)
     tmp_path.parent.mkdir(parents=True, exist_ok=True)
     if not resumable:
         # Start fresh — never resume onto a leftover partial we can't vouch for.
@@ -362,6 +427,24 @@ def stream_download(
     no_progress_failures = 0
     attempt = 0
     resumed = False
+    terminal_error: DownloadError | None = None
+
+    def _cleanup_partial() -> None:
+        if not resumable:
+            # No cross-call resume: never leave a partial behind on failure.
+            # Guard the cleanup so a unlink error (e.g. read-only dir) can't
+            # mask the original download exception.
+            try:
+                tmp_path.unlink(missing_ok=True)
+            except OSError as cleanup_err:
+                logger.warning(
+                    "download_cleanup_failed", path=str(tmp_path), error=str(cleanup_err)
+                )
+
+    # Construct this only after leaving the ``except`` suite below. Raising a
+    # replacement exception while a RequestError is active would retain the raw
+    # request (and its signed query) as ``__context__``.
+    terminal_request_error: DownloadError | None = None
 
     try:
         while True:
@@ -453,9 +536,7 @@ def stream_download(
                     elif status in RETRYABLE_STATUS_CODES:
                         raise _RetryableStatusError(status)
                     else:
-                        # Non-retryable status (e.g. 404) — raise HTTPStatusError.
-                        response.raise_for_status()
-                        raise DownloadError(f"unexpected HTTP status {status} for {url}")
+                        raise _redacted_http_status_error(response, safe_url=safe_url)
 
                     # ── Stream the body ──
                     written = offset if mode == "ab" else 0
@@ -492,7 +573,7 @@ def stream_download(
                 final_size = tmp_path.stat().st_size if tmp_path.exists() else 0
                 if expected_total is not None and final_size < expected_total:
                     raise IncompleteDownloadError(
-                        f"received {final_size:,} of {expected_total:,} bytes from {url}"
+                        f"received {final_size:,} of {expected_total:,} bytes from {safe_url}"
                     )
 
                 return DownloadOutcome(
@@ -528,32 +609,40 @@ def stream_download(
                 budget_exhausted = no_progress_failures > max_retries
                 if budget_exhausted or attempts_exhausted:
                     reason = "max_attempts" if attempts_exhausted else "max_retries"
-                    raise DownloadError(
+                    terminal_error = DownloadError(
                         f"download failed after {attempt} attempt(s) "
                         f"({new_offset:,} bytes; {reason}): "
-                        f"{type(exc).__name__}: {exc}"
-                    ) from exc
+                        f"{type(exc).__name__}: "
+                        f"{_safe_error_text(exc, raw_url=url, safe_url=safe_url)}"
+                    )
+                    break
 
                 delay = compute_backoff(no_progress_failures or 1)
                 logger.warning(
                     "download_retry",
-                    url=url,
+                    url=safe_url,
                     attempt=attempt,
                     offset=new_offset,
                     made_progress=made_progress,
                     retry_in_s=round(delay, 2),
-                    error=f"{type(exc).__name__}: {exc}",
+                    error=(
+                        f"{type(exc).__name__}: "
+                        f"{_safe_error_text(exc, raw_url=url, safe_url=safe_url)}"
+                    ),
                 )
                 sleep(delay)
+        assert terminal_error is not None
+        raise terminal_error
+    except httpx.RequestError:
+        # RequestError subclasses retain the raw request object. Do not reuse
+        # their message or type: either can carry caller-supplied signed URLs.
+        # A fixed DownloadError is raised after the handler exits so it has no
+        # raw exception in ``__cause__`` or ``__context__``.
+        terminal_request_error = DownloadError(f"download request failed for {safe_url}")
     except BaseException:
-        if not resumable:
-            # No cross-call resume: never leave a partial behind on failure.
-            # Guard the cleanup so a unlink error (e.g. read-only dir) can't mask
-            # the original download exception.
-            try:
-                tmp_path.unlink(missing_ok=True)
-            except OSError as cleanup_err:
-                logger.warning(
-                    "download_cleanup_failed", path=str(tmp_path), error=str(cleanup_err)
-                )
+        _cleanup_partial()
         raise
+
+    assert terminal_request_error is not None
+    _cleanup_partial()
+    raise terminal_request_error

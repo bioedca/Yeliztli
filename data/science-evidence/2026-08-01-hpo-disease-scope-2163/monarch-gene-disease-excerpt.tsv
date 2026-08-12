@@ -1,0 +1,5 @@
+subject	subject_label	subject_category	subject_taxon	subject_taxon_label	negated	predicate	object	object_label	object_category	qualifiers	publications	has_evidence	primary_knowledge_source	aggregator_knowledge_source
+HGNC:20	AARS1	biolink:Gene	NCBITaxon:9606	Homo sapiens		biolink:causes	MONDO:0030634	leukoencephalopathy, hereditary diffuse, with spheroids 2	biolink:Disease				infores:omim	['infores:monarchinitiative']
+HGNC:20	AARS1	biolink:Gene	NCBITaxon:9606	Homo sapiens		biolink:causes	MONDO:0013212	Charcot-Marie-Tooth disease axonal type 2N	biolink:Disease				infores:omim	['infores:monarchinitiative']
+HGNC:20	AARS1	biolink:Gene	NCBITaxon:9606	Homo sapiens		biolink:causes	MONDO:0014593	developmental and epileptic encephalopathy, 29	biolink:Disease				infores:omim	['infores:monarchinitiative']
+HGNC:20	AARS1	biolink:Gene	NCBITaxon:9606	Homo sapiens		biolink:causes	MONDO:0030517	trichothiodystrophy 8, nonphotosensitive	biolink:Disease				infores:omim	['infores:monarchinitiative']

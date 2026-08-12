@@ -35,7 +35,11 @@ from backend.annotation.dbnsfp import (
 )
 from backend.annotation.gnomad import _create_gnomad_indexes, _create_gnomad_table
 from backend.annotation.gwas import gwas_matched_rsids
-from backend.annotation.mondo_hpo import load_mondo_hpo_from_csv
+from backend.annotation.mondo_hpo import (
+    MONDO_HPO_INGESTION_REVISION,
+    load_mondo_hpo_from_csv,
+    record_mondo_hpo_version,
+)
 from backend.config import Settings
 from backend.db.connection import reset_registry
 from backend.db.tables import (
@@ -339,6 +343,11 @@ def cross_module_env(tmp_data_dir: Path):
 
     _load_clinvar_from_csv(ref_engine)
     load_mondo_hpo_from_csv(GENE_PHENOTYPE_SEED_CSV, ref_engine)
+    # Stamped as a real install is. Without the `database_versions` row the
+    # disease-scope gate withholds every seeded mondo_hpo row, so this
+    # pipeline fixture would advertise gene-phenotype coverage while
+    # exercising none of it.
+    record_mondo_hpo_version(ref_engine, version=f"20260801+{MONDO_HPO_INGESTION_REVISION}")
     _load_cpic_data(ref_engine)
     _load_gwas_data(ref_engine)
 

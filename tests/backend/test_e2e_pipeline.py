@@ -33,7 +33,11 @@ from backend.annotation.dbnsfp import (
     load_dbnsfp_from_csv,
 )
 from backend.annotation.gnomad import _create_gnomad_indexes, _create_gnomad_table
-from backend.annotation.mondo_hpo import load_mondo_hpo_from_csv
+from backend.annotation.mondo_hpo import (
+    MONDO_HPO_INGESTION_REVISION,
+    load_mondo_hpo_from_csv,
+    record_mondo_hpo_version,
+)
 from backend.config import Settings
 from backend.db.connection import reset_registry
 from backend.db.tables import (
@@ -234,6 +238,11 @@ def e2e_env(tmp_data_dir: Path):
         conn.execute(clinvar_variants.insert(), SEED_CLINVAR)
     # Load gene-phenotype data
     load_mondo_hpo_from_csv(GENE_PHENOTYPE_SEED_CSV, ref_engine)
+    # Stamped as a real install is. Without the `database_versions` row the
+    # disease-scope gate withholds every seeded mondo_hpo row, so this
+    # pipeline fixture would advertise gene-phenotype coverage while
+    # exercising none of it.
+    record_mondo_hpo_version(ref_engine, version=f"20260801+{MONDO_HPO_INGESTION_REVISION}")
     ref_engine.dispose()
 
     # 2. Create annotation source databases on disk

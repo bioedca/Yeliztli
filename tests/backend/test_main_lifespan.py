@@ -190,3 +190,33 @@ async def test_normal_dual_cleanup_failures_are_grouped(
     assert caught.value.exceptions == (executor_error, registry_error)
     lifespan_dependencies.shutdown_executor.assert_called_once_with()
     lifespan_dependencies.reset_registry.assert_called_once_with()
+
+
+@pytest.mark.asyncio
+async def test_startup_survives_a_directory_it_cannot_make_private(
+    lifespan_dependencies: SimpleNamespace,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A data directory that cannot be made private is reported, never fatal.
+
+    The warning exists precisely so the setup wizard can offer another path,
+    which it can only do if the application finishes starting. Handing the
+    detail to a stdlib logger as an arbitrary keyword raises ``TypeError`` out
+    of ``Logger._log`` and aborts startup at exactly the point this branch is
+    meant to keep survivable (#2163).
+    """
+    problem = "Directory at /srv/data is group- or world-writable"
+    with (
+        patch(
+            "backend.main.ensure_private_directory",
+            return_value=problem,
+        ) as ensure_private,
+        caplog.at_level(logging.WARNING, logger="backend.main"),
+    ):
+        async with lifespan(FastAPI()):
+            pass
+
+    assert ensure_private.call_count >= 1
+    warnings = [record.getMessage() for record in caplog.records]
+    assert any("data_directory_not_private" in message for message in warnings), warnings
+    assert any(problem in message for message in warnings), warnings

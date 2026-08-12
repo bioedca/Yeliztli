@@ -14,6 +14,8 @@ from __future__ import annotations
 import asyncio
 import io
 import json
+import os
+import stat
 import tarfile
 import tomllib
 from pathlib import Path
@@ -23,6 +25,10 @@ import pytest
 import sqlalchemy as sa
 from fastapi.testclient import TestClient
 
+from backend.annotation.mondo_hpo import (
+    MONDO_HPO_INGESTION_REVISION,
+    download_and_load_mondo_hpo,
+)
 from backend.config import Settings
 from backend.db.connection import reset_registry
 from backend.db.tables import reference_metadata
@@ -152,12 +158,21 @@ def _seed_required_dbs_ready(tmp_data_dir: Path, *, include_gnomad: bool = True)
                 }
             ],
         )
-        versioned_dbs = ["clinvar", "cpic", "gwas_catalog", "dbsnp", "mondo_hpo", "dbnsfp"]
+        versioned_dbs = ["clinvar", "cpic", "gwas_catalog", "dbsnp", "dbnsfp"]
         if include_gnomad:
             versioned_dbs.append("gnomad")
         conn.execute(
             database_versions.insert(),
-            [{"db_name": name, "version": "20260101"} for name in versioned_dbs],
+            [{"db_name": name, "version": "20260101"} for name in versioned_dbs]
+            # MONDO/HPO serves rows only while its stamp records the current
+            # ingestion revision, so a *ready* install carries it. A bare date
+            # is the legacy-upgrade state, which readiness reports as partial.
+            + [
+                {
+                    "db_name": "mondo_hpo",
+                    "version": f"20260101+{MONDO_HPO_INGESTION_REVISION}",
+                }
+            ],
         )
     engine.dispose()
 
@@ -1417,6 +1432,183 @@ class TestSetStoragePath:
         assert (new_path / "samples").is_dir()
         assert (new_path / "downloads").is_dir()
         assert (new_path / "logs").is_dir()
+
+    def test_cooperative_umask_still_admits_the_mondo_hpo_install(
+        self, setup_client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Storage selection under umask 0o002 must not brick required setup.
+
+        A plain ``mkdir()`` under a cooperative umask yields 0o775. The MONDO/HPO
+        loader refuses a group- or world-writable downloads root or non-sticky
+        ancestor, and MONDO/HPO is required, so the wizard would accept the path
+        and then never be able to finish. Exercises the whole setup-to-install
+        path: choose the storage location through the route, then take the real
+        loader up to its first request.
+        """
+        new_path = tmp_path / "cooperative_umask"
+        previous_umask = os.umask(0o002)
+        try:
+            resp = setup_client.post(
+                "/api/setup/set-storage-path",
+                json={"path": str(new_path)},
+            )
+        finally:
+            os.umask(previous_umask)
+        assert resp.status_code == 200, resp.json()
+
+        writable_by_others = stat.S_IWGRP | stat.S_IWOTH
+        for created in (new_path, new_path / "downloads"):
+            assert not created.stat().st_mode & writable_by_others, created
+
+        # The install half. download_and_load_mondo_hpo pins and validates the
+        # downloads root before its first transfer, so reaching the download at
+        # all proves the directory storage selection created is acceptable to
+        # the loader. A rejected root raises ValueError here instead.
+        class _ReachedTransfer(Exception):
+            pass
+
+        def refuse_to_download(*_args: object, **_kwargs: object) -> None:
+            raise _ReachedTransfer
+
+        monkeypatch.setattr("backend.annotation.mondo_hpo.download_file", refuse_to_download)
+        engine = sa.create_engine("sqlite://")
+        try:
+            reference_metadata.create_all(engine)
+            with pytest.raises(_ReachedTransfer):
+                download_and_load_mondo_hpo(engine, new_path / "downloads")
+        finally:
+            engine.dispose()
+
+    def test_existing_group_writable_directories_are_normalized(
+        self, setup_client: TestClient, tmp_path: Path
+    ) -> None:
+        """A provisioned or restored group-writable path is repaired, not accepted as-is.
+
+        ``mkdir(exist_ok=True)`` leaves an existing directory's mode alone, so an
+        explicit creation mode is not enough on its own.
+        """
+        new_path = tmp_path / "provisioned"
+        (new_path / "downloads").mkdir(parents=True)
+        new_path.chmod(0o775)
+        (new_path / "downloads").chmod(0o775)
+
+        resp = setup_client.post(
+            "/api/setup/set-storage-path",
+            json={"path": str(new_path)},
+        )
+        assert resp.status_code == 200, resp.json()
+
+        writable_by_others = stat.S_IWGRP | stat.S_IWOTH
+        for repaired in (new_path, new_path / "downloads"):
+            assert not repaired.stat().st_mode & writable_by_others, repaired
+        # Read and traverse access an operator granted deliberately is kept.
+        assert (new_path / "downloads").stat().st_mode & stat.S_IRGRP
+
+    def test_group_writable_directory_owned_by_another_user_is_recorded_not_refused(
+        self, setup_client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Someone else's group-writable directory is refused where we can explain why.
+
+        It is not ours to re-permission, and silently accepting it only moves the
+        failure into a database build whose message cannot name the cause.
+        """
+        new_path = tmp_path / "foreign"
+        new_path.mkdir()
+        new_path.chmod(0o775)
+        # Nothing here can chown a directory to another account, so make this
+        # account look like a different one for the duration of the request.
+        another_uid = os.geteuid() + 1
+        monkeypatch.setattr("backend.config.os.geteuid", lambda: another_uid)
+
+        resp = setup_client.post(
+            "/api/setup/set-storage-path",
+            json={"path": str(new_path)},
+        )
+        # Advisory since #2316: a directory we cannot make private is recorded
+        # rather than refused, because refusing it made a required database
+        # unbuildable and left the setup wizard unable to finish at all.
+        assert resp.status_code == 200, resp.json()
+
+    def test_nested_storage_path_creates_every_parent_privately(
+        self, setup_client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Every component this call creates is private, not just the leaf.
+
+        ``mkdir(parents=True, mode=...)`` applies the mode to the leaf only, so
+        intermediate components inherit the umask. The loader rejects a
+        non-sticky group- or world-writable *ancestor* as well, so a cooperative
+        umask left the required build unable to run while setup reported success.
+        """
+        monkeypatch.setattr("backend.config.os.geteuid", os.geteuid)
+        previous_umask = os.umask(0o002)
+        try:
+            new_path = tmp_path / "deep" / "nested" / "storage"
+            assert not new_path.parent.exists(), "precondition: parents are missing"
+
+            resp = setup_client.post(
+                "/api/setup/set-storage-path",
+                json={"path": str(new_path)},
+            )
+            assert resp.status_code == 200, resp.json()
+        finally:
+            os.umask(previous_umask)
+
+        writable_by_others = stat.S_IWGRP | stat.S_IWOTH
+        for component in (tmp_path / "deep", tmp_path / "deep" / "nested", new_path):
+            mode = component.stat().st_mode
+            assert not mode & writable_by_others, f"{component} is {oct(stat.S_IMODE(mode))}"
+
+    def test_existing_group_writable_ancestor_does_not_block_setup(
+        self, setup_client: TestClient, tmp_path: Path
+    ) -> None:
+        """A path under an existing 0o775 mount is refused at selection.
+
+        Hardening only what this call creates leaves an ancestor we did not make
+        untouched, and it is not ours to re-permission. The loader refuses the
+        whole chain, so accepting the path here would persist a location from
+        which every required reference-data install fails with a message that
+        cannot name the directory responsible.
+        """
+        shared_mount = tmp_path / "shared"
+        shared_mount.mkdir()
+        shared_mount.chmod(0o775)  # non-sticky, group-writable: what the loader refuses
+        new_path = shared_mount / "user" / "data"
+
+        resp = setup_client.post(
+            "/api/setup/set-storage-path",
+            json={"path": str(new_path)},
+        )
+        # Advisory since #2316: a directory we cannot make private is recorded
+        # rather than refused, because refusing it made a required database
+        # unbuildable and left the setup wizard unable to finish at all.
+        assert resp.status_code == 200, resp.json()
+        assert new_path.exists()
+
+    def test_private_directory_owned_by_another_user_does_not_block_setup(
+        self, setup_client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Ownership is checked even when no write bits need clearing.
+
+        A restored or provisioned ``downloads/`` at 0o755 is already private, so
+        a mode-only check returns success — and the loader then refuses it for
+        ownership inside a database build, where the message cannot name why.
+        """
+        new_path = tmp_path / "foreign-private"
+        new_path.mkdir()
+        new_path.chmod(0o755)
+        assert not new_path.stat().st_mode & (stat.S_IWGRP | stat.S_IWOTH)
+
+        another_uid = os.geteuid() + 1
+        monkeypatch.setattr("backend.config.os.geteuid", lambda: another_uid)
+
+        resp = setup_client.post(
+            "/api/setup/set-storage-path",
+            json={"path": str(new_path)},
+        )
+        # Advisory since #2316: a directory we cannot make private is recorded
+        # rather than refused, because refusing it made a required database
+        # unbuildable and left the setup wizard unable to finish at all.
+        assert resp.status_code == 200, resp.json()
 
     def test_persists_data_dir_to_pointer_not_config_toml(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

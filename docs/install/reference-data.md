@@ -61,13 +61,60 @@ attribution list lives in the repository
 | **AlphaMissense** | Optional | Missense pathogenicity predictions | ~3.5 GB when installed | CC-BY-4.0 |
 | **GWAS Catalog** (EBI) | **Required** | Trait/disease associations for risk modules | ~100 MB | Open |
 | **dbSNP** (NCBI) | **Required** | rsID merge/identity resolution | ~20 MB | Public domain |
-| **MONDO/HPO** (Monarch) | **Required** | Disease & phenotype associations | ~15 MB | Open |
+| **MONDO/HPO** (Monarch) | **Required** | Disease-scoped phenotype associations | ~34 MB per source bundle | Source-specific terms |
 | **PharmGKB** | Optional context | Clinical drug annotations | Small metadata source | CC-BY-SA-4.0 |
 | **FDA drug labels** (via PharmGKB) | Optional context | Pharmacogenomic labeling | Small metadata source | CC-BY-SA-4.0 |
 | **GTEx eQTL** | Optional | Tissue eQTLs for functional context | ~3 GB when installed | Open-access summary stats |
 | **SpliceAI** | Optional / manual | User-supplied splice-effect prediction database | Depends on local ingest | Illumina non-commercial terms |
 | **ENCODE cCREs** | Optional | Candidate cis-regulatory elements for Genome Browser tracks | ~30 MB when installed | ENCODE data terms |
 | **UCSC hg19 FASTA + RefSeq (`refGene`)** | Optional local browser reference | Fully local Genome Browser reference and gene track | ~4 GB when installed | UCSC Genome Browser data terms |
+
+For MONDO/HPO, phenotype terms and inheritance are attached to a MONDO disease only through
+an authoritative `skos:exactMatch` cross-reference. Unmatched or ambiguous source disease
+identifiers remain unannotated rather than being copied to another disease for the same gene.
+Each successful refresh transfers about 34 MB across the Monarch primary archive, HPO export,
+and MONDO SSSOM mapping. The downloader retains every successfully validated source bundle as
+append-only provenance rather than recursively deleting a directory after a path identity check.
+Incomplete, malformed, or operator-created directories are also never automatically removed;
+inspect all bundle directories manually before any operator-directed cleanup.
+
+A MONDO/HPO installation carried over from a release that predates the disease-scoped
+ingestion is withheld from every phenotype lookup, because its rows cannot be proven to be
+scoped to the disease they were recorded against. Database health reports such an install as
+**Partial** rather than **Ready** and setup keeps you on the Databases step until it is
+rebuilt, so an upgraded machine is never admitted while phenotype annotations would come back
+empty. Refresh MONDO/HPO to restore disease-scoped rows.
+
+The loader rejects grossly truncated inputs before replacing installed rows: the compressed
+Monarch primary archive must be at least 100,000 bytes, the HPO export at least 10,000,000
+bytes, and the MONDO SSSOM export must yield at least 50,000 unambiguous exact mappings. These
+are fail-closed operational guards based on the recorded source snapshot, not proof of semantic
+completeness. Configure the downloads directory and its `mondo_hpo_sources` child as private to
+the updating account and not group/world-writable, and prefer ancestors that are likewise not
+writable by group or other users.
+
+**These directory-trust conditions are advisory today, not enforced.** The loader inspects the
+downloads root and every lexical and resolved ancestor for ownership and group/world
+writability, and records what it finds — `mondo_hpo_source_bundle_directory_not_private` and
+`mondo_hpo_downloads_ancestor_not_trusted`, the latter carrying a `reason` of `owner` or
+`group_or_world_writable` — but it then proceeds with the build. Treat a clean log as evidence
+the namespace was private, and treat those warnings as the signal it was not; do not read the
+absence of a failure as proof of enforcement. Restoring enforcement is tracked in issue #2316.
+
+They were made advisory because MONDO/HPO is a required database, so refusing a directory did
+not degrade the install, it prevented setup from completing at all — including on ordinary
+configurations such as a cooperative `umask` of `0002`, a provisioned group-writable mount, or a
+restored directory owned by another account.
+
+What still fails closed is everything about the loader's own files rather than the operator's
+filesystem: descriptor pinning against path substitution, staging identity checks, the source
+content hashes below, and the manifest verification before a bundle is published. The
+loader hashes its held source files
+before parsing and verifies those same bytes again before it writes the provenance manifest or
+publishes a bundle. Descriptor checks and the final pre-commit validation detect swaps that the
+process can observe, but cannot make a filesystem rename atomic with the SQLite commit; an
+administrator, the platform temporary-directory service, or another same-privilege principal
+remain outside that boundary.
 
 !!! warning "dbNSFP license"
     dbNSFP is distributed under an **academic / non-commercial** license. Make sure your use

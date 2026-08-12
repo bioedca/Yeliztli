@@ -1,0 +1,128 @@
+{
+  "schema_version": 2,
+  "packet_created": "2026-08-01",
+  "remote_snapshot_metadata_accessed": "2026-08-02",
+  "issue": 2163,
+  "sources": [
+    {
+      "kind": "peer_reviewed_article",
+      "name": "The Human Phenotype Ontology in 2021",
+      "accessed": "2026-08-01",
+      "pmid": "33264411",
+      "pmcid": "PMC7778952",
+      "doi": "10.1093/nar/gkaa1043",
+      "version_or_build": "PubMed record PMID:33264411",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/33264411/",
+      "license_status": "public bibliographic metadata retained; no publisher article-text license asserted",
+      "retained_artifact": {
+        "repository_path": "data/science-evidence/2026-08-01-hpo-disease-scope-2163/pubmed-33264411-sanitized.json",
+        "kind": "sanitized_derivative",
+        "sha256": "9c7e0b72fdf03678e82f55f60fedafb774eea3d157ef11b4d392c3f10b88b59b",
+        "bytes": 737,
+        "selection": "Public identifiers, title, journal pages, and correction/retraction inspection result only."
+      },
+      "complete_remote_payload_retained": false,
+      "observed_provider_response_sha256": "00f153a95bce63608b29e4721b9a09c230782505bdfc4beede06361c739f01c0",
+      "observed_provider_response_bytes": 50282,
+      "complete_payload_retention_rationale": "The full PubMed XML response was inspected for corrections and retractions but is not distributed; the committed derivative excludes article text, author details, affiliations, and references.",
+      "claim_mapping": [
+        "context only: HPO is disease-associated phenotype data",
+        "does not establish a source-disease-to-MONDO mapping"
+      ]
+    },
+    {
+      "kind": "authoritative_database_export",
+      "name": "Monarch KG gene_disease.9606.tsv.gz",
+      "accessed": "2026-08-02",
+      "excerpt_accessed": "2026-08-02",
+      "url": "https://data.monarchinitiative.org/monarch-kg/latest/tsv/gene_associations/gene_disease.9606.tsv.gz",
+      "release_metadata_url": "https://data.monarchinitiative.org/monarch-kg/latest/metadata.yaml",
+      "release_version": "2026-07-14",
+      "release_generated_at": "2026-07-15T00:18:55Z",
+      "last_modified": "Fri, 17 Jul 2026 01:26:06 GMT",
+      "etag": "f96fe8c63a678e04da782b5867cf6fec",
+      "object_generation": "1784251566926191",
+      "content_length_bytes": 183547,
+      "minimum_content_length_bytes": 100000,
+      "minimum_content_length_rationale": "A 100,000-byte compressed-primary floor is conservative relative to the 183,547-byte observed snapshot and rejects grossly truncated but valid-gzip payloads. It is an operational completeness guard, not evidence that byte size proves semantic completeness.",
+      "sha256": "8a57c65a851f6812150a03eba3a2b41fd9a6b1afa33bae8a37bfe7edcde5e618",
+      "license_status": "source-specific license not established for this aggregate export; no artifact license claim made",
+      "license_guidance_url": "https://monarch-app.monarchinitiative.org/Licensing/",
+      "retained_artifact": {
+        "repository_path": "data/science-evidence/2026-08-01-hpo-disease-scope-2163/monarch-gene-disease-excerpt.tsv",
+        "kind": "source_native_excerpt",
+        "sha256": "e13ef62e15cec1d39e43484e37bac609f70b76b16227b151707977270d2414ac",
+        "bytes": 994,
+        "selection": "The TSV header and the first four HGNC:20/AARS1 rows, copied verbatim from the public source snapshot."
+      },
+      "complete_remote_payload_retained": false,
+      "complete_payload_retention_rationale": "The complete aggregate export is not committed because its source-specific redistribution terms were not established. The public canonical URL, release metadata, validators, full-object hash, size, and compact source-native excerpt provide reproducible provenance without asserting a license.",
+      "schema_role": "canonical MONDO disease rows joined only to validated exact source identifiers",
+      "claim_mapping": [
+        "primary MONDO disease rows are the target of the exact identifier join",
+        "the excerpt is source-native provenance only and makes no patient-level claim"
+      ]
+    },
+    {
+      "kind": "authoritative_database_export",
+      "name": "Human Phenotype Ontology genes_to_phenotype",
+      "accessed": "2026-08-02",
+      "excerpt_accessed": "2026-08-02",
+      "url": "https://purl.obolibrary.org/obo/hp/hpoa/genes_to_phenotype.txt",
+      "release_version": "v2026-06-23",
+      "last_modified": "Tue, 23 Jun 2026 11:52:12 GMT",
+      "etag": "0x8DED11DDCDFEF44",
+      "content_length_bytes": 20732778,
+      "minimum_content_length_bytes": 10000000,
+      "minimum_content_length_rationale": "A 10,000,000-byte HPO floor is conservative relative to the 20,732,778-byte observed snapshot and rejects grossly truncated but parseable disease annotations. It is an operational completeness guard, not evidence that byte size proves semantic completeness.",
+      "sha256": "26cb7ee00c73b5777f6e5ad43323c941e1fcef1d191592f332d7929f3ea1ab3f",
+      "license_status": "HPO project terms apply to all HPO files: acknowledgement/citation, displayed version or date, and unaltered file content.",
+      "license_url": "https://human-phenotype-ontology.github.io/license.html",
+      "retained_artifact": {
+        "repository_path": "data/science-evidence/2026-08-01-hpo-disease-scope-2163/hpo-genes-to-phenotype-excerpt.tsv",
+        "kind": "source_native_excerpt",
+        "sha256": "3a6fea1b492aa616d0409a763cae42f7b84fa723fab5c17150e176d45cc00f27",
+        "bytes": 259,
+        "selection": "The TSV header and first three AARS1 rows, copied verbatim from the public source snapshot.",
+        "display_metadata_repository_path": "data/science-evidence/2026-08-01-hpo-disease-scope-2163/hpo-genes-to-phenotype-excerpt.metadata.json"
+      },
+      "complete_remote_payload_retained": false,
+      "complete_payload_retention_rationale": "The full public export is not committed; the repository retains a compact unaltered excerpt and versioned attribution sidecar, while the canonical URL, validators, full-object hash, and size identify the observed snapshot.",
+      "schema_role": "source disease_id for each gene-HPO annotation",
+      "claim_mapping": [
+        "each HPO annotation retains its source disease_id before the exact MONDO join"
+      ]
+    },
+    {
+      "kind": "authoritative_ontology_mapping",
+      "name": "MONDO SSSOM mappings",
+      "accessed": "2026-08-02",
+      "excerpt_accessed": "2026-08-02",
+      "url": "https://purl.obolibrary.org/obo/mondo/mappings/mondo.sssom.tsv",
+      "source_revision": "5ce72d8464ab8237da96539ffb510f7b45815556",
+      "source_file_git_blob_sha1": "294cb34babd7ebf1c591eeab361e18fac6af742c",
+      "schema_role": "validated skos:exactMatch source-to-MONDO cross-reference",
+      "content_length_bytes": 13075785,
+      "sha256": "627e62b1677159b82a9d01083e0243a1c7717c6892551fa687abf9288e25e1ae",
+      "etag_observed": "0a1dce47b9acc738152374453dca0ae8ee65f761ec56bc50cc36f3d720d2e2ef",
+      "artifact_license_status": "The fetched SSSOM artifact header declared https://w3id.org/sssom/license/unspecified; this packet makes no artifact-specific CC BY assertion.",
+      "project_license_context": "MONDO's download page lists CC BY 4.0 for MONDO downloads in OWL, OBO, and JSON formats. It is retained as project-level context, not as proof that this SSSOM artifact has that license.",
+      "project_license_context_url": "https://mondo.monarchinitiative.org/pages/download/",
+      "project_license_context_accessed": "2026-08-02",
+      "retained_artifact": {
+        "repository_path": "data/science-evidence/2026-08-01-hpo-disease-scope-2163/mondo-sssom-excerpt.tsv",
+        "kind": "source_native_excerpt",
+        "sha256": "9d90007a6bb83eb226afeff2499b2eec28b8143f2a4f6257cdafeca3175607b1",
+        "bytes": 514,
+        "selection": "The TSV header and selected exact-match rows for the HPO excerpt identifiers, copied verbatim from the public source snapshot."
+      },
+      "complete_remote_payload_retained": false,
+      "complete_payload_retention_rationale": "The full public mapping export is not committed. The canonical URL, source revision, validators, full-object hash, size, and compact source-native excerpt preserve reproducible provenance without overstating an artifact license.",
+      "unambiguous_exact_source_ids_observed": 109306,
+      "minimum_unambiguous_exact_source_ids": 50000,
+      "claim_mapping": [
+        "a direct valid MONDO identifier or an unambiguous skos:exactMatch source identifier may join an HPO annotation to a MONDO row"
+      ]
+    }
+  ]
+}

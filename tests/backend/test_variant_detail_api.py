@@ -14,16 +14,22 @@ import pytest
 import sqlalchemy as sa
 from fastapi.testclient import TestClient
 
+from backend.annotation.mondo_hpo import (
+    MONDO_HPO_INGESTION_REVISION,
+    record_mondo_hpo_version,
+)
 from backend.config import Settings
 from backend.db.connection import DBRegistry, reset_registry
 from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import (
     annotated_variants,
+    annotation_state,
     findings,
     gene_phenotype,
     reference_metadata,
     samples,
 )
+from backend.services.staleness import REFERENCE_VERSION_SNAPSHOT_KEY
 
 # ── Test fixtures ────────────────────────────────────────────────────
 
@@ -217,10 +223,9 @@ GENE_PHENOTYPE_DATA = [
 ]
 
 
-# Reference rows that exercise the full-page hygiene path (F21/F14/F23): an
-# obsolete term that must be dropped, two real diseases that must ALL surface
-# (not one arbitrary record), all on BRCA1 — a gene the curated override
-# relabels dominant, even though the source rows are mislabelled recessive.
+# Reference rows that exercise the full-page hygiene path (F21/F23): an
+# obsolete term that must be dropped and two real diseases that must ALL
+# surface (not one arbitrary record), while preserving each source inheritance.
 HYGIENE_GENE_PHENOTYPE_DATA = [
     {
         "gene_symbol": "BRCA1",
@@ -244,7 +249,7 @@ HYGIENE_GENE_PHENOTYPE_DATA = [
         "disease_id": "OMIM:604370",
         "hpo_terms": '["HP:0003002"]',
         "source": "omim",
-        "inheritance": "AR",
+        "inheritance": "AD",
     },
 ]
 
@@ -277,6 +282,12 @@ def _setup_client(tmp_data_dir: Path, variants: list[dict], gene_pheno: list[dic
         # Insert gene-phenotype data
         if gene_pheno:
             conn.execute(gene_phenotype.insert(), gene_pheno)
+    if gene_pheno:
+        # Stamp the install as `load_mondo_hpo` always does. Rows without a
+        # `database_versions` row are a state production never produces, and a
+        # disease-scope lookup correctly withholds unproven mondo_hpo rows -- so
+        # without this these assertions would test an impossible state.
+        record_mondo_hpo_version(ref_engine, version=f"20260801+{MONDO_HPO_INGESTION_REVISION}")
     ref_engine.dispose()
 
     sample_db_path = tmp_data_dir / "samples" / "sample_1.db"
@@ -287,6 +298,18 @@ def _setup_client(tmp_data_dir: Path, variants: list[dict], gene_pheno: list[dic
         with sample_engine.begin() as conn:
             normalized = [{k: v.get(k) for k in all_cols} for v in variants]
             conn.execute(annotated_variants.insert(), normalized)
+    # Record the reference snapshot a real annotation run writes. Without it the
+    # sample's phenotype provenance cannot be established, and the stored
+    # gene-wide columns are withheld -- which is the point of the gate, but it
+    # would make every fixture here look like a pre-migration sample.
+    with sample_engine.begin() as conn:
+        conn.execute(
+            annotation_state.insert(),
+            {
+                "key": REFERENCE_VERSION_SNAPSHOT_KEY,
+                "value": json.dumps({"mondo_hpo": f"20260801+{MONDO_HPO_INGESTION_REVISION}"}),
+            },
+        )
     sample_engine.dispose()
 
     with (
@@ -542,6 +565,64 @@ class TestGetVariantDetail:
         assert data["disease_id"] == "MONDO:0005012"
         assert data["inheritance_pattern"] == "AD"
 
+    def test_withholds_phenotype_fields_from_a_pre_migration_sample(self, client, tmp_data_dir):
+        """A legacy-annotated sample must not keep serving gene-wide terms (#2163).
+
+        The reference-side gate only withholds live lookups. These columns were
+        copied into the sample at annotation time, so rebuilding the reference
+        install does not stop an upgraded user seeing the cross-disease
+        annotation this change declares unsafe -- the sample's own recorded
+        MONDO/HPO revision is what decides.
+        """
+        tc, sid = client
+        sample_db = tmp_data_dir / "samples" / f"sample_{sid}.db"
+        engine = sa.create_engine(f"sqlite:///{sample_db}")
+        with engine.begin() as conn:
+            conn.execute(
+                annotation_state.update()
+                .where(annotation_state.c.key == REFERENCE_VERSION_SNAPSHOT_KEY)
+                .values(value=json.dumps({"mondo_hpo": "20260101"}))
+            )
+        engine.dispose()
+
+        data = tc.get(f"/api/variants/rs80357906?sample_id={sid}").json()
+
+        assert data["disease_name"] is None
+        assert data["disease_id"] is None
+        assert data["inheritance_pattern"] is None
+        assert data["phenotype_source"] is None
+        assert data["hpo_terms"] is None
+
+    def test_keeps_omim_phenotype_context_on_a_pre_migration_sample(self, client, tmp_data_dir):
+        """OMIM enrichment survives the MONDO/HPO scope migration gate (#2163).
+
+        OMIM writes these same columns from its own loader, with a
+        phenotype-specific disease ID and inheritance; it never went through the
+        gene-wide MONDO/HPO merge, so a version-only gate would cost the user
+        valid context for a problem that summary does not have.
+        """
+        tc, sid = client
+        sample_db = tmp_data_dir / "samples" / f"sample_{sid}.db"
+        engine = sa.create_engine(f"sqlite:///{sample_db}")
+        with engine.begin() as conn:
+            conn.execute(
+                annotation_state.update()
+                .where(annotation_state.c.key == REFERENCE_VERSION_SNAPSHOT_KEY)
+                .values(value=json.dumps({"mondo_hpo": "20260101"}))
+            )
+            conn.execute(
+                annotated_variants.update()
+                .where(annotated_variants.c.rsid == "rs80357906")
+                .values(phenotype_source="omim")
+            )
+        engine.dispose()
+
+        data = tc.get(f"/api/variants/rs80357906?sample_id={sid}").json()
+
+        assert data["phenotype_source"] == "omim"
+        assert data["disease_name"] == "Hereditary breast cancer"
+        assert data["inheritance_pattern"] == "AD"
+
     def test_returns_coverage_and_flags(self, client):
         tc, sid = client
         data = tc.get(f"/api/variants/rs80357906?sample_id={sid}").json()
@@ -658,9 +739,9 @@ class TestGenePhenotypeRefDataHygiene:
     """F23: the full-page gene-phenotype list inherits the engine's hygiene.
 
     The list is built via ``lookup_gene_phenotypes`` (not a raw table read), so
-    obsolete MONDO terms (F21) and gene-mislabelled inheritance (F14) are
-    filtered/corrected exactly as the stored single-disease summary is, and
-    *every* non-obsolete disease surfaces rather than one arbitrary record.
+    obsolete MONDO terms (F21) are filtered, disease-specific inheritance is
+    preserved, and *every* non-obsolete disease surfaces rather than one
+    arbitrary record.
     """
 
     def test_obsolete_terms_dropped(self, hygiene_client):
@@ -677,13 +758,16 @@ class TestGenePhenotypeRefDataHygiene:
         ids = {gp["disease_id"] for gp in data["gene_phenotypes"]}
         assert ids == {"MONDO:0005012", "OMIM:604370"}
 
-    def test_dominant_inheritance_corrected(self, hygiene_client):
-        # F14: curated override relabels the mislabelled-recessive dominant gene.
+    def test_disease_specific_inheritance_is_preserved(self, hygiene_client):
+        """A gene-wide rule must not rewrite inheritance on every disease row."""
         tc, sid = hygiene_client
         data = tc.get(f"/api/variants/rs80357906?sample_id={sid}").json()
         gps = data["gene_phenotypes"]
         assert gps, "expected gene-phenotype records"
-        assert all(gp["inheritance"] == "Autosomal dominant" for gp in gps), gps
+        assert {gp["disease_id"]: gp["inheritance"] for gp in gps} == {
+            "MONDO:0005012": "AR",
+            "OMIM:604370": "AD",
+        }
 
 
 # ═══════════════════════════════════════════════════════════════════════

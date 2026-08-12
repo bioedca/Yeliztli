@@ -47,6 +47,10 @@ from backend.annotation.dbnsfp import (
 )
 from backend.annotation.engine import run_annotation
 from backend.annotation.gnomad import _create_gnomad_indexes, _create_gnomad_table
+from backend.annotation.mondo_hpo import (
+    MONDO_HPO_INGESTION_REVISION,
+    record_mondo_hpo_version,
+)
 from backend.config import Settings
 from backend.db.connection import DBRegistry, get_registry, reset_registry
 from backend.db.sample_schema import create_sample_tables
@@ -200,6 +204,13 @@ def _build_reference_db(
                 conn.execute(clinvar_variants.insert(), clinvar)
             if gene_phenotype_rows:
                 conn.execute(gene_phenotype.insert(), gene_phenotype_rows)
+        if gene_phenotype_rows:
+            # Stamp the install as `load_mondo_hpo` always does. Rows without a
+            # `database_versions` row are a state production never produces, and
+            # a disease-scope lookup correctly withholds unproven mondo_hpo rows,
+            # so without this these fixtures would exercise an impossible state.
+            record_mondo_hpo_version(engine, version=f"20260801+{MONDO_HPO_INGESTION_REVISION}")
+        with engine.begin() as conn:
             if dbsnp_merge_rows:
                 conn.execute(dbsnp_merges.insert(), dbsnp_merge_rows)
             if gwas:

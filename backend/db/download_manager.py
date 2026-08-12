@@ -37,6 +37,7 @@ from backend.annotation.bulk_load import (
     serialized_write,
 )
 from backend.annotation.http_download import stream_download
+from backend.config import PRIVATE_DIR_MODE
 from backend.db.tables import downloads, jobs
 
 if TYPE_CHECKING:
@@ -123,7 +124,13 @@ class DownloadManager:
     ) -> None:
         self._engine = engine
         self._downloads_dir = downloads_dir
-        self._downloads_dir.mkdir(parents=True, exist_ok=True)
+        # Private mode, not the umask's: in the wizard's phase order a
+        # download-mode DB reaches this before any pipeline build, so this call
+        # usually creates the shared downloads root. At 0o775 (umask 0o002) the
+        # MONDO/HPO loader would then refuse it and required setup could never
+        # finish. An existing directory is left alone here; the setup route and
+        # the app's startup hook own normalizing one.
+        self._downloads_dir.mkdir(mode=PRIVATE_DIR_MODE, parents=True, exist_ok=True)
         # Injectable for tests so retry backoff doesn't sleep for real.
         self._sleep = sleep
         # The durable-If-Range ``validator`` column is added by the reference-schema

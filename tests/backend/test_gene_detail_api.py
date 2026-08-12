@@ -20,6 +20,10 @@ import pytest
 import sqlalchemy as sa
 from fastapi.testclient import TestClient
 
+from backend.annotation.mondo_hpo import (
+    MONDO_HPO_INGESTION_REVISION,
+    record_mondo_hpo_version,
+)
 from backend.config import Settings
 from backend.db.connection import reset_registry
 from backend.db.sample_schema import create_sample_tables
@@ -72,6 +76,10 @@ def gene_detail_client(
             )
         )
 
+    # Stamp the install as `load_mondo_hpo` always does. Seeding rows without a
+    # `database_versions` row is a state production never produces, and a
+    # disease-scope lookup correctly withholds unproven mondo_hpo rows -- so
+    # without this the assertions below would test an impossible state.
     # Seed gene-phenotype records
     with ref_engine.begin() as conn:
         conn.execute(
@@ -88,6 +96,10 @@ def gene_detail_client(
                             {"id": "HP:0003003", "name": None},
                         ]
                     ),
+                    # Deliberately divergent source inheritance across two
+                    # diseases of one gene: a gene-wide rule would have to
+                    # rewrite one of them, so the pair discriminates the
+                    # disease-scoped lookup from the removed gene-wide override.
                     "inheritance": "autosomal dominant",
                 },
                 {
@@ -96,7 +108,7 @@ def gene_detail_client(
                     "disease_id": "OMIM:123456",
                     "source": "omim",
                     "hpo_terms": json.dumps(["HP:0001250"]),
-                    "inheritance": "autosomal dominant",
+                    "inheritance": "Autosomal recessive",
                 },
                 {
                     "gene_symbol": "BRCA1",
@@ -104,10 +116,11 @@ def gene_detail_client(
                     "disease_id": "MONDO:9999999",
                     "source": "mondo_hpo",
                     "hpo_terms": json.dumps(["HP:0000001"]),
-                    "inheritance": "autosomal dominant",
+                    "inheritance": "Autosomal dominant",
                 },
             ],
         )
+    record_mondo_hpo_version(ref_engine, version=f"20260801+{MONDO_HPO_INGESTION_REVISION}")
 
     # Seed annotated variants for BRCA1
     with sample_engine.begin() as conn:
@@ -204,7 +217,12 @@ class TestGeneDetailEndpoint:
             record for record in data["phenotypes"] if record["disease_id"] == "MONDO:0011450"
         )
         assert phenotype["disease_name"] == "Hereditary breast-ovarian cancer syndrome"
-        assert phenotype["inheritance"] == "Autosomal dominant"
+        # Each disease keeps the inheritance its own source row carries,
+        # verbatim; nothing re-stamps a single gene-wide value over the gene.
+        assert {record["disease_id"]: record["inheritance"] for record in data["phenotypes"]} == {
+            "MONDO:0011450": "autosomal dominant",
+            "OMIM:123456": "Autosomal recessive",
+        }
         assert all(
             not record["disease_name"].lower().startswith("obsolete")
             for record in data["phenotypes"]

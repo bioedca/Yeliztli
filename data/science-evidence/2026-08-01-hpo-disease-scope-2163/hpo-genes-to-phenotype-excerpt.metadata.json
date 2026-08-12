@@ -1,0 +1,13 @@
+{
+  "artifact_repository_path": "data/science-evidence/2026-08-01-hpo-disease-scope-2163/hpo-genes-to-phenotype-excerpt.tsv",
+  "source": "Human Phenotype Ontology genes_to_phenotype",
+  "source_url": "https://purl.obolibrary.org/obo/hp/hpoa/genes_to_phenotype.txt",
+  "release_version": "v2026-06-23",
+  "source_snapshot_accessed": "2026-08-02",
+  "excerpt_verified": "2026-08-02",
+  "selection": "The column header and the first three AARS1 rows were copied verbatim from the public source snapshot; no data header, field, or row was altered.",
+  "namespace_note": "The displayed ORPHA:33364 value is source-native. The loader normalizes only that namespace spelling to Orphanet:33364 before exact MONDO matching.",
+  "acknowledgement": "This service/product is using the Human Phenotype Ontology (v2026-06-23).",
+  "citation": "Kohler S, Doelken SC, Mungall CJ, Bauer S, Firth HV, et al. The Human Phenotype Ontology project: linking molecular biology and disease through phenotype data. Nucleic Acids Res. 2014;42(D1):D966-D974. DOI:10.1093/nar/gkt1026.",
+  "license_url": "https://human-phenotype-ontology.github.io/license.html"
+}

@@ -30,6 +30,7 @@ from fastapi import APIRouter, HTTPException, UploadFile
 from packaging.version import InvalidVersion, Version
 from pydantic import BaseModel, field_validator
 
+from backend.annotation.mondo_hpo import downloads_ancestor_chain_problem
 from backend.api.routes.backup import (
     REGISTRY_MANIFEST_FILE,
     RESTORABLE_REFERENCE_DB_FILES,
@@ -38,6 +39,7 @@ from backend.config import (
     CONFIG_SECTION,
     config_toml_path,
     config_write_lock,
+    ensure_private_directory,
     get_settings,
     read_config_section,
     write_config_section,
@@ -1509,11 +1511,30 @@ async def set_storage_path(body: SetStoragePathRequest) -> SetStoragePathRespons
             detail="Storage path must be absolute.",
         )
 
-    # Create directory structure
+    # Create directory structure. The data directory and its downloads child are
+    # created (or normalized) private here, at the point the user chooses the
+    # path: the reference-data loaders refuse a downloads root or a non-sticky
+    # ancestor that is group- or world-writable, so a plain mkdir() under a
+    # cooperative umask such as 0o002 yields 0o775, is accepted here, and then
+    # blocks every required build — leaving setup impossible to finish with no
+    # message naming the cause. samples/ and logs/ keep the default mode; they
+    # are not in that ancestor chain and a private parent already gates them.
     try:
-        resolved.mkdir(parents=True, exist_ok=True)
+        problem = ensure_private_directory(resolved, parents=True)
+        if problem is None:
+            problem = ensure_private_directory(resolved / "downloads")
+        if problem is not None:
+            raise HTTPException(status_code=400, detail=problem)
+        # The loader's own view of the ancestor chain, recorded rather than
+        # enforced (#2316). An ancestor we did not create is not ours to
+        # re-permission, and refusing the location outright made a required
+        # database unbuildable on ordinary deployments - a provisioned 0o775
+        # mount, a cooperative umask - which left the wizard unable to finish at
+        # all. Logged so the condition is visible without blocking setup.
+        chain_problem = downloads_ancestor_chain_problem(resolved / "downloads")
+        if chain_problem is not None:
+            logger.warning("storage_path_ancestor_not_trusted", detail=chain_problem)
         (resolved / "samples").mkdir(exist_ok=True)
-        (resolved / "downloads").mkdir(exist_ok=True)
         (resolved / "logs").mkdir(exist_ok=True)
     except PermissionError as exc:
         raise HTTPException(
