@@ -1529,8 +1529,16 @@ class TestDownloadAndLoad:
         monkeypatch.setattr("backend.annotation.mondo_hpo.stream_download", fake_stream_download)
         downloads = tmp_path / "downloads"
 
-        with pytest.raises(ValueError, match="staging directory changed during finalization"):
+        # Both platforms refuse the swap; they differ in which guard notices
+        # first, so the exception type is not the contract. Linux reaches the
+        # finalization check and raises ValueError; macOS resolves the vanished
+        # lexical staging path when the next source is reopened and surfaces
+        # FileNotFoundError. What must hold either way is below: nothing was
+        # written through the substituted path and nothing was committed.
+        with pytest.raises((ValueError, FileNotFoundError)) as excinfo:
             download_and_load_mondo_hpo(reference_engine, downloads)
+        if isinstance(excinfo.value, ValueError):
+            assert "staging directory changed during finalization" in str(excinfo.value)
 
         assert swapped["value"]
         assert list(external_dir.iterdir()) == []
