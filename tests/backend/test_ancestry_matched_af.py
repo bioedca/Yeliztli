@@ -122,6 +122,65 @@ class TestGetInferredAncestry:
         # Latest inserted should be EUR
         assert get_inferred_ancestry(sample_engine) == "EUR"
 
+    def test_skips_unsafe_latest_finding_for_older_safe_result(
+        self,
+        sample_engine: sa.Engine,
+    ) -> None:
+        """Quarantined legacy payloads cannot drive downstream ancestry logic."""
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(findings),
+                [
+                    {
+                        "module": "ancestry",
+                        "category": "nnls_admixture",
+                        "evidence_level": 2,
+                        "finding_text": "Inferred ancestry: AFR",
+                        "detail_json": json.dumps({"top_population": "AFR"}),
+                    },
+                    {
+                        "module": "ancestry",
+                        "category": "nnls_admixture",
+                        "evidence_level": 2,
+                        "finding_text": "Inferred ancestry: EUR",
+                        "detail_json": json.dumps(
+                            {
+                                "top_population": "EUR",
+                                "legacy": {
+                                    "gene": "CYP2D6",
+                                    "drug": "tamoxifen",
+                                    "recommendation": "Must not drive ancestry-derived output.",
+                                },
+                            }
+                        ),
+                    },
+                ],
+            )
+
+        assert get_inferred_ancestry(sample_engine) == "AFR"
+
+    def test_unsafe_only_finding_yields_no_inferred_ancestry(
+        self,
+        sample_engine: sa.Engine,
+    ) -> None:
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(findings).values(
+                    module="ancestry",
+                    category="nnls_admixture",
+                    evidence_level=2,
+                    finding_text="Inferred ancestry: EUR",
+                    detail_json=json.dumps(
+                        {
+                            "top_population": "EUR",
+                            "legacy": {"gene": "CYP2D6", "drug": "tamoxifen"},
+                        }
+                    ),
+                )
+            )
+
+        assert get_inferred_ancestry(sample_engine) is None
+
     def test_ignores_non_ancestry_findings(self, sample_engine: sa.Engine) -> None:
         """Findings from other modules should not be returned."""
         with sample_engine.begin() as conn:

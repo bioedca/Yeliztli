@@ -32,7 +32,8 @@ export function usePharmaGenes(sampleId: number | null) {
 }
 
 /**
- * All CPIC drugs with associated genes and classifications.
+ * All CPIC drugs with associated genes and active classifications. Audit-only
+ * held rows carry ``prescribing_guidance_withheld`` instead of a CPIC tier.
  * Not sample-specific — shared reference data.
  * Cached with staleTime: Infinity since CPIC data doesn't change between updates.
  */

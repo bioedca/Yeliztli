@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 
 from backend.analysis.array_confidence import assess_pathogenic_findings
+from backend.analysis.pharmacogenomics import is_patient_presentable_response_payload
 from backend.api.dependencies import require_fresh_sample
 from backend.api.routes.risk_common import resolve_sample_engine
 
@@ -71,4 +72,16 @@ def list_array_confidence(
     and ``frequency_band`` is ``null``.
     """
     engine = resolve_sample_engine(sample_id)
-    return [ArrayConfidenceResponse(**item) for item in assess_pathogenic_findings(engine)]
+    response = [ArrayConfidenceResponse(**item) for item in assess_pathogenic_findings(engine)]
+    if not is_patient_presentable_response_payload(
+        [
+            item.model_dump(
+                mode="json",
+                exclude={"note", "pmid_citations"},
+                exclude_none=True,
+            )
+            for item in response
+        ]
+    ):
+        return []
+    return response

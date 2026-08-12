@@ -105,14 +105,20 @@ class TestPipelineVersion:
         version, which changes every release) while killing the mutation that
         replaces the real lookup with the ``"unknown"`` constant: a stubbed
         ``version`` must flow through, and it must be queried for *this* dist.
+
+        The patch target is ``backend.version`` rather than this module because
+        #2025 moved the lookup there: the application version had been written
+        out as a literal in three places and two had drifted, so it now resolves
+        in exactly one module and ``pipeline_version`` delegates. The assertions
+        are unchanged — only where the lookup lives moved.
         """
-        with patch("backend.analysis.provenance.version", return_value="9.9.9") as mock_version:
+        with patch("backend.version.version", return_value="9.9.9") as mock_version:
             assert pipeline_version() == "9.9.9"
         mock_version.assert_called_once_with("yeliztli")
 
     def test_falls_back_to_unknown_when_not_installed(self) -> None:
         """A bare source checkout (dist not installed) pins ``"unknown"``."""
-        with patch("backend.analysis.provenance.version", side_effect=PackageNotFoundError):
+        with patch("backend.version.version", side_effect=PackageNotFoundError):
             assert pipeline_version() == "unknown"
 
 

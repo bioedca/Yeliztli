@@ -329,7 +329,9 @@ def _updated_parkinsons_diff_entry(entry: object) -> dict[str, object] | None:
 #      whose exact released recommendations were corrected by issue #2012.
 # v24: Repair exact persisted LRRK2 G2019S findings and finding-diff entries
 #      whose lifetime wording exceeded the cited age-80 evidence (issue #2091).
-SAMPLE_SCHEMA_VERSION = 24
+# v25: Retain CYP2D6/tamoxifen audit records and rely on fail-closed runtime
+#      presentation gates pending the independent clinical-validation gate (#2019).
+SAMPLE_SCHEMA_VERSION = 25
 
 
 # AncestryDNA Plan §10.4(a): merged-sample raw_variants uses (chrom, pos) PK
@@ -1466,6 +1468,17 @@ def _add_missing_columns(engine: sa.Engine, from_version: int) -> bool:
                 finding_diff_count=repaired_diff_entries,
                 from_version=from_version,
             )
+
+    if from_version < 25:
+        # Issue #2019: source and custom CYP2D6/tamoxifen records are audit
+        # material. No immutable producer fingerprint distinguishes a generated
+        # legacy alert from a locally amended one, so this migration never
+        # deletes or rewrites either findings or finding-diff state. Patient
+        # presentation is fail-closed at the current runtime boundaries.
+        logger.info(
+            "cyp2d6_tamoxifen_audit_records_retained",
+            from_version=from_version,
+        )
 
     return added
 

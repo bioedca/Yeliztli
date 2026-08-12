@@ -17,13 +17,18 @@ from datetime import date
 from typing import Any
 
 import sqlalchemy as sa
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from starlette.responses import StreamingResponse
 
+from backend.analysis.pharmacogenomics import (
+    is_patient_presentable_finding_payload,
+    is_patient_presentable_response_payload,
+)
 from backend.analysis.rare_variant_finder import (
     DEFAULT_AF_THRESHOLD,
     RareVariantFilter,
+    RareVariantResult,
     find_rare_variants,
     store_rare_variant_findings,
 )
@@ -153,7 +158,15 @@ class RareVariantFindingsListResponse(BaseModel):
 
 
 class RareVariantRunResponse(BaseModel):
-    """Result of running the rare variant finder."""
+    """Result of running the rare variant finder.
+
+    ``items`` carries the matched variants for an exploratory run only. Such a
+    run stores nothing, so its matches are unreachable through ``/findings``
+    and this response is the caller's only view of them. A canonical run
+    persists its matches instead and leaves ``items`` empty; read those back
+    through the paginated ``/findings`` endpoint rather than inflating this
+    response with a full, unpaginated result set.
+    """
 
     variants_found: int
     findings_stored: int
@@ -161,9 +174,27 @@ class RareVariantRunResponse(BaseModel):
     novel_count: int
     pathogenic_count: int
     genes_with_findings: list[str]
+    items: list[RareVariantResponse] = []
 
 
 # ── Helpers ──────────────────────────────────────────────────────────
+
+
+def _payload_gate_projection(payload: dict[str, Any]) -> dict[str, Any]:
+    """Omit only an absent intergenic gene label for aggregate gating.
+
+    Stored rows first pass the full finding gate. A response model legitimately
+    represents an intergenic locus as ``gene_symbol=None``; the generic
+    prescribing gate reserves a present-but-blank identifier for malformed
+    legacy clinical records. Keep the public DTO unchanged while omitting only
+    None or empty labels from the gate-only projection. Whitespace or non-string
+    values remain visible to the generic gate and therefore fail closed.
+    """
+    return {
+        key: value
+        for key, value in payload.items()
+        if key != "gene_symbol" or not (value is None or isinstance(value, str) and value == "")
+    }
 
 
 def _get_sample_engine(sample_id: int) -> sa.Engine:
@@ -195,18 +226,23 @@ def _resolve_biological_sex_for_sample(sample_engine: sa.Engine, sample_id: int)
     return resolved.sex
 
 
+async def _has_supplied_body(request: Request) -> bool:
+    """Distinguish an absent request body from an explicit JSON ``null``."""
+    return bool(await request.body())
+
+
 def _request_to_filter(
     req: RareVariantFilterRequest, *, biological_sex: str | None = None
 ) -> RareVariantFilter:
     """Convert a Pydantic request model to the dataclass filter.
 
     ``carried_only=True`` is forced on: the interactive ``/search`` and ``/run``
-    endpoints both persist findings (via ``store_rare_variant_findings``), so —
-    exactly like the automated ``run_all`` path — they must surface only the
-    variants the individual actually carries. A genotyping chip reports a call at
-    every probe, so without this gate a hom-ref (non-carrier) or unscoreable call
-    at a Pathogenic locus leaks in as a clinical finding (the genotype-agnostic
-    defect class). NULL zygosity is also excluded by the gate.
+    endpoints can both surface clinically significant variants, so — exactly like
+    the automated ``run_all`` path — they must surface only variants the
+    individual actually carries. A genotyping chip reports a call at every probe,
+    so without this gate a hom-ref (non-carrier) or unscoreable call at a
+    Pathogenic locus leaks in as a clinical finding (the genotype-agnostic defect
+    class). NULL zygosity is also excluded by the gate.
     """
     return RareVariantFilter(
         gene_symbols=req.gene_symbols,
@@ -218,6 +254,48 @@ def _request_to_filter(
         carried_only=True,
         inferred_sex=biological_sex,
         biological_sex=biological_sex,
+    )
+
+
+def to_rare_variant_response(variant: RareVariantResult) -> RareVariantResponse:
+    """Serialize a finder result for exploratory API responses."""
+    return RareVariantResponse(
+        rsid=variant.rsid,
+        chrom=variant.chrom,
+        pos=variant.pos,
+        ref=variant.ref,
+        alt=variant.alt,
+        genotype=variant.genotype,
+        zygosity=variant.zygosity,
+        zygosity_label=variant.zygosity_label,
+        gene_symbol=variant.gene_symbol,
+        consequence=variant.consequence,
+        hgvs_coding=variant.hgvs_coding,
+        hgvs_protein=variant.hgvs_protein,
+        gnomad_af_global=variant.gnomad_af_global,
+        gnomad_af_afr=variant.gnomad_af_afr,
+        gnomad_af_amr=variant.gnomad_af_amr,
+        gnomad_af_asj=variant.gnomad_af_asj,
+        gnomad_af_eas=variant.gnomad_af_eas,
+        gnomad_af_eur=variant.gnomad_af_eur,
+        gnomad_af_fin=variant.gnomad_af_fin,
+        gnomad_af_sas=variant.gnomad_af_sas,
+        gnomad_source_status=variant.gnomad_source_status,
+        is_novel=variant.is_novel,
+        clinvar_significance=variant.clinvar_significance,
+        clinvar_low_penetrance_or_risk_allele=(variant.is_clinvar_low_penetrance_or_risk_allele),
+        clinvar_review_stars=variant.clinvar_review_stars,
+        clinvar_accession=variant.clinvar_accession,
+        clinvar_conditions=variant.clinvar_conditions,
+        cadd_phred=variant.cadd_phred,
+        revel=variant.revel,
+        deleterious_count=variant.deleterious_count,
+        deleterious_total_assessed=variant.deleterious_total_assessed,
+        ensemble_pathogenic=variant.ensemble_pathogenic,
+        evidence_conflict=variant.evidence_conflict,
+        evidence_level=variant.evidence_level,
+        disease_name=variant.disease_name,
+        inheritance_pattern=variant.inheritance_pattern,
     )
 
 
@@ -244,7 +322,7 @@ def search_rare_variants(
 
     Accepts filter criteria (gene panel, AF threshold, consequence types,
     ClinVar significance) and returns matching variants sorted by clinical
-    relevance.  Also stores findings in the sample database.
+    relevance. Searches are exploratory and never replace stored findings.
 
     Example: ``POST /api/analysis/rare-variants/search?sample_id=1``
     """
@@ -252,49 +330,8 @@ def search_rare_variants(
     biological_sex = _resolve_biological_sex_for_sample(sample_engine, sample_id)
     filters = _request_to_filter(body, biological_sex=biological_sex)
     result = find_rare_variants(filters, sample_engine)
-    store_rare_variant_findings(result, sample_engine)
 
-    items = [
-        RareVariantResponse(
-            rsid=v.rsid,
-            chrom=v.chrom,
-            pos=v.pos,
-            ref=v.ref,
-            alt=v.alt,
-            genotype=v.genotype,
-            zygosity=v.zygosity,
-            zygosity_label=v.zygosity_label,
-            gene_symbol=v.gene_symbol,
-            consequence=v.consequence,
-            hgvs_coding=v.hgvs_coding,
-            hgvs_protein=v.hgvs_protein,
-            gnomad_af_global=v.gnomad_af_global,
-            gnomad_af_afr=v.gnomad_af_afr,
-            gnomad_af_amr=v.gnomad_af_amr,
-            gnomad_af_asj=v.gnomad_af_asj,
-            gnomad_af_eas=v.gnomad_af_eas,
-            gnomad_af_eur=v.gnomad_af_eur,
-            gnomad_af_fin=v.gnomad_af_fin,
-            gnomad_af_sas=v.gnomad_af_sas,
-            gnomad_source_status=v.gnomad_source_status,
-            is_novel=v.is_novel,
-            clinvar_significance=v.clinvar_significance,
-            clinvar_low_penetrance_or_risk_allele=(v.is_clinvar_low_penetrance_or_risk_allele),
-            clinvar_review_stars=v.clinvar_review_stars,
-            clinvar_accession=v.clinvar_accession,
-            clinvar_conditions=v.clinvar_conditions,
-            cadd_phred=v.cadd_phred,
-            revel=v.revel,
-            deleterious_count=v.deleterious_count,
-            deleterious_total_assessed=v.deleterious_total_assessed,
-            ensemble_pathogenic=v.ensemble_pathogenic,
-            evidence_conflict=v.evidence_conflict,
-            evidence_level=v.evidence_level,
-            disease_name=v.disease_name,
-            inheritance_pattern=v.inheritance_pattern,
-        )
-        for v in result.variants
-    ]
+    items = [to_rare_variant_response(variant) for variant in result.variants]
 
     return RareVariantSearchResponse(
         items=items,
@@ -320,7 +357,8 @@ def list_rare_variant_findings(
 ) -> RareVariantFindingsListResponse:
     """List stored rare variant findings for a sample.
 
-    Returns findings previously generated by the search endpoint,
+    Returns findings previously generated by an unfiltered full run or the
+    automated analysis pipeline,
     sorted by evidence level (highest first). Callers rendering rows should pass
     ``limit`` to avoid fetching and mounting tens of thousands of findings.
 
@@ -330,18 +368,25 @@ def list_rare_variant_findings(
 
     with sample_engine.connect() as conn:
         where_clause = findings.c.module == "rare_variants"
-        total = conn.execute(
-            sa.select(sa.func.count()).select_from(findings).where(where_clause)
-        ).scalar_one()
-
         query = (
             sa.select(findings)
             .where(where_clause)
             .order_by(findings.c.evidence_level.desc(), findings.c.gene_symbol, findings.c.id)
         )
-        if limit is not None:
-            query = query.limit(limit).offset(offset)
-        rows = conn.execute(query).fetchall()
+        # Apply pagination only after the full payload gate. A scalar-safe
+        # legacy row can otherwise consume a raw SQL page and leak its
+        # existence through the response total or leave a later presentable row
+        # unreachable. Stream all rows to preserve the safe total without
+        # materializing a large rare-variant table for a bounded page.
+        rows: list[sa.Row] = []
+        total = 0
+        page_end = offset + limit if limit is not None else None
+        for row in conn.execute(query):
+            if not is_patient_presentable_finding_payload(row._mapping):
+                continue
+            if page_end is None or offset <= total < page_end:
+                rows.append(row)
+            total += 1
 
     items: list[RareVariantFindingResponse] = []
     for row in rows:
@@ -365,17 +410,29 @@ def list_rare_variant_findings(
             )
         )
 
-    return RareVariantFindingsListResponse(items=items, total=total)
+    response = RareVariantFindingsListResponse(items=items, total=total)
+    if not is_patient_presentable_response_payload(
+        [_payload_gate_projection(item.model_dump(mode="json")) for item in items]
+    ):
+        return RareVariantFindingsListResponse(items=[], total=0)
+    return response
 
 
 @router.post("/run")
 def run_rare_variant_finder(
     sample_id: int = Query(..., description="Sample ID"),
     body: RareVariantFilterRequest | None = None,
+    has_supplied_body: bool = Depends(_has_supplied_body),
 ) -> RareVariantRunResponse:
     """Run the rare variant finder with optional filters.
 
-    If no body is provided, uses default filters (AF < 1%, include novel).
+    With no body, uses default filters (AF < 1%, include novel) and replaces the
+    canonical stored findings. Any supplied JSON body, including ``{}`` and
+    ``null``, is an exploratory run and leaves those findings unchanged.
+
+    An exploratory run returns its matches in ``items``, as ``/search`` does,
+    because nothing is persisted for ``/findings`` to serve. A canonical run
+    leaves ``items`` empty and its matches are read back from ``/findings``.
 
     Example: ``POST /api/analysis/rare-variants/run?sample_id=1``
     """
@@ -384,7 +441,7 @@ def run_rare_variant_finder(
     # No body → default filter, but still carriage-gate (this path stores findings).
     filters = (
         _request_to_filter(body, biological_sex=biological_sex)
-        if body
+        if body is not None
         else RareVariantFilter(
             carried_only=True,
             inferred_sex=biological_sex,
@@ -392,7 +449,12 @@ def run_rare_variant_finder(
         )
     )
     result = find_rare_variants(filters, sample_engine)
-    stored = store_rare_variant_findings(result, sample_engine)
+    # FastAPI parses both an absent body and JSON ``null`` as ``None``. The async
+    # dependency consults cached raw bytes so this synchronous handler can leave
+    # blocking database work in FastAPI's threadpool. Only a body-less POST can
+    # replace canonical findings; JSON ``null`` fails closed as exploratory (#2060).
+    is_canonical_run = body is None and not has_supplied_body
+    stored = store_rare_variant_findings(result, sample_engine) if is_canonical_run else 0
 
     return RareVariantRunResponse(
         variants_found=result.count,
@@ -401,6 +463,9 @@ def run_rare_variant_finder(
         novel_count=result.novel_count,
         pathogenic_count=result.pathogenic_count,
         genes_with_findings=result.genes_with_findings,
+        # An exploratory run persists nothing, so these transient matches are the
+        # only way its caller can inspect the result (#2060 review round 2).
+        items=[] if is_canonical_run else [to_rare_variant_response(v) for v in result.variants],
     )
 
 
@@ -424,8 +489,37 @@ def export_rare_variants_tsv(
             .order_by(findings.c.evidence_level.desc(), findings.c.gene_symbol)
         ).fetchall()
 
+    export_rows: list[dict[str, Any]] = []
+    for row in rows:
+        if not is_patient_presentable_finding_payload(row._mapping):
+            continue
+        detail = _parse_detail_json(row.id, row.detail_json)
+        export_rows.append(
+            {
+                "rsid": row.rsid or "",
+                "gene_symbol": row.gene_symbol or "",
+                "category": row.category or "",
+                "evidence_level": row.evidence_level or 1,
+                "zygosity": row.zygosity or "",
+                "clinvar_significance": row.clinvar_significance or "",
+                "conditions": row.conditions or "",
+                "consequence": detail.get("consequence", ""),
+                "gnomad_af_global": detail.get("af_global"),
+                "cadd_phred": detail.get("cadd_phred"),
+                "revel": detail.get("revel"),
+                "finding_text": row.finding_text or "",
+            }
+        )
+
+    # Rows have already passed their own stored-payload gate. Recheck the
+    # decoded export DTOs as one response so safe fragments cannot reassemble
+    # a held prescribing pair across separate source records.
+    if not is_patient_presentable_response_payload(
+        [_payload_gate_projection(row) for row in export_rows]
+    ):
+        export_rows = []
+
     buf = io.StringIO()
-    # Header
     tsv_columns = [
         "rsid",
         "gene_symbol",
@@ -442,21 +536,20 @@ def export_rare_variants_tsv(
     ]
     buf.write("\t".join(tsv_columns) + "\n")
 
-    for row in rows:
-        detail = _parse_detail_json(row.id, row.detail_json)
+    for row in export_rows:
         values = [
-            row.rsid or "",
-            row.gene_symbol or "",
-            row.category or "",
-            str(row.evidence_level or 1),
-            row.zygosity or "",
-            row.clinvar_significance or "",
-            row.conditions or "",
-            detail.get("consequence", ""),
-            str(detail.get("af_global", "")) if detail.get("af_global") is not None else "",
-            str(detail.get("cadd_phred", "")) if detail.get("cadd_phred") is not None else "",
-            str(detail.get("revel", "")) if detail.get("revel") is not None else "",
-            row.finding_text or "",
+            row["rsid"],
+            row["gene_symbol"],
+            row["category"],
+            str(row["evidence_level"]),
+            row["zygosity"],
+            row["clinvar_significance"],
+            row["conditions"],
+            row["consequence"],
+            str(row["gnomad_af_global"]) if row["gnomad_af_global"] is not None else "",
+            str(row["cadd_phred"]) if row["cadd_phred"] is not None else "",
+            str(row["revel"]) if row["revel"] is not None else "",
+            row["finding_text"],
         ]
         buf.write("\t".join(values) + "\n")
 
@@ -491,14 +584,7 @@ def export_rare_variants_vcf(
 
     with sample_engine.connect() as conn:
         finding_rows = conn.execute(
-            sa.select(
-                findings.c.id,
-                findings.c.rsid,
-                findings.c.gene_symbol,
-                findings.c.clinvar_significance,
-                findings.c.evidence_level,
-                findings.c.detail_json,
-            ).where(findings.c.module == "rare_variants")
+            sa.select(findings).where(findings.c.module == "rare_variants")
         ).fetchall()
 
     # Rebuild each record from the finding's own stored locus/allele identity,
@@ -506,6 +592,8 @@ def export_rare_variants_vcf(
     # records whose stored chrom/pos is missing sort last).
     records: list[dict[str, Any]] = []
     for row in finding_rows:
+        if not is_patient_presentable_finding_payload(row._mapping):
+            continue
         detail = _parse_detail_json(row.id, row.detail_json)
         records.append(
             {
@@ -521,6 +609,13 @@ def export_rare_variants_vcf(
                 "evidence_level": row.evidence_level,
             }
         )
+    # The VCF body is derived from these decoded records. Gate the complete
+    # collection before legacy coordinate backfill or serialization so an
+    # unsafe aggregate produces the established header-only export.
+    if not is_patient_presentable_response_payload(
+        [_payload_gate_projection(record) for record in records]
+    ):
+        records = []
     # Backward-compat backfill: findings stored before #1575 have no chrom/pos in
     # detail_json. For those (only), fall back to the annotated_variants row for
     # the finding's rsid so an already-analysed sample that has not been re-run

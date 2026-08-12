@@ -9,6 +9,28 @@ STANDARD_LEVEL = "Standard"
 NO_CALL_STATUS = "no_call"
 
 
+def variant_label(gene: str | None, variant_name: str | None) -> str:
+    """Render "<gene> <variant_name>" without doubling the gene symbol.
+
+    Roughly a third of curated panel entries already name the gene inside
+    ``variant_name`` ("FTO intron 1", "HLA-B*57:01 proxy"), so the naive
+    ``f"{gene} {variant_name}"`` produced cards reading "FTO FTO intron 1"
+    (#2021). The match is anchored on a word boundary so a gene that merely
+    shares a prefix with the variant name is still prepended.
+    """
+    gene = (gene or "").strip()
+    variant_name = (variant_name or "").strip()
+    if not gene:
+        return variant_name
+    if not variant_name:
+        return gene
+    if variant_name.lower().startswith(gene.lower()) and (
+        len(variant_name) == len(gene) or not variant_name[len(gene)].isalnum()
+    ):
+        return variant_name
+    return f"{gene} {variant_name}"
+
+
 def _rsid(snp: Any) -> str:
     return str(getattr(snp, "rsid"))
 

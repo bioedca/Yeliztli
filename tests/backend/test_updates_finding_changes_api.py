@@ -100,10 +100,28 @@ _APOE_CHANGED = {
     "changes": [{"field": "evidence_level", "before": "4", "after": "5"}],
 }
 
+_WITHHELD_TAMOXIFEN_ADDED = {
+    # Deliberately not the canonical module and with whitespace/case variation:
+    # this represents an intentionally retained custom record, not a generated
+    # CPIC row that v25 can safely delete.
+    "module": "medication_review",
+    "category": "prescribing_alert",
+    "gene_symbol": " CYP2D6 ",
+    "rsid": None,
+    "drug": "\ttamoxifen\n",
+    "diplotype": "*1/*4",
+    "finding_text": "Custom retained tamoxifen clinical advice.",
+    "clinvar_significance": None,
+    "evidence_level": 4,
+    "metabolizer_status": "Intermediate Metabolizer",
+    "pathway_level": None,
+}
+
 _DIFF_WITH_MIXED_GATED_CHANGES = {
     **_DIFF_WITH_CHANGES,
     "changed": [*_DIFF_WITH_CHANGES["changed"], _APOE_CHANGED],
-    "counts": {"changed": 2, "added": 1, "removed": 1},
+    "added": [*_DIFF_WITH_CHANGES["added"], _WITHHELD_TAMOXIFEN_ADDED],
+    "counts": {"changed": 2, "added": 2, "removed": 1},
 }
 
 _DIFF_WITH_ONLY_GATED_CHANGES = {
@@ -196,6 +214,19 @@ def _dismiss_finding_changes(sample_id: int) -> dict:
     return asyncio.run(dismiss_finding_changes(sample_id=sample_id))
 
 
+def _replace_stored_finding_diff(env: DBRegistry, raw_diff: str) -> None:
+    """Replace sample 1's persisted diff with deliberately legacy-shaped JSON."""
+    sample_db = env.settings.data_dir / "samples" / "sample_1.db"
+    engine = sa.create_engine(f"sqlite:///{sample_db}")
+    with engine.begin() as conn:
+        conn.execute(
+            annotation_state.update()
+            .where(annotation_state.c.key == DIFF_STATE_KEY)
+            .values(value=raw_diff)
+        )
+    engine.dispose()
+
+
 def test_get_finding_changes_returns_diff(_env: DBRegistry) -> None:
     body = _get_finding_changes(1)
     assert body["available"] is True
@@ -212,6 +243,59 @@ def test_get_finding_changes_returns_diff(_env: DBRegistry) -> None:
     assert "APOE" not in serialized
     assert "LRRK2" not in serialized
     assert "XXY" not in serialized
+    assert "tamoxifen" not in serialized.lower()
+
+
+def test_get_finding_changes_preserves_display_identity_and_meaning_fields(
+    _env: DBRegistry,
+) -> None:
+    """Every field emitted by the diff writer survives the response DTO."""
+    enriched_diff = {
+        **_DIFF_WITH_CHANGES,
+        "changed": [
+            {
+                **_DIFF_WITH_CHANGES["changed"][0],
+                "pathway": "DNA repair",
+                "trait": "hereditary_cancer",
+                "metabolizer_status": "Normal Metabolizer",
+                "pathway_level": "high",
+            }
+        ],
+        "added": [
+            {
+                **_DIFF_WITH_CHANGES["added"][0],
+                "module": "cancer",
+                "gene_symbol": "BRCA2",
+                "pathway": "DNA repair",
+                "trait": "breast_cancer",
+            }
+        ],
+        "removed": [
+            {
+                **_DIFF_WITH_CHANGES["removed"][0],
+                "module": "cancer",
+                "gene_symbol": "BRCA1",
+                "pathway": "DNA repair",
+                "trait": "ovarian_cancer",
+            }
+        ],
+        "counts": {"changed": 1, "added": 1, "removed": 1},
+    }
+    _replace_stored_finding_diff(_env, json.dumps(enriched_diff))
+
+    body = _get_finding_changes(1)
+
+    changed = body["changed"][0]
+    assert changed["pathway"] == "DNA repair"
+    assert changed["trait"] == "hereditary_cancer"
+    assert changed["clinvar_significance"] == "Pathogenic"
+    assert changed["evidence_level"] == 4
+    assert changed["metabolizer_status"] == "Normal Metabolizer"
+    assert changed["pathway_level"] == "high"
+    assert body["added"][0]["pathway"] == "DNA repair"
+    assert body["added"][0]["trait"] == "breast_cancer"
+    assert body["removed"][0]["pathway"] == "DNA repair"
+    assert body["removed"][0]["trait"] == "ovarian_cancer"
 
 
 def test_get_finding_changes_reveals_acknowledged_gated_module(
@@ -249,6 +333,179 @@ def test_get_finding_changes_all_gated_is_unavailable(_env: DBRegistry) -> None:
         "removed": [],
         "counts": {},
     }
+
+
+def test_get_finding_changes_skips_malformed_persisted_entries(_env: DBRegistry) -> None:
+    """#2019: malformed preserved diff entries must fail closed at the API boundary."""
+    malformed_category = {
+        "module": "medication_review",
+        "category": 1,
+        "gene_symbol": "CYP2D6",
+        "rsid": None,
+        "drug": "tamoxifen",
+        "diplotype": "*1/*4",
+        "finding_text": "Malformed category must not render.",
+        "changes": [],
+    }
+    whitespace_key = {
+        "module": "medication_review",
+        " category": "prescribing_alert",
+        "gene_symbol": "CYP2D6",
+        "rsid": None,
+        "drug": "tamoxifen",
+        "diplotype": "*1/*4",
+        "finding_text": "Whitespace-key guidance must not render.",
+        "changes": [],
+    }
+    nonstandard_category = {
+        "module": "medication_review",
+        "category": "legacy_note",
+        "gene_symbol": "CYP2D6",
+        "rsid": None,
+        "drug": "tamoxifen",
+        "diplotype": "*1/*4",
+        "finding_text": "Relabeled guidance must not render.",
+        "changes": [],
+    }
+    malformed_diff = {
+        **_DIFF_WITH_CHANGES,
+        "changed": [
+            _DIFF_WITH_CHANGES["changed"][0],
+            "malformed changed entry",
+            malformed_category,
+            whitespace_key,
+            nonstandard_category,
+        ],
+        "added": ["malformed added entry"],
+        "removed": ["malformed removed entry"],
+        "counts": {"changed": 5, "added": 1, "removed": 1},
+    }
+    _replace_stored_finding_diff(_env, json.dumps(malformed_diff))
+
+    body = _get_finding_changes(1)
+    assert body["available"] is True
+    assert body["counts"] == {"changed": 1, "added": 0, "removed": 0}
+    assert [entry["gene_symbol"] for entry in body["changed"]] == ["BRCA1"]
+    assert "malformed" not in json.dumps(body).lower()
+    assert "tamoxifen" not in json.dumps(body).lower()
+    assert "whitespace-key" not in json.dumps(body).lower()
+    assert "relabeled guidance" not in json.dumps(body).lower()
+
+
+def test_get_finding_changes_hides_legacy_text_in_validated_entries(_env: DBRegistry) -> None:
+    """Valid historic diff shells receive the shared recursive payload gate."""
+    legacy_text = {
+        "module": "medication_review",
+        "category": "legacy_note",
+        "gene_symbol": "CYP2C19",
+        "rsid": None,
+        "drug": "clopidogrel",
+        "diplotype": None,
+        "finding_text": "CYP2D6 tamoxifen dose guidance",
+        "changes": [],
+    }
+    legacy_change = {
+        "module": "medication_review",
+        "category": "legacy_note",
+        "gene_symbol": "CYP2C19",
+        "rsid": None,
+        "drug": "clopidogrel",
+        "diplotype": None,
+        "finding_text": "Routine medication-review update",
+        "changes": [
+            {
+                "field": "phenotype",
+                "before": "No visible change",
+                "after": "CYP2D6 tamoxifen dose guidance",
+            }
+        ],
+    }
+    cross_field_change = {
+        "module": "medication_review",
+        "category": "legacy_note",
+        "gene_symbol": "CYP2D6",
+        "rsid": None,
+        "drug": "codeine",
+        "diplotype": None,
+        "finding_text": "Routine medication-review update",
+        "changes": [
+            {
+                "field": "recommendation",
+                "before": "No visible change",
+                "after": "tamoxifen dose guidance",
+            }
+        ],
+    }
+    legacy_diff = {
+        **_DIFF_WITH_CHANGES,
+        "changed": [
+            _DIFF_WITH_CHANGES["changed"][0],
+            legacy_text,
+            legacy_change,
+            cross_field_change,
+        ],
+        "added": [],
+        "removed": [],
+        "counts": {"changed": 4, "added": 0, "removed": 0},
+    }
+    _replace_stored_finding_diff(_env, json.dumps(legacy_diff))
+
+    body = _get_finding_changes(1)
+
+    assert body["available"] is True
+    assert body["counts"] == {"changed": 1, "added": 0, "removed": 0}
+    assert [entry["gene_symbol"] for entry in body["changed"]] == ["BRCA1"]
+    assert "tamoxifen" not in json.dumps(body).lower()
+
+
+def test_get_finding_changes_rejects_ambiguous_persisted_diff(_env: DBRegistry) -> None:
+    """#2019: duplicate JSON keys cannot relabel held guidance for display."""
+    held_entry = {
+        "module": "medication_review",
+        "category": "prescribing_alert",
+        "gene_symbol": "CYP2D6",
+        "rsid": None,
+        "drug": "tamoxifen",
+        "diplotype": "*1/*4",
+        "finding_text": "Ambiguous tamoxifen dose guidance must not render.",
+        "changes": [],
+    }
+    raw_diff = json.dumps(
+        {
+            **_DIFF_WITH_CHANGES,
+            "changed": [held_entry],
+            "added": [],
+            "removed": [],
+            "counts": {"changed": 1, "added": 0, "removed": 0},
+        }
+    ).replace(
+        '"category": "prescribing_alert"',
+        '"category": "prescribing_alert", "category": "legacy_note"',
+        1,
+    )
+    _replace_stored_finding_diff(_env, raw_diff)
+
+    body = _get_finding_changes(1)
+    assert body["available"] is False
+    assert "tamoxifen" not in json.dumps(body).lower()
+    assert "dose guidance" not in json.dumps(body).lower()
+
+
+@pytest.mark.parametrize(
+    "raw_diff",
+    [
+        "[]",
+        json.dumps({**_DIFF_WITH_CHANGES, "generated_at": 1}),
+        json.dumps({**_DIFF_WITH_CHANGES, "release_deltas": ["malformed"]}),
+    ],
+    ids=["non-object-root", "non-string-generated-at", "malformed-release-delta"],
+)
+def test_get_finding_changes_hides_malformed_envelopes(_env: DBRegistry, raw_diff: str) -> None:
+    """#2019: invalid diff envelopes are unavailable rather than crash or leak."""
+    _replace_stored_finding_diff(_env, raw_diff)
+
+    body = _get_finding_changes(1)
+    assert body["available"] is False
 
 
 def test_get_finding_changes_absent_is_unavailable(_env: DBRegistry) -> None:

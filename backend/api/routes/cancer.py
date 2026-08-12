@@ -27,6 +27,10 @@ from pydantic import BaseModel
 
 from backend.analysis.cancer import load_cancer_panel
 from backend.analysis.clinvar_significance import LOWER_PENETRANCE_RISK_ALLELE_CATEGORY
+from backend.analysis.pharmacogenomics import (
+    is_patient_presentable_finding_payload,
+    is_patient_presentable_response_payload,
+)
 from backend.api.dependencies import require_fresh_sample
 from backend.db.connection import get_registry
 from backend.db.tables import findings, samples
@@ -193,6 +197,8 @@ def _fetch_cancer_findings(
 
     result: list[dict[str, Any]] = []
     for row in rows:
+        if not is_patient_presentable_finding_payload(row._mapping):
+            continue
         detail: dict[str, Any] = {}
         if row.detail_json:
             try:
@@ -248,6 +254,16 @@ def _findings_to_response(
     return [CancerVariantResponse(**f) for f in finding_rows]
 
 
+def _cancer_variants_response(
+    items: list[CancerVariantResponse],
+) -> CancerVariantsListResponse:
+    """Return a final, aggregate-gated cancer-variant response."""
+    response = CancerVariantsListResponse(items=items, total=len(items))
+    if not is_patient_presentable_response_payload(response.model_dump(mode="json")):
+        return CancerVariantsListResponse(items=[], total=0)
+    return response
+
+
 # ── Endpoints ────────────────────────────────────────────────────────
 
 
@@ -281,7 +297,7 @@ def list_cancer_variants(
     sample_engine = _get_sample_engine(sample_id)
     raw = _fetch_cancer_findings(sample_engine)
     items = _findings_to_response(raw)
-    return CancerVariantsListResponse(items=items, total=len(items))
+    return _cancer_variants_response(items)
 
 
 @router.get("/gene/{gene_symbol}", dependencies=[Depends(require_fresh_sample)])
@@ -296,7 +312,7 @@ def cancer_gene_detail(
     sample_engine = _get_sample_engine(sample_id)
     raw = _fetch_cancer_findings(sample_engine, gene_filter=gene_symbol)
     items = _findings_to_response(raw)
-    return CancerVariantsListResponse(items=items, total=len(items))
+    return _cancer_variants_response(items)
 
 
 @router.get("/prs", dependencies=[Depends(require_fresh_sample)])
@@ -325,6 +341,8 @@ def list_cancer_prs(
 
     items: list[CancerPRSResponse] = []
     for row in rows:
+        if not is_patient_presentable_finding_payload(row._mapping):
+            continue
         detail: dict[str, Any] = {}
         if row.detail_json:
             try:
@@ -371,12 +389,20 @@ def list_cancer_prs(
     sufficient = [i for i in items if i.is_sufficient]
     insufficient = [i.trait for i in items if not i.is_sufficient]
 
-    return CancerPRSListResponse(
+    response = CancerPRSListResponse(
         items=items,
         total=len(items),
         sufficient_count=len(sufficient),
         insufficient_traits=insufficient,
     )
+    if not is_patient_presentable_response_payload(response.model_dump(mode="json")):
+        return CancerPRSListResponse(
+            items=[],
+            total=0,
+            sufficient_count=0,
+            insufficient_traits=[],
+        )
+    return response
 
 
 @router.post("/run", dependencies=[Depends(require_fresh_sample)])

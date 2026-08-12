@@ -1,0 +1,47 @@
+{
+  "_extract_note": "Reduced extract of the dbSNP RefSNP v2 response (full payload 250974 bytes, retrieved 2026-08-10 from the url below). Retained: identity/merge status and every placement on the RefSeq Select transcript NM_194255.4, with its protein consequence on NP_919231.1. Dropped: the other 24 transcripts, frequency studies, submissions, and citations - none of which bear on the nomenclature claim this packet supports.",
+  "_url": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/1051266",
+  "refsnp_id": "1051266",
+  "is_merged": false,
+  "last_update_build_id": "157",
+  "create_date": "2000-10-5T19:10Z",
+  "last_update_date": "2024-11-2T10:55Z",
+  "nm_194255_4_placements": [
+    {
+      "gene": "SLC19A1",
+      "rna_hgvs": "NM_194255.4:c.80=",
+      "protein_seq_id": "NP_919231.1",
+      "protein_position_0_based": 26,
+      "protein_reference": "H",
+      "protein_alternate": "H",
+      "consequence": null
+    },
+    {
+      "gene": "SLC19A1",
+      "rna_hgvs": "NM_194255.4:c.80A>T",
+      "protein_seq_id": "NP_919231.1",
+      "protein_position_0_based": 26,
+      "protein_reference": "H",
+      "protein_alternate": "L",
+      "consequence": "missense_variant"
+    },
+    {
+      "gene": "SLC19A1",
+      "rna_hgvs": "NM_194255.4:c.80A>G",
+      "protein_seq_id": "NP_919231.1",
+      "protein_position_0_based": 26,
+      "protein_reference": "H",
+      "protein_alternate": "R",
+      "consequence": "missense_variant"
+    },
+    {
+      "gene": "SLC19A1",
+      "rna_hgvs": "NM_194255.4:c.80A>C",
+      "protein_seq_id": "NP_919231.1",
+      "protein_position_0_based": 26,
+      "protein_reference": "H",
+      "protein_alternate": "P",
+      "consequence": "missense_variant"
+    }
+  ]
+}

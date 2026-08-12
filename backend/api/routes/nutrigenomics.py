@@ -18,6 +18,10 @@ import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
+from backend.analysis.pharmacogenomics import (
+    is_patient_presentable_finding_payload,
+    is_patient_presentable_response_payload,
+)
 from backend.api.dependencies import require_fresh_sample
 from backend.db.connection import get_registry
 from backend.db.tables import findings, samples
@@ -129,6 +133,8 @@ def _fetch_nutrigenomics_findings(
 
     result: list[dict[str, Any]] = []
     for row in rows:
+        if not is_patient_presentable_finding_payload(row._mapping):
+            continue
         detail: dict[str, Any] = {}
         if row.detail_json:
             try:
@@ -197,7 +203,10 @@ def list_pathways(
             )
         )
 
-    return PathwaysResponse(items=items, total=len(items))
+    response = PathwaysResponse(items=items, total=len(items))
+    if not is_patient_presentable_response_payload(response.model_dump(mode="json")):
+        return PathwaysResponse(items=[], total=0)
+    return response
 
 
 @router.get("/pathway/{pathway_id}")
@@ -254,21 +263,21 @@ def pathway_detail(
         # Get PMIDs from snp_finding if available
         pmids = snp_finding.get("pmids", [])
 
-        snp_details.append(
-            SNPDetail(
-                rsid=rsid,
-                gene=sd.get("gene", ""),
-                variant_name=sd.get("variant_name", ""),
-                genotype=sd.get("genotype"),
-                category=sd.get("category", "Standard"),
-                effect_summary=sd.get("effect_summary", ""),
-                evidence_level=sd.get("evidence_level", 1),
-                recommendation=recommendation,
-                pmids=pmids,
-            )
+        snp_detail = SNPDetail(
+            rsid=rsid,
+            gene=sd.get("gene", ""),
+            variant_name=sd.get("variant_name", ""),
+            genotype=sd.get("genotype"),
+            category=sd.get("category", "Standard"),
+            effect_summary=sd.get("effect_summary", ""),
+            evidence_level=sd.get("evidence_level", 1),
+            recommendation=recommendation,
+            pmids=pmids,
         )
+        if is_patient_presentable_response_payload(snp_detail.model_dump(mode="json")):
+            snp_details.append(snp_detail)
 
-    return PathwayDetailResponse(
+    response = PathwayDetailResponse(
         pathway_id=pathway_id,
         pathway_name=pathway_name,
         level=(
@@ -288,6 +297,9 @@ def pathway_detail(
         pmids=pathway_summary["pmids"],
         snp_details=snp_details,
     )
+    if not is_patient_presentable_response_payload(response.model_dump(mode="json")):
+        raise HTTPException(status_code=404, detail="Pathway not found for sample.")
+    return response
 
 
 @router.post("/run")

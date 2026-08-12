@@ -285,6 +285,46 @@ class TestRenderFindingSvg:
         assert "<svg" in svg
         assert "CYP2C19" in svg
 
+    def test_withheld_tamoxifen_alert_does_not_generate_card(self):
+        assert (
+            render_finding_svg(
+                {
+                    "id": 2019,
+                    "module": "medication_review",
+                    "category": "prescribing_alert",
+                    "gene_symbol": " CYP2D6 ",
+                    "drug": "\ttamoxifen\n",
+                    "finding_text": "Custom retained tamoxifen clinical advice.",
+                }
+            )
+            is None
+        )
+
+    def test_nested_held_payload_does_not_generate_card(self):
+        """#2019: scalar-safe legacy shells cannot render nested guidance."""
+        assert (
+            render_finding_svg(
+                {
+                    "id": 2020,
+                    "module": "pharmacogenomics",
+                    "category": "prescribing_alert",
+                    "gene_symbol": "CYP2D6",
+                    "drug": "codeine",
+                    "finding_text": "CYP2D6/codeine control shell",
+                    "detail_json": json.dumps(
+                        {
+                            "legacy": {
+                                " Gene ": "CYP2D6",
+                                "DRUG": "tamoxifen",
+                                "recommendation": "Nested tamoxifen advice must not render.",
+                            }
+                        }
+                    ),
+                }
+            )
+            is None
+        )
+
     def test_carrier_generates_card(self, carrier_finding):
         svg = render_finding_svg(carrier_finding)
         assert svg is not None
@@ -558,6 +598,43 @@ class TestGenerateSvgsForSample:
         assert row.svg_path is None
         assert not stale_svg.exists()
         assert unrelated_svg.exists()
+
+    def test_nested_held_payload_clears_stale_svg(self, sample_engine, tmp_path):
+        """#2019: payload quarantine removes existing patient-facing artifacts."""
+        finding_id = 2020
+        svg_dir = tmp_path / "svgs"
+        svg_dir.mkdir()
+        stale_svg = svg_dir / f"{finding_id}.svg"
+        stale_svg.write_text("<svg>nested tamoxifen advice</svg>", encoding="utf-8")
+
+        with sample_engine.begin() as conn:
+            conn.execute(
+                findings.insert().values(
+                    id=finding_id,
+                    module="pharmacogenomics",
+                    category="prescribing_alert",
+                    evidence_level=4,
+                    gene_symbol="CYP2D6",
+                    drug="codeine",
+                    finding_text="CYP2D6/codeine legacy shell",
+                    detail_json=json.dumps(
+                        {
+                            "legacy": {
+                                " Gene ": "CYP2D6",
+                                "DRUG": "tamoxifen",
+                                "recommendation": "Nested tamoxifen advice must not render.",
+                            }
+                        }
+                    ),
+                    svg_path=f"svgs/{finding_id}.svg",
+                )
+            )
+
+        assert generate_svgs_for_sample(sample_engine, tmp_path) == 0
+        with sample_engine.connect() as conn:
+            row = conn.execute(sa.select(findings)).one()
+        assert row.svg_path is None
+        assert not stale_svg.exists()
 
     def test_multiple_modules_get_svgs(self, sample_engine, tmp_path):
         with sample_engine.begin() as conn:
