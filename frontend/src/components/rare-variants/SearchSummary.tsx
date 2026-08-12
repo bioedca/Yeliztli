@@ -1,10 +1,9 @@
 /** Search result summary stats bar (P3-30).
  *
  * Shows total found, variants scanned, novel count, pathogenic count,
- * genes with findings, and export buttons.
+ * genes with findings.
  */
 
-import { Download } from "lucide-react"
 import { formatNumber } from "@/lib/format"
 
 interface SearchSummaryProps {
@@ -13,7 +12,6 @@ interface SearchSummaryProps {
   novelCount: number
   pathogenicCount: number
   genesWithFindings: string[]
-  sampleId: number
 }
 
 export default function SearchSummary({
@@ -22,7 +20,6 @@ export default function SearchSummary({
   novelCount,
   pathogenicCount,
   genesWithFindings,
-  sampleId,
 }: SearchSummaryProps) {
   return (
     <div
@@ -54,28 +51,6 @@ export default function SearchSummary({
               <p className="text-xs text-muted-foreground">Genes affected</p>
             </div>
           )}
-        </div>
-
-        {/* Export buttons */}
-        <div className="flex gap-2" data-testid="export-buttons">
-          <a
-            href={`/api/analysis/rare-variants/export/tsv?sample_id=${sampleId}`}
-            download
-            className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-muted transition-colors"
-            data-testid="export-tsv"
-          >
-            <Download className="h-3.5 w-3.5" />
-            TSV
-          </a>
-          <a
-            href={`/api/analysis/rare-variants/export/vcf?sample_id=${sampleId}`}
-            download
-            className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-muted transition-colors"
-            data-testid="export-vcf"
-          >
-            <Download className="h-3.5 w-3.5" />
-            VCF
-          </a>
         </div>
       </div>
 
