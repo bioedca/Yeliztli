@@ -1556,6 +1556,32 @@ class TestSetStoragePath:
             mode = component.stat().st_mode
             assert not mode & writable_by_others, f"{component} is {oct(stat.S_IMODE(mode))}"
 
+    def test_existing_group_writable_ancestor_is_rejected(
+        self, setup_client: TestClient, tmp_path: Path
+    ) -> None:
+        """A path under an existing 0o775 mount is refused at selection.
+
+        Hardening only what this call creates leaves an ancestor we did not make
+        untouched, and it is not ours to re-permission. The loader refuses the
+        whole chain, so accepting the path here would persist a location from
+        which every required reference-data install fails with a message that
+        cannot name the directory responsible.
+        """
+        shared_mount = tmp_path / "shared"
+        shared_mount.mkdir()
+        shared_mount.chmod(0o775)  # non-sticky, group-writable: what the loader refuses
+        new_path = shared_mount / "user" / "data"
+
+        resp = setup_client.post(
+            "/api/setup/set-storage-path",
+            json={"path": str(new_path)},
+        )
+        assert resp.status_code == 400, resp.json()
+        detail = resp.json()["detail"]
+        assert "group/world-writable" in detail, detail
+        # The message must name the offending ancestor, not the leaf.
+        assert str(shared_mount) in detail, detail
+
     def test_private_directory_owned_by_another_user_is_rejected(
         self, setup_client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:

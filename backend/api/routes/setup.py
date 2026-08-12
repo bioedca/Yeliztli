@@ -30,6 +30,7 @@ from fastapi import APIRouter, HTTPException, UploadFile
 from packaging.version import InvalidVersion, Version
 from pydantic import BaseModel, field_validator
 
+from backend.annotation.mondo_hpo import downloads_ancestor_chain_problem
 from backend.api.routes.backup import (
     REGISTRY_MANIFEST_FILE,
     RESTORABLE_REFERENCE_DB_FILES,
@@ -1522,6 +1523,14 @@ async def set_storage_path(body: SetStoragePathRequest) -> SetStoragePathRespons
         problem = ensure_private_directory(resolved, parents=True)
         if problem is None:
             problem = ensure_private_directory(resolved / "downloads")
+        if problem is None:
+            # Hardening what we create is not enough on its own: an *existing*
+            # ancestor we did not make - a provisioned 0o775 mount, say - is not
+            # ours to re-permission, and the loader refuses the whole chain. Ask
+            # the loader itself, so selection reaches the same verdict the build
+            # will, and the user is told here rather than inside a build whose
+            # error cannot name the directory that caused it.
+            problem = downloads_ancestor_chain_problem(resolved / "downloads")
         if problem is not None:
             raise HTTPException(status_code=400, detail=problem)
         (resolved / "samples").mkdir(exist_ok=True)

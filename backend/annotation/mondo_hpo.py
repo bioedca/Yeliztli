@@ -835,6 +835,23 @@ def _assert_private_source_bundle_directory(
         )
 
 
+def downloads_ancestor_chain_problem(downloads_dir: Path) -> str | None:
+    """Return why the loader would refuse this downloads root, or ``None``.
+
+    Storage selection needs the *same* verdict the build will reach, or setup
+    persists a location from which every required reference-data install fails
+    with a message that cannot name the cause — a directory beneath an existing
+    non-sticky group-writable mount, say. Delegating to the loader's own
+    predicate is deliberate: a second copy of the ancestor rule here is exactly
+    how the two would drift apart.
+    """
+    try:
+        _assert_source_bundle_ancestor_chain_is_trusted(downloads_dir)
+    except ValueError as exc:
+        return str(exc)
+    return None
+
+
 def _assert_source_bundle_ancestor_chain_is_trusted(dest_dir: Path) -> None:
     """Reject unsafe lexical or resolved parents of a source-bundle root."""
     try:
