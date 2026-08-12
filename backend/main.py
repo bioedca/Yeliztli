@@ -103,10 +103,13 @@ from backend.db.reference_schema import (
 )
 from backend.logging_config import configure_logging
 from backend.tasks.huey_tasks import recover_orphaned_jobs
+from backend.version import app_version
 
 logger = logging.getLogger(__name__)
 
-VERSION = "0.2.0"
+# Sourced from the installed distribution, never written out here: three
+# hand-maintained copies of this string drifted apart in #2025.
+VERSION = app_version()
 
 _LOOPBACK_HOSTNAMES = {"localhost", "localhost.localdomain"}
 

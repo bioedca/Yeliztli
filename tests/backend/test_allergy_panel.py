@@ -18,6 +18,7 @@ Covers:
 
 from __future__ import annotations
 
+import csv
 import json
 from pathlib import Path
 
@@ -32,6 +33,15 @@ PANEL_PATH = (
 )
 
 PROXY_PATH = PANEL_PATH.parent / "hla_proxy_lookup.json"
+
+CPIC_GUIDELINES_PATH = PANEL_PATH.parent.parent / "cpic" / "cpic_guidelines.csv"
+
+
+def _cpic_guideline_drugs() -> set[str]:
+    """Lowercased drug names the bundled CPIC guideline table can advise on."""
+    with CPIC_GUIDELINES_PATH.open(newline="", encoding="utf-8") as handle:
+        return {row["drug"].strip().lower() for row in csv.DictReader(handle) if row.get("drug")}
+
 
 VALID_CATEGORIES = {"Elevated", "Moderate", "Standard"}
 
@@ -683,11 +693,11 @@ class TestCeliacCombined:
         assert set(sc["rsids"]) == {"rs2187668", "rs7454108"}
 
 
-# ── Abacavir/HLA-B*57:01 bi-directional cross-link tests ───────────────
+# ── Abacavir/HLA-B*57:01 cross-link tests ──────────────────────────────
 
 
 class TestAbacavirCrossLink:
-    """P3-60 requirement: abacavir/HLA-B*57:01 bi-directional PGx cross-link."""
+    """P3-60 requirement: abacavir/HLA-B*57:01 PGx cross-link."""
 
     def _get_abacavir_snp(self, panel_data: dict) -> dict:
         for pathway in panel_data["pathways"]:
@@ -702,9 +712,16 @@ class TestAbacavirCrossLink:
         assert snp["cross_module"]["module"] == "pharmacogenomics"
         assert "abacavir" in snp["cross_module"]["note"].lower()
 
-    def test_abacavir_bidirectional_note(self, panel_data: dict) -> None:
+    def test_abacavir_note_claims_no_reverse_link(self, panel_data: dict) -> None:
+        """The note must not promise a handoff the app does not implement.
+
+        It previously read "cross-links bi-directionally with the
+        Pharmacogenomics module. See PGx for prescribing guidance." There is no
+        PGx → Allergy cross-link anywhere in the app, and PGx holds no abacavir
+        guideline, so both halves of that sentence were false (#2020).
+        """
         snp = self._get_abacavir_snp(panel_data)
-        assert "bi-directional" in snp["cross_module"]["note"].lower()
+        assert "bi-directional" not in snp["cross_module"]["note"].lower()
 
     def test_abacavir_evidence_level_4(self, panel_data: dict) -> None:
         """Abacavir/HLA-B*57:01 is CPIC Level A → ★★★★."""
@@ -730,6 +747,54 @@ class TestDrugPGxCrossLinks:
                 if snp["rsid"] in self.DRUG_RSIDS:
                     assert "cross_module" in snp, f"{snp['rsid']} missing PGx cross_module"
                     assert snp["cross_module"]["module"] == "pharmacogenomics"
+
+    def test_every_pgx_cross_link_names_its_drug(self, panel_data: dict) -> None:
+        """A PGx handoff must say which drug it is about.
+
+        ``score_allergy_pathways`` gates the "View in Pharmacogenomics" link on
+        whether ``cpic_guidelines`` holds a row for this drug; an undeclared
+        drug silently withholds the link forever (#2020).
+        """
+        checked = 0
+        for pathway in panel_data["pathways"]:
+            for snp in pathway["snps"]:
+                cross = snp.get("cross_module")
+                if cross is None or cross["module"] != "pharmacogenomics":
+                    continue
+                checked += 1
+                drug = cross.get("drug")
+                assert isinstance(drug, str) and drug.strip(), (
+                    f"{snp['rsid']} PGx cross_module declares no drug"
+                )
+        assert checked == len(self.DRUG_RSIDS), (
+            f"expected {len(self.DRUG_RSIDS)} PGx cross-links, inspected {checked}"
+        )
+
+    def test_pgx_note_does_not_point_at_an_uncovered_drug(self, panel_data: dict) -> None:
+        """The note may not send the user to PGx for a drug PGx does not carry.
+
+        The Pharmacogenomics module is a CYP/UGT/SLCO/DPYD/NUDT15/TPMT
+        diplotype module with no HLA gene, and ``cpic_guidelines.csv`` has no
+        carbamazepine, allopurinol, or abacavir row. Every note that named PGx
+        was therefore a dead end (#2020). This fails on the pre-fix panel.
+        """
+        covered = _cpic_guideline_drugs()
+        assert covered, "cpic_guidelines.csv parsed no drugs — guard would pass vacuously"
+
+        for pathway in panel_data["pathways"]:
+            for snp in pathway["snps"]:
+                cross = snp.get("cross_module")
+                if cross is None or cross["module"] != "pharmacogenomics":
+                    continue
+                drug = (cross.get("drug") or "").strip().lower()
+                if drug in covered:
+                    continue
+                note = cross["note"].lower()
+                for pointer in ("pgx", "pharmacogenomics"):
+                    assert pointer not in note, (
+                        f"{snp['rsid']} note points at {pointer!r} for {drug!r}, "
+                        f"which cpic_guidelines.csv does not cover"
+                    )
 
 
 # ── Histamine metabolism tests ──────────────────────────────────────────
@@ -821,19 +886,34 @@ class TestAtopicCrossModule:
 # ── Celiac nutrigenomics cross-links ────────────────────────────────────
 
 
-class TestCeliacNutrigenomicsCrossLink:
-    """Celiac DQ2/DQ8 should cross-link to Nutrigenomics."""
+class TestCeliacCrossLinkDropped:
+    """Celiac DQ2/DQ8 must NOT cross-link to Nutrigenomics (#2021).
+
+    The note promised "gluten-related nutrient interactions"; the Nutrigenomics
+    panel has zero occurrences of "gluten" and its nearest pathway is lactose —
+    a different intolerance. The celiac assessment the user needs is rendered
+    inline by this module, so the link added nothing but a dead end.
+    """
 
     CELIAC_RSIDS = {"rs2187668", "rs7454108"}
 
-    def test_celiac_nutrigenomics_cross_link(self, panel_data: dict) -> None:
+    def test_celiac_has_no_cross_module_link(self, panel_data: dict) -> None:
+        checked = 0
         for pathway in panel_data["pathways"]:
             for snp in pathway["snps"]:
                 if snp["rsid"] in self.CELIAC_RSIDS:
-                    assert "cross_module" in snp, (
-                        f"{snp['rsid']} missing nutrigenomics cross_module"
+                    checked += 1
+                    assert "cross_module" not in snp, (
+                        f"{snp['rsid']} still cross-links to {snp['cross_module'].get('module')!r}"
                     )
-                    assert snp["cross_module"]["module"] == "nutrigenomics"
+        assert checked == len(self.CELIAC_RSIDS), (
+            f"expected {len(self.CELIAC_RSIDS)} celiac proxies, inspected {checked}"
+        )
+
+    def test_celiac_combined_assessment_is_still_declared(self, panel_data: dict) -> None:
+        """The inline content that makes the dropped link unnecessary."""
+        combined = panel_data["special_calling"]["celiac_DQ2_DQ8_combined"]
+        assert set(combined["rsids"]) == self.CELIAC_RSIDS
 
 
 # ── Scoring rules tests ─────────────────────────────────────────────────

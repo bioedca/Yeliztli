@@ -1,0 +1,256 @@
+{
+  "_artifact_note": "Transcription of the Consensus MCP `search` response of 2026-08-10, not the raw bytes: the MCP transport returns the result into the conversation rather than as a file, so it cannot be byte-preserved. It is COMPLETE with respect to records \u2014 all 20 returned papers are listed in the order returned, with no selection \u2014 and each record keeps every field the response carried EXCEPT the abstract. Abstracts are publisher-copyrighted and this repository's evidence packets retain bibliographic metadata only (see data/science-evidence/2026-08-03-breast-prs77-availability-2028/queries.json, which records the same retention rule). The prose reading of these results is in evidence-ladder-2026-08-10.md.",
+  "service": "Consensus MCP, search",
+  "accessed": "2026-08-10",
+  "query": "SLC19A1 RFC1 rs1051266 A80G G80A polymorphism nomenclature reduced folate carrier",
+  "filters": "none",
+  "quota_fallback": "none required; service available",
+  "total_found": 20,
+  "returned": 20,
+  "abstracts_retained": false,
+  "results": [
+    {
+      "n": 1,
+      "title": "EFFECT OF SLC19A1 GENE POLYMORPHISM AND HAPLOTYPES ON IDIOPATHIC RECURRENT PREGNANCY LOSS AMONG WOMEN IN DUHOK CITY",
+      "first_author": "Hozheen Darweesh",
+      "year": 2025,
+      "citations": 1,
+      "journal": "Science Journal of University of Zakho",
+      "spelling_used": "80G>A",
+      "used_in_packet_claim": false
+    },
+    {
+      "n": 2,
+      "title": "The reduced folate carrier (SLC19A1) c.80G>A polymorphism is associated with red cell folate concentrations among women",
+      "first_author": "Anna Stanislawska-Sachadyn",
+      "year": 2009,
+      "citations": 61,
+      "journal": "Annals of human genetics",
+      "spelling_used": "c.80G>A",
+      "pmid": "19650776",
+      "doi": "10.1111/j.1469-1809.2009.00529.x",
+      "pmc": "PMC2812009",
+      "identifier_source": "resolved via PubMed, 2026-08-10",
+      "used_in_packet_claim": true
+    },
+    {
+      "n": 3,
+      "title": "Effect of reduced folate carrier gene polymorphism (G80A) on the methotrexate level in patients with rheumatoid arthritis and it's relation to the disease activity",
+      "first_author": "Rozheen Jaafar",
+      "year": 2026,
+      "citations": 0,
+      "journal": "Science Journal of University of Zakho",
+      "spelling_used": "G80A",
+      "used_in_packet_claim": false
+    },
+    {
+      "n": 4,
+      "title": "Comprehensive Systematic Review and Meta-Analysis of Solute Carrier Family 19, Member 1 (SLC19A1) G80A Gene Polymorphism and Its Association with Congenital Heart Defects in Fetal Development: Implications for Genetic Susceptibility and Prenatal Risk Assessment",
+      "first_author": "J. Hernandez",
+      "year": 2024,
+      "citations": 1,
+      "journal": "Unknown Journal",
+      "spelling_used": "G80A",
+      "used_in_packet_claim": false
+    },
+    {
+      "n": 5,
+      "title": "ASSOCIATION OF REDUCED FOLATE CARRIER ONE GENE 80AG POLYMORPHISM WITH NONSYNDROMIC CLEFT LIP AND PALATE",
+      "first_author": "E. Nordberg",
+      "year": 2013,
+      "citations": 0,
+      "journal": "Unknown Journal",
+      "spelling_used": "80AG",
+      "used_in_packet_claim": false
+    },
+    {
+      "n": 6,
+      "title": "Reduced folate carrier gene G80A polymorphism is associated with an increased risk of gastroesophageal cancers in a Chinese population.",
+      "first_author": "Li-na Wang",
+      "year": 2006,
+      "citations": 40,
+      "journal": "European journal of cancer",
+      "spelling_used": "G80A",
+      "pmid": "16962770",
+      "doi": "10.1016/j.ejca.2006.04.022",
+      "identifier_source": "resolved via PubMed, 2026-08-10",
+      "used_in_packet_claim": true
+    },
+    {
+      "n": 7,
+      "title": "The Reduced Folate Carrier (RFC-1) 80A>G Polymorphism and Maternal Risk of Having a Child with Down Syndrome: A Meta-Analysis",
+      "first_author": "F. Coppede",
+      "year": 2013,
+      "citations": 18,
+      "journal": "Nutrients",
+      "spelling_used": "c.80A>G",
+      "used_in_packet_claim": false
+    },
+    {
+      "n": 8,
+      "title": "A Pilot Study Evaluating the Contribution of SLC19A1 (RFC-1) 80G>A Polymorphism to Alzheimer's Disease in Italian Caucasians",
+      "first_author": "F. Coppede",
+      "year": 2014,
+      "citations": 2,
+      "journal": "BioMed Research International",
+      "spelling_used": "c.80G>A",
+      "used_in_packet_claim": false
+    },
+    {
+      "n": 9,
+      "title": "Reduced folate carrier 1 G80A polymorphism is correlated with elevated methotrexate-induced toxicity in pediatric acute lymphoblastic leukemia patients: a systemic meta-analysis",
+      "first_author": "Yihuan Yue",
+      "year": 2026,
+      "citations": 0,
+      "journal": "World Journal of Surgical Oncology",
+      "spelling_used": "G80A",
+      "pmid": "41673870",
+      "identifier_source": "resolved via PubMed, 2026-08-10",
+      "used_in_packet_claim": true
+    },
+    {
+      "n": 10,
+      "title": "The SLC19A1 80G>A polymorphism is not associated with male infertility",
+      "first_author": "M. Kurzawski",
+      "year": 2010,
+      "citations": 3,
+      "journal": "Biomarkers",
+      "spelling_used": "rs1051266:G>A, 80G>A",
+      "used_in_packet_claim": false
+    },
+    {
+      "n": 11,
+      "title": "Methotrexate recognition by the human reduced folate carrier SLC19A1",
+      "first_author": "N. Wright",
+      "year": 2022,
+      "citations": 51,
+      "journal": "Nature",
+      "spelling_used": "none (structural study)",
+      "used_in_packet_claim": false
+    },
+    {
+      "n": 12,
+      "title": "Reduced Folate Carrier 1 (RFC1/Slc19a1) Suppression Exacerbates Blood-Brain Barrier Breakdown in Experimental Ischemic Stroke in Adult Mice",
+      "first_author": "Gokce Gurler",
+      "year": 2024,
+      "citations": 0,
+      "journal": "bioRxiv",
+      "spelling_used": "none (mouse study)",
+      "used_in_packet_claim": false
+    },
+    {
+      "n": 13,
+      "title": "The association of reduced folate carrier 80G>A polymorphism to outcome in childhood acute lymphoblastic leukemia interacts with chromosome 21 copy number.",
+      "first_author": "Jannie Gregers",
+      "year": 2010,
+      "citations": 82,
+      "journal": "Blood",
+      "spelling_used": "80G>A",
+      "used_in_packet_claim": false
+    },
+    {
+      "n": 14,
+      "title": "The Roles of Reduced Folate Carrier-1 (RFC1) A80G (rs1051266) Polymorphism in Congenital Heart Disease: A Meta-Analysis",
+      "first_author": "K. Yi",
+      "year": 2021,
+      "citations": 9,
+      "journal": "Medical Science Monitor",
+      "spelling_used": "A80G",
+      "note": "PMID:33935279, one of the panel row's three citations",
+      "pmid": "33935279",
+      "doi": "10.12659/MSM.929911",
+      "pmc": "PMC8103792",
+      "identifier_source": "resolved via PubMed, 2026-08-10",
+      "used_in_packet_claim": true
+    },
+    {
+      "n": 15,
+      "title": "Novel immunodeficiency caused by homozygous mutation in SLC19A1 encoding the reduced folate carrier.",
+      "first_author": "Akira Shiraishi",
+      "year": 2023,
+      "citations": 1,
+      "journal": "Blood",
+      "spelling_used": "none (rare-variant study)",
+      "used_in_packet_claim": false
+    },
+    {
+      "n": 16,
+      "title": "Polymorphism of reduced folate carrier 1 (A80G) and non-syndromic cleft lip/palate: A systematic review and meta-analysis.",
+      "first_author": "M. Imani",
+      "year": 2019,
+      "citations": 15,
+      "journal": "Archives of oral biology",
+      "spelling_used": "A80G",
+      "used_in_packet_claim": false
+    },
+    {
+      "n": 17,
+      "title": "An Association Study of the SLC19A1 Gene Polymorphisms/Haplotypes with Idiopathic Recurrent Pregnancy Loss in an Iranian Population",
+      "first_author": "S. Mohtaram",
+      "year": 2016,
+      "citations": 9,
+      "journal": "Genetic Testing and Molecular Biomarkers",
+      "spelling_used": "80G>A",
+      "used_in_packet_claim": false
+    },
+    {
+      "n": 18,
+      "title": "Polymorphism G80A in the Reduced Folate Carrier Gene and its Relationship to Survival and Risk of Relapse in Acute Lymphoblastic Leukemia",
+      "first_author": "M. Leyva-Vazquez",
+      "year": 2012,
+      "citations": 19,
+      "journal": "Journal of Investigative Medicine",
+      "spelling_used": "G80A",
+      "used_in_packet_claim": false
+    },
+    {
+      "n": 19,
+      "title": "Influence of RFC1 c.80A>G Polymorphism on Methotrexate-Mediated Toxicity and Therapeutic Efficacy in Rheumatoid Arthritis: A Meta-analysis",
+      "first_author": "S. Naushad",
+      "year": 2021,
+      "citations": 8,
+      "journal": "Annals of Pharmacotherapy",
+      "spelling_used": "c.80A>G",
+      "pmid": "33749319",
+      "doi": "10.1177/10600280211002053",
+      "identifier_source": "resolved via PubMed, 2026-08-10",
+      "used_in_packet_claim": true
+    },
+    {
+      "n": 20,
+      "title": "Reduced folate carrier 1 (RFC1) gene polymorphisms among acute lymphoblastic leukemia patients",
+      "first_author": "Mashaer Taha Edris",
+      "year": 2025,
+      "citations": 1,
+      "journal": "Journal of Biological Research - Bollettino della Societa Italiana di Biologia Sperimentale",
+      "spelling_used": "G80A",
+      "used_in_packet_claim": false
+    }
+  ],
+  "spelling_tally": {
+    "_method": "Counted over the 17 of 20 records that name the polymorphism at all; the three structural/mouse/rare-variant papers (11, 12, 15) name no spelling.",
+    "G_first_frame": [
+      1,
+      2,
+      3,
+      4,
+      6,
+      8,
+      9,
+      10,
+      13,
+      17,
+      18,
+      20
+    ],
+    "A_first_frame": [
+      5,
+      7,
+      14,
+      16,
+      19
+    ],
+    "conclusion": "Both frames are in active peer-reviewed use for the same rsID, including in HGVS c. form."
+  },
+  "_identifiers_note": "Consensus returns its own paper URLs but no PMID or DOI, so identifiers were resolved separately via PubMed on 2026-08-10 for every record this packet actually cites in a claim (the nomenclature-split examples that are quoted, and the direction-of-effect conflict). Records marked used_in_packet_claim: false are retained for completeness of the result set - so a reviewer can see what was returned and not selected - and are not cited anywhere, so no identifier is asserted for them. Titles alone are not durable identifiers and are not treated as such."
+}

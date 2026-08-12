@@ -166,6 +166,49 @@ describe("WatchingSidebar", () => {
     expect(reorderedItems[0]).toHaveAttribute("aria-label", expect.stringContaining("rs222"))
   })
 
+  it("keeps the sort toggle's accessible name containing its visible text in both states", async () => {
+    // WCAG 2.5.3 Label in Name (#2027). The accessible name must CONTAIN the
+    // visible text, or voice control ("click Sort: Date watched") cannot reach
+    // the button. This regressed in BOTH states at once, because the label and
+    // the visible text branched on the same condition but returned opposite
+    // sort modes, so the two were never the same words.
+    const user = userEvent.setup()
+    mockWatchedVariants.mockReturnValue({
+      data: [
+        {
+          rsid: "rs111",
+          watched_at: "2026-03-02T12:00:00",
+          clinvar_significance_at_watch: "VUS",
+          clinvar_significance_current: "VUS",
+          notes: "",
+        },
+      ],
+      isLoading: false,
+    })
+    renderWithProviders(<WatchingSidebar sampleId={1} />)
+
+    const expectLabelInName = () => {
+      const toggle = screen.getByText(/^sort:/i).closest("button")
+      expect(toggle).not.toBeNull()
+      const visibleText = toggle!.textContent?.trim() ?? ""
+      expect(visibleText).not.toBe("")
+      // Resolve through the real accessible-name computation rather than
+      // reading aria-label back, so this still holds if the name later comes
+      // from another source. getAllByRole throws when nothing matches.
+      const reachableByVisibleText = screen.getAllByRole("button", {
+        name: (accessibleName) => accessibleName.includes(visibleText),
+      })
+      expect(reachableByVisibleText).toContain(toggle)
+      return visibleText
+    }
+
+    expect(expectLabelInName()).toBe("Sort: Date watched")
+
+    await user.click(screen.getByText(/^sort:/i))
+
+    expect(expectLabelInName()).toBe("Sort: Reclassified first")
+  })
+
   it("calls onSelectVariant when a watched variant is clicked", async () => {
     const user = userEvent.setup()
     const onSelect = vi.fn()

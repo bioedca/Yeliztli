@@ -1812,3 +1812,107 @@ def test_tamoxifen_refresh_locks_for_write_before_whole_matrix_fingerprint(
         if statement.startswith("UPDATE CPIC_GUIDELINES")
     )
     assert begin_index < fingerprint_index < update_index
+
+
+_CYP2C19_CLOPIDOGREL_URL = "https://cpicpgx.org/guidelines/guideline-for-clopidogrel-and-cyp2c19/"
+
+_LEGACY_CLOPIDOGREL_ROWS = [
+    {
+        "gene": "CYP2C19",
+        "drug": "clopidogrel",
+        "phenotype": "Intermediate Metabolizer",
+        "activity_score": None,
+        "recommendation": "Consider alternative antiplatelet therapy.",
+        "classification": "A",
+        "guideline_url": _CYP2C19_CLOPIDOGREL_URL,
+    },
+    {
+        "gene": "CYP2C19",
+        "drug": "clopidogrel",
+        "phenotype": "Poor Metabolizer",
+        "activity_score": None,
+        "recommendation": "Use alternative antiplatelet therapy.",
+        "classification": "A",
+        "guideline_url": _CYP2C19_CLOPIDOGREL_URL,
+    },
+]
+
+
+def _clopidogrel_recommendations(engine: sa.Engine) -> dict[str, str]:
+    with engine.connect() as conn:
+        return {
+            row.phenotype: row.recommendation
+            for row in conn.execute(
+                sa.select(cpic_guidelines.c.phenotype, cpic_guidelines.c.recommendation).where(
+                    cpic_guidelines.c.gene == "CYP2C19",
+                    cpic_guidelines.c.drug == "clopidogrel",
+                )
+            ).fetchall()
+        }
+
+
+def test_upgrades_the_legacy_cyp2c19_clopidogrel_pair_on_an_existing_database(
+    tmp_path: Path,
+) -> None:
+    """#2026: an already-installed reference.db must receive the corrected guidance.
+
+    Editing the bundled CSV does not reload an existing database, so without this
+    migration the correction reaches only fresh installs and every existing user
+    keeps the under-warning indefinitely. This exercises the loaded production
+    path rather than the CSV.
+    """
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'ref.db'}")
+    reference_metadata.create_all(engine, checkfirst=True)
+    with engine.begin() as conn:
+        conn.execute(cpic_guidelines.insert(), _LEGACY_CLOPIDOGREL_ROWS)
+
+    assert ensure_reference_schema_current(engine) is True
+
+    recommendations = _clopidogrel_recommendations(engine)
+    assert set(recommendations) == {"Intermediate Metabolizer", "Poor Metabolizer"}
+    for phenotype, recommendation in recommendations.items():
+        lowered = recommendation.lower()
+        assert "avoid" in lowered, (phenotype, recommendation)
+        assert "prasugrel" in lowered and "ticagrelor" in lowered, (phenotype, recommendation)
+        assert lowered != "consider alternative antiplatelet therapy."
+
+
+def test_customised_row_does_not_block_repair_of_its_legacy_companion(tmp_path: Path) -> None:
+    """A customised row is preserved, and must not shield its companion.
+
+    The first version of this migration fingerprinted the pair together, so a
+    customised Poor row made the whole comparison fail and left an Intermediate
+    row carrying the exact released under-warning unrepaired — the harmful one
+    stale because its companion had been edited. Each phenotype is now
+    fingerprinted independently, as the CYP2B6 repair already does.
+
+    Both directions are covered because the failure is asymmetric: leaving the
+    Intermediate row stale is the one that keeps under-warning a patient.
+    """
+    for customised_phenotype in ("Poor Metabolizer", "Intermediate Metabolizer"):
+        engine = sa.create_engine(f"sqlite:///{tmp_path / f'ref-{customised_phenotype[:4]}.db'}")
+        reference_metadata.create_all(engine, checkfirst=True)
+        rows = [dict(row) for row in _LEGACY_CLOPIDOGREL_ROWS]
+        for row in rows:
+            if row["phenotype"] == customised_phenotype:
+                row["recommendation"] = "Site-specific antiplatelet protocol applies."
+        with engine.begin() as conn:
+            conn.execute(cpic_guidelines.insert(), rows)
+
+        ensure_reference_schema_current(engine)
+
+        recommendations = _clopidogrel_recommendations(engine)
+        assert (
+            recommendations[customised_phenotype] == "Site-specific antiplatelet protocol applies."
+        ), f"{customised_phenotype} customisation was overwritten"
+
+        companion = next(
+            phenotype
+            for phenotype in ("Intermediate Metabolizer", "Poor Metabolizer")
+            if phenotype != customised_phenotype
+        )
+        repaired = recommendations[companion].lower()
+        assert "avoid" in repaired and "prasugrel" in repaired and "ticagrelor" in repaired, (
+            f"{companion} was left stale because {customised_phenotype} had been customised: "
+            f"{recommendations[companion]}"
+        )

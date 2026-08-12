@@ -18,6 +18,13 @@ import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
+from backend.analysis.cross_module_links import (
+    current_link,
+    current_recommendation,
+    panel_cross_module_links,
+    refreshed_finding_text,
+)
+from backend.analysis.gene_health import load_gene_health_panel
 from backend.analysis.pharmacogenomics import (
     is_patient_presentable_finding_payload,
     is_patient_presentable_response_payload,
@@ -220,18 +227,25 @@ def list_pathways(
             )
         )
 
-    # Cross-module findings
+    # Cross-module findings. Target and note are resolved against the panel that
+    # is loaded now, so a sample analysed before a link was corrected follows the
+    # correction on its next request rather than after a re-score (#2021).
     cross_findings = [f for f in all_findings if f["category"] == "cross_module"]
+    links = panel_cross_module_links(load_gene_health_panel())
     cross_items: list[CrossModuleItem] = []
     for cf in cross_findings:
         detail = cf["detail"]
+        link = current_link(links, cf)
+        if link is None:
+            # The panel no longer declares this handoff at all.
+            continue
         cross_items.append(
             CrossModuleItem(
                 rsid=cf["rsid"] or "",
                 gene=cf["gene_symbol"] or "",
                 source_module=detail.get("source_module", "gene_health"),
-                target_module=detail.get("target_module", ""),
-                finding_text=cf["finding_text"] or "",
+                target_module=link["module"],
+                finding_text=refreshed_finding_text(cf, link),
                 evidence_level=cf["evidence_level"] if cf["evidence_level"] is not None else 1,
                 pmids=cf["pmids"],
             )
@@ -303,7 +317,11 @@ def pathway_detail(
         rsid = sd.get("rsid", "")
         snp_finding = snp_findings_map.get(rsid, {})
         snp_finding_detail = snp_finding.get("detail", {})
-        recommendation = snp_finding_detail.get("recommendation")
+        # Panel prose persisted at scoring time; serve the panel that is
+        # loaded so a corrected recommendation does not wait for a re-score.
+        recommendation = current_recommendation(
+            "gene_health", rsid, snp_finding_detail.get("recommendation")
+        )
         pmids = snp_finding.get("pmids", [])
 
         snp_detail = SNPDetail(

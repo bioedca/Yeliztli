@@ -1,0 +1,35 @@
+{
+  "_source": "bundles/vep_bundle.db as committed at origin/main 26cf641e (in-repo, read-only query; no sample or genotype data involved)",
+  "_why_retained": "This artifact CONTRADICTS the fix and is kept as the record of that contradiction. It reports p.Arg27His - the opposite polarity to Ensembl GRCh37 REST and NCBI dbSNP, both of which put the GRCh37 reference at 80A/His27. It is not treated as authority anywhere in this packet.",
+  "_why_it_is_wrong": {
+    "observation": "every single-base row orders its two alleles alphabetically instead of reference-first",
+    "single_base_rows": 102254,
+    "rows_with_ref_alphabetically_before_alt": 102254,
+    "expected_if_reference_first": "roughly half",
+    "consequence": "hgvs_protein is inverted for the affected loci; rs1051266, PON1 rs662 and KCNJ11 rs5219 are all inverted relative to tests/fixtures/seed_csvs/vep_seed.csv"
+  },
+  "bundle_metadata": {
+    "ensembl_version": "112",
+    "build_date": "2026-04-03",
+    "variant_count": "102254",
+    "schema_version": "1"
+  },
+  "rows": [
+    {
+      "rsid": "rs1051266",
+      "chrom": "21",
+      "pos": 46957794,
+      "ref": "C",
+      "alt": "T",
+      "gene_symbol": "SLC19A1",
+      "transcript_id": "ENST00000311124",
+      "consequence": "missense_variant",
+      "hgvs_coding": null,
+      "hgvs_protein": "p.Arg27His",
+      "strand": "-",
+      "exon_number": 2,
+      "intron_number": null,
+      "mane_select": 0
+    }
+  ]
+}

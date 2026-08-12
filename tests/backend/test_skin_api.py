@@ -801,3 +801,73 @@ class TestRunScoring:
         finally:
             engine.dispose()
         assert rows == count, f"expected {count} skin findings, found {rows} (duplicates?)"
+
+
+# ── Legacy VDR cross-module wording (#2021) ───────────────────────────────
+
+LEGACY_VDR_NOTE = (
+    "VDR FokI is shared with the Nutrigenomics vitamin D pathway. "
+    "See Nutrigenomics module for dietary vitamin D considerations."
+)
+
+LEGACY_VDR_CROSS_MODULE_FINDING = {
+    "module": "skin",
+    "category": "cross_module",
+    "evidence_level": 2,
+    "gene_symbol": "VDR",
+    "rsid": "rs2228570",
+    "finding_text": f"VDR FokI (M1T) (CT) — {LEGACY_VDR_NOTE}",
+    "pathway": None,
+    "pathway_level": None,
+    "pmid_citations": json.dumps([]),
+    "detail_json": json.dumps(
+        {
+            "source_module": "skin",
+            "target_module": "nutrigenomics",
+            "cross_module_note": LEGACY_VDR_NOTE,
+        }
+    ),
+}
+
+
+@pytest.fixture
+def client_legacy_vdr_cross_module(
+    tmp_data_dir: Path,
+) -> Generator[tuple[TestClient, int], None, None]:
+    """A sample scored before the VDR notes were corrected."""
+    yield from _setup_client(
+        tmp_data_dir, PATHWAY_SUMMARY_FINDINGS + [LEGACY_VDR_CROSS_MODULE_FINDING]
+    )
+
+
+class TestLegacyVdrCrossModuleWording:
+    """The Skin page serves the panel's current note, not the stored copy.
+
+    The retired wording claimed VDR FokI was "shared with" the Nutrigenomics
+    vitamin D pathway, which scores GC and CYP2R1 only. Without read-time
+    resolution the correction would reach an existing sample only after a
+    manual Skin re-run, since panel edits do not make a sample stale.
+    """
+
+    def _cross(self, client: tuple[TestClient, int]) -> dict:
+        tc, sample_id = client
+        resp = tc.get(f"/api/analysis/skin/pathways?sample_id={sample_id}")
+        assert resp.status_code == 200
+        cross = resp.json()["cross_module"]
+        assert cross, "VDR cross-module card expected"
+        return cross[0]
+
+    def test_retired_wording_is_replaced(
+        self, client_legacy_vdr_cross_module: tuple[TestClient, int]
+    ) -> None:
+        text = self._cross(client_legacy_vdr_cross_module)["finding_text"]
+        assert "shared with the Nutrigenomics vitamin D pathway" not in text
+        assert "not itself scored in Nutrigenomics" in text
+        # The sample-specific prefix is preserved verbatim.
+        assert text.startswith("VDR FokI (M1T) (CT) — ")
+
+    def test_target_module_is_preserved(
+        self, client_legacy_vdr_cross_module: tuple[TestClient, int]
+    ) -> None:
+        """This link is corrected, not retargeted — it still points at Nutrigenomics."""
+        assert self._cross(client_legacy_vdr_cross_module)["target_module"] == "nutrigenomics"

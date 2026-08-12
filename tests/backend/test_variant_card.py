@@ -231,6 +231,57 @@ class TestLoadSingleFinding:
         assert result["module"] == "cancer"
         assert result["evidence_level"] == 4
 
+    def _insert_legacy_roh(self, sample_engine: sa.Engine, snps_used: int) -> int:
+        # A single mapping, not a one-element list: a list takes executemany
+        # semantics, where inserted_primary_key is not populated.
+        with sample_engine.begin() as conn:
+            result = conn.execute(
+                sa.insert(findings),
+                {
+                    "module": "roh",
+                    "category": "autozygosity",
+                    "evidence_level": 1,
+                    "finding_text": (
+                        "No long runs of homozygosity were detected (FROH ≈ 0). "
+                        "This is the typical result."
+                    ),
+                    "detail_json": json.dumps(
+                        {"froh": 0.0, "n_segments": 0, "autosomal_snps_used": snps_used}
+                    ),
+                },
+            )
+        return int(result.inserted_primary_key[0])
+
+    def test_legacy_roh_card_does_not_claim_a_typical_result(
+        self, sample_with_findings: tuple
+    ) -> None:
+        # #2177 — a shareable card is a user-visible render path, so a pre-gate
+        # low-marker row must not carry the withheld negative onto one.
+        _, sample_engine, _ = sample_with_findings
+        finding_id = self._insert_legacy_roh(sample_engine, snps_used=30)
+
+        result = _load_single_finding(sample_engine, finding_id=finding_id)
+
+        assert "typical result" not in result["finding_text"].lower()
+        assert "not assessed" in result["finding_text"].lower()
+
+    def test_evaluable_roh_card_keeps_its_text(self, sample_with_findings: tuple) -> None:
+        # Counterpart control: a well-covered ROH negative still renders. The
+        # sample must actually carry an eligible region, since the legacy rule
+        # is re-derived from its markers rather than trusting the stored count.
+        from tests.backend._roh_fixtures import (
+            ELIGIBLE_MARKER_COUNT,
+            seed_segment_eligible_markers,
+        )
+
+        _, sample_engine, _ = sample_with_findings
+        seed_segment_eligible_markers(sample_engine)
+        finding_id = self._insert_legacy_roh(sample_engine, snps_used=ELIGIBLE_MARKER_COUNT)
+
+        result = _load_single_finding(sample_engine, finding_id=finding_id)
+
+        assert "typical result" in result["finding_text"].lower()
+
     def test_loads_pgx_finding(self, sample_with_findings: tuple) -> None:
         _, sample_engine, _ = sample_with_findings
         result = _load_single_finding(sample_engine, finding_id=2)
@@ -382,6 +433,15 @@ class TestVariantCardHtml:
         assert "Variant Evidence Card" in html
         assert "Test Patient" in html
         assert "BRCA1" in html
+        # #2025: the card footer carries the running app version, rendered - not
+        # the module constant, which would stay green if the renderer or the
+        # template stopped emitting it.
+        from backend.main import VERSION as API_VERSION
+        from backend.version import app_version
+
+        assert f"Yeliztli v{app_version()}" in html
+        assert f"Yeliztli v{API_VERSION}" in html
+        assert "Yeliztli v0.1.0" not in html
         assert "rs80357906" in html
         assert "Pathogenic variant for Hereditary Breast Cancer" in html
 
@@ -965,3 +1025,76 @@ class TestDisclosureGate:
         )
         assert resp.status_code == 200
         assert "APOE" in resp.text
+
+
+# ── Legacy cross-module links on shareable cards (#2021) ──────────────────
+
+
+class TestLegacyCrossModuleCards:
+    """A card is exported by finding_id, so a retired link stays reachable.
+
+    The full report drops a retired cross-module row by omitting it; a
+    single-finding export has to refuse it, and with the same not-found error
+    the disclosure gate raises so the no-leak posture is unchanged.
+    """
+
+    def _insert_cross_module(
+        self, sample_engine: sa.Engine, *, module: str, rsid: str, gene: str, note: str
+    ) -> int:
+        with sample_engine.begin() as conn:
+            return conn.execute(
+                findings.insert().values(
+                    module=module,
+                    category="cross_module",
+                    evidence_level=3,
+                    gene_symbol=gene,
+                    rsid=rsid,
+                    finding_text=f"{gene} card (AT) — {note}",
+                    detail_json=json.dumps(
+                        {
+                            "source_module": module,
+                            "target_module": "nutrigenomics",
+                            "cross_module_note": note,
+                        }
+                    ),
+                )
+            ).inserted_primary_key[0]
+
+    def test_retargeted_card_is_refreshed(self, sample_with_findings: tuple) -> None:
+        _, sample_engine, _ = sample_with_findings
+        finding_id = self._insert_cross_module(
+            sample_engine,
+            module="gene_health",
+            rsid="rs9939609",
+            gene="FTO",
+            note=(
+                "FTO rs9939609 influences appetite regulation and macronutrient "
+                "metabolism. See Nutrigenomics for dietary recommendations."
+            ),
+        )
+
+        result = _load_single_finding(sample_engine, finding_id=finding_id)
+
+        assert "See Nutrigenomics for dietary recommendations" not in result["finding_text"]
+        assert "Metabolic module" in result["finding_text"]
+
+    def test_retired_card_is_refused(self, sample_with_findings: tuple) -> None:
+        _, sample_engine, _ = sample_with_findings
+        finding_id = self._insert_cross_module(
+            sample_engine,
+            module="allergy",
+            rsid="rs2187668",
+            gene="HLA-DQA1",
+            note=(
+                "Celiac-related HLA-DQ2 finding may affect dietary considerations. "
+                "See Nutrigenomics for gluten-related nutrient interactions."
+            ),
+        )
+
+        with pytest.raises(ValueError, match="not found"):
+            _load_single_finding(sample_engine, finding_id=finding_id)
+
+    def test_unrelated_card_still_loads(self, sample_with_findings: tuple) -> None:
+        """Control: refusing a retired link must not break ordinary cards."""
+        _, sample_engine, _ = sample_with_findings
+        assert _load_single_finding(sample_engine, finding_id=1)["module"] == "cancer"

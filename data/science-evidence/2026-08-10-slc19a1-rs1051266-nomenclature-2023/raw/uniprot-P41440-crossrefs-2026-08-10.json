@@ -1,0 +1,681 @@
+{
+    "entryType": "UniProtKB reviewed (Swiss-Prot)",
+    "primaryAccession": "P41440",
+    "proteinDescription": {
+        "recommendedName": {
+            "fullName": {
+                "evidences": [
+                    {
+                        "evidenceCode": "ECO:0000305"
+                    }
+                ],
+                "value": "Reduced folate transporter"
+            },
+            "shortNames": [
+                {
+                    "evidences": [
+                        {
+                            "evidenceCode": "ECO:0000303",
+                            "source": "PubMed",
+                            "id": "7826387"
+                        }
+                    ],
+                    "value": "FOLT"
+                }
+            ]
+        },
+        "alternativeNames": [
+            {
+                "fullName": {
+                    "evidences": [
+                        {
+                            "evidenceCode": "ECO:0000305",
+                            "source": "PubMed",
+                            "id": "31126740"
+                        },
+                        {
+                            "evidenceCode": "ECO:0000305",
+                            "source": "PubMed",
+                            "id": "31511694"
+                        }
+                    ],
+                    "value": "Cyclic dinucleotide:anion antiporter SLC19A1"
+                }
+            },
+            {
+                "fullName": {
+                    "evidences": [
+                        {
+                            "evidenceCode": "ECO:0000305",
+                            "source": "PubMed",
+                            "id": "10787414"
+                        },
+                        {
+                            "evidenceCode": "ECO:0000305",
+                            "source": "PubMed",
+                            "id": "14609557"
+                        },
+                        {
+                            "evidenceCode": "ECO:0000305",
+                            "source": "PubMed",
+                            "id": "22554803"
+                        }
+                    ],
+                    "value": "Folate:anion antiporter SLC19A1"
+                }
+            },
+            {
+                "fullName": {
+                    "evidences": [
+                        {
+                            "evidenceCode": "ECO:0000303",
+                            "source": "PubMed",
+                            "id": "9041240"
+                        }
+                    ],
+                    "value": "Intestinal folate carrier 1"
+                },
+                "shortNames": [
+                    {
+                        "evidences": [
+                            {
+                                "evidenceCode": "ECO:0000303",
+                                "source": "PubMed",
+                                "id": "9041240"
+                            }
+                        ],
+                        "value": "IFC-1"
+                    }
+                ]
+            },
+            {
+                "fullName": {
+                    "evidences": [
+                        {
+                            "evidenceCode": "ECO:0000303",
+                            "source": "PubMed",
+                            "id": "7826387"
+                        }
+                    ],
+                    "value": "Placental folate transporter"
+                }
+            },
+            {
+                "fullName": {
+                    "evidences": [
+                        {
+                            "evidenceCode": "ECO:0000303",
+                            "source": "PubMed",
+                            "id": "36071163"
+                        },
+                        {
+                            "evidenceCode": "ECO:0000303",
+                            "source": "PubMed",
+                            "id": "7615551"
+                        }
+                    ],
+                    "value": "Reduced folate carrier protein"
+                },
+                "shortNames": [
+                    {
+                        "evidences": [
+                            {
+                                "evidenceCode": "ECO:0000303",
+                                "source": "PubMed",
+                                "id": "22554803"
+                            },
+                            {
+                                "evidenceCode": "ECO:0000303",
+                                "source": "PubMed",
+                                "id": "7615551"
+                            }
+                        ],
+                        "value": "RFC"
+                    },
+                    {
+                        "evidences": [
+                            {
+                                "evidenceCode": "ECO:0000303",
+                                "source": "PubMed",
+                                "id": "16115875"
+                            },
+                            {
+                                "evidenceCode": "ECO:0000303",
+                                "source": "PubMed",
+                                "id": "36071163"
+                            }
+                        ],
+                        "value": "hRFC"
+                    }
+                ]
+            },
+            {
+                "fullName": {
+                    "evidences": [
+                        {
+                            "evidenceCode": "ECO:0000303",
+                            "source": "PubMed",
+                            "id": "10787414"
+                        }
+                    ],
+                    "value": "Reduced folate transporter 1"
+                },
+                "shortNames": [
+                    {
+                        "evidences": [
+                            {
+                                "evidenceCode": "ECO:0000303",
+                                "source": "PubMed",
+                                "id": "10787414"
+                            }
+                        ],
+                        "value": "RFT-1"
+                    }
+                ]
+            },
+            {
+                "fullName": {
+                    "evidences": [
+                        {
+                            "evidenceCode": "ECO:0000305"
+                        }
+                    ],
+                    "value": "Solute carrier family 19 member 1"
+                },
+                "shortNames": [
+                    {
+                        "evidences": [
+                            {
+                                "evidenceCode": "ECO:0000303",
+                                "source": "PubMed",
+                                "id": "31511694"
+                            }
+                        ],
+                        "value": "hSLC19A1"
+                    }
+                ]
+            }
+        ]
+    },
+    "comments": [
+        {
+            "commentType": "SEQUENCE CAUTION",
+            "sequenceCautionType": "Erroneous gene model prediction",
+            "sequence": "CAB90483.1",
+            "evidences": [
+                {
+                    "evidenceCode": "ECO:0000305"
+                }
+            ]
+        }
+    ],
+    "uniProtKBCrossReferences": [
+        {
+            "database": "EMBL",
+            "id": "U15939",
+            "properties": [
+                {
+                    "key": "ProteinId",
+                    "value": "AAA98442.1"
+                },
+                {
+                    "key": "Status",
+                    "value": "-"
+                },
+                {
+                    "key": "MoleculeType",
+                    "value": "mRNA"
+                }
+            ]
+        },
+        {
+            "database": "EMBL",
+            "id": "U19720",
+            "properties": [
+                {
+                    "key": "ProteinId",
+                    "value": "AAC50180.1"
+                },
+                {
+                    "key": "Status",
+                    "value": "-"
+                },
+                {
+                    "key": "MoleculeType",
+                    "value": "mRNA"
+                }
+            ]
+        },
+        {
+            "database": "EMBL",
+            "id": "S78996",
+            "properties": [
+                {
+                    "key": "ProteinId",
+                    "value": "AAB35058.1"
+                },
+                {
+                    "key": "Status",
+                    "value": "-"
+                },
+                {
+                    "key": "MoleculeType",
+                    "value": "mRNA"
+                }
+            ]
+        },
+        {
+            "database": "EMBL",
+            "id": "U17566",
+            "properties": [
+                {
+                    "key": "ProteinId",
+                    "value": "AAA74914.1"
+                },
+                {
+                    "key": "Status",
+                    "value": "-"
+                },
+                {
+                    "key": "MoleculeType",
+                    "value": "mRNA"
+                }
+            ]
+        },
+        {
+            "database": "EMBL",
+            "id": "U92873",
+            "properties": [
+                {
+                    "key": "ProteinId",
+                    "value": "AAC26162.1"
+                },
+                {
+                    "key": "Status",
+                    "value": "-"
+                },
+                {
+                    "key": "MoleculeType",
+                    "value": "Genomic_DNA"
+                }
+            ]
+        },
+        {
+            "database": "EMBL",
+            "id": "U92869",
+            "properties": [
+                {
+                    "key": "ProteinId",
+                    "value": "AAC26162.1"
+                },
+                {
+                    "key": "Status",
+                    "value": "JOINED"
+                },
+                {
+                    "key": "MoleculeType",
+                    "value": "Genomic_DNA"
+                }
+            ]
+        },
+        {
+            "database": "EMBL",
+            "id": "U92870",
+            "properties": [
+                {
+                    "key": "ProteinId",
+                    "value": "AAC26162.1"
+                },
+                {
+                    "key": "Status",
+                    "value": "JOINED"
+                },
+                {
+                    "key": "MoleculeType",
+                    "value": "Genomic_DNA"
+                }
+            ]
+        },
+        {
+            "database": "EMBL",
+            "id": "U92871",
+            "properties": [
+                {
+                    "key": "ProteinId",
+                    "value": "AAC26162.1"
+                },
+                {
+                    "key": "Status",
+                    "value": "JOINED"
+                },
+                {
+                    "key": "MoleculeType",
+                    "value": "Genomic_DNA"
+                }
+            ]
+        },
+        {
+            "database": "EMBL",
+            "id": "U92872",
+            "properties": [
+                {
+                    "key": "ProteinId",
+                    "value": "AAC26162.1"
+                },
+                {
+                    "key": "Status",
+                    "value": "JOINED"
+                },
+                {
+                    "key": "MoleculeType",
+                    "value": "Genomic_DNA"
+                }
+            ]
+        },
+        {
+            "database": "EMBL",
+            "id": "AF004354",
+            "properties": [
+                {
+                    "key": "ProteinId",
+                    "value": "AAB61417.1"
+                },
+                {
+                    "key": "Status",
+                    "value": "-"
+                },
+                {
+                    "key": "MoleculeType",
+                    "value": "mRNA"
+                }
+            ]
+        },
+        {
+            "database": "EMBL",
+            "id": "AK303168",
+            "properties": [
+                {
+                    "key": "ProteinId",
+                    "value": "BAH13909.1"
+                },
+                {
+                    "key": "Status",
+                    "value": "-"
+                },
+                {
+                    "key": "MoleculeType",
+                    "value": "mRNA"
+                }
+            ]
+        },
+        {
+            "database": "EMBL",
+            "id": "AK313125",
+            "properties": [
+                {
+                    "key": "ProteinId",
+                    "value": "BAG35945.1"
+                },
+                {
+                    "key": "Status",
+                    "value": "-"
+                },
+                {
+                    "key": "MoleculeType",
+                    "value": "mRNA"
+                }
+            ]
+        },
+        {
+            "database": "EMBL",
+            "id": "AL163302",
+            "properties": [
+                {
+                    "key": "ProteinId",
+                    "value": "CAB90483.1"
+                },
+                {
+                    "key": "Status",
+                    "value": "ALT_SEQ"
+                },
+                {
+                    "key": "MoleculeType",
+                    "value": "Genomic_DNA"
+                }
+            ]
+        },
+        {
+            "database": "EMBL",
+            "id": "BX322561",
+            "properties": [
+                {
+                    "key": "ProteinId",
+                    "value": "-"
+                },
+                {
+                    "key": "Status",
+                    "value": "NOT_ANNOTATED_CDS"
+                },
+                {
+                    "key": "MoleculeType",
+                    "value": "Genomic_DNA"
+                }
+            ]
+        },
+        {
+            "database": "EMBL",
+            "id": "CH471079",
+            "properties": [
+                {
+                    "key": "ProteinId",
+                    "value": "EAX09331.1"
+                },
+                {
+                    "key": "Status",
+                    "value": "-"
+                },
+                {
+                    "key": "MoleculeType",
+                    "value": "Genomic_DNA"
+                }
+            ]
+        },
+        {
+            "database": "EMBL",
+            "id": "BC003068",
+            "properties": [
+                {
+                    "key": "ProteinId",
+                    "value": "AAH03068.1"
+                },
+                {
+                    "key": "Status",
+                    "value": "-"
+                },
+                {
+                    "key": "MoleculeType",
+                    "value": "mRNA"
+                }
+            ]
+        },
+        {
+            "database": "RefSeq",
+            "id": "NP_001192135.1",
+            "properties": [
+                {
+                    "key": "NucleotideSequenceId",
+                    "value": "NM_001205206.4"
+                }
+            ],
+            "isoformId": "P41440-3"
+        },
+        {
+            "database": "RefSeq",
+            "id": "NP_001192136.1",
+            "properties": [
+                {
+                    "key": "NucleotideSequenceId",
+                    "value": "NM_001205207.3"
+                }
+            ],
+            "isoformId": "P41440-2"
+        },
+        {
+            "database": "RefSeq",
+            "id": "NP_001339440.1",
+            "properties": [
+                {
+                    "key": "NucleotideSequenceId",
+                    "value": "NM_001352511.3"
+                }
+            ],
+            "isoformId": "P41440-3"
+        },
+        {
+            "database": "RefSeq",
+            "id": "NP_001339441.1",
+            "properties": [
+                {
+                    "key": "NucleotideSequenceId",
+                    "value": "NM_001352512.2"
+                }
+            ],
+            "isoformId": "P41440-1"
+        },
+        {
+            "database": "RefSeq",
+            "id": "NP_919231.1",
+            "properties": [
+                {
+                    "key": "NucleotideSequenceId",
+                    "value": "NM_194255.4"
+                }
+            ],
+            "isoformId": "P41440-1"
+        },
+        {
+            "database": "RefSeq",
+            "id": "XP_011528002.1",
+            "properties": [
+                {
+                    "key": "NucleotideSequenceId",
+                    "value": "XM_011529700.3"
+                }
+            ],
+            "isoformId": "P41440-1"
+        },
+        {
+            "database": "RefSeq",
+            "id": "XP_011528004.1",
+            "properties": [
+                {
+                    "key": "NucleotideSequenceId",
+                    "value": "XM_011529702.3"
+                }
+            ],
+            "isoformId": "P41440-1"
+        },
+        {
+            "database": "RefSeq",
+            "id": "XP_011528005.1",
+            "properties": [
+                {
+                    "key": "NucleotideSequenceId",
+                    "value": "XM_011529703.3"
+                }
+            ],
+            "isoformId": "P41440-1"
+        },
+        {
+            "database": "RefSeq",
+            "id": "XP_016883932.2",
+            "properties": [
+                {
+                    "key": "NucleotideSequenceId",
+                    "value": "XM_017028443.2"
+                }
+            ],
+            "isoformId": "P41440-1"
+        },
+        {
+            "database": "RefSeq",
+            "id": "XP_047296914.1",
+            "properties": [
+                {
+                    "key": "NucleotideSequenceId",
+                    "value": "XM_047440958.1"
+                }
+            ],
+            "isoformId": "P41440-1"
+        },
+        {
+            "database": "RefSeq",
+            "id": "XP_047296916.1",
+            "properties": [
+                {
+                    "key": "NucleotideSequenceId",
+                    "value": "XM_047440960.1"
+                }
+            ],
+            "isoformId": "P41440-3"
+        },
+        {
+            "database": "RefSeq",
+            "id": "XP_054189291.1",
+            "properties": [
+                {
+                    "key": "NucleotideSequenceId",
+                    "value": "XM_054333316.1"
+                }
+            ],
+            "isoformId": "P41440-1"
+        },
+        {
+            "database": "RefSeq",
+            "id": "XP_054189292.1",
+            "properties": [
+                {
+                    "key": "NucleotideSequenceId",
+                    "value": "XM_054333317.1"
+                }
+            ],
+            "isoformId": "P41440-1"
+        },
+        {
+            "database": "RefSeq",
+            "id": "XP_054189293.1",
+            "properties": [
+                {
+                    "key": "NucleotideSequenceId",
+                    "value": "XM_054333318.1"
+                }
+            ],
+            "isoformId": "P41440-1"
+        },
+        {
+            "database": "RefSeq",
+            "id": "XP_054189296.1",
+            "properties": [
+                {
+                    "key": "NucleotideSequenceId",
+                    "value": "XM_054333321.1"
+                }
+            ],
+            "isoformId": "P41440-3"
+        },
+        {
+            "database": "RefSeq",
+            "id": "XP_054189298.1",
+            "properties": [
+                {
+                    "key": "NucleotideSequenceId",
+                    "value": "XM_054333323.1"
+                }
+            ],
+            "isoformId": "P41440-1"
+        }
+    ],
+    "extraAttributes": {
+        "uniParcId": "UPI000012AA0F"
+    }
+}
