@@ -315,11 +315,7 @@
           },
           "evidence_level": 3,
           "pmids": ["18311140", "18509540", "20190752"],
-          "recommendation_text": "HLA-DQ2 is present in ~90–95% of celiac disease patients. This proxy (r²=0.997 in European cohorts) indicates genetic susceptibility but not diagnosis. A negative DQ2 proxy alone is not exclusionary because DQ8-positive celiac susceptibility remains possible; use the combined DQ2/DQ8 assessment for rule-out framing. Symptomatic individuals should pursue serological testing (tTG-IgA) and consider gastroenterology referral.",
-          "cross_module": {
-            "module": "nutrigenomics",
-            "note": "Celiac-related HLA-DQ2 finding may affect dietary considerations. See Nutrigenomics for gluten-related nutrient interactions."
-          }
+          "recommendation_text": "HLA-DQ2 is present in ~90–95% of celiac disease patients. This proxy (r²=0.997 in European cohorts) indicates genetic susceptibility but not diagnosis. A negative DQ2 proxy alone is not exclusionary because DQ8-positive celiac susceptibility remains possible; use the combined DQ2/DQ8 assessment for rule-out framing. Symptomatic individuals should pursue serological testing (tTG-IgA) and consider gastroenterology referral."
         },
         {
           "rsid": "rs7454108",
@@ -354,11 +350,7 @@
           },
           "evidence_level": 3,
           "pmids": ["18509540", "20190752"],
-          "recommendation_text": "HLA-DQ8 is present in ~5–10% of celiac disease patients who are DQ2-negative. Proxy r²=0.935 in EUR. Combined DQ2/DQ8 testing provides the highest negative predictive value for celiac disease exclusion. Symptomatic individuals should pursue serological confirmation.",
-          "cross_module": {
-            "module": "nutrigenomics",
-            "note": "Celiac-related HLA-DQ8 finding may affect dietary considerations. See Nutrigenomics for gluten-related nutrient interactions."
-          }
+          "recommendation_text": "HLA-DQ8 is present in ~5–10% of celiac disease patients who are DQ2-negative. Proxy r²=0.935 in EUR. Combined DQ2/DQ8 testing provides the highest negative predictive value for celiac disease exclusion. Symptomatic individuals should pursue serological confirmation."
         }
       ]
     },

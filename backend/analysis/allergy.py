@@ -9,7 +9,8 @@ Implements P3-60:
   - Celiac DQ2/DQ8 combined assessment at ★★★☆ with NPV >99% framing.
   - Histamine metabolism at ★☆☆☆ visually de-emphasized.
   - Cross-links to PGx (drug hypersensitivity), Skin (IL13/atopic dermatitis),
-    and Nutrigenomics (celiac/gluten).
+    Celiac DQ2/DQ8 no longer cross-links: Nutrigenomics has no gluten or
+    celiac content, and the combined assessment is rendered inline (#2021).
 
 Panel definition lives in ``backend/data/panels/allergy_panel.json`` (P3-59).
 
@@ -53,6 +54,7 @@ from backend.analysis.pathway_coverage import (
     format_not_assessed,
     missing_rsid_groups,
     pathway_summary_text,
+    variant_label,
 )
 from backend.analysis.pharmacogenomics import is_prescribing_alert_withheld
 from backend.analysis.zygosity import is_no_call
@@ -817,7 +819,6 @@ def _generate_cross_module_findings(
       - HLA-A*31:01 (rs1061235) → Pharmacogenomics (carbamazepine)
       - HLA-B*58:01 (rs9263726) → Pharmacogenomics (allopurinol)
       - IL13 (rs20541) → Skin (atopic dermatitis)
-      - Celiac DQ2/DQ8 → Nutrigenomics (gluten)
 
     The finding is always emitted — it is the vehicle for the drug
     hypersensitivity alert — and records the drug the handoff names. Whether
@@ -868,7 +869,8 @@ def _generate_cross_module_findings(
                 )
             else:
                 cross_text = (
-                    f"{snp_result.gene} {snp_result.variant_name} ({snp_result.genotype}) — {note}"
+                    f"{variant_label(snp_result.gene, snp_result.variant_name)} "
+                    f"({snp_result.genotype}) — {note}"
                 )
 
             # Deduplicate at allele/drug-context granularity, not gene-only:
@@ -1259,7 +1261,7 @@ def store_allergy_findings(
       - Individual SNP findings for non-Standard called SNPs.
       - 1 celiac DQ2/DQ8 combined assessment finding.
       - 1 histamine metabolism combined assessment finding.
-      - Cross-module reference findings (PGx, Skin, Nutrigenomics).
+      - Cross-module reference findings (PGx, Skin).
 
     Also stores panel coverage tracking rows.
 

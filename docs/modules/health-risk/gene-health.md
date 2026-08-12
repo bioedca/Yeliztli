@@ -22,7 +22,7 @@ About **40 SNPs** across four pathways:
 
 A **level** for each pathway — *Elevated*, *Moderate*, or *Standard* — plus the individual SNP
 calls behind it. Where a SNP overlaps another module (APOE, Allergy, Methylation,
-Nutrigenomics, Traits), you'll see a cross-reference.
+Metabolic, Traits), you'll see a cross-reference.
 
 ## Good to know
 

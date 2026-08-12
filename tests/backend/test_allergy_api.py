@@ -765,10 +765,16 @@ class TestPGxHandoffAvailability:
         _seed_guideline(ref_engine, "HLA-B", "abacavir")
         assert self._cross_module(client)["pgx_guidance_available"] is True
 
-    def test_unknown_rsid_falls_back_to_the_recorded_drug(
+    def test_a_link_the_panel_retired_is_not_rendered(
         self, _env: tuple[sa.Engine, sa.Engine], monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """A finding for an rsid the panel no longer declares uses its own record."""
+        """A stored card whose link the panel dropped must not be served.
+
+        Supersedes the earlier fallback-to-recorded-drug behaviour: the panel is
+        the source of truth for whether a handoff exists at all, so retiring one
+        (as #2021 did for the celiac proxies) has to take effect for samples
+        already analysed, not only for the next re-score.
+        """
         sample_engine, ref_engine = _env
         self._make_hla_callable(monkeypatch)
         _seed_guideline(ref_engine, "HLA-B", "abacavir")
@@ -777,7 +783,9 @@ class TestPGxHandoffAvailability:
             sample_engine,
             [*PATHWAY_SUMMARY_FINDINGS, retired, _pgx_prescribing_alert("abacavir")],
         )
-        assert self._cross_module(client)["pgx_guidance_available"] is True
+        resp = client.get("/api/analysis/allergy/pathways?sample_id=1")
+        assert resp.status_code == 200
+        assert resp.json()["cross_module"] == []
 
     def test_capability_added_after_scoring_needs_no_allergy_rescore(
         self, _env: tuple[sa.Engine, sa.Engine], monkeypatch: pytest.MonkeyPatch

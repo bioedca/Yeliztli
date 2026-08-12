@@ -17,9 +17,12 @@ hypersensitivities, food sensitivity (celiac), and histamine metabolism. Several
 
 A **level** per pathway, individual SNP findings, a combined **celiac** read (with a strong
 rule-*out* framing), and a combined **histamine** read. HLA proxy results display an
-ancestry-specific r² so you can judge their reliability. Findings cross-reference
-[pharmacogenomics](../pharma/pharmacogenomics.md) (drug reactions) and
-[nutrigenomics](nutrigenomics.md) (gluten).
+ancestry-specific r² so you can judge their reliability. A drug-reaction finding
+cross-references [pharmacogenomics](../pharma/pharmacogenomics.md), but only when that
+module holds guidance for the drug and gene in question — otherwise the confirmatory-typing
+advice on the card is the actionable step. The celiac results are complete here; there is no
+gluten cross-reference, because nutrigenomics covers micronutrient pathways rather than
+gluten.
 
 ## Good to know
 

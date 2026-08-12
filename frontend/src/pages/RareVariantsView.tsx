@@ -2,11 +2,11 @@
  *
  * Layout:
  * - Filter panel (gene panel upload, AF threshold, consequence/ClinVar filters)
- * - Search summary stats bar (counts + export buttons)
+ * - Search summary stats bar (counts)
  * - Results table with sortable columns
  * - Variant detail slide-in panel
  *
- * PRD P3-30: Gene panel upload, filter controls, results table with export.
+ * PRD P3-30: Gene panel upload, filter controls, and results table.
  */
 
 import { useEffect, useState } from "react"
@@ -178,7 +178,6 @@ export default function RareVariantsView() {
               novelCount={searchResult.novel_count}
               pathogenicCount={searchResult.pathogenic_count}
               genesWithFindings={searchResult.genes_with_findings}
-              sampleId={sampleId}
             />
           </section>
 
@@ -215,9 +214,7 @@ export default function RareVariantsView() {
                 )}
                 <span className="text-xs text-muted-foreground">
                   Showing the top {displayedSearchItems.length} of {searchResult.total} variants
-                  {isSearchRenderCapped
-                    ? "; export files include the full stored finding set"
-                    : " (highest evidence first)"}
+                  {" (highest evidence first)"}
                 </span>
               </div>
             )}

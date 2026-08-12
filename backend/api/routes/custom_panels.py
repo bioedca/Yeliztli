@@ -34,9 +34,9 @@ from backend.analysis.rare_variant_finder import (
     DEFAULT_AF_THRESHOLD,
     RareVariantFilter,
     find_rare_variants,
-    store_rare_variant_findings,
 )
 from backend.api.dependencies import require_fresh_sample
+from backend.api.routes.rare_variants import RareVariantResponse, to_rare_variant_response
 from backend.db.connection import get_registry
 from backend.db.tables import samples
 from backend.services.sex_inference import (
@@ -106,11 +106,15 @@ class PanelSearchRequest(BaseModel):
 
 
 class PanelSearchResponse(BaseModel):
-    """Response from running rare variant search with a panel."""
+    """Response from an exploratory rare variant search with a panel."""
 
     panel_name: str
+    items: list[RareVariantResponse]
     variants_found: int
-    findings_stored: int
+    findings_stored: int = Field(
+        default=0,
+        description="Always 0; panel searches never replace canonical stored findings.",
+    )
     total_variants_scanned: int
     novel_count: int
     pathogenic_count: int
@@ -287,11 +291,12 @@ def search_with_panel(
     sample_id: int = Query(..., description="Sample ID"),
     body: PanelSearchRequest | None = None,
 ) -> PanelSearchResponse:
-    """Run the rare variant finder using a saved custom panel's gene list.
+    """Run an exploratory rare variant search using a saved panel's gene list.
 
     Loads the panel's gene symbols and passes them as the gene filter
     to the rare variant finder. Additional filters (AF, consequence,
-    ClinVar) can be specified in the request body.
+    ClinVar) can be specified in the request body. It returns the transient
+    matched variants and never replaces the sample's canonical stored findings.
 
     Example: ``POST /api/panels/1/search?sample_id=1``
     """
@@ -309,8 +314,7 @@ def search_with_panel(
     sample_engine = _get_sample_engine(sample_id)
     biological_sex = _resolve_biological_sex_for_sample(sample_engine, sample_id)
 
-    # Panel search persists findings (via store_rare_variant_findings below), so
-    # apply the same carriage and sex gates as the automated run_all path: a
+    # Apply the same carriage and sex gates as the automated run_all path: a
     # hom-ref (non-carrier), unscoreable, or biologically impossible call in a
     # panel gene must not be counted as found. NULL zygosity is excluded by the
     # carriage gate too.
@@ -327,12 +331,12 @@ def search_with_panel(
     )
 
     result = find_rare_variants(filters, sample_engine)
-    stored = store_rare_variant_findings(result, sample_engine)
 
     return PanelSearchResponse(
         panel_name=panel.name,
+        items=[to_rare_variant_response(variant) for variant in result.variants],
         variants_found=result.count,
-        findings_stored=stored,
+        findings_stored=0,
         total_variants_scanned=result.total_variants_scanned,
         novel_count=result.novel_count,
         pathogenic_count=result.pathogenic_count,

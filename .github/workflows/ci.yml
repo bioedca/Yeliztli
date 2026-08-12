@@ -193,7 +193,25 @@ jobs:
     needs: changes
     if: needs.changes.outputs.backend == 'true' || github.event_name != 'pull_request'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # Headroom, not a hang detector — the bounded startup witness below is what
+    # catches a genuine lifespan hang, and it fails in 2 minutes with a named
+    # step. This limit only has to sit clear of an honest slow run.
+    #
+    # It no longer did. #2213 recorded ~20-minute runs against this 30-minute
+    # cap; the suite has since grown to 26–29 minutes, so an ordinary slow-runner
+    # draw tips a passing suite over the wall. That kill surfaces as
+    # `conclusion: cancelled`, which propagates as `CI Required = failure` and is
+    # indistinguishable at a glance from the two benign cancellations here (a
+    # superseding push via the concurrency group, and infrastructure
+    # cancellation) — so the standing advice to "just re-run" walks straight back
+    # into the same wall. Observed on #2244: py3.12 finished in 26:49 and py3.13
+    # was killed at 30:15 on the same commit.
+    #
+    # 45 restores roughly the proportional headroom the job had when it was
+    # written. It buys time for the suite to grow; it does not excuse unbounded
+    # growth, and a leg approaching this figure should be split rather than
+    # raised again.
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:

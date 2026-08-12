@@ -153,3 +153,61 @@ test('Rare Variants search results render a bounded table for broad searches (#1
   await expect(page.getByTestId('result-row')).toHaveCount(INITIAL_LIMIT * 2)
   await expect(page.getByText('Showing the top 400 of 6000 variants')).toBeVisible()
 })
+
+test('Rare Variants exploratory search hides canonical exports without refetching findings (#2060)', async ({
+  page,
+}) => {
+  const findingsRequests: string[] = []
+
+  await page.route('**/api/panels', (route) => route.fulfill(jsonRoute({ items: [] })))
+  await page.route('**/api/analysis/rare-variants/findings**', async (route) => {
+    findingsRequests.push(route.request().url())
+    await route.fulfill(
+      jsonRoute({
+        items: [finding(1)],
+        total: 1,
+      }),
+    )
+  })
+  await page.route('**/api/analysis/rare-variants/search**', (route) =>
+    route.fulfill(
+      jsonRoute({
+        items: [rareVariant(1)],
+        total: 1,
+        total_variants_scanned: 1,
+        novel_count: 0,
+        pathogenic_count: 0,
+        genes_with_findings: ['GENE1'],
+        filters_applied: {
+          gene_symbols: null,
+          af_threshold: 0.01,
+          consequences: null,
+          clinvar_significance: null,
+          include_novel: true,
+          zygosity: null,
+        },
+      }),
+    ),
+  )
+
+  await page.goto('/rare-variants?sample_id=1')
+  await waitForReactHydration(page)
+
+  const exports = page.getByTestId('findings-export')
+  await expect(exports).toBeVisible()
+  await expect(exports.getByRole('link', { name: 'Export TSV' })).toHaveAttribute(
+    'href',
+    '/api/analysis/rare-variants/export/tsv?sample_id=1',
+  )
+  await expect(exports.getByRole('link', { name: 'Export VCF' })).toHaveAttribute(
+    'href',
+    '/api/analysis/rare-variants/export/vcf?sample_id=1',
+  )
+  expect(findingsRequests).toHaveLength(1)
+
+  await page.getByTestId('search-button').click()
+
+  await expect(page.getByTestId('total-found')).toHaveText('1')
+  await expect(exports).toHaveCount(0)
+  await expect.poll(() => findingsRequests).toHaveLength(1)
+})

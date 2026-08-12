@@ -28,6 +28,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from starlette.concurrency import run_in_threadpool
 
 from backend.analysis.clinvar_conditions import format_clinvar_conditions_text
+from backend.analysis.cross_module_links import normalize_cross_module_row
 from backend.analysis.pathway_coverage import pathway_level_display_label
 from backend.analysis.pharmacogenomics import (
     is_patient_presentable_finding_payload,
@@ -114,6 +115,24 @@ def _load_single_finding(
         except (json.JSONDecodeError, TypeError):
             pass
 
+    # A shareable card is a user-visible render path too, so a pre-gate ROH row
+    # must not carry "typical result" onto one (#2177), and a cross-module row
+    # must name the link the panel declares now. A card is exported by
+    # finding_id, so a retired link stays reachable unless it is refused
+    # outright — with the same not-found error the disclosure gate uses, so the
+    # no-leak posture is unchanged (#2021).
+    corrected_text = normalize_legacy_finding_text(
+        row.module, row.category, row.finding_text, detail, engine
+    )
+    resolved = normalize_cross_module_row(
+        row.module, row.category, row.rsid, corrected_text, detail
+    )
+    if resolved is None:
+        raise ValueError(f"Finding {finding_id} not found")
+    corrected_text, resolved_detail = resolved
+    if isinstance(resolved_detail, dict):
+        detail = resolved_detail
+
     return {
         "id": row.id,
         "module": row.module,
@@ -121,11 +140,7 @@ def _load_single_finding(
         "evidence_level": row.evidence_level,
         "gene_symbol": row.gene_symbol,
         "rsid": row.rsid,
-        # A shareable card is a user-visible render path too, so a pre-gate ROH
-        # row must not carry "typical result" onto one (#2177).
-        "finding_text": normalize_legacy_finding_text(
-            row.module, row.category, row.finding_text, detail, engine
-        ),
+        "finding_text": corrected_text,
         "phenotype": row.phenotype,
         # Clean the raw CLNDN blob for display (#918): drop | separators, the
         # not provided/not specified placeholders, and drug-response entries.
