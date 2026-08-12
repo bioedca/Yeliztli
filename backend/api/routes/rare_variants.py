@@ -158,7 +158,15 @@ class RareVariantFindingsListResponse(BaseModel):
 
 
 class RareVariantRunResponse(BaseModel):
-    """Result of running the rare variant finder."""
+    """Result of running the rare variant finder.
+
+    ``items`` carries the matched variants for an exploratory run only. Such a
+    run stores nothing, so its matches are unreachable through ``/findings``
+    and this response is the caller's only view of them. A canonical run
+    persists its matches instead and leaves ``items`` empty; read those back
+    through the paginated ``/findings`` endpoint rather than inflating this
+    response with a full, unpaginated result set.
+    """
 
     variants_found: int
     findings_stored: int
@@ -166,6 +174,7 @@ class RareVariantRunResponse(BaseModel):
     novel_count: int
     pathogenic_count: int
     genes_with_findings: list[str]
+    items: list[RareVariantResponse] = []
 
 
 # ── Helpers ──────────────────────────────────────────────────────────
@@ -421,6 +430,10 @@ def run_rare_variant_finder(
     canonical stored findings. Any supplied JSON body, including ``{}`` and
     ``null``, is an exploratory run and leaves those findings unchanged.
 
+    An exploratory run returns its matches in ``items``, as ``/search`` does,
+    because nothing is persisted for ``/findings`` to serve. A canonical run
+    leaves ``items`` empty and its matches are read back from ``/findings``.
+
     Example: ``POST /api/analysis/rare-variants/run?sample_id=1``
     """
     sample_engine = _get_sample_engine(sample_id)
@@ -440,11 +453,8 @@ def run_rare_variant_finder(
     # dependency consults cached raw bytes so this synchronous handler can leave
     # blocking database work in FastAPI's threadpool. Only a body-less POST can
     # replace canonical findings; JSON ``null`` fails closed as exploratory (#2060).
-    stored = (
-        store_rare_variant_findings(result, sample_engine)
-        if body is None and not has_supplied_body
-        else 0
-    )
+    is_canonical_run = body is None and not has_supplied_body
+    stored = store_rare_variant_findings(result, sample_engine) if is_canonical_run else 0
 
     return RareVariantRunResponse(
         variants_found=result.count,
@@ -453,6 +463,9 @@ def run_rare_variant_finder(
         novel_count=result.novel_count,
         pathogenic_count=result.pathogenic_count,
         genes_with_findings=result.genes_with_findings,
+        # An exploratory run persists nothing, so these transient matches are the
+        # only way its caller can inspect the result (#2060 review round 2).
+        items=[] if is_canonical_run else [to_rare_variant_response(v) for v in result.variants],
     )
 
 

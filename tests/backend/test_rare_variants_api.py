@@ -1031,6 +1031,44 @@ class TestRunEndpoint:
         assert after_response.status_code == 200
         assert after_response.json() == before
 
+    def test_exploratory_run_returns_the_matches_it_does_not_store(
+        self, rare_client: TestClient
+    ) -> None:
+        """An exploratory run reports the matches it refuses to persist (#2060).
+
+        Making a body-bearing ``/run`` read-only removes its matches from
+        ``/findings``, which keeps serving the canonical run. Without transient
+        ``items`` the caller receives counts it has no way to inspect.
+        """
+        full_run = rare_client.post("/api/analysis/rare-variants/run?sample_id=1")
+        assert full_run.status_code == 200
+        canonical = full_run.json()
+        assert canonical["findings_stored"] > 0
+        # A canonical run persists instead; /findings is its paginated reader.
+        assert canonical["items"] == []
+
+        filters = {"gene_symbols": ["BRCA1"], "af_threshold": 0.001}
+        exploratory = rare_client.post(
+            "/api/analysis/rare-variants/run?sample_id=1",
+            json=filters,
+        )
+        assert exploratory.status_code == 200
+        data = exploratory.json()
+        assert data["findings_stored"] == 0
+        assert data["variants_found"] >= 1
+        # Unreachable through /findings, so the response itself must carry them.
+        assert len(data["items"]) == data["variants_found"]
+        assert all(item["rsid"] for item in data["items"])
+
+        # The same filter through /search must agree, so the two exploratory
+        # paths cannot drift apart.
+        search = rare_client.post(
+            "/api/analysis/rare-variants/search?sample_id=1",
+            json=filters,
+        )
+        assert search.status_code == 200
+        assert data["items"] == search.json()["items"]
+
     def test_run_missing_sample_404(self, empty_client: TestClient) -> None:
         """Missing sample returns 404."""
         resp = empty_client.post("/api/analysis/rare-variants/run?sample_id=999")
