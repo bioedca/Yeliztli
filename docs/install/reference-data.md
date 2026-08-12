@@ -90,13 +90,25 @@ Monarch primary archive must be at least 100,000 bytes, the HPO export at least 
 bytes, and the MONDO SSSOM export must yield at least 50,000 unambiguous exact mappings. These
 are fail-closed operational guards based on the recorded source snapshot, not proof of semantic
 completeness. Configure the downloads directory and its `mondo_hpo_sources` child as private to
-the updating account and not group/world-writable. Every lexical and resolved ancestor must
-likewise be non-writable by group/other users and not writable by a different directory owner.
-A writable sticky ancestor is accepted only when it is owned by the updating account or root.
-The loader permits an unknown owner only when the ancestor's device/inode matches a fixed,
-descriptor-pinned system boundary (`/`, `/tmp`, `/var/tmp`, or `/home`); it never derives that
-exception from `TMPDIR`. Each lexical symbolic-link component must also be owned by the updating
-account unless its exact path and identity are one of those pinned system-boundary links. The
+the updating account and not group/world-writable, and prefer ancestors that are likewise not
+writable by group or other users.
+
+**These directory-trust conditions are advisory today, not enforced.** The loader inspects the
+downloads root and every lexical and resolved ancestor for ownership and group/world
+writability, and records what it finds — `mondo_hpo_source_bundle_directory_not_private` and
+`mondo_hpo_downloads_ancestor_not_trusted`, the latter carrying a `reason` of `owner` or
+`group_or_world_writable` — but it then proceeds with the build. Treat a clean log as evidence
+the namespace was private, and treat those warnings as the signal it was not; do not read the
+absence of a failure as proof of enforcement. Restoring enforcement is tracked in issue #2316.
+
+They were made advisory because MONDO/HPO is a required database, so refusing a directory did
+not degrade the install, it prevented setup from completing at all — including on ordinary
+configurations such as a cooperative `umask` of `0002`, a provisioned group-writable mount, or a
+restored directory owned by another account.
+
+What still fails closed is everything about the loader's own files rather than the operator's
+filesystem: descriptor pinning against path substitution, staging identity checks, the source
+content hashes below, and the manifest verification before a bundle is published. The
 loader hashes its held source files
 before parsing and verifies those same bytes again before it writes the provenance manifest or
 publishes a bundle. Descriptor checks and the final pre-commit validation detect swaps that the
