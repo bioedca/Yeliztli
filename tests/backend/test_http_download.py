@@ -336,9 +336,13 @@ def test_non_retryable_404_preserves_type_with_a_redacted_request(tmp_path: Path
             stream_download(signed_url, tmp, max_retries=2, sleep=NOOP_SLEEP)
         assert exc_info.value.__context__ is None
         assert "access=opaque" not in str(exc_info.value)
-        assert url in str(exc_info.value)
-        assert str(exc_info.value.request.url) == url
-        assert str(exc_info.value.response.request.url) == url
+        # The path is untrusted in the generic downloader, so it is digested
+        # rather than echoed; scheme, host and port still identify the transfer.
+        safe = http_download._safe_log_url(signed_url)
+        assert "/file.bin" not in str(exc_info.value)
+        assert safe in str(exc_info.value)
+        assert str(exc_info.value.request.url) == safe
+        assert str(exc_info.value.response.request.url) == safe
         assert not exc_info.value.response.headers
         assert not tmp.exists()
     finally:
@@ -380,7 +384,8 @@ def test_retry_logs_and_terminal_error_redact_signed_url(
         assert events
         retry_event, retry_fields = events[0]
         assert retry_event == "download_retry"
-        assert retry_fields["url"] == url
+        assert retry_fields["url"] == http_download._safe_log_url(signed_url)
+        assert "/file.bin" not in retry_fields["url"]
         assert "access=opaque" not in str(retry_fields["error"])
         assert "signature=secret" not in str(retry_fields["error"])
     finally:
@@ -420,7 +425,10 @@ def test_nonretryable_request_errors_drop_signed_request_context(
     assert error.__context__ is None
     assert "TEST_TOKEN" not in str(error)
     assert "untrusted request failure" not in str(error)
-    assert "https://example.test/private.tar.gz" in str(error)
+    # Host survives so the failure is attributable; the path does not, because
+    # a path can itself carry the credential (#2163).
+    assert "https://example.test/" in str(error)
+    assert "private.tar.gz" not in str(error)
     assert not (tmp_path / "out.bin.tmp").exists()
 
 
@@ -978,3 +986,30 @@ def test_cross_run_rotation_updates_sidecar(tmp_path: Path) -> None:
     assert tmp.stat().st_size == total
     assert sink[0].get("If-Range") == '"v1"'  # attempted conditional resume
     assert read_validator_sidecar(tmp) == '"v2"'  # sidecar refreshed for the next run
+
+
+def test_safe_log_url_redacts_a_path_based_credential() -> None:
+    """A token carried in the path must not reach logs or terminal errors.
+
+    The generic downloader has no set of canonical endpoints it may echo, since
+    every caller supplies its own URL, so the whole path is untrusted (#2163).
+    """
+    tokened = "https://example.com/token/SECRET/file.tsv"
+    safe = http_download._safe_log_url(tokened)
+
+    assert "SECRET" not in safe
+    assert "token" not in safe
+    assert safe.startswith("https://example.com/redacted/")
+
+    # Stable for one URL, so repeated attempts stay correlatable in a log...
+    assert safe == http_download._safe_log_url(tokened)
+    # ...and distinct per URL, so two sources on one host stay distinguishable.
+    assert safe != http_download._safe_log_url("https://example.com/token/OTHER/file.tsv")
+
+
+def test_safe_log_url_keeps_scheme_host_and_port() -> None:
+    """Redaction must not cost the part that identifies where a transfer went."""
+    safe = http_download._safe_log_url("https://downloads.example.com:8443/a/b/c.db?sig=x")
+
+    assert safe.startswith("https://downloads.example.com:8443/")
+    assert "sig=x" not in safe

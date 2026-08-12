@@ -194,7 +194,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         for private_dir in (settings.data_dir, settings.downloads_dir):
             directory_problem = ensure_private_directory(private_dir, parents=True)
             if directory_problem is not None:
-                logger.warning("data_directory_not_private", detail=directory_problem)
+                # Formatted into the message, not passed as a keyword: this is a
+                # stdlib logger and an arbitrary keyword raises TypeError out of
+                # Logger._log, which would abort startup at precisely the point
+                # this warning exists to keep survivable.
+                logger.warning("data_directory_not_private: %s", directory_problem)
         (settings.data_dir / "samples").mkdir(exist_ok=True)
         # Initialize the DB registry (creates reference engine, etc.)
         registry = get_registry()

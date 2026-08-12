@@ -33,6 +33,7 @@ cost anything when a transfer would otherwise have failed outright.
 
 from __future__ import annotations
 
+import hashlib
 import random
 import time
 from dataclasses import dataclass, field
@@ -199,7 +200,21 @@ def _validator(response: httpx.Response) -> str | None:
 
 
 def _safe_log_url(url: str) -> str:
-    """Return a source URL safe for logs and user-facing download errors."""
+    """Return a source URL safe for logs and user-facing download errors.
+
+    **The path is untrusted here too.** Stripping userinfo, query and fragment
+    while keeping ``parsed.path`` verbatim still leaks a path-based bearer or
+    share token -- ``https://example.com/token/SECRET/file.tsv`` -- into the
+    retry logs and into the reconstructed terminal error. This is the *generic*
+    downloader, so unlike a module with a fixed set of canonical endpoints there
+    is no URL here that can be assumed safe to echo: every caller supplies its
+    own.
+
+    The path is therefore reduced to a digest of the whole URL. Someone holding
+    the URL can still confirm which one was used, and callers already log the
+    context that identifies a transfer operationally -- database name and
+    destination path -- so no diagnostic worth the leak is lost.
+    """
     try:
         parsed = urlsplit(url)
         if not parsed.scheme or not parsed.hostname:
@@ -209,7 +224,12 @@ def _safe_log_url(url: str) -> str:
         port = f":{parsed.port}" if parsed.port is not None else ""
     except ValueError:
         return "<invalid download URL>"
-    return urlunsplit((parsed.scheme, f"{host}{port}", parsed.path, "", ""))
+    # No URL-reserved characters in the placeholder: this value is handed to
+    # `httpx.Request` when a terminal error is rebuilt, and httpx would
+    # percent-encode anything like angle brackets, so the string that reaches a
+    # log would no longer equal the one produced here.
+    digest = hashlib.sha256(url.encode("utf-8")).hexdigest()[:16]
+    return urlunsplit((parsed.scheme, f"{host}{port}", f"/redacted/{digest}", "", ""))
 
 
 def _safe_error_text(exc: BaseException, *, raw_url: str, safe_url: str) -> str:

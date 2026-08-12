@@ -2007,6 +2007,17 @@ class TestDownloadAndLoad:
 
         bundle_dirs = sorted(path.name for path in (downloads / "mondo_hpo_sources").iterdir())
         assert len(bundle_dirs) == 1, "byte-identical sources must reuse the published bundle"
+        # Staging is created in the downloads root, not under the bundle root.
+        # A reuse never renames its staged copy into place, and nothing else
+        # removes it: the staging helper closes descriptors only, deliberately,
+        # so a *failed* attempt survives for an operator to inspect. A reuse is
+        # not a failed attempt, and each leaked `.mondo-hpo-*` retains all three
+        # sources plus the staged manifest -- roughly 34 MB of the downloads
+        # volume per source-identical refresh or recovery retry.
+        staging_residue = sorted(
+            path.name for path in downloads.iterdir() if path.name.startswith(".mondo-hpo-")
+        )
+        assert staging_residue == [], f"reuse left staging behind: {staging_residue}"
 
         first, second = events
         assert second["source_manifest_path"] == first["source_manifest_path"]
