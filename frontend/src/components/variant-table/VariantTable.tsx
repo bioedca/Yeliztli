@@ -110,19 +110,38 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
   // against whichever sample is on screen. Both readings misstate what the
   // blank GRCh38 cells mean, which is the whole point of showing the state.
   const [liftoverStatus, setLiftoverStatus] = useState<Record<number, "pending" | "error">>({})
+  const clearLiftoverStatus = useCallback((id: number) => {
+    setLiftoverStatus((prev) => {
+      if (!(id in prev)) return prev
+      const next = { ...prev }
+      delete next[id]
+      return next
+    })
+  }, [])
   const { mutate: runLiftover } = useBatchLiftover({
-    onSampleSucceeded: (id) =>
-      setLiftoverStatus((prev) => {
-        if (!(id in prev)) return prev
-        const next = { ...prev }
-        delete next[id]
-        return next
-      }),
+    // Success means "computed *and* the refreshed rows are in the table" — the
+    // hook holds the pending state open across the refetch, so clearing it here
+    // cannot expose pre-liftover NULLs as final values.
+    onSampleSucceeded: clearLiftoverStatus,
     onSampleFailed: (id) => {
       // A failure must not leave the sample latched, or the user can never
       // retry without a reload.
       liftoverRequestedRef.current.delete(id)
       setLiftoverStatus((prev) => (prev[id] === "error" ? prev : { ...prev, [id]: "error" }))
+    },
+    // The batch stored the coordinates but the refetch that would show them
+    // failed. That is not a liftover failure and must not be labelled one: the
+    // remedy is another fetch, not another computation. The variants query
+    // already renders its own error state for the failed fetch — measured: the
+    // table is replaced by ErrorEmpty, toolbar included, so a liftover-specific
+    // notice would be unreachable there. What is owed here is simply to not
+    // record a false success: drop the "computing" state and un-latch the
+    // sample, so re-enabling the columns or returning to the sample runs the
+    // batch again and with it a fresh refetch. The batch is idempotent, so that
+    // retry costs an `already_lifted` no-op.
+    onSampleRefreshFailed: (id) => {
+      liftoverRequestedRef.current.delete(id)
+      clearLiftoverStatus(id)
     },
   })
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({

@@ -34,9 +34,11 @@ export interface BatchLiftoverStats {
 export function useBatchLiftover({
   onSampleSucceeded,
   onSampleFailed,
+  onSampleRefreshFailed,
 }: {
   onSampleSucceeded?: (sampleId: number) => void
   onSampleFailed?: (sampleId: number) => void
+  onSampleRefreshFailed?: (sampleId: number) => void
 } = {}) {
   const queryClient = useQueryClient()
   return useMutation({
@@ -47,12 +49,41 @@ export function useBatchLiftover({
       }
       return await res.json()
     },
-    onSuccess: (_stats, sampleId) => {
+    onSuccess: async (_stats, sampleId) => {
       // Cached variant pages were fetched before the batch wrote the GRCh38
       // columns, so they still hold the NULLs. Without this the user enables
       // the toggle, the batch succeeds, and the columns stay blank until
       // something else happens to refetch.
-      void queryClient.invalidateQueries({ queryKey: ["variants", sampleId] })
+      //
+      // Awaited rather than fire-and-forget: `invalidateQueries` resolves only
+      // once the refetch settles, and until then the table is still rendering
+      // the pre-liftover NULLs. Reporting the batch finished before that hands
+      // the user blank cells while the tooltip tells them a blank cell means an
+      // unmappable position — the same "blanks presented as final" defect the
+      // failure notice exists to prevent, one step later in the chain.
+      //
+      // Writing the coordinates straight into the cache would skip the round
+      // trip, but the batch response carries counts only (total / converted /
+      // failed / already_lifted), not per-variant coordinates, so there is
+      // nothing to write; returning 677k coordinates just so the client could
+      // patch its own cache is a far worse trade than one refetch.
+      //
+      // `throwOnError` is what makes a failed refresh observable at all — the
+      // promise resolves either way by default, so without it a refetch that
+      // never delivered the coordinates is indistinguishable from one that did.
+      try {
+        await queryClient.invalidateQueries(
+          { queryKey: ["variants", sampleId] },
+          { throwOnError: true },
+        )
+      } catch {
+        // The batch itself succeeded and the coordinates are stored; only the
+        // view is stale. Reporting that as a liftover failure would point the
+        // user at "retry the computation" when the computation is done and it
+        // is the fetch that needs retrying.
+        onSampleRefreshFailed?.(sampleId)
+        return
+      }
       onSampleSucceeded?.(sampleId)
     },
     onError: (_error, sampleId) => {

@@ -1172,6 +1172,128 @@ describe("GRCh38 liftover toggle (P4-20)", () => {
     expect(liftoverCalls()).toHaveLength(2)
   })
 
+  it("stays in the computing state until the refreshed coordinates arrive", async () => {
+    // The POST finishing is not the end of the operation: the table is still
+    // rendering the variant pages fetched *before* the batch wrote the columns,
+    // so its GRCh38 cells are the pre-liftover NULLs. Clearing "Computing" when
+    // the POST resolves therefore presents those blanks as final — which the
+    // tooltip defines as "this position could not be lifted over" — for as long
+    // as the refetch takes.
+    const stalePage = makeVariantPage(1)
+    stalePage.items[0].chrom_grch38 = null
+    stalePage.items[0].pos_grch38 = null
+    const refreshedPage = makeVariantPage(1) // pos_grch38 = 51,000
+
+    let variantPageCalls = 0
+    let releaseRefetch!: () => void
+    const refetched = new Promise<unknown>((resolve) => {
+      releaseRefetch = () => resolve({ ok: true, json: async () => refreshedPage })
+    })
+    mockFetch.mockImplementation(async (url: string) => {
+      if (url.includes("/api/column-presets"))
+        return { ok: true, json: async () => ({ presets: defaultPresets }) }
+      if (url.includes("/api/tags")) return { ok: true, json: async () => defaultTags }
+      if (url.includes("/api/variants/chromosomes"))
+        return { ok: true, json: async () => defaultChromCounts }
+      if (url.includes("/api/variants/count"))
+        return { ok: true, json: async () => makeCountResponse(1) }
+      if (url.includes("/api/liftover/"))
+        return {
+          ok: true,
+          json: async () => ({ total: 1, converted: 1, failed: 0, already_lifted: 0 }),
+        }
+      if (url.includes("/api/variants")) {
+        variantPageCalls += 1
+        // The first fetch is the pre-liftover page; the second is the refetch
+        // the batch's invalidation triggers, held open by this test.
+        return variantPageCalls > 1 ? await refetched : { ok: true, json: async () => stalePage }
+      }
+      return { ok: false, status: 404 }
+    })
+
+    const user = userEvent.setup()
+    render(<VariantTable sampleId={1} />)
+
+    await waitFor(() => expect(screen.getByText("rs100")).toBeInTheDocument())
+    await user.click(screen.getByRole("button", { name: /show grch38 coordinates/i }))
+
+    // The POST has resolved and the refetch is in flight but unresolved.
+    await waitFor(() => expect(liftoverCalls()).toHaveLength(1))
+    await waitFor(() => expect(variantPageCalls).toBeGreaterThan(1))
+
+    // The stale blanks are still on screen, so the operation must still read as
+    // in progress.
+    expect(screen.getByText(/Computing GRCh38 coordinates/i)).toBeInTheDocument()
+    expect(screen.queryByText("51,000")).not.toBeInTheDocument()
+
+    await act(async () => {
+      releaseRefetch()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    // Only once the refreshed rows land does the operation report as finished.
+    await waitFor(() => expect(screen.getByText("51,000")).toBeInTheDocument())
+    expect(screen.queryByText(/Computing GRCh38 coordinates/i)).not.toBeInTheDocument()
+  })
+
+  it("re-requests the batch for a sample whose post-liftover refresh failed", async () => {
+    // A refetch that never delivers the coordinates must not be recorded as a
+    // completed liftover. It is not a liftover failure either — the batch
+    // stored the coordinates — so it is not labelled one; what it must not do
+    // is leave the sample latched, which would make the blank columns
+    // permanent for this mount.
+    const page = makeVariantPage(2)
+    let sampleOnePageCalls = 0
+    mockFetch.mockImplementation(async (url: string) => {
+      if (url.includes("/api/column-presets"))
+        return { ok: true, json: async () => ({ presets: defaultPresets }) }
+      if (url.includes("/api/tags")) return { ok: true, json: async () => defaultTags }
+      if (url.includes("/api/variants/chromosomes"))
+        return { ok: true, json: async () => defaultChromCounts }
+      if (url.includes("/api/variants/count"))
+        return { ok: true, json: async () => makeCountResponse(2) }
+      if (url.includes("/api/liftover/"))
+        return {
+          ok: true,
+          json: async () => ({ total: 2, converted: 2, failed: 0, already_lifted: 0 }),
+        }
+      if (url.includes("/api/variants")) {
+        if (url.includes("sample_id=1")) {
+          sampleOnePageCalls += 1
+          // Second call = the refetch the batch's invalidation triggers.
+          if (sampleOnePageCalls === 2) {
+            return { ok: false, status: 500, text: async () => "Internal Server Error" }
+          }
+        }
+        return { ok: true, json: async () => page }
+      }
+      return { ok: false, status: 404 }
+    })
+
+    const user = userEvent.setup()
+    const { rerender } = render(<VariantTable sampleId={1} />)
+
+    await waitFor(() => expect(screen.getByText("rs100")).toBeInTheDocument())
+    await user.click(screen.getByRole("button", { name: /show grch38 coordinates/i }))
+    await waitFor(() => expect(liftoverCalls()).toHaveLength(1))
+
+    // The failed refresh surfaces as the variant query's own error state — the
+    // user is not left looking at stale blanks dressed up as final values.
+    await waitFor(() => {
+      expect(screen.getByText("Error loading variants")).toBeInTheDocument()
+    })
+
+    rerender(<VariantTable sampleId={2} />)
+    await waitFor(() => expect(liftoverCalls()).toHaveLength(2))
+
+    // Returning re-runs the batch, because the first attempt never confirmed a
+    // refreshed table. (The batch is idempotent: the retry is an
+    // already_lifted no-op that re-triggers the refetch.)
+    rerender(<VariantTable sampleId={1} />)
+    await waitFor(() => expect(liftoverCalls()).toHaveLength(3))
+    expect(liftoverCalls()[2][0]).toBe("/api/liftover/1")
+  })
+
   it("surfaces a liftover failure instead of presenting blank cells as final", async () => {
     // The tooltip now tells users a blank GRCh38 cell means the position could
     // not be lifted over. That is only true once the batch has run — so if it
