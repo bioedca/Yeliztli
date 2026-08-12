@@ -13,13 +13,17 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any
+from typing import Any, Literal
 
 import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
-from backend.analysis.fh import FH_CRITERIA_CONTEXT, detect_fh_monogenic
+from backend.analysis.fh import FH_CRITERIA_CONTEXT, detect_fh_monogenic_with_status
+from backend.analysis.pharmacogenomics import (
+    is_patient_presentable_finding_payload,
+    is_patient_presentable_response_payload,
+)
 from backend.api.dependencies import require_fresh_sample
 from backend.db.connection import get_registry
 from backend.db.tables import findings, samples
@@ -76,6 +80,7 @@ class FhLdlPrsResponse(BaseModel):
 class FhAssessmentResponse(BaseModel):
     """Composed FH view."""
 
+    assessment_status: Literal["available", "unavailable"] = "available"
     has_monogenic: bool
     monogenic: list[FhMonogenicResponse] = []
     apob_fdb: ApobFdbResponse | None = None
@@ -128,15 +133,31 @@ def get_fh_assessment(
     """Composed FH view: monogenic + APOB FDB + LDL-C PRS + criteria framing."""
     sample_engine = _get_sample_engine(sample_id)
     with sample_engine.connect() as conn:
-        fdb_row = conn.execute(
-            sa.select(findings).where(
-                findings.c.module == "fh", findings.c.category == "fdb_variant"
-            )
-        ).fetchone()
-        prs_row = conn.execute(
-            sa.select(findings).where(findings.c.module == "fh", findings.c.category == "prs")
-        ).fetchone()
+        fdb_rows = conn.execute(
+            sa.select(findings)
+            .where(findings.c.module == "fh", findings.c.category == "fdb_variant")
+            .order_by(findings.c.id)
+        ).fetchall()
+        prs_rows = conn.execute(
+            sa.select(findings)
+            .where(findings.c.module == "fh", findings.c.category == "prs")
+            .order_by(findings.c.id)
+        ).fetchall()
 
+    fdb_source_withheld = any(
+        not is_patient_presentable_finding_payload(row._mapping) for row in fdb_rows
+    )
+    prs_source_withheld = any(
+        not is_patient_presentable_finding_payload(row._mapping) for row in prs_rows
+    )
+    fdb_row = next(
+        (row for row in fdb_rows if is_patient_presentable_finding_payload(row._mapping)), None
+    )
+    prs_row = next(
+        (row for row in prs_rows if is_patient_presentable_finding_payload(row._mapping)), None
+    )
+
+    monogenic_detection = detect_fh_monogenic_with_status(sample_engine)
     monogenic = [
         FhMonogenicResponse(
             gene=v.gene,
@@ -145,7 +166,7 @@ def get_fh_assessment(
             zygosity=v.zygosity,
             evidence_level=v.evidence_level,
         )
-        for v in detect_fh_monogenic(sample_engine)
+        for v in monogenic_detection.variants
     ]
 
     apob_fdb = None
@@ -182,13 +203,32 @@ def get_fh_assessment(
             evidence_level=prs_row.evidence_level or 1,
         )
 
-    return FhAssessmentResponse(
+    response = FhAssessmentResponse(
         has_monogenic=len(monogenic) > 0,
         monogenic=monogenic,
         apob_fdb=apob_fdb,
         ldl_prs=ldl_prs,
         criteria_context=FH_CRITERIA_CONTEXT,
     )
+    dynamic_payload = {
+        "monogenic": [item.model_dump(mode="json") for item in response.monogenic],
+        "apob_fdb": response.apob_fdb.model_dump(mode="json") if response.apob_fdb else None,
+        "ldl_prs": response.ldl_prs.model_dump(mode="json") if response.ldl_prs else None,
+    }
+    if (
+        monogenic_detection.source_withheld
+        or fdb_source_withheld
+        or prs_source_withheld
+        or not is_patient_presentable_response_payload(dynamic_payload)
+    ):
+        # Do not turn an unsafe combination into a clinical negative. The
+        # assessment stays structurally valid but withholds all dynamic results
+        # until the source records can be reviewed independently.
+        return FhAssessmentResponse(
+            assessment_status="unavailable",
+            has_monogenic=False,
+        )
+    return response
 
 
 @router.post("/run")

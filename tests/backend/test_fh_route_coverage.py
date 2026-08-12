@@ -173,6 +173,40 @@ class TestFhStatusRoute:
         # No FH-associated P/LP variants recorded → empty variant set.
         assert body.get("variants", []) == []
 
+    def test_legacy_held_payload_returns_unavailable_without_a_false_negative(
+        self,
+        fh_client: TestClient,
+        tmp_data_dir: Path,
+    ) -> None:
+        """The FH status summary cannot serialize a retained legacy payload."""
+        sample_engine = sa.create_engine(f"sqlite:///{tmp_data_dir / 'samples' / 'sample_1.db'}")
+        try:
+            with sample_engine.begin() as conn:
+                conn.execute(
+                    findings.insert().values(
+                        module="cardiovascular",
+                        category="fh_status",
+                        evidence_level=4,
+                        gene_symbol="LDLR",
+                        finding_text="Scalar-safe FH status shell",
+                        detail_json=json.dumps(
+                            {
+                                "status": "Positive",
+                                "affected_genes": ["CYP2D6 tamoxifen dose guidance"],
+                            }
+                        ),
+                    )
+                )
+
+            resp = fh_client.get("/api/analysis/cardiovascular/fh-status", params={"sample_id": 1})
+
+            assert resp.status_code == 200, resp.text
+            assert resp.json()["status"] == "Unavailable"
+            assert "No FH-causing" not in resp.json()["summary_text"]
+            assert "tamoxifen" not in resp.text.lower()
+        finally:
+            sample_engine.dispose()
+
     def test_missing_sample_returns_404(self, fh_client: TestClient) -> None:
         # 404 is enforced redundantly: require_fresh_sample resolves existence
         # before staleness, and the handler's own _get_sample_engine also 404s —

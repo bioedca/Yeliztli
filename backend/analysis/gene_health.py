@@ -7,7 +7,7 @@ Implements P3-65:
     ancestry-conditional caveats when LD/risk transfer is not well supported.
   - No celiac/histamine combined assessments.
   - Cross-links to APOE (Alzheimer's), Allergy (celiac), Methylation (MTHFR),
-    Nutrigenomics (FTO), and Traits (ADHD).
+    Metabolic (FTO), and Traits (ADHD).
 
 Panel definition lives in ``backend/data/panels/gene_health_panel.json``.
 
@@ -44,7 +44,11 @@ from backend.analysis.genotype_lookup import (
     is_strand_ambiguous,
     lookup_by_genotype,
 )
-from backend.analysis.pathway_coverage import coverage_detail, pathway_summary_text
+from backend.analysis.pathway_coverage import (
+    coverage_detail,
+    pathway_summary_text,
+    variant_label,
+)
 from backend.analysis.zygosity import is_no_call
 from backend.annotation.engine import GWAS_BIT
 from backend.annotation.gwas import gwas_matched_rsids
@@ -512,7 +516,7 @@ def _generate_cross_module_findings(
       - APOE (Alzheimer's) → APOE module
       - Celiac-related SNPs → Allergy module
       - MTHFR variants → Methylation module
-      - FTO variants → Nutrigenomics module
+      - FTO variants → Metabolic module (its BMI/adiposity anchor, #2021)
       - ADHD-related SNPs → Traits module
     """
     cross_findings: list[CrossModuleFinding] = []
@@ -533,7 +537,8 @@ def _generate_cross_module_findings(
 
             # Build cross-module finding text
             cross_text = (
-                f"{snp_result.gene} {snp_result.variant_name} ({snp_result.genotype}) — {note}"
+                f"{variant_label(snp_result.gene, snp_result.variant_name)} "
+                f"({snp_result.genotype}) — {note}"
             )
 
             # Deduplicate at variant granularity, not gene-only: distinct SNPs
@@ -758,7 +763,7 @@ def store_gene_health_findings(
       - Pathway summaries (one per pathway).
       - Individual SNP findings for non-Standard called SNPs.
       - Cross-module reference findings (APOE, Allergy, Methylation,
-        Nutrigenomics, Traits).
+        Metabolic, Traits).
 
     Also stores panel coverage tracking rows.
 

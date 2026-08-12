@@ -13,6 +13,7 @@ entries filterable by level and component.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Generator
 from datetime import UTC, datetime
 from pathlib import Path
@@ -24,7 +25,13 @@ from fastapi.testclient import TestClient
 
 from backend.config import Settings
 from backend.db.connection import reset_registry
-from backend.db.tables import jobs, log_entries, reference_metadata, samples
+from backend.db.tables import (
+    LOG_ENTRY_PRESENTATION_POLICY_VERSION,
+    jobs,
+    log_entries,
+    reference_metadata,
+    samples,
+)
 
 # ── Fixtures ─────────────────────────────────────────────────────────
 
@@ -86,7 +93,12 @@ def admin_client(tmp_data_dir: Path) -> Generator[TestClient, None, None]:
         },
     ]
     with engine.begin() as conn:
-        conn.execute(sa.insert(log_entries), log_data)
+        conn.execute(
+            sa.insert(log_entries).values(
+                presentation_policy_version=LOG_ENTRY_PRESENTATION_POLICY_VERSION
+            ),
+            log_data,
+        )
 
     # Seed a sample
     with engine.begin() as conn:
@@ -212,6 +224,371 @@ class TestLogExplorer:
         data = resp.json()
         ids = [e["id"] for e in data["entries"]]
         assert ids == sorted(ids, reverse=True)
+
+    def test_withheld_pgx_logs_are_hidden_before_count_and_pagination(
+        self, admin_client: TestClient
+    ) -> None:
+        """#2019: historical detailed PGx logs must not reopen the guidance hold."""
+        from backend.db.connection import get_registry
+
+        with get_registry().reference_engine.begin() as conn:
+            conn.execute(
+                sa.insert(log_entries).values(presentation_policy_version=0),
+                [
+                    {
+                        "timestamp": datetime.now(UTC),
+                        "level": "INFO",
+                        "logger": "backend.analysis.pharmacogenomics",
+                        "message": "pgx_prescribing_alert",
+                        "event_data": json.dumps(
+                            {
+                                "gene": " CYP2D6 ",
+                                "drug": "\ttamoxifen\n",
+                                "recommendation": "Escalate tamoxifen to 40 mg/day.",
+                            }
+                        ),
+                    },
+                    {
+                        "timestamp": datetime.now(UTC),
+                        "level": "WARNING",
+                        "logger": "backend.analysis.pharmacogenomics",
+                        "message": "pgx_prescribing_alert",
+                        "event_data": "{malformed legacy prescribing payload",
+                    },
+                    {
+                        "timestamp": datetime.now(UTC),
+                        "level": "WARNING",
+                        "logger": "backend.analysis.pharmacogenomics",
+                        "message": "pgx_prescribing_alert",
+                        "event_data": json.dumps(
+                            {
+                                "gene": 1,
+                                "drug": "tamoxifen",
+                                "recommendation": "Numeric legacy payload must not render.",
+                            }
+                        ),
+                    },
+                    {
+                        "timestamp": datetime.now(UTC),
+                        "level": "WARNING",
+                        "logger": "backend.analysis.pharmacogenomics",
+                        "message": "pgx_prescribing_alert",
+                        "event_data": json.dumps(
+                            {
+                                "gene": "CYP2D6",
+                                "drug": [],
+                                "recommendation": "Array legacy payload must not render.",
+                            }
+                        ),
+                    },
+                    {
+                        "timestamp": datetime.now(UTC),
+                        "level": "WARNING",
+                        "logger": "backend.analysis.pharmacogenomics",
+                        "message": "pgx_prescribing_alert",
+                        "event_data": json.dumps(
+                            {
+                                "gene": " \t",
+                                "drug": "tamoxifen",
+                                "recommendation": "Whitespace gene payload must not render.",
+                            }
+                        ),
+                    },
+                    {
+                        "timestamp": datetime.now(UTC),
+                        "level": "WARNING",
+                        "logger": "backend.analysis.pharmacogenomics",
+                        "message": "pgx_prescribing_alert",
+                        "event_data": json.dumps(
+                            {
+                                "gene": "CYP2D6",
+                                "drug": "\n ",
+                                "recommendation": "Whitespace drug payload must not render.",
+                            }
+                        ),
+                    },
+                    {
+                        "timestamp": datetime.now(UTC),
+                        "level": "WARNING",
+                        "logger": "backend.analysis.pharmacogenomics",
+                        "message": "pgx_prescribing_alert",
+                        "event_data": (
+                            '{"gene":"CYP2D6","drug":"tamoxifen",'
+                            '"gene":"CYP2C19","drug":"clopidogrel",'
+                            '"recommendation":"Duplicate legacy payload must not render."}'
+                        ),
+                    },
+                    {
+                        "timestamp": datetime.now(UTC),
+                        "level": "WARNING",
+                        "logger": "backend.analysis.pharmacogenomics",
+                        "message": "pgx_prescribing_alert",
+                        "event_data": json.dumps(
+                            {
+                                "gene": "CYP2C19",
+                                "drug": "clopidogrel",
+                                "nested": {
+                                    " gene": "CYP2D6",
+                                    " drug": "tamoxifen",
+                                    "recommendation": "Aliased nested guidance must not render.",
+                                },
+                            }
+                        ),
+                    },
+                    {
+                        "timestamp": datetime.now(UTC),
+                        "level": "WARNING",
+                        "logger": "backend.analysis.pharmacogenomics",
+                        "message": "legacy_pgx_event",
+                        "event_data": json.dumps(
+                            {
+                                "gene": "CYP2C19",
+                                "drug": "clopidogrel",
+                                "nested": {
+                                    " gene": "CYP2D6",
+                                    " drug": "tamoxifen",
+                                    "recommendation": (
+                                        "Unknown-message alias guidance must not render."
+                                    ),
+                                },
+                            }
+                        ),
+                    },
+                    {
+                        "timestamp": datetime.now(UTC),
+                        "level": "WARNING",
+                        "logger": "backend.analysis.pharmacogenomics",
+                        "message": "legacy_pgx_event",
+                        "event_data": (
+                            '{"gene":"CYP2D6","drug":"tamoxifen",'
+                            '"gene":"CYP2C19","drug":"clopidogrel",'
+                            '"recommendation":"Unknown-message duplicate guidance must not "'
+                            '"render."}'
+                        ),
+                    },
+                    {
+                        "timestamp": datetime.now(UTC),
+                        "level": "WARNING",
+                        "logger": "backend.analysis.pharmacogenomics",
+                        "message": "legacy_pgx_event",
+                        "event_data": json.dumps(
+                            "Scalar CYP2D6 tamoxifen guidance must not render."
+                        ),
+                    },
+                    {
+                        "timestamp": datetime.now(UTC),
+                        "level": "WARNING",
+                        "logger": "backend.analysis.pharmacogenomics",
+                        "message": "legacy_pgx_event",
+                        "event_data": json.dumps(
+                            ["List CYP2D6 tamoxifen guidance must not render."]
+                        ),
+                    },
+                ],
+            )
+
+        resp = admin_client.get("/api/admin/logs", params={"page": 1, "page_size": 5})
+        assert resp.status_code == 200
+        data = resp.json()
+        rendered = json.dumps(data).lower()
+        assert data["total"] == 5
+        assert len(data["entries"]) == 5
+        assert data["has_more"] is False
+        assert "tamoxifen" not in rendered
+        assert "40 mg" not in rendered
+        assert "malformed legacy" not in rendered
+        assert "numeric legacy" not in rendered
+        assert "array legacy" not in rendered
+        assert "whitespace gene" not in rendered
+        assert "whitespace drug" not in rendered
+        assert "duplicate legacy" not in rendered
+        assert "aliased nested guidance" not in rendered
+        assert "unknown-message alias guidance" not in rendered
+        assert "unknown-message duplicate guidance" not in rendered
+        assert "scalar cyp2d6 tamoxifen guidance" not in rendered
+        assert "list cyp2d6 tamoxifen guidance" not in rendered
+
+    def test_log_gate_aggregates_message_and_event_payload_before_pagination(
+        self,
+        admin_client: TestClient,
+    ) -> None:
+        """Split or unstructured log text cannot bypass the held-pair gate."""
+        from backend.db.connection import get_registry
+
+        baseline = admin_client.get("/api/admin/logs")
+        assert baseline.status_code == 200
+        baseline_total = baseline.json()["total"]
+
+        with get_registry().reference_engine.begin() as conn:
+            conn.execute(
+                sa.insert(log_entries).values(presentation_policy_version=0),
+                [
+                    {
+                        "timestamp": datetime.now(UTC),
+                        "level": "WARNING",
+                        "logger": "backend.analysis.pharmacogenomics",
+                        "message": "CYP2D6",
+                        "event_data": json.dumps({"recommendation": "tamoxifen guidance"}),
+                    },
+                    {
+                        "timestamp": datetime.now(UTC),
+                        "level": "WARNING",
+                        "logger": "backend.analysis.pharmacogenomics",
+                        "message": "CYP2D6 tamoxifen guidance without payload",
+                        "event_data": None,
+                    },
+                    {
+                        "timestamp": datetime.now(UTC),
+                        "level": "WARNING",
+                        "logger": "backend.analysis.pharmacogenomics",
+                        "message": "legacy_pgx_event",
+                        "event_data": '{"score": NaN}',
+                    },
+                ],
+            )
+
+        response = admin_client.get("/api/admin/logs", params={"page": 1, "page_size": 50})
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["total"] == baseline_total
+        rendered = json.dumps(body).lower()
+        assert "tamoxifen" not in rendered
+        assert "legacy_pgx_event" not in rendered
+
+    def test_current_policy_log_page_withholds_cross_row_escaped_identifier_pair(
+        self, admin_client: TestClient
+    ) -> None:
+        """The final page gate remains a defense for current split fragments."""
+        from backend.db.connection import get_registry
+
+        with get_registry().reference_engine.begin() as conn:
+            conn.execute(
+                sa.insert(log_entries).values(
+                    presentation_policy_version=LOG_ENTRY_PRESENTATION_POLICY_VERSION
+                ),
+                [
+                    {
+                        "timestamp": datetime.now(UTC),
+                        "level": "INFO",
+                        "logger": "backend.analysis.ancestry",
+                        "message": "CYP2D6",
+                        "event_data": None,
+                    },
+                    {
+                        "timestamp": datetime.now(UTC),
+                        "level": "INFO",
+                        "logger": "backend.analysis.ancestry",
+                        "message": "safe separate record",
+                        "event_data": '{"note":"tam\\u006fxifen"}',
+                    },
+                ],
+            )
+
+        response = admin_client.get("/api/admin/logs", params={"page": 1, "page_size": 50})
+
+        assert response.status_code == 200
+        assert response.json() == {
+            "entries": [],
+            "total": 0,
+            "page": 1,
+            "page_size": 50,
+            "has_more": False,
+        }
+
+    def test_deeply_nested_pgx_logs_fail_closed(self, admin_client: TestClient) -> None:
+        """#2019: deeply nested legacy PGx JSON cannot crash Log Explorer."""
+        from backend.db.connection import get_registry
+
+        baseline = admin_client.get("/api/admin/logs")
+        assert baseline.status_code == 200
+        baseline_total = baseline.json()["total"]
+
+        payload: dict[str, object] = {
+            "gene": "CYP2C19",
+            "drug": "clopidogrel",
+            "recommendation": "Deep legacy payload must not render.",
+        }
+        nested = payload
+        for _ in range(600):
+            child: dict[str, object] = {}
+            nested["nested"] = child
+            nested = child
+
+        with get_registry().reference_engine.begin() as conn:
+            conn.execute(
+                sa.insert(log_entries).values(
+                    timestamp=datetime.now(UTC),
+                    level="WARNING",
+                    logger="backend.analysis.pharmacogenomics",
+                    message="pgx_prescribing_alert",
+                    event_data=json.dumps(payload),
+                    presentation_policy_version=0,
+                )
+            )
+
+        response = admin_client.get("/api/admin/logs")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == baseline_total
+        assert "deep legacy payload" not in json.dumps(data).lower()
+
+    def test_sql_pagination_excludes_legacy_rows_without_a_scan_threshold(
+        self, admin_client: TestClient
+    ) -> None:
+        """A history beyond the former scan cap remains exact and available."""
+        from backend.db.connection import get_registry
+
+        current_row_count = 10_001
+        with get_registry().reference_engine.begin() as conn:
+            conn.execute(
+                sa.insert(log_entries).values(
+                    presentation_policy_version=LOG_ENTRY_PRESENTATION_POLICY_VERSION
+                ),
+                [
+                    {
+                        "timestamp": datetime.now(UTC),
+                        "level": "INFO",
+                        "logger": "backend.operations",
+                        "message": f"attested operational event {index}",
+                        "event_data": None,
+                    }
+                    for index in range(current_row_count)
+                ],
+            )
+
+        params = {"page": 21, "page_size": 500}
+        response = admin_client.get("/api/admin/logs", params=params)
+
+        assert response.status_code == 200
+        expected = response.json()
+        assert expected["total"] == current_row_count + 5
+        assert len(expected["entries"]) == 6
+        assert expected["has_more"] is False
+
+        # This historical detailed row must not change a response's contents,
+        # count, or availability simply because it sits beyond an old scan cap.
+        with get_registry().reference_engine.begin() as conn:
+            conn.execute(
+                sa.insert(log_entries).values(
+                    timestamp=datetime.now(UTC),
+                    level="WARNING",
+                    logger="backend.analysis.pharmacogenomics",
+                    message="pgx_prescribing_alert",
+                    event_data=json.dumps(
+                        {
+                            "gene": "CYP2D6",
+                            "drug": "tamoxifen",
+                            "recommendation": "Historic guidance must remain quarantined.",
+                        }
+                    ),
+                    presentation_policy_version=0,
+                )
+            )
+
+        repeated = admin_client.get("/api/admin/logs", params=params)
+        assert repeated.status_code == 200
+        assert repeated.json() == expected
 
     def test_event_data_included(self, admin_client: TestClient) -> None:
         """Entries with event_data have the JSON field populated."""

@@ -142,7 +142,8 @@
           "recommendation_text": "HLA-B*57:01 is the pharmacogenomic gold standard for abacavir hypersensitivity screening. This result is based on a proxy tag SNP (r²=1.0 in a CEU/European reference panel). Confirmatory HLA typing is essential before clinical action. CPIC Level A recommendation: do not prescribe abacavir to HLA-B*57:01-positive patients.",
           "cross_module": {
             "module": "pharmacogenomics",
-            "note": "Abacavir/HLA-B*57:01 finding cross-links bi-directionally with the Pharmacogenomics module. See PGx for prescribing guidance."
+            "drug": "abacavir",
+            "note": "Abacavir/HLA-B*57:01 drug-safety finding. Confirmatory high-resolution HLA-B*57:01 typing is required before any abacavir prescribing decision."
           }
         },
         {
@@ -181,7 +182,8 @@
           "coverage_note": "rs144012689 tags HLA-B*15:02 with ~100% sensitivity and specificity in Chinese / East Asian samples (Xi 2022) and across diverse ancestral backgrounds when a neighbouring variant is co-called with manual review (Buchner 2021). HLA-B*15:02 carriage — and thus the carbamazepine SJS/TEN risk — is concentrated in East/Southeast Asian ancestry. Confirmatory high-resolution HLA-B*15:02 typing is required before clinical action. (Xi 2022, PMID 36169168; Buchner 2021, PMID 34381365.)",
           "cross_module": {
             "module": "pharmacogenomics",
-            "note": "Carbamazepine/HLA-B*15:02 cross-links with PGx module for prescribing guidance."
+            "drug": "carbamazepine",
+            "note": "Carbamazepine/HLA-B*15:02 drug-safety finding. Confirmatory high-resolution HLA-B*15:02 typing is required before any carbamazepine prescribing decision."
           }
         },
         {
@@ -224,7 +226,8 @@
           "recommendation_text": "HLA-A*31:01 is associated with carbamazepine hypersensitivity (DRESS and maculopapular exanthema) across multiple populations. Proxy r²=1.0 in Europeans. CPIC recommends HLA-A*31:01 testing before carbamazepine initiation. Confirmatory HLA typing required.",
           "cross_module": {
             "module": "pharmacogenomics",
-            "note": "Carbamazepine/HLA-A*31:01 cross-links with PGx module for prescribing guidance."
+            "drug": "carbamazepine",
+            "note": "Carbamazepine/HLA-A*31:01 drug-safety finding. Confirmatory high-resolution HLA-A*31:01 typing is required before any carbamazepine prescribing decision."
           }
         },
         {
@@ -268,7 +271,8 @@
           "recommendation_text": "HLA-B*58:01 is the primary genetic risk factor for allopurinol-induced severe cutaneous adverse reactions (SJS/TEN). CPIC and ACR recommend HLA-B*58:01 testing before allopurinol initiation in high-risk populations (Southeast Asian, African, Korean). rs9263726 is a tag SNP whose linkage to HLA-B*58:01 is population-specific: reported as near-absolute in Japanese cohorts but only r2=0.886 in Han Chinese and substantially lower in Tibetan (0.606) and Hui (0.622) groups (Zhang 2018), with no reliable linkage demonstrated in European/Australian-Caucasian cohorts and African populations unstudied. A negative proxy result is therefore not exclusionary. Confirmatory high-resolution HLA typing is required.",
           "cross_module": {
             "module": "pharmacogenomics",
-            "note": "Allopurinol/HLA-B*58:01 cross-links with PGx module for prescribing guidance."
+            "drug": "allopurinol",
+            "note": "Allopurinol/HLA-B*58:01 drug-safety finding. Confirmatory high-resolution HLA-B*58:01 typing is required before any allopurinol prescribing decision."
           }
         }
       ]
@@ -311,11 +315,7 @@
           },
           "evidence_level": 3,
           "pmids": ["18311140", "18509540", "20190752"],
-          "recommendation_text": "HLA-DQ2 is present in ~90–95% of celiac disease patients. This proxy (r²=0.997 in European cohorts) indicates genetic susceptibility but not diagnosis. A negative DQ2 proxy alone is not exclusionary because DQ8-positive celiac susceptibility remains possible; use the combined DQ2/DQ8 assessment for rule-out framing. Symptomatic individuals should pursue serological testing (tTG-IgA) and consider gastroenterology referral.",
-          "cross_module": {
-            "module": "nutrigenomics",
-            "note": "Celiac-related HLA-DQ2 finding may affect dietary considerations. See Nutrigenomics for gluten-related nutrient interactions."
-          }
+          "recommendation_text": "HLA-DQ2 is present in ~90–95% of celiac disease patients. This proxy (r²=0.997 in European cohorts) indicates genetic susceptibility but not diagnosis. A negative DQ2 proxy alone is not exclusionary because DQ8-positive celiac susceptibility remains possible; use the combined DQ2/DQ8 assessment for rule-out framing. Symptomatic individuals should pursue serological testing (tTG-IgA) and consider gastroenterology referral."
         },
         {
           "rsid": "rs7454108",
@@ -350,11 +350,7 @@
           },
           "evidence_level": 3,
           "pmids": ["18509540", "20190752"],
-          "recommendation_text": "HLA-DQ8 is present in ~5–10% of celiac disease patients who are DQ2-negative. Proxy r²=0.935 in EUR. Combined DQ2/DQ8 testing provides the highest negative predictive value for celiac disease exclusion. Symptomatic individuals should pursue serological confirmation.",
-          "cross_module": {
-            "module": "nutrigenomics",
-            "note": "Celiac-related HLA-DQ8 finding may affect dietary considerations. See Nutrigenomics for gluten-related nutrient interactions."
-          }
+          "recommendation_text": "HLA-DQ8 is present in ~5–10% of celiac disease patients who are DQ2-negative. Proxy r²=0.935 in EUR. Combined DQ2/DQ8 testing provides the highest negative predictive value for celiac disease exclusion. Symptomatic individuals should pursue serological confirmation."
         }
       ]
     },

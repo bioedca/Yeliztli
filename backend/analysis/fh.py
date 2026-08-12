@@ -29,7 +29,9 @@ from dataclasses import dataclass, field
 import sqlalchemy as sa
 import structlog
 
+from backend.analysis.clinvar_significance import is_pathogenic_primary
 from backend.analysis.pgs_bridge import build_trait_weight_set, load_pgs_registry
+from backend.analysis.pharmacogenomics import is_patient_presentable_finding_payload
 from backend.analysis.prs import PRSResult, run_prs, store_prs_findings
 from backend.db.tables import annotated_variants, findings
 
@@ -71,16 +73,6 @@ FH_CRITERIA_CONTEXT: dict[str, str] = {
         "lipid testing and FH evaluation with a clinician or genetic counsellor."
     ),
 }
-
-
-def _is_pathogenic(significance: str | None) -> bool:
-    """Whether a ClinVar significance string is (likely) pathogenic, not conflicting."""
-    if not significance:
-        return False
-    s = significance.lower()
-    if "conflicting" in s:
-        return False
-    return "pathogenic" in s  # matches both "pathogenic" and "likely_pathogenic"
 
 
 def _is_fh_monogenic_finding(row: sa.Row) -> bool:
@@ -126,6 +118,14 @@ class FhMonogenicVariant:
 
 
 @dataclass
+class FhMonogenicDetection:
+    """Safe monogenic findings plus whether a candidate source was withheld."""
+
+    variants: list[FhMonogenicVariant] = field(default_factory=list)
+    source_withheld: bool = False
+
+
+@dataclass
 class FHAssessment:
     """Composed FH assessment: monogenic + APOB FDB + LDL-C PRS."""
 
@@ -141,8 +141,8 @@ class FHAssessment:
 # ── Detection ──────────────────────────────────────────────────────────────
 
 
-def detect_fh_monogenic(sample_engine: sa.Engine) -> list[FhMonogenicVariant]:
-    """Read monogenic FH variants (LDLR/APOB/PCSK9 P/LP) from stored findings."""
+def detect_fh_monogenic_with_status(sample_engine: sa.Engine) -> FhMonogenicDetection:
+    """Read FH candidates without turning a withheld source into a negative result."""
     with sample_engine.connect() as conn:
         rows = conn.execute(
             sa.select(findings)
@@ -153,17 +153,28 @@ def detect_fh_monogenic(sample_engine: sa.Engine) -> list[FhMonogenicVariant]:
             )
             .order_by(findings.c.gene_symbol)
         ).fetchall()
-    return [
-        FhMonogenicVariant(
-            gene=r.gene_symbol or "",
-            rsid=r.rsid,
-            clinvar_significance=r.clinvar_significance,
-            zygosity=r.zygosity,
-            evidence_level=r.evidence_level or 0,
+    detection = FhMonogenicDetection()
+    for row in rows:
+        if not _is_fh_monogenic_finding(row):
+            continue
+        if not is_patient_presentable_finding_payload(row._mapping):
+            detection.source_withheld = True
+            continue
+        detection.variants.append(
+            FhMonogenicVariant(
+                gene=row.gene_symbol or "",
+                rsid=row.rsid,
+                clinvar_significance=row.clinvar_significance,
+                zygosity=row.zygosity,
+                evidence_level=row.evidence_level or 0,
+            )
         )
-        for r in rows
-        if _is_fh_monogenic_finding(r)
-    ]
+    return detection
+
+
+def detect_fh_monogenic(sample_engine: sa.Engine) -> list[FhMonogenicVariant]:
+    """Read patient-presentable monogenic FH variants from stored findings."""
+    return detect_fh_monogenic_with_status(sample_engine).variants
 
 
 def detect_apob_fdb(sample_engine: sa.Engine) -> ApobFdbResult:
@@ -272,7 +283,13 @@ def store_fh_findings(assessment: FHAssessment, sample_engine: sa.Engine) -> int
         # allele (het/hom_alt). A typed homozygous-reference genotype is a
         # non-carrier and is intentionally not surfaced as a finding.
         if fdb is not None and fdb.is_carrier:
-            is_pathogenic = _is_pathogenic(fdb.clinvar_significance)
+            # Shared ClinVar filter, not a local substring test (#910 sweep; this
+            # module was its straggler). The primary-token rule keeps compounds
+            # like "Pathogenic|drug response" while excluding a Conflicting
+            # aggregate, and — decisively here — it refuses to promote a
+            # "low penetrance" / "risk allele" assertion into the ordinary
+            # high-penetrance P/LP path (#987/#1027, PMID:38054408).
+            is_pathogenic = is_pathogenic_primary(fdb.clinvar_significance)
             status = "pathogenic carrier" if is_pathogenic else "carrier"
             conn.execute(
                 sa.insert(findings),

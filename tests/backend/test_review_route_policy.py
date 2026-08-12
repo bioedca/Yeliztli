@@ -2320,7 +2320,6 @@ def test_protected_rename_raises_route_floor() -> None:
         ".gitattributes",
         ".gitignore",
         ".gitmodules",
-        ".graphifyignore",
         # The fleet contract that gates every other change, including merge
         # authorisation. Both files are `.md` and matched nothing else, so the
         # floor used to call an edit to them `Low` while both route tables call

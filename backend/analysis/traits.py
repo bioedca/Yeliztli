@@ -55,6 +55,7 @@ from backend.analysis.pathway_coverage import (
     coverage_detail,
     format_not_assessed,
     pathway_summary_text,
+    variant_label,
 )
 from backend.analysis.prs import (
     PRSResult,
@@ -596,7 +597,7 @@ def _generate_cross_module_findings(
                     break
 
             finding_text = (
-                f"{snp.gene} {snp.variant_name} ({snp.genotype}) — "
+                f"{variant_label(snp.gene, snp.variant_name)} ({snp.genotype}) — "
                 f"{snp.effect_summary} "
                 f"See {to_module.replace('_', ' ').title()} module for related findings."
             )

@@ -82,6 +82,7 @@ import structlog
 from scipy.optimize import nnls as _scipy_nnls
 
 from backend.analysis.evidence import ANCESTRY_EVIDENCE_LEVEL
+from backend.analysis.pharmacogenomics import is_patient_presentable_finding_payload
 from backend.analysis.zygosity import MERGE_AMBIGUITY_SENTINEL, is_no_call
 from backend.db.tables import (
     annotated_variants,
@@ -1363,18 +1364,18 @@ def _get_latest_ancestry_finding(
     with sample_engine.connect() as conn:
         for category in ("nnls_admixture", "pca_projection", None):
             stmt = (
-                sa.select(findings.c.detail_json)
+                sa.select(findings)
                 .where(findings.c.module == "ancestry")
                 .order_by(findings.c.id.desc())
-                .limit(1)
             )
             if category is not None:
                 stmt = stmt.where(findings.c.category == category)
             else:
                 stmt = stmt.where(policy_qualified_finding_clause(findings.c.category))
-            row = conn.execute(stmt).fetchone()
-
-            if row is not None and row.detail_json:
+            rows = conn.execute(stmt).fetchall()
+            for row in rows:
+                if not is_patient_presentable_finding_payload(row._mapping) or not row.detail_json:
+                    continue
                 try:
                     detail = json.loads(row.detail_json)
                     top_pop = detail.get("top_population") or detail.get("inferred_ancestry")

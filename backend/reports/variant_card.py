@@ -25,21 +25,34 @@ from typing import Any
 import sqlalchemy as sa
 import structlog
 from jinja2 import Environment, FileSystemLoader, select_autoescape
+from starlette.concurrency import run_in_threadpool
 
 from backend.analysis.clinvar_conditions import format_clinvar_conditions_text
+from backend.analysis.cross_module_links import normalize_cross_module_row
 from backend.analysis.pathway_coverage import pathway_level_display_label
+from backend.analysis.pharmacogenomics import (
+    is_patient_presentable_finding_payload,
+    is_patient_presentable_response_payload,
+    patient_visible_finding_clause,
+)
+from backend.analysis.roh import normalize_legacy_finding_text
+from backend.analysis.svg_renderer import is_safe_svg_marker, render_finding_svg
 from backend.api.gating import gated_modules_to_hide
 from backend.db.tables import findings
-from backend.reports.generator import _get_sample_info, _read_svg_content
+from backend.reports.generator import _get_sample_info
 from backend.reports.module_disclaimers import MODULE_DISCLAIMERS, MODULE_DISPLAY_NAMES
 from backend.services.lai_production_coverage import policy_qualified_finding_clause
+from backend.version import app_version
 
 logger = structlog.get_logger(__name__)
 
 # ── Constants ──────────────────────────────────────────────────────────
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
-VERSION = "0.1.0"
+# The version stamped into the footer of every artifact this module
+# emits. Sourced, not written out: this literal said 0.1.0 while the app
+# was 0.2.0, so exported documents misattributed themselves (#2025).
+VERSION = app_version()
 
 # ── Jinja2 environment ────────────────────────────────────────────────
 
@@ -64,12 +77,13 @@ def _load_single_finding(
     stmt = sa.select(findings).where(
         findings.c.id == finding_id,
         policy_qualified_finding_clause(findings.c.category),
+        patient_visible_finding_clause(findings.c),
     )
 
     with engine.connect() as conn:
         row = conn.execute(stmt).fetchone()
 
-    if row is None:
+    if row is None or not is_patient_presentable_finding_payload(row._mapping):
         raise ValueError(f"Finding {finding_id} not found")
 
     # Disclosure gate (#963): the variant-card endpoints take a small, enumerable
@@ -101,6 +115,24 @@ def _load_single_finding(
         except (json.JSONDecodeError, TypeError):
             pass
 
+    # A shareable card is a user-visible render path too, so a pre-gate ROH row
+    # must not carry "typical result" onto one (#2177), and a cross-module row
+    # must name the link the panel declares now. A card is exported by
+    # finding_id, so a retired link stays reachable unless it is refused
+    # outright — with the same not-found error the disclosure gate uses, so the
+    # no-leak posture is unchanged (#2021).
+    corrected_text = normalize_legacy_finding_text(
+        row.module, row.category, row.finding_text, detail, engine
+    )
+    resolved = normalize_cross_module_row(
+        row.module, row.category, row.rsid, corrected_text, detail
+    )
+    if resolved is None:
+        raise ValueError(f"Finding {finding_id} not found")
+    corrected_text, resolved_detail = resolved
+    if isinstance(resolved_detail, dict):
+        detail = resolved_detail
+
     return {
         "id": row.id,
         "module": row.module,
@@ -108,7 +140,7 @@ def _load_single_finding(
         "evidence_level": row.evidence_level,
         "gene_symbol": row.gene_symbol,
         "rsid": row.rsid,
-        "finding_text": row.finding_text,
+        "finding_text": corrected_text,
         "phenotype": row.phenotype,
         # Clean the raw CLNDN blob for display (#918): drop | separators, the
         # not provided/not specified placeholders, and drug-response entries.
@@ -129,6 +161,9 @@ def _load_single_finding(
         "pathway_level_display": pathway_level_display_label(row.pathway_level, detail),
         "svg_path": row.svg_path,
         "pmid_citations": pmids,
+        # This private source record is used only for fresh card generation;
+        # it must not reach the HTML template or patient-facing evidence DTO.
+        "_svg_render_input": dict(row._mapping),
     }
 
 
@@ -153,11 +188,28 @@ def render_variant_card_html(
     str
         Fully rendered HTML suitable for Playwright PDF/PNG conversion.
     """
-    engine, sample_dir, sample_name = _get_sample_info(sample_id)
+    engine, _sample_dir, sample_name = _get_sample_info(sample_id)
     finding = _load_single_finding(engine, finding_id)
 
-    # Embed SVG content
-    finding["svg_content"] = _read_svg_content(sample_dir, finding.get("svg_path"))
+    # Never embed a persisted SVG artifact. It can have changed after the
+    # source finding was evaluated, so regenerate it from the gated record.
+    render_input = finding.pop("_svg_render_input", None)
+    finding["svg_content"] = (
+        render_finding_svg(render_input)
+        if is_safe_svg_marker(finding.get("svg_path")) and isinstance(render_input, dict)
+        else None
+    )
+    svg_content = finding.get("svg_content")
+    card_evidence = {
+        **{
+            key: value
+            for key, value in finding.items()
+            if key not in {"svg_content", "svg_path", "_svg_render_input"} and value is not None
+        },
+        **({"svg_content": svg_content} if isinstance(svg_content, str) else {}),
+    }
+    if not is_patient_presentable_response_payload(card_evidence):
+        finding["svg_content"] = None
 
     # Module display name and disclaimer
     module = finding["module"]
@@ -278,7 +330,9 @@ async def generate_variant_card_pdf(
     RuntimeError
         If Playwright browsers are not installed.
     """
-    html = render_variant_card_html(sample_id, finding_id)
+    # Offloaded: this render performs the ROH coverage scan, and running it
+    # inline would block the event loop before the first await below.
+    html = await run_in_threadpool(render_variant_card_html, sample_id, finding_id)
     pdf_bytes = await _html_to_pdf_single_page(html)
     logger.info(
         "variant_card_pdf_generated",
@@ -314,7 +368,9 @@ async def generate_variant_card_png(
     RuntimeError
         If Playwright browsers are not installed.
     """
-    html = render_variant_card_html(sample_id, finding_id)
+    # Offloaded for the same reason as the PDF path: this render performs the
+    # ROH coverage scan and would block the loop before the await below.
+    html = await run_in_threadpool(render_variant_card_html, sample_id, finding_id)
     png_bytes = await _html_to_png(html)
     logger.info(
         "variant_card_png_generated",

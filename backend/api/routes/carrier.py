@@ -20,6 +20,10 @@ import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
+from backend.analysis.pharmacogenomics import (
+    is_patient_presentable_finding_payload,
+    is_patient_presentable_response_payload,
+)
 from backend.api.dependencies import require_fresh_sample
 from backend.db.connection import get_registry
 from backend.db.tables import findings, samples
@@ -132,6 +136,8 @@ def _fetch_carrier_findings(
 
     result: list[dict[str, Any]] = []
     for row in rows:
+        if not is_patient_presentable_finding_payload(row._mapping):
+            continue
         detail: dict[str, Any] = {}
         if row.detail_json:
             try:
@@ -185,6 +191,19 @@ def _findings_to_response(
     return [CarrierVariantResponse(**f) for f in finding_rows]
 
 
+def _carrier_variants_response(items: list[CarrierVariantResponse]) -> CarrierVariantsListResponse:
+    """Return a final, aggregate-gated carrier-variant response."""
+    genes = sorted({item.gene_symbol for item in items})
+    response = CarrierVariantsListResponse(
+        items=items,
+        total=len(items),
+        genes_with_findings=genes,
+    )
+    if not is_patient_presentable_response_payload(response.model_dump(mode="json")):
+        return CarrierVariantsListResponse(items=[], total=0, genes_with_findings=[])
+    return response
+
+
 # ── Endpoints ────────────────────────────────────────────────────────
 
 
@@ -218,8 +237,7 @@ def list_carrier_variants(
     sample_engine = _get_sample_engine(sample_id)
     raw = _fetch_carrier_findings(sample_engine)
     items = _findings_to_response(raw)
-    genes = sorted(set(item.gene_symbol for item in items))
-    return CarrierVariantsListResponse(items=items, total=len(items), genes_with_findings=genes)
+    return _carrier_variants_response(items)
 
 
 @router.get("/gene/{gene_symbol}", dependencies=[Depends(require_fresh_sample)])
@@ -234,8 +252,7 @@ def carrier_gene_detail(
     sample_engine = _get_sample_engine(sample_id)
     raw = _fetch_carrier_findings(sample_engine, gene_filter=gene_symbol)
     items = _findings_to_response(raw)
-    genes = sorted(set(item.gene_symbol for item in items))
-    return CarrierVariantsListResponse(items=items, total=len(items), genes_with_findings=genes)
+    return _carrier_variants_response(items)
 
 
 @router.post("/run", dependencies=[Depends(require_fresh_sample)])

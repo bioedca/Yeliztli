@@ -110,7 +110,6 @@ LOAD_BEARING_EXACT = {
     ".gitattributes",
     ".gitignore",
     ".gitmodules",
-    ".graphifyignore",
     ".github/codeowners",
     ".github/copilot-instructions.md",
     ".github/dependabot.yml",

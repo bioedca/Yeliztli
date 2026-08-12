@@ -86,8 +86,10 @@ def _env(tmp_path: Path, request) -> Generator[Settings, None, None]:
     # kinship.get_registry, and via resolve_sample_engine (imported from
     # risk_common, which calls risk_common.get_registry) — both must be patched.
     with (
+        patch("backend.api.dependencies.get_registry", return_value=registry),
         patch("backend.api.routes.risk_common.get_registry", return_value=registry),
         patch("backend.api.routes.kinship.get_registry", return_value=registry),
+        patch("backend.services.staleness.get_registry", return_value=registry),
     ):
         yield settings
     registry.dispose_all()

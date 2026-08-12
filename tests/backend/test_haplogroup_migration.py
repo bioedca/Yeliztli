@@ -308,6 +308,88 @@ class TestHaplogroupAPI:
         )
         assert resp.status_code == 404
 
+    def test_get_haplogroups_withholds_cross_assignment_held_pair(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Separate safe assignments cannot combine into held guidance."""
+        from backend.api.routes import ancestry as ancestry_route
+
+        sample_engine = sa.create_engine("sqlite://")
+        create_sample_tables(sample_engine)
+        with sample_engine.begin() as conn:
+            conn.execute(
+                haplogroup_assignments.insert(),
+                [
+                    {
+                        "type": "mt",
+                        "haplogroup": "CYP2D6",
+                        "confidence": 1.0,
+                        "defining_snps_present": 1,
+                        "defining_snps_total": 1,
+                    },
+                    {
+                        "type": "Y",
+                        "haplogroup": "tamoxifen",
+                        "confidence": 1.0,
+                        "defining_snps_present": 1,
+                        "defining_snps_total": 1,
+                    },
+                ],
+            )
+
+        monkeypatch.setattr(ancestry_route, "_get_sample_engine", lambda _sample_id: sample_engine)
+        try:
+            response = ancestry_route.get_haplogroup_assignments(sample_id=1)
+            assert response.assignments == []
+        finally:
+            sample_engine.dispose()
+
+    def test_run_haplogroups_withholds_cross_assignment_held_pair(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """The synchronous run response has the same aggregate guard."""
+        from backend.analysis.ancestry import (
+            HaplogroupResult,
+            HaplogroupTraversalStep,
+        )
+        from backend.api.routes import ancestry as ancestry_route
+
+        sample_engine = sa.create_engine("sqlite://")
+        create_sample_tables(sample_engine)
+        results = [
+            HaplogroupResult(
+                tree_type="mt",
+                haplogroup="CYP2D6",
+                confidence=1.0,
+                defining_snps_present=1,
+                defining_snps_total=1,
+                traversal_path=[HaplogroupTraversalStep("H", 1, 1)],
+                assignment_time_ms=0.0,
+            ),
+            HaplogroupResult(
+                tree_type="Y",
+                haplogroup="tamoxifen",
+                confidence=1.0,
+                defining_snps_present=1,
+                defining_snps_total=1,
+                traversal_path=[HaplogroupTraversalStep("R", 1, 1)],
+                assignment_time_ms=0.0,
+            ),
+        ]
+        monkeypatch.setattr(ancestry_route, "_get_sample_engine", lambda _sample_id: sample_engine)
+        monkeypatch.setattr(
+            "backend.analysis.ancestry.run_haplogroup_assignment",
+            lambda _sample_engine: results,
+        )
+
+        try:
+            response = ancestry_route.run_haplogroup(sample_id=1)
+            assert response.assignments == []
+        finally:
+            sample_engine.dispose()
+
 
 # ── DBRegistry integration test ──────────────────────────────────────────
 

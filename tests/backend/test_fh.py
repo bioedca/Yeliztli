@@ -10,14 +10,18 @@ Covers:
 from __future__ import annotations
 
 import json
+from types import SimpleNamespace
 
+import pytest
 import sqlalchemy as sa
 
 from backend.analysis.fh import (
     APOB_FDB_RSID,
+    FhMonogenicDetection,
     assess_fh,
     detect_apob_fdb,
     detect_fh_monogenic,
+    detect_fh_monogenic_with_status,
     store_fh_findings,
 )
 from backend.annotation.pgs_catalog import (
@@ -25,6 +29,7 @@ from backend.annotation.pgs_catalog import (
     pgs_score_metadata,
     pgs_score_weights,
 )
+from backend.api.routes import fh as fh_route
 from backend.db.tables import annotated_variants, findings
 
 
@@ -178,7 +183,7 @@ class TestMonogenicDetection:
         mono = detect_fh_monogenic(sample_engine)
         assert [m.gene for m in mono] == ["APOB"]
 
-    def test_malformed_detail_json_falls_back_to_fh_gene_detection(
+    def test_malformed_detail_json_is_withheld_from_fh_detection(
         self, sample_engine: sa.Engine
     ) -> None:
         with sample_engine.begin() as conn:
@@ -198,8 +203,11 @@ class TestMonogenicDetection:
                 ],
             )
 
-        mono = detect_fh_monogenic(sample_engine)
-        assert [m.gene for m in mono] == ["LDLR"]
+        # A malformed or schema-drifted payload is no longer safe to carry into
+        # the patient-facing FH assessment, even when its scalar fields look
+        # like an otherwise reportable carrier finding.
+        assert detect_fh_monogenic(sample_engine) == []
+        assert detect_fh_monogenic_with_status(sample_engine).source_withheld is True
 
 
 class TestApobFdb:
@@ -393,3 +401,230 @@ class TestAssessAndStore:
             ).fetchall()
         assert prs == []  # stale PRS gone
         assert len(fdb) == 1 and fdb[0].gene_symbol == "APOB"  # carrier finding intact
+
+
+def _stored_fdb_finding(engine: sa.Engine) -> sa.Row | None:
+    a = assess_fh(engine, None, inferred_ancestry="EUR")
+    store_fh_findings(a, engine)
+    with engine.connect() as conn:
+        return conn.execute(
+            sa.select(findings).where(
+                findings.c.module == "fh", findings.c.category == "fdb_variant"
+            )
+        ).fetchone()
+
+
+class TestApobFdbPathogenicClassification:
+    """The FDB significance predicate must actually decide.
+
+    Every pre-existing fixture fed it ``"Pathogenic"``, so its False branches
+    never ran and the whole predicate could be ``return True`` with the suite
+    still green. These cases pin both sides, and lock the ClinGen
+    lower-penetrance / risk-allele boundary that ``clinvar_significance``
+    already enforces for the other eleven consumers (#910; #987/#1027,
+    PMID:38054408).
+    """
+
+    @pytest.mark.parametrize(
+        "significance",
+        [
+            "Pathogenic",
+            "Likely pathogenic",
+            "Pathogenic|drug response",  # compound primary token survives (#813)
+            "Likely pathogenic,risk factor",
+        ],
+    )
+    def test_primary_pathogenic_is_a_pathogenic_carrier(
+        self, sample_engine: sa.Engine, significance: str
+    ) -> None:
+        _insert_apob_fdb(sample_engine, genotype="CT", sig=significance, zygosity="het")
+        row = _stored_fdb_finding(sample_engine)
+        assert row is not None
+        assert row.evidence_level == 4
+        assert "(pathogenic carrier)" in row.finding_text
+        assert json.loads(row.detail_json)["is_pathogenic"] is True
+
+    @pytest.mark.parametrize(
+        "significance",
+        [
+            None,
+            "Uncertain significance",
+            "Conflicting classifications of pathogenicity",
+            "Established risk allele",
+            # ClinGen lower-penetrance / risk-allele assertions are a distinct
+            # category — they must not read as ordinary high-penetrance P/LP.
+            "Pathogenic, low penetrance",
+            "Likely pathogenic, low penetrance",
+            "Pathogenic/Established risk allele",
+            # Pathogenic is present but is not the primary classification.
+            "Uncertain significance|Pathogenic",
+        ],
+    )
+    def test_non_primary_pathogenic_is_a_plain_carrier(
+        self, sample_engine: sa.Engine, significance: str | None
+    ) -> None:
+        _insert_apob_fdb(sample_engine, genotype="CT", sig=significance, zygosity="het")
+        row = _stored_fdb_finding(sample_engine)
+        assert row is not None  # still a carrier finding — only the claim is downgraded
+        assert row.evidence_level == 2
+        assert "(carrier)" in row.finding_text
+        assert "pathogenic carrier" not in row.finding_text
+        assert json.loads(row.detail_json)["is_pathogenic"] is False
+
+    @pytest.mark.parametrize(
+        "significance", ["Pathogenic", "Pathogenic, low penetrance", "Uncertain significance"]
+    )
+    def test_hom_ref_non_carrier_emits_nothing_whatever_the_significance(
+        self, sample_engine: sa.Engine, significance: str
+    ) -> None:
+        # Negative control: the finding is carriage-gated before the predicate
+        # runs, so no significance value may resurrect it for a non-carrier.
+        _insert_apob_fdb(sample_engine, genotype="CC", sig=significance, zygosity="hom_ref")
+        assert _stored_fdb_finding(sample_engine) is None
+
+
+class TestFhAssessmentPresentation:
+    def test_withheld_legacy_payload_is_unavailable_not_a_false_negative(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        sample_engine: sa.Engine,
+    ) -> None:
+        """A cross-record held pair cannot become a negative FH assessment."""
+        monogenic = [
+            SimpleNamespace(
+                gene="CYP2D6",
+                rsid=None,
+                clinvar_significance=None,
+                zygosity=None,
+                evidence_level=1,
+            ),
+            SimpleNamespace(
+                gene="tamoxifen",
+                rsid=None,
+                clinvar_significance=None,
+                zygosity=None,
+                evidence_level=1,
+            ),
+        ]
+        monkeypatch.setattr(fh_route, "_get_sample_engine", lambda _sample_id: sample_engine)
+        monkeypatch.setattr(
+            fh_route,
+            "detect_fh_monogenic_with_status",
+            lambda _engine: FhMonogenicDetection(variants=monogenic),
+        )
+
+        response = fh_route.get_fh_assessment(sample_id=1)
+
+        assert response.assessment_status == "unavailable"
+        assert response.has_monogenic is False
+        assert response.monogenic == []
+        assert response.apob_fdb is None
+        assert response.ldl_prs is None
+        assert "cyp2d6" not in response.model_dump_json().lower()
+        assert "tamoxifen" not in response.model_dump_json().lower()
+
+    def test_withheld_monogenic_source_is_unavailable_not_a_false_negative(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        sample_engine: sa.Engine,
+    ) -> None:
+        """A held source row must not disappear before the assessment gate."""
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(findings),
+                [
+                    {
+                        "module": "cardiovascular",
+                        "category": "monogenic_variant",
+                        "gene_symbol": "LDLR",
+                        "clinvar_significance": "Pathogenic",
+                        "zygosity": "het",
+                        "evidence_level": 4,
+                        "finding_text": "LDLR P/LP",
+                        "detail_json": json.dumps(
+                            {
+                                "cardiovascular_category": "familial_hypercholesterolemia",
+                                "legacy": {"gene": "CYP2D6", "drug": "tamoxifen"},
+                            }
+                        ),
+                    }
+                ],
+            )
+        monkeypatch.setattr(fh_route, "_get_sample_engine", lambda _sample_id: sample_engine)
+
+        response = fh_route.get_fh_assessment(sample_id=1)
+
+        assert response.assessment_status == "unavailable"
+        assert response.has_monogenic is False
+        assert response.monogenic == []
+        assert "cyp2d6" not in response.model_dump_json().lower()
+        assert "tamoxifen" not in response.model_dump_json().lower()
+
+    @pytest.mark.parametrize(
+        ("category", "safe_detail"),
+        [
+            pytest.param(
+                "fdb_variant",
+                {
+                    "rsid": "rs5742904",
+                    "protein": "p.Arg3527Gln",
+                    "genotype": "CT",
+                },
+                id="fdb",
+            ),
+            pytest.param(
+                "prs",
+                {
+                    "name": "LDL-C PRS",
+                    "snps_used": 1,
+                    "snps_total": 1,
+                },
+                id="prs",
+            ),
+        ],
+    )
+    def test_withheld_derived_source_is_unavailable_even_with_a_safe_duplicate(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        sample_engine: sa.Engine,
+        category: str,
+        safe_detail: dict[str, object],
+    ) -> None:
+        """Every persisted FH source row must be safe before reporting availability."""
+        unsafe_detail = {
+            **safe_detail,
+            "legacy": {"gene": "CYP2D6", "drug": "tamoxifen"},
+        }
+        with sample_engine.begin() as conn:
+            conn.execute(
+                findings.insert(),
+                [
+                    {
+                        "module": "fh",
+                        "category": category,
+                        "gene_symbol": "APOB",
+                        "evidence_level": 4,
+                        "finding_text": "Safe FH source record",
+                        "detail_json": json.dumps(safe_detail),
+                    },
+                    {
+                        "module": "fh",
+                        "category": category,
+                        "gene_symbol": "APOB",
+                        "evidence_level": 4,
+                        "finding_text": "Held FH source record",
+                        "detail_json": json.dumps(unsafe_detail),
+                    },
+                ],
+            )
+        monkeypatch.setattr(fh_route, "_get_sample_engine", lambda _sample_id: sample_engine)
+
+        response = fh_route.get_fh_assessment(sample_id=1)
+
+        assert response.assessment_status == "unavailable"
+        assert response.has_monogenic is False
+        assert response.monogenic == []
+        assert response.apob_fdb is None
+        assert response.ldl_prs is None
+        assert "cyp2d6" not in response.model_dump_json().lower()
+        assert "tamoxifen" not in response.model_dump_json().lower()

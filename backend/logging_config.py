@@ -13,6 +13,8 @@ from datetime import UTC, datetime
 
 import structlog
 
+from backend.analysis.pharmacogenomics import contains_unpresentable_prescribing_identifier
+
 # Guard against recursive log writes (e.g. if the DB insert triggers logging)
 _in_db_processor = contextvars.ContextVar("_in_db_processor", default=False)
 
@@ -38,6 +40,43 @@ _SENSITIVE_LOG_KEYS = {
     "haplotypes",
     "gt",
 }
+
+
+def _redact_withheld_prescribing_alert_fields(
+    event_dict: structlog.types.EventDict,
+) -> structlog.types.EventDict:
+    """Strip all clinical fields for a pair held from patient presentation.
+
+    Structured logs are persisted and rendered by the admin panel, so retaining
+    a source-faithful row in the sample database must not create a second
+    patient-visible recommendation channel. Preserve only event metadata and a
+    neutral marker when a withheld pair is encountered.
+    """
+    try:
+        # ``exc_info`` has not reached either renderer yet. Format a private copy
+        # for classification so a held pair in an exception message cannot bypass
+        # the event-dict scan and reappear in the console traceback or DB payload.
+        evidence = dict(event_dict)
+        if evidence.get("exc_info"):
+            evidence = structlog.processors.format_exc_info(None, "", evidence)
+        should_redact = contains_unpresentable_prescribing_identifier(evidence)
+    except Exception:  # noqa: BLE001 - logging must fail closed before either sink
+        should_redact = True
+    if not should_redact:
+        return event_dict
+
+    event_dict.clear()
+    # Do not retain dynamic event/logger metadata: either field can carry the
+    # held pair itself, or split it across fields. A fixed neutral event keeps
+    # both console and durable-log sinks informative without reintroducing a
+    # clinical guidance channel.
+    event_dict.update(
+        {
+            "event": "clinical_guidance_withheld",
+            "clinical_guidance_withheld": True,
+        }
+    )
+    return event_dict
 
 
 def _is_sensitive_log_key(key: object) -> bool:
@@ -70,6 +109,7 @@ def _redact_sensitive_log_fields(
     event_dict: structlog.types.EventDict,
 ) -> structlog.types.EventDict:
     """Redact genotype-like structured fields before any log sink sees them."""
+    _redact_withheld_prescribing_alert_fields(event_dict)
     for key, value in list(event_dict.items()):
         event_dict[key] = (
             _REDACTED_LOG_VALUE if _is_sensitive_log_key(key) else _redact_sensitive_value(value)
@@ -115,10 +155,14 @@ def _db_processor_factory(engine_getter: callable) -> callable:
 
             import sqlalchemy as sa
 
-            from backend.db.tables import log_entries
+            from backend.db.tables import LOG_ENTRY_PRESENTATION_POLICY_VERSION, log_entries
 
             level = method_name.upper()
             db_event_dict = _event_dict_for_db_storage(logger, method_name, event_dict)
+            # Rendering exception information for the database creates a fresh
+            # event shape, so apply the same fail-closed hold immediately before
+            # deriving durable fields and attesting their presentation policy.
+            _redact_withheld_prescribing_alert_fields(db_event_dict)
             # NULL (not "") when no name was captured, so a misconfigured processor
             # chain reads as a visible gap rather than a tidy blank column (#1997).
             logger_name = db_event_dict.get("logger") or db_event_dict.get("_logger") or None
@@ -145,6 +189,7 @@ def _db_processor_factory(engine_getter: callable) -> callable:
                         logger=str(logger_name) if logger_name is not None else None,
                         message=str(message),
                         event_data=extra_json,
+                        presentation_policy_version=LOG_ENTRY_PRESENTATION_POLICY_VERSION,
                     )
                 )
         except Exception:
