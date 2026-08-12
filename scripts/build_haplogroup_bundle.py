@@ -46,7 +46,7 @@ from typing import Any
 
 # ── Version & metadata ─────────────────────────────────────────────────
 
-BUNDLE_VERSION = "1.1.29"
+BUNDLE_VERSION = "1.1.30"
 BUILD = "GRCh37"
 MT_SOURCE_PATH = Path(__file__).with_name("mt_haplogroup_source.json")
 MT_BASELINE_SNAPSHOT_PATH = Path(__file__).with_name("mt_haplogroup_baseline_snapshot.json")
@@ -105,11 +105,11 @@ _MT_INITIAL_PENDING_NAMES_SHA256 = (
 )
 _MT_ARRAY_MANIFEST_SHA256 = "42de22517a4644884596e36b0499a4fc45f264986c63f6fb239452b88719f977"
 _MT_SOURCE_METADATA_SHA256 = "13755a154c19c603bac63a2195287165271571ece1e36e178a666aa35184d04b"
-_MT_STATE_PARTITION_SHA256 = "b4f46c5140936d99429b7f52f1a94c7ded344417ad579e7d381ba07dc56c9115"
+_MT_STATE_PARTITION_SHA256 = "f9a0d2ecd09f05ae1d5fbd41123d0d9e63b79d8f08c2e3b1c4c1f873ebb6a1fd"
 _MT_BASELINE_EMITTED_TREE_SHA256 = (
     "02a40be2096dd8c60e6e2934ba68a813f07478117a749e60e94e0608bed21914"
 )
-_MT_LOCKED_EMITTED_TREE_SHA256 = "73323f94e8740b24faa0001065f0ca79a9a24c18554500545e65694b1f17a566"
+_MT_LOCKED_EMITTED_TREE_SHA256 = "0d3f25360e57573a61910787224ddfc701fb77515208857132791ec936570d31"
 _MT_SYNTHETIC_ROOT_NAME = "mt-MRCA"
 _MT_FLATTENED_OMISSION_TYPES = frozenset(
     {
@@ -258,12 +258,15 @@ def _node(
     haplogroup: str,
     defining_snps: list[dict[str, Any]],
     children: list[dict[str, Any]] | None = None,
+    optional_conflict_snps: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """Create a haplogroup tree node."""
+    """Create a haplogroup tree node with optional node-scoped conflict guards."""
     node: dict[str, Any] = {
         "haplogroup": haplogroup,
         "defining_snps": defining_snps,
     }
+    if optional_conflict_snps:
+        node["optional_conflict_snps"] = optional_conflict_snps
     if children:
         node["children"] = children
     return node
@@ -2098,13 +2101,30 @@ def build_mt_tree() -> dict[str, Any]:
         ],
         [u5b1, u5b2],
     )
+    u5_record = _MT_SOURCE["structural_exceptions"].get("U5", {})
+    u5_guards = u5_record.get("optional_conflict_snps", []) if isinstance(u5_record, dict) else []
+    if not isinstance(u5_guards, list):
+        u5_guards = []
+    u5_optional_conflict_snps = [
+        _mt_snp(marker["rsid"], marker["pos"], marker["allele"])
+        for marker in u5_guards
+        if (
+            isinstance(marker, dict)
+            and isinstance(marker.get("rsid"), str)
+            and isinstance(marker.get("pos"), int)
+            and isinstance(marker.get("allele"), str)
+        )
+    ]
     u5 = _node(
         "U5",
         # Exact markerless gateway: direct m.16192 is historical-only and
         # m.16270 is callable in only two of four primary exports. Emitting
-        # either available subset would block valid U5a/U5b descendants.
+        # either available subset would block valid U5a/U5b descendants. Its
+        # source-backed optional guard keeps the gateway markerless while a
+        # typed ancestral m.16270 vetoes descent through U5.
         [],
         [u5a, u5b],
+        u5_optional_conflict_snps,
     )
 
     u6a = _node(
@@ -2461,6 +2481,18 @@ def _validate_tree(node: dict[str, Any], path: str = "") -> list[str]:
         if "allele" in snp and snp["allele"] not in ("A", "C", "G", "T"):
             issues.append(f"Invalid allele at {current_path}: {snp}")
 
+    optional_conflict_snps = node.get("optional_conflict_snps", [])
+    if not isinstance(optional_conflict_snps, list):
+        issues.append(f"Optional conflict SNPs are not a list at {current_path}")
+    else:
+        for snp in optional_conflict_snps:
+            if not all(k in snp for k in ("rsid", "pos", "allele")):
+                issues.append(f"Incomplete optional conflict SNP at {current_path}: {snp}")
+            if "pos" in snp and not isinstance(snp["pos"], int):
+                issues.append(f"Non-integer optional conflict SNP pos at {current_path}: {snp}")
+            if "allele" in snp and snp["allele"] not in ("A", "C", "G", "T"):
+                issues.append(f"Invalid optional conflict SNP allele at {current_path}: {snp}")
+
     for child in node.get("children", []):
         issues.extend(_validate_tree(child, current_path))
 
@@ -2787,6 +2819,168 @@ def _mt_validate_coverage(
             f"Marker-exact mtDNA marker {rsid} at {node_name} is callable where its "
             "position is absent"
         )
+
+
+def _mt_validate_optional_conflict_snps(
+    node_name: str,
+    record: dict[str, Any],
+    cohorts: dict[str, Any],
+    issues: list[str],
+) -> None:
+    """Validate non-scoring structural guards against one exact source motif.
+
+    Guards are deliberately narrower than defining markers: an untyped guard
+    preserves a markerless path, a derived call permits it, and a typed ancestral
+    call vetoes it. They may never stand in for a source recurrence or reversion.
+    """
+    if "optional_conflict_snps" not in record:
+        return
+    guards = record["optional_conflict_snps"]
+    if record.get("type") != "markerless_passthrough":
+        issues.append(f"Optional conflict guards require markerless mtDNA node {node_name}")
+    if record.get("source_status") != "exact":
+        issues.append(f"Optional conflict guards require exact mtDNA source node {node_name}")
+    if not isinstance(guards, list) or not guards:
+        issues.append(f"Structural mtDNA node {node_name} has no optional conflict guards")
+        return
+
+    source_node = record.get("source_node")
+    motif = record.get("direct_source_motif")
+    if not _is_nonblank(source_node):
+        issues.append(f"Optional conflict guard node {node_name} has no source identity")
+        return
+    _mt_validate_mutation_list(source_node, motif, issues)
+    if not isinstance(motif, list) or not motif:
+        return
+    motif_by_position = {
+        mutation.get("pos"): mutation
+        for mutation in motif
+        if isinstance(mutation, dict)
+        and mutation.get("mutation_type") == "substitution"
+        and isinstance(mutation.get("pos"), int)
+    }
+
+    seen_rsids: set[str] = set()
+    seen_positions: set[int] = set()
+    for guard in guards:
+        if not isinstance(guard, dict):
+            issues.append(f"Structural mtDNA node {node_name} has a non-object optional guard")
+            continue
+        expected_guard_fields = {
+            "rsid",
+            "pos",
+            "ancestral_allele",
+            "allele",
+            "motif_owner",
+            "array_coverage",
+        }
+        if set(guard) != expected_guard_fields:
+            issues.append(
+                f"Structural mtDNA node {node_name} has an optional guard with invalid fields"
+            )
+        rsid = guard.get("rsid")
+        pos = guard.get("pos")
+        ancestral = guard.get("ancestral_allele")
+        derived = guard.get("allele")
+        owner = guard.get("motif_owner")
+        if not _is_nonblank(rsid) or rsid in seen_rsids:
+            issues.append(
+                f"Structural mtDNA node {node_name} has an invalid optional guard identifier"
+            )
+        elif isinstance(rsid, str):
+            seen_rsids.add(rsid)
+        if not isinstance(pos, int) or not 1 <= pos <= 16569 or pos in seen_positions:
+            issues.append(
+                f"Structural mtDNA node {node_name} has an invalid optional guard position"
+            )
+            continue
+        seen_positions.add(pos)
+        if owner != source_node:
+            issues.append(
+                f"Structural mtDNA optional guard {rsid} at {node_name} has outside motif owner"
+            )
+        source_mutation = motif_by_position.get(pos)
+        if source_mutation is None:
+            issues.append(
+                f"Structural mtDNA optional guard {rsid} at {node_name} has no direct "
+                "source mutation"
+            )
+        else:
+            notation = _mt_parse_substitution_notation(source_mutation.get("notation"))
+            if notation is None or notation[3] or notation[4]:
+                issues.append(
+                    f"Structural mtDNA optional guard {rsid} at {node_name} cannot use a "
+                    "recurrent or reversion mutation"
+                )
+            if source_mutation.get("emitted") is not False:
+                issues.append(
+                    f"Structural mtDNA optional guard {rsid} at {node_name} must remain "
+                    "non-emitted"
+                )
+            if (
+                source_mutation.get("ancestral_allele"),
+                source_mutation.get("derived_allele"),
+            ) != (
+                ancestral,
+                derived,
+            ):
+                issues.append(
+                    f"Structural mtDNA optional guard {rsid} at {node_name} does not match "
+                    "its source mutation direction"
+                )
+        _mt_validate_coverage(node_name, guard, cohorts, issues)
+
+
+def _mt_validate_duplicate_marker_coverage(
+    nodes: dict[str, Any],
+    structural: dict[str, Any],
+    issues: list[str],
+) -> None:
+    """Keep shared runtime-marker coverage evidence consistent across source owners."""
+    coverage_by_signature: dict[tuple[str, int, str, str], tuple[dict[str, Any], str]] = {}
+
+    def validate_marker_coverage(location: str, marker: Any) -> None:
+        if not isinstance(marker, dict):
+            return
+        rsid = marker.get("rsid")
+        pos = marker.get("pos")
+        ancestral = marker.get("ancestral_allele")
+        allele = marker.get("allele")
+        coverage = marker.get("array_coverage")
+        if not (
+            isinstance(rsid, str)
+            and isinstance(pos, int)
+            and isinstance(ancestral, str)
+            and isinstance(allele, str)
+            and isinstance(coverage, dict)
+        ):
+            return
+        signature = (rsid, pos, ancestral, allele)
+        prior = coverage_by_signature.get(signature)
+        if prior is None:
+            coverage_by_signature[signature] = (coverage, location)
+            return
+        prior_coverage, prior_location = prior
+        if coverage != prior_coverage:
+            issues.append(
+                "mtDNA duplicate marker coverage differs for "
+                f"{rsid} at {pos} ({ancestral}>{allele}) between "
+                f"{prior_location} and {location}"
+            )
+
+    for node_name, record in nodes.items():
+        if not isinstance(record, dict):
+            continue
+        for marker in record.get("emitted_snps", []):
+            validate_marker_coverage(f"marker-exact node {node_name}", marker)
+    for node_name, record in structural.items():
+        if not isinstance(record, dict):
+            continue
+        guards = record.get("optional_conflict_snps", [])
+        if not isinstance(guards, list):
+            continue
+        for marker in guards:
+            validate_marker_coverage(f"structural node {node_name}", marker)
 
 
 def _mt_owner_motifs(
@@ -3600,12 +3794,17 @@ def _validate_mt_source_schema(
                 "direct_source_motif",
                 "emitted_snps",
             }
+            if "optional_conflict_snps" in record:
+                expected_structural_fields.add("optional_conflict_snps")
         else:
             expected_structural_fields = base_structural_fields
         if set(record) != expected_structural_fields:
             issues.append(f"Structural mtDNA node {name} has invalid provenance fields")
         if record.get("source_status") == "exact" and not _is_nonblank(record.get("source_node")):
             issues.append(f"Exact structural mtDNA node {name} has no source identity")
+        _mt_validate_optional_conflict_snps(name, record, cohorts, issues)
+
+    _mt_validate_duplicate_marker_coverage(nodes, structural, issues)
 
     exact_structural_source_nodes = [
         record.get("source_node")
@@ -3866,14 +4065,17 @@ def _validate_mt_source_schema(
 
 
 def _mt_tree_projection(inventory: MtTreeInventory) -> list[dict[str, Any]]:
-    return [
-        {
+    projection: list[dict[str, Any]] = []
+    for occurrence in inventory.occurrences:
+        record = {
             "node": occurrence.name,
             "parent": occurrence.parent,
             "defining_snps": occurrence.node.get("defining_snps", []),
         }
-        for occurrence in inventory.occurrences
-    ]
+        if optional_conflict_snps := occurrence.node.get("optional_conflict_snps"):
+            record["optional_conflict_snps"] = optional_conflict_snps
+        projection.append(record)
+    return projection
 
 
 def _validate_exact_mt_markers(source: dict[str, Any], inventory: MtTreeInventory) -> list[str]:
@@ -3963,6 +4165,8 @@ def _validate_mt_structural_records(
                     "direct_source_motif",
                     "emitted_snps",
                 }
+                if "optional_conflict_snps" in record:
+                    required.add("optional_conflict_snps")
                 if set(record) != required:
                     issues.append(
                         f"Exact structural mtDNA node {name} lacks complete source provenance"
@@ -3981,6 +4185,25 @@ def _validate_mt_structural_records(
                     if record["emitted_snps"]:
                         issues.append(
                             f"Markerless structural mtDNA node {name} cannot emit source markers"
+                        )
+                    source_optional_conflict_snps = record.get("optional_conflict_snps", [])
+                    if not isinstance(source_optional_conflict_snps, list):
+                        source_optional_conflict_snps = []
+                    expected_optional_conflict_snps = [
+                        {
+                            "rsid": marker["rsid"],
+                            "pos": marker["pos"],
+                            "allele": marker["allele"],
+                        }
+                        for marker in source_optional_conflict_snps
+                    ]
+                    if (
+                        occurrence.node.get("optional_conflict_snps", [])
+                        != expected_optional_conflict_snps
+                    ):
+                        issues.append(
+                            f"Markerless structural mtDNA node {name} optional conflict guards "
+                            "do not match its source provenance"
                         )
                     owner_motifs = _mt_owner_motifs(
                         name,

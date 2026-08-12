@@ -1,0 +1,112 @@
+{
+  "schema_version": "1.0",
+  "accessed": "2026-08-03",
+  "purpose": "Maps the retained U5 m.16270 primary-source payloads to bounded, sanitized artifacts. Discovery-service output is neither retained nor used as evidence.",
+  "entries": [
+    {
+      "key": "phylotree-build17-u5-extract",
+      "claim_ids": ["C1", "C2"],
+      "service": "repository source-audited registry",
+      "identifier": "PhyloTree Build 17 archive SHA-256:3fe8cf00a15e1ccb09235091016eef1af3a68f44dd9355dd2b7666f8f767b146",
+      "operation": "bounded U5 source extract",
+      "payload_path": "data/science-evidence/2026-08-03-u5-16270-conflict-guard/raw/phylotree-build17-u5-source-extract.json",
+      "sanitized_sha256": "53a0fe0e8606e42ec5386003d7502a3145bebcc6a52bd45f5359b9417f2f9353"
+    },
+    {
+      "key": "pubmed-metadata-and-correction-check",
+      "claim_ids": ["C3", "C4", "C5"],
+      "service": "NCBI Entrez",
+      "identifiers": [
+        "PMID:18853457",
+        "PMID:34072215",
+        "PMID:10712215",
+        "PMID:11032788"
+      ],
+      "operation": "esummary and efetch",
+      "payload_path": "data/science-evidence/2026-08-03-u5-16270-conflict-guard/pubmed-esummary.json",
+      "sanitized_sha256": "26dbd55a77a07458b9fbc32ca09a79fed9cdd9650a5c667e76ea872927952236"
+    }
+  ],
+  "discovery_services": [
+    {
+      "service": "Consensus",
+      "invoked_on": "2026-08-03",
+      "sanitized_query": "human mitochondrial DNA phylogeny U5 C16270T m.16270 PhyloTree; recurrent mutation hotspot mitochondrial control region site 16270 back mutation homoplasy haplogroup assignment",
+      "purpose": "primary-source discovery only",
+      "provider_output_retained": false,
+      "provider_output_used_as_evidence": false,
+      "unavailable_or_quota_events": [
+        {
+          "on": "2026-08-03",
+          "error": "rate limit exceeded",
+          "affected_query": "human mitochondrial DNA phylogeny U5 C16270T m.16270 PhyloTree",
+          "action": "not retried; discovery continued on Scite and NCBI"
+        }
+      ],
+      "primary_source_ids_checked_independently": [
+        "PMID:18853457",
+        "PMID:34072215",
+        "DOI:10.1002/humu.20921",
+        "DOI:10.3390/ijms22115747"
+      ],
+      "documentation_url": "https://docs.consensus.app/docs/mcp",
+      "terms_url": "https://consensus.app/home/terms-of-service/"
+    },
+    {
+      "service": "Scite",
+      "invoked_on": "2026-08-03",
+      "sanitized_query": "PhyloTree mitochondrial DNA haplogroup U5; \"haplogroup U5\" AND \"16270\" AND mitochondrial HVS-I motif; 16270 back mutation U5 16192 recurrent",
+      "purpose": "primary-source discovery only",
+      "provider_output_retained": false,
+      "provider_output_used_as_evidence": false,
+      "unavailable_or_quota_events": [
+        {
+          "on": "2026-08-03",
+          "error": "response exceeded the client result-size limit",
+          "affected_query": "\"haplogroup U5\" AND \"16270\" AND mitochondrial HVS-I motif",
+          "action": "narrowed to DOI- and title-scoped lookups"
+        }
+      ],
+      "excluded_provider_findings": [
+        {
+          "affected_record": "PMID:11032788",
+          "finding": "Scite full-text excerpts contained a further corroborating passage for the U5 root state at position 16270.",
+          "excluded_because": "It could not be re-obtained through an authoritative route: PMC1288566 serves front matter only and the publisher copy returned HTTP 403.",
+          "used_as_evidence": false
+        }
+      ],
+      "primary_source_ids_checked_independently": [
+        "PMID:18853457",
+        "PMID:34072215",
+        "DOI:10.1002/humu.20921",
+        "DOI:10.3390/ijms22115747",
+        "PMID:10712215",
+        "PMID:11032788",
+        "DOI:10.1086/302802"
+      ],
+      "documentation_url": "https://api.scite.ai/docs",
+      "terms_url": "https://scite.org/terms"
+    }
+  ],
+  "sanitization": {
+    "retained": [
+      "public query and identifier fields",
+      "publication and source-release metadata",
+      "correction/retraction-field availability",
+      "bounded source motif metadata",
+      "human-authored discovery-service handling metadata only",
+      "human-authored paraphrases of claim-supporting statements, with the record section they were read from",
+      "records of provider unavailability, quota, and rate-limit fallbacks",
+      "the versioned source-archive URL needed to reproduce the pinned checksum",
+      "the exact official pages inspected for licence or reuse terms",
+      "each discovery service's published documentation and terms URLs"
+    ],
+    "removed": [
+      "article abstracts and full text",
+      "author and affiliation data",
+      "per-request service endpoints, download links, session and tracking parameters, and provider result URLs",
+      "Consensus and Scite provider response payloads, generated summaries, citation context, tallies, and classifier results",
+      "any sample, genotype, PII, credential, or restricted data"
+    ]
+  }
+}
