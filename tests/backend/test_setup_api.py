@@ -1504,7 +1504,7 @@ class TestSetStoragePath:
         # Read and traverse access an operator granted deliberately is kept.
         assert (new_path / "downloads").stat().st_mode & stat.S_IRGRP
 
-    def test_group_writable_directory_owned_by_another_user_is_rejected(
+    def test_group_writable_directory_owned_by_another_user_is_recorded_not_refused(
         self, setup_client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Someone else's group-writable directory is refused where we can explain why.
@@ -1524,8 +1524,10 @@ class TestSetStoragePath:
             "/api/setup/set-storage-path",
             json={"path": str(new_path)},
         )
-        assert resp.status_code == 400
-        assert "owned by another user" in resp.json()["detail"]
+        # Advisory since #2316: a directory we cannot make private is recorded
+        # rather than refused, because refusing it made a required database
+        # unbuildable and left the setup wizard unable to finish at all.
+        assert resp.status_code == 200, resp.json()
 
     def test_nested_storage_path_creates_every_parent_privately(
         self, setup_client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -1556,7 +1558,7 @@ class TestSetStoragePath:
             mode = component.stat().st_mode
             assert not mode & writable_by_others, f"{component} is {oct(stat.S_IMODE(mode))}"
 
-    def test_existing_group_writable_ancestor_is_rejected(
+    def test_existing_group_writable_ancestor_does_not_block_setup(
         self, setup_client: TestClient, tmp_path: Path
     ) -> None:
         """A path under an existing 0o775 mount is refused at selection.
@@ -1576,13 +1578,13 @@ class TestSetStoragePath:
             "/api/setup/set-storage-path",
             json={"path": str(new_path)},
         )
-        assert resp.status_code == 400, resp.json()
-        detail = resp.json()["detail"]
-        assert "group/world-writable" in detail, detail
-        # The message must name the offending ancestor, not the leaf.
-        assert str(shared_mount) in detail, detail
+        # Advisory since #2316: a directory we cannot make private is recorded
+        # rather than refused, because refusing it made a required database
+        # unbuildable and left the setup wizard unable to finish at all.
+        assert resp.status_code == 200, resp.json()
+        assert new_path.exists()
 
-    def test_private_directory_owned_by_another_user_is_rejected(
+    def test_private_directory_owned_by_another_user_does_not_block_setup(
         self, setup_client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Ownership is checked even when no write bits need clearing.
@@ -1603,8 +1605,10 @@ class TestSetStoragePath:
             "/api/setup/set-storage-path",
             json={"path": str(new_path)},
         )
-        assert resp.status_code == 400
-        assert "owned by another user" in resp.json()["detail"]
+        # Advisory since #2316: a directory we cannot make private is recorded
+        # rather than refused, because refusing it made a required database
+        # unbuildable and left the setup wizard unable to finish at all.
+        assert resp.status_code == 200, resp.json()
 
     def test_persists_data_dir_to_pointer_not_config_toml(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

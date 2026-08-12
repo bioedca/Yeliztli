@@ -821,17 +821,29 @@ def _assert_private_source_bundle_directory(
 
     Descriptor validation prevents accidental path traversal and cooperating
     writer races. It cannot make a filesystem controlled by another local
-    principal trustworthy, so reject a configured directory that is not owned
-    by this process or is writable by its group or by everyone.
+    principal trustworthy, so a directory not owned by this process, or writable
+    by its group or by everyone, is reported.
+
+    **Advisory, not fatal (#2316).** Refusing here made MONDO/HPO -- a required
+    database -- unbuildable on ordinary deployments: a cooperative umask, a
+    provisioned shared mount, a restored directory. Since the wizard cannot
+    finish without this database, that turned a hardening measure into an
+    install blocker, and each environment it rejected had to be discovered one
+    at a time. The condition is worth surfacing and is not worth bricking a
+    setup over, so it is logged and the caller proceeds. Enforcement is tracked
+    separately, where the environment matrix can be worked through deliberately.
+
+    A path that is not a directory at all still raises: that is a structural
+    problem with our own staging, not a property of the operator's filesystem.
     """
-    if (
-        not stat.S_ISDIR(result.st_mode)
-        or result.st_uid != os.geteuid()
-        or result.st_mode & (stat.S_IWGRP | stat.S_IWOTH)
-    ):
-        raise ValueError(
-            "MONDO/HPO source bundle directory must be owned by the current user "
-            f"and not group/world-writable: {path}"
+    if not stat.S_ISDIR(result.st_mode):
+        raise ValueError(f"MONDO/HPO source bundle path is not a directory: {path}")
+    if result.st_uid != os.geteuid() or result.st_mode & (stat.S_IWGRP | stat.S_IWOTH):
+        logger.warning(
+            "mondo_hpo_source_bundle_directory_not_private",
+            path=str(path),
+            owned_by_current_user=result.st_uid == os.geteuid(),
+            group_or_world_writable=bool(result.st_mode & (stat.S_IWGRP | stat.S_IWOTH)),
         )
 
 
@@ -909,20 +921,26 @@ def _assert_source_bundle_ancestor_chain_is_trusted(dest_dir: Path) -> None:
                     _source_bundle_identity(ancestor_stat)
                     in system_boundaries.directory_identities
                 )
+                # Advisory, not fatal (#2316): an ancestor is the operator's
+                # filesystem, not ours, and refusing here made a required
+                # database unbuildable under an ordinary provisioned mount.
                 if (
                     ancestor_stat.st_uid not in trusted_owner_uids
                     and not is_pinned_system_boundary
                 ):
-                    raise ValueError(
-                        "MONDO/HPO downloads ancestors must be owned by the current user, root, "
-                        f"or match a pinned system boundary: {ancestor}"
+                    logger.warning(
+                        "mondo_hpo_downloads_ancestor_not_trusted",
+                        ancestor=str(ancestor),
+                        reason="owner",
+                        lexical=lexical,
                     )
-                if is_writable_by_others:
-                    if not is_sticky:
-                        raise ValueError(
-                            "MONDO/HPO downloads ancestors must not be group/world-writable "
-                            f"unless sticky: {ancestor}"
-                        )
+                if is_writable_by_others and not is_sticky:
+                    logger.warning(
+                        "mondo_hpo_downloads_ancestor_not_trusted",
+                        ancestor=str(ancestor),
+                        reason="group_or_world_writable",
+                        lexical=lexical,
+                    )
             if ancestor.parent == ancestor:
                 return
             ancestor = ancestor.parent
@@ -936,21 +954,30 @@ def _assert_source_bundle_ancestor_directory_is_trusted(
     path: Path,
     system_boundaries: _PinnedSystemSourceBundleBoundaries,
 ) -> None:
-    """Verify one held ancestor descriptor is safe to create a child below."""
+    """Report whether one held ancestor descriptor is safe to create a child below.
+
+    Ownership and writability are advisory (#2316) for the same reason as the
+    rest of this chain: they describe the operator's filesystem, and refusing on
+    them made a required database unbuildable on ordinary deployments. A path
+    that is not a directory still raises, because that is structural.
+    """
     if not stat.S_ISDIR(result.st_mode):
         raise ValueError(f"MONDO/HPO downloads ancestor is not a directory: {path}")
     if (
         result.st_uid not in {os.geteuid(), 0}
         and _source_bundle_identity(result) not in system_boundaries.directory_identities
     ):
-        raise ValueError(
-            "MONDO/HPO downloads ancestors must be owned by the current user, root, "
-            f"or match a pinned system boundary: {path}"
+        logger.warning(
+            "mondo_hpo_downloads_ancestor_not_trusted",
+            ancestor=str(path),
+            reason="owner",
         )
     writable_by_others = result.st_mode & (stat.S_IWGRP | stat.S_IWOTH)
     if writable_by_others and not result.st_mode & stat.S_ISVTX:
-        raise ValueError(
-            f"MONDO/HPO downloads ancestors must not be group/world-writable unless sticky: {path}"
+        logger.warning(
+            "mondo_hpo_downloads_ancestor_not_trusted",
+            ancestor=str(path),
+            reason="group_or_world_writable",
         )
 
 

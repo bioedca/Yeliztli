@@ -1523,16 +1523,17 @@ async def set_storage_path(body: SetStoragePathRequest) -> SetStoragePathRespons
         problem = ensure_private_directory(resolved, parents=True)
         if problem is None:
             problem = ensure_private_directory(resolved / "downloads")
-        if problem is None:
-            # Hardening what we create is not enough on its own: an *existing*
-            # ancestor we did not make - a provisioned 0o775 mount, say - is not
-            # ours to re-permission, and the loader refuses the whole chain. Ask
-            # the loader itself, so selection reaches the same verdict the build
-            # will, and the user is told here rather than inside a build whose
-            # error cannot name the directory that caused it.
-            problem = downloads_ancestor_chain_problem(resolved / "downloads")
         if problem is not None:
             raise HTTPException(status_code=400, detail=problem)
+        # The loader's own view of the ancestor chain, recorded rather than
+        # enforced (#2316). An ancestor we did not create is not ours to
+        # re-permission, and refusing the location outright made a required
+        # database unbuildable on ordinary deployments - a provisioned 0o775
+        # mount, a cooperative umask - which left the wizard unable to finish at
+        # all. Logged so the condition is visible without blocking setup.
+        chain_problem = downloads_ancestor_chain_problem(resolved / "downloads")
+        if chain_problem is not None:
+            logger.warning("storage_path_ancestor_not_trusted", detail=chain_problem)
         (resolved / "samples").mkdir(exist_ok=True)
         (resolved / "logs").mkdir(exist_ok=True)
     except PermissionError as exc:

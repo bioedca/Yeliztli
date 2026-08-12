@@ -1150,19 +1150,19 @@ class TestDownloadAndLoad:
         unsafe_parent.chmod(0o777)
         downloads = unsafe_parent / "missing-downloads"
 
-        with pytest.raises(ValueError, match="group/world-writable"):
-            download_and_load_mondo_hpo(reference_engine, downloads)
-
-        assert not downloads.exists()
-        with reference_engine.connect() as conn:
-            assert (
-                conn.execute(
-                    sa.select(database_versions.c.version).where(
-                        database_versions.c.db_name == "mondo_hpo"
-                    )
-                ).scalar_one_or_none()
-                is None
-            )
+        # Advisory since #2316. The unsafe ancestor is reported rather than
+        # refused, so a required database stays buildable; enforcement is
+        # tracked separately. The chain check inspects a directory's ancestors,
+        # so the root has to exist for it to have one.
+        downloads.mkdir(mode=0o700)
+        with capture_logs() as logs:
+            mondo_hpo._assert_source_bundle_ancestor_chain_is_trusted(downloads)
+        assert any(
+            entry["event"] == "mondo_hpo_downloads_ancestor_not_trusted"
+            and entry.get("reason") == "group_or_world_writable"
+            and entry.get("ancestor") == str(unsafe_parent)
+            for entry in logs
+        ), logs
 
     def test_rejects_raced_symlink_intermediate_before_creating_downloads_dir(
         self, monkeypatch, reference_engine: sa.Engine, tmp_path: Path
@@ -2477,8 +2477,13 @@ class TestDownloadAndLoad:
         downloads.mkdir()
         os.chmod(downloads, 0o777)
         try:
-            with pytest.raises(ValueError, match="not group/world-writable"):
-                download_and_load_mondo_hpo(reference_engine, downloads)
+            # Advisory since #2316: the condition is reported, not enforced, so
+            # a shared mount cannot make a required database unbuildable.
+            with capture_logs() as logs:
+                mondo_hpo._assert_private_source_bundle_directory(downloads.stat(), downloads)
+            assert any(
+                entry["event"] == "mondo_hpo_source_bundle_directory_not_private" for entry in logs
+            ), logs
         finally:
             os.chmod(downloads, 0o700)
 
@@ -2493,10 +2498,13 @@ class TestDownloadAndLoad:
         downloads.mkdir(parents=True)
         os.chmod(shared, 0o770)
         try:
-            with pytest.raises(
-                ValueError, match="downloads ancestors must not be group/world-writable"
-            ):
-                download_and_load_mondo_hpo(reference_engine, downloads)
+            with capture_logs() as logs:
+                mondo_hpo._assert_source_bundle_ancestor_chain_is_trusted(downloads)
+            assert any(
+                entry["event"] == "mondo_hpo_downloads_ancestor_not_trusted"
+                and entry.get("reason") == "group_or_world_writable"
+                for entry in logs
+            ), logs
         finally:
             os.chmod(shared, 0o700)
 
@@ -2514,10 +2522,12 @@ class TestDownloadAndLoad:
         downloads_link.symlink_to(target, target_is_directory=True)
         os.chmod(shared, 0o770)
         try:
-            with pytest.raises(
-                ValueError, match="downloads ancestors must not be group/world-writable"
-            ):
-                download_and_load_mondo_hpo(reference_engine, downloads_link)
+            with capture_logs() as logs:
+                mondo_hpo._assert_source_bundle_ancestor_chain_is_trusted(downloads_link)
+            # The lexical pass still sees the unsafe symlink parent.
+            assert any(
+                entry["event"] == "mondo_hpo_downloads_ancestor_not_trusted" for entry in logs
+            ), logs
         finally:
             os.chmod(shared, 0o700)
 
@@ -2672,14 +2682,13 @@ class TestDownloadAndLoad:
 
         monkeypatch.setattr(mondo_hpo.os, "lstat", fake_foreign_owned_lstat)
         try:
-            with pytest.raises(
-                ValueError,
-                match=(
-                    "ancestors must be owned by the current user, root, "
-                    "or match a pinned system boundary"
-                ),
-            ):
-                download_and_load_mondo_hpo(reference_engine, downloads)
+            with capture_logs() as logs:
+                mondo_hpo._assert_source_bundle_ancestor_chain_is_trusted(downloads)
+            assert any(
+                entry["event"] == "mondo_hpo_downloads_ancestor_not_trusted"
+                and entry.get("reason") == "owner"
+                for entry in logs
+            ), logs
         finally:
             os.chmod(shared, 0o700)
 
@@ -2709,14 +2718,13 @@ class TestDownloadAndLoad:
 
         monkeypatch.setattr(mondo_hpo.os, "lstat", fake_foreign_owned_lstat)
         try:
-            with pytest.raises(
-                ValueError,
-                match=(
-                    "ancestors must be owned by the current user, root, "
-                    "or match a pinned system boundary"
-                ),
-            ):
-                download_and_load_mondo_hpo(reference_engine, downloads)
+            with capture_logs() as logs:
+                mondo_hpo._assert_source_bundle_ancestor_chain_is_trusted(downloads)
+            assert any(
+                entry["event"] == "mondo_hpo_downloads_ancestor_not_trusted"
+                and entry.get("reason") == "owner"
+                for entry in logs
+            ), logs
         finally:
             os.chmod(shared, 0o700)
 

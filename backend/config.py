@@ -4,6 +4,7 @@ Layered: defaults -> ~/.yeliztli/config.toml ([yeliztli] table) -> environment
 variables (YELIZTLI_*).
 """
 
+import logging
 import os
 import stat
 import threading
@@ -14,6 +15,8 @@ from typing import Any, Literal
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
+
+logger = logging.getLogger(__name__)
 
 try:
     import tomllib
@@ -574,16 +577,27 @@ def ensure_private_directory(path: Path, *, parents: bool = False) -> str | None
     # on the mode accepted that path here and then failed inside the database
     # build, where the message could not name the real cause.
     if info.st_uid != os.geteuid():
-        return (
-            f"Directory at {path} is owned by another user, so reference-data downloads "
-            "would be refused. Choose a directory this account owns."
+        # Advisory, not fatal (#2316). This directory is not ours to
+        # re-permission, but refusing the path outright made a required database
+        # unbuildable on ordinary deployments, and setup cannot finish without
+        # it. Report it and continue.
+        logger.warning(
+            "data_directory_owned_by_another_user: %s",
+            path,
         )
+        return None
     if not info.st_mode & (stat.S_IWGRP | stat.S_IWOTH):
         return None
     try:
         path.chmod(info.st_mode & ~(stat.S_IWGRP | stat.S_IWOTH))
     except OSError as exc:
-        return f"Cannot remove group and world write access from {path}: {exc}"
+        # Best effort: we own it but could not tighten it. Worth surfacing,
+        # not worth refusing the location over.
+        logger.warning(
+            "data_directory_write_bits_not_cleared: %s (%s)",
+            path,
+            exc,
+        )
     return None
 
 
