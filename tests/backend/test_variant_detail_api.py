@@ -23,11 +23,13 @@ from backend.db.connection import DBRegistry, reset_registry
 from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import (
     annotated_variants,
+    annotation_state,
     findings,
     gene_phenotype,
     reference_metadata,
     samples,
 )
+from backend.services.staleness import REFERENCE_VERSION_SNAPSHOT_KEY
 
 # ── Test fixtures ────────────────────────────────────────────────────
 
@@ -296,6 +298,18 @@ def _setup_client(tmp_data_dir: Path, variants: list[dict], gene_pheno: list[dic
         with sample_engine.begin() as conn:
             normalized = [{k: v.get(k) for k in all_cols} for v in variants]
             conn.execute(annotated_variants.insert(), normalized)
+    # Record the reference snapshot a real annotation run writes. Without it the
+    # sample's phenotype provenance cannot be established, and the stored
+    # gene-wide columns are withheld -- which is the point of the gate, but it
+    # would make every fixture here look like a pre-migration sample.
+    with sample_engine.begin() as conn:
+        conn.execute(
+            annotation_state.insert(),
+            {
+                "key": REFERENCE_VERSION_SNAPSHOT_KEY,
+                "value": json.dumps({"mondo_hpo": f"20260801+{MONDO_HPO_INGESTION_REVISION}"}),
+            },
+        )
     sample_engine.dispose()
 
     with (
@@ -550,6 +564,34 @@ class TestGetVariantDetail:
         assert data["disease_name"] == "Hereditary breast cancer"
         assert data["disease_id"] == "MONDO:0005012"
         assert data["inheritance_pattern"] == "AD"
+
+    def test_withholds_phenotype_fields_from_a_pre_migration_sample(self, client, tmp_data_dir):
+        """A legacy-annotated sample must not keep serving gene-wide terms (#2163).
+
+        The reference-side gate only withholds live lookups. These columns were
+        copied into the sample at annotation time, so rebuilding the reference
+        install does not stop an upgraded user seeing the cross-disease
+        annotation this change declares unsafe -- the sample's own recorded
+        MONDO/HPO revision is what decides.
+        """
+        tc, sid = client
+        sample_db = tmp_data_dir / "samples" / f"sample_{sid}.db"
+        engine = sa.create_engine(f"sqlite:///{sample_db}")
+        with engine.begin() as conn:
+            conn.execute(
+                annotation_state.update()
+                .where(annotation_state.c.key == REFERENCE_VERSION_SNAPSHOT_KEY)
+                .values(value=json.dumps({"mondo_hpo": "20260101"}))
+            )
+        engine.dispose()
+
+        data = tc.get(f"/api/variants/rs80357906?sample_id={sid}").json()
+
+        assert data["disease_name"] is None
+        assert data["disease_id"] is None
+        assert data["inheritance_pattern"] is None
+        assert data["phenotype_source"] is None
+        assert data["hpo_terms"] is None
 
     def test_returns_coverage_and_flags(self, client):
         tc, sid = client

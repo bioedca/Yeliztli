@@ -108,16 +108,26 @@ append-only provenance; incomplete, malformed, legacy, symlinked, and
 operator-created directories are also not automatically removed. The verified
 three-source transfer footprint is 33,992,110 bytes (about 34 MB) per bundle.
 The configured downloads directory and its managed `mondo_hpo_sources` child
-must be private to the updating account and not group/world-writable. Held
-descriptors and the final pre-commit guard fail closed on detectable swaps, but
-the entire lexical and resolved ancestor chain must also be non-writable by
-group/other users and not writable by a different directory owner. A writable
-sticky ancestor is accepted only when it is owned by the updating account or
-root. An unknown owner is permitted only when the ancestor's device/inode
-matches a fixed, descriptor-pinned system boundary (`/`, `/tmp`, `/var/tmp`, or
-`/home`); the exception is never derived from `TMPDIR`. Every lexical
-symbolic-link component must be owned by the updating account unless its exact
-path and identity are one of those pinned system-boundary links. The
+should be private to the updating account and not group/world-writable, and the
+lexical and resolved ancestor chain should likewise not be writable by group or
+other users.
+
+**Those directory conditions are advisory, not enforced** (issue #2316). The
+loader inspects them and records what it finds --
+`mondo_hpo_source_bundle_directory_not_private`, and
+`mondo_hpo_downloads_ancestor_not_trusted` with a `reason` of `owner` or
+`group_or_world_writable` -- then proceeds with the build. This packet therefore
+does **not** assert that the source namespace was private; it asserts that the
+condition was inspected and logged. A reviewer establishing provenance for a
+given install must read those logs, and must not infer privacy from the absence
+of a failure. Enforcement was withdrawn before merge because MONDO/HPO is a
+required database, so refusing a directory prevented setup from completing at
+all on ordinary configurations.
+
+Held descriptors and the final pre-commit guard do still fail closed on
+detectable swaps. That distinction is the substance of what this packet can
+claim: the loader's control over its *own* files is enforced, while the trust
+level of the surrounding filesystem is only observed. The
 loader hashes each held source before parsing and rechecks the same bytes before
 manifest creation and bundle publication. No filesystem primitive makes a
 namespace controlled by an administrator, the platform temporary-directory
