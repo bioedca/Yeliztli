@@ -1330,6 +1330,67 @@ describe("GRCh38 liftover toggle (P4-20)", () => {
     await waitFor(() => expect(screen.getByText("51,000")).toBeInTheDocument())
   })
 
+  it("recovers from a failed post-liftover refresh without changing samples", async () => {
+    // The production flow the other refresh-failure tests cannot reach: one
+    // sample, never switched. The failed refresh puts the variants query in its
+    // error state, which replaces the table *and the toolbar* — so the liftover
+    // toggle, its Retry, and every other affordance are gone, and none of the
+    // liftover effect's dependencies will change again. Without a control in
+    // the error state itself the user's only way out is reloading the page.
+    const stalePage = makeVariantPage(1)
+    stalePage.items[0].chrom_grch38 = null
+    stalePage.items[0].pos_grch38 = null
+    const liftedPage = makeVariantPage(1) // pos_grch38 = 51,000
+
+    let pageFetches = 0
+    mockFetch.mockImplementation(async (url: string) => {
+      if (url.includes("/api/column-presets"))
+        return { ok: true, json: async () => ({ presets: defaultPresets }) }
+      if (url.includes("/api/tags")) return { ok: true, json: async () => defaultTags }
+      if (url.includes("/api/variants/chromosomes"))
+        return { ok: true, json: async () => defaultChromCounts }
+      if (url.includes("/api/variants/count"))
+        return { ok: true, json: async () => makeCountResponse(1) }
+      if (url.includes("/api/liftover/"))
+        return {
+          ok: true,
+          json: async () => ({ total: 1, converted: 1, failed: 0, already_lifted: 0 }),
+        }
+      if (url.startsWith("/api/variants?")) {
+        pageFetches += 1
+        // 1: pre-liftover rows. 2: the refresh the batch triggers, which fails.
+        // 3+: the user's retry, which succeeds and carries the coordinates.
+        if (pageFetches === 1) return { ok: true, json: async () => stalePage }
+        if (pageFetches === 2)
+          return { ok: false, status: 500, text: async () => "Internal Server Error" }
+        return { ok: true, json: async () => liftedPage }
+      }
+      return { ok: false, status: 404 }
+    })
+
+    const user = userEvent.setup()
+    render(<VariantTable sampleId={1} />)
+
+    await waitFor(() => expect(screen.getByText("rs100")).toBeInTheDocument())
+    await user.click(screen.getByRole("button", { name: /show grch38 coordinates/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText("Error loading variants")).toBeInTheDocument()
+    })
+    // The toolbar is gone with the rest of the table, so its Retry cannot be
+    // the way out.
+    expect(
+      screen.queryByRole("button", { name: /show grch38 coordinates/i }),
+    ).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: "Try again" }))
+
+    // Same sample, no rerender: the retry alone brings the table back, with the
+    // coordinates the batch had already computed.
+    await waitFor(() => expect(screen.getByText("51,000")).toBeInTheDocument())
+    expect(screen.queryByText("Error loading variants")).not.toBeInTheDocument()
+  })
+
   it("re-requests the batch for a sample whose post-liftover refresh failed", async () => {
     // A refetch that never delivers the coordinates must not be recorded as a
     // completed liftover. It is not a liftover failure either — the batch

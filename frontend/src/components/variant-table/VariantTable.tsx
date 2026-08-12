@@ -318,6 +318,7 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
     isFetchingNextPage,
     status,
     error,
+    refetch: refetchVariants,
   } = useVariants({ sampleId, filter, showUnannotated, startChrom, tag: activeTag })
 
   // Chromosome counts for the nav bar (P1-15b)
@@ -428,7 +429,17 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
   }
 
   if (status === "error") {
-    return <ErrorEmpty message={error?.message ?? "An unexpected error occurred."} />
+    // This branch replaces the toolbar too, so it holds the only control the
+    // user has left. That matters most right after a liftover: the batch
+    // succeeded, the coordinates are stored, and it is the refresh that failed
+    // — but nothing else re-triggers a fetch for an unchanged sample, so
+    // without this the columns stay unreachable until a page reload (#2029).
+    return (
+      <ErrorEmpty
+        message={error?.message ?? "An unexpected error occurred."}
+        onRetry={() => void refetchVariants()}
+      />
+    )
   }
 
   return (
