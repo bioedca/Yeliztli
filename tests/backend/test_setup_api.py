@@ -23,6 +23,7 @@ import pytest
 import sqlalchemy as sa
 from fastapi.testclient import TestClient
 
+from backend.annotation.mondo_hpo import MONDO_HPO_INGESTION_REVISION
 from backend.config import Settings
 from backend.db.connection import reset_registry
 from backend.db.tables import reference_metadata
@@ -152,12 +153,21 @@ def _seed_required_dbs_ready(tmp_data_dir: Path, *, include_gnomad: bool = True)
                 }
             ],
         )
-        versioned_dbs = ["clinvar", "cpic", "gwas_catalog", "dbsnp", "mondo_hpo", "dbnsfp"]
+        versioned_dbs = ["clinvar", "cpic", "gwas_catalog", "dbsnp", "dbnsfp"]
         if include_gnomad:
             versioned_dbs.append("gnomad")
         conn.execute(
             database_versions.insert(),
-            [{"db_name": name, "version": "20260101"} for name in versioned_dbs],
+            [{"db_name": name, "version": "20260101"} for name in versioned_dbs]
+            # MONDO/HPO serves rows only while its stamp records the current
+            # ingestion revision, so a *ready* install carries it. A bare date
+            # is the legacy-upgrade state, which readiness reports as partial.
+            + [
+                {
+                    "db_name": "mondo_hpo",
+                    "version": f"20260101+{MONDO_HPO_INGESTION_REVISION}",
+                }
+            ],
         )
     engine.dispose()
 

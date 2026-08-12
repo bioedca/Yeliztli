@@ -78,6 +78,13 @@ append-only provenance rather than recursively deleting a directory after a path
 Incomplete, malformed, or operator-created directories are also never automatically removed;
 inspect all bundle directories manually before any operator-directed cleanup.
 
+A MONDO/HPO installation carried over from a release that predates the disease-scoped
+ingestion is withheld from every phenotype lookup, because its rows cannot be proven to be
+scoped to the disease they were recorded against. Database health reports such an install as
+**Partial** rather than **Ready** and setup keeps you on the Databases step until it is
+rebuilt, so an upgraded machine is never admitted while phenotype annotations would come back
+empty. Refresh MONDO/HPO to restore disease-scoped rows.
+
 The loader rejects grossly truncated inputs before replacing installed rows: the compressed
 Monarch primary archive must be at least 100,000 bytes, the HPO export at least 10,000,000
 bytes, and the MONDO SSSOM export must yield at least 50,000 unambiguous exact mappings. These

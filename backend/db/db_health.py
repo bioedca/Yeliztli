@@ -60,6 +60,7 @@ from backend.db.database_registry import (
     DatabaseInfo,
     get_all_databases,
     get_database,
+    installed_version_is_serviceable,
     validate_lai_bundle,
 )
 from backend.db.download_manager import INCOMPLETE_DOWNLOAD_STATES
@@ -717,8 +718,9 @@ def get_database_health(
     State precedence: an active transfer/build wins (a session-linked job, an
     in-flight ``downloads`` row, or a held per-DB build lock); then a resumable
     partial; then on-disk presence resolves to ready/partial/corrupt by
-    integrity + version stamp; finally absence resolves to failed (if the last
-    job failed) or not_installed.
+    integrity + a *serviceable* version stamp (see
+    :func:`installed_version_is_serviceable`); finally absence resolves to
+    failed (if the last job failed) or not_installed.
     """
     from backend.db.build_guard import is_build_locked
 
@@ -796,7 +798,11 @@ def get_database_health(
             present = integ.ok
             file_size = stamp_size
             if integ.ok:
-                state = "ready" if version is not None else "partial"
+                # A stamp alone is not proof the rows reach consumers: a
+                # MONDO/HPO install carrying a superseded ingestion revision
+                # holds a nonempty gene_phenotype table whose rows the lookup
+                # path withholds, so it is an unfinished upgrade, not ready.
+                state = "ready" if installed_version_is_serviceable(name, version) else "partial"
             elif "is empty" in integ.detail and version is None:
                 # Table empty and never recorded → not built (or cleaned), not corrupt.
                 state, last_error = _failure_or_absent()

@@ -21,11 +21,13 @@ import os
 import shutil
 import textwrap
 from contextlib import contextmanager
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
 import sqlalchemy as sa
 from sqlalchemy.pool import StaticPool
+from structlog.testing import capture_logs
 
 import backend.annotation.mondo_hpo as mondo_hpo
 from backend.annotation.http_download import DownloadOutcome
@@ -1930,6 +1932,95 @@ class TestDownloadAndLoad:
                 ).scalar_one_or_none()
                 is None
             )
+
+    def test_identical_source_reuse_logs_the_published_manifest_checksum(
+        self,
+        monkeypatch,
+        reference_engine: sa.Engine,
+        mondo_tsv_file: Path,
+        hpo_phenotype_file: Path,
+        mondo_sssom_file: Path,
+        tmp_path: Path,
+    ) -> None:
+        """Reusing an immutable bundle records that bundle's own manifest digest.
+
+        A source-identical refresh resolves to the bundle already on disk and
+        discards the freshly staged manifest, whose ``retrieved_at`` differs.
+        Recording the staged digest against the published path would leave
+        provenance nobody can verify, so both must describe the same bytes.
+        """
+        monkeypatch.setattr("backend.annotation.mondo_hpo.MINIMUM_UNAMBIGUOUS_MONDO_XREFS", 2)
+        source_files = {
+            "gene_disease.9606.tsv.gz": mondo_tsv_file,
+            "genes_to_phenotype.txt": hpo_phenotype_file,
+            "mondo.sssom.tsv": mondo_sssom_file,
+        }
+
+        def fake_download(url, dest_dir, filename, **kwargs):
+            target = dest_dir / filename
+            target.parent.mkdir(parents=True, exist_ok=True)
+            if filename.endswith(".gz"):
+                # mtime=0 keeps the archive byte-identical across refreshes, so
+                # the second run really does resolve to the same bundle ID.
+                with target.open("wb") as raw_file:
+                    with gzip.GzipFile(fileobj=raw_file, mode="wb", mtime=0) as fh:
+                        fh.write(source_files[filename].read_bytes())
+            else:
+                target.write_bytes(source_files[filename].read_bytes())
+            meta = kwargs.get("meta")
+            if meta is not None:
+                meta.update(
+                    {
+                        "etag": f'"{filename}-etag"',
+                        "last_modified": "Wed, 15 Apr 2026 12:34:56 GMT",
+                        "version": "20260415",
+                    }
+                )
+            return target
+
+        monkeypatch.setattr("backend.annotation.mondo_hpo.download_file", fake_download)
+
+        class _SteppingClock(datetime):
+            """Hand out a strictly later instant on every call.
+
+            The staged manifest differs from the published one by exactly
+            ``retrieved_at``; pinning it makes the two refreshes provably
+            distinct instead of relying on wall-clock resolution, so this test
+            cannot quietly stop discriminating.
+            """
+
+            ticks = 0
+
+            @classmethod
+            def now(cls, tz=None):
+                cls.ticks += 1
+                return datetime(2026, 4, 15, tzinfo=tz or UTC) + timedelta(seconds=cls.ticks)
+
+        monkeypatch.setattr("backend.annotation.mondo_hpo.datetime", _SteppingClock)
+
+        downloads = tmp_path / "downloads"
+        events: list[dict] = []
+        for _ in range(2):
+            with capture_logs() as cap_logs:
+                download_and_load_mondo_hpo(reference_engine, downloads)
+            events.append(next(e for e in cap_logs if e["event"] == "mondo_hpo_loaded"))
+
+        bundle_dirs = sorted(path.name for path in (downloads / "mondo_hpo_sources").iterdir())
+        assert len(bundle_dirs) == 1, "byte-identical sources must reuse the published bundle"
+
+        first, second = events
+        assert second["source_manifest_path"] == first["source_manifest_path"]
+
+        published_manifest = Path(second["source_manifest_path"])
+        published_bytes = published_manifest.read_bytes()
+        # The reused bundle keeps the first refresh's provenance verbatim, so
+        # the staged manifest the second run wrote is genuinely different.
+        assert json.loads(published_bytes)["retrieved_at"] == "2026-04-15T00:00:01+00:00"
+        assert second["source_manifest_sha256"] == hashlib.sha256(published_bytes).hexdigest(), (
+            "the logged checksum must describe the manifest at the logged path"
+        )
+        # Fresh publish records the same bytes, so both refreshes agree.
+        assert first["source_manifest_sha256"] == second["source_manifest_sha256"]
 
     def test_refresh_never_recursively_deletes_a_prior_bundle(
         self,

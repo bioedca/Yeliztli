@@ -656,8 +656,15 @@ def _public_source_url(url: str) -> str:
 
 def _write_source_manifest(
     staging: _StagedSourceBundle, sources: list[dict[str, str | int | None]]
-) -> str:
-    """Exclusively create provenance through the held staging descriptor."""
+) -> None:
+    """Exclusively create provenance through the held staging descriptor.
+
+    Deliberately returns nothing. A staged manifest is only *candidate*
+    provenance: a source-identical refresh resolves to the immutable bundle
+    already on disk and discards this file, so its digest would not describe
+    the manifest that ends up at the recorded path. Callers digest the
+    published manifest with :func:`_published_source_manifest_sha256`.
+    """
     payload = {
         "schema_version": 1,
         "ingestion_revision": MONDO_HPO_INGESTION_REVISION,
@@ -703,7 +710,6 @@ def _write_source_manifest(
         os.close(manifest_fd)
     if not _staged_source_bundle_matches_fd(staging):
         raise ValueError(f"MONDO/HPO staging directory is unavailable: {staging.name}")
-    return hashlib.sha256(encoded).hexdigest()
 
 
 def _source_bundle_id(sources: list[dict[str, str | int | None]]) -> str:
@@ -1636,6 +1642,52 @@ def _assert_published_source_bundle_contents(
     _assert_published_source_bundle_matches_fd(managed, published)
 
 
+def _published_source_manifest_sha256(published: _PublishedSourceBundle) -> str:
+    """Digest the provenance manifest a published bundle actually carries.
+
+    Read through the held bundle descriptor so the recorded checksum describes
+    the file at the recorded path. On a source-identical refresh the staged
+    manifest is discarded in favour of the immutable bundle already on disk,
+    whose manifest carries the earlier ``retrieved_at``; digesting the staged
+    copy would publish provenance nobody can verify.
+    """
+    try:
+        manifest_fd = os.open(
+            SOURCE_BUNDLE_MANIFEST,
+            _source_bundle_file_open_flags(),
+            dir_fd=published.fd,
+        )
+    except OSError as exc:
+        raise ValueError(
+            f"Existing MONDO/HPO source bundle is not valid: {published.name}"
+        ) from exc
+    try:
+        manifest_stat = os.fstat(manifest_fd)
+        named = os.stat(SOURCE_BUNDLE_MANIFEST, dir_fd=published.fd, follow_symlinks=False)
+        if (
+            not stat.S_ISREG(manifest_stat.st_mode)
+            or not stat.S_ISREG(named.st_mode)
+            or _source_bundle_identity(manifest_stat) != _source_bundle_identity(named)
+        ):
+            raise ValueError(f"Existing MONDO/HPO source bundle is not valid: {published.name}")
+        digest = _compute_sha256_from_fd(manifest_fd)
+        settled = os.fstat(manifest_fd)
+        if (
+            _source_bundle_identity(settled) != _source_bundle_identity(manifest_stat)
+            or settled.st_size != manifest_stat.st_size
+        ):
+            raise ValueError(
+                f"MONDO/HPO source bundle manifest changed during validation: {published.name}"
+            )
+    except OSError as exc:
+        raise ValueError(
+            f"Unable to validate MONDO/HPO source bundle manifest: {published.name}"
+        ) from exc
+    finally:
+        os.close(manifest_fd)
+    return digest
+
+
 def _open_published_source_bundle(
     managed: _ManagedSourceBundleDir, bundle_name: str
 ) -> _PublishedSourceBundle:
@@ -2188,6 +2240,21 @@ def _is_legacy_disease_scope_install(version: str | None) -> bool:
     return not _has_current_ingestion_revision(version or "")
 
 
+def mondo_hpo_install_is_serviceable(version: str | None) -> bool:
+    """Whether an installed MONDO/HPO version stamp still serves its rows.
+
+    Readiness reporting has to reach the same verdict
+    :func:`lookup_gene_phenotypes` acts on. An upgraded install whose
+    ``gene_phenotype`` table is structurally nonempty and stamped, but whose
+    stamp predates :data:`MONDO_HPO_INGESTION_REVISION`, has every ``mondo_hpo``
+    row withheld: the stamp proves a loader finished, not that its output is
+    still served. Database health and the setup/build readiness gate delegate
+    here instead of restating the revision rule, so a legacy upgrade can never
+    be admitted as installed while phenotype annotations come back empty.
+    """
+    return not _is_legacy_disease_scope_install(version)
+
+
 def _positive_content_length_or_none(response: httpx.Response) -> int | None:
     """Return a strictly positive response content length, or ``None`` if unknown."""
     content_length = response.headers.get("Content-Length")
@@ -2490,7 +2557,7 @@ def download_and_load_mondo_hpo(
             stats.sha256 = mondo_checksum
             stats.hpo_sha256 = str(sources[1]["sha256"])
             stats.mondo_sssom_sha256 = str(sources[2]["sha256"])
-            source_manifest_sha256 = _write_source_manifest(staging, sources)
+            _write_source_manifest(staging, sources)
             for source in (mondo_source, hpo_source, mondo_sssom_source):
                 _assert_opened_staged_source_matches_fd(staging, source)
             # Never turn absent source provenance into the local wall-clock date:
@@ -2537,6 +2604,12 @@ def download_and_load_mondo_hpo(
                             final_source_manifest_path = (
                                 managed.path / published.name / SOURCE_BUNDLE_MANIFEST
                             )
+                            # Digest the manifest that was actually published.
+                            # A source-identical refresh selects the existing
+                            # immutable bundle and drops the staged manifest,
+                            # whose ``retrieved_at`` differs, so the staged
+                            # digest would not describe the recorded path.
+                            source_manifest_sha256 = _published_source_manifest_sha256(published)
 
                             def assert_published_before_commit() -> None:
                                 for source in (

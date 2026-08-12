@@ -814,8 +814,28 @@ def install_committed_bundle(db_info: DatabaseInfo, settings: Settings) -> bool:
 # ── Status checking ──────────────────────────────────────────────
 
 
-def _check_db_version_exists(db_name: str, settings: Settings) -> bool:
-    """Check if a database has a record in the database_versions table."""
+def installed_version_is_serviceable(db_name: str, version: str | None) -> bool:
+    """Whether a recorded version stamp proves its rows still reach consumers.
+
+    A ``database_versions`` row records that a loader finished, not that what it
+    wrote is still readable. ``mondo_hpo`` gates every lookup on the ingestion
+    revision embedded in its stamp, so an install upgraded from an older loader
+    keeps a structurally nonempty ``gene_phenotype`` table whose ``mondo_hpo``
+    rows are all withheld. Readiness delegates to the loader's own predicate
+    rather than restating the rule, so health, the setup gate, and the build
+    skip cannot drift away from the lookup path.
+    """
+    if version is None:
+        return False
+    if db_name == "mondo_hpo":
+        from backend.annotation.mondo_hpo import mondo_hpo_install_is_serviceable
+
+        return mondo_hpo_install_is_serviceable(version)
+    return True
+
+
+def _check_db_version_is_serviceable(db_name: str, settings: Settings) -> bool:
+    """Check for a database_versions record whose rows still reach consumers."""
     import sqlalchemy as sa
 
     from backend.db.tables import database_versions
@@ -828,11 +848,11 @@ def _check_db_version_exists(db_name: str, settings: Settings) -> bool:
     try:
         with engine.connect() as conn:
             row = conn.execute(
-                sa.select(database_versions.c.db_name).where(
+                sa.select(database_versions.c.version).where(
                     database_versions.c.db_name == db_name
                 )
             ).fetchone()
-        return row is not None
+        return row is not None and installed_version_is_serviceable(db_name, row.version)
     except Exception:
         return False
     finally:
@@ -872,7 +892,7 @@ def get_database_status(db_info: DatabaseInfo, settings: Settings) -> dict:
         file_size = dest.stat().st_size if downloaded else None
     elif db_info.target_db == "reference":
         # reference.db-resident: check database_versions table
-        downloaded = _check_db_version_exists(db_info.name, settings)
+        downloaded = _check_db_version_is_serviceable(db_info.name, settings)
         file_size = None
     elif db_info.build_mode == "pipeline" and db_info.target_db == "standalone":
         # Standalone pipeline DB (gnomad, dbnsfp, alphamissense): require both the file
@@ -881,7 +901,7 @@ def get_database_status(db_info: DatabaseInfo, settings: Settings) -> dict:
         dest = db_info.dest_path(settings)
         file_exists = dest.exists()
         file_size = dest.stat().st_size if file_exists else None
-        downloaded = file_exists and _check_db_version_exists(db_info.name, settings)
+        downloaded = file_exists and _check_db_version_is_serviceable(db_info.name, settings)
     else:
         # download or manual mode: file existence is sufficient
         dest = db_info.dest_path(settings)
