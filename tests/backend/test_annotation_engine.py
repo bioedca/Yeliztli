@@ -3471,6 +3471,50 @@ class TestGenePhenotypeAnnotation:
         assert result["rs2"]["disease_name"] == "Cystic fibrosis"
         assert result["rs2"]["inheritance_pattern"] == "Autosomal recessive"
 
+    def test_lookup_prefers_an_inheritance_only_disease_over_an_unmatched_one(
+        self, reference_engine: sa.Engine
+    ) -> None:
+        """A disease carrying only inheritance still counts as resolved (#2163).
+
+        Parsing lifts a disease whose sole HPO term is an inheritance term out of
+        ``hpo_terms`` and into ``inheritance``. Selecting the summary row on HPO
+        terms alone therefore skipped exactly that disease and fell back to the
+        first association, which may carry nothing at all — dropping the
+        disease-scoped inheritance this annotation exists to surface.
+        """
+        with reference_engine.begin() as conn:
+            conn.execute(gene_phenotype.delete().where(gene_phenotype.c.gene_symbol == "BRCA1"))
+            conn.execute(
+                gene_phenotype.insert(),
+                [
+                    {
+                        "gene_symbol": "BRCA1",
+                        "disease_name": "Unmatched placeholder disease",
+                        "disease_id": None,
+                        "hpo_terms": json.dumps([]),
+                        "source": "mondo_hpo",
+                        "inheritance": None,
+                    },
+                    {
+                        "gene_symbol": "BRCA1",
+                        "disease_name": "Inheritance-only disease",
+                        "disease_id": "MONDO:0000001",
+                        "hpo_terms": json.dumps([]),
+                        "source": "mondo_hpo",
+                        "inheritance": "Autosomal dominant",
+                    },
+                ],
+            )
+
+        result = _lookup_gene_phenotype(
+            {"rs1": {"gene_symbol": "BRCA1", "consequence": "missense_variant"}},
+            reference_engine,
+        )
+
+        assert result["rs1"]["disease_name"] == "Inheritance-only disease"
+        assert result["rs1"]["disease_id"] == "MONDO:0000001"
+        assert result["rs1"]["inheritance_pattern"] == "Autosomal dominant"
+
     def test_lookup_labelled_hpo_storage_keeps_sample_id_array(
         self, reference_engine: sa.Engine
     ) -> None:

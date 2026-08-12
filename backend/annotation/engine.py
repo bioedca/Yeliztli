@@ -816,7 +816,16 @@ def _lookup_gene_phenotype(
     for rsid, gene in rsid_to_gene.items():
         annots = gene_pheno_map.get(gene)
         if annots:
-            primary = next((annot for annot in annots if annot.hpo_terms), annots[0])
+            # An annotation is "resolved" if it carries either HPO terms or an
+            # inheritance pattern. Parsing moves a disease whose only term is an
+            # inheritance term out of `hpo_terms` and into `inheritance`, so
+            # keying on terms alone skipped exactly that row and fell back to a
+            # possibly unmatched first disease, dropping the disease-scoped
+            # inheritance this change exists to surface.
+            primary = next(
+                (annot for annot in annots if annot.hpo_terms or annot.inheritance),
+                annots[0],
+            )
             results[rsid] = {
                 "disease_name": primary.disease_name,
                 "disease_id": primary.disease_id,
