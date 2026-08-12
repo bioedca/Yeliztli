@@ -30,6 +30,11 @@ from typing import TYPE_CHECKING
 import sqlalchemy as sa
 
 from backend.db.tables import merge_provenance, reannotation_prompts, samples
+from backend.services.sample_operation_lock import (
+    SampleOperationConflictError,
+    SampleOperationUnavailableError,
+    active_sample_operation,
+)
 
 if TYPE_CHECKING:
     from backend.db.connection import DBRegistry
@@ -158,6 +163,37 @@ def _delete_sample_reference_rows(conn: sa.Connection, sample_id: int) -> None:
     conn.execute(samples.delete().where(samples.c.id == sample_id))
 
 
+def _require_no_active_lease(registry: DBRegistry, sample_id: int) -> None:
+    """Refuse to delete a sample an annotation or export lease still holds.
+
+    Deletion is *rejected*, not queued behind the lease, for three reasons.
+    The codebase has no waiting anywhere in this interlock — annotation refuses
+    while an export is active and the export lease refuses while annotation is
+    active — so waiting would be a new concurrency semantic introduced on the
+    one operation that is irreversible. A lease can run for minutes (a report
+    render, a 677k-variant liftover), and a DELETE that silently blocks that
+    long reads as a hang. And a queued deletion would fire against data the
+    user last saw several minutes earlier, which is the wrong default for a
+    destructive action: tell them it is busy and let them decide again.
+
+    The unreadable-registry case stays fail-open, matching this module's
+    documented contract that a half-broken install is logged and skipped rather
+    than raised — the cascade is the only route a user has to clear orphaned
+    rows, so an unreadable ``jobs`` table must not strand them. The warning is
+    the signal that the guard could not be evaluated.
+    """
+    try:
+        active = active_sample_operation(registry.reference_engine, sample_id)
+    except SampleOperationUnavailableError:
+        logger.warning(
+            "sample_delete_lease_unreadable",
+            extra={"sample_id": sample_id},
+        )
+        return
+    if active is not None:
+        raise SampleOperationConflictError(f"{active}; delete it after the operation completes.")
+
+
 def delete_sample_with_cascade(registry: DBRegistry, sample_id: int) -> DeleteCascadeResult | None:
     """Delete ``sample_id`` and every merged child that referenced it.
 
@@ -168,6 +204,10 @@ def delete_sample_with_cascade(registry: DBRegistry, sample_id: int) -> DeleteCa
     merged sample whose source rows the registry still believes exist is the
     worse failure mode (would silently mask the source's deletion), so the
     source row is the last write.
+
+    Raises :class:`SampleOperationConflictError` when the sample — or any
+    merged child the cascade would destroy — is held by an active annotation or
+    export lease; the caller surfaces 409. See :func:`_require_no_active_lease`.
     """
     with registry.reference_engine.connect() as conn:
         row = conn.execute(
@@ -179,6 +219,13 @@ def delete_sample_with_cascade(registry: DBRegistry, sample_id: int) -> DeleteCa
         return None
 
     children = list_merged_children(registry, sample_id)
+
+    # Every sample this call is about to destroy, checked before the first
+    # unlink: the cascade takes out the merged children too, and a child being
+    # exported is exactly as unsafe to delete as the source being lifted over.
+    _require_no_active_lease(registry, sample_id)
+    for child in children:
+        _require_no_active_lease(registry, child.id)
 
     for child in children:
         with registry.reference_engine.connect() as conn:

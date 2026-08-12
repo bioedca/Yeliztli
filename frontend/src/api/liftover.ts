@@ -68,12 +68,25 @@ export function useBatchLiftover({
       // nothing to write; returning 677k coordinates just so the client could
       // patch its own cache is a far worse trade than one refetch.
       //
-      // `throwOnError` is what makes a failed refresh observable at all — the
-      // promise resolves either way by default, so without it a refetch that
-      // never delivered the coordinates is indistinguishable from one that did.
+      // Both non-default options below were read out of the installed
+      // @tanstack/query-core 5.90.20 rather than assumed
+      // (build/modern/queryClient.js, `invalidateQueries` / `refetchQueries`):
+      //
+      // `refetchType: "all"` — the default is
+      // `filters?.refetchType ?? filters?.type ?? "active"`, so an *inactive*
+      // query is marked invalid and never fetched. Switching samples mid-batch
+      // makes the first sample's query inactive, and the awaited invalidation
+      // would then resolve having refreshed nothing: the pending state clears,
+      // and returning to that sample renders the cached pre-liftover NULLs with
+      // nothing to say they are about to change.
+      //
+      // `throwOnError` — `refetchQueries` swallows failures
+      // (`if (!fetchOptions.throwOnError) promise = promise.catch(noop)`), so
+      // without it a refetch that never delivered the coordinates is
+      // indistinguishable from one that did.
       try {
         await queryClient.invalidateQueries(
-          { queryKey: ["variants", sampleId] },
+          { queryKey: ["variants", sampleId], refetchType: "all" },
           { throwOnError: true },
         )
       } catch {

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
 import { act, render, screen, waitFor, within } from "./test-utils"
 import userEvent from "@testing-library/user-event"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import VariantTable from "@/components/variant-table/VariantTable"
 import type { VariantPage, VariantCount, ChromosomeSummary, ColumnPreset, Tag } from "@/types/variants"
 
@@ -1234,6 +1235,99 @@ describe("GRCh38 liftover toggle (P4-20)", () => {
     // Only once the refreshed rows land does the operation report as finished.
     await waitFor(() => expect(screen.getByText("51,000")).toBeInTheDocument())
     expect(screen.queryByText(/Computing GRCh38 coordinates/i)).not.toBeInTheDocument()
+  })
+
+  it("refreshes a sample's cached rows even if it is off screen when the batch lands", async () => {
+    // A → B → A with A's batch succeeding after the switch. `invalidateQueries`
+    // refetches active queries only, and A's query goes inactive the moment B
+    // is shown, so the awaited invalidation would resolve having refreshed
+    // nothing — clearing the pending state and leaving A's cache holding the
+    // pre-liftover NULLs. Returning to A then renders those blanks as final.
+    //
+    // This test owns its QueryClient: the shared wrapper builds a fresh client
+    // on every render (no cache survives a rerender) with gcTime 0 (an
+    // unobserved query is dropped at once), and either would erase the
+    // inactive-cache condition this is about.
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, gcTime: 60_000 },
+        mutations: { retry: false },
+      },
+    })
+    const view = (sampleId: number) => (
+      <QueryClientProvider client={client}>
+        <VariantTable sampleId={sampleId} />
+      </QueryClientProvider>
+    )
+
+    const stalePage = makeVariantPage(1)
+    stalePage.items[0].chrom_grch38 = null
+    stalePage.items[0].pos_grch38 = null
+    const liftedPage = makeVariantPage(1) // pos_grch38 = 51,000
+    const otherSamplePage = makeVariantPage(1)
+
+    let sampleOnePageFetches = 0
+    let releaseSampleOneBatch!: () => void
+    const sampleOneBatch = new Promise<unknown>((resolve) => {
+      releaseSampleOneBatch = () =>
+        resolve({
+          ok: true,
+          json: async () => ({ total: 1, converted: 1, failed: 0, already_lifted: 0 }),
+        })
+    })
+    // Never resolves: the refetch the *return* to sample 1 kicks off is held
+    // open, so whatever renders then came from the cache alone.
+    const neverSettles = new Promise<never>(() => {})
+
+    mockFetch.mockImplementation(async (url: string) => {
+      if (url.includes("/api/column-presets"))
+        return { ok: true, json: async () => ({ presets: defaultPresets }) }
+      if (url.includes("/api/tags")) return { ok: true, json: async () => defaultTags }
+      if (url.includes("/api/variants/chromosomes"))
+        return { ok: true, json: async () => defaultChromCounts }
+      if (url.includes("/api/variants/count"))
+        return { ok: true, json: async () => makeCountResponse(1) }
+      if (url === "/api/liftover/1") return await sampleOneBatch
+      if (url.includes("/api/liftover/"))
+        return {
+          ok: true,
+          json: async () => ({ total: 1, converted: 1, failed: 0, already_lifted: 0 }),
+        }
+      if (url.startsWith("/api/variants?")) {
+        if (!url.includes("sample_id=1")) return { ok: true, json: async () => otherSamplePage }
+        sampleOnePageFetches += 1
+        if (sampleOnePageFetches === 1) return { ok: true, json: async () => stalePage }
+        if (sampleOnePageFetches === 2) return { ok: true, json: async () => liftedPage }
+        return await neverSettles
+      }
+      return { ok: false, status: 404 }
+    })
+
+    const user = userEvent.setup()
+    const { rerender } = render(view(1))
+
+    await waitFor(() => expect(screen.getByText("rs100")).toBeInTheDocument())
+    await user.click(screen.getByRole("button", { name: /show grch38 coordinates/i }))
+    await waitFor(() => expect(liftoverCalls()).toHaveLength(1))
+    expect(sampleOnePageFetches).toBe(1)
+
+    // Sample 1's query goes inactive here, with its batch still in flight.
+    rerender(view(2))
+    await waitFor(() => expect(liftoverCalls()).toHaveLength(2))
+
+    await act(async () => {
+      releaseSampleOneBatch()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    // Sample 1's cache is refreshed even though sample 2 is on screen.
+    await waitFor(() => expect(sampleOnePageFetches).toBe(2))
+
+    // So coming back renders the computed coordinates straight from cache —
+    // never the pre-liftover blanks — with the remount's own refetch still
+    // outstanding.
+    rerender(view(1))
+    await waitFor(() => expect(screen.getByText("51,000")).toBeInTheDocument())
   })
 
   it("re-requests the batch for a sample whose post-liftover refresh failed", async () => {
