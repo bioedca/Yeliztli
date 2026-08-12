@@ -1764,7 +1764,7 @@ def _classify_optional_conflict_match(
     return present, conflicting
 
 
-def _guarded_child_has_supported_descent(
+def _guard_vetoed_child_would_win(
     node: HaplogroupNode,
     child: HaplogroupNode,
     genotype_map: dict[str, str | None],
@@ -1774,32 +1774,46 @@ def _guarded_child_has_supported_descent(
     trusted_missing_internal_passthrough_rsids: frozenset[str],
     ambiguous_guard_positions: frozenset[int],
 ) -> bool:
-    """Report whether a guard-vetoed ``child`` would otherwise have been descended into.
+    """Report whether the guard-vetoed ``child`` would have won the sibling comparison.
 
     An optional conflict guard withholds a subtype; it is explicitly *not* an
     exclusion, because the guarded position can back-mutate inside the very clade
     it marks (``data/science-evidence/2026-08-03-u5-16270-conflict-guard`` C5).
     Dropping only the vetoed child would leave the ordinary sibling scoring free
     to publish a *different* child of the same parent, turning a deliberate loss
-    of resolution into a positive assignment to the wrong sibling. The caller
-    therefore stops at the parent whenever the vetoed branch was itself
-    supported, and keeps scoring siblings when it was not — a veto costs nothing
-    where there was no evidence to withhold.
+    of resolution into a positive assignment to the wrong sibling — so the caller
+    stops at the parent instead.
 
-    Support is probed by re-running the real descent logic over a one-child
-    stand-in for ``node`` whose copy of ``child`` carries no guard, so this
-    answer cannot drift from the eligibility rules in :func:`_tree_walk`. Guards
-    on the child's own descendants still apply inside the probe.
+    What must be withheld, though, is the call the guard actually contradicts,
+    and only that. A sample whose evidence points at a sibling anyway loses
+    nothing to the veto: the guard is scoped to one clade, it says nothing about
+    the sibling, and fencing there would discard a well-supported call to protect
+    a branch that was never going to be reported. So the question is not whether
+    the vetoed child had *any* support but whether it would have been *selected*.
+
+    That is answered by re-running the real descent over a stand-in for ``node``
+    carrying every sibling, with the immediate children's own guards dropped so
+    the probe ranks candidates instead of re-fencing, and asking whether the
+    winning path starts at ``child``. Ranking, thresholds, and the direct-versus
+    pass-through comparison therefore cannot drift from :func:`_tree_walk`.
+    Guards on deeper descendants still apply, since they genuinely bear on
+    whether a branch reaches a supported clade.
     """
+    # The probe's children are labelled by position rather than by haplogroup so
+    # the winner can be identified without assuming sibling names are distinct.
+    # Nothing in the walk branches on a node's name — only ``_record_step`` reads
+    # it — and the probe's path never escapes this function.
+    probe_labels = {id(sibling): f"#{index}" for index, sibling in enumerate(node.children)}
     probe_parent = HaplogroupNode(
         haplogroup=node.haplogroup,
         defining_snps=node.defining_snps,
         children=[
             HaplogroupNode(
-                haplogroup=child.haplogroup,
-                defining_snps=child.defining_snps,
-                children=child.children,
+                haplogroup=probe_labels[id(sibling)],
+                defining_snps=sibling.defining_snps,
+                children=sibling.children,
             )
+            for sibling in node.children
         ],
     )
     _probe_terminal, probe_path = _tree_walk(
@@ -1812,7 +1826,8 @@ def _guarded_child_has_supported_descent(
         trusted_missing_internal_passthrough_rsids=trusted_missing_internal_passthrough_rsids,
         ambiguous_guard_positions=ambiguous_guard_positions,
     )
-    return bool(probe_path)
+    # ``_record_step`` stamps the selected child as the first step of the path.
+    return bool(probe_path) and probe_path[0].haplogroup == probe_labels[id(child)]
 
 
 def _classify_snps(
@@ -1893,11 +1908,13 @@ def _tree_walk(
     A child carrying an ``optional_conflict_snps`` guard is vetoed when that
     guard is contradicted, and the veto is checked before any descent scoring.
     Because such a guard withholds a subtype rather than excluding it, a vetoed
-    child that *would* have been descended into fences the walk at this node
-    instead of merely dropping out of the sibling comparison: re-resolving the
-    same evidence onto a sibling would turn a deliberate loss of resolution into
-    a positive call the guard cannot support. A vetoed child with no descent
-    support costs nothing and leaves its siblings scored as usual.
+    child that *would have been selected* fences the walk at this node instead of
+    merely dropping out of the sibling comparison: re-resolving the same evidence
+    onto a sibling would turn a deliberate loss of resolution into a positive
+    call the guard cannot support. A vetoed child that would have lost the
+    comparison anyway costs nothing — the guard is scoped to its own clade and
+    says nothing about the sibling that outranks it — so the siblings keep their
+    normal scoring.
 
     The root node (mt-MRCA / Y-Adam) has no defining SNPs and always matches.
 
@@ -1954,7 +1971,7 @@ def _tree_walk(
             ambiguous_guard_positions,
         )
         if guard_conflicting > 0:
-            if _guarded_child_has_supported_descent(
+            if _guard_vetoed_child_would_win(
                 node,
                 child,
                 genotype_map,
@@ -1964,11 +1981,15 @@ def _tree_walk(
                 trusted_missing_internal_passthrough_rsids,
                 ambiguous_guard_positions,
             ):
-                # The vetoed branch carried real descent evidence, so the honest
-                # answer is the less specific ancestor. Continuing here would let
-                # a sibling absorb that evidence and publish a positive call the
-                # guard cannot support, so the walk is fenced at this node.
+                # This branch is the one the sample's evidence selected, and the
+                # guard contradicts it, so the honest answer is the less specific
+                # ancestor. Continuing would let a sibling absorb that evidence
+                # and publish a positive call the guard cannot support, so the
+                # walk is fenced at this node.
                 return node, path
+            # The veto removed a branch that was not going to be reported anyway:
+            # the guard is scoped to this clade and says nothing about the
+            # sibling that outranks it, so the siblings keep their normal scoring.
             continue
 
         # Clade-specific defining SNPs: drop any marker inherited/duplicated from
@@ -2154,10 +2175,76 @@ def _haplogroup_confidence(present: int, total: int) -> float:
 # ``backend/services/sample_merge.py::_apply_semantics``; the same literal is the
 # APOE discordance filter (``backend/analysis/apoe.py``).
 _MERGE_CONCORDANCE_DISCORDANT = "discordant"
+# The Plan §10.4b provenance column whose presence marks a sample DB as new
+# enough to carry merge provenance at all.
+_MERGE_CONCORDANCE_COLUMN = "concordance"
 
 
-def _merged_mt_conflict_positions(conn: sa.Connection) -> set[int]:
-    """Return mtDNA positions a merge recorded as a *known* source disagreement.
+def _homoplasmic_allele(genotype: str | None) -> str | None:
+    """Return the single allele a homoplasmic mtDNA call encodes, else ``None``.
+
+    mtDNA is haploid and the two vendor parsers spell an unambiguous call
+    differently: 23andMe emits the combined token as one character (``"T"`` —
+    ``parser_23andme._canonical_genotype`` uppercases a length-1 token and
+    returns it unchanged), AncestryDNA emits two allele columns that
+    ``parser_ancestrydna._canonical_genotype`` sorts into a doubled pair
+    (``"TT"``). Comparing those as strings makes them differ; comparing the
+    allele *set* makes them the same call, which is what they are. A
+    heteroplasmic or genuinely mixed token has more than one allele and is
+    deliberately not reduced here.
+    """
+    if genotype is None:
+        return None
+    cleaned = genotype.strip().upper()
+    if not cleaned or is_no_call(cleaned):
+        return None
+    alleles = set(cleaned)
+    if len(alleles) != 1:
+        return None
+    return next(iter(alleles))
+
+
+def _parse_merge_source_calls(discordant_alt_genotype: str | None) -> list[str]:
+    """Return the source calls a ``flag_only`` merge recorded at a discordant locus.
+
+    ``_apply_semantics`` writes ``"S1=<gt>;S2=<gt>"`` when the flag-only strategy
+    keeps the ambiguity sentinel instead of a winner, so both original calls
+    survive only in this column. Returned in file order; a row that does not
+    carry both sides yields whatever is parseable, and the caller treats an
+    incomplete pair as a conflict it cannot talk itself out of.
+    """
+    calls: list[str] = []
+    for part in (discordant_alt_genotype or "").split(";"):
+        _source, separator, genotype = part.strip().partition("=")
+        if separator and genotype.strip():
+            calls.append(genotype.strip())
+    return calls
+
+
+def _raw_variants_has_merge_provenance(conn: sa.Connection) -> bool:
+    """Report whether this sample DB's ``raw_variants`` carries the §10.4b columns.
+
+    Inspected positively rather than inferred from a failed query. A sample DB
+    restored from a pre-v8 backup simply has no merge provenance to read, which
+    is a schema fact; a lock, an I/O error, or a corrupt page is not, and must
+    not be laundered into "this sample has no recorded conflicts" by a blanket
+    ``except OperationalError`` around the read (a conflict guard that fails open
+    on unreadable data is the failure this guard exists to close).
+    """
+    inspector = sa.inspect(conn)
+    if not inspector.has_table(raw_variants.name):
+        # No raw_variants at all means no merge output in this DB, since a merged
+        # sample *is* a materialised raw_variants. Also a schema fact, not a fault.
+        return False
+    return _MERGE_CONCORDANCE_COLUMN in {
+        column["name"] for column in inspector.get_columns(raw_variants.name)
+    }
+
+
+def _merged_mt_provenance(conn: sa.Connection) -> tuple[set[int], dict[int, str]]:
+    """Split merged mtDNA discordances into real conflicts and encoding artefacts.
+
+    Returns ``(conflicting positions, recovered agreeing calls by position)``.
 
     The ``flag_only`` merge strategy collapses a discordant locus to one row
     holding :data:`~backend.analysis.zygosity.MERGE_AMBIGUITY_SENTINEL`. That
@@ -2171,27 +2258,61 @@ def _merged_mt_conflict_positions(conn: sa.Connection) -> set[int]:
     sentinel genotype: a non-``flag_only`` strategy also records ``discordant``
     but keeps a real winning call, which stays an ordinary typed genotype.
 
+    ``concordance='discordant'`` is necessary but not sufficient either, because
+    the merge compares genotype *strings*. On haploid mtDNA the two vendors spell
+    the same unambiguous call differently (``"T"`` vs ``"TT"`` — see
+    :func:`_homoplasmic_allele`), so a real 23andMe + AncestryDNA merge records
+    agreeing derived calls as discordant across the whole mt chromosome. Taking
+    that at face value would veto U5 on two sources that agree. The recorded
+    source calls are therefore re-compared on their allele sets: equal sets are
+    an encoding artefact and the agreed call is handed back so the ordinary
+    positional projection can score it — dropping it instead would leave an
+    agreeing *ancestral* call looking like missing data and fail the guard open
+    the other way. Unequal sets, or a row whose two source calls cannot both be
+    recovered, stay conflicts.
+
     Always read from ``raw_variants``: the provenance columns exist only there,
     so a sample whose tree-walk reads ``annotated_variants`` would otherwise lose
-    the merge record entirely. A sample DB predating the Plan §10.4b provenance
-    columns raises and contributes no conflicts.
+    the merge record entirely.
+
+    Note on where this belongs. Compensating here is a read-side repair, not the
+    fix: ``_apply_semantics`` is what mislabels these loci, and it does so for
+    *every* consumer of a cross-vendor merged sample — the merge preview's
+    concordance summary, the variants-table discordance filter, and the merged
+    genotype itself, which is written as an unusable sentinel rather than the
+    call both sources made. That comparison should be made haploid-aware at the
+    merge boundary, which would let this function drop the recovery branch and
+    trust ``concordance`` outright. Doing it here would change stored merge
+    output and every reader of it, so it is deliberately out of this change's
+    scope and is being raised separately (issue #2165 follow-up).
     """
-    try:
-        rows = conn.execute(
-            sa.select(raw_variants.c.pos, raw_variants.c.genotype).where(
-                raw_variants.c.chrom == _MT_CHROM,
-                raw_variants.c.concordance == _MERGE_CONCORDANCE_DISCORDANT,
-            )
-        ).fetchall()
-    except sa.exc.OperationalError:
-        return set()
-    return {
-        row.pos
-        for row in rows
-        if row.pos is not None
-        and row.genotype is not None
-        and row.genotype.strip() == MERGE_AMBIGUITY_SENTINEL
-    }
+    if not _raw_variants_has_merge_provenance(conn):
+        return set(), {}
+    rows = conn.execute(
+        sa.select(
+            raw_variants.c.pos,
+            raw_variants.c.genotype,
+            raw_variants.c.discordant_alt_genotype,
+        ).where(
+            raw_variants.c.chrom == _MT_CHROM,
+            raw_variants.c.concordance == _MERGE_CONCORDANCE_DISCORDANT,
+        )
+    ).fetchall()
+
+    conflicting: set[int] = set()
+    agreeing: dict[int, str] = {}
+    for row in rows:
+        if row.pos is None or row.genotype is None:
+            continue
+        if row.genotype.strip() != MERGE_AMBIGUITY_SENTINEL:
+            continue  # a resolved discordance keeps a real winning call
+        source_calls = _parse_merge_source_calls(row.discordant_alt_genotype)
+        alleles = [_homoplasmic_allele(call) for call in source_calls]
+        if len(alleles) == 2 and alleles[0] is not None and alleles[0] == alleles[1]:
+            agreeing[row.pos] = source_calls[0]
+            continue
+        conflicting.add(row.pos)
+    return conflicting, agreeing
 
 
 def assign_haplogroups(
@@ -2249,8 +2370,11 @@ def assign_haplogroups(
         # surviving record of a known C/T disagreement would be dropped as
         # ordinary missing data and a source-conflict guard would fail open. A
         # conflicting position is recorded as ambiguous and still withheld from
-        # ``mt_pos_to_genotypes`` — a conflict is never a positive call.
-        ambiguous_mt_positions = _merged_mt_conflict_positions(conn)
+        # ``mt_pos_to_genotypes`` — a conflict is never a positive call. A
+        # discordance that is only the two vendors' haploid-vs-doubled spelling
+        # of the same allele is not a conflict at all, and comes back as a
+        # recovered call instead.
+        ambiguous_mt_positions, merged_mt_agreeing = _merged_mt_provenance(conn)
         for row in mt_rows:
             genotype = row.genotype
             if row.pos is None or genotype is None or is_no_call(genotype):
@@ -2264,6 +2388,13 @@ def assign_haplogroups(
                 mt_pos_to_genotype[pos] = genotypes[0]
             else:
                 ambiguous_mt_positions.add(pos)
+        # The sentinel hid these behind ``is_no_call`` above, so restore them
+        # after the projection: an agreed derived call must be scoreable, and an
+        # agreed *ancestral* call must reach the conflict guards rather than look
+        # like missing data. Never overrides a directly typed row.
+        for pos, genotype in merged_mt_agreeing.items():
+            if pos not in ambiguous_mt_positions:
+                mt_pos_to_genotype.setdefault(pos, genotype)
         for snp in _collect_runtime_snps(bundle.mt_tree):
             genotype = mt_pos_to_genotype.get(snp.pos)
             if genotype is not None:
