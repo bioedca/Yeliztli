@@ -211,8 +211,9 @@ def get_recorded_bundle_version(sample_id: int) -> str | None:
 
     Returns ``None`` when the sample has **never completed an annotation
     run** — i.e. the per-sample row is missing from the reference DB, the
-    per-sample DB is unreachable, the ``annotation_state`` table is
-    absent, or the reserved ``vep_bundle_version`` row is absent/empty.
+    per-sample DB file is absent or unreachable, the ``annotation_state``
+    table is absent, or the reserved ``vep_bundle_version`` row is
+    absent/empty.
     The annotation task writes this row only on a successful completion
     (``backend.tasks.huey_tasks``), so an absent row distinguishes a
     freshly-imported (or mid-first-annotation) sample from one that
@@ -236,6 +237,24 @@ def get_recorded_bundle_version(sample_id: int) -> str | None:
         return None
 
     sample_db = registry.settings.data_dir / row.db_path
+    # Guard before get_sample_engine, which materializes an empty DB (and
+    # schema) on a missing path — the same guard
+    # ``dependencies._read_recorded_sample_version`` already carries. The
+    # recorded version is ``None`` either way (a freshly created DB has no
+    # ``vep_bundle_version`` row), so only the side effect changes. That side
+    # effect is load-bearing: this reader runs inside ``require_fresh_sample``,
+    # so it fires *before* a route's own resolver, and every downstream
+    # ``sample_db_path.exists()`` check then sees the file this read created.
+    # #2029 hit it through the liftover batch, which answered 200 with an empty
+    # result for a sample whose database had gone missing instead of 404.
+    if not sample_db.exists():
+        logger.warning(
+            "annotation_state_missing",
+            sample_id=sample_id,
+            reason="sample_db_missing",
+        )
+        return None
+
     try:
         sample_engine = registry.get_sample_engine(sample_db)
         with sample_engine.connect() as conn:

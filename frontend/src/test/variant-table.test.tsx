@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
-import { render, screen, waitFor, within } from "./test-utils"
+import { act, render, screen, waitFor, within } from "./test-utils"
 import userEvent from "@testing-library/user-event"
 import VariantTable from "@/components/variant-table/VariantTable"
 import type { VariantPage, VariantCount, ChromosomeSummary, ColumnPreset, Tag } from "@/types/variants"
@@ -1053,6 +1053,122 @@ describe("GRCh38 liftover toggle (P4-20)", () => {
     await waitFor(() => {
       expect(screen.getByText("Chr (GRCh38)")).toBeInTheDocument()
     })
+    expect(liftoverCalls()).toHaveLength(2)
+  })
+
+  it("re-requests a sample whose batch failed after the user switched away", async () => {
+    // TanStack Query gives a component one mutation observer: a second mutate()
+    // detaches it from the first request, and callbacks passed to that first
+    // mutate() then never run. Cleanup therefore lives on the mutation itself.
+    // Without that, sample 1's failure never clears its "already requested"
+    // latch, and coming back to sample 1 shows permanently blank GRCh38 columns
+    // with no failure notice and no Retry.
+    const page = makeVariantPage(2)
+    let failSampleOne!: () => void
+    const sampleOneResponse = new Promise<unknown>((resolve) => {
+      failSampleOne = () =>
+        resolve({ ok: false, status: 503, json: async () => ({ detail: "unavailable" }) })
+    })
+    mockFetch.mockImplementation(async (url: string) => {
+      if (url.includes("/api/column-presets"))
+        return { ok: true, json: async () => ({ presets: defaultPresets }) }
+      if (url.includes("/api/tags")) return { ok: true, json: async () => defaultTags }
+      if (url.includes("/api/variants/chromosomes"))
+        return { ok: true, json: async () => defaultChromCounts }
+      if (url.includes("/api/variants/count"))
+        return { ok: true, json: async () => makeCountResponse(2) }
+      // Sample 1's batch stays in flight until the test fails it; sample 2's
+      // succeeds immediately, so the observer moves on while 1 is unresolved.
+      if (url === "/api/liftover/1") return await sampleOneResponse
+      if (url.includes("/api/liftover/"))
+        return {
+          ok: true,
+          json: async () => ({ total: 2, converted: 2, failed: 0, already_lifted: 0 }),
+        }
+      if (url.includes("/api/variants")) return { ok: true, json: async () => page }
+      return { ok: false, status: 404 }
+    })
+
+    const user = userEvent.setup()
+    const { rerender } = render(<VariantTable sampleId={1} />)
+
+    await waitFor(() => {
+      expect(screen.getByText("rs100")).toBeInTheDocument()
+    })
+    await user.click(screen.getByRole("button", { name: /show grch38 coordinates/i }))
+    await waitFor(() => expect(liftoverCalls()).toHaveLength(1))
+    expect(liftoverCalls()[0][0]).toBe("/api/liftover/1")
+
+    // Switch to sample 2 while sample 1's request is still open.
+    rerender(<VariantTable sampleId={2} />)
+    await waitFor(() => expect(liftoverCalls()).toHaveLength(2))
+    expect(liftoverCalls()[1][0]).toBe("/api/liftover/2")
+
+    // Now let sample 1's request fail, with the observer attached to sample 2.
+    await act(async () => {
+      failSampleOne()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    rerender(<VariantTable sampleId={1} />)
+
+    await waitFor(() => expect(liftoverCalls()).toHaveLength(3))
+    expect(liftoverCalls()[2][0]).toBe("/api/liftover/1")
+    // …and that retry's failure is reported against the sample on screen.
+    await waitFor(() => {
+      expect(screen.getByText(/could not be computed/i)).toBeInTheDocument()
+    })
+  })
+
+  it("does not report one sample's failure against another sample", async () => {
+    // 2 → 1 → 2. The mutation observer holds a single isError, and returning to
+    // an already-computed sample starts no new request to clear it. Read
+    // straight off the observer, sample 1's failure therefore keeps claiming
+    // sample 2's coordinates are broken — the inverse misreport, and just as
+    // wrong: sample 2's GRCh38 columns were computed and are correct.
+    const page = makeVariantPage(2)
+    mockFetch.mockImplementation(async (url: string) => {
+      if (url.includes("/api/column-presets"))
+        return { ok: true, json: async () => ({ presets: defaultPresets }) }
+      if (url.includes("/api/tags")) return { ok: true, json: async () => defaultTags }
+      if (url.includes("/api/variants/chromosomes"))
+        return { ok: true, json: async () => defaultChromCounts }
+      if (url.includes("/api/variants/count"))
+        return { ok: true, json: async () => makeCountResponse(2) }
+      if (url === "/api/liftover/1")
+        return { ok: false, status: 503, json: async () => ({ detail: "unavailable" }) }
+      if (url.includes("/api/liftover/"))
+        return {
+          ok: true,
+          json: async () => ({ total: 2, converted: 2, failed: 0, already_lifted: 0 }),
+        }
+      if (url.includes("/api/variants")) return { ok: true, json: async () => page }
+      return { ok: false, status: 404 }
+    })
+
+    const user = userEvent.setup()
+    const { rerender } = render(<VariantTable sampleId={2} />)
+
+    await waitFor(() => {
+      expect(screen.getByText("rs100")).toBeInTheDocument()
+    })
+    await user.click(screen.getByRole("button", { name: /show grch38 coordinates/i }))
+    await waitFor(() => expect(liftoverCalls()).toHaveLength(1))
+    expect(liftoverCalls()[0][0]).toBe("/api/liftover/2")
+
+    rerender(<VariantTable sampleId={1} />)
+    await waitFor(() => {
+      expect(screen.getByText(/could not be computed/i)).toBeInTheDocument()
+    })
+
+    // Back to the sample that succeeded. It is already computed, so no new
+    // request runs and nothing resets a shared error flag.
+    rerender(<VariantTable sampleId={2} />)
+
+    await waitFor(() => {
+      expect(screen.queryByText(/could not be computed/i)).not.toBeInTheDocument()
+    })
+    expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument()
     expect(liftoverCalls()).toHaveLength(2)
   })
 

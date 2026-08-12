@@ -100,11 +100,31 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
   const [showUnannotated, setShowUnannotated] = useState(false)
   const [showConflictsOnly, setShowConflictsOnly] = useState(false)
   const [showGRCh38, setShowGRCh38] = useState(false)
-  const { mutate: runLiftover, isPending: liftoverPending, isError: liftoverFailed } =
-    useBatchLiftover()
   // Samples the batch has already been requested for during this mount (#2029).
   // A set rather than a single id, so A → B → A does not re-request A.
   const liftoverRequestedRef = useRef<Set<number>>(new Set())
+  // Liftover progress keyed by sample, rather than read off the mutation's
+  // status. The component holds one mutation observer, so its isPending /
+  // isError describe only the most recent request: a batch that fails after the
+  // user moved to another sample would either go unreported or be reported
+  // against whichever sample is on screen. Both readings misstate what the
+  // blank GRCh38 cells mean, which is the whole point of showing the state.
+  const [liftoverStatus, setLiftoverStatus] = useState<Record<number, "pending" | "error">>({})
+  const { mutate: runLiftover } = useBatchLiftover({
+    onSampleSucceeded: (id) =>
+      setLiftoverStatus((prev) => {
+        if (!(id in prev)) return prev
+        const next = { ...prev }
+        delete next[id]
+        return next
+      }),
+    onSampleFailed: (id) => {
+      // A failure must not leave the sample latched, or the user can never
+      // retry without a reload.
+      liftoverRequestedRef.current.delete(id)
+      setLiftoverStatus((prev) => (prev[id] === "error" ? prev : { ...prev, [id]: "error" }))
+    },
+  })
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
     chrom_grch38: false,
     pos_grch38: false,
@@ -228,13 +248,8 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
       // The endpoint is idempotent, but a POST per toggle would rescan the whole
       // table for NULLs each time.
       requested.add(targetSampleId)
-      runLiftover(targetSampleId, {
-        // A failure must not leave the sample latched, or the user can never
-        // retry without a reload.
-        onError: () => {
-          requested.delete(targetSampleId)
-        },
-      })
+      setLiftoverStatus((prev) => ({ ...prev, [targetSampleId]: "pending" }))
+      runLiftover(targetSampleId)
     },
     [runLiftover],
   )
@@ -248,6 +263,9 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
     if (sampleId == null) return
     requestLiftover(sampleId, { force: true })
   }, [sampleId, requestLiftover])
+
+  const liftoverPending = sampleId != null && liftoverStatus[sampleId] === "pending"
+  const liftoverFailed = sampleId != null && liftoverStatus[sampleId] === "error"
 
   // GRCh38 liftover toggle (P4-20): show/hide GRCh38 columns independently of presets
   const handleToggleGRCh38 = useCallback(() => {

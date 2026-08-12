@@ -20,8 +20,24 @@ export interface BatchLiftoverStats {
   already_lifted: number
 }
 
-/** Compute and store GRCh38 coordinates for every annotated variant of a sample. */
-export function useBatchLiftover() {
+/** Compute and store GRCh38 coordinates for every annotated variant of a sample.
+ *
+ * `onSampleSucceeded` / `onSampleFailed` are the *mutation's* own handlers, not
+ * callbacks passed to an individual `mutate` call. That distinction is
+ * load-bearing: a component holds one mutation observer, so a second `mutate`
+ * detaches it from the first request, and per-call callbacks then never run for
+ * that first request. Switching samples while a batch is in flight is exactly
+ * that case, and the caller's per-sample bookkeeping has to settle for every
+ * request it started — otherwise the abandoned sample stays marked "already
+ * requested" and shows blank columns with no failure and no way to retry.
+ */
+export function useBatchLiftover({
+  onSampleSucceeded,
+  onSampleFailed,
+}: {
+  onSampleSucceeded?: (sampleId: number) => void
+  onSampleFailed?: (sampleId: number) => void
+} = {}) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (sampleId: number): Promise<BatchLiftoverStats> => {
@@ -37,6 +53,10 @@ export function useBatchLiftover() {
       // the toggle, the batch succeeds, and the columns stay blank until
       // something else happens to refetch.
       void queryClient.invalidateQueries({ queryKey: ["variants", sampleId] })
+      onSampleSucceeded?.(sampleId)
+    },
+    onError: (_error, sampleId) => {
+      onSampleFailed?.(sampleId)
     },
   })
 }

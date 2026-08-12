@@ -26,6 +26,11 @@ from backend.ingestion.liftover import (
     lift_build36_to_grch37,
     reset_liftover,
 )
+from backend.services.sample_operation_lock import (
+    ACTIVE_EXPORT_STATUSES,
+    SAMPLE_EXPORT_JOB_TYPE,
+    reserve_annotation_job,
+)
 
 # ── Unit tests: convert_coordinate ────────────────────────────────────
 
@@ -340,6 +345,9 @@ def liftover_sample_client(tmp_data_dir: Path) -> Generator[TestClient, None, No
     :class:`TestConvertCoordinate`); the mitochondrial rows must never lift
     (F34), so they double as the negative control that stops a blanket write
     from passing.
+
+    Sample 2 is registered with no database file behind it — the "sample whose
+    data went missing" case that must 404 rather than be silently recreated.
     """
     settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
 
@@ -359,6 +367,15 @@ def liftover_sample_client(tmp_data_dir: Path) -> Generator[TestClient, None, No
                 db_path="samples/sample_1.db",
                 file_format="v5",
                 file_hash="liftover2029",
+            )
+        )
+        conn.execute(
+            samples.insert().values(
+                id=2,
+                name="Vanished Sample",
+                db_path="samples/sample_2.db",
+                file_format="v5",
+                file_hash="vanished2029",
             )
         )
 
@@ -482,6 +499,65 @@ class TestBatchLiftoverRoute:
     def test_unknown_sample_returns_404(self, liftover_sample_client: TestClient) -> None:
         """A missing sample is 404, never a silent no-op."""
         assert liftover_sample_client.post("/api/liftover/9999").status_code == 404
+
+    def test_batch_takes_a_lease_and_releases_it(
+        self, liftover_sample_client: TestClient, tmp_data_dir: Path
+    ) -> None:
+        """The batch must take the lease *and* not outlive it.
+
+        The interlock is symmetric: ``reserve_annotation_job`` refuses to start
+        while a ``sample_export`` lease is active. So both halves are load
+        bearing — never taking the lease is the concurrency hole
+        :meth:`test_active_annotation_blocks_the_batch` covers from the other
+        side, and taking it without releasing would block re-annotation of the
+        sample forever while the batch's own response still looks perfect.
+        """
+        assert liftover_sample_client.post("/api/liftover/1").status_code == 200
+
+        engine = sa.create_engine(f"sqlite:///{tmp_data_dir / 'reference.db'}")
+        try:
+            with engine.connect() as conn:
+                leases = conn.execute(
+                    sa.select(jobs.c.status, jobs.c.message)
+                    .where(jobs.c.sample_id == 1)
+                    .where(jobs.c.job_type == SAMPLE_EXPORT_JOB_TYPE)
+                ).fetchall()
+            # Reserving annotation is what a leaked lease would block, so drive
+            # the real reservation rather than only reading the row back.
+            reserve_annotation_job(
+                engine,
+                sample_id=1,
+                job_id="post-liftover-annotation",
+                created_at=datetime.now(UTC),
+            )
+        finally:
+            engine.dispose()
+
+        assert len(leases) == 1, f"expected exactly one liftover lease, got {leases}"
+        assert "grch38_liftover" in (leases[0].message or "")
+        assert leases[0].status not in ACTIVE_EXPORT_STATUSES
+
+    def test_missing_sample_database_file_returns_404(
+        self, liftover_sample_client: TestClient, tmp_data_dir: Path
+    ) -> None:
+        """A registered sample whose database file is gone must not be recreated.
+
+        ``get_sample_engine`` creates the SQLite file and initializes the schema
+        for any path handed to it, so opening the resolved path unconditionally
+        turned "this sample's data is missing" into an empty-but-successful
+        batch: 200 with ``total: 0``, indistinguishable from a sample that has
+        no variants. The Variant Explorer then latches the sample as computed
+        and shows blank GRCh38 columns for it forever.
+        """
+        vanished_db = tmp_data_dir / "samples" / "sample_2.db"
+        assert not vanished_db.exists(), "precondition: sample 2 has no database file"
+
+        resp = liftover_sample_client.post("/api/liftover/2")
+
+        assert resp.status_code == 404, resp.text
+        # The 404 alone is not enough: nothing in the request may leave an empty
+        # database behind, or the *next* request finds a file and succeeds.
+        assert not vanished_db.exists(), "an empty sample database was materialized"
 
     def test_active_annotation_blocks_the_batch(
         self, liftover_sample_client: TestClient, tmp_data_dir: Path
