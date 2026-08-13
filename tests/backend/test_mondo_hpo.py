@@ -1487,6 +1487,9 @@ class TestDownloadAndLoad:
         )
         assert not (downloads / "mondo_hpo_sources").exists()
 
+    @pytest.mark.parametrize(
+        "descriptor_bridge", (True, False), ids=("fd-bridge", "lexical-fallback")
+    )
     def test_staging_downloads_stay_descriptor_pinned_after_path_swap(
         self,
         monkeypatch,
@@ -1495,8 +1498,20 @@ class TestDownloadAndLoad:
         hpo_phenotype_file: Path,
         mondo_sssom_file: Path,
         tmp_path: Path,
+        descriptor_bridge: bool,
     ) -> None:
-        """A swapped lexical staging path cannot redirect later source writes."""
+        """A swapped lexical staging path cannot redirect later source writes.
+
+        Parameterized over the descriptor bridge because the two platforms take
+        different refusal paths, and only one of them runs before merge. Linux
+        always resolves ``/proc/self/fd``; macOS has no usable bridge, and macOS
+        backend tests are Tier-2. Emptying the bridge list is how this file
+        already reproduces that platform (see
+        ``test_installs_on_a_platform_with_no_descriptor_bridge``), so both
+        outcomes are covered on a pull request rather than discovered on ``main``.
+        """
+        if not descriptor_bridge:
+            monkeypatch.setattr(mondo_hpo, "_FD_PATH_BRIDGES", ())
         monkeypatch.setattr("backend.annotation.mondo_hpo.MINIMUM_UNAMBIGUOUS_MONDO_XREFS", 2)
         source_files = {
             "gene_disease.9606.tsv.gz": mondo_tsv_file,
