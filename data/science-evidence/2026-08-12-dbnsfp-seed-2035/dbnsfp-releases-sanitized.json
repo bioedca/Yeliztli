@@ -1,0 +1,35 @@
+{
+  "claim_ids": ["C2"],
+  "source": "dbNSFP official releases page",
+  "source_identifier": "https://www.dbnsfp.org/releases/",
+  "accessed": "2026-08-12",
+  "payload_type": "sanitized official release-page metadata",
+  "sanitized_payload_path": "data/science-evidence/2026-08-12-dbnsfp-seed-2035/dbnsfp-releases-sanitized.json",
+  "request": {
+    "method": "GET",
+    "url": "https://www.dbnsfp.org/releases/",
+    "selected_fields": [
+      "current release identifier and date",
+      "current academic/commercial README branch labels",
+      "v5.3.1 release identifier and date",
+      "v5.3.1 academic/commercial README branch labels"
+    ]
+  },
+  "response": {
+    "current_release": {
+      "release": "5.4",
+      "date": "August 1, 2026",
+      "readme_branches": ["5.4a", "5.4c"]
+    },
+    "production_release_family": {
+      "release": "5.3.1",
+      "date": "January 1, 2026",
+      "readme_branches": ["5.3.1a", "5.3.1c"]
+    }
+  },
+  "source_payload_sha256": "18a5f953e562f1d291e7238493dfd56a5315f669b7020d84c709fe5c1bdf1205",
+  "source_payload_hash_scope": "Exact official HTML response-body bytes returned on the access date.",
+  "retention": "Only release identifiers, dates, and README branch labels needed to establish the version boundary are retained; no archive, score row, or descriptive page prose is copied.",
+  "license_or_terms": "Public release metadata only; dbNSFP data terms are recorded in the separately retained license snapshot.",
+  "sanitization": "Navigation, release notes, links, analytics markup, and all unrelated HTML were discarded."
+}

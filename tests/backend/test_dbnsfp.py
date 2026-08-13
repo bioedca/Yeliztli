@@ -1,7 +1,7 @@
 """Tests for dbNSFP SQLite loader (P2-11).
 
 Covers:
-- T2-11: dbNSFP lookup returns correct CADD, REVEL scores for rs1801133 (MTHFR C677T)
+- T2-11: dbNSFP lookup returns complete synthetic predictor scenarios
 - TSV line parsing (valid, missing fields, no scores, invalid chrom)
 - Multi-transcript score parsing (semicolon-separated values)
 - CSV loading into dbnsfp_scores table
@@ -143,25 +143,25 @@ class TestParseDbnsfpTsvLine:
     def _make_fields(self, **overrides) -> dict[str, str]:
         """Build a minimal valid dbNSFP TSV row dict."""
         base = {
-            "#chr": "19",
-            "pos(1-based)": "44908684",
-            "ref": "T",
-            "alt": "C",
-            "rs_dbSNP": "rs429358",
-            "CADD_phred": "28.3",
-            "SIFT4G_score": "0.001",
+            "#chr": "20",
+            "pos(1-based)": "60000000",
+            "ref": "A",
+            "alt": "G",
+            "rs_dbSNP": "rsYELIZTLI0001",
+            "CADD_phred": "30.0",
+            "SIFT4G_score": "0.01",
             "SIFT4G_pred": "D",
-            "Polyphen2_HVAR_score": "0.998",
+            "Polyphen2_HVAR_score": "0.95",
             "Polyphen2_HVAR_pred": "D",
-            "REVEL_score": "0.812",
-            "MutPred2_score": "0.780",
-            "VEST4_score": "0.891",
-            "MetaSVM_score": "0.920",
-            "MetaLR_score": "0.885",
-            "GERP++_RS": "5.48",
-            "phyloP100way_vertebrate": "7.92",
-            "MPC_score": "1.85",
-            "PrimateAI_score": "0.91",
+            "REVEL_score": "0.8",
+            "MutPred2_score": "0.75",
+            "VEST4_score": "0.85",
+            "MetaSVM_score": "0.5",
+            "MetaLR_score": "0.8",
+            "GERP++_RS": "5.0",
+            "phyloP100way_vertebrate": "7.0",
+            "MPC_score": "2.0",
+            "PrimateAI_score": "0.9",
         }
         base.update(overrides)
         return base
@@ -172,15 +172,15 @@ class TestParseDbnsfpTsvLine:
 
         assert skip is None
         assert record is not None
-        assert record.rsid == "rs429358"
-        assert record.chrom == "19"
-        assert record.pos == 44908684
-        assert record.ref == "T"
-        assert record.alt == "C"
-        assert record.cadd_phred == pytest.approx(28.3)
-        assert record.sift_score == pytest.approx(0.001)
+        assert record.rsid == "rsYELIZTLI0001"
+        assert record.chrom == "20"
+        assert record.pos == 60000000
+        assert record.ref == "A"
+        assert record.alt == "G"
+        assert record.cadd_phred == pytest.approx(30.0)
+        assert record.sift_score == pytest.approx(0.01)
         assert record.sift_pred == "D"
-        assert record.revel == pytest.approx(0.812)
+        assert record.revel == pytest.approx(0.8)
 
     def test_chr_prefix_stripped(self):
         fields = self._make_fields(**{"#chr": "chr19"})
@@ -214,10 +214,10 @@ class TestParseDbnsfpTsvLine:
         assert record.rsid is None
 
     def test_multi_rsid_takes_first(self):
-        fields = self._make_fields(**{"rs_dbSNP": "rs429358;rs12345"})
+        fields = self._make_fields(**{"rs_dbSNP": "rsYELIZTLI0001;rsYELIZTLI9999"})
         record, skip = parse_dbnsfp_tsv_line(fields)
         assert record is not None
-        assert record.rsid == "rs429358"
+        assert record.rsid == "rsYELIZTLI0001"
 
     def test_no_scores_skipped(self):
         fields = {
@@ -343,7 +343,7 @@ class TestParseDbnsfpTsvLine:
         )
         record, skip = parse_dbnsfp_tsv_line(fields)
         assert record is not None
-        assert record.cadd_phred == pytest.approx(28.3)
+        assert record.cadd_phred == pytest.approx(30.0)
         assert record.sift_score is None
 
 
@@ -386,35 +386,35 @@ class TestLoadDbnsfpFromCsv:
     def test_loads_seed_data(self, dbnsfp_engine_with_data: sa.Engine):
         with dbnsfp_engine_with_data.connect() as conn:
             count = conn.execute(sa.text("SELECT COUNT(*) FROM dbnsfp_scores")).scalar()
-        assert count == 61  # 62 lines - 1 header = 61 data rows
+        assert count == 6
 
     def test_stats_correct(self, dbnsfp_engine: sa.Engine):
         stats = load_dbnsfp_from_csv(DBNSFP_SEED_CSV, dbnsfp_engine)
-        assert stats.total_lines == 61
-        assert stats.variants_loaded == 61
+        assert stats.total_lines == 6
+        assert stats.variants_loaded == 6
 
     def test_clear_existing(self, dbnsfp_engine_with_data: sa.Engine):
         """Loading with clear_existing=True replaces data."""
         stats = load_dbnsfp_from_csv(DBNSFP_SEED_CSV, dbnsfp_engine_with_data, clear_existing=True)
-        assert stats.variants_loaded == 61
+        assert stats.variants_loaded == 6
 
-    def test_known_variant_rs1801133(self, dbnsfp_engine_with_data: sa.Engine):
-        """T2-11: Verify CADD and REVEL scores for rs1801133 (MTHFR C677T)."""
+    def test_fully_populated_synthetic_scenario(self, dbnsfp_engine_with_data: sa.Engine):
+        """T2-11: complete synthetic CADD and REVEL values load unchanged."""
         with dbnsfp_engine_with_data.connect() as conn:
             row = conn.execute(
-                sa.text("SELECT * FROM dbnsfp_scores WHERE rsid = 'rs1801133'")
+                sa.text("SELECT * FROM dbnsfp_scores WHERE rsid = 'rsYELIZTLI0001'")
             ).fetchone()
         assert row is not None
-        assert row.cadd_phred == pytest.approx(24.8)
-        assert row.revel == pytest.approx(0.689)
-        assert row.chrom == "1"
-        assert row.pos == 11856378
+        assert row.cadd_phred == pytest.approx(30.0)
+        assert row.revel == pytest.approx(0.8)
+        assert row.chrom == "20"
+        assert row.pos == 60000000
 
     def test_null_scores_preserved(self, dbnsfp_engine_with_data: sa.Engine):
         """Rows with some NULL scores should have NULLs in the DB."""
         with dbnsfp_engine_with_data.connect() as conn:
             row = conn.execute(
-                sa.text("SELECT * FROM dbnsfp_scores WHERE rsid = 'rs80357906'")
+                sa.text("SELECT * FROM dbnsfp_scores WHERE rsid = 'rsYELIZTLI0003'")
             ).fetchone()
         assert row is not None
         assert row.cadd_phred == pytest.approx(35.0)
@@ -427,26 +427,27 @@ class TestLoadDbnsfpFromCsv:
 
 
 class TestLookupDbnsfpByRsids:
-    def test_returns_correct_scores(self, dbnsfp_engine_with_data: sa.Engine):
-        """T2-11: dbNSFP lookup returns correct CADD, REVEL for rs1801133."""
-        results = lookup_dbnsfp_by_rsids(["rs1801133"], dbnsfp_engine_with_data)
-        assert "rs1801133" in results
-        annot = results["rs1801133"]
-        assert annot.cadd_phred == pytest.approx(24.8)
-        assert annot.revel == pytest.approx(0.689)
+    def test_returns_complete_synthetic_scores(self, dbnsfp_engine_with_data: sa.Engine):
+        """T2-11: dbNSFP lookup returns the complete synthetic scenario."""
+        results = lookup_dbnsfp_by_rsids(["rsYELIZTLI0001"], dbnsfp_engine_with_data)
+        assert "rsYELIZTLI0001" in results
+        annot = results["rsYELIZTLI0001"]
+        assert annot.cadd_phred == pytest.approx(30.0)
+        assert annot.revel == pytest.approx(0.8)
         assert annot.sift_pred == "D"
-        assert annot.chrom == "1"
-        assert annot.pos == 11856378
+        assert annot.chrom == "20"
+        assert annot.pos == 60000000
 
     def test_batch_lookup(self, dbnsfp_engine_with_data: sa.Engine):
         results = lookup_dbnsfp_by_rsids(
-            ["rs429358", "rs7412", "rs_nonexistent"], dbnsfp_engine_with_data
+            ["rsYELIZTLI0001", "rsYELIZTLI0002", "rs_nonexistent"],
+            dbnsfp_engine_with_data,
         )
-        assert "rs429358" in results
-        assert "rs7412" in results
+        assert "rsYELIZTLI0001" in results
+        assert "rsYELIZTLI0002" in results
         assert "rs_nonexistent" not in results
-        assert results["rs429358"].cadd_phred == pytest.approx(28.3)
-        assert results["rs7412"].cadd_phred == pytest.approx(26.1)
+        assert results["rsYELIZTLI0001"].cadd_phred == pytest.approx(30.0)
+        assert results["rsYELIZTLI0002"].cadd_phred == pytest.approx(10.0)
 
     def test_empty_rsids(self, dbnsfp_engine_with_data: sa.Engine):
         results = lookup_dbnsfp_by_rsids([], dbnsfp_engine_with_data)
@@ -456,19 +457,45 @@ class TestLookupDbnsfpByRsids:
         """Ensure batching works for lists larger than LOOKUP_BATCH_SIZE."""
         # Create 600 rsids (beyond the 500 batch limit), mostly non-existent
         rsids = [f"rs{i}" for i in range(600)]
-        rsids.append("rs429358")  # one real one
+        rsids.append("rsYELIZTLI0001")
         results = lookup_dbnsfp_by_rsids(rsids, dbnsfp_engine_with_data)
-        assert "rs429358" in results
+        assert "rsYELIZTLI0001" in results
 
     def test_deleterious_count_computed(self, dbnsfp_engine_with_data: sa.Engine):
         """DbNSFPAnnotation.deleterious_count should be auto-computed."""
-        results = lookup_dbnsfp_by_rsids(["rs429358"], dbnsfp_engine_with_data)
-        annot = results["rs429358"]
-        # rs429358: SIFT=0.001(D), PP2=0.998(D), CADD=28.3(D), REVEL/MetaSVM/MetaLR(D).
+        results = lookup_dbnsfp_by_rsids(["rsYELIZTLI0001"], dbnsfp_engine_with_data)
+        annot = results["rsYELIZTLI0001"]
+        # Synthetic scenario: SIFT(D), PP2(D), CADD(D), REVEL/MetaSVM/MetaLR(D).
         # F24: REVEL/MetaSVM/MetaLR collapse into ONE meta axis → 4 independent
         # axes (SIFT, PolyPhen, CADD, META), all deleterious.
         assert annot.deleterious_count == 4
         assert annot.deleterious_total_assessed == 4
+
+    @pytest.mark.parametrize(
+        ("rsid", "expected_count", "expected_assessed", "expected_pathogenic"),
+        [
+            ("rsYELIZTLI0001", 4, 4, True),
+            ("rsYELIZTLI0002", 0, 4, False),
+            ("rsYELIZTLI0003", 2, 2, True),
+            ("rsYELIZTLI0004", 3, 4, True),
+            ("rsYELIZTLI0005", 0, 4, False),
+            ("rsYELIZTLI0006", 1, 2, False),
+        ],
+    )
+    def test_reviewed_synthetic_scenario_outcomes(
+        self,
+        dbnsfp_engine_with_data: sa.Engine,
+        rsid: str,
+        expected_count: int,
+        expected_assessed: int,
+        expected_pathogenic: bool,
+    ) -> None:
+        """Every shared synthetic scenario has an exact production-path oracle."""
+        annot = lookup_dbnsfp_by_rsids([rsid], dbnsfp_engine_with_data)[rsid]
+
+        assert annot.deleterious_count == expected_count
+        assert annot.deleterious_total_assessed == expected_assessed
+        assert is_ensemble_pathogenic(annot) is expected_pathogenic
 
 
 class TestLookupDbnsfpByPositions:
@@ -477,13 +504,13 @@ class TestLookupDbnsfpByPositions:
     # (F35). The default GRCh37 path is covered by the cross-build-skip tests.
     def test_returns_correct_scores(self, dbnsfp_engine_with_data: sa.Engine):
         results = lookup_dbnsfp_by_positions(
-            [("19", 44908684, "T", "C")], dbnsfp_engine_with_data, source_build="GRCh38"
+            [("20", 60000000, "A", "G")], dbnsfp_engine_with_data, source_build="GRCh38"
         )
-        key = ("19", 44908684, "T", "C")
+        key = ("20", 60000000, "A", "G")
         assert key in results
         annot = results[key]
-        assert annot.cadd_phred == pytest.approx(28.3)
-        assert annot.rsid == "rs429358"
+        assert annot.cadd_phred == pytest.approx(30.0)
+        assert annot.rsid == "rsYELIZTLI0001"
 
     def test_empty_positions(self, dbnsfp_engine_with_data: sa.Engine):
         results = lookup_dbnsfp_by_positions([], dbnsfp_engine_with_data)
@@ -498,11 +525,11 @@ class TestLookupDbnsfpByPositions:
     def test_large_position_batch_chunking(self, dbnsfp_engine_with_data: sa.Engine):
         """Ensure batching works for lists larger than internal batch size."""
         positions = [(str(i % 22 + 1), i, "A", "T") for i in range(300)]
-        positions.append(("19", 44908684, "T", "C"))  # one real one
+        positions.append(("20", 60000000, "A", "G"))
         results = lookup_dbnsfp_by_positions(
             positions, dbnsfp_engine_with_data, source_build="GRCh38"
         )
-        assert ("19", 44908684, "T", "C") in results
+        assert ("20", 60000000, "A", "G") in results
 
     # ── F35: cross-build guard ────────────────────────────────────────
     _SKIP_EVENT = "dbnsfp_position_lookup_skipped_cross_build"
@@ -511,7 +538,7 @@ class TestLookupDbnsfpByPositions:
         """Default (GRCh37 pipeline) vs GRCh38 dbNSFP → skip + warn, no match."""
         with capture_logs() as cap_logs:
             results = lookup_dbnsfp_by_positions(
-                [("19", 44908684, "T", "C")], dbnsfp_engine_with_data
+                [("20", 60000000, "A", "G")], dbnsfp_engine_with_data
             )
         assert results == {}
         events = [e for e in cap_logs if e.get("event") == self._SKIP_EVENT]
@@ -522,17 +549,17 @@ class TestLookupDbnsfpByPositions:
     def test_explicit_grch37_skips_cross_build(self, dbnsfp_engine_with_data: sa.Engine):
         """An explicit GRCh37 source build is skipped just like the default."""
         results = lookup_dbnsfp_by_positions(
-            [("19", 44908684, "T", "C")], dbnsfp_engine_with_data, source_build="GRCh37"
+            [("20", 60000000, "A", "G")], dbnsfp_engine_with_data, source_build="GRCh37"
         )
         assert results == {}
 
     def test_grch38_opt_in_runs_join(self, dbnsfp_engine_with_data: sa.Engine):
-        """A caller with genuine GRCh38 coordinates can opt in and get a match."""
+        """A caller whose coordinates use GRCh38 semantics can opt in and match."""
         with capture_logs() as cap_logs:
             results = lookup_dbnsfp_by_positions(
-                [("19", 44908684, "T", "C")], dbnsfp_engine_with_data, source_build="GRCh38"
+                [("20", 60000000, "A", "G")], dbnsfp_engine_with_data, source_build="GRCh38"
             )
-        assert ("19", 44908684, "T", "C") in results
+        assert ("20", 60000000, "A", "G") in results
         assert not [e for e in cap_logs if e.get("event") == self._SKIP_EVENT]
 
 
@@ -936,7 +963,7 @@ class TestIndexAfterLoad:
             poolclass=StaticPool,
         )
         stats = load_dbnsfp_from_csv(DBNSFP_SEED_CSV, engine)
-        assert stats.variants_loaded == 61
+        assert stats.variants_loaded == 6
 
         with engine.connect() as conn:
             count = conn.execute(sa.text("SELECT COUNT(*) FROM dbnsfp_scores")).scalar()
@@ -947,7 +974,7 @@ class TestIndexAfterLoad:
                 )
             ).fetchall()
         index_names = {r[0] for r in indexes}
-        assert count == 61
+        assert count == 6
         assert "idx_dbnsfp_rsid" in index_names
         assert "idx_dbnsfp_chrom_pos" in index_names
         assert "idx_dbnsfp_rsid_covering" not in index_names

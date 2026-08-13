@@ -146,6 +146,9 @@ SEED_RAW_VARIANTS = [
     {"rsid": "rs80357906", "chrom": "17", "pos": 41209080, "genotype": "DI"},
     {"rsid": "rs12913832", "chrom": "15", "pos": 28365618, "genotype": "GG"},
     {"rsid": "rs7903146", "chrom": "10", "pos": 114758349, "genotype": "CT"},
+    {"rsid": "rsYELIZTLI0001", "chrom": "20", "pos": 60000000, "genotype": "AG"},
+    {"rsid": "rsYELIZTLI0002", "chrom": "20", "pos": 60000001, "genotype": "CT"},
+    {"rsid": "rsYELIZTLI0003", "chrom": "20", "pos": 60000002, "genotype": "DI"},
     {"rsid": "rs_nomatch", "chrom": "99", "pos": 1, "genotype": "AA"},
 ]
 
@@ -533,10 +536,10 @@ class TestLookupGnomad:
 
 class TestLookupDbnsfp:
     def test_returns_dbnsfp_fields(self, dbnsfp_engine: sa.Engine) -> None:
-        result = _lookup_dbnsfp(["rs429358"], {}, dbnsfp_engine)
-        assert "rs429358" in result
-        data = result["rs429358"]
-        assert data["cadd_phred"] == pytest.approx(28.3)
+        result = _lookup_dbnsfp(["rsYELIZTLI0001"], {}, dbnsfp_engine)
+        assert "rsYELIZTLI0001" in result
+        data = result["rsYELIZTLI0001"]
+        assert data["cadd_phred"] == pytest.approx(30.0)
         assert data["sift_pred"] == "D"
         assert data["polyphen2_hsvar_pred"] == "D"
 
@@ -822,12 +825,12 @@ class TestRunAnnotation:
         assert result.batches_processed >= 1
         assert result.errors == []
 
-    def test_all_fields_populated(
+    def test_real_variant_fields_do_not_inherit_synthetic_dbnsfp_scores(
         self,
         sample_with_variants: sa.Engine,
         mock_registry: MagicMock,
     ) -> None:
-        """T2-04: Known variant has VEP + ClinVar + gnomAD + dbNSFP fields."""
+        """T2-04: real variants retain sourced annotations but no synthetic scores."""
         run_annotation(sample_with_variants, mock_registry)
 
         with sample_with_variants.connect() as conn:
@@ -846,14 +849,12 @@ class TestRunAnnotation:
         # gnomAD fields
         assert row.gnomad_af_global is not None
         assert row.gnomad_af_global == pytest.approx(0.1387)
-        # dbNSFP fields
-        assert row.cadd_phred is not None
-        assert row.cadd_phred == pytest.approx(28.3)
-        assert row.sift_pred == "D"
-        # Bitmask: all 5 sources (APOE is in gene_phenotype seed)
-        assert row.annotation_coverage == (
-            VEP_BIT | CLINVAR_BIT | GNOMAD_BIT | DBNSFP_BIT | GENE_PHENOTYPE_BIT
-        )
+        # The dbNSFP mini fixture is synthetic-only and must never attach its
+        # behavior-control scores to a real named variant.
+        assert row.cadd_phred is None
+        assert row.sift_pred is None
+        # APOE remains covered by the four source-bound fixture sources.
+        assert row.annotation_coverage == VEP_BIT | CLINVAR_BIT | GNOMAD_BIT | GENE_PHENOTYPE_BIT
 
     def test_clinvar_coord_fallback_annotates_rsid_mismatch(
         self,
@@ -1042,7 +1043,10 @@ class TestRunAnnotation:
         assert row.alphamissense_pathogenicity == pytest.approx(0.91)
         assert row.alphamissense_class == "likely_pathogenic"
         assert (row.annotation_coverage & ALPHAMISSENSE_BIT) == ALPHAMISSENSE_BIT
-        assert row.revel is not None
+        # AlphaMissense context must not manufacture a dbNSFP score for a real
+        # variant now that the shared dbNSFP fixture is synthetic-only.
+        assert row.revel is None
+        assert (row.annotation_coverage & DBNSFP_BIT) == 0
         assert row.clinvar_significance == "drug_response"
 
     def test_crash_recovery_clears_previous(
@@ -1462,7 +1466,10 @@ class TestIntegration1000Variants:
     ) -> None:
         """Generate 1000 variants, annotate, verify fields populated."""
         # Insert 1000 raw variants (mix of known + synthetic)
-        known = SEED_RAW_VARIANTS[:5]
+        known = [
+            *SEED_RAW_VARIANTS[:5],
+            next(row for row in SEED_RAW_VARIANTS if row["rsid"] == "rsYELIZTLI0001"),
+        ]
         synthetic = [
             {"rsid": f"rs_synth_{i}", "chrom": "1", "pos": 200000 + i, "genotype": "AG"}
             for i in range(1000 - len(known))
@@ -1479,20 +1486,26 @@ class TestIntegration1000Variants:
         # Known variants should have annotations
         assert result.vep_matched >= 3  # at least some known rsids match
 
-        # Verify a known variant has all fields
+        # Verify the real variant has only source-bound fixture annotations.
         with sample_engine.connect() as conn:
-            row = conn.execute(
+            real_row = conn.execute(
                 sa.select(annotated_variants).where(annotated_variants.c.rsid == "rs429358")
             ).fetchone()
+            synthetic_row = conn.execute(
+                sa.select(annotated_variants).where(annotated_variants.c.rsid == "rsYELIZTLI0001")
+            ).fetchone()
 
-        assert row is not None
-        assert row.gene_symbol == "APOE"
-        assert row.clinvar_significance is not None
-        assert row.gnomad_af_global is not None
-        assert row.cadd_phred is not None
-        assert row.annotation_coverage == (
-            VEP_BIT | CLINVAR_BIT | GNOMAD_BIT | DBNSFP_BIT | GENE_PHENOTYPE_BIT
+        assert real_row is not None
+        assert real_row.gene_symbol == "APOE"
+        assert real_row.clinvar_significance is not None
+        assert real_row.gnomad_af_global is not None
+        assert real_row.cadd_phred is None
+        assert real_row.annotation_coverage == (
+            VEP_BIT | CLINVAR_BIT | GNOMAD_BIT | GENE_PHENOTYPE_BIT
         )
+        assert synthetic_row is not None
+        assert synthetic_row.cadd_phred == pytest.approx(30.0)
+        assert synthetic_row.annotation_coverage == DBNSFP_BIT
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -2947,42 +2960,42 @@ class TestDbnsfpAnnotationIntegration:
     def test_dbnsfp_annot_to_dict_preserves_fields(self) -> None:
         """_dbnsfp_annot_to_dict converts DbNSFPAnnotation to engine dict."""
         annot = DbNSFPAnnotation(
-            rsid="rs429358",
-            chrom="19",
-            pos=44908684,
-            ref="T",
-            alt="C",
-            cadd_phred=28.3,
-            sift_score=0.001,
+            rsid="rsYELIZTLI0001",
+            chrom="20",
+            pos=60000000,
+            ref="A",
+            alt="G",
+            cadd_phred=30.0,
+            sift_score=0.01,
             sift_pred="D",
-            polyphen2_hsvar_score=0.998,
+            polyphen2_hsvar_score=0.95,
             polyphen2_hsvar_pred="D",
-            revel=0.812,
-            mutpred2=0.780,
-            vest4=0.891,
-            metasvm=0.920,
-            metalr=0.885,
-            gerp_rs=5.48,
-            phylop=7.92,
-            mpc=1.85,
-            primateai=0.91,
+            revel=0.8,
+            mutpred2=0.75,
+            vest4=0.85,
+            metasvm=0.5,
+            metalr=0.8,
+            gerp_rs=5.0,
+            phylop=7.0,
+            mpc=2.0,
+            primateai=0.9,
         )
         d = _dbnsfp_annot_to_dict(annot)
 
-        assert d["cadd_phred"] == pytest.approx(28.3)
-        assert d["sift_score"] == pytest.approx(0.001)
+        assert d["cadd_phred"] == pytest.approx(30.0)
+        assert d["sift_score"] == pytest.approx(0.01)
         assert d["sift_pred"] == "D"
-        assert d["polyphen2_hsvar_score"] == pytest.approx(0.998)
+        assert d["polyphen2_hsvar_score"] == pytest.approx(0.95)
         assert d["polyphen2_hsvar_pred"] == "D"
-        assert d["revel"] == pytest.approx(0.812)
-        assert d["mutpred2"] == pytest.approx(0.780)
-        assert d["vest4"] == pytest.approx(0.891)
-        assert d["metasvm"] == pytest.approx(0.920)
-        assert d["metalr"] == pytest.approx(0.885)
-        assert d["gerp_rs"] == pytest.approx(5.48)
-        assert d["phylop"] == pytest.approx(7.92)
-        assert d["mpc"] == pytest.approx(1.85)
-        assert d["primateai"] == pytest.approx(0.91)
+        assert d["revel"] == pytest.approx(0.8)
+        assert d["mutpred2"] == pytest.approx(0.75)
+        assert d["vest4"] == pytest.approx(0.85)
+        assert d["metasvm"] == pytest.approx(0.5)
+        assert d["metalr"] == pytest.approx(0.8)
+        assert d["gerp_rs"] == pytest.approx(5.0)
+        assert d["phylop"] == pytest.approx(7.0)
+        assert d["mpc"] == pytest.approx(2.0)
+        assert d["primateai"] == pytest.approx(0.9)
         # All 4 independent axes deleterious (META = REVEL/MetaSVM/MetaLR, F24)
         assert d["deleterious_count"] == 4
 
@@ -3004,39 +3017,39 @@ class TestDbnsfpAnnotationIntegration:
 
     def test_rsid_lookup_returns_all_score_fields(self, dbnsfp_engine: sa.Engine) -> None:
         """P2-12: Lookup returns all 14 dbNSFP score fields."""
-        result = _lookup_dbnsfp(["rs429358"], {}, dbnsfp_engine)
+        result = _lookup_dbnsfp(["rsYELIZTLI0001"], {}, dbnsfp_engine)
 
-        assert "rs429358" in result
-        data = result["rs429358"]
-        assert data["cadd_phred"] == pytest.approx(28.3)
-        assert data["sift_score"] == pytest.approx(0.001)
+        assert "rsYELIZTLI0001" in result
+        data = result["rsYELIZTLI0001"]
+        assert data["cadd_phred"] == pytest.approx(30.0)
+        assert data["sift_score"] == pytest.approx(0.01)
         assert data["sift_pred"] == "D"
-        assert data["polyphen2_hsvar_score"] == pytest.approx(0.998)
+        assert data["polyphen2_hsvar_score"] == pytest.approx(0.95)
         assert data["polyphen2_hsvar_pred"] == "D"
-        assert data["revel"] == pytest.approx(0.812)
-        assert data["mutpred2"] == pytest.approx(0.780)
-        assert data["vest4"] == pytest.approx(0.891)
-        assert data["metasvm"] == pytest.approx(0.920)
-        assert data["metalr"] == pytest.approx(0.885)
-        assert data["gerp_rs"] == pytest.approx(5.48)
-        assert data["phylop"] == pytest.approx(7.92)
-        assert data["mpc"] == pytest.approx(1.85)
-        assert data["primateai"] == pytest.approx(0.91)
+        assert data["revel"] == pytest.approx(0.8)
+        assert data["mutpred2"] == pytest.approx(0.75)
+        assert data["vest4"] == pytest.approx(0.85)
+        assert data["metasvm"] == pytest.approx(0.5)
+        assert data["metalr"] == pytest.approx(0.8)
+        assert data["gerp_rs"] == pytest.approx(5.0)
+        assert data["phylop"] == pytest.approx(7.0)
+        assert data["mpc"] == pytest.approx(2.0)
+        assert data["primateai"] == pytest.approx(0.9)
 
     def test_rsid_lookup_returns_deleterious_count(self, dbnsfp_engine: sa.Engine) -> None:
         """P2-12: Lookup computes and returns deleterious_count."""
-        result = _lookup_dbnsfp(["rs429358"], {}, dbnsfp_engine)
-        data = result["rs429358"]
-        # rs429358: SIFT(D), PP2(D), CADD(D), META=REVEL/MetaSVM/MetaLR(D) → 4 axes (F24)
+        result = _lookup_dbnsfp(["rsYELIZTLI0001"], {}, dbnsfp_engine)
+        data = result["rsYELIZTLI0001"]
+        # Synthetic scenario: all four independent axes are deleterious (F24).
         assert data["deleterious_count"] == 4
 
     def test_delegates_to_dbnsfp_module(self, dbnsfp_engine: sa.Engine) -> None:
         """Engine uses dbnsfp.py lookup functions (not duplicated SQL)."""
-        module_result = lookup_dbnsfp_by_rsids(["rs429358"], dbnsfp_engine)
-        engine_result = _lookup_dbnsfp(["rs429358"], {}, dbnsfp_engine)
+        module_result = lookup_dbnsfp_by_rsids(["rsYELIZTLI0001"], dbnsfp_engine)
+        engine_result = _lookup_dbnsfp(["rsYELIZTLI0001"], {}, dbnsfp_engine)
 
-        module_annot = module_result["rs429358"]
-        engine_data = engine_result["rs429358"]
+        module_annot = module_result["rsYELIZTLI0001"]
+        engine_data = engine_result["rsYELIZTLI0001"]
 
         assert engine_data["cadd_phred"] == module_annot.cadd_phred
         assert engine_data["sift_score"] == module_annot.sift_score
@@ -3074,15 +3087,16 @@ class TestDbnsfpAnnotationIntegration:
                 )
             )
             conn.execute(
-                sa.text("INSERT INTO t VALUES ('rs_user_id', '19', 44908684, 'TC', 'T', 'C')")
+                sa.text("INSERT INTO t VALUES ('rs_user_id', '20', 60000000, 'AG', 'A', 'G')")
             )
             row = conn.execute(sa.text("SELECT * FROM t")).fetchone()
 
         raw_by_rsid = {"rs_user_id": row}
         result = _lookup_dbnsfp(["rs_user_id"], raw_by_rsid, dbnsfp_engine)
 
-        # rsid "rs_user_id" is not in the dbNSFP DB and the position fallback is
-        # cross-build → no match at all.
+        # The rsID does not match, while the coordinate/alleles deliberately do.
+        # Only the cross-build guard can prevent the position fallback from
+        # attaching rsYELIZTLI0001's synthetic scores to this row.
         assert "rs_user_id" not in result
 
     def test_position_fallback_skipped_without_ref_alt(self, dbnsfp_engine: sa.Engine) -> None:
@@ -3110,25 +3124,25 @@ class TestDbnsfpAnnotationIntegration:
 
         with sample_with_variants.connect() as conn:
             row = conn.execute(
-                sa.select(annotated_variants).where(annotated_variants.c.rsid == "rs429358")
+                sa.select(annotated_variants).where(annotated_variants.c.rsid == "rsYELIZTLI0001")
             ).fetchone()
 
         assert row is not None
         # All 14 score fields
-        assert row.cadd_phred == pytest.approx(28.3)
-        assert row.sift_score == pytest.approx(0.001)
+        assert row.cadd_phred == pytest.approx(30.0)
+        assert row.sift_score == pytest.approx(0.01)
         assert row.sift_pred == "D"
-        assert row.polyphen2_hsvar_score == pytest.approx(0.998)
+        assert row.polyphen2_hsvar_score == pytest.approx(0.95)
         assert row.polyphen2_hsvar_pred == "D"
-        assert row.revel == pytest.approx(0.812)
-        assert row.mutpred2 == pytest.approx(0.780)
-        assert row.vest4 == pytest.approx(0.891)
-        assert row.metasvm == pytest.approx(0.920)
-        assert row.metalr == pytest.approx(0.885)
-        assert row.gerp_rs == pytest.approx(5.48)
-        assert row.phylop == pytest.approx(7.92)
-        assert row.mpc == pytest.approx(1.85)
-        assert row.primateai == pytest.approx(0.91)
+        assert row.revel == pytest.approx(0.8)
+        assert row.mutpred2 == pytest.approx(0.75)
+        assert row.vest4 == pytest.approx(0.85)
+        assert row.metasvm == pytest.approx(0.5)
+        assert row.metalr == pytest.approx(0.8)
+        assert row.gerp_rs == pytest.approx(5.0)
+        assert row.phylop == pytest.approx(7.0)
+        assert row.mpc == pytest.approx(2.0)
+        assert row.primateai == pytest.approx(0.9)
         # Deleterious count: 4 independent axes (SIFT, PolyPhen, CADD, collapsed
         # META = REVEL/MetaSVM/MetaLR), all deleterious (F24).
         assert row.deleterious_count == 4
@@ -3167,30 +3181,32 @@ class TestDbnsfpAnnotationIntegration:
 
         with sample_with_variants.connect() as conn:
             row = conn.execute(
-                sa.select(annotated_variants).where(annotated_variants.c.rsid == "rs1801133")
+                sa.select(annotated_variants).where(annotated_variants.c.rsid == "rsYELIZTLI0003")
             ).fetchone()
 
-        # rs1801133 (MTHFR C677T) is in seed data for all sources
+        # This scenario deliberately omits SIFT and PolyPhen.
         assert row is not None
-        assert row.deleterious_count is not None
-        assert 0 <= row.deleterious_count <= 4
+        assert row.sift_score is None
+        assert row.polyphen2_hsvar_score is None
+        assert row.deleterious_count == 2
+        assert row.deleterious_total_assessed == 2
 
-    def test_known_variant_rs1801133_scores(
+    def test_synthetic_tolerated_scores(
         self,
         sample_with_variants: sa.Engine,
         mock_registry: MagicMock,
     ) -> None:
-        """T2-11 via engine: rs1801133 CADD and REVEL scores flow through pipeline."""
+        """T2-11 via engine: tolerated synthetic scores flow through the pipeline."""
         run_annotation(sample_with_variants, mock_registry)
 
         with sample_with_variants.connect() as conn:
             row = conn.execute(
-                sa.select(annotated_variants).where(annotated_variants.c.rsid == "rs1801133")
+                sa.select(annotated_variants).where(annotated_variants.c.rsid == "rsYELIZTLI0002")
             ).fetchone()
 
         assert row is not None
-        assert row.cadd_phred == pytest.approx(24.8)
-        assert row.revel == pytest.approx(0.689)
+        assert row.cadd_phred == pytest.approx(10.0)
+        assert row.revel == pytest.approx(0.2)
 
     def test_empty_rsids(self, dbnsfp_engine: sa.Engine) -> None:
         """Empty rsid list returns empty dict."""
@@ -3321,10 +3337,9 @@ class TestEnsemblePathogenicIntegration:
         run_annotation(sample_with_variants, mock_registry)
 
         with sample_with_variants.connect() as conn:
-            # rs429358: SIFT=D, PP2=D, CADD=D, META(REVEL/MetaSVM/MetaLR)=D
-            # → all 4 independent axes deleterious (F24).
+            # Synthetic scenario: all four independent axes are deleterious (F24).
             row = conn.execute(
-                sa.select(annotated_variants).where(annotated_variants.c.rsid == "rs429358")
+                sa.select(annotated_variants).where(annotated_variants.c.rsid == "rsYELIZTLI0001")
             ).fetchone()
 
         assert row is not None
@@ -3341,11 +3356,9 @@ class TestEnsemblePathogenicIntegration:
         run_annotation(sample_with_variants, mock_registry)
 
         with sample_with_variants.connect() as conn:
-            # rs4680: SIFT=0.082(T), PP2=0.451(T), CADD=15.2(T), and the META axis
-            # is tolerated — REVEL=0.312(T) and MetaLR=0.420(T) outvote the lone
-            # MetaSVM=0.380(D), so the collapsed family contributes no vote (F24).
+            # Synthetic scenario: SIFT, PolyPhen, CADD, and META are tolerated.
             row = conn.execute(
-                sa.select(annotated_variants).where(annotated_variants.c.rsid == "rs4680")
+                sa.select(annotated_variants).where(annotated_variants.c.rsid == "rsYELIZTLI0002")
             ).fetchone()
 
         assert row is not None
@@ -3359,23 +3372,13 @@ class TestEnsemblePathogenicIntegration:
         dbnsfp_engine: sa.Engine,
         reference_engine: sa.Engine,
     ) -> None:
-        """P2-13: Variant with exactly 3 deleterious tools is flagged."""
-        # Insert a custom variant with exactly 3 deleterious predictions:
-        # SIFT=0.01(D), PP2=0.95(D>0.909), CADD=25(D≥20), REVEL=0.3(<0.5), MetaSVM=-0.5(<0)
+        """P2-13: Reviewed synthetic scenario with exactly 3 deleterious axes is flagged."""
+        # Reuse rsYELIZTLI0004 from the shared scenario contract instead of
+        # creating another ad hoc predictor tuple in this integration test.
         with sample_engine.begin() as conn:
             conn.execute(
                 raw_variants.insert().values(
-                    rsid="rs_three_del", chrom="1", pos=99999, genotype="AG"
-                )
-            )
-        with dbnsfp_engine.begin() as conn:
-            conn.execute(
-                sa.text(
-                    "INSERT INTO dbnsfp_scores "
-                    "(rsid, chrom, pos, ref, alt, cadd_phred, sift_score, sift_pred, "
-                    "polyphen2_hsvar_score, polyphen2_hsvar_pred, revel, metasvm) "
-                    "VALUES ('rs_three_del', '1', 99999, 'A', 'G', 25.0, 0.01, 'D', "
-                    "0.95, 'D', 0.3, -0.5)"
+                    rsid="rsYELIZTLI0004", chrom="20", pos=60000003, genotype="GA"
                 )
             )
 
@@ -3393,11 +3396,12 @@ class TestEnsemblePathogenicIntegration:
 
         with sample_engine.connect() as conn:
             row = conn.execute(
-                sa.select(annotated_variants).where(annotated_variants.c.rsid == "rs_three_del")
+                sa.select(annotated_variants).where(annotated_variants.c.rsid == "rsYELIZTLI0004")
             ).fetchone()
 
         assert row is not None
         assert row.deleterious_count == 3
+        assert row.deleterious_total_assessed == 4
         assert row.ensemble_pathogenic in (True, 1)
 
     def test_all_dbnsfp_variants_have_ensemble_flag(
