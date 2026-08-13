@@ -537,7 +537,16 @@ def export_rare_variants_tsv(
     buf.write("\t".join(tsv_columns) + "\n")
 
     for row in export_rows:
-        values = ["" if row[column] is None else str(row[column]) for column in tsv_columns]
+        raw_values = [row[column] for column in tsv_columns]
+        # The presentation gate above is structure-aware and deliberately keeps
+        # independent complete records separate. Never flatten a malformed
+        # container after that final gate, because its string representation can
+        # reassemble identifiers that were safe only while structurally distinct.
+        if not all(
+            value is None or isinstance(value, (str, int, float, bool)) for value in raw_values
+        ):
+            continue
+        values = ["" if value is None else str(value) for value in raw_values]
         buf.write("\t".join(values) + "\n")
 
     return StreamingResponse(

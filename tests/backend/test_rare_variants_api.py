@@ -1140,6 +1140,50 @@ class TestTSVExport:
         assert rows_by_rsid["rs_first"]["finding_text"] == ("BRCA1 high-evidence rare finding")
         assert rows_by_rsid["rs_second"]["consequence"] == "missense_variant"
 
+    def test_tsv_export_withholds_container_valued_cell(
+        self,
+        rare_client: TestClient,
+        sample_db_path: Path,
+    ) -> None:
+        """A malformed container cell cannot be flattened after privacy gating."""
+        from backend.analysis.pharmacogenomics import is_patient_presentable_response_payload
+
+        consequence = [
+            {"gene": "CYP2D6", "drug": "codeine"},
+            {"gene": "CYP2C19", "drug": "tamoxifen"},
+        ]
+        assert is_patient_presentable_response_payload({"consequence": consequence})
+        assert not is_patient_presentable_response_payload({"consequence": str(consequence)})
+
+        seed_rare_variant_findings(sample_db_path)
+        sample_engine = sa.create_engine(f"sqlite:///{sample_db_path}")
+        try:
+            with sample_engine.begin() as conn:
+                conn.execute(
+                    sa.update(findings)
+                    .where(findings.c.rsid == "rs_first")
+                    .values(detail_json=json.dumps({"consequence": consequence}))
+                )
+                conn.execute(
+                    sa.update(findings)
+                    .where(findings.c.rsid == "rs_second")
+                    .values(detail_json=json.dumps({"consequence": "missense_variant"}))
+                )
+        finally:
+            sample_engine.dispose()
+
+        resp = rare_client.get("/api/analysis/rare-variants/export/tsv?sample_id=1")
+
+        assert resp.status_code == 200
+        lines = resp.text.splitlines()
+        assert len(lines) == 2  # header + the well-formed row only
+        header = lines[0].split("\t")
+        row = dict(zip(header, lines[1].split("\t"), strict=True))
+        assert row["rsid"] == "rs_second"
+        assert row["consequence"] == "missense_variant"
+        assert "CYP2D6" not in resp.text
+        assert "tamoxifen" not in resp.text.lower()
+
     def test_tsv_export_content_disposition(self, rare_client: TestClient) -> None:
         """TSV has correct Content-Disposition header for download."""
         rare_client.post("/api/analysis/rare-variants/run?sample_id=1")
