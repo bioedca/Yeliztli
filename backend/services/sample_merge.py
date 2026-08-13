@@ -160,7 +160,8 @@ class InvalidMergeRequestError(MergeError):
     """Validation failure that the API route maps to HTTP 422.
 
     Covers: wrong source count, sample not found, sample not linked to the
-    named individual, source annotation not complete, unknown strategy.
+    named individual, source is itself an already-merged sample, source
+    annotation not complete, unknown strategy.
     """
 
 
@@ -618,6 +619,25 @@ def _validate_samples_and_freshness(
         if row.individual_id != individual_id:
             raise InvalidMergeRequestError(
                 f"sample {sid} is not linked to individual {individual_id}"
+            )
+        # Sources must be unmerged. The wizard already filters merged samples out
+        # of the picker and the user documentation says "exactly two unmerged
+        # source samples", but nothing stopped a direct API caller — and a merged
+        # source is not merely unsupported, it is lossy: ``_stream_raw_variants``
+        # reads only rsid/chrom/pos/genotype, so the child's ``source`` /
+        # ``concordance`` / ``discordant_alt_genotype`` provenance is dropped, a
+        # flagged discordance re-reads as a plain no-call, and ``_vendor_token``
+        # yields "merged", which matches neither vendor preference strategy and
+        # silently falls through to the S1 tiebreaker. It also produces a
+        # second-generation child that single-level cascade deletion cannot see.
+        #
+        # Ordered after the linkage check so a merged sample belonging to someone
+        # else keeps the more specific error, and before the annotation-status
+        # check so this reason wins deterministically over "annotation not
+        # complete" for a merged sample that is still being annotated.
+        if row.file_format == _MERGED_FILE_FORMAT:
+            raise InvalidMergeRequestError(
+                f"sample {sid} is already a merged sample and cannot be used as a merge source"
             )
         status = _latest_annotation_status(reference_engine, sid)
         if status != "complete":
