@@ -1539,11 +1539,23 @@ class TestDownloadAndLoad:
             download_and_load_mondo_hpo(reference_engine, downloads)
         if isinstance(excinfo.value, ValueError):
             assert "staging directory changed during finalization" in str(excinfo.value)
-
         assert swapped["value"]
+        # Holds on both platforms and is the point of the test: the substituted
+        # path received nothing.
         assert list(external_dir.iterdir()) == []
-        assert (parked_stage / "genes_to_phenotype.txt").is_file()
-        assert (parked_stage / "mondo.sssom.tsv").is_file()
+        if isinstance(excinfo.value, ValueError):
+            # Linux completes all three downloads and refuses at the
+            # finalization check, so the two sources written after the swap
+            # landed in the parked stage rather than through the symlink.
+            assert (parked_stage / "genes_to_phenotype.txt").is_file()
+            assert (parked_stage / "mondo.sssom.tsv").is_file()
+        else:
+            # macOS refuses inside the first download, when its own stat() of
+            # the just-written temp file resolves through the substituted path,
+            # so the second and third sources are never fetched. There is
+            # nothing to assert about files that were correctly never created.
+            assert not (parked_stage / "genes_to_phenotype.txt").exists()
+            assert not (parked_stage / "mondo.sssom.tsv").exists()
         with reference_engine.connect() as conn:
             assert (
                 conn.execute(
