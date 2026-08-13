@@ -130,6 +130,24 @@ export async function bypassSetup(page: Page): Promise<void> {
 }
 
 /**
+ * Report a URL-scoped sample as freshly annotated to StaleSampleRouteGate.
+ *
+ * Analysis-page specs should register this before their first `page.goto` so
+ * they do not inherit annotation state from the runner's data directory. A
+ * test covering the stale branch can register a more specific route later;
+ * Playwright invokes matching page routes in reverse registration order.
+ */
+export async function mockFreshSampleState(page: Page): Promise<void> {
+  await page.route(/\/api\/variants\/count(?:\?|$)/, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ total: 1, filtered: false }),
+    }),
+  )
+}
+
+/**
  * Wait until React has hydrated AppLayout.
  *
  * `networkidle` is unreliable for this purpose because the dev server can

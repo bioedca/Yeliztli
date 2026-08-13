@@ -4,7 +4,7 @@
  */
 
 import { test, expect } from '@playwright/test'
-import { bypassSetup, waitForReactHydration } from './helpers'
+import { bypassSetup, mockFreshSampleState, waitForReactHydration } from './helpers'
 
 const jsonRoute = (payload: unknown, status = 200) => ({
   status,
@@ -154,6 +154,7 @@ const rareVariant = {
 
 test.beforeEach(async ({ page }) => {
   await bypassSetup(page)
+  await mockFreshSampleState(page)
 })
 
 test('Variant Explorer side panel explains HGVS coding and protein notation (#1669)', async ({

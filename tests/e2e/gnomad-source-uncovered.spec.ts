@@ -4,7 +4,7 @@
  */
 
 import { expect, test } from '@playwright/test'
-import { bypassSetup, waitForReactHydration } from './helpers'
+import { bypassSetup, mockFreshSampleState, waitForReactHydration } from './helpers'
 
 const jsonRoute = (payload: unknown, status = 200) => ({
   status,
@@ -122,6 +122,7 @@ const SOURCE_UNCOVERED_RARE_VARIANT = {
 
 test.beforeEach(async ({ page }) => {
   await bypassSetup(page)
+  await mockFreshSampleState(page)
 })
 
 test('variant detail labels source-uncovered gnomAD frequency distinctly', async ({ page }) => {
