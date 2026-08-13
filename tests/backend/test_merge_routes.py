@@ -32,16 +32,17 @@ through the merge service's local import.
 
 from __future__ import annotations
 
+import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 import sqlalchemy as sa
 from fastapi.testclient import TestClient
 
 from backend.config import Settings
-from backend.db.connection import reset_registry
+from backend.db.connection import DBRegistry, reset_registry
 from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import (
     annotated_variants,
@@ -511,6 +512,48 @@ class TestMergeProvenanceRoute:
         resp = merge_client.get("/api/samples/9999/merge-provenance")
         assert resp.status_code == 404
         assert resp.json() == {"detail": "Sample 9999 not found."}
+
+    def test_unexpected_database_read_failure_is_not_unmerged(self, tmp_path: Path) -> None:
+        from backend.api.routes import samples as samples_routes
+
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+        registry = DBRegistry(Settings(data_dir=data_dir, wal_mode=False))
+        try:
+            reference_metadata.create_all(registry.reference_engine)
+            now = datetime.now(UTC)
+            with registry.reference_engine.begin() as conn:
+                result = conn.execute(
+                    samples.insert().values(
+                        name="locked.txt",
+                        db_path="samples/locked.db",
+                        file_format="23andme_v5",
+                        file_hash="locked-hash",
+                        created_at=now,
+                        updated_at=now,
+                    )
+                )
+                sample_id = int(result.inserted_primary_key[0])
+            sample_db_path = data_dir / "samples/locked.db"
+            sample_db_path.parent.mkdir(parents=True)
+            sample_db_path.touch()
+
+            connection = MagicMock()
+            connection.execute.side_effect = sa.exc.OperationalError(
+                "SELECT merge_provenance",
+                {},
+                sqlite3.OperationalError("database is locked"),
+            )
+            engine = MagicMock()
+            engine.connect.return_value.__enter__.return_value = connection
+
+            with (
+                patch.object(registry, "get_sample_engine", return_value=engine),
+                pytest.raises(sa.exc.OperationalError, match="database is locked"),
+            ):
+                samples_routes._read_merge_provenance(registry, sample_id)
+        finally:
+            registry.dispose_all()
 
 
 # ── GET /api/samples/{id}/concordance-report ───────────────────────────

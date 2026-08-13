@@ -20,17 +20,22 @@ divergence does not apply to in-place v7→v8 upgrades").
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 import sqlalchemy as sa
 
+from backend.api.routes.samples import _read_merge_provenance
+from backend.config import Settings
+from backend.db.connection import DBRegistry
 from backend.db.sample_schema import (
     SAMPLE_SCHEMA_VERSION,
     create_sample_tables,
     ensure_sample_schema_current,
 )
 from backend.db.tables import raw_variants as raw_variants_table
+from backend.db.tables import reference_metadata, samples
 
 V8_PROVENANCE_COLUMNS = (
     "source",
@@ -197,6 +202,48 @@ class TestMergeProvenanceTable:
             "source_file_hashes",
             "concordance_summary",
         }
+
+    def test_registry_upgrades_v7_before_provenance_read(self, tmp_path: Path) -> None:
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+        registry = DBRegistry(Settings(data_dir=data_dir, wal_mode=False))
+
+        try:
+            reference_metadata.create_all(registry.reference_engine)
+            now = datetime.now(UTC)
+            with registry.reference_engine.begin() as conn:
+                result = conn.execute(
+                    samples.insert().values(
+                        name="legacy.txt",
+                        db_path="",
+                        file_format="23andme_v5",
+                        file_hash="legacy-hash",
+                        created_at=now,
+                        updated_at=now,
+                    )
+                )
+                sample_id = int(result.inserted_primary_key[0])
+                db_path = f"samples/sample_{sample_id}.db"
+                conn.execute(
+                    samples.update().where(samples.c.id == sample_id).values(db_path=db_path)
+                )
+
+            sample_db_path = data_dir / db_path
+            sample_db_path.parent.mkdir(parents=True)
+            legacy_engine = _create_v7_sample_db(sample_db_path)
+            try:
+                assert not sa.inspect(legacy_engine).has_table("merge_provenance")
+            finally:
+                legacy_engine.dispose()
+
+            assert _read_merge_provenance(registry, sample_id) is None
+
+            # The engine is cached now, so this assertion cannot itself trigger
+            # the migration that the read above is meant to exercise.
+            upgraded_engine = registry.get_sample_engine(sample_db_path)
+            assert sa.inspect(upgraded_engine).has_table("merge_provenance")
+        finally:
+            registry.dispose_all()
 
     def test_merge_provenance_check_constraint_enforces_single_row(self, tmp_path: Path) -> None:
         engine = _create_v7_sample_db(tmp_path / "sample_001.db")

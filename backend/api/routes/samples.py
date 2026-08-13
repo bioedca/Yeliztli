@@ -284,7 +284,9 @@ def _read_merge_provenance(registry: object, sample_id: int) -> sa.Row | None:
     """Open the per-sample DB read-only and fetch the single ``merge_provenance`` row.
 
     Returns ``None`` when the sample exists but has no provenance row (i.e.
-    not a merged sample).
+    not a merged sample). ``get_sample_engine`` upgrades legacy schemas before
+    returning, so database read failures must propagate rather than being
+    misreported as the ordinary unmerged state.
     Raises :class:`HTTPException` (404) when the registered per-sample DB
     file is missing on disk, consistent with the other merge-aware routes.
     """
@@ -303,13 +305,7 @@ def _read_merge_provenance(registry: object, sample_id: int) -> sa.Row | None:
         )
     engine = registry.get_sample_engine(sample_db_path)  # type: ignore[attr-defined]
     with engine.connect() as conn:
-        try:
-            return conn.execute(sa.select(merge_provenance)).fetchone()
-        except sa.exc.OperationalError:
-            # ``merge_provenance`` table was added in schema v8; very old
-            # per-sample DBs that have not yet been upgraded won't carry
-            # it, in which case "no provenance" is the correct answer.
-            return None
+        return conn.execute(sa.select(merge_provenance)).fetchone()
 
 
 @router.get(
