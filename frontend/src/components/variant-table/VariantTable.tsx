@@ -157,10 +157,9 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
   const [sourceFilter, setSourceFilter] = useState<SourceTag | null>(null)
   const [concordanceFilter, setConcordanceFilter] = useState<ConcordanceTag | null>(null)
 
-  // Detect merged-sample status. The hook returns 404 for unmerged samples,
-  // which we treat as "not merged" without surfacing the error to the user.
+  // A successful null response is the ordinary unmerged-sample state.
   const { data: provenance, error: provenanceError } = useMergeProvenance(sampleId)
-  const isMergedSample = !!provenance && !provenanceError
+  const isMergedSample = provenance != null && provenanceError == null
 
   // Variant detail side panel state (P2-21)
   const [selectedRsid, setSelectedRsid] = useState<string | null>(null)

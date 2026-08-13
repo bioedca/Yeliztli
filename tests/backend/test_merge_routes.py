@@ -10,8 +10,8 @@ Three routes ship in Step 68 alongside the preview route added in Step 67:
   matches the ``jobs`` row written by the service's enqueue.
 * ``GET /api/samples/{sample_id}/merge-provenance`` — returns the
   ``merge_provenance`` row Plan §10.4 (c) writes on the merged sample,
-  with the three JSON columns decoded; 404 when the sample exists but
-  carries no provenance row (i.e. unmerged).
+  with the three JSON columns decoded; ``200 null`` when the sample exists
+  but carries no provenance row (i.e. unmerged).
 * ``GET /api/samples/{sample_id}/concordance-report?limit=N&offset=K`` —
   paginated discordant-loci report with gene context from the LEFT-JOIN
   against ``annotated_variants``. Default limit 50; max 500 (422 on 501);
@@ -495,12 +495,12 @@ class TestMergeProvenanceRoute:
             "collapsed_rsid": 1,
         }
 
-    def test_unmerged_sample_returns_404(self, merge_client: TestClient) -> None:
+    def test_unmerged_sample_returns_200_null(self, merge_client: TestClient) -> None:
         resp = merge_client.get(
             f"/api/samples/{merge_client.s1_id}/merge-provenance"  # type: ignore[attr-defined]
         )
-        assert resp.status_code == 404
-        assert "no merge provenance" in resp.json()["detail"]
+        assert resp.status_code == 200
+        assert resp.json() is None
 
     def test_nonexistent_sample_returns_404(self, merge_client: TestClient) -> None:
         # #453 — ``Depends(require_fresh_sample)`` checks existence before
@@ -510,6 +510,7 @@ class TestMergeProvenanceRoute:
         # a single-principal, self-hosted app leaks nothing cross-user.
         resp = merge_client.get("/api/samples/9999/merge-provenance")
         assert resp.status_code == 404
+        assert resp.json() == {"detail": "Sample 9999 not found."}
 
 
 # ── GET /api/samples/{id}/concordance-report ───────────────────────────

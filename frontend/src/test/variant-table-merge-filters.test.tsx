@@ -1,12 +1,13 @@
 /** Variant table source / concordance columns + filter chips (Step 71 / Plan §10.7).
  *
  *  The chips and columns surface only when the sample's ``merge-provenance``
- *  row resolves successfully (HTTP 200). Unmerged samples — for which the
- *  endpoint returns 404 — see the chips and provenance columns suppressed. */
+ *  response contains a non-null row. Unmerged samples return HTTP 200 with
+ *  JSON null and see the chips and provenance columns suppressed. */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
-import { render, screen, waitFor } from "./test-utils"
+import { act, render, screen, waitFor } from "./test-utils"
 import userEvent from "@testing-library/user-event"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import VariantTable from "@/components/variant-table/VariantTable"
 import type {
   ColumnPreset,
@@ -109,13 +110,9 @@ function setupUnmerged() {
     }
     if (url.includes("/api/samples/") && url.includes("/merge-provenance")) {
       return {
-        ok: false,
-        status: 404,
-        clone() {
-          return this
-        },
-        json: async () => ({ detail: "no merge provenance" }),
-        text: async () => "no merge provenance",
+        ok: true,
+        status: 200,
+        json: async () => null,
       }
     }
     if (url.includes("/api/variants/chromosomes")) {
@@ -180,6 +177,54 @@ describe("VariantTable source/concordance columns (Step 71)", () => {
     ).not.toBeInTheDocument()
     expect(
       screen.queryByRole("columnheader", { name: "Concordance" }),
+    ).not.toBeInTheDocument()
+  })
+
+  it("hides merge-only controls when a cached provenance refetch fails", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, gcTime: 60_000 },
+        mutations: { retry: false },
+      },
+    })
+    setupMerged()
+    render(
+      <QueryClientProvider client={queryClient}>
+        <VariantTable sampleId={1} />
+      </QueryClientProvider>,
+    )
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: /filter by source/i }),
+      ).toBeInTheDocument()
+    })
+
+    mockFetch.mockImplementation(async (url: string) => {
+      if (url.includes("/api/samples/1/merge-provenance")) {
+        return {
+          ok: false,
+          status: 404,
+          json: async () => ({ detail: "Sample 1 not found." }),
+        }
+      }
+      throw new Error(`unexpected fetch: ${url}`)
+    })
+
+    await act(async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ["samples", 1, "merge-provenance"],
+        exact: true,
+      })
+    })
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("button", { name: /filter by source/i }),
+      ).not.toBeInTheDocument()
+    })
+    expect(
+      screen.queryByRole("columnheader", { name: "Source" }),
     ).not.toBeInTheDocument()
   })
 

@@ -12,7 +12,8 @@
  *   4. 423 stale-sample handling — `require_fresh_sample` payload routes
  *      to the stale banner with a re-annotate CTA pointing at the
  *      `reannotate_url` from the FastAPI dependency.
- *   5. 404 (not-merged sample) — empty state pointing back to dashboard.
+ *   5. 200 null (not-merged sample) — empty state pointing back to dashboard.
+ *   6. 404 (missing sample) — error state rather than a false not-merged label.
  *
  * Step 87 (MRG-12) is the canonical Phase 3 coverage gate; this file
  * lands the test surface in the same PR as the page implementation per
@@ -20,7 +21,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { MemoryRouter, Route, Routes } from "react-router-dom"
+import { MemoryRouter, Route, Routes, useNavigate } from "react-router-dom"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { render as rtlRender } from "@testing-library/react"
 import { ThemeProvider } from "@/lib/ThemeContext"
@@ -152,7 +153,20 @@ afterEach(() => {
 // The shared `test-utils` wrapper mounts `<MemoryRouter>` at "/" with no
 // way to thread `initialEntries`, so `useParams` never sees `:id`. Render
 // our own provider stack here that seeds the router with the report URL.
-function renderReport() {
+function NavigateToSample({ sampleId }: { sampleId: number }) {
+  const navigate = useNavigate()
+  return (
+    <button
+      type="button"
+      data-testid={`navigate-to-sample-${sampleId}`}
+      onClick={() => navigate(`/samples/${sampleId}/concordance`)}
+    >
+      Navigate
+    </button>
+  )
+}
+
+function renderReport(nextSampleId?: number) {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false, gcTime: 0 },
@@ -163,6 +177,7 @@ function renderReport() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <MemoryRouter initialEntries={[`/samples/${SAMPLE_ID}/concordance`]}>
+          {nextSampleId != null && <NavigateToSample sampleId={nextSampleId} />}
           <Routes>
             <Route
               path="/samples/:id/concordance"
@@ -175,12 +190,12 @@ function renderReport() {
   )
 }
 
-function provenanceUrl() {
-  return `/api/samples/${SAMPLE_ID}/merge-provenance`
+function provenanceUrl(sampleId = SAMPLE_ID) {
+  return `/api/samples/${sampleId}/merge-provenance`
 }
 
-function reportUrl(offset: number) {
-  return `/api/samples/${SAMPLE_ID}/concordance-report?limit=50&offset=${offset}`
+function reportUrl(offset: number, sampleId = SAMPLE_ID) {
+  return `/api/samples/${sampleId}/concordance-report?limit=50&offset=${offset}`
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -322,6 +337,69 @@ describe("ConcordanceReport — pagination", () => {
     })
     expect(screen.getByTestId("concordance-prev-button")).toBeDisabled()
   })
+
+  it("never carries report rows across sample navigation", async () => {
+    const nextSampleId = 100
+    const nextProvenance = {
+      ...PROVENANCE_PAYLOAD,
+      source_sample_ids: [33, 44],
+      concordance_summary: {
+        ...PROVENANCE_PAYLOAD.concordance_summary,
+        match: 7,
+        discordant: 1,
+      },
+    }
+    const nextReport = {
+      ...REPORT_PAGE_1,
+      concordance_summary: nextProvenance.concordance_summary,
+      total_discordant: 1,
+      discordant_loci: [
+        {
+          ...REPORT_PAGE_1.discordant_loci[0],
+          rsid: "rs-next-sample",
+          gene_symbol: "NEXT_SAMPLE_GENE",
+        },
+      ],
+    }
+    let resolveNextReport: ((response: Response) => void) | undefined
+    const delayedNextReport = new Promise<Response>((resolve) => {
+      resolveNextReport = resolve
+    })
+
+    mockFetch.mockImplementation((url: string) => {
+      if (url === provenanceUrl()) return Promise.resolve(jsonResponse(PROVENANCE_PAYLOAD))
+      if (url === reportUrl(0)) return Promise.resolve(jsonResponse(REPORT_PAGE_1))
+      if (url === provenanceUrl(nextSampleId))
+        return Promise.resolve(jsonResponse(nextProvenance))
+      if (url === reportUrl(0, nextSampleId)) return delayedNextReport
+      throw new Error(`unexpected fetch: ${url}`)
+    })
+
+    renderReport(nextSampleId)
+
+    await waitFor(() => {
+      expect(screen.getByTestId("concordance-locus-rs429358")).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByTestId(`navigate-to-sample-${nextSampleId}`))
+
+    await waitFor(() => {
+      expect(screen.getByTestId("concordance-back-link")).toHaveAttribute(
+        "href",
+        `/?sample_id=${nextSampleId}`,
+      )
+    })
+    expect(screen.queryByTestId("concordance-locus-rs429358")).not.toBeInTheDocument()
+    expect(screen.queryByText("APOE")).not.toBeInTheDocument()
+
+    resolveNextReport?.(jsonResponse(nextReport))
+    await waitFor(() => {
+      expect(screen.getByTestId("concordance-locus-rs-next-sample")).toHaveTextContent(
+        "NEXT_SAMPLE_GENE",
+      )
+    })
+    expect(screen.queryByTestId("concordance-locus-rs429358")).not.toBeInTheDocument()
+  })
 })
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -404,29 +482,14 @@ describe("ConcordanceReport — 423 stale-sample handling", () => {
 })
 
 // ═══════════════════════════════════════════════════════════════════════
-// 404 (not a merged sample) handling
+// Successful null (not a merged sample) handling
 // ═══════════════════════════════════════════════════════════════════════
 
-describe("ConcordanceReport — 404 not-merged handling", () => {
-  it("renders the not-merged empty state and skips the table", async () => {
+describe("ConcordanceReport — null not-merged handling", () => {
+  it("renders the not-merged empty state without requesting a report", async () => {
     mockFetch.mockImplementation((url: string) => {
       if (url === provenanceUrl())
-        return Promise.resolve(
-          jsonResponse(
-            { detail: `Sample ${SAMPLE_ID} has no merge provenance.` },
-            404,
-          ),
-        )
-      // The report query is enabled too; respond with 404 to mirror the
-      // backend behaviour even though the page short-circuits on the
-      // provenance error before reading the report.
-      if (url === reportUrl(0))
-        return Promise.resolve(
-          jsonResponse(
-            { detail: `Sample ${SAMPLE_ID} has no merge provenance.` },
-            404,
-          ),
-        )
+        return Promise.resolve(jsonResponse(null))
       throw new Error(`unexpected fetch: ${url}`)
     })
 
@@ -440,6 +503,33 @@ describe("ConcordanceReport — 404 not-merged handling", () => {
     expect(
       screen.queryByTestId("concordance-discordant-table"),
     ).not.toBeInTheDocument()
+    expect(mockFetch).not.toHaveBeenCalledWith(reportUrl(0))
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════
+// 404 (sample does not exist) handling
+// ═══════════════════════════════════════════════════════════════════════
+
+describe("ConcordanceReport — missing sample handling", () => {
+  it("renders an error rather than mislabelling the sample as unmerged", async () => {
+    mockFetch.mockImplementation((url: string) => {
+      if (url === provenanceUrl())
+        return Promise.resolve(
+          jsonResponse({ detail: `Sample ${SAMPLE_ID} not found.` }, 404),
+        )
+      throw new Error(`unexpected fetch: ${url}`)
+    })
+
+    renderReport()
+
+    await waitFor(() => {
+      expect(screen.getByText("Failed to fetch merge provenance")).toBeInTheDocument()
+    })
+    expect(
+      screen.queryByText(/No merge provenance for this sample/i),
+    ).not.toBeInTheDocument()
+    expect(mockFetch).not.toHaveBeenCalledWith(reportUrl(0))
   })
 })
 

@@ -185,6 +185,9 @@ function setupFetchMock(page: VariantPage, detail: VariantDetail = mockVariantDe
     if (url.includes("/api/column-presets")) {
       return { ok: true, json: async () => ({ presets: defaultPresets }) }
     }
+    if (url.includes("/api/samples/") && url.includes("/merge-provenance")) {
+      return { ok: true, status: 200, json: async () => null }
+    }
     if (url.includes("/api/variants/chromosomes")) {
       return { ok: true, json: async () => defaultChromCounts }
     }

@@ -102,7 +102,8 @@ export interface MergeCommitResponse {
 
 /** Decoded `merge_provenance` row returned by
  * `GET /api/samples/{id}/merge-provenance` (Plan §10.6). The backend
- * decodes the on-disk JSON columns before serializing. */
+ * decodes the on-disk JSON columns before serializing. Existing unmerged
+ * samples return JSON `null` instead of this populated shape. */
 export interface MergeProvenanceResponse {
   merged_at: string
   strategy: MergeStrategy | string

@@ -6,7 +6,6 @@ import {
 } from "@/api/errors"
 
 import {
-  keepPreviousData,
   useQuery,
   useMutation,
   useQueryClient,
@@ -107,7 +106,7 @@ export function useDeleteSample() {
 /** API error surfaced by the concordance-report + merge-provenance hooks.
  *
  * Carries the HTTP status + decoded body so the ConcordanceReport page can
- * branch on 423 (stale sample, per Plan §7.5) vs 404 (sample not merged)
+ * branch on 423 (stale sample, per Plan §7.5) vs 404 (missing resource)
  * without having to re-parse the response. */
 export class SamplesApiError extends Error {
   readonly status: number
@@ -141,15 +140,15 @@ async function parseSamplesError(
   throw new SamplesApiError(res.status, fallback, body)
 }
 
-/** Fetch the merged sample's provenance row (Plan §10.6). 404 when the
- * sample exists but isn't a merged sample; 423 when the sample is stale. */
+/** Fetch the merged sample's provenance row (Plan §10.6). Returns `null` when
+ * an existing sample is not merged; 404 when missing; 423 when stale. */
 export function useMergeProvenance(sampleId: number | null) {
-  return useQuery<MergeProvenanceResponse, SamplesApiError>({
+  return useQuery<MergeProvenanceResponse | null, SamplesApiError>({
     queryKey: ["samples", sampleId, "merge-provenance"],
     queryFn: async () => {
       const res = await fetch(`/api/samples/${sampleId}/merge-provenance`)
       if (!res.ok) await parseSamplesError(res, "Failed to fetch merge provenance")
-      return (await res.json()) as MergeProvenanceResponse
+      return (await res.json()) as MergeProvenanceResponse | null
     },
     enabled: sampleId != null,
     // Provenance is immutable once the merged sample is materialised.
@@ -161,9 +160,9 @@ export function useMergeProvenance(sampleId: number | null) {
 /** Paginated concordance report for a merged sample (Plan §10.6). The
  * backend caps `limit` at 500 and returns 422 on out-of-range values, so
  * the page is responsible for keeping its requested limit within that
- * window. `placeholderData: keepPreviousData` keeps the table mounted
- * while a new page loads to avoid the UI jumping back to a loading state
- * on prev/next clicks (TanStack Query paginated-queries pattern). */
+ * window. Same-sample placeholder data keeps the table mounted while a new
+ * page loads, but is withheld across sample navigation so one sample's rows
+ * can never render beneath another sample's provenance. */
 export function useConcordanceReport(
   sampleId: number | null,
   limit: number,
@@ -185,7 +184,8 @@ export function useConcordanceReport(
       return (await res.json()) as ConcordanceReportResponse
     },
     enabled: sampleId != null,
-    placeholderData: keepPreviousData,
+    placeholderData: (previousData, previousQuery) =>
+      previousQuery?.queryKey[1] === sampleId ? previousData : undefined,
     staleTime: Infinity,
     retry: false,
   })
