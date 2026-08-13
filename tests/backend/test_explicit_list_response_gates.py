@@ -102,7 +102,8 @@ class _CapturedStreamingResponse:
     """Capture a route's iterator without starting Starlette's thread pool."""
 
     def __init__(self, content: Iterator[str], **_kwargs: object) -> None:
-        self.content = "".join(content)
+        self.chunks = list(content)
+        self.content = "".join(self.chunks)
 
 
 def test_variant_list_aggregates_withhold_cross_row_pair(
@@ -339,3 +340,56 @@ def test_rare_findings_and_exports_withhold_cross_row_pair(
     assert "CYP2D6" not in vcf
     assert "tamoxifen" not in vcf
     assert "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n" in vcf
+
+
+def test_rare_tsv_preflights_then_emits_exact_row_chunks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Rendered privacy validation and streamed row bytes cannot drift."""
+    rows = [
+        _finding_row(
+            id=1,
+            module="rare_variants",
+            rsid="rs_first",
+            gene_symbol="SAFE1",
+            detail_json=json.dumps({"consequence": None, "cadd_phred": 0}),
+        ),
+        _finding_row(
+            id=2,
+            module="rare_variants",
+            rsid="rs_second",
+            gene_symbol="SAFE2",
+            detail_json=json.dumps({"consequence": "missense_variant"}),
+        ),
+    ]
+    _assert_individually_presentable(rows)
+    monkeypatch.setattr(rare_variants, "_get_sample_engine", lambda _sample_id: _Engine(rows))
+    monkeypatch.setattr(rare_variants, "StreamingResponse", _CapturedStreamingResponse)
+
+    scanned_lines: list[str] = []
+    rendered_gate = rare_variants.is_patient_presentable_rendered_text_chunks
+
+    def capture_rendered_gate(lines: Iterator[str]) -> bool:
+        scanned_lines.extend(lines)
+        return rendered_gate(scanned_lines)
+
+    monkeypatch.setattr(
+        rare_variants,
+        "is_patient_presentable_rendered_text_chunks",
+        capture_rendered_gate,
+    )
+
+    response = rare_variants.export_rare_variants_tsv(sample_id=1)
+
+    expected_header = (
+        "rsid\tgene_symbol\tcategory\tevidence_level\tzygosity\t"
+        "clinvar_significance\tconditions\tconsequence\tgnomad_af_global\t"
+        "cadd_phred\trevel\tfinding_text\n"
+    )
+    assert response.chunks == [expected_header, *scanned_lines]
+    assert len(scanned_lines) == 2
+    assert [line.split("\t", maxsplit=1)[0] for line in scanned_lines] == [
+        "rs_first",
+        "rs_second",
+    ]
+    assert all(line.endswith("\n") for line in scanned_lines)
