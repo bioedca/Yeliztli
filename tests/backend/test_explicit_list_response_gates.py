@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import tempfile
 from collections.abc import Iterator
 from types import SimpleNamespace
 from typing import Any
@@ -485,6 +486,26 @@ def test_rare_tsv_export_reaches_its_verdict_without_a_whole_response_list(
     assert "rs_second" in response.content
 
 
+def _record_spill_files(monkeypatch: pytest.MonkeyPatch) -> list[Any]:
+    """Capture every temporary file the spool opens.
+
+    Forcing the threshold to zero is not on its own evidence that the disk path
+    ran — if overflow ever stopped triggering, a test that only forces the
+    threshold would keep passing while silently exercising the in-memory path.
+    Both spill tests assert against this list so they cannot go vacuous.
+    """
+    created: list[Any] = []
+    real_temporary_file = tempfile.TemporaryFile
+
+    def _recording(*args: object, **kwargs: object) -> Any:
+        handle = real_temporary_file(*args, **kwargs)
+        created.append(handle)
+        return handle
+
+    monkeypatch.setattr(tempfile, "TemporaryFile", _recording)
+    return created
+
+
 def test_rare_tsv_export_withholds_a_cross_row_pair_through_the_spill_file(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -515,9 +536,11 @@ def test_rare_tsv_export_withholds_a_cross_row_pair_through_the_spill_file(
     monkeypatch.setattr(rare_variants, "_get_sample_engine", lambda _sample_id: _Engine(rows))
     monkeypatch.setattr(rare_variants, "StreamingResponse", _CapturedStreamingResponse)
     monkeypatch.setattr(rare_variants, "_RARE_VARIANT_TSV_SPOOL_MAX_CHARS", 0)
+    spills = _record_spill_files(monkeypatch)
 
     response = rare_variants.export_rare_variants_tsv(sample_id=1)
 
+    assert spills, "the forced threshold must actually exercise the disk path"
     assert response.content.count("\n") == 1
     assert "CYP2D6" not in response.content
     assert "tamoxifen" not in response.content
@@ -558,8 +581,11 @@ def test_rare_tsv_export_replays_exact_chunks_through_the_spill_file(
     monkeypatch.setattr(rare_variants, "_RARE_VARIANT_TSV_SPOOL_MAX_CHARS", 4_000_000)
     in_memory = _export()
     monkeypatch.setattr(rare_variants, "_RARE_VARIANT_TSV_SPOOL_MAX_CHARS", 0)
+    spills = _record_spill_files(monkeypatch)
     spilled = _export()
 
+    assert spills, "the second run must actually go through the temporary file"
+    assert all(handle.closed for handle in spills)
     assert in_memory.chunks == spilled.chunks
     assert len(in_memory.chunks) == 3
     assert "line one\nline two\rline three" in in_memory.content
