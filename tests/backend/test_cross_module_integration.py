@@ -21,6 +21,7 @@ Covers:
 from __future__ import annotations
 
 import csv
+import io
 from pathlib import Path
 from unittest.mock import patch
 
@@ -33,6 +34,7 @@ from backend.annotation.dbnsfp import (
     _create_dbnsfp_table,
     load_dbnsfp_from_csv,
 )
+from backend.annotation.engine import DBNSFP_BIT
 from backend.annotation.gnomad import _create_gnomad_indexes, _create_gnomad_table
 from backend.annotation.gwas import gwas_matched_rsids
 from backend.annotation.mondo_hpo import (
@@ -423,6 +425,43 @@ class TestCrossModuleIntegration:
         return sample_id
 
     # ── Individual module run tests ────────────────────────────────────
+
+    def test_shared_dbnsfp_fixture_is_exercised(self, cross_module_client: TestClient) -> None:
+        """A dedicated synthetic sample exercises dbNSFP without perturbing module data."""
+        content = (
+            "# This synthetic 23andMe-shaped fixture uses GRCh37 semantics.\n"
+            + "# synthetic test header\n" * 14
+            + "# rsid\tchromosome\tposition\tgenotype\n"
+            + "rsYELIZTLI0001\t20\t60000000\tAG\n"
+        )
+        upload = cross_module_client.post(
+            "/api/ingest",
+            files={
+                "file": (
+                    "synthetic_dbnsfp_v5.txt",
+                    io.BytesIO(content.encode()),
+                    "text/plain",
+                )
+            },
+        )
+        assert upload.status_code == 202, upload.text
+        sample_id = upload.json()["sample_id"]
+
+        annotation = cross_module_client.post(f"/api/annotation/{sample_id}")
+        assert annotation.status_code == 202, annotation.text
+
+        detail = cross_module_client.get(
+            "/api/variants/rsYELIZTLI0001",
+            params={"sample_id": sample_id},
+        )
+        assert detail.status_code == 200, detail.text
+        payload = detail.json()
+        assert payload["cadd_phred"] == pytest.approx(30.0)
+        assert payload["revel"] == pytest.approx(0.8)
+        assert payload["deleterious_count"] == 4
+        assert payload["deleterious_total_assessed"] == 4
+        assert payload["ensemble_pathogenic"] is True
+        assert payload["annotation_coverage"] == DBNSFP_BIT
 
     def test_all_modules_run_without_errors(self, cross_module_client: TestClient) -> None:
         """T3-43: All analysis modules produce findings for the test fixture

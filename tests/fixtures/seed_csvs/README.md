@@ -14,8 +14,18 @@ mini databases can be joined without an implicit liftover:
   coordinate.
 
 The contract applies to `clinvar_seed.csv`, `vep_seed.csv`, `gnomad_seed.csv`,
-`gwas_seed.csv`, and `dbnsfp_seed.csv`. These files are the source of truth for
-the corresponding tables in the four checked-in `mini_*.db` fixtures.
+and `gwas_seed.csv`. These files are the source of truth for the corresponding
+tables in the checked-in `mini_*.db` fixtures.
+
+`dbnsfp_seed.csv` is deliberately different. dbNSFP predictor values are
+provider-fetched, non-redistributed runtime data, so the compact test fixture
+contains only synthetic behavior scenarios in the reserved `rsYELIZTLI####`
+namespace. Its coordinates are arbitrary GRCh38 lookup keys used to exercise
+the production dbNSFP build guard and position-lookup path; they are not human
+variant loci. `dbnsfp_seed.contract.json` records the exact scenarios, and the
+offline contract test rejects real dbSNP identifiers, unreviewed scenarios, or
+incoherent SIFT/PolyPhen score-category pairs. Neither the CSV nor
+`mini_dbnsfp.db` is a scientific score oracle.
 
 ## Coordinate oracle
 

@@ -1,0 +1,207 @@
+<?xml version='1.0' encoding='utf-8'?>
+<PubmedArticleSet>
+  <PubmedArticle>
+    <MedlineCitation Status="MEDLINE" Owner="NLM" IndexingMethod="Manual">
+      <PMID Version="1">33261662</PMID>
+      <DateCompleted>
+        <Year>2021</Year>
+        <Month>11</Month>
+        <Day>05</Day>
+      </DateCompleted>
+      <DateRevised>
+        <Year>2022</Year>
+        <Month>12</Month>
+        <Day>07</Day>
+      </DateRevised>
+      <Article PubModel="Electronic">
+        <Journal>
+          <ISSN IssnType="Electronic">1756-994X</ISSN>
+          <JournalIssue CitedMedium="Internet">
+            <Volume>12</Volume>
+            <Issue>1</Issue>
+            <PubDate>
+              <Year>2020</Year>
+              <Month>Dec</Month>
+              <Day>02</Day>
+            </PubDate>
+          </JournalIssue>
+          <Title>Genome medicine</Title>
+          <ISOAbbreviation>Genome Med</ISOAbbreviation>
+        </Journal>
+        <ArticleTitle>dbNSFP v4: a comprehensive database of transcript-specific functional predictions and annotations for human nonsynonymous and splice-site SNVs.</ArticleTitle>
+        <Pagination>
+          <StartPage>103</StartPage>
+          <MedlinePgn>103</MedlinePgn>
+        </Pagination>
+        <ELocationID EIdType="pii" ValidYN="Y">103</ELocationID>
+        <ELocationID EIdType="doi" ValidYN="Y">10.1186/s13073-020-00803-9</ELocationID>
+        <Language>eng</Language>
+        <PublicationTypeList>
+          <PublicationType UI="D016428">Journal Article</PublicationType>
+          <PublicationType UI="D052061">Research Support, N.I.H., Extramural</PublicationType>
+        </PublicationTypeList>
+        <ArticleDate DateType="Electronic">
+          <Year>2020</Year>
+          <Month>12</Month>
+          <Day>02</Day>
+        </ArticleDate>
+      </Article>
+      <MedlineJournalInfo>
+        <Country>England</Country>
+        <MedlineTA>Genome Med</MedlineTA>
+        <NlmUniqueID>101475844</NlmUniqueID>
+        <ISSNLinking>1756-994X</ISSNLinking>
+      </MedlineJournalInfo>
+      <CitationSubset>IM</CitationSubset>
+    </MedlineCitation>
+    <PubmedData>
+      <History>
+        <PubMedPubDate PubStatus="received">
+          <Year>2020</Year>
+          <Month>9</Month>
+          <Day>17</Day>
+        </PubMedPubDate>
+        <PubMedPubDate PubStatus="accepted">
+          <Year>2020</Year>
+          <Month>11</Month>
+          <Day>9</Day>
+        </PubMedPubDate>
+        <PubMedPubDate PubStatus="entrez">
+          <Year>2020</Year>
+          <Month>12</Month>
+          <Day>2</Day>
+          <Hour>5</Hour>
+          <Minute>21</Minute>
+        </PubMedPubDate>
+        <PubMedPubDate PubStatus="pubmed">
+          <Year>2020</Year>
+          <Month>12</Month>
+          <Day>3</Day>
+          <Hour>6</Hour>
+          <Minute>0</Minute>
+        </PubMedPubDate>
+        <PubMedPubDate PubStatus="medline">
+          <Year>2021</Year>
+          <Month>11</Month>
+          <Day>6</Day>
+          <Hour>6</Hour>
+          <Minute>0</Minute>
+        </PubMedPubDate>
+        <PubMedPubDate PubStatus="pmc-release">
+          <Year>2020</Year>
+          <Month>12</Month>
+          <Day>2</Day>
+        </PubMedPubDate>
+      </History>
+      <PublicationStatus>epublish</PublicationStatus>
+      <ArticleIdList>
+        <ArticleId IdType="pubmed">33261662</ArticleId>
+        <ArticleId IdType="pmc">PMC7709417</ArticleId>
+        <ArticleId IdType="doi">10.1186/s13073-020-00803-9</ArticleId>
+        <ArticleId IdType="pii">10.1186/s13073-020-00803-9</ArticleId>
+      </ArticleIdList>
+    </PubmedData>
+  </PubmedArticle>
+  <PubmedArticle>
+    <MedlineCitation Status="MEDLINE" Owner="NLM" IndexingMethod="Manual">
+      <PMID Version="1">27666373</PMID>
+      <DateCompleted>
+        <Year>2017</Year>
+        <Month>05</Month>
+        <Day>24</Day>
+      </DateCompleted>
+      <DateRevised>
+        <Year>2026</Year>
+        <Month>07</Month>
+        <Day>09</Day>
+      </DateRevised>
+      <Article PubModel="Print-Electronic">
+        <Journal>
+          <ISSN IssnType="Electronic">1537-6605</ISSN>
+          <JournalIssue CitedMedium="Internet">
+            <Volume>99</Volume>
+            <Issue>4</Issue>
+            <PubDate>
+              <Year>2016</Year>
+              <Month>Oct</Month>
+              <Day>06</Day>
+            </PubDate>
+          </JournalIssue>
+          <Title>American journal of human genetics</Title>
+          <ISOAbbreviation>Am J Hum Genet</ISOAbbreviation>
+        </Journal>
+        <ArticleTitle>REVEL: An Ensemble Method for Predicting the Pathogenicity of Rare Missense Variants.</ArticleTitle>
+        <Pagination>
+          <StartPage>877</StartPage>
+          <EndPage>885</EndPage>
+          <MedlinePgn>877-885</MedlinePgn>
+        </Pagination>
+        <ELocationID EIdType="doi" ValidYN="Y">10.1016/j.ajhg.2016.08.016</ELocationID>
+        <ELocationID EIdType="pii" ValidYN="Y">S0002-9297(16)30370-6</ELocationID>
+        <Language>eng</Language>
+        <PublicationTypeList>
+          <PublicationType UI="D016428">Journal Article</PublicationType>
+        </PublicationTypeList>
+        <ArticleDate DateType="Electronic">
+          <Year>2016</Year>
+          <Month>09</Month>
+          <Day>22</Day>
+        </ArticleDate>
+      </Article>
+      <MedlineJournalInfo>
+        <Country>United States</Country>
+        <MedlineTA>Am J Hum Genet</MedlineTA>
+        <NlmUniqueID>0370475</NlmUniqueID>
+        <ISSNLinking>0002-9297</ISSNLinking>
+      </MedlineJournalInfo>
+      <CitationSubset>IM</CitationSubset>
+    </MedlineCitation>
+    <PubmedData>
+      <History>
+        <PubMedPubDate PubStatus="received">
+          <Year>2016</Year>
+          <Month>4</Month>
+          <Day>18</Day>
+        </PubMedPubDate>
+        <PubMedPubDate PubStatus="accepted">
+          <Year>2016</Year>
+          <Month>8</Month>
+          <Day>23</Day>
+        </PubMedPubDate>
+        <PubMedPubDate PubStatus="pubmed">
+          <Year>2016</Year>
+          <Month>9</Month>
+          <Day>27</Day>
+          <Hour>6</Hour>
+          <Minute>0</Minute>
+        </PubMedPubDate>
+        <PubMedPubDate PubStatus="medline">
+          <Year>2017</Year>
+          <Month>5</Month>
+          <Day>26</Day>
+          <Hour>6</Hour>
+          <Minute>0</Minute>
+        </PubMedPubDate>
+        <PubMedPubDate PubStatus="entrez">
+          <Year>2016</Year>
+          <Month>9</Month>
+          <Day>27</Day>
+          <Hour>6</Hour>
+          <Minute>0</Minute>
+        </PubMedPubDate>
+        <PubMedPubDate PubStatus="pmc-release">
+          <Year>2017</Year>
+          <Month>4</Month>
+          <Day>6</Day>
+        </PubMedPubDate>
+      </History>
+      <PublicationStatus>ppublish</PublicationStatus>
+      <ArticleIdList>
+        <ArticleId IdType="pubmed">27666373</ArticleId>
+        <ArticleId IdType="pmc">PMC5065685</ArticleId>
+        <ArticleId IdType="doi">10.1016/j.ajhg.2016.08.016</ArticleId>
+        <ArticleId IdType="pii">S0002-9297(16)30370-6</ArticleId>
+      </ArticleIdList>
+    </PubmedData>
+  </PubmedArticle>
+</PubmedArticleSet>

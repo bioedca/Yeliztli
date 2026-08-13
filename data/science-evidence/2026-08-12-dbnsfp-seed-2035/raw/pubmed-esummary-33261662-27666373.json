@@ -1,0 +1,207 @@
+{
+  "header": {
+    "type": "esummary",
+    "version": "0.3"
+  },
+  "result": {
+    "uids": [
+      "33261662",
+      "27666373"
+    ],
+    "33261662": {
+      "uid": "33261662",
+      "pubdate": "2020 Dec 2",
+      "epubdate": "2020 Dec 2",
+      "source": "Genome Med",
+      "title": "dbNSFP v4: a comprehensive database of transcript-specific functional predictions and annotations for human nonsynonymous and splice-site SNVs.",
+      "sorttitle": "dbnsfp v4 a comprehensive database of transcript specific functional predictions and annotations for human nonsynonymous and splice site snvs",
+      "volume": "12",
+      "issue": "1",
+      "pages": "103",
+      "lang": [
+        "eng"
+      ],
+      "nlmuniqueid": "101475844",
+      "issn": "",
+      "essn": "1756-994X",
+      "pubtype": [
+        "Journal Article",
+        "Research Support, N.I.H., Extramural"
+      ],
+      "recordstatus": "PubMed - indexed for MEDLINE",
+      "pubstatus": "3",
+      "articleids": [
+        {
+          "idtype": "pubmed",
+          "idtypen": 1,
+          "value": "33261662"
+        },
+        {
+          "idtype": "pmc",
+          "idtypen": 8,
+          "value": "PMC7709417"
+        },
+        {
+          "idtype": "pmcid",
+          "idtypen": 5,
+          "value": "pmc-id: PMC7709417;"
+        },
+        {
+          "idtype": "doi",
+          "idtypen": 3,
+          "value": "10.1186/s13073-020-00803-9"
+        },
+        {
+          "idtype": "pii",
+          "idtypen": 4,
+          "value": "10.1186/s13073-020-00803-9"
+        }
+      ],
+      "history": [
+        {
+          "pubstatus": "received",
+          "date": "2020/09/17 00:00"
+        },
+        {
+          "pubstatus": "accepted",
+          "date": "2020/11/09 00:00"
+        },
+        {
+          "pubstatus": "entrez",
+          "date": "2020/12/02 05:21"
+        },
+        {
+          "pubstatus": "pubmed",
+          "date": "2020/12/03 06:00"
+        },
+        {
+          "pubstatus": "medline",
+          "date": "2021/11/06 06:00"
+        },
+        {
+          "pubstatus": "pmc-release",
+          "date": "2020/12/02 00:00"
+        }
+      ],
+      "references": [],
+      "attributes": [
+        "Has Abstract"
+      ],
+      "pmcrefcount": 54,
+      "fulljournalname": "Genome medicine",
+      "elocationid": "doi: 10.1186/s13073-020-00803-9",
+      "doctype": "citation",
+      "booktitle": "",
+      "medium": "",
+      "edition": "",
+      "publisherlocation": "",
+      "publishername": "",
+      "srcdate": "",
+      "reportnumber": "",
+      "availablefromurl": "",
+      "locationlabel": "",
+      "docdate": "",
+      "bookname": "",
+      "chapter": "",
+      "sortpubdate": "2020/12/02 00:00",
+      "vernaculartitle": ""
+    },
+    "27666373": {
+      "uid": "27666373",
+      "pubdate": "2016 Oct 6",
+      "epubdate": "2016 Sep 22",
+      "source": "Am J Hum Genet",
+      "title": "REVEL: An Ensemble Method for Predicting the Pathogenicity of Rare Missense Variants.",
+      "sorttitle": "revel an ensemble method for predicting the pathogenicity of rare missense variants",
+      "volume": "99",
+      "issue": "4",
+      "pages": "877-885",
+      "lang": [
+        "eng"
+      ],
+      "nlmuniqueid": "0370475",
+      "issn": "0002-9297",
+      "essn": "1537-6605",
+      "pubtype": [
+        "Journal Article"
+      ],
+      "recordstatus": "PubMed - indexed for MEDLINE",
+      "pubstatus": "256",
+      "articleids": [
+        {
+          "idtype": "pubmed",
+          "idtypen": 1,
+          "value": "27666373"
+        },
+        {
+          "idtype": "pmc",
+          "idtypen": 8,
+          "value": "PMC5065685"
+        },
+        {
+          "idtype": "pmcid",
+          "idtypen": 5,
+          "value": "pmc-id: PMC5065685;"
+        },
+        {
+          "idtype": "doi",
+          "idtypen": 3,
+          "value": "10.1016/j.ajhg.2016.08.016"
+        },
+        {
+          "idtype": "pii",
+          "idtypen": 4,
+          "value": "S0002-9297(16)30370-6"
+        }
+      ],
+      "history": [
+        {
+          "pubstatus": "received",
+          "date": "2016/04/18 00:00"
+        },
+        {
+          "pubstatus": "accepted",
+          "date": "2016/08/23 00:00"
+        },
+        {
+          "pubstatus": "pubmed",
+          "date": "2016/09/27 06:00"
+        },
+        {
+          "pubstatus": "medline",
+          "date": "2017/05/26 06:00"
+        },
+        {
+          "pubstatus": "entrez",
+          "date": "2016/09/27 06:00"
+        },
+        {
+          "pubstatus": "pmc-release",
+          "date": "2017/04/06 00:00"
+        }
+      ],
+      "references": [],
+      "attributes": [
+        "Has Abstract"
+      ],
+      "pmcrefcount": 54,
+      "fulljournalname": "American journal of human genetics",
+      "elocationid": "doi: 10.1016/j.ajhg.2016.08.016",
+      "doctype": "citation",
+      "booktitle": "",
+      "medium": "",
+      "edition": "",
+      "publisherlocation": "",
+      "publishername": "",
+      "srcdate": "",
+      "reportnumber": "",
+      "availablefromurl": "",
+      "locationlabel": "",
+      "docdate": "",
+      "bookname": "",
+      "chapter": "",
+      "sortpubdate": "2016/10/06 00:00",
+      "vernaculartitle": ""
+    }
+  }
+}

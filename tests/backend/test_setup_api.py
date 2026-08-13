@@ -180,7 +180,7 @@ def _seed_required_dbs_ready(tmp_data_dir: Path, *, include_gnomad: bool = True)
     conn = sqlite3.connect(str(tmp_data_dir / "dbnsfp.db"))
     try:
         conn.execute("CREATE TABLE dbnsfp_scores (rsid TEXT, cadd_phred REAL)")
-        conn.execute("INSERT INTO dbnsfp_scores VALUES ('rs429358', 12.3)")
+        conn.execute("INSERT INTO dbnsfp_scores VALUES ('synthetic-setup-probe', 12.3)")
         conn.commit()
     finally:
         conn.close()
