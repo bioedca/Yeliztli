@@ -726,3 +726,29 @@ def test_rare_tsv_export_body_iterator_is_closeable(
         "a wrapper without close() (itertools.chain) would silently defer cleanup to GC"
     )
     response.content_iterator.close()
+
+
+def test_rare_tsv_export_never_iterated_still_releases_the_spill(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A response body that is never read must still release the spill.
+
+    The generator's ``finally`` only runs if the body is iterated or closed, so
+    this path is exactly what the ``BackgroundTask`` fallback exists for.
+    Starlette runs it after the response; calling it directly is the same call.
+    """
+    rows = [_finding_row(id=1, module="rare_variants", rsid="rs_1", gene_symbol="SAFE1")]
+    _assert_individually_presentable(rows)
+    monkeypatch.setattr(rare_variants, "_get_sample_engine", lambda _sample_id: _Engine(rows))
+    monkeypatch.setattr(rare_variants, "StreamingResponse", _RetainedStreamingResponse)
+    monkeypatch.setattr(rare_variants, "_RARE_VARIANT_TSV_SPOOL_MAX_CHARS", 0)
+    spills = _record_spill_files(monkeypatch)
+
+    response = rare_variants.export_rare_variants_tsv(sample_id=1)
+
+    assert spills and not spills[0].closed
+    assert response.background is not None, "an un-iterated response has no other cleanup path"
+
+    response.background.func()
+
+    assert spills[0].closed
