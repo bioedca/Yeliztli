@@ -5,7 +5,7 @@
  */
 
 import { expect, test } from '@playwright/test'
-import { bypassSetup, waitForReactHydration } from './helpers'
+import { bypassSetup, mockFreshSampleState, waitForReactHydration } from './helpers'
 
 const INITIAL_LIMIT = 200
 const TOTAL_FINDINGS = 66_770
@@ -70,6 +70,45 @@ function rareVariant(index: number) {
 
 test.beforeEach(async ({ page }) => {
   await bypassSetup(page)
+  await mockFreshSampleState(page)
+})
+
+test('Rare Variants fences stale sample annotations before loading findings (#2312)', async ({
+  page,
+}) => {
+  let findingsRequests = 0
+
+  await page.route(/\/api\/variants\/count\?sample_id=1$/, (route) =>
+    route.fulfill(
+      jsonRoute(
+        {
+          detail: {
+            installed_version: 'v1.0.0',
+            required_version: 'v4.0.0',
+            update_url: 'https://example.invalid/bundle-v4',
+            reannotate_url: '/api/annotation/1',
+          },
+        },
+        423,
+      ),
+    ),
+  )
+  await page.route(/\/api\/annotation\/active\/1$/, (route) =>
+    route.fulfill(jsonRoute({ detail: 'No active job' }, 404)),
+  )
+  await page.route('**/api/analysis/rare-variants/findings**', (route) => {
+    findingsRequests += 1
+    return route.fulfill(jsonRoute({ items: [], total: 0 }))
+  })
+
+  await page.goto('/rare-variants?sample_id=1')
+
+  const gate = page.getByRole('region', { name: 'Sample requires re-annotation' })
+  await expect(gate).toBeVisible()
+  await expect(gate).toContainText('v1.0.0')
+  await expect(gate).toContainText('v4.0.0')
+  await expect(page.getByRole('heading', { level: 1, name: 'Rare Variants' })).toHaveCount(0)
+  expect(findingsRequests).toBe(0)
 })
 
 test('Rare Variants previous findings requests and renders a bounded page (#1526)', async ({

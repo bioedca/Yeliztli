@@ -5,20 +5,11 @@
  */
 
 import { test, expect } from '@playwright/test'
-import { bypassSetup, waitForReactHydration } from './helpers'
+import { bypassSetup, mockFreshSampleState, waitForReactHydration } from './helpers'
 
 test.beforeEach(async ({ page }) => {
   await bypassSetup(page)
-  // #2236 moved /reports under StaleSampleRouteGate, so StaleSampleGate now
-  // probes sample freshness with GET /api/variants/count before rendering any
-  // child. Unstubbed, that probe reaches the real backend, which has no seeded
-  // sample: the gate renders its "Unable to verify sample freshness" panel (or
-  // nothing at all while the first fetch is in flight) instead of the Report
-  // Builder, and every assertion below fails for a reason unrelated to reports.
-  // Only 200 and 404 let the gate render children; 200 keeps the sample fresh.
-  await page.route('**/api/variants/count**', (route) =>
-    route.fulfill({ json: { total: 1, filtered: false } }),
-  )
+  await mockFreshSampleState(page)
 })
 
 const SUMMARY = {

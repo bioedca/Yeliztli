@@ -4,7 +4,7 @@
  */
 
 import { expect, test } from '@playwright/test'
-import { bypassSetup, waitForReactHydration } from './helpers'
+import { bypassSetup, mockFreshSampleState, waitForReactHydration } from './helpers'
 
 const jsonRoute = (payload: unknown, status = 200) => ({
   status,
@@ -14,6 +14,7 @@ const jsonRoute = (payload: unknown, status = 200) => ({
 
 test.beforeEach(async ({ page }) => {
   await bypassSetup(page)
+  await mockFreshSampleState(page)
 })
 
 test('Rare Variants previous findings labels low-penetrance/risk-allele tier (#1027)', async ({
