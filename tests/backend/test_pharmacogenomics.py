@@ -24,6 +24,7 @@ from backend.analysis.pharmacogenomics import (
     CallConfidence,
     PrescribingAlert,
     StarAlleleResult,
+    _advance_rendered_text_state,
     _assess_call_confidence,
     _build_finding_text,
     _count_alt_alleles,
@@ -36,6 +37,7 @@ from backend.analysis.pharmacogenomics import (
     contains_unpresentable_prescribing_identifier,
     generate_prescribing_alerts,
     is_patient_presentable_finding_payload,
+    is_patient_presentable_rendered_text_chunks,
     is_patient_presentable_response_payload,
     is_prescribing_alert_withheld,
     patient_visible_finding_clause,
@@ -2508,6 +2510,70 @@ class TestPatientPresentableFindingPayload:
                 "detail_json": payload,
             }
         )
+
+    @pytest.mark.parametrize(
+        "text",
+        (
+            "",
+            "routine finding",
+            "CYP2D6",
+            "tamoxifen",
+            "CYP2D6 tamoxifen",
+            "safe CYP2\nD6\ttamoxifen",
+            "CYP2D6x tamoxifen",
+            "xCYP2D6 tamoxifen",
+            "CYP2D6\u200btamoxifen",
+            "CYP2D\u03326 tamox\x00ifen",
+            "tamoxifenCYP2D6",
+            "legacyCYP2D6tamoxifendose",
+            "病患檢體資料 tamoxifen reference",
+        ),
+    )
+    def test_rendered_text_chunks_match_the_complete_string_gate(self, text: str) -> None:
+        expected = is_patient_presentable_response_payload(text)
+
+        for split in range(len(text) + 1):
+            assert (
+                is_patient_presentable_rendered_text_chunks((text[:split], text[split:]))
+                is expected
+            )
+        assert is_patient_presentable_rendered_text_chunks(iter(text)) is expected
+
+    def test_rendered_text_chunks_preserve_unbounded_separator_progress(self) -> None:
+        chunks = ("CYP2", "\t" * 4097, "D6\t", "tamoxifen")
+
+        assert not is_patient_presentable_rendered_text_chunks(chunks)
+
+    def test_rendered_text_chunks_cover_every_pinned_confusable(self) -> None:
+        for expected, confusables in _IDENTIFIER_CHARACTER_CONFUSABLES.items():
+            for confusable in confusables:
+                gene = "cyp2d6"
+                drug = "tamoxifen"
+                if expected in gene:
+                    gene = gene.replace(expected, confusable, 1)
+                elif expected in drug:
+                    drug = drug.replace(expected, confusable, 1)
+                else:
+                    assert expected == "r"
+                    drug = drug.replace("m", f"{confusable}n", 1)
+                assert not is_patient_presentable_rendered_text_chunks(
+                    (gene[:2], gene[2:] + "\t", drug[:-1], drug[-1:])
+                )
+
+        for source in _IDENTIFIER_SKELETON_SOURCE_TO_TARGET:
+            drug = f"ta{source}oxifen"
+            assert not is_patient_presentable_rendered_text_chunks(
+                ("CYP2D6\t", drug[:2], drug[2:])
+            )
+
+    def test_rendered_text_scanner_caches_repeated_transitions(self) -> None:
+        _advance_rendered_text_state.cache_clear()
+
+        assert is_patient_presentable_rendered_text_chunks(("x" * 100_000,))
+
+        cache = _advance_rendered_text_state.cache_info()
+        assert cache.misses <= 3
+        assert cache.hits >= 99_997
 
     def test_keeps_nested_independent_safe_pair_records_presentable(self) -> None:
         payload = {

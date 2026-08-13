@@ -52,8 +52,9 @@ import json
 import re
 import sqlite3
 import unicodedata
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
+from functools import lru_cache
 from typing import Any
 
 import sqlalchemy as sa
@@ -417,6 +418,228 @@ def _identifier_match_variants(identifier: str) -> tuple[str, ...]:
         for character in canonical
     )
     return (canonical,) if skeleton == canonical else (canonical, skeleton)
+
+
+@dataclass(frozen=True)
+class _RenderedTextPattern:
+    """One constant-size identifier automaton used at rendered boundaries."""
+
+    expected: str
+    require_left_boundary: bool = True
+    require_right_boundary: bool = True
+
+
+@dataclass(frozen=True)
+class _RenderedTextScannerConfig:
+    """Compiled held-pair patterns and character classes for rendered text."""
+
+    pair_patterns: tuple[tuple[_RenderedTextPattern, ...], ...]
+    ordinary_pattern_counts: tuple[tuple[int, int], ...]
+    match_character_bits: dict[str, int]
+    confusable_bits: dict[str, int]
+
+
+@lru_cache(maxsize=1)
+def _rendered_text_scanner_config() -> _RenderedTextScannerConfig:
+    pair_patterns: list[tuple[_RenderedTextPattern, ...]] = []
+    ordinary_pattern_counts: list[tuple[int, int]] = []
+    expected_characters: set[str] = set()
+    for gene, drug in WITHHELD_PRESCRIBING_ALERT_PAIRS:
+        gene_variants = _identifier_match_variants(gene)
+        drug_variants = _identifier_match_variants(drug)
+        patterns = (
+            tuple(_RenderedTextPattern(variant) for variant in gene_variants)
+            + tuple(_RenderedTextPattern(variant) for variant in drug_variants)
+            + tuple(
+                _RenderedTextPattern(
+                    gene_variant + drug_variant,
+                    require_left_boundary=False,
+                    require_right_boundary=False,
+                )
+                for gene_variant in gene_variants
+                for drug_variant in drug_variants
+            )
+        )
+        pair_patterns.append(patterns)
+        ordinary_pattern_counts.append((len(gene_variants), len(drug_variants)))
+        expected_characters.update(
+            character.casefold() for pattern in patterns for character in pattern.expected
+        )
+
+    match_character_bits = {
+        character: 1 << index for index, character in enumerate(sorted(expected_characters))
+    }
+    confusable_bits: dict[str, int] = {}
+    for expected, confusables in _IDENTIFIER_CHARACTER_CONFUSABLES.items():
+        expected_bit = match_character_bits.get(expected.casefold(), 0)
+        for confusable in confusables:
+            folded_confusable = confusable.casefold()
+            confusable_bits[folded_confusable] = (
+                confusable_bits.get(folded_confusable, 0) | expected_bit
+            )
+    return _RenderedTextScannerConfig(
+        pair_patterns=tuple(pair_patterns),
+        ordinary_pattern_counts=tuple(ordinary_pattern_counts),
+        match_character_bits=match_character_bits,
+        confusable_bits=confusable_bits,
+    )
+
+
+@lru_cache(maxsize=4096)
+def _rendered_text_character_properties(character: str) -> tuple[int, bool, bool]:
+    """Return match bits plus identifier/boundary properties for one code point."""
+    config = _rendered_text_scanner_config()
+    folded = character.casefold()
+    match_bits = config.confusable_bits.get(folded, 0)
+    if character.isascii():
+        match_bits |= config.match_character_bits.get(folded, 0)
+    if character.isdecimal():
+        try:
+            match_bits |= config.match_character_bits.get(str(unicodedata.decimal(character)), 0)
+        except ValueError:
+            pass
+    return (
+        match_bits,
+        character.isalnum() or folded in _CURATED_IDENTIFIER_CONFUSABLE_CASEFOLDS,
+        character.isascii() and character.isalnum(),
+    )
+
+
+@lru_cache(maxsize=1)
+def _rendered_text_patterns() -> tuple[_RenderedTextPattern, ...]:
+    return tuple(
+        pattern
+        for pair_patterns in _rendered_text_scanner_config().pair_patterns
+        for pattern in pair_patterns
+    )
+
+
+@lru_cache(maxsize=16384)
+def _advance_rendered_text_state(
+    state: tuple[int, ...],
+    event: tuple[int, bool, bool],
+) -> tuple[int, ...]:
+    """Advance the finite rendered-text matcher by one normalized character."""
+    match_bits, is_identifier_character, is_ascii_alphanumeric = event
+    config = _rendered_text_scanner_config()
+    previous_ascii_alphanumeric = bool(state[-1])
+    next_state: list[int] = []
+    for pattern_index, pattern in enumerate(_rendered_text_patterns()):
+        active_positions, pending_right_boundary, found = state[
+            pattern_index * 3 : pattern_index * 3 + 3
+        ]
+        if found:
+            next_state.extend((active_positions, pending_right_boundary, found))
+            continue
+        if pending_right_boundary:
+            pending_right_boundary = 0
+            if not is_ascii_alphanumeric:
+                next_state.extend((active_positions, 0, 1))
+                continue
+
+        next_positions = 0
+        for position in range(1, len(pattern.expected)):
+            if not active_positions & (1 << position):
+                continue
+            if not is_identifier_character:
+                next_positions |= 1 << position
+                continue
+            expected_bit = config.match_character_bits[pattern.expected[position].casefold()]
+            if not match_bits & expected_bit:
+                continue
+            next_position = position + 1
+            if next_position == len(pattern.expected):
+                if pattern.require_right_boundary:
+                    pending_right_boundary = 1
+                else:
+                    found = 1
+            else:
+                next_positions |= 1 << next_position
+
+        first_expected_bit = config.match_character_bits[pattern.expected[0].casefold()]
+        if (
+            not pattern.require_left_boundary or not previous_ascii_alphanumeric
+        ) and match_bits & first_expected_bit:
+            if len(pattern.expected) == 1:
+                if pattern.require_right_boundary:
+                    pending_right_boundary = 1
+                else:
+                    found = 1
+            else:
+                next_positions |= 1 << 1
+        next_state.extend((next_positions, pending_right_boundary, found))
+    next_state.append(int(is_ascii_alphanumeric))
+    return tuple(next_state)
+
+
+@lru_cache(maxsize=4096)
+def _rendered_text_normalized_events(
+    source_character: str,
+) -> tuple[tuple[int, bool, bool], ...]:
+    """Normalize one source code point into cached finite-scanner events."""
+    events: list[tuple[int, bool, bool]] = []
+    characters, preserve_group = _identifier_normalization_group(source_character)
+    for character in characters:
+        if not preserve_group and (
+            _is_default_ignorable_character(character) or unicodedata.category(character) == "Cc"
+        ):
+            character = " "
+        elif not preserve_group and unicodedata.category(character).startswith("M"):
+            continue
+        events.append(_rendered_text_character_properties(character))
+    return tuple(events)
+
+
+class _RenderedTextHeldPairScanner:
+    """Scan rendered chunks once while preserving identifier matches across chunks."""
+
+    def __init__(self) -> None:
+        self._state = (0,) * (len(_rendered_text_patterns()) * 3 + 1)
+
+    def feed(self, chunk: str) -> None:
+        """Advance over one chunk; its edge does not add or resolve a boundary."""
+        for source_character in chunk:
+            for event in _rendered_text_normalized_events(source_character):
+                self._state = _advance_rendered_text_state(self._state, event)
+
+    def is_presentable(self) -> bool:
+        """Finalize end-of-text right boundaries and return the rendered verdict."""
+        pattern_offset = 0
+        config = _rendered_text_scanner_config()
+        for pair_patterns, (gene_count, drug_count) in zip(
+            config.pair_patterns,
+            config.ordinary_pattern_counts,
+            strict=True,
+        ):
+            pair_states = tuple(
+                self._state[index * 3 : index * 3 + 3]
+                for index in range(pattern_offset, pattern_offset + len(pair_patterns))
+            )
+            pattern_offset += len(pair_patterns)
+            gene_states = pair_states[:gene_count]
+            drug_states = pair_states[gene_count : gene_count + drug_count]
+            sequence_states = pair_states[gene_count + drug_count :]
+            if any(found for _active, _pending, found in sequence_states):
+                return False
+            if any(found or pending for _active, pending, found in gene_states) and any(
+                found or pending for _active, pending, found in drug_states
+            ):
+                return False
+        return True
+
+
+def is_patient_presentable_rendered_text_chunks(chunks: Iterable[str]) -> bool:
+    """Whether exact rendered text chunks avoid every held identifier pair.
+
+    Chunk edges add no characters. Callers must include their actual rendered
+    separators, such as TSV tabs and newlines, in the supplied chunks.
+    """
+    scanner = _RenderedTextHeldPairScanner()
+    for chunk in chunks:
+        if not isinstance(chunk, str):
+            return False
+        scanner.feed(chunk)
+    return scanner.is_presentable()
 
 
 def _identifier_character_matches(actual: str, expected: str) -> bool:

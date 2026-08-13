@@ -13,7 +13,9 @@ from __future__ import annotations
 import io
 import json
 import logging
+from collections.abc import Iterator
 from datetime import date
+from itertools import chain
 from typing import Any
 
 import sqlalchemy as sa
@@ -23,6 +25,7 @@ from starlette.responses import StreamingResponse
 
 from backend.analysis.pharmacogenomics import (
     is_patient_presentable_finding_payload,
+    is_patient_presentable_rendered_text_chunks,
     is_patient_presentable_response_payload,
 )
 from backend.analysis.rare_variant_finder import (
@@ -195,6 +198,24 @@ def _payload_gate_projection(payload: dict[str, Any]) -> dict[str, Any]:
         for key, value in payload.items()
         if key != "gene_symbol" or not (value is None or isinstance(value, str) and value == "")
     }
+
+
+def _iter_rare_variant_tsv_data_lines(
+    rows: list[dict[str, Any]],
+    columns: tuple[str, ...],
+) -> Iterator[str]:
+    """Yield canonical TSV lines after fail-closed scalar validation."""
+    for row in rows:
+        raw_values = [row[column] for column in columns]
+        # The structure-aware gate deliberately keeps independent complete
+        # records separate. Never flatten a malformed container afterward,
+        # because its string form can reassemble a held identifier pair.
+        if not all(
+            value is None or isinstance(value, (str, int, float, bool)) for value in raw_values
+        ):
+            continue
+        values = ["" if value is None else str(value) for value in raw_values]
+        yield "\t".join(values) + "\n"
 
 
 def _get_sample_engine(sample_id: int) -> sa.Engine:
@@ -519,7 +540,7 @@ def export_rare_variants_tsv(
     ):
         export_rows = []
 
-    tsv_columns = [
+    tsv_columns = (
         "rsid",
         "gene_symbol",
         "category",
@@ -532,34 +553,27 @@ def export_rare_variants_tsv(
         "cadd_phred",
         "revel",
         "finding_text",
-    ]
+    )
     header = "\t".join(tsv_columns) + "\n"
-    data_buf = io.StringIO()
-
-    for row in export_rows:
-        raw_values = [row[column] for column in tsv_columns]
-        # The presentation gate above is structure-aware and deliberately keeps
-        # independent complete records separate. Never flatten a malformed
-        # container after that final gate, because its string representation can
-        # reassemble identifiers that were safe only while structurally distinct.
-        if not all(
-            value is None or isinstance(value, (str, int, float, bool)) for value in raw_values
-        ):
-            continue
-        values = ["" if value is None else str(value) for value in raw_values]
-        data_buf.write("\t".join(values) + "\n")
 
     # The structured response gate above preserves record boundaries, but TSV
-    # separators are part of the final patient-visible text. Recheck the exact
-    # rendered data section as one string so tabs/newlines cannot join separately
-    # safe fragments into a held identifier. The fixed header is application
-    # metadata, not patient data, and is deliberately outside this final gate.
-    rendered_data = data_buf.getvalue()
-    if not is_patient_presentable_response_payload(rendered_data):
-        rendered_data = ""
+    # separators are part of the patient-visible text. Scan the exact retained
+    # data lines before yielding any of them so tabs/newlines cannot join safe
+    # fragments into a held identifier, including across omitted malformed rows.
+    # The fixed header is application metadata and remains outside this gate.
+    data_lines: Iterator[str]
+    if is_patient_presentable_rendered_text_chunks(
+        _iter_rare_variant_tsv_data_lines(export_rows, tsv_columns)
+    ):
+        # Render a second time from the same immutable in-memory DTOs. This avoids
+        # retaining or copying the complete TSV body while keeping validation and
+        # emission byte-identical and preventing a late unsafe row from leaking.
+        data_lines = _iter_rare_variant_tsv_data_lines(export_rows, tsv_columns)
+    else:
+        data_lines = iter(())
 
     return StreamingResponse(
-        iter([header + rendered_data]),
+        chain((header,), data_lines),
         media_type="text/tab-separated-values",
         headers={
             "Content-Disposition": f"attachment; filename=rare_variants_sample_{sample_id}.tsv"
