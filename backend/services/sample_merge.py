@@ -49,6 +49,8 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import re
+import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -66,6 +68,7 @@ from backend.db.tables import (
     sample_metadata_table,
     samples,
 )
+from backend.services.sample_operation_lock import sample_merge_lease
 from backend.services.staleness import is_sample_stale
 
 if TYPE_CHECKING:
@@ -749,53 +752,83 @@ def preview_merge(
     }
 
 
-def _rollback_orphaned_merge(registry: DBRegistry, sample_id: int, sample_db_path: Path) -> None:
-    """Undo a partially-materialised merge after a post-insert failure.
+# A merged child is built at this name before it is published, and keeps it
+# afterwards. The embedded uuid is the publication identity: unlike the numeric
+# ``samples.id`` and the ``samples/sample_<id>.db`` path derived from it, SQLite
+# never hands it out twice, so a leftover file provably belongs to the one merge
+# attempt that created it and can never be confused with a later sample that
+# reused a vacated rowid (#2329).
+_MERGED_DB_NAME_PREFIX = "merged_"
+_MERGED_DB_NAME_RE = re.compile(r"merged_[0-9a-f]{32}\.db\Z")
 
-    The ``samples`` row + ``db_path`` are committed before the per-sample DB
-    is materialised (the path is derived from the new id). A failure in the
-    materialisation block would otherwise leave an orphaned reference row
-    pointing at a missing / half-written DB. This best-effort cleanup disposes
-    the cached engine, removes the DB file (+ WAL/SHM sidecars), and deletes
-    the row so the caller's retry starts from a clean slate. Cleanup
-    sub-failures are logged, never raised — the caller re-raises the original
-    error.
+
+def _sample_db_sidecars(sample_db_path: Path) -> tuple[Path, ...]:
+    """The database file and its WAL/SHM companions."""
+    return (
+        sample_db_path,
+        sample_db_path.with_name(sample_db_path.name + "-wal"),
+        sample_db_path.with_name(sample_db_path.name + "-shm"),
+    )
+
+
+def _discard_unpublished_merge(sample_db_path: Path) -> None:
+    """Remove a merged database that was never published.
+
+    Nothing in the registry references this file — publication is a single
+    commit that happens only after the database is complete — so there is no
+    row to roll back and no cached engine to dispose. Cleanup sub-failures are
+    logged, never raised: the caller re-raises the original error, and the
+    startup sweep collects anything left behind.
     """
-    try:
-        registry.dispose_sample_engine(sample_db_path)
-    except Exception as exc:  # noqa: BLE001
-        logger.warning(
-            "merge_rollback_dispose_failed",
-            extra={"merged_sample_id": sample_id, "error": str(exc)},
-        )
-    for suffix in ("", "-wal", "-shm"):
-        candidate = (
-            sample_db_path
-            if not suffix
-            else sample_db_path.with_name(sample_db_path.name + suffix)
-        )
+    for candidate in _sample_db_sidecars(sample_db_path):
         try:
             candidate.unlink(missing_ok=True)
         except OSError as exc:
             logger.warning(
-                "merge_rollback_unlink_failed",
-                extra={
-                    "merged_sample_id": sample_id,
-                    "path": str(candidate),
-                    "error": str(exc),
-                },
+                "merge_discard_unlink_failed",
+                extra={"path": str(candidate), "error": str(exc)},
             )
+
+
+def recover_unpublished_merge_artifacts(registry: DBRegistry) -> list[str]:
+    """Delete merged databases that no ``samples`` row references.
+
+    Runs at startup. A merge that is interrupted between creating its database
+    and publishing its registry row leaves exactly one such file; because the
+    file name carries the publication uuid rather than a sample id, "no row
+    points here" is a sound ownership proof. A successor that reused the
+    numeric id lives at ``samples/sample_<id>.db`` and is structurally
+    ineligible — this sweep only ever considers ``merged_<uuid>.db`` names.
+
+    Returns the names removed, for logging and tests.
+    """
+    samples_dir = registry.settings.data_dir / "samples"
+    if not samples_dir.is_dir():
+        return []
+
     try:
-        with registry.reference_engine.begin() as conn:
-            conn.execute(
-                reannotation_prompts.delete().where(reannotation_prompts.c.sample_id == sample_id)
-            )
-            conn.execute(samples.delete().where(samples.c.id == sample_id))
+        with registry.reference_engine.connect() as conn:
+            referenced = {
+                str(row.db_path) for row in conn.execute(sa.select(samples.c.db_path)).fetchall()
+            }
     except Exception as exc:  # noqa: BLE001
-        logger.warning(
-            "merge_rollback_row_delete_failed",
-            extra={"merged_sample_id": sample_id, "error": str(exc)},
-        )
+        # A half-broken install must still start. Sweeping without a readable
+        # registry could delete a published child, so do nothing at all.
+        logger.warning("merge_recovery_registry_unreadable", extra={"error": str(exc)})
+        return []
+
+    removed: list[str] = []
+    for candidate in sorted(samples_dir.glob(f"{_MERGED_DB_NAME_PREFIX}*.db")):
+        if not _MERGED_DB_NAME_RE.fullmatch(candidate.name):
+            continue
+        if f"samples/{candidate.name}" in referenced:
+            continue
+        _discard_unpublished_merge(candidate)
+        removed.append(candidate.name)
+
+    if removed:
+        logger.info("merge_recovery_removed_unpublished", extra={"artifacts": removed})
+    return removed
 
 
 def merge_samples(
@@ -824,6 +857,34 @@ def merge_samples(
     if not display_name or not display_name.strip():
         raise InvalidMergeRequestError("display_name is required")
 
+    # Reject an invalid request before touching the lease registry. A merge
+    # refused for membership, annotation status or staleness must leave no
+    # artefact at all, and a lease row is an artefact — `test_no_new_jobs_row`
+    # in tests/backend/test_sample_merge_commit_stale.py pins that.
+    _validate_request_shape(source_sample_ids, strategy)
+    _validate_samples_and_freshness(registry, source_sample_ids, individual_id)
+
+    # Then hold both sources for the whole operation. The merge streams their
+    # databases for its entire materialisation, so deletion must not remove one
+    # underneath it (#2329); `delete_sample_with_cascade` refuses while this
+    # lease is held. `_compute_merge_plan` re-runs the validation above inside
+    # the lease, which closes the window between the pre-check and acquisition.
+    with sample_merge_lease(
+        registry.reference_engine, list(source_sample_ids), operation="Sample merge"
+    ):
+        return _merge_samples_locked(
+            registry, source_sample_ids, individual_id, strategy, display_name
+        )
+
+
+def _merge_samples_locked(
+    registry: DBRegistry,
+    source_sample_ids: list[int],
+    individual_id: int,
+    strategy: MergeStrategy,
+    display_name: str,
+) -> int:
+    """Body of :func:`merge_samples`, executed while both sources are reserved."""
     plan = _compute_merge_plan(registry, source_sample_ids, individual_id, strategy)
     s1_id, s2_id = source_sample_ids
     s1_row, s2_row = plan.s1_row, plan.s2_row
@@ -838,101 +899,102 @@ def merge_samples(
         strategy,
     )
 
-    # Allocate the new samples row first so the per-sample DB path can be
-    # derived from the returned id.
-    with reference_engine.begin() as conn:
-        result = conn.execute(
-            samples.insert().values(
-                name=display_name,
-                db_path="",
-                file_format=_MERGED_FILE_FORMAT,
-                file_hash=merged_file_hash,
-                individual_id=individual_id,
-                created_at=now,
-            )
-        )
-        new_sample_id = int(result.inserted_primary_key[0])
-        # SQLite can reuse a deleted rowid. Remove any prompt left by a legacy
-        # occupant before this allocation transaction commits.
-        conn.execute(
-            reannotation_prompts.delete().where(reannotation_prompts.c.sample_id == new_sample_id)
-        )
-        new_db_path = f"samples/sample_{new_sample_id}.db"
-        conn.execute(
-            samples.update()
-            .where(samples.c.id == new_sample_id)
-            .values(db_path=new_db_path, updated_at=now)
-        )
-
+    # Build the child database under a task-owned name FIRST, and publish the
+    # registry row only once it is complete (#2329). The previous ordering
+    # committed the row up front so the path could be derived from the new id,
+    # which left a window where the merged sample was discoverable but its
+    # database was missing or half-written: a concurrent reader resolving that
+    # path through ``get_sample_engine`` would create the file with the wrong
+    # (rsid-PK) schema and destroy the merge, and a process death anywhere in
+    # the window stranded a registered row pointing at nothing.
+    #
+    # The name carries a uuid rather than the sample id precisely because
+    # SQLite reuses vacated rowids: an id-derived name cannot distinguish this
+    # attempt's leftovers from a later sample that inherited the same id.
+    publication_id = uuid.uuid4().hex
+    new_db_path = f"samples/{_MERGED_DB_NAME_PREFIX}{publication_id}.db"
     sample_db_path = settings.data_dir / new_db_path
-    # The ``samples`` row + ``db_path`` are already committed above so the path
-    # could be derived from the new id. Any failure in the schema-bootstrap or
-    # materialisation work below would otherwise leave an orphaned reference
-    # row pointing at a missing / half-written per-sample DB. Guard the whole
-    # materialisation block: on failure, dispose the cached engine, remove the
-    # partial DB file (+ WAL/SHM sidecars), and delete the orphaned row, then
-    # re-raise so the caller still sees the original error.
     try:
         sample_db_path.parent.mkdir(parents=True, exist_ok=True)
-        # Pre-create the merged-sample schema on a throwaway engine BEFORE the
-        # registry's cache touches the file. ``registry.get_sample_engine``
-        # calls ``ensure_sample_schema_current`` on first access, which would
-        # otherwise materialise ``raw_variants`` with the default rsid PK and
-        # then collide with our ``create_sample_tables(is_merged_sample=True)``
-        # call.
+        # Build on throwaway engines only. Nothing may enter the registry's
+        # engine cache before publication, or a later ``dispose_sample_engine``
+        # keyed on the published path would miss this handle.
         bootstrap_engine = make_sqlite_engine(sample_db_path, wal=False)
         try:
             # Plan §10.4 (a): merged sample's raw_variants PK is (chrom, pos).
             create_sample_tables(bootstrap_engine, is_merged_sample=True)
+
+            with bootstrap_engine.begin() as conn:
+                conn.execute(
+                    sample_metadata_table.insert().values(
+                        id=1,
+                        name=display_name,
+                        file_format=_MERGED_FILE_FORMAT,
+                        file_hash=merged_file_hash,
+                        created_at=now,
+                        updated_at=now,
+                    )
+                )
+                conn.execute(
+                    merge_provenance.insert().values(
+                        id=1,
+                        merged_at=now,
+                        strategy=strategy.value,
+                        source_sample_ids=json.dumps([s1_id, s2_id]),
+                        source_file_hashes=json.dumps(
+                            [s1_row.file_hash or "", s2_row.file_hash or ""]
+                        ),
+                        concordance_summary=json.dumps(summary.to_dict()),
+                    )
+                )
+
+                if merged_rows:
+                    payload = [
+                        {
+                            "rsid": r.rsid,
+                            "chrom": r.chrom,
+                            "pos": r.pos,
+                            "genotype": r.genotype,
+                            "source": r.source,
+                            "concordance": r.concordance,
+                            "discordant_alt_genotype": r.discordant_alt_genotype,
+                            "alt_rsid": r.alt_rsid,
+                        }
+                        for r in merged_rows
+                    ]
+                    for i in range(0, len(payload), _INSERT_BATCH):
+                        batch = payload[i : i + _INSERT_BATCH]
+                        conn.execute(raw_variants.insert(), batch)
         finally:
             bootstrap_engine.dispose()
-        # Now the registry's first ``get_sample_engine`` call sees a v8-stamped
-        # DB with the merged layout in place and skips the schema upgrade.
-        merged_engine = registry.get_sample_engine(sample_db_path)
 
-        with merged_engine.begin() as conn:
-            conn.execute(
-                sample_metadata_table.insert().values(
-                    id=1,
+        # Publication: one transaction, after the database is complete. Before
+        # this commit the merged sample does not exist to any reader; after it,
+        # its database, provenance and variants are all already in place.
+        with reference_engine.begin() as conn:
+            result = conn.execute(
+                samples.insert().values(
                     name=display_name,
+                    db_path=new_db_path,
                     file_format=_MERGED_FILE_FORMAT,
                     file_hash=merged_file_hash,
+                    individual_id=individual_id,
                     created_at=now,
                     updated_at=now,
                 )
             )
+            new_sample_id = int(result.inserted_primary_key[0])
+            # SQLite can reuse a deleted rowid. Remove any prompt left by a
+            # legacy occupant inside the publishing transaction.
             conn.execute(
-                merge_provenance.insert().values(
-                    id=1,
-                    merged_at=now,
-                    strategy=strategy.value,
-                    source_sample_ids=json.dumps([s1_id, s2_id]),
-                    source_file_hashes=json.dumps(
-                        [s1_row.file_hash or "", s2_row.file_hash or ""]
-                    ),
-                    concordance_summary=json.dumps(summary.to_dict()),
+                reannotation_prompts.delete().where(
+                    reannotation_prompts.c.sample_id == new_sample_id
                 )
             )
-
-            if merged_rows:
-                payload = [
-                    {
-                        "rsid": r.rsid,
-                        "chrom": r.chrom,
-                        "pos": r.pos,
-                        "genotype": r.genotype,
-                        "source": r.source,
-                        "concordance": r.concordance,
-                        "discordant_alt_genotype": r.discordant_alt_genotype,
-                        "alt_rsid": r.alt_rsid,
-                    }
-                    for r in merged_rows
-                ]
-                for i in range(0, len(payload), _INSERT_BATCH):
-                    batch = payload[i : i + _INSERT_BATCH]
-                    conn.execute(raw_variants.insert(), batch)
-    except Exception:
-        _rollback_orphaned_merge(registry, new_sample_id, sample_db_path)
+    except BaseException:
+        # No registry row exists on this path, so there is nothing to roll back
+        # but the file itself. ``BaseException`` so an interrupt still cleans up.
+        _discard_unpublished_merge(sample_db_path)
         raise
 
     # Plan §10.5 step 8: enqueue the standard annotation job. Imported lazily

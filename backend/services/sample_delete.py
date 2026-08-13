@@ -30,6 +30,10 @@ from typing import TYPE_CHECKING
 import sqlalchemy as sa
 
 from backend.db.tables import merge_provenance, reannotation_prompts, samples
+from backend.services.sample_operation_lock import (
+    SampleOperationConflictError,
+    merge_sources_in_use,
+)
 
 if TYPE_CHECKING:
     from backend.db.connection import DBRegistry
@@ -103,9 +107,18 @@ def list_merged_children(registry: DBRegistry, sample_id: int) -> list[MergedChi
             )
             continue
         if prov_row is None:
-            # ``file_format == 'merged_v1'`` but no provenance row was written
-            # (interrupted merge). Treat as not-a-child rather than raising —
-            # the row will be cleaned up when its own DELETE fires.
+            # ``file_format == 'merged_v1'`` with no provenance row. Since
+            # #2329 a merge publishes its registry row only after the database
+            # (provenance included) is complete, so this is no longer reachable
+            # for an in-flight merge — the publication window that made it
+            # dangerous is gone. What can still reach it is legacy debris from
+            # the old publish-first ordering, whose parentage is unknowable:
+            # treating it as a child of whichever source is being deleted would
+            # risk destroying an unrelated sample. Skip, but say so.
+            logger.warning(
+                "merged_provenance_missing",
+                extra={"merged_sample_id": int(row.id), "db_path": str(merged_db_path)},
+            )
             continue
         try:
             source_ids = json.loads(prov_row.source_sample_ids)
@@ -177,6 +190,18 @@ def delete_sample_with_cascade(registry: DBRegistry, sample_id: int) -> DeleteCa
         ).fetchone()
     if row is None:
         return None
+
+    # A merge streams its sources for its whole materialisation, so removing
+    # one underneath it would leave the merge reading a deleted database and
+    # could publish a child naming a source that no longer exists (#2329).
+    # Refuse rather than queue: the merge lease can be held for a long time and
+    # a DELETE that silently blocks reads as a hang, matching how annotation
+    # and export already answer "this sample is busy".
+    busy = merge_sources_in_use(registry.reference_engine, [sample_id])
+    if busy:
+        raise SampleOperationConflictError(
+            f"Sample {sample_id} is being merged; retry the delete once that merge completes."
+        )
 
     children = list_merged_children(registry, sample_id)
 

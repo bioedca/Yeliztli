@@ -27,6 +27,11 @@ from backend.db.tables import jobs
 logger = logging.getLogger(__name__)
 
 SAMPLE_EXPORT_JOB_TYPE = "sample_export"
+# A merge reads both source databases for its whole materialisation, so a source
+# must not be deleted underneath it (#2329). One lease row per source id shares a
+# batch uuid, which lets deletion ask "is any merge holding this sample?" with a
+# single indexed lookup on ``sample_id`` rather than parsing a composite key.
+SAMPLE_MERGE_JOB_TYPE = "sample_merge"
 # The one definition of "this job is still doing something". `cancelling` belongs
 # here: the worker has not acknowledged the cancel yet, so the job may still be
 # writing. Every "is anything in flight?" predicate must use this rather than
@@ -36,6 +41,9 @@ ACTIVE_JOB_STATUSES = ("pending", "running", "cancelling")
 ACTIVE_ANNOTATION_STATUSES = ACTIVE_JOB_STATUSES
 # Exports are synchronous and API-owned, so they never reach `cancelling`.
 ACTIVE_EXPORT_STATUSES = ("pending", "running")
+# Merges are synchronous and API-owned like exports, so they never reach
+# `cancelling` either.
+ACTIVE_MERGE_STATUSES = ("pending", "running")
 
 
 class SampleOperationConflictError(RuntimeError):
@@ -218,3 +226,117 @@ def sample_export_lease(
             status="complete",
             message=f"{operation} complete",
         )
+
+
+def _finish_merge_lease(
+    engine: sa.Engine,
+    lease_id: str,
+    *,
+    status: str,
+    message: str,
+) -> None:
+    """Release every source row a merge lease reserved."""
+    try:
+        with engine.begin() as conn:
+            conn.execute(
+                jobs.update()
+                .where(jobs.c.job_id.startswith(f"{lease_id}:"))
+                .where(jobs.c.job_type == SAMPLE_MERGE_JOB_TYPE)
+                .values(
+                    status=status,
+                    progress_pct=100.0,
+                    message=message,
+                    updated_at=datetime.now(UTC),
+                )
+            )
+    except sa.exc.SQLAlchemyError as exc:
+        raise SampleOperationUnavailableError(
+            f"Merge lease {lease_id} could not be finalized."
+        ) from exc
+
+
+def merge_sources_in_use(engine: sa.Engine, sample_ids: list[int]) -> list[int]:
+    """Return the subset of ``sample_ids`` a merge currently holds as a source.
+
+    Deletion consults this so it never removes a sample a merge is still
+    streaming. Read-only and side-effect free; the caller decides whether an
+    unreadable registry is fatal.
+    """
+    if not sample_ids:
+        return []
+    with engine.connect() as conn:
+        rows = conn.execute(
+            sa.select(jobs.c.sample_id)
+            .where(jobs.c.sample_id.in_(sample_ids))
+            .where(jobs.c.job_type == SAMPLE_MERGE_JOB_TYPE)
+            .where(jobs.c.status.in_(ACTIVE_MERGE_STATUSES))
+            .distinct()
+        ).fetchall()
+    return sorted(int(row.sample_id) for row in rows)
+
+
+@contextmanager
+def sample_merge_lease(
+    engine: sa.Engine,
+    source_sample_ids: list[int],
+    *,
+    operation: str,
+) -> Iterator[str]:
+    """Reserve every merge source for the whole materialisation.
+
+    Acquires all sources in one ``BEGIN IMMEDIATE`` transaction, so a
+    concurrent merge or deletion either observes the complete reservation or
+    none of it — a partial hold would let two operations each believe they had
+    won a different half of the pair.
+    """
+    lease_id = str(uuid.uuid4())
+    now = datetime.now(UTC)
+    ordered_ids = sorted(set(source_sample_ids))
+    try:
+        with _immediate_transaction(engine) as conn:
+            for sample_id in ordered_ids:
+                conflict = conn.execute(
+                    sa.select(jobs.c.job_id)
+                    .where(jobs.c.sample_id == sample_id)
+                    .where(jobs.c.job_type == SAMPLE_MERGE_JOB_TYPE)
+                    .where(jobs.c.status.in_(ACTIVE_MERGE_STATUSES))
+                    .limit(1)
+                ).fetchone()
+                if conflict is not None:
+                    raise SampleOperationConflictError(
+                        f"Sample {sample_id} is already being merged; "
+                        "retry once that merge completes."
+                    )
+            for sample_id in ordered_ids:
+                conn.execute(
+                    jobs.insert().values(
+                        job_id=f"{lease_id}:{sample_id}",
+                        sample_id=sample_id,
+                        job_type=SAMPLE_MERGE_JOB_TYPE,
+                        status="running",
+                        progress_pct=0.0,
+                        message=operation,
+                        created_at=now,
+                        updated_at=now,
+                    )
+                )
+    except SampleOperationConflictError:
+        raise
+    except sa.exc.SQLAlchemyError as exc:
+        raise SampleOperationUnavailableError(
+            f"Unable to reserve merge sources {ordered_ids}; the merge was not started."
+        ) from exc
+
+    try:
+        yield lease_id
+    except BaseException:
+        try:
+            _finish_merge_lease(engine, lease_id, status="failed", message=f"{operation} failed")
+        except SampleOperationUnavailableError:
+            logger.exception(
+                "sample_merge_lease_cleanup_failed",
+                extra={"lease_id": lease_id, "source_sample_ids": ordered_ids},
+            )
+        raise
+    else:
+        _finish_merge_lease(engine, lease_id, status="complete", message=f"{operation} complete")
