@@ -27,7 +27,7 @@ import {
 
 const GRCH38_TOGGLE_HELP_ID = "variant-table-grch38-toggle-help"
 const GRCH38_TOGGLE_TOOLTIP =
-  "Show computational GRCh38/hg38 liftover columns. Default coordinate columns are native GRCh37/hg19; blank GRCh38 cells mean liftover was unavailable, including MT/mitochondrial variants."
+  "Show computational GRCh38/hg38 liftover columns. Default coordinate columns are native GRCh37/hg19. GRCh38 coordinates are computed the first time you enable this, which takes a few seconds; afterwards a blank cell means that position could not be lifted over, as MT/mitochondrial variants never are."
 
 interface VariantToolbarProps {
   searchQuery: string
@@ -49,6 +49,11 @@ interface VariantToolbarProps {
   onTagFilter?: (tagName: string | null) => void
   showGRCh38: boolean
   onToggleGRCh38: () => void
+  /** True while the GRCh38 batch is computing (#2029). */
+  liftoverPending?: boolean
+  /** Set when the GRCh38 batch failed, so blanks are not presented as final. */
+  liftoverFailed?: boolean
+  onRetryLiftover?: () => void
   /** AncestryDNA Plan §10.7 / Step 71: merged-sample chips render only when
    *  the sample's ``merge-provenance`` row resolves successfully. */
   isMergedSample: boolean
@@ -78,6 +83,9 @@ export default function VariantToolbar({
   onTagFilter,
   showGRCh38,
   onToggleGRCh38,
+  liftoverPending = false,
+  liftoverFailed = false,
+  onRetryLiftover,
   isMergedSample,
   sourceFilter,
   onSourceFilter,
@@ -432,6 +440,30 @@ export default function VariantToolbar({
       <span id={GRCH38_TOGGLE_HELP_ID} className="sr-only">
         {GRCH38_TOGGLE_TOOLTIP}
       </span>
+      {/* The tooltip tells users a blank GRCh38 cell means the position could
+          not be lifted. That is only true once the batch has run, so a failure
+          has to be visible — otherwise the columns silently misreport a failed
+          computation as an unmappable genome position (#2029). Retrying must
+          also be reachable without knowing to cycle the toggle. */}
+      {showGRCh38 && liftoverPending && (
+        <span className="text-xs text-muted-foreground" aria-live="polite">
+          Computing GRCh38 coordinates…
+        </span>
+      )}
+      {showGRCh38 && liftoverFailed && (
+        <span className="flex items-center gap-1.5 text-xs text-destructive" role="status">
+          <span>GRCh38 coordinates could not be computed; blank cells are not final.</span>
+          {onRetryLiftover && (
+            <button
+              type="button"
+              onClick={onRetryLiftover}
+              className="underline underline-offset-2 hover:no-underline"
+            >
+              Retry
+            </button>
+          )}
+        </span>
+      )}
 
       {/* Column preset selector (P1-15c) */}
       <ColumnPresets activePreset={activePreset} onPresetChange={onPresetChange} />

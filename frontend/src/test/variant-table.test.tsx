@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
-import { render, screen, waitFor, within } from "./test-utils"
+import { act, render, screen, waitFor, within } from "./test-utils"
 import userEvent from "@testing-library/user-event"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import VariantTable from "@/components/variant-table/VariantTable"
 import type { VariantPage, VariantCount, ChromosomeSummary, ColumnPreset, Tag } from "@/types/variants"
 
@@ -108,6 +109,14 @@ function setupFetchMock(
     }
     if (url.includes("/api/variants/count")) {
       return { ok: true, json: async () => count }
+    }
+    // The GRCh38 toggle triggers the liftover batch (#2029); without this branch
+    // every toggle-on test would exercise a failing POST.
+    if (url.includes("/api/liftover/")) {
+      return {
+        ok: true,
+        json: async () => ({ total: 2, converted: 2, failed: 0, already_lifted: 0 }),
+      }
     }
     if (url.includes("/api/variants")) {
       return { ok: true, json: async () => page }
@@ -927,15 +936,553 @@ describe("GRCh38 liftover toggle (P4-20)", () => {
       expect(toggle).toBeInTheDocument()
       expect(toggle).toHaveAttribute(
         "title",
-        "Show computational GRCh38/hg38 liftover columns. Default coordinate columns are native GRCh37/hg19; blank GRCh38 cells mean liftover was unavailable, including MT/mitochondrial variants.",
+        "Show computational GRCh38/hg38 liftover columns. Default coordinate columns are native GRCh37/hg19. GRCh38 coordinates are computed the first time you enable this, which takes a few seconds; afterwards a blank cell means that position could not be lifted over, as MT/mitochondrial variants never are.",
       )
       expect(toggle).toHaveAttribute("aria-describedby", "variant-table-grch38-toggle-help")
       expect(
         screen.getByText(
-          "Show computational GRCh38/hg38 liftover columns. Default coordinate columns are native GRCh37/hg19; blank GRCh38 cells mean liftover was unavailable, including MT/mitochondrial variants.",
+          "Show computational GRCh38/hg38 liftover columns. Default coordinate columns are native GRCh37/hg19. GRCh38 coordinates are computed the first time you enable this, which takes a few seconds; afterwards a blank cell means that position could not be lifted over, as MT/mitochondrial variants never are.",
         ),
       ).toHaveClass("sr-only")
     })
+  })
+
+  // #2029: the columns these tests assert were blank for 100% of variants of
+  // every sample, because POST /api/liftover/{sample_id} — the only thing that
+  // fills them — had no caller anywhere in the app. Every test above passed
+  // throughout: they check that the columns and their labels *render*, which is
+  // true of an empty column. What was missing was any assertion that something
+  // asks for the data.
+  const liftoverCalls = () =>
+    mockFetch.mock.calls.filter(
+      ([url, init]) =>
+        typeof url === "string" &&
+        url.includes("/api/liftover/") &&
+        (init as RequestInit | undefined)?.method === "POST",
+    )
+
+  it("requests the liftover batch when the toggle is switched on", async () => {
+    const page = makeVariantPage(2)
+    setupFetchMock(page, makeCountResponse(2))
+
+    const user = userEvent.setup()
+    render(<VariantTable sampleId={1} />)
+
+    await waitFor(() => {
+      expect(screen.getByText("rs100")).toBeInTheDocument()
+    })
+    // Nothing should be computed until the user asks to see the columns.
+    expect(liftoverCalls()).toHaveLength(0)
+
+    await user.click(screen.getByRole("button", { name: /show grch38 coordinates/i }))
+
+    await waitFor(() => {
+      expect(liftoverCalls()).toHaveLength(1)
+    })
+    expect(liftoverCalls()[0][0]).toBe("/api/liftover/1")
+  })
+
+  it("does not re-request the batch when the toggle is cycled", async () => {
+    const page = makeVariantPage(2)
+    setupFetchMock(page, makeCountResponse(2))
+
+    const user = userEvent.setup()
+    render(<VariantTable sampleId={1} />)
+
+    await waitFor(() => {
+      expect(screen.getByText("rs100")).toBeInTheDocument()
+    })
+
+    const toggle = screen.getByRole("button", { name: /show grch38 coordinates/i })
+    await user.click(toggle)
+    await waitFor(() => expect(liftoverCalls()).toHaveLength(1))
+
+    await user.click(toggle) // off — must not trigger anything
+    await user.click(toggle) // on again — already computed for this sample
+
+    await waitFor(() => {
+      expect(screen.getByText("Chr (GRCh38)")).toBeInTheDocument()
+    })
+    expect(liftoverCalls()).toHaveLength(1)
+  })
+
+  it("requests the batch for the new sample when the sample changes with columns on", async () => {
+    // VariantExplorer renders <VariantTable sampleId={…}/> without a key, so a
+    // sample change re-renders the same mounted component with showGRCh38 still
+    // true. A trigger living in the click handler never fires here and sample
+    // B's columns stay blank — the exact defect #2029 reports, one sample over.
+    const page = makeVariantPage(2)
+    setupFetchMock(page, makeCountResponse(2))
+
+    const user = userEvent.setup()
+    const { rerender } = render(<VariantTable sampleId={1} />)
+
+    await waitFor(() => {
+      expect(screen.getByText("rs100")).toBeInTheDocument()
+    })
+    await user.click(screen.getByRole("button", { name: /show grch38 coordinates/i }))
+    await waitFor(() => expect(liftoverCalls()).toHaveLength(1))
+    expect(liftoverCalls()[0][0]).toBe("/api/liftover/1")
+
+    rerender(<VariantTable sampleId={2} />)
+
+    await waitFor(() => {
+      expect(liftoverCalls()).toHaveLength(2)
+    })
+    expect(liftoverCalls()[1][0]).toBe("/api/liftover/2")
+  })
+
+  it("does not re-request a sample already lifted this mount when returning to it", async () => {
+    // A → B → A. A set rather than a single latched id, so coming back to A
+    // does not spend another round trip on work already done.
+    const page = makeVariantPage(2)
+    setupFetchMock(page, makeCountResponse(2))
+
+    const user = userEvent.setup()
+    const { rerender } = render(<VariantTable sampleId={1} />)
+
+    await waitFor(() => {
+      expect(screen.getByText("rs100")).toBeInTheDocument()
+    })
+    await user.click(screen.getByRole("button", { name: /show grch38 coordinates/i }))
+    await waitFor(() => expect(liftoverCalls()).toHaveLength(1))
+
+    rerender(<VariantTable sampleId={2} />)
+    await waitFor(() => expect(liftoverCalls()).toHaveLength(2))
+
+    rerender(<VariantTable sampleId={1} />)
+    await waitFor(() => {
+      expect(screen.getByText("Chr (GRCh38)")).toBeInTheDocument()
+    })
+    expect(liftoverCalls()).toHaveLength(2)
+  })
+
+  it("re-requests a sample whose batch failed after the user switched away", async () => {
+    // TanStack Query gives a component one mutation observer: a second mutate()
+    // detaches it from the first request, and callbacks passed to that first
+    // mutate() then never run. Cleanup therefore lives on the mutation itself.
+    // Without that, sample 1's failure never clears its "already requested"
+    // latch, and coming back to sample 1 shows permanently blank GRCh38 columns
+    // with no failure notice and no Retry.
+    const page = makeVariantPage(2)
+    let failSampleOne!: () => void
+    const sampleOneResponse = new Promise<unknown>((resolve) => {
+      failSampleOne = () =>
+        resolve({ ok: false, status: 503, json: async () => ({ detail: "unavailable" }) })
+    })
+    mockFetch.mockImplementation(async (url: string) => {
+      if (url.includes("/api/column-presets"))
+        return { ok: true, json: async () => ({ presets: defaultPresets }) }
+      if (url.includes("/api/tags")) return { ok: true, json: async () => defaultTags }
+      if (url.includes("/api/variants/chromosomes"))
+        return { ok: true, json: async () => defaultChromCounts }
+      if (url.includes("/api/variants/count"))
+        return { ok: true, json: async () => makeCountResponse(2) }
+      // Sample 1's batch stays in flight until the test fails it; sample 2's
+      // succeeds immediately, so the observer moves on while 1 is unresolved.
+      if (url === "/api/liftover/1") return await sampleOneResponse
+      if (url.includes("/api/liftover/"))
+        return {
+          ok: true,
+          json: async () => ({ total: 2, converted: 2, failed: 0, already_lifted: 0 }),
+        }
+      if (url.includes("/api/variants")) return { ok: true, json: async () => page }
+      return { ok: false, status: 404 }
+    })
+
+    const user = userEvent.setup()
+    const { rerender } = render(<VariantTable sampleId={1} />)
+
+    await waitFor(() => {
+      expect(screen.getByText("rs100")).toBeInTheDocument()
+    })
+    await user.click(screen.getByRole("button", { name: /show grch38 coordinates/i }))
+    await waitFor(() => expect(liftoverCalls()).toHaveLength(1))
+    expect(liftoverCalls()[0][0]).toBe("/api/liftover/1")
+
+    // Switch to sample 2 while sample 1's request is still open.
+    rerender(<VariantTable sampleId={2} />)
+    await waitFor(() => expect(liftoverCalls()).toHaveLength(2))
+    expect(liftoverCalls()[1][0]).toBe("/api/liftover/2")
+
+    // Now let sample 1's request fail, with the observer attached to sample 2.
+    await act(async () => {
+      failSampleOne()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    rerender(<VariantTable sampleId={1} />)
+
+    await waitFor(() => expect(liftoverCalls()).toHaveLength(3))
+    expect(liftoverCalls()[2][0]).toBe("/api/liftover/1")
+    // …and that retry's failure is reported against the sample on screen.
+    await waitFor(() => {
+      expect(screen.getByText(/could not be computed/i)).toBeInTheDocument()
+    })
+  })
+
+  it("does not report one sample's failure against another sample", async () => {
+    // 2 → 1 → 2. The mutation observer holds a single isError, and returning to
+    // an already-computed sample starts no new request to clear it. Read
+    // straight off the observer, sample 1's failure therefore keeps claiming
+    // sample 2's coordinates are broken — the inverse misreport, and just as
+    // wrong: sample 2's GRCh38 columns were computed and are correct.
+    const page = makeVariantPage(2)
+    mockFetch.mockImplementation(async (url: string) => {
+      if (url.includes("/api/column-presets"))
+        return { ok: true, json: async () => ({ presets: defaultPresets }) }
+      if (url.includes("/api/tags")) return { ok: true, json: async () => defaultTags }
+      if (url.includes("/api/variants/chromosomes"))
+        return { ok: true, json: async () => defaultChromCounts }
+      if (url.includes("/api/variants/count"))
+        return { ok: true, json: async () => makeCountResponse(2) }
+      if (url === "/api/liftover/1")
+        return { ok: false, status: 503, json: async () => ({ detail: "unavailable" }) }
+      if (url.includes("/api/liftover/"))
+        return {
+          ok: true,
+          json: async () => ({ total: 2, converted: 2, failed: 0, already_lifted: 0 }),
+        }
+      if (url.includes("/api/variants")) return { ok: true, json: async () => page }
+      return { ok: false, status: 404 }
+    })
+
+    const user = userEvent.setup()
+    const { rerender } = render(<VariantTable sampleId={2} />)
+
+    await waitFor(() => {
+      expect(screen.getByText("rs100")).toBeInTheDocument()
+    })
+    await user.click(screen.getByRole("button", { name: /show grch38 coordinates/i }))
+    await waitFor(() => expect(liftoverCalls()).toHaveLength(1))
+    expect(liftoverCalls()[0][0]).toBe("/api/liftover/2")
+
+    rerender(<VariantTable sampleId={1} />)
+    await waitFor(() => {
+      expect(screen.getByText(/could not be computed/i)).toBeInTheDocument()
+    })
+
+    // Back to the sample that succeeded. It is already computed, so no new
+    // request runs and nothing resets a shared error flag.
+    rerender(<VariantTable sampleId={2} />)
+
+    await waitFor(() => {
+      expect(screen.queryByText(/could not be computed/i)).not.toBeInTheDocument()
+    })
+    expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument()
+    expect(liftoverCalls()).toHaveLength(2)
+  })
+
+  it("stays in the computing state until the refreshed coordinates arrive", async () => {
+    // The POST finishing is not the end of the operation: the table is still
+    // rendering the variant pages fetched *before* the batch wrote the columns,
+    // so its GRCh38 cells are the pre-liftover NULLs. Clearing "Computing" when
+    // the POST resolves therefore presents those blanks as final — which the
+    // tooltip defines as "this position could not be lifted over" — for as long
+    // as the refetch takes.
+    const stalePage = makeVariantPage(1)
+    stalePage.items[0].chrom_grch38 = null
+    stalePage.items[0].pos_grch38 = null
+    const refreshedPage = makeVariantPage(1) // pos_grch38 = 51,000
+
+    let variantPageCalls = 0
+    let releaseRefetch!: () => void
+    const refetched = new Promise<unknown>((resolve) => {
+      releaseRefetch = () => resolve({ ok: true, json: async () => refreshedPage })
+    })
+    mockFetch.mockImplementation(async (url: string) => {
+      if (url.includes("/api/column-presets"))
+        return { ok: true, json: async () => ({ presets: defaultPresets }) }
+      if (url.includes("/api/tags")) return { ok: true, json: async () => defaultTags }
+      if (url.includes("/api/variants/chromosomes"))
+        return { ok: true, json: async () => defaultChromCounts }
+      if (url.includes("/api/variants/count"))
+        return { ok: true, json: async () => makeCountResponse(1) }
+      if (url.includes("/api/liftover/"))
+        return {
+          ok: true,
+          json: async () => ({ total: 1, converted: 1, failed: 0, already_lifted: 0 }),
+        }
+      if (url.includes("/api/variants")) {
+        variantPageCalls += 1
+        // The first fetch is the pre-liftover page; the second is the refetch
+        // the batch's invalidation triggers, held open by this test.
+        return variantPageCalls > 1 ? await refetched : { ok: true, json: async () => stalePage }
+      }
+      return { ok: false, status: 404 }
+    })
+
+    const user = userEvent.setup()
+    render(<VariantTable sampleId={1} />)
+
+    await waitFor(() => expect(screen.getByText("rs100")).toBeInTheDocument())
+    await user.click(screen.getByRole("button", { name: /show grch38 coordinates/i }))
+
+    // The POST has resolved and the refetch is in flight but unresolved.
+    await waitFor(() => expect(liftoverCalls()).toHaveLength(1))
+    await waitFor(() => expect(variantPageCalls).toBeGreaterThan(1))
+
+    // The stale blanks are still on screen, so the operation must still read as
+    // in progress.
+    expect(screen.getByText(/Computing GRCh38 coordinates/i)).toBeInTheDocument()
+    expect(screen.queryByText("51,000")).not.toBeInTheDocument()
+
+    await act(async () => {
+      releaseRefetch()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    // Only once the refreshed rows land does the operation report as finished.
+    await waitFor(() => expect(screen.getByText("51,000")).toBeInTheDocument())
+    expect(screen.queryByText(/Computing GRCh38 coordinates/i)).not.toBeInTheDocument()
+  })
+
+  it("refreshes a sample's cached rows even if it is off screen when the batch lands", async () => {
+    // A → B → A with A's batch succeeding after the switch. `invalidateQueries`
+    // refetches active queries only, and A's query goes inactive the moment B
+    // is shown, so the awaited invalidation would resolve having refreshed
+    // nothing — clearing the pending state and leaving A's cache holding the
+    // pre-liftover NULLs. Returning to A then renders those blanks as final.
+    //
+    // This test owns its QueryClient: the shared wrapper builds a fresh client
+    // on every render (no cache survives a rerender) with gcTime 0 (an
+    // unobserved query is dropped at once), and either would erase the
+    // inactive-cache condition this is about.
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, gcTime: 60_000 },
+        mutations: { retry: false },
+      },
+    })
+    const view = (sampleId: number) => (
+      <QueryClientProvider client={client}>
+        <VariantTable sampleId={sampleId} />
+      </QueryClientProvider>
+    )
+
+    const stalePage = makeVariantPage(1)
+    stalePage.items[0].chrom_grch38 = null
+    stalePage.items[0].pos_grch38 = null
+    const liftedPage = makeVariantPage(1) // pos_grch38 = 51,000
+    const otherSamplePage = makeVariantPage(1)
+
+    let sampleOnePageFetches = 0
+    let releaseSampleOneBatch!: () => void
+    const sampleOneBatch = new Promise<unknown>((resolve) => {
+      releaseSampleOneBatch = () =>
+        resolve({
+          ok: true,
+          json: async () => ({ total: 1, converted: 1, failed: 0, already_lifted: 0 }),
+        })
+    })
+    // Never resolves: the refetch the *return* to sample 1 kicks off is held
+    // open, so whatever renders then came from the cache alone.
+    const neverSettles = new Promise<never>(() => {})
+
+    mockFetch.mockImplementation(async (url: string) => {
+      if (url.includes("/api/column-presets"))
+        return { ok: true, json: async () => ({ presets: defaultPresets }) }
+      if (url.includes("/api/tags")) return { ok: true, json: async () => defaultTags }
+      if (url.includes("/api/variants/chromosomes"))
+        return { ok: true, json: async () => defaultChromCounts }
+      if (url.includes("/api/variants/count"))
+        return { ok: true, json: async () => makeCountResponse(1) }
+      if (url === "/api/liftover/1") return await sampleOneBatch
+      if (url.includes("/api/liftover/"))
+        return {
+          ok: true,
+          json: async () => ({ total: 1, converted: 1, failed: 0, already_lifted: 0 }),
+        }
+      if (url.startsWith("/api/variants?")) {
+        if (!url.includes("sample_id=1")) return { ok: true, json: async () => otherSamplePage }
+        sampleOnePageFetches += 1
+        if (sampleOnePageFetches === 1) return { ok: true, json: async () => stalePage }
+        if (sampleOnePageFetches === 2) return { ok: true, json: async () => liftedPage }
+        return await neverSettles
+      }
+      return { ok: false, status: 404 }
+    })
+
+    const user = userEvent.setup()
+    const { rerender } = render(view(1))
+
+    await waitFor(() => expect(screen.getByText("rs100")).toBeInTheDocument())
+    await user.click(screen.getByRole("button", { name: /show grch38 coordinates/i }))
+    await waitFor(() => expect(liftoverCalls()).toHaveLength(1))
+    expect(sampleOnePageFetches).toBe(1)
+
+    // Sample 1's query goes inactive here, with its batch still in flight.
+    rerender(view(2))
+    await waitFor(() => expect(liftoverCalls()).toHaveLength(2))
+
+    await act(async () => {
+      releaseSampleOneBatch()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    // Sample 1's cache is refreshed even though sample 2 is on screen.
+    await waitFor(() => expect(sampleOnePageFetches).toBe(2))
+
+    // So coming back renders the computed coordinates straight from cache —
+    // never the pre-liftover blanks — with the remount's own refetch still
+    // outstanding.
+    rerender(view(1))
+    await waitFor(() => expect(screen.getByText("51,000")).toBeInTheDocument())
+  })
+
+  it("recovers from a failed post-liftover refresh without changing samples", async () => {
+    // The production flow the other refresh-failure tests cannot reach: one
+    // sample, never switched. The failed refresh puts the variants query in its
+    // error state, which replaces the table *and the toolbar* — so the liftover
+    // toggle, its Retry, and every other affordance are gone, and none of the
+    // liftover effect's dependencies will change again. Without a control in
+    // the error state itself the user's only way out is reloading the page.
+    const stalePage = makeVariantPage(1)
+    stalePage.items[0].chrom_grch38 = null
+    stalePage.items[0].pos_grch38 = null
+    const liftedPage = makeVariantPage(1) // pos_grch38 = 51,000
+
+    let pageFetches = 0
+    mockFetch.mockImplementation(async (url: string) => {
+      if (url.includes("/api/column-presets"))
+        return { ok: true, json: async () => ({ presets: defaultPresets }) }
+      if (url.includes("/api/tags")) return { ok: true, json: async () => defaultTags }
+      if (url.includes("/api/variants/chromosomes"))
+        return { ok: true, json: async () => defaultChromCounts }
+      if (url.includes("/api/variants/count"))
+        return { ok: true, json: async () => makeCountResponse(1) }
+      if (url.includes("/api/liftover/"))
+        return {
+          ok: true,
+          json: async () => ({ total: 1, converted: 1, failed: 0, already_lifted: 0 }),
+        }
+      if (url.startsWith("/api/variants?")) {
+        pageFetches += 1
+        // 1: pre-liftover rows. 2: the refresh the batch triggers, which fails.
+        // 3+: the user's retry, which succeeds and carries the coordinates.
+        if (pageFetches === 1) return { ok: true, json: async () => stalePage }
+        if (pageFetches === 2)
+          return { ok: false, status: 500, text: async () => "Internal Server Error" }
+        return { ok: true, json: async () => liftedPage }
+      }
+      return { ok: false, status: 404 }
+    })
+
+    const user = userEvent.setup()
+    render(<VariantTable sampleId={1} />)
+
+    await waitFor(() => expect(screen.getByText("rs100")).toBeInTheDocument())
+    await user.click(screen.getByRole("button", { name: /show grch38 coordinates/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText("Error loading variants")).toBeInTheDocument()
+    })
+    // The toolbar is gone with the rest of the table, so its Retry cannot be
+    // the way out.
+    expect(
+      screen.queryByRole("button", { name: /show grch38 coordinates/i }),
+    ).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: "Try again" }))
+
+    // Same sample, no rerender: the retry alone brings the table back, with the
+    // coordinates the batch had already computed.
+    await waitFor(() => expect(screen.getByText("51,000")).toBeInTheDocument())
+    expect(screen.queryByText("Error loading variants")).not.toBeInTheDocument()
+  })
+
+  it("re-requests the batch for a sample whose post-liftover refresh failed", async () => {
+    // A refetch that never delivers the coordinates must not be recorded as a
+    // completed liftover. It is not a liftover failure either — the batch
+    // stored the coordinates — so it is not labelled one; what it must not do
+    // is leave the sample latched, which would make the blank columns
+    // permanent for this mount.
+    const page = makeVariantPage(2)
+    let sampleOnePageCalls = 0
+    mockFetch.mockImplementation(async (url: string) => {
+      if (url.includes("/api/column-presets"))
+        return { ok: true, json: async () => ({ presets: defaultPresets }) }
+      if (url.includes("/api/tags")) return { ok: true, json: async () => defaultTags }
+      if (url.includes("/api/variants/chromosomes"))
+        return { ok: true, json: async () => defaultChromCounts }
+      if (url.includes("/api/variants/count"))
+        return { ok: true, json: async () => makeCountResponse(2) }
+      if (url.includes("/api/liftover/"))
+        return {
+          ok: true,
+          json: async () => ({ total: 2, converted: 2, failed: 0, already_lifted: 0 }),
+        }
+      if (url.includes("/api/variants")) {
+        if (url.includes("sample_id=1")) {
+          sampleOnePageCalls += 1
+          // Second call = the refetch the batch's invalidation triggers.
+          if (sampleOnePageCalls === 2) {
+            return { ok: false, status: 500, text: async () => "Internal Server Error" }
+          }
+        }
+        return { ok: true, json: async () => page }
+      }
+      return { ok: false, status: 404 }
+    })
+
+    const user = userEvent.setup()
+    const { rerender } = render(<VariantTable sampleId={1} />)
+
+    await waitFor(() => expect(screen.getByText("rs100")).toBeInTheDocument())
+    await user.click(screen.getByRole("button", { name: /show grch38 coordinates/i }))
+    await waitFor(() => expect(liftoverCalls()).toHaveLength(1))
+
+    // The failed refresh surfaces as the variant query's own error state — the
+    // user is not left looking at stale blanks dressed up as final values.
+    await waitFor(() => {
+      expect(screen.getByText("Error loading variants")).toBeInTheDocument()
+    })
+
+    rerender(<VariantTable sampleId={2} />)
+    await waitFor(() => expect(liftoverCalls()).toHaveLength(2))
+
+    // Returning re-runs the batch, because the first attempt never confirmed a
+    // refreshed table. (The batch is idempotent: the retry is an
+    // already_lifted no-op that re-triggers the refetch.)
+    rerender(<VariantTable sampleId={1} />)
+    await waitFor(() => expect(liftoverCalls()).toHaveLength(3))
+    expect(liftoverCalls()[2][0]).toBe("/api/liftover/1")
+  })
+
+  it("surfaces a liftover failure instead of presenting blank cells as final", async () => {
+    // The tooltip now tells users a blank GRCh38 cell means the position could
+    // not be lifted over. That is only true once the batch has run — so if it
+    // fails, silently showing empty columns misreports a failed computation as
+    // an unmappable genome position.
+    const page = makeVariantPage(2)
+    setupFetchMock(page, makeCountResponse(2))
+    mockFetch.mockImplementation(async (url: string) => {
+      if (url.includes("/api/column-presets"))
+        return { ok: true, json: async () => ({ presets: defaultPresets }) }
+      if (url.includes("/api/tags")) return { ok: true, json: async () => defaultTags }
+      if (url.includes("/api/variants/chromosomes"))
+        return { ok: true, json: async () => defaultChromCounts }
+      if (url.includes("/api/variants/count"))
+        return { ok: true, json: async () => makeCountResponse(2) }
+      if (url.includes("/api/liftover/"))
+        return { ok: false, status: 503, json: async () => ({ detail: "unavailable" }) }
+      if (url.includes("/api/variants")) return { ok: true, json: async () => page }
+      return { ok: false, status: 404 }
+    })
+
+    const user = userEvent.setup()
+    render(<VariantTable sampleId={1} />)
+
+    await waitFor(() => {
+      expect(screen.getByText("rs100")).toBeInTheDocument()
+    })
+    await user.click(screen.getByRole("button", { name: /show grch38 coordinates/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/could not be computed/i)).toBeInTheDocument()
+    })
+    // …and the user can retry without knowing to cycle the toggle.
+    expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument()
   })
 
   it("GRCh38 columns are hidden by default", async () => {
@@ -969,11 +1516,11 @@ describe("GRCh38 liftover toggle (P4-20)", () => {
     await waitFor(() => {
       expect(screen.getByText("Chr (GRCh38)")).toHaveAttribute(
         "title",
-        "Computational GRCh38/hg38 liftover from the native GRCh37 coordinate; blank means the position could not be lifted over, including MT/mitochondrial variants, which are never lifted.",
+        "Computational GRCh38/hg38 liftover from the native GRCh37 coordinate, computed when the GRCh38 toggle is first enabled. Once computed, blank means the position could not be lifted over, including MT/mitochondrial variants, which are never lifted.",
       )
       expect(screen.getByText("Pos (GRCh38)")).toHaveAttribute(
         "title",
-        "Computational GRCh38/hg38 liftover from the native GRCh37 coordinate; blank means the position could not be lifted over, including MT/mitochondrial variants, which are never lifted.",
+        "Computational GRCh38/hg38 liftover from the native GRCh37 coordinate, computed when the GRCh38 toggle is first enabled. Once computed, blank means the position could not be lifted over, including MT/mitochondrial variants, which are never lifted.",
       )
     })
     expect(toggle).toHaveAttribute("aria-pressed", "true")

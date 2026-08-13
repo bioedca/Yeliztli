@@ -27,7 +27,7 @@ interface VariantTableMeta {
 const GRCH37_COORDINATE_TOOLTIP =
   "Native GRCh37/hg19 coordinate stored for this sample; use these columns with GRCh37/hg19 tools."
 const GRCH38_COORDINATE_TOOLTIP =
-  "Computational GRCh38/hg38 liftover from the native GRCh37 coordinate; blank means the position could not be lifted over, including MT/mitochondrial variants, which are never lifted."
+  "Computational GRCh38/hg38 liftover from the native GRCh37 coordinate, computed when the GRCh38 toggle is first enabled. Once computed, blank means the position could not be lifted over, including MT/mitochondrial variants, which are never lifted."
 
 function coordinateHeader(label: string, title: string) {
   return () =>

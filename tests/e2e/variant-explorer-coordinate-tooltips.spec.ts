@@ -15,9 +15,9 @@ const jsonRoute = (payload: unknown, status = 200) => ({
 const grch37Tooltip =
   'Native GRCh37/hg19 coordinate stored for this sample; use these columns with GRCh37/hg19 tools.'
 const grch38Tooltip =
-  'Computational GRCh38/hg38 liftover from the native GRCh37 coordinate; blank means the position could not be lifted over, including MT/mitochondrial variants, which are never lifted.'
+  'Computational GRCh38/hg38 liftover from the native GRCh37 coordinate, computed when the GRCh38 toggle is first enabled. Once computed, blank means the position could not be lifted over, including MT/mitochondrial variants, which are never lifted.'
 const toggleTooltip =
-  'Show computational GRCh38/hg38 liftover columns. Default coordinate columns are native GRCh37/hg19; blank GRCh38 cells mean liftover was unavailable, including MT/mitochondrial variants.'
+  'Show computational GRCh38/hg38 liftover columns. Default coordinate columns are native GRCh37/hg19. GRCh38 coordinates are computed the first time you enable this, which takes a few seconds; afterwards a blank cell means that position could not be lifted over, as MT/mitochondrial variants never are.'
 
 const variantPage = {
   items: [
@@ -76,6 +76,11 @@ test.beforeEach(async ({ page }) => {
     route.fulfill(jsonRoute({ detail: 'Sample is not a merged sample' }, 404)),
   )
   await page.route(/\/api\/watches(\?|$)/, (route) => route.fulfill(jsonRoute([])))
+  // Enabling the GRCh38 toggle now computes the coordinates (#2029); stub it so
+  // this tooltip test does not depend on a real batch or on its failure.
+  await page.route(/\/api\/liftover\/\d+$/, (route) =>
+    route.fulfill(jsonRoute({ total: 1, converted: 1, failed: 0, already_lifted: 0 })),
+  )
 })
 
 test('Variant Explorer explains GRCh37 headers and GRCh38 liftover columns (#1665)', async ({
