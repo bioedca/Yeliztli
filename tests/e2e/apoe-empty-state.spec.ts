@@ -1,7 +1,7 @@
 /** Issue #2034 — APOE empty findings must explain an uncallable genotype. */
 
 import { test, expect } from '@playwright/test'
-import { bypassSetup, waitForReactHydration } from './helpers'
+import { bypassSetup, mockFreshSampleState, waitForReactHydration } from './helpers'
 
 const SAMPLE_ID = 1
 
@@ -15,6 +15,7 @@ test('keeps missing-SNP findings copy consistent after disclosure', async ({ pag
   let acknowledged = false
 
   await bypassSetup(page)
+  await mockFreshSampleState(page)
   await page.route('**/api/analysis/apoe/disclaimer', (route) =>
     route.fulfill(
       jsonRoute({
