@@ -7,7 +7,7 @@ import gzip
 import json
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import sqlalchemy as sa
@@ -25,6 +25,7 @@ from backend.config import Settings
 from backend.db import manifest as manifest_mod
 from backend.db.manifest import reset_cache
 from backend.db.tables import database_versions
+from backend.db.update_manager import bind_source_url
 from backend.tasks.huey_tasks import _execute_database_update
 
 PINNED_MONDO_URL = "https://updates.example.test/mondo/pinned-gene-disease.tsv.gz"
@@ -147,8 +148,11 @@ def test_pinned_offer_is_installed_and_not_offered_again(
         patch("backend.api.routes.updates.is_cross_process_build_claimed", return_value=False),
         patch(
             "backend.api.routes.updates.check_mondo_hpo_update",
-            return_value=offered,
         ) as recheck,
+        patch(
+            "backend.api.routes.updates.asyncio.to_thread",
+            new=AsyncMock(return_value=offered),
+        ) as to_thread,
         patch(
             "backend.tasks.huey_tasks.create_database_update_job",
             return_value="job-mondo-hpo",
@@ -158,8 +162,14 @@ def test_pinned_offer_is_installed_and_not_offered_again(
         response = asyncio.run(trigger_update(TriggerUpdateRequest(db_name="mondo_hpo")))
 
     assert response.job_id == "job-mondo-hpo"
-    recheck.assert_called_once_with(reference_engine, settings=settings)
-    queued_task.assert_called_once_with("job-mondo-hpo", "mondo_hpo", offered.download_url)
+    to_thread.assert_awaited_once_with(recheck, reference_engine, settings=settings)
+    recheck.assert_not_called()
+    queued_task.assert_called_once_with(
+        "job-mondo-hpo",
+        "mondo_hpo",
+        bind_source_url(offered.download_url),
+    )
+    assert offered.download_url not in repr(queued_task.call_args)
 
     with (
         patch("backend.db.connection.get_registry", return_value=registry),
@@ -194,7 +204,11 @@ def test_manual_trigger_refuses_when_recheck_has_no_offer(tmp_path: Path) -> Non
 
     with (
         patch("backend.api.routes.updates.get_registry", return_value=registry),
-        patch("backend.api.routes.updates.check_mondo_hpo_update", return_value=None) as recheck,
+        patch("backend.api.routes.updates.check_mondo_hpo_update") as recheck,
+        patch(
+            "backend.api.routes.updates.asyncio.to_thread",
+            new=AsyncMock(return_value=None),
+        ) as to_thread,
         patch("backend.tasks.huey_tasks.create_database_update_job") as create_job,
         patch("backend.tasks.huey_tasks.run_database_update_task") as queued_task,
     ):
@@ -203,6 +217,11 @@ def test_manual_trigger_refuses_when_recheck_has_no_offer(tmp_path: Path) -> Non
 
     assert exc_info.value.status_code == 409
     assert "currently available" in str(exc_info.value.detail)
-    recheck.assert_called_once_with(registry.reference_engine, settings=settings)
+    to_thread.assert_awaited_once_with(
+        recheck,
+        registry.reference_engine,
+        settings=settings,
+    )
+    recheck.assert_not_called()
     create_job.assert_not_called()
     queued_task.assert_not_called()

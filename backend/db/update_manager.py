@@ -95,6 +95,16 @@ class VersionInfo:
     release_date: str | None = None
 
 
+def bind_source_url(url: str) -> str:
+    """Return an opaque equality binding for a checked source URL.
+
+    Durable task queues must not persist a raw manifest URL because operator
+    overrides may contain credentials. The worker re-resolves the protected
+    manifest entry and accepts it only when this binding still matches.
+    """
+    return hashlib.sha256(b"yeliztli-update-source-url-v1\0" + url.encode()).hexdigest()
+
+
 @dataclass
 class UpdateCheckResult:
     """Result of checking all databases for updates."""
@@ -2362,7 +2372,7 @@ def _dispatch_auto_update(
     registry: DBRegistry,
     db_name: str,
     *,
-    download_url: str | None = None,
+    source_url_binding: str | None = None,
 ) -> None:
     """Apply an auto-update for a single database.
 
@@ -2440,7 +2450,7 @@ def _dispatch_auto_update(
 
     job_id = create_database_update_job(db_name)
     if db_name == "mondo_hpo":
-        run_database_update_task(job_id, db_name, download_url)
+        run_database_update_task(job_id, db_name, source_url_binding)
     else:
         run_database_update_task(job_id, db_name)
 
@@ -2541,7 +2551,9 @@ def run_scheduled_update_check(registry: DBRegistry) -> UpdateCheckResult:
             _dispatch_auto_update(
                 registry,
                 db_name,
-                download_url=(update_info.download_url if db_name == "mondo_hpo" else None),
+                source_url_binding=(
+                    bind_source_url(update_info.download_url) if db_name == "mondo_hpo" else None
+                ),
             )
         except Exception as exc:
             logger.exception("auto_update_failed", db_name=db_name, error=str(exc))

@@ -7,6 +7,7 @@ and checking for app updates via GitHub Releases API.
 
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime
 from typing import Any, Literal
 
@@ -22,6 +23,7 @@ from backend.db.connection import get_registry
 from backend.db.database_registry import DATABASES, get_build_fn, get_database_status
 from backend.db.update_manager import (
     AUTO_UPDATE_DEFAULTS,
+    bind_source_url,
     check_all_updates,
     check_mondo_hpo_update,
     dismiss_prompt,
@@ -375,9 +377,10 @@ async def trigger_update(req: TriggerUpdateRequest) -> TriggerUpdateResponse:
     if req.db_name == "mondo_hpo":
         # Recheck at dispatch time so the URL, version, and size approved for
         # this manual job come from one manifest snapshot. The queued Huey task
-        # then installs this exact URL instead of resolving a possibly changed
-        # pin in another process.
-        mondo_hpo_offer = check_mondo_hpo_update(
+        # receives an opaque binding to this URL, then re-resolves and verifies
+        # the protected pin in its own process before installing it.
+        mondo_hpo_offer = await asyncio.to_thread(
+            check_mondo_hpo_update,
             registry.reference_engine,
             settings=settings,
         )
@@ -412,7 +415,11 @@ async def trigger_update(req: TriggerUpdateRequest) -> TriggerUpdateResponse:
     if mondo_hpo_offer is None:
         run_database_update_task(job_id, req.db_name)
     else:
-        run_database_update_task(job_id, req.db_name, mondo_hpo_offer.download_url)
+        run_database_update_task(
+            job_id,
+            req.db_name,
+            bind_source_url(mondo_hpo_offer.download_url),
+        )
 
     return TriggerUpdateResponse(
         job_id=job_id,

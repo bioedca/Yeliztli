@@ -430,10 +430,12 @@ class TestPipelineDispatch:
         mock_run_task.assert_called_once_with("job-dbnsfp", "dbnsfp")
         assert result.errors == []
 
-    def test_mondo_hpo_dispatch_preserves_offered_download_url(
+    def test_mondo_hpo_dispatch_binds_the_offered_download_url(
         self, reference_engine, tmp_path: Path
     ):
-        """The artifact approved by the check is the one queued for installation."""
+        """Queue an opaque binding to the approved artifact, never the raw URL."""
+        from backend.db.update_manager import bind_source_url
+
         registry = _make_registry(reference_engine, tmp_path)
         pinned_url = "https://updates.example.test/mondo/pinned-gene-disease.tsv.gz"
         update_info = VersionInfo(
@@ -457,7 +459,12 @@ class TestPipelineDispatch:
             result = run_scheduled_update_check(registry)
 
         mock_create_job.assert_called_once_with("mondo_hpo")
-        mock_run_task.assert_called_once_with("job-mondo-hpo", "mondo_hpo", pinned_url)
+        mock_run_task.assert_called_once_with(
+            "job-mondo-hpo",
+            "mondo_hpo",
+            bind_source_url(pinned_url),
+        )
+        assert pinned_url not in repr(mock_run_task.call_args)
         assert result.errors == []
 
     def test_pipeline_dispatch_uses_table_toggle(self, reference_engine, tmp_path: Path):

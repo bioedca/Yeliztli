@@ -1168,7 +1168,7 @@ def run_update_check_task(job_id: str) -> None:
 def run_database_update_task(
     job_id: str,
     db_name: str,
-    download_url: str | None = None,
+    source_url_binding: str | None = None,
 ) -> None:
     """Huey background task: run a specific database update.
 
@@ -1178,11 +1178,11 @@ def run_database_update_task(
     :func:`_execute_database_update`. If another process already holds the claim
     the update is skipped with a clear, retryable job error rather than racing.
 
-    ``download_url`` carries the exact artifact offered by an update check into
-    manifest-pinned pipeline builders that otherwise have only a module-level
-    default. It is currently used by MONDO/HPO; direct/manual invocations that
-    do not originate from a check resolve that database's current pin inside
-    :func:`_execute_database_update` instead.
+    ``source_url_binding`` binds the task to the exact URL approved by an update
+    check without persisting a possibly credential-bearing operator URL in
+    ``huey.db``. It is currently used by MONDO/HPO; the worker re-resolves the
+    manifest pin and fails closed if it no longer matches. Direct invocations
+    without check context resolve the current pin without a binding.
     """
     from backend.db.build_guard import build_claim
     from backend.db.connection import get_registry
@@ -1206,16 +1206,16 @@ def run_database_update_task(
             )
             return
         with huey_download_job_ownership():
-            if download_url is None:
+            if source_url_binding is None:
                 _execute_database_update(job_id, db_name)
             else:
-                _execute_database_update(job_id, db_name, download_url)
+                _execute_database_update(job_id, db_name, source_url_binding)
 
 
 def _execute_database_update(
     job_id: str,
     db_name: str,
-    download_url: str | None = None,
+    source_url_binding: str | None = None,
 ) -> None:
     """Run a specific database update (the cross-process claim is already held).
 
@@ -1372,16 +1372,27 @@ def _execute_database_update(
 
         mondo_url: str | None = None
         if db_name == "mondo_hpo":
-            mondo_url = download_url
-            if not mondo_url:
-                from backend.db.manifest import get_pipeline_pin
+            from backend.db.manifest import fetch_manifest, get_pipeline_pin
+            from backend.db.update_manager import bind_source_url
 
-                pin = get_pipeline_pin("mondo_hpo")
-                if pin is None or not pin.url:
-                    raise RuntimeError(
-                        "MONDO/HPO update requires an available pipeline-pinned source URL"
-                    )
-                mondo_url = pin.url
+            pin = get_pipeline_pin("mondo_hpo")
+            if source_url_binding is not None and (
+                pin is None or not pin.url or bind_source_url(pin.url) != source_url_binding
+            ):
+                # The API and Huey consumer have independent in-memory manifest
+                # caches. Refresh once before rejecting a binding that may have
+                # been created from a newer manifest snapshot in the API process.
+                pin = fetch_manifest(force_refresh=True).pipeline_pins.get("mondo_hpo")
+            if pin is None or not pin.url:
+                raise RuntimeError(
+                    "MONDO/HPO update requires an available pipeline-pinned source URL"
+                )
+            if source_url_binding is not None and bind_source_url(pin.url) != source_url_binding:
+                raise RuntimeError(
+                    "MONDO/HPO pipeline pin changed after the update check; refusing to install "
+                    "a different source"
+                )
+            mondo_url = pin.url
 
         # Build functions for reference-target DBs take the reference engine;
         # standalone DBs write to their own file and take a fresh engine.

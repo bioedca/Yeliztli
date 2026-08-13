@@ -503,8 +503,9 @@ class TestRunDatabaseUpdateTaskClaim:
 
 
 class TestDatabaseUpdateBundleDispatch:
-    def test_mondo_hpo_build_uses_the_queued_pinned_url(self, huey_env: dict) -> None:
-        """The generic build dispatcher must not fall back to the loader constant."""
+    def test_mondo_hpo_build_uses_the_bound_manifest_pin(self, huey_env: dict) -> None:
+        """The checked binding resolves to the matching manifest pin, not the constant."""
+        from backend.db.update_manager import bind_source_url
         from backend.tasks.huey_tasks import _execute_database_update
 
         job_id = "dbup-mondo-hpo"
@@ -514,9 +515,13 @@ class TestDatabaseUpdateBundleDispatch:
         build_fn = MagicMock()
         with (
             patch("backend.db.database_registry.get_build_fn", return_value=build_fn),
+            patch(
+                "backend.db.manifest.get_pipeline_pin",
+                return_value=SimpleNamespace(url=pinned_url),
+            ),
             patch("backend.db.update_manager.run_precheck_all_samples"),
         ):
-            _execute_database_update(job_id, "mondo_hpo", pinned_url)
+            _execute_database_update(job_id, "mondo_hpo", bind_source_url(pinned_url))
 
         build_fn.assert_called_once_with(
             get_registry().reference_engine,
@@ -525,6 +530,73 @@ class TestDatabaseUpdateBundleDispatch:
         )
         row = _job_row(job_id)
         assert row.status == "complete"
+
+    def test_mondo_hpo_build_rejects_a_changed_pin(self, huey_env: dict) -> None:
+        """A pin change after approval must fail instead of installing another URL."""
+        from backend.db.update_manager import bind_source_url
+        from backend.tasks.huey_tasks import _execute_database_update
+
+        job_id = "dbup-mondo-hpo-changed-pin"
+        offered_url = "https://updates.example.test/mondo/offered.tsv.gz"
+        changed_url = "https://updates.example.test/mondo/changed.tsv.gz"
+        _make_job(job_id, "database_update")
+
+        build_fn = MagicMock()
+        with (
+            patch("backend.db.database_registry.get_build_fn", return_value=build_fn),
+            patch(
+                "backend.db.manifest.get_pipeline_pin",
+                return_value=SimpleNamespace(url=changed_url),
+            ),
+            patch(
+                "backend.db.manifest.fetch_manifest",
+                return_value=SimpleNamespace(
+                    pipeline_pins={"mondo_hpo": SimpleNamespace(url=changed_url)}
+                ),
+            ) as fetch_manifest,
+        ):
+            _execute_database_update(job_id, "mondo_hpo", bind_source_url(offered_url))
+
+        fetch_manifest.assert_called_once_with(force_refresh=True)
+        build_fn.assert_not_called()
+        row = _job_row(job_id)
+        assert row.status == "failed"
+        assert "pin changed after the update check" in row.error
+
+    def test_mondo_hpo_build_refreshes_a_stale_worker_pin(self, huey_env: dict) -> None:
+        """A stale worker cache is refreshed before rejecting the checked binding."""
+        from backend.db.update_manager import bind_source_url
+        from backend.tasks.huey_tasks import _execute_database_update
+
+        job_id = "dbup-mondo-hpo-stale-worker-pin"
+        stale_url = "https://updates.example.test/mondo/stale.tsv.gz"
+        offered_url = "https://updates.example.test/mondo/offered.tsv.gz"
+        _make_job(job_id, "database_update")
+
+        build_fn = MagicMock()
+        with (
+            patch("backend.db.database_registry.get_build_fn", return_value=build_fn),
+            patch(
+                "backend.db.manifest.get_pipeline_pin",
+                return_value=SimpleNamespace(url=stale_url),
+            ),
+            patch(
+                "backend.db.manifest.fetch_manifest",
+                return_value=SimpleNamespace(
+                    pipeline_pins={"mondo_hpo": SimpleNamespace(url=offered_url)}
+                ),
+            ) as fetch_manifest,
+            patch("backend.db.update_manager.run_precheck_all_samples"),
+        ):
+            _execute_database_update(job_id, "mondo_hpo", bind_source_url(offered_url))
+
+        fetch_manifest.assert_called_once_with(force_refresh=True)
+        build_fn.assert_called_once_with(
+            get_registry().reference_engine,
+            huey_env["settings"].downloads_dir,
+            mondo_url=offered_url,
+        )
+        assert _job_row(job_id).status == "complete"
 
     def test_manual_mondo_hpo_build_resolves_the_current_pin(self, huey_env: dict) -> None:
         """A manual update without check context still never uses the hard-coded URL."""
