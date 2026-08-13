@@ -16,7 +16,6 @@ import logging
 import tempfile
 from collections.abc import Iterator, Sequence
 from datetime import date
-from itertools import chain
 from typing import IO, Any
 
 import sqlalchemy as sa
@@ -700,16 +699,25 @@ def export_rare_variants_tsv(
     def _emit() -> Iterator[str]:
         # Replays the exact strings the gates saw — not a re-query and not a
         # re-render — so validation and emission observe the same immutable
-        # data by construction and no TOCTOU gap exists. The `finally` covers
-        # client cancellation, which Starlette surfaces by closing the
-        # generator; `BackgroundTask` covers a response that is never iterated.
+        # data by construction and no TOCTOU gap exists.
+        #
+        # The header is yielded from inside this generator rather than chained
+        # in front of it, so the object handed to StreamingResponse *is* this
+        # generator. `itertools.chain` has no `close()` and does not forward
+        # closure to the child it is currently draining, so wrapping this in a
+        # chain would leave the `finally` to run whenever the chain happened to
+        # be collected — the spill file staying open past a client disconnect.
+        # Closing the body iterator now closes this generator directly, which
+        # is what makes the cancellation guarantee real. `BackgroundTask` still
+        # covers a response that is never iterated at all; `close` is idempotent.
         try:
+            yield header
             yield from spool.replay()
         finally:
             spool.close()
 
     return StreamingResponse(
-        chain((header,), _emit()),
+        _emit(),
         media_type="text/tab-separated-values",
         headers=response_headers,
         background=BackgroundTask(spool.close),

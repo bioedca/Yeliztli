@@ -667,3 +667,62 @@ def test_spool_close_is_idempotent(monkeypatch: pytest.MonkeyPatch) -> None:
     spool.close()
 
     assert spills and spills[0].closed
+
+
+class _RetainedStreamingResponse:
+    """Keep the body iterator unconsumed, the way Starlette receives it."""
+
+    def __init__(self, content: Iterator[str], **_kwargs: object) -> None:
+        self.content_iterator = content
+        self.background = _kwargs.get("background")
+
+
+def test_rare_tsv_export_cancelled_after_the_header_closes_the_spill(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A client that disconnects mid-download must not strand the temp file.
+
+    Closing the body iterator has to close the export's own generator, so the
+    `finally` releases the spill deterministically rather than whenever the
+    object happens to be collected. `itertools.chain` does not forward closure
+    to the child it is draining, so a chained header would break exactly this.
+    """
+    rows = [
+        _finding_row(id=index, module="rare_variants", rsid=f"rs_{index}", gene_symbol="SAFE1")
+        for index in range(1, 5)
+    ]
+    _assert_individually_presentable(rows)
+    monkeypatch.setattr(rare_variants, "_get_sample_engine", lambda _sample_id: _Engine(rows))
+    monkeypatch.setattr(rare_variants, "StreamingResponse", _RetainedStreamingResponse)
+    monkeypatch.setattr(rare_variants, "_RARE_VARIANT_TSV_SPOOL_MAX_CHARS", 0)
+    spills = _record_spill_files(monkeypatch)
+
+    response = rare_variants.export_rare_variants_tsv(sample_id=1)
+    body = response.content_iterator
+
+    first = next(body)
+
+    assert spills, "the forced threshold must have opened a spill file"
+    assert first.startswith("rsid\t"), "the header is emitted from inside the body iterator"
+    assert not spills[0].closed, "still streaming — the spill must stay open"
+
+    body.close()
+
+    assert spills[0].closed, "closing the body iterator must release the spill immediately"
+
+
+def test_rare_tsv_export_body_iterator_is_closeable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Guard the shape itself: the response body must expose close()."""
+    rows = [_finding_row(id=1, module="rare_variants", rsid="rs_1", gene_symbol="SAFE1")]
+    _assert_individually_presentable(rows)
+    monkeypatch.setattr(rare_variants, "_get_sample_engine", lambda _sample_id: _Engine(rows))
+    monkeypatch.setattr(rare_variants, "StreamingResponse", _RetainedStreamingResponse)
+
+    response = rare_variants.export_rare_variants_tsv(sample_id=1)
+
+    assert hasattr(response.content_iterator, "close"), (
+        "a wrapper without close() (itertools.chain) would silently defer cleanup to GC"
+    )
+    response.content_iterator.close()
