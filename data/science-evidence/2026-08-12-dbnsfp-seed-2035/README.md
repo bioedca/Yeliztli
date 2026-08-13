@@ -10,9 +10,10 @@ The previous seed mixed real rsIDs with invented values. It also contained
 SIFT and PolyPhen score/category pairs that contradicted the thresholds used by
 the production ensemble. Replacing those values with a different live score
 snapshot would not establish reproducibility: Yeliztli is pinned to the dbNSFP
-5.3.1a academic archive, while the public query service reported dataset 5.4c
-during this audit. The dbNSFP license also keeps the full provider data in the
-existing bring-your-own, provider-fetched path rather than this repository.
+5.3.1a academic archive, while the public query service's score-free health
+endpoint reported dataset 5.4a during this audit. The dbNSFP license also keeps
+the full provider data in the existing bring-your-own, provider-fetched path
+rather than this repository.
 
 The replacement therefore uses six reserved `rsYELIZTLI####` identities and
 arbitrary GRCh38 lookup keys. The rows deliberately cover complete, benign,
@@ -25,12 +26,21 @@ and byte-independent semantic equality between the CSV and SQLite fixture.
 | Claim | Evidence | Repository consequence |
 | --- | --- | --- |
 | The former shared seed was not a valid scientific oracle. | Direct repository audit found four SIFT and five PolyPhen score/category contradictions under the production thresholds. The retained Ensembl response summary independently shows that current Ensembl transcript annotations for rs429358 do not reproduce the former fixture's SIFT/PolyPhen pair, but Ensembl is not substituted as a dbNSFP oracle. | Remove all human rsIDs and upstream-score claims from the shared dbNSFP seed. |
-| An exact current dbNSFP score snapshot was not available for redistribution from the production-pinned source. | Production manifest and loader pin 5.3.1a; the dbNSFP release page identifies v5.3.1 and its 5.3.1a/5.3.1c README branches, while the public query service reported 5.4c (accessed 2026-08-12). | Do not copy the browser values into a fixture presented as 5.3.1a-derived. |
-| Provider values must remain outside the repository's shared fixture. | dbNSFP states that the academic/non-profit branch is CC BY-NC-ND 4.0 and that component-source terms also apply; Yeliztli's documented posture is provider-fetched and non-redistributed (accessed 2026-08-12). | Retain only public release/license metadata; test predictor behavior with synthetic values. |
+| An exact current dbNSFP score snapshot was not available for redistribution from the production-pinned source. | Production manifest and loader pin 5.3.1a; the retained official release metadata identifies v5.3.1 and its 5.3.1a/5.3.1c README branches, while the retained public query-service health response reports 5.4a (accessed 2026-08-12). | Do not copy the browser values into a fixture presented as 5.3.1a-derived. |
+| Provider values must remain outside the repository's shared fixture. | dbNSFP states that the academic/non-commercial branch is CC BY-NC-ND 4.0 and that component-source terms also apply; Yeliztli's documented posture is provider-fetched and non-redistributed (accessed 2026-08-12). | Retain only public release/license metadata; test predictor behavior with synthetic values. |
 | The replacement validates software behavior, not pathogenicity. | `dbnsfp_seed.contract.json` and the regression suite reject real dbSNP identifiers, unreviewed scenario drift, and incoherent SIFT/PolyPhen pairs. | No biological, clinical, or patient-specific inference is encoded by the seed values. |
 
 ## Retained evidence
 
+- `dbnsfp-query-health-sanitized.json` retains the complete score-free public
+  health response fields (`status` and `dataset_version`) plus the exact source-
+  payload hash. It contains no variant query or predictor value.
+- `dbnsfp-releases-sanitized.json` retains only the official release IDs,
+  dates, and academic/commercial README branch labels needed to establish the
+  production-versus-browser version boundary.
+- `dbnsfp-license-sanitized.json` retains only the official branch, permitted-
+  use, license-identifier, and component-license facts used by the
+  non-redistribution decision.
 - `ensembl-rs429358-sanitized.json` retains only request identity, assembly,
   allele, and aggregated APOE transcript prediction fields from Ensembl VEP.
   It omits the rest of the response and is context for rejecting the old
@@ -51,10 +61,12 @@ credential, or restricted payload is retained.
 
 - dbNSFP releases and README branches:
   <https://www.dbnsfp.org/releases/> (accessed 2026-08-12).
-- dbNSFP academic/non-profit and component-source terms:
+- dbNSFP academic/non-commercial and component-source terms:
   <https://www.dbnsfp.org/license/> (accessed 2026-08-12).
 - dbNSFP web-query entry point:
   <https://www.dbnsfp.org/web-query/> (accessed 2026-08-12).
+- dbNSFP public score-free health metadata:
+  <https://query.genos.us/api/health> (accessed 2026-08-12).
 - dbNSFP v4 publication: PMID:33261662;
   DOI:10.1186/s13073-020-00803-9 (accessed 2026-08-12).
 - REVEL publication: PMID:27666373;

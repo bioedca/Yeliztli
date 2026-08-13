@@ -1,11 +1,11 @@
 {
-  "packet_version": 1,
+  "packet_version": 2,
   "issue": 2035,
   "accessed": "2026-08-12",
   "decision": "Replace the shared dbNSFP seed with explicit synthetic behavior scenarios; retain no upstream score rows.",
   "production_pin": {
     "release": "5.3.1a",
-    "manifest_path": "tests/fixtures/manifest_v2.json",
+    "manifest_path": "bundles/manifest.json",
     "loader_path": "backend/annotation/dbnsfp.py",
     "archive_url": "https://dist.genos.us/academic/e55b09/dbNSFP5.3.1a.zip"
   },
@@ -15,21 +15,24 @@
       "url": "https://www.dbnsfp.org/releases/",
       "version_observed": "dbNSFP v5.3.1 (January 1, 2026); README branches v5.3.1a and v5.3.1c",
       "license_or_terms": "Public release metadata only; dbNSFP data terms are recorded separately.",
-      "role": "Confirms the production-pinned release family."
+      "role": "Confirms the production-pinned release family.",
+      "retained_path": "data/science-evidence/2026-08-12-dbnsfp-seed-2035/dbnsfp-releases-sanitized.json"
     },
     {
       "id": "dbnsfp-license",
       "url": "https://www.dbnsfp.org/license/",
       "version_observed": "Page accessed 2026-08-12",
-      "license_or_terms": "Academic/non-profit use is CC BY-NC-ND 4.0; users must also comply with original component-source terms.",
-      "role": "Supports the non-redistributed, provider-fetched fixture boundary."
+      "license_or_terms": "Academic/non-commercial use is CC BY-NC-ND 4.0; users must also comply with original component-source terms.",
+      "role": "Supports the non-redistributed, provider-fetched fixture boundary.",
+      "retained_path": "data/science-evidence/2026-08-12-dbnsfp-seed-2035/dbnsfp-license-sanitized.json"
     },
     {
       "id": "dbnsfp-query-service",
-      "url": "https://query.genos.us/",
-      "version_observed": "Service metadata reported dataset 5.4c",
-      "license_or_terms": "dbNSFP license and service usage restrictions; no score-bearing output retained.",
-      "role": "Version-mismatch observation only."
+      "url": "https://query.genos.us/api/health",
+      "version_observed": "Public score-free health metadata reported dataset 5.4a",
+      "license_or_terms": "Public service metadata only; no score-bearing output retained.",
+      "role": "Auditable version-mismatch observation only.",
+      "retained_path": "data/science-evidence/2026-08-12-dbnsfp-seed-2035/dbnsfp-query-health-sanitized.json"
     },
     {
       "id": "ensembl-vep-rs429358",
@@ -57,6 +60,21 @@
     }
   ],
   "retained_artifacts": [
+    {
+      "path": "data/science-evidence/2026-08-12-dbnsfp-seed-2035/dbnsfp-query-health-sanitized.json",
+      "content": "Sanitized score-free dbNSFP service health/version response",
+      "sha256": "f82bd674e231a1c01ec04b0dcf018c60400538983becf631fbfc415b158c961f"
+    },
+    {
+      "path": "data/science-evidence/2026-08-12-dbnsfp-seed-2035/dbnsfp-releases-sanitized.json",
+      "content": "Sanitized official dbNSFP release/version metadata",
+      "sha256": "55cf94a9e3104d496e0ef30acc4b59042f18cd6c623e55afc8d6a0d62e255fe4"
+    },
+    {
+      "path": "data/science-evidence/2026-08-12-dbnsfp-seed-2035/dbnsfp-license-sanitized.json",
+      "content": "Sanitized official dbNSFP license metadata",
+      "sha256": "5353d523703e6d0be118945efcd02dba2558e2b3602ed4ca447cab679fb84842"
+    },
     {
       "path": "data/science-evidence/2026-08-12-dbnsfp-seed-2035/ensembl-rs429358-sanitized.json",
       "content": "Sanitized Ensembl request and aggregate response metadata",

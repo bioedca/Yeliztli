@@ -9,6 +9,7 @@ invented scores to real variants.
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 import re
 import sqlite3
@@ -27,6 +28,7 @@ _ROOT = Path(__file__).resolve().parents[2]
 _SEED = _ROOT / "tests" / "fixtures" / "seed_csvs" / "dbnsfp_seed.csv"
 _CONTRACT = _ROOT / "tests" / "fixtures" / "seed_csvs" / "dbnsfp_seed.contract.json"
 _MINI_DBNSFP = _ROOT / "tests" / "fixtures" / "mini_dbnsfp.db"
+_EVIDENCE = _ROOT / "data" / "science-evidence" / "2026-08-12-dbnsfp-seed-2035"
 
 _DB_COLUMNS = (
     "rsid",
@@ -158,3 +160,19 @@ def test_checked_in_database_exactly_matches_the_synthetic_seed() -> None:
         "mini_dbnsfp.db is stale relative to the synthetic seed; "
         "run python scripts/regenerate_fixtures.py"
     )
+
+
+def test_scientific_evidence_manifest_binds_retained_source_payloads() -> None:
+    manifest = json.loads((_EVIDENCE / "source-manifest.json").read_text(encoding="utf-8"))
+    artifacts = {artifact["path"]: artifact for artifact in manifest["retained_artifacts"]}
+
+    sources = {source["id"]: source for source in manifest["sources"]}
+    for source_id in ("dbnsfp-query-service", "dbnsfp-releases", "dbnsfp-license"):
+        retained_path = sources[source_id]["retained_path"]
+        assert retained_path in artifacts, f"{source_id} retained payload is not in the manifest"
+
+    for relative_path, artifact in artifacts.items():
+        path = _ROOT / relative_path
+        assert path.is_file(), f"retained evidence payload is missing: {relative_path}"
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        assert digest == artifact["sha256"], f"retained payload hash drift: {relative_path}"

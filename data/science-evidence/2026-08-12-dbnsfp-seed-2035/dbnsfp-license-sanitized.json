@@ -1,0 +1,29 @@
+{
+  "claim_ids": ["C3"],
+  "source": "dbNSFP official license page",
+  "source_identifier": "https://www.dbnsfp.org/license/",
+  "accessed": "2026-08-12",
+  "payload_type": "sanitized official license-page metadata",
+  "sanitized_payload_path": "data/science-evidence/2026-08-12-dbnsfp-seed-2035/dbnsfp-license-sanitized.json",
+  "request": {
+    "method": "GET",
+    "url": "https://www.dbnsfp.org/license/",
+    "selected_fields": [
+      "branch model",
+      "academic-branch permitted-use category",
+      "academic-branch license identifier",
+      "component-license compliance requirement"
+    ]
+  },
+  "response": {
+    "branch_model": ["academic", "commercial"],
+    "academic_branch_use": ["academic", "non-commercial"],
+    "academic_branch_license": "CC BY-NC-ND 4.0",
+    "component_license_compliance_required": true
+  },
+  "source_payload_sha256": "844376690079eb2b917bb01959f44d5018a5d6d5722aa717b66ec31e755022c8",
+  "source_payload_hash_scope": "Exact official HTML response-body bytes returned on the access date.",
+  "retention": "Only the structured licensing facts needed for the non-redistribution decision are retained; pricing, contact details, FAQ prose, and unrelated page content are omitted.",
+  "license_or_terms": "The academic branch is identified as CC BY-NC-ND 4.0 for academic and non-commercial use, with separate compliance required for component-source licenses.",
+  "sanitization": "Navigation, commercial pricing, contact information, analytics markup, and unrelated HTML were discarded."
+}
