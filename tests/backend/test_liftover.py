@@ -5,16 +5,31 @@ T4-19: pyliftover converts rs1801133 GRCh37 position to correct GRCh38 position.
 
 from __future__ import annotations
 
+from collections.abc import Generator
+from datetime import UTC, datetime
+from pathlib import Path
+from unittest.mock import patch
+
 import pyliftover.liftover
 import pytest
+import sqlalchemy as sa
 from fastapi.testclient import TestClient
 
+from backend.config import Settings
+from backend.db.connection import reset_registry
+from backend.db.sample_schema import create_sample_tables
+from backend.db.tables import annotated_variants, jobs, reference_metadata, samples
 from backend.ingestion import liftover as liftover_module
 from backend.ingestion.liftover import (
     batch_convert,
     convert_coordinate,
     lift_build36_to_grch37,
     reset_liftover,
+)
+from backend.services.sample_operation_lock import (
+    ACTIVE_EXPORT_STATUSES,
+    SAMPLE_EXPORT_JOB_TYPE,
+    reserve_annotation_job,
 )
 
 # ── Unit tests: convert_coordinate ────────────────────────────────────
@@ -317,3 +332,263 @@ class TestConvertRoute:
     def test_convert_missing_params_returns_422(self, test_client: TestClient) -> None:
         """Both `chrom` and `pos` are required query params."""
         assert test_client.get("/api/liftover/convert").status_code == 422
+
+
+# ── Route-level: POST /api/liftover/{sample_id} (issue #2029) ──────────
+
+
+@pytest.fixture
+def liftover_sample_client(tmp_data_dir: Path) -> Generator[TestClient, None, None]:
+    """A registered, freshly-annotated sample carrying liftable and unliftable rows.
+
+    ``rs1801133`` lifts (1:11856378 → 1:11796321, locked by
+    :class:`TestConvertCoordinate`); the mitochondrial rows must never lift
+    (F34), so they double as the negative control that stops a blanket write
+    from passing.
+
+    Sample 2 is registered with no database file behind it — the "sample whose
+    data went missing" case that must 404 rather than be silently recreated.
+    """
+    settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
+
+    ref_engine = sa.create_engine(f"sqlite:///{settings.reference_db_path}")
+    reference_metadata.create_all(ref_engine)
+
+    sample_db_path = tmp_data_dir / "samples" / "sample_1.db"
+    sample_db_path.parent.mkdir(parents=True, exist_ok=True)
+    sample_engine = sa.create_engine(f"sqlite:///{sample_db_path}")
+    create_sample_tables(sample_engine)
+
+    with ref_engine.begin() as conn:
+        conn.execute(
+            samples.insert().values(
+                id=1,
+                name="Liftover Sample",
+                db_path="samples/sample_1.db",
+                file_format="v5",
+                file_hash="liftover2029",
+            )
+        )
+        conn.execute(
+            samples.insert().values(
+                id=2,
+                name="Vanished Sample",
+                db_path="samples/sample_2.db",
+                file_format="v5",
+                file_hash="vanished2029",
+            )
+        )
+
+    with sample_engine.begin() as conn:
+        conn.execute(
+            annotated_variants.insert(),
+            [
+                {"rsid": "rs1801133", "chrom": "1", "pos": 11856378, "genotype": "AG"},
+                {"rsid": "rs429358", "chrom": "19", "pos": 44908684, "genotype": "TC"},
+                # Realistic spelling as it appears in chip data…
+                {"rsid": "rs_mt_7028", "chrom": "MT", "pos": 7028, "genotype": "CC"},
+                # …and the spelling that actually discriminates. "M"/750 WOULD
+                # lift to a wrong GRCh38 coordinate if the F34 short-circuit were
+                # removed, whereas "MT" returns None via the chain regardless
+                # (no such chromosome name in it) and so cannot detect a
+                # regressed guard. Same reasoning as TestConvertRoute.
+                {"rsid": "rs_m_750", "chrom": "M", "pos": 750, "genotype": "CC"},
+            ],
+        )
+
+    ref_engine.dispose()
+    sample_engine.dispose()
+
+    with (
+        patch("backend.main.get_settings", return_value=settings),
+        patch("backend.db.connection.get_settings", return_value=settings),
+    ):
+        reset_registry()
+        from backend.main import create_app
+
+        with TestClient(create_app()) as tc:
+            yield tc
+        reset_registry()
+
+
+def _grch38_by_rsid(tmp_data_dir: Path) -> dict[str, tuple[str | None, int | None]]:
+    """Read the stored GRCh38 columns straight from the sample DB."""
+    engine = sa.create_engine(f"sqlite:///{tmp_data_dir / 'samples' / 'sample_1.db'}")
+    try:
+        with engine.connect() as conn:
+            rows = conn.execute(
+                sa.select(
+                    annotated_variants.c.rsid,
+                    annotated_variants.c.chrom_grch38,
+                    annotated_variants.c.pos_grch38,
+                )
+            ).fetchall()
+    finally:
+        engine.dispose()
+    return {r.rsid: (r.chrom_grch38, r.pos_grch38) for r in rows}
+
+
+class TestBatchLiftoverRoute:
+    """`POST /api/liftover/{sample_id}` had **no** route-level test at all.
+
+    The batch is what fills the Variant Explorer's ``Chr (GRCh38)`` /
+    ``Pos (GRCh38)`` columns; #2029 found those blank for 100% of variants
+    because nothing ever invoked it. These lock the write itself, so a
+    regression in the write-back cannot pass while the pure-conversion unit
+    tests above stay green.
+    """
+
+    def test_populates_grch38_for_a_liftable_variant(
+        self, liftover_sample_client: TestClient, tmp_data_dir: Path
+    ) -> None:
+        """The stored row gains the GRCh38 coordinate, not merely a 200."""
+        before = _grch38_by_rsid(tmp_data_dir)
+        assert before["rs1801133"] == (None, None), "precondition: nothing lifted yet"
+
+        resp = liftover_sample_client.post("/api/liftover/1")
+        assert resp.status_code == 200, resp.text
+
+        after = _grch38_by_rsid(tmp_data_dir)
+        assert after["rs1801133"] == ("1", 11796321)
+        assert after["rs429358"] == ("19", 44404524)
+
+    def test_unliftable_mt_row_stays_null(
+        self, liftover_sample_client: TestClient, tmp_data_dir: Path
+    ) -> None:
+        """Negative control (F34).
+
+        Without this, the assertion above is satisfiable by writing a coordinate
+        to every row indiscriminately. MT must never lift — UCSC hg19 chrM is
+        Yoruba, not rCRS — so it has to come back NULL from the same batch that
+        populated the autosomal rows.
+        """
+        assert liftover_sample_client.post("/api/liftover/1").status_code == 200
+
+        after = _grch38_by_rsid(tmp_data_dir)
+        assert after["rs_mt_7028"] == (None, None)
+        # The one that discriminates: "M"/750 lifts through the chain, so this
+        # is NULL only because convert_coordinate refuses it.
+        assert after["rs_m_750"] == (None, None)
+        # …and the batch genuinely ran, so this is not a vacuous pass.
+        assert after["rs1801133"] == ("1", 11796321)
+
+    def test_reported_counts_describe_the_write(self, liftover_sample_client: TestClient) -> None:
+        """`converted`/`failed` must reflect what happened, not the row total."""
+        body = liftover_sample_client.post("/api/liftover/1").json()
+        assert body["total"] == 4
+        assert body["converted"] == 2
+        assert body["failed"] == 2  # both mitochondrial rows
+        assert body["already_lifted"] == 0
+
+    def test_rerun_is_idempotent_and_reports_already_lifted(
+        self, liftover_sample_client: TestClient, tmp_data_dir: Path
+    ) -> None:
+        """Re-running converts nothing new and leaves the coordinates intact.
+
+        The lazy trigger fires whenever the GRCh38 toggle is switched on, so a
+        second call must be cheap and must not disturb stored values.
+        """
+        assert liftover_sample_client.post("/api/liftover/1").status_code == 200
+        first = _grch38_by_rsid(tmp_data_dir)
+
+        second = liftover_sample_client.post("/api/liftover/1").json()
+        assert second["already_lifted"] == 2
+        assert second["converted"] == 0
+        assert _grch38_by_rsid(tmp_data_dir) == first
+
+    def test_unknown_sample_returns_404(self, liftover_sample_client: TestClient) -> None:
+        """A missing sample is 404, never a silent no-op."""
+        assert liftover_sample_client.post("/api/liftover/9999").status_code == 404
+
+    def test_batch_takes_a_lease_and_releases_it(
+        self, liftover_sample_client: TestClient, tmp_data_dir: Path
+    ) -> None:
+        """The batch must take the lease *and* not outlive it.
+
+        The interlock is symmetric: ``reserve_annotation_job`` refuses to start
+        while a ``sample_export`` lease is active. So both halves are load
+        bearing — never taking the lease is the concurrency hole
+        :meth:`test_active_annotation_blocks_the_batch` covers from the other
+        side, and taking it without releasing would block re-annotation of the
+        sample forever while the batch's own response still looks perfect.
+        """
+        assert liftover_sample_client.post("/api/liftover/1").status_code == 200
+
+        engine = sa.create_engine(f"sqlite:///{tmp_data_dir / 'reference.db'}")
+        try:
+            with engine.connect() as conn:
+                leases = conn.execute(
+                    sa.select(jobs.c.status, jobs.c.message)
+                    .where(jobs.c.sample_id == 1)
+                    .where(jobs.c.job_type == SAMPLE_EXPORT_JOB_TYPE)
+                ).fetchall()
+            # Reserving annotation is what a leaked lease would block, so drive
+            # the real reservation rather than only reading the row back.
+            reserve_annotation_job(
+                engine,
+                sample_id=1,
+                job_id="post-liftover-annotation",
+                created_at=datetime.now(UTC),
+            )
+        finally:
+            engine.dispose()
+
+        assert len(leases) == 1, f"expected exactly one liftover lease, got {leases}"
+        assert "grch38_liftover" in (leases[0].message or "")
+        assert leases[0].status not in ACTIVE_EXPORT_STATUSES
+
+    def test_missing_sample_database_file_returns_404(
+        self, liftover_sample_client: TestClient, tmp_data_dir: Path
+    ) -> None:
+        """A registered sample whose database file is gone must not be recreated.
+
+        ``get_sample_engine`` creates the SQLite file and initializes the schema
+        for any path handed to it, so opening the resolved path unconditionally
+        turned "this sample's data is missing" into an empty-but-successful
+        batch: 200 with ``total: 0``, indistinguishable from a sample that has
+        no variants. The Variant Explorer then latches the sample as computed
+        and shows blank GRCh38 columns for it forever.
+        """
+        vanished_db = tmp_data_dir / "samples" / "sample_2.db"
+        assert not vanished_db.exists(), "precondition: sample 2 has no database file"
+
+        resp = liftover_sample_client.post("/api/liftover/2")
+
+        assert resp.status_code == 404, resp.text
+        # The 404 alone is not enough: nothing in the request may leave an empty
+        # database behind, or the *next* request finds a file and succeeds.
+        assert not vanished_db.exists(), "an empty sample database was materialized"
+
+    def test_active_annotation_blocks_the_batch(
+        self, liftover_sample_client: TestClient, tmp_data_dir: Path
+    ) -> None:
+        """Liftover joins the per-sample operation lease (409 while annotating).
+
+        Annotation replaces the `annotated_variants` contents wholesale. Running
+        the batch across that swap can report success against rows that are
+        about to be discarded, or apply coordinates computed from pre-swap
+        positions to post-swap rows by rsid. The lease is the same one export
+        and report rendering take.
+        """
+        engine = sa.create_engine(f"sqlite:///{tmp_data_dir / 'reference.db'}")
+        try:
+            with engine.begin() as conn:
+                conn.execute(
+                    jobs.insert().values(
+                        job_id="annotation-in-flight",
+                        sample_id=1,
+                        job_type="annotation",
+                        status="running",
+                        progress_pct=10.0,
+                        message="annotating",
+                        created_at=datetime.now(UTC),
+                        updated_at=datetime.now(UTC),
+                    )
+                )
+        finally:
+            engine.dispose()
+
+        resp = liftover_sample_client.post("/api/liftover/1")
+        assert resp.status_code == 409, resp.text
+        # Nothing was written while the annotation held the sample.
+        assert _grch38_by_rsid(tmp_data_dir)["rs1801133"] == (None, None)

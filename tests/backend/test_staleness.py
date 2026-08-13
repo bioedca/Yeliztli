@@ -38,6 +38,7 @@ from backend.services.staleness import (
     REFERENCE_VERSION_SNAPSHOT_KEY,
     _parse_reference_versions,
     find_stale_reference_versions,
+    get_recorded_bundle_version,
     is_sample_stale,
 )
 from tests.backend.vep_bundle_test_utils import seed_embedded_vep_bundle_version
@@ -277,6 +278,35 @@ class TestIsSampleStale:
         ]
         assert len(database_events) == 1
         assert not _has_event(cap_logs, "vep_bundle_version_unreadable")
+
+    def test_missing_sample_db_file_is_not_materialised(self, staleness_env):
+        """Reading the recorded version must not create the DB it reads (#2029).
+
+        ``get_sample_engine`` builds an empty database *and* a full schema at a
+        missing path. This reader runs inside ``require_fresh_sample``, so it
+        fires ahead of every route's own resolver: materialising here makes the
+        downstream ``sample_db_path.exists()`` checks pass for a sample whose
+        data is gone, and the route then answers 200 over an empty database
+        instead of 404. The liftover batch is where that surfaced.
+
+        The verdict itself is unchanged — an absent file still means no
+        recorded state, which is the Plan §7.4 ``v1.0.0`` fallback.
+        """
+        settings = staleness_env["settings"]
+        _seed_installed_bundle(settings, "v2.0.0")
+        sample_db = settings.data_dir / "samples" / "sample_1.db"
+        assert not sample_db.exists(), "precondition: the sample DB is missing"
+
+        with capture_logs() as cap_logs:
+            recorded = get_recorded_bundle_version(staleness_env["sample_id"])
+            stale = is_sample_stale(staleness_env["sample_id"])
+
+        assert recorded is None
+        assert stale is True
+        assert not sample_db.exists(), "the read created the database it was reading"
+        events = [e for e in cap_logs if e.get("event") == "annotation_state_missing"]
+        assert events, "expected annotation_state_missing warning"
+        assert events[0].get("reason") == "sample_db_missing"
 
     def test_missing_sample_row_treats_as_v1(self, staleness_env):
         """A sample_id with no row in ``samples`` is treated as fallback v1.0.0."""
