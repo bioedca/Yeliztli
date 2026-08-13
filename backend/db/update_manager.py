@@ -2358,7 +2358,12 @@ _BUNDLE_DBS: frozenset[str] = frozenset(
 _DOWNLOAD_DBS: frozenset[str] = frozenset({"encode_ccres"})
 
 
-def _dispatch_auto_update(registry: DBRegistry, db_name: str) -> None:
+def _dispatch_auto_update(
+    registry: DBRegistry,
+    db_name: str,
+    *,
+    download_url: str | None = None,
+) -> None:
     """Apply an auto-update for a single database.
 
     Bundle and ClinVar updates run synchronously inside the scheduler.
@@ -2434,7 +2439,10 @@ def _dispatch_auto_update(registry: DBRegistry, db_name: str) -> None:
     )
 
     job_id = create_database_update_job(db_name)
-    run_database_update_task(job_id, db_name)
+    if db_name == "mondo_hpo":
+        run_database_update_task(job_id, db_name, download_url)
+    else:
+        run_database_update_task(job_id, db_name)
 
 
 def _first_run_setup_active(engine: Engine) -> bool:
@@ -2530,7 +2538,11 @@ def run_scheduled_update_check(registry: DBRegistry) -> UpdateCheckResult:
             continue
 
         try:
-            _dispatch_auto_update(registry, db_name)
+            _dispatch_auto_update(
+                registry,
+                db_name,
+                download_url=(update_info.download_url if db_name == "mondo_hpo" else None),
+            )
         except Exception as exc:
             logger.exception("auto_update_failed", db_name=db_name, error=str(exc))
             check_result.errors.append(f"{db_name} update failed: {exc}")

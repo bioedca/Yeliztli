@@ -1165,7 +1165,11 @@ def run_update_check_task(job_id: str) -> None:
 
 
 @huey.task()
-def run_database_update_task(job_id: str, db_name: str) -> None:
+def run_database_update_task(
+    job_id: str,
+    db_name: str,
+    download_url: str | None = None,
+) -> None:
     """Huey background task: run a specific database update.
 
     Thin wrapper that takes the cross-process build claim — so a setup-wizard
@@ -1173,6 +1177,12 @@ def run_database_update_task(job_id: str, db_name: str) -> None:
     (the in-process ``build_lock`` cannot span processes) — then delegates to
     :func:`_execute_database_update`. If another process already holds the claim
     the update is skipped with a clear, retryable job error rather than racing.
+
+    ``download_url`` carries the exact artifact offered by an update check into
+    manifest-pinned pipeline builders that otherwise have only a module-level
+    default. It is currently used by MONDO/HPO; direct/manual invocations that
+    do not originate from a check resolve that database's current pin inside
+    :func:`_execute_database_update` instead.
     """
     from backend.db.build_guard import build_claim
     from backend.db.connection import get_registry
@@ -1196,10 +1206,17 @@ def run_database_update_task(job_id: str, db_name: str) -> None:
             )
             return
         with huey_download_job_ownership():
-            _execute_database_update(job_id, db_name)
+            if download_url is None:
+                _execute_database_update(job_id, db_name)
+            else:
+                _execute_database_update(job_id, db_name, download_url)
 
 
-def _execute_database_update(job_id: str, db_name: str) -> None:
+def _execute_database_update(
+    job_id: str,
+    db_name: str,
+    download_url: str | None = None,
+) -> None:
     """Run a specific database update (the cross-process claim is already held).
 
     Uses the same build function that the setup wizard uses
@@ -1353,13 +1370,29 @@ def _execute_database_update(job_id: str, db_name: str) -> None:
         engine = registry.reference_engine
         settings = registry.settings
 
+        mondo_url: str | None = None
+        if db_name == "mondo_hpo":
+            mondo_url = download_url
+            if not mondo_url:
+                from backend.db.manifest import get_pipeline_pin
+
+                pin = get_pipeline_pin("mondo_hpo")
+                if pin is None or not pin.url:
+                    raise RuntimeError(
+                        "MONDO/HPO update requires an available pipeline-pinned source URL"
+                    )
+                mondo_url = pin.url
+
         # Build functions for reference-target DBs take the reference engine;
         # standalone DBs write to their own file and take a fresh engine.
         # Serialize per-DB so an auto-update can't race a setup-wizard build of
         # the same file (the "database is locked" failure mode).
         with build_lock(db_name):
             if db_info and db_info.target_db == "reference":
-                build_fn(engine, settings.downloads_dir)
+                if db_name == "mondo_hpo":
+                    build_fn(engine, settings.downloads_dir, mondo_url=mondo_url)
+                else:
+                    build_fn(engine, settings.downloads_dir)
             else:
                 from backend.db.sqlite_engine import make_sqlite_engine
 

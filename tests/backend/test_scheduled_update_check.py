@@ -430,6 +430,36 @@ class TestPipelineDispatch:
         mock_run_task.assert_called_once_with("job-dbnsfp", "dbnsfp")
         assert result.errors == []
 
+    def test_mondo_hpo_dispatch_preserves_offered_download_url(
+        self, reference_engine, tmp_path: Path
+    ):
+        """The artifact approved by the check is the one queued for installation."""
+        registry = _make_registry(reference_engine, tmp_path)
+        pinned_url = "https://updates.example.test/mondo/pinned-gene-disease.tsv.gz"
+        update_info = VersionInfo(
+            db_name="mondo_hpo",
+            latest_version="20260415",
+            download_url=pinned_url,
+            download_size_bytes=1_000_000,
+        )
+
+        with (
+            patch(
+                "backend.db.update_manager.check_all_updates",
+                return_value=UpdateCheckResult(available=[update_info]),
+            ),
+            patch(
+                "backend.tasks.huey_tasks.create_database_update_job",
+                return_value="job-mondo-hpo",
+            ) as mock_create_job,
+            patch("backend.tasks.huey_tasks.run_database_update_task") as mock_run_task,
+        ):
+            result = run_scheduled_update_check(registry)
+
+        mock_create_job.assert_called_once_with("mondo_hpo")
+        mock_run_task.assert_called_once_with("job-mondo-hpo", "mondo_hpo", pinned_url)
+        assert result.errors == []
+
     def test_pipeline_dispatch_uses_table_toggle(self, reference_engine, tmp_path: Path):
         """Pipeline-DB dispatch reads ``auto_update_settings``, not the dict."""
         registry = _make_registry(reference_engine, tmp_path)

@@ -25,7 +25,7 @@ from contextlib import nullcontext
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 import sqlalchemy as sa
@@ -503,6 +503,75 @@ class TestRunDatabaseUpdateTaskClaim:
 
 
 class TestDatabaseUpdateBundleDispatch:
+    def test_mondo_hpo_build_uses_the_queued_pinned_url(self, huey_env: dict) -> None:
+        """The generic build dispatcher must not fall back to the loader constant."""
+        from backend.tasks.huey_tasks import _execute_database_update
+
+        job_id = "dbup-mondo-hpo"
+        pinned_url = "https://updates.example.test/mondo/pinned-gene-disease.tsv.gz"
+        _make_job(job_id, "database_update")
+
+        build_fn = MagicMock()
+        with (
+            patch("backend.db.database_registry.get_build_fn", return_value=build_fn),
+            patch("backend.db.update_manager.run_precheck_all_samples"),
+        ):
+            _execute_database_update(job_id, "mondo_hpo", pinned_url)
+
+        build_fn.assert_called_once_with(
+            get_registry().reference_engine,
+            huey_env["settings"].downloads_dir,
+            mondo_url=pinned_url,
+        )
+        row = _job_row(job_id)
+        assert row.status == "complete"
+
+    def test_manual_mondo_hpo_build_resolves_the_current_pin(self, huey_env: dict) -> None:
+        """A manual update without check context still never uses the hard-coded URL."""
+        from backend.tasks.huey_tasks import _execute_database_update
+
+        job_id = "dbup-mondo-hpo-manual"
+        pinned_url = "https://updates.example.test/mondo/manual-pinned.tsv.gz"
+        _make_job(job_id, "database_update")
+
+        build_fn = MagicMock()
+        with (
+            patch("backend.db.database_registry.get_build_fn", return_value=build_fn),
+            patch(
+                "backend.db.manifest.get_pipeline_pin",
+                return_value=SimpleNamespace(url=pinned_url),
+            ) as get_pin,
+            patch("backend.db.update_manager.run_precheck_all_samples"),
+        ):
+            _execute_database_update(job_id, "mondo_hpo")
+
+        get_pin.assert_called_once_with("mondo_hpo")
+        build_fn.assert_called_once_with(
+            get_registry().reference_engine,
+            huey_env["settings"].downloads_dir,
+            mondo_url=pinned_url,
+        )
+        assert _job_row(job_id).status == "complete"
+
+    def test_manual_mondo_hpo_build_fails_closed_without_a_pin(self, huey_env: dict) -> None:
+        """Manifest failure must not silently reactivate the loader's default URL."""
+        from backend.tasks.huey_tasks import _execute_database_update
+
+        job_id = "dbup-mondo-hpo-no-pin"
+        _make_job(job_id, "database_update")
+
+        build_fn = MagicMock()
+        with (
+            patch("backend.db.database_registry.get_build_fn", return_value=build_fn),
+            patch("backend.db.manifest.get_pipeline_pin", return_value=None),
+        ):
+            _execute_database_update(job_id, "mondo_hpo")
+
+        build_fn.assert_not_called()
+        row = _job_row(job_id)
+        assert row.status == "failed"
+        assert "pipeline-pinned source URL" in row.error
+
     def test_pgs_scores_uses_manifest_bundle_runner(self, huey_env: dict) -> None:
         """User-triggered pgs_scores updates must not fall through to build_fn lookup."""
         from backend.db.update_manager import UpdateResult
