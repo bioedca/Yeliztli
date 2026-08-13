@@ -46,6 +46,67 @@ def test_backend_job_timeout_clears_an_honest_slow_run() -> None:
     )
 
 
+def test_backend_matrix_and_shard_count_agree() -> None:
+    """A matrix shorter than ``--num-shards`` silently stops running tests.
+
+    That is the one sharding mistake nothing else would catch: legs 1..k run
+    their slices, the tests assigned to the missing legs run nowhere, and every
+    job still reports success. The opposite mistake fails closed on its own —
+    a leg whose ``--shard-id`` exceeds ``--num-shards`` aborts with a
+    ``UsageError`` (``tests/backend/test_ci_backend_shard.py``).
+    """
+    block = _job_block("test-backend")
+
+    matrix = re.search(r"^        shard:\s*\[([0-9,\s]+)\]\s*$", block, re.MULTILINE)
+    assert matrix, "test-backend must declare an explicit `shard:` matrix"
+    shards = [int(value) for value in matrix.group(1).split(",")]
+
+    declared = re.search(r"--num-shards\s+(\d+)", block)
+    assert declared, "the pytest invocation must pass --num-shards"
+    num_shards = int(declared.group(1))
+
+    assert num_shards >= 2, "a one-shard split is not a split"
+    assert shards == list(range(1, num_shards + 1)), (
+        f"the shard matrix {shards} does not cover 1..{num_shards}; tests assigned to "
+        "the missing legs would never run, and every leg would still be green"
+    )
+    assert "--shard-id ${{ matrix.shard }}" in block, (
+        "each leg must run the shard its matrix entry names"
+    )
+    assert f"shard ${{{{ matrix.shard }}}}/{num_shards}" in block, (
+        "the job name must show the same shard count it runs"
+    )
+
+
+def test_backend_shards_still_target_the_whole_suite() -> None:
+    """Sharding must narrow the *selection*, never the collected path.
+
+    Passing a subdirectory here would look like a shard and behave like a
+    permanent deletion, since the partition can only redistribute what pytest
+    collected in the first place.
+    """
+    block = _job_block("test-backend")
+
+    assert re.search(r"python -m pytest tests/backend/ -v --tb=short -m \"not slow\"", block), (
+        "every shard must still collect all of tests/backend/ before partitioning"
+    )
+
+
+def test_cross_os_backend_leg_runs_the_unsharded_suite() -> None:
+    """The macOS leg is the backstop that would notice a partition losing tests.
+
+    It is Tier-2, so it only runs on merge — but it runs the suite whole, which
+    means a sharding bug that drops modules cannot stay invisible on every leg
+    at once.
+    """
+    block = _job_block("test-backend-cross-os")
+
+    assert "--num-shards" not in block and "--shard-id" not in block, (
+        "the cross-OS leg must stay unsharded"
+    )
+    assert 'python -m pytest tests/backend/ -v --tb=short -m "not slow"' in block
+
+
 def test_backend_job_keeps_the_bounded_startup_witness() -> None:
     """A raised timeout must not become the thing that catches a lifespan hang.
 

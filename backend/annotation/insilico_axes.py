@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 SIFT_THRESHOLD = 0.05
@@ -82,18 +83,31 @@ def _meta_axis(variant: dict[str, Any] | Any) -> bool | None:
     return sum(votes) * 2 > len(votes)
 
 
+# The canonical F24/F25 axis set, declared once. Both `assess_insilico_axes` and
+# `INSILICO_AXIS_COUNT` derive from this tuple, so adding or collapsing an axis
+# moves the counter and the documented range together. Counting a *probe
+# variant's* assessed axes instead would look self-updating and silently would
+# not be: a new axis reading a field the probe does not carry evaluates as
+# unassessed, leaving the count at its old value (#2327).
+_INSILICO_AXES: tuple[Callable[[dict[str, Any] | Any], bool | None], ...] = (
+    _sift_axis,
+    _polyphen_axis,
+    _cadd_axis,
+    _meta_axis,
+)
+
+#: Number of independent axes the model can assess — the upper bound on
+#: ``annotated_variants.deleterious_count``.
+INSILICO_AXIS_COUNT = len(_INSILICO_AXES)
+
+
 def assess_insilico_axes(variant: dict[str, Any] | Any) -> tuple[int, int]:
-    """Return ``(deleterious_axes, assessed_axes)`` over four independent axes.
+    """Return ``(deleterious_axes, assessed_axes)`` over the independent axes.
 
     The canonical F24/F25 model counts SIFT, PolyPhen-2, CADD, and a collapsed
     META axis for REVEL/MetaSVM/MetaLR. The denominator is axes with data.
     """
-    axes = [
-        _sift_axis(variant),
-        _polyphen_axis(variant),
-        _cadd_axis(variant),
-        _meta_axis(variant),
-    ]
+    axes = [axis(variant) for axis in _INSILICO_AXES]
     assessed = [axis for axis in axes if axis is not None]
     return sum(1 for axis in assessed if axis), len(assessed)
 

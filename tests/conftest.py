@@ -1,13 +1,25 @@
-"""Root-level pytest conftest — project-wide fixtures and markers."""
+"""Root-level pytest conftest — project-wide fixtures, markers, and sharding."""
 
 from __future__ import annotations
 
 import shutil
+import sys
 from pathlib import Path
 
 import pytest
 
 from backend.config import Settings
+
+# `python -m pytest` (what CI, CONTRIBUTING.md, and CLAUDE.md all invoke) puts the
+# repository root on sys.path, which is how tests/backend already reaches
+# `scripts.*` — e.g. `import scripts.backfill_individuals`. A bare `pytest` does
+# not, and this import runs at conftest-collection time, so failing it would take
+# the whole suite down rather than one module. Insert the root defensively.
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from scripts.ci_backend_shard import BackendShardPlugin  # noqa: E402 — sys.path guard above
 
 
 def _java_available() -> bool:
@@ -91,11 +103,40 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
             item.add_marker(skip_real_bundle)
 
 
+# ── Suite sharding (#2326) ───────────────────────────────────────────
+
+
+def pytest_addoption(parser: pytest.Parser) -> None:
+    """Expose the shard selectors the Tier-1 backend matrix passes.
+
+    Lives here rather than in ``tests/backend/conftest.py`` because pytest only
+    honours ``pytest_addoption`` in an *initial* conftest — one on the path from
+    the rootdir down to the arguments. ``tests/`` is an ancestor of every
+    argument the suite is ever invoked with (and is ``testpaths`` when it is
+    invoked with none), so the options parse whether CI runs
+    ``pytest tests/backend/`` or a developer runs a single file.
+    """
+    group = parser.getgroup("sharding", "split the suite across CI legs (#2326)")
+    group.addoption(
+        "--num-shards",
+        type=int,
+        default=1,
+        help="Total number of shards the suite is split into (default: 1, no split).",
+    )
+    group.addoption(
+        "--shard-id",
+        type=int,
+        default=1,
+        help="Which 1-based shard this process runs (default: 1).",
+    )
+
+
 # ── Custom Markers ───────────────────────────────────────────────────
 
 
 def pytest_configure(config: pytest.Config) -> None:
     """Register custom markers to avoid 'unknown marker' warnings."""
+    _configure_sharding(config)
     config.addinivalue_line(
         "markers",
         "slow: marks tests as slow (deselect with '-m not slow')",
@@ -111,6 +152,30 @@ def pytest_configure(config: pytest.Config) -> None:
         "requires_real_bundle: marks tests that need the real production LAI/VEP "
         "bundle on disk (skipped when absent; consumed by the nightly slow-tier workflow)",
     )
+
+
+def _configure_sharding(config: pytest.Config) -> None:
+    """Register the shard filter, or fail the run if the selectors are nonsense.
+
+    Both bad-input branches are ``UsageError`` on purpose. The failure mode this
+    whole mechanism exists to avoid is a *silent* one — tests that quietly stop
+    running while the leg still reports green — so an out-of-range shard has to
+    stop the run rather than fall back to "everything" or to "nothing".
+    """
+    num_shards = config.getoption("--num-shards")
+    shard_id = config.getoption("--shard-id")
+
+    if num_shards < 1:
+        raise pytest.UsageError(f"--num-shards must be >= 1, got {num_shards}")
+    if not 1 <= shard_id <= num_shards:
+        raise pytest.UsageError(
+            f"--shard-id must be between 1 and --num-shards ({num_shards}), got {shard_id}"
+        )
+
+    if num_shards > 1:
+        config.pluginmanager.register(
+            BackendShardPlugin(shard_id, num_shards), "yeliztli-backend-shard"
+        )
 
 
 # ── Project-wide Fixtures ────────────────────────────────────────────
