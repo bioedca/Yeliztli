@@ -596,8 +596,8 @@ def preview_merge_endpoint(individual_id: int, body: MergePreviewRequest) -> Mer
     Error surface:
 
     * 404 — individual does not exist.
-    * 422 — :class:`InvalidMergeRequestError` (shape, membership, or
-      annotation-status failure).
+    * 422 — :class:`InvalidMergeRequestError` (shape, membership,
+      already-merged source, or annotation-status failure).
     * 423 — :class:`StaleSourceError`; body carries the structured payload
       Plan §7.5 declares for ``require_fresh_sample``.
     """
@@ -660,7 +660,8 @@ def commit_merge_endpoint(individual_id: int, body: MergeCommitRequest) -> Merge
 
     * 404 — individual does not exist.
     * 422 — :class:`InvalidMergeRequestError` (shape / membership /
-      annotation-status failure, or empty ``display_name``).
+      already-merged source / annotation-status failure, or empty
+      ``display_name``).
     * 423 — :class:`StaleSourceError`; body carries the structured payload
       Plan §7.5 declares for ``require_fresh_sample``.
     """

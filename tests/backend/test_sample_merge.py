@@ -886,6 +886,63 @@ class TestValidation:
                 display_name="x",
             )
 
+    @pytest.mark.parametrize("merged_position", [0, 1])
+    def test_already_merged_source_raises(
+        self,
+        merge_registry: DBRegistry,
+        monkeypatch: pytest.MonkeyPatch,
+        merged_position: int,
+    ) -> None:
+        """A ``merged_v1`` sample is not a legal merge source, in either position.
+
+        The wizard already filters merged samples out of the picker and the user
+        docs say sources must be unmerged, but nothing stopped a direct API
+        caller. Parameterised over both slots because the guard lives inside the
+        per-source loop; testing only the first would leave the second unproven.
+        """
+        registry, individual_id = self._setup(merge_registry, monkeypatch)
+        raw_id = _create_source_sample(
+            registry,
+            individual_id=individual_id,
+            name="a.txt",
+            file_format="23andme_v5",
+            file_hash="h1",
+            variants=S1_VARIANTS,
+        )
+        merged_id = _create_source_sample(
+            registry,
+            individual_id=individual_id,
+            name="Merged sample",
+            file_format="merged_v1",
+            file_hash="h-merged",
+            variants=S2_VARIANTS,
+        )
+        source_sample_ids = [merged_id, raw_id] if merged_position == 0 else [raw_id, merged_id]
+
+        samples_dir = registry.settings.data_dir / "samples"
+        with registry.reference_engine.connect() as conn:
+            rows_before = conn.execute(sa.select(sa.func.count()).select_from(samples)).scalar()
+        dbs_before = sorted(samples_dir.glob("sample_*.db"))
+        assert rows_before == 2 and len(dbs_before) == 2, "both sources must exist first"
+
+        with pytest.raises(InvalidMergeRequestError, match="already a merged sample") as excinfo:
+            merge_samples(
+                registry,
+                source_sample_ids=source_sample_ids,
+                individual_id=individual_id,
+                strategy=MergeStrategy.FLAG_ONLY,
+                display_name="x",
+            )
+        # The message must name the offending sample, not just the failure class —
+        # the wizard formats user-facing copy from it.
+        assert str(merged_id) in str(excinfo.value)
+
+        # Rejected before any side effect: no registry row, no per-sample DB.
+        with registry.reference_engine.connect() as conn:
+            rows_after = conn.execute(sa.select(sa.func.count()).select_from(samples)).scalar()
+        assert rows_after == rows_before
+        assert sorted(samples_dir.glob("sample_*.db")) == dbs_before
+
     def test_duplicate_rsid_at_distinct_coordinates_raises_before_write(
         self, merge_registry: DBRegistry, monkeypatch: pytest.MonkeyPatch
     ) -> None:

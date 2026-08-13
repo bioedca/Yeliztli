@@ -66,7 +66,8 @@ only the sites where your two sources disagreed.
 
 - **Two source samples at a time.** Merging combines exactly two unmerged source samples. A
   merged sample can remain linked without blocking another run, but pair selection from three or
-  more source uploads isn't supported yet.
+  more source uploads isn't supported yet. A merged sample can't be fed back in as a source: the
+  API rejects that with `422`, so merging is never applied on top of a previous merge.
 - **Same genome build only.** Merging matches sites by coordinate, so both files must be on the
   same build. 23andMe and AncestryDNA are both GRCh37, so this is normally fine — just don't
   try to merge files from different builds.

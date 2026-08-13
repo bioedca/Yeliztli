@@ -336,6 +336,71 @@ class TestMergeCommitRoute:
         )
         assert body["job_id"] == f"job-merged-{body['merged_sample_id']}"
 
+    def test_already_merged_source_returns_422_and_writes_nothing(
+        self, merge_client: TestClient
+    ) -> None:
+        """A genuine merged child cannot be fed back in as a source (#2330).
+
+        Built from a real commit rather than a hand-seeded ``merged_v1`` row, so
+        this exercises the same shape a user could actually reach through the API.
+
+        The merged child's annotation job is deliberately flipped to ``complete``
+        first. Without that, the request already 422s on main — from the
+        annotation-status branch, not from any merged-source check — and a
+        status-code-only assertion would pass with the guard removed. The detail
+        assertion below is the other half of that guard.
+        """
+        from backend.db.connection import get_registry
+
+        first = merge_client.post(
+            f"/api/individuals/{merge_client.individual_id}/merge",  # type: ignore[attr-defined]
+            json={
+                "source_sample_ids": [
+                    merge_client.s1_id,  # type: ignore[attr-defined]
+                    merge_client.s2_id,  # type: ignore[attr-defined]
+                ],
+                "strategy": "flag_only",
+                "display_name": "Jane Doe (merged)",
+            },
+        )
+        assert first.status_code == 201, first.text
+        merged_id = first.json()["merged_sample_id"]
+
+        registry = get_registry()
+        with registry.reference_engine.begin() as conn:
+            conn.execute(
+                jobs.update()
+                .where(jobs.c.sample_id == merged_id, jobs.c.job_type == "annotation")
+                .values(status="complete", progress_pct=100.0)
+            )
+
+        samples_dir = registry.settings.data_dir / "samples"
+        with registry.reference_engine.connect() as conn:
+            rows_before = conn.execute(sa.select(sa.func.count()).select_from(samples)).scalar()
+        dbs_before = sorted(samples_dir.glob("sample_*.db"))
+
+        resp = merge_client.post(
+            f"/api/individuals/{merge_client.individual_id}/merge",  # type: ignore[attr-defined]
+            json={
+                "source_sample_ids": [
+                    merged_id,
+                    merge_client.s1_id,  # type: ignore[attr-defined]
+                ],
+                "strategy": "flag_only",
+                "display_name": "Nested merge",
+            },
+        )
+
+        assert resp.status_code == 422, resp.text
+        detail = resp.json()["detail"]
+        assert "already a merged sample" in detail
+        assert str(merged_id) in detail
+
+        with registry.reference_engine.connect() as conn:
+            rows_after = conn.execute(sa.select(sa.func.count()).select_from(samples)).scalar()
+        assert rows_after == rows_before
+        assert sorted(samples_dir.glob("sample_*.db")) == dbs_before
+
     def test_nonexistent_individual_returns_404(self, merge_client: TestClient) -> None:
         resp = merge_client.post(
             "/api/individuals/9999/merge",
