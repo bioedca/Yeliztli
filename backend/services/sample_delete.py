@@ -30,10 +30,7 @@ from typing import TYPE_CHECKING
 import sqlalchemy as sa
 
 from backend.db.tables import merge_provenance, reannotation_prompts, samples
-from backend.services.sample_operation_lock import (
-    SampleOperationConflictError,
-    merge_sources_in_use,
-)
+from backend.services.sample_operation_lock import sample_delete_lease
 
 if TYPE_CHECKING:
     from backend.db.connection import DBRegistry
@@ -197,12 +194,19 @@ def delete_sample_with_cascade(registry: DBRegistry, sample_id: int) -> DeleteCa
     # Refuse rather than queue: the merge lease can be held for a long time and
     # a DELETE that silently blocks reads as a hang, matching how annotation
     # and export already answer "this sample is busy".
-    busy = merge_sources_in_use(registry.reference_engine, [sample_id])
-    if busy:
-        raise SampleOperationConflictError(
-            f"Sample {sample_id} is being merged; retry the delete once that merge completes."
-        )
+    #
+    # This is a reservation, not a pre-check. Reading "is a merge active?" and
+    # then unlinking would leave the exact window it is meant to close, because
+    # a merge can acquire its own lease in between; both sides check and insert
+    # inside one BEGIN IMMEDIATE so whichever commits first is seen by the other.
+    with sample_delete_lease(registry.reference_engine, [sample_id], operation="Sample delete"):
+        return _delete_sample_with_cascade_locked(registry, sample_id, row)
 
+
+def _delete_sample_with_cascade_locked(
+    registry: DBRegistry, sample_id: int, row: sa.Row
+) -> DeleteCascadeResult:
+    """Body of :func:`delete_sample_with_cascade`, run under the delete lease."""
     children = list_merged_children(registry, sample_id)
 
     for child in children:

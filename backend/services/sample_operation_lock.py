@@ -32,6 +32,9 @@ SAMPLE_EXPORT_JOB_TYPE = "sample_export"
 # batch uuid, which lets deletion ask "is any merge holding this sample?" with a
 # single indexed lookup on ``sample_id`` rather than parsing a composite key.
 SAMPLE_MERGE_JOB_TYPE = "sample_merge"
+# Deletion's own reservation, so its exclusion with a merge is atomic rather
+# than a read-then-act pre-check.
+SAMPLE_DELETE_JOB_TYPE = "sample_delete"
 # The one definition of "this job is still doing something". `cancelling` belongs
 # here: the worker has not acknowledged the cancel yet, so the job may still be
 # writing. Every "is anything in flight?" predicate must use this rather than
@@ -255,24 +258,101 @@ def _finish_merge_lease(
         ) from exc
 
 
-def merge_sources_in_use(engine: sa.Engine, sample_ids: list[int]) -> list[int]:
-    """Return the subset of ``sample_ids`` a merge currently holds as a source.
-
-    Deletion consults this so it never removes a sample a merge is still
-    streaming. Read-only and side-effect free; the caller decides whether an
-    unreadable registry is fatal.
-    """
+def _active_merge_sources(conn: sa.Connection, sample_ids: list[int]) -> list[int]:
+    """Sources a merge currently holds, read inside the caller's transaction."""
     if not sample_ids:
         return []
-    with engine.connect() as conn:
-        rows = conn.execute(
-            sa.select(jobs.c.sample_id)
-            .where(jobs.c.sample_id.in_(sample_ids))
-            .where(jobs.c.job_type == SAMPLE_MERGE_JOB_TYPE)
-            .where(jobs.c.status.in_(ACTIVE_MERGE_STATUSES))
-            .distinct()
-        ).fetchall()
+    rows = conn.execute(
+        sa.select(jobs.c.sample_id)
+        .where(jobs.c.sample_id.in_(sample_ids))
+        .where(jobs.c.job_type == SAMPLE_MERGE_JOB_TYPE)
+        .where(jobs.c.status.in_(ACTIVE_MERGE_STATUSES))
+        .distinct()
+    ).fetchall()
     return sorted(int(row.sample_id) for row in rows)
+
+
+def merge_sources_in_use(engine: sa.Engine, sample_ids: list[int]) -> list[int]:
+    """Report which of ``sample_ids`` a merge holds. Diagnostics only.
+
+    This is a plain read, so it is **not** sufficient to gate a destructive
+    operation: a merge can acquire its lease between the read and the caller's
+    next statement. Deletion must use :func:`sample_delete_lease`, which does
+    its check and its own insert inside one ``BEGIN IMMEDIATE``.
+    """
+    with engine.connect() as conn:
+        return _active_merge_sources(conn, sample_ids)
+
+
+@contextmanager
+def sample_delete_lease(
+    engine: sa.Engine,
+    sample_ids: list[int],
+    *,
+    operation: str,
+) -> Iterator[str]:
+    """Reserve samples for deletion, excluding merges atomically.
+
+    A read-only pre-check cannot close this window: a merge could acquire its
+    own lease between the check and the first ``unlink``, then stream a
+    database that deletion is concurrently removing. Both sides therefore
+    check-and-insert inside ``BEGIN IMMEDIATE``, so whichever transaction
+    commits first is observed by the other.
+
+    Scoped deliberately to merge-vs-delete exclusion. A broader deletion lease
+    covering annotation, export and LAI is #2314's; this reserves the same
+    ``jobs`` registry under its own job type, so the two compose rather than
+    conflict.
+    """
+    lease_id = str(uuid.uuid4())
+    now = datetime.now(UTC)
+    ordered_ids = sorted(set(sample_ids))
+    try:
+        with _immediate_transaction(engine) as conn:
+            busy = _active_merge_sources(conn, ordered_ids)
+            if busy:
+                raise SampleOperationConflictError(
+                    f"Sample {busy[0]} is being merged; "
+                    "retry the delete once that merge completes."
+                )
+            for sample_id in ordered_ids:
+                conn.execute(
+                    jobs.insert().values(
+                        job_id=f"{lease_id}:{sample_id}",
+                        sample_id=sample_id,
+                        job_type=SAMPLE_DELETE_JOB_TYPE,
+                        status="running",
+                        progress_pct=0.0,
+                        message=operation,
+                        created_at=now,
+                        updated_at=now,
+                    )
+                )
+    except SampleOperationConflictError:
+        raise
+    except sa.exc.SQLAlchemyError as exc:
+        raise SampleOperationUnavailableError(
+            f"Unable to reserve samples {ordered_ids} for deletion; nothing was removed."
+        ) from exc
+
+    try:
+        yield lease_id
+    finally:
+        # The rows this lease inserted name samples that no longer exist on the
+        # success path, so clear them outright rather than leaving `failed`
+        # rows pointing at deleted ids.
+        try:
+            with engine.begin() as conn:
+                conn.execute(
+                    jobs.delete()
+                    .where(jobs.c.job_id.startswith(f"{lease_id}:"))
+                    .where(jobs.c.job_type == SAMPLE_DELETE_JOB_TYPE)
+                )
+        except sa.exc.SQLAlchemyError:
+            logger.exception(
+                "sample_delete_lease_cleanup_failed",
+                extra={"lease_id": lease_id, "sample_ids": ordered_ids},
+            )
 
 
 @contextmanager
@@ -306,6 +386,20 @@ def sample_merge_lease(
                     raise SampleOperationConflictError(
                         f"Sample {sample_id} is already being merged; "
                         "retry once that merge completes."
+                    )
+                # Symmetry is what makes the exclusion mutual: without this a
+                # merge could start against a sample whose deletion already
+                # holds a reservation and is midway through unlinking files.
+                deleting = conn.execute(
+                    sa.select(jobs.c.job_id)
+                    .where(jobs.c.sample_id == sample_id)
+                    .where(jobs.c.job_type == SAMPLE_DELETE_JOB_TYPE)
+                    .where(jobs.c.status.in_(ACTIVE_MERGE_STATUSES))
+                    .limit(1)
+                ).fetchone()
+                if deleting is not None:
+                    raise SampleOperationConflictError(
+                        f"Sample {sample_id} is being deleted; the merge was not started."
                     )
             for sample_id in ordered_ids:
                 conn.execute(

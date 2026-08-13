@@ -56,10 +56,13 @@ from backend.services.sample_merge import (
     recover_unpublished_merge_artifacts,
 )
 from backend.services.sample_operation_lock import (
+    SAMPLE_MERGE_JOB_TYPE,
     SampleOperationConflictError,
     merge_sources_in_use,
+    sample_delete_lease,
     sample_merge_lease,
 )
+from backend.tasks.huey_tasks import recover_orphaned_jobs
 
 # ── Test-scoped registry that the singleton-using ``staleness`` service sees ──
 #
@@ -2198,6 +2201,11 @@ class TestReMergeHashInvariants:
         assert json.loads(reverse_prov.source_file_hashes) == ["hash_s2", "hash_s1"]
 
 
+def _snapshot_jobs_row_count(registry: DBRegistry) -> int:
+    with registry.reference_engine.connect() as conn:
+        return conn.execute(sa.select(sa.func.count()).select_from(jobs)).scalar_one()
+
+
 class TestCrashSafePublication:
     """#2329: the merged sample is discoverable only once it is complete.
 
@@ -2376,3 +2384,77 @@ class TestCrashSafePublication:
 
         assert recover_unpublished_merge_artifacts(_UnreadableRegistry()) == []
         assert orphan.exists(), "an unreadable registry must not authorise deletion"
+
+    def test_delete_reserves_atomically_rather_than_pre_checking(
+        self, merged_setup: tuple[DBRegistry, int, int, int]
+    ) -> None:
+        """A merge starting after deletion's check must still be excluded.
+
+        This is the case a read-only pre-check cannot cover: the guard reads
+        "no merge is active", and a merge acquires its lease before the first
+        unlink. Deletion therefore holds its own reservation across the whole
+        cascade, so the merge is refused for as long as the delete runs.
+        """
+        registry, _individual_id, s1_id, s2_id = merged_setup
+
+        with sample_delete_lease(registry.reference_engine, [s1_id], operation="Sample delete"):
+            # Deletion is mid-cascade. A merge that starts now must lose.
+            with pytest.raises(SampleOperationConflictError, match="being deleted"):
+                with sample_merge_lease(
+                    registry.reference_engine, [s1_id, s2_id], operation="Sample merge"
+                ):
+                    pass
+
+        # Released on exit, so an ordinary merge proceeds afterwards.
+        with sample_merge_lease(
+            registry.reference_engine, [s1_id, s2_id], operation="Sample merge"
+        ):
+            pass
+
+    def test_delete_lease_leaves_no_rows_behind(
+        self, merged_setup: tuple[DBRegistry, int, int, int]
+    ) -> None:
+        """Its rows name samples that no longer exist, so they are cleared."""
+        registry, _individual_id, s1_id, _s2_id = merged_setup
+        before = _snapshot_jobs_row_count(registry)
+
+        with sample_delete_lease(registry.reference_engine, [s1_id], operation="Sample delete"):
+            assert _snapshot_jobs_row_count(registry) == before + 1
+
+        assert _snapshot_jobs_row_count(registry) == before
+
+    def test_a_crashed_merge_lease_is_recovered_at_startup(
+        self, merged_setup: tuple[DBRegistry, int, int, int]
+    ) -> None:
+        """A killed process must not lock its sources forever.
+
+        Without recovery the stranded ``running`` rows make every later merge
+        report "already being merged" and every delete answer 409 permanently.
+        """
+        registry, _individual_id, s1_id, s2_id = merged_setup
+        now = datetime.now(UTC)
+        with registry.reference_engine.begin() as conn:
+            for sample_id in (s1_id, s2_id):
+                conn.execute(
+                    jobs.insert().values(
+                        job_id=f"stranded:{sample_id}",
+                        sample_id=sample_id,
+                        job_type=SAMPLE_MERGE_JOB_TYPE,
+                        status="running",
+                        progress_pct=0.0,
+                        message="Sample merge",
+                        created_at=now,
+                        updated_at=now,
+                    )
+                )
+
+        assert merge_sources_in_use(registry.reference_engine, [s1_id, s2_id]) == sorted(
+            [s1_id, s2_id]
+        )
+        with pytest.raises(SampleOperationConflictError):
+            delete_sample_with_cascade(registry, s1_id)
+
+        recover_orphaned_jobs(registry.reference_engine)
+
+        assert merge_sources_in_use(registry.reference_engine, [s1_id, s2_id]) == []
+        assert delete_sample_with_cascade(registry, s1_id) is not None

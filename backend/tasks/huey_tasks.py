@@ -158,10 +158,19 @@ def recover_orphaned_jobs(engine) -> int:
     and must be recovered by this sweep as well.
     """
     from backend.db.tables import jobs
-    from backend.services.sample_operation_lock import SAMPLE_EXPORT_JOB_TYPE
+    from backend.services.sample_operation_lock import (
+        SAMPLE_EXPORT_JOB_TYPE,
+        SAMPLE_MERGE_JOB_TYPE,
+    )
 
     recoverable_job_types = {
         SAMPLE_EXPORT_JOB_TYPE,
+        # A merge lease is synchronous and API-owned exactly like an export
+        # lease, so an API restart proves it abandoned. Without this a process
+        # killed mid-merge strands `running` lease rows forever: every later
+        # merge on either source reports "already being merged" and every
+        # delete answers 409, permanently (#2329).
+        SAMPLE_MERGE_JOB_TYPE,
         "database_download",
         "download",
     }
