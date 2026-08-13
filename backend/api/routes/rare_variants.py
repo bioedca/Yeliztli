@@ -13,17 +13,20 @@ from __future__ import annotations
 import io
 import json
 import logging
-from collections.abc import Iterator
+import tempfile
+from collections.abc import Iterator, Sequence
 from datetime import date
 from itertools import chain
-from typing import Any
+from typing import IO, Any
 
 import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
+from starlette.background import BackgroundTask
 from starlette.responses import StreamingResponse
 
 from backend.analysis.pharmacogenomics import (
+    ResponsePayloadHeldPairScanner,
     is_patient_presentable_finding_payload,
     is_patient_presentable_rendered_text_chunks,
     is_patient_presentable_response_payload,
@@ -200,8 +203,97 @@ def _payload_gate_projection(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+# Rows pulled from SQLite per round trip. Matches ``_SQL_EXPORT_BATCH`` in
+# backend/api/routes/export.py so both bounded producers age together.
+_RARE_VARIANT_EXPORT_BATCH = 5_000
+
+# Rendered TSV characters kept in RAM before the replay spool moves to a
+# temporary file. ~4 MB of body — roughly 40k typical rows — so an ordinary
+# export never touches disk, and a pathological one still cannot grow the
+# process without bound. This is the documented threshold #2328 asks for:
+# peak memory is a function of this constant, not of the result count.
+_RARE_VARIANT_TSV_SPOOL_MAX_CHARS = 4_000_000
+
+
+class _TsvReplaySpool:
+    """Retain rendered TSV lines for one replay, bounded by a fixed threshold.
+
+    The export cannot emit anything until the whole-response verdict is known,
+    and the verdict needs the last row — so the already-rendered bytes must
+    either be retained or re-derived. Re-deriving means a second query, which
+    then needs a transaction held open across a client-paced download to stay
+    TOCTOU-free; under a non-WAL configuration that read lock blocks writers for
+    as long as the client takes. Retaining is the cheaper hazard, provided the
+    retention is bounded — which is what this is.
+
+    Overflow goes to :func:`tempfile.TemporaryFile`, which POSIX creates 0600
+    and unlinks immediately, so the spill has no reachable path and disappears
+    when the handle closes. It is placed inside the configured data directory
+    rather than a shared temp dir: the same findings already live at rest two
+    files away in ``sample_<id>.db``, so this keeps the spill inside the same
+    trust boundary instead of widening it to ``/tmp``.
+
+    Lines are length-framed on disk rather than newline-delimited, so replay
+    reproduces the *exact* chunk boundaries that were validated even when a
+    cell value contains a newline or carriage return. Splitting on newlines
+    would still emit identical bytes, but it would silently re-chunk such a
+    row, and ``test_rare_tsv_preflights_then_emits_exact_row_chunks`` exists to
+    pin chunk shape.
+    """
+
+    def __init__(self) -> None:
+        self._max_chars = _RARE_VARIANT_TSV_SPOOL_MAX_CHARS
+        self._lines: list[str] = []
+        self._chars = 0
+        self._file: IO[str] | None = None
+
+    def append(self, line: str) -> None:
+        """Retain one already-rendered data line."""
+        if self._file is None:
+            if self._chars + len(line) <= self._max_chars:
+                self._lines.append(line)
+                self._chars += len(line)
+                return
+            self._overflow()
+        assert self._file is not None  # noqa: S101 — narrowed by _overflow above
+        self._file.write(f"{len(line)}\n{line}")
+
+    def _overflow(self) -> None:
+        self._file = tempfile.TemporaryFile(
+            mode="w+",
+            encoding="utf-8",
+            newline="",
+            dir=get_registry().settings.data_dir,
+        )
+        for buffered in self._lines:
+            self._file.write(f"{len(buffered)}\n{buffered}")
+        self._lines.clear()
+        self._chars = 0
+
+    def replay(self) -> Iterator[str]:
+        """Yield the retained lines once, in append order and chunk-for-chunk."""
+        if self._file is None:
+            yield from self._lines
+            return
+        self._file.flush()
+        self._file.seek(0)
+        while True:
+            framing = self._file.readline()
+            if not framing:
+                return
+            yield self._file.read(int(framing))
+
+    def close(self) -> None:
+        """Release the buffer and the spill file. Safe to call repeatedly."""
+        self._lines.clear()
+        self._chars = 0
+        if self._file is not None:
+            self._file.close()
+            self._file = None
+
+
 def _iter_rare_variant_tsv_data_lines(
-    rows: list[dict[str, Any]],
+    rows: Sequence[dict[str, Any]],
     columns: tuple[str, ...],
 ) -> Iterator[str]:
     """Yield canonical TSV lines after fail-closed scalar validation."""
@@ -503,43 +595,6 @@ def export_rare_variants_tsv(
     """
     sample_engine = _get_sample_engine(sample_id)
 
-    with sample_engine.connect() as conn:
-        rows = conn.execute(
-            sa.select(findings)
-            .where(findings.c.module == "rare_variants")
-            .order_by(findings.c.evidence_level.desc(), findings.c.gene_symbol)
-        ).fetchall()
-
-    export_rows: list[dict[str, Any]] = []
-    for row in rows:
-        if not is_patient_presentable_finding_payload(row._mapping):
-            continue
-        detail = _parse_detail_json(row.id, row.detail_json)
-        export_rows.append(
-            {
-                "rsid": row.rsid or "",
-                "gene_symbol": row.gene_symbol or "",
-                "category": row.category or "",
-                "evidence_level": row.evidence_level or 1,
-                "zygosity": row.zygosity or "",
-                "clinvar_significance": row.clinvar_significance or "",
-                "conditions": row.conditions or "",
-                "consequence": detail.get("consequence", ""),
-                "gnomad_af_global": detail.get("af_global"),
-                "cadd_phred": detail.get("cadd_phred"),
-                "revel": detail.get("revel"),
-                "finding_text": row.finding_text or "",
-            }
-        )
-
-    # Rows have already passed their own stored-payload gate. Recheck the
-    # decoded export DTOs as one response so safe fragments cannot reassemble
-    # a held prescribing pair across separate source records.
-    if not is_patient_presentable_response_payload(
-        [_payload_gate_projection(row) for row in export_rows]
-    ):
-        export_rows = []
-
     tsv_columns = (
         "rsid",
         "gene_symbol",
@@ -555,29 +610,108 @@ def export_rare_variants_tsv(
         "finding_text",
     )
     header = "\t".join(tsv_columns) + "\n"
+    response_headers = {
+        "Content-Disposition": f"attachment; filename=rare_variants_sample_{sample_id}.tsv"
+    }
 
-    # The structured response gate above preserves record boundaries, but TSV
-    # separators are part of the patient-visible text. Scan the exact retained
-    # data lines before yielding any of them so tabs/newlines cannot join safe
-    # fragments into a held identifier, including across omitted malformed rows.
-    # The fixed header is application metadata and remains outside this gate.
-    data_lines: Iterator[str]
-    if is_patient_presentable_rendered_text_chunks(
-        _iter_rare_variant_tsv_data_lines(export_rows, tsv_columns)
-    ):
-        # Render a second time from the same immutable in-memory DTOs. This avoids
-        # retaining or copying the complete TSV body while keeping validation and
-        # emission byte-identical and preventing a late unsafe row from leaking.
-        data_lines = _iter_rare_variant_tsv_data_lines(export_rows, tsv_columns)
-    else:
-        data_lines = iter(())
+    # Both response-wide gates fold incrementally, so nothing proportional to the
+    # result count is retained to reach a verdict: the structured gate keeps a
+    # constant number of booleans per held pair, and the rendered-text gate has
+    # always been a chunk scanner with fixed-width state. Only the rendered bytes
+    # are retained, in a spool that is bounded by a documented threshold.
+    payload_scanner = ResponsePayloadHeldPairScanner()
+    spool = _TsvReplaySpool()
+
+    def _render_and_retain() -> Iterator[str]:
+        """Stream every safe data line once, feeding both gates and the spool."""
+        with sample_engine.connect() as conn:
+            result = conn.execute(
+                sa.select(findings)
+                .where(findings.c.module == "rare_variants")
+                # `id` breaks ties so the order is total. It matters here
+                # because the spool replays what was validated: a partial order
+                # would leave the emitted body dependent on SQLite's row
+                # ordering rather than on this clause. `/findings` already
+                # orders this way.
+                .order_by(
+                    findings.c.evidence_level.desc(),
+                    findings.c.gene_symbol,
+                    findings.c.id,
+                )
+            )
+            while True:
+                batch = result.fetchmany(_RARE_VARIANT_EXPORT_BATCH)
+                if not batch:
+                    return
+                for row in batch:
+                    if not is_patient_presentable_finding_payload(row._mapping):
+                        continue
+                    detail = _parse_detail_json(row.id, row.detail_json)
+                    export_row = {
+                        "rsid": row.rsid or "",
+                        "gene_symbol": row.gene_symbol or "",
+                        "category": row.category or "",
+                        "evidence_level": row.evidence_level or 1,
+                        "zygosity": row.zygosity or "",
+                        "clinvar_significance": row.clinvar_significance or "",
+                        "conditions": row.conditions or "",
+                        "consequence": detail.get("consequence", ""),
+                        "gnomad_af_global": detail.get("af_global"),
+                        "cadd_phred": detail.get("cadd_phred"),
+                        "revel": detail.get("revel"),
+                        "finding_text": row.finding_text or "",
+                    }
+                    # Rows have already passed their own stored-payload gate.
+                    # Fold the decoded export DTO into the response-wide gate so
+                    # safe fragments cannot reassemble a held prescribing pair
+                    # across separate source records.
+                    payload_scanner.feed(_payload_gate_projection(export_row))
+                    # A malformed container is dropped here, exactly as before,
+                    # and is therefore absent from the spool and from the
+                    # rendered scan alike.
+                    for line in _iter_rare_variant_tsv_data_lines((export_row,), tsv_columns):
+                        spool.append(line)
+                        yield line
+
+    # The structured gate preserves record boundaries, but TSV separators are
+    # part of the patient-visible text, so the exact rendered lines are scanned
+    # too — tabs and newlines must not join safe fragments into a held
+    # identifier, including across omitted malformed rows. The fixed header is
+    # application metadata and stays outside both gates.
+    #
+    # This runs to completion inside the handler, before any response object
+    # exists, so no patient-derived chunk can be emitted ahead of the verdict.
+    try:
+        rendered_safe = is_patient_presentable_rendered_text_chunks(_render_and_retain())
+        safe = rendered_safe and payload_scanner.is_presentable()
+    except BaseException:
+        spool.close()
+        raise
+
+    if not safe:
+        spool.close()
+        return StreamingResponse(
+            iter((header,)),
+            media_type="text/tab-separated-values",
+            headers=response_headers,
+        )
+
+    def _emit() -> Iterator[str]:
+        # Replays the exact strings the gates saw — not a re-query and not a
+        # re-render — so validation and emission observe the same immutable
+        # data by construction and no TOCTOU gap exists. The `finally` covers
+        # client cancellation, which Starlette surfaces by closing the
+        # generator; `BackgroundTask` covers a response that is never iterated.
+        try:
+            yield from spool.replay()
+        finally:
+            spool.close()
 
     return StreamingResponse(
-        chain((header,), data_lines),
+        chain((header,), _emit()),
         media_type="text/tab-separated-values",
-        headers={
-            "Content-Disposition": f"attachment; filename=rare_variants_sample_{sample_id}.tsv"
-        },
+        headers=response_headers,
+        background=BackgroundTask(spool.close),
     )
 
 

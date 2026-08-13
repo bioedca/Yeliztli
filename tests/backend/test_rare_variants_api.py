@@ -1258,6 +1258,74 @@ class TestTSVExport:
             data_cols = line.split("\t")
             assert len(data_cols) == len(header_cols)
 
+    def test_tsv_export_bytes_are_identical_when_the_spool_spills_to_disk(
+        self,
+        rare_client: TestClient,
+        sample_db_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """The bounded spool's overflow path must not change one byte (#2328).
+
+        Runs the same export twice through the real route: once with the
+        production threshold, so the rendered lines stay in memory, and once
+        with the threshold at zero, so every line round-trips through the
+        temporary file.
+        """
+        from backend.api.routes import rare_variants
+
+        seed_rare_variant_findings(sample_db_path)
+
+        in_memory = rare_client.get("/api/analysis/rare-variants/export/tsv?sample_id=1")
+        monkeypatch.setattr(rare_variants, "_RARE_VARIANT_TSV_SPOOL_MAX_CHARS", 0)
+        spilled = rare_client.get("/api/analysis/rare-variants/export/tsv?sample_id=1")
+
+        assert in_memory.status_code == 200
+        assert spilled.status_code == 200
+        assert spilled.content == in_memory.content
+        lines = spilled.text.splitlines()
+        assert len(lines[0].split("\t")) == 12
+        assert len(lines) == 3, "both seeded rare-variant rows must survive the spill"
+        assert spilled.text.endswith("\n")
+
+    def test_tsv_export_spill_file_is_unlinked_and_closed(
+        self,
+        rare_client: TestClient,
+        sample_db_path: Path,
+        tmp_data_dir: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """A spilled export leaves no readable artefact behind (#2328).
+
+        Wrapping ``TemporaryFile`` is what makes this discriminating: asserting
+        only that no new file appears would pass just as happily if the spill
+        never ran.
+        """
+        import tempfile
+
+        from backend.api.routes import rare_variants
+
+        seed_rare_variant_findings(sample_db_path)
+        monkeypatch.setattr(rare_variants, "_RARE_VARIANT_TSV_SPOOL_MAX_CHARS", 0)
+
+        created: list[object] = []
+        real_temporary_file = tempfile.TemporaryFile
+
+        def _recording_temporary_file(*args: object, **kwargs: object) -> object:
+            handle = real_temporary_file(*args, **kwargs)
+            created.append(handle)
+            return handle
+
+        monkeypatch.setattr(tempfile, "TemporaryFile", _recording_temporary_file)
+
+        before = sorted(path.name for path in tmp_data_dir.iterdir())
+        resp = rare_client.get("/api/analysis/rare-variants/export/tsv?sample_id=1")
+        after = sorted(path.name for path in tmp_data_dir.iterdir())
+
+        assert resp.status_code == 200
+        assert created, "the forced-overflow threshold must actually spill to disk"
+        assert all(handle.closed for handle in created)  # type: ignore[attr-defined]
+        assert after == before, "the spill must leave no entry in the data directory"
+
 
 # ═══════════════════════════════════════════════════════════════════════
 # GET /api/analysis/rare-variants/export/vcf

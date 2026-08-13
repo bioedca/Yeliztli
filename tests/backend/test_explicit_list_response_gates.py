@@ -30,34 +30,64 @@ from backend.api.routes import (
 class _Rows:
     def __init__(self, rows: list[SimpleNamespace]) -> None:
         self._rows = rows
+        self._cursor = 0
+        self.fetchmany_sizes: list[int] = []
 
     def fetchall(self) -> list[SimpleNamespace]:
         return self._rows
+
+    def fetchmany(self, size: int) -> list[SimpleNamespace]:
+        """Serve bounded batches, recording each requested size.
+
+        Added for #2328: the TSV export must consume its result set in bounded
+        batches rather than materialising it, and a double that only offers
+        ``fetchall`` cannot tell the two apart.
+        """
+        self.fetchmany_sizes.append(size)
+        batch = self._rows[self._cursor : self._cursor + size]
+        self._cursor += len(batch)
+        return batch
 
     def __iter__(self) -> Iterator[SimpleNamespace]:
         return iter(self._rows)
 
 
+class _UnboundedFetchIsFatalRows(_Rows):
+    """A result set that refuses to be materialised in one call."""
+
+    def fetchall(self) -> list[SimpleNamespace]:
+        raise AssertionError("the export must not call fetchall() on the result set")
+
+
 class _Connection:
-    def __init__(self, rows: list[SimpleNamespace]) -> None:
+    def __init__(self, rows: list[SimpleNamespace], result_cls: type[_Rows] = _Rows) -> None:
         self._rows = rows
+        self._result_cls = result_cls
+        self.results: list[_Rows] = []
+        self.closed = False
 
     def __enter__(self) -> _Connection:
         return self
 
     def __exit__(self, *_args: object) -> None:
-        return None
+        self.closed = True
 
     def execute(self, _statement: object) -> _Rows:
-        return _Rows(self._rows)
+        result = self._result_cls(self._rows)
+        self.results.append(result)
+        return result
 
 
 class _Engine:
-    def __init__(self, rows: list[SimpleNamespace]) -> None:
+    def __init__(self, rows: list[SimpleNamespace], result_cls: type[_Rows] = _Rows) -> None:
         self._rows = rows
+        self._result_cls = result_cls
+        self.connections: list[_Connection] = []
 
     def connect(self) -> _Connection:
-        return _Connection(self._rows)
+        connection = _Connection(self._rows, self._result_cls)
+        self.connections.append(connection)
+        return connection
 
 
 def _finding_row(**overrides: Any) -> SimpleNamespace:
@@ -393,3 +423,143 @@ def test_rare_tsv_preflights_then_emits_exact_row_chunks(
         "rs_second",
     ]
     assert all(line.endswith("\n") for line in scanned_lines)
+
+
+# ══════════════════════════════════════════════════════════════════════
+# Bounded TSV export producer (#2328)
+# ══════════════════════════════════════════════════════════════════════
+
+
+def test_rare_tsv_export_never_materialises_the_result_set(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The export consumes bounded batches, never one whole-result fetch.
+
+    The double raises on ``fetchall``, so this fails on the pre-#2328 handler
+    rather than merely observing that the new one happens to batch.
+    """
+    rows = [
+        _finding_row(id=index, module="rare_variants", rsid=f"rs_{index}", gene_symbol="SAFE1")
+        for index in range(1, 12)
+    ]
+    _assert_individually_presentable(rows)
+    engine = _Engine(rows, result_cls=_UnboundedFetchIsFatalRows)
+    monkeypatch.setattr(rare_variants, "_get_sample_engine", lambda _sample_id: engine)
+    monkeypatch.setattr(rare_variants, "StreamingResponse", _CapturedStreamingResponse)
+
+    response = rare_variants.export_rare_variants_tsv(sample_id=1)
+
+    assert len(response.chunks) == 1 + len(rows), "every safe row must still be emitted"
+    connection = engine.connections[0]
+    result = connection.results[0]
+    assert result.fetchmany_sizes, "the result set must be read in batches"
+    assert set(result.fetchmany_sizes) == {rare_variants._RARE_VARIANT_EXPORT_BATCH}
+    assert connection.closed, "the read connection must not outlive the handler"
+
+
+def test_rare_tsv_export_reaches_its_verdict_without_a_whole_response_list(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """No all-row projection is built: the whole-list gate is never called.
+
+    Fails on the pre-#2328 handler, which passes
+    ``[_payload_gate_projection(row) for row in export_rows]`` to it.
+    """
+    rows = [
+        _finding_row(id=1, module="rare_variants", rsid="rs_first", gene_symbol="SAFE1"),
+        _finding_row(id=2, module="rare_variants", rsid="rs_second", gene_symbol="SAFE2"),
+    ]
+    _assert_individually_presentable(rows)
+    monkeypatch.setattr(rare_variants, "_get_sample_engine", lambda _sample_id: _Engine(rows))
+    monkeypatch.setattr(rare_variants, "StreamingResponse", _CapturedStreamingResponse)
+
+    def _refuse(_value: object) -> bool:
+        raise AssertionError("the export must not assemble the whole response as a list")
+
+    monkeypatch.setattr(rare_variants, "is_patient_presentable_response_payload", _refuse)
+
+    response = rare_variants.export_rare_variants_tsv(sample_id=1)
+
+    assert len(response.chunks) == 3
+    assert "rs_first" in response.content
+    assert "rs_second" in response.content
+
+
+def test_rare_tsv_export_withholds_a_cross_row_pair_through_the_spill_file(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The cross-record verdict survives the disk-overflow path.
+
+    Same two rows as ``test_rare_findings_and_exports_withhold_cross_row_pair``,
+    with the spool threshold forced to zero so every line goes through the
+    temporary file. A fold that lost the free-text gene or drug across rows
+    would emit both.
+    """
+    rows = [
+        _finding_row(
+            id=1,
+            module="rare_variants",
+            category="clinvar_pathogenic",
+            gene_symbol="CYP2D6",
+            detail_json=json.dumps({"chrom": "1", "pos": 100, "ref": "A", "alt": "G"}),
+        ),
+        _finding_row(
+            id=2,
+            module="rare_variants",
+            category="clinvar_pathogenic",
+            gene_symbol="SAFE1",
+            detail_json=json.dumps({"consequence": "tamoxifen"}),
+        ),
+    ]
+    _assert_individually_presentable(rows)
+    monkeypatch.setattr(rare_variants, "_get_sample_engine", lambda _sample_id: _Engine(rows))
+    monkeypatch.setattr(rare_variants, "StreamingResponse", _CapturedStreamingResponse)
+    monkeypatch.setattr(rare_variants, "_RARE_VARIANT_TSV_SPOOL_MAX_CHARS", 0)
+
+    response = rare_variants.export_rare_variants_tsv(sample_id=1)
+
+    assert response.content.count("\n") == 1
+    assert "CYP2D6" not in response.content
+    assert "tamoxifen" not in response.content
+
+
+def test_rare_tsv_export_replays_exact_chunks_through_the_spill_file(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Spilling to disk must not re-chunk or alter a single byte.
+
+    The framing is length-prefixed precisely so a cell containing a newline
+    replays as one chunk; splitting the spill on newlines would pass a
+    byte-equality check and still break chunk shape here.
+    """
+    rows = [
+        _finding_row(
+            id=1,
+            module="rare_variants",
+            rsid="rs_first",
+            gene_symbol="SAFE1",
+            finding_text="line one\nline two\rline three",
+        ),
+        _finding_row(
+            id=2,
+            module="rare_variants",
+            rsid="rs_second",
+            gene_symbol="SAFE2",
+            detail_json=json.dumps({"consequence": "missense_variant"}),
+        ),
+    ]
+    _assert_individually_presentable(rows)
+    monkeypatch.setattr(rare_variants, "StreamingResponse", _CapturedStreamingResponse)
+
+    def _export() -> _CapturedStreamingResponse:
+        monkeypatch.setattr(rare_variants, "_get_sample_engine", lambda _sample_id: _Engine(rows))
+        return rare_variants.export_rare_variants_tsv(sample_id=1)
+
+    monkeypatch.setattr(rare_variants, "_RARE_VARIANT_TSV_SPOOL_MAX_CHARS", 4_000_000)
+    in_memory = _export()
+    monkeypatch.setattr(rare_variants, "_RARE_VARIANT_TSV_SPOOL_MAX_CHARS", 0)
+    spilled = _export()
+
+    assert in_memory.chunks == spilled.chunks
+    assert len(in_memory.chunks) == 3
+    assert "line one\nline two\rline three" in in_memory.content
