@@ -519,7 +519,6 @@ def export_rare_variants_tsv(
     ):
         export_rows = []
 
-    buf = io.StringIO()
     tsv_columns = [
         "rsid",
         "gene_symbol",
@@ -534,7 +533,8 @@ def export_rare_variants_tsv(
         "revel",
         "finding_text",
     ]
-    buf.write("\t".join(tsv_columns) + "\n")
+    header = "\t".join(tsv_columns) + "\n"
+    data_buf = io.StringIO()
 
     for row in export_rows:
         raw_values = [row[column] for column in tsv_columns]
@@ -547,10 +547,19 @@ def export_rare_variants_tsv(
         ):
             continue
         values = ["" if value is None else str(value) for value in raw_values]
-        buf.write("\t".join(values) + "\n")
+        data_buf.write("\t".join(values) + "\n")
+
+    # The structured response gate above preserves record boundaries, but TSV
+    # separators are part of the final patient-visible text. Recheck the exact
+    # rendered data section as one string so tabs/newlines cannot join separately
+    # safe fragments into a held identifier. The fixed header is application
+    # metadata, not patient data, and is deliberately outside this final gate.
+    rendered_data = data_buf.getvalue()
+    if not is_patient_presentable_response_payload(rendered_data):
+        rendered_data = ""
 
     return StreamingResponse(
-        iter([buf.getvalue()]),
+        iter([header + rendered_data]),
         media_type="text/tab-separated-values",
         headers={
             "Content-Disposition": f"attachment; filename=rare_variants_sample_{sample_id}.tsv"
