@@ -249,26 +249,27 @@ class _TsvReplaySpool:
 
     def append(self, line: str) -> None:
         """Retain one already-rendered data line."""
-        if self._file is None:
-            if self._chars + len(line) <= self._max_chars:
-                self._lines.append(line)
-                self._chars += len(line)
-                return
-            self._overflow()
-        assert self._file is not None  # noqa: S101 — narrowed by _overflow above
-        self._file.write(f"{len(line)}\n{line}")
+        if self._file is None and self._chars + len(line) <= self._max_chars:
+            self._lines.append(line)
+            self._chars += len(line)
+            return
+        spill = self._file or self._overflow()
+        spill.write(f"{len(line)}\n{line}")
 
-    def _overflow(self) -> None:
-        self._file = tempfile.TemporaryFile(
+    def _overflow(self) -> IO[str]:
+        """Move everything buffered so far onto disk and return the handle."""
+        spill = tempfile.TemporaryFile(
             mode="w+",
             encoding="utf-8",
             newline="",
             dir=get_registry().settings.data_dir,
         )
         for buffered in self._lines:
-            self._file.write(f"{len(buffered)}\n{buffered}")
+            spill.write(f"{len(buffered)}\n{buffered}")
         self._lines.clear()
         self._chars = 0
+        self._file = spill
+        return spill
 
     def replay(self) -> Iterator[str]:
         """Yield the retained lines once, in append order and chunk-for-chunk."""
