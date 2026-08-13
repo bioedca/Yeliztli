@@ -638,7 +638,10 @@ def is_patient_presentable_rendered_text_chunks(chunks: Iterable[str]) -> bool:
     for chunk in chunks:
         if not isinstance(chunk, str):
             return False
-        scanner.feed(chunk)
+        # Strip subclass behavior before iteration. ``str.__str__`` returns the
+        # exact built-in string buffer that ``"".join`` would serialize, so a
+        # hostile ``str`` subclass cannot make validation inspect other text.
+        scanner.feed(str.__str__(chunk))
     return scanner.is_presentable()
 
 

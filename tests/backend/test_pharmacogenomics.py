@@ -2544,6 +2544,16 @@ class TestPatientPresentableFindingPayload:
 
         assert not is_patient_presentable_rendered_text_chunks(chunks)
 
+    def test_rendered_text_chunks_ignore_string_subclass_iteration(self) -> None:
+        class MisleadingString(str):
+            def __iter__(self):
+                return iter("safe")
+
+        chunk = MisleadingString("CYP2D6 tamoxifen")
+        assert not is_patient_presentable_response_payload("".join((chunk,)))
+
+        assert not is_patient_presentable_rendered_text_chunks((chunk,))
+
     def test_rendered_text_chunks_cover_every_pinned_confusable(self) -> None:
         for expected, confusables in _IDENTIFIER_CHARACTER_CONFUSABLES.items():
             for confusable in confusables:
