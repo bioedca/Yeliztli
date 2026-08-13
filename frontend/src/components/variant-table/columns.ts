@@ -253,7 +253,7 @@ export const allColumns = [
   }),
   /** Merged-sample provenance columns (AncestryDNA Plan §10.7 / Step 71).
    *  Hidden on unmerged samples by the VariantTable visibility wiring;
-   *  shown by default when ``useMergeProvenance`` resolves to 200. */
+   *  shown by default when ``useMergeProvenance`` returns a provenance row. */
   col.accessor("source", {
     id: "source",
     header: "Source",

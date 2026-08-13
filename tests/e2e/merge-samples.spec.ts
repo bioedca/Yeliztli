@@ -462,13 +462,9 @@ async function setupRoutes(
       await route.fulfill(jsonRoute(provenance))
     },
   )
-  // Unmerged sources return 404 for merge-provenance (Plan §10.6 contract).
+  // Existing unmerged sources return 200 with JSON null (Plan §10.6 contract).
   await page.route(/\/api\/samples\/[12]\/merge-provenance$/, async (route) => {
-    await route.fulfill({
-      status: 404,
-      contentType: 'application/json',
-      body: JSON.stringify({ detail: 'Sample is not a merged sample' }),
-    })
+    await route.fulfill(jsonRoute(null))
   })
 
   await page.route(

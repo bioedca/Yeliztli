@@ -23,7 +23,7 @@ import {
 } from "@/api/variants"
 import { useColumnPresets } from "@/api/columnPresets"
 import { useBatchLiftover } from "@/api/liftover"
-import { useMergeProvenance } from "@/api/samples"
+import { SamplesApiError, useMergeProvenance } from "@/api/samples"
 import { useTags } from "@/api/tags"
 import { SCORE_TOOLTIP_AFFORDANCE } from "@/lib/inSilicoScoreInfo"
 import { cn } from "@/lib/utils"
@@ -157,10 +157,23 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
   const [sourceFilter, setSourceFilter] = useState<SourceTag | null>(null)
   const [concordanceFilter, setConcordanceFilter] = useState<ConcordanceTag | null>(null)
 
-  // Detect merged-sample status. The hook returns 404 for unmerged samples,
-  // which we treat as "not merged" without surfacing the error to the user.
-  const { data: provenance, error: provenanceError } = useMergeProvenance(sampleId)
-  const isMergedSample = !!provenance && !provenanceError
+  // A successful null response is the ordinary unmerged-sample state.
+  const provenanceQuery = useMergeProvenance(sampleId)
+  const { data: provenance, error: provenanceError } = provenanceQuery
+  const pendingFailure =
+    provenanceQuery.failureReason instanceof SamplesApiError &&
+    provenanceQuery.failureReason.isMergeProvenancePending()
+  const terminalPendingFailure =
+    provenanceQuery.isError &&
+    provenanceQuery.error instanceof SamplesApiError &&
+    provenanceQuery.error.isMergeProvenancePending()
+  const provenanceBlocksSampleReads =
+    sampleId != null &&
+    ((provenanceQuery.data === undefined && !provenanceQuery.isError) ||
+      pendingFailure ||
+      terminalPendingFailure)
+  const querySampleId = provenanceBlocksSampleReads ? null : sampleId
+  const isMergedSample = provenance != null && provenanceError == null
 
   // Variant detail side panel state (P2-21)
   const [selectedRsid, setSelectedRsid] = useState<string | null>(null)
@@ -173,7 +186,7 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
 
   // Fetch presets to resolve initial URL param
   const { data: presets } = useColumnPresets()
-  const { data: tags } = useTags(sampleId)
+  const { data: tags } = useTags(querySampleId)
   const tagColors = useMemo(
     () => new Map(tags?.map((tag) => [tag.name, tag.color]) ?? []),
     [tags],
@@ -274,17 +287,19 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
   )
 
   useEffect(() => {
-    if (!showGRCh38 || sampleId == null) return
-    requestLiftover(sampleId)
-  }, [showGRCh38, sampleId, requestLiftover])
+    if (!showGRCh38 || querySampleId == null) return
+    requestLiftover(querySampleId)
+  }, [showGRCh38, querySampleId, requestLiftover])
 
   const handleRetryLiftover = useCallback(() => {
-    if (sampleId == null) return
-    requestLiftover(sampleId, { force: true })
-  }, [sampleId, requestLiftover])
+    if (querySampleId == null) return
+    requestLiftover(querySampleId, { force: true })
+  }, [querySampleId, requestLiftover])
 
-  const liftoverPending = sampleId != null && liftoverStatus[sampleId] === "pending"
-  const liftoverFailed = sampleId != null && liftoverStatus[sampleId] === "error"
+  const liftoverPending =
+    querySampleId != null && liftoverStatus[querySampleId] === "pending"
+  const liftoverFailed =
+    querySampleId != null && liftoverStatus[querySampleId] === "error"
 
   // GRCh38 liftover toggle (P4-20): show/hide GRCh38 columns independently of presets
   const handleToggleGRCh38 = useCallback(() => {
@@ -319,21 +334,31 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
     status,
     error,
     refetch: refetchVariants,
-  } = useVariants({ sampleId, filter, showUnannotated, startChrom, tag: activeTag })
+  } = useVariants({
+    sampleId: querySampleId,
+    filter,
+    showUnannotated,
+    startChrom,
+    tag: activeTag,
+  })
 
   // Chromosome counts for the nav bar (P1-15b)
   const { data: chromCounts, isLoading: chromCountsLoading } =
-    useChromosomeCounts(sampleId)
+    useChromosomeCounts(querySampleId)
 
   const { data: countData, isLoading: countLoading } = useVariantsCount({
-    sampleId,
+    sampleId: querySampleId,
     filter,
     showUnannotated,
     tag: activeTag,
   })
 
-  const { data: totalVariants } = useTotalVariantCount(sampleId)
-  const { data: unannotatedCount } = useUnannotatedVariantCount(sampleId, filter, activeTag)
+  const { data: totalVariants } = useTotalVariantCount(querySampleId)
+  const { data: unannotatedCount } = useUnannotatedVariantCount(
+    querySampleId,
+    filter,
+    activeTag,
+  )
 
   // Derive current chromosome from the first visible row (P1-15b)
   const activeChrom = useMemo(() => {
@@ -428,6 +453,29 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
     return <PreUploadEmpty />
   }
 
+  if (terminalPendingFailure) {
+    return (
+      <ErrorEmpty
+        message="This merged sample is still being prepared. Try again shortly."
+        onRetry={() => void provenanceQuery.refetch()}
+      />
+    )
+  }
+
+  if (provenanceBlocksSampleReads) {
+    return (
+      <div className="flex h-full items-center justify-center" role="status">
+        <div className="text-center">
+          <Loader2
+            className="h-6 w-6 animate-spin mx-auto text-primary"
+            aria-hidden="true"
+          />
+          <p className="text-sm text-muted-foreground mt-2">Loading variants...</p>
+        </div>
+      </div>
+    )
+  }
+
   if (status === "error") {
     // This branch replaces the toolbar too, so it holds the only control the
     // user has left. That matters most right after a liftover: the batch
@@ -490,7 +538,7 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
           tabIndex={0}
         >
           <WatchingSidebar
-            sampleId={sampleId}
+            sampleId={querySampleId}
             onSelectVariant={setSelectedRsid}
             selectedRsid={selectedRsid}
           />
@@ -611,7 +659,7 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
       {/* Variant detail side panel (P2-21) */}
       <VariantDetailSidePanel
         rsid={selectedRsid}
-        sampleId={sampleId}
+        sampleId={querySampleId}
         onClose={() => setSelectedRsid(null)}
       />
     </div>

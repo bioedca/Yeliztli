@@ -284,7 +284,9 @@ def _read_merge_provenance(registry: object, sample_id: int) -> sa.Row | None:
     """Open the per-sample DB read-only and fetch the single ``merge_provenance`` row.
 
     Returns ``None`` when the sample exists but has no provenance row (i.e.
-    not a merged sample) — the route maps that to HTTP 404 per Plan §10.6.
+    not a merged sample). ``get_sample_engine`` upgrades legacy schemas before
+    returning, so database read failures must propagate rather than being
+    misreported as the ordinary unmerged state.
     Raises :class:`HTTPException` (404) when the registered per-sample DB
     file is missing on disk, consistent with the other merge-aware routes.
     """
@@ -303,21 +305,21 @@ def _read_merge_provenance(registry: object, sample_id: int) -> sa.Row | None:
         )
     engine = registry.get_sample_engine(sample_db_path)  # type: ignore[attr-defined]
     with engine.connect() as conn:
-        try:
-            return conn.execute(sa.select(merge_provenance)).fetchone()
-        except sa.exc.OperationalError:
-            # ``merge_provenance`` table was added in schema v8; very old
-            # per-sample DBs that have not yet been upgraded won't carry
-            # it, in which case "no provenance" is the correct answer.
-            return None
+        return conn.execute(sa.select(merge_provenance)).fetchone()
 
 
 @router.get(
     "/{sample_id}/merge-provenance",
     dependencies=[Depends(require_fresh_sample)],
 )
-async def get_merge_provenance(sample_id: int) -> MergeProvenanceResponse:
-    """Return the ``merge_provenance`` row if this sample was merged, else 404.
+async def get_merge_provenance(
+    sample_id: int,
+) -> MergeProvenanceResponse | None:
+    """Return a merged sample's provenance row, or JSON ``null`` when unmerged.
+
+    A registered ``merged_v1`` sample whose local transaction has not exposed
+    its provenance row yet is rejected by the freshness dependency with a
+    retryable 503 instead of being misclassified as unmerged.
 
     Plan §10.6: the merged-sample artefact is queryable independently of
     the originating individual, so the route lives under ``/api/samples``
@@ -334,10 +336,7 @@ async def get_merge_provenance(sample_id: int) -> MergeProvenanceResponse:
 
     prov_row = _read_merge_provenance(registry, sample_id)
     if prov_row is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Sample {sample_id} has no merge provenance.",
-        )
+        return None
 
     try:
         source_sample_ids = json.loads(prov_row.source_sample_ids)

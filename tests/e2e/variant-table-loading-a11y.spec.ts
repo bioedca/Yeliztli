@@ -28,6 +28,9 @@ test.describe('Variant table loading state is announced to screen readers (#601)
     // which is driven by the list query's pending state, but keep the page clean).
     await page.route('**/api/variants/count**', (route) => route.fulfill(jsonRoute({ total: 5 })))
     await page.route('**/api/variants/chromosomes**', (route) => route.fulfill(jsonRoute([])))
+    await page.route('**/api/samples/1/merge-provenance', (route) =>
+      route.fulfill(jsonRoute(null)),
+    )
 
     // Hold the list response so the pending/loading state stays on screen. The
     // list endpoint is `/api/variants?…` — disjoint from the `/count` & `/chromosomes`

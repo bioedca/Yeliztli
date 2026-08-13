@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import importlib
 import inspect
+import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import patch
@@ -31,7 +32,7 @@ from fastapi.params import Body
 
 from backend.api.dependencies import _sample_existence, require_fresh_sample
 from backend.config import Settings
-from backend.db.connection import reset_registry
+from backend.db.connection import get_registry, reset_registry
 from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import (
     annotation_state,
@@ -246,6 +247,69 @@ def _make_sample_db(
 
 
 class TestRequireFreshSample:
+    @staticmethod
+    def _mark_sample_as_merged(gate_env) -> Path:
+        settings = gate_env["settings"]
+        engine = sa.create_engine(f"sqlite:///{settings.reference_db_path}")
+        try:
+            with engine.begin() as conn:
+                conn.execute(
+                    samples.update()
+                    .where(samples.c.id == gate_env["sample_id"])
+                    .values(file_format="merged_v1")
+                )
+        finally:
+            engine.dispose()
+        return settings.data_dir / "samples" / "sample_1.db"
+
+    @staticmethod
+    def _assert_merge_pending(exc: pytest.ExceptionInfo[HTTPException]) -> None:
+        assert exc.value.status_code == 503
+        assert exc.value.detail == {"error": "merge_provenance_pending"}
+        assert exc.value.headers == {"Retry-After": "1"}
+
+    def test_pending_merged_sample_missing_file_does_not_open_engine(self, gate_env):
+        sample_db = self._mark_sample_as_merged(gate_env)
+        assert not sample_db.exists()
+
+        with pytest.raises(HTTPException) as exc:
+            require_fresh_sample(gate_env["sample_id"])
+
+        self._assert_merge_pending(exc)
+        assert get_registry()._sample_engines == {}
+        assert not sample_db.exists()
+
+    def test_pending_merged_sample_partial_db_is_probed_read_only(self, gate_env):
+        sample_db = self._mark_sample_as_merged(gate_env)
+        sample_db.parent.mkdir(parents=True, exist_ok=True)
+        engine = sa.create_engine(f"sqlite:///{sample_db}")
+        try:
+            with engine.begin() as conn:
+                conn.execute(sa.text("CREATE TABLE bootstrap_marker (id INTEGER)"))
+        finally:
+            engine.dispose()
+
+        with pytest.raises(HTTPException) as exc:
+            require_fresh_sample(gate_env["sample_id"])
+
+        self._assert_merge_pending(exc)
+        assert get_registry()._sample_engines == {}
+        inspection_engine = sa.create_engine(f"sqlite:///{sample_db}")
+        try:
+            assert sa.inspect(inspection_engine).get_table_names() == ["bootstrap_marker"]
+        finally:
+            inspection_engine.dispose()
+
+    def test_corrupt_merged_database_is_not_misreported_as_pending(self, gate_env):
+        sample_db = self._mark_sample_as_merged(gate_env)
+        sample_db.parent.mkdir(parents=True, exist_ok=True)
+        sample_db.write_bytes(b"not a sqlite database")
+
+        with pytest.raises(sqlite3.DatabaseError):
+            require_fresh_sample(gate_env["sample_id"])
+
+        assert get_registry()._sample_engines == {}
+
     def test_fresh_sample_returns_id(self, manifest_env, gate_env):
         _seed_installed_bundle(gate_env["settings"], "v2.0.0")
         _make_sample_db(gate_env["settings"], seed_version="v2.0.0")
