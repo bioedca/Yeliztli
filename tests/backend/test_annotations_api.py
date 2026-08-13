@@ -12,7 +12,7 @@ import pytest
 import sqlalchemy as sa
 from fastapi.testclient import TestClient
 
-from backend.annotation.insilico_axes import assess_insilico_axes
+from backend.annotation.insilico_axes import INSILICO_AXIS_COUNT, assess_insilico_axes
 from backend.config import Settings
 from backend.db.connection import DBRegistry, reset_registry
 from backend.db.sample_schema import create_sample_tables
@@ -252,14 +252,6 @@ def empty_client(tmp_data_dir: Path):
 # Fixture integrity — the seeded rows must be states production can reach
 # ═══════════════════════════════════════════════════════════════════════
 
-# Derived, not copied: a variant carrying data on all four F24 inputs assesses
-# every axis, so the second element of the result *is* the model's axis count.
-# Hard-coding 4 would silently stop tracking the model if an axis were ever added
-# or collapsed; this cannot.
-_INSILICO_AXIS_COUNT = assess_insilico_axes(
-    {"sift_score": 0.0, "polyphen2_hsvar_score": 1.0, "cadd_phred": 99.0, "revel": 1.0}
-)[1]
-
 
 class TestFixtureIntegrity:
     """Guard the fixture against values the production model cannot produce.
@@ -286,8 +278,8 @@ class TestFixtureIntegrity:
                 f"{rsid} seeds deleterious_count={variant['deleterious_count']} but its "
                 f"own predictor scores assess {deleterious} deleterious axes"
             )
-            assert 0 <= variant["deleterious_count"] <= _INSILICO_AXIS_COUNT, (
-                f"{rsid} is outside the 0-{_INSILICO_AXIS_COUNT} range the column documents"
+            assert 0 <= variant["deleterious_count"] <= INSILICO_AXIS_COUNT, (
+                f"{rsid} is outside the 0-{INSILICO_AXIS_COUNT} range the column documents"
             )
             if variant.get("deleterious_total_assessed") is not None:
                 assert variant["deleterious_total_assessed"] == assessed, (
@@ -298,9 +290,9 @@ class TestFixtureIntegrity:
         """The schema comment and the axis model must not drift apart."""
         comment = annotated_variants.c.deleterious_count.comment or ""
 
-        assert f"0-{_INSILICO_AXIS_COUNT}" in comment, (
+        assert f"0-{INSILICO_AXIS_COUNT}" in comment, (
             f"column comment {comment!r} no longer states the model's actual "
-            f"0-{_INSILICO_AXIS_COUNT} range"
+            f"0-{INSILICO_AXIS_COUNT} range"
         )
 
 
