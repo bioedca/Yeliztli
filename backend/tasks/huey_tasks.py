@@ -159,6 +159,7 @@ def recover_orphaned_jobs(engine) -> int:
     """
     from backend.db.tables import jobs
     from backend.services.sample_operation_lock import (
+        SAMPLE_DELETE_JOB_TYPE,
         SAMPLE_EXPORT_JOB_TYPE,
         SAMPLE_MERGE_JOB_TYPE,
     )
@@ -171,6 +172,10 @@ def recover_orphaned_jobs(engine) -> int:
         # merge on either source reports "already being merged" and every
         # delete answers 409, permanently (#2329).
         SAMPLE_MERGE_JOB_TYPE,
+        # And the deletion reservation for the same reason, symmetrically: a
+        # crash mid-delete would otherwise strand `running` rows that make every
+        # later merge on that sample report "being deleted" forever.
+        SAMPLE_DELETE_JOB_TYPE,
         "database_download",
         "download",
     }

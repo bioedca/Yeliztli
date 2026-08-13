@@ -56,6 +56,7 @@ from backend.services.sample_merge import (
     recover_unpublished_merge_artifacts,
 )
 from backend.services.sample_operation_lock import (
+    SAMPLE_DELETE_JOB_TYPE,
     SAMPLE_MERGE_JOB_TYPE,
     SampleOperationConflictError,
     merge_sources_in_use,
@@ -2458,3 +2459,40 @@ class TestCrashSafePublication:
 
         assert merge_sources_in_use(registry.reference_engine, [s1_id, s2_id]) == []
         assert delete_sample_with_cascade(registry, s1_id) is not None
+
+    def test_a_crashed_delete_lease_is_recovered_at_startup(
+        self, merged_setup: tuple[DBRegistry, int, int, int]
+    ) -> None:
+        """Symmetric to the merge case: a stranded delete row blocks merges.
+
+        The deletion reservation is what makes the exclusion atomic, so an
+        abandoned one is exactly as sticky in the other direction.
+        """
+        registry, _individual_id, s1_id, s2_id = merged_setup
+        now = datetime.now(UTC)
+        with registry.reference_engine.begin() as conn:
+            conn.execute(
+                jobs.insert().values(
+                    job_id=f"stranded-delete:{s1_id}",
+                    sample_id=s1_id,
+                    job_type=SAMPLE_DELETE_JOB_TYPE,
+                    status="running",
+                    progress_pct=0.0,
+                    message="Sample delete",
+                    created_at=now,
+                    updated_at=now,
+                )
+            )
+
+        with pytest.raises(SampleOperationConflictError, match="being deleted"):
+            with sample_merge_lease(
+                registry.reference_engine, [s1_id, s2_id], operation="Sample merge"
+            ):
+                pass
+
+        recover_orphaned_jobs(registry.reference_engine)
+
+        with sample_merge_lease(
+            registry.reference_engine, [s1_id, s2_id], operation="Sample merge"
+        ):
+            pass
