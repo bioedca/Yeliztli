@@ -165,11 +165,20 @@ def test_checked_in_database_exactly_matches_the_synthetic_seed() -> None:
 def test_scientific_evidence_manifest_binds_retained_source_payloads() -> None:
     manifest = json.loads((_EVIDENCE / "source-manifest.json").read_text(encoding="utf-8"))
     artifacts = {artifact["path"]: artifact for artifact in manifest["retained_artifacts"]}
+    readme = (_EVIDENCE / "README.md").read_text(encoding="utf-8")
+    defined_claims = set(re.findall(r"^\| (C\d+) \|", readme, flags=re.MULTILINE))
 
-    sources = {source["id"]: source for source in manifest["sources"]}
-    for source_id in ("dbnsfp-query-service", "dbnsfp-releases", "dbnsfp-license"):
-        retained_path = sources[source_id]["retained_path"]
-        assert retained_path in artifacts, f"{source_id} retained payload is not in the manifest"
+    assert defined_claims == {"C1", "C2", "C3", "C4", "C5"}
+
+    for source in manifest["sources"]:
+        assert source["claim_ids"], f"{source['id']} has no claim mapping"
+        assert set(source["claim_ids"]) <= defined_claims, (
+            f"{source['id']} references an undefined claim"
+        )
+        retained_path = source["retained_path"]
+        assert retained_path in artifacts, (
+            f"{source['id']} retained payload is not in the manifest"
+        )
 
     for relative_path, artifact in artifacts.items():
         path = _ROOT / relative_path

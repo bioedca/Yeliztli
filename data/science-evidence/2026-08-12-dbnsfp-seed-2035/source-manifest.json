@@ -12,6 +12,7 @@
   "sources": [
     {
       "id": "dbnsfp-releases",
+      "claim_ids": ["C2"],
       "url": "https://www.dbnsfp.org/releases/",
       "version_observed": "dbNSFP v5.3.1 (January 1, 2026); README branches v5.3.1a and v5.3.1c",
       "license_or_terms": "Public release metadata only; dbNSFP data terms are recorded separately.",
@@ -20,6 +21,7 @@
     },
     {
       "id": "dbnsfp-license",
+      "claim_ids": ["C3"],
       "url": "https://www.dbnsfp.org/license/",
       "version_observed": "Page accessed 2026-08-12",
       "license_or_terms": "Academic/non-commercial use is CC BY-NC-ND 4.0; users must also comply with original component-source terms.",
@@ -28,6 +30,7 @@
     },
     {
       "id": "dbnsfp-query-service",
+      "claim_ids": ["C2"],
       "url": "https://query.genos.us/api/health",
       "version_observed": "Public score-free health metadata reported dataset 5.4a",
       "license_or_terms": "Public service metadata only; no score-bearing output retained.",
@@ -36,6 +39,7 @@
     },
     {
       "id": "ensembl-vep-rs429358",
+      "claim_ids": ["C1"],
       "url": "https://rest.ensembl.org/vep/human/id/rs429358",
       "version_observed": "GRCh38 response accessed 2026-08-12",
       "license_or_terms": "Ensembl/EMBL-EBI service terms; only a bounded derived response summary is retained.",
@@ -44,19 +48,23 @@
     },
     {
       "id": "dbnsfp-v4-paper",
+      "claim_ids": ["C5"],
       "citation": "PMID:33261662; DOI:10.1186/s13073-020-00803-9",
       "url": "https://pubmed.ncbi.nlm.nih.gov/33261662/",
       "version_observed": "PubMed record accessed 2026-08-12",
       "license_or_terms": "NCBI bibliographic metadata only; no article text retained.",
-      "role": "Resource identity and method context."
+      "role": "Resource identity and method context.",
+      "retained_path": "data/science-evidence/2026-08-12-dbnsfp-seed-2035/pubmed-metadata-sanitized.json"
     },
     {
       "id": "revel-paper",
+      "claim_ids": ["C5"],
       "citation": "PMID:27666373; DOI:10.1016/j.ajhg.2016.08.016",
       "url": "https://pubmed.ncbi.nlm.nih.gov/27666373/",
       "version_observed": "PubMed record accessed 2026-08-12",
       "license_or_terms": "NCBI bibliographic metadata only; no article text retained.",
-      "role": "Predictor identity and method context."
+      "role": "Predictor identity and method context.",
+      "retained_path": "data/science-evidence/2026-08-12-dbnsfp-seed-2035/pubmed-metadata-sanitized.json"
     }
   ],
   "retained_artifacts": [

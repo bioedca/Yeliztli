@@ -23,12 +23,13 @@ and byte-independent semantic equality between the CSV and SQLite fixture.
 
 ## Claim mapping
 
-| Claim | Evidence | Repository consequence |
-| --- | --- | --- |
-| The former shared seed was not a valid scientific oracle. | Direct repository audit found four SIFT and five PolyPhen score/category contradictions under the production thresholds. The retained Ensembl response summary independently shows that current Ensembl transcript annotations for rs429358 do not reproduce the former fixture's SIFT/PolyPhen pair, but Ensembl is not substituted as a dbNSFP oracle. | Remove all human rsIDs and upstream-score claims from the shared dbNSFP seed. |
-| An exact current dbNSFP score snapshot was not available for redistribution from the production-pinned source. | Production manifest and loader pin 5.3.1a; the retained official release metadata identifies v5.3.1 and its 5.3.1a/5.3.1c README branches, while the retained public query-service health response reports 5.4a (accessed 2026-08-12). | Do not copy the browser values into a fixture presented as 5.3.1a-derived. |
-| Provider values must remain outside the repository's shared fixture. | dbNSFP states that the academic/non-commercial branch is CC BY-NC-ND 4.0 and that component-source terms also apply; Yeliztli's documented posture is provider-fetched and non-redistributed (accessed 2026-08-12). | Retain only public release/license metadata; test predictor behavior with synthetic values. |
-| The replacement validates software behavior, not pathogenicity. | `dbnsfp_seed.contract.json` and the regression suite reject real dbSNP identifiers, unreviewed scenario drift, and incoherent SIFT/PolyPhen pairs. | No biological, clinical, or patient-specific inference is encoded by the seed values. |
+| ID | Claim | Evidence | Repository consequence |
+| --- | --- | --- | --- |
+| C1 | The former shared seed was not a valid scientific oracle. | Direct repository audit found four SIFT and five PolyPhen score/category contradictions under the production thresholds. The retained Ensembl response summary independently shows that current Ensembl transcript annotations for rs429358 do not reproduce the former fixture's SIFT/PolyPhen pair, but Ensembl is not substituted as a dbNSFP oracle. | Remove all human rsIDs and upstream-score claims from the shared dbNSFP seed. |
+| C2 | An exact current dbNSFP score snapshot was not available for redistribution from the production-pinned source. | Production manifest and loader pin 5.3.1a; the retained official release metadata identifies v5.3.1 and its 5.3.1a/5.3.1c README branches, while the retained public query-service health response reports 5.4a (accessed 2026-08-12). | Do not copy the browser values into a fixture presented as 5.3.1a-derived. |
+| C3 | Provider values must remain outside the repository's shared fixture. | dbNSFP states that the academic/non-commercial branch is CC BY-NC-ND 4.0 and that component-source terms also apply; Yeliztli's documented posture is provider-fetched and non-redistributed (accessed 2026-08-12). | Retain only public release/license metadata; test predictor behavior with synthetic values. |
+| C4 | The replacement validates software behavior, not pathogenicity. | `dbnsfp_seed.contract.json` and the regression suite reject real dbSNP identifiers, unreviewed scenario drift, and incoherent SIFT/PolyPhen pairs. | No biological, clinical, or patient-specific inference is encoded by the seed values. |
+| C5 | The retained literature records establish resource and predictor-method identity only. | PMID:33261662 / DOI:10.1186/s13073-020-00803-9 and PMID:27666373 / DOI:10.1016/j.ajhg.2016.08.016; bounded bibliographic and correction-link metadata are retained. | Do not treat the literature records as validation of a synthetic score, variant-specific prediction, or clinical claim. |
 
 ## Retained evidence
 
