@@ -189,7 +189,7 @@ jobs:
   # was a Codex-sandbox artifact, not the interpreter — GitHub runners are not
   # sandboxed, so no application workaround is added here.
   test-backend:
-    name: Backend Tests (Linux x86_64, py${{ matrix.python-version }})
+    name: Backend Tests (Linux x86_64, py${{ matrix.python-version }}, shard ${{ matrix.shard }}/3)
     needs: changes
     if: needs.changes.outputs.backend == 'true' || github.event_name != 'pull_request'
     runs-on: ubuntu-latest
@@ -207,15 +207,27 @@ jobs:
     # into the same wall. Observed on #2244: py3.12 finished in 26:49 and py3.13
     # was killed at 30:15 on the same commit.
     #
-    # 45 restores roughly the proportional headroom the job had when it was
-    # written. It buys time for the suite to grow; it does not excuse unbounded
-    # growth, and a leg approaching this figure should be split rather than
-    # raised again.
+    # 45 restored roughly the proportional headroom the job had when it was
+    # written — and #2326 then exhausted *that* on a slow runner, killed at 45:13
+    # with pytest still passing at 92% while the py3.13 sibling on the same
+    # commit finished in 27 minutes. So the split this comment asked for is now
+    # done, rather than the cap raised a third time: `shard` below runs each
+    # interpreter's suite as three disjoint thirds, and the cap stays at 45 so a
+    # single shard has roughly four times the headroom the whole suite had.
+    #
+    # Sharding is a collection-time partition — see scripts/ci_backend_shard.py
+    # for why it derives from pytest's own collection rather than a committed
+    # file manifest. `tests/backend/test_ci_backend_shard.py` proves the
+    # partition is total and disjoint, and `test_ci_workflow.py` proves the
+    # matrix below and the `--num-shards` argument agree: they must, because a
+    # matrix *shorter* than `--num-shards` is the one mistake that would drop
+    # tests silently while every leg still reported success.
     timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
         python-version: ["3.12", "3.13"]
+        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@v6
 
@@ -236,7 +248,9 @@ jobs:
         run: timeout 120 python scripts/ci_startup_witness.py
 
       - name: Run pytest
-        run: python -m pytest tests/backend/ -v --tb=short -m "not slow"
+        run: >-
+          python -m pytest tests/backend/ -v --tb=short -m "not slow"
+          --num-shards 3 --shard-id ${{ matrix.shard }}
 
   # ── Backend tests — Tier 2 (macOS, push→main / merge queue) ─────────────
   test-backend-cross-os:

@@ -12,6 +12,7 @@ import pytest
 import sqlalchemy as sa
 from fastapi.testclient import TestClient
 
+from backend.annotation.insilico_axes import INSILICO_AXIS_COUNT, assess_insilico_axes
 from backend.config import Settings
 from backend.db.connection import DBRegistry, reset_registry
 from backend.db.sample_schema import create_sample_tables
@@ -54,7 +55,14 @@ ANNOTATED_VARIANTS = [
         "evidence_conflict": False,
         "ensemble_pathogenic": True,
         "annotation_coverage": 0b011111,
-        "deleterious_count": 5,
+        # All four F24 axes are seeded above and all four cross their deleterious
+        # thresholds — SIFT 0.001 < 0.05, PolyPhen-2 0.999 > 0.909, CADD 35.0 >= 20.0,
+        # and the collapsed META axis on REVEL 0.95 >= 0.5. So the count is 4 of 4
+        # assessed, which is also what `ensemble_pathogenic: True` above requires
+        # (deleterious * 2 > assessed). It read 5 until #2327: a value the four-axis
+        # model cannot produce and the column comment excludes.
+        "deleterious_count": 4,
+        "deleterious_total_assessed": 4,
     },
     {
         "rsid": "rs200",
@@ -241,6 +249,54 @@ def empty_client(tmp_data_dir: Path):
 
 
 # ═══════════════════════════════════════════════════════════════════════
+# Fixture integrity — the seeded rows must be states production can reach
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestFixtureIntegrity:
+    """Guard the fixture against values the production model cannot produce.
+
+    `deleterious_count` is a count over four independent axes, so `annotated_variants`
+    documents it as 0-4 and the writer in `backend/annotation/dbnsfp.py` can only ever
+    store a value in that range. The fixture said 5 until #2327 — an impossible state
+    that no test noticed, because the only assertion on the field was a membership
+    check that holds for any value at all.
+    """
+
+    def test_seeded_deleterious_counts_match_the_four_axis_model(self):
+        seeded = [
+            variant
+            for variant in ANNOTATED_VARIANTS
+            if variant.get("deleterious_count") is not None
+        ]
+        assert seeded, "no fixture row seeds deleterious_count, so this guard would assert nothing"
+
+        for variant in seeded:
+            deleterious, assessed = assess_insilico_axes(variant)
+            rsid = variant["rsid"]
+            assert variant["deleterious_count"] == deleterious, (
+                f"{rsid} seeds deleterious_count={variant['deleterious_count']} but its "
+                f"own predictor scores assess {deleterious} deleterious axes"
+            )
+            assert 0 <= variant["deleterious_count"] <= INSILICO_AXIS_COUNT, (
+                f"{rsid} is outside the 0-{INSILICO_AXIS_COUNT} range the column documents"
+            )
+            if variant.get("deleterious_total_assessed") is not None:
+                assert variant["deleterious_total_assessed"] == assessed, (
+                    f"{rsid} seeds a denominator its predictor scores do not support"
+                )
+
+    def test_documented_column_range_tracks_the_model(self):
+        """The schema comment and the axis model must not drift apart."""
+        comment = annotated_variants.c.deleterious_count.comment or ""
+
+        assert f"0-{INSILICO_AXIS_COUNT}" in comment, (
+            f"column comment {comment!r} no longer states the model's actual "
+            f"0-{INSILICO_AXIS_COUNT} range"
+        )
+
+
+# ═══════════════════════════════════════════════════════════════════════
 # GET /api/annotations — Basic list
 # ═══════════════════════════════════════════════════════════════════════
 
@@ -302,7 +358,12 @@ class TestListAnnotatedVariants:
         assert "evidence_conflict" in item
         assert "ensemble_pathogenic" in item
         assert "annotation_coverage" in item
-        assert "deleterious_count" in item
+        # Value, not membership: `in item` holds for None, for 5, for -1, and for a
+        # route that dropped the column and returned the model default. rs100 is the
+        # `limit=1` row by canonical chromosome order (test_canonical_chrom_order),
+        # so pin that before comparing against what was seeded (#2327).
+        assert item["rsid"] == ANNOTATED_VARIANTS[0]["rsid"]
+        assert item["deleterious_count"] == ANNOTATED_VARIANTS[0]["deleterious_count"]
 
     def test_canonical_chrom_order(self, client):
         tc, sid = client
