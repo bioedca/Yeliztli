@@ -589,3 +589,81 @@ def test_rare_tsv_export_replays_exact_chunks_through_the_spill_file(
     assert in_memory.chunks == spilled.chunks
     assert len(in_memory.chunks) == 3
     assert "line one\nline two\rline three" in in_memory.content
+
+
+# ── The spool's threshold arithmetic (#2328) ──────────────────────────
+
+
+def _spool_with_limit(monkeypatch: pytest.MonkeyPatch, limit: int) -> Any:
+    monkeypatch.setattr(rare_variants, "_RARE_VARIANT_TSV_SPOOL_MAX_CHARS", limit)
+    return rare_variants._TsvReplaySpool()
+
+
+def test_spool_stays_in_memory_up_to_the_threshold(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Exactly at the budget is still in memory — the bound is inclusive."""
+    spills = _record_spill_files(monkeypatch)
+    spool = _spool_with_limit(monkeypatch, 10)
+
+    spool.append("12345\n")  # 6
+    spool.append("123\n")  # 4 -> exactly 10
+
+    assert not spills
+    assert list(spool.replay()) == ["12345\n", "123\n"]
+    spool.close()
+
+
+def test_spool_spills_on_the_line_that_crosses_the_threshold(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """One character over moves everything buffered so far onto disk."""
+    spills = _record_spill_files(monkeypatch)
+    spool = _spool_with_limit(monkeypatch, 10)
+
+    spool.append("12345\n")
+    spool.append("1234\n")  # 5 -> 11, over
+
+    assert len(spills) == 1, "crossing the budget must open exactly one spill file"
+    # Both lines replay, including the one buffered before the spill.
+    assert list(spool.replay()) == ["12345\n", "1234\n"]
+    spool.close()
+    assert spills[0].closed
+
+
+def test_spool_replay_is_identical_either_side_of_the_threshold(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The disk path is a storage detail, never an output difference.
+
+    Includes a cell containing both a newline and a carriage return, which is
+    what the length framing exists for.
+    """
+    lines = ["a\tb\n", "c\tline one\nline two\rline three\n", "d\te\n"]
+
+    generous = _spool_with_limit(monkeypatch, 4_000_000)
+    for line in lines:
+        generous.append(line)
+    in_memory = list(generous.replay())
+    generous.close()
+
+    spills = _record_spill_files(monkeypatch)
+    tiny = _spool_with_limit(monkeypatch, 0)
+    for line in lines:
+        tiny.append(line)
+    spilled = list(tiny.replay())
+    tiny.close()
+
+    assert spills, "the zero budget must actually spill"
+    assert in_memory == lines
+    assert spilled == lines
+
+
+def test_spool_close_is_idempotent(monkeypatch: pytest.MonkeyPatch) -> None:
+    """close() runs from a generator finally AND a BackgroundTask."""
+    spills = _record_spill_files(monkeypatch)
+    spool = _spool_with_limit(monkeypatch, 0)
+    spool.append("x\n")
+
+    spool.close()
+    spool.close()
+
+    assert spills and spills[0].closed
