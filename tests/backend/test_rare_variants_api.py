@@ -1095,6 +1095,140 @@ class TestTSVExport:
         assert "rsid" in header
         assert "gene_symbol" in header
 
+    def test_tsv_export_serializes_null_consequence_as_empty_cell(
+        self,
+        rare_client: TestClient,
+        sample_db_path: Path,
+    ) -> None:
+        """A present-but-null consequence does not abort the whole export."""
+        seed_rare_variant_findings(sample_db_path)
+        sample_engine = sa.create_engine(f"sqlite:///{sample_db_path}")
+        try:
+            with sample_engine.begin() as conn:
+                conn.execute(
+                    sa.update(findings)
+                    .where(findings.c.rsid == "rs_first")
+                    .values(detail_json=json.dumps({"consequence": None, "cadd_phred": 0}))
+                )
+                conn.execute(
+                    sa.update(findings)
+                    .where(findings.c.rsid == "rs_second")
+                    .values(detail_json=json.dumps({"consequence": "missense_variant"}))
+                )
+        finally:
+            sample_engine.dispose()
+
+        resp = rare_client.get("/api/analysis/rare-variants/export/tsv?sample_id=1")
+
+        assert resp.status_code == 200
+        lines = resp.text.splitlines()
+        assert len(lines) == 3  # header + both rare-variant rows
+        header = lines[0].split("\t")
+        assert len(header) == 12
+
+        data_rows: list[dict[str, str]] = []
+        for line in lines[1:]:
+            cells = line.split("\t")
+            assert len(cells) == len(header)
+            data_rows.append(dict(zip(header, cells, strict=True)))
+
+        assert len(data_rows) == 2
+        rows_by_rsid = {row["rsid"]: row for row in data_rows}
+        assert set(rows_by_rsid) == {"rs_first", "rs_second"}
+        assert rows_by_rsid["rs_first"]["consequence"] == ""
+        assert rows_by_rsid["rs_first"]["cadd_phred"] == "0"
+        assert rows_by_rsid["rs_first"]["finding_text"] == ("BRCA1 high-evidence rare finding")
+        assert rows_by_rsid["rs_second"]["consequence"] == "missense_variant"
+
+    def test_tsv_export_withholds_container_valued_cell(
+        self,
+        rare_client: TestClient,
+        sample_db_path: Path,
+    ) -> None:
+        """A malformed container cell cannot be flattened after privacy gating."""
+        from backend.analysis.pharmacogenomics import is_patient_presentable_response_payload
+
+        consequence = [
+            {"gene": "CYP2D6", "drug": "codeine"},
+            {"gene": "CYP2C19", "drug": "tamoxifen"},
+        ]
+        assert is_patient_presentable_response_payload({"consequence": consequence})
+        assert not is_patient_presentable_response_payload({"consequence": str(consequence)})
+
+        seed_rare_variant_findings(sample_db_path)
+        sample_engine = sa.create_engine(f"sqlite:///{sample_db_path}")
+        try:
+            with sample_engine.begin() as conn:
+                conn.execute(
+                    sa.update(findings)
+                    .where(findings.c.rsid == "rs_first")
+                    .values(detail_json=json.dumps({"consequence": consequence}))
+                )
+                conn.execute(
+                    sa.update(findings)
+                    .where(findings.c.rsid == "rs_second")
+                    .values(detail_json=json.dumps({"consequence": "missense_variant"}))
+                )
+        finally:
+            sample_engine.dispose()
+
+        resp = rare_client.get("/api/analysis/rare-variants/export/tsv?sample_id=1")
+
+        assert resp.status_code == 200
+        lines = resp.text.splitlines()
+        assert len(lines) == 2  # header + the well-formed row only
+        header = lines[0].split("\t")
+        row = dict(zip(header, lines[1].split("\t"), strict=True))
+        assert row["rsid"] == "rs_second"
+        assert row["consequence"] == "missense_variant"
+        assert "CYP2D6" not in resp.text
+        assert "tamoxifen" not in resp.text.lower()
+
+    def test_tsv_export_withholds_pair_assembled_by_separators(
+        self,
+        rare_client: TestClient,
+        sample_db_path: Path,
+    ) -> None:
+        """The exact rendered TSV cannot reassemble separately safe fragments."""
+        from backend.analysis.pharmacogenomics import is_patient_presentable_response_payload
+
+        structured_fragments = [
+            {"finding_text": "safe prefix CYP2"},
+            {"rsid": "D6", "conditions": "tamoxifen"},
+        ]
+        assert is_patient_presentable_response_payload(structured_fragments)
+        assert not is_patient_presentable_response_payload("safe prefix CYP2\nD6\ttamoxifen")
+
+        seed_rare_variant_findings(sample_db_path)
+        sample_engine = sa.create_engine(f"sqlite:///{sample_db_path}")
+        try:
+            with sample_engine.begin() as conn:
+                conn.execute(
+                    sa.update(findings)
+                    .where(findings.c.rsid == "rs_first")
+                    .values(finding_text="safe prefix CYP2")
+                )
+                conn.execute(
+                    sa.update(findings)
+                    .where(findings.c.rsid == "rs_second")
+                    .values(rsid="D6", conditions="tamoxifen")
+                )
+        finally:
+            sample_engine.dispose()
+
+        resp = rare_client.get("/api/analysis/rare-variants/export/tsv?sample_id=1")
+
+        assert resp.status_code == 200
+        expected_header = (
+            "rsid\tgene_symbol\tcategory\tevidence_level\tzygosity\t"
+            "clinvar_significance\tconditions\tconsequence\tgnomad_af_global\t"
+            "cadd_phred\trevel\tfinding_text\n"
+        )
+        assert resp.text == expected_header
+        assert "CYP2" not in resp.text
+        assert "D6" not in resp.text
+        assert "tamoxifen" not in resp.text.lower()
+
     def test_tsv_export_content_disposition(self, rare_client: TestClient) -> None:
         """TSV has correct Content-Disposition header for download."""
         rare_client.post("/api/analysis/rare-variants/run?sample_id=1")
