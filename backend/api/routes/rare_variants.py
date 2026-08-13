@@ -537,20 +537,7 @@ def export_rare_variants_tsv(
     buf.write("\t".join(tsv_columns) + "\n")
 
     for row in export_rows:
-        values = [
-            row["rsid"],
-            row["gene_symbol"],
-            row["category"],
-            str(row["evidence_level"]),
-            row["zygosity"],
-            row["clinvar_significance"],
-            row["conditions"],
-            row["consequence"],
-            str(row["gnomad_af_global"]) if row["gnomad_af_global"] is not None else "",
-            str(row["cadd_phred"]) if row["cadd_phred"] is not None else "",
-            str(row["revel"]) if row["revel"] is not None else "",
-            row["finding_text"],
-        ]
+        values = ["" if row[column] is None else str(row[column]) for column in tsv_columns]
         buf.write("\t".join(values) + "\n")
 
     return StreamingResponse(

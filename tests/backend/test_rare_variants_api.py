@@ -1095,6 +1095,51 @@ class TestTSVExport:
         assert "rsid" in header
         assert "gene_symbol" in header
 
+    def test_tsv_export_serializes_null_consequence_as_empty_cell(
+        self,
+        rare_client: TestClient,
+        sample_db_path: Path,
+    ) -> None:
+        """A present-but-null consequence does not abort the whole export."""
+        seed_rare_variant_findings(sample_db_path)
+        sample_engine = sa.create_engine(f"sqlite:///{sample_db_path}")
+        try:
+            with sample_engine.begin() as conn:
+                conn.execute(
+                    sa.update(findings)
+                    .where(findings.c.rsid == "rs_first")
+                    .values(detail_json=json.dumps({"consequence": None, "cadd_phred": 0}))
+                )
+                conn.execute(
+                    sa.update(findings)
+                    .where(findings.c.rsid == "rs_second")
+                    .values(detail_json=json.dumps({"consequence": "missense_variant"}))
+                )
+        finally:
+            sample_engine.dispose()
+
+        resp = rare_client.get("/api/analysis/rare-variants/export/tsv?sample_id=1")
+
+        assert resp.status_code == 200
+        lines = resp.text.splitlines()
+        assert len(lines) == 3  # header + both rare-variant rows
+        header = lines[0].split("\t")
+        assert len(header) == 12
+
+        data_rows: list[dict[str, str]] = []
+        for line in lines[1:]:
+            cells = line.split("\t")
+            assert len(cells) == len(header)
+            data_rows.append(dict(zip(header, cells, strict=True)))
+
+        assert len(data_rows) == 2
+        rows_by_rsid = {row["rsid"]: row for row in data_rows}
+        assert set(rows_by_rsid) == {"rs_first", "rs_second"}
+        assert rows_by_rsid["rs_first"]["consequence"] == ""
+        assert rows_by_rsid["rs_first"]["cadd_phred"] == "0"
+        assert rows_by_rsid["rs_first"]["finding_text"] == ("BRCA1 high-evidence rare finding")
+        assert rows_by_rsid["rs_second"]["consequence"] == "missense_variant"
+
     def test_tsv_export_content_disposition(self, rare_client: TestClient) -> None:
         """TSV has correct Content-Disposition header for download."""
         rare_client.post("/api/analysis/rare-variants/run?sample_id=1")
