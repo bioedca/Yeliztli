@@ -73,6 +73,31 @@ function makePage(
 
 const COUNT: VariantCount = { total: 4, filtered: false }
 
+function pendingProvenanceResponse(retryAfter = "0") {
+  const body = { detail: { error: "merge_provenance_pending" } }
+  return {
+    ok: false,
+    status: 503,
+    headers: {
+      get: (name: string) =>
+        name.toLowerCase() === "retry-after" ? retryAfter : null,
+    },
+    json: async () => body,
+    text: async () => JSON.stringify(body),
+    clone() {
+      return this
+    },
+  } as unknown as Response
+}
+
+const MERGED_PROVENANCE = {
+  merged_at: "2026-05-01T00:00:00Z",
+  strategy: "flag_only",
+  source_sample_ids: [1, 2],
+  source_file_hashes: ["abc", "def"],
+  concordance_summary: { match: 3, discordant: 1 },
+}
+
 function setupMerged() {
   mockFetch.mockImplementation(async (url: string) => {
     if (url.includes("/api/column-presets")) {
@@ -150,6 +175,146 @@ afterEach(() => {
 })
 
 describe("VariantTable source/concordance columns (Step 71)", () => {
+  it("retries typed pending provenance before issuing sample-derived queries", async () => {
+    let provenanceCalls = 0
+    let resolveProvenance: ((response: Response) => void) | undefined
+    const materialised = new Promise<Response>((resolve) => {
+      resolveProvenance = resolve
+    })
+    mockFetch.mockImplementation(async (url: string) => {
+      if (url.includes("/api/column-presets")) {
+        return { ok: true, json: async () => ({ presets: PRESETS }) }
+      }
+      if (url.includes("/merge-provenance")) {
+        provenanceCalls += 1
+        if (provenanceCalls === 1) return pendingProvenanceResponse()
+        return materialised
+      }
+      if (url.includes("/api/variants/chromosomes")) {
+        return { ok: true, json: async () => [{ chrom: "1", count: 4 }] }
+      }
+      if (url.includes("/api/variants/count")) {
+        return { ok: true, json: async () => COUNT }
+      }
+      if (url.includes("/api/variants")) {
+        return { ok: true, json: async () => makePage(4) }
+      }
+      return { ok: true, json: async () => [] }
+    })
+
+    render(<VariantTable sampleId={1} />)
+    await waitFor(() => expect(provenanceCalls).toBe(2))
+    expect(variantsCalls()).toHaveLength(0)
+    expect(
+      mockFetch.mock.calls.some(([url]) => String(url).includes("/api/tags")),
+    ).toBe(false)
+    expect(
+      mockFetch.mock.calls.some(([url]) => String(url).includes("/api/watches")),
+    ).toBe(false)
+
+    resolveProvenance?.({
+      ok: true,
+      status: 200,
+      json: async () => MERGED_PROVENANCE,
+    } as Response)
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /filter by source/i })).toBeInTheDocument()
+      expect(screen.getByText("rs100")).toBeInTheDocument()
+    })
+  })
+
+  it("fails closed with a retry control after bounded pending responses", async () => {
+    mockFetch.mockImplementation(async (url: string) => {
+      if (url.includes("/api/column-presets")) {
+        return { ok: true, json: async () => ({ presets: PRESETS }) }
+      }
+      if (url.includes("/merge-provenance")) return pendingProvenanceResponse()
+      throw new Error(`sample-derived query escaped provenance gate: ${url}`)
+    })
+
+    render(<VariantTable sampleId={1} />)
+    await waitFor(
+      () => expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument(),
+      { timeout: 5_000 },
+    )
+    expect(
+      mockFetch.mock.calls.filter(([url]) =>
+        String(url).includes("/merge-provenance"),
+      ),
+    ).toHaveLength(31)
+    expect(variantsCalls()).toHaveLength(0)
+
+    await userEvent.click(screen.getByRole("button", { name: "Try again" }))
+    await waitFor(
+      () =>
+        expect(
+          mockFetch.mock.calls.filter(([url]) =>
+            String(url).includes("/merge-provenance"),
+          ),
+        ).toHaveLength(62),
+      { timeout: 5_000 },
+    )
+    expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument()
+    expect(variantsCalls()).toHaveLength(0)
+  })
+
+  it("does not retry an untyped 503 as merge provenance pending", async () => {
+    let provenanceCalls = 0
+    mockFetch.mockImplementation(async (url: string) => {
+      if (url.includes("/api/column-presets")) {
+        return { ok: true, json: async () => ({ presets: PRESETS }) }
+      }
+      if (url.includes("/merge-provenance")) {
+        provenanceCalls += 1
+        return {
+          ...pendingProvenanceResponse(),
+          json: async () => ({ detail: { error: "service_unavailable" } }),
+        }
+      }
+      if (url.includes("/api/variants/chromosomes")) {
+        return { ok: true, json: async () => [{ chrom: "1", count: 4 }] }
+      }
+      if (url.includes("/api/variants/count")) {
+        return { ok: true, json: async () => COUNT }
+      }
+      if (url.includes("/api/variants")) {
+        return { ok: true, json: async () => makePage(4) }
+      }
+      return { ok: true, json: async () => [] }
+    })
+
+    render(<VariantTable sampleId={1} />)
+    await waitFor(() => expect(screen.getByText("rs100")).toBeInTheDocument())
+    expect(provenanceCalls).toBe(1)
+  })
+
+  it("settles a native provenance fetch rejection without retrying", async () => {
+    let provenanceCalls = 0
+    mockFetch.mockImplementation(async (url: string) => {
+      if (url.includes("/api/column-presets")) {
+        return { ok: true, json: async () => ({ presets: PRESETS }) }
+      }
+      if (url.includes("/merge-provenance")) {
+        provenanceCalls += 1
+        throw new TypeError("network unavailable")
+      }
+      if (url.includes("/api/variants/chromosomes")) {
+        return { ok: true, json: async () => [{ chrom: "1", count: 4 }] }
+      }
+      if (url.includes("/api/variants/count")) {
+        return { ok: true, json: async () => COUNT }
+      }
+      if (url.includes("/api/variants")) {
+        return { ok: true, json: async () => makePage(4) }
+      }
+      return { ok: true, json: async () => [] }
+    })
+
+    render(<VariantTable sampleId={1} />)
+    await waitFor(() => expect(screen.getByText("rs100")).toBeInTheDocument())
+    expect(provenanceCalls).toBe(1)
+  })
+
   it("renders Source and Concordance headers when merge-provenance resolves", async () => {
     setupMerged()
     render(<VariantTable sampleId={1} />)

@@ -315,7 +315,11 @@ def _read_merge_provenance(registry: object, sample_id: int) -> sa.Row | None:
 async def get_merge_provenance(
     sample_id: int,
 ) -> MergeProvenanceResponse | None:
-    """Return the provenance row for a merged sample, otherwise JSON ``null``.
+    """Return a merged sample's provenance row, or JSON ``null`` when unmerged.
+
+    A registered ``merged_v1`` sample whose local transaction has not exposed
+    its provenance row yet is rejected by the freshness dependency with a
+    retryable 503 instead of being misclassified as unmerged.
 
     Plan §10.6: the merged-sample artefact is queryable independently of
     the originating individual, so the route lives under ``/api/samples``

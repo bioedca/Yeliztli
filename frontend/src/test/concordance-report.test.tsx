@@ -22,7 +22,11 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { MemoryRouter, Route, Routes, useNavigate } from "react-router-dom"
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import {
+  onlineManager,
+  QueryClient,
+  QueryClientProvider,
+} from "@tanstack/react-query"
 import { render as rtlRender } from "@testing-library/react"
 import { ThemeProvider } from "@/lib/ThemeContext"
 import { fireEvent, screen, waitFor } from "./test-utils"
@@ -129,10 +133,15 @@ const STALE_PAYLOAD = {
 
 const mockFetch = vi.fn()
 
-function jsonResponse(body: unknown, status = 200) {
+function jsonResponse(
+  body: unknown,
+  status = 200,
+  headers: Record<string, string> = {},
+) {
   return {
     ok: status < 400,
     status,
+    headers: new Headers(headers),
     json: async () => body,
     text: async () => JSON.stringify(body),
     clone() {
@@ -147,6 +156,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  onlineManager.setOnline(true)
   vi.unstubAllGlobals()
 })
 
@@ -203,6 +213,48 @@ function reportUrl(offset: number, sampleId = SAMPLE_ID) {
 // ═══════════════════════════════════════════════════════════════════════
 
 describe("ConcordanceReport — happy path", () => {
+  it("keeps a paused offline provenance query in the loading state", () => {
+    onlineManager.setOnline(false)
+
+    renderReport()
+
+    expect(screen.getByText("Loading merge provenance…")).toBeInTheDocument()
+    expect(
+      screen.queryByText("Failed to load merge provenance."),
+    ).not.toBeInTheDocument()
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
+  it("waits for pending merge provenance before requesting the report", async () => {
+    let provenanceCalls = 0
+    mockFetch.mockImplementation((url: string) => {
+      if (url === provenanceUrl()) {
+        provenanceCalls += 1
+        return Promise.resolve(
+          provenanceCalls === 1
+            ? jsonResponse(
+                { detail: { error: "merge_provenance_pending" } },
+                503,
+                { "Retry-After": "0" },
+              )
+            : jsonResponse(PROVENANCE_PAYLOAD),
+        )
+      }
+      if (url === reportUrl(0)) return Promise.resolve(jsonResponse(REPORT_PAGE_1))
+      throw new Error(`unexpected fetch: ${url}`)
+    })
+
+    renderReport()
+
+    await waitFor(() => {
+      expect(screen.getByTestId("concordance-locus-rs429358")).toBeInTheDocument()
+    })
+    expect(provenanceCalls).toBe(2)
+    expect(
+      mockFetch.mock.calls.filter(([url]) => url === reportUrl(0)),
+    ).toHaveLength(1)
+  })
+
   it("renders header, summary buckets, and discordant-loci table", async () => {
     mockFetch.mockImplementation((url: string) => {
       if (url === provenanceUrl()) return Promise.resolve(jsonResponse(PROVENANCE_PAYLOAD))
@@ -512,6 +564,22 @@ describe("ConcordanceReport — null not-merged handling", () => {
 // ═══════════════════════════════════════════════════════════════════════
 
 describe("ConcordanceReport — missing sample handling", () => {
+  it("settles a native provenance fetch rejection as a page error", async () => {
+    mockFetch.mockImplementation((url: string) => {
+      if (url === provenanceUrl()) {
+        return Promise.reject(new TypeError("network unavailable"))
+      }
+      throw new Error(`unexpected fetch: ${url}`)
+    })
+
+    renderReport()
+
+    await waitFor(() => {
+      expect(screen.getByText("network unavailable")).toBeInTheDocument()
+    })
+    expect(mockFetch).not.toHaveBeenCalledWith(reportUrl(0))
+  })
+
   it("renders an error rather than mislabelling the sample as unmerged", async () => {
     mockFetch.mockImplementation((url: string) => {
       if (url === provenanceUrl())

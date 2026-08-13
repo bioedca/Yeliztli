@@ -36,6 +36,7 @@ import {
 } from "lucide-react"
 
 import {
+  SamplesApiError,
   useConcordanceReport,
   useMergeProvenance,
 } from "@/api/samples"
@@ -438,10 +439,12 @@ export default function ConcordanceReport() {
   // 423 from either query — surface a stale-sample banner and don't render
   // the rest of the page (the gate also blocks discordant-loci reads).
   const staleError =
-    (provenanceQuery.error && provenanceQuery.error.isStaleSample()
+    (provenanceQuery.error instanceof SamplesApiError &&
+    provenanceQuery.error.isStaleSample()
       ? provenanceQuery.error
       : null) ??
-    (reportQuery.error && reportQuery.error.isStaleSample()
+    (reportQuery.error instanceof SamplesApiError &&
+    reportQuery.error.isStaleSample()
       ? reportQuery.error
       : null)
 
@@ -469,7 +472,7 @@ export default function ConcordanceReport() {
     )
   }
 
-  if (provenanceQuery.isLoading) {
+  if (provenanceQuery.isPending) {
     return (
       <div className="p-6 max-w-6xl mx-auto">
         <PageLoading message="Loading merge provenance…" />
@@ -508,7 +511,9 @@ export default function ConcordanceReport() {
         />
       )}
 
-      {reportQuery.error && !reportQuery.error.isStaleSample() ? (
+      {reportQuery.error &&
+      (!(reportQuery.error instanceof SamplesApiError) ||
+        !reportQuery.error.isStaleSample()) ? (
         <PageError
           message={reportQuery.error.message}
           onRetry={() => reportQuery.refetch()}

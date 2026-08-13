@@ -98,6 +98,7 @@ test('unmerged Variant Explorer loads with nullable provenance and no console er
   await expect(page.getByText('rs2037')).toBeVisible()
   await expect(page.getByRole('columnheader', { name: 'Source' })).toHaveCount(0)
   await expect(page.getByRole('columnheader', { name: 'Concordance' })).toHaveCount(0)
+  expect(failedResponses).toEqual([])
   expect(
     consoleErrors,
     `Unexpected console errors:\n${consoleErrors.join('\n')}\nFailed responses:\n${failedResponses.join('\n')}`,

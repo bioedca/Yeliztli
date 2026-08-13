@@ -13,6 +13,11 @@ uniformly across analysis and merge/migrate routes — existence is checked
 than 404-or-423 by local bundle state (#453). See
 :func:`require_fresh_sample` for the full resolution order.
 
+A ``merged_v1`` sample is also probed read-only before staleness. While its
+database/provenance transaction is not yet visible, every gated route answers
+a typed 503 with ``Retry-After: 1`` instead of opening and schema-upgrading the
+partial database.
+
 The 423 ``detail`` payload carries the four keys mandated by Plan §7.5:
 
 * ``installed_version`` — the version recorded in the sample's
@@ -33,8 +38,9 @@ Drift guard lives at ``tests/backend/test_stale_sample_dependency.py``.
 
 from __future__ import annotations
 
+import sqlite3
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 
 import sqlalchemy as sa
 from fastapi import HTTPException
@@ -54,6 +60,49 @@ from backend.services.staleness import get_recorded_bundle_version, is_sample_st
 _BUNDLE_KEY = "vep_bundle"
 # Plan §7.4 — every pre-Phase-0 sample state is treated as v1.0.0.
 _FALLBACK_SAMPLE_VERSION = "v1.0.0"
+_MERGED_FILE_FORMAT = "merged_v1"
+_MERGE_PROVENANCE_RETRY_AFTER_SECONDS = 1
+
+
+def _raise_if_merge_provenance_pending(sample_id: int) -> None:
+    """Fail closed while a registered merged sample is being materialised.
+
+    ``merge_samples`` publishes the central ``samples`` row after creating the
+    merged-only schema but before its larger provenance/variant transaction is
+    visible. The ordinary freshness reader cannot probe that window:
+    ``get_sample_engine`` upgrades schemas and may write to the partial file.
+    Use a throwaway SQLite read-only connection so this dependency never
+    creates, migrates, journals, or caches the partial database.
+    """
+    registry = get_registry()
+    with registry.reference_engine.connect() as conn:
+        row = conn.execute(
+            sa.select(samples.c.db_path, samples.c.file_format).where(samples.c.id == sample_id)
+        ).fetchone()
+    if row is None or row.file_format != _MERGED_FILE_FORMAT:
+        return
+
+    def raise_pending() -> None:
+        raise HTTPException(
+            status_code=503,
+            detail={"error": "merge_provenance_pending"},
+            headers={"Retry-After": str(_MERGE_PROVENANCE_RETRY_AFTER_SECONDS)},
+        )
+
+    sample_db = registry.settings.data_dir / row.db_path
+    if not sample_db.is_file():
+        raise_pending()
+
+    uri = f"{sample_db.resolve().as_uri()}?mode=ro"
+    with closing(sqlite3.connect(uri, uri=True)) as conn:
+        table_exists = conn.execute(
+            "SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'merge_provenance'"
+        ).fetchone()
+        if table_exists is None:
+            raise_pending()
+        provenance_exists = conn.execute("SELECT 1 FROM merge_provenance WHERE id = 1").fetchone()
+    if provenance_exists is None:
+        raise_pending()
 
 
 def _read_recorded_sample_version(sample_id: int) -> str:
@@ -164,7 +213,12 @@ def require_fresh_sample(sample_id: int) -> int:
        cross-user information, and 404-for-missing is the simpler, RESTful
        contract. (Supersedes the prior "missing falls through to 423 to
        avoid leaking existence" wording.)
-    2. **Existing but never annotated** (no recorded
+    2. **Merged sample still materialising** (registered as ``merged_v1`` but
+       its database, provenance table, or provenance row is not yet visible) →
+       ``HTTPException(503)`` with ``Retry-After: 1``. The probe is read-only
+       so freshness checking cannot install the ordinary sample schema into a
+       partial merged database.
+    3. **Existing but never annotated** (no recorded
        ``annotation_state.vep_bundle_version`` row) → returned unchanged.
        It has no stale data to block; it needs its *first* annotation,
        surfaced by the dashboard's "Run Annotation" CTA rather than the
@@ -175,9 +229,9 @@ def require_fresh_sample(sample_id: int) -> int:
        means "never annotated". ``is_sample_stale`` keeps the fallback for
        the merge stale-source gate, where blocking an un-annotated source
        before merge is intended.)
-    3. **Existing and stale** (bundle major < installed major) →
+    4. **Existing and stale** (bundle major < installed major) →
        ``HTTPException(423, detail={...})`` with the Plan §7.5 payload.
-    4. Otherwise → ``sample_id`` returned unchanged so routes can declare
+    5. Otherwise → ``sample_id`` returned unchanged so routes can declare
        the dependency without losing path-parameter access
        (``sample_id: int = Depends(require_fresh_sample)`` keeps the value
        bound to the handler signature).
@@ -190,8 +244,10 @@ def require_fresh_sample(sample_id: int) -> int:
     existence = _sample_existence(sample_id)
     if existence is False:
         raise HTTPException(status_code=404, detail=f"Sample {sample_id} not found.")
-    if existence and get_recorded_bundle_version(sample_id) is None:
-        return sample_id
+    if existence:
+        _raise_if_merge_provenance_pending(sample_id)
+        if get_recorded_bundle_version(sample_id) is None:
+            return sample_id
     if not is_sample_stale(sample_id):
         return sample_id
 

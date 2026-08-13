@@ -503,6 +503,46 @@ class TestMergeProvenanceRoute:
         assert resp.status_code == 200
         assert resp.json() is None
 
+    def test_merged_sample_without_provenance_is_temporarily_unavailable(
+        self, merge_client: TestClient
+    ) -> None:
+        from backend.db.connection import get_registry
+
+        registry = get_registry()
+        with registry.reference_engine.begin() as conn:
+            conn.execute(
+                samples.update()
+                .where(samples.c.id == merge_client.s1_id)  # type: ignore[attr-defined]
+                .values(file_format="merged_v1")
+            )
+
+        resp = merge_client.get(
+            f"/api/samples/{merge_client.s1_id}/merge-provenance"  # type: ignore[attr-defined]
+        )
+        assert resp.status_code == 503
+        assert resp.json() == {"detail": {"error": "merge_provenance_pending"}}
+        assert resp.headers["retry-after"] == "1"
+
+    def test_merged_sample_missing_database_is_temporarily_unavailable(
+        self, merge_client: TestClient
+    ) -> None:
+        from backend.db.connection import get_registry
+
+        registry = get_registry()
+        with registry.reference_engine.begin() as conn:
+            conn.execute(
+                samples.update()
+                .where(samples.c.id == merge_client.s1_id)  # type: ignore[attr-defined]
+                .values(file_format="merged_v1", db_path="samples/pending-merge.db")
+            )
+
+        resp = merge_client.get(
+            f"/api/samples/{merge_client.s1_id}/merge-provenance"  # type: ignore[attr-defined]
+        )
+        assert resp.status_code == 503
+        assert resp.json() == {"detail": {"error": "merge_provenance_pending"}}
+        assert resp.headers["retry-after"] == "1"
+
     def test_nonexistent_sample_returns_404(self, merge_client: TestClient) -> None:
         # #453 — ``Depends(require_fresh_sample)`` checks existence before
         # staleness, so a missing ``samples`` row answers 404 deterministically
