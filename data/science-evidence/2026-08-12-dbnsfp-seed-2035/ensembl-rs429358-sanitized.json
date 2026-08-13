@@ -1,0 +1,45 @@
+{
+  "accessed": "2026-08-12",
+  "source": "Ensembl VEP REST",
+  "request": {
+    "method": "GET",
+    "url": "https://rest.ensembl.org/vep/human/id/rs429358",
+    "response_format": "application/json"
+  },
+  "variant": {
+    "id": "rs429358",
+    "assembly_name": "GRCh38",
+    "seq_region_name": "19",
+    "start": 44908684,
+    "end": 44908684,
+    "allele_string": "T/C",
+    "strand": 1,
+    "most_severe_consequence": "missense_variant"
+  },
+  "apoe_missense_transcript_summary": {
+    "transcript_consequence_count": 30,
+    "variant_allele": "C",
+    "sift": [
+      {
+        "score": 1.0,
+        "prediction": "tolerated",
+        "transcript_count": 29
+      },
+      {
+        "score": 0.46,
+        "prediction": "tolerated_low_confidence",
+        "transcript_count": 1,
+        "transcript_id": "ENST00001121353"
+      }
+    ],
+    "polyphen_non_null": [
+      {
+        "score": 0.0,
+        "prediction": "benign",
+        "transcript_id": "ENST00000434152"
+      }
+    ]
+  },
+  "role": "Context showing that a current independent annotation response does not reproduce the former shared fixture pair; not a dbNSFP oracle and not a source for synthetic fixture values.",
+  "sanitization": "This derived summary retains only request identity, variant mapping, and aggregated APOE missense transcript prediction fields. The complete public source-structured response is retained separately under raw/ and bound by source-manifest.json."
+}

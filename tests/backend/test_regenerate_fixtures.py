@@ -30,21 +30,23 @@ ADDITIONAL_VERIFIED_GRCH37_MAPPINGS: dict[str, GRCh37Mapping] = {
     "rs662": ("7", 94_937_446, frozenset({"T", "C"}))
 }
 
-# Every coordinate-bearing seed has one corresponding generated table.  The
-# coordinate guard derives its rsID scope from the seed/snapshot intersection;
-# adding a panel rsID to a seed therefore extends the guard automatically.
-# The GWAS seed is deliberately absent: #1948/#2011 made it synthetic
-# rsID-membership data; coordinates, alleles, and effect metadata must all
-# remain null.
+# Only seeds governed by the real GRCh37 coordinate and plus-strand allele
+# oracle belong here. GWAS is synthetic rsID-membership data, while dbNSFP uses
+# synthetic GRCh38 lookup keys and has its own scenario contract. Generated
+# database parity remains independently covered by MINI_DB_NAMES.
 COORDINATE_SEED_DB_TARGETS = (
     ("clinvar_seed.csv", "mini_reference.db", "clinvar_variants"),
     ("vep_seed.csv", "mini_vep_bundle.db", "vep_annotations"),
     ("gnomad_seed.csv", "mini_gnomad_af.db", "gnomad_af"),
-    ("dbnsfp_seed.csv", "mini_dbnsfp.db", "dbnsfp_scores"),
 )
 
 ALLELE_SEED_CSVS = tuple(target[0] for target in COORDINATE_SEED_DB_TARGETS)
-MINI_DB_NAMES = tuple(dict.fromkeys(target[1] for target in COORDINATE_SEED_DB_TARGETS))
+MINI_DB_NAMES = (
+    "mini_reference.db",
+    "mini_vep_bundle.db",
+    "mini_gnomad_af.db",
+    "mini_dbnsfp.db",
+)
 
 
 def _expected_grch37_mappings() -> dict[str, GRCh37Mapping]:
@@ -428,7 +430,7 @@ class TestRegenerateFixtures:
         _run_script(tmp_path)
         with sqlite3.connect(str(tmp_path / "mini_dbnsfp.db")) as conn:
             count = conn.execute("SELECT count(*) FROM dbnsfp_scores").fetchone()[0]
-        assert count >= 30, f"Expected >=30 dbNSFP rows, got {count}"
+        assert count == 6, f"Expected the 6 reviewed synthetic dbNSFP scenarios, got {count}"
 
     @pytest.mark.parametrize(("csv_name", "db_name", "table_name"), COORDINATE_SEED_DB_TARGETS)
     def test_guarded_mini_db_coordinates_match_seed(
