@@ -1,5 +1,5 @@
 {
-  "packet_version": 2,
+  "packet_version": 3,
   "issue": 2035,
   "accessed": "2026-08-12",
   "decision": "Replace the shared dbNSFP seed with explicit synthetic behavior scenarios; retain no upstream score rows.",
@@ -12,92 +12,283 @@
   "sources": [
     {
       "id": "dbnsfp-releases",
+      "accessed": "2026-08-12",
       "claim_ids": ["C2"],
       "url": "https://www.dbnsfp.org/releases/",
       "version_observed": "dbNSFP v5.3.1 (January 1, 2026); README branches v5.3.1a and v5.3.1c",
       "license_or_terms": "Public release metadata only; dbNSFP data terms are recorded separately.",
       "role": "Confirms the production-pinned release family.",
-      "retained_path": "data/science-evidence/2026-08-12-dbnsfp-seed-2035/dbnsfp-releases-sanitized.json"
+      "derived_path": "data/science-evidence/2026-08-12-dbnsfp-seed-2035/dbnsfp-releases-sanitized.json",
+      "raw_payload_refs": [
+        {
+          "path": "data/science-evidence/2026-08-12-dbnsfp-seed-2035/raw/dbnsfp-releases.html",
+          "selector_kind": "whole_payload",
+          "selector": "$"
+        }
+      ]
     },
     {
       "id": "dbnsfp-license",
+      "accessed": "2026-08-12",
       "claim_ids": ["C3"],
       "url": "https://www.dbnsfp.org/license/",
       "version_observed": "Page accessed 2026-08-12",
       "license_or_terms": "Academic/non-commercial use is CC BY-NC-ND 4.0; users must also comply with original component-source terms.",
       "role": "Supports the non-redistributed, provider-fetched fixture boundary.",
-      "retained_path": "data/science-evidence/2026-08-12-dbnsfp-seed-2035/dbnsfp-license-sanitized.json"
+      "derived_path": "data/science-evidence/2026-08-12-dbnsfp-seed-2035/dbnsfp-license-sanitized.json",
+      "raw_payload_refs": [
+        {
+          "path": "data/science-evidence/2026-08-12-dbnsfp-seed-2035/raw/dbnsfp-license.html",
+          "selector_kind": "whole_payload",
+          "selector": "$"
+        }
+      ]
     },
     {
       "id": "dbnsfp-query-service",
+      "accessed": "2026-08-12",
       "claim_ids": ["C2"],
       "url": "https://query.genos.us/api/health",
       "version_observed": "Public score-free health metadata reported dataset 5.4a",
       "license_or_terms": "Public service metadata only; no score-bearing output retained.",
       "role": "Auditable version-mismatch observation only.",
-      "retained_path": "data/science-evidence/2026-08-12-dbnsfp-seed-2035/dbnsfp-query-health-sanitized.json"
+      "derived_path": "data/science-evidence/2026-08-12-dbnsfp-seed-2035/dbnsfp-query-health-sanitized.json",
+      "raw_payload_refs": [
+        {
+          "path": "data/science-evidence/2026-08-12-dbnsfp-seed-2035/raw/dbnsfp-query-health.json",
+          "selector_kind": "whole_payload",
+          "selector": "$"
+        }
+      ]
     },
     {
       "id": "ensembl-vep-rs429358",
+      "accessed": "2026-08-12",
       "claim_ids": ["C1"],
-      "url": "https://rest.ensembl.org/vep/human/id/rs429358",
+      "url": "https://rest.ensembl.org/vep/human/id/rs429358?content-type=application/json",
       "version_observed": "GRCh38 response accessed 2026-08-12",
-      "license_or_terms": "Ensembl/EMBL-EBI service terms; only a bounded derived response summary is retained.",
+      "license_or_terms": "Ensembl/EMBL-EBI service terms; the public source-structured JSON and a bounded derived summary are retained.",
       "role": "Independent context; not a dbNSFP source and not used to set fixture values.",
-      "retained_path": "data/science-evidence/2026-08-12-dbnsfp-seed-2035/ensembl-rs429358-sanitized.json"
+      "derived_path": "data/science-evidence/2026-08-12-dbnsfp-seed-2035/ensembl-rs429358-sanitized.json",
+      "raw_payload_refs": [
+        {
+          "path": "data/science-evidence/2026-08-12-dbnsfp-seed-2035/raw/ensembl-vep-rs429358.json",
+          "selector_kind": "json_pointer",
+          "selector": "/0"
+        }
+      ]
     },
     {
       "id": "dbnsfp-v4-paper",
+      "accessed": "2026-08-12",
       "claim_ids": ["C5"],
       "citation": "PMID:33261662; DOI:10.1186/s13073-020-00803-9",
       "url": "https://pubmed.ncbi.nlm.nih.gov/33261662/",
-      "version_observed": "PubMed record accessed 2026-08-12",
+      "version_observed": "PubMed ESummary 0.3; EFetch PubMedArticle DTD 2025-01-01",
       "license_or_terms": "NCBI bibliographic metadata only; no article text retained.",
       "role": "Resource identity and method context.",
-      "retained_path": "data/science-evidence/2026-08-12-dbnsfp-seed-2035/pubmed-metadata-sanitized.json"
+      "derived_path": "data/science-evidence/2026-08-12-dbnsfp-seed-2035/pubmed-metadata-sanitized.json",
+      "raw_payload_refs": [
+        {
+          "path": "data/science-evidence/2026-08-12-dbnsfp-seed-2035/raw/pubmed-esummary-33261662-27666373.json",
+          "selector_kind": "json_pointer",
+          "selector": "/result/33261662"
+        },
+        {
+          "path": "data/science-evidence/2026-08-12-dbnsfp-seed-2035/raw/pubmed-efetch-33261662-27666373.xml",
+          "selector_kind": "xpath",
+          "selector": "/PubmedArticleSet/PubmedArticle[MedlineCitation/PMID='33261662']"
+        }
+      ]
     },
     {
       "id": "revel-paper",
+      "accessed": "2026-08-12",
       "claim_ids": ["C5"],
       "citation": "PMID:27666373; DOI:10.1016/j.ajhg.2016.08.016",
       "url": "https://pubmed.ncbi.nlm.nih.gov/27666373/",
-      "version_observed": "PubMed record accessed 2026-08-12",
+      "version_observed": "PubMed ESummary 0.3; EFetch PubMedArticle DTD 2025-01-01",
       "license_or_terms": "NCBI bibliographic metadata only; no article text retained.",
       "role": "Predictor identity and method context.",
-      "retained_path": "data/science-evidence/2026-08-12-dbnsfp-seed-2035/pubmed-metadata-sanitized.json"
+      "derived_path": "data/science-evidence/2026-08-12-dbnsfp-seed-2035/pubmed-metadata-sanitized.json",
+      "raw_payload_refs": [
+        {
+          "path": "data/science-evidence/2026-08-12-dbnsfp-seed-2035/raw/pubmed-esummary-33261662-27666373.json",
+          "selector_kind": "json_pointer",
+          "selector": "/result/27666373"
+        },
+        {
+          "path": "data/science-evidence/2026-08-12-dbnsfp-seed-2035/raw/pubmed-efetch-33261662-27666373.xml",
+          "selector_kind": "xpath",
+          "selector": "/PubmedArticleSet/PubmedArticle[MedlineCitation/PMID='27666373']"
+        }
+      ]
     }
   ],
   "retained_artifacts": [
     {
       "path": "data/science-evidence/2026-08-12-dbnsfp-seed-2035/dbnsfp-query-health-sanitized.json",
-      "content": "Sanitized score-free dbNSFP service health/version response",
+      "kind": "derived_summary",
+      "content": "Derived score-free dbNSFP service health/version summary",
       "sha256": "f82bd674e231a1c01ec04b0dcf018c60400538983becf631fbfc415b158c961f"
     },
     {
       "path": "data/science-evidence/2026-08-12-dbnsfp-seed-2035/dbnsfp-releases-sanitized.json",
-      "content": "Sanitized official dbNSFP release/version metadata",
+      "kind": "derived_summary",
+      "content": "Derived official dbNSFP release/version summary",
       "sha256": "55cf94a9e3104d496e0ef30acc4b59042f18cd6c623e55afc8d6a0d62e255fe4"
     },
     {
       "path": "data/science-evidence/2026-08-12-dbnsfp-seed-2035/dbnsfp-license-sanitized.json",
-      "content": "Sanitized official dbNSFP license metadata",
+      "kind": "derived_summary",
+      "content": "Derived official dbNSFP license summary",
       "sha256": "5353d523703e6d0be118945efcd02dba2558e2b3602ed4ca447cab679fb84842"
     },
     {
       "path": "data/science-evidence/2026-08-12-dbnsfp-seed-2035/ensembl-rs429358-sanitized.json",
-      "content": "Sanitized Ensembl request and aggregate response metadata",
-      "sha256": "d9b9e653d5e8ac968ae69bd8b1cd778427ae85ef580eafa335c93e770fe3aedd"
+      "kind": "derived_summary",
+      "content": "Derived Ensembl request, mapping, and APOE transcript summary",
+      "sha256": "d4d5ee09ee10187c20b25483951c60ac693c5e5f468425c3e5db5b3cd5725851"
     },
     {
       "path": "data/science-evidence/2026-08-12-dbnsfp-seed-2035/pubmed-metadata-sanitized.json",
-      "content": "Sanitized PubMed bibliographic and correction-link metadata",
+      "kind": "derived_summary",
+      "content": "Derived PubMed bibliographic and correction-link summary",
       "sha256": "a3033ea899b4aec83b4286e7ecbe3d6cb7ceea3fa8129c3d7983986bdd153c09"
+    },
+    {
+      "path": "data/science-evidence/2026-08-12-dbnsfp-seed-2035/raw/dbnsfp-releases.html",
+      "kind": "sanitized_raw_response",
+      "media_type": "text/html",
+      "request": {
+        "method": "GET",
+        "url": "https://www.dbnsfp.org/releases/"
+      },
+      "accessed": "2026-08-12",
+      "source_response_sha256": "18a5f953e562f1d291e7238493dfd56a5315f669b7020d84c709fe5c1bdf1205",
+      "sha256": "dc3051cf14629bb8e7f5583ce7ea348b2c77ccdb6bacdd66167cd7f387d9c9f2",
+      "sanitization": {
+        "removed": [
+          {"selector": "//script", "count": 2}
+        ],
+        "transforms": ["Removed trailing spaces from 2 whitespace-only lines."],
+        "preserved_if_present": [],
+        "otherwise_preserved": true
+      }
+    },
+    {
+      "path": "data/science-evidence/2026-08-12-dbnsfp-seed-2035/raw/dbnsfp-license.html",
+      "kind": "sanitized_raw_response",
+      "media_type": "text/html",
+      "request": {
+        "method": "GET",
+        "url": "https://www.dbnsfp.org/license/"
+      },
+      "accessed": "2026-08-12",
+      "source_response_sha256": "844376690079eb2b917bb01959f44d5018a5d6d5722aa717b66ec31e755022c8",
+      "sha256": "2d9ec0027b6388ad17271767d3b25d732ad0340e95a3bec756d33bd2d1e660ae",
+      "sanitization": {
+        "removed": [
+          {"selector": "//script", "count": 2},
+          {"selector": "//p[contains-public-contact-email-and-form]", "count": 1}
+        ],
+        "transforms": ["Removed trailing spaces from 3 whitespace-only lines."],
+        "preserved_if_present": [],
+        "otherwise_preserved": true
+      }
+    },
+    {
+      "path": "data/science-evidence/2026-08-12-dbnsfp-seed-2035/raw/dbnsfp-query-health.json",
+      "kind": "sanitized_raw_response",
+      "media_type": "application/json",
+      "request": {
+        "method": "GET",
+        "url": "https://query.genos.us/api/health"
+      },
+      "accessed": "2026-08-12",
+      "source_response_sha256": "1be57f6e0d3f2fd11a6faa63c456af0f6fc9e34e87ce5dd51c2cc6942d8db45f",
+      "sha256": "46e41d713a833a7611c572c349d0c85b9df910750759b52e050feeeae6ee04a6",
+      "sanitization": {
+        "removed": [],
+        "transforms": ["Appended one terminal LF."],
+        "preserved_if_present": [],
+        "otherwise_preserved": true
+      }
+    },
+    {
+      "path": "data/science-evidence/2026-08-12-dbnsfp-seed-2035/raw/ensembl-vep-rs429358.json",
+      "kind": "sanitized_raw_response",
+      "media_type": "application/json",
+      "request": {
+        "method": "GET",
+        "url": "https://rest.ensembl.org/vep/human/id/rs429358?content-type=application/json"
+      },
+      "accessed": "2026-08-12",
+      "source_response_sha256": "eee9dd61ab5bc2190b84c66b846916683a161ce6ec71ef1d02aaf6db35bf4198",
+      "sha256": "862f56b46923cc3b68b0d7019d6a47a33c5d8d932986aea90360939f58022caf",
+      "sanitization": {
+        "removed": [],
+        "transforms": ["Appended one terminal LF."],
+        "preserved_if_present": [],
+        "otherwise_preserved": true
+      }
+    },
+    {
+      "path": "data/science-evidence/2026-08-12-dbnsfp-seed-2035/raw/pubmed-esummary-33261662-27666373.json",
+      "kind": "sanitized_raw_response",
+      "media_type": "application/json",
+      "request": {
+        "method": "GET",
+        "url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id=33261662,27666373&retmode=json"
+      },
+      "accessed": "2026-08-12",
+      "source_response_sha256": "b69b89fe3192f2a3bf6bde57a8a3d968c6c30fa7e0c7544b7116a3a7329f780a",
+      "sha256": "dfad2a0218c3b8870eb8c9ac2378cf3e54622a1bfd079dba1083236e88791622",
+      "sanitization": {
+        "removed": [
+          {"selector": "/result/*/authors", "count": 2, "nested_record_count": 46},
+          {"selector": "/result/*/lastauthor", "count": 2},
+          {"selector": "/result/*/sortfirstauthor", "count": 2},
+          {"selector": "/result/*/srccontriblist", "count": 2},
+          {"selector": "/result/*/doccontriblist", "count": 2}
+        ],
+        "transforms": ["Reserialized as UTF-8 indented JSON with one terminal LF."],
+        "preserved_if_present": [],
+        "otherwise_preserved": true
+      }
+    },
+    {
+      "path": "data/science-evidence/2026-08-12-dbnsfp-seed-2035/raw/pubmed-efetch-33261662-27666373.xml",
+      "kind": "sanitized_raw_response",
+      "media_type": "application/xml",
+      "request": {
+        "method": "GET",
+        "url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=33261662,27666373&retmode=xml"
+      },
+      "accessed": "2026-08-12",
+      "source_version": "PubMedArticle DTD 2025-01-01",
+      "source_response_sha256": "1b46f525926a319338133e9d99038167bf6a2879855a89b0c42f668eba201c8c",
+      "sha256": "356de3d711d8d96147ac63b39862e208f77b9768317574e7b79636aea4c26792",
+      "sanitization": {
+        "removed": [
+          {"selector": "//Abstract", "count": 2},
+          {"selector": "//AuthorList", "count": 2, "nested_affiliation_count": 46},
+          {"selector": "//GrantList", "count": 2},
+          {"selector": "//ReferenceList", "count": 2},
+          {"selector": "//CoiStatement", "count": 1},
+          {"selector": "//MeshHeadingList", "count": 2},
+          {"selector": "//KeywordList", "count": 1},
+          {"selector": "DOCTYPE", "count": 1}
+        ],
+        "transforms": ["Reserialized as UTF-8 indented XML with one terminal LF."],
+        "preserved_if_present": ["//CommentsCorrectionsList"],
+        "otherwise_preserved": true
+      }
     }
   ],
   "excluded": [
     "dbNSFP score-bearing query results",
     "dbNSFP source archive or row excerpts",
-    "full Ensembl response",
     "article text or abstracts",
     "Consensus or Scite output",
     "PII, genotypes, patient data, credentials, and restricted data"

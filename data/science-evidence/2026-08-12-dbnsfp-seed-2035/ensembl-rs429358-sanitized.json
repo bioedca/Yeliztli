@@ -41,5 +41,5 @@
     ]
   },
   "role": "Context showing that a current independent annotation response does not reproduce the former shared fixture pair; not a dbNSFP oracle and not a source for synthetic fixture values.",
-  "sanitization": "Retains only request identity, variant mapping, and aggregated APOE missense transcript prediction fields. The full Ensembl response was discarded."
+  "sanitization": "This derived summary retains only request identity, variant mapping, and aggregated APOE missense transcript prediction fields. The complete public source-structured response is retained separately under raw/ and bound by source-manifest.json."
 }

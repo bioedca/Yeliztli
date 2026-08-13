@@ -33,24 +33,33 @@ and byte-independent semantic equality between the CSV and SQLite fixture.
 
 ## Retained evidence
 
+- `raw/` contains six sanitized, source-structured response copies: the dbNSFP
+  releases and license HTML pages, the complete score-free health JSON, the
+  complete public Ensembl VEP JSON, and the PubMed ESummary JSON and EFetch
+  XML. `source-manifest.json` records each exact request, source-response hash,
+  committed-payload hash, access date, source selector, and sanitization
+  boundary. Scripts, public contact details, article text, author metadata,
+  references, grants, and unused indexing terms were removed as declared; no
+  predictor-score response is present.
 - `dbnsfp-query-health-sanitized.json` retains the complete score-free public
-  health response fields (`status` and `dataset_version`) plus the exact source-
-  payload hash. It contains no variant query or predictor value.
+  health response fields (`status` and `dataset_version`) as a derived summary.
+  It contains no variant query or predictor value.
 - `dbnsfp-releases-sanitized.json` retains only the official release IDs,
-  dates, and academic/commercial README branch labels needed to establish the
-  production-versus-browser version boundary.
+  dates, and academic/commercial README branch labels as a derived summary of
+  the retained source HTML.
 - `dbnsfp-license-sanitized.json` retains only the official branch, permitted-
   use, license-identifier, and component-license facts used by the
-  non-redistribution decision.
+  non-redistribution decision as a derived summary of the retained source HTML.
 - `ensembl-rs429358-sanitized.json` retains only request identity, assembly,
-  allele, and aggregated APOE transcript prediction fields from Ensembl VEP.
-  It omits the rest of the response and is context for rejecting the old
-  fixture, not a source for the replacement values.
+  allele, and aggregated APOE transcript prediction fields as a derived
+  summary. The source-structured response is retained under `raw/`; Ensembl is
+  context for rejecting the old fixture, not a source for replacement values.
 - `pubmed-metadata-sanitized.json` retains bibliographic identifiers and the
-  observed PubMed correction-link field state. It contains no abstracts,
-  article text, affiliations, or contact information.
-- `source-manifest.json` records versions, terms, URLs, roles, and the exact
-  repository-relative paths used by this packet.
+  observed PubMed correction-link field state as a derived summary of the two
+  source-structured PubMed responses. It contains no abstracts, article text,
+  affiliations, or contact information.
+- `source-manifest.json` binds all derived summaries and raw responses to exact
+  repository-relative paths and SHA-256 digests.
 - `query-log.md` records the sanitized public queries and unavailable
   documentation lookup. Consensus and Scite were discovery/checking tools only;
   their output is not retained or treated as evidence.
@@ -83,8 +92,9 @@ used to validate any synthetic score or to make a clinical claim.
 
 NCBI PubMed EFetch records for PMID:33261662 and PMID:27666373 were inspected on
 2026-08-12. Neither retrieved record emitted a `CommentsCorrectionsList`.
-That bounded observation is retained in `pubmed-metadata-sanitized.json`; it is
-not a general retraction clearance, and no score claim depends on it.
+That bounded observation is retained in the sanitized source-structured EFetch
+XML and summarized in `pubmed-metadata-sanitized.json`; it is not a general
+retraction clearance, and no score claim depends on it.
 
 ## Reproduction and withholding rule
 
