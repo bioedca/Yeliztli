@@ -1,0 +1,24 @@
+{
+  "accessed": "2026-08-12",
+  "source": "NCBI PubMed ESummary and EFetch",
+  "records": [
+    {
+      "pmid": "33261662",
+      "doi": "10.1186/s13073-020-00803-9",
+      "title": "dbNSFP v4: a comprehensive database of transcript-specific functional predictions and annotations for human nonsynonymous and splice-site SNVs",
+      "journal": "Genome Medicine",
+      "publication_year": 2020,
+      "comments_corrections_list_present_in_retrieved_record": false
+    },
+    {
+      "pmid": "27666373",
+      "doi": "10.1016/j.ajhg.2016.08.016",
+      "title": "REVEL: An Ensemble Method for Predicting the Pathogenicity of Rare Missense Variants",
+      "journal": "American Journal of Human Genetics",
+      "publication_year": 2016,
+      "comments_corrections_list_present_in_retrieved_record": false
+    }
+  ],
+  "interpretation": "No CommentsCorrectionsList element was emitted for either record in the retrieved EFetch response. This is a bounded field observation, not a general retraction clearance.",
+  "sanitization": "Retains bibliographic identifiers and correction-link field state only. Abstracts, article text, authors, affiliations, and contact information were discarded."
+}

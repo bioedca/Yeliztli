@@ -1,0 +1,79 @@
+{
+  "packet_version": 1,
+  "issue": 2035,
+  "accessed": "2026-08-12",
+  "decision": "Replace the shared dbNSFP seed with explicit synthetic behavior scenarios; retain no upstream score rows.",
+  "production_pin": {
+    "release": "5.3.1a",
+    "manifest_path": "tests/fixtures/manifest_v2.json",
+    "loader_path": "backend/annotation/dbnsfp.py",
+    "archive_url": "https://dist.genos.us/academic/e55b09/dbNSFP5.3.1a.zip"
+  },
+  "sources": [
+    {
+      "id": "dbnsfp-releases",
+      "url": "https://www.dbnsfp.org/releases/",
+      "version_observed": "dbNSFP v5.3.1 (January 1, 2026); README branches v5.3.1a and v5.3.1c",
+      "license_or_terms": "Public release metadata only; dbNSFP data terms are recorded separately.",
+      "role": "Confirms the production-pinned release family."
+    },
+    {
+      "id": "dbnsfp-license",
+      "url": "https://www.dbnsfp.org/license/",
+      "version_observed": "Page accessed 2026-08-12",
+      "license_or_terms": "Academic/non-profit use is CC BY-NC-ND 4.0; users must also comply with original component-source terms.",
+      "role": "Supports the non-redistributed, provider-fetched fixture boundary."
+    },
+    {
+      "id": "dbnsfp-query-service",
+      "url": "https://query.genos.us/",
+      "version_observed": "Service metadata reported dataset 5.4c",
+      "license_or_terms": "dbNSFP license and service usage restrictions; no score-bearing output retained.",
+      "role": "Version-mismatch observation only."
+    },
+    {
+      "id": "ensembl-vep-rs429358",
+      "url": "https://rest.ensembl.org/vep/human/id/rs429358",
+      "version_observed": "GRCh38 response accessed 2026-08-12",
+      "license_or_terms": "Ensembl/EMBL-EBI service terms; only a bounded derived response summary is retained.",
+      "role": "Independent context; not a dbNSFP source and not used to set fixture values.",
+      "retained_path": "data/science-evidence/2026-08-12-dbnsfp-seed-2035/ensembl-rs429358-sanitized.json"
+    },
+    {
+      "id": "dbnsfp-v4-paper",
+      "citation": "PMID:33261662; DOI:10.1186/s13073-020-00803-9",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/33261662/",
+      "version_observed": "PubMed record accessed 2026-08-12",
+      "license_or_terms": "NCBI bibliographic metadata only; no article text retained.",
+      "role": "Resource identity and method context."
+    },
+    {
+      "id": "revel-paper",
+      "citation": "PMID:27666373; DOI:10.1016/j.ajhg.2016.08.016",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/27666373/",
+      "version_observed": "PubMed record accessed 2026-08-12",
+      "license_or_terms": "NCBI bibliographic metadata only; no article text retained.",
+      "role": "Predictor identity and method context."
+    }
+  ],
+  "retained_artifacts": [
+    {
+      "path": "data/science-evidence/2026-08-12-dbnsfp-seed-2035/ensembl-rs429358-sanitized.json",
+      "content": "Sanitized Ensembl request and aggregate response metadata",
+      "sha256": "d9b9e653d5e8ac968ae69bd8b1cd778427ae85ef580eafa335c93e770fe3aedd"
+    },
+    {
+      "path": "data/science-evidence/2026-08-12-dbnsfp-seed-2035/pubmed-metadata-sanitized.json",
+      "content": "Sanitized PubMed bibliographic and correction-link metadata",
+      "sha256": "a3033ea899b4aec83b4286e7ecbe3d6cb7ceea3fa8129c3d7983986bdd153c09"
+    }
+  ],
+  "excluded": [
+    "dbNSFP score-bearing query results",
+    "dbNSFP source archive or row excerpts",
+    "full Ensembl response",
+    "article text or abstracts",
+    "Consensus or Scite output",
+    "PII, genotypes, patient data, credentials, and restricted data"
+  ]
+}
