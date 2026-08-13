@@ -1487,6 +1487,9 @@ class TestDownloadAndLoad:
         )
         assert not (downloads / "mondo_hpo_sources").exists()
 
+    @pytest.mark.parametrize(
+        "descriptor_bridge", (True, False), ids=("fd-bridge", "lexical-fallback")
+    )
     def test_staging_downloads_stay_descriptor_pinned_after_path_swap(
         self,
         monkeypatch,
@@ -1495,8 +1498,20 @@ class TestDownloadAndLoad:
         hpo_phenotype_file: Path,
         mondo_sssom_file: Path,
         tmp_path: Path,
+        descriptor_bridge: bool,
     ) -> None:
-        """A swapped lexical staging path cannot redirect later source writes."""
+        """A swapped lexical staging path cannot redirect later source writes.
+
+        Parameterized over the descriptor bridge because the two platforms take
+        different refusal paths, and only one of them runs before merge. Linux
+        always resolves ``/proc/self/fd``; macOS has no usable bridge, and macOS
+        backend tests are Tier-2. Emptying the bridge list is how this file
+        already reproduces that platform (see
+        ``test_installs_on_a_platform_with_no_descriptor_bridge``), so both
+        outcomes are covered on a pull request rather than discovered on ``main``.
+        """
+        if not descriptor_bridge:
+            monkeypatch.setattr(mondo_hpo, "_FD_PATH_BRIDGES", ())
         monkeypatch.setattr("backend.annotation.mondo_hpo.MINIMUM_UNAMBIGUOUS_MONDO_XREFS", 2)
         source_files = {
             "gene_disease.9606.tsv.gz": mondo_tsv_file,
@@ -1529,13 +1544,33 @@ class TestDownloadAndLoad:
         monkeypatch.setattr("backend.annotation.mondo_hpo.stream_download", fake_stream_download)
         downloads = tmp_path / "downloads"
 
-        with pytest.raises(ValueError, match="staging directory changed during finalization"):
+        # Both platforms refuse the swap; they differ in which guard notices
+        # first, so the exception type is not the contract. Linux reaches the
+        # finalization check and raises ValueError; macOS resolves the vanished
+        # lexical staging path when the next source is reopened and surfaces
+        # FileNotFoundError. What must hold either way is below: nothing was
+        # written through the substituted path and nothing was committed.
+        with pytest.raises((ValueError, FileNotFoundError)) as excinfo:
             download_and_load_mondo_hpo(reference_engine, downloads)
-
+        if isinstance(excinfo.value, ValueError):
+            assert "staging directory changed during finalization" in str(excinfo.value)
         assert swapped["value"]
+        # Holds on both platforms and is the point of the test: the substituted
+        # path received nothing.
         assert list(external_dir.iterdir()) == []
-        assert (parked_stage / "genes_to_phenotype.txt").is_file()
-        assert (parked_stage / "mondo.sssom.tsv").is_file()
+        if isinstance(excinfo.value, ValueError):
+            # Linux completes all three downloads and refuses at the
+            # finalization check, so the two sources written after the swap
+            # landed in the parked stage rather than through the symlink.
+            assert (parked_stage / "genes_to_phenotype.txt").is_file()
+            assert (parked_stage / "mondo.sssom.tsv").is_file()
+        else:
+            # macOS refuses inside the first download, when its own stat() of
+            # the just-written temp file resolves through the substituted path,
+            # so the second and third sources are never fetched. There is
+            # nothing to assert about files that were correctly never created.
+            assert not (parked_stage / "genes_to_phenotype.txt").exists()
+            assert not (parked_stage / "mondo.sssom.tsv").exists()
         with reference_engine.connect() as conn:
             assert (
                 conn.execute(
