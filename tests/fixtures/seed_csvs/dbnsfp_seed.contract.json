@@ -1,0 +1,48 @@
+{
+  "contract_version": 1,
+  "fixture_model": "synthetic_predictor_behavior_scenarios",
+  "consumer": "backend.annotation.dbnsfp.load_dbnsfp_from_csv",
+  "row_count": 6,
+  "rsid_namespace": "rsYELIZTLI",
+  "coordinate_model": "synthetic_grch38_lookup_keys",
+  "scientific_variant_claims": false,
+  "upstream_score_values": false,
+  "scenarios": {
+    "rsYELIZTLI0001": {
+      "intent": "fully populated, all four independent axes deleterious",
+      "deleterious_count": 4,
+      "total_assessed": 4,
+      "ensemble_pathogenic": true
+    },
+    "rsYELIZTLI0002": {
+      "intent": "fully populated, all four independent axes tolerated",
+      "deleterious_count": 0,
+      "total_assessed": 4,
+      "ensemble_pathogenic": false
+    },
+    "rsYELIZTLI0003": {
+      "intent": "partial indel scores with SIFT and PolyPhen unavailable",
+      "deleterious_count": 2,
+      "total_assessed": 2,
+      "ensemble_pathogenic": true
+    },
+    "rsYELIZTLI0004": {
+      "intent": "exactly three of four independent axes deleterious",
+      "deleterious_count": 3,
+      "total_assessed": 4,
+      "ensemble_pathogenic": true
+    },
+    "rsYELIZTLI0005": {
+      "intent": "SIFT tolerated boundary and PolyPhen possibly damaging category",
+      "deleterious_count": 0,
+      "total_assessed": 4,
+      "ensemble_pathogenic": false
+    },
+    "rsYELIZTLI0006": {
+      "intent": "SIFT damaging and PolyPhen possibly damaging with other axes unavailable",
+      "deleterious_count": 1,
+      "total_assessed": 2,
+      "ensemble_pathogenic": false
+    }
+  }
+}

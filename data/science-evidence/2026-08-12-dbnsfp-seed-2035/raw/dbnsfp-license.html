@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en-US">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="dbNSFP is a comprehensive resource for functional annotations and deleteriousness predictions of non-synonymous single-nucleotide variants in the human genome.">
+    <meta property="og:title" content="dbNSFP - License">
+    <meta property="og:type" content="website">
+    <meta property="og:description" content="Functional annotations and deleteriousness predictions for human nsSNVs and ssSNVs.">
+    <meta property="og:url" content="https://www.dbnsfp.org/license">
+    <link rel="canonical" href="https://www.dbnsfp.org/license">
+    <title>dbNSFP - License</title>
+    <link rel="icon" href="/assets/favicon.ico" sizes="any">
+    <link rel="icon" type="image/png" href="/assets/favicon-32.png" sizes="32x32">
+    <link rel="icon" type="image/png" href="/assets/favicon-48.png" sizes="48x48">
+    <link rel="icon" type="image/png" href="/assets/favicon-96.png" sizes="96x96">
+    <link rel="icon" type="image/png" href="/assets/favicon-192.png" sizes="192x192">
+    <link rel="apple-touch-icon" href="/assets/icon-512.png">
+    <link rel="manifest" href="/site.webmanifest">
+    <link rel="stylesheet" href="/styles.css">
+
+
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to main content</a>
+    <aside class="site-nav" id="siteNav" aria-label="Site navigation">
+      <a class="site-brand" href="/">dbNSFP</a>
+      <nav>
+        <a href="/">Home</a>
+        <a href="/releases">Releases</a>
+        <a href="/query">Query</a>
+        <a href="/download">Download</a>
+        <a href="/blog">Blog</a>
+        <a href="/publications">Publications</a>
+        <a href="/benchmark">Benchmark</a>
+        <a href="/license" aria-current="page">License</a>
+        <a href="/about-us">About</a>
+      </nav>
+    </aside>
+    <main id="main" class="page-shell" tabindex="-1">
+
+      <section class="content narrow">
+        <h1>License</h1>
+        <p class="license-lead">dbNSFP is distributed in two branches &mdash; the academic branch and the commercial branch &mdash; licensed separately for non-commercial and commercial use.</p>
+
+        <h2 id="non-commercial-use">Non-Commercial Use</h2>
+        <p>The dbNSFP academic branch is distributed free of charge for academic and non-commercial use under <a href="https://creativecommons.org/licenses/by-nc-nd/4.0/" target="_blank" rel="noopener">CC BY-NC-ND 4.0</a>, and includes all upstream resources that are free for academic and non-commercial use.</p>
+        <p>Users of the academic branch are responsible for complying with the individual licensing requirements of its components, which are listed in the README file of the <a href="/releases">current release</a>. Obtaining the academic branch data from any source does not grant commercial use rights for these scores or content.</p>
+
+        <h2 id="commercial-use">Commercial Use</h2>
+        <p>The dbNSFP commercial branch is licensed for commercial use with a fee, including downloading the full data for local workflow integration and product development. Genos Bioinformatics LLC is the exclusive provider of these licenses, and currently offers two standard tiers:</p>
+        <ul>
+          <li>Internal Research Use &mdash; $5,000/year</li>
+          <li>Product Development and Internal Research Use &mdash; $10,000/year</li>
+        </ul>
+
+        <p>The dbNSFP commercial branch is based on the academic branch, but excludes upstream components that require a separate license for commercial use from their authors (see the <a href="#commercial-branch">FAQ</a>).</p>
+
+        <h2 id="faq">FAQ</h2>
+        <h3 id="update-frequency">How often will dbNSFP make a new release?</h3>
+        <p>We release a new version of dbNSFP 3&ndash;5 times a year, incorporating updated data from the field, new content from academic collaborators, and rebuilt nsSNV and ssSNV variant sets based on the latest GENCODE releases. Please see the <a href="/releases">Releases</a> page for information on current and past versions.</p>
+        <h3 id="commercial-branch">What does the dbNSFP commercial branch include?</h3>
+        <p>The dbNSFP commercial branch includes all academic branch content, except for CADD, VEST, M-CAP, MutScore, PolyPhen-2, PrimateAI, and RGC Million Exome. dbNSFP commercial licensees who need these components should contact their authors directly (contacts listed in <a href="https://dist.genos.us/release/dbNSFP5.4c.readme.txt" target="_blank" rel="noopener">README v5.4c</a>). We can also make a customized dbNSFP version for you by adding back the approved components, given appropriate proof of your commercial use rights for those scores.</p>
+        <p>The prediction scores included in the current release are:</p>
+        <ul>
+          <li>SIFT, SIFT4G, PROVEAN, MutationTaster 2021, MutationAssessor, FATHMM-XF coding, DANN, MetaSVM, MetaLR, MetaRNN, Eigen, Eigen-PC, REVEL, MutPred2, MVP, gMVP, MPC, DEOGEN2, ALoFT, BayesDel, ClinPred, LIST-S2, VARITY, ESM1b, AlphaMissense, PHACTboost, MutFormer, MisFit, popEVE, and GPN-MSA.</li>
+        </ul>
+        <p>For an independent evaluation of prediction score performance, see the <a href="https://doi.org/10.1007/s00439-025-02732-2" target="_blank" rel="noopener">CAGI6 report</a> (Rastogi et al., Human Genetics, 2025). We also performed our own <a href="/benchmark">benchmark study</a> based on nine years of ClinVar data, with the method described in our <a href="/blog/clinvar-benchmark-for-pathogenicity-prediction-scores">blog post</a>. We encourage users to consult these results when evaluating which scores best suit their own applications.</p>
+        <h3 id="legacy-versions">Is a commercial license required for legacy versions of the dbNSFP commercial branch?</h3>
+        <p>The dbNSFP team has been distributing the commercial branch since dbNSFP v3.0 (released in 2015). As a courtesy, a commercial license is not required for legacy versions, meaning dbNSFP v4.x and earlier. We encourage commercial users to use the most current annotation resources in the latest dbNSFP commercial branch release.</p>
+        <h3 id="v5-vs-legacy">What are the differences between the current dbNSFP release and the legacy versions?</h3>
+        <p>Biological data and genome annotations change rapidly. Beyond the many updated annotation resources and new prediction scores added in each <a href="/releases">release</a>, the dbNSFP v5.x variant set was rebuilt based on current gene definitions from GENCODE. The latest legacy versions, dbNSFP v4.x, were built on GENCODE v29 (released October 2018). The current GENCODE release (v50, released June 2026) not only adds 235% more protein-coding transcripts &mdash; 83,129 in v29 compared with 278,455 in v50 &mdash; but also updates the canonical/MANE transcript for some genes.</p>
+      </section>
+<footer><div class="footer-inner"><small>&copy; 2024&ndash;2026 Genos Bioinformatics LLC (Texas, USA).</small></div></footer>
+    </main>
+  </body>
+</html>

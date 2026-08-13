@@ -1,0 +1,22 @@
+{
+  "claim_ids": ["C2"],
+  "source": "dbNSFP Variant Browser public health endpoint",
+  "source_identifier": "https://query.genos.us/api/health",
+  "accessed": "2026-08-12",
+  "payload_type": "sanitized score-free endpoint-metadata response",
+  "sanitized_payload_path": "data/science-evidence/2026-08-12-dbnsfp-seed-2035/dbnsfp-query-health-sanitized.json",
+  "request": {
+    "method": "GET",
+    "url": "https://query.genos.us/api/health",
+    "selected_fields": ["status", "dataset_version"]
+  },
+  "response": {
+    "status": "ok",
+    "dataset_version": "5.4a"
+  },
+  "source_payload_sha256": "1be57f6e0d3f2fd11a6faa63c456af0f6fc9e34e87ce5dd51c2cc6942d8db45f",
+  "source_payload_hash_scope": "Exact response-body bytes returned by the public endpoint on the access date.",
+  "retention": "Only the public service status and dataset-version fields are retained; no query, variant, genotype, or predictor-score data were requested.",
+  "license_or_terms": "Public service metadata only; no dbNSFP dataset row or score content is copied.",
+  "sanitization": "The endpoint response contained only the two retained fields and no user-specific or biological data."
+}

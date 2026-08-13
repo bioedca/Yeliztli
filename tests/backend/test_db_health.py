@@ -208,7 +208,7 @@ def _make_valid_dbnsfp(settings: Settings, *, rows: bool = True) -> Path:
     try:
         conn.execute("CREATE TABLE dbnsfp_scores (rsid TEXT, cadd_phred REAL)")
         if rows:
-            conn.execute("INSERT INTO dbnsfp_scores VALUES ('rs429358', 12.3)")
+            conn.execute("INSERT INTO dbnsfp_scores VALUES ('synthetic-health-probe', 12.3)")
         conn.commit()
     finally:
         conn.close()
