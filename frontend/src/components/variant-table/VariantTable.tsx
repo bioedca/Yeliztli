@@ -22,6 +22,7 @@ import {
   useChromosomeCounts,
 } from "@/api/variants"
 import { useColumnPresets } from "@/api/columnPresets"
+import { useBatchLiftover } from "@/api/liftover"
 import { useMergeProvenance } from "@/api/samples"
 import { useTags } from "@/api/tags"
 import { SCORE_TOOLTIP_AFFORDANCE } from "@/lib/inSilicoScoreInfo"
@@ -99,6 +100,50 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
   const [showUnannotated, setShowUnannotated] = useState(false)
   const [showConflictsOnly, setShowConflictsOnly] = useState(false)
   const [showGRCh38, setShowGRCh38] = useState(false)
+  // Samples the batch has already been requested for during this mount (#2029).
+  // A set rather than a single id, so A → B → A does not re-request A.
+  const liftoverRequestedRef = useRef<Set<number>>(new Set())
+  // Liftover progress keyed by sample, rather than read off the mutation's
+  // status. The component holds one mutation observer, so its isPending /
+  // isError describe only the most recent request: a batch that fails after the
+  // user moved to another sample would either go unreported or be reported
+  // against whichever sample is on screen. Both readings misstate what the
+  // blank GRCh38 cells mean, which is the whole point of showing the state.
+  const [liftoverStatus, setLiftoverStatus] = useState<Record<number, "pending" | "error">>({})
+  const clearLiftoverStatus = useCallback((id: number) => {
+    setLiftoverStatus((prev) => {
+      if (!(id in prev)) return prev
+      const next = { ...prev }
+      delete next[id]
+      return next
+    })
+  }, [])
+  const { mutate: runLiftover } = useBatchLiftover({
+    // Success means "computed *and* the refreshed rows are in the table" — the
+    // hook holds the pending state open across the refetch, so clearing it here
+    // cannot expose pre-liftover NULLs as final values.
+    onSampleSucceeded: clearLiftoverStatus,
+    onSampleFailed: (id) => {
+      // A failure must not leave the sample latched, or the user can never
+      // retry without a reload.
+      liftoverRequestedRef.current.delete(id)
+      setLiftoverStatus((prev) => (prev[id] === "error" ? prev : { ...prev, [id]: "error" }))
+    },
+    // The batch stored the coordinates but the refetch that would show them
+    // failed. That is not a liftover failure and must not be labelled one: the
+    // remedy is another fetch, not another computation. The variants query
+    // already renders its own error state for the failed fetch — measured: the
+    // table is replaced by ErrorEmpty, toolbar included, so a liftover-specific
+    // notice would be unreachable there. What is owed here is simply to not
+    // record a false success: drop the "computing" state and un-latch the
+    // sample, so re-enabling the columns or returning to the sample runs the
+    // batch again and with it a fresh refetch. The batch is idempotent, so that
+    // retry costs an `already_lifted` no-op.
+    onSampleRefreshFailed: (id) => {
+      liftoverRequestedRef.current.delete(id)
+      clearLiftoverStatus(id)
+    },
+  })
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
     chrom_grch38: false,
     pos_grch38: false,
@@ -201,6 +246,46 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
     [allColumnIds, showGRCh38, isMergedSample],
   )
 
+  // Compute the GRCh38 coordinates whenever the columns are on for a sample that
+  // has not been lifted yet during this mount (#2029).
+  //
+  // The batch is the only thing that fills these columns and nothing used to
+  // call it, so the toggle revealed two permanently-blank columns. Keying this
+  // to (sampleId, showGRCh38) rather than putting it in the click handler
+  // matters: VariantExplorer renders <VariantTable sampleId={…}/> with no key,
+  // so switching samples while the columns are already shown re-renders the
+  // same mounted component — a click-handler trigger would never fire, and the
+  // new sample's columns would stay blank.
+  //
+  // Triggering here rather than at annotation time also repairs samples that
+  // were annotated before this change; annotation-time only would leave every
+  // existing sample blank forever.
+  const requestLiftover = useCallback(
+    (targetSampleId: number, { force = false }: { force?: boolean } = {}) => {
+      const requested = liftoverRequestedRef.current
+      if (!force && requested.has(targetSampleId)) return
+      // The endpoint is idempotent, but a POST per toggle would rescan the whole
+      // table for NULLs each time.
+      requested.add(targetSampleId)
+      setLiftoverStatus((prev) => ({ ...prev, [targetSampleId]: "pending" }))
+      runLiftover(targetSampleId)
+    },
+    [runLiftover],
+  )
+
+  useEffect(() => {
+    if (!showGRCh38 || sampleId == null) return
+    requestLiftover(sampleId)
+  }, [showGRCh38, sampleId, requestLiftover])
+
+  const handleRetryLiftover = useCallback(() => {
+    if (sampleId == null) return
+    requestLiftover(sampleId, { force: true })
+  }, [sampleId, requestLiftover])
+
+  const liftoverPending = sampleId != null && liftoverStatus[sampleId] === "pending"
+  const liftoverFailed = sampleId != null && liftoverStatus[sampleId] === "error"
+
   // GRCh38 liftover toggle (P4-20): show/hide GRCh38 columns independently of presets
   const handleToggleGRCh38 = useCallback(() => {
     setShowGRCh38((prev) => {
@@ -233,6 +318,7 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
     isFetchingNextPage,
     status,
     error,
+    refetch: refetchVariants,
   } = useVariants({ sampleId, filter, showUnannotated, startChrom, tag: activeTag })
 
   // Chromosome counts for the nav bar (P1-15b)
@@ -343,7 +429,17 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
   }
 
   if (status === "error") {
-    return <ErrorEmpty message={error?.message ?? "An unexpected error occurred."} />
+    // This branch replaces the toolbar too, so it holds the only control the
+    // user has left. That matters most right after a liftover: the batch
+    // succeeded, the coordinates are stored, and it is the refresh that failed
+    // — but nothing else re-triggers a fetch for an unchanged sample, so
+    // without this the columns stay unreachable until a page reload (#2029).
+    return (
+      <ErrorEmpty
+        message={error?.message ?? "An unexpected error occurred."}
+        onRetry={() => void refetchVariants()}
+      />
+    )
   }
 
   return (
@@ -375,6 +471,9 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
         onTagFilter={setActiveTag}
         showGRCh38={showGRCh38}
         onToggleGRCh38={handleToggleGRCh38}
+        liftoverPending={liftoverPending}
+        liftoverFailed={liftoverFailed}
+        onRetryLiftover={handleRetryLiftover}
         isMergedSample={isMergedSample}
         sourceFilter={sourceFilter}
         onSourceFilter={setSourceFilter}

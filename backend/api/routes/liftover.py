@@ -16,9 +16,9 @@ import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
-from backend.api.dependencies import require_fresh_sample
-from backend.db.connection import get_registry
-from backend.db.tables import annotated_variants, samples
+from backend.api.dependencies import require_fresh_sample, sample_export_guard
+from backend.api.routes.risk_common import resolve_sample_engine
+from backend.db.tables import annotated_variants
 from backend.ingestion.liftover import batch_convert, convert_coordinate
 
 logger = logging.getLogger(__name__)
@@ -86,18 +86,30 @@ def batch_liftover_sample(
     Skips variants that already have lifted coordinates. Unmapped variants
     get NULL values for chrom_grch38/pos_grch38.
     """
-    registry = get_registry()
+    # get_sample_engine takes the sample DB *path*, not the sample id — passing
+    # the int raised TypeError inside Path() and made every call 500 (#2029).
+    # Nothing invoked this route, so no test or user ever reached the failure.
+    #
+    # resolve_sample_engine is the shared resolver the variant routes use. It
+    # 404s both on a missing ``samples`` row and on a registered row whose
+    # database file is gone; opening that path directly would instead have
+    # SQLite create the file and ``ensure_sample_schema_current`` initialize it,
+    # so the batch would answer 200 with an empty result and hide the loss.
+    sample_engine = resolve_sample_engine(sample_id)
 
-    # Verify sample exists
-    with registry.reference_engine.connect() as conn:
-        row = conn.execute(
-            sa.select(samples.c.id, samples.c.db_path).where(samples.c.id == sample_id)
-        ).fetchone()
-    if row is None:
-        raise HTTPException(status_code=404, detail=f"Sample {sample_id} not found")
+    # Hold the per-sample operation lease across the whole read → convert →
+    # write span. Annotation swaps the annotated_variants contents wholesale, so
+    # without this an initial annotation could make the batch observe zero rows
+    # and report success, and a re-annotation could either discard what the
+    # batch wrote or have coordinates computed from pre-swap positions applied
+    # by rsid to post-swap rows. The lease is the same one export and report
+    # rendering take, and it refuses to start while annotation is active (409).
+    with sample_export_guard(sample_id, operation="grch38_liftover"):
+        return _run_batch_liftover(sample_engine)
 
-    sample_engine = registry.get_sample_engine(sample_id)
 
+def _run_batch_liftover(sample_engine: sa.Engine) -> BatchLiftoverStats:
+    """Read the unlifted rows, convert them, and write the coordinates back."""
     # Find variants that need liftover (no chrom_grch38 yet)
     with sample_engine.connect() as conn:
         # Check if the columns exist (schema may not be upgraded yet)

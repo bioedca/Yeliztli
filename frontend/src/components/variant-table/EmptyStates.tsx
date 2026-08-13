@@ -132,12 +132,24 @@ export function NoMatchEmpty({
 
 // ── 4. Error empty state ────────────────────────────────────────────
 
-export function ErrorEmpty({ message }: { message: string }) {
+/** ``onRetry`` is optional so callers that have no way to retry render exactly
+ *  as before. Where it is supplied this is the *only* control on screen: the
+ *  error state replaces the whole table, toolbar included, so without it a
+ *  failed fetch is a dead end that only a page reload clears (#2029). */
+export function ErrorEmpty({
+  message,
+  onRetry,
+}: {
+  message: string
+  onRetry?: () => void
+}) {
   return (
     <EmptyWrapper
       icon={<ShieldAlert className="h-10 w-10 text-destructive/60" />}
       title="Error loading variants"
       description={message}
-    />
+    >
+      {onRetry && <SuggestionButton label="Try again" onClick={onRetry} />}
+    </EmptyWrapper>
   )
 }
