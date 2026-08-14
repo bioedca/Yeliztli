@@ -762,12 +762,17 @@ _MERGED_DB_NAME_PREFIX = "merged_"
 _MERGED_DB_NAME_RE = re.compile(r"merged_[0-9a-f]{32}\.db\Z")
 
 
+# The bootstrap engine is opened with ``wal=False``, so an interrupted merge
+# leaves a ``-journal`` rollback journal rather than ``-wal``/``-shm``. Sweeping
+# only the WAL pair left that journal behind permanently.
+_SAMPLE_DB_SIDECAR_SUFFIXES = ("", "-journal", "-wal", "-shm")
+
+
 def _sample_db_sidecars(sample_db_path: Path) -> tuple[Path, ...]:
-    """The database file and its WAL/SHM companions."""
-    return (
-        sample_db_path,
-        sample_db_path.with_name(sample_db_path.name + "-wal"),
-        sample_db_path.with_name(sample_db_path.name + "-shm"),
+    """The database file and every sidecar SQLite may leave beside it."""
+    return tuple(
+        sample_db_path if not suffix else sample_db_path.with_name(sample_db_path.name + suffix)
+        for suffix in _SAMPLE_DB_SIDECAR_SUFFIXES
     )
 
 

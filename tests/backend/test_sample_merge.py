@@ -2359,10 +2359,16 @@ class TestCrashSafePublication:
         successor = samples_dir / f"sample_{published_id}.db"
         successor.write_bytes(b"a later sample that reused the id")
 
+        # An interrupted merge leaves a rollback journal, not a WAL pair: the
+        # bootstrap engine is opened with wal=False.
+        orphan_journal = samples_dir / f"{orphan.name}-journal"
+        orphan_journal.write_bytes(b"rollback journal")
+
         removed = recover_unpublished_merge_artifacts(registry)
 
         assert removed == [orphan.name]
         assert not orphan.exists()
+        assert not orphan_journal.exists(), "the rollback journal must be swept too"
         assert successor.exists(), "a reused-id path must never be swept"
         assert (registry.settings.data_dir / published_path).exists()
 
