@@ -22,6 +22,7 @@ from sqlalchemy.exc import OperationalError
 from backend.config import config_toml_path, get_settings
 from backend.db.build_guard import build_lock
 from backend.db.download_manager import HUEY_DOWNLOAD_JOB_TYPE
+from backend.db.sample_schema import collect_sample_database_files
 from backend.logging_config import configure_logging
 
 logger = structlog.get_logger(__name__)
@@ -1497,10 +1498,10 @@ def run_backup_export_task(job_id: str, include_reference_dbs: bool = False) -> 
         files_to_add.append((build_sample_registry_manifest(data_dir), REGISTRY_MANIFEST_FILE))
 
         # Sample DB files
-        samples_dir = data_dir / "samples"
-        if samples_dir.exists():
-            for sample_db in sorted(samples_dir.glob("sample_*.db")):
-                files_to_add.append((sample_db, f"samples/{sample_db.name}"))
+        # Shared collector so merged children (`merged_<uuid>.db`) are archived
+        # too; a private glob here left them out of every backup (#2329).
+        for sample_db in collect_sample_database_files(data_dir / "samples"):
+            files_to_add.append((sample_db, f"samples/{sample_db.name}"))
 
         # Optional standalone reference files
         if include_reference_dbs:

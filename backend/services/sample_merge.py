@@ -790,6 +790,30 @@ def _discard_unpublished_merge(sample_db_path: Path) -> None:
             )
 
 
+def _is_published(registry: DBRegistry, db_path: str) -> bool:
+    """Whether a ``samples`` row already references ``db_path``.
+
+    Consulted only on the failure path, to distinguish "the publishing commit
+    never landed" from "it landed and something interrupted the unwind". An
+    unreadable registry answers ``True`` so the database is preserved: keeping
+    an orphan file is recoverable by the startup sweep, deleting a published
+    one is not.
+    """
+    try:
+        with registry.reference_engine.connect() as conn:
+            return (
+                conn.execute(
+                    sa.select(sa.func.count())
+                    .select_from(samples)
+                    .where(samples.c.db_path == db_path)
+                ).scalar_one()
+                > 0
+            )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("merge_publication_check_failed", extra={"error": str(exc)})
+        return True
+
+
 def recover_unpublished_merge_artifacts(registry: DBRegistry) -> list[str]:
     """Delete merged databases that no ``samples`` row references.
 
@@ -993,8 +1017,14 @@ def _merge_samples_locked(
             )
     except BaseException:
         # No registry row exists on this path, so there is nothing to roll back
-        # but the file itself. ``BaseException`` so an interrupt still cleans up.
-        _discard_unpublished_merge(sample_db_path)
+        # but the file itself. ``BaseException`` so an interrupt still cleans up
+        # — but an interrupt can also be delivered *after* the publishing commit
+        # returns, while the transaction context is unwinding. Discarding then
+        # would unlink a database the registry already points at, and startup
+        # recovery would preserve the dangling row precisely because it is
+        # referenced. Re-read the registry and keep anything already published.
+        if not _is_published(registry, new_db_path):
+            _discard_unpublished_merge(sample_db_path)
         raise
 
     # Plan §10.5 step 8: enqueue the standard annotation job. Imported lazily

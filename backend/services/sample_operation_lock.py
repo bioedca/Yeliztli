@@ -351,7 +351,7 @@ def sample_delete_lease(
         except sa.exc.SQLAlchemyError:
             logger.exception(
                 "sample_delete_lease_cleanup_failed",
-                extra={"lease_id": lease_id, "sample_ids": ordered_ids},
+                extra={"lease_id": lease_id, "sample_ids": [int(i) for i in ordered_ids]},
             )
 
 
@@ -429,8 +429,23 @@ def sample_merge_lease(
         except SampleOperationUnavailableError:
             logger.exception(
                 "sample_merge_lease_cleanup_failed",
-                extra={"lease_id": lease_id, "source_sample_ids": ordered_ids},
+                extra={"lease_id": lease_id, "source_sample_ids": [int(i) for i in ordered_ids]},
             )
         raise
     else:
-        _finish_merge_lease(engine, lease_id, status="complete", message=f"{operation} complete")
+        try:
+            _finish_merge_lease(
+                engine, lease_id, status="complete", message=f"{operation} complete"
+            )
+        except SampleOperationUnavailableError:
+            # The merge itself already committed. Raising here would report an
+            # error for an operation that succeeded and invite the caller to
+            # retry it — worse than a stranded lease, which restart recovery
+            # clears (#2329).
+            logger.exception(
+                "sample_merge_lease_release_failed",
+                extra={
+                    "lease_id": lease_id,
+                    "source_sample_ids": [int(i) for i in ordered_ids],
+                },
+            )

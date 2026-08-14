@@ -22,6 +22,7 @@ from pydantic import BaseModel
 
 from backend.config import config_toml_path, get_settings
 from backend.db.database_registry import DATABASES
+from backend.db.sample_schema import collect_sample_database_files
 from backend.services.sample_operation_lock import ACTIVE_JOB_STATUSES
 
 logger = structlog.get_logger(__name__)
@@ -109,11 +110,13 @@ def _get_file_size(path: Path) -> int:
 
 
 def _collect_sample_files(data_dir: Path) -> list[Path]:
-    """Collect all sample DB files from the samples directory."""
-    samples_dir = data_dir / "samples"
-    if not samples_dir.exists():
-        return []
-    return sorted(samples_dir.glob("sample_*.db"))
+    """Collect all sample DB files from the samples directory.
+
+    Delegates so merged children — named ``merged_<uuid>.db`` since #2329 — are
+    included. Globbing ``sample_*.db`` here omitted them from every backup, and
+    a restore then silently lost those samples.
+    """
+    return collect_sample_database_files(data_dir / "samples")
 
 
 def _collect_reference_files(data_dir: Path) -> list[Path]:

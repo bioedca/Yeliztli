@@ -39,7 +39,10 @@ from backend.services.sample_delete import (
     delete_sample_with_cascade,
     list_merged_children,
 )
-from backend.services.sample_operation_lock import SampleOperationConflictError
+from backend.services.sample_operation_lock import (
+    SampleOperationConflictError,
+    SampleOperationUnavailableError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -491,6 +494,10 @@ async def delete_sample(sample_id: int) -> None:
         result = delete_sample_with_cascade(registry, sample_id)
     except SampleOperationConflictError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except SampleOperationUnavailableError as exc:
+        # The reservation could not be taken, so nothing was removed. 503 keeps
+        # that a retryable refusal instead of an internal error.
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     if result is None:
         raise HTTPException(status_code=404, detail=f"Sample {sample_id} not found.")
 

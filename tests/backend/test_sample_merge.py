@@ -31,7 +31,11 @@ import sqlalchemy as sa
 
 from backend.config import Settings
 from backend.db.connection import DBRegistry, get_registry, reset_registry
-from backend.db.sample_schema import SAMPLE_SCHEMA_VERSION, create_sample_tables
+from backend.db.sample_schema import (
+    SAMPLE_SCHEMA_VERSION,
+    collect_sample_database_files,
+    create_sample_tables,
+)
 from backend.db.tables import (
     annotation_state,
     individuals,
@@ -2496,3 +2500,91 @@ class TestCrashSafePublication:
             registry.reference_engine, [s1_id, s2_id], operation="Sample merge"
         ):
             pass
+
+    def test_a_merged_database_is_collected_for_backup(
+        self, merged_setup: tuple[DBRegistry, int, int, int]
+    ) -> None:
+        """The uuid naming must not hide merged children from backups.
+
+        Globbing ``sample_*.db`` omitted them from every archive, so a restore
+        silently lost the sample. One shared collector now serves backup, the
+        archive builder and the setup wizard's has-samples probe.
+        """
+        registry, individual_id, s1_id, s2_id = merged_setup
+        merged_id = merge_samples(
+            registry,
+            source_sample_ids=[s1_id, s2_id],
+            individual_id=individual_id,
+            strategy=MergeStrategy.FLAG_ONLY,
+            display_name="Backed-up merge",
+        )
+        with registry.reference_engine.connect() as conn:
+            merged_path = conn.execute(
+                sa.select(samples.c.db_path).where(samples.c.id == merged_id)
+            ).scalar_one()
+
+        collected = collect_sample_database_files(registry.settings.data_dir / "samples")
+        names = {path.name for path in collected}
+
+        assert Path(merged_path).name in names, "the merged database must be backed up"
+        # The sources are still collected too — this widened the net, not moved it.
+        assert len([n for n in names if n.startswith("sample_")]) == 2
+
+    def test_publication_survives_an_interrupt_during_commit_unwind(
+        self, merged_setup: tuple[DBRegistry, int, int, int], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """An interrupt after the commit must not delete the published database.
+
+        The cleanup path catches ``BaseException`` so a KeyboardInterrupt still
+        tidies up — but one delivered while the publishing transaction's context
+        manager unwinds arrives *after* SQLite committed. Unlinking then leaves
+        the registry pointing at a missing database, and the startup sweep
+        preserves that dangling row precisely because it is referenced.
+
+        Reproduced by wrapping the first ``reference_engine.begin()`` so its
+        ``__exit__`` commits and then raises. Raising anywhere outside the
+        try-block would not exercise the cleanup path at all.
+        """
+        registry, individual_id, s1_id, s2_id = merged_setup
+        engine = registry.reference_engine
+        real_begin = engine.begin
+        fired: list[bool] = []
+
+        class _CommitThenInterrupt:
+            def __init__(self, inner: object) -> None:
+                self._inner = inner
+
+            def __enter__(self) -> object:
+                return self._inner.__enter__()  # type: ignore[attr-defined]
+
+            def __exit__(self, *exc_info: object) -> None:
+                self._inner.__exit__(*exc_info)  # type: ignore[attr-defined]
+                raise KeyboardInterrupt("interrupted while the commit unwound")
+
+        def begin_once():
+            inner = real_begin()
+            if fired:
+                return inner
+            fired.append(True)
+            return _CommitThenInterrupt(inner)
+
+        monkeypatch.setattr(engine, "begin", begin_once)
+
+        with pytest.raises(KeyboardInterrupt):
+            merge_samples(
+                registry,
+                source_sample_ids=[s1_id, s2_id],
+                individual_id=individual_id,
+                strategy=MergeStrategy.FLAG_ONLY,
+                display_name="Interrupted after publish",
+            )
+        monkeypatch.undo()
+
+        with registry.reference_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(samples.c.db_path).where(samples.c.file_format == "merged_v1")
+            ).fetchone()
+        assert row is not None, "the publication committed, so the row must remain"
+        assert (registry.settings.data_dir / row.db_path).exists(), (
+            "a published database must never be discarded by the failure path"
+        )
