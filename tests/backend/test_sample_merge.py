@@ -29,6 +29,7 @@ from unittest.mock import patch
 import pytest
 import sqlalchemy as sa
 
+from backend.api.routes.backup import collect_backup_sample_files
 from backend.config import Settings
 from backend.db.connection import DBRegistry, get_registry, reset_registry
 from backend.db.sample_schema import (
@@ -2535,6 +2536,41 @@ class TestCrashSafePublication:
         assert Path(merged_path).name in names, "the merged database must be backed up"
         # The sources are still collected too — this widened the net, not moved it.
         assert len([n for n in names if n.startswith("sample_")]) == 2
+
+    def test_an_unpublished_merge_is_never_archived(
+        self, merged_setup: tuple[DBRegistry, int, int, int]
+    ) -> None:
+        """A backup overlapping a merge must not archive the in-flight child.
+
+        Restore synthesizes a registry row for any archived ``samples/*.db`` the
+        manifest does not list, so archiving a pre-publication file brings it
+        back as a phantom merged sample — and the snapshot may be
+        mid-transaction. Published children must still be archived, which is
+        the defect the collector was widened to fix in the first place.
+        """
+        registry, individual_id, s1_id, s2_id = merged_setup
+        published_id = merge_samples(
+            registry,
+            source_sample_ids=[s1_id, s2_id],
+            individual_id=individual_id,
+            strategy=MergeStrategy.FLAG_ONLY,
+            display_name="Published merge",
+        )
+        with registry.reference_engine.connect() as conn:
+            published = conn.execute(
+                sa.select(samples.c.db_path).where(samples.c.id == published_id)
+            ).scalar_one()
+
+        # A merge mid-build: the file exists, no row references it yet.
+        samples_dir = registry.settings.data_dir / "samples"
+        in_flight = samples_dir / f"merged_{'a' * 32}.db"
+        in_flight.write_bytes(b"half-written merge")
+
+        archived = {p.name for p in collect_backup_sample_files(registry.settings.data_dir)}
+
+        assert Path(published).name in archived, "a published merge must still be archived"
+        assert in_flight.name not in archived, "an unpublished merge must never be archived"
+        assert in_flight.exists(), "skipping it must not delete it — the sweep owns that"
 
     def test_publication_survives_an_interrupt_during_commit_unwind(
         self, merged_setup: tuple[DBRegistry, int, int, int], monkeypatch: pytest.MonkeyPatch

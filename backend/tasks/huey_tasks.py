@@ -22,7 +22,6 @@ from sqlalchemy.exc import OperationalError
 from backend.config import config_toml_path, get_settings
 from backend.db.build_guard import build_lock
 from backend.db.download_manager import HUEY_DOWNLOAD_JOB_TYPE
-from backend.db.sample_schema import collect_sample_database_files
 from backend.logging_config import configure_logging
 
 logger = structlog.get_logger(__name__)
@@ -1462,6 +1461,7 @@ def run_backup_export_task(job_id: str, include_reference_dbs: bool = False) -> 
         REFERENCE_DB_FILES,
         REGISTRY_MANIFEST_FILE,
         build_sample_registry_manifest,
+        collect_backup_sample_files,
     )
 
     archive_path: Path | None = None
@@ -1498,9 +1498,10 @@ def run_backup_export_task(job_id: str, include_reference_dbs: bool = False) -> 
         files_to_add.append((build_sample_registry_manifest(data_dir), REGISTRY_MANIFEST_FILE))
 
         # Sample DB files
-        # Shared collector so merged children (`merged_<uuid>.db`) are archived
-        # too; a private glob here left them out of every backup (#2329).
-        for sample_db in collect_sample_database_files(data_dir / "samples"):
+        # Same collector the manifest uses, so the archive and the manifest
+        # cannot disagree — and an in-flight merge's unpublished database is
+        # excluded from both rather than restored as a phantom sample (#2329).
+        for sample_db in collect_backup_sample_files(data_dir):
             files_to_add.append((sample_db, f"samples/{sample_db.name}"))
 
         # Optional standalone reference files

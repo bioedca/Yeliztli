@@ -109,14 +109,59 @@ def _get_file_size(path: Path) -> int:
         return 0
 
 
-def _collect_sample_files(data_dir: Path) -> list[Path]:
-    """Collect all sample DB files from the samples directory.
+def _unpublished_merge_files(data_dir: Path, candidates: list[Path]) -> set[Path]:
+    """Merged databases on disk that no ``samples`` row references.
 
-    Delegates so merged children — named ``merged_<uuid>.db`` since #2329 — are
-    included. Globbing ``sample_*.db`` here omitted them from every backup, and
-    a restore then silently lost those samples.
+    A merge builds its child before publishing the registry row (#2329), so a
+    backup overlapping one can see a complete-looking file that is still being
+    written and has no row. Archiving it is worse than skipping it: restore
+    synthesizes a registry row for any archived ``samples/*.db`` the manifest
+    does not list, so a pre-publication snapshot comes back as a phantom
+    merged sample — possibly mid-transaction.
+
+    Same ownership rule the startup sweep uses. If the registry cannot be read
+    we cannot prove anything, so nothing is excluded here and the manifest
+    build surfaces the failure instead.
     """
-    return collect_sample_database_files(data_dir / "samples")
+    merged = [p for p in candidates if p.name.startswith("merged_")]
+    if not merged:
+        return set()
+    try:
+        from backend.db.connection import get_registry
+        from backend.db.tables import samples as samples_table
+
+        registry = get_registry()
+        with registry.reference_engine.connect() as conn:
+            referenced = {
+                str(row.db_path)
+                for row in conn.execute(sa.select(samples_table.c.db_path)).fetchall()
+            }
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("backup_publication_check_failed", extra={"error": str(exc)})
+        return set()
+    return {p for p in merged if f"samples/{p.name}" not in referenced}
+
+
+def collect_backup_sample_files(data_dir: Path) -> list[Path]:
+    """The per-sample databases a backup should archive.
+
+    Includes merged children — named ``merged_<uuid>.db`` since #2329 — which a
+    bare ``sample_*.db`` glob omitted from every archive, losing them on
+    restore. Excludes a merged database whose publication has not committed.
+    """
+    candidates = collect_sample_database_files(data_dir / "samples")
+    skip = _unpublished_merge_files(data_dir, candidates)
+    if skip:
+        logger.info(
+            "backup_skipped_unpublished_merges",
+            extra={"count": len(skip)},
+        )
+    return [path for path in candidates if path not in skip]
+
+
+def _collect_sample_files(data_dir: Path) -> list[Path]:
+    """Backwards-compatible alias used by the size estimate and the manifest."""
+    return collect_backup_sample_files(data_dir)
 
 
 def _collect_reference_files(data_dir: Path) -> list[Path]:
