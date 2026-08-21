@@ -1052,6 +1052,20 @@ def _remap_staged_merge_provenance(
                     )
                 continue
             with engine.begin() as conn:
+                # The staged database came from the archive. Updating its
+                # provenance while an archive-controlled trigger is installed
+                # could mutate any other table or provenance field while
+                # preserving the values checked below. Production sample
+                # databases do not use triggers, so reject them before issuing
+                # the one restore-time write rather than executing untrusted
+                # SQLite programs.
+                trigger = conn.exec_driver_sql(
+                    "SELECT name FROM sqlite_master WHERE type = 'trigger' LIMIT 1"
+                ).fetchone()
+                if trigger is not None:
+                    raise _RestoreMergeProvenanceError(
+                        f"Sample {member_name} contains unsupported database triggers."
+                    )
                 rows = conn.execute(
                     sa.select(
                         merge_provenance.c.id,

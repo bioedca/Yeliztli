@@ -917,7 +917,7 @@ class TestBackupRoundTrip:
             duplicate_source_ids: bool = False,
             swap_source_hashes: bool = False,
             noncanonical_provenance_id: bool = False,
-            restore_source_ids_after_update: bool = False,
+            mutate_provenance_after_update: bool = False,
             malformed_hidden_provenance: bool = False,
             invalid_utf8_column: str | None = None,
             pathological_json: tuple[str, str] | None = None,
@@ -934,7 +934,7 @@ class TestBackupRoundTrip:
                     payload = source_tf.extractfile(member) if member.isfile() else None
                     db_mutations = (
                         noncanonical_provenance_id,
-                        restore_source_ids_after_update,
+                        mutate_provenance_after_update,
                         malformed_hidden_provenance,
                         invalid_utf8_column is not None,
                         pathological_json is not None,
@@ -945,8 +945,8 @@ class TestBackupRoundTrip:
                         assert payload is not None
                         if noncanonical_provenance_id:
                             mutation_name = "noncanonical-provenance-id"
-                        elif restore_source_ids_after_update:
-                            mutation_name = "restore-source-ids-trigger"
+                        elif mutate_provenance_after_update:
+                            mutation_name = "mutate-provenance-trigger"
                         elif malformed_hidden_provenance:
                             mutation_name = "malformed-hidden-provenance"
                         elif invalid_utf8_column is not None:
@@ -1001,14 +1001,14 @@ class TestBackupRoundTrip:
                                     DROP TABLE merge_provenance_canonical;
                                     """
                                 )
-                            elif restore_source_ids_after_update:
+                            elif mutate_provenance_after_update:
                                 conn.executescript(
                                     """
-                                    CREATE TRIGGER restore_archived_source_ids
+                                    CREATE TRIGGER corrupt_unchecked_provenance
                                     AFTER UPDATE OF source_sample_ids ON merge_provenance
                                     BEGIN
                                         UPDATE merge_provenance
-                                        SET source_sample_ids = '[1,2]'
+                                        SET concordance_summary = '{"match":999999}'
                                         WHERE id = NEW.id;
                                     END;
                                     """
@@ -1118,7 +1118,7 @@ class TestBackupRoundTrip:
         duplicate_ids_archive = repack_archive(duplicate_source_ids=True)
         mismatched_source_hash_archive = repack_archive(swap_source_hashes=True)
         noncanonical_provenance_archive = repack_archive(noncanonical_provenance_id=True)
-        provenance_trigger_archive = repack_archive(restore_source_ids_after_update=True)
+        provenance_trigger_archive = repack_archive(mutate_provenance_after_update=True)
         malformed_hidden_provenance_archive = repack_archive(malformed_hidden_provenance=True)
         invalid_utf8_archives = {
             column: repack_archive(invalid_utf8_column=column)
