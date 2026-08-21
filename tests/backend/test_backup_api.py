@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import io
 import json
+import sqlite3
 import tarfile
 from datetime import UTC, datetime
 from pathlib import Path
@@ -24,7 +25,7 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from backend.config import Settings
-from backend.db.connection import reset_registry
+from backend.db.connection import DBRegistry, reset_registry
 from backend.db.sample_schema import (
     CYP2C9_PHENYTOIN_LEGACY_GUIDANCE_VERSION,
     CYP2C9_PHENYTOIN_REANALYSIS_STATE_KEY,
@@ -34,11 +35,13 @@ from backend.db.tables import (
     annotation_state,
     findings,
     individuals,
+    merge_provenance,
     reannotation_prompts,
     reference_metadata,
     sample_metadata_table,
     samples,
 )
+from backend.services.sample_delete import delete_sample_with_cascade, list_merged_children
 
 # ═══════════════════════════════════════════════════════════════════════
 # Helpers
@@ -806,6 +809,425 @@ class TestBackupRoundTrip:
             (3, "Custom sample two", "samples/sample_3.db"),
         ]
         assert prompt_sample_ids == [1]
+
+    def test_import_remaps_merged_sources_before_registry_publication(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """A colliding destination ID must never capture restored provenance.
+
+        The archive's source IDs are 1 and 2. The destination already owns ID
+        1, so restore reallocates the first source. The merged database must be
+        rewritten before publication: deleting destination ID 1 must leave it
+        alone, while deleting the remapped source must cascade to it.
+        """
+        source_dir = tmp_path / "provenance_source"
+        source_dir.mkdir()
+        (source_dir / "samples").mkdir()
+        source_settings = Settings(data_dir=source_dir, wal_mode=False)
+        merged_name = f"merged_{'c' * 32}.db"
+
+        def create_archived_db(path: Path, *, merged: bool = False) -> None:
+            engine = sa.create_engine(f"sqlite:///{path}")
+            try:
+                create_sample_tables(engine, is_merged_sample=merged)
+                if merged:
+                    with engine.begin() as conn:
+                        conn.execute(
+                            merge_provenance.insert().values(
+                                id=1,
+                                strategy="flag_only",
+                                source_sample_ids="[1,2]",
+                                source_file_hashes='["source-one","source-two"]',
+                                concordance_summary="{}",
+                            )
+                        )
+            finally:
+                engine.dispose()
+
+        create_archived_db(source_dir / "samples" / "sample_1.db")
+        create_archived_db(source_dir / "samples" / "sample_2.db")
+        create_archived_db(source_dir / "samples" / merged_name, merged=True)
+
+        with _make_client(source_settings):
+            reset_registry()
+            from backend.db.connection import get_registry
+
+            source_registry = get_registry()
+            reference_metadata.create_all(source_registry.reference_engine)
+            with source_registry.reference_engine.begin() as conn:
+                conn.execute(
+                    samples.insert(),
+                    [
+                        {
+                            "id": 1,
+                            "name": "Restored source one",
+                            "db_path": "samples/sample_1.db",
+                            "file_format": "23andme_v5",
+                            "file_hash": "source-one",
+                        },
+                        {
+                            "id": 2,
+                            "name": "Restored source two",
+                            "db_path": "samples/sample_2.db",
+                            "file_format": "ancestrydna_v2",
+                            "file_hash": "source-two",
+                        },
+                        {
+                            "id": 3,
+                            "name": "Restored merged child",
+                            "db_path": f"samples/{merged_name}",
+                            "file_format": "merged_v1",
+                            "file_hash": "merged-child",
+                        },
+                    ],
+                )
+            _job_id, filename = _run_export(source_settings, include_refs=False)
+            archive_content = (source_settings.downloads_dir / filename).read_bytes()
+            reset_registry()
+
+        def repack_archive(
+            *,
+            drop_source: bool = False,
+            hide_merged: bool = False,
+            duplicate_source_ids: bool = False,
+            swap_source_hashes: bool = False,
+            noncanonical_provenance_id: bool = False,
+            restore_source_ids_after_update: bool = False,
+            malformed_hidden_provenance: bool = False,
+        ) -> bytes:
+            repacked = io.BytesIO()
+            with (
+                tarfile.open(fileobj=io.BytesIO(archive_content), mode="r:gz") as source_tf,
+                tarfile.open(fileobj=repacked, mode="w:gz") as target_tf,
+            ):
+                for member in source_tf.getmembers():
+                    if drop_source and member.name == "samples/sample_2.db":
+                        continue
+                    payload = source_tf.extractfile(member) if member.isfile() else None
+                    db_mutations = (
+                        noncanonical_provenance_id,
+                        restore_source_ids_after_update,
+                        malformed_hidden_provenance,
+                    )
+                    assert sum(db_mutations) <= 1
+                    if any(db_mutations) and member.name == f"samples/{merged_name}":
+                        assert payload is not None
+                        mutation_name = (
+                            "noncanonical-provenance-id"
+                            if noncanonical_provenance_id
+                            else (
+                                "restore-source-ids-trigger"
+                                if restore_source_ids_after_update
+                                else "malformed-hidden-provenance"
+                            )
+                        )
+                        malformed_db = tmp_path / f"{mutation_name}.db"
+                        malformed_db.write_bytes(payload.read())
+                        conn = sqlite3.connect(malformed_db)
+                        try:
+                            conn.execute("PRAGMA journal_mode=DELETE")
+                            if noncanonical_provenance_id:
+                                conn.executescript(
+                                    """
+                                    ALTER TABLE merge_provenance
+                                        RENAME TO merge_provenance_canonical;
+                                    CREATE TABLE merge_provenance (
+                                        id INTEGER NOT NULL PRIMARY KEY,
+                                        merged_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                                        strategy TEXT NOT NULL,
+                                        source_sample_ids TEXT NOT NULL,
+                                        source_file_hashes TEXT NOT NULL,
+                                        concordance_summary TEXT NOT NULL
+                                    );
+                                    INSERT INTO merge_provenance (
+                                        id,
+                                        merged_at,
+                                        strategy,
+                                        source_sample_ids,
+                                        source_file_hashes,
+                                        concordance_summary
+                                    )
+                                    SELECT
+                                        2,
+                                        merged_at,
+                                        strategy,
+                                        source_sample_ids,
+                                        source_file_hashes,
+                                        concordance_summary
+                                    FROM merge_provenance_canonical;
+                                    DROP TABLE merge_provenance_canonical;
+                                    """
+                                )
+                            elif restore_source_ids_after_update:
+                                conn.executescript(
+                                    """
+                                    CREATE TRIGGER restore_archived_source_ids
+                                    AFTER UPDATE OF source_sample_ids ON merge_provenance
+                                    BEGIN
+                                        UPDATE merge_provenance
+                                        SET source_sample_ids = '[1,2]'
+                                        WHERE id = NEW.id;
+                                    END;
+                                    """
+                                )
+                            else:
+                                conn.executescript(
+                                    """
+                                    ALTER TABLE merge_provenance
+                                        RENAME TO merge_provenance_complete;
+                                    CREATE TABLE merge_provenance (
+                                        id INTEGER NOT NULL PRIMARY KEY,
+                                        merged_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                                        strategy TEXT NOT NULL,
+                                        source_sample_ids TEXT NOT NULL,
+                                        concordance_summary TEXT NOT NULL
+                                    );
+                                    INSERT INTO merge_provenance (
+                                        id,
+                                        merged_at,
+                                        strategy,
+                                        source_sample_ids,
+                                        concordance_summary
+                                    )
+                                    SELECT
+                                        id,
+                                        merged_at,
+                                        strategy,
+                                        source_sample_ids,
+                                        concordance_summary
+                                    FROM merge_provenance_complete;
+                                    DROP TABLE merge_provenance_complete;
+                                    """
+                                )
+                            conn.commit()
+                        finally:
+                            conn.close()
+                        encoded = malformed_db.read_bytes()
+                        member.size = len(encoded)
+                        payload = io.BytesIO(encoded)
+                    if (
+                        hide_merged
+                        or malformed_hidden_provenance
+                        or duplicate_source_ids
+                        or swap_source_hashes
+                    ) and member.name == "sample_registry.json":
+                        assert payload is not None
+                        manifest = json.loads(payload.read().decode())
+                        rows_by_name = {row["name"]: row for row in manifest["samples"]}
+                        if hide_merged or malformed_hidden_provenance:
+                            rows_by_name["Restored merged child"]["file_format"] = "23andme_v5"
+                        if duplicate_source_ids:
+                            rows_by_name["Restored source two"]["id"] = rows_by_name[
+                                "Restored source one"
+                            ]["id"]
+                        if swap_source_hashes:
+                            source_one = rows_by_name["Restored source one"]
+                            source_two = rows_by_name["Restored source two"]
+                            source_one["file_hash"], source_two["file_hash"] = (
+                                source_two["file_hash"],
+                                source_one["file_hash"],
+                            )
+                        encoded = json.dumps(manifest).encode()
+                        member.size = len(encoded)
+                        payload = io.BytesIO(encoded)
+                    target_tf.addfile(member, payload)
+            return repacked.getvalue()
+
+        incomplete_archive = repack_archive(drop_source=True)
+        hidden_merge_archive = repack_archive(hide_merged=True)
+        duplicate_ids_archive = repack_archive(duplicate_source_ids=True)
+        mismatched_source_hash_archive = repack_archive(swap_source_hashes=True)
+        noncanonical_provenance_archive = repack_archive(noncanonical_provenance_id=True)
+        provenance_trigger_archive = repack_archive(restore_source_ids_after_update=True)
+        malformed_hidden_provenance_archive = repack_archive(malformed_hidden_provenance=True)
+
+        target_dir = tmp_path / "provenance_target"
+        target_dir.mkdir()
+        (target_dir / "samples").mkdir()
+        target_settings = Settings(data_dir=target_dir, wal_mode=False)
+        local_db = target_dir / "samples" / "sample_1.db"
+        create_archived_db(local_db)
+        target_registry = DBRegistry(target_settings)
+        try:
+            reference_metadata.create_all(target_registry.reference_engine)
+            with target_registry.reference_engine.begin() as conn:
+                conn.execute(
+                    samples.insert().values(
+                        id=1,
+                        name="Unrelated local sample",
+                        db_path="samples/sample_1.db",
+                        file_format="23andme_v5",
+                        file_hash="local-one",
+                    )
+                )
+
+            from backend.api.routes import setup as setup_routes
+
+            monkeypatch.setattr(setup_routes, "get_settings", lambda: target_settings)
+            monkeypatch.setattr(setup_routes, "get_registry", lambda: target_registry)
+            monkeypatch.setattr(
+                setup_routes,
+                "config_toml_path",
+                lambda: target_dir / "config.toml",
+            )
+
+            def assert_target_unchanged() -> None:
+                with target_registry.reference_engine.connect() as conn:
+                    assert (
+                        conn.execute(sa.select(sa.func.count()).select_from(samples)).scalar_one()
+                        == 1
+                    )
+                assert sorted(path.name for path in (target_dir / "samples").iterdir()) == [
+                    "sample_1.db"
+                ]
+
+            with pytest.raises(HTTPException) as exc_info:
+                asyncio.run(
+                    setup_routes.import_backup(
+                        _UploadBytes(
+                            filename="incomplete-merged-sources.tar.gz",
+                            content=incomplete_archive,
+                        )
+                    )
+                )
+            assert exc_info.value.status_code == 400
+            assert exc_info.value.detail == (
+                "Invalid backup archive: merged-sample provenance cannot be bound "
+                "to its restored sources."
+            )
+            assert_target_unchanged()
+
+            with pytest.raises(HTTPException) as hidden_exc_info:
+                asyncio.run(
+                    setup_routes.import_backup(
+                        _UploadBytes(
+                            filename="hidden-merged-provenance.tar.gz",
+                            content=hidden_merge_archive,
+                        )
+                    )
+                )
+            assert hidden_exc_info.value.status_code == 400
+            assert hidden_exc_info.value.detail == exc_info.value.detail
+            assert_target_unchanged()
+
+            with pytest.raises(HTTPException) as duplicate_exc_info:
+                asyncio.run(
+                    setup_routes.import_backup(
+                        _UploadBytes(
+                            filename="duplicate-archived-sample-ids.tar.gz",
+                            content=duplicate_ids_archive,
+                        )
+                    )
+                )
+            assert duplicate_exc_info.value.status_code == 400
+            assert duplicate_exc_info.value.detail == exc_info.value.detail
+            assert_target_unchanged()
+
+            with pytest.raises(HTTPException) as hash_exc_info:
+                asyncio.run(
+                    setup_routes.import_backup(
+                        _UploadBytes(
+                            filename="mismatched-merged-source-hashes.tar.gz",
+                            content=mismatched_source_hash_archive,
+                        )
+                    )
+                )
+            assert hash_exc_info.value.status_code == 400
+            assert hash_exc_info.value.detail == exc_info.value.detail
+            assert_target_unchanged()
+
+            with pytest.raises(HTTPException) as provenance_id_exc_info:
+                asyncio.run(
+                    setup_routes.import_backup(
+                        _UploadBytes(
+                            filename="noncanonical-merged-provenance-id.tar.gz",
+                            content=noncanonical_provenance_archive,
+                        )
+                    )
+                )
+            assert provenance_id_exc_info.value.status_code == 400
+            assert provenance_id_exc_info.value.detail == exc_info.value.detail
+            assert_target_unchanged()
+
+            with pytest.raises(HTTPException) as provenance_trigger_exc_info:
+                asyncio.run(
+                    setup_routes.import_backup(
+                        _UploadBytes(
+                            filename="provenance-update-trigger.tar.gz",
+                            content=provenance_trigger_archive,
+                        )
+                    )
+                )
+            assert provenance_trigger_exc_info.value.status_code == 400
+            assert provenance_trigger_exc_info.value.detail == exc_info.value.detail
+            assert_target_unchanged()
+
+            with pytest.raises(HTTPException) as malformed_hidden_exc_info:
+                asyncio.run(
+                    setup_routes.import_backup(
+                        _UploadBytes(
+                            filename="malformed-hidden-provenance.tar.gz",
+                            content=malformed_hidden_provenance_archive,
+                        )
+                    )
+                )
+            assert malformed_hidden_exc_info.value.status_code == 400
+            assert malformed_hidden_exc_info.value.detail == exc_info.value.detail
+            assert_target_unchanged()
+
+            result = asyncio.run(
+                setup_routes.import_backup(
+                    _UploadBytes(filename=filename, content=archive_content)
+                )
+            )
+
+            with target_registry.reference_engine.connect() as conn:
+                restored = {
+                    row.name: row
+                    for row in conn.execute(
+                        sa.select(samples.c.id, samples.c.name, samples.c.db_path)
+                    ).all()
+                }
+            source_one = restored["Restored source one"]
+            source_two = restored["Restored source two"]
+            merged = restored["Restored merged child"]
+            merged_path = target_dir / merged.db_path
+            merged_engine = target_registry.get_sample_engine(merged_path)
+            with merged_engine.connect() as conn:
+                restored_provenance = conn.execute(
+                    sa.select(
+                        merge_provenance.c.source_sample_ids,
+                        merge_provenance.c.source_file_hashes,
+                    )
+                ).one()
+                remapped_sources = json.loads(restored_provenance.source_sample_ids)
+                restored_source_hashes = json.loads(restored_provenance.source_file_hashes)
+
+            assert result.samples_restored == 3
+            assert remapped_sources == [source_one.id, source_two.id]
+            assert restored_source_hashes == ["source-one", "source-two"]
+            assert 1 not in remapped_sources
+            assert list_merged_children(target_registry, 1) == []
+
+            local_delete = delete_sample_with_cascade(target_registry, 1)
+            assert local_delete is not None
+            assert local_delete.deleted_merged_children == []
+            assert merged_path.exists()
+
+            restored_source_delete = delete_sample_with_cascade(target_registry, source_one.id)
+            assert restored_source_delete is not None
+            assert [child.id for child in restored_source_delete.deleted_merged_children] == [
+                merged.id
+            ]
+            assert not merged_path.exists()
+            with target_registry.reference_engine.connect() as conn:
+                surviving_ids = set(conn.execute(sa.select(samples.c.id)).scalars())
+            assert source_two.id in surviving_ids
+            assert merged.id not in surviving_ids
+        finally:
+            target_registry.dispose_all()
 
     def test_registry_insert_rolls_back_prompt_cleanup_on_later_failure(
         self, tmp_data_dir: Path

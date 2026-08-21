@@ -807,6 +807,10 @@ def _sample_id_from_path(db_path: str) -> int | None:
     return int(match.group(1)) if match else None
 
 
+class _RestoreMergeProvenanceError(ValueError):
+    """A restored merged sample cannot be bound to its restored sources."""
+
+
 def _default_sample_registry_row(
     member_name: str,
     staged_sample_path: Path | None = None,
@@ -893,7 +897,11 @@ def _plan_registry_rows(
     staged_sample_members: list[str],
     staged_sample_paths: dict[str, Path] | None,
     data_dir: Path,
-) -> tuple[dict[str, str], list[tuple[str, dict, int | None]]]:
+) -> tuple[
+    dict[str, str],
+    list[tuple[str, dict, int | None]],
+    dict[int, int],
+]:
     """Plan backed-up sample rows without mutating the registry."""
     from backend.db.tables import samples
 
@@ -914,6 +922,7 @@ def _plan_registry_rows(
     registry = get_registry()
     final_paths: dict[str, str] = {}
     planned_samples: list[tuple[str, dict, int | None]] = []
+    sample_id_map: dict[int, int] = {}
     with registry.reference_engine.connect() as conn:
         existing_ids = {
             row.id
@@ -931,7 +940,14 @@ def _plan_registry_rows(
         old_id = row.get("id")
         old_individual_id = row.get("individual_id")
         preferred_path = row.get("db_path") or member_name
-        preferred_id = old_id if isinstance(old_id, int) else _sample_id_from_path(preferred_path)
+        if old_id is not None:
+            if type(old_id) is not int:
+                raise _RestoreMergeProvenanceError(
+                    f"Archived sample {member_name} has an invalid ID."
+                )
+            preferred_id = old_id
+        else:
+            preferred_id = _sample_id_from_path(preferred_path)
 
         can_preserve = (
             preferred_id is not None
@@ -960,6 +976,12 @@ def _plan_registry_rows(
         values_with_id = _coerce_registry_values(row, samples)
         values_with_id["id"] = final_id
         values_with_id["db_path"] = final_db_path
+        if preferred_id is not None:
+            if preferred_id in sample_id_map:
+                raise _RestoreMergeProvenanceError(
+                    f"Archived sample ID {preferred_id} appears more than once."
+                )
+            sample_id_map[preferred_id] = final_id
         planned_samples.append(
             (
                 member_name,
@@ -968,7 +990,165 @@ def _plan_registry_rows(
             )
         )
 
-    return final_paths, planned_samples
+    return final_paths, planned_samples, sample_id_map
+
+
+def _remap_staged_merge_provenance(
+    *,
+    staged_sample_paths: dict[str, Path],
+    planned_samples: list[tuple[str, dict, int | None]],
+    sample_id_map: dict[int, int],
+) -> None:
+    """Bind staged merged samples to the IDs their staged sources will receive.
+
+    Registry collision handling can reallocate any archived sample ID. The
+    provenance row lives inside the merged sample database, so publishing the
+    remapped registry rows without updating it would bind the child to an
+    unrelated destination sample that owns the old ID. Work only in staging;
+    any failure therefore leaves the live installation untouched.
+    """
+    from backend.db.tables import merge_provenance
+
+    planned_by_member = {member_name: values for member_name, values, _ in planned_samples}
+    planned_by_final_id = {values["id"]: values for _, values, _ in planned_samples}
+    for member_name, staged_path in staged_sample_paths.items():
+        declared_merged = planned_by_member[member_name].get("file_format") == "merged_v1"
+        provenance_table_present = False
+
+        engine = make_sqlite_engine(staged_path, wal=False)
+        try:
+            provenance_table_present = sa.inspect(engine).has_table(merge_provenance.name)
+            if not provenance_table_present:
+                if declared_merged:
+                    raise _RestoreMergeProvenanceError(
+                        f"Merged sample {member_name} has no provenance table."
+                    )
+                continue
+            with engine.begin() as conn:
+                rows = conn.execute(
+                    sa.select(
+                        merge_provenance.c.id,
+                        merge_provenance.c.source_sample_ids,
+                        merge_provenance.c.source_file_hashes,
+                    )
+                ).fetchall()
+                if not rows and not declared_merged:
+                    continue
+                if rows and not declared_merged:
+                    raise _RestoreMergeProvenanceError(
+                        f"Sample {member_name} hides merged-sample provenance."
+                    )
+                if len(rows) != 1:
+                    raise _RestoreMergeProvenanceError(
+                        f"Merged sample {member_name} must contain one provenance row."
+                    )
+                row = rows[0]
+                if row.id != 1:
+                    raise _RestoreMergeProvenanceError(
+                        f"Merged sample {member_name} has a noncanonical provenance row."
+                    )
+                try:
+                    source_ids = json.loads(row.source_sample_ids)
+                except (json.JSONDecodeError, TypeError) as exc:
+                    raise _RestoreMergeProvenanceError(
+                        f"Merged sample {member_name} has malformed source IDs."
+                    ) from exc
+                if (
+                    not isinstance(source_ids, list)
+                    or len(source_ids) != 2
+                    or any(type(source_id) is not int for source_id in source_ids)
+                    or len(set(source_ids)) != 2
+                ):
+                    raise _RestoreMergeProvenanceError(
+                        f"Merged sample {member_name} has malformed source IDs."
+                    )
+                try:
+                    source_hashes = json.loads(row.source_file_hashes)
+                except (json.JSONDecodeError, TypeError) as exc:
+                    raise _RestoreMergeProvenanceError(
+                        f"Merged sample {member_name} has malformed source hashes."
+                    ) from exc
+                if (
+                    not isinstance(source_hashes, list)
+                    or len(source_hashes) != 2
+                    or any(type(source_hash) is not str for source_hash in source_hashes)
+                ):
+                    raise _RestoreMergeProvenanceError(
+                        f"Merged sample {member_name} has malformed source hashes."
+                    )
+                missing_ids = [
+                    source_id for source_id in source_ids if source_id not in sample_id_map
+                ]
+                if missing_ids:
+                    raise _RestoreMergeProvenanceError(
+                        f"Merged sample {member_name} references sources absent from the archive."
+                    )
+                expected_hashes: list[str] = []
+                for source_id in source_ids:
+                    source_values = planned_by_final_id[sample_id_map[source_id]]
+                    if source_values.get("file_format") == "merged_v1":
+                        raise _RestoreMergeProvenanceError(
+                            f"Merged sample {member_name} references another merged sample."
+                        )
+                    planned_hash = source_values.get("file_hash")
+                    if planned_hash is None:
+                        expected_hashes.append("")
+                    elif type(planned_hash) is str:
+                        expected_hashes.append(planned_hash)
+                    else:
+                        raise _RestoreMergeProvenanceError(
+                            f"Merged sample {member_name} references a source "
+                            "with an invalid hash."
+                        )
+                if source_hashes != expected_hashes:
+                    raise _RestoreMergeProvenanceError(
+                        f"Merged sample {member_name} source hashes do not match its sources."
+                    )
+                remapped_ids_json = json.dumps(
+                    [sample_id_map[source_id] for source_id in source_ids],
+                    separators=(",", ":"),
+                )
+                result = conn.execute(
+                    merge_provenance.update()
+                    .where(merge_provenance.c.id == row.id)
+                    .where(merge_provenance.c.source_sample_ids == row.source_sample_ids)
+                    .values(source_sample_ids=remapped_ids_json)
+                )
+                if result.rowcount != 1:
+                    raise _RestoreMergeProvenanceError(
+                        f"Merged sample {member_name} provenance changed during restore."
+                    )
+                persisted_rows = conn.execute(
+                    sa.select(
+                        merge_provenance.c.id,
+                        merge_provenance.c.source_sample_ids,
+                        merge_provenance.c.source_file_hashes,
+                    )
+                ).fetchall()
+                if (
+                    len(persisted_rows) != 1
+                    or persisted_rows[0].id != 1
+                    or persisted_rows[0].source_sample_ids != remapped_ids_json
+                    or persisted_rows[0].source_file_hashes != row.source_file_hashes
+                ):
+                    raise _RestoreMergeProvenanceError(
+                        f"Merged sample {member_name} provenance changed during restore."
+                    )
+        except _RestoreMergeProvenanceError:
+            raise
+        except sa.exc.SQLAlchemyError as exc:
+            if not declared_merged and not provenance_table_present:
+                logger.warning(
+                    "restore_nonmerged_provenance_check_skipped",
+                    sample_db=str(staged_path),
+                    error=str(exc),
+                )
+                continue
+            raise _RestoreMergeProvenanceError(
+                f"Sample {member_name} provenance is unreadable."
+            ) from exc
+        finally:
+            engine.dispose()
 
 
 def _insert_registry_rows(
@@ -1167,12 +1347,34 @@ async def import_backup(file: UploadFile) -> ImportBackupResponse:
                     else:
                         source_individuals, source_samples = [], []
 
-                    final_sample_paths, planned_sample_rows = _plan_registry_rows(
-                        source_samples=source_samples,
-                        staged_sample_members=staged_sample_member_names,
-                        staged_sample_paths=dict(staged_samples),
-                        data_dir=data_dir,
-                    )
+                    try:
+                        (
+                            final_sample_paths,
+                            planned_sample_rows,
+                            sample_id_map,
+                        ) = _plan_registry_rows(
+                            source_samples=source_samples,
+                            staged_sample_members=staged_sample_member_names,
+                            staged_sample_paths=dict(staged_samples),
+                            data_dir=data_dir,
+                        )
+                        _remap_staged_merge_provenance(
+                            staged_sample_paths=dict(staged_samples),
+                            planned_samples=planned_sample_rows,
+                            sample_id_map=sample_id_map,
+                        )
+                    except _RestoreMergeProvenanceError as exc:
+                        logger.warning(
+                            "backup_merge_provenance_invalid",
+                            error=str(exc),
+                        )
+                        raise HTTPException(
+                            status_code=400,
+                            detail=(
+                                "Invalid backup archive: merged-sample provenance "
+                                "cannot be bound to its restored sources."
+                            ),
+                        ) from exc
                     moved_sample_paths: list[Path] = []
                     try:
                         for member_name, staged in staged_samples:
