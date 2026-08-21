@@ -22,6 +22,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import tarfile
 from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import patch
@@ -29,7 +30,11 @@ from unittest.mock import patch
 import pytest
 import sqlalchemy as sa
 
-from backend.api.routes.backup import collect_backup_sample_files
+from backend.api.routes import backup as backup_routes
+from backend.api.routes.backup import (
+    BackupRegistryManifestError,
+    collect_backup_sample_files,
+)
 from backend.config import Settings
 from backend.db.connection import DBRegistry, get_registry, reset_registry
 from backend.db.sample_schema import (
@@ -2571,6 +2576,143 @@ class TestCrashSafePublication:
         assert Path(published).name in archived, "a published merge must still be archived"
         assert in_flight.name not in archived, "an unpublished merge must never be archived"
         assert in_flight.exists(), "skipping it must not delete it — the sweep owns that"
+
+    def test_manifest_and_archive_share_one_snapshot(
+        self,
+        merged_setup: tuple[DBRegistry, int, int, int],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """A merge publishing mid-backup must not split manifest from archive.
+
+        Collecting twice let a child publish between the passes: the manifest
+        omitted it while the archive carried its database, and restore then
+        treats a manifest miss as a legacy sample and assigns
+        ``individual_id=None`` — silently detaching it from its individual.
+        Forced here by publishing a merge after the production task has built
+        the manifest but before it starts adding sample databases to the tar.
+        """
+        registry, individual_id, s1_id, s2_id = merged_setup
+        data_dir = registry.settings.data_dir
+        real_collect = backup_routes.collect_backup_sample_files
+        real_build = backup_routes.build_sample_registry_manifest
+        selections: list[list[Path]] = []
+        manifest_arguments: list[list[Path] | None] = []
+        published_ids: list[int] = []
+
+        def record_selection(selected_data_dir: Path) -> list[Path]:
+            selection = real_collect(selected_data_dir)
+            selections.append(selection)
+            return selection
+
+        def publish_after_manifest(
+            selected_data_dir: Path, sample_files: list[Path] | None = None
+        ) -> bytes:
+            manifest_arguments.append(sample_files)
+            manifest = real_build(selected_data_dir, sample_files)
+            published_ids.append(
+                merge_samples(
+                    registry,
+                    source_sample_ids=[s1_id, s2_id],
+                    individual_id=individual_id,
+                    strategy=MergeStrategy.FLAG_ONLY,
+                    display_name="Published mid-backup",
+                )
+            )
+            return manifest
+
+        monkeypatch.setattr(backup_routes, "collect_backup_sample_files", record_selection)
+        monkeypatch.setattr(
+            backup_routes, "build_sample_registry_manifest", publish_after_manifest
+        )
+
+        import backend.tasks.huey_tasks as huey_tasks
+
+        monkeypatch.setattr(huey_tasks, "get_settings", lambda: registry.settings)
+        monkeypatch.setattr(huey_tasks, "config_toml_path", lambda: data_dir / "config.toml")
+        job_id = huey_tasks.create_backup_job()
+        huey_tasks.run_backup_export_task.call_local(job_id, False)
+
+        with registry.reference_engine.connect() as conn:
+            job = conn.execute(
+                sa.select(jobs.c.status, jobs.c.message).where(jobs.c.job_id == job_id)
+            ).one()
+            published = conn.execute(
+                sa.select(samples.c.id, samples.c.db_path, samples.c.individual_id).where(
+                    samples.c.id == published_ids[0]
+                )
+            ).one()
+
+        assert job.status == "complete"
+        archive_name = job.message.removeprefix("Backup complete: ")
+        with tarfile.open(registry.settings.downloads_dir / archive_name, "r:gz") as archive:
+            names = set(archive.getnames())
+            manifest_file = archive.extractfile("sample_registry.json")
+            assert manifest_file is not None
+            manifest = json.loads(manifest_file.read())
+
+        assert len(selections) == 1, "the production task must collect one sample snapshot"
+        assert len(manifest_arguments) == 1
+        assert manifest_arguments[0] is selections[0], (
+            "the manifest and tar builder must receive the same list object"
+        )
+        archived_sample_paths = {name for name in names if name.startswith("samples/")}
+        manifested_sample_paths = {row["db_path"] for row in manifest["samples"]}
+        assert archived_sample_paths == manifested_sample_paths
+        assert published.db_path not in archived_sample_paths, (
+            "a merge published after the snapshot belongs to the next backup"
+        )
+        assert published.individual_id == individual_id
+
+    def test_backup_fails_closed_when_publication_cannot_be_verified(
+        self, merged_setup: tuple[DBRegistry, int, int, int], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """An unverifiable registry must abort, not archive the unprovable file.
+
+        Returning "nothing to skip" would let an unregistered, possibly
+        half-written merged database into the archive, which restore
+        materialises as a phantom sample.
+        """
+        registry, _individual_id, _s1_id, _s2_id = merged_setup
+        samples_dir = registry.settings.data_dir / "samples"
+        (samples_dir / f"merged_{'b' * 32}.db").write_bytes(b"unprovable")
+
+        def unreadable(*_a: object, **_k: object):
+            raise sa.exc.OperationalError("SELECT db_path", {}, Exception("registry gone"))
+
+        with monkeypatch.context() as registry_failure:
+            registry_failure.setattr("backend.db.connection.get_registry", unreadable)
+
+            with pytest.raises(BackupRegistryManifestError, match="publication"):
+                collect_backup_sample_files(registry.settings.data_dir)
+
+        def refuse_unverifiable_backup(_data_dir: Path) -> list[Path]:
+            raise BackupRegistryManifestError(
+                "Could not verify merged-sample publication; backup aborted."
+            )
+
+        monkeypatch.setattr(
+            backup_routes, "collect_backup_sample_files", refuse_unverifiable_backup
+        )
+
+        import backend.tasks.huey_tasks as huey_tasks
+
+        monkeypatch.setattr(huey_tasks, "get_settings", lambda: registry.settings)
+        monkeypatch.setattr(
+            huey_tasks,
+            "config_toml_path",
+            lambda: registry.settings.data_dir / "config.toml",
+        )
+        job_id = huey_tasks.create_backup_job()
+        huey_tasks.run_backup_export_task.call_local(job_id, False)
+
+        with registry.reference_engine.connect() as conn:
+            job = conn.execute(
+                sa.select(jobs.c.status, jobs.c.error).where(jobs.c.job_id == job_id)
+            ).one()
+
+        assert job.status == "failed"
+        assert "publication" in job.error
+        assert list(registry.settings.downloads_dir.glob("*.tar.gz")) == []
 
     def test_publication_survives_an_interrupt_during_commit_unwind(
         self, merged_setup: tuple[DBRegistry, int, int, int], monkeypatch: pytest.MonkeyPatch

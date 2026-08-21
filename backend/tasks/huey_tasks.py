@@ -1495,13 +1495,19 @@ def run_backup_export_task(job_id: str, include_reference_dbs: bool = False) -> 
         # Central registry metadata. This is small and required for restored
         # sample files to appear in the app; build it from the live connection
         # so WAL-mode writes are included.
-        files_to_add.append((build_sample_registry_manifest(data_dir), REGISTRY_MANIFEST_FILE))
+        # Collect once and hand the same selection to both the manifest and the
+        # archive. Two independent passes could disagree if a merge published
+        # between them (#2329).
+        backup_sample_files = collect_backup_sample_files(data_dir)
+        files_to_add.append(
+            (
+                build_sample_registry_manifest(data_dir, backup_sample_files),
+                REGISTRY_MANIFEST_FILE,
+            )
+        )
 
         # Sample DB files
-        # Same collector the manifest uses, so the archive and the manifest
-        # cannot disagree — and an in-flight merge's unpublished database is
-        # excluded from both rather than restored as a phantom sample (#2329).
-        for sample_db in collect_backup_sample_files(data_dir):
+        for sample_db in backup_sample_files:
             files_to_add.append((sample_db, f"samples/{sample_db.name}"))
 
         # Optional standalone reference files
