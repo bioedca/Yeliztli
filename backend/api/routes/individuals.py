@@ -50,6 +50,10 @@ from backend.services.sample_merge import (
     merge_samples,
     preview_merge,
 )
+from backend.services.sample_operation_lock import (
+    SampleOperationConflictError,
+    SampleOperationUnavailableError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -596,8 +600,8 @@ def preview_merge_endpoint(individual_id: int, body: MergePreviewRequest) -> Mer
     Error surface:
 
     * 404 — individual does not exist.
-    * 422 — :class:`InvalidMergeRequestError` (shape, membership, or
-      annotation-status failure).
+    * 422 — :class:`InvalidMergeRequestError` (shape, membership,
+      already-merged source, or annotation-status failure).
     * 423 — :class:`StaleSourceError`; body carries the structured payload
       Plan §7.5 declares for ``require_fresh_sample``.
     """
@@ -660,7 +664,8 @@ def commit_merge_endpoint(individual_id: int, body: MergeCommitRequest) -> Merge
 
     * 404 — individual does not exist.
     * 422 — :class:`InvalidMergeRequestError` (shape / membership /
-      annotation-status failure, or empty ``display_name``).
+      already-merged source / annotation-status failure, or empty
+      ``display_name``).
     * 423 — :class:`StaleSourceError`; body carries the structured payload
       Plan §7.5 declares for ``require_fresh_sample``.
     """
@@ -680,6 +685,14 @@ def commit_merge_endpoint(individual_id: int, body: MergeCommitRequest) -> Merge
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except StaleSourceError as exc:
         raise HTTPException(status_code=423, detail=exc.detail) from exc
+    except SampleOperationConflictError as exc:
+        # A merge or deletion already holds one of the sources (#2329). Answer
+        # 409 like every other busy-sample boundary rather than a bare 500.
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except SampleOperationUnavailableError as exc:
+        # The lease registry could not be read, so the merge refused safely.
+        # 503 marks it retryable, matching the other sample-operation guards.
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     with registry.reference_engine.connect() as conn:
         job_id = _latest_annotation_job_id(conn, merged_sample_id)

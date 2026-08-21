@@ -73,7 +73,7 @@ test.beforeEach(async ({ page }) => {
     route.fulfill(jsonRoute(variantPage)),
   )
   await page.route(/\/api\/samples\/\d+\/merge-provenance$/, (route) =>
-    route.fulfill(jsonRoute({ detail: 'Sample is not a merged sample' }, 404)),
+    route.fulfill(jsonRoute(null)),
   )
   await page.route(/\/api\/watches(\?|$)/, (route) => route.fulfill(jsonRoute([])))
   // Enabling the GRCh38 toggle now computes the coordinates (#2029); stub it so

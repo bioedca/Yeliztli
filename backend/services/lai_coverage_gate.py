@@ -120,7 +120,7 @@ def _source_ids_from_merged_sample(
         return []
     try:
         raw_source_ids = json.loads(prov_row.source_sample_ids)
-    except (json.JSONDecodeError, TypeError):
+    except (ValueError, TypeError, UnicodeDecodeError, RecursionError):
         logger.warning(
             "lai_merged_provenance_malformed",
             sample_id=sample_id,
@@ -147,25 +147,59 @@ def _source_ids_from_merged_sample(
     return raw_source_ids
 
 
-def _source_file_formats_have_ancestrydna(registry: object, source_sample_ids: list[int]) -> bool:
-    """Return True when any source sample row is AncestryDNA-sourced."""
-    if not source_sample_ids:
-        return False
-    with registry.reference_engine.connect() as conn:  # type: ignore[attr-defined]
-        rows = conn.execute(
-            sa.select(samples.c.file_format).where(samples.c.id.in_(source_sample_ids))
-        ).fetchall()
-    return any(file_format_has_ancestrydna(row.file_format) for row in rows)
+def _ancestrydna_contribution_ids(registry: object, rows: list[sa.Row]) -> set[int]:
+    """Resolve every direct or merged AncestryDNA contribution in linear reads.
+
+    Historical direct API calls could merge an already-merged sample. Restore
+    preserves those legacy DAGs, so the LAI advisory follows provenance edges
+    transitively. Each merged database is read once to build the reverse graph,
+    then an iterative walk propagates direct AncestryDNA ancestry to descendants.
+    The visited result set also bounds corrupt pre-existing cycles.
+    """
+    contribution_ids = {
+        int(row.id) for row in rows if file_format_has_ancestrydna(row.file_format)
+    }
+    children_by_source: dict[int, set[int]] = {}
+    for row in rows:
+        if (row.file_format or "").lower() != _MERGED_FILE_FORMAT:
+            continue
+        merged_id = int(row.id)
+        for source_id in _source_ids_from_merged_sample(registry, merged_id, row.db_path):
+            children_by_source.setdefault(source_id, set()).add(merged_id)
+
+    pending = list(contribution_ids)
+    while pending:
+        source_id = pending.pop()
+        for child_id in children_by_source.get(source_id, ()):
+            if child_id in contribution_ids:
+                continue
+            contribution_ids.add(child_id)
+            pending.append(child_id)
+    return contribution_ids
 
 
-def _sample_row_has_ancestrydna_contribution(registry: object, row: sa.Row) -> bool:
-    """Return True for direct or merged AncestryDNA contributions."""
-    if file_format_has_ancestrydna(row.file_format):
-        return True
-    if (row.file_format or "").lower() != _MERGED_FILE_FORMAT:
-        return False
-    source_ids = _source_ids_from_merged_sample(registry, int(row.id), row.db_path)
-    return _source_file_formats_have_ancestrydna(registry, source_ids)
+def _sample_id_has_ancestrydna_contribution(
+    registry: object,
+    sample_id: int,
+    rows: list[sa.Row],
+) -> bool:
+    """Resolve one sample through only its reachable legacy source graph."""
+    rows_by_id = {int(row.id): row for row in rows}
+    pending = [sample_id]
+    seen: set[int] = set()
+    while pending:
+        current_id = pending.pop()
+        if current_id in seen:
+            continue
+        seen.add(current_id)
+        row = rows_by_id.get(current_id)
+        if row is None:
+            continue
+        if file_format_has_ancestrydna(row.file_format):
+            return True
+        if (row.file_format or "").lower() == _MERGED_FILE_FORMAT:
+            pending.extend(_source_ids_from_merged_sample(registry, current_id, row.db_path))
+    return False
 
 
 def is_degraded_for_sample(sample_id: int) -> bool:
@@ -179,14 +213,10 @@ def is_degraded_for_sample(sample_id: int) -> bool:
         return False
     registry = get_registry()
     with registry.reference_engine.connect() as conn:
-        row = conn.execute(
-            sa.select(samples.c.id, samples.c.file_format, samples.c.db_path).where(
-                samples.c.id == sample_id
-            )
-        ).fetchone()
-    if row is None:
-        return False
-    return _sample_row_has_ancestrydna_contribution(registry, row)
+        rows = conn.execute(
+            sa.select(samples.c.id, samples.c.file_format, samples.c.db_path)
+        ).fetchall()
+    return _sample_id_has_ancestrydna_contribution(registry, sample_id, rows)
 
 
 def is_degraded_globally() -> bool:
@@ -195,8 +225,7 @@ def is_degraded_globally() -> bool:
     Powers the dashboard-mounted ``<AppUpdateBanner>`` (Plan §6.7) — the
     banner surfaces once per install, independent of which sample is
     currently selected. Direct vendor checks stay in the reference DB;
-    ``merged_v1`` rows open their per-sample DB once to read merge
-    provenance.
+    every ``merged_v1`` per-sample DB is opened at most once per status read.
     """
     bundle_version = _read_installed_lai_version()
     if not lai_bundle_below_v2(bundle_version):
@@ -206,4 +235,4 @@ def is_degraded_globally() -> bool:
         rows = conn.execute(
             sa.select(samples.c.id, samples.c.file_format, samples.c.db_path)
         ).fetchall()
-    return any(_sample_row_has_ancestrydna_contribution(registry, row) for row in rows)
+    return bool(_ancestrydna_contribution_ids(registry, rows))

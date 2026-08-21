@@ -4,7 +4,7 @@
  */
 
 import { test, expect } from '@playwright/test'
-import { bypassSetup, waitForReactHydration } from './helpers'
+import { bypassSetup, mockFreshSampleState, waitForReactHydration } from './helpers'
 
 const jsonRoute = (payload: unknown, status = 200) => ({
   status,
@@ -154,6 +154,7 @@ const rareVariant = {
 
 test.beforeEach(async ({ page }) => {
   await bypassSetup(page)
+  await mockFreshSampleState(page)
 })
 
 test('Variant Explorer side panel explains HGVS coding and protein notation (#1669)', async ({
@@ -176,7 +177,7 @@ test('Variant Explorer side panel explains HGVS coding and protein notation (#16
     route.fulfill(jsonRoute(variantSummary)),
   )
   await page.route(/\/api\/samples\/\d+\/merge-provenance$/, (route) =>
-    route.fulfill(jsonRoute({ detail: 'Sample is not a merged sample' }, 404)),
+    route.fulfill(jsonRoute(null)),
   )
   await page.route(/\/api\/watches(\?|$)/, (route) => route.fulfill(jsonRoute([])))
 

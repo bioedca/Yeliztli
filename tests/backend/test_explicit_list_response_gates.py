@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import tempfile
 from collections.abc import Iterator
 from types import SimpleNamespace
 from typing import Any
@@ -30,34 +31,64 @@ from backend.api.routes import (
 class _Rows:
     def __init__(self, rows: list[SimpleNamespace]) -> None:
         self._rows = rows
+        self._cursor = 0
+        self.fetchmany_sizes: list[int] = []
 
     def fetchall(self) -> list[SimpleNamespace]:
         return self._rows
+
+    def fetchmany(self, size: int) -> list[SimpleNamespace]:
+        """Serve bounded batches, recording each requested size.
+
+        Added for #2328: the TSV export must consume its result set in bounded
+        batches rather than materialising it, and a double that only offers
+        ``fetchall`` cannot tell the two apart.
+        """
+        self.fetchmany_sizes.append(size)
+        batch = self._rows[self._cursor : self._cursor + size]
+        self._cursor += len(batch)
+        return batch
 
     def __iter__(self) -> Iterator[SimpleNamespace]:
         return iter(self._rows)
 
 
+class _UnboundedFetchIsFatalRows(_Rows):
+    """A result set that refuses to be materialised in one call."""
+
+    def fetchall(self) -> list[SimpleNamespace]:
+        raise AssertionError("the export must not call fetchall() on the result set")
+
+
 class _Connection:
-    def __init__(self, rows: list[SimpleNamespace]) -> None:
+    def __init__(self, rows: list[SimpleNamespace], result_cls: type[_Rows] = _Rows) -> None:
         self._rows = rows
+        self._result_cls = result_cls
+        self.results: list[_Rows] = []
+        self.closed = False
 
     def __enter__(self) -> _Connection:
         return self
 
     def __exit__(self, *_args: object) -> None:
-        return None
+        self.closed = True
 
     def execute(self, _statement: object) -> _Rows:
-        return _Rows(self._rows)
+        result = self._result_cls(self._rows)
+        self.results.append(result)
+        return result
 
 
 class _Engine:
-    def __init__(self, rows: list[SimpleNamespace]) -> None:
+    def __init__(self, rows: list[SimpleNamespace], result_cls: type[_Rows] = _Rows) -> None:
         self._rows = rows
+        self._result_cls = result_cls
+        self.connections: list[_Connection] = []
 
     def connect(self) -> _Connection:
-        return _Connection(self._rows)
+        connection = _Connection(self._rows, self._result_cls)
+        self.connections.append(connection)
+        return connection
 
 
 def _finding_row(**overrides: Any) -> SimpleNamespace:
@@ -102,7 +133,8 @@ class _CapturedStreamingResponse:
     """Capture a route's iterator without starting Starlette's thread pool."""
 
     def __init__(self, content: Iterator[str], **_kwargs: object) -> None:
-        self.content = "".join(content)
+        self.chunks = list(content)
+        self.content = "".join(self.chunks)
 
 
 def test_variant_list_aggregates_withhold_cross_row_pair(
@@ -339,3 +371,384 @@ def test_rare_findings_and_exports_withhold_cross_row_pair(
     assert "CYP2D6" not in vcf
     assert "tamoxifen" not in vcf
     assert "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n" in vcf
+
+
+def test_rare_tsv_preflights_then_emits_exact_row_chunks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Rendered privacy validation and streamed row bytes cannot drift."""
+    rows = [
+        _finding_row(
+            id=1,
+            module="rare_variants",
+            rsid="rs_first",
+            gene_symbol="SAFE1",
+            detail_json=json.dumps({"consequence": None, "cadd_phred": 0}),
+        ),
+        _finding_row(
+            id=2,
+            module="rare_variants",
+            rsid="rs_second",
+            gene_symbol="SAFE2",
+            detail_json=json.dumps({"consequence": "missense_variant"}),
+        ),
+    ]
+    _assert_individually_presentable(rows)
+    monkeypatch.setattr(rare_variants, "_get_sample_engine", lambda _sample_id: _Engine(rows))
+    monkeypatch.setattr(rare_variants, "StreamingResponse", _CapturedStreamingResponse)
+
+    scanned_lines: list[str] = []
+    rendered_gate = rare_variants.is_patient_presentable_rendered_text_chunks
+
+    def capture_rendered_gate(lines: Iterator[str]) -> bool:
+        scanned_lines.extend(lines)
+        return rendered_gate(scanned_lines)
+
+    monkeypatch.setattr(
+        rare_variants,
+        "is_patient_presentable_rendered_text_chunks",
+        capture_rendered_gate,
+    )
+
+    response = rare_variants.export_rare_variants_tsv(sample_id=1)
+
+    expected_header = (
+        "rsid\tgene_symbol\tcategory\tevidence_level\tzygosity\t"
+        "clinvar_significance\tconditions\tconsequence\tgnomad_af_global\t"
+        "cadd_phred\trevel\tfinding_text\n"
+    )
+    assert response.chunks == [expected_header, *scanned_lines]
+    assert len(scanned_lines) == 2
+    assert [line.split("\t", maxsplit=1)[0] for line in scanned_lines] == [
+        "rs_first",
+        "rs_second",
+    ]
+    assert all(line.endswith("\n") for line in scanned_lines)
+
+
+# ══════════════════════════════════════════════════════════════════════
+# Bounded TSV export producer (#2328)
+# ══════════════════════════════════════════════════════════════════════
+
+
+def test_rare_tsv_export_never_materialises_the_result_set(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The export consumes bounded batches, never one whole-result fetch.
+
+    The double raises on ``fetchall``, so this fails on the pre-#2328 handler
+    rather than merely observing that the new one happens to batch.
+    """
+    rows = [
+        _finding_row(id=index, module="rare_variants", rsid=f"rs_{index}", gene_symbol="SAFE1")
+        for index in range(1, 12)
+    ]
+    _assert_individually_presentable(rows)
+    engine = _Engine(rows, result_cls=_UnboundedFetchIsFatalRows)
+    monkeypatch.setattr(rare_variants, "_get_sample_engine", lambda _sample_id: engine)
+    monkeypatch.setattr(rare_variants, "StreamingResponse", _CapturedStreamingResponse)
+
+    response = rare_variants.export_rare_variants_tsv(sample_id=1)
+
+    assert len(response.chunks) == 1 + len(rows), "every safe row must still be emitted"
+    connection = engine.connections[0]
+    result = connection.results[0]
+    assert result.fetchmany_sizes, "the result set must be read in batches"
+    assert set(result.fetchmany_sizes) == {rare_variants._RARE_VARIANT_EXPORT_BATCH}
+    assert connection.closed, "the read connection must not outlive the handler"
+
+
+def test_rare_tsv_export_reaches_its_verdict_without_a_whole_response_list(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """No all-row projection is built: the whole-list gate is never called.
+
+    Fails on the pre-#2328 handler, which passes
+    ``[_payload_gate_projection(row) for row in export_rows]`` to it.
+    """
+    rows = [
+        _finding_row(id=1, module="rare_variants", rsid="rs_first", gene_symbol="SAFE1"),
+        _finding_row(id=2, module="rare_variants", rsid="rs_second", gene_symbol="SAFE2"),
+    ]
+    _assert_individually_presentable(rows)
+    monkeypatch.setattr(rare_variants, "_get_sample_engine", lambda _sample_id: _Engine(rows))
+    monkeypatch.setattr(rare_variants, "StreamingResponse", _CapturedStreamingResponse)
+
+    def _refuse(_value: object) -> bool:
+        raise AssertionError("the export must not assemble the whole response as a list")
+
+    monkeypatch.setattr(rare_variants, "is_patient_presentable_response_payload", _refuse)
+
+    response = rare_variants.export_rare_variants_tsv(sample_id=1)
+
+    assert len(response.chunks) == 3
+    assert "rs_first" in response.content
+    assert "rs_second" in response.content
+
+
+def _record_spill_files(monkeypatch: pytest.MonkeyPatch) -> list[Any]:
+    """Capture every temporary file the spool opens.
+
+    Forcing the threshold to zero is not on its own evidence that the disk path
+    ran — if overflow ever stopped triggering, a test that only forces the
+    threshold would keep passing while silently exercising the in-memory path.
+    Both spill tests assert against this list so they cannot go vacuous.
+    """
+    created: list[Any] = []
+    real_temporary_file = tempfile.TemporaryFile
+
+    def _recording(*args: object, **kwargs: object) -> Any:
+        handle = real_temporary_file(*args, **kwargs)
+        created.append(handle)
+        return handle
+
+    monkeypatch.setattr(tempfile, "TemporaryFile", _recording)
+    return created
+
+
+def test_rare_tsv_export_withholds_a_cross_row_pair_through_the_spill_file(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The cross-record verdict survives the disk-overflow path.
+
+    Same two rows as ``test_rare_findings_and_exports_withhold_cross_row_pair``,
+    with the spool threshold forced to zero so every line goes through the
+    temporary file. A fold that lost the free-text gene or drug across rows
+    would emit both.
+    """
+    rows = [
+        _finding_row(
+            id=1,
+            module="rare_variants",
+            category="clinvar_pathogenic",
+            gene_symbol="CYP2D6",
+            detail_json=json.dumps({"chrom": "1", "pos": 100, "ref": "A", "alt": "G"}),
+        ),
+        _finding_row(
+            id=2,
+            module="rare_variants",
+            category="clinvar_pathogenic",
+            gene_symbol="SAFE1",
+            detail_json=json.dumps({"consequence": "tamoxifen"}),
+        ),
+    ]
+    _assert_individually_presentable(rows)
+    monkeypatch.setattr(rare_variants, "_get_sample_engine", lambda _sample_id: _Engine(rows))
+    monkeypatch.setattr(rare_variants, "StreamingResponse", _CapturedStreamingResponse)
+    monkeypatch.setattr(rare_variants, "_RARE_VARIANT_TSV_SPOOL_MAX_CHARS", 0)
+    spills = _record_spill_files(monkeypatch)
+
+    response = rare_variants.export_rare_variants_tsv(sample_id=1)
+
+    assert spills, "the forced threshold must actually exercise the disk path"
+    assert response.content.count("\n") == 1
+    assert "CYP2D6" not in response.content
+    assert "tamoxifen" not in response.content
+
+
+def test_rare_tsv_export_replays_exact_chunks_through_the_spill_file(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Spilling to disk must not re-chunk or alter a single byte.
+
+    The framing is length-prefixed precisely so a cell containing a newline
+    replays as one chunk; splitting the spill on newlines would pass a
+    byte-equality check and still break chunk shape here.
+    """
+    rows = [
+        _finding_row(
+            id=1,
+            module="rare_variants",
+            rsid="rs_first",
+            gene_symbol="SAFE1",
+            finding_text="line one\nline two\rline three",
+        ),
+        _finding_row(
+            id=2,
+            module="rare_variants",
+            rsid="rs_second",
+            gene_symbol="SAFE2",
+            detail_json=json.dumps({"consequence": "missense_variant"}),
+        ),
+    ]
+    _assert_individually_presentable(rows)
+    monkeypatch.setattr(rare_variants, "StreamingResponse", _CapturedStreamingResponse)
+
+    def _export() -> _CapturedStreamingResponse:
+        monkeypatch.setattr(rare_variants, "_get_sample_engine", lambda _sample_id: _Engine(rows))
+        return rare_variants.export_rare_variants_tsv(sample_id=1)
+
+    monkeypatch.setattr(rare_variants, "_RARE_VARIANT_TSV_SPOOL_MAX_CHARS", 4_000_000)
+    in_memory = _export()
+    monkeypatch.setattr(rare_variants, "_RARE_VARIANT_TSV_SPOOL_MAX_CHARS", 0)
+    spills = _record_spill_files(monkeypatch)
+    spilled = _export()
+
+    assert spills, "the second run must actually go through the temporary file"
+    assert all(handle.closed for handle in spills)
+    assert in_memory.chunks == spilled.chunks
+    assert len(in_memory.chunks) == 3
+    assert "line one\nline two\rline three" in in_memory.content
+
+
+# ── The spool's threshold arithmetic (#2328) ──────────────────────────
+
+
+def _spool_with_limit(monkeypatch: pytest.MonkeyPatch, limit: int) -> Any:
+    monkeypatch.setattr(rare_variants, "_RARE_VARIANT_TSV_SPOOL_MAX_CHARS", limit)
+    return rare_variants._TsvReplaySpool()
+
+
+def test_spool_stays_in_memory_up_to_the_threshold(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Exactly at the budget is still in memory — the bound is inclusive."""
+    spills = _record_spill_files(monkeypatch)
+    spool = _spool_with_limit(monkeypatch, 10)
+
+    spool.append("12345\n")  # 6
+    spool.append("123\n")  # 4 -> exactly 10
+
+    assert not spills
+    assert list(spool.replay()) == ["12345\n", "123\n"]
+    spool.close()
+
+
+def test_spool_spills_on_the_line_that_crosses_the_threshold(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """One character over moves everything buffered so far onto disk."""
+    spills = _record_spill_files(monkeypatch)
+    spool = _spool_with_limit(monkeypatch, 10)
+
+    spool.append("12345\n")
+    spool.append("1234\n")  # 5 -> 11, over
+
+    assert len(spills) == 1, "crossing the budget must open exactly one spill file"
+    # Both lines replay, including the one buffered before the spill.
+    assert list(spool.replay()) == ["12345\n", "1234\n"]
+    spool.close()
+    assert spills[0].closed
+
+
+def test_spool_replay_is_identical_either_side_of_the_threshold(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The disk path is a storage detail, never an output difference.
+
+    Includes a cell containing both a newline and a carriage return, which is
+    what the length framing exists for.
+    """
+    lines = ["a\tb\n", "c\tline one\nline two\rline three\n", "d\te\n"]
+
+    generous = _spool_with_limit(monkeypatch, 4_000_000)
+    for line in lines:
+        generous.append(line)
+    in_memory = list(generous.replay())
+    generous.close()
+
+    spills = _record_spill_files(monkeypatch)
+    tiny = _spool_with_limit(monkeypatch, 0)
+    for line in lines:
+        tiny.append(line)
+    spilled = list(tiny.replay())
+    tiny.close()
+
+    assert spills, "the zero budget must actually spill"
+    assert in_memory == lines
+    assert spilled == lines
+
+
+def test_spool_close_is_idempotent(monkeypatch: pytest.MonkeyPatch) -> None:
+    """close() runs from a generator finally AND a BackgroundTask."""
+    spills = _record_spill_files(monkeypatch)
+    spool = _spool_with_limit(monkeypatch, 0)
+    spool.append("x\n")
+
+    spool.close()
+    spool.close()
+
+    assert spills and spills[0].closed
+
+
+class _RetainedStreamingResponse:
+    """Keep the body iterator unconsumed, the way Starlette receives it."""
+
+    def __init__(self, content: Iterator[str], **_kwargs: object) -> None:
+        self.content_iterator = content
+        self.background = _kwargs.get("background")
+
+
+def test_rare_tsv_export_cancelled_after_the_header_closes_the_spill(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A client that disconnects mid-download must not strand the temp file.
+
+    Closing the body iterator has to close the export's own generator, so the
+    `finally` releases the spill deterministically rather than whenever the
+    object happens to be collected. `itertools.chain` does not forward closure
+    to the child it is draining, so a chained header would break exactly this.
+    """
+    rows = [
+        _finding_row(id=index, module="rare_variants", rsid=f"rs_{index}", gene_symbol="SAFE1")
+        for index in range(1, 5)
+    ]
+    _assert_individually_presentable(rows)
+    monkeypatch.setattr(rare_variants, "_get_sample_engine", lambda _sample_id: _Engine(rows))
+    monkeypatch.setattr(rare_variants, "StreamingResponse", _RetainedStreamingResponse)
+    monkeypatch.setattr(rare_variants, "_RARE_VARIANT_TSV_SPOOL_MAX_CHARS", 0)
+    spills = _record_spill_files(monkeypatch)
+
+    response = rare_variants.export_rare_variants_tsv(sample_id=1)
+    body = response.content_iterator
+
+    first = next(body)
+
+    assert spills, "the forced threshold must have opened a spill file"
+    assert first.startswith("rsid\t"), "the header is emitted from inside the body iterator"
+    assert not spills[0].closed, "still streaming — the spill must stay open"
+
+    body.close()
+
+    assert spills[0].closed, "closing the body iterator must release the spill immediately"
+
+
+def test_rare_tsv_export_body_iterator_is_closeable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Guard the shape itself: the response body must expose close()."""
+    rows = [_finding_row(id=1, module="rare_variants", rsid="rs_1", gene_symbol="SAFE1")]
+    _assert_individually_presentable(rows)
+    monkeypatch.setattr(rare_variants, "_get_sample_engine", lambda _sample_id: _Engine(rows))
+    monkeypatch.setattr(rare_variants, "StreamingResponse", _RetainedStreamingResponse)
+
+    response = rare_variants.export_rare_variants_tsv(sample_id=1)
+
+    assert hasattr(response.content_iterator, "close"), (
+        "a wrapper without close() (itertools.chain) would silently defer cleanup to GC"
+    )
+    response.content_iterator.close()
+
+
+def test_rare_tsv_export_never_iterated_still_releases_the_spill(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A response body that is never read must still release the spill.
+
+    The generator's ``finally`` only runs if the body is iterated or closed, so
+    this path is exactly what the ``BackgroundTask`` fallback exists for.
+    Starlette runs it after the response; calling it directly is the same call.
+    """
+    rows = [_finding_row(id=1, module="rare_variants", rsid="rs_1", gene_symbol="SAFE1")]
+    _assert_individually_presentable(rows)
+    monkeypatch.setattr(rare_variants, "_get_sample_engine", lambda _sample_id: _Engine(rows))
+    monkeypatch.setattr(rare_variants, "StreamingResponse", _RetainedStreamingResponse)
+    monkeypatch.setattr(rare_variants, "_RARE_VARIANT_TSV_SPOOL_MAX_CHARS", 0)
+    spills = _record_spill_files(monkeypatch)
+
+    response = rare_variants.export_rare_variants_tsv(sample_id=1)
+
+    assert spills and not spills[0].closed
+    assert response.background is not None, "an un-iterated response has no other cleanup path"
+
+    response.background.func()
+
+    assert spills[0].closed

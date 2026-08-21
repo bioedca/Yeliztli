@@ -22,6 +22,7 @@ from pydantic import BaseModel
 
 from backend.config import config_toml_path, get_settings
 from backend.db.database_registry import DATABASES
+from backend.db.sample_schema import collect_sample_database_files
 from backend.services.sample_operation_lock import ACTIVE_JOB_STATUSES
 
 logger = structlog.get_logger(__name__)
@@ -108,12 +109,67 @@ def _get_file_size(path: Path) -> int:
         return 0
 
 
+def _unpublished_merge_files(data_dir: Path, candidates: list[Path]) -> set[Path]:
+    """Merged databases on disk that no ``samples`` row references.
+
+    A merge builds its child before publishing the registry row (#2329), so a
+    backup overlapping one can see a complete-looking file that is still being
+    written and has no row. Archiving it is worse than skipping it: restore
+    synthesizes a registry row for any archived ``samples/*.db`` the manifest
+    does not list, so a pre-publication snapshot comes back as a phantom
+    merged sample — possibly mid-transaction.
+
+    Same ownership rule the startup sweep uses. If the registry cannot be read
+    we cannot prove publication, so the backup aborts instead of treating every
+    candidate as safe.
+    """
+    merged = [p for p in candidates if p.name.startswith("merged_")]
+    if not merged:
+        return set()
+    try:
+        from backend.db.connection import get_registry
+        from backend.db.tables import samples as samples_table
+
+        registry = get_registry()
+        with registry.reference_engine.connect() as conn:
+            referenced = {
+                str(row.db_path)
+                for row in conn.execute(sa.select(samples_table.c.db_path)).fetchall()
+            }
+    except Exception as exc:  # noqa: BLE001
+        # Fail closed. Returning "nothing to skip" would make an unregistered,
+        # possibly half-written merged database eligible for the archive, and
+        # restore materialises any archived file the manifest omits as a
+        # phantom sample. Aborting matches how a registry failure is already
+        # treated when building the manifest.
+        logger.warning("backup_publication_check_failed", error=str(exc))
+        raise BackupRegistryManifestError(
+            "Could not verify merged-sample publication; backup would risk "
+            "archiving an unpublished database."
+        ) from exc
+    return {p for p in merged if f"samples/{p.name}" not in referenced}
+
+
+def collect_backup_sample_files(data_dir: Path) -> list[Path]:
+    """The per-sample databases a backup should archive.
+
+    Includes merged children — named ``merged_<uuid>.db`` since #2329 — which a
+    bare ``sample_*.db`` glob omitted from every archive, losing them on
+    restore. Excludes a merged database whose publication has not committed.
+    """
+    candidates = collect_sample_database_files(data_dir / "samples")
+    skip = _unpublished_merge_files(data_dir, candidates)
+    if skip:
+        logger.info(
+            "backup_skipped_unpublished_merges",
+            extra={"count": len(skip)},
+        )
+    return [path for path in candidates if path not in skip]
+
+
 def _collect_sample_files(data_dir: Path) -> list[Path]:
-    """Collect all sample DB files from the samples directory."""
-    samples_dir = data_dir / "samples"
-    if not samples_dir.exists():
-        return []
-    return sorted(samples_dir.glob("sample_*.db"))
+    """Backwards-compatible alias used by the size estimate and the manifest."""
+    return collect_backup_sample_files(data_dir)
 
 
 def _collect_reference_files(data_dir: Path) -> list[Path]:
@@ -133,12 +189,24 @@ def _jsonable(value: Any) -> Any:
     return value
 
 
-def build_sample_registry_manifest(data_dir: Path) -> bytes:
-    """Serialize registry rows for the sample DBs included in this backup."""
+def build_sample_registry_manifest(
+    data_dir: Path, sample_files: list[Path] | None = None
+) -> bytes:
+    """Serialize registry rows for the sample DBs included in this backup.
+
+    ``sample_files`` is the exact selection the archive will contain. Passing it
+    is what keeps the two in step: collecting separately let a merge publish
+    between the two passes, so the manifest could omit a child whose database
+    the archive included — and restore then treats that manifest miss as a
+    legacy sample and assigns ``individual_id=None``, silently detaching it
+    from its individual (#2329).
+    """
     from backend.db.connection import get_registry
     from backend.db.tables import individuals, samples
 
-    sample_db_paths = [f"samples/{path.name}" for path in _collect_sample_files(data_dir)]
+    if sample_files is None:
+        sample_files = _collect_sample_files(data_dir)
+    sample_db_paths = [f"samples/{path.name}" for path in sample_files]
     manifest: dict[str, Any] = {"version": 1, "individuals": [], "samples": []}
     if not sample_db_paths:
         return json.dumps(manifest, separators=(",", ":"), sort_keys=True).encode()

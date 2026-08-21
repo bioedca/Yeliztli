@@ -564,6 +564,52 @@ class TestMismatchedIndividual:
 
 
 # ══════════════════════════════════════════════════════════════════════
+# (iii-b) An already-merged source → 422 (#2330)
+# ══════════════════════════════════════════════════════════════════════
+
+
+class TestAlreadyMergedSource:
+    """A ``merged_v1`` sample is rejected as a source, with nothing written.
+
+    The wizard filters merged samples out of the picker
+    (``IndividualDetail.tsx``) and the docs say sources must be unmerged, so a
+    direct preview call was the only way in — and preview is where the wizard
+    learns whether a pair is mergeable at all.
+    """
+
+    def test_merged_source_returns_422(self, preview_client: TestClient) -> None:
+        registry = preview_client.registry  # type: ignore[attr-defined]
+        merged_id = _seed_source_sample(
+            registry,
+            individual_id=preview_client.individual_id,  # type: ignore[attr-defined]
+            name="jane_merged.txt",
+            file_format="merged_v1",
+            file_hash="hash_merged",
+            variants=S2_VARIANTS,
+        )
+        rows_before = _snapshot_samples_row_count(registry)
+        dbs_before = _snapshot_per_sample_db_files(registry)
+
+        resp = preview_client.post(
+            f"/api/individuals/{preview_client.individual_id}/merge/preview",  # type: ignore[attr-defined]
+            json={
+                "source_sample_ids": [merged_id, preview_client.s1_id],  # type: ignore[attr-defined]
+                "strategy": "flag_only",
+            },
+        )
+
+        assert resp.status_code == 422, resp.text
+        detail = resp.json()["detail"]
+        # Assert the reason, not just the code: this pair would 422 for other
+        # reasons too, and a status-only assertion would pass without the guard.
+        assert "already a merged sample" in detail
+        assert str(merged_id) in detail
+
+        assert _snapshot_samples_row_count(registry) == rows_before
+        assert _snapshot_per_sample_db_files(registry) == dbs_before
+
+
+# ══════════════════════════════════════════════════════════════════════
 # (iv) Invalid strategy → 422
 # ══════════════════════════════════════════════════════════════════════
 

@@ -158,10 +158,24 @@ def recover_orphaned_jobs(engine) -> int:
     and must be recovered by this sweep as well.
     """
     from backend.db.tables import jobs
-    from backend.services.sample_operation_lock import SAMPLE_EXPORT_JOB_TYPE
+    from backend.services.sample_operation_lock import (
+        SAMPLE_DELETE_JOB_TYPE,
+        SAMPLE_EXPORT_JOB_TYPE,
+        SAMPLE_MERGE_JOB_TYPE,
+    )
 
     recoverable_job_types = {
         SAMPLE_EXPORT_JOB_TYPE,
+        # A merge lease is synchronous and API-owned exactly like an export
+        # lease, so an API restart proves it abandoned. Without this a process
+        # killed mid-merge strands `running` lease rows forever: every later
+        # merge on either source reports "already being merged" and every
+        # delete answers 409, permanently (#2329).
+        SAMPLE_MERGE_JOB_TYPE,
+        # And the deletion reservation for the same reason, symmetrically: a
+        # crash mid-delete would otherwise strand `running` rows that make every
+        # later merge on that sample report "being deleted" forever.
+        SAMPLE_DELETE_JOB_TYPE,
         "database_download",
         "download",
     }
@@ -1517,6 +1531,7 @@ def run_backup_export_task(job_id: str, include_reference_dbs: bool = False) -> 
         REFERENCE_DB_FILES,
         REGISTRY_MANIFEST_FILE,
         build_sample_registry_manifest,
+        collect_backup_sample_files,
     )
 
     archive_path: Path | None = None
@@ -1550,13 +1565,20 @@ def run_backup_export_task(job_id: str, include_reference_dbs: bool = False) -> 
         # Central registry metadata. This is small and required for restored
         # sample files to appear in the app; build it from the live connection
         # so WAL-mode writes are included.
-        files_to_add.append((build_sample_registry_manifest(data_dir), REGISTRY_MANIFEST_FILE))
+        # Collect once and hand the same selection to both the manifest and the
+        # archive. Two independent passes could disagree if a merge published
+        # between them (#2329).
+        backup_sample_files = collect_backup_sample_files(data_dir)
+        files_to_add.append(
+            (
+                build_sample_registry_manifest(data_dir, backup_sample_files),
+                REGISTRY_MANIFEST_FILE,
+            )
+        )
 
         # Sample DB files
-        samples_dir = data_dir / "samples"
-        if samples_dir.exists():
-            for sample_db in sorted(samples_dir.glob("sample_*.db")):
-                files_to_add.append((sample_db, f"samples/{sample_db.name}"))
+        for sample_db in backup_sample_files:
+            files_to_add.append((sample_db, f"samples/{sample_db.name}"))
 
         # Optional standalone reference files
         if include_reference_dbs:

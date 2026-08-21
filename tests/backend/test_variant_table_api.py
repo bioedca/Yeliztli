@@ -18,7 +18,13 @@ from fastapi.testclient import TestClient
 from backend.config import Settings
 from backend.db.connection import DBRegistry, reset_registry
 from backend.db.sample_schema import create_sample_tables
-from backend.db.tables import annotated_variants, raw_variants, reference_metadata, samples
+from backend.db.tables import (
+    annotated_variants,
+    merge_provenance,
+    raw_variants,
+    reference_metadata,
+    samples,
+)
 
 FIXTURES = Path(__file__).resolve().parent.parent / "fixtures"
 V5_FILE = FIXTURES / "sample_23andme_v5.txt"
@@ -932,6 +938,18 @@ def client_with_merged_sample(tmp_data_dir: Path):
     with sample_engine.begin() as conn:
         conn.execute(raw_variants.insert(), MERGED_RAW_VARIANTS)
         conn.execute(annotated_variants.insert(), MERGED_ANNOTATED_VARIANTS)
+        conn.execute(
+            merge_provenance.insert().values(
+                id=1,
+                strategy="flag_only",
+                source_sample_ids="[1, 2]",
+                source_file_hashes='["source-1", "source-2"]',
+                concordance_summary=(
+                    '{"match": 1, "filled_nocall": 1, "discordant": 1, '
+                    '"unique_S1": 1, "unique_S2": 0, "collapsed_rsid": 1}'
+                ),
+            )
+        )
     sample_engine.dispose()
 
     with (

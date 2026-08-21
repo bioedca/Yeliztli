@@ -104,6 +104,9 @@ function setupFetchMock(
     if (url.includes("/api/tags")) {
       return { ok: true, json: async () => tags }
     }
+    if (url.includes("/api/samples/") && url.includes("/merge-provenance")) {
+      return { ok: true, status: 200, json: async () => null }
+    }
     if (url.includes("/api/variants/chromosomes")) {
       return { ok: true, json: async () => chromCounts }
     }

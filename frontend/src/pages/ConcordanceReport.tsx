@@ -13,14 +13,14 @@
  *      gene context (`gene_symbol`, `consequence`, `clinvar_significance`)
  *      from the backend's LEFT JOIN against `annotated_variants`. Prev /
  *      next pagination over the Plan §10.6 default `limit=50` window;
- *      `placeholderData: keepPreviousData` keeps the table mounted across
- *      page transitions (TanStack Query paginated-queries pattern).
+ *      same-sample placeholder data keeps the table mounted across page
+ *      transitions without carrying rows across sample navigation.
  *
  * Error surface:
  *   - 423 (`require_fresh_sample` gate, Plan §7.5) — surface a re-annotate
  *     CTA; the rest of the page does not render.
- *   - 404 (sample exists but isn't merged) — render an empty state pointing
- *     the user back to the dashboard rather than a destructive error.
+ *   - Successful null provenance (sample exists but isn't merged) — render an
+ *     empty state pointing the user back to the dashboard.
  *   - All other failures — generic `<PageError>` with retry.
  */
 
@@ -36,6 +36,7 @@ import {
 } from "lucide-react"
 
 import {
+  SamplesApiError,
   useConcordanceReport,
   useMergeProvenance,
 } from "@/api/samples"
@@ -413,7 +414,7 @@ export default function ConcordanceReport() {
 
   const provenanceQuery = useMergeProvenance(validId ? sampleId : null)
   const reportQuery = useConcordanceReport(
-    validId ? sampleId : null,
+    validId && provenanceQuery.data ? sampleId : null,
     PAGE_SIZE,
     offset,
   )
@@ -438,10 +439,12 @@ export default function ConcordanceReport() {
   // 423 from either query — surface a stale-sample banner and don't render
   // the rest of the page (the gate also blocks discordant-loci reads).
   const staleError =
-    (provenanceQuery.error && provenanceQuery.error.isStaleSample()
+    (provenanceQuery.error instanceof SamplesApiError &&
+    provenanceQuery.error.isStaleSample()
       ? provenanceQuery.error
       : null) ??
-    (reportQuery.error && reportQuery.error.isStaleSample()
+    (reportQuery.error instanceof SamplesApiError &&
+    reportQuery.error.isStaleSample()
       ? reportQuery.error
       : null)
 
@@ -454,12 +457,9 @@ export default function ConcordanceReport() {
     )
   }
 
-  // 404 on provenance — the sample exists but isn't a merged sample. Don't
-  // render a destructive error; point the user back to the dashboard.
-  if (
-    provenanceQuery.error &&
-    provenanceQuery.error.status === 404
-  ) {
+  // A successful null response is the ordinary unmerged-sample state. A 404
+  // now means the sample itself is missing and falls through to PageError.
+  if (provenanceQuery.isSuccess && provenanceQuery.data === null) {
     return (
       <div className="p-6 max-w-6xl mx-auto space-y-4">
         <BackLink sampleId={sampleId} />
@@ -472,7 +472,7 @@ export default function ConcordanceReport() {
     )
   }
 
-  if (provenanceQuery.isLoading || (!provenanceQuery.data && !provenanceQuery.error)) {
+  if (provenanceQuery.isPending) {
     return (
       <div className="p-6 max-w-6xl mx-auto">
         <PageLoading message="Loading merge provenance…" />
@@ -511,7 +511,9 @@ export default function ConcordanceReport() {
         />
       )}
 
-      {reportQuery.error && !reportQuery.error.isStaleSample() ? (
+      {reportQuery.error &&
+      (!(reportQuery.error instanceof SamplesApiError) ||
+        !reportQuery.error.isStaleSample()) ? (
         <PageError
           message={reportQuery.error.message}
           onRetry={() => reportQuery.refetch()}

@@ -19,6 +19,7 @@
 import { useSearchParams, useNavigate } from "react-router-dom"
 import { Brain, Loader2, AlertCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { getAPOEEmptyFindingsDescription } from "@/lib/apoe-status"
 import { parseSampleId } from "@/lib/format"
 import PageLoading from "@/components/ui/PageLoading"
 import PageError from "@/components/ui/PageError"
@@ -170,7 +171,11 @@ export default function APOEView() {
                   <PageEmpty
                     icon={Brain}
                     title="No APOE findings available."
-                    description="Run the APOE analysis first."
+                    description={
+                      genotypeQuery.data
+                        ? getAPOEEmptyFindingsDescription(genotypeQuery.data.status)
+                        : undefined
+                    }
                   />
                 ) : null}
               </section>

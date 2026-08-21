@@ -20,6 +20,7 @@ Covers:
 from __future__ import annotations
 
 import csv
+import io
 from pathlib import Path
 from unittest.mock import patch
 
@@ -32,6 +33,7 @@ from backend.annotation.dbnsfp import (
     _create_dbnsfp_table,
     load_dbnsfp_from_csv,
 )
+from backend.annotation.engine import DBNSFP_BIT
 from backend.annotation.gnomad import _create_gnomad_indexes, _create_gnomad_table
 from backend.annotation.mondo_hpo import (
     MONDO_HPO_INGESTION_REVISION,
@@ -338,6 +340,27 @@ class TestE2EPipeline:
         assert resp.status_code == 202, f"Annotation start failed: {resp.text}"
         return resp.json()
 
+    def _upload_dbnsfp_scenario(self, client: TestClient) -> dict:
+        """Upload one explicitly synthetic row through the real ingest API."""
+        content = (
+            "# This synthetic 23andMe-shaped fixture uses GRCh37 semantics.\n"
+            + "# synthetic test header\n" * 14
+            + "# rsid\tchromosome\tposition\tgenotype\n"
+            + "rsYELIZTLI0001\t20\t60000000\tAG\n"
+        )
+        resp = client.post(
+            "/api/ingest",
+            files={
+                "file": (
+                    "synthetic_dbnsfp_v5.txt",
+                    io.BytesIO(content.encode()),
+                    "text/plain",
+                )
+            },
+        )
+        assert resp.status_code == 202, f"Synthetic upload failed: {resp.text}"
+        return resp.json()
+
     # ── Upload & Parse ─────────────────────────────────────────────────
 
     def test_upload_parses_file(self, e2e_client: TestClient) -> None:
@@ -407,6 +430,27 @@ class TestE2EPipeline:
         assert detail["clinvar_significance"] == "drug_response"
         assert detail["clinvar_review_stars"] == 2
         assert "Homocysteinemia" in (detail.get("clinvar_conditions") or "")
+
+    def test_dbnsfp_annotation_correct(self, e2e_client: TestClient) -> None:
+        """Synthetic dbNSFP scenario survives upload, annotation, and detail API."""
+        upload = self._upload_dbnsfp_scenario(e2e_client)
+        sample_id = upload["sample_id"]
+        self._annotate_sample(e2e_client, sample_id)
+
+        resp = e2e_client.get(
+            "/api/variants/rsYELIZTLI0001",
+            params={"sample_id": sample_id},
+        )
+        assert resp.status_code == 200, resp.text
+        detail = resp.json()
+        assert detail["cadd_phred"] == pytest.approx(30.0)
+        assert detail["sift_score"] == pytest.approx(0.01)
+        assert detail["polyphen2_hsvar_score"] == pytest.approx(0.95)
+        assert detail["revel"] == pytest.approx(0.8)
+        assert detail["deleterious_count"] == 4
+        assert detail["deleterious_total_assessed"] == 4
+        assert detail["ensemble_pathogenic"] is True
+        assert detail["annotation_coverage"] == DBNSFP_BIT
 
     def test_vep_annotation_present(self, e2e_client: TestClient) -> None:
         """VEP annotation populates gene_symbol and consequence."""

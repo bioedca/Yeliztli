@@ -62,7 +62,7 @@ test.beforeEach(async ({ page }) => {
   )
   await page.route(/\/api\/variants(\?[^/]*)?$/, (route) => route.fulfill(jsonRoute(variantPage)))
   await page.route(/\/api\/samples\/\d+\/merge-provenance$/, (route) =>
-    route.fulfill(jsonRoute({ detail: 'Sample is not a merged sample' }, 404)),
+    route.fulfill(jsonRoute(null)),
   )
   await page.route(/\/api\/watches(\?|$)/, (route) => route.fulfill(jsonRoute(watchedVariants)))
 })

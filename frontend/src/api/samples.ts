@@ -6,7 +6,6 @@ import {
 } from "@/api/errors"
 
 import {
-  keepPreviousData,
   useQuery,
   useMutation,
   useQueryClient,
@@ -107,17 +106,25 @@ export function useDeleteSample() {
 /** API error surfaced by the concordance-report + merge-provenance hooks.
  *
  * Carries the HTTP status + decoded body so the ConcordanceReport page can
- * branch on 423 (stale sample, per Plan §7.5) vs 404 (sample not merged)
- * without having to re-parse the response. */
+ * branch on 423 (stale sample, per Plan §7.5), the typed retryable 503
+ * materialisation window, or 404 (missing resource) without re-parsing the
+ * response. */
 export class SamplesApiError extends Error {
   readonly status: number
   readonly body: unknown
+  readonly retryAfterMs: number | null
 
-  constructor(status: number, message: string, body: unknown) {
+  constructor(
+    status: number,
+    message: string,
+    body: unknown,
+    retryAfterMs: number | null = null,
+  ) {
     super(message)
     this.name = "SamplesApiError"
     this.status = status
     this.body = body
+    this.retryAfterMs = retryAfterMs
   }
 
   /** `true` when this is the `require_fresh_sample` 423 from Plan §7.5. */
@@ -131,39 +138,65 @@ export class SamplesApiError extends Error {
       body.detail !== null
     )
   }
+
+  isMergeProvenancePending(): boolean {
+    if (this.status !== 503 || !this.body || typeof this.body !== "object") return false
+    const detail = (this.body as { detail?: unknown }).detail
+    return (
+      !!detail &&
+      typeof detail === "object" &&
+      (detail as { error?: unknown }).error === "merge_provenance_pending"
+    )
+  }
+}
+
+function retryAfterMs(res: Response): number | null {
+  const raw = res.headers?.get?.("Retry-After")
+  if (!raw) return null
+  const seconds = Number(raw)
+  if (Number.isFinite(seconds) && seconds >= 0) return seconds * 1_000
+  const timestamp = Date.parse(raw)
+  return Number.isFinite(timestamp) ? Math.max(0, timestamp - Date.now()) : null
 }
 
 async function parseSamplesError(
   res: Response,
   fallback: string,
 ): Promise<never> {
+  const retryDelay = retryAfterMs(res)
   const body = await readApiResponseBody(res)
-  throw new SamplesApiError(res.status, fallback, body)
+  throw new SamplesApiError(res.status, fallback, body, retryDelay)
 }
 
-/** Fetch the merged sample's provenance row (Plan §10.6). 404 when the
- * sample exists but isn't a merged sample; 423 when the sample is stale. */
+/** Fetch the merged sample's provenance row (Plan §10.6). Returns `null` when
+ * an existing sample is not merged; retries the typed 503 materialisation
+ * window for about 30 seconds; 404 when missing; 423 when stale. */
 export function useMergeProvenance(sampleId: number | null) {
-  return useQuery<MergeProvenanceResponse, SamplesApiError>({
+  return useQuery<MergeProvenanceResponse | null, SamplesApiError>({
     queryKey: ["samples", sampleId, "merge-provenance"],
     queryFn: async () => {
       const res = await fetch(`/api/samples/${sampleId}/merge-provenance`)
       if (!res.ok) await parseSamplesError(res, "Failed to fetch merge provenance")
-      return (await res.json()) as MergeProvenanceResponse
+      return (await res.json()) as MergeProvenanceResponse | null
     },
     enabled: sampleId != null,
     // Provenance is immutable once the merged sample is materialised.
     staleTime: Infinity,
-    retry: false,
+    retry: (failureCount, error) =>
+      error instanceof SamplesApiError &&
+      error.isMergeProvenancePending() &&
+      failureCount < 30,
+    retryDelay: (_failureCount, error) =>
+      error instanceof SamplesApiError ? (error.retryAfterMs ?? 1_000) : 1_000,
   })
 }
 
 /** Paginated concordance report for a merged sample (Plan §10.6). The
  * backend caps `limit` at 500 and returns 422 on out-of-range values, so
  * the page is responsible for keeping its requested limit within that
- * window. `placeholderData: keepPreviousData` keeps the table mounted
- * while a new page loads to avoid the UI jumping back to a loading state
- * on prev/next clicks (TanStack Query paginated-queries pattern). */
+ * window. Same-sample placeholder data keeps the table mounted while a new
+ * page loads, but is withheld across sample navigation so one sample's rows
+ * can never render beneath another sample's provenance. */
 export function useConcordanceReport(
   sampleId: number | null,
   limit: number,
@@ -185,7 +218,8 @@ export function useConcordanceReport(
       return (await res.json()) as ConcordanceReportResponse
     },
     enabled: sampleId != null,
-    placeholderData: keepPreviousData,
+    placeholderData: (previousData, previousQuery) =>
+      previousQuery?.queryKey[1] === sampleId ? previousData : undefined,
     staleTime: Infinity,
     retry: false,
   })

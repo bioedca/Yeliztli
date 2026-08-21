@@ -23,7 +23,9 @@ from backend.analysis.pharmacogenomics import (
     _IDENTIFIER_SKELETON_SOURCE_TO_TARGET,
     CallConfidence,
     PrescribingAlert,
+    ResponsePayloadHeldPairScanner,
     StarAlleleResult,
+    _advance_rendered_text_state,
     _assess_call_confidence,
     _build_finding_text,
     _count_alt_alleles,
@@ -36,6 +38,7 @@ from backend.analysis.pharmacogenomics import (
     contains_unpresentable_prescribing_identifier,
     generate_prescribing_alerts,
     is_patient_presentable_finding_payload,
+    is_patient_presentable_rendered_text_chunks,
     is_patient_presentable_response_payload,
     is_prescribing_alert_withheld,
     patient_visible_finding_clause,
@@ -2509,6 +2512,80 @@ class TestPatientPresentableFindingPayload:
             }
         )
 
+    @pytest.mark.parametrize(
+        "text",
+        (
+            "",
+            "routine finding",
+            "CYP2D6",
+            "tamoxifen",
+            "CYP2D6 tamoxifen",
+            "safe CYP2\nD6\ttamoxifen",
+            "CYP2D6x tamoxifen",
+            "xCYP2D6 tamoxifen",
+            "CYP2D6\u200btamoxifen",
+            "CYP2D\u03326 tamox\x00ifen",
+            "tamoxifenCYP2D6",
+            "legacyCYP2D6tamoxifendose",
+            "病患檢體資料 tamoxifen reference",
+        ),
+    )
+    def test_rendered_text_chunks_match_the_complete_string_gate(self, text: str) -> None:
+        expected = is_patient_presentable_response_payload(text)
+
+        for split in range(len(text) + 1):
+            assert (
+                is_patient_presentable_rendered_text_chunks((text[:split], text[split:]))
+                is expected
+            )
+        assert is_patient_presentable_rendered_text_chunks(iter(text)) is expected
+
+    def test_rendered_text_chunks_preserve_unbounded_separator_progress(self) -> None:
+        chunks = ("CYP2", "\t" * 4097, "D6\t", "tamoxifen")
+
+        assert not is_patient_presentable_rendered_text_chunks(chunks)
+
+    def test_rendered_text_chunks_ignore_string_subclass_iteration(self) -> None:
+        class MisleadingString(str):
+            def __iter__(self):
+                return iter("safe")
+
+        chunk = MisleadingString("CYP2D6 tamoxifen")
+        assert not is_patient_presentable_response_payload("".join((chunk,)))
+
+        assert not is_patient_presentable_rendered_text_chunks((chunk,))
+
+    def test_rendered_text_chunks_cover_every_pinned_confusable(self) -> None:
+        for expected, confusables in _IDENTIFIER_CHARACTER_CONFUSABLES.items():
+            for confusable in confusables:
+                gene = "cyp2d6"
+                drug = "tamoxifen"
+                if expected in gene:
+                    gene = gene.replace(expected, confusable, 1)
+                elif expected in drug:
+                    drug = drug.replace(expected, confusable, 1)
+                else:
+                    assert expected == "r"
+                    drug = drug.replace("m", f"{confusable}n", 1)
+                assert not is_patient_presentable_rendered_text_chunks(
+                    (gene[:2], gene[2:] + "\t", drug[:-1], drug[-1:])
+                )
+
+        for source in _IDENTIFIER_SKELETON_SOURCE_TO_TARGET:
+            drug = f"ta{source}oxifen"
+            assert not is_patient_presentable_rendered_text_chunks(
+                ("CYP2D6\t", drug[:2], drug[2:])
+            )
+
+    def test_rendered_text_scanner_caches_repeated_transitions(self) -> None:
+        _advance_rendered_text_state.cache_clear()
+
+        assert is_patient_presentable_rendered_text_chunks(("x" * 100_000,))
+
+        cache = _advance_rendered_text_state.cache_info()
+        assert cache.misses <= 3
+        assert cache.hits >= 99_997
+
     def test_keeps_nested_independent_safe_pair_records_presentable(self) -> None:
         payload = {
             "gene": "CYP2D6",
@@ -2965,3 +3042,163 @@ class TestPatientPresentableFindingPayload:
                 "detail_json": f'{{"score": {constant}}}',
             }
         )
+
+
+# ══════════════════════════════════════════════════════════════════════
+# Incremental whole-response gate (#2328)
+# ══════════════════════════════════════════════════════════════════════
+
+
+def _fold_verdict(items: list[object]) -> bool:
+    """Run the incremental scanner over a list and return its verdict."""
+    scanner = ResponsePayloadHeldPairScanner()
+    for item in items:
+        scanner.feed(item)
+    return scanner.is_presentable()
+
+
+# Fragments chosen so every axis of the algebra is reachable: free text
+# carrying the gene alone, the drug alone, or both fused; complete records
+# carrying one identifier, both, or a fused sequence; and structures the
+# collector fails closed on.
+_HELD_GENE = "CYP2D6"
+_HELD_DRUG = "tamoxifen"
+
+_DIFFERENTIAL_CORPUS: list[tuple[str, list[object]]] = [
+    ("empty", []),
+    ("one safe record", [{"gene_symbol": "SAFE1", "conditions": "asthma"}]),
+    ("gene alone in free text", [{"finding_text": f"variant in {_HELD_GENE}"}]),
+    ("drug alone in free text", [{"conditions": _HELD_DRUG}]),
+    (
+        "pair split across two records' free text",
+        [{"finding_text": _HELD_GENE}, {"conditions": _HELD_DRUG}],
+    ),
+    (
+        "pair split across two rows of one record",
+        [{"finding_text": _HELD_GENE, "conditions": _HELD_DRUG}],
+    ),
+    ("fused sequence in one free field", [{"finding_text": f"{_HELD_GENE} {_HELD_DRUG}"}]),
+    # The case a naive "OR every string together" fold gets wrong: two
+    # complete gene/drug records that are individually safe and share no pair.
+    (
+        "two complete records, neither holding the pair",
+        [
+            {"gene": _HELD_GENE, "drug": "codeine"},
+            {"gene": "CYP2C19", "drug": _HELD_DRUG},
+        ],
+    ),
+    (
+        "one complete record holding the pair",
+        [{"gene": _HELD_GENE, "drug": _HELD_DRUG}],
+    ),
+    (
+        "complete record drug meets free-text gene",
+        [{"finding_text": _HELD_GENE}, {"gene": "CYP2C19", "drug": _HELD_DRUG}],
+    ),
+    (
+        "complete record gene meets free-text drug",
+        [{"gene": _HELD_GENE, "drug": "codeine"}, {"conditions": _HELD_DRUG}],
+    ),
+    (
+        "nested mapping under a non-identifier key",
+        [{"legacy": {"gene": _HELD_GENE, "drug": _HELD_DRUG}}],
+    ),
+    ("non-string mapping key fails closed", [{1: "value"}]),
+    ("normalized identifier key fails closed", [{" Gene ": _HELD_GENE}]),
+    ("nested list element", [[{"finding_text": _HELD_GENE}], [{"conditions": _HELD_DRUG}]]),
+    ("scalars are inert", [1, 2.5, True, None]),
+    (
+        "safe record then unsafe record",
+        [{"gene_symbol": "SAFE1"}, {"gene": _HELD_GENE, "drug": _HELD_DRUG}],
+    ),
+    (
+        "unsafe record then safe record",
+        [{"gene": _HELD_GENE, "drug": _HELD_DRUG}, {"gene_symbol": "SAFE1"}],
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    ("label", "items"),
+    _DIFFERENTIAL_CORPUS,
+    ids=[label for label, _ in _DIFFERENTIAL_CORPUS],
+)
+def test_response_payload_scanner_matches_the_whole_payload_gate(
+    label: str, items: list[object]
+) -> None:
+    """The incremental fold and the whole-list gate must agree, case by case.
+
+    This is what stops the two implementations drifting: the fold exists only
+    so a streaming producer can reach the same verdict without retaining every
+    record, so any disagreement is a privacy defect in one of them.
+    """
+    assert _fold_verdict(items) is is_patient_presentable_response_payload(items), label
+
+
+def test_differential_corpus_covers_both_verdicts() -> None:
+    """A corpus that is all-safe or all-unsafe would agree with a constant."""
+    verdicts = {
+        is_patient_presentable_response_payload(items) for _label, items in _DIFFERENTIAL_CORPUS
+    }
+
+    assert verdicts == {True, False}
+
+
+def test_response_payload_scanner_preserves_the_record_boundary() -> None:
+    """Two safe gene/drug records must not manufacture a held pair by adjacency.
+
+    Spelled out separately from the corpus because it is the one case that
+    distinguishes the real algebra from the obvious wrong fold.
+    """
+    items: list[object] = [
+        {"gene": _HELD_GENE, "drug": "codeine"},
+        {"gene": "CYP2C19", "drug": _HELD_DRUG},
+    ]
+
+    assert is_patient_presentable_response_payload(items) is True
+    assert _fold_verdict(items) is True
+
+
+def test_response_payload_scanner_agrees_on_generated_combinations() -> None:
+    """Sweep the fragment combinations exhaustively, not just the hand-picked ones."""
+    fragments: list[object] = [
+        {"finding_text": _HELD_GENE},
+        {"conditions": _HELD_DRUG},
+        {"finding_text": f"{_HELD_GENE} {_HELD_DRUG}"},
+        {"gene": _HELD_GENE, "drug": "codeine"},
+        {"gene": "CYP2C19", "drug": _HELD_DRUG},
+        {"gene": _HELD_GENE, "drug": _HELD_DRUG},
+        {"gene_symbol": "SAFE1", "conditions": "asthma"},
+    ]
+
+    checked = 0
+    disagreements: list[list[object]] = []
+    for first in fragments:
+        for second in fragments:
+            for third in fragments:
+                items = [first, second, third]
+                checked += 1
+                if _fold_verdict(items) is not is_patient_presentable_response_payload(items):
+                    disagreements.append(items)
+
+    assert checked == len(fragments) ** 3
+    assert not disagreements, f"{len(disagreements)} disagreements, first: {disagreements[:1]}"
+
+
+def test_response_payload_scanner_state_does_not_grow_with_record_count() -> None:
+    """Constant space is the property that makes bounded streaming possible."""
+    small = ResponsePayloadHeldPairScanner()
+    large = ResponsePayloadHeldPairScanner()
+    record = {"gene_symbol": "SAFE1", "conditions": "asthma"}
+
+    for _ in range(10):
+        small.feed(dict(record))
+    for _ in range(10_000):
+        large.feed(dict(record))
+
+    assert small.is_presentable() is True
+    assert large.is_presentable() is True
+    assert vars(small).keys() == vars(large).keys()
+    assert [vars(fold) for fold in small._pairs.values()] == [
+        vars(fold) for fold in large._pairs.values()
+    ]

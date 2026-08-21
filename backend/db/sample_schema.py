@@ -1,6 +1,15 @@
 """Per-sample database schema.
 
-Each sample gets its own SQLite file (sample_{id}.db). Tables are created
+Each sample gets its own SQLite file. Ingested samples are named
+``sample_{id}.db``; merged samples are named ``merged_{uuid}.db`` so an
+interrupted publication can be told apart from a later sample that reused the
+same numeric id (#2329). Anything enumerating per-sample databases on disk must
+therefore go through :func:`collect_sample_database_files` rather than globbing
+one shape — backup, the setup wizard's has-samples probe and the archive
+builder each had their own copy of that glob, and a merged sample was invisible
+to all three.
+
+Tables are created
 via create_sample_tables() when a new sample is imported — not via Alembic,
 since each sample DB is a separate file created at runtime.
 
@@ -15,11 +24,32 @@ findings produced by a subsequently quarantined scientific model.
 
 import json
 import re
+from pathlib import Path
 
 import sqlalchemy as sa
 import structlog
 
 from backend.db.tables import PREDEFINED_TAGS, annotation_state, findings, sample_metadata_obj
+
+# Every per-sample database naming shape. `sample_` covers ingested samples;
+# `merged_` covers merged children, whose name carries a publication uuid.
+SAMPLE_DB_GLOBS: tuple[str, ...] = ("sample_*.db", "merged_*.db")
+
+
+def collect_sample_database_files(samples_dir: Path) -> list[Path]:
+    """Return every per-sample database in ``samples_dir``, sorted.
+
+    One definition, because three sites previously globbed ``sample_*.db``
+    independently and a merged child was silently absent from all of them —
+    backups omitted it entirely, which loses the sample on restore.
+    """
+    if not samples_dir.is_dir():
+        return []
+    found: set[Path] = set()
+    for pattern in SAMPLE_DB_GLOBS:
+        found.update(samples_dir.glob(pattern))
+    return sorted(found)
+
 
 logger = structlog.get_logger(__name__)
 

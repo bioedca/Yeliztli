@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en-US">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="dbNSFP is a comprehensive resource for functional annotations and deleteriousness predictions of non-synonymous single-nucleotide variants in the human genome.">
+    <meta property="og:title" content="dbNSFP - Releases">
+    <meta property="og:type" content="website">
+    <meta property="og:description" content="Functional annotations and deleteriousness predictions for human nsSNVs and ssSNVs.">
+    <meta property="og:url" content="https://www.dbnsfp.org/releases">
+    <link rel="canonical" href="https://www.dbnsfp.org/releases">
+    <title>dbNSFP - Releases</title>
+    <link rel="icon" href="/assets/favicon.ico" sizes="any">
+    <link rel="icon" type="image/png" href="/assets/favicon-32.png" sizes="32x32">
+    <link rel="icon" type="image/png" href="/assets/favicon-48.png" sizes="48x48">
+    <link rel="icon" type="image/png" href="/assets/favicon-96.png" sizes="96x96">
+    <link rel="icon" type="image/png" href="/assets/favicon-192.png" sizes="192x192">
+    <link rel="apple-touch-icon" href="/assets/icon-512.png">
+    <link rel="manifest" href="/site.webmanifest">
+    <link rel="stylesheet" href="/styles.css">
+
+
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to main content</a>
+    <aside class="site-nav" id="siteNav" aria-label="Site navigation">
+      <a class="site-brand" href="/">dbNSFP</a>
+      <nav>
+        <a href="/">Home</a>
+          <a href="/releases" aria-current="page">Releases</a>
+          <a href="/query">Query</a>
+          <a href="/download">Download</a>
+          <a href="/blog">Blog</a>
+          <a href="/publications">Publications</a>
+          <a href="/benchmark">Benchmark</a>
+          <a href="/license">License</a>
+          <a href="/about-us">About</a>
+      </nav>
+    </aside>
+    <main id="main" class="page-shell" tabindex="-1">
+
+      <section class="content narrow">
+        <h1>Current Release</h1>
+        <p class="release-heading"><span class="release-title">dbNSFP v5.4 (August 1, 2026)</span></p>
+        <p class="release-files">
+          <a href="https://dist.genos.us/release/dbNSFP5.4a.readme.txt" target="_blank" rel="noopener">README v5.4a</a>
+          <a href="https://dist.genos.us/release/dbNSFP5.4a_variant.columns.txt" target="_blank" rel="noopener">Variant Columns v5.4a</a>
+          <a href="https://dist.genos.us/release/dbNSFP5.4c.readme.txt" target="_blank" rel="noopener">README v5.4c</a>
+          <a href="https://dist.genos.us/release/dbNSFP5.4c_variant.columns.txt" target="_blank" rel="noopener">Variant Columns v5.4c</a>
+          <a href="https://dist.genos.us/release/dbNSFP5.4_gene.columns.txt" target="_blank" rel="noopener">Gene Columns v5.4</a>
+        </p>
+        <ul>
+          <li>Fully rebuilt variant set based on GENCODE release 50 (Ensembl release 116, June 2026).</li>
+          <li>Added GPN-MSA scores to both the academic and commercial branches.</li>
+          <li>Removed PrimateAI in the commercial branch. It remains in the academic branch.</li>
+          <li>Updated ClinVar, GWAS Catalog, InterPro, ALFA, and MANE.</li>
+          <li>Updated gene annotation resources including ClinGen, GenCC, Gene Ontology, HGNC, HPO, IntAct, MGI, OMIM, Orphanet, UniProt, Ensembl, RefSeq, and ZFIN.</li>
+        </ul>
+        <h2>Past Releases</h2>
+        <div class="release-item">
+          <p class="release-heading"><span class="release-title">dbNSFP v5.3.1 (January 1, 2026)</span></p>
+          <p class="release-files">
+            <a href="https://dist.genos.us/release/dbNSFP5.3.1a.readme.txt" target="_blank" rel="noopener">README v5.3.1a</a>
+            <a href="https://dist.genos.us/release/dbNSFP5.3.1c.readme.txt" target="_blank" rel="noopener">README v5.3.1c</a>
+          </p>
+          <ul>
+            <li>Added popEVE scores, derived from a deep generative model combining evolutionary and human population data to estimate variant deleteriousness on a proteome-wide scale.</li>
+            <li>Added hs1 (T2T-CHM13 v2.0) reference genome coordinates.</li>
+            <li>Added support for hs1 (T2T-CHM13 v2.0) coordinate search in the search_dbNSFP annotation program and dbNSFP web service.</li>
+          </ul>
+        </div>
+        <div class="release-item">
+          <p class="release-heading"><span class="release-title">dbNSFP v5.3 (October 6, 2025)</span></p>
+          <p class="release-files">
+            <a href="https://dist.genos.us/release/dbNSFP5.3a.readme.txt" target="_blank" rel="noopener">README v5.3a</a>
+            <a href="https://dist.genos.us/release/dbNSFP5.3c.readme.txt" target="_blank" rel="noopener">README v5.3c</a>
+            <a href="https://dist.genos.us/release/dbnsfp5.3a.changelog.txt" target="_blank" rel="noopener">Change Log</a>
+          </p>
+          <ul>
+            <li>Rebuilt variant set based on GENCODE release 49 (Ensembl release 115, September 2025), significantly expanding human protein-coding transcripts using long-read sequencing data.</li>
+            <li>Added MisFit scores v1.5.1, a novel method to estimate missense fitness effects using a graphical model.</li>
+            <li>Added GERP_92_mammals conservation score to replace GERP_91_mammals score.</li>
+            <li>Added gene constraint measures from gnomAD v4.1: gnomAD_lof.oe, gnomAD_LOEUF, gnomAD_mis.oe, and gnomAD_MOEUF.</li>
+            <li>Updated ClinVar, GWAS Catalog, InterPro, ClinGen, GenCC, Gene Ontology, HGNC, HPO, IntAct, MGI, OMIM, Orphanet, UniProt, Ensembl, RefSeq, and ZFIN.</li>
+          </ul>
+        </div>
+        <div class="release-item">
+          <p class="release-heading"><span class="release-title">dbNSFP v5.2 (July 2, 2025)</span></p>
+          <p class="release-files">
+            <a href="https://dist.genos.us/release/dbNSFP5.2a.readme.txt" target="_blank" rel="noopener">README v5.2a</a>
+            <a href="https://dist.genos.us/release/dbNSFP5.2c.readme.txt" target="_blank" rel="noopener">README v5.2c</a>
+            <a href="https://dist.genos.us/release/dbNSFP%20v5.2%20Release%20Change%20Log.pdf" target="_blank" rel="noopener">Change Log</a>
+          </p>
+          <ul>
+            <li>Rebuilt variant set for all possible nsSNVs and ssSNVs based on GENCODE release 48 (Ensembl v114).</li>
+            <li>Added MutPred2 to replace MutPred v1.2 scores, included in both academic and commercial branches.</li>
+            <li>Updated ESM1b scores to include more missense mutations.</li>
+            <li>Added GenCC gene annotations.</li>
+          </ul>
+        </div>
+        <div class="release-item">
+          <p class="release-heading"><span class="release-title">dbNSFP v5.1.1c (April 24, 2025)</span></p>
+          <p class="release-files">
+            <a href="https://dist.genos.us/release/dbNSFP5.1.1c.readme.txt" target="_blank" rel="noopener">README v5.1.1c</a>
+          </p>
+          <ul>
+            <li>Added ClinPred, REVEL, and PHACTboost to the dbNSFP commercial branch.</li>
+          </ul>
+        </div>
+        <div class="release-item">
+          <p class="release-heading"><span class="release-title">dbNSFP v5.1 (March 21, 2025)</span></p>
+          <p class="release-files">
+            <a href="/blog/highlights-in-dbnsfp-v5-1">Highlights</a>
+            <a href="https://dist.genos.us/release/dbNSFP5.1a.readme.txt" target="_blank" rel="noopener">README v5.1a</a>
+            <a href="https://dist.genos.us/release/dbNSFP5.1c.readme.txt" target="_blank" rel="noopener">README v5.1c</a>
+            <a href="https://dist.genos.us/release/dbNSFP%20v5.1%20release%20change%20log.pdf" target="_blank" rel="noopener">Change Log</a>
+          </p>
+          <ul>
+            <li>Rebuilt variant set based on GENCODE release 47 (Ensembl v113).</li>
+            <li>Added allele frequencies from All of Us and Regeneron Genetics Center Million Exome.</li>
+            <li>Added dbNSFP_POPMAX_AF/AC based on all population allele frequency columns curated in dbNSFP.</li>
+            <li>Provided dbNSFP files in formats ready for use with Ensembl Variant Effect Predictor and SnpSift.</li>
+          </ul>
+        </div>
+        <div class="release-item">
+          <p class="release-heading"><span class="release-title">dbNSFP v5.0 (January 1, 2025)</span></p>
+          <p class="release-files">
+            <a href="https://dist.genos.us/release/dbNSFP5.0a.readme.txt" target="_blank" rel="noopener">README v5.0a</a>
+            <a href="https://dist.genos.us/release/dbNSFP5.0c.readme.txt" target="_blank" rel="noopener">README v5.0c</a>
+          </p>
+          <ul>
+            <li>Fully rebuilt based on GENCODE release 46 / Ensembl release 112.</li>
+            <li>Added MANE transcript annotations.</li>
+            <li>Updated TOPMed, gnomAD, bStatistic, ancestral alleles, ClinVar, and MutationTaster2021.</li>
+            <li>Retired legacy resources including LRT, FATHMM, fathmm-MKL, fitCons, LINSIGHT, GenoCanyon, EVE, SiPhy scores, ESP, ExAC, UK10K, GTEx, eQTLGen and Geuvadis eQTLs.</li>
+          </ul>
+        </div>
+        <p>For versions 1.x-4.x, please see the <a href="https://sites.google.com/site/jpopgen/dbNSFP" target="_blank" rel="noopener">legacy dbNSFP website</a>.</p>
+      </section>
+<footer><div class="footer-inner"><small>&copy; 2024&ndash;2026 Genos Bioinformatics LLC (Texas, USA).</small></div></footer>
+    </main>
+  </body>
+</html>

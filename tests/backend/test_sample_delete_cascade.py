@@ -229,8 +229,19 @@ class TestListMergedChildren:
         assert children == []
         assert any(r.message == "merged_sample_db_missing" for r in caplog.records)
 
+    @pytest.mark.parametrize(
+        "raw_source_ids",
+        [
+            pytest.param("not-json", id="syntax"),
+            pytest.param("[" + "1" * 5_000 + ",2]", id="oversized-integer"),
+            pytest.param("[" * 10_000 + "0" + "]" * 10_000, id="deep-nesting"),
+        ],
+    )
     def test_skips_merged_with_malformed_provenance(
-        self, cascade_registry: DBRegistry, caplog: pytest.LogCaptureFixture
+        self,
+        cascade_registry: DBRegistry,
+        caplog: pytest.LogCaptureFixture,
+        raw_source_ids: str,
     ) -> None:
         s1 = _make_source_sample(cascade_registry, name="a.txt")
         s2 = _make_source_sample(cascade_registry, name="b.txt")
@@ -241,7 +252,7 @@ class TestListMergedChildren:
             conn.execute(
                 merge_provenance.update()
                 .where(merge_provenance.c.id == 1)
-                .values(source_sample_ids="not-json")
+                .values(source_sample_ids=raw_source_ids)
             )
 
         with caplog.at_level("WARNING"):
@@ -296,6 +307,44 @@ class TestDeleteSampleWithCascade:
         assert not s1_db.exists()
         assert not merged_db.exists()
         assert s2_db.exists()
+
+    def test_cascade_removes_transitive_legacy_merged_descendants(
+        self, cascade_registry: DBRegistry
+    ) -> None:
+        """A pre-#2330 nested merge cannot outlive its deleted leaf source."""
+        s1 = _make_source_sample(cascade_registry, name="s1.txt")
+        s2 = _make_source_sample(cascade_registry, name="s2.txt")
+        merged = _make_merged_child(
+            cascade_registry,
+            name="first generation",
+            source_ids=[s1, s2],
+        )
+        nested = _make_merged_child(
+            cascade_registry,
+            name="legacy nested generation",
+            source_ids=[s2, merged],
+        )
+        paths = {
+            sample_id: _sample_db_path(cascade_registry, sample_id)
+            for sample_id in (s1, s2, merged, nested)
+        }
+
+        # Deepest-first is both the preview and the deletion order: the nested
+        # child must disappear before the merged sample it names as a source.
+        assert [child.id for child in list_merged_children(cascade_registry, s1)] == [
+            nested,
+            merged,
+        ]
+
+        result = delete_sample_with_cascade(cascade_registry, s1)
+
+        assert result is not None
+        assert [child.id for child in result.deleted_merged_children] == [nested, merged]
+        with cascade_registry.reference_engine.connect() as conn:
+            surviving_ids = set(conn.execute(sa.select(samples.c.id)).scalars())
+        assert surviving_ids == {s2}
+        assert paths[s2].exists()
+        assert all(not paths[sample_id].exists() for sample_id in (s1, merged, nested))
 
     def test_cascade_removes_prompts_before_sample_ids_can_be_reused(
         self, cascade_registry: DBRegistry

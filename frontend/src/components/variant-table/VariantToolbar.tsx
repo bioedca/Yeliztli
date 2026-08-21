@@ -55,7 +55,7 @@ interface VariantToolbarProps {
   liftoverFailed?: boolean
   onRetryLiftover?: () => void
   /** AncestryDNA Plan §10.7 / Step 71: merged-sample chips render only when
-   *  the sample's ``merge-provenance`` row resolves successfully. */
+   *  the sample has a non-null ``merge-provenance`` row. */
   isMergedSample: boolean
   sourceFilter: SourceTag | null
   onSourceFilter: (value: SourceTag | null) => void
@@ -296,7 +296,7 @@ export default function VariantToolbar({
       )}
 
       {/* Merged-sample source / concordance filter chips (AncestryDNA Plan §10.7 / Step 71).
-          Rendered only when ``useMergeProvenance`` resolves successfully; unmerged
+          Rendered only when ``useMergeProvenance`` returns a row; unmerged
           samples never see these chips, matching the per-sample column visibility. */}
       {isMergedSample && (
         <>
