@@ -676,6 +676,19 @@ def _upgrade_restored_sample_db(sample_db_path: Path) -> None:
     try:
         engine = make_sqlite_engine(sample_db_path, wal=False)
         try:
+            # This database came from the archive. The upgrade below performs
+            # schema and annotation-state writes, so a persisted trigger could
+            # execute archive-controlled side effects before the later merged-
+            # provenance validation sees it. Production sample databases do not
+            # use triggers; reject them before the first restore-time write.
+            with engine.connect() as conn:
+                trigger = conn.exec_driver_sql(
+                    "SELECT 1 FROM sqlite_master WHERE type = 'trigger' LIMIT 1"
+                ).fetchone()
+            if trigger is not None:
+                raise _RestoreMergeProvenanceError(
+                    f"Sample database {sample_db_path.name} contains unsupported triggers."
+                )
             from_version = _get_schema_version(engine)
             sample_metadata_obj.create_all(engine, checkfirst=True)
             _add_missing_columns(engine, from_version)
@@ -1380,8 +1393,24 @@ async def import_backup(file: UploadFile) -> ImportBackupResponse:
 
                     # Idempotent v7→v8 / annotation_state / bundle-version upgrade
                     # on each staged sample, before it becomes visible in data_dir.
-                    for _member_name, staged in staged_samples:
-                        _upgrade_restored_sample_db(staged)
+                    # The upgrade itself rejects persisted triggers before its
+                    # first write; surface that archive-integrity failure with the
+                    # same sanitized response as provenance validation below.
+                    try:
+                        for _member_name, staged in staged_samples:
+                            _upgrade_restored_sample_db(staged)
+                    except _RestoreMergeProvenanceError as exc:
+                        logger.warning(
+                            "backup_merge_provenance_invalid",
+                            error=str(exc),
+                        )
+                        raise HTTPException(
+                            status_code=400,
+                            detail=(
+                                "Invalid backup archive: merged-sample provenance "
+                                "cannot be bound to its restored sources."
+                            ),
+                        ) from exc
 
                     staged_sample_member_names = [member_name for member_name, _ in staged_samples]
                     if staged_registry_manifest is not None:

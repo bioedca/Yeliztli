@@ -1405,6 +1405,43 @@ class TestBackupRoundTrip:
 
         _validate_merged_dependency_graph(dependency_graph)
 
+    def test_restore_upgrade_rejects_trigger_before_its_first_write(self, tmp_path: Path) -> None:
+        """An archive trigger cannot run during schema or annotation-state upgrade."""
+        from backend.api.routes.setup import (
+            _RestoreMergeProvenanceError,
+            _upgrade_restored_sample_db,
+        )
+
+        sample_path = tmp_path / "upgrade-trigger.db"
+        engine = sa.create_engine(f"sqlite:///{sample_path}")
+        try:
+            create_sample_tables(engine)
+            with engine.begin() as conn:
+                conn.execute(sa.text("DELETE FROM annotation_state"))
+                conn.exec_driver_sql(
+                    "CREATE TABLE restore_trigger_side_effect (executions INTEGER NOT NULL)"
+                )
+                conn.exec_driver_sql(
+                    """
+                    CREATE TRIGGER corrupt_during_restore_upgrade
+                    AFTER INSERT ON annotation_state
+                    BEGIN
+                        INSERT INTO restore_trigger_side_effect (executions) VALUES (1);
+                    END
+                    """
+                )
+        finally:
+            engine.dispose()
+
+        with pytest.raises(_RestoreMergeProvenanceError, match="unsupported triggers"):
+            _upgrade_restored_sample_db(sample_path)
+
+        with sqlite3.connect(sample_path) as conn:
+            assert conn.execute("SELECT COUNT(*) FROM annotation_state").fetchone() == (0,)
+            assert conn.execute("SELECT COUNT(*) FROM restore_trigger_side_effect").fetchone() == (
+                0,
+            )
+
     def test_registry_insert_rolls_back_prompt_cleanup_on_later_failure(
         self, tmp_data_dir: Path
     ) -> None:
