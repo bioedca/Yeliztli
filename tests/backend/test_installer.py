@@ -568,6 +568,7 @@ class TestUninstallFlow:
         mixed_data_dir = tmp_path / "mixed"
         (mixed_data_dir / "samples").mkdir(parents=True)
         (mixed_data_dir / "samples" / "sample_1.db").touch()
+        (mixed_data_dir / ".source-binding.key").write_bytes(b"x" * 32)
         (mixed_data_dir / "notes.txt").write_text("not yeliztli", encoding="utf-8")
         home_dir.mkdir()
         (home_dir / "config.toml").write_text("[yeliztli]\n", encoding="utf-8")
@@ -587,6 +588,7 @@ class TestUninstallFlow:
         assert mixed_data_dir.exists()
         assert (mixed_data_dir / "notes.txt").exists()
         assert not (mixed_data_dir / "samples").exists()
+        assert not (mixed_data_dir / ".source-binding.key").exists()
         assert not home_dir.exists()
 
     @patch("backend.installer._detect_platform", return_value="linux")

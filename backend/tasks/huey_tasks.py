@@ -1387,6 +1387,7 @@ def _execute_database_update(
 
         mondo_url: str | None = None
         mondo_source_expectations = None
+        mondo_source_binding_key: bytes | None = None
         mondo_secondary_urls: tuple[str, str] | None = None
         if db_name == "mondo_hpo":
             from backend.db.manifest import fetch_manifest, get_pipeline_pin
@@ -1406,11 +1407,16 @@ def _execute_database_update(
                     HPO_GENES_TO_PHENOTYPE_URL,
                     MONDO_SSSOM_URL,
                 )
-                from backend.db.update_manager import decode_mondo_hpo_source_binding
+                from backend.db.update_manager import (
+                    _load_mondo_hpo_source_binding_key,
+                    decode_mondo_hpo_source_binding,
+                )
 
+                mondo_source_binding_key = _load_mondo_hpo_source_binding_key(settings)
                 mondo_source_expectations = decode_mondo_hpo_source_binding(
                     source_binding,
                     pin.url,
+                    source_binding_key=mondo_source_binding_key,
                 )
                 mondo_secondary_urls = (
                     HPO_GENES_TO_PHENOTYPE_URL,
@@ -1434,7 +1440,11 @@ def _execute_database_update(
 
                         assert mondo_secondary_urls is not None
                         hpo_url, mondo_sssom_url = mondo_secondary_urls
-                        with bind_strong_etag_downloads(mondo_source_expectations):
+                        assert mondo_source_binding_key is not None
+                        with bind_strong_etag_downloads(
+                            mondo_source_expectations,
+                            source_binding_key=mondo_source_binding_key,
+                        ):
                             build_fn(
                                 engine,
                                 settings.downloads_dir,

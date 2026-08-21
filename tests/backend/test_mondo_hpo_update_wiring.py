@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import gzip
+import hashlib
 import json
 from collections.abc import Iterator
 from pathlib import Path
@@ -34,6 +35,7 @@ from backend.db.update_manager import (
     MondoHpoSourceBindingError,
     UpdateCheckResult,
     VersionInfo,
+    _load_mondo_hpo_source_binding_key,
     capture_mondo_hpo_source_binding,
     check_mondo_hpo_update,
     decode_mondo_hpo_source_binding,
@@ -43,6 +45,7 @@ from backend.tasks.huey_tasks import _execute_database_update
 PINNED_MONDO_URL = "https://updates.example.test/mondo/pinned-gene-disease.tsv.gz"
 PINNED_LAST_MODIFIED = "Wed, 15 Apr 2026 12:34:56 GMT"
 PINNED_VERSION = "20260415"
+SOURCE_BINDING_KEY = b"source-binding-test-key-32-byte!"
 
 
 def _manifest(path: Path, *, mondo_url: str = PINNED_MONDO_URL) -> Path:
@@ -120,13 +123,19 @@ def test_source_binding_changes_with_each_checked_validator(
         "backend.db.update_manager.httpx.Client",
         return_value=offered_client,
     ):
-        offered_binding = capture_mondo_hpo_source_binding(PINNED_MONDO_URL)
+        offered_binding = capture_mondo_hpo_source_binding(
+            PINNED_MONDO_URL, source_binding_key=SOURCE_BINDING_KEY
+        )
     assert all(
         request.kwargs == {"headers": {"Accept-Encoding": "identity"}}
         for request in offered_client.head.call_args_list
     )
     assert PINNED_MONDO_URL not in offered_binding
-    expectations = decode_mondo_hpo_source_binding(offered_binding, PINNED_MONDO_URL)
+    expectations = decode_mondo_hpo_source_binding(
+        offered_binding,
+        PINNED_MONDO_URL,
+        source_binding_key=SOURCE_BINDING_KEY,
+    )
     assert set(expectations) == {
         PINNED_MONDO_URL,
         HPO_GENES_TO_PHENOTYPE_URL,
@@ -135,16 +144,79 @@ def test_source_binding_changes_with_each_checked_validator(
     assert expectations[PINNED_MONDO_URL].last_modified == PINNED_LAST_MODIFIED
     assert expectations[HPO_GENES_TO_PHENOTYPE_URL].last_modified is None
     assert expectations[MONDO_SSSOM_URL].last_modified is None
+    same_origin_url = "https://operator:changed@updates.example.test/private/changed?token=x"
     with pytest.raises(MondoHpoSourceBindingError, match="manifest source changed"):
-        decode_mondo_hpo_source_binding(offered_binding, f"{PINNED_MONDO_URL}?changed=1")
+        decode_mondo_hpo_source_binding(
+            offered_binding,
+            same_origin_url,
+            source_binding_key=SOURCE_BINDING_KEY,
+        )
+    with pytest.raises(MondoHpoSourceBindingError, match="manifest source changed"):
+        decode_mondo_hpo_source_binding(
+            offered_binding,
+            "https://other.example.test/mondo/pinned-gene-disease.tsv.gz",
+            source_binding_key=SOURCE_BINDING_KEY,
+        )
 
     with patch(
         "backend.db.update_manager.httpx.Client",
         return_value=_head_client(**changed_kwargs),
     ):
-        changed_binding = capture_mondo_hpo_source_binding(PINNED_MONDO_URL)
+        changed_binding = capture_mondo_hpo_source_binding(
+            PINNED_MONDO_URL, source_binding_key=SOURCE_BINDING_KEY
+        )
 
     assert changed_binding != offered_binding, changed_source
+
+
+def test_source_binding_hides_credentials_without_an_offline_digest_oracle() -> None:
+    """Durable queue state binds the path but cannot test guesses without the key."""
+    first_url = "https://operator:first@updates.example.test/token/alpha/mondo.tsv?secret=one"
+    second_url = "https://operator:second@updates.example.test/token/beta/mondo.tsv?secret=two"
+
+    with patch(
+        "backend.db.update_manager.httpx.Client",
+        return_value=_head_client(mondo_url=first_url),
+    ):
+        first_binding = capture_mondo_hpo_source_binding(
+            first_url, source_binding_key=SOURCE_BINDING_KEY
+        )
+    with patch(
+        "backend.db.update_manager.httpx.Client",
+        return_value=_head_client(mondo_url=second_url),
+    ):
+        second_binding = capture_mondo_hpo_source_binding(
+            second_url, source_binding_key=SOURCE_BINDING_KEY
+        )
+
+    assert first_binding != second_binding
+    assert "first" not in first_binding
+    assert "alpha" not in first_binding
+    assert "secret" not in first_binding
+    unsalted_guess = hashlib.sha256(
+        b"yeliztli-mondo-hpo-url-v1\0" + first_url.encode()
+    ).hexdigest()
+    assert unsalted_guess not in first_binding
+    assert SOURCE_BINDING_KEY.hex() not in first_binding
+    assert json.loads(first_binding)["schema"] == 3
+
+
+def test_source_binding_key_is_private_stable_and_shared_by_api_worker(
+    tmp_path: Path,
+) -> None:
+    """API and worker share one private key that is never serialized into Huey."""
+    shared_data = tmp_path / "shared-data"
+    api_settings = Settings(data_dir=shared_data)
+    worker_settings = Settings(data_dir=shared_data)
+
+    first = _load_mondo_hpo_source_binding_key(api_settings)
+    second = _load_mondo_hpo_source_binding_key(worker_settings)
+    key_path = shared_data / ".source-binding.key"
+
+    assert first == second
+    assert len(first) == 32
+    assert key_path.read_bytes() == first
+    assert key_path.stat().st_mode & 0o077 == 0
 
 
 @pytest.mark.parametrize("bad_etag", ["", 'W/"weak"', "unquoted"])
@@ -158,7 +230,7 @@ def test_source_binding_requires_a_strong_quoted_etag(
         ),
         pytest.raises(MondoHpoSourceBindingError, match="no strong ETag"),
     ):
-        capture_mondo_hpo_source_binding(PINNED_MONDO_URL)
+        capture_mondo_hpo_source_binding(PINNED_MONDO_URL, source_binding_key=SOURCE_BINDING_KEY)
 
 
 def test_checked_offer_uses_identity_encoded_snapshot_size() -> None:
@@ -176,7 +248,7 @@ def test_checked_offer_uses_identity_encoded_snapshot_size() -> None:
         patch("backend.db.update_manager._check_mondo_hpo_update", return_value=first_pass),
         patch("backend.db.update_manager.httpx.Client", return_value=snapshot_client),
     ):
-        offered = check_mondo_hpo_update(MagicMock())
+        offered = check_mondo_hpo_update(MagicMock(), source_binding_key=SOURCE_BINDING_KEY)
 
     assert offered is first_pass
     assert offered.download_size_bytes == 101 + 103 + 107
@@ -288,7 +360,7 @@ def test_pinned_offer_is_installed_and_not_offered_again(
 
     source_client = _PinnedSourceClient(_pinned_source_payloads())
     with patch("backend.annotation.mondo_hpo.httpx.Client", return_value=source_client):
-        offered = check_mondo_hpo_update(reference_engine)
+        offered = check_mondo_hpo_update(reference_engine, source_binding_key=SOURCE_BINDING_KEY)
 
     assert offered is not None
     assert offered.download_url == PINNED_MONDO_URL
@@ -333,6 +405,10 @@ def test_pinned_offer_is_installed_and_not_offered_again(
             "backend.db.database_registry.get_build_fn", return_value=download_and_load_mondo_hpo
         ),
         patch("backend.annotation.mondo_hpo.httpx.Client", return_value=source_client),
+        patch(
+            "backend.db.update_manager._load_mondo_hpo_source_binding_key",
+            return_value=SOURCE_BINDING_KEY,
+        ),
         patch("backend.db.update_manager.run_precheck_all_samples"),
         patch("backend.tasks.huey_tasks._update_job"),
     ):
@@ -357,7 +433,13 @@ def test_pinned_offer_is_installed_and_not_offered_again(
     ]
 
     with patch("backend.annotation.mondo_hpo.httpx.Client", return_value=source_client):
-        assert check_mondo_hpo_update(reference_engine) is None
+        assert (
+            check_mondo_hpo_update(
+                reference_engine,
+                source_binding_key=SOURCE_BINDING_KEY,
+            )
+            is None
+        )
 
     reset_cache()
 

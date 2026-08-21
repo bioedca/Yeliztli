@@ -25,7 +25,7 @@ from contextlib import nullcontext
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 import pytest
 import sqlalchemy as sa
@@ -537,8 +537,17 @@ class TestDatabaseUpdateBundleDispatch:
             _execute_database_update(job_id, "mondo_hpo", source_binding)
 
         fetch_manifest.assert_called_once_with(force_refresh=True)
-        decode_binding.assert_called_once_with(source_binding, pinned_url)
-        bind_downloads.assert_called_once_with(expectations)
+        decode_binding.assert_called_once_with(
+            source_binding,
+            pinned_url,
+            source_binding_key=ANY,
+        )
+        binding_key = decode_binding.call_args.kwargs["source_binding_key"]
+        assert isinstance(binding_key, bytes) and len(binding_key) == 32
+        bind_downloads.assert_called_once_with(
+            expectations,
+            source_binding_key=binding_key,
+        )
         build_fn.assert_called_once_with(
             get_registry().reference_engine,
             huey_env["settings"].downloads_dir,
@@ -575,7 +584,11 @@ class TestDatabaseUpdateBundleDispatch:
             _execute_database_update(job_id, "mondo_hpo", offered_binding)
 
         fetch_manifest.assert_called_once_with(force_refresh=True)
-        decode_binding.assert_called_once_with(offered_binding, changed_url)
+        decode_binding.assert_called_once_with(
+            offered_binding,
+            changed_url,
+            source_binding_key=ANY,
+        )
         build_fn.assert_not_called()
         row = _job_row(job_id)
         assert row.status == "failed"
@@ -654,8 +667,17 @@ class TestDatabaseUpdateBundleDispatch:
             _execute_database_update(job_id, "mondo_hpo", offered_binding)
 
         fetch_manifest.assert_called_once_with(force_refresh=True)
-        decode_binding.assert_called_once_with(offered_binding, offered_url)
-        bind_downloads.assert_called_once_with(expectations)
+        decode_binding.assert_called_once_with(
+            offered_binding,
+            offered_url,
+            source_binding_key=ANY,
+        )
+        binding_key = decode_binding.call_args.kwargs["source_binding_key"]
+        assert isinstance(binding_key, bytes) and len(binding_key) == 32
+        bind_downloads.assert_called_once_with(
+            expectations,
+            source_binding_key=binding_key,
+        )
         build_fn.assert_called_once_with(
             get_registry().reference_engine,
             huey_env["settings"].downloads_dir,

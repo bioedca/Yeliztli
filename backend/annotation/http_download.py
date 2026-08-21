@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import contextvars
 import hashlib
+import hmac
 import random
 import time
 from contextlib import contextmanager
@@ -121,7 +122,7 @@ class StrongEtagDownloadExpectation:
     """Expected identity and completeness metadata for one scoped response."""
 
     etag: str
-    resolved_source_sha256: str
+    resolved_source_hmac: str
     content_length: int
     # Optional release metadata to bind independently of byte identity.  A
     # strong ETag remains the only byte-identity validator; this field prevents
@@ -132,6 +133,7 @@ class StrongEtagDownloadExpectation:
 @dataclass
 class _StrongEtagDownloadScope:
     expectations: dict[str, StrongEtagDownloadExpectation]
+    source_binding_key: bytes = field(repr=False)
     completed: set[str] = field(default_factory=set)
 
     def expectation_for(self, url: str) -> StrongEtagDownloadExpectation:
@@ -170,7 +172,7 @@ def is_strong_etag(value: str) -> bool:
 
 
 def normalized_download_source(url: str) -> str:
-    """Return a redirect identity without credentials, query, or fragment."""
+    """Return the exact redirect resource path without credentials or parameters."""
     try:
         parsed = urlsplit(url)
         if parsed.scheme not in {"http", "https"} or not parsed.hostname:
@@ -183,25 +185,41 @@ def normalized_download_source(url: str) -> str:
     return urlunsplit((parsed.scheme, f"{host}{port}", parsed.path or "/", "", ""))
 
 
-def download_source_identity(url: str) -> str:
-    """Return a non-reversible binding for a response's normalized source."""
+def download_source_identity(url: str, source_binding_key: bytes) -> str:
+    """Return a keyed binding for a response's exact normalized resource.
+
+    The path is required to distinguish resources on hosts that reuse an ETag,
+    but a plain digest of a credential-bearing path is an offline guessing
+    oracle.  The key is kept outside durable task state and is never retained by
+    the returned value.
+    """
+    if not isinstance(source_binding_key, bytes) or len(source_binding_key) != 32:
+        raise DownloadBindingError("scoped download source-binding key is unavailable")
     normalized = normalized_download_source(url)
-    return hashlib.sha256(b"yeliztli-download-source-v1\0" + normalized.encode()).hexdigest()
+    return hmac.new(
+        source_binding_key,
+        b"yeliztli-download-source-v2\0" + normalized.encode(),
+        hashlib.sha256,
+    ).hexdigest()
 
 
 @contextmanager
 def bind_strong_etag_downloads(
     expectations: Mapping[str, StrongEtagDownloadExpectation],
+    *,
+    source_binding_key: bytes,
 ) -> Iterator[_StrongEtagDownloadScope]:
     """Bind all downloads in this context to exact strong ETags and sources.
 
     The scope is inert for callers that do not opt in.  Within it, every
     :func:`stream_download` URL must be declared, every 200/206 must report the
-    expected strong ETag, final redirect identity, and complete-object size,
+    expected strong ETag, final redirect origin, and complete-object size,
     and every declared URL must complete successfully before normal exit.
     """
     if not expectations:
         raise DownloadBindingError("scoped download has no expected sources")
+    if not isinstance(source_binding_key, bytes) or len(source_binding_key) != 32:
+        raise DownloadBindingError("scoped download source-binding key is unavailable")
     checked: dict[str, StrongEtagDownloadExpectation] = {}
     for requested_url, expectation in expectations.items():
         if not is_strong_etag(expectation.etag):
@@ -219,7 +237,7 @@ def bind_strong_etag_downloads(
             or any(not 0x20 <= ord(char) <= 0x7E for char in expectation.last_modified)
         ):
             raise DownloadBindingError("scoped download release metadata is malformed")
-        source_digest = expectation.resolved_source_sha256
+        source_digest = expectation.resolved_source_hmac
         if (
             not isinstance(source_digest, str)
             or len(source_digest) != 64
@@ -230,7 +248,7 @@ def bind_strong_etag_downloads(
             raise DownloadBindingError("scoped download declares a duplicate source")
         checked[requested_url] = expectation
 
-    scope = _StrongEtagDownloadScope(checked)
+    scope = _StrongEtagDownloadScope(checked, source_binding_key)
     token = _STRONG_ETAG_DOWNLOAD_SCOPE.set(scope)
     try:
         yield scope
@@ -254,6 +272,7 @@ def _verify_bound_response(
     response: httpx.Response,
     expectation: StrongEtagDownloadExpectation,
     requested_offset: int,
+    source_binding_key: bytes,
 ) -> None:
     """Reject a content response before any bytes are written if it drifted."""
     status = response.status_code
@@ -264,8 +283,8 @@ def _verify_bound_response(
     response_etag = response.headers.get("ETag", "")
     if not is_strong_etag(response_etag) or response_etag != expectation.etag:
         raise DownloadBindingError("scoped download response ETag does not match approval")
-    response_source = download_source_identity(str(response.url))
-    if response_source != expectation.resolved_source_sha256:
+    response_source = download_source_identity(str(response.url), source_binding_key)
+    if not hmac.compare_digest(response_source, expectation.resolved_source_hmac):
         raise DownloadBindingError("scoped download resolved to an unexpected source")
     if _bound_response_total(response, status) != expectation.content_length:
         raise DownloadBindingError("scoped download response size does not match approval")
@@ -688,7 +707,13 @@ def stream_download(
                 ):
                     status = response.status_code
                     if bound_expectation is not None:
-                        _verify_bound_response(response, bound_expectation, offset)
+                        assert strong_etag_scope is not None
+                        _verify_bound_response(
+                            response,
+                            bound_expectation,
+                            offset,
+                            strong_etag_scope.source_binding_key,
+                        )
                         if status == 416:
                             # A pre-existing partial is not proof that this build
                             # consumed the approved response bytes.  Scoped builds

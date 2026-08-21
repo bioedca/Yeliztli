@@ -38,6 +38,7 @@ _YELIZTLI_DATA_ARTIFACT_NAMES = frozenset(
     {
         ".claims",
         ".disclaimer_accepted",
+        ".source-binding.key",
         "alphamissense.db",
         "dbnsfp.db",
         "encode_ccres.db",

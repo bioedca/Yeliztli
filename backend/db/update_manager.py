@@ -18,10 +18,15 @@ Scheduler behaviour (§2.20):
 
 from __future__ import annotations
 
+import errno
 import gzip
 import hashlib
+import hmac
 import json
+import os
+import secrets
 import shutil
+import stat
 import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -115,14 +120,154 @@ class _MondoHpoSourceSnapshot:
 
 _MONDO_HPO_SOURCE_ROLES = ("mondo", "hpo", "mondo_sssom")
 
+_MONDO_HPO_SOURCE_BINDING_KEY_BYTES = 32
+_MONDO_HPO_SOURCE_BINDING_KEY_NAME = ".source-binding.key"
 
-def _bind_mondo_hpo_url(url: str) -> str:
-    return hashlib.sha256(b"yeliztli-mondo-hpo-url-v1\0" + url.encode()).hexdigest()
+
+def _read_mondo_hpo_source_binding_key(parent_fd: int) -> bytes:
+    """Read and validate the private key through an already-pinned directory."""
+    nofollow_flag = getattr(os, "O_NOFOLLOW", None)
+    if nofollow_flag is None:
+        raise MondoHpoSourceBindingError("MONDO/HPO source-binding key is unavailable")
+    flags = (
+        os.O_RDONLY | nofollow_flag | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_CLOEXEC", 0)
+    )
+    fd = os.open(_MONDO_HPO_SOURCE_BINDING_KEY_NAME, flags, dir_fd=parent_fd)
+    try:
+        info = os.fstat(fd)
+        if (
+            not stat.S_ISREG(info.st_mode)
+            or info.st_uid != os.geteuid()
+            or info.st_mode & (stat.S_IRWXG | stat.S_IRWXO)
+        ):
+            raise MondoHpoSourceBindingError(
+                "MONDO/HPO source-binding key is not a private regular file"
+            )
+        key_parts = bytearray()
+        while len(key_parts) <= _MONDO_HPO_SOURCE_BINDING_KEY_BYTES:
+            part = os.read(
+                fd,
+                _MONDO_HPO_SOURCE_BINDING_KEY_BYTES + 1 - len(key_parts),
+            )
+            if not part:
+                break
+            key_parts.extend(part)
+        key = bytes(key_parts)
+        if len(key) != _MONDO_HPO_SOURCE_BINDING_KEY_BYTES:
+            raise MondoHpoSourceBindingError("MONDO/HPO source-binding key is malformed")
+        return key
+    finally:
+        os.close(fd)
+
+
+def _load_mondo_hpo_source_binding_key(settings: object | None = None) -> bytes:
+    """Load or atomically create the API/worker key kept outside ``huey.db``.
+
+    A queue snapshot contains HMACs of exact source resources.  Persisting the
+    key inside that snapshot would merely salt an offline credential oracle.
+    The private sibling file instead lives in the effective data directory,
+    which is the volume shared by the separate API and Huey containers.  A
+    fully-written temporary inode is hard-linked into place without replacing
+    a concurrent creator's key.
+    """
+    from backend.config import get_settings
+
+    if settings is None:
+        settings = get_settings()
+    try:
+        key_path = Path(settings.data_dir) / _MONDO_HPO_SOURCE_BINDING_KEY_NAME
+    except (AttributeError, TypeError):
+        raise MondoHpoSourceBindingError("MONDO/HPO source-binding key is unavailable") from None
+    try:
+        key_path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        nofollow_flag = getattr(os, "O_NOFOLLOW", None)
+        directory_flag = getattr(os, "O_DIRECTORY", None)
+        if nofollow_flag is None or directory_flag is None:
+            raise OSError
+        parent_fd = os.open(
+            key_path.parent,
+            os.O_RDONLY | directory_flag | getattr(os, "O_CLOEXEC", 0),
+        )
+    except OSError:
+        raise MondoHpoSourceBindingError("MONDO/HPO source-binding key is unavailable") from None
+
+    temporary_name: str | None = None
+    try:
+        parent_info = os.fstat(parent_fd)
+        if not stat.S_ISDIR(parent_info.st_mode):
+            raise MondoHpoSourceBindingError("MONDO/HPO source-binding key is unavailable")
+        try:
+            return _read_mondo_hpo_source_binding_key(parent_fd)
+        except FileNotFoundError:
+            pass
+
+        key = secrets.token_bytes(_MONDO_HPO_SOURCE_BINDING_KEY_BYTES)
+        temporary_name = (
+            f".{_MONDO_HPO_SOURCE_BINDING_KEY_NAME}.{os.getpid()}.{secrets.token_hex(8)}.tmp"
+        )
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | nofollow_flag | getattr(os, "O_CLOEXEC", 0)
+        temporary_fd = os.open(temporary_name, flags, 0o600, dir_fd=parent_fd)
+        try:
+            written = 0
+            while written < len(key):
+                count = os.write(temporary_fd, key[written:])
+                if count <= 0:
+                    raise OSError
+                written += count
+            os.fsync(temporary_fd)
+        finally:
+            os.close(temporary_fd)
+
+        try:
+            os.link(
+                temporary_name,
+                _MONDO_HPO_SOURCE_BINDING_KEY_NAME,
+                src_dir_fd=parent_fd,
+                dst_dir_fd=parent_fd,
+                follow_symlinks=False,
+            )
+            try:
+                os.fsync(parent_fd)
+            except OSError as exc:
+                # macOS can reject fsync on a directory descriptor.  The hard
+                # link is still atomic; only a power-loss durability hint is
+                # unavailable on that platform.
+                if exc.errno not in {errno.EINVAL, getattr(errno, "ENOTSUP", errno.EINVAL)}:
+                    raise
+        except FileExistsError:
+            # A concurrent API/worker creator won; read its complete key.
+            pass
+        return _read_mondo_hpo_source_binding_key(parent_fd)
+    except MondoHpoSourceBindingError:
+        raise
+    except OSError:
+        raise MondoHpoSourceBindingError("MONDO/HPO source-binding key is unavailable") from None
+    finally:
+        if temporary_name is not None:
+            try:
+                os.unlink(temporary_name, dir_fd=parent_fd)
+            except FileNotFoundError:
+                pass
+            except OSError:
+                pass
+        os.close(parent_fd)
+
+
+def _bind_mondo_hpo_url(url: str, source_binding_key: bytes) -> str:
+    """Authenticate the exact manifest URL without exposing a guessing oracle."""
+    if not isinstance(source_binding_key, bytes) or len(source_binding_key) != 32:
+        raise MondoHpoSourceBindingError("MONDO/HPO source-binding key is unavailable")
+    return hmac.new(
+        source_binding_key,
+        b"yeliztli-mondo-hpo-url-v2\0" + url.encode(),
+        hashlib.sha256,
+    ).hexdigest()
 
 
 def _capture_mondo_hpo_source_snapshot(
     mondo_url: str,
     *,
+    source_binding_key: bytes,
     timeout: float = 30.0,
 ) -> _MondoHpoSourceSnapshot:
     """Capture strong validators for every source consumed by the builder.
@@ -131,9 +276,9 @@ def _capture_mondo_hpo_source_snapshot(
     and SSSOM inputs are rolling URLs as well.  A URL equality check therefore
     cannot bind the bytes approved by an update check.  Each source must expose
     a syntactically strong ETag.  The token includes those public validators,
-    positive sizes for transfer completeness, and digests of final redirect
-    identities.  It never contains the possibly credential-bearing operator
-    MONDO URL.
+    positive sizes for transfer completeness, and keyed identities for exact
+    request/redirect resources.  The private key is not stored in the durable
+    token, so credential-bearing paths cannot be guessed offline from it.
     """
     from email.utils import parsedate_to_datetime
 
@@ -187,7 +332,9 @@ def _capture_mondo_hpo_source_snapshot(
                     )
                 captured[source_name] = {
                     "etag": etag,
-                    "resolved_source_sha256": download_source_identity(str(response.url)),
+                    "resolved_source_hmac": download_source_identity(
+                        str(response.url), source_binding_key
+                    ),
                     "content_length": int(content_length),
                     # This is release metadata, not a byte-identity fallback.
                     # Bind it only for the primary source whose GET-derived
@@ -216,8 +363,8 @@ def _capture_mondo_hpo_source_snapshot(
 
     binding = json.dumps(
         {
-            "schema": 2,
-            "mondo_url_sha256": _bind_mondo_hpo_url(mondo_url),
+            "schema": 3,
+            "mondo_url_hmac": _bind_mondo_hpo_url(mondo_url, source_binding_key),
             "sources": captured,
         },
         sort_keys=True,
@@ -233,20 +380,31 @@ def _capture_mondo_hpo_source_snapshot(
 def capture_mondo_hpo_source_binding(
     mondo_url: str,
     *,
+    source_binding_key: bytes | None = None,
     timeout: float = 30.0,
 ) -> str:
     """Return a queue-safe binding for all sources consumed by a MONDO/HPO build.
 
     Durable task queues must not persist a raw manifest URL because operator
-    overrides may contain credentials.  The worker re-resolves it, validates
-    its digest, and enforces each public strong ETag on the actual GET.
+    overrides may contain credentials.  The worker re-resolves it, verifies a
+    keyed exact-resource identity, and enforces each public strong ETag on the
+    actual GET.
     """
-    return _capture_mondo_hpo_source_snapshot(mondo_url, timeout=timeout).binding
+    key = (
+        _load_mondo_hpo_source_binding_key() if source_binding_key is None else source_binding_key
+    )
+    return _capture_mondo_hpo_source_snapshot(
+        mondo_url,
+        source_binding_key=key,
+        timeout=timeout,
+    ).binding
 
 
 def decode_mondo_hpo_source_binding(
     binding: str,
     mondo_url: str,
+    *,
+    source_binding_key: bytes | None = None,
 ) -> dict[str, StrongEtagDownloadExpectation]:
     """Validate a queued snapshot and return strong-ETag download expectations."""
     from backend.annotation.http_download import (
@@ -258,20 +416,26 @@ def decode_mondo_hpo_source_binding(
         MONDO_SSSOM_URL,
     )
 
+    key = (
+        _load_mondo_hpo_source_binding_key() if source_binding_key is None else source_binding_key
+    )
     try:
         payload = json.loads(binding)
     except (TypeError, json.JSONDecodeError):
         raise MondoHpoSourceBindingError("MONDO/HPO source binding is malformed") from None
     if not isinstance(payload, dict) or set(payload) != {
         "schema",
-        "mondo_url_sha256",
+        "mondo_url_hmac",
         "sources",
     }:
         raise MondoHpoSourceBindingError("MONDO/HPO source binding is malformed")
+    mondo_url_hmac = payload["mondo_url_hmac"]
     if (
         type(payload["schema"]) is not int
-        or payload["schema"] != 2
-        or payload["mondo_url_sha256"] != _bind_mondo_hpo_url(mondo_url)
+        or payload["schema"] != 3
+        or not isinstance(mondo_url_hmac, str)
+        or len(mondo_url_hmac) != 64
+        or not hmac.compare_digest(mondo_url_hmac, _bind_mondo_hpo_url(mondo_url, key))
     ):
         raise MondoHpoSourceBindingError("MONDO/HPO manifest source changed after approval")
     sources = payload["sources"]
@@ -290,13 +454,13 @@ def decode_mondo_hpo_source_binding(
         source = sources[role]
         if not isinstance(source, dict) or set(source) != {
             "etag",
-            "resolved_source_sha256",
+            "resolved_source_hmac",
             "content_length",
             "last_modified",
         }:
             raise MondoHpoSourceBindingError("MONDO/HPO source binding is malformed")
         etag = source["etag"]
-        resolved_source_sha256 = source["resolved_source_sha256"]
+        resolved_source_hmac = source["resolved_source_hmac"]
         content_length = source["content_length"]
         last_modified = source["last_modified"]
         valid_last_modified = (
@@ -310,9 +474,9 @@ def decode_mondo_hpo_source_binding(
         valid_source = (
             isinstance(etag, str)
             and is_strong_etag(etag)
-            and isinstance(resolved_source_sha256, str)
-            and len(resolved_source_sha256) == 64
-            and all(char in "0123456789abcdef" for char in resolved_source_sha256)
+            and isinstance(resolved_source_hmac, str)
+            and len(resolved_source_hmac) == 64
+            and all(char in "0123456789abcdef" for char in resolved_source_hmac)
             and isinstance(content_length, int)
             and not isinstance(content_length, bool)
             and content_length > 0
@@ -322,7 +486,7 @@ def decode_mondo_hpo_source_binding(
             raise MondoHpoSourceBindingError("MONDO/HPO source binding is malformed")
         expectations[requested_urls[role]] = StrongEtagDownloadExpectation(
             etag=etag,
-            resolved_source_sha256=resolved_source_sha256,
+            resolved_source_hmac=resolved_source_hmac,
             content_length=content_length,
             last_modified=last_modified,
         )
@@ -333,6 +497,7 @@ def check_mondo_hpo_update(
     reference_engine: Engine,
     settings: object | None = None,
     *,
+    source_binding_key: bytes | None = None,
     timeout: float = 30.0,
 ) -> VersionInfo | None:
     """Check MONDO/HPO while binding one stable three-source snapshot.
@@ -351,7 +516,16 @@ def check_mondo_hpo_update(
     )
     if offer is None:
         return None
-    snapshot = _capture_mondo_hpo_source_snapshot(offer.download_url, timeout=timeout)
+    key = (
+        _load_mondo_hpo_source_binding_key(settings)
+        if source_binding_key is None
+        else source_binding_key
+    )
+    snapshot = _capture_mondo_hpo_source_snapshot(
+        offer.download_url,
+        source_binding_key=key,
+        timeout=timeout,
+    )
     if snapshot.primary_version != offer.latest_version:
         raise MondoHpoSourceBindingError(
             "MONDO/HPO offer metadata does not match its source validators"

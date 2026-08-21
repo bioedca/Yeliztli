@@ -35,6 +35,7 @@ from backend.annotation.http_download import (
 # 256 KiB of structured data so byte offsets are meaningful and resumes
 # reassemble to exactly the original.
 TEST_DATA = bytes((i % 256) for i in range(256 * 1024))
+SOURCE_BINDING_KEY = b"source-binding-test-key-32-byte!"
 
 NOOP_SLEEP = lambda _delay: None  # noqa: E731 (terse no-op for injected backoff)
 
@@ -55,6 +56,22 @@ def _serve(handler_cls: type[BaseHTTPRequestHandler]) -> tuple[ThreadingHTTPServ
 def _parse_range_start(range_header: str) -> int:
     # "bytes=START-" / "bytes=START-END"
     return int(range_header.split("=", 1)[1].split("-", 1)[0])
+
+
+def test_download_source_identity_binds_path_but_not_request_credentials() -> None:
+    first = "https://operator:first@example.test/token/alpha/file.tsv?secret=one#fragment"
+    same_resource = "https://operator:second@example.test/token/alpha/file.tsv?secret=two"
+    other_resource = "https://operator:first@example.test/token/beta/file.tsv?secret=one"
+
+    assert download_source_identity(first, SOURCE_BINDING_KEY) == download_source_identity(
+        same_resource, SOURCE_BINDING_KEY
+    )
+    assert download_source_identity(first, SOURCE_BINDING_KEY) != download_source_identity(
+        other_resource, SOURCE_BINDING_KEY
+    )
+    assert download_source_identity(first, SOURCE_BINDING_KEY) != download_source_identity(
+        first, b"x" * 32
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -152,11 +169,11 @@ def test_bound_download_sends_if_match_on_full_and_range_attempts(tmp_path: Path
     try:
         expectation = StrongEtagDownloadExpectation(
             etag='"approved-v1"',
-            resolved_source_sha256=download_source_identity(url),
+            resolved_source_hmac=download_source_identity(url, SOURCE_BINDING_KEY),
             content_length=len(TEST_DATA),
         )
         tmp = tmp_path / "bound.bin.tmp"
-        with bind_strong_etag_downloads({url: expectation}):
+        with bind_strong_etag_downloads({url: expectation}, source_binding_key=SOURCE_BINDING_KEY):
             outcome = stream_download(url, tmp, chunk_size=8192, sleep=NOOP_SLEEP)
 
         assert outcome.resumed is True
@@ -201,7 +218,7 @@ class _TrackingStream(httpx.SyncByteStream):
             200,
             {"Content-Length": "7", "ETag": '"approved"'},
             '"approved"',
-            "https://other.example.test/file.bin",
+            "https://downloads.example.test/other.bin",
             "unexpected source",
         ),
         (
@@ -228,13 +245,13 @@ def test_bound_download_rejects_unapproved_response_before_body(
     )
     expectation = StrongEtagDownloadExpectation(
         etag=expected_etag,
-        resolved_source_sha256=download_source_identity(expected_source or url),
+        resolved_source_hmac=download_source_identity(expected_source or url, SOURCE_BINDING_KEY),
         content_length=7,
     )
     tmp = tmp_path / "rejected.bin.tmp"
 
     with pytest.raises(DownloadBindingError, match=message):
-        with bind_strong_etag_downloads({url: expectation}):
+        with bind_strong_etag_downloads({url: expectation}, source_binding_key=SOURCE_BINDING_KEY):
             stream_download(
                 url,
                 tmp,
@@ -278,14 +295,14 @@ def test_bound_resume_rejects_wrong_range_geometry_before_body(
     )
     expectation = StrongEtagDownloadExpectation(
         etag='"approved"',
-        resolved_source_sha256=download_source_identity(url),
+        resolved_source_hmac=download_source_identity(url, SOURCE_BINDING_KEY),
         content_length=7,
     )
     tmp = tmp_path / "wrong-range.bin.tmp"
     tmp.write_bytes(b"abc")
 
     with pytest.raises(DownloadBindingError, match="range does not match request"):
-        with bind_strong_etag_downloads({url: expectation}):
+        with bind_strong_etag_downloads({url: expectation}, source_binding_key=SOURCE_BINDING_KEY):
             stream_download(
                 url,
                 tmp,
@@ -315,13 +332,13 @@ def test_bound_download_rejects_changed_release_metadata_before_body(tmp_path: P
     )
     expectation = StrongEtagDownloadExpectation(
         etag='"approved"',
-        resolved_source_sha256=download_source_identity(url),
+        resolved_source_hmac=download_source_identity(url, SOURCE_BINDING_KEY),
         content_length=7,
         last_modified="Wed, 15 Apr 2026 12:34:56 GMT",
     )
 
     with pytest.raises(DownloadBindingError, match="release metadata"):
-        with bind_strong_etag_downloads({url: expectation}):
+        with bind_strong_etag_downloads({url: expectation}, source_binding_key=SOURCE_BINDING_KEY):
             stream_download(
                 url,
                 tmp_path / "changed-release.bin.tmp",
@@ -336,19 +353,23 @@ def test_bound_download_rejects_unexpected_and_unconsumed_sources(tmp_path: Path
     expected_url = "https://downloads.example.test/expected.bin"
     expectation = StrongEtagDownloadExpectation(
         etag='"approved"',
-        resolved_source_sha256=download_source_identity(expected_url),
+        resolved_source_hmac=download_source_identity(expected_url, SOURCE_BINDING_KEY),
         content_length=7,
     )
 
     with pytest.raises(DownloadBindingError, match="unexpected source"):
-        with bind_strong_etag_downloads({expected_url: expectation}):
+        with bind_strong_etag_downloads(
+            {expected_url: expectation}, source_binding_key=SOURCE_BINDING_KEY
+        ):
             stream_download(
                 "https://downloads.example.test/other.bin",
                 tmp_path / "other.bin.tmp",
             )
 
     with pytest.raises(DownloadBindingError, match="every expected source"):
-        with bind_strong_etag_downloads({expected_url: expectation}):
+        with bind_strong_etag_downloads(
+            {expected_url: expectation}, source_binding_key=SOURCE_BINDING_KEY
+        ):
             pass
 
 
