@@ -993,6 +993,32 @@ def _plan_registry_rows(
     return final_paths, planned_samples, sample_id_map
 
 
+def _validate_merged_dependency_graph(merged_dependencies: dict[int, list[int]]) -> None:
+    """Reject missing nodes and cycles without recursing on archive depth."""
+    # Kahn's algorithm keeps archive-controlled graph depth off Python's call
+    # stack. Every edge names a merged source, so it must itself be one of the
+    # validated merged samples represented by a graph node.
+    incoming_edges = {sample_id: 0 for sample_id in merged_dependencies}
+    for source_ids in merged_dependencies.values():
+        for source_id in source_ids:
+            if source_id not in incoming_edges:
+                raise _RestoreMergeProvenanceError(
+                    "Merged-sample provenance references an invalid dependency."
+                )
+            incoming_edges[source_id] += 1
+    pending = [sample_id for sample_id, count in incoming_edges.items() if count == 0]
+    visited_count = 0
+    while pending:
+        sample_id = pending.pop()
+        visited_count += 1
+        for source_id in merged_dependencies[sample_id]:
+            incoming_edges[source_id] -= 1
+            if incoming_edges[source_id] == 0:
+                pending.append(source_id)
+    if visited_count != len(merged_dependencies):
+        raise _RestoreMergeProvenanceError("Merged-sample provenance contains a dependency cycle.")
+
+
 def _remap_staged_merge_provenance(
     *,
     staged_sample_paths: dict[str, Path],
@@ -1011,6 +1037,7 @@ def _remap_staged_merge_provenance(
 
     planned_by_member = {member_name: values for member_name, values, _ in planned_samples}
     planned_by_final_id = {values["id"]: values for _, values, _ in planned_samples}
+    merged_dependencies: dict[int, list[int]] = {}
     for member_name, staged_path in staged_sample_paths.items():
         declared_merged = planned_by_member[member_name].get("file_format") == "merged_v1"
         provenance_table_present = False
@@ -1049,7 +1076,7 @@ def _remap_staged_merge_provenance(
                     )
                 try:
                     source_ids = json.loads(row.source_sample_ids)
-                except (json.JSONDecodeError, TypeError) as exc:
+                except (ValueError, TypeError, UnicodeDecodeError, RecursionError) as exc:
                     raise _RestoreMergeProvenanceError(
                         f"Merged sample {member_name} has malformed source IDs."
                     ) from exc
@@ -1064,7 +1091,7 @@ def _remap_staged_merge_provenance(
                     )
                 try:
                     source_hashes = json.loads(row.source_file_hashes)
-                except (json.JSONDecodeError, TypeError) as exc:
+                except (ValueError, TypeError, UnicodeDecodeError, RecursionError) as exc:
                     raise _RestoreMergeProvenanceError(
                         f"Merged sample {member_name} has malformed source hashes."
                     ) from exc
@@ -1084,12 +1111,16 @@ def _remap_staged_merge_provenance(
                         f"Merged sample {member_name} references sources absent from the archive."
                     )
                 expected_hashes: list[str] = []
+                merged_source_ids: list[int] = []
                 for source_id in source_ids:
                     source_values = planned_by_final_id[sample_id_map[source_id]]
                     if source_values.get("file_format") == "merged_v1":
-                        raise _RestoreMergeProvenanceError(
-                            f"Merged sample {member_name} references another merged sample."
-                        )
+                        # Direct API callers could create nested merges before #2330.
+                        # The current exporter still preserves those historical rows,
+                        # so restore must remap them instead of making their backups
+                        # unrecoverable. The dependency graph is checked below to
+                        # preserve legacy DAGs without accepting a forged cycle.
+                        merged_source_ids.append(sample_id_map[source_id])
                     planned_hash = source_values.get("file_hash")
                     if planned_hash is None:
                         expected_hashes.append("")
@@ -1104,6 +1135,8 @@ def _remap_staged_merge_provenance(
                     raise _RestoreMergeProvenanceError(
                         f"Merged sample {member_name} source hashes do not match its sources."
                     )
+                current_final_id = planned_by_member[member_name]["id"]
+                merged_dependencies[current_final_id] = merged_source_ids
                 remapped_ids_json = json.dumps(
                     [sample_id_map[source_id] for source_id in source_ids],
                     separators=(",", ":"),
@@ -1149,6 +1182,8 @@ def _remap_staged_merge_provenance(
             ) from exc
         finally:
             engine.dispose()
+
+    _validate_merged_dependency_graph(merged_dependencies)
 
 
 def _insert_registry_rows(
