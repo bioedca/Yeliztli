@@ -25,11 +25,13 @@ from contextlib import nullcontext
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import ANY, MagicMock, patch
 
 import pytest
 import sqlalchemy as sa
 
+from backend.annotation.http_download import DownloadBindingError
+from backend.annotation.mondo_hpo import HPO_GENES_TO_PHENOTYPE_URL, MONDO_SSSOM_URL
 from backend.config import Settings
 from backend.db.connection import get_registry, reset_registry
 from backend.db.sample_schema import create_sample_tables
@@ -503,6 +505,234 @@ class TestRunDatabaseUpdateTaskClaim:
 
 
 class TestDatabaseUpdateBundleDispatch:
+    def test_mondo_hpo_build_uses_the_bound_manifest_pin(self, huey_env: dict) -> None:
+        """The checked source snapshot resolves through the refreshed manifest pin."""
+        from backend.tasks.huey_tasks import _execute_database_update
+
+        job_id = "dbup-mondo-hpo"
+        pinned_url = "https://updates.example.test/mondo/pinned-gene-disease.tsv.gz"
+        source_binding = "a" * 64
+        expectations = {"checked-source": MagicMock()}
+        _make_job(job_id, "database_update")
+
+        build_fn = MagicMock()
+        with (
+            patch("backend.db.database_registry.get_build_fn", return_value=build_fn),
+            patch(
+                "backend.db.manifest.fetch_manifest",
+                return_value=SimpleNamespace(
+                    pipeline_pins={"mondo_hpo": SimpleNamespace(url=pinned_url)}
+                ),
+            ) as fetch_manifest,
+            patch(
+                "backend.db.update_manager.decode_mondo_hpo_source_binding",
+                return_value=expectations,
+            ) as decode_binding,
+            patch(
+                "backend.annotation.http_download.bind_strong_etag_downloads",
+                return_value=nullcontext(),
+            ) as bind_downloads,
+            patch("backend.db.update_manager.run_precheck_all_samples"),
+        ):
+            _execute_database_update(job_id, "mondo_hpo", source_binding)
+
+        fetch_manifest.assert_called_once_with(force_refresh=True)
+        decode_binding.assert_called_once_with(
+            source_binding,
+            pinned_url,
+            source_binding_key=ANY,
+        )
+        binding_key = decode_binding.call_args.kwargs["source_binding_key"]
+        assert isinstance(binding_key, bytes) and len(binding_key) == 32
+        bind_downloads.assert_called_once_with(
+            expectations,
+            source_binding_key=binding_key,
+        )
+        build_fn.assert_called_once_with(
+            get_registry().reference_engine,
+            huey_env["settings"].downloads_dir,
+            mondo_url=pinned_url,
+            hpo_url=HPO_GENES_TO_PHENOTYPE_URL,
+            mondo_sssom_url=MONDO_SSSOM_URL,
+        )
+        row = _job_row(job_id)
+        assert row.status == "complete"
+
+    def test_mondo_hpo_build_rejects_a_changed_pin(self, huey_env: dict) -> None:
+        """A pin change after approval must fail instead of installing another URL."""
+        from backend.tasks.huey_tasks import _execute_database_update
+
+        job_id = "dbup-mondo-hpo-changed-pin"
+        changed_url = "https://updates.example.test/mondo/changed.tsv.gz"
+        offered_binding = "a" * 64
+        _make_job(job_id, "database_update")
+
+        build_fn = MagicMock()
+        with (
+            patch("backend.db.database_registry.get_build_fn", return_value=build_fn),
+            patch(
+                "backend.db.manifest.fetch_manifest",
+                return_value=SimpleNamespace(
+                    pipeline_pins={"mondo_hpo": SimpleNamespace(url=changed_url)}
+                ),
+            ) as fetch_manifest,
+            patch(
+                "backend.db.update_manager.decode_mondo_hpo_source_binding",
+                side_effect=RuntimeError("MONDO/HPO manifest source changed after approval"),
+            ) as decode_binding,
+        ):
+            _execute_database_update(job_id, "mondo_hpo", offered_binding)
+
+        fetch_manifest.assert_called_once_with(force_refresh=True)
+        decode_binding.assert_called_once_with(
+            offered_binding,
+            changed_url,
+            source_binding_key=ANY,
+        )
+        build_fn.assert_not_called()
+        row = _job_row(job_id)
+        assert row.status == "failed"
+        assert "manifest source changed after approval" in row.error
+
+    def test_mondo_hpo_build_rejects_changed_validators_at_the_same_url(
+        self, huey_env: dict
+    ) -> None:
+        """A rolling URL cannot install changed bytes after its offer was approved."""
+        from backend.tasks.huey_tasks import _execute_database_update
+
+        job_id = "dbup-mondo-hpo-changed-validator"
+        offered_url = "https://updates.example.test/mondo/latest.tsv.gz"
+        offered_binding = "a" * 64
+        _make_job(job_id, "database_update")
+
+        build_fn = MagicMock(
+            side_effect=DownloadBindingError(
+                "scoped download response ETag does not match approval"
+            )
+        )
+        expectations = {"checked-source": MagicMock()}
+        with (
+            patch("backend.db.database_registry.get_build_fn", return_value=build_fn),
+            patch(
+                "backend.db.manifest.fetch_manifest",
+                return_value=SimpleNamespace(
+                    pipeline_pins={"mondo_hpo": SimpleNamespace(url=offered_url)}
+                ),
+            ),
+            patch(
+                "backend.db.update_manager.decode_mondo_hpo_source_binding",
+                return_value=expectations,
+            ),
+            patch(
+                "backend.annotation.http_download.bind_strong_etag_downloads",
+                return_value=nullcontext(),
+            ),
+        ):
+            _execute_database_update(job_id, "mondo_hpo", offered_binding)
+
+        build_fn.assert_called_once()
+        row = _job_row(job_id)
+        assert row.status == "failed"
+        assert "response ETag does not match approval" in row.error
+
+    def test_mondo_hpo_build_refreshes_manifest_before_validating(self, huey_env: dict) -> None:
+        """The worker validates against a fresh manifest, not its process cache."""
+        from backend.tasks.huey_tasks import _execute_database_update
+
+        job_id = "dbup-mondo-hpo-fresh-manifest"
+        offered_url = "https://updates.example.test/mondo/offered.tsv.gz"
+        offered_binding = "a" * 64
+        expectations = {"checked-source": MagicMock()}
+        _make_job(job_id, "database_update")
+
+        build_fn = MagicMock()
+        with (
+            patch("backend.db.database_registry.get_build_fn", return_value=build_fn),
+            patch(
+                "backend.db.manifest.fetch_manifest",
+                return_value=SimpleNamespace(
+                    pipeline_pins={"mondo_hpo": SimpleNamespace(url=offered_url)}
+                ),
+            ) as fetch_manifest,
+            patch(
+                "backend.db.update_manager.decode_mondo_hpo_source_binding",
+                return_value=expectations,
+            ) as decode_binding,
+            patch(
+                "backend.annotation.http_download.bind_strong_etag_downloads",
+                return_value=nullcontext(),
+            ) as bind_downloads,
+            patch("backend.db.update_manager.run_precheck_all_samples"),
+        ):
+            _execute_database_update(job_id, "mondo_hpo", offered_binding)
+
+        fetch_manifest.assert_called_once_with(force_refresh=True)
+        decode_binding.assert_called_once_with(
+            offered_binding,
+            offered_url,
+            source_binding_key=ANY,
+        )
+        binding_key = decode_binding.call_args.kwargs["source_binding_key"]
+        assert isinstance(binding_key, bytes) and len(binding_key) == 32
+        bind_downloads.assert_called_once_with(
+            expectations,
+            source_binding_key=binding_key,
+        )
+        build_fn.assert_called_once_with(
+            get_registry().reference_engine,
+            huey_env["settings"].downloads_dir,
+            mondo_url=offered_url,
+            hpo_url=HPO_GENES_TO_PHENOTYPE_URL,
+            mondo_sssom_url=MONDO_SSSOM_URL,
+        )
+        assert _job_row(job_id).status == "complete"
+
+    def test_manual_mondo_hpo_build_resolves_the_current_pin(self, huey_env: dict) -> None:
+        """A manual update without check context still never uses the hard-coded URL."""
+        from backend.tasks.huey_tasks import _execute_database_update
+
+        job_id = "dbup-mondo-hpo-manual"
+        pinned_url = "https://updates.example.test/mondo/manual-pinned.tsv.gz"
+        _make_job(job_id, "database_update")
+
+        build_fn = MagicMock()
+        with (
+            patch("backend.db.database_registry.get_build_fn", return_value=build_fn),
+            patch(
+                "backend.db.manifest.get_pipeline_pin",
+                return_value=SimpleNamespace(url=pinned_url),
+            ) as get_pin,
+            patch("backend.db.update_manager.run_precheck_all_samples"),
+        ):
+            _execute_database_update(job_id, "mondo_hpo")
+
+        get_pin.assert_called_once_with("mondo_hpo")
+        build_fn.assert_called_once_with(
+            get_registry().reference_engine,
+            huey_env["settings"].downloads_dir,
+            mondo_url=pinned_url,
+        )
+        assert _job_row(job_id).status == "complete"
+
+    def test_manual_mondo_hpo_build_fails_closed_without_a_pin(self, huey_env: dict) -> None:
+        """Manifest failure must not silently reactivate the loader's default URL."""
+        from backend.tasks.huey_tasks import _execute_database_update
+
+        job_id = "dbup-mondo-hpo-no-pin"
+        _make_job(job_id, "database_update")
+
+        build_fn = MagicMock()
+        with (
+            patch("backend.db.database_registry.get_build_fn", return_value=build_fn),
+            patch("backend.db.manifest.get_pipeline_pin", return_value=None),
+        ):
+            _execute_database_update(job_id, "mondo_hpo")
+
+        build_fn.assert_not_called()
+        row = _job_row(job_id)
+        assert row.status == "failed"
+        assert "pipeline-pinned source URL" in row.error
+
     def test_pgs_scores_uses_manifest_bundle_runner(self, huey_env: dict) -> None:
         """User-triggered pgs_scores updates must not fall through to build_fn lookup."""
         from backend.db.update_manager import UpdateResult

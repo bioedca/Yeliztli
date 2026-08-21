@@ -35,6 +35,9 @@ from backend.db.update_manager import (
     CHECK_FNS,
     VersionInfo,
 )
+from backend.db.update_manager import (
+    check_mondo_hpo_update as check_bound_mondo_hpo_update,
+)
 
 GNOMAD_URL = (
     "https://storage.googleapis.com/gcp-public-data--gnomad/"
@@ -1508,7 +1511,7 @@ class TestCheckFnsRegistration:
 
     def test_mondo_hpo_registered(self):
         assert "mondo_hpo" in CHECK_FNS
-        assert CHECK_FNS["mondo_hpo"] is check_mondo_hpo_update
+        assert CHECK_FNS["mondo_hpo"] is check_bound_mondo_hpo_update
 
     def test_dbnsfp_dispatch_via_check_fns(self, tmp_path: Path, monkeypatch, reference_engine):
         """Same dispatch path, exercising the dbNSFP entry."""
@@ -1584,10 +1587,12 @@ class TestCheckFnsRegistration:
         monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(path))
         _record_version_row(reference_engine, "mondo_hpo", MONDO_HPO_LAST_MODIFIED_OLD_VERSION)
 
-        mock_client, _ = _mock_head_client(
+        mock_client, mock_response = _mock_head_client(
             content_length="666777",
             last_modified=MONDO_HPO_LAST_MODIFIED_NEW,
         )
+        mock_response.headers["ETag"] = '"checked-source"'
+        mock_response.url = "https://downloads.example.test/mondo-hpo/source"
         with patch("backend.annotation.mondo_hpo.httpx.Client", mock_client):
             result = CHECK_FNS["mondo_hpo"](reference_engine, None)
 
