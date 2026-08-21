@@ -21,6 +21,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
+import tarfile
 from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import patch
@@ -28,9 +30,18 @@ from unittest.mock import patch
 import pytest
 import sqlalchemy as sa
 
+from backend.api.routes import backup as backup_routes
+from backend.api.routes.backup import (
+    BackupRegistryManifestError,
+    collect_backup_sample_files,
+)
 from backend.config import Settings
 from backend.db.connection import DBRegistry, get_registry, reset_registry
-from backend.db.sample_schema import SAMPLE_SCHEMA_VERSION, create_sample_tables
+from backend.db.sample_schema import (
+    SAMPLE_SCHEMA_VERSION,
+    collect_sample_database_files,
+    create_sample_tables,
+)
 from backend.db.tables import (
     annotation_state,
     individuals,
@@ -42,6 +53,7 @@ from backend.db.tables import (
     samples,
 )
 from backend.services import sample_merge as sample_merge_module
+from backend.services.sample_delete import delete_sample_with_cascade
 from backend.services.sample_merge import (
     InvalidMergeRequestError,
     MergeStrategy,
@@ -51,7 +63,17 @@ from backend.services.sample_merge import (
     _resolve_winner,
     merge_samples,
     preview_merge,
+    recover_unpublished_merge_artifacts,
 )
+from backend.services.sample_operation_lock import (
+    SAMPLE_DELETE_JOB_TYPE,
+    SAMPLE_MERGE_JOB_TYPE,
+    SampleOperationConflictError,
+    merge_sources_in_use,
+    sample_delete_lease,
+    sample_merge_lease,
+)
+from backend.tasks.huey_tasks import recover_orphaned_jobs
 
 # ── Test-scoped registry that the singleton-using ``staleness`` service sees ──
 #
@@ -595,7 +617,10 @@ class TestHappyPath:
         assert row is not None
         assert row.individual_id == individual_id
         assert row.file_format == "merged_v1"
-        assert row.db_path == f"samples/sample_{new_id}.db"
+        # The merged child is named for its publication, not for its row id.
+        # An id-derived name cannot distinguish this merge's artefacts from a
+        # later sample that inherited the same reused rowid (#2329).
+        assert re.fullmatch(r"samples/merged_[0-9a-f]{32}\.db", row.db_path), row.db_path
         assert (registry.settings.data_dir / row.db_path).exists()
 
     def test_merged_db_uses_chrom_pos_pk(
@@ -670,13 +695,27 @@ class TestHappyPath:
         assert new_id == expected_id
         assert prompt_count == 0
 
-    def test_merge_materialization_rollback_removes_concurrent_prompt(
+    def test_failed_materialization_publishes_nothing_and_consumes_no_id(
         self,
         merged_setup: tuple[DBRegistry, int, int, int],
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
+        """A merge that dies while building leaves no row, no file, and no id.
+
+        Under the pre-#2329 ordering the registry row was committed before the
+        database was materialised, so a failure had to be *undone* — including
+        removing any reannotation prompt that had landed on the id it already
+        consumed. Publication is now the last write, so there is nothing to
+        undo: no row is ever inserted, no autoincrement id is burned, and the
+        only artefact is the unpublished database file, which is discarded.
+
+        The stale-prompt hazard therefore moves entirely onto the success path,
+        and this test follows it there — the retry below must still land on the
+        same id and still clear the prompt as it publishes.
+        """
         registry, individual_id, s1_id, s2_id = merged_setup
         expected_id = max(s1_id, s2_id) + 1
+        samples_dir = registry.settings.data_dir / "samples"
 
         def fail_after_prompt_publish(*_args, **_kwargs) -> None:
             with registry.reference_engine.begin() as conn:
@@ -710,16 +749,35 @@ class TestHappyPath:
 
         with registry.reference_engine.connect() as conn:
             sample_count = conn.execute(
-                sa.select(sa.func.count()).select_from(samples).where(samples.c.id == expected_id)
+                sa.select(sa.func.count())
+                .select_from(samples)
+                .where(samples.c.file_format == "merged_v1")
             ).scalar_one()
+        assert sample_count == 0, "a failed merge must publish no registry row"
+        assert not list(samples_dir.glob("merged_*.db")), (
+            "the unpublished merged database must be discarded"
+        )
+        assert not (samples_dir / f"sample_{expected_id}.db").exists()
+
+        # The failure allocated nothing, so the retry still lands on this id —
+        # and must clear the prompt that was left sitting on it.
+        monkeypatch.undo()
+        new_id = merge_samples(
+            registry,
+            source_sample_ids=[s1_id, s2_id],
+            individual_id=individual_id,
+            strategy=MergeStrategy.FLAG_ONLY,
+            display_name="Retried merge",
+        )
+
+        with registry.reference_engine.connect() as conn:
             prompt_count = conn.execute(
                 sa.select(sa.func.count())
                 .select_from(reannotation_prompts)
-                .where(reannotation_prompts.c.sample_id == expected_id)
+                .where(reannotation_prompts.c.sample_id == new_id)
             ).scalar_one()
-        assert sample_count == 0
+        assert new_id == expected_id, "the failed attempt must not burn an id"
         assert prompt_count == 0
-        assert not (registry.settings.data_dir / "samples" / f"sample_{expected_id}.db").exists()
 
 
 class TestFileHashRecipe:
@@ -2152,3 +2210,565 @@ class TestReMergeHashInvariants:
         # different SHA-256 input string, which is what changes the hash.
         assert json.loads(forward_prov.source_file_hashes) == ["hash_s1", "hash_s2"]
         assert json.loads(reverse_prov.source_file_hashes) == ["hash_s2", "hash_s1"]
+
+
+def _snapshot_jobs_row_count(registry: DBRegistry) -> int:
+    with registry.reference_engine.connect() as conn:
+        return conn.execute(sa.select(sa.func.count()).select_from(jobs)).scalar_one()
+
+
+class TestCrashSafePublication:
+    """#2329: the merged sample is discoverable only once it is complete.
+
+    The old ordering committed the ``samples`` row first so the database path
+    could be derived from the new id, leaving a window in which the sample was
+    registry-visible but its database was missing or half-written.
+    """
+
+    @pytest.fixture
+    def merged_setup(
+        self,
+        merge_registry: DBRegistry,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> tuple[DBRegistry, int, int, int]:
+        _seed_installed_vep_bundle(merge_registry, "v2.0.0")
+        _noop_annotation_enqueue(monkeypatch)
+        individual_id = _create_individual(merge_registry, "Jane Doe")
+        s1_id = _create_source_sample(
+            merge_registry,
+            individual_id=individual_id,
+            name="jane_23andme.txt",
+            file_format="23andme_v5",
+            file_hash="hash_s1",
+            variants=S1_VARIANTS,
+        )
+        s2_id = _create_source_sample(
+            merge_registry,
+            individual_id=individual_id,
+            name="jane_ancestrydna.txt",
+            file_format="ancestrydna_v2.0",
+            file_hash="hash_s2",
+            variants=S2_VARIANTS,
+        )
+        return merge_registry, individual_id, s1_id, s2_id
+
+    def test_registry_row_appears_only_after_the_database_is_complete(
+        self,
+        merged_setup: tuple[DBRegistry, int, int, int],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Observe the registry at the moment the child database is written.
+
+        The probe runs inside ``create_sample_tables``, i.e. at the exact point
+        the pre-#2329 code had already published the row. A reader there must
+        still see nothing.
+        """
+        registry, individual_id, s1_id, s2_id = merged_setup
+        observed: list[int] = []
+        real_create = sample_merge_module.create_sample_tables
+
+        def observing_create(engine, **kwargs):
+            with registry.reference_engine.connect() as conn:
+                observed.append(
+                    conn.execute(
+                        sa.select(sa.func.count())
+                        .select_from(samples)
+                        .where(samples.c.file_format == "merged_v1")
+                    ).scalar_one()
+                )
+            return real_create(engine, **kwargs)
+
+        monkeypatch.setattr(sample_merge_module, "create_sample_tables", observing_create)
+
+        new_id = merge_samples(
+            registry,
+            source_sample_ids=[s1_id, s2_id],
+            individual_id=individual_id,
+            strategy=MergeStrategy.FLAG_ONLY,
+            display_name="Jane Doe (merged)",
+        )
+
+        assert observed == [0], (
+            "a merged sample was registry-visible while its database was still being built"
+        )
+        # And once published, everything it references is already there.
+        with registry.reference_engine.connect() as conn:
+            row = conn.execute(sa.select(samples).where(samples.c.id == new_id)).fetchone()
+        assert row is not None
+        merged_engine = registry.get_sample_engine(registry.settings.data_dir / row.db_path)
+        with merged_engine.connect() as conn:
+            provenance = conn.execute(
+                sa.select(sa.func.count()).select_from(merge_provenance)
+            ).scalar_one()
+            variants = conn.execute(
+                sa.select(sa.func.count()).select_from(raw_variants)
+            ).scalar_one()
+        assert provenance == 1
+        assert variants > 0
+
+    def test_merge_holds_its_sources_against_deletion(
+        self, merged_setup: tuple[DBRegistry, int, int, int]
+    ) -> None:
+        """Deleting a source mid-merge is refused, not silently raced."""
+        registry, _individual_id, s1_id, s2_id = merged_setup
+
+        with sample_merge_lease(
+            registry.reference_engine, [s1_id, s2_id], operation="Sample merge"
+        ):
+            assert merge_sources_in_use(registry.reference_engine, [s1_id]) == [s1_id]
+            with pytest.raises(SampleOperationConflictError, match="being merged"):
+                delete_sample_with_cascade(registry, s1_id)
+
+        # Released on exit: the same delete now proceeds.
+        assert merge_sources_in_use(registry.reference_engine, [s1_id, s2_id]) == []
+        assert delete_sample_with_cascade(registry, s1_id) is not None
+
+    def test_concurrent_merges_cannot_share_a_source(
+        self, merged_setup: tuple[DBRegistry, int, int, int]
+    ) -> None:
+        registry, _individual_id, s1_id, s2_id = merged_setup
+
+        with sample_merge_lease(
+            registry.reference_engine, [s1_id, s2_id], operation="Sample merge"
+        ):
+            with pytest.raises(SampleOperationConflictError, match="already being merged"):
+                with sample_merge_lease(
+                    registry.reference_engine, [s2_id], operation="Sample merge"
+                ):
+                    pass
+
+    def test_startup_sweep_removes_only_unpublished_artifacts(
+        self, merged_setup: tuple[DBRegistry, int, int, int]
+    ) -> None:
+        """Recovery is keyed on the publication uuid, never on a sample id.
+
+        The decoy is the case the issue calls out: a later sample occupying a
+        reused numeric id and its ``sample_<id>.db`` path must survive a sweep
+        that is cleaning up after an unrelated interrupted merge.
+        """
+        registry, individual_id, s1_id, s2_id = merged_setup
+        published_id = merge_samples(
+            registry,
+            source_sample_ids=[s1_id, s2_id],
+            individual_id=individual_id,
+            strategy=MergeStrategy.FLAG_ONLY,
+            display_name="Published merge",
+        )
+        with registry.reference_engine.connect() as conn:
+            published_path = conn.execute(
+                sa.select(samples.c.db_path).where(samples.c.id == published_id)
+            ).scalar_one()
+
+        samples_dir = registry.settings.data_dir / "samples"
+        orphan = samples_dir / f"merged_{'0' * 32}.db"
+        orphan.write_bytes(b"interrupted publication")
+        successor = samples_dir / f"sample_{published_id}.db"
+        successor.write_bytes(b"a later sample that reused the id")
+
+        # An interrupted merge leaves a rollback journal, not a WAL pair: the
+        # bootstrap engine is opened with wal=False.
+        orphan_journal = samples_dir / f"{orphan.name}-journal"
+        orphan_journal.write_bytes(b"rollback journal")
+
+        removed = recover_unpublished_merge_artifacts(registry)
+
+        assert removed == [orphan.name]
+        assert not orphan.exists()
+        assert not orphan_journal.exists(), "the rollback journal must be swept too"
+        assert successor.exists(), "a reused-id path must never be swept"
+        assert (registry.settings.data_dir / published_path).exists()
+
+    def test_startup_sweep_does_nothing_when_the_registry_is_unreadable(
+        self, merged_setup: tuple[DBRegistry, int, int, int]
+    ) -> None:
+        """Fail safe, not destructive: no readable registry means no sweeping.
+
+        Without the registry the sweep cannot tell an abandoned publication
+        from a live one, and guessing would delete a user's merged sample.
+        """
+        registry, _individual_id, _s1_id, _s2_id = merged_setup
+        samples_dir = registry.settings.data_dir / "samples"
+        samples_dir.mkdir(parents=True, exist_ok=True)
+        orphan = samples_dir / f"merged_{'1' * 32}.db"
+        orphan.write_bytes(b"unknown ownership")
+
+        class _UnreadableRegistry:
+            settings = registry.settings
+
+            @property
+            def reference_engine(self):
+                raise sa.exc.OperationalError("SELECT db_path", {}, Exception("registry gone"))
+
+        assert recover_unpublished_merge_artifacts(_UnreadableRegistry()) == []
+        assert orphan.exists(), "an unreadable registry must not authorise deletion"
+
+    def test_delete_reserves_atomically_rather_than_pre_checking(
+        self, merged_setup: tuple[DBRegistry, int, int, int]
+    ) -> None:
+        """A merge starting after deletion's check must still be excluded.
+
+        This is the case a read-only pre-check cannot cover: the guard reads
+        "no merge is active", and a merge acquires its lease before the first
+        unlink. Deletion therefore holds its own reservation across the whole
+        cascade, so the merge is refused for as long as the delete runs.
+        """
+        registry, _individual_id, s1_id, s2_id = merged_setup
+
+        with sample_delete_lease(registry.reference_engine, [s1_id], operation="Sample delete"):
+            # Deletion is mid-cascade. A merge that starts now must lose.
+            with pytest.raises(SampleOperationConflictError, match="being deleted"):
+                with sample_merge_lease(
+                    registry.reference_engine, [s1_id, s2_id], operation="Sample merge"
+                ):
+                    pass
+
+        # Released on exit, so an ordinary merge proceeds afterwards.
+        with sample_merge_lease(
+            registry.reference_engine, [s1_id, s2_id], operation="Sample merge"
+        ):
+            pass
+
+    def test_delete_lease_leaves_no_rows_behind(
+        self, merged_setup: tuple[DBRegistry, int, int, int]
+    ) -> None:
+        """Its rows name samples that no longer exist, so they are cleared."""
+        registry, _individual_id, s1_id, _s2_id = merged_setup
+        before = _snapshot_jobs_row_count(registry)
+
+        with sample_delete_lease(registry.reference_engine, [s1_id], operation="Sample delete"):
+            assert _snapshot_jobs_row_count(registry) == before + 1
+
+        assert _snapshot_jobs_row_count(registry) == before
+
+    def test_a_crashed_merge_lease_is_recovered_at_startup(
+        self, merged_setup: tuple[DBRegistry, int, int, int]
+    ) -> None:
+        """A killed process must not lock its sources forever.
+
+        Without recovery the stranded ``running`` rows make every later merge
+        report "already being merged" and every delete answer 409 permanently.
+        """
+        registry, _individual_id, s1_id, s2_id = merged_setup
+        now = datetime.now(UTC)
+        with registry.reference_engine.begin() as conn:
+            for sample_id in (s1_id, s2_id):
+                conn.execute(
+                    jobs.insert().values(
+                        job_id=f"stranded:{sample_id}",
+                        sample_id=sample_id,
+                        job_type=SAMPLE_MERGE_JOB_TYPE,
+                        status="running",
+                        progress_pct=0.0,
+                        message="Sample merge",
+                        created_at=now,
+                        updated_at=now,
+                    )
+                )
+
+        assert merge_sources_in_use(registry.reference_engine, [s1_id, s2_id]) == sorted(
+            [s1_id, s2_id]
+        )
+        with pytest.raises(SampleOperationConflictError):
+            delete_sample_with_cascade(registry, s1_id)
+
+        recover_orphaned_jobs(registry.reference_engine)
+
+        assert merge_sources_in_use(registry.reference_engine, [s1_id, s2_id]) == []
+        assert delete_sample_with_cascade(registry, s1_id) is not None
+
+    def test_a_crashed_delete_lease_is_recovered_at_startup(
+        self, merged_setup: tuple[DBRegistry, int, int, int]
+    ) -> None:
+        """Symmetric to the merge case: a stranded delete row blocks merges.
+
+        The deletion reservation is what makes the exclusion atomic, so an
+        abandoned one is exactly as sticky in the other direction.
+        """
+        registry, _individual_id, s1_id, s2_id = merged_setup
+        now = datetime.now(UTC)
+        with registry.reference_engine.begin() as conn:
+            conn.execute(
+                jobs.insert().values(
+                    job_id=f"stranded-delete:{s1_id}",
+                    sample_id=s1_id,
+                    job_type=SAMPLE_DELETE_JOB_TYPE,
+                    status="running",
+                    progress_pct=0.0,
+                    message="Sample delete",
+                    created_at=now,
+                    updated_at=now,
+                )
+            )
+
+        with pytest.raises(SampleOperationConflictError, match="being deleted"):
+            with sample_merge_lease(
+                registry.reference_engine, [s1_id, s2_id], operation="Sample merge"
+            ):
+                pass
+
+        recover_orphaned_jobs(registry.reference_engine)
+
+        with sample_merge_lease(
+            registry.reference_engine, [s1_id, s2_id], operation="Sample merge"
+        ):
+            pass
+
+    def test_a_merged_database_is_collected_for_backup(
+        self, merged_setup: tuple[DBRegistry, int, int, int]
+    ) -> None:
+        """The uuid naming must not hide merged children from backups.
+
+        Globbing ``sample_*.db`` omitted them from every archive, so a restore
+        silently lost the sample. One shared collector now serves backup, the
+        archive builder and the setup wizard's has-samples probe.
+        """
+        registry, individual_id, s1_id, s2_id = merged_setup
+        merged_id = merge_samples(
+            registry,
+            source_sample_ids=[s1_id, s2_id],
+            individual_id=individual_id,
+            strategy=MergeStrategy.FLAG_ONLY,
+            display_name="Backed-up merge",
+        )
+        with registry.reference_engine.connect() as conn:
+            merged_path = conn.execute(
+                sa.select(samples.c.db_path).where(samples.c.id == merged_id)
+            ).scalar_one()
+
+        collected = collect_sample_database_files(registry.settings.data_dir / "samples")
+        names = {path.name for path in collected}
+
+        assert Path(merged_path).name in names, "the merged database must be backed up"
+        # The sources are still collected too — this widened the net, not moved it.
+        assert len([n for n in names if n.startswith("sample_")]) == 2
+
+    def test_an_unpublished_merge_is_never_archived(
+        self, merged_setup: tuple[DBRegistry, int, int, int]
+    ) -> None:
+        """A backup overlapping a merge must not archive the in-flight child.
+
+        Restore synthesizes a registry row for any archived ``samples/*.db`` the
+        manifest does not list, so archiving a pre-publication file brings it
+        back as a phantom merged sample — and the snapshot may be
+        mid-transaction. Published children must still be archived, which is
+        the defect the collector was widened to fix in the first place.
+        """
+        registry, individual_id, s1_id, s2_id = merged_setup
+        published_id = merge_samples(
+            registry,
+            source_sample_ids=[s1_id, s2_id],
+            individual_id=individual_id,
+            strategy=MergeStrategy.FLAG_ONLY,
+            display_name="Published merge",
+        )
+        with registry.reference_engine.connect() as conn:
+            published = conn.execute(
+                sa.select(samples.c.db_path).where(samples.c.id == published_id)
+            ).scalar_one()
+
+        # A merge mid-build: the file exists, no row references it yet.
+        samples_dir = registry.settings.data_dir / "samples"
+        in_flight = samples_dir / f"merged_{'a' * 32}.db"
+        in_flight.write_bytes(b"half-written merge")
+
+        archived = {p.name for p in collect_backup_sample_files(registry.settings.data_dir)}
+
+        assert Path(published).name in archived, "a published merge must still be archived"
+        assert in_flight.name not in archived, "an unpublished merge must never be archived"
+        assert in_flight.exists(), "skipping it must not delete it — the sweep owns that"
+
+    def test_manifest_and_archive_share_one_snapshot(
+        self,
+        merged_setup: tuple[DBRegistry, int, int, int],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """A merge publishing mid-backup must not split manifest from archive.
+
+        Collecting twice let a child publish between the passes: the manifest
+        omitted it while the archive carried its database, and restore then
+        treats a manifest miss as a legacy sample and assigns
+        ``individual_id=None`` — silently detaching it from its individual.
+        Forced here by publishing a merge after the production task has built
+        the manifest but before it starts adding sample databases to the tar.
+        """
+        registry, individual_id, s1_id, s2_id = merged_setup
+        data_dir = registry.settings.data_dir
+        real_collect = backup_routes.collect_backup_sample_files
+        real_build = backup_routes.build_sample_registry_manifest
+        selections: list[list[Path]] = []
+        manifest_arguments: list[list[Path] | None] = []
+        published_ids: list[int] = []
+
+        def record_selection(selected_data_dir: Path) -> list[Path]:
+            selection = real_collect(selected_data_dir)
+            selections.append(selection)
+            return selection
+
+        def publish_after_manifest(
+            selected_data_dir: Path, sample_files: list[Path] | None = None
+        ) -> bytes:
+            manifest_arguments.append(sample_files)
+            manifest = real_build(selected_data_dir, sample_files)
+            published_ids.append(
+                merge_samples(
+                    registry,
+                    source_sample_ids=[s1_id, s2_id],
+                    individual_id=individual_id,
+                    strategy=MergeStrategy.FLAG_ONLY,
+                    display_name="Published mid-backup",
+                )
+            )
+            return manifest
+
+        monkeypatch.setattr(backup_routes, "collect_backup_sample_files", record_selection)
+        monkeypatch.setattr(
+            backup_routes, "build_sample_registry_manifest", publish_after_manifest
+        )
+
+        import backend.tasks.huey_tasks as huey_tasks
+
+        monkeypatch.setattr(huey_tasks, "get_settings", lambda: registry.settings)
+        monkeypatch.setattr(huey_tasks, "config_toml_path", lambda: data_dir / "config.toml")
+        job_id = huey_tasks.create_backup_job()
+        huey_tasks.run_backup_export_task.call_local(job_id, False)
+
+        with registry.reference_engine.connect() as conn:
+            job = conn.execute(
+                sa.select(jobs.c.status, jobs.c.message).where(jobs.c.job_id == job_id)
+            ).one()
+            published = conn.execute(
+                sa.select(samples.c.id, samples.c.db_path, samples.c.individual_id).where(
+                    samples.c.id == published_ids[0]
+                )
+            ).one()
+
+        assert job.status == "complete"
+        archive_name = job.message.removeprefix("Backup complete: ")
+        with tarfile.open(registry.settings.downloads_dir / archive_name, "r:gz") as archive:
+            names = set(archive.getnames())
+            manifest_file = archive.extractfile("sample_registry.json")
+            assert manifest_file is not None
+            manifest = json.loads(manifest_file.read())
+
+        assert len(selections) == 1, "the production task must collect one sample snapshot"
+        assert len(manifest_arguments) == 1
+        assert manifest_arguments[0] is selections[0], (
+            "the manifest and tar builder must receive the same list object"
+        )
+        archived_sample_paths = {name for name in names if name.startswith("samples/")}
+        manifested_sample_paths = {row["db_path"] for row in manifest["samples"]}
+        assert archived_sample_paths == manifested_sample_paths
+        assert published.db_path not in archived_sample_paths, (
+            "a merge published after the snapshot belongs to the next backup"
+        )
+        assert published.individual_id == individual_id
+
+    def test_backup_fails_closed_when_publication_cannot_be_verified(
+        self, merged_setup: tuple[DBRegistry, int, int, int], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """An unverifiable registry must abort, not archive the unprovable file.
+
+        Returning "nothing to skip" would let an unregistered, possibly
+        half-written merged database into the archive, which restore
+        materialises as a phantom sample.
+        """
+        registry, _individual_id, _s1_id, _s2_id = merged_setup
+        samples_dir = registry.settings.data_dir / "samples"
+        (samples_dir / f"merged_{'b' * 32}.db").write_bytes(b"unprovable")
+
+        def unreadable(*_a: object, **_k: object):
+            raise sa.exc.OperationalError("SELECT db_path", {}, Exception("registry gone"))
+
+        with monkeypatch.context() as registry_failure:
+            registry_failure.setattr("backend.db.connection.get_registry", unreadable)
+
+            with pytest.raises(BackupRegistryManifestError, match="publication"):
+                collect_backup_sample_files(registry.settings.data_dir)
+
+        def refuse_unverifiable_backup(_data_dir: Path) -> list[Path]:
+            raise BackupRegistryManifestError(
+                "Could not verify merged-sample publication; backup aborted."
+            )
+
+        monkeypatch.setattr(
+            backup_routes, "collect_backup_sample_files", refuse_unverifiable_backup
+        )
+
+        import backend.tasks.huey_tasks as huey_tasks
+
+        monkeypatch.setattr(huey_tasks, "get_settings", lambda: registry.settings)
+        monkeypatch.setattr(
+            huey_tasks,
+            "config_toml_path",
+            lambda: registry.settings.data_dir / "config.toml",
+        )
+        job_id = huey_tasks.create_backup_job()
+        huey_tasks.run_backup_export_task.call_local(job_id, False)
+
+        with registry.reference_engine.connect() as conn:
+            job = conn.execute(
+                sa.select(jobs.c.status, jobs.c.error).where(jobs.c.job_id == job_id)
+            ).one()
+
+        assert job.status == "failed"
+        assert "publication" in job.error
+        assert list(registry.settings.downloads_dir.glob("*.tar.gz")) == []
+
+    def test_publication_survives_an_interrupt_during_commit_unwind(
+        self, merged_setup: tuple[DBRegistry, int, int, int], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """An interrupt after the commit must not delete the published database.
+
+        The cleanup path catches ``BaseException`` so a KeyboardInterrupt still
+        tidies up — but one delivered while the publishing transaction's context
+        manager unwinds arrives *after* SQLite committed. Unlinking then leaves
+        the registry pointing at a missing database, and the startup sweep
+        preserves that dangling row precisely because it is referenced.
+
+        Reproduced by wrapping the first ``reference_engine.begin()`` so its
+        ``__exit__`` commits and then raises. Raising anywhere outside the
+        try-block would not exercise the cleanup path at all.
+        """
+        registry, individual_id, s1_id, s2_id = merged_setup
+        engine = registry.reference_engine
+        real_begin = engine.begin
+        fired: list[bool] = []
+
+        class _CommitThenInterrupt:
+            def __init__(self, inner: object) -> None:
+                self._inner = inner
+
+            def __enter__(self) -> object:
+                return self._inner.__enter__()  # type: ignore[attr-defined]
+
+            def __exit__(self, *exc_info: object) -> None:
+                self._inner.__exit__(*exc_info)  # type: ignore[attr-defined]
+                raise KeyboardInterrupt("interrupted while the commit unwound")
+
+        def begin_once():
+            inner = real_begin()
+            if fired:
+                return inner
+            fired.append(True)
+            return _CommitThenInterrupt(inner)
+
+        monkeypatch.setattr(engine, "begin", begin_once)
+
+        with pytest.raises(KeyboardInterrupt):
+            merge_samples(
+                registry,
+                source_sample_ids=[s1_id, s2_id],
+                individual_id=individual_id,
+                strategy=MergeStrategy.FLAG_ONLY,
+                display_name="Interrupted after publish",
+            )
+        monkeypatch.undo()
+
+        with registry.reference_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(samples.c.db_path).where(samples.c.file_format == "merged_v1")
+            ).fetchone()
+        assert row is not None, "the publication committed, so the row must remain"
+        assert (registry.settings.data_dir / row.db_path).exists(), (
+            "a published database must never be discarded by the failure path"
+        )

@@ -39,6 +39,10 @@ from backend.services.sample_delete import (
     delete_sample_with_cascade,
     list_merged_children,
 )
+from backend.services.sample_operation_lock import (
+    SampleOperationConflictError,
+    SampleOperationUnavailableError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -478,9 +482,22 @@ async def delete_sample(sample_id: int) -> None:
     AncestryDNA Plan §10.8 / Step 66: a single-confirmation cascade removes
     every ``file_format='merged_v1'`` sample whose ``merge_provenance``
     lists this row in ``source_sample_ids`` before tearing down the source.
+
+    Error surface:
+
+    * 404 — the sample does not exist.
+    * 409 — a merge is currently holding this sample as a source (#2329).
+      Matches how ``sample_export_guard`` answers "this sample is busy".
     """
     registry = get_registry()
-    result = delete_sample_with_cascade(registry, sample_id)
+    try:
+        result = delete_sample_with_cascade(registry, sample_id)
+    except SampleOperationConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except SampleOperationUnavailableError as exc:
+        # The reservation could not be taken, so nothing was removed. 503 keeps
+        # that a retryable refusal instead of an internal error.
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     if result is None:
         raise HTTPException(status_code=404, detail=f"Sample {sample_id} not found.")
 

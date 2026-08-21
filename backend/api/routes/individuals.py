@@ -50,6 +50,10 @@ from backend.services.sample_merge import (
     merge_samples,
     preview_merge,
 )
+from backend.services.sample_operation_lock import (
+    SampleOperationConflictError,
+    SampleOperationUnavailableError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -681,6 +685,14 @@ def commit_merge_endpoint(individual_id: int, body: MergeCommitRequest) -> Merge
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except StaleSourceError as exc:
         raise HTTPException(status_code=423, detail=exc.detail) from exc
+    except SampleOperationConflictError as exc:
+        # A merge or deletion already holds one of the sources (#2329). Answer
+        # 409 like every other busy-sample boundary rather than a bare 500.
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except SampleOperationUnavailableError as exc:
+        # The lease registry could not be read, so the merge refused safely.
+        # 503 marks it retryable, matching the other sample-operation guards.
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     with registry.reference_engine.connect() as conn:
         job_id = _latest_annotation_job_id(conn, merged_sample_id)

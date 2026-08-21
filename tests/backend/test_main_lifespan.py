@@ -34,6 +34,7 @@ def lifespan_dependencies(tmp_path: Path) -> Iterator[SimpleNamespace]:
         patch("backend.main.cleanup_interrupted_sessions"),
         patch("backend.main.recover_orphaned_jobs"),
         patch("backend.main.recover_orphaned_downloads"),
+        patch("backend.main.recover_unpublished_merge_artifacts"),
         patch("backend.main.shutdown_executor") as shutdown_executor,
         patch("backend.main.reset_registry") as reset_registry,
     ):

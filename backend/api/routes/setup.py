@@ -49,6 +49,7 @@ from backend.config import (
 from backend.db.connection import get_registry
 from backend.db.database_registry import BUNDLED_DIR, DatabaseInfo, get_all_databases
 from backend.db.db_health import get_database_health
+from backend.db.sample_schema import collect_sample_database_files
 from backend.db.sqlite_engine import make_sqlite_engine
 from backend.db.vep_version import resolve_effective_vep_bundle_version
 from backend.disclaimers import (
@@ -233,7 +234,7 @@ def _has_any_samples() -> bool:
     samples_dir = settings.samples_dir
     if not samples_dir.exists():
         return False
-    return any(samples_dir.glob("sample_*.db"))
+    return bool(collect_sample_database_files(samples_dir))
 
 
 # Build modes the readiness gate always enforces. ``manual`` is user-built, and
