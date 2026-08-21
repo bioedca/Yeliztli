@@ -1168,7 +1168,7 @@ def run_update_check_task(job_id: str) -> None:
 def run_database_update_task(
     job_id: str,
     db_name: str,
-    source_url_binding: str | None = None,
+    source_binding: str | None = None,
 ) -> None:
     """Huey background task: run a specific database update.
 
@@ -1178,11 +1178,12 @@ def run_database_update_task(
     :func:`_execute_database_update`. If another process already holds the claim
     the update is skipped with a clear, retryable job error rather than racing.
 
-    ``source_url_binding`` binds the task to the exact URL approved by an update
-    check without persisting a possibly credential-bearing operator URL in
-    ``huey.db``. It is currently used by MONDO/HPO; the worker re-resolves the
-    manifest pin and fails closed if it no longer matches. Direct invocations
-    without check context resolve the current pin without a binding.
+    ``source_binding`` binds the task to the URL, validators, and sizes of all
+    three sources approved by a MONDO/HPO update check without persisting a
+    possibly credential-bearing operator URL in ``huey.db``.  The worker
+    refreshes the manifest and enforces the approved strong validators during
+    each actual download. Direct invocations without check context resolve the
+    current pin without a binding.
     """
     from backend.db.build_guard import build_claim
     from backend.db.connection import get_registry
@@ -1206,16 +1207,16 @@ def run_database_update_task(
             )
             return
         with huey_download_job_ownership():
-            if source_url_binding is None:
+            if source_binding is None:
                 _execute_database_update(job_id, db_name)
             else:
-                _execute_database_update(job_id, db_name, source_url_binding)
+                _execute_database_update(job_id, db_name, source_binding)
 
 
 def _execute_database_update(
     job_id: str,
     db_name: str,
-    source_url_binding: str | None = None,
+    source_binding: str | None = None,
 ) -> None:
     """Run a specific database update (the cross-process claim is already held).
 
@@ -1371,26 +1372,35 @@ def _execute_database_update(
         settings = registry.settings
 
         mondo_url: str | None = None
+        mondo_source_expectations = None
+        mondo_secondary_urls: tuple[str, str] | None = None
         if db_name == "mondo_hpo":
             from backend.db.manifest import fetch_manifest, get_pipeline_pin
-            from backend.db.update_manager import bind_source_url
 
-            pin = get_pipeline_pin("mondo_hpo")
-            if source_url_binding is not None and (
-                pin is None or not pin.url or bind_source_url(pin.url) != source_url_binding
-            ):
+            if source_binding is None:
+                pin = get_pipeline_pin("mondo_hpo")
+            else:
                 # The API and Huey consumer have independent in-memory manifest
-                # caches. Refresh once before rejecting a binding that may have
-                # been created from a newer manifest snapshot in the API process.
+                # caches.  Refresh before validating the API's exact snapshot.
                 pin = fetch_manifest(force_refresh=True).pipeline_pins.get("mondo_hpo")
             if pin is None or not pin.url:
                 raise RuntimeError(
                     "MONDO/HPO update requires an available pipeline-pinned source URL"
                 )
-            if source_url_binding is not None and bind_source_url(pin.url) != source_url_binding:
-                raise RuntimeError(
-                    "MONDO/HPO pipeline pin changed after the update check; refusing to install "
-                    "a different source"
+            if source_binding is not None:
+                from backend.annotation.mondo_hpo import (
+                    HPO_GENES_TO_PHENOTYPE_URL,
+                    MONDO_SSSOM_URL,
+                )
+                from backend.db.update_manager import decode_mondo_hpo_source_binding
+
+                mondo_source_expectations = decode_mondo_hpo_source_binding(
+                    source_binding,
+                    pin.url,
+                )
+                mondo_secondary_urls = (
+                    HPO_GENES_TO_PHENOTYPE_URL,
+                    MONDO_SSSOM_URL,
                 )
             mondo_url = pin.url
 
@@ -1401,7 +1411,23 @@ def _execute_database_update(
         with build_lock(db_name):
             if db_info and db_info.target_db == "reference":
                 if db_name == "mondo_hpo":
-                    build_fn(engine, settings.downloads_dir, mondo_url=mondo_url)
+                    if mondo_source_expectations is None:
+                        build_fn(engine, settings.downloads_dir, mondo_url=mondo_url)
+                    else:
+                        from backend.annotation.http_download import (
+                            bind_strong_etag_downloads,
+                        )
+
+                        assert mondo_secondary_urls is not None
+                        hpo_url, mondo_sssom_url = mondo_secondary_urls
+                        with bind_strong_etag_downloads(mondo_source_expectations):
+                            build_fn(
+                                engine,
+                                settings.downloads_dir,
+                                mondo_url=mondo_url,
+                                hpo_url=hpo_url,
+                                mondo_sssom_url=mondo_sssom_url,
+                            )
                 else:
                     build_fn(engine, settings.downloads_dir)
             else:

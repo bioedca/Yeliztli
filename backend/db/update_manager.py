@@ -38,7 +38,9 @@ from backend.annotation.cpic import check_cpic_update
 from backend.annotation.dbnsfp import check_dbnsfp_update
 from backend.annotation.dbsnp import check_dbsnp_update
 from backend.annotation.gwas import check_gwas_update
-from backend.annotation.mondo_hpo import check_mondo_hpo_update
+from backend.annotation.mondo_hpo import (
+    check_mondo_hpo_update as _check_mondo_hpo_update,
+)
 from backend.db.sqlite_engine import make_sqlite_engine
 from backend.db.tables import (
     annotated_variants,
@@ -56,6 +58,7 @@ from backend.services.staleness import find_stale_reference_versions
 if TYPE_CHECKING:
     from sqlalchemy import Engine
 
+    from backend.annotation.http_download import StrongEtagDownloadExpectation
     from backend.config import Settings
     from backend.db.connection import DBRegistry
 
@@ -93,16 +96,269 @@ class VersionInfo:
     download_url: str
     download_size_bytes: int
     release_date: str | None = None
+    # Internal, opaque evidence binding every source behind a multi-source offer
+    # to the worker's actual downloads.  It is deliberately excluded from
+    # repr/equality and from the API response model.
+    _source_binding: str | None = field(default=None, repr=False, compare=False)
 
 
-def bind_source_url(url: str) -> str:
-    """Return an opaque equality binding for a checked source URL.
+class MondoHpoSourceBindingError(RuntimeError):
+    """The checked MONDO/HPO source snapshot could not be bound safely."""
+
+
+@dataclass(frozen=True)
+class _MondoHpoSourceSnapshot:
+    binding: str
+    primary_version: str
+    total_size_bytes: int
+
+
+_MONDO_HPO_SOURCE_ROLES = ("mondo", "hpo", "mondo_sssom")
+
+
+def _bind_mondo_hpo_url(url: str) -> str:
+    return hashlib.sha256(b"yeliztli-mondo-hpo-url-v1\0" + url.encode()).hexdigest()
+
+
+def _capture_mondo_hpo_source_snapshot(
+    mondo_url: str,
+    *,
+    timeout: float = 30.0,
+) -> _MondoHpoSourceSnapshot:
+    """Capture strong validators for every source consumed by the builder.
+
+    The manifest MONDO URL may be a rolling ``/latest/`` object, and the HPO
+    and SSSOM inputs are rolling URLs as well.  A URL equality check therefore
+    cannot bind the bytes approved by an update check.  Each source must expose
+    a syntactically strong ETag.  The token includes those public validators,
+    positive sizes for transfer completeness, and digests of final redirect
+    identities.  It never contains the possibly credential-bearing operator
+    MONDO URL.
+    """
+    from email.utils import parsedate_to_datetime
+
+    from backend.annotation.http_download import (
+        download_source_identity,
+        is_strong_etag,
+    )
+    from backend.annotation.mondo_hpo import (
+        HPO_GENES_TO_PHENOTYPE_URL,
+        MONDO_SSSOM_URL,
+    )
+
+    sources = (
+        ("mondo", mondo_url),
+        ("hpo", HPO_GENES_TO_PHENOTYPE_URL),
+        ("mondo_sssom", MONDO_SSSOM_URL),
+    )
+    captured: dict[str, dict[str, str | int | None]] = {}
+    primary_last_modified = ""
+
+    try:
+        with httpx.Client(
+            follow_redirects=True,
+            timeout=httpx.Timeout(timeout, connect=10.0),
+        ) as client:
+            for source_name, source_url in sources:
+                # Match stream_download's byte-exact representation so the
+                # strong ETag and completeness size describe the actual GET.
+                response = client.head(
+                    source_url,
+                    headers={"Accept-Encoding": "identity"},
+                )
+                response.raise_for_status()
+                content_length = response.headers.get("Content-Length", "")
+                if (
+                    not isinstance(content_length, str)
+                    or not content_length.isascii()
+                    or not content_length.isdecimal()
+                    or int(content_length) <= 0
+                ):
+                    raise MondoHpoSourceBindingError(
+                        "MONDO/HPO source snapshot has no positive transfer size"
+                    )
+                etag = response.headers.get("ETag", "")
+                last_modified = response.headers.get("Last-Modified", "")
+                etag = etag.strip() if isinstance(etag, str) else ""
+                last_modified = last_modified.strip() if isinstance(last_modified, str) else ""
+                if not is_strong_etag(etag):
+                    raise MondoHpoSourceBindingError(
+                        "MONDO/HPO source snapshot has no strong ETag"
+                    )
+                captured[source_name] = {
+                    "etag": etag,
+                    "resolved_source_sha256": download_source_identity(str(response.url)),
+                    "content_length": int(content_length),
+                    # This is release metadata, not a byte-identity fallback.
+                    # Bind it only for the primary source whose GET-derived
+                    # value is persisted as the installed database version.
+                    "last_modified": last_modified if source_name == "mondo" else None,
+                }
+                if source_name == "mondo":
+                    # This preserves the existing public release-version
+                    # contract; only the strong ETag establishes byte identity.
+                    primary_last_modified = last_modified
+    except MondoHpoSourceBindingError:
+        raise
+    except Exception:
+        # Do not include the exception or URL: an operator override may contain
+        # credentials, and the durable job/error surfaces are user-visible.
+        raise MondoHpoSourceBindingError("MONDO/HPO source validators are unavailable") from None
+
+    if not primary_last_modified:
+        raise MondoHpoSourceBindingError("MONDO/HPO primary source has no Last-Modified validator")
+    try:
+        primary_version = parsedate_to_datetime(primary_last_modified).strftime("%Y%m%d")
+    except (TypeError, ValueError):
+        raise MondoHpoSourceBindingError(
+            "MONDO/HPO primary source has an invalid Last-Modified validator"
+        ) from None
+
+    binding = json.dumps(
+        {
+            "schema": 2,
+            "mondo_url_sha256": _bind_mondo_hpo_url(mondo_url),
+            "sources": captured,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return _MondoHpoSourceSnapshot(
+        binding=binding,
+        primary_version=primary_version,
+        total_size_bytes=sum(int(source["content_length"]) for source in captured.values()),
+    )
+
+
+def capture_mondo_hpo_source_binding(
+    mondo_url: str,
+    *,
+    timeout: float = 30.0,
+) -> str:
+    """Return a queue-safe binding for all sources consumed by a MONDO/HPO build.
 
     Durable task queues must not persist a raw manifest URL because operator
-    overrides may contain credentials. The worker re-resolves the protected
-    manifest entry and accepts it only when this binding still matches.
+    overrides may contain credentials.  The worker re-resolves it, validates
+    its digest, and enforces each public strong ETag on the actual GET.
     """
-    return hashlib.sha256(b"yeliztli-update-source-url-v1\0" + url.encode()).hexdigest()
+    return _capture_mondo_hpo_source_snapshot(mondo_url, timeout=timeout).binding
+
+
+def decode_mondo_hpo_source_binding(
+    binding: str,
+    mondo_url: str,
+) -> dict[str, StrongEtagDownloadExpectation]:
+    """Validate a queued snapshot and return strong-ETag download expectations."""
+    from backend.annotation.http_download import (
+        StrongEtagDownloadExpectation,
+        is_strong_etag,
+    )
+    from backend.annotation.mondo_hpo import (
+        HPO_GENES_TO_PHENOTYPE_URL,
+        MONDO_SSSOM_URL,
+    )
+
+    try:
+        payload = json.loads(binding)
+    except (TypeError, json.JSONDecodeError):
+        raise MondoHpoSourceBindingError("MONDO/HPO source binding is malformed") from None
+    if not isinstance(payload, dict) or set(payload) != {
+        "schema",
+        "mondo_url_sha256",
+        "sources",
+    }:
+        raise MondoHpoSourceBindingError("MONDO/HPO source binding is malformed")
+    if (
+        type(payload["schema"]) is not int
+        or payload["schema"] != 2
+        or payload["mondo_url_sha256"] != _bind_mondo_hpo_url(mondo_url)
+    ):
+        raise MondoHpoSourceBindingError("MONDO/HPO manifest source changed after approval")
+    sources = payload["sources"]
+    if not isinstance(sources, dict) or set(sources) != set(_MONDO_HPO_SOURCE_ROLES):
+        raise MondoHpoSourceBindingError("MONDO/HPO source binding is malformed")
+
+    requested_urls = {
+        "mondo": mondo_url,
+        "hpo": HPO_GENES_TO_PHENOTYPE_URL,
+        "mondo_sssom": MONDO_SSSOM_URL,
+    }
+    if len(set(requested_urls.values())) != len(requested_urls):
+        raise MondoHpoSourceBindingError("MONDO/HPO source mapping is ambiguous")
+    expectations: dict[str, StrongEtagDownloadExpectation] = {}
+    for role in _MONDO_HPO_SOURCE_ROLES:
+        source = sources[role]
+        if not isinstance(source, dict) or set(source) != {
+            "etag",
+            "resolved_source_sha256",
+            "content_length",
+            "last_modified",
+        }:
+            raise MondoHpoSourceBindingError("MONDO/HPO source binding is malformed")
+        etag = source["etag"]
+        resolved_source_sha256 = source["resolved_source_sha256"]
+        content_length = source["content_length"]
+        last_modified = source["last_modified"]
+        valid_last_modified = (
+            isinstance(last_modified, str)
+            and bool(last_modified)
+            and last_modified.isascii()
+            and all(0x20 <= ord(char) <= 0x7E for char in last_modified)
+            if role == "mondo"
+            else last_modified is None
+        )
+        valid_source = (
+            isinstance(etag, str)
+            and is_strong_etag(etag)
+            and isinstance(resolved_source_sha256, str)
+            and len(resolved_source_sha256) == 64
+            and all(char in "0123456789abcdef" for char in resolved_source_sha256)
+            and isinstance(content_length, int)
+            and not isinstance(content_length, bool)
+            and content_length > 0
+            and valid_last_modified
+        )
+        if not valid_source:
+            raise MondoHpoSourceBindingError("MONDO/HPO source binding is malformed")
+        expectations[requested_urls[role]] = StrongEtagDownloadExpectation(
+            etag=etag,
+            resolved_source_sha256=resolved_source_sha256,
+            content_length=content_length,
+            last_modified=last_modified,
+        )
+    return expectations
+
+
+def check_mondo_hpo_update(
+    reference_engine: Engine,
+    settings: object | None = None,
+    *,
+    timeout: float = 30.0,
+) -> VersionInfo | None:
+    """Check MONDO/HPO while binding one stable three-source snapshot.
+
+    After the existing update decision, capture one identity-encoded strong-
+    ETag snapshot and require its primary release version to match the offer.
+    Its complete transfer size replaces the first pass's potentially encoded
+    estimate.  The snapshot travels through Huey without the raw operator URL;
+    the worker enforces each ETag and the primary release metadata on the
+    actual builder GETs.
+    """
+    offer = _check_mondo_hpo_update(
+        reference_engine,
+        settings,
+        timeout=timeout,
+    )
+    if offer is None:
+        return None
+    snapshot = _capture_mondo_hpo_source_snapshot(offer.download_url, timeout=timeout)
+    if snapshot.primary_version != offer.latest_version:
+        raise MondoHpoSourceBindingError(
+            "MONDO/HPO offer metadata does not match its source validators"
+        )
+    offer.download_size_bytes = snapshot.total_size_bytes
+    offer._source_binding = snapshot.binding
+    return offer
 
 
 @dataclass
@@ -2372,7 +2628,7 @@ def _dispatch_auto_update(
     registry: DBRegistry,
     db_name: str,
     *,
-    source_url_binding: str | None = None,
+    source_binding: str | None = None,
 ) -> None:
     """Apply an auto-update for a single database.
 
@@ -2448,10 +2704,15 @@ def _dispatch_auto_update(
         run_database_update_task,
     )
 
-    job_id = create_database_update_job(db_name)
     if db_name == "mondo_hpo":
-        run_database_update_task(job_id, db_name, source_url_binding)
+        if source_binding is None:
+            raise MondoHpoSourceBindingError(
+                "MONDO/HPO update offer has no source-validator binding"
+            )
+        job_id = create_database_update_job(db_name)
+        run_database_update_task(job_id, db_name, source_binding)
     else:
+        job_id = create_database_update_job(db_name)
         run_database_update_task(job_id, db_name)
 
 
@@ -2551,9 +2812,7 @@ def run_scheduled_update_check(registry: DBRegistry) -> UpdateCheckResult:
             _dispatch_auto_update(
                 registry,
                 db_name,
-                source_url_binding=(
-                    bind_source_url(update_info.download_url) if db_name == "mondo_hpo" else None
-                ),
+                source_binding=(update_info._source_binding if db_name == "mondo_hpo" else None),
             )
         except Exception as exc:
             logger.exception("auto_update_failed", db_name=db_name, error=str(exc))

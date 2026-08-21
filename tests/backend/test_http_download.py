@@ -17,11 +17,16 @@ import pytest
 
 import backend.annotation.http_download as http_download
 from backend.annotation.http_download import (
+    DownloadBindingError,
     DownloadError,
     DownloadOutcome,
+    StrongEtagDownloadExpectation,
     _content_range_total,
+    bind_strong_etag_downloads,
     clear_validator_sidecar,
     compute_backoff,
+    download_source_identity,
+    is_strong_etag,
     read_validator_sidecar,
     stream_download,
     write_validator_sidecar,
@@ -78,6 +83,273 @@ def test_content_range_total_does_not_fall_back_to_content_length() -> None:
 def test_content_range_total_unknown_is_none() -> None:
     resp = httpx.Response(206, headers={"Content-Range": "bytes 0-9/*"})
     assert _content_range_total(resp) is None
+
+
+@pytest.mark.parametrize("etag", ['"v1"', '""', '"opaque\\tag"'])
+def test_strong_etag_syntax_accepts_quoted_opaque_tags(etag: str) -> None:
+    assert is_strong_etag(etag)
+
+
+@pytest.mark.parametrize(
+    "etag",
+    [
+        "v1",
+        'W/"v1"',
+        '"unterminated',
+        '"has space"',
+        '"has\ncontrol"',
+        '"\x80"',
+        '"☃"',
+    ],
+)
+def test_strong_etag_syntax_rejects_weak_or_malformed_values(etag: str) -> None:
+    assert not is_strong_etag(etag)
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# Opt-in strong-ETag binding
+# ═══════════════════════════════════════════════════════════════════════
+
+
+def test_bound_download_sends_if_match_on_full_and_range_attempts(tmp_path: Path) -> None:
+    """Every actual response is conditional and verified before bytes are accepted."""
+    drop_after = 100_000
+    requests: list[tuple[str | None, str | None]] = []
+
+    class Handler(BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.1"
+        dropped = False
+
+        def do_GET(self) -> None:
+            range_header = self.headers.get("Range")
+            requests.append((self.headers.get("If-Match"), range_header))
+            if range_header:
+                start = _parse_range_start(range_header)
+                self.send_response(206)
+                self.send_header("ETag", '"approved-v1"')
+                self.send_header(
+                    "Content-Range", f"bytes {start}-{len(TEST_DATA) - 1}/{len(TEST_DATA)}"
+                )
+                self.send_header("Content-Length", str(len(TEST_DATA) - start))
+                self.end_headers()
+                self.wfile.write(TEST_DATA[start:])
+                return
+            if not type(self).dropped:
+                type(self).dropped = True
+                self.send_response(200)
+                self.send_header("ETag", '"approved-v1"')
+                self.send_header("Content-Length", str(len(TEST_DATA)))
+                self.end_headers()
+                self.wfile.write(TEST_DATA[:drop_after])
+                self.close_connection = True
+                return
+            raise AssertionError("retry must resume the approved response")
+
+        def log_message(self, *a: object) -> None:  # noqa: A002
+            pass
+
+    server, url = _serve(Handler)
+    try:
+        expectation = StrongEtagDownloadExpectation(
+            etag='"approved-v1"',
+            resolved_source_sha256=download_source_identity(url),
+            content_length=len(TEST_DATA),
+        )
+        tmp = tmp_path / "bound.bin.tmp"
+        with bind_strong_etag_downloads({url: expectation}):
+            outcome = stream_download(url, tmp, chunk_size=8192, sleep=NOOP_SLEEP)
+
+        assert outcome.resumed is True
+        assert tmp.read_bytes() == TEST_DATA
+        assert len(requests) >= 2
+        assert all(if_match == '"approved-v1"' for if_match, _ in requests)
+        assert requests[0][1] is None
+        assert requests[1][1] is not None
+    finally:
+        server.shutdown()
+
+
+class _TrackingStream(httpx.SyncByteStream):
+    def __init__(self) -> None:
+        self.consumed = False
+
+    def __iter__(self) -> Iterator[bytes]:
+        self.consumed = True
+        yield b"payload"
+
+
+@pytest.mark.parametrize(
+    ("status", "headers", "expected_etag", "expected_source", "message"),
+    [
+        (412, {}, '"approved"', None, "changed after approval"),
+        (200, {"Content-Length": "7"}, '"approved"', None, "ETag"),
+        (
+            200,
+            {"Content-Length": "7", "ETag": 'W/"approved"'},
+            '"approved"',
+            None,
+            "ETag",
+        ),
+        (
+            200,
+            {"Content-Length": "7", "ETag": '"different"'},
+            '"approved"',
+            None,
+            "ETag",
+        ),
+        (
+            200,
+            {"Content-Length": "7", "ETag": '"approved"'},
+            '"approved"',
+            "https://other.example.test/file.bin",
+            "unexpected source",
+        ),
+        (
+            200,
+            {"Content-Length": "8", "ETag": '"approved"'},
+            '"approved"',
+            None,
+            "size",
+        ),
+    ],
+)
+def test_bound_download_rejects_unapproved_response_before_body(
+    tmp_path: Path,
+    status: int,
+    headers: dict[str, str],
+    expected_etag: str,
+    expected_source: str | None,
+    message: str,
+) -> None:
+    url = "https://downloads.example.test/file.bin"
+    stream = _TrackingStream()
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(status, headers=headers, stream=stream, request=request)
+    )
+    expectation = StrongEtagDownloadExpectation(
+        etag=expected_etag,
+        resolved_source_sha256=download_source_identity(expected_source or url),
+        content_length=7,
+    )
+    tmp = tmp_path / "rejected.bin.tmp"
+
+    with pytest.raises(DownloadBindingError, match=message):
+        with bind_strong_etag_downloads({url: expectation}):
+            stream_download(
+                url,
+                tmp,
+                client_factory=lambda: httpx.Client(transport=transport),
+                sleep=NOOP_SLEEP,
+            )
+
+    assert stream.consumed is False
+    assert not tmp.exists()
+
+
+@pytest.mark.parametrize(
+    "headers",
+    [
+        {
+            "Content-Range": "bytes 0-3/7",
+            "Content-Length": "4",
+            "ETag": '"approved"',
+        },
+        {
+            "Content-Range": "bytes 3-5/7",
+            "Content-Length": "3",
+            "ETag": '"approved"',
+        },
+        {
+            "Content-Range": "bytes 3-6/7",
+            "Content-Length": "3",
+            "ETag": '"approved"',
+        },
+    ],
+)
+def test_bound_resume_rejects_wrong_range_geometry_before_body(
+    tmp_path: Path,
+    headers: dict[str, str],
+) -> None:
+    """A same-ETag 206 cannot splice bytes from a different range."""
+    url = "https://downloads.example.test/file.bin"
+    stream = _TrackingStream()
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(206, headers=headers, stream=stream, request=request)
+    )
+    expectation = StrongEtagDownloadExpectation(
+        etag='"approved"',
+        resolved_source_sha256=download_source_identity(url),
+        content_length=7,
+    )
+    tmp = tmp_path / "wrong-range.bin.tmp"
+    tmp.write_bytes(b"abc")
+
+    with pytest.raises(DownloadBindingError, match="range does not match request"):
+        with bind_strong_etag_downloads({url: expectation}):
+            stream_download(
+                url,
+                tmp,
+                client_factory=lambda: httpx.Client(transport=transport),
+                sleep=NOOP_SLEEP,
+            )
+
+    assert stream.consumed is False
+    assert not tmp.exists()
+
+
+def test_bound_download_rejects_changed_release_metadata_before_body(tmp_path: Path) -> None:
+    """The primary GET cannot persist a version different from its checked offer."""
+    url = "https://downloads.example.test/file.bin"
+    stream = _TrackingStream()
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(
+            200,
+            headers={
+                "Content-Length": "7",
+                "ETag": '"approved"',
+                "Last-Modified": "Thu, 16 Apr 2026 12:34:56 GMT",
+            },
+            stream=stream,
+            request=request,
+        )
+    )
+    expectation = StrongEtagDownloadExpectation(
+        etag='"approved"',
+        resolved_source_sha256=download_source_identity(url),
+        content_length=7,
+        last_modified="Wed, 15 Apr 2026 12:34:56 GMT",
+    )
+
+    with pytest.raises(DownloadBindingError, match="release metadata"):
+        with bind_strong_etag_downloads({url: expectation}):
+            stream_download(
+                url,
+                tmp_path / "changed-release.bin.tmp",
+                client_factory=lambda: httpx.Client(transport=transport),
+                sleep=NOOP_SLEEP,
+            )
+
+    assert stream.consumed is False
+
+
+def test_bound_download_rejects_unexpected_and_unconsumed_sources(tmp_path: Path) -> None:
+    expected_url = "https://downloads.example.test/expected.bin"
+    expectation = StrongEtagDownloadExpectation(
+        etag='"approved"',
+        resolved_source_sha256=download_source_identity(expected_url),
+        content_length=7,
+    )
+
+    with pytest.raises(DownloadBindingError, match="unexpected source"):
+        with bind_strong_etag_downloads({expected_url: expectation}):
+            stream_download(
+                "https://downloads.example.test/other.bin",
+                tmp_path / "other.bin.tmp",
+            )
+
+    with pytest.raises(DownloadBindingError, match="every expected source"):
+        with bind_strong_etag_downloads({expected_url: expectation}):
+            pass
 
 
 # ═══════════════════════════════════════════════════════════════════════

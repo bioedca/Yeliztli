@@ -5,10 +5,12 @@ from __future__ import annotations
 import asyncio
 import gzip
 import json
+from collections.abc import Iterator
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 import sqlalchemy as sa
 from fastapi import HTTPException
@@ -17,15 +19,25 @@ from backend.annotation.mondo_hpo import (
     HPO_GENES_TO_PHENOTYPE_URL,
     MONDO_HPO_INGESTION_REVISION,
     MONDO_SSSOM_URL,
-    check_mondo_hpo_update,
     download_and_load_mondo_hpo,
 )
-from backend.api.routes.updates import TriggerUpdateRequest, trigger_update
+from backend.api.routes.updates import (
+    TriggerUpdateRequest,
+    check_for_updates,
+    trigger_update,
+)
 from backend.config import Settings
 from backend.db import manifest as manifest_mod
 from backend.db.manifest import reset_cache
-from backend.db.tables import database_versions
-from backend.db.update_manager import bind_source_url
+from backend.db.tables import database_versions, gene_phenotype
+from backend.db.update_manager import (
+    MondoHpoSourceBindingError,
+    UpdateCheckResult,
+    VersionInfo,
+    capture_mondo_hpo_source_binding,
+    check_mondo_hpo_update,
+    decode_mondo_hpo_source_binding,
+)
 from backend.tasks.huey_tasks import _execute_database_update
 
 PINNED_MONDO_URL = "https://updates.example.test/mondo/pinned-gene-disease.tsv.gz"
@@ -33,7 +45,7 @@ PINNED_LAST_MODIFIED = "Wed, 15 Apr 2026 12:34:56 GMT"
 PINNED_VERSION = "20260415"
 
 
-def _manifest(path: Path) -> Path:
+def _manifest(path: Path, *, mondo_url: str = PINNED_MONDO_URL) -> Path:
     manifest_path = path / "manifest.json"
     manifest_path.write_text(
         json.dumps(
@@ -43,7 +55,7 @@ def _manifest(path: Path) -> Path:
                 "bundles": {},
                 "pipeline_pins": {
                     "mondo_hpo": {
-                        "url": PINNED_MONDO_URL,
+                        "url": mondo_url,
                         "last_known_version": "",
                     }
                 },
@@ -54,68 +66,211 @@ def _manifest(path: Path) -> Path:
     return manifest_path
 
 
-def _head_response(**headers: str) -> MagicMock:
+def _head_response(url: str, **headers: str) -> MagicMock:
     response = MagicMock(headers=headers)
+    response.url = url
     response.raise_for_status.return_value = None
     return response
 
 
-def _head_client() -> MagicMock:
+def _head_client(
+    *,
+    cycles: int = 1,
+    mondo_etag: str = '"mondo-pinned"',
+    hpo_etag: str = '"hpo-pinned"',
+    sssom_etag: str = '"sssom-pinned"',
+    mondo_url: str = PINNED_MONDO_URL,
+    hpo_url: str = HPO_GENES_TO_PHENOTYPE_URL,
+    sssom_url: str = MONDO_SSSOM_URL,
+) -> MagicMock:
     client = MagicMock()
     client.__enter__.return_value = client
     client.__exit__.return_value = False
-    client.head.side_effect = [
-        _head_response(**{"Content-Length": "101", "Last-Modified": PINNED_LAST_MODIFIED}),
-        _head_response(**{"Content-Length": "103", "ETag": '"hpo-pinned"'}),
-        _head_response(**{"Content-Length": "107", "ETag": '"sssom-pinned"'}),
+    responses = [
+        _head_response(
+            mondo_url,
+            **{
+                "Content-Length": "101",
+                "Last-Modified": PINNED_LAST_MODIFIED,
+                "ETag": mondo_etag,
+            },
+        ),
+        _head_response(hpo_url, **{"Content-Length": "103", "ETag": hpo_etag}),
+        _head_response(sssom_url, **{"Content-Length": "107", "ETag": sssom_etag}),
     ]
+    client.head.side_effect = responses * cycles
     return client
 
 
-def _write_pinned_sources(url: str, dest_dir: Path, filename: str, **kwargs: object) -> Path:
-    target = dest_dir / filename
-    target.parent.mkdir(parents=True, exist_ok=True)
-    metadata = kwargs.get("meta")
+@pytest.mark.parametrize(
+    ("changed_source", "changed_kwargs"),
+    [
+        ("MONDO", {"mondo_etag": '"mondo-changed"'}),
+        ("HPO", {"hpo_etag": '"hpo-changed"'}),
+        ("SSSOM", {"sssom_etag": '"sssom-changed"'}),
+    ],
+)
+def test_source_binding_changes_with_each_checked_validator(
+    changed_source: str,
+    changed_kwargs: dict[str, str],
+) -> None:
+    """Every source validator participates in the opaque worker binding."""
+    offered_client = _head_client()
+    with patch(
+        "backend.db.update_manager.httpx.Client",
+        return_value=offered_client,
+    ):
+        offered_binding = capture_mondo_hpo_source_binding(PINNED_MONDO_URL)
+    assert all(
+        request.kwargs == {"headers": {"Accept-Encoding": "identity"}}
+        for request in offered_client.head.call_args_list
+    )
+    assert PINNED_MONDO_URL not in offered_binding
+    expectations = decode_mondo_hpo_source_binding(offered_binding, PINNED_MONDO_URL)
+    assert set(expectations) == {
+        PINNED_MONDO_URL,
+        HPO_GENES_TO_PHENOTYPE_URL,
+        MONDO_SSSOM_URL,
+    }
+    assert expectations[PINNED_MONDO_URL].last_modified == PINNED_LAST_MODIFIED
+    assert expectations[HPO_GENES_TO_PHENOTYPE_URL].last_modified is None
+    assert expectations[MONDO_SSSOM_URL].last_modified is None
+    with pytest.raises(MondoHpoSourceBindingError, match="manifest source changed"):
+        decode_mondo_hpo_source_binding(offered_binding, f"{PINNED_MONDO_URL}?changed=1")
 
-    if filename == "gene_disease.9606.tsv.gz":
-        assert url == PINNED_MONDO_URL
-        content = (
-            "subject\tsubject_label\tpredicate\tobject\tobject_label\tqualifier\n"
-            "HGNC:1100\tBRCA1\tbiolink:gene_associated_with_condition\t"
-            "MONDO:0011450\tHereditary breast cancer\t\n"
-        )
-        with gzip.open(target, "wt", encoding="utf-8") as handle:
-            handle.write(content)
-        assert isinstance(metadata, dict)
-        metadata.update(
+    with patch(
+        "backend.db.update_manager.httpx.Client",
+        return_value=_head_client(**changed_kwargs),
+    ):
+        changed_binding = capture_mondo_hpo_source_binding(PINNED_MONDO_URL)
+
+    assert changed_binding != offered_binding, changed_source
+
+
+@pytest.mark.parametrize("bad_etag", ["", 'W/"weak"', "unquoted"])
+def test_source_binding_requires_a_strong_quoted_etag(
+    bad_etag: str,
+) -> None:
+    with (
+        patch(
+            "backend.db.update_manager.httpx.Client",
+            return_value=_head_client(hpo_etag=bad_etag),
+        ),
+        pytest.raises(MondoHpoSourceBindingError, match="no strong ETag"),
+    ):
+        capture_mondo_hpo_source_binding(PINNED_MONDO_URL)
+
+
+def test_checked_offer_uses_identity_encoded_snapshot_size() -> None:
+    """The bound identity representation, not an encoded first pass, sizes the offer."""
+    first_pass = VersionInfo(
+        db_name="mondo_hpo",
+        latest_version=PINNED_VERSION,
+        download_url=PINNED_MONDO_URL,
+        download_size_bytes=999,
+        release_date=PINNED_VERSION,
+    )
+    snapshot_client = _head_client()
+
+    with (
+        patch("backend.db.update_manager._check_mondo_hpo_update", return_value=first_pass),
+        patch("backend.db.update_manager.httpx.Client", return_value=snapshot_client),
+    ):
+        offered = check_mondo_hpo_update(MagicMock())
+
+    assert offered is first_pass
+    assert offered.download_size_bytes == 101 + 103 + 107
+    assert offered._source_binding is not None
+    assert all(
+        request.kwargs == {"headers": {"Accept-Encoding": "identity"}}
+        for request in snapshot_client.head.call_args_list
+    )
+
+
+class _SourceResponse:
+    def __init__(self, url: str, body: bytes, etag: str, *, status: int = 200) -> None:
+        self.url = url
+        self.status_code = status
+        self.headers = httpx.Headers(
             {
-                "etag": '"mondo-pinned"',
-                "last_modified": PINNED_LAST_MODIFIED,
-                "version": PINNED_VERSION,
+                "Content-Length": str(len(body)),
+                "ETag": etag,
+                "Last-Modified": PINNED_LAST_MODIFIED,
             }
         )
-    elif filename == "genes_to_phenotype.txt":
-        assert url == HPO_GENES_TO_PHENOTYPE_URL
-        target.write_text(
-            "ncbi_gene_id\tgene_symbol\thpo_id\thpo_name\tfrequency\tdisease_id\n"
-            "672\tBRCA1\tHP:0003002\tBreast carcinoma\t\tOMIM:604370\n",
-            encoding="utf-8",
-        )
-        assert isinstance(metadata, dict)
-        metadata.update({"etag": '"hpo-pinned"', "version": PINNED_VERSION})
-    else:
-        assert filename == "mondo.sssom.tsv"
-        assert url == MONDO_SSSOM_URL
-        target.write_text(
-            "subject_id\tsubject_label\tpredicate_id\tobject_id\tobject_label\t"
-            "mapping_justification\n"
-            "MONDO:0011450\tHereditary breast cancer\tskos:exactMatch\tOMIM:604370\t"
-            "Breast-ovarian cancer\tsemapv:UnspecifiedMatching\n",
-            encoding="utf-8",
-        )
-        assert isinstance(metadata, dict)
-        metadata.update({"etag": '"sssom-pinned"', "version": PINNED_VERSION})
-    return target
+        self._body = body
+
+    def __enter__(self) -> _SourceResponse:
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        return None
+
+    def raise_for_status(self) -> None:
+        if self.status_code >= 400:
+            raise httpx.HTTPStatusError(
+                "source request failed",
+                request=httpx.Request("GET", self.url),
+                response=httpx.Response(self.status_code),
+            )
+
+    def iter_raw(self, chunk_size: int) -> Iterator[bytes]:
+        for offset in range(0, len(self._body), chunk_size):
+            yield self._body[offset : offset + chunk_size]
+
+
+class _PinnedSourceClient:
+    def __init__(self, sources: dict[str, tuple[bytes, str]]) -> None:
+        self.sources = sources
+        self.get_requests: list[tuple[str, str | None]] = []
+
+    def __enter__(self) -> _PinnedSourceClient:
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        return None
+
+    def head(
+        self,
+        url: str,
+        *,
+        headers: dict[str, str] | None = None,
+    ) -> _SourceResponse:
+        if headers is not None:
+            assert headers == {"Accept-Encoding": "identity"}
+        body, etag = self.sources[url]
+        return _SourceResponse(url, body, etag)
+
+    def stream(self, method: str, url: str, *, headers: dict[str, str]) -> _SourceResponse:
+        assert method == "GET"
+        body, etag = self.sources[url]
+        if_match = headers.get("If-Match")
+        self.get_requests.append((url, if_match))
+        status = 200 if if_match == etag else 412
+        return _SourceResponse(url, body, etag, status=status)
+
+
+def _pinned_source_payloads() -> dict[str, tuple[bytes, str]]:
+    mondo_text = (
+        "subject\tsubject_label\tpredicate\tobject\tobject_label\tqualifier\n"
+        "HGNC:1100\tBRCA1\tbiolink:gene_associated_with_condition\t"
+        "MONDO:0011450\tHereditary breast cancer\t\n"
+    )
+    hpo_text = (
+        "ncbi_gene_id\tgene_symbol\thpo_id\thpo_name\tfrequency\tdisease_id\n"
+        "672\tBRCA1\tHP:0003002\tBreast carcinoma\t\tOMIM:604370\n"
+    )
+    sssom_text = (
+        "subject_id\tsubject_label\tpredicate_id\tobject_id\tobject_label\t"
+        "mapping_justification\n"
+        "MONDO:0011450\tHereditary breast cancer\tskos:exactMatch\tOMIM:604370\t"
+        "Breast-ovarian cancer\tsemapv:UnspecifiedMatching\n"
+    )
+    return {
+        PINNED_MONDO_URL: (gzip.compress(mondo_text.encode(), mtime=0), '"mondo-pinned"'),
+        HPO_GENES_TO_PHENOTYPE_URL: (hpo_text.encode(), '"hpo-pinned"'),
+        MONDO_SSSOM_URL: (sssom_text.encode(), '"sssom-pinned"'),
+    }
 
 
 def test_pinned_offer_is_installed_and_not_offered_again(
@@ -131,13 +286,14 @@ def test_pinned_offer_is_installed_and_not_offered_again(
     monkeypatch.setattr("backend.annotation.mondo_hpo.MINIMUM_HPO_GENES_TO_PHENOTYPE_BYTES", 1)
     monkeypatch.setattr("backend.annotation.mondo_hpo.MINIMUM_UNAMBIGUOUS_MONDO_XREFS", 1)
 
-    check_client = _head_client()
-    with patch("backend.annotation.mondo_hpo.httpx.Client", return_value=check_client):
+    source_client = _PinnedSourceClient(_pinned_source_payloads())
+    with patch("backend.annotation.mondo_hpo.httpx.Client", return_value=source_client):
         offered = check_mondo_hpo_update(reference_engine)
 
     assert offered is not None
     assert offered.download_url == PINNED_MONDO_URL
     assert offered.latest_version == PINNED_VERSION
+    assert offered._source_binding is not None
 
     settings = Settings(data_dir=tmp_path / "data", wal_mode=False)
     settings.downloads_dir.mkdir(parents=True, mode=0o700)
@@ -167,7 +323,7 @@ def test_pinned_offer_is_installed_and_not_offered_again(
     queued_task.assert_called_once_with(
         "job-mondo-hpo",
         "mondo_hpo",
-        bind_source_url(offered.download_url),
+        offered._source_binding,
     )
     assert offered.download_url not in repr(queued_task.call_args)
 
@@ -176,7 +332,7 @@ def test_pinned_offer_is_installed_and_not_offered_again(
         patch(
             "backend.db.database_registry.get_build_fn", return_value=download_and_load_mondo_hpo
         ),
-        patch("backend.annotation.mondo_hpo.download_file", side_effect=_write_pinned_sources),
+        patch("backend.annotation.mondo_hpo.httpx.Client", return_value=source_client),
         patch("backend.db.update_manager.run_precheck_all_samples"),
         patch("backend.tasks.huey_tasks._update_job"),
     ):
@@ -188,10 +344,19 @@ def test_pinned_offer_is_installed_and_not_offered_again(
                 database_versions.c.db_name == "mondo_hpo"
             )
         ).scalar_one()
+        installed_row = connection.execute(
+            sa.select(gene_phenotype).where(gene_phenotype.c.gene_symbol == "BRCA1")
+        ).one()
     assert installed_version.startswith(f"{offered.latest_version}+{MONDO_HPO_INGESTION_REVISION}")
+    assert installed_row.disease_id == "MONDO:0011450"
+    assert "HP:0003002" in installed_row.hpo_terms
+    assert source_client.get_requests == [
+        (PINNED_MONDO_URL, '"mondo-pinned"'),
+        (HPO_GENES_TO_PHENOTYPE_URL, '"hpo-pinned"'),
+        (MONDO_SSSOM_URL, '"sssom-pinned"'),
+    ]
 
-    recheck_client = _head_client()
-    with patch("backend.annotation.mondo_hpo.httpx.Client", return_value=recheck_client):
+    with patch("backend.annotation.mondo_hpo.httpx.Client", return_value=source_client):
         assert check_mondo_hpo_update(reference_engine) is None
 
     reset_cache()
@@ -225,3 +390,32 @@ def test_manual_trigger_refuses_when_recheck_has_no_offer(tmp_path: Path) -> Non
     recheck.assert_not_called()
     create_job.assert_not_called()
     queued_task.assert_not_called()
+
+
+def test_dashboard_check_offloads_blocking_source_validation(tmp_path: Path) -> None:
+    """The async API does not run the multi-source HEAD checks on its event loop."""
+    settings = Settings(
+        data_dir=tmp_path / "data",
+        wal_mode=False,
+        update_check_interval="daily",
+    )
+    registry = SimpleNamespace(reference_engine=MagicMock(), settings=settings)
+    result = UpdateCheckResult(up_to_date=["mondo_hpo"])
+
+    with (
+        patch("backend.api.routes.updates.get_registry", return_value=registry),
+        patch("backend.api.routes.updates.check_all_updates") as check_all,
+        patch(
+            "backend.api.routes.updates.asyncio.to_thread",
+            new=AsyncMock(return_value=result),
+        ) as to_thread,
+    ):
+        response = asyncio.run(check_for_updates())
+
+    to_thread.assert_awaited_once_with(
+        check_all,
+        registry.reference_engine,
+        settings=settings,
+    )
+    check_all.assert_not_called()
+    assert response.up_to_date == ["mondo_hpo"]
