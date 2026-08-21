@@ -118,6 +118,7 @@ def _build_lai_gate_registry(
     source_file_formats: tuple[str, str],
     lai_bundle_version: str,
     source_sample_ids: list[object] | None = None,
+    nested_source_sample_ids: list[object] | None = None,
 ) -> SimpleNamespace:
     """Reference DB + merged sample DB fixture for LAI soft-gate wrappers."""
     reference_engine = sa.create_engine("sqlite://")
@@ -147,6 +148,21 @@ def _build_lai_gate_registry(
                 ),
             )
         )
+
+    if nested_source_sample_ids is not None:
+        nested_db_path = tmp_path / "sample_4.db"
+        sample_engines[nested_db_path] = sa.create_engine(f"sqlite:///{nested_db_path}")
+        create_sample_tables(sample_engines[nested_db_path], is_merged_sample=True)
+        with sample_engines[nested_db_path].begin() as conn:
+            conn.execute(
+                merge_provenance.insert().values(
+                    id=1,
+                    strategy="prefer_23andme",
+                    source_sample_ids=json.dumps(nested_source_sample_ids),
+                    source_file_hashes=json.dumps(["hash-2", "merged-hash"]),
+                    concordance_summary="{}",
+                )
+            )
 
     with reference_engine.begin() as conn:
         conn.execute(
@@ -181,6 +197,16 @@ def _build_lai_gate_registry(
                 },
             ],
         )
+        if nested_source_sample_ids is not None:
+            conn.execute(
+                samples.insert().values(
+                    id=4,
+                    name="legacy-nested-merged",
+                    db_path="sample_4.db",
+                    file_format="merged_v1",
+                    file_hash="nested-merged-hash",
+                )
+            )
 
     def get_sample_engine(sample_db_path: Path) -> sa.Engine:
         return sample_engines[Path(sample_db_path)]
@@ -357,6 +383,125 @@ class TestMergedSampleSoftGate:
         with patch("backend.services.lai_coverage_gate.get_registry", return_value=registry):
             assert is_degraded_for_sample(3) is False
             assert is_degraded_globally() is False
+
+    def test_legacy_nested_merge_inherits_ancestrydna_leaf_warning(self, tmp_path: Path):
+        registry = _build_lai_gate_registry(
+            tmp_path,
+            source_file_formats=("ancestrydna_v2.0", "23andme_v5"),
+            lai_bundle_version="v1.0.0",
+            nested_source_sample_ids=[2, 3],
+        )
+
+        with patch("backend.services.lai_coverage_gate.get_registry", return_value=registry):
+            assert is_degraded_for_sample(4) is True
+            assert is_degraded_globally() is True
+
+    def test_legacy_nested_cycle_is_bounded_and_clear(self, tmp_path: Path):
+        registry = _build_lai_gate_registry(
+            tmp_path,
+            source_file_formats=("23andme_v5", "23andme_v4"),
+            lai_bundle_version="v1.0.0",
+            source_sample_ids=[4, 2],
+            nested_source_sample_ids=[2, 3],
+        )
+
+        with patch("backend.services.lai_coverage_gate.get_registry", return_value=registry):
+            assert is_degraded_for_sample(4) is False
+            assert is_degraded_globally() is False
+
+    @pytest.mark.parametrize(
+        "raw_source_ids",
+        [
+            pytest.param("[" + "1" * 5_000 + ",2]", id="oversized-integer"),
+            pytest.param("[" * 10_000 + "0" + "]" * 10_000, id="deep-nesting"),
+        ],
+    )
+    def test_pathological_source_json_is_advisory_and_clear(
+        self,
+        tmp_path: Path,
+        raw_source_ids: str,
+    ):
+        registry = _build_lai_gate_registry(
+            tmp_path,
+            source_file_formats=("23andme_v5", "23andme_v4"),
+            lai_bundle_version="v1.0.0",
+        )
+        merged_engine = registry.get_sample_engine(tmp_path / "sample_3.db")
+        with merged_engine.begin() as conn:
+            conn.execute(
+                merge_provenance.update()
+                .where(merge_provenance.c.id == 1)
+                .values(source_sample_ids=raw_source_ids)
+            )
+
+        with patch("backend.services.lai_coverage_gate.get_registry", return_value=registry):
+            assert is_degraded_for_sample(3) is False
+            assert is_degraded_globally() is False
+
+    def test_global_deep_chain_reads_each_merged_provenance_once(self):
+        merged_count = 1_500
+        reference_engine = sa.create_engine("sqlite://")
+        reference_metadata.create_all(reference_engine)
+        registry = SimpleNamespace(reference_engine=reference_engine)
+        try:
+            with reference_engine.begin() as conn:
+                conn.execute(
+                    database_versions.insert().values(
+                        db_name="lai_bundle",
+                        version="v1.0.0",
+                    )
+                )
+                conn.execute(
+                    samples.insert(),
+                    [
+                        {
+                            "id": 1,
+                            "name": "leaf-one",
+                            "db_path": "sample_1.db",
+                            "file_format": "23andme_v5",
+                            "file_hash": "leaf-one",
+                        },
+                        {
+                            "id": 2,
+                            "name": "leaf-two",
+                            "db_path": "sample_2.db",
+                            "file_format": "23andme_v4",
+                            "file_hash": "leaf-two",
+                        },
+                        *[
+                            {
+                                "id": sample_id,
+                                "name": f"merged-{sample_id}",
+                                "db_path": f"sample_{sample_id}.db",
+                                "file_format": "merged_v1",
+                                "file_hash": f"merged-{sample_id}",
+                            }
+                            for sample_id in range(3, merged_count + 3)
+                        ],
+                    ],
+                )
+
+            def source_ids(_registry, sample_id: int, _db_path: str) -> list[int]:
+                return [1, 2] if sample_id == 3 else [sample_id - 1, 1]
+
+            with (
+                patch(
+                    "backend.services.lai_coverage_gate.get_registry",
+                    return_value=registry,
+                ),
+                patch(
+                    "backend.services.lai_coverage_gate._source_ids_from_merged_sample",
+                    side_effect=source_ids,
+                ) as read_sources,
+            ):
+                assert is_degraded_globally() is False
+
+            assert read_sources.call_count == merged_count
+            assert {call.args[1] for call in read_sources.call_args_list} == set(
+                range(3, merged_count + 3)
+            )
+        finally:
+            reference_engine.dispose()
 
     @pytest.mark.parametrize("bad_source_id", ["2", 2.0, True])
     def test_merged_non_integer_source_id_is_malformed_and_clear(

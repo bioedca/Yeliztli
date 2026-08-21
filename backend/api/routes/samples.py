@@ -226,11 +226,13 @@ class MergedChildResponse(BaseModel):
 
 @router.get("/{sample_id}/merged-children")
 async def list_sample_merged_children(sample_id: int) -> list[MergedChildResponse]:
-    """List merged samples that reference this sample as a source.
+    """List merged descendants removed if this sample is deleted.
 
     Frontend uses this to surface the cascade impact on the per-row delete
-    confirmation (AncestryDNA Plan §10.8; Step 66 / MRG-02a). Returns ``[]``
-    when the sample has never been merged.
+    confirmation (AncestryDNA Plan §10.8; Step 66 / MRG-02a). Historical nested
+    merges are included transitively so the confirmation covers every row the
+    delete service will remove. Returns ``[]`` when the sample has never been
+    merged.
     """
     registry = get_registry()
     with registry.reference_engine.connect() as conn:
@@ -477,11 +479,11 @@ async def get_concordance_report(
 
 @router.delete("/{sample_id}", status_code=204)
 async def delete_sample(sample_id: int) -> None:
-    """Delete a sample and cascade to any merged children referencing it.
+    """Delete a sample and cascade to all merged descendants referencing it.
 
     AncestryDNA Plan §10.8 / Step 66: a single-confirmation cascade removes
-    every ``file_format='merged_v1'`` sample whose ``merge_provenance``
-    lists this row in ``source_sample_ids`` before tearing down the source.
+    every ``file_format='merged_v1'`` sample that directly or transitively
+    depends on this row before tearing down the source.
 
     Error surface:
 

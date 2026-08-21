@@ -1,10 +1,10 @@
 """Source-deletion cascade service (AncestryDNA Plan §10.8; Step 66 / MRG-02a).
 
 Deleting a sample that any ``merge_provenance.source_sample_ids`` JSON array
-references must cascade: every merged child is destroyed first (DB file +
-reference row), then the source row + DB. The walk lives in one module so
-every ``DELETE`` path uses identical semantics — Plan §10.8 declares the
-cascade as the contract, not the route layout.
+references must cascade: every direct or transitive merged child is destroyed
+first (DB file + reference row), then the source row + DB. The walk lives in
+one module so every ``DELETE`` path uses identical semantics — Plan §10.8
+declares the cascade as the contract, not the route layout.
 
 The traversal is O(N) over rows where ``samples.file_format == 'merged_v1'``
 because ``merge_provenance`` is a single-row table inside the *merged
@@ -60,24 +60,30 @@ class DeleteCascadeResult:
 
 
 def list_merged_children(registry: DBRegistry, sample_id: int) -> list[MergedChild]:
-    """Return every merged sample that lists ``sample_id`` in its sources.
+    """Return every merged descendant of ``sample_id``, deepest first.
 
-    Empty list when the sample has never been merged. A merged child whose
-    per-sample DB is missing on disk or whose provenance row is malformed is
-    skipped with a structured warning (the admin log explorer surfaces it),
-    so a partial install still completes the cascade on the legible rows.
+    Historical direct API calls could create a merged sample from another
+    merged sample before #2330. The endpoint name is retained for compatibility,
+    but the cascade preview and delete service must include those transitive
+    descendants or deleting a leaf source can strand a grandchild. A merged
+    row whose per-sample DB is missing or malformed is skipped with a structured
+    warning, so a partial install still completes the cascade on legible rows.
+
+    The returned post-order is deletion-safe: a grandchild appears before the
+    merged source it references. Iterative traversal handles deep legacy DAGs
+    without consuming Python call-stack depth and de-duplicates shared children.
     """
     settings = registry.settings
     with registry.reference_engine.connect() as conn:
         merged_rows = list(
             conn.execute(
-                sa.select(samples.c.id, samples.c.name, samples.c.db_path).where(
-                    samples.c.file_format == _MERGED_FILE_FORMAT
-                )
+                sa.select(samples.c.id, samples.c.name, samples.c.db_path)
+                .where(samples.c.file_format == _MERGED_FILE_FORMAT)
+                .order_by(samples.c.id.asc())
             )
         )
 
-    children: list[MergedChild] = []
+    children_by_source: dict[int, list[MergedChild]] = {}
     for row in merged_rows:
         merged_db_path = settings.data_dir / row.db_path
         if not merged_db_path.exists():
@@ -119,7 +125,7 @@ def list_merged_children(registry: DBRegistry, sample_id: int) -> list[MergedChi
             continue
         try:
             source_ids = json.loads(prov_row.source_sample_ids)
-        except (json.JSONDecodeError, TypeError):
+        except (ValueError, TypeError, UnicodeDecodeError, RecursionError):
             logger.warning(
                 "merged_provenance_malformed",
                 extra={
@@ -128,7 +134,9 @@ def list_merged_children(registry: DBRegistry, sample_id: int) -> list[MergedChi
                 },
             )
             continue
-        if not isinstance(source_ids, list):
+        if not isinstance(source_ids, list) or any(
+            type(source_id) is not int for source_id in source_ids
+        ):
             # Valid JSON, wrong shape (object/number/string). ``in`` would
             # raise or silently check keys — log-and-skip per the module
             # contract instead.
@@ -140,9 +148,30 @@ def list_merged_children(registry: DBRegistry, sample_id: int) -> list[MergedChi
                 },
             )
             continue
-        if sample_id in source_ids:
-            children.append(MergedChild(id=int(row.id), name=str(row.name)))
-    return children
+        child = MergedChild(id=int(row.id), name=str(row.name))
+        for source_id in dict.fromkeys(source_ids):
+            children_by_source.setdefault(source_id, []).append(child)
+
+    descendants: list[MergedChild] = []
+    seen = {sample_id}
+    child_by_id: dict[int, MergedChild] = {}
+    stack: list[tuple[int, int]] = [(sample_id, 0)]
+    while stack:
+        current_id, child_index = stack[-1]
+        current_children = children_by_source.get(current_id, [])
+        if child_index < len(current_children):
+            child = current_children[child_index]
+            stack[-1] = (current_id, child_index + 1)
+            if child.id in seen:
+                continue
+            seen.add(child.id)
+            child_by_id[child.id] = child
+            stack.append((child.id, 0))
+            continue
+        stack.pop()
+        if current_id != sample_id:
+            descendants.append(child_by_id[current_id])
+    return descendants
 
 
 def _delete_sample_files(registry: DBRegistry, db_path: str | None) -> None:
@@ -169,15 +198,15 @@ def _delete_sample_reference_rows(conn: sa.Connection, sample_id: int) -> None:
 
 
 def delete_sample_with_cascade(registry: DBRegistry, sample_id: int) -> DeleteCascadeResult | None:
-    """Delete ``sample_id`` and every merged child that referenced it.
+    """Delete ``sample_id`` and every merged descendant that referenced it.
 
     Returns ``None`` when ``sample_id`` does not exist (caller surfaces 404).
 
-    Plan §10.8 ordering: merged children — DB file *then* reference row — go
-    first; the source last. If the process is interrupted mid-cascade, a
-    merged sample whose source rows the registry still believes exist is the
-    worse failure mode (would silently mask the source's deletion), so the
-    source row is the last write.
+    Plan §10.8 ordering: merged descendants, deepest first — DB file *then*
+    reference row — go before the source. If the process is interrupted
+    mid-cascade, a merged sample whose source rows the registry still believes
+    exist is the worse failure mode (would silently mask the source's deletion),
+    so the source row is the last write.
     """
     with registry.reference_engine.connect() as conn:
         row = conn.execute(
