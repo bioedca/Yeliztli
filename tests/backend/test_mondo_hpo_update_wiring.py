@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import errno
 import gzip
 import hashlib
 import json
@@ -209,14 +210,49 @@ def test_source_binding_key_is_private_stable_and_shared_by_api_worker(
     api_settings = Settings(data_dir=shared_data)
     worker_settings = Settings(data_dir=shared_data)
 
-    first = _load_mondo_hpo_source_binding_key(api_settings)
-    second = _load_mondo_hpo_source_binding_key(worker_settings)
+    with patch(
+        "backend.db.update_manager.os.link",
+        side_effect=OSError(errno.EOPNOTSUPP, "hard links unavailable"),
+    ):
+        first = _load_mondo_hpo_source_binding_key(api_settings)
+        second = _load_mondo_hpo_source_binding_key(worker_settings)
     key_path = shared_data / ".source-binding.key"
+    lock_path = shared_data / ".source-binding.key.lock"
 
     assert first == second
     assert len(first) == 32
     assert key_path.read_bytes() == first
     assert key_path.stat().st_mode & 0o077 == 0
+    assert lock_path.is_file()
+    assert lock_path.stat().st_mode & 0o077 == 0
+
+
+def test_source_binding_rejects_a_lock_readable_by_other_users(tmp_path: Path) -> None:
+    """Another local user must not be able to open and indefinitely hold the lock."""
+    shared_data = tmp_path / "shared-data"
+    shared_data.mkdir()
+    lock_path = shared_data / ".source-binding.key.lock"
+    lock_path.touch(mode=0o644)
+    lock_path.chmod(0o644)
+
+    with pytest.raises(MondoHpoSourceBindingError, match="owner-controlled regular file"):
+        _load_mondo_hpo_source_binding_key(Settings(data_dir=shared_data))
+
+
+def test_source_binding_normalizes_an_unsupported_advisory_lock(tmp_path: Path) -> None:
+    """A mount without advisory locks fails closed without leaking raw OS errors."""
+    settings = Settings(data_dir=tmp_path / "shared-data")
+
+    with (
+        patch(
+            "backend.db.update_manager.fcntl.flock",
+            side_effect=OSError(errno.ENOTSUP, "advisory locks unavailable"),
+        ) as flock,
+        pytest.raises(MondoHpoSourceBindingError, match="key is unavailable"),
+    ):
+        _load_mondo_hpo_source_binding_key(settings)
+
+    assert flock.call_count == 1
 
 
 @pytest.mark.parametrize("bad_etag", ["", 'W/"weak"', "unquoted"])

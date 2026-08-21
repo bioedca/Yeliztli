@@ -58,6 +58,12 @@ from backend.db.tables import (
     update_history,
     watched_variants,
 )
+
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - native Windows has no POSIX advisory locks
+    fcntl = None  # type: ignore[assignment]
+
 from backend.services.staleness import find_stale_reference_versions
 
 if TYPE_CHECKING:
@@ -122,6 +128,7 @@ _MONDO_HPO_SOURCE_ROLES = ("mondo", "hpo", "mondo_sssom")
 
 _MONDO_HPO_SOURCE_BINDING_KEY_BYTES = 32
 _MONDO_HPO_SOURCE_BINDING_KEY_NAME = ".source-binding.key"
+_MONDO_HPO_SOURCE_BINDING_LOCK_NAME = ".source-binding.key.lock"
 
 
 def _read_mondo_hpo_source_binding_key(parent_fd: int) -> bytes:
@@ -167,8 +174,9 @@ def _load_mondo_hpo_source_binding_key(settings: object | None = None) -> bytes:
     key inside that snapshot would merely salt an offline credential oracle.
     The private sibling file instead lives in the effective data directory,
     which is the volume shared by the separate API and Huey containers.  A
-    fully-written temporary inode is hard-linked into place without replacing
-    a concurrent creator's key.
+    persistent advisory lock serializes creators, then an atomic rename
+    publishes only a fully-written key.  This avoids requiring hard-link
+    support from documented host-mounted data directories.
     """
     from backend.config import get_settings
 
@@ -192,10 +200,30 @@ def _load_mondo_hpo_source_binding_key(settings: object | None = None) -> bytes:
         raise MondoHpoSourceBindingError("MONDO/HPO source-binding key is unavailable") from None
 
     temporary_name: str | None = None
+    lock_fd: int | None = None
     try:
         parent_info = os.fstat(parent_fd)
         if not stat.S_ISDIR(parent_info.st_mode):
             raise MondoHpoSourceBindingError("MONDO/HPO source-binding key is unavailable")
+        if fcntl is None:
+            raise MondoHpoSourceBindingError("MONDO/HPO source-binding key is unavailable")
+        lock_flags = os.O_RDWR | os.O_CREAT | nofollow_flag | getattr(os, "O_CLOEXEC", 0)
+        lock_fd = os.open(
+            _MONDO_HPO_SOURCE_BINDING_LOCK_NAME,
+            lock_flags,
+            0o600,
+            dir_fd=parent_fd,
+        )
+        lock_info = os.fstat(lock_fd)
+        if (
+            not stat.S_ISREG(lock_info.st_mode)
+            or lock_info.st_uid != os.geteuid()
+            or lock_info.st_mode & (stat.S_IRWXG | stat.S_IRWXO)
+        ):
+            raise MondoHpoSourceBindingError(
+                "MONDO/HPO source-binding lock is not an owner-controlled regular file"
+            )
+        fcntl.flock(lock_fd, fcntl.LOCK_EX)
         try:
             return _read_mondo_hpo_source_binding_key(parent_fd)
         except FileNotFoundError:
@@ -218,31 +246,31 @@ def _load_mondo_hpo_source_binding_key(settings: object | None = None) -> bytes:
         finally:
             os.close(temporary_fd)
 
+        os.replace(
+            temporary_name,
+            _MONDO_HPO_SOURCE_BINDING_KEY_NAME,
+            src_dir_fd=parent_fd,
+            dst_dir_fd=parent_fd,
+        )
+        temporary_name = None
         try:
-            os.link(
-                temporary_name,
-                _MONDO_HPO_SOURCE_BINDING_KEY_NAME,
-                src_dir_fd=parent_fd,
-                dst_dir_fd=parent_fd,
-                follow_symlinks=False,
-            )
-            try:
-                os.fsync(parent_fd)
-            except OSError as exc:
-                # macOS can reject fsync on a directory descriptor.  The hard
-                # link is still atomic; only a power-loss durability hint is
-                # unavailable on that platform.
-                if exc.errno not in {errno.EINVAL, getattr(errno, "ENOTSUP", errno.EINVAL)}:
-                    raise
-        except FileExistsError:
-            # A concurrent API/worker creator won; read its complete key.
-            pass
+            os.fsync(parent_fd)
+        except OSError as exc:
+            # macOS can reject fsync on a directory descriptor.  The rename is
+            # still atomic; only a power-loss durability hint is unavailable.
+            if exc.errno not in {errno.EINVAL, getattr(errno, "ENOTSUP", errno.EINVAL)}:
+                raise
         return _read_mondo_hpo_source_binding_key(parent_fd)
     except MondoHpoSourceBindingError:
         raise
     except OSError:
         raise MondoHpoSourceBindingError("MONDO/HPO source-binding key is unavailable") from None
     finally:
+        if lock_fd is not None:
+            try:
+                os.close(lock_fd)
+            except OSError:
+                pass
         if temporary_name is not None:
             try:
                 os.unlink(temporary_name, dir_fd=parent_fd)
