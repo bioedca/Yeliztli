@@ -73,6 +73,11 @@ def _panel_genes(panel: dict) -> set[str]:
     }
 
 
+def _is_gene_keyed(panel: dict) -> bool:
+    """A gene-keyed panel (Cancer) lists ``genes`` instead of scored rsids."""
+    return isinstance(panel.get("genes"), list)
+
+
 def _panels_by_module() -> dict[str, dict]:
     loaded: dict[str, dict] = {}
     for path in sorted(PANEL_DIR.glob("*_panel.json")):
@@ -133,6 +138,36 @@ class TestEveryLinkDeclaresItsTarget:
             assert cross.get("drug"), f"{source}/{rsid} names no drug for the PGx lane"
             assert "target_rsids" not in cross, (
                 f"{source}/{rsid} declares rsids for a drug-keyed target"
+            )
+
+    def test_the_declared_currency_matches_the_target(self, panels: dict[str, dict]) -> None:
+        """Declaring *a* currency is not enough — it must be the target's.
+
+        "Exactly one of the three" alone leaves a hole: a link to ``skin``
+        carrying only ``drug`` satisfies it, skips the Pharmacogenomics-only
+        check because its target is not PGx, and skips both resolution tests
+        because it declares neither rsids nor genes. The guard would then accept
+        a declaration that says nothing verifiable about where it points.
+        """
+        for source, rsid, _gene, cross in _cross_module_links():
+            target = cross["module"]
+            if target == PHARMACOGENOMICS:
+                expected = "drug"
+            elif target in CODE_DEFINED_TARGETS:
+                expected = "target_rsids"
+            elif _is_gene_keyed(panels[target]):
+                expected = "target_genes"
+            else:
+                expected = "target_rsids"
+            shape = {
+                "drug": "drug-keyed",
+                "target_genes": "gene-keyed",
+                "target_rsids": "rsid-keyed",
+            }[expected]
+            declared = [key for key in ("target_rsids", "target_genes", "drug") if cross.get(key)]
+            assert declared == [expected], (
+                f"{source}/{rsid} -> {target} declares {declared}; "
+                f"a {shape} target requires {expected}"
             )
 
 
@@ -209,19 +244,39 @@ class TestMc1rDoesNotImplyCancerEvaluatesIt:
     def test_all_three_are_present(self) -> None:
         assert len(self._mc1r_links()) == len(self.MC1R_RSIDS)
 
-    def test_each_says_mc1r_is_not_among_the_genes_cancer_evaluates(self) -> None:
+    def test_each_says_cancer_does_not_evaluate_mc1r(self) -> None:
         for rsid, cross in self._mc1r_links():
             assert cross["module"] == "cancer"
-            assert "MC1R is not among the genes it evaluates" in cross["note"], (
+            assert "MC1R is not among the genes the Cancer module evaluates" in cross["note"], (
                 f"{rsid} promises Cancer without saying MC1R is not evaluated there"
             )
 
-    def test_each_names_the_genes_that_are(self, panels: dict[str, dict]) -> None:
-        cancer_genes = _panel_genes(panels["cancer"])
+    def test_the_note_stays_navigational(self) -> None:
+        """The note must not make a claim it cannot cite.
+
+        It is rendered beside the *source* variant's PMIDs — MC1R's — so a
+        sentence about what CDKN2A and BAP1 do would be a target-gene claim
+        carried on the wrong citations. Those genes belong in ``target_genes``,
+        where the guard below checks them against the Cancer panel, not in
+        prose the reader will read as evidenced.
+        """
         for rsid, cross in self._mc1r_links():
             for gene in ("CDKN2A", "BAP1"):
-                assert gene in cross["note"], f"{rsid} does not name {gene}"
-                assert gene in cancer_genes
+                assert gene not in cross["note"], (
+                    f"{rsid} names {gene} in prose rendered beside MC1R's citations"
+                )
+
+    def test_the_declaration_names_genes_cancer_really_evaluates(
+        self, panels: dict[str, dict]
+    ) -> None:
+        cancer_genes = _panel_genes(panels["cancer"])
+        for rsid, cross in self._mc1r_links():
+            declared = cross.get("target_genes")
+            assert declared, f"{rsid} declares no target genes"
+            for gene in declared:
+                assert gene in cancer_genes, (
+                    f"{rsid} promises {gene}, which Cancer does not evaluate"
+                )
 
 
 class TestSleepCyp1a2LinkRemoved:

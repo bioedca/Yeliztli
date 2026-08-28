@@ -645,6 +645,46 @@ class TestCrossModuleFindings:
         assert hom_ref_pr.called_snps, "fixture must present a called SNP to be meaningful"
         assert _generate_cross_module_findings([hom_ref_pr], patched) == []
 
+    def test_an_indeterminate_call_gets_no_cross_module_card(self, panel: SleepPanel) -> None:
+        """The scorer withheld this genotype as uninterpretable; so must the card.
+
+        ``called_snps`` filters on ``present_in_sample`` alone, so a
+        strand-ambiguous homozygote or unmodelled allele reaches the generator
+        even though ``_score_snp`` marked it Indeterminate. Pointing such a user
+        at a carrier-specific destination asserts a call the module refused to
+        make.
+        """
+        import copy
+
+        patched = copy.deepcopy(panel)
+        target_snp = next(
+            snp for pathway in patched.pathways for snp in pathway.snps if snp.rsid == "rs762551"
+        )
+        target_snp.cross_module = {"module": "traits", "note": "probe"}
+
+        indeterminate_pr = PathwayResult(
+            pathway_id="caffeine_sleep",
+            pathway_name="Caffeine & Sleep",
+            level=STANDARD,
+            snp_results=[
+                SNPResult(
+                    rsid="rs762551",
+                    gene="CYP1A2",
+                    variant_name="*1F",
+                    genotype="AT",
+                    category=INDETERMINATE,
+                    effect_summary="Unmodelled genotype",
+                    evidence_level=2,
+                    pmids=["16522833"],
+                    recommendation_text="",
+                    present_in_sample=True,
+                    metabolizer_state=None,
+                ),
+            ],
+        )
+        assert indeterminate_pr.called_snps, "called_snps must still include it to be meaningful"
+        assert _generate_cross_module_findings([indeterminate_pr], patched) == []
+
 
 # ── Integration tests ────────────────────────────────────────────────────
 

@@ -40,7 +40,7 @@
           "cross_module": {
             "module": "cancer",
             "target_genes": ["CDKN2A", "BAP1"],
-            "note": "MC1R R151C is associated with melanoma predisposition. The Cancer module assesses inherited melanoma risk through CDKN2A and BAP1; MC1R is not among the genes it evaluates. See Cancer module for melanoma risk assessment."
+            "note": "MC1R R151C is associated with melanoma predisposition. MC1R is not among the genes the Cancer module evaluates, so its melanoma assessment will not include this variant."
           }
         },
         {
@@ -75,7 +75,7 @@
           "cross_module": {
             "module": "cancer",
             "target_genes": ["CDKN2A", "BAP1"],
-            "note": "MC1R R160W contributes to melanoma predisposition. The Cancer module assesses inherited melanoma risk through CDKN2A and BAP1; MC1R is not among the genes it evaluates."
+            "note": "MC1R R160W contributes to melanoma predisposition. MC1R is not among the genes the Cancer module evaluates, so its melanoma assessment will not include this variant."
           }
         },
         {
@@ -110,7 +110,7 @@
           "cross_module": {
             "module": "cancer",
             "target_genes": ["CDKN2A", "BAP1"],
-            "note": "MC1R D294H is associated with melanoma predisposition. The Cancer module assesses inherited melanoma risk through CDKN2A and BAP1; MC1R is not among the genes it evaluates."
+            "note": "MC1R D294H is associated with melanoma predisposition. MC1R is not among the genes the Cancer module evaluates, so its melanoma assessment will not include this variant."
           }
         },
         {
