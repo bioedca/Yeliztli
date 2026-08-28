@@ -5,7 +5,7 @@
 ##ClinVarSource=https://clinicaltables.nlm.nih.gov/api/variants/v4/search
 ##ClinVarAccessed=20260716
 ##EnsemblGRCh37Source=https://grch37.rest.ensembl.org/variation/human/
-##EnsemblGRCh37Accessed=20260719
+##EnsemblGRCh37Accessed=20260827
 ##reference=GRCh37
 ##INFO=<ID=RS,Number=1,Type=String,Description="dbSNP ID">
 ##INFO=<ID=CLNSIG,Number=.,Type=String,Description="Clinical significance">

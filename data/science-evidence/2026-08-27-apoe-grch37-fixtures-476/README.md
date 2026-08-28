@@ -117,7 +117,19 @@ the wrong coordinate entirely.
 | rs769449 | `19:44906745` | `19:44906745` | `19:45410002` | `G` | correct GRCh38, wrong build |
 
 All three were rewritten to their verified GRCh37 mappings, which necessarily
-resolves the mispairing as well, and the affected rows were re-sorted. Two rows
+resolves the mispairing as well, and the affected rows were re-sorted.
+
+**How independent is that?** Partly, and the limit is stated rather than
+glossed. These three are non-coding, so there is no coding HGVS to project the
+way C1/C2 do for APOE, and the rsID→locus assertion has a single upstream
+lineage (dbSNP, mirrored by Ensembl). What *is* independent is the cross-build
+correspondence and the reference base: VariantValidator, given the genomic HGVS,
+validates the GRCh37 REF and returns GRCh38 `19:44905579`, `19:44905910`, and
+`19:44906745` — matching dbSNP's `chrpos` for rs405509, rs440446, and rs769449
+respectively. That is exactly what establishes the mispairing, because the
+fixture had rs440446 sitting on rs405509's GRCh38 coordinate. These three rows
+also carry no analytic weight: no module reads them, and they exist only as
+APOE-region context in a vendor fixture. Two rows
 in `sample_not_23andme.vcf` additionally declared REF/ALT the wrong way round
 (`rs405509` as `G>T`, `rs769449` as `A>G`); REF is the assembly base, so both
 were corrected against the hg19 reads. The derived genotypes are unchanged,
@@ -128,6 +140,15 @@ A third, unrelated defect surfaced in the same sweep and was corrected with it:
 neither its GRCh37 (`11:5248173`) nor its GRCh38 (`11:5226943`) position. It was
 the only such mismatch in any vendor fixture — the sweep checked every rsID the
 coordinate oracle knows across all six files.
+
+## `mini_clinvar.vcf` access date
+
+Every `RS=` record in the fixture was re-resolved against Ensembl GRCh37 on
+2026-08-27 *before* its `##EnsemblGRCh37Accessed` header was advanced to that
+date, so the header describes a retrieval that actually happened and that covers
+the changed rows. All real rsIDs match, with the documented one-base left anchor
+for the two VCF indels; the only non-matching row is the one the fixture itself
+flags `SYNTHETIC`.
 
 ## Discovery-tool ladder note
 

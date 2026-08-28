@@ -91,7 +91,7 @@
       "license_note": "NCBI policies consulted 2026-08-27; US-government-authored content is public domain."
     }
   ],
-  "independence_note": "Ensembl Variation imports rsID-to-coordinate mappings from dbSNP, so the Ensembl and dbSNP records share an upstream assertion and do NOT by themselves satisfy the two-agreeing-source rule. The independent mapping source is VariantValidator, which was given only the APOE coding HGVS and no rsID, and which projects the variant onto GRCh37 through RefSeq/UTA transcript alignments rather than through the dbSNP rsID record. The UCSC hg19 reference bases are an additional assembly-level control: they are necessary-but-not-sufficient for the positive claim, and decisive for excluding the rejected coordinates.",
+  "independence_note": "Ensembl Variation imports rsID-to-coordinate mappings from dbSNP, so the Ensembl and dbSNP records share an upstream assertion and do NOT by themselves satisfy the two-agreeing-source rule. The independent mapping source is VariantValidator, which was given only the APOE coding HGVS and no rsID, and which projects the variant onto GRCh37 through RefSeq/UTA transcript alignments rather than through the dbSNP rsID record. The UCSC hg19 reference bases are an additional assembly-level control: they are necessary-but-not-sufficient for the positive claim, and decisive for excluding the rejected coordinates. For the three APOE-region neighbours (rs405509, rs440446, rs769449) the position is fully independent only in part, and that is disclosed rather than papered over: they are non-coding, so there is no coding HGVS to project and the rsID-to-locus assertion has a single upstream lineage (dbSNP, mirrored by Ensembl). What IS independent is the cross-build correspondence and the reference base: VariantValidator, given the genomic HGVS, validates the GRCh37 REF and returns GRCh38 19:44905579 / 19:44905910 / 19:44906745, which match dbSNP's chrpos for rs405509 / rs440446 / rs769449 respectively -- and that is what establishes the mispairing, since the fixture had rs440446 on rs405509's GRCh38 coordinate. These three rows carry no analytic weight: no module reads them, and they exist as APOE-region context in a vendor fixture.",
   "sanitization": "None required. Every retained payload is a public reference-database, variant-mapping, or bibliographic record. No genotype, sample, personal, or credentialed data is present, and no payload was edited.",
   "requests": [
     {
@@ -247,6 +247,42 @@
       "source": "UCSC Genome Browser hg19 assembly sequence (REF confirmation)",
       "sha256": "dbc923bcab606082fde83ae70d45b1384edf97e4cf35b63bd6096b8e31227499",
       "bytes": 160
+    },
+    {
+      "payload": "raw/ncbi-dbsnp-esummary-440446-405509-769449.json",
+      "request": "GET https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=snp&id=440446,405509,769449&retmode=json",
+      "source": "NCBI dbSNP eSummary",
+      "sha256": "fb8244c7225ac50db13c40d7c078a57cc0131f965c412fdd8269ee356e1df093",
+      "bytes": 12734
+    },
+    {
+      "payload": "raw/variantvalidator-grch37-NC_000019.9-g.45408836T-G.json",
+      "request": "GET https://rest.variantvalidator.org/VariantValidator/variantvalidator/GRCh37/NC_000019.9%3Ag.45408836T%3EG/mane",
+      "source": "VariantValidator REST (GRCh37, genomic HGVS)",
+      "sha256": "fa00b93bd4b256fab7d960e4a8d141ba792951ddd6a80b7c30410e2d6454c91c",
+      "bytes": 1845
+    },
+    {
+      "payload": "raw/variantvalidator-grch37-NC_000019.9-g.45409167C-G.json",
+      "request": "GET https://rest.variantvalidator.org/VariantValidator/variantvalidator/GRCh37/NC_000019.9%3Ag.45409167C%3EG/mane",
+      "source": "VariantValidator REST (GRCh37, genomic HGVS)",
+      "sha256": "f41047339c4883c7e7a733240b8972438f8440a3abe5535be3506516603d3ff4",
+      "bytes": 2357
+    },
+    {
+      "payload": "raw/variantvalidator-grch37-NC_000019.9-g.45410002G-A.json",
+      "request": "GET https://rest.variantvalidator.org/VariantValidator/variantvalidator/GRCh37/NC_000019.9%3Ag.45410002G%3EA/mane",
+      "source": "VariantValidator REST (GRCh37, genomic HGVS)",
+      "sha256": "07bfeb3544b3f564a30ff3378a55c3cd5d1aabcf5e9a3632563395078a577187",
+      "bytes": 2349
+    },
+    {
+      "payload": "raw/ensembl-grch37-mini-clinvar-recheck.json",
+      "request": "GET https://grch37.rest.ensembl.org/variation/human/{rsid} for every RS= record in mini_clinvar.vcf",
+      "source": "Ensembl GRCh37 Variation REST (derived summary)",
+      "sha256": "4d4d72cc249d086bf8693efa447aba76d9428c0764af636175f27202a96ee4ef",
+      "bytes": 1461
     }
-  ]
+  ],
+  "mini_clinvar_recheck": "Every RS= record in tests/fixtures/mini_clinvar.vcf was re-resolved against Ensembl GRCh37 on 2026-08-27 before the fixture's ##EnsemblGRCh37Accessed header was advanced to that date. All real rsIDs match, with the documented one-base left anchor for the two VCF indels. The single non-matching row is the record the fixture itself flags SYNTHETIC."
 }
