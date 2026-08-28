@@ -172,12 +172,6 @@
       ]
     }
   ],
-  "additional_genes": {
-    "CYP1A2_pgx_context": {
-      "note": "CYP1A2 rs762551 appears under Caffeine & Sleep (slow metabolizer → sleep disruption), but is also a pharmacogene affecting metabolism of clozapine, theophylline, and other drugs. The Pharmacogenomics module provides the full drug interaction profile — Sleep module references but does not re-compute PGx findings.",
-      "rsids": ["rs762551"]
-    }
-  },
   "special_calling": {
     "CYP1A2_metabolizer": {
       "description": "Caffeine metabolizer status based on CYP1A2 rs762551 (-163C>A) genotype. This is not a full CYP1A2 star-allele call and does not emit CYP1A2 diplotypes.",

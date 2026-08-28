@@ -164,9 +164,17 @@ class TestPanelLoading:
                     assert "effect_summary" in effect
                     assert effect["category"] in (ELEVATED, MODERATE, STANDARD)
 
-    def test_panel_has_additional_genes(self, panel: SleepPanel) -> None:
-        assert panel.additional_genes is not None
-        assert "CYP1A2_pgx_context" in panel.additional_genes
+    def test_panel_declares_no_cross_module_links(self, panel: SleepPanel) -> None:
+        """Sleep's only link was CYP1A2 -> Pharmacogenomics, retired in #2024.
+
+        ``additional_genes`` went with it: its sole entry, ``CYP1A2_pgx_context``,
+        existed to drive that finding and its note asserted PGx coverage that
+        does not exist. Discriminating on the panel still being loaded — the SNP
+        it described is still scored, it just no longer points anywhere.
+        """
+        assert panel.additional_genes is None
+        assert all(snp.cross_module is None for pathway in panel.pathways for snp in pathway.snps)
+        assert any(snp.rsid == "rs762551" for pathway in panel.pathways for snp in pathway.snps)
 
     def test_panel_has_special_calling(self, panel: SleepPanel) -> None:
         assert panel.special_calling is not None
@@ -506,8 +514,16 @@ class TestPathwayLevel:
 
 
 class TestCrossModuleFindings:
-    def test_cyp1a2_pgx_cross_reference_generated(self, panel: SleepPanel) -> None:
-        """T3-50: CYP1A2 cross-reference reads PGx finding without re-computing."""
+    def test_cyp1a2_generates_no_cross_reference(self, panel: SleepPanel) -> None:
+        """A scored CYP1A2 result no longer produces a PGx handoff (#2024).
+
+        This is the half the panel edit alone did not reach. The generator was
+        keyed on ``additional_genes["CYP1A2_pgx_context"]`` rather than on the
+        SNP's ``cross_module`` block, so deleting the block left the finding
+        still being written on every fresh run and only filtered at read time.
+        The SNP result below is fully populated, so an empty list here is the
+        generator declining to link, not the pathway failing to score.
+        """
         caffeine_pr = PathwayResult(
             pathway_id="caffeine_sleep",
             pathway_name="Caffeine & Sleep",
@@ -516,7 +532,7 @@ class TestCrossModuleFindings:
                 SNPResult(
                     rsid="rs762551",
                     gene="CYP1A2",
-                    variant_name="*1F (-163C>A)",
+                    variant_name="*1F",
                     genotype="CC",
                     category=ELEVATED,
                     effect_summary="Slow metabolizer",
@@ -528,14 +544,8 @@ class TestCrossModuleFindings:
                 ),
             ],
         )
-        results = [caffeine_pr]
-        cross = _generate_cross_module_findings(results, panel)
-        assert len(cross) == 1
-        assert cross[0].rsid == "rs762551"
-        assert cross[0].target_module == "pharmacogenomics"
-        assert cross[0].source_module == "sleep"
-        assert "pharmacogenomics" in cross[0].finding_text.lower()
-        assert "Slow metabolizer" in cross[0].finding_text
+        assert caffeine_pr.called_snps, "fixture must present a called SNP to be meaningful"
+        assert _generate_cross_module_findings([caffeine_pr], panel) == []
 
     def test_no_cross_reference_when_cyp1a2_not_genotyped(self, panel: SleepPanel) -> None:
         """No cross-module reference when CYP1A2 is not in sample."""
@@ -548,8 +558,22 @@ class TestCrossModuleFindings:
         cross = _generate_cross_module_findings(results, panel)
         assert len(cross) == 0
 
-    def test_cross_reference_includes_metabolizer_state(self, panel: SleepPanel) -> None:
-        """Cross-module finding detail includes metabolizer state."""
+    def test_a_declared_link_would_still_be_honoured(self, panel: SleepPanel) -> None:
+        """The generator is panel-driven now, not hardcoded off (#2024).
+
+        Without this, "no cross-module findings" could equally mean the
+        generator was gutted. Injecting a link into a copy of the panel proves
+        it still resolves one when the panel declares it — which is what makes
+        the empty result above a statement about the panel, not the code.
+        """
+        import copy
+
+        patched = copy.deepcopy(panel)
+        target_snp = next(
+            snp for pathway in patched.pathways for snp in pathway.snps if snp.rsid == "rs762551"
+        )
+        target_snp.cross_module = {"module": "traits", "note": "probe"}
+
         caffeine_pr = PathwayResult(
             pathway_id="caffeine_sleep",
             pathway_name="Caffeine & Sleep",
@@ -570,9 +594,15 @@ class TestCrossModuleFindings:
                 ),
             ],
         )
-        cross = _generate_cross_module_findings([caffeine_pr], panel)
+        cross = _generate_cross_module_findings([caffeine_pr], patched)
         assert len(cross) == 1
-        assert cross[0].detail["metabolizer_state"] == "Intermediate metabolizer"
+        assert cross[0].target_module == "traits"
+        assert cross[0].detail["cross_module_note"] == "probe"
+        # A cross-module finding must record where it came from, not just where
+        # it points. This was the only read of the field anywhere in the repo,
+        # so dropping it turned CrossModuleFinding.source_module write-only and
+        # Vulture flagged it in all eight producers.
+        assert cross[0].source_module == MODULE_NAME
 
 
 # ── Integration tests ────────────────────────────────────────────────────
@@ -628,9 +658,10 @@ class TestScorePathways:
         # Metabolizer state
         assert result.metabolizer_state == "Slow metabolizer"
 
-        # Cross-module findings should exist
-        assert len(result.cross_module_findings) == 1
-        assert result.cross_module_findings[0].target_module == "pharmacogenomics"
+        # No cross-module findings: Sleep declares no links since #2024. The
+        # metabolizer assertion above is what keeps this discriminating — the
+        # same CYP1A2 row is still scored, it just no longer hands off.
+        assert result.cross_module_findings == []
 
     def test_cyp1a2_metabolizer_state(
         self,
@@ -757,32 +788,33 @@ class TestStoreFindingsIntegration:
         assert len(met_rows) == 1
         assert "Slow metabolizer" in met_rows[0].finding_text
 
-    def test_cross_module_finding_stored(
+    def test_no_cross_module_finding_is_stored(
         self,
         panel: SleepPanel,
         sample_engine: sa.Engine,
         reference_engine: sa.Engine,
     ) -> None:
-        """CYP1A2 PGx cross-module reference is stored."""
+        """A fresh run writes no CYP1A2 handoff row at all (#2024).
+
+        Retiring the link at read time keeps it off the page, but the row was
+        still being written on every scoring run — so any future reader that
+        forgot to normalise would resurface the dead promise. Nothing is
+        written now. The sibling metabolizer row proves the sample scored, so
+        an empty cross-module set is a real absence.
+        """
         _seed_variants(sample_engine, [("rs762551", "15", 75041917, "CC")])
 
         result = score_sleep_pathways(panel, sample_engine, reference_engine)
         store_sleep_findings(result, sample_engine)
 
         with sample_engine.connect() as conn:
-            cross_rows = conn.execute(
-                sa.select(findings).where(
-                    sa.and_(
-                        findings.c.module == MODULE_NAME,
-                        findings.c.category == "cross_module",
-                    )
-                )
+            rows = conn.execute(
+                sa.select(findings).where(findings.c.module == MODULE_NAME)
             ).fetchall()
 
-        assert len(cross_rows) == 1
-        assert "pharmacogenomics" in cross_rows[0].finding_text.lower()
-        detail = json.loads(cross_rows[0].detail_json)
-        assert detail["target_module"] == "pharmacogenomics"
+        assert rows, "sample stored no sleep findings at all — the check is vacuous"
+        assert [row for row in rows if row.category == "cross_module"] == []
+        assert any("metabolizer" in (row.finding_text or "").lower() for row in rows)
 
     def test_hla_finding_includes_coverage_note(
         self,

@@ -458,65 +458,61 @@ def _generate_cross_module_findings(
     pathway_results: list[PathwayResult],
     panel: SleepPanel,
 ) -> list[CrossModuleFinding]:
-    """Generate CYP1A2 cross-module reference to Pharmacogenomics.
+    """Generate a cross-module reference for every panel SNP that declares one.
 
-    CYP1A2 rs762551 appears in the Caffeine & Sleep pathway but is also
-    a pharmacogene. The Sleep module references the PGx module but does
-    NOT re-compute PGx findings — it's a display-only cross-link.
+    Driven by the panel, like the Skin and Traits generators. It used to be
+    hardcoded to CYP1A2 and keyed on ``additional_genes["CYP1A2_pgx_context"]``
+    rather than on the SNP's ``cross_module`` block, which is why deleting that
+    block did not stop the finding being written (#2024): the Sleep panel had
+    retired the link while the scorer still produced it on every fresh run, and
+    only the read-time retirement kept it off the page.
+
+    The Sleep panel declares no cross-module links today, so this yields
+    nothing — the same state ``panel_cross_module_links(load_sleep_panel())``
+    reports. If one is ever added it is honoured without further code.
     """
     cross_findings: list[CrossModuleFinding] = []
 
-    if panel.additional_genes is None:
-        return cross_findings
+    for pathway_result in pathway_results:
+        for snp_result in pathway_result.called_snps:
+            cross = _panel_snp_cross_module(panel, snp_result.rsid)
+            if cross is None:
+                continue
 
-    pgx_config = panel.additional_genes.get("CYP1A2_pgx_context")
-    if pgx_config is None:
-        return cross_findings
+            note = cross.get("note", "")
+            label = snp_result.variant_name or snp_result.rsid
+            cross_text = f"{snp_result.gene} {label} ({snp_result.genotype})"
+            if note:
+                cross_text = f"{cross_text} — {note}"
 
-    # Find CYP1A2 result from Caffeine & Sleep pathway
-    caffeine_pr = next(
-        (pr for pr in pathway_results if pr.pathway_id == "caffeine_sleep"),
-        None,
-    )
-    if caffeine_pr is None:
-        return cross_findings
-
-    cyp1a2_result = next(
-        (s for s in caffeine_pr.called_snps if s.rsid == "rs762551"),
-        None,
-    )
-    if cyp1a2_result is None:
-        return cross_findings
-
-    # Build cross-module reference text based on metabolizer state
-    metabolizer = cyp1a2_result.metabolizer_state or "Unknown"
-    cross_text = (
-        f"CYP1A2 rs762551 ({cyp1a2_result.genotype}) — {metabolizer}. "
-        "CYP1A2 is also a pharmacogene affecting metabolism of clozapine, "
-        "theophylline, and other drugs. See Pharmacogenomics module for "
-        "full drug interaction profile."
-    )
-
-    cross_findings.append(
-        CrossModuleFinding(
-            rsid="rs762551",
-            gene="CYP1A2",
-            source_module="sleep",
-            target_module="pharmacogenomics",
-            finding_text=cross_text,
-            evidence_level=cyp1a2_result.evidence_level,
-            pmids=cyp1a2_result.pmids,
-            detail={
-                "metabolizer_state": metabolizer,
-                "genotype": cyp1a2_result.genotype,
-                "source_pathway": "Caffeine & Sleep",
-                "target_module": "pharmacogenomics",
-                "cross_module_note": pgx_config.get("note", ""),
-            },
-        )
-    )
+            cross_findings.append(
+                CrossModuleFinding(
+                    rsid=snp_result.rsid,
+                    gene=snp_result.gene,
+                    source_module=MODULE_NAME,
+                    target_module=cross["module"],
+                    finding_text=cross_text,
+                    evidence_level=snp_result.evidence_level,
+                    pmids=snp_result.pmids,
+                    detail={
+                        "genotype": snp_result.genotype,
+                        "source_pathway": pathway_result.pathway_name,
+                        "target_module": cross["module"],
+                        "cross_module_note": note,
+                    },
+                )
+            )
 
     return cross_findings
+
+
+def _panel_snp_cross_module(panel: SleepPanel, rsid: str) -> dict | None:
+    """The ``cross_module`` block a panel SNP declares, if any."""
+    for pathway in panel.pathways:
+        for snp in pathway.snps:
+            if snp.rsid == rsid:
+                return snp.cross_module
+    return None
 
 
 # ── Main scoring function ────────────────────────────────────────────────

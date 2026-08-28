@@ -40,6 +40,7 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 PANEL_DIR = REPO_ROOT / "backend" / "data" / "panels"
 CPIC_GUIDELINES_PATH = REPO_ROOT / "backend" / "data" / "cpic" / "cpic_guidelines.csv"
+CPIC_ALLELES_PATH = REPO_ROOT / "backend" / "data" / "cpic" / "cpic_alleles.csv"
 
 #: Targets whose coverage is not a panel of scored rsids.
 PHARMACOGENOMICS = "pharmacogenomics"
@@ -259,6 +260,27 @@ class TestSleepCyp1a2LinkRemoved:
             rows = list(csv.DictReader(handle))
         drugs = {row["drug"].strip().lower() for row in rows}
         genes = {row["gene"].strip().upper() for row in rows}
+        assert drugs, "cpic_guidelines.csv parsed to no drugs — the check is vacuous"
         assert "clozapine" not in drugs
         assert "theophylline" not in drugs
         assert "CYP1A2" not in genes
+
+    def test_pgx_cannot_call_cyp1a2_at_all(self) -> None:
+        """The load-bearing fact, and the one the guideline table cannot show.
+
+        A drug row is not what makes the handoff possible — an allele definition
+        is. ``cpic_alleles.csv`` is the gene universe the caller can assign a
+        diplotype in, so CYP1A2's absence there is why Pharmacogenomics could
+        not interpret this variant even if a clozapine guideline appeared
+        tomorrow. Asserting only on ``cpic_guidelines`` would let a guideline
+        row alone read as "the link may return".
+        """
+        with CPIC_ALLELES_PATH.open(newline="", encoding="utf-8") as handle:
+            genes = {row["gene"].strip().upper() for row in csv.DictReader(handle)}
+        assert genes, "cpic_alleles.csv parsed to no genes — the check is vacuous"
+        assert "CYP1A2" not in genes, (
+            "Pharmacogenomics can now call CYP1A2; revisit the retired Sleep handoff"
+        )
+        # Discriminating: the same table does define the genes PGx does call, so
+        # the assertion above is a real absence rather than an empty read.
+        assert {"CYP2C19", "CYP2D6", "DPYD"} <= genes
