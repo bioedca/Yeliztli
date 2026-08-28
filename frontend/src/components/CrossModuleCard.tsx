@@ -3,8 +3,8 @@
  * Extracted from the near-identical local `CrossModuleCard` definitions that had
  * accumulated in the Sleep / Allergy / Skin / GeneHealth / TraitsPersonality
  * views. The target module's label and route come from the shared registry
- * (`getModuleMeta`) — the sidebar/router source of truth — not a hand-duplicated
- * local map, so labels and routes can't drift per-view (#699 / #838):
+ * (`getModuleMeta`) — the shared module source of truth — not a hand-duplicated
+ * local map, so labels and routes can't drift across views (#699/#838/#2039):
  *   - `route === null` → panel-only module → render the canonical label but NO
  *     "View in …" link.
  *

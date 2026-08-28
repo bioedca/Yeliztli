@@ -18,12 +18,15 @@ import PageError from "@/components/ui/PageError"
 import PageEmpty from "@/components/ui/PageEmpty"
 import { cn } from "@/lib/utils"
 import { parseSampleId } from "@/lib/format"
+import { getModuleMeta } from "@/lib/modules"
 import { useSleepPathways } from "@/api/sleep"
 import type { CrossModuleItem, MetabolizerState } from "@/types/sleep"
 import PathwayCard from "@/components/sleep/PathwayCard"
 import PathwayDetailPanel from "@/components/sleep/PathwayDetailPanel"
 import EvidenceStars from "@/components/ui/EvidenceStars"
 import CrossModuleCard from "@/components/CrossModuleCard"
+
+const SLEEP_LABEL = getModuleMeta("sleep").label
 
 const METABOLIZER_LABELS: Record<string, { label: string; color: string; description: string }> = {
   rapid: {
@@ -58,7 +61,7 @@ export default function SleepView() {
   if (sampleId == null) {
     return (
       <div className="p-6">
-        <h1 className="text-2xl font-bold mb-4">Gene Sleep</h1>
+        <h1 className="text-2xl font-bold mb-4">{SLEEP_LABEL}</h1>
         <PageEmpty icon={Moon} title="Select a sample to view sleep results." />
       </div>
     )
@@ -82,7 +85,7 @@ export default function SleepView() {
           <Moon className="h-5 w-5" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold">Gene Sleep</h1>
+          <h1 className="text-2xl font-bold">{SLEEP_LABEL}</h1>
           <p className="text-sm text-muted-foreground">
             Sleep quality, circadian rhythm, and caffeine metabolism based on your genotype
           </p>
