@@ -57,6 +57,15 @@ now checked against the same oracle: it must declare `##reference=GRCh37`, and
 every `RS=` record whose rsID the oracle knows must sit at the recorded GRCh37
 position — allowing the one-base left anchor that a VCF indel carries.
 
+The same applies to the **vendor raw-data fixtures**, which are ingestion inputs
+rather than reference data and so were never in the oracle's scope either. They
+are now guarded through the production parsers: each fixture's declared build is
+read back from `parse_23andme` / `parse_ancestrydna` (or from `##reference=` for
+`sample_not_23andme.vcf`), and its APOE rows must match that build. The build-36
+`sample_23andme_v3.txt` is asserted to *keep* its build-36 coordinates and to
+lift onto the GRCh37 oracle through `lift_build36_to_grch37`, so the exception
+stays deliberate rather than becoming a hole.
+
 Records consulted: the committed `panel_rsid_coordinates.json` oracle records
 per-record Ensembl GRCh37 Variation REST URLs (accessed 2026-07-16), and
 `../clinvar_seed_snapshot.json` records NLM Clinical Tables ClinVar identities

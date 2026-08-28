@@ -102,22 +102,39 @@ Recorded rather than assumed, per the repository's evidence contract:
 - **Scite** — **unavailable**: the monthly MCP call quota was exhausted (250/250), with a reported reset of 2026-09-03. No Scite result was used.
 - **Fallback** — the PubMed specialist connector was used in Scite's place, and both retained literature records were re-resolved through PubMed eSummary for title, journal, DOI, and retraction status.
 
-## Side finding (not fixed here; filed separately)
+## The APOE-region block in the vendor fixtures
 
-While confirming that the APOE block in the build-37-declaring **vendor sample**
-fixtures is coordinate-coherent, the three neighbouring APOE-region SNPs were
-checked as well. They are outside this issue's scope and were left unchanged.
+The build-37-declaring vendor fixtures carried the same GRCh38 APOE block, and
+normalizing only rs429358/rs7412 there would have left those files mixed-build
+inside a 7 kb window (and, for the VCF, out of sorted order). Checking the three
+neighbouring SNPs turned up a **second, different defect**: two were paired with
+the wrong coordinate entirely.
 
-| rsID | Vendor-fixture position | GRCh38 (record) | GRCh37 (record) |
-| --- | --- | --- | --- |
-| rs440446 | `19:44905579` | `19:44905910` | `19:45409167` |
-| rs405509 | `19:44905791` | `19:44905579` | `19:45408836` |
-| rs769449 | `19:44906745` | `19:44906745` | `19:45410002` |
+| rsID | Fixture position (before) | GRCh38 (record) | GRCh37 (record) | hg19 REF | Verdict |
+| --- | --- | --- | --- | --- | --- |
+| rs440446 | `19:44905579` | `19:44905910` | `19:45409167` | `C` | held **rs405509's** GRCh38 position |
+| rs405509 | `19:44905791` | `19:44905579` | `19:45408836` | `T` | held a position belonging to neither |
+| rs769449 | `19:44906745` | `19:44906745` | `19:45410002` | `G` | correct GRCh38, wrong build |
 
-`rs440446` therefore carries `rs405509`'s GRCh38 position, and `rs405509`
-carries a position that belongs to neither. This is a distinct defect class —
-rsID↔coordinate mispairing rather than a build mislabel — and is reported in
-its own issue.
+All three were rewritten to their verified GRCh37 mappings, which necessarily
+resolves the mispairing as well, and the affected rows were re-sorted. Two rows
+in `sample_not_23andme.vcf` additionally declared REF/ALT the wrong way round
+(`rs405509` as `G>T`, `rs769449` as `A>G`); REF is the assembly base, so both
+were corrected against the hg19 reads. The derived genotypes are unchanged,
+because the repository stores heterozygous calls in canonical sorted order.
+
+A third, unrelated defect surfaced in the same sweep and was corrected with it:
+`sample_23andme_v5.txt` placed `rs33950507` (HBB) at `11:5248281`, which is
+neither its GRCh37 (`11:5248173`) nor its GRCh38 (`11:5226943`) position. It was
+the only such mismatch in any vendor fixture — the sweep checked every rsID the
+coordinate oracle knows across all six files.
+
+## Discovery-tool ladder note
+
+The build-36 `sample_23andme_v3.txt` remains at `19:50103781` / `19:50103919`
+by design, and the regression guard now asserts that it does *and* that those
+coordinates lift onto the GRCh37 oracle values through the production
+`lift_build36_to_grch37` path.
 
 ## Retained evidence
 

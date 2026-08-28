@@ -219,6 +219,34 @@
       "source": "NCBI PubMed eSummary (citation verification)",
       "sha256": "9c0a8bf3f4c788ca96b04ace12cfb3b225e26d8bd55a5037f844d4dc71504e01",
       "bytes": 3934
+    },
+    {
+      "payload": "raw/ensembl-grch37-rs33950507.json",
+      "request": "GET https://grch37.rest.ensembl.org/variation/human/rs33950507?content-type=application/json",
+      "source": "Ensembl GRCh37 Variation REST",
+      "sha256": "1d6d024d32603dfb0dcefc7e6b01dd4d61dfb950cea8be4ec6a96338834d9871",
+      "bytes": 924
+    },
+    {
+      "payload": "raw/ucsc-hg19-chr19-45408836.json",
+      "request": "GET https://api.genome.ucsc.edu/getData/sequence?genome=hg19;chrom=chr19;start=45408835;end=45408836",
+      "source": "UCSC Genome Browser hg19 assembly sequence (REF confirmation)",
+      "sha256": "28e37ac7c029ed443f57b1b84f05d3c22f0d24aaf5a10e30ec314f2ad1740d89",
+      "bytes": 160
+    },
+    {
+      "payload": "raw/ucsc-hg19-chr19-45409167.json",
+      "request": "GET https://api.genome.ucsc.edu/getData/sequence?genome=hg19;chrom=chr19;start=45409166;end=45409167",
+      "source": "UCSC Genome Browser hg19 assembly sequence (REF confirmation)",
+      "sha256": "815dafb0018b7c939114ca2e1854a657e4476a1abfc1a333440d2e525b0a38c9",
+      "bytes": 160
+    },
+    {
+      "payload": "raw/ucsc-hg19-chr19-45410002.json",
+      "request": "GET https://api.genome.ucsc.edu/getData/sequence?genome=hg19;chrom=chr19;start=45410001;end=45410002",
+      "source": "UCSC Genome Browser hg19 assembly sequence (REF confirmation)",
+      "sha256": "dbc923bcab606082fde83ae70d45b1384edf97e4cf35b63bd6096b8e31227499",
+      "bytes": 160
     }
   ]
 }
