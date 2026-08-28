@@ -14,6 +14,7 @@ import { render, screen } from "@/test/test-utils"
 import Sidebar from "@/components/layout/Sidebar"
 import CommandPalette from "@/components/CommandPalette"
 import { navRoutes } from "@/lib/nav-routes"
+import { getModuleMeta } from "@/lib/modules"
 
 // The palette's page list is what this guard checks; its variant/sample groups
 // are irrelevant here, so stub their data hooks to keep only the Pages group.
@@ -33,6 +34,11 @@ const PREVIOUSLY_PALETTE_MISSING = [
   "/rare-variants",
 ]
 
+// These four module names drifted between the findings registry ("Fitness")
+// and the primary navigation ("Gene Fitness"). Their navigation labels must
+// come from the same canonical registry as findings and cross-module links.
+const CANONICAL_MODULE_NAV_KEYS = ["fitness", "sleep", "skin", "allergy"]
+
 describe("nav route registry (#638)", () => {
   it("is well-formed: unique absolute paths, non-empty labels", () => {
     const paths = navRoutes.map((r) => r.to)
@@ -48,6 +54,15 @@ describe("nav route registry (#638)", () => {
     const paths = new Set(navRoutes.map((r) => r.to))
     for (const route of PREVIOUSLY_PALETTE_MISSING) {
       expect(paths.has(route)).toBe(true)
+    }
+  })
+
+  it("uses canonical registry labels for shared module routes (#2039)", () => {
+    for (const moduleKey of CANONICAL_MODULE_NAV_KEYS) {
+      const meta = getModuleMeta(moduleKey)
+      const route = navRoutes.find((candidate) => candidate.to === meta.route)
+      expect(route, moduleKey).toBeDefined()
+      expect(route?.label, moduleKey).toBe(meta.label)
     }
   })
 

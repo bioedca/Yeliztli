@@ -102,11 +102,11 @@ describe("CommandPalette", () => {
 
   it("shows all module pages including new ones", () => {
     render(<CommandPalette open={true} onOpenChange={vi.fn()} />)
-    expect(screen.getByText("Gene Fitness")).toBeInTheDocument()
-    expect(screen.getByText("Gene Sleep")).toBeInTheDocument()
+    expect(screen.getByText("Fitness")).toBeInTheDocument()
+    expect(screen.getByText("Sleep")).toBeInTheDocument()
     expect(screen.getByText("Methylation")).toBeInTheDocument()
-    expect(screen.getByText("Gene Skin")).toBeInTheDocument()
-    expect(screen.getByText("Gene Allergy")).toBeInTheDocument()
+    expect(screen.getByText("Skin")).toBeInTheDocument()
+    expect(screen.getByText("Allergy")).toBeInTheDocument()
     expect(screen.getByText("Traits & Personality")).toBeInTheDocument()
     expect(screen.getByText("Gene Health")).toBeInTheDocument()
     expect(screen.getByText("Query Builder")).toBeInTheDocument()

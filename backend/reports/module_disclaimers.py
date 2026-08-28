@@ -32,11 +32,11 @@ MODULE_DISPLAY_NAMES: dict[str, str] = {
     "carrier": "Carrier Status",
     "ancestry": "Ancestry & Haplogroups",
     "gene_health": "Gene Health",
-    "fitness": "Gene Fitness",
-    "sleep": "Gene Sleep",
+    "fitness": "Fitness",
+    "sleep": "Sleep",
     "methylation": "MTHFR & Methylation",
-    "skin": "Gene Skin",
-    "allergy": "Gene Allergy",
+    "skin": "Skin",
+    "allergy": "Allergy",
     "traits": "Traits & Personality",
     "rare_variants": "Rare Variant Finder",
 }
@@ -122,7 +122,7 @@ MODULE_DISCLAIMERS: dict[str, dict[str, str]] = {
         ),
     },
     "fitness": {
-        "title": "About Gene Fitness Results",
+        "title": "About Fitness Results",
         "text": (
             "Fitness-related genetic findings reflect associations from "
             "published research. Individual athletic performance is "
@@ -132,7 +132,7 @@ MODULE_DISCLAIMERS: dict[str, dict[str, str]] = {
         ),
     },
     "sleep": {
-        "title": "About Gene Sleep Results",
+        "title": "About Sleep Results",
         "text": (
             "Sleep-related genetic findings reflect associations between "
             "variants and circadian rhythm, sleep quality, and related "
@@ -152,7 +152,7 @@ MODULE_DISCLAIMERS: dict[str, dict[str, str]] = {
         ),
     },
     "skin": {
-        "title": "About Gene Skin Results",
+        "title": "About Skin Results",
         "text": (
             "Skin-related genetic findings reflect associations with "
             "pigmentation, skin conditions, and dermatological traits. "
@@ -162,7 +162,7 @@ MODULE_DISCLAIMERS: dict[str, dict[str, str]] = {
         ),
     },
     "allergy": {
-        "title": "About Gene Allergy Results",
+        "title": "About Allergy Results",
         "text": (
             "Allergy-related findings include HLA proxy genotyping with "
             "limited accuracy. Drug hypersensitivity alerts based on HLA "
