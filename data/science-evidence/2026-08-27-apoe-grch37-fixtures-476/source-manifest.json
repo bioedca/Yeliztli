@@ -2,7 +2,31 @@
   "issue": 476,
   "accessed": "2026-08-27",
   "concern": "APOE epsilon-defining SNP coordinates in GRCh37-declared test fixtures",
-  "sanitization": "None required. Every retained payload is a public reference-database record for a named dbSNP identifier. No genotype, sample, personal, or credentialed data is present, and no payload was edited.",
+  "citations": [
+    {
+      "id": "PMID:11125122",
+      "doi": "10.1093/nar/29.1.308",
+      "title": "dbSNP: the NCBI database of genetic variation.",
+      "accessed": "2026-08-27",
+      "retraction_check": "no retraction or correction pubtype on the PubMed record"
+    },
+    {
+      "id": "PMID:12045153",
+      "doi": "10.1101/gr.229102",
+      "title": "The human genome browser at UCSC.",
+      "accessed": "2026-08-27",
+      "retraction_check": "no retraction or correction pubtype on the PubMed record"
+    },
+    {
+      "id": "PMID:39656687",
+      "doi": "10.1093/nar/gkae1071",
+      "title": "Ensembl 2025.",
+      "accessed": "2026-08-27",
+      "retraction_check": "no retraction or correction pubtype on the PubMed record"
+    }
+  ],
+  "independence_note": "Ensembl Variation imports rsID-to-coordinate mappings from dbSNP, so the Ensembl and dbSNP records share an upstream assertion and do NOT by themselves satisfy the two-agreeing-source rule. The independent second source is the GRCh37/hg19 assembly sequence read directly from UCSC, which is an assembly-level observation rather than a variant-database annotation.",
+  "sanitization": "None required. Every retained payload is a public reference-database or bibliographic record. No genotype, sample, personal, or credentialed data is present, and no payload was edited.",
   "requests": [
     {
       "payload": "raw/ensembl-grch37-rs429358.json",
@@ -45,6 +69,48 @@
       "source": "NCBI dbSNP eSummary",
       "sha256": "808cf88a7194252bc42f916a5c359fdf63d5638d67915d546afeffad1737c695",
       "bytes": 10025
+    },
+    {
+      "payload": "raw/ucsc-hg19-chr19-45411941.json",
+      "request": "GET https://api.genome.ucsc.edu/getData/sequence?genome=hg19;chrom=chr19;start=45411940;end=45411941",
+      "source": "UCSC Genome Browser hg19 assembly sequence",
+      "sha256": "c5413dee05b8ed4549c7dba60a74910c48bfe72289aa42e0f157fe9f8a979df3",
+      "bytes": 160
+    },
+    {
+      "payload": "raw/ucsc-hg19-chr19-45412079.json",
+      "request": "GET https://api.genome.ucsc.edu/getData/sequence?genome=hg19;chrom=chr19;start=45412078;end=45412079",
+      "source": "UCSC Genome Browser hg19 assembly sequence",
+      "sha256": "026847c8d1ab1dd40e891b886c143030f7dba629932ea7559fe9162a65342c25",
+      "bytes": 160
+    },
+    {
+      "payload": "raw/ucsc-hg19-chr19-44908684-control.json",
+      "request": "GET https://api.genome.ucsc.edu/getData/sequence?genome=hg19;chrom=chr19;start=44908683;end=44908684",
+      "source": "UCSC Genome Browser hg19 assembly sequence (negative control)",
+      "sha256": "33d57792f08b6e1592b09cb121301ad9a40b574a5ff3fb9acc08f43e47948ac4",
+      "bytes": 160
+    },
+    {
+      "payload": "raw/ucsc-hg19-chr19-44908822-control.json",
+      "request": "GET https://api.genome.ucsc.edu/getData/sequence?genome=hg19;chrom=chr19;start=44908821;end=44908822",
+      "source": "UCSC Genome Browser hg19 assembly sequence (negative control)",
+      "sha256": "56f70bee32e0075943d14511b2f855c2fae13a7cdbe884b936388df1caea047b",
+      "bytes": 160
+    },
+    {
+      "payload": "raw/ncbi-pubmed-esummary-11125122-12045153.json",
+      "request": "GET https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id=11125122,12045153&retmode=json",
+      "source": "NCBI PubMed eSummary (citation verification)",
+      "sha256": "614d1ef12a4723cc23c986167977d9f65b20dad65c25e494326963333fa85ee5",
+      "bytes": 3756
+    },
+    {
+      "payload": "raw/ncbi-pubmed-esummary-39656687-39658041.json",
+      "request": "GET https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id=39656687,39658041&retmode=json",
+      "source": "NCBI PubMed eSummary (citation verification)",
+      "sha256": "5d70ed6edadfda035342d8baa08cd0aa7af030c06452eb3eb3d8476fb10fc8cf",
+      "bytes": 8571
     }
   ]
 }
