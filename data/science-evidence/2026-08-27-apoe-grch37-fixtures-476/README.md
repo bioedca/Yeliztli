@@ -159,16 +159,26 @@ coordinates lift onto the GRCh37 oracle values through the production
 
 ## Retained evidence
 
-`raw/` holds eighteen unedited public responses: five Ensembl GRCh37 Variation
-REST records plus its release probe, one NCBI dbSNP eSummary record plus its
-build probe, two VariantValidator GRCh37 mappings, four UCSC hg19 single-base
-sequence reads (two positive, two negative control) plus its assembly-metadata
-probe, and three NCBI PubMed eSummary records used to verify the citations.
-`source-manifest.json` records each exact request URL, source, SHA-256, and byte
-length, plus a `source_provenance` block giving every source's observed
-release/version and its license reference with the terms consulted on
-2026-08-27, the citation list, the discovery-tool ladder, and the
-source-independence note.
-No sanitization was required: every payload is a public reference-database or
-bibliographic record and contains no genotype, sample, personal, or
-credentialed data.
+`raw/` holds the responses behind every claim above, and `source-manifest.json`
+records each one's exact request, source, SHA-256, and byte length. The counts
+below are the manifest's, so an auditor can reconcile the two directly.
+
+| Group | Payloads | What they support |
+| --- | --- | --- |
+| Ensembl GRCh37 Variation REST | 6 rsID records + 1 release probe + 1 derived `mini_clinvar.vcf` recheck | corroborating variant-database mapping (C3); the fixture re-dating |
+| NCBI dbSNP | 2 eSummary records + 1 build probe | the GRCh37/GRCh38 pairing (C3, C4) and the neighbour cross-build check |
+| VariantValidator | 2 coding-HGVS mappings + 3 genomic-HGVS validations | the independent mapping (C2) and the neighbour REF/cross-build check |
+| UCSC hg19 | 7 single-base reads (4 APOE incl. 2 negative controls, 3 neighbour REF) + 1 assembly-metadata probe | the assembly-level control (C5) |
+| NCBI PubMed eSummary | 3 records | citation verification and retraction checks |
+| Consensus | 1 derived result-set record | the discovery-tool ladder's first rung |
+
+Beyond the payloads, `source-manifest.json` carries a `source_provenance` block
+giving every source's observed release/version and its license reference with
+the terms consulted on 2026-08-27, the citation list, the discovery-tool ladder,
+the `mini_clinvar.vcf` recheck note, and the source-independence note.
+
+No sanitization was required for the HTTP payloads: each is a public
+reference-database, variant-mapping, or bibliographic record containing no
+genotype, sample, personal, or credentialed data, and none was edited. The
+Consensus entry is explicitly a derived record rather than a wire capture,
+because that tool returns through MCP rather than over HTTP.

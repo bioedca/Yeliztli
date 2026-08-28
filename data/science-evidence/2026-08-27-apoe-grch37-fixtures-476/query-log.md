@@ -86,4 +86,6 @@ Observed versions and license references are recorded per source in
 | 25 | `GET .../esummary.fcgi?db=snp&id=440446,405509,769449` | Second record for the side finding | HTTP 200 |
 
 Transient upstream failures are recorded above rather than retried silently.
-No quota limit was reached.
+No quota limit was reached on any of the direct HTTP endpoints above; the one
+quota exhaustion in this packet is Scite's, recorded in the discovery-tool
+ladder.

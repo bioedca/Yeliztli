@@ -50,7 +50,7 @@
     }
   ],
   "discovery_tool_ladder": {
-    "consensus": "Invoked 2026-08-27 \u2014 query 'APOE epsilon allele defining SNPs rs429358 rs7412 chromosome 19 genomic coordinates GRCh37'; 20 papers returned. No paper asserts a genomic coordinate (literature reports APOE variants by codon/coding position, not by build coordinate). It did surface the two records now cited as the rsID-to-coding-position anchor.",
+    "consensus": "Invoked 2026-08-27 \u2014 query 'APOE epsilon allele defining SNPs rs429358 rs7412 chromosome 19 genomic coordinates GRCh37'; 20 papers returned. No paper asserts a genomic coordinate (literature reports APOE variants by codon/coding position, not by build coordinate). It did surface the two records now cited as the rsID-to-coding-position anchor. The returned result set is retained, reduced to citation identity, at raw/consensus-search-apoe-grch37-derived.json; Consensus returns through an MCP tool rather than an HTTP endpoint, so no verbatim wire payload exists to keep.",
     "scite": "Unavailable 2026-08-27 \u2014 monthly MCP call quota exhausted (250/250); the service reported a reset date of 2026-09-03. No Scite result was used.",
     "fallback": "PubMed specialist connector used in place of Scite: search 'APOE AND (rs429358 OR rs7412) AND (codon 112 OR codon 158)' returned 2 records, of which PMID:27078154 is retained. Both retained literature records were then re-resolved through PubMed eSummary for title, journal, DOI, and retraction status."
   },
@@ -282,6 +282,13 @@
       "source": "Ensembl GRCh37 Variation REST (derived summary)",
       "sha256": "4d4d72cc249d086bf8693efa447aba76d9428c0764af636175f27202a96ee4ef",
       "bytes": 1461
+    },
+    {
+      "payload": "raw/consensus-search-apoe-grch37-derived.json",
+      "request": "Consensus MCP `search` (tool call, not an HTTP endpoint) \u2014 query recorded in the payload",
+      "source": "Consensus MCP (derived, sanitized result-set record)",
+      "sha256": "a855ea7d8ac79044790503cce9e9b007638f4d096ed66eb56df37920c5a1d058",
+      "bytes": 1910
     }
   ],
   "mini_clinvar_recheck": "Every RS= record in tests/fixtures/mini_clinvar.vcf was re-resolved against Ensembl GRCh37 on 2026-08-27 before the fixture's ##EnsemblGRCh37Accessed header was advanced to that date. All real rsIDs match, with the documented one-base left anchor for the two VCF indels. The single non-matching row is the record the fixture itself flags SYNTHETIC."
