@@ -20,6 +20,7 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { parseSampleId } from "@/lib/format"
+import { getModuleMeta } from "@/lib/modules"
 import { useSkinPathways } from "@/api/skin"
 import type {
   InsufficientDataItem,
@@ -33,6 +34,8 @@ import PageLoading from "@/components/ui/PageLoading"
 import PageError from "@/components/ui/PageError"
 import PageEmpty from "@/components/ui/PageEmpty"
 import CrossModuleCard from "@/components/CrossModuleCard"
+
+const SKIN_LABEL = getModuleMeta("skin").label
 
 interface MC1RSummaryStyle {
   card: string
@@ -239,7 +242,7 @@ export default function SkinView() {
   if (sampleId == null) {
     return (
       <div className="p-6">
-        <h1 className="text-2xl font-bold mb-4">Gene Skin</h1>
+        <h1 className="text-2xl font-bold mb-4">{SKIN_LABEL}</h1>
         <PageEmpty icon={Sun} title="Select a sample to view skin results." />
       </div>
     )
@@ -258,7 +261,7 @@ export default function SkinView() {
           <Sun className="h-5 w-5" aria-hidden="true" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold">Gene Skin</h1>
+          <h1 className="text-2xl font-bold">{SKIN_LABEL}</h1>
           <p className="text-sm text-muted-foreground">
             Skin health traits including pigmentation, UV response, barrier function, and micronutrients
           </p>

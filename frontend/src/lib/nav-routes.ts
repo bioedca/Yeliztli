@@ -25,10 +25,8 @@ import {
   ClipboardList,
   Dna,
   Droplet,
-  Dumbbell,
   FileText,
   FlaskConical,
-  Flower2,
   Fingerprint,
   Globe,
   Heart,
@@ -36,16 +34,15 @@ import {
   Layers,
   LayoutDashboard,
   type LucideIcon,
-  Moon,
   Pill,
   SearchCheck,
   Settings,
   ShieldAlert,
   SlidersHorizontal,
-  Sun,
   Syringe,
   Table2,
 } from 'lucide-react'
+import { getModuleMeta } from '@/lib/modules'
 
 export interface NavRoute {
   /** Router path, e.g. `/findings`. */
@@ -56,6 +53,20 @@ export interface NavRoute {
   label: string
   /** Optional longer title spoken after client-side navigation. */
   announcementLabel?: string
+}
+
+/** Build a primary route from the canonical module registry. */
+function moduleNavRoute(moduleKey: string, announcementLabel?: string): NavRoute {
+  const meta = getModuleMeta(moduleKey)
+  if (meta.route == null) {
+    throw new Error(`Primary navigation module "${moduleKey}" has no route`)
+  }
+  return {
+    to: meta.route,
+    icon: meta.icon,
+    label: meta.label,
+    ...(announcementLabel ? { announcementLabel } : {}),
+  }
 }
 
 export const navRoutes: NavRoute[] = [
@@ -72,21 +83,16 @@ export const navRoutes: NavRoute[] = [
   { to: '/hla', icon: Syringe, label: 'HLA (imputed)' },
   { to: '/apoe', icon: Brain, label: 'APOE' },
   { to: '/carrier-status', icon: Baby, label: 'Carrier Status' },
-  { to: '/fitness', icon: Dumbbell, label: 'Gene Fitness' },
-  { to: '/sleep', icon: Moon, label: 'Gene Sleep' },
+  moduleNavRoute('fitness'),
+  moduleNavRoute('sleep'),
   {
     to: '/methylation',
     icon: FlaskConical,
     label: 'Methylation',
     announcementLabel: 'MTHFR & Methylation',
   },
-  { to: '/skin', icon: Sun, label: 'Gene Skin' },
-  {
-    to: '/allergy',
-    icon: Flower2,
-    label: 'Gene Allergy',
-    announcementLabel: 'Gene Allergy & Immune Sensitivities',
-  },
+  moduleNavRoute('skin'),
+  moduleNavRoute('allergy', 'Allergy & Immune Sensitivities'),
   { to: '/traits', icon: Fingerprint, label: 'Traits & Personality' },
   { to: '/gene-health', icon: Activity, label: 'Gene Health' },
   { to: '/ancestry', icon: Globe, label: 'Ancestry' },

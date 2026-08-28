@@ -6,11 +6,11 @@
  * and passes axe-core WCAG 2.1 AA accessibility checks.
  *
  * Modules verified:
- *   1. Gene Fitness   (/fitness)
- *   2. Gene Sleep     (/sleep)
- *   3. Gene Skin      (/skin)
+ *   1. Fitness        (/fitness)
+ *   2. Sleep          (/sleep)
+ *   3. Skin           (/skin)
  *   4. MTHFR & Methylation (/methylation)
- *   5. Gene Allergy   (/allergy)
+ *   5. Allergy        (/allergy)
  *   6. Traits & Personality (/traits)
  *   7. Gene Health    (/gene-health)
  *   8. Familial Hypercholesterolemia (/fh) — added for page-coverage parity (#551)
@@ -28,17 +28,17 @@ test.beforeEach(async ({ page }) => {
 const MODULE_PAGES = [
   {
     path: '/fitness',
-    title: 'Gene Fitness',
+    title: 'Fitness',
     emptyText: 'Select a sample to view fitness results.',
   },
   {
     path: '/sleep',
-    title: 'Gene Sleep',
+    title: 'Sleep',
     emptyText: 'Select a sample to view sleep results.',
   },
   {
     path: '/skin',
-    title: 'Gene Skin',
+    title: 'Skin',
     emptyText: 'Select a sample to view skin results.',
   },
   {
@@ -48,7 +48,7 @@ const MODULE_PAGES = [
   },
   {
     path: '/allergy',
-    title: 'Gene Allergy & Immune Sensitivities',
+    title: 'Allergy',
     emptyText: 'Select a sample to view allergy & immune sensitivity results.',
   },
   {

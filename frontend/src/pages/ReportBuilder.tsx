@@ -43,8 +43,8 @@ export const MAX_INLINE_PREVIEW_HTML_CHARS = 2_000_000
 /** Human-readable labels for finding module keys. Note the key is "carrier"
  * (the value `carrier_status.py` writes), not "carrier_status". This map is for
  * *labels only* — it never gates which modules appear (see `availableModules`).
- * Modules missing here can still use the canonical shared registry before the
- * last-resort humanized fallback. */
+ * Only intentional long-form overrides belong here. Modules missing here use
+ * the canonical shared registry before the last-resort humanized fallback. */
 const MODULE_DISPLAY_NAMES: Record<string, string> = {
   cancer: "Cancer Predisposition",
   cardiovascular: "Cardiovascular Genetics",
@@ -57,11 +57,7 @@ const MODULE_DISPLAY_NAMES: Record<string, string> = {
   carrier: "Carrier Status",
   ancestry: "Ancestry & Haplogroups",
   gene_health: "Gene Health",
-  fitness: "Gene Fitness",
-  sleep: "Gene Sleep",
   methylation: "MTHFR & Methylation",
-  skin: "Gene Skin",
-  allergy: "Gene Allergy",
   traits: "Traits & Personality",
   rare_variants: "Rare Variant Finder",
 }

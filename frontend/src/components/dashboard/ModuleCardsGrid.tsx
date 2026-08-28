@@ -25,6 +25,7 @@ import ModuleCard from './ModuleCard'
 import { useFindingsSummary } from '@/api/findings'
 import type { FindingSummaryItem } from '@/types/findings'
 import { withActiveSample } from '@/lib/navigation'
+import { getModuleMeta } from '@/lib/modules'
 
 interface ModuleCardConfig {
   to: string
@@ -91,21 +92,21 @@ const MODULE_CARDS: ModuleCardConfig[] = [
   {
     to: '/fitness',
     moduleKey: 'fitness',
-    label: 'Gene Fitness',
+    label: getModuleMeta('fitness').label,
     icon: Dumbbell,
     description: 'Athletic and fitness traits including endurance, power, and recovery.',
   },
   {
     to: '/sleep',
     moduleKey: 'sleep',
-    label: 'Gene Sleep',
+    label: getModuleMeta('sleep').label,
     icon: Moon,
     description: 'Sleep quality, circadian rhythm, and caffeine metabolism.',
   },
   {
     to: '/allergy',
     moduleKey: 'allergy',
-    label: 'Gene Allergy',
+    label: getModuleMeta('allergy').label,
     icon: Flower2,
     description: 'Atopic conditions, drug hypersensitivity, food sensitivities, and histamine metabolism.',
   },

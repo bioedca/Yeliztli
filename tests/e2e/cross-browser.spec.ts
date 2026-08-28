@@ -34,11 +34,11 @@ const CORE_PAGES = [
   { path: '/fh', title: 'Familial Hypercholesterolemia' },
   { path: '/ancestry', title: 'Ancestry' },
   { path: '/carrier-status', title: 'Carrier Status' },
-  { path: '/fitness', title: 'Gene Fitness' },
-  { path: '/sleep', title: 'Gene Sleep' },
-  { path: '/skin', title: 'Gene Skin' },
+  { path: '/fitness', title: 'Fitness' },
+  { path: '/sleep', title: 'Sleep' },
+  { path: '/skin', title: 'Skin' },
   { path: '/methylation', title: 'MTHFR & Methylation' },
-  { path: '/allergy', title: 'Gene Allergy & Immune Sensitivities' },
+  { path: '/allergy', title: 'Allergy' },
   { path: '/traits', title: 'Traits & Personality' },
   { path: '/gene-health', title: 'Gene Health' },
   { path: '/findings', title: 'All Findings' },
@@ -247,7 +247,7 @@ test.describe('P4-26d: Cross-browser — dark mode', () => {
     { path: '/variants', title: 'Variant Explorer' },
     { path: '/pharmacogenomics', title: 'Pharmacogenomics' },
     { path: '/settings', title: 'Settings' },
-    { path: '/fitness', title: 'Gene Fitness' },
+    { path: '/fitness', title: 'Fitness' },
     { path: '/ancestry', title: 'Ancestry' },
   ]
 
@@ -309,7 +309,7 @@ test.describe('P4-26d: Cross-browser — interactive elements', () => {
 
     // Verify page navigation items are visible
     await expect(page.getByRole('option', { name: /Dashboard/i })).toBeVisible()
-    await expect(page.getByRole('option', { name: /Gene Fitness/i })).toBeVisible()
+    await expect(page.getByRole('option', { name: /^Fitness$/i })).toBeVisible()
     await expect(page.getByRole('option', { name: /Query Builder/i })).toBeVisible()
 
     // Type a page name and verify filtering
@@ -435,7 +435,7 @@ test.describe('P4-26d: Cross-browser — WCAG 2.1 AA compliance', () => {
     { path: '/pharmacogenomics', title: 'Pharmacogenomics' },
     { path: '/settings', title: 'Settings' },
     { path: '/findings', title: 'All Findings' },
-    { path: '/fitness', title: 'Gene Fitness' },
+    { path: '/fitness', title: 'Fitness' },
   ]
 
   // Pages where Firefox/WebKit axe-core reports false-positive color-contrast
