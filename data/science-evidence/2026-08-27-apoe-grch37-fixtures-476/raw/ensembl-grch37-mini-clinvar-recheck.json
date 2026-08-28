@@ -1,0 +1,72 @@
+{
+  "accessed": "2026-08-27",
+  "source": "https://grch37.rest.ensembl.org/variation/human/{rsid}",
+  "rsids": {
+    "rs429358": {
+      "chrom": "19",
+      "start": 45411941,
+      "allele_string": "T/C",
+      "strand": 1
+    },
+    "rs7412": {
+      "chrom": "19",
+      "start": 45412079,
+      "allele_string": "C/T",
+      "strand": 1
+    },
+    "rs1801133": {
+      "chrom": "1",
+      "start": 11856378,
+      "allele_string": "G/A/C",
+      "strand": 1
+    },
+    "rs4680": {
+      "chrom": "22",
+      "start": 19951271,
+      "allele_string": "G/A",
+      "strand": 1
+    },
+    "rs80357906": {
+      "chrom": "17",
+      "start": 41209080,
+      "allele_string": "GGG/GGGG",
+      "strand": 1
+    },
+    "rs113993960": {
+      "chrom": "7",
+      "start": 117199645,
+      "allele_string": "TCTT/T/TCTTCTT",
+      "strand": 1
+    },
+    "rs12345": {
+      "chrom": "22",
+      "start": 25855459,
+      "allele_string": "G/A/C",
+      "strand": 1
+    },
+    "rs28897696": {
+      "chrom": "17",
+      "start": 41215920,
+      "allele_string": "G/A/C/T",
+      "strand": 1
+    },
+    "rs334": {
+      "chrom": "11",
+      "start": 5248232,
+      "allele_string": "T/A/C/G",
+      "strand": 1
+    },
+    "rs12913832": {
+      "chrom": "15",
+      "start": 28365618,
+      "allele_string": "A/C/G",
+      "strand": 1
+    },
+    "rs7903146": {
+      "chrom": "10",
+      "start": 114758349,
+      "allele_string": "C/G/T",
+      "strand": 1
+    }
+  }
+}

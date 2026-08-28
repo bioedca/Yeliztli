@@ -63,7 +63,7 @@ SEED_CLINVAR = [
     {
         "rsid": "rs429358",
         "chrom": "19",
-        "pos": 44908684,
+        "pos": 45411941,
         "ref": "T",
         "alt": "C",
         "significance": "risk_factor",
@@ -89,7 +89,7 @@ SEED_CLINVAR = [
     {
         "rsid": "rs7412",
         "chrom": "19",
-        "pos": 44908822,
+        "pos": 45412079,
         "ref": "C",
         "alt": "T",
         "significance": "risk_factor",
@@ -430,6 +430,28 @@ class TestE2EPipeline:
         assert detail["clinvar_significance"] == "drug_response"
         assert detail["clinvar_review_stars"] == 2
         assert "Homocysteinemia" in (detail.get("clinvar_conditions") or "")
+
+        # APOE is the reason this seed has to track the fixture's build (#476).
+        # The uploaded v5 fixture and SEED_CLINVAR must agree on position:
+        # ``clinvar_position_concordant`` drops an rsID match whose coordinates
+        # disagree, so a build skew between the two silently removes both APOE
+        # rows from ClinVar coverage while every other assertion here still
+        # passes. Asserting the annotation explicitly is what makes that
+        # failure visible.
+        apoe = e2e_client.get(
+            "/api/variants/rs429358",
+            params={"sample_id": sample_id},
+        )
+        assert apoe.status_code == 200, f"Expected rs429358 in sample: {apoe.text}"
+        apoe_detail = apoe.json()
+        assert apoe_detail["pos"] == 45411941, (
+            "rs429358 must be stored at its GRCh37 coordinate; a build skew "
+            "between the upload fixture and SEED_CLINVAR would silently drop "
+            "its ClinVar annotation instead of failing"
+        )
+        assert apoe_detail["clinvar_significance"] == "risk_factor"
+        assert apoe_detail["clinvar_review_stars"] == 3
+        assert "Alzheimer" in (apoe_detail.get("clinvar_conditions") or "")
 
     def test_dbnsfp_annotation_correct(self, e2e_client: TestClient) -> None:
         """Synthetic dbNSFP scenario survives upload, annotation, and detail API."""

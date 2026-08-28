@@ -1,6 +1,6 @@
 rsid,chrom,pos,ref,alt,gene_symbol,transcript_id,consequence,hgvs_coding,hgvs_protein,strand,exon_number,intron_number,mane_select
-rs429358,19,44908684,T,C,APOE,ENST00000252486,missense_variant,c.388T>C,p.Cys130Arg,+,4,,1
-rs7412,19,44908822,C,T,APOE,ENST00000252486,missense_variant,c.526C>T,p.Arg176Cys,+,4,,1
+rs429358,19,45411941,T,C,APOE,ENST00000252486,missense_variant,c.388T>C,p.Cys130Arg,+,4,,1
+rs7412,19,45412079,C,T,APOE,ENST00000252486,missense_variant,c.526C>T,p.Arg176Cys,+,4,,1
 rs1801133,1,11856378,G,A,MTHFR,ENST00000376592,missense_variant,c.665C>T,p.Ala222Val,-,5,,1
 rs4680,22,19951271,G,A,COMT,ENST00000361682,missense_variant,c.472G>A,p.Val158Met,+,4,,1
 rs80357906,17,41209080,GGG,GGGG,BRCA1,ENST00000357654,frameshift_variant,c.5266dup,p.Gln1756ProfsTer74,-,19,,1
