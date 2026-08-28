@@ -604,6 +604,47 @@ class TestCrossModuleFindings:
         # Vulture flagged it in all eight producers.
         assert cross[0].source_module == MODULE_NAME
 
+    def test_a_standard_hom_ref_call_gets_no_cross_module_card(self, panel: SleepPanel) -> None:
+        """Required non-carrier negative control for a carriage-gated card.
+
+        A Standard call is hom-ref. Advertising a carrier-specific destination
+        to someone who does not carry the variant is the defect this whole issue
+        is about, pointed the other way, so the generator skips Standard exactly
+        as the Skin, Allergy, Gene Health and Traits generators do. Paired with
+        the carrier case above — same injected link, same SNP, only the category
+        differs — so this discriminates rather than passing vacuously.
+        """
+        import copy
+
+        patched = copy.deepcopy(panel)
+        target_snp = next(
+            snp for pathway in patched.pathways for snp in pathway.snps if snp.rsid == "rs762551"
+        )
+        target_snp.cross_module = {"module": "traits", "note": "probe"}
+
+        hom_ref_pr = PathwayResult(
+            pathway_id="caffeine_sleep",
+            pathway_name="Caffeine & Sleep",
+            level=STANDARD,
+            snp_results=[
+                SNPResult(
+                    rsid="rs762551",
+                    gene="CYP1A2",
+                    variant_name="*1F",
+                    genotype="AA",
+                    category=STANDARD,
+                    effect_summary="Rapid metabolizer",
+                    evidence_level=2,
+                    pmids=["16522833"],
+                    recommendation_text="",
+                    present_in_sample=True,
+                    metabolizer_state="Rapid metabolizer",
+                ),
+            ],
+        )
+        assert hom_ref_pr.called_snps, "fixture must present a called SNP to be meaningful"
+        assert _generate_cross_module_findings([hom_ref_pr], patched) == []
+
 
 # ── Integration tests ────────────────────────────────────────────────────
 

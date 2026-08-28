@@ -475,6 +475,12 @@ def _generate_cross_module_findings(
 
     for pathway_result in pathway_results:
         for snp_result in pathway_result.called_snps:
+            # A Standard call is a hom-ref non-carrier. Handing one a
+            # cross-module card would advertise carrier-specific content to a
+            # user who does not carry the variant, so skip it exactly as the
+            # Skin, Allergy, Gene Health and Traits generators do.
+            if snp_result.category == STANDARD:
+                continue
             cross = _panel_snp_cross_module(panel, snp_result.rsid)
             if cross is None:
                 continue

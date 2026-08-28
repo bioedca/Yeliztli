@@ -22,6 +22,7 @@ from pydantic import BaseModel
 
 from backend.analysis.cross_module_links import (
     current_link,
+    current_recommendation,
     panel_cross_module_links,
     refreshed_finding_text,
 )
@@ -29,7 +30,7 @@ from backend.analysis.pharmacogenomics import (
     is_patient_presentable_finding_payload,
     is_patient_presentable_response_payload,
 )
-from backend.analysis.sleep import load_sleep_panel
+from backend.analysis.sleep import MODULE_NAME, load_sleep_panel
 from backend.api.dependencies import require_fresh_sample
 from backend.db.connection import get_registry
 from backend.db.tables import findings, samples
@@ -323,7 +324,15 @@ def pathway_detail(
         rsid = sd.get("rsid", "")
         snp_finding = snp_findings_map.get(rsid, {})
         snp_finding_detail = snp_finding.get("detail", {})
-        recommendation = snp_finding_detail.get("recommendation")
+        # Panel prose persisted at scoring time, so a correction reaches an
+        # existing sample only on a re-score. Retiring the CYP1A2 handoff
+        # rewrote this SNP's recommendation, and without the refresh the detail
+        # panel keeps sending pre-#2024 samples to Pharmacogenomics for CYP1A2
+        # guidance that module has never had — the same defect #2021 fixed for
+        # Gene Health's FTO row.
+        recommendation = current_recommendation(
+            MODULE_NAME, rsid, snp_finding_detail.get("recommendation")
+        )
         pmids = snp_finding.get("pmids", [])
 
         snp_detail = SNPDetail(
