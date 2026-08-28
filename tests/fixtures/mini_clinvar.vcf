@@ -1,6 +1,6 @@
 ##fileformat=VCFv4.1
 ##fileDate=20260301
-##fixtureUpdated=20260719
+##fixtureUpdated=20260827
 ##source=YeliztliMiniClinVarFixture
 ##ClinVarSource=https://clinicaltables.nlm.nih.gov/api/variants/v4/search
 ##ClinVarAccessed=20260716
@@ -16,8 +16,8 @@
 ##INFO=<ID=CLNACC,Number=.,Type=String,Description="Accession">
 ##INFO=<ID=SYNTHETIC,Number=0,Type=Flag,Description="Synthetic behavior-only fixture record">
 #CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO
-19	44908684	17864	T	C	.	.	RS=429358;CLNSIG=risk_factor;CLNREVSTAT=criteria_provided,_multiple_submitters,_no_conflicts;CLNDN=Alzheimer_disease;GENEINFO=APOE:348;CLNVCID=17864
-19	44908822	17865	C	T	.	.	RS=7412;CLNSIG=risk_factor;CLNREVSTAT=criteria_provided,_multiple_submitters,_no_conflicts;CLNDN=Alzheimer_disease;GENEINFO=APOE:348;CLNVCID=17865
+19	45411941	17864	T	C	.	.	RS=429358;CLNSIG=risk_factor;CLNREVSTAT=criteria_provided,_multiple_submitters,_no_conflicts;CLNDN=Alzheimer_disease;GENEINFO=APOE:348;CLNVCID=17864
+19	45412079	17865	C	T	.	.	RS=7412;CLNSIG=risk_factor;CLNREVSTAT=criteria_provided,_multiple_submitters,_no_conflicts;CLNDN=Alzheimer_disease;GENEINFO=APOE:348;CLNVCID=17865
 1	11856378	3520	G	A	.	.	RS=1801133;CLNSIG=drug_response;CLNREVSTAT=criteria_provided,_single_submitter;CLNDN=Homocysteinemia;GENEINFO=MTHFR:4524;CLNVCID=3520
 22	19951271	17591	G	A	.	.	RS=4680;CLNSIG=Benign;CLNREVSTAT=criteria_provided,_multiple_submitters,_no_conflicts;CLNDN=not_specified;GENEINFO=COMT:1312;CLNVCID=17591;CLNACC=VCV000017591
 17	41209079	17677	T	TG	.	.	RS=80357906;CLNSIG=Pathogenic;CLNREVSTAT=reviewed_by_expert_panel;CLNDN=Hereditary_breast_and_ovarian_cancer_syndrome;GENEINFO=BRCA1:672;CLNVCID=17677;CLNACC=VCV000017677

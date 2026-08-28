@@ -43,11 +43,29 @@ independently verified mappings belong in
 guarded at `7:94937446` rather than disappearing from coverage merely because it
 is absent from the panel snapshot.
 
+Absence from the panel snapshot is not a small gap. The two APOE ε-defining
+SNPs, rs429358 and rs7412, are matched by rsID in `backend/analysis/apoe.py` and
+so never entered `panel_rsid_coordinates.json`; with no oracle scope over them
+all three seeds carried the GRCh38 pair `19:44908684` / `19:44908822` under this
+GRCh37 contract, and the regeneration test asserted one of those values outright
+(#476). Both are now pinned in the non-panel oracle at `19:45411941` and
+`19:45412079`. Prefer adding a verified mapping over leaving an rsID unguarded.
+
+`../mini_clinvar.vcf` is hand-maintained rather than generated, so the
+seed/oracle guard above did not reach it and it drifted with the seeds. It is
+now checked against the same oracle: it must declare `##reference=GRCh37`, and
+every `RS=` record whose rsID the oracle knows must sit at the recorded GRCh37
+position — allowing the one-base left anchor that a VCF indel carries.
+
 Records consulted: the committed `panel_rsid_coordinates.json` oracle records
 per-record Ensembl GRCh37 Variation REST URLs (accessed 2026-07-16), and
 `../clinvar_seed_snapshot.json` records NLM Clinical Tables ClinVar identities
 (accessed 2026-07-16). The mappings changed for issue #1949 were rechecked
-against Ensembl GRCh37 on 2026-07-19. Ambiguous records are also cross-checked
+against Ensembl GRCh37 on 2026-07-19. The two APOE mappings normalized for
+issue #476 were verified on 2026-08-27 against Ensembl GRCh37 Variation REST and
+independently against NCBI dbSNP eSummary `chrpos_prev_assm`, with the raw
+responses and claim mapping under
+`data/science-evidence/2026-08-27-apoe-grch37-fixtures-476/`. Ambiguous records are also cross-checked
 against NCBI RefSNP or ClinVar as described below; save those access dates and
 raw responses with the evidence notes.
 

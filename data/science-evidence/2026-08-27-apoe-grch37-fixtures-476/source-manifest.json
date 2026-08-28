@@ -1,0 +1,50 @@
+{
+  "issue": 476,
+  "accessed": "2026-08-27",
+  "concern": "APOE epsilon-defining SNP coordinates in GRCh37-declared test fixtures",
+  "sanitization": "None required. Every retained payload is a public reference-database record for a named dbSNP identifier. No genotype, sample, personal, or credentialed data is present, and no payload was edited.",
+  "requests": [
+    {
+      "payload": "raw/ensembl-grch37-rs429358.json",
+      "request": "GET https://grch37.rest.ensembl.org/variation/human/rs429358?content-type=application/json",
+      "source": "Ensembl GRCh37 Variation REST",
+      "sha256": "c59985e59b052f63f52cf4b0427ce2242397a40f40c0d694ade1218263441575",
+      "bytes": 1096
+    },
+    {
+      "payload": "raw/ensembl-grch37-rs7412.json",
+      "request": "GET https://grch37.rest.ensembl.org/variation/human/rs7412?content-type=application/json",
+      "source": "Ensembl GRCh37 Variation REST",
+      "sha256": "7073bb01b9afa7058f5228632b2db78b4ed4dad22fac5322d380912be00b9cf0",
+      "bytes": 858
+    },
+    {
+      "payload": "raw/ensembl-grch37-rs440446.json",
+      "request": "GET https://grch37.rest.ensembl.org/variation/human/rs440446?content-type=application/json",
+      "source": "Ensembl GRCh37 Variation REST",
+      "sha256": "7d0496893808f813e84e6217be44a2de9e1267cb0cf72bbe0cbe7339e16284c3",
+      "bytes": 612
+    },
+    {
+      "payload": "raw/ensembl-grch37-rs405509.json",
+      "request": "GET https://grch37.rest.ensembl.org/variation/human/rs405509?content-type=application/json",
+      "source": "Ensembl GRCh37 Variation REST",
+      "sha256": "c960661e25f8fd0feceae5fc1484ecafab17ce0f1e0ecfc4076e04032e07fd7e",
+      "bytes": 706
+    },
+    {
+      "payload": "raw/ensembl-grch37-rs769449.json",
+      "request": "GET https://grch37.rest.ensembl.org/variation/human/rs769449?content-type=application/json",
+      "source": "Ensembl GRCh37 Variation REST",
+      "sha256": "1bbb9d6636dbc55ff5e575dd3c1a57eaae26e200884059ddc9e385f1343a5dee",
+      "bytes": 703
+    },
+    {
+      "payload": "raw/ncbi-dbsnp-esummary-429358-7412.json",
+      "request": "GET https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=snp&id=429358,7412&retmode=json",
+      "source": "NCBI dbSNP eSummary",
+      "sha256": "808cf88a7194252bc42f916a5c359fdf63d5638d67915d546afeffad1737c695",
+      "bytes": 10025
+    }
+  ]
+}
