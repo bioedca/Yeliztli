@@ -17,6 +17,7 @@ Covers:
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -64,6 +65,15 @@ PANEL_PATH = (
     / "panels"
     / "sleep_panel.json"
 )
+#: The panel's allele-neutral label for rs762551. It is deliberately NOT a star
+#: allele: the same intron-1 site sits on several CYP1A2 haplotypes (*1F, *1J,
+#: *1K under the historical nomenclature; PMID:12920202), and PharmVar has since
+#: reassigned the former *1F-defining core variant to the *30 group
+#: (PMID:41992662), so this single marker cannot resolve a star allele. The panel
+#: coverage note says the module makes no such call, and ``variant_name`` reaches
+#: patient-facing finding text, so a "*1F" fixture would make the suite normalise
+#: exactly the inference the application disclaims.
+CYP1A2_LOCUS_LABEL = "-163C>A (rs762551; caffeine clearance)"
 
 
 @pytest.fixture()
@@ -282,6 +292,19 @@ class TestCYP1A2Metabolizer:
         result = _score_snp(cyp, "CC", panel)
         assert result.category == ELEVATED
         assert result.metabolizer_state == "Slow metabolizer"
+
+    def test_the_fixture_label_is_the_panel_label(self, panel: SleepPanel) -> None:
+        """Ties the fixtures to the panel so the label cannot drift apart.
+
+        ``variant_name`` is reference data, not a test string: it is
+        interpolated into patient-facing finding text. If the panel's label
+        changes, these fixtures must follow it rather than keep asserting a
+        stale one — and neither may become a star allele this single marker
+        cannot resolve.
+        """
+        cyp = self._get_cyp1a2(panel)
+        assert cyp.variant_name == CYP1A2_LOCUS_LABEL
+        assert "*" not in cyp.variant_name
 
     def test_cyp1a2_has_no_cross_module(self, panel: SleepPanel) -> None:
         """CYP1A2 must NOT cross-link to Pharmacogenomics (#2024).
@@ -532,7 +555,7 @@ class TestCrossModuleFindings:
                 SNPResult(
                     rsid="rs762551",
                     gene="CYP1A2",
-                    variant_name="*1F",
+                    variant_name=CYP1A2_LOCUS_LABEL,
                     genotype="CC",
                     category=ELEVATED,
                     effect_summary="Slow metabolizer",
@@ -582,7 +605,7 @@ class TestCrossModuleFindings:
                 SNPResult(
                     rsid="rs762551",
                     gene="CYP1A2",
-                    variant_name="*1F",
+                    variant_name=CYP1A2_LOCUS_LABEL,
                     genotype="AC",
                     category=MODERATE,
                     effect_summary="Intermediate",
@@ -603,6 +626,12 @@ class TestCrossModuleFindings:
         # so dropping it turned CrossModuleFinding.source_module write-only and
         # Vulture flagged it in all eight producers.
         assert cross[0].source_module == MODULE_NAME
+        # rs762551 alone cannot resolve a CYP1A2 star allele, and this text is
+        # patient-facing, so the finding must carry the locus label the panel
+        # uses and never a star-allele token.
+        assert CYP1A2_LOCUS_LABEL in cross[0].finding_text
+        assert "*1F" not in cross[0].finding_text
+        assert not re.search(r"CYP1A2\s*\*\d", cross[0].finding_text)
 
     def test_a_standard_hom_ref_call_gets_no_cross_module_card(self, panel: SleepPanel) -> None:
         """Required non-carrier negative control for a carriage-gated card.
@@ -630,7 +659,7 @@ class TestCrossModuleFindings:
                 SNPResult(
                     rsid="rs762551",
                     gene="CYP1A2",
-                    variant_name="*1F",
+                    variant_name=CYP1A2_LOCUS_LABEL,
                     genotype="AA",
                     category=STANDARD,
                     effect_summary="Rapid metabolizer",
@@ -670,7 +699,7 @@ class TestCrossModuleFindings:
                 SNPResult(
                     rsid="rs762551",
                     gene="CYP1A2",
-                    variant_name="*1F",
+                    variant_name=CYP1A2_LOCUS_LABEL,
                     genotype="AT",
                     category=INDETERMINATE,
                     effect_summary="Unmodelled genotype",
