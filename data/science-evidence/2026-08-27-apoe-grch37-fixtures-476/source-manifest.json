@@ -4,29 +4,95 @@
   "concern": "APOE epsilon-defining SNP coordinates in GRCh37-declared test fixtures",
   "citations": [
     {
+      "id": "PMID:27078154",
+      "doi": "10.1371/journal.pone.0153593",
+      "title": "Development of a Melting Curve-Based Allele-Specific PCR of Apolipoprotein E (APOE) Genotyping Method for Genomic DNA, Guthrie Blood Spot, and Whole Blood.",
+      "journal": "PLoS One 2016",
+      "accessed": "2026-08-27",
+      "supports": "rs429358 is the codon-112 variant and rs7412 the codon-158 variant of APOE",
+      "retraction_check": "no retraction or correction pubtype"
+    },
+    {
+      "id": "PMID:34313350",
+      "doi": "10.1002/jcla.23925",
+      "title": "APOE gene \u025b4 allele (388C-526C) effects on serum lipids and risk of coronary artery disease in southern Chinese Hakka population.",
+      "journal": "J Clin Lab Anal 2021",
+      "accessed": "2026-08-27",
+      "supports": "names the APOE coding positions c.388 and c.526 for the same two variants",
+      "retraction_check": "no retraction or correction pubtype"
+    },
+    {
       "id": "PMID:11125122",
       "doi": "10.1093/nar/29.1.308",
       "title": "dbSNP: the NCBI database of genetic variation.",
+      "journal": "Nucleic Acids Res 2001",
       "accessed": "2026-08-27",
-      "retraction_check": "no retraction or correction pubtype on the PubMed record"
+      "supports": "resource citation for the dbSNP records retained here",
+      "retraction_check": "no retraction or correction pubtype"
     },
     {
       "id": "PMID:12045153",
       "doi": "10.1101/gr.229102",
       "title": "The human genome browser at UCSC.",
+      "journal": "Genome Res 2002",
       "accessed": "2026-08-27",
-      "retraction_check": "no retraction or correction pubtype on the PubMed record"
+      "supports": "resource citation for the hg19 assembly sequence reads",
+      "retraction_check": "no retraction or correction pubtype"
     },
     {
       "id": "PMID:39656687",
       "doi": "10.1093/nar/gkae1071",
       "title": "Ensembl 2025.",
+      "journal": "Nucleic Acids Res 2025",
       "accessed": "2026-08-27",
-      "retraction_check": "no retraction or correction pubtype on the PubMed record"
+      "supports": "resource citation for the Ensembl GRCh37 Variation records",
+      "retraction_check": "no retraction or correction pubtype"
     }
   ],
-  "independence_note": "Ensembl Variation imports rsID-to-coordinate mappings from dbSNP, so the Ensembl and dbSNP records share an upstream assertion and do NOT by themselves satisfy the two-agreeing-source rule. The independent second source is the GRCh37/hg19 assembly sequence read directly from UCSC, which is an assembly-level observation rather than a variant-database annotation.",
-  "sanitization": "None required. Every retained payload is a public reference-database or bibliographic record. No genotype, sample, personal, or credentialed data is present, and no payload was edited.",
+  "discovery_tool_ladder": {
+    "consensus": "Invoked 2026-08-27 \u2014 query 'APOE epsilon allele defining SNPs rs429358 rs7412 chromosome 19 genomic coordinates GRCh37'; 20 papers returned. No paper asserts a genomic coordinate (literature reports APOE variants by codon/coding position, not by build coordinate). It did surface the two records now cited as the rsID-to-coding-position anchor.",
+    "scite": "Unavailable 2026-08-27 \u2014 monthly MCP call quota exhausted (250/250); the service reported a reset date of 2026-09-03. No Scite result was used.",
+    "fallback": "PubMed specialist connector used in place of Scite: search 'APOE AND (rs429358 OR rs7412) AND (codon 112 OR codon 158)' returned 2 records, of which PMID:27078154 is retained. Both retained literature records were then re-resolved through PubMed eSummary for title, journal, DOI, and retraction status."
+  },
+  "source_provenance": [
+    {
+      "source": "Ensembl GRCh37 Variation REST",
+      "observed_version": "Ensembl GRCh37 REST release 116 (GET /info/data, raw/ensembl-grch37-info-data.json)",
+      "assembly": "GRCh37",
+      "license_reference": "https://www.ebi.ac.uk/about/terms-of-use/",
+      "license_note": "EMBL-EBI Terms of Use (last revised 5 February 2024), consulted 2026-08-27: EMBL-EBI 'promotes open science through its mission to provide freely available Data Resources and Tools'; resource-specific terms may additionally apply."
+    },
+    {
+      "source": "NCBI dbSNP eSummary",
+      "observed_version": "dbSNP dbbuild Build250306-1408.1, lastupdate 2025/03/11 (GET einfo, raw/ncbi-dbsnp-einfo.json)",
+      "assembly": "GRCh38 primary with GRCh37 chrpos_prev_assm",
+      "license_reference": "https://www.ncbi.nlm.nih.gov/home/about/policies/",
+      "license_note": "NCBI policies consulted 2026-08-27: 'Information that is created by or for the US government on this site is within the public domain.'"
+    },
+    {
+      "source": "UCSC Genome Browser hg19 assembly sequence",
+      "observed_version": "hg19 \u2014 'Feb. 2009 (GRCh37/hg19)', sourceName 'GRCh37 Genome Reference Consortium Human Reference 37 (GCA_000001405.1)' (raw/ucsc-list-genomes.json)",
+      "assembly": "hg19 / GRCh37",
+      "license_reference": "https://genome.ucsc.edu/conditions.html",
+      "license_note": "UCSC conditions of use consulted 2026-08-27: 'The sequence and annotation data displayed in the Genome Browser are freely available for any use with the following conditions'; the commercial licence requirement applies to Genome Browser binaries and source code, not to the sequence data retrieved here."
+    },
+    {
+      "source": "VariantValidator REST (GRCh37)",
+      "observed_version": "variantvalidator 4.0.1.dev7+gbdab9c72f, variantvalidator_hgvs 4.0.0, vvdb_2025_3, vvta_2025_02, seqrepo VV_SR_2025_02/master (metadata block of each retained response)",
+      "assembly": "GRCh37 and GRCh38 primary assembly loci returned together",
+      "license_reference": "https://raw.githubusercontent.com/openvar/variantValidator/master/LICENSE.txt",
+      "license_note": "GNU Affero General Public License v3, consulted 2026-08-27."
+    },
+    {
+      "source": "NCBI PubMed eSummary (citation verification)",
+      "observed_version": "PubMed eSummary, accessed 2026-08-27",
+      "assembly": null,
+      "license_reference": "https://www.ncbi.nlm.nih.gov/home/about/policies/",
+      "license_note": "NCBI policies consulted 2026-08-27; US-government-authored content is public domain."
+    }
+  ],
+  "independence_note": "Ensembl Variation imports rsID-to-coordinate mappings from dbSNP, so the Ensembl and dbSNP records share an upstream assertion and do NOT by themselves satisfy the two-agreeing-source rule. The independent mapping source is VariantValidator, which was given only the APOE coding HGVS and no rsID, and which projects the variant onto GRCh37 through RefSeq/UTA transcript alignments rather than through the dbSNP rsID record. The UCSC hg19 reference bases are an additional assembly-level control: they are necessary-but-not-sufficient for the positive claim, and decisive for excluding the rejected coordinates.",
+  "sanitization": "None required. Every retained payload is a public reference-database, variant-mapping, or bibliographic record. No genotype, sample, personal, or credentialed data is present, and no payload was edited.",
   "requests": [
     {
       "payload": "raw/ensembl-grch37-rs429358.json",
@@ -64,11 +130,39 @@
       "bytes": 703
     },
     {
+      "payload": "raw/ensembl-grch37-info-data.json",
+      "request": "GET https://grch37.rest.ensembl.org/info/data?content-type=application/json",
+      "source": "Ensembl GRCh37 REST release probe",
+      "sha256": "86e87c46ae1a424702676493d024d0508ce60f6c951b0b2803ce10269e09c20c",
+      "bytes": 18
+    },
+    {
       "payload": "raw/ncbi-dbsnp-esummary-429358-7412.json",
       "request": "GET https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=snp&id=429358,7412&retmode=json",
       "source": "NCBI dbSNP eSummary",
       "sha256": "808cf88a7194252bc42f916a5c359fdf63d5638d67915d546afeffad1737c695",
       "bytes": 10025
+    },
+    {
+      "payload": "raw/ncbi-dbsnp-einfo.json",
+      "request": "GET https://eutils.ncbi.nlm.nih.gov/entrez/eutils/einfo.fcgi?db=snp&retmode=json",
+      "source": "NCBI dbSNP einfo (build probe)",
+      "sha256": "0c2fc212396c1423fdd00170bd6efd74e6248b9baa91d600e113dd4870b5dfa0",
+      "bytes": 7403
+    },
+    {
+      "payload": "raw/variantvalidator-grch37-NM_000041.4-c.388T-C.json",
+      "request": "GET https://rest.variantvalidator.org/VariantValidator/variantvalidator/GRCh37/NM_000041.4%3Ac.388T%3EC/all",
+      "source": "VariantValidator REST (GRCh37)",
+      "sha256": "ee9f4dfa5f69c00801e9e6787793187cc4f2a1242339c2e987197549ee9fa4fe",
+      "bytes": 2280
+    },
+    {
+      "payload": "raw/variantvalidator-grch37-NM_000041.4-c.526C-T.json",
+      "request": "GET https://rest.variantvalidator.org/VariantValidator/variantvalidator/GRCh37/NM_000041.4%3Ac.526C%3ET/all",
+      "source": "VariantValidator REST (GRCh37)",
+      "sha256": "88a57862e2c68c840163baca9ad75513ee1d28898ce1068d91d5e8ef27570d57",
+      "bytes": 2280
     },
     {
       "payload": "raw/ucsc-hg19-chr19-45411941.json",
@@ -99,6 +193,13 @@
       "bytes": 160
     },
     {
+      "payload": "raw/ucsc-list-genomes.json",
+      "request": "GET https://api.genome.ucsc.edu/list/ucscGenomes",
+      "source": "UCSC assembly metadata probe",
+      "sha256": "ade83c7f85dcdc349b3ec702f5eb090e4e66dcffae7ff7e6730e65120da3d444",
+      "bytes": 99724
+    },
+    {
       "payload": "raw/ncbi-pubmed-esummary-11125122-12045153.json",
       "request": "GET https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id=11125122,12045153&retmode=json",
       "source": "NCBI PubMed eSummary (citation verification)",
@@ -111,6 +212,13 @@
       "source": "NCBI PubMed eSummary (citation verification)",
       "sha256": "5d70ed6edadfda035342d8baa08cd0aa7af030c06452eb3eb3d8476fb10fc8cf",
       "bytes": 8571
+    },
+    {
+      "payload": "raw/ncbi-pubmed-esummary-34313350-27078154.json",
+      "request": "GET https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id=34313350,27078154&retmode=json",
+      "source": "NCBI PubMed eSummary (citation verification)",
+      "sha256": "9c0a8bf3f4c788ca96b04ace12cfb3b225e26d8bd55a5037f844d4dc71504e01",
+      "bytes": 3934
     }
   ]
 }
