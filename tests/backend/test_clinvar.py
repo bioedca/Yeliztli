@@ -286,7 +286,7 @@ class TestParseClinvarVcfLine:
 
     def test_chr_prefix_stripped(self):
         line = (
-            "chr19\t44908684\t17864\tT\tC\t.\t.\t"
+            "chr19\t45411941\t17864\tT\tC\t.\t.\t"
             "RS=429358;CLNSIG=risk_factor;"
             "CLNREVSTAT=criteria_provided,_single_submitter;"
             "CLNDN=Alzheimer_disease;GENEINFO=APOE:348"
@@ -492,7 +492,7 @@ class TestLoadClinvarFromIter:
                 sa.select(clinvar_variants).where(
                     sa.and_(
                         clinvar_variants.c.chrom == "19",
-                        clinvar_variants.c.pos == 44908684,
+                        clinvar_variants.c.pos == 45411941,
                     )
                 )
             ).first()

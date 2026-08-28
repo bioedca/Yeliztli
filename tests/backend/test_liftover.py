@@ -52,21 +52,30 @@ class TestConvertCoordinate:
         assert pos == 11796321
 
     def test_rs429358_apoe(self) -> None:
-        """APOE rs429358 on chr19 lifts correctly."""
-        result = convert_coordinate("19", 44908684)
+        """APOE rs429358 GRCh37 19:45411941 -> GRCh38 19:44908684 (#476).
+
+        Both endpoints are authoritative record values, not chain artefacts:
+        Ensembl GRCh37 Variation REST and NCBI dbSNP eSummary agree on the
+        GRCh37/GRCh38 pair. This test previously fed ``44908684`` -- the
+        *GRCh38* position -- as the GRCh37 input and asserted ``44404524``,
+        which is the position of no APOE variant. Lifting an already-lifted
+        coordinate is self-consistent, so the assertion held while giving the
+        locus zero real coverage.
+        """
+        result = convert_coordinate("19", 45411941)
         assert result is not None
         chrom, pos = result
         assert chrom == "19"
         # GRCh38 position for rs429358
-        assert pos == 44404524
+        assert pos == 44908684
 
     def test_rs7412_apoe(self) -> None:
-        """APOE rs7412 on chr19 lifts correctly."""
-        result = convert_coordinate("19", 44908822)
+        """APOE rs7412 GRCh37 19:45412079 -> GRCh38 19:44908822 (#476)."""
+        result = convert_coordinate("19", 45412079)
         assert result is not None
         chrom, pos = result
         assert chrom == "19"
-        assert pos == 44404662
+        assert pos == 44908822
 
     def test_x_chromosome(self) -> None:
         """X chromosome coordinates lift correctly."""
@@ -117,8 +126,8 @@ class TestBatchConvert:
         """Batch convert returns results for all variants."""
         variants = [
             ("rs1801133", "1", 11856378),
-            ("rs429358", "19", 44908684),
-            ("rs7412", "19", 44908822),
+            ("rs429358", "19", 45411941),
+            ("rs7412", "19", 45412079),
         ]
         results = batch_convert(variants)
         assert len(results) == 3
@@ -384,7 +393,7 @@ def liftover_sample_client(tmp_data_dir: Path) -> Generator[TestClient, None, No
             annotated_variants.insert(),
             [
                 {"rsid": "rs1801133", "chrom": "1", "pos": 11856378, "genotype": "AG"},
-                {"rsid": "rs429358", "chrom": "19", "pos": 44908684, "genotype": "TC"},
+                {"rsid": "rs429358", "chrom": "19", "pos": 45411941, "genotype": "TC"},
                 # Realistic spelling as it appears in chip data…
                 {"rsid": "rs_mt_7028", "chrom": "MT", "pos": 7028, "genotype": "CC"},
                 # …and the spelling that actually discriminates. "M"/750 WOULD
@@ -450,7 +459,7 @@ class TestBatchLiftoverRoute:
 
         after = _grch38_by_rsid(tmp_data_dir)
         assert after["rs1801133"] == ("1", 11796321)
-        assert after["rs429358"] == ("19", 44404524)
+        assert after["rs429358"] == ("19", 44908684)
 
     def test_unliftable_mt_row_stays_null(
         self, liftover_sample_client: TestClient, tmp_data_dir: Path
