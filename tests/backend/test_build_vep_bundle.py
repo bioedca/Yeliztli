@@ -150,7 +150,7 @@ class TestLoadSeedCSV:
         assert len(apoe) >= 1
         row = apoe[0]
         assert row["chrom"] == "19"
-        assert row["pos"] == 44908684
+        assert row["pos"] == 45411941
         assert row["gene_symbol"] == "APOE"
 
     def test_frameshift_variant_present(self) -> None:
@@ -205,7 +205,7 @@ class TestParseVepVCF:
                 "|ENST00000376592:p.Ala222Val|-1||NM_005957.5"
             ),
             (
-                "19\t44908684\trs429358\tT\tC\t.\t.\t"
+                "19\t45411941\trs429358\tT\tC\t.\t.\t"
                 "CSQ=C|missense_variant|MODERATE|APOE|348"
                 "|Transcript|ENST00000252486|protein_coding"
                 "|4/4||ENST00000252486:c.388T>C"
@@ -395,7 +395,7 @@ class TestParseVepVCF:
             "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO",
             f"1\t11856378\trs1801133\tG\tA\t.\t.\tCSQ={csq}",
             f"1\t11856378\trs1801133\tG\tA\t.\t.\tCSQ={csq_variant}",
-            f"19\t44908684\trs429358\tT\tC\t.\t.\tCSQ={apoe_csq}",
+            f"19\t45411941\trs429358\tT\tC\t.\t.\tCSQ={apoe_csq}",
         ]
         vcf_path = tmp_path / "union.vcf"
         vcf_path.write_text("\n".join(lines) + "\n")
@@ -591,7 +591,7 @@ class TestBuildBundleDB:
         with sqlite3.connect(str(db_path)) as conn:
             row = conn.execute(
                 "SELECT rsid, gene_symbol FROM vep_annotations WHERE chrom = ? AND pos = ?",
-                ("19", 44908684),
+                ("19", 45411941),
             ).fetchone()
 
         assert row is not None
