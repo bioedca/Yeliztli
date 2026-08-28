@@ -6,6 +6,7 @@ Primary records for the variant identity claim:
 
 - `PMID:27078154` / `DOI:10.1371/journal.pone.0153593` — "Development of a Melting Curve-Based Allele-Specific PCR of Apolipoprotein E (APOE) Genotyping Method for Genomic DNA, Guthrie Blood Spot, and Whole Blood." *PLoS One* 2016 (accessed 2026-08-27)
 - `PMID:34313350` / `DOI:10.1002/jcla.23925` — "APOE gene ɛ4 allele (388C-526C) effects on serum lipids and risk of coronary artery disease in southern Chinese Hakka population." *J Clin Lab Anal* 2021 (accessed 2026-08-27)
+- `PMID:39154456` / `DOI:10.1016/j.bcmd.2024.102883` — "Clinical characteristics, laboratory features and genetic profile of hemoglobin E (HBB:c.79 G > A)/β … -thalassemia subjects…" *Blood Cells Mol Dis* 2024 (accessed 2026-08-28) — names hemoglobin E as `HBB:c.79G>A`, the coding identity behind the rs33950507 correction
 
 Resource citations for the databases queried:
 
@@ -135,11 +136,27 @@ in `sample_not_23andme.vcf` additionally declared REF/ALT the wrong way round
 were corrected against the hg19 reads. The derived genotypes are unchanged,
 because the repository stores heterozygous calls in canonical sorted order.
 
-A third, unrelated defect surfaced in the same sweep and was corrected with it:
-`sample_23andme_v5.txt` placed `rs33950507` (HBB) at `11:5248281`, which is
-neither its GRCh37 (`11:5248173`) nor its GRCh38 (`11:5226943`) position. It was
-the only such mismatch in any vendor fixture — the sweep checked every rsID the
-coordinate oracle knows across all six files.
+## rs33950507 (HBB) — a third defect, and an analytic one
+
+The same sweep found one more mismatch, the only one across all six fixtures:
+`sample_23andme_v5.txt` placed `rs33950507` at `11:5248281`, which is neither
+its GRCh37 (`11:5248173`) nor its GRCh38 (`11:5226943`) position.
+
+This one is **not** low-stakes. `backend/data/panels/carrier_panel.json` lists
+rs33950507 among HBB's expected pathogenic ClinVar rsIDs, so it can reach a
+user-facing carrier workflow. It therefore takes the full two-agreeing-source
+gate rather than inheriting the oracle value, and it gets the same treatment
+APOE did:
+
+| Step | Evidence |
+| --- | --- |
+| Identity | dbSNP RefSNP returns `NM_000518.5:c.79G>A` for rs33950507, and `PMID:39154456` names hemoglobin E as `HBB:c.79G>A` in its title. |
+| Independent mapping | VariantValidator, given that coding HGVS and **no rsID**, returns GRCh37 `NC_000011.9:g.5248173C>T` and GRCh38 `NC_000011.10:g.5226943C>T`. |
+| Assembly control | hg19 `chr11:5248173` is `C`, matching REF. `chr11:5248281` — the position the fixture used — is `A`, which cannot host a `C>T`. |
+
+HBB is on the minus strand, which is why the genomic `C>T` corresponds to the
+coding `G>A`; the fixture's `TT` genotype is a homozygous alternate call and is
+unchanged by the correction.
 
 ## `mini_clinvar.vcf` access date
 
@@ -161,21 +178,25 @@ coordinates lift onto the GRCh37 oracle values through the production
 
 `raw/` holds the responses behind every claim above, and `source-manifest.json`
 records each one's exact request, source, SHA-256, and byte length. The counts
-below are the manifest's, so an auditor can reconcile the two directly.
+below are the manifest's and total its 44 payloads, so an auditor can reconcile
+the two directly.
 
 | Group | Payloads | What they support |
 | --- | --- | --- |
-| Ensembl GRCh37 Variation REST | 6 rsID records + 1 release probe + 1 derived `mini_clinvar.vcf` recheck | corroborating variant-database mapping (C3); the fixture re-dating |
-| NCBI dbSNP | 2 eSummary records + 1 build probe | the GRCh37/GRCh38 pairing (C3, C4) and the neighbour cross-build check |
-| VariantValidator | 2 coding-HGVS mappings + 3 genomic-HGVS validations | the independent mapping (C2) and the neighbour REF/cross-build check |
-| UCSC hg19 | 7 single-base reads (4 APOE incl. 2 negative controls, 3 neighbour REF) + 1 assembly-metadata probe | the assembly-level control (C5) |
-| NCBI PubMed eSummary | 3 records | citation verification and retraction checks |
-| Consensus | 1 derived result-set record | the discovery-tool ladder's first rung |
+| Ensembl GRCh37 Variation REST | 6 rsID records + 11 `mini_clinvar.vcf` re-date records + 1 derived recheck summary + 1 release probe = **19** | corroborating variant-database mapping (C3); the fixture re-dating |
+| NCBI dbSNP | 2 eSummary records + 1 RefSNP HGVS record + 1 build probe = **4** | the GRCh37/GRCh38 pairing (C3, C4), the neighbour cross-build check, the rs33950507 coding identity |
+| VariantValidator | 3 coding-HGVS mappings + 3 genomic-HGVS validations = **6** | the independent mappings (C2, rs33950507) and the neighbour REF/cross-build check |
+| UCSC hg19 | 9 single-base reads (4 APOE incl. 2 negative controls, 3 neighbour REF, 2 HBB incl. 1 negative control) + 1 assembly-metadata probe = **10** | the assembly-level controls (C5) |
+| NCBI PubMed eSummary | **4** records | citation verification and retraction checks |
+| Consensus | **1** derived result-set record | the discovery-tool ladder's first rung |
 
 Beyond the payloads, `source-manifest.json` carries a `source_provenance` block
 giving every source's observed release/version and its license reference with
-the terms consulted on 2026-08-27, the citation list, the discovery-tool ladder,
-the `mini_clinvar.vcf` recheck note, and the source-independence note.
+the terms consulted on 2026-08-27 — including Consensus, whose version is
+recorded as **not exposed** rather than guessed, since the MCP surface returns
+no server, index, or corpus-version field. It also carries the citation list,
+the discovery-tool ladder, the `mini_clinvar.vcf` recheck note, the rs33950507
+note, and the source-independence note.
 
 No sanitization was required for the HTTP payloads: each is a public
 reference-database, variant-mapping, or bibliographic record containing no

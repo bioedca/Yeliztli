@@ -47,6 +47,15 @@
       "accessed": "2026-08-27",
       "supports": "resource citation for the Ensembl GRCh37 Variation records",
       "retraction_check": "no retraction or correction pubtype"
+    },
+    {
+      "id": "PMID:39154456",
+      "doi": "10.1016/j.bcmd.2024.102883",
+      "title": "Clinical characteristics, laboratory features and genetic profile of hemoglobin E (HBB:c.79 G > A)/\u03b2 (nucleotide -28 A > G) (HBB:c.-78 A > G) -thalassemia subjects identified from community- and hospital-recruited cohorts.",
+      "journal": "Blood Cells Mol Dis 2024",
+      "accessed": "2026-08-28",
+      "supports": "names hemoglobin E as HBB:c.79G>A, the coding identity used to project rs33950507 onto GRCh37 independently",
+      "retraction_check": "no retraction or correction pubtype"
     }
   ],
   "discovery_tool_ladder": {
@@ -87,6 +96,20 @@
       "source": "NCBI PubMed eSummary (citation verification)",
       "observed_version": "PubMed eSummary, accessed 2026-08-27",
       "assembly": null,
+      "license_reference": "https://www.ncbi.nlm.nih.gov/home/about/policies/",
+      "license_note": "NCBI policies consulted 2026-08-27; US-government-authored content is public domain."
+    },
+    {
+      "source": "Consensus MCP `search`",
+      "observed_version": "Not exposed. The Consensus MCP tool returns no server, index, or corpus-version field in its response, and there is no version endpoint reachable from the tool surface; this is recorded as unavailable rather than guessed.",
+      "assembly": null,
+      "license_reference": "https://consensus.app/home/terms-of-service/",
+      "license_note": "Consensus is used here only as a discovery tool. No Consensus text is redistributed in this packet: the retained record contains the query, the result count, and the DOI/PMID identities of the returned papers, all of which are bibliographic facts. The two papers actually relied on are cited by PMID/DOI and were independently re-resolved through PubMed eSummary."
+    },
+    {
+      "source": "NCBI dbSNP RefSNP (HGVS identity)",
+      "observed_version": "Same dbSNP build as the eSummary probe: Build250306-1408.1 (raw/ncbi-dbsnp-einfo.json)",
+      "assembly": "GRCh38 (NC_000011.10) and GRCh37 (NC_000011.9) HGVS both returned",
       "license_reference": "https://www.ncbi.nlm.nih.gov/home/about/policies/",
       "license_note": "NCBI policies consulted 2026-08-27; US-government-authored content is public domain."
     }
@@ -289,7 +312,120 @@
       "source": "Consensus MCP (derived, sanitized result-set record)",
       "sha256": "a855ea7d8ac79044790503cce9e9b007638f4d096ed66eb56df37920c5a1d058",
       "bytes": 1910
+    },
+    {
+      "payload": "raw/variantvalidator-grch37-NM_000518.5-c.79G-A.json",
+      "request": "GET https://rest.variantvalidator.org/VariantValidator/variantvalidator/GRCh37/NM_000518.5%3Ac.79G%3EA/all",
+      "source": "VariantValidator REST (GRCh37)",
+      "sha256": "6a9cfd967916800aaed20e2d356a21df0877e8e437216424b466041a0a3f4601",
+      "bytes": 2509
+    },
+    {
+      "payload": "raw/ncbi-refsnp-33950507.json",
+      "request": "GET https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/33950507",
+      "source": "NCBI dbSNP RefSNP (HGVS identity)",
+      "sha256": "77ed6bbce5b296accb2313a95891b77c23f9cef6e3a22e022c61558511eecf73",
+      "bytes": 78575
+    },
+    {
+      "payload": "raw/ucsc-hg19-chr11-5248173.json",
+      "request": "GET https://api.genome.ucsc.edu/getData/sequence?genome=hg19;chrom=chr11;start=5248172;end=5248173",
+      "source": "UCSC Genome Browser hg19 assembly sequence",
+      "sha256": "702abc9fd54e2fb488f6c272cfc5595afcf6314329c0c034ca46381654c16387",
+      "bytes": 158
+    },
+    {
+      "payload": "raw/ucsc-hg19-chr11-5248281-control.json",
+      "request": "GET https://api.genome.ucsc.edu/getData/sequence?genome=hg19;chrom=chr11;start=5248280;end=5248281",
+      "source": "UCSC Genome Browser hg19 assembly sequence (negative control)",
+      "sha256": "4e4abb97f64eddde3920568cf90c8f7008df06f84debe3ebce8260618659b097",
+      "bytes": 158
+    },
+    {
+      "payload": "raw/ncbi-pubmed-esummary-39154456.json",
+      "request": "GET https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id=39154456&retmode=json",
+      "source": "NCBI PubMed eSummary (citation verification)",
+      "sha256": "457b78ea5f7996d4aba1dcfd57b7255f8179d1ec84840e0b5597137f50d30f98",
+      "bytes": 2405
+    },
+    {
+      "payload": "raw/ensembl-grch37-mini-clinvar-rs429358.json",
+      "request": "GET https://grch37.rest.ensembl.org/variation/human/rs429358?content-type=application/json",
+      "source": "Ensembl GRCh37 Variation REST (mini_clinvar.vcf re-date verification)",
+      "sha256": "06884a896cd8cb7f0d9960fd4df15167fc8a3b06bb86a4d7d878fe87030cb347",
+      "bytes": 1096
+    },
+    {
+      "payload": "raw/ensembl-grch37-mini-clinvar-rs7412.json",
+      "request": "GET https://grch37.rest.ensembl.org/variation/human/rs7412?content-type=application/json",
+      "source": "Ensembl GRCh37 Variation REST (mini_clinvar.vcf re-date verification)",
+      "sha256": "85505e678a2c8a124c0b1b001fd9e2a66d9c84759030ae883ef765ed399f1590",
+      "bytes": 858
+    },
+    {
+      "payload": "raw/ensembl-grch37-mini-clinvar-rs1801133.json",
+      "request": "GET https://grch37.rest.ensembl.org/variation/human/rs1801133?content-type=application/json",
+      "source": "Ensembl GRCh37 Variation REST (mini_clinvar.vcf re-date verification)",
+      "sha256": "198adadfb14050240fdb0d0d6bec47dd36e2e69fcb090f617ccde67b7e2c26d3",
+      "bytes": 1276
+    },
+    {
+      "payload": "raw/ensembl-grch37-mini-clinvar-rs4680.json",
+      "request": "GET https://grch37.rest.ensembl.org/variation/human/rs4680?content-type=application/json",
+      "source": "Ensembl GRCh37 Variation REST (mini_clinvar.vcf re-date verification)",
+      "sha256": "e2649bcd168601c53fce3bc96771e379e5964cdc3d5d0ed1ad650f6f0f07757b",
+      "bytes": 839
+    },
+    {
+      "payload": "raw/ensembl-grch37-mini-clinvar-rs80357906.json",
+      "request": "GET https://grch37.rest.ensembl.org/variation/human/rs80357906?content-type=application/json",
+      "source": "Ensembl GRCh37 Variation REST (mini_clinvar.vcf re-date verification)",
+      "sha256": "eb3076e7dac8d9c3bba92d44e89545234d3d0a50c0421e79b0bf5198df3ccfea",
+      "bytes": 890
+    },
+    {
+      "payload": "raw/ensembl-grch37-mini-clinvar-rs113993960.json",
+      "request": "GET https://grch37.rest.ensembl.org/variation/human/rs113993960?content-type=application/json",
+      "source": "Ensembl GRCh37 Variation REST (mini_clinvar.vcf re-date verification)",
+      "sha256": "4bbab829111435a9e26f9740fe5e5b399b5583bfd6f1a497bd228647be583b5d",
+      "bytes": 987
+    },
+    {
+      "payload": "raw/ensembl-grch37-mini-clinvar-rs12345.json",
+      "request": "GET https://grch37.rest.ensembl.org/variation/human/rs12345?content-type=application/json",
+      "source": "Ensembl GRCh37 Variation REST (mini_clinvar.vcf re-date verification)",
+      "sha256": "942e9c5fd00adeea7d719ab29118f7af5150aabc516ec6eb23ee2cfd28c2a1bd",
+      "bytes": 533
+    },
+    {
+      "payload": "raw/ensembl-grch37-mini-clinvar-rs28897696.json",
+      "request": "GET https://grch37.rest.ensembl.org/variation/human/rs28897696?content-type=application/json",
+      "source": "Ensembl GRCh37 Variation REST (mini_clinvar.vcf re-date verification)",
+      "sha256": "31791d197efadca0e6d51993869a028f601b2341b8eb668ee4eb4f390dc74e38",
+      "bytes": 937
+    },
+    {
+      "payload": "raw/ensembl-grch37-mini-clinvar-rs334.json",
+      "request": "GET https://grch37.rest.ensembl.org/variation/human/rs334?content-type=application/json",
+      "source": "Ensembl GRCh37 Variation REST (mini_clinvar.vcf re-date verification)",
+      "sha256": "6e65a8f66182a62cbef6dc500572e4b4ec3543954927334fb390431a0e7808fe",
+      "bytes": 1183
+    },
+    {
+      "payload": "raw/ensembl-grch37-mini-clinvar-rs12913832.json",
+      "request": "GET https://grch37.rest.ensembl.org/variation/human/rs12913832?content-type=application/json",
+      "source": "Ensembl GRCh37 Variation REST (mini_clinvar.vcf re-date verification)",
+      "sha256": "a38c1ad246c7c36ac5c0aefe0145b5a69caa161e3d9dc7649c098903d9e568bd",
+      "bytes": 604
+    },
+    {
+      "payload": "raw/ensembl-grch37-mini-clinvar-rs7903146.json",
+      "request": "GET https://grch37.rest.ensembl.org/variation/human/rs7903146?content-type=application/json",
+      "source": "Ensembl GRCh37 Variation REST (mini_clinvar.vcf re-date verification)",
+      "sha256": "9589e6f1b2faac44b606bc217f156f9d72196b2629fd2353b18334d3539964d2",
+      "bytes": 681
     }
   ],
-  "mini_clinvar_recheck": "Every RS= record in tests/fixtures/mini_clinvar.vcf was re-resolved against Ensembl GRCh37 on 2026-08-27 before the fixture's ##EnsemblGRCh37Accessed header was advanced to that date. All real rsIDs match, with the documented one-base left anchor for the two VCF indels. The single non-matching row is the record the fixture itself flags SYNTHETIC."
+  "mini_clinvar_recheck": "Every RS= record in tests/fixtures/mini_clinvar.vcf was re-resolved against Ensembl GRCh37 on 2026-08-27 before the fixture's ##EnsemblGRCh37Accessed header was advanced to that date. All real rsIDs match, with the documented one-base left anchor for the two VCF indels. The single non-matching row is the record the fixture itself flags SYNTHETIC. The eleven individual Ensembl responses behind that recheck are retained as raw payloads (raw/ensembl-grch37-mini-clinvar-rs*.json), each hashed in this manifest, so the re-dating can be verified without trusting the derived summary.",
+  "rs33950507_note": "The HBB row corrected in sample_23andme_v5.txt is NOT non-analytic: backend/data/panels/carrier_panel.json lists rs33950507 among HBB's expected pathogenic ClinVar rsIDs, so it can reach a user-facing carrier workflow and takes the full two-agreeing-source gate. Identity: dbSNP RefSNP gives NM_000518.5:c.79G>A, and PMID:39154456 names hemoglobin E as HBB:c.79G>A in its title. Independent mapping: VariantValidator, given that coding HGVS and no rsID, returns GRCh37 NC_000011.9:g.5248173C>T and GRCh38 NC_000011.10:g.5226943C>T. Assembly control: hg19 chr11:5248173 is C, matching REF, while chr11:5248281 -- the position the fixture used -- is A, which cannot host a C>T."
 }

@@ -511,15 +511,17 @@ class TestMiniClinVarVCFCoordinates:
                 f"mini_clinvar.vcf {rsid} is on chromosome {chrom}; expected {exp_chrom}"
             )
             if len(ref) == len(alt):
-                allowed = {exp_start}
+                expected_pos = exp_start
             else:
-                # A VCF indel carries a left anchor base and therefore may start
-                # one base before the Ensembl mapping interval the oracle
-                # records. See tests/fixtures/seed_csvs/README.md.
-                allowed = {exp_start, exp_start - 1}
-            assert pos in allowed, (
-                f"mini_clinvar.vcf {rsid} is at {chrom}:{pos}; expected "
-                f"{exp_chrom}:{'/'.join(str(value) for value in sorted(allowed))}"
+                # A length-changing VCF record carries a left anchor base, so it
+                # starts exactly one base before the Ensembl mapping interval.
+                # This is asserted exactly rather than accepting either
+                # coordinate: allowing both would let an off-by-one through with
+                # a REF that no longer describes the intended variant.
+                # See tests/fixtures/seed_csvs/README.md.
+                expected_pos = exp_start - 1
+            assert pos == expected_pos, (
+                f"mini_clinvar.vcf {rsid} is at {chrom}:{pos}; expected {exp_chrom}:{expected_pos}"
             )
 
 
