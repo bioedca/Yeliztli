@@ -47,6 +47,15 @@ PHARMACOGENOMICS = "pharmacogenomics"
 #: Modules defined in code rather than ``backend/data/panels``.
 CODE_DEFINED_TARGETS = {"metabolic"}
 
+#: Source modules whose route gates a Pharmacogenomics handoff on whether the
+#: destination can actually act for *this* sample. Naming a drug is not enough:
+#: #2020's dead end was a "View in Pharmacogenomics" button rendered whether or
+#: not PGx had a callable gene and a matching guideline. Only Allergy carries
+#: that gate today, so a PGx link from anywhere else fails closed here rather
+#: than shipping an ungated button. Adding a module means porting the gate, not
+#: extending this set.
+PGX_GATED_SOURCE_MODULES = frozenset({"allergy"})
+
 
 def _panel(path: Path) -> dict:
     with path.open(encoding="utf-8") as handle:
@@ -138,6 +147,29 @@ class TestEveryLinkDeclaresItsTarget:
             assert cross.get("drug"), f"{source}/{rsid} names no drug for the PGx lane"
             assert "target_rsids" not in cross, (
                 f"{source}/{rsid} declares rsids for a drug-keyed target"
+            )
+
+    def test_pgx_links_only_come_from_modules_that_gate_them(self) -> None:
+        for source, rsid, _gene, cross in _cross_module_links():
+            if cross["module"] != PHARMACOGENOMICS:
+                continue
+            assert source in PGX_GATED_SOURCE_MODULES, (
+                f"{source}/{rsid} hands off to Pharmacogenomics, but {source}'s route "
+                "does not gate the handoff on whether PGx can act for this sample; "
+                "port that gate before declaring the link"
+            )
+
+    def test_the_gated_modules_really_implement_the_gate(self) -> None:
+        """Keeps the set above a statement of capability, not a permission slip.
+
+        Without this, ``PGX_GATED_SOURCE_MODULES`` could be widened to silence
+        the check above while the route still renders an ungated button.
+        """
+        for module in PGX_GATED_SOURCE_MODULES:
+            route = (REPO_ROOT / "backend" / "api" / "routes" / f"{module}.py").read_text()
+            assert "pgx_covered_gene_drugs" in route, (
+                f"{module} is listed as gating PGx handoffs but its route never "
+                "consults pgx_covered_gene_drugs"
             )
 
     def test_the_declaration_uses_the_documented_shape(self) -> None:
