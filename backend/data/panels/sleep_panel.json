@@ -1,7 +1,7 @@
 {
   "module": "sleep",
   "version": "1.0.0",
-  "description": "Curated Gene Sleep SNP panel for Yeliztli (P3-48/P3-49). Covers 3 sleep pathways (Caffeine & Sleep, Sleep Quality, Sleep Disorders) with 5 curated SNPs plus GWAS Catalog sleep/circadian EFO term associations (chronotype/morningness still surface via the GWAS terms). CYP1A2 rs762551 has cross-module reference to Pharmacogenomics. The PER3 chronotype pathway was removed (#615): its sole marker rs57875989 IS the PER3 54-bp VNTR itself — a deprecated/unplaced dbSNP record not genotyped on any SNP array — and no validated array-typeable tag SNP for the VNTR exists, so the pathway could never fire. rs2858884 is retained as a non-diagnostic HLA-DQ region marker only — it is NOT a validated HLA-DQB1*06:02 / narcolepsy-risk proxy and no narcolepsy risk is inferred from it.",
+  "description": "Curated Gene Sleep SNP panel for Yeliztli (P3-48/P3-49). Covers 3 sleep pathways (Caffeine & Sleep, Sleep Quality, Sleep Disorders) with 5 curated SNPs plus GWAS Catalog sleep/circadian EFO term associations (chronotype/morningness still surface via the GWAS terms). CYP1A2 rs762551 is a caffeine-metabolism marker only; the cross-module reference to Pharmacogenomics was removed (#2024) because that module does not call CYP1A2. The PER3 chronotype pathway was removed (#615): its sole marker rs57875989 IS the PER3 54-bp VNTR itself — a deprecated/unplaced dbSNP record not genotyped on any SNP array — and no validated array-typeable tag SNP for the VNTR exists, so the pathway could never fire. rs2858884 is retained as a non-diagnostic HLA-DQ region marker only — it is NOT a validated HLA-DQB1*06:02 / narcolepsy-risk proxy and no narcolepsy risk is inferred from it.",
   "pathways": [
     {
       "id": "caffeine_sleep",
@@ -34,13 +34,9 @@
             }
           },
           "coverage_note": "The Sleep panel uses rs762551 only as a caffeine-metabolism marker; it is not a full CYP1A2 star-allele caller and does not report CYP1A2 diplotypes. PharmVar now assigns the former CYP1A2*1F-defining -163C>A core variant to the CYP1A2*30 allele group, and rs762551 can occur on multiple CYP1A2 haplotypes.",
-          "cross_module": {
-            "module": "pharmacogenomics",
-            "note": "CYP1A2 is also a pharmacogene relevant to drug metabolism (e.g., clozapine, theophylline). See Pharmacogenomics module for full drug interaction profile and star-allele interpretation."
-          },
           "evidence_level": 2,
           "pmids": ["16522833", "26378246", "37029915", "29282363", "41992662"],
-          "recommendation_text": "CYP1A2 determines caffeine half-life. Slow metabolizers may benefit from limiting caffeine intake to morning hours (before noon) to minimize sleep disruption. This variant also has pharmacogenomic relevance — see the Pharmacogenomics module."
+          "recommendation_text": "CYP1A2 determines caffeine half-life. Slow metabolizers may benefit from limiting caffeine intake to morning hours (before noon) to minimize sleep disruption. CYP1A2 also metabolises several medicines, but this app's Pharmacogenomics module does not call CYP1A2, so it offers no drug guidance for this variant."
         },
         {
           "rsid": "rs5751876",
@@ -176,12 +172,6 @@
       ]
     }
   ],
-  "additional_genes": {
-    "CYP1A2_pgx_context": {
-      "note": "CYP1A2 rs762551 appears under Caffeine & Sleep (slow metabolizer → sleep disruption), but is also a pharmacogene affecting metabolism of clozapine, theophylline, and other drugs. The Pharmacogenomics module provides the full drug interaction profile — Sleep module references but does not re-compute PGx findings.",
-      "rsids": ["rs762551"]
-    }
-  },
   "special_calling": {
     "CYP1A2_metabolizer": {
       "description": "Caffeine metabolizer status based on CYP1A2 rs762551 (-163C>A) genotype. This is not a full CYP1A2 star-allele call and does not emit CYP1A2 diplotypes.",

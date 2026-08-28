@@ -181,6 +181,7 @@
           "coverage_note": "rs747302 is the DRD4 -616 C/G promoter SNP used here only as low-confidence proxy context for the exon III VNTR (7-repeat allele). Direct VNTR genotyping is not available on 23andMe/microarray platforms, and the SNP-to-VNTR mapping is not reliable enough for a confident VNTR call. Results should be interpreted with caution.",
           "cross_module": {
             "module": "gene_health",
+            "target_rsids": ["rs747302"],
             "note": "DRD4 VNTR has been associated with ADHD susceptibility. See Gene Health module for ADHD-related findings."
           }
         }

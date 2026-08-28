@@ -16,8 +16,9 @@ couple of sleep-disorder markers, plus GWAS Catalog associations for sleep/circa
 ## What you'll see
 
 A **level** per pathway (*Elevated* / *Moderate* / *Standard*), per-SNP genotypes and effects,
-and a *CYP1A2* caffeine-metaboliser read (rapid / intermediate / slow), which cross-references
-[pharmacogenomics](../pharma/pharmacogenomics.md).
+and a *CYP1A2* caffeine-metaboliser read (rapid / intermediate / slow). *CYP1A2* also metabolises
+several medicines, but [pharmacogenomics](../pharma/pharmacogenomics.md) does not call *CYP1A2*,
+so there is no drug guidance here to cross-reference.
 
 ## Good to know
 

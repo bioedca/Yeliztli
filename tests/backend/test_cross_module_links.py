@@ -20,6 +20,7 @@ from backend.analysis.cross_module_links import (
     refreshed_finding_text,
 )
 from backend.analysis.gene_health import load_gene_health_panel
+from backend.analysis.sleep import load_sleep_panel
 
 LEGACY_FTO_NOTE = (
     "FTO rs9939609 influences appetite regulation and macronutrient metabolism. "
@@ -207,3 +208,147 @@ class TestRegisteredModuleWithNoLinks:
         resolved = normalize_cross_module_row(*self.STORED)
         assert resolved is not None
         assert resolved[1]["target_module"] == "metabolic"
+
+
+class TestLegacySleepCyp1a2Card:
+    """Sleep's only cross-link was retired, so its panel now declares none.
+
+    That makes it the live case for the registered-but-empty rule: an
+    unregistered module is passed through untouched, so registering Sleep is
+    exactly what retires the CYP1A2 rows already stored for existing samples
+    (#2024).
+    """
+
+    STORED = (
+        "sleep",
+        "cross_module",
+        "rs762551",
+        "CYP1A2 -163C>A (AC) — CYP1A2 is also a pharmacogene relevant to drug metabolism.",
+        {
+            "target_module": "pharmacogenomics",
+            "cross_module_note": "CYP1A2 is also a pharmacogene relevant to drug metabolism.",
+        },
+    )
+
+    def test_sleep_declares_no_cross_module_links(self) -> None:
+        assert panel_cross_module_links(load_sleep_panel()) == {}
+
+    def test_a_stored_cyp1a2_card_is_retired(self) -> None:
+        assert normalize_cross_module_row(*self.STORED) is None
+
+    def test_a_non_cross_module_sleep_row_is_untouched(self) -> None:
+        """Discriminates retirement from a blanket filter on the module."""
+        text, detail = normalize_cross_module_row(
+            "sleep", "snp_finding", "rs762551", "kept", {"recommendation": "kept too"}
+        )
+        assert text == "kept"
+        assert detail == {"recommendation": "kept too"}
+
+
+class TestLegacySleepCyp1a2RecommendationIsRefreshed:
+    """The retired handoff also lived in the SNP's persisted recommendation.
+
+    Retiring the cross-module card keeps the CYP1A2 -> Pharmacogenomics promise
+    off the pathway list, but ``recommendation_text`` is panel prose copied into
+    each ``snp_finding`` at scoring time, and the Sleep *detail* endpoint serves
+    that stored string. Without a refresh, a sample scored before #2024 keeps
+    being told to visit Pharmacogenomics for CYP1A2 guidance that module has
+    never had — the same shape as the FTO row above (#2021).
+    """
+
+    LEGACY = (
+        "CYP1A2 determines caffeine half-life. Slow metabolizers may benefit from "
+        "limiting caffeine intake to morning hours (before noon) to minimize sleep "
+        "disruption. This variant also has pharmacogenomic relevance — see the "
+        "Pharmacogenomics module."
+    )
+
+    def test_the_pgx_pointer_is_dropped(self) -> None:
+        current = current_recommendation("sleep", "rs762551", self.LEGACY)
+        assert current is not None
+        assert "see the Pharmacogenomics module" not in current
+        assert "does not call CYP1A2" in current
+
+    def test_the_caffeine_advice_survives(self) -> None:
+        """Refresh must correct the promise, not discard the module's own read."""
+        current = current_recommendation("sleep", "rs762551", self.LEGACY)
+        assert current is not None
+        assert "caffeine half-life" in current
+        assert "before noon" in current
+
+    def test_a_standard_non_carrier_is_not_handed_carrier_advice(self) -> None:
+        """Storage writes no snp_finding row for a Standard call (hom-ref)."""
+        assert current_recommendation("sleep", "rs762551", None) is None
+        assert current_recommendation("sleep", "rs762551", "") == ""
+
+
+class TestSleepDetailRouteServesTheRefreshedRecommendation:
+    """End of the chain: the production detail route, not just the helper.
+
+    ``pathway_detail`` reads ``snp_finding_detail["recommendation"]`` straight
+    out of storage, so the helper above only matters if the route actually calls
+    it. This drives the real endpoint with a pre-#2024 stored row.
+    """
+
+    LEGACY = TestLegacySleepCyp1a2RecommendationIsRefreshed.LEGACY
+
+    def _rows(self) -> list[dict]:
+        return [
+            {
+                "category": "pathway_summary",
+                "pathway": "Caffeine & Sleep",
+                "pathway_level": "Moderate",
+                "evidence_level": 2,
+                "pmids": [],
+                "finding_text": "",
+                "gene_symbol": "",
+                "rsid": "",
+                "detail": {
+                    "pathway_id": "caffeine_sleep",
+                    "called_snps": 1,
+                    "total_snps": 1,
+                    "snp_details": [
+                        {
+                            "rsid": "rs762551",
+                            "gene": "CYP1A2",
+                            "variant_name": "-163C>A",
+                            "genotype": "AC",
+                            "category": "Moderate",
+                            "effect_summary": "Intermediate caffeine metabolism.",
+                            "evidence_level": 2,
+                        }
+                    ],
+                },
+            },
+            {
+                "category": "snp_finding",
+                "pathway": "Caffeine & Sleep",
+                "pathway_level": "Moderate",
+                "evidence_level": 2,
+                "pmids": ["16522833"],
+                "finding_text": "CYP1A2 -163C>A (AC)",
+                "gene_symbol": "CYP1A2",
+                "rsid": "rs762551",
+                "detail": {"recommendation": self.LEGACY},
+            },
+        ]
+
+    def test_a_pre_change_stored_row_no_longer_points_at_pgx(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from backend.api.routes import sleep as sleep_route
+
+        rows = self._rows()
+        monkeypatch.setattr(sleep_route, "_get_sample_engine", lambda _sample_id: object())
+        monkeypatch.setattr(sleep_route, "_fetch_sleep_findings", lambda _engine: rows)
+
+        response = sleep_route.pathway_detail(pathway_id="caffeine_sleep", sample_id=1)
+
+        (snp,) = response.snp_details
+        assert snp.rsid == "rs762551"
+        assert snp.recommendation is not None
+        # The stored string still says it; the served one must not.
+        assert "see the Pharmacogenomics module" in self.LEGACY
+        assert "see the Pharmacogenomics module" not in snp.recommendation
+        assert "does not call CYP1A2" in snp.recommendation
+        assert "caffeine half-life" in snp.recommendation

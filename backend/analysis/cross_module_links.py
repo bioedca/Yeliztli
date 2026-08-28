@@ -69,6 +69,10 @@ _PANEL_LOADERS: dict[str, str] = {
     "allergy": "backend.analysis.allergy:load_allergy_panel",
     "gene_health": "backend.analysis.gene_health:load_gene_health_panel",
     "skin": "backend.analysis.skin:load_skin_panel",
+    # Sleep declares no cross-module links since #2024 removed its CYP1A2 ->
+    # Pharmacogenomics handoff. Registering it is what retires the rows that
+    # were already stored: an unregistered module is passed through untouched.
+    "sleep": "backend.analysis.sleep:load_sleep_panel",
 }
 
 CROSS_MODULE_CATEGORY = "cross_module"

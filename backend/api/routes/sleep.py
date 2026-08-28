@@ -20,10 +20,17 @@ import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
+from backend.analysis.cross_module_links import (
+    current_link,
+    current_recommendation,
+    panel_cross_module_links,
+    refreshed_finding_text,
+)
 from backend.analysis.pharmacogenomics import (
     is_patient_presentable_finding_payload,
     is_patient_presentable_response_payload,
 )
+from backend.analysis.sleep import MODULE_NAME, load_sleep_panel
 from backend.api.dependencies import require_fresh_sample
 from backend.db.connection import get_registry
 from backend.db.tables import findings, samples
@@ -230,16 +237,23 @@ def list_pathways(
 
     # Cross-module findings (CYP1A2 → PGx)
     cross_module_findings = [f for f in all_findings if f["category"] == "cross_module"]
+    # Resolve against the panel that is loaded, and drop a link it has since
+    # retired — the CYP1A2 -> Pharmacogenomics handoff — so a sample analysed
+    # before #2024 stops being sent there without a re-score (#2021 pattern).
+    links = panel_cross_module_links(load_sleep_panel())
     cross_items: list[CrossModuleItem] = []
     for cf in cross_module_findings:
         detail = cf["detail"]
+        link = current_link(links, cf)
+        if link is None:
+            continue
         cross_items.append(
             CrossModuleItem(
                 rsid=cf["rsid"] or "",
                 gene=cf["gene_symbol"] or "",
                 source_module=detail.get("source_module", "sleep"),
-                target_module=detail.get("target_module", ""),
-                finding_text=cf["finding_text"] or "",
+                target_module=link["module"],
+                finding_text=refreshed_finding_text(cf, link),
                 evidence_level=cf["evidence_level"] if cf["evidence_level"] is not None else 1,
                 pmids=cf["pmids"],
             )
@@ -310,7 +324,15 @@ def pathway_detail(
         rsid = sd.get("rsid", "")
         snp_finding = snp_findings_map.get(rsid, {})
         snp_finding_detail = snp_finding.get("detail", {})
-        recommendation = snp_finding_detail.get("recommendation")
+        # Panel prose persisted at scoring time, so a correction reaches an
+        # existing sample only on a re-score. Retiring the CYP1A2 handoff
+        # rewrote this SNP's recommendation, and without the refresh the detail
+        # panel keeps sending pre-#2024 samples to Pharmacogenomics for CYP1A2
+        # guidance that module has never had — the same defect #2021 fixed for
+        # Gene Health's FTO row.
+        recommendation = current_recommendation(
+            MODULE_NAME, rsid, snp_finding_detail.get("recommendation")
+        )
         pmids = snp_finding.get("pmids", [])
 
         snp_detail = SNPDetail(
@@ -361,8 +383,9 @@ def run_sleep(
     """Run or re-run sleep scoring for a sample.
 
     Loads the curated panel, scores all pathways using the sample's
-    genotypes, generates CYP1A2 PGx cross-module reference, looks up
-    GWAS associations, and stores findings.
+    genotypes, looks up GWAS associations, and stores findings. The panel
+    declares no cross-module links since #2024 retired the CYP1A2 handoff to
+    Pharmacogenomics, which does not call CYP1A2.
 
     Example: ``POST /api/analysis/sleep/run?sample_id=1``
     """
