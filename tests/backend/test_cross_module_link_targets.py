@@ -140,6 +140,35 @@ class TestEveryLinkDeclaresItsTarget:
                 f"{source}/{rsid} declares rsids for a drug-keyed target"
             )
 
+    def test_the_declaration_uses_the_documented_shape(self) -> None:
+        """Truthiness is not a type check, and the previous guard did check.
+
+        ``origin/main`` asserted ``isinstance(declared, list) and declared``;
+        rewriting the validator dropped it. Without it a mapping passes — the
+        resolution loops below iterate a dict's keys, so a
+        ``{"rs1801133": ...}`` object would resolve and the whole validator
+        would go green on a declaration that does not match the contract the
+        panel README documents.
+        """
+        for source, rsid, _gene, cross in _cross_module_links():
+            for key in ("target_rsids", "target_genes"):
+                if key not in cross:
+                    continue
+                declared = cross[key]
+                assert isinstance(declared, list) and declared, (
+                    f"{source}/{rsid} declares {key}={declared!r}; a non-empty list is required"
+                )
+                for value in declared:
+                    assert isinstance(value, str) and value.strip(), (
+                        f"{source}/{rsid} declares {key} entry {value!r}; "
+                        "each entry must be a non-empty string"
+                    )
+            if "drug" in cross:
+                drug = cross["drug"]
+                assert isinstance(drug, str) and drug.strip(), (
+                    f"{source}/{rsid} declares drug={drug!r}; a non-empty string is required"
+                )
+
     def test_the_declared_currency_matches_the_target(self, panels: dict[str, dict]) -> None:
         """Declaring *a* currency is not enough — it must be the target's.
 
