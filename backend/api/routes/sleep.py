@@ -383,8 +383,9 @@ def run_sleep(
     """Run or re-run sleep scoring for a sample.
 
     Loads the curated panel, scores all pathways using the sample's
-    genotypes, generates CYP1A2 PGx cross-module reference, looks up
-    GWAS associations, and stores findings.
+    genotypes, looks up GWAS associations, and stores findings. The panel
+    declares no cross-module links since #2024 retired the CYP1A2 handoff to
+    Pharmacogenomics, which does not call CYP1A2.
 
     Example: ``POST /api/analysis/sleep/run?sample_id=1``
     """

@@ -4,7 +4,9 @@ Implements P3-49:
   - 14 trait findings across 4 pathway cards (Caffeine & Sleep, Chronotype &
     Circadian Rhythm, Sleep Quality, Sleep Disorders).
   - CYP1A2 caffeine metabolizer three-state calling (rapid/intermediate/slow).
-  - CYP1A2 cross-module reference to Pharmacogenomics (read, not re-compute).
+  - Cross-module references for any SNP the panel links. The CYP1A2 handoff to
+    Pharmacogenomics was retired in #2024 (that module does not call CYP1A2),
+    so the panel currently declares none.
   - rs2858884 HLA-DQ region marker (NOT a DQB1*06:02 / narcolepsy proxy;
     informational only, no narcolepsy risk inferred).
   - PER3 VNTR proxy with coverage note.
@@ -163,7 +165,7 @@ class PathwayResult:
 
 @dataclass
 class CrossModuleFinding:
-    """Cross-module reference finding (CYP1A2 ↔ Pharmacogenomics)."""
+    """A reference from this module to another, declared per SNP in the panel."""
 
     rsid: str
     gene: str
@@ -536,7 +538,7 @@ def score_sleep_pathways(
     2. Scores each SNP using the curated panel definitions.
     3. Applies evidence-level gating and CYP1A2 metabolizer calling.
     4. Determines per-pathway level (highest category across SNPs).
-    5. Generates CYP1A2 cross-module reference to PGx.
+    5. Generates a cross-module reference for any SNP the panel links (none today).
     6. Looks up GWAS associations for matched rsids.
 
     Args:
@@ -641,7 +643,7 @@ def store_sleep_findings(
       - 4 pathway summaries (one per pathway).
       - Up to 6 individual SNP findings (non-Standard called SNPs).
       - 1 CYP1A2 metabolizer state summary finding.
-      - 1 CYP1A2 PGx cross-module reference.
+      - 1 cross-module reference per linked SNP (the panel declares none since #2024).
       - Up to 2 additional trait-level findings.
 
     Args:
