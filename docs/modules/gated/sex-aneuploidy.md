@@ -29,6 +29,7 @@ karyotype confirmation**.
   negative.** Some samples fall between the levels this screen can tell apart. When that
   happens *and* there is a chromosome-Y signal above the noise floor — including one too weak
   to meet the presence threshold — the screen withholds the negative rather than asserting
-  one. It is explicitly *not* a positive finding either; the screen cannot tell. With no
-  chromosome-Y signal the result stays a negative. These are the same samples the app's sex
-  inference also declines to resolve.
+  one. It is explicitly *not* a positive finding either; the screen cannot tell. When enough
+  chromosome-Y probes were typed to judge and no Y signal is found, the result stays a
+  negative; when too few were typed to judge at all, the result is *indeterminate*. These are
+  the same samples the app's sex inference also declines to resolve.
