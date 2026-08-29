@@ -178,6 +178,23 @@ class TestUpdateSampleMetadata:
         r = client.patch("/api/samples/999", json={"notes": "x"})
         assert r.status_code == 404
 
+    def test_nonexistent_sample_reports_404_even_with_an_invalid_date(self, client):
+        """Existence outranks field validation (#2041 review).
+
+        The plain 404 test sends only ``notes``, so it cannot see whether a bad
+        date short-circuits the lookup. Validating the date before the existence
+        check would answer 422 for a sample that does not exist, telling the
+        caller their date was wrong when the real problem is the ID.
+        """
+        r = client.patch("/api/samples/999", json={"date_collected": "invalid-date"})
+        assert r.status_code == 404
+
+        r = client.patch(
+            "/api/samples/999",
+            json={"name": "Nope", "date_collected": "invalid-date"},
+        )
+        assert r.status_code == 404
+
     def test_update_invalid_date_format_returns_422(self, client):
         sid = _create_sample(client)
         r = client.patch(f"/api/samples/{sid}", json={"date_collected": "invalid-date"})
