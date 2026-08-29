@@ -171,6 +171,21 @@ async def update_sample(sample_id: int, body: SampleUpdate) -> SampleResponse:
     now = datetime.now(UTC)
     update_values["updated_at"] = now
 
+    # Validate before the first write. The rename lands in the registry
+    # (reference.db) while the date lands in the per-sample DB, so no shared
+    # transaction spans them -- a 422 raised after the registry commit would
+    # leave the rename silently applied behind an error the user believes
+    # rejected the whole request.
+    parsed_date: date | None = None
+    if body.date_collected is not None:
+        try:
+            parsed_date = date.fromisoformat(body.date_collected)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Invalid date format: {body.date_collected}. Expected YYYY-MM-DD.",
+            ) from exc
+
     with registry.reference_engine.begin() as conn:
         # Check sample exists
         row = conn.execute(sa.select(samples).where(samples.c.id == sample_id)).fetchone()
@@ -190,13 +205,7 @@ async def update_sample(sample_id: int, body: SampleUpdate) -> SampleResponse:
         if body.notes is not None:
             meta_updates["notes"] = body.notes
         if body.date_collected is not None:
-            try:
-                meta_updates["date_collected"] = date.fromisoformat(body.date_collected)
-            except ValueError as exc:
-                raise HTTPException(
-                    status_code=422,
-                    detail=f"Invalid date format: {body.date_collected}. Expected YYYY-MM-DD.",
-                ) from exc
+            meta_updates["date_collected"] = parsed_date
         if body.source is not None:
             meta_updates["source"] = body.source
         if body.extra is not None:

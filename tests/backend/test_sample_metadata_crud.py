@@ -183,6 +183,54 @@ class TestUpdateSampleMetadata:
         r = client.patch(f"/api/samples/{sid}", json={"date_collected": "invalid-date"})
         assert r.status_code == 422
 
+    def test_rejected_date_does_not_commit_the_rename(self, client):
+        """A 422 must leave nothing behind (#2041).
+
+        The rename lands in the registry (reference.db) while the date lands in
+        the per-sample DB, so no shared transaction spans them -- validating
+        before the first write is the only thing that keeps a rejected request
+        from half-applying. The shipped editor sends every field in one PATCH,
+        so "rename and mistype the date" is a single ordinary request.
+        """
+        sid = _create_sample(client)
+        before = client.get(f"/api/samples/{sid}").json()
+
+        r = client.patch(
+            f"/api/samples/{sid}",
+            json={"name": "RENAMED_BY_PARTIAL_COMMIT", "date_collected": "invalid-date"},
+        )
+        assert r.status_code == 422
+
+        after = client.get(f"/api/samples/{sid}").json()
+        assert after["name"] == before["name"], (
+            f"partial commit: PATCH returned 422 but name changed "
+            f"{before['name']!r} -> {after['name']!r}"
+        )
+        assert after["updated_at"] == before["updated_at"], (
+            "partial commit: PATCH returned 422 but updated_at was bumped"
+        )
+
+    def test_clearing_the_date_does_not_commit_the_rename(self, client):
+        """An <input type="date"> emits "" when cleared, and "" never parses.
+
+        Same partial commit as the malformed-date case, reached without the
+        user typing anything wrong.
+        """
+        sid = _create_sample(client)
+        before = client.get(f"/api/samples/{sid}").json()
+
+        r = client.patch(
+            f"/api/samples/{sid}",
+            json={"name": "RENAMED_BY_CLEARED_DATE", "date_collected": ""},
+        )
+        assert r.status_code == 422
+
+        after = client.get(f"/api/samples/{sid}").json()
+        assert after["name"] == before["name"], (
+            f"partial commit: clearing the date returned 422 but name changed "
+            f"{before['name']!r} -> {after['name']!r}"
+        )
+
     def test_update_extra_invalid_json_returns_422(self, client):
         sid = _create_sample(client)
         r = client.patch(f"/api/samples/{sid}", json={"extra": "not-a-dict"})
