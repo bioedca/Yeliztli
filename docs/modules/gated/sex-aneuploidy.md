@@ -26,11 +26,9 @@ karyotype confirmation**.
 - Minimum probe-count thresholds guard against false calls from stray probes, and discordant
   X/Y signals in the manual-review band are not reported as clean negative screens.
 - **An unresolvable X dosage alongside a chromosome-Y signal returns manual review, not a
-  negative.** The screen reads X-chromosome copy number from how often X markers are
-  heterozygous, and some samples land between the one-X and two-X levels it can tell apart.
-  When that happens *and* there is a chromosome-Y signal above the noise floor — including one
-  too weak to meet the presence threshold — the screen withholds the negative rather than
-  asserting one. It is explicitly *not* a positive finding either; the screen cannot tell.
-  With no chromosome-Y signal the result stays a negative, because the XXY pattern needs a Y
-  whatever the X reads. These are the same samples the app's sex inference also declines to
-  resolve.
+  negative.** Some samples fall between the levels this screen can tell apart. When that
+  happens *and* there is a chromosome-Y signal above the noise floor — including one too weak
+  to meet the presence threshold — the screen withholds the negative rather than asserting
+  one. It is explicitly *not* a positive finding either; the screen cannot tell. With no
+  chromosome-Y signal the result stays a negative, because the XXY pattern needs a Y whatever
+  the X reads. These are the same samples the app's sex inference also declines to resolve.

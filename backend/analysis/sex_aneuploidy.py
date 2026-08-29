@@ -157,9 +157,9 @@ def _finding_text(result: AneuploidyResult) -> str:
         if _is_ambiguous_x(result):
             return (
                 "The sex-chromosome aneuploidy screen needs manual review: the "
-                "X-chromosome heterozygosity of this sample sits between the "
-                "one-X and two-X levels this array can tell apart, so its X "
-                "dosage could not be determined, and there is a chromosome-Y "
+                "X-chromosome dosage of this sample falls between the levels "
+                "this screen can tell apart, so it could not be determined "
+                "from this array, and there is a chromosome-Y "
                 "signal above the background noise floor. That Y signal may be "
                 "too weak to meet this screen's presence threshold. This is NOT "
                 "a clean negative result, and it is "

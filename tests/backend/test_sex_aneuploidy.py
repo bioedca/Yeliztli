@@ -247,9 +247,19 @@ class TestScreen:
         assert "NOT a positive finding" in text
         assert "diploid-X signal together with a chrY signal" not in text
         assert "Klinefelter" not in text
-        # The copy must not explain the biology behind an intermediate level —
-        # that would be a clinical claim this change does not evidence.
-        for claim in ("mosaic", "isodisomic", "47,XXY", "chromosome complement"):
+        # The copy must not explain the biology behind an intermediate level,
+        # nor how the screen measures X dosage — either is a claim this change
+        # does not evidence, and the mechanism wording drifted back in twice
+        # before this assertion covered it.
+        for claim in (
+            "mosaic",
+            "isodisomic",
+            "47,XXY",
+            "chromosome complement",
+            "heterozygosity",
+            "heterozygous",
+            "copy number",
+        ):
             assert claim not in text, f"unevidenced mechanism claim {claim!r} in patient copy"
         # Nor recommend a specific confirmatory assay the module has never
         # supported. An earlier revision said "confirm with clinical karyotyping
