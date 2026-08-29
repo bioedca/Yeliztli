@@ -12,6 +12,7 @@ that must return ``unknown`` live in :class:`TestMinimumEvidenceGuard`.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -852,16 +853,26 @@ def test_threshold_validation_doc_exists_and_matches_constants() -> None:
     # keep referring to ``_THRESHOLD_X_HET_HEMIZYGOUS`` after #2040 made the
     # constant public, so the record named a symbol that no longer exists while
     # this test stayed green.
+    #
+    # The match must be delimited. A plain ``in`` check is satisfied by the
+    # private spelling, because ``THRESHOLD_X_HET_DIPLOID`` is a substring of
+    # ``_THRESHOLD_X_HET_DIPLOID`` — which is how three dangling references to a
+    # never-public ``_THRESHOLD_X_HET_DIPLOID`` survived the first pass at this
+    # test.
     for symbol in (
         "THRESHOLD_X_HET_HEMIZYGOUS",
         "THRESHOLD_X_HET_DIPLOID",
         "MIN_X_NONPAR_TYPED",
         "MIN_Y_PROBES",
     ):
-        assert symbol in text, f"validation record does not name {symbol}"
-    assert "_THRESHOLD_X_HET_HEMIZYGOUS" not in text, (
-        "validation record still names the pre-#2040 private symbol"
-    )
+        assert re.search(rf"(?<![A-Za-z0-9_]){symbol}\b", text), (
+            f"validation record does not name {symbol} (an underscore-prefixed "
+            "spelling does not count)"
+        )
+    for private in ("_THRESHOLD_X_HET_HEMIZYGOUS", "_THRESHOLD_X_HET_DIPLOID"):
+        assert private not in text, (
+            f"validation record still names {private}, which does not exist"
+        )
     assert str(MIN_X_NONPAR_TYPED) in text  # 100
     assert str(MIN_Y_PROBES) in text  # 50
     assert "validate_sex_thresholds.py" in text  # reproduction command

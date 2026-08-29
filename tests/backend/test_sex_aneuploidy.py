@@ -221,7 +221,15 @@ class TestScreen:
         # The copy must not explain the biology behind an intermediate level —
         # that would be a clinical claim this change does not evidence.
         for claim in ("mosaic", "isodisomic", "47,XXY", "chromosome complement"):
-            assert claim not in text
+            assert claim not in text, f"unevidenced mechanism claim {claim!r} in patient copy"
+        # Nor recommend a specific confirmatory assay the module has never
+        # supported. An earlier revision said "confirm with clinical karyotyping
+        # or FISH"; FISH was new clinical advice arriving with no evidence
+        # packet behind it. The copy reuses the module's existing wording
+        # instead, so this is about what the app may recommend, not about FISH's
+        # merits.
+        assert "FISH" not in text, "unevidenced confirmatory assay recommended in patient copy"
+        assert "orthogonal chromosome-copy-number evidence" in text
 
     def test_diploid_rate_xhet_with_y_is_possible_xxy(self, sample_engine: sa.Engine) -> None:
         """A female-level X-het rate (above the diploid-X cutoff) co-occurring with

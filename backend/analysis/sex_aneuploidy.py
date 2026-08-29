@@ -162,8 +162,9 @@ def _finding_text(result: AneuploidyResult) -> str:
                 "dosage could not be determined, and a chromosome-Y signal is "
                 "also present. This is NOT a clean negative result, and it is "
                 "equally NOT a positive finding — the screen cannot resolve "
-                "this sample either way. The screen is not a diagnosis; if "
-                "relevant, confirm with clinical karyotyping or FISH."
+                "this sample either way. The screen is not a diagnosis and "
+                "should be interpreted with clinical confirmation or orthogonal "
+                "chromosome-copy-number evidence if relevant."
             )
         return (
             "The sex-chromosome aneuploidy screen needs manual review: the sample "
