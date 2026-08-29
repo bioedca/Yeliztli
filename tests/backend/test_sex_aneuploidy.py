@@ -20,8 +20,13 @@ from backend.analysis.sex_aneuploidy import (
     screen_aneuploidy,
     store_aneuploidy_findings,
 )
-from backend.db.tables import findings, raw_variants
-from backend.services.sex_inference import infer_biological_sex
+from backend.db.tables import findings, raw_variants, sample_metadata_obj
+from backend.services.sex_inference import (
+    THRESHOLD_X_HET_DIPLOID,
+    THRESHOLD_X_HET_HEMIZYGOUS,
+    THRESHOLD_Y_PAR_NOISE,
+    infer_biological_sex,
+)
 
 
 def _seed(engine: sa.Engine, rows: list[dict]) -> None:
@@ -119,13 +124,90 @@ class TestScreen:
         assert r.x_nonpar_het == 5  # noise present (>2), but the rate is ~0.01
 
     def test_two_x_decided_on_rate_not_count(self, sample_engine: sa.Engine) -> None:
-        """Even a sizable absolute het count stays NO_SIGNAL when the *rate* is
-        below the diploid-X cutoff — confirming the decision is rate-based, not a
-        count. Here 20 het / 220 typed ≈ 9.1% < 15%, with chrY present."""
-        _seed(sample_engine, _x_probes(20, 200) + _y_probes(60))
+        """A sizable absolute het count stays NO_SIGNAL when the *rate* is at or
+        below the hemizygous (one-X) cutoff — the decision is rate-based, not a
+        count. Here 15 het / 700 typed ≈ 2.1%, which is male-consistent noise
+        despite 15 being far above any plausible count threshold.
+
+        The rate deliberately sits in the *hemizygous* zone rather than the
+        ambiguous band. This test used to seed 9.1%, which is the band the
+        classifier refuses to resolve, and asserted a clean negative — pinning
+        #2040 as correct. The rate-not-count point does not need that genotype,
+        and the ambiguous band now has its own tests below.
+        """
+        _seed(sample_engine, _x_probes(15, 685) + _y_probes(60))
         r = screen_aneuploidy(sample_engine)
         assert r.outcome == NO_SIGNAL
-        assert r.x_nonpar_het == 20
+        assert r.x_nonpar_het == 15
+        assert r.x_nonpar_typed == 700
+        # The count is large; only the rate keeps this a negative.
+        assert r.x_nonpar_het / r.x_nonpar_typed <= THRESHOLD_X_HET_HEMIZYGOUS
+        # ...and the classifier agrees this is resolvable, which is what makes a
+        # clean negative legitimate here (contrast the ambiguous-band tests).
+        assert infer_biological_sex(sample_engine) == "XY"
+
+    def test_ambiguous_x_band_with_y_present_is_manual_review(
+        self, sample_engine: sa.Engine
+    ) -> None:
+        """The #2040 case, and the sharpest one: a present chrY plus an X-het
+        rate just under the diploid cutoff.
+
+        Only the X-het sitting at 9.1% instead of ≥15% separates this from a
+        ``possible_xxy`` call, and the screen used to answer with an affirmative
+        "no XXY signature detected". Withholding is not a positive call — an
+        intermediate rate can equally be array noise.
+        """
+        _seed(sample_engine, _x_probes(20, 200) + _y_probes(60))
+
+        r = screen_aneuploidy(sample_engine)
+
+        assert r.outcome == MANUAL_REVIEW
+        assert r.x_evaluable and r.y_evaluable
+        assert r.y_rate > Y_PRESENT_RATE
+        rate = r.x_nonpar_het / r.x_nonpar_typed
+        assert THRESHOLD_X_HET_HEMIZYGOUS < rate < THRESHOLD_X_HET_DIPLOID
+        assert infer_biological_sex(sample_engine) == "manual_review"
+
+    def test_ambiguous_x_band_without_y_is_still_manual_review(
+        self, sample_engine: sa.Engine
+    ) -> None:
+        """Unresolvable X dosage is enough on its own; chrY need not be present.
+
+        Pairs with the case above so the outcome is attributable to the X band
+        rather than to the Y signal.
+        """
+        _seed(sample_engine, _x_probes(20, 200) + _y_probes(0, 60))
+
+        r = screen_aneuploidy(sample_engine)
+
+        assert r.outcome == MANUAL_REVIEW
+        assert r.y_rate == 0.0
+        assert infer_biological_sex(sample_engine) == "manual_review"
+
+    def test_manual_review_text_names_the_ambiguous_x_cause(
+        self, sample_engine: sa.Engine
+    ) -> None:
+        """The stored text must describe the cause it actually has.
+
+        The pre-existing MANUAL_REVIEW copy names a diploid-X/discordant-Y
+        pattern, which is not what happened here; a user reading it would be
+        told about a signal their sample does not have.
+        """
+        _seed(sample_engine, _x_probes(20, 200) + _y_probes(60))
+        r = screen_aneuploidy(sample_engine)
+        store_aneuploidy_findings(r, sample_engine)
+
+        with sample_engine.connect() as conn:
+            text = conn.execute(
+                sa.select(findings.c.finding_text).where(findings.c.module == MODULE)
+            ).scalar_one()
+
+        assert "cannot be resolved" in text
+        assert "NOT a clean negative" in text
+        # Neither a positive call nor the other branch's wording.
+        assert "NOT a positive finding" in text
+        assert "diploid-X signal together with a chrY signal" not in text
+        assert "Klinefelter" not in text
 
     def test_diploid_rate_xhet_with_y_is_possible_xxy(self, sample_engine: sa.Engine) -> None:
         """A female-level X-het rate (above the diploid-X cutoff) co-occurring with
@@ -244,3 +326,99 @@ class TestStorage:
                 sa.select(sa.func.count()).select_from(findings).where(findings.c.module == MODULE)
             ).scalar()
         assert n == 1
+
+
+class TestClassifierAndScreenNeverContradict:
+    """The screen must not answer a clean negative where X dosage is unresolved.
+
+    #1130 established this on the chrY axis and #2040 on the X axis. The
+    invariant is deliberately **narrower** than "any ``manual_review`` forbids
+    ``NO_SIGNAL``", and that is a reasoned scope rather than a carve-out to make
+    a test pass:
+
+    XXY requires two X chromosomes. When the X-het rate is confidently
+    hemizygous (≤ ``THRESHOLD_X_HET_HEMIZYGOUS``) the sample has one X, so no
+    chrY reading can produce an XXY signature — "no XXY signature detected" is
+    true regardless. The classifier still returns ``manual_review`` for such a
+    sample when chrY sits between the PAR-noise floor and the XY-confirm cutoff,
+    but that uncertainty is about *sex assignment*, not about XXY. Forbidding a
+    clean negative there would fire on ordinary 46,XY males whose chrY signal is
+    merely degraded (rate 0.10–0.30), turning a psychosocially gated screen into
+    a false-alarm generator — harm in the opposite direction.
+
+    The materially-uncertain cases are the two the screen now routes to
+    ``MANUAL_REVIEW``: an unresolvable X dosage, and a diploid X with a
+    discordant chrY. This sweeps the rate space so a future threshold change
+    that re-opens a gap in either fails here.
+    """
+
+    # (het, hom) pairs spanning hemizygous, ambiguous and diploid X zones, and
+    # chrY typed counts spanning absent, PAR-noise, intermediate and present.
+    X_SHAPES = ((0, 220), (5, 215), (15, 205), (20, 200), (28, 192), (48, 172), (90, 130))
+    Y_TYPED = (0, 3, 12, 25, 50, 60)
+
+    def _grid(self) -> list[tuple[float, float, str, str]]:
+        rows = []
+        for n_het, n_hom in self.X_SHAPES:
+            for y_typed in self.Y_TYPED:
+                engine = sa.create_engine("sqlite://")
+                sample_metadata_obj.create_all(engine)
+                _seed(engine, _x_probes(n_het, n_hom) + _y_probes(y_typed, 60 - y_typed))
+                r = screen_aneuploidy(engine)
+                rows.append(
+                    (n_het / (n_het + n_hom), r.y_rate, infer_biological_sex(engine), r.outcome)
+                )
+        return rows
+
+    def test_unresolved_x_dosage_is_never_a_clean_negative(self) -> None:
+        grid = self._grid()
+        assert len(grid) == len(self.X_SHAPES) * len(self.Y_TYPED)
+
+        offenders = [
+            f"x_het={x:.3f} y_rate={y:.3f} -> {outcome}"
+            for x, y, inferred, outcome in grid
+            if inferred == "manual_review"
+            and x > THRESHOLD_X_HET_HEMIZYGOUS
+            and outcome == NO_SIGNAL
+        ]
+        assert not offenders, (
+            "sex inference could not resolve X dosage while the screen reported a "
+            f"clean negative at: {offenders}"
+        )
+
+    def test_the_sweep_actually_reaches_the_unresolved_zone(self) -> None:
+        """Without this the invariant above could hold vacuously."""
+        reached = [
+            (x, y, outcome)
+            for x, y, inferred, outcome in self._grid()
+            if inferred == "manual_review" and x > THRESHOLD_X_HET_HEMIZYGOUS
+        ]
+        assert reached, "no grid point reached an unresolved X dosage — invariant is vacuous"
+        outcomes = {outcome for _x, _y, outcome in reached}
+        # A clean negative is the forbidden answer. POSSIBLE_XXY is legitimate
+        # here: a diploid X with a present chrY is the screen's positive call,
+        # and the classifier reports manual_review for the same sample because
+        # the X/Y combination is discordant for a binary sex assignment.
+        assert NO_SIGNAL not in outcomes
+        assert MANUAL_REVIEW in outcomes
+
+    def test_the_hemizygous_exclusion_is_bounded(self) -> None:
+        """The exclusion above must not quietly widen past one-X samples.
+
+        Every grid point where a ``manual_review`` classification still yields a
+        clean negative has to be confidently hemizygous — one X, so XXY is
+        excluded on the X axis alone. If a future change lets some other shape
+        through this exclusion, this fails.
+        """
+        excused = [
+            (x, y)
+            for x, y, inferred, outcome in self._grid()
+            if inferred == "manual_review" and outcome == NO_SIGNAL
+        ]
+        assert excused, "no manual_review/clean-negative pair — this exclusion is now dead"
+        for x_rate, y_rate in excused:
+            assert x_rate <= THRESHOLD_X_HET_HEMIZYGOUS, (
+                f"a non-hemizygous sample (x_het={x_rate:.3f}) is being excused"
+            )
+            # ...and the reason it is excused is chrY uncertainty, not X.
+            assert THRESHOLD_Y_PAR_NOISE < y_rate <= Y_PRESENT_RATE

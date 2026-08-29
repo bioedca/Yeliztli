@@ -25,7 +25,7 @@ chrX/chrY evidence:
    observed X-het rate is ≈0 — only genotyping noise (a lone non-PAR chrX
    het occurs even in males, Chen et al. PMID 38073250). A diploid-X
    individual is heterozygous at a large fraction of markers (female-level,
-   tens of percent). So a rate at/below ``_THRESHOLD_X_HET_HEMIZYGOUS``
+   tens of percent). So a rate at/below ``THRESHOLD_X_HET_HEMIZYGOUS``
    (default 0.05) is a *candidate* XY; a rate at/above
    ``THRESHOLD_X_HET_DIPLOID`` (default 0.15) is diploid-X; a rate in
    between is ambiguous X dosage → ``manual_review``. The denominator
@@ -101,15 +101,17 @@ THRESHOLD_Y_PAR_NOISE: float = _THRESHOLD_PAR_NOISE
 # the X-het *rate*, not a binary "any het" count (seXY, PMID 28035028;
 # Carracelas et al. 2025). The two clusters (≈0.3% vs ≈25–40%) are far apart, so
 # a wide ambiguous band between these cutoffs is safe:
-#   • rate ≤ _THRESHOLD_X_HET_HEMIZYGOUS → one X (male-consistent; tolerates noise)
+#   • rate ≤ THRESHOLD_X_HET_HEMIZYGOUS → one X (male-consistent; tolerates noise)
 #   • rate ≥ THRESHOLD_X_HET_DIPLOID    → two X (XX / XXY-consistent)
 #   • in between                          → ambiguous X dosage → manual_review
-_THRESHOLD_X_HET_HEMIZYGOUS: float = 0.05
-# ``THRESHOLD_X_HET_DIPLOID`` is public because it is the shared single source of
-# truth for "two X" across modules: ``backend/analysis/sex_aneuploidy.py`` imports
-# it so its XXY screen and this classifier's XX/XXY branch agree on the cutoff.
-# ``_THRESHOLD_X_HET_HEMIZYGOUS`` stays module-private — only this classifier uses
-# the lower (one-X) bound.
+# Both bounds are public because both are shared with
+# ``backend/analysis/sex_aneuploidy.py``: the screen needs all three of this
+# classifier's X zones, not just the upper one. It used to import only the
+# diploid cutoff, which collapsed the ambiguous middle band into its clean
+# negative — the screen said "No XXY signature detected" for exactly the samples
+# this classifier refuses to resolve (#2040). That is the X-axis counterpart of
+# the chrY floor shared for #1130.
+THRESHOLD_X_HET_HEMIZYGOUS: float = 0.05
 THRESHOLD_X_HET_DIPLOID: float = 0.15
 
 # Minimum evaluable sex-chromosome evidence required before a *confident*
@@ -185,7 +187,7 @@ def _classify(
     - **X dosage by het *rate*, not a binary count (#519).** The non-PAR chrX
       heterozygosity rate separates one X (≈0, genotyping noise only) from two X
       (female-level, tens of percent). A *rate* at/below
-      ``_THRESHOLD_X_HET_HEMIZYGOUS`` is male-consistent and tolerates the noise
+      ``THRESHOLD_X_HET_HEMIZYGOUS`` is male-consistent and tolerates the noise
       every real male array carries; a rate at/above ``THRESHOLD_X_HET_DIPLOID``
       is diploid-X (XX or, with chrY present, the discordant XXY case #122); a
       rate in between is ambiguous X dosage → ``manual_review``.
@@ -207,7 +209,7 @@ def _classify(
         return "unknown"
     # x_nonpar_typed >= MIN_X_NONPAR_TYPED (>0) here, so the rate is well-defined.
     x_het_rate = x_nonpar_het / x_nonpar_typed
-    if x_het_rate <= _THRESHOLD_X_HET_HEMIZYGOUS:
+    if x_het_rate <= THRESHOLD_X_HET_HEMIZYGOUS:
         # One X (male-consistent: hemizygous and/or homozygous calls + noise) —
         # confirm against chrY.
         if y_rate > _THRESHOLD_XY_CONFIRM:

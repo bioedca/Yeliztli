@@ -36,6 +36,7 @@ from backend.services.sex_inference import (
     MIN_X_NONPAR_TYPED,
     MIN_Y_PROBES,
     THRESHOLD_X_HET_DIPLOID,
+    THRESHOLD_X_HET_HEMIZYGOUS,
     THRESHOLD_Y_PAR_NOISE,
     compute_sex_signals,
 )
@@ -94,11 +95,22 @@ def screen_aneuploidy(sample_engine: sa.Engine) -> AneuploidyResult:
         # rate is well-defined.
         x_het_rate = s.x_nonpar_het / s.x_nonpar_typed
         two_x = x_het_rate >= THRESHOLD_X_HET_DIPLOID
+        # The classifier splits X dosage into three zones and refuses to resolve
+        # the middle one. The screen used to see only two, so a rate in the
+        # ambiguous band fell through to the clean negative — an affirmative
+        # "no XXY signature detected" for a sample whose X dosage this app's own
+        # sex inference returns ``manual_review`` for (#2040). Withholding is
+        # not a positive mosaic call: intermediate X-het is not uniquely mosaic
+        # (isodisomic non-mosaic 47,XXY can read low), and a merely noisy array
+        # lands here too. Both are reasons not to assert a negative.
+        ambiguous_x = THRESHOLD_X_HET_HEMIZYGOUS < x_het_rate < THRESHOLD_X_HET_DIPLOID
         y_present = s.y_rate > Y_PRESENT_RATE
         y_discordant = s.y_rate > THRESHOLD_Y_PAR_NOISE
         if two_x and y_present:
             outcome = POSSIBLE_XXY
         elif two_x and y_discordant:
+            outcome = MANUAL_REVIEW
+        elif ambiguous_x:
             outcome = MANUAL_REVIEW
         else:
             outcome = NO_SIGNAL
@@ -112,6 +124,14 @@ def screen_aneuploidy(sample_engine: sa.Engine) -> AneuploidyResult:
         x_evaluable=x_evaluable,
         y_evaluable=y_evaluable,
     )
+
+
+def _is_ambiguous_x(result: AneuploidyResult) -> bool:
+    """Whether the X-het rate sits in the classifier's unresolvable middle band."""
+    if result.x_nonpar_typed <= 0:
+        return False
+    rate = result.x_nonpar_het / result.x_nonpar_typed
+    return THRESHOLD_X_HET_HEMIZYGOUS < rate < THRESHOLD_X_HET_DIPLOID
 
 
 def _finding_text(result: AneuploidyResult) -> str:
@@ -131,6 +151,17 @@ def _finding_text(result: AneuploidyResult) -> str:
             "screen result can be given, and this does not rule anything in or out."
         )
     if result.outcome == MANUAL_REVIEW:
+        if _is_ambiguous_x(result):
+            return (
+                "The sex-chromosome aneuploidy screen needs manual review: the "
+                "X-chromosome heterozygosity of this sample sits between the "
+                "one-X and two-X levels the screen can tell apart, so its X "
+                "dosage cannot be resolved from this array. This is NOT a clean "
+                "negative result, and it is equally NOT a positive finding — an "
+                "intermediate level can also come from array noise or sample "
+                "quality. The screen is not a diagnosis; if relevant, confirm "
+                "with clinical karyotyping or FISH."
+            )
         return (
             "The sex-chromosome aneuploidy screen needs manual review: the sample "
             "has a diploid-X signal together with a chrY signal above the calibrated "

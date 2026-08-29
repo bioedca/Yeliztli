@@ -71,7 +71,7 @@ DEFAULT_PAR_NOISE: float = 0.10
 # Non-PAR chrX heterozygosity *rate* cutoffs (issue #519): a rate at/below
 # DEFAULT_X_HET_HEMIZYGOUS is one X (male-consistent, tolerates noise); at/above
 # DEFAULT_X_HET_DIPLOID is two X (XX / XXY); in between is ambiguous. Mirrors
-# ``backend.services.sex_inference._THRESHOLD_X_HET_HEMIZYGOUS`` / ``_DIPLOID``.
+# ``backend.services.sex_inference.THRESHOLD_X_HET_HEMIZYGOUS`` / ``_DIPLOID``.
 DEFAULT_X_HET_HEMIZYGOUS: float = 0.05
 DEFAULT_X_HET_DIPLOID: float = 0.15
 # Minimum evaluable evidence on each sex chromosome before a confident verdict;
