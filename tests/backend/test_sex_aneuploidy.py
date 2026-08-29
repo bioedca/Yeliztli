@@ -194,6 +194,34 @@ class TestScreen:
         # makes a negative legitimate, not agreement between the two.
         assert infer_biological_sex(sample_engine) == "manual_review"
 
+    def test_ambiguous_x_with_subthreshold_y_is_manual_review(
+        self, sample_engine: sa.Engine
+    ) -> None:
+        """The band between the noise floor and the presence threshold (#2040).
+
+        ``y_discordant`` is ``y_rate > THRESHOLD_Y_PAR_NOISE`` (0.10) while
+        ``y_present`` is ``y_rate > Y_PRESENT_RATE`` (0.30), so a rate in
+        between escalates without the Y ever counting as present. That is
+        correct — a Y too weak to call is not a Y ruled out — but it is a
+        distinct band from the chrY-present case above and the copy must not
+        claim the Y is present.
+        """
+        _seed(sample_engine, _x_probes(20, 200) + _y_probes(12, 48))
+
+        r = screen_aneuploidy(sample_engine)
+
+        assert r.outcome == MANUAL_REVIEW
+        assert THRESHOLD_Y_PAR_NOISE < r.y_rate <= Y_PRESENT_RATE
+        store_aneuploidy_findings(r, sample_engine)
+        with sample_engine.connect() as conn:
+            text = conn.execute(
+                sa.select(findings.c.finding_text).where(findings.c.module == MODULE)
+            ).scalar_one()
+        assert "above the background noise floor" in text
+        assert "too weak to meet this screen's presence threshold" in text
+        # It must not assert presence for evidence below the presence threshold.
+        assert "chromosome-Y signal is also present" not in text
+
     def test_manual_review_text_names_the_ambiguous_x_cause(
         self, sample_engine: sa.Engine
     ) -> None:
@@ -214,6 +242,7 @@ class TestScreen:
 
         assert "could not be determined" in text
         assert "NOT a clean negative" in text
+        assert "chromosome-Y signal above the background noise floor" in text
         # Neither a positive call nor the other branch's wording.
         assert "NOT a positive finding" in text
         assert "diploid-X signal together with a chrY signal" not in text
