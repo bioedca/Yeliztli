@@ -25,7 +25,7 @@ Source of truth: the module-level constants in `backend/services/sex_inference.p
 |---|---|---|
 | `_THRESHOLD_XY_CONFIRM` | `0.30` | on the hemizygous (candidate-XY) branch, a chrY non-no-call rate above this confirms **XY** |
 | `_THRESHOLD_PAR_NOISE` | `0.10` | PAR-noise floor: a chrY rate at/below this is treated as no chrY signal |
-| `_THRESHOLD_X_HET_HEMIZYGOUS` | `0.05` | non-PAR chrX het **rate** at/below this is one X (male-consistent; tolerates genotyping noise) — issue #519 |
+| `THRESHOLD_X_HET_HEMIZYGOUS` | `0.05` | non-PAR chrX het **rate** at/below this is one X (male-consistent; tolerates genotyping noise) — issue #519 |
 | `_THRESHOLD_X_HET_DIPLOID` | `0.15` | non-PAR chrX het **rate** at/above this is two X (XX / XXY) — issue #519 |
 | `MIN_X_NONPAR_TYPED` | `100` | minimum typed non-PAR chrX calls for a confident verdict (#363/#429) |
 | `MIN_Y_PROBES` | `50` | minimum chrY probes for a confident verdict (#363/#429) |
@@ -40,7 +40,7 @@ Decision tree (`backend/services/sex_inference.py::_classify`; order is load-bea
 2. **X dosage by the non-PAR chrX heterozygosity *rate*, not a binary count (issue #519).**
    A normal 46,XY male's non-PAR X is hemizygous, so his X-het rate is ≈0 (only
    genotyping noise); a diploid-X individual is heterozygous at a large fraction of
-   markers (female-level). A rate ≤ `_THRESHOLD_X_HET_HEMIZYGOUS` (0.05) is a
+   markers (female-level). A rate ≤ `THRESHOLD_X_HET_HEMIZYGOUS` (0.05) is a
    *candidate XY* (tolerates noise); a rate ≥ `_THRESHOLD_X_HET_DIPLOID` (0.15) is
    diploid-X; a rate in between is ambiguous X dosage → **manual_review**.
 3. **Diploid-X** → **XX** when chrY rate ≤ `_THRESHOLD_PAR_NOISE` (0.10); otherwise

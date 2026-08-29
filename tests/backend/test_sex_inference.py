@@ -848,6 +848,20 @@ def test_threshold_validation_doc_exists_and_matches_constants() -> None:
     # issue #519 — X-het rate cutoffs must be documented too.
     assert "0.05" in text and str(THRESHOLD_X_HET_HEMIZYGOUS) in text
     assert "0.15" in text and str(THRESHOLD_X_HET_DIPLOID) in text
+    # ...and by the name they actually have. Checking only the value let the doc
+    # keep referring to ``_THRESHOLD_X_HET_HEMIZYGOUS`` after #2040 made the
+    # constant public, so the record named a symbol that no longer exists while
+    # this test stayed green.
+    for symbol in (
+        "THRESHOLD_X_HET_HEMIZYGOUS",
+        "THRESHOLD_X_HET_DIPLOID",
+        "MIN_X_NONPAR_TYPED",
+        "MIN_Y_PROBES",
+    ):
+        assert symbol in text, f"validation record does not name {symbol}"
+    assert "_THRESHOLD_X_HET_HEMIZYGOUS" not in text, (
+        "validation record still names the pre-#2040 private symbol"
+    )
     assert str(MIN_X_NONPAR_TYPED) in text  # 100
     assert str(MIN_Y_PROBES) in text  # 50
     assert "validate_sex_thresholds.py" in text  # reproduction command

@@ -168,20 +168,30 @@ class TestScreen:
         assert THRESHOLD_X_HET_HEMIZYGOUS < rate < THRESHOLD_X_HET_DIPLOID
         assert infer_biological_sex(sample_engine) == "manual_review"
 
-    def test_ambiguous_x_band_without_y_is_still_manual_review(
+    def test_ambiguous_x_band_without_a_y_stays_a_clean_negative(
         self, sample_engine: sa.Engine
     ) -> None:
-        """Unresolvable X dosage is enough on its own; chrY need not be present.
+        """An absent chrY rules XXY out however the X reads.
 
-        Pairs with the case above so the outcome is attributable to the X band
-        rather than to the Y signal.
+        The XXY signature is two X chromosomes *and* a Y. With chrY at or below
+        the PAR-noise floor there is no Y to pair with any X count, so "no XXY
+        genotype signature detected" is accurate even though sex inference still
+        cannot resolve this sample's X dosage.
+
+        This is the same reasoning that keeps a confidently hemizygous sample a
+        clean negative, applied to the other chromosome — escalating here would
+        make the screen's manual-review band wider than the question it answers.
+        Pairs with the case above, where the only difference is the chrY signal.
         """
         _seed(sample_engine, _x_probes(20, 200) + _y_probes(0, 60))
 
         r = screen_aneuploidy(sample_engine)
 
-        assert r.outcome == MANUAL_REVIEW
+        assert r.outcome == NO_SIGNAL
         assert r.y_rate == 0.0
+        assert r.y_evaluable
+        # Sex inference still declines — the screen's narrower question is what
+        # makes a negative legitimate, not agreement between the two.
         assert infer_biological_sex(sample_engine) == "manual_review"
 
     def test_manual_review_text_names_the_ambiguous_x_cause(
@@ -202,12 +212,16 @@ class TestScreen:
                 sa.select(findings.c.finding_text).where(findings.c.module == MODULE)
             ).scalar_one()
 
-        assert "cannot be resolved" in text
+        assert "could not be determined" in text
         assert "NOT a clean negative" in text
         # Neither a positive call nor the other branch's wording.
         assert "NOT a positive finding" in text
         assert "diploid-X signal together with a chrY signal" not in text
         assert "Klinefelter" not in text
+        # The copy must not explain the biology behind an intermediate level —
+        # that would be a clinical claim this change does not evidence.
+        for claim in ("mosaic", "isodisomic", "47,XXY", "chromosome complement"):
+            assert claim not in text
 
     def test_diploid_rate_xhet_with_y_is_possible_xxy(self, sample_engine: sa.Engine) -> None:
         """A female-level X-het rate (above the diploid-X cutoff) co-occurring with
@@ -329,27 +343,29 @@ class TestStorage:
 
 
 class TestClassifierAndScreenNeverContradict:
-    """The screen must not answer a clean negative where X dosage is unresolved.
+    """The screen must not answer a clean negative where XXY is still possible.
 
     #1130 established this on the chrY axis and #2040 on the X axis. The
-    invariant is deliberately **narrower** than "any ``manual_review`` forbids
-    ``NO_SIGNAL``", and that is a reasoned scope rather than a carve-out to make
-    a test pass:
+    invariant is deliberately narrower than "any ``manual_review`` forbids
+    ``NO_SIGNAL``", and the scope is reasoned rather than fitted to the tests:
 
-    XXY requires two X chromosomes. When the X-het rate is confidently
-    hemizygous (≤ ``THRESHOLD_X_HET_HEMIZYGOUS``) the sample has one X, so no
-    chrY reading can produce an XXY signature — "no XXY signature detected" is
-    true regardless. The classifier still returns ``manual_review`` for such a
-    sample when chrY sits between the PAR-noise floor and the XY-confirm cutoff,
-    but that uncertainty is about *sex assignment*, not about XXY. Forbidding a
-    clean negative there would fire on ordinary 46,XY males whose chrY signal is
-    merely degraded (rate 0.10–0.30), turning a psychosocially gated screen into
-    a false-alarm generator — harm in the opposite direction.
+    The XXY signature is two X chromosomes **and** a Y. Either chromosome can
+    rule it out on its own, and when one does, a clean negative is accurate even
+    though sex inference still declines to resolve the sample:
 
-    The materially-uncertain cases are the two the screen now routes to
-    ``MANUAL_REVIEW``: an unresolvable X dosage, and a diploid X with a
-    discordant chrY. This sweeps the rate space so a future threshold change
-    that re-opens a gap in either fails here.
+    * a confidently hemizygous X (rate ≤ ``THRESHOLD_X_HET_HEMIZYGOUS``) is one
+      X, so no chrY reading can make it XXY;
+    * a chrY at or below ``THRESHOLD_Y_PAR_NOISE`` is no Y, so no X reading can.
+
+    In both the classifier's uncertainty is about *sex assignment*, not about
+    XXY. Forbidding a clean negative in the first would fire on ordinary 46,XY
+    males whose chrY signal is merely degraded (rate 0.10–0.30) — turning a
+    psychosocially gated screen into a false-alarm generator, harm in the
+    opposite direction.
+
+    What remains forbidden is the genuinely undecidable case: an X dosage the
+    classifier cannot resolve while a chrY signal is present. This sweeps the
+    rate space so a future threshold change that re-opens a gap fails here.
     """
 
     # (het, hom) pairs spanning hemizygous, ambiguous and diploid X zones, and
@@ -370,7 +386,12 @@ class TestClassifierAndScreenNeverContradict:
                 )
         return rows
 
-    def test_unresolved_x_dosage_is_never_a_clean_negative(self) -> None:
+    @staticmethod
+    def _xxy_still_possible(x_rate: float, y_rate: float) -> bool:
+        """Neither chromosome rules XXY out on its own."""
+        return x_rate > THRESHOLD_X_HET_HEMIZYGOUS and y_rate > THRESHOLD_Y_PAR_NOISE
+
+    def test_an_undecidable_sample_is_never_a_clean_negative(self) -> None:
         grid = self._grid()
         assert len(grid) == len(self.X_SHAPES) * len(self.Y_TYPED)
 
@@ -378,37 +399,36 @@ class TestClassifierAndScreenNeverContradict:
             f"x_het={x:.3f} y_rate={y:.3f} -> {outcome}"
             for x, y, inferred, outcome in grid
             if inferred == "manual_review"
-            and x > THRESHOLD_X_HET_HEMIZYGOUS
+            and self._xxy_still_possible(x, y)
             and outcome == NO_SIGNAL
         ]
         assert not offenders, (
-            "sex inference could not resolve X dosage while the screen reported a "
-            f"clean negative at: {offenders}"
+            "sex inference could not resolve the sample and XXY was not ruled out "
+            f"by either chromosome, yet the screen reported a clean negative at: {offenders}"
         )
 
-    def test_the_sweep_actually_reaches_the_unresolved_zone(self) -> None:
+    def test_the_sweep_actually_reaches_the_undecidable_zone(self) -> None:
         """Without this the invariant above could hold vacuously."""
         reached = [
             (x, y, outcome)
             for x, y, inferred, outcome in self._grid()
-            if inferred == "manual_review" and x > THRESHOLD_X_HET_HEMIZYGOUS
+            if inferred == "manual_review" and self._xxy_still_possible(x, y)
         ]
-        assert reached, "no grid point reached an unresolved X dosage — invariant is vacuous"
+        assert reached, "no grid point was undecidable — the invariant is vacuous"
         outcomes = {outcome for _x, _y, outcome in reached}
-        # A clean negative is the forbidden answer. POSSIBLE_XXY is legitimate
-        # here: a diploid X with a present chrY is the screen's positive call,
-        # and the classifier reports manual_review for the same sample because
-        # the X/Y combination is discordant for a binary sex assignment.
+        # A clean negative is the forbidden answer. POSSIBLE_XXY is legitimate:
+        # a diploid X with a present chrY is the screen's positive call, and the
+        # classifier reports manual_review for it because the X/Y combination is
+        # discordant for a binary sex assignment.
         assert NO_SIGNAL not in outcomes
         assert MANUAL_REVIEW in outcomes
 
-    def test_the_hemizygous_exclusion_is_bounded(self) -> None:
-        """The exclusion above must not quietly widen past one-X samples.
+    def test_every_excused_clean_negative_is_ruled_out_by_a_chromosome(self) -> None:
+        """The exclusions must not quietly widen past what actually excludes XXY.
 
         Every grid point where a ``manual_review`` classification still yields a
-        clean negative has to be confidently hemizygous — one X, so XXY is
-        excluded on the X axis alone. If a future change lets some other shape
-        through this exclusion, this fails.
+        clean negative has to be one the screen can legitimately answer: one X,
+        or no Y. If a future change lets some other shape through, this fails.
         """
         excused = [
             (x, y)
@@ -417,8 +437,19 @@ class TestClassifierAndScreenNeverContradict:
         ]
         assert excused, "no manual_review/clean-negative pair — this exclusion is now dead"
         for x_rate, y_rate in excused:
-            assert x_rate <= THRESHOLD_X_HET_HEMIZYGOUS, (
-                f"a non-hemizygous sample (x_het={x_rate:.3f}) is being excused"
+            one_x = x_rate <= THRESHOLD_X_HET_HEMIZYGOUS
+            no_y = y_rate <= THRESHOLD_Y_PAR_NOISE
+            assert one_x or no_y, (
+                f"excused a sample where XXY is not ruled out "
+                f"(x_het={x_rate:.3f}, y_rate={y_rate:.3f})"
             )
-            # ...and the reason it is excused is chrY uncertainty, not X.
-            assert THRESHOLD_Y_PAR_NOISE < y_rate <= Y_PRESENT_RATE
+
+    def test_both_exclusion_reasons_are_exercised(self) -> None:
+        """Each excusing chromosome must appear, so neither arm is dead code."""
+        excused = [
+            (x, y)
+            for x, y, inferred, outcome in self._grid()
+            if inferred == "manual_review" and outcome == NO_SIGNAL
+        ]
+        assert any(x <= THRESHOLD_X_HET_HEMIZYGOUS for x, _y in excused), "one-X arm unexercised"
+        assert any(y <= THRESHOLD_Y_PAR_NOISE for _x, y in excused), "no-Y arm unexercised"

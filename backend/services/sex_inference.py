@@ -110,7 +110,8 @@ THRESHOLD_Y_PAR_NOISE: float = _THRESHOLD_PAR_NOISE
 # diploid cutoff, which collapsed the ambiguous middle band into its clean
 # negative — the screen said "No XXY signature detected" for exactly the samples
 # this classifier refuses to resolve (#2040). That is the X-axis counterpart of
-# the chrY floor shared for #1130.
+# the chrY floor shared for #1130. The zone boundaries themselves are unchanged;
+# only which module can see them.
 THRESHOLD_X_HET_HEMIZYGOUS: float = 0.05
 THRESHOLD_X_HET_DIPLOID: float = 0.15
 

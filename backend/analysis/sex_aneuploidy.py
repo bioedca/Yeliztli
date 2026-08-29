@@ -99,10 +99,8 @@ def screen_aneuploidy(sample_engine: sa.Engine) -> AneuploidyResult:
         # the middle one. The screen used to see only two, so a rate in the
         # ambiguous band fell through to the clean negative — an affirmative
         # "no XXY signature detected" for a sample whose X dosage this app's own
-        # sex inference returns ``manual_review`` for (#2040). Withholding is
-        # not a positive mosaic call: intermediate X-het is not uniquely mosaic
-        # (isodisomic non-mosaic 47,XXY can read low), and a merely noisy array
-        # lands here too. Both are reasons not to assert a negative.
+        # sex inference returns ``manual_review`` for (#2040). Withholding there
+        # is not a positive call; the screen simply cannot tell.
         ambiguous_x = THRESHOLD_X_HET_HEMIZYGOUS < x_het_rate < THRESHOLD_X_HET_DIPLOID
         y_present = s.y_rate > Y_PRESENT_RATE
         y_discordant = s.y_rate > THRESHOLD_Y_PAR_NOISE
@@ -110,7 +108,12 @@ def screen_aneuploidy(sample_engine: sa.Engine) -> AneuploidyResult:
             outcome = POSSIBLE_XXY
         elif two_x and y_discordant:
             outcome = MANUAL_REVIEW
-        elif ambiguous_x:
+        elif ambiguous_x and y_discordant:
+            # An unresolvable X dosage only matters while a Y could be there.
+            # The XXY signature is two X *and* a Y, so a chrY at or below the
+            # PAR-noise floor rules it out however the X reads — exactly the
+            # reasoning that keeps a confidently hemizygous sample a clean
+            # negative, applied to the other chromosome.
             outcome = MANUAL_REVIEW
         else:
             outcome = NO_SIGNAL
@@ -155,12 +158,12 @@ def _finding_text(result: AneuploidyResult) -> str:
             return (
                 "The sex-chromosome aneuploidy screen needs manual review: the "
                 "X-chromosome heterozygosity of this sample sits between the "
-                "one-X and two-X levels the screen can tell apart, so its X "
-                "dosage cannot be resolved from this array. This is NOT a clean "
-                "negative result, and it is equally NOT a positive finding — an "
-                "intermediate level can also come from array noise or sample "
-                "quality. The screen is not a diagnosis; if relevant, confirm "
-                "with clinical karyotyping or FISH."
+                "one-X and two-X levels this array can tell apart, so its X "
+                "dosage could not be determined, and a chromosome-Y signal is "
+                "also present. This is NOT a clean negative result, and it is "
+                "equally NOT a positive finding — the screen cannot resolve "
+                "this sample either way. The screen is not a diagnosis; if "
+                "relevant, confirm with clinical karyotyping or FISH."
             )
         return (
             "The sex-chromosome aneuploidy screen needs manual review: the sample "
