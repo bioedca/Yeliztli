@@ -1,0 +1,101 @@
+{
+  "issue": 2040,
+  "accessed": "2026-08-29",
+  "concern": "Withholding the XXY screen's clean negative for an unresolvable X dosage",
+  "what_this_change_claims": "The change WITHHOLDS an affirmative negative; it asserts no new positive finding and introduces no new threshold. Two background facts are load-bearing for the decision logic and are evidenced below. Everything else in the diff is software behaviour, verifiable from the code and its tests.",
+  "citations": [
+    {
+      "id": "PMID:39806878",
+      "doi": "10.1111/cen.15200",
+      "title": "Klinefelter Syndrome: A Review.",
+      "journal": "Clin Endocrinol (Oxf) 2025",
+      "accessed": "2026-08-29",
+      "first_authors": [
+        "Blackburn J",
+        "Ramakrishnan A",
+        "Graham C"
+      ],
+      "supports": "C1",
+      "retraction_check": "no retraction or correction pubtype"
+    },
+    {
+      "id": "PMID:39932051",
+      "doi": "10.1210/endrev/bnaf005",
+      "title": "New Horizons in Klinefelter Syndrome: Current Evidence, Gaps, and Research Priorities.",
+      "journal": "Endocr Rev 2025",
+      "accessed": "2026-08-29",
+      "first_authors": [
+        "Lucas-Herald AK",
+        "Aksglaede L",
+        "Caspersen ID"
+      ],
+      "supports": "C1",
+      "retraction_check": "no retraction or correction pubtype"
+    },
+    {
+      "id": "PMID:28035028",
+      "doi": "10.1093/bioinformatics/btw696",
+      "title": "seXY: a tool for sex inference from genotype arrays.",
+      "journal": "Bioinformatics 2017",
+      "accessed": "2026-08-29",
+      "first_authors": [
+        "Qian DC",
+        "Busam JA",
+        "Xiao X"
+      ],
+      "supports": "C2",
+      "retraction_check": "no retraction or correction pubtype"
+    },
+    {
+      "id": "PMID:38073250",
+      "doi": "10.1093/hmg/ddad201",
+      "title": "Comprehensive whole-genome analyses of the UK Biobank reveal significant sex differences in both genotype missingness and allele frequency on the X chromosome.",
+      "journal": "Hum Mol Genet 2024",
+      "accessed": "2026-08-29",
+      "first_authors": [
+        "Chen DZ",
+        "Roshandel D",
+        "Wang Z"
+      ],
+      "supports": "C2",
+      "retraction_check": "no retraction or correction pubtype"
+    }
+  ],
+  "independence_note": "Each claim has two agreeing sources with disjoint author lists, different journals and different study types. C1: Blackburn et al. (Clin Endocrinol) and Lucas-Herald et al. (Endocr Rev) share no author. C2: Qian et al. (a method paper introducing seXY) and Chen et al. (an independent UK Biobank analysis of X-chromosome genotype behaviour by sex) share no author and do not share a cohort \u2014 seXY was developed on GERA/PLCO data, Chen et al. analyse UK Biobank.",
+  "discovery_tool_ladder": {
+    "consensus": "Invoked 2026-08-29; 20 papers returned, retained as a derived record. Supplied both C1 sources.",
+    "scite": "Unavailable \u2014 the monthly MCP call quota was exhausted on 2026-08-27 with a reported reset of 2026-09-03, which has not passed. No Scite result was used.",
+    "fallback": "PubMed specialist connector used in Scite's place; every retained record was re-resolved through PubMed eSummary for title, journal, DOI and retraction status."
+  },
+  "sanitization": "None required. Every retained payload is a public bibliographic record. No genotype, sample, personal or credentialed data is present, and no payload was edited.",
+  "requests": [
+    {
+      "payload": "raw/ncbi-pubmed-esummary-klinefelter-reviews.json",
+      "request": "GET https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id=39806878,39932051,33000452,29382506&retmode=json",
+      "source": "NCBI PubMed eSummary",
+      "sha256": "cac1d7e1a56afe6f57d6d4b7ae4e3d851e0e347c124b9462339d713a8ffb916b",
+      "bytes": 6940
+    },
+    {
+      "payload": "raw/ncbi-pubmed-esummary-28035028-sexy.json",
+      "request": "GET https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id=28035028&retmode=json",
+      "source": "NCBI PubMed eSummary",
+      "sha256": "ced230b58f5267d1b5df2391ac950d4ff8f64df068529ecee260303a4aa69a1f",
+      "bytes": 2102
+    },
+    {
+      "payload": "raw/ncbi-pubmed-esummary-38073250-chen.json",
+      "request": "GET https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id=38073250&retmode=json",
+      "source": "NCBI PubMed eSummary",
+      "sha256": "a6ad8d06022c128a892262b67c4ed380127f2dc0ec706aee256001ea163ff88c",
+      "bytes": 2213
+    },
+    {
+      "payload": "raw/consensus-search-klinefelter-karyotype-derived.json",
+      "request": "Consensus MCP `search` (tool call, not an HTTP endpoint) \u2014 query recorded in the payload",
+      "source": "Consensus MCP (derived, sanitized result-set record)",
+      "sha256": "979072e879efb4e1812f59f3a7b087feedf43c04a2dbb319cda3904621bdda32",
+      "bytes": 1054
+    }
+  ]
+}

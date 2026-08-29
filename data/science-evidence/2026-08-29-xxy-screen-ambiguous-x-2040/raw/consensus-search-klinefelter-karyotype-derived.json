@@ -1,0 +1,15 @@
+{
+  "tool": "Consensus MCP `search`",
+  "accessed": "2026-08-29",
+  "query": "Klinefelter syndrome 47,XXY karyotype two X chromosomes and a Y chromosome definition",
+  "result_count": 20,
+  "note": "Derived, sanitized record of the required discovery-tool invocation. Consensus answers through an MCP tool rather than an HTTP endpoint, so no verbatim wire payload exists to retain; this is the returned result set reduced to citation identity plus the records relied on.",
+  "records_used": [
+    {"rank": 1, "pmid": "39806878", "doi": "10.1111/cen.15200",
+     "supports": "\"caused by a supernumerary X chromosome, resulting in a 47 XXY karyotype\""},
+    {"rank": 4, "pmid": "39932051", "doi": "10.1210/endrev/bnaf005",
+     "supports": "\"presence of a supernumerary X chromosome (conferring the classical 47,XXY karyotype)\""},
+    {"rank": 2, "pmid": null, "doi": "10.1186/1750-1172-1-42",
+     "supports": "\"at least one extra X chromosome to a normal male karyotype, 46,XY\" — corroborating only, not counted toward the two-source bar"}
+  ]
+}

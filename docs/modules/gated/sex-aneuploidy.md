@@ -31,4 +31,7 @@ karyotype confirmation**.
   to meet the presence threshold — the screen withholds the negative rather than asserting
   one. It is explicitly *not* a positive finding either; the screen cannot tell. With no
   chromosome-Y signal the result stays a negative, because the XXY pattern needs a Y whatever
-  the X reads. These are the same samples the app's sex inference also declines to resolve.
+  the X reads (`PMID:39806878`; `PMID:39932051`, both accessed 2026-08-29). These are the same
+  samples the app's sex inference also declines to resolve. Evidence for the two background
+  facts this behaviour rests on is recorded in
+  `data/science-evidence/2026-08-29-xxy-screen-ambiguous-x-2040/`.
