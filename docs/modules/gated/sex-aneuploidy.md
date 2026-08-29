@@ -25,9 +25,12 @@ karyotype confirmation**.
   indistinguishable from typical XX.
 - Minimum probe-count thresholds guard against false calls from stray probes, and discordant
   X/Y signals in the manual-review band are not reported as clean negative screens.
-- **An unresolvable X dosage returns manual review, not a negative.** X-chromosome
-  heterozygosity separates one X from two X, and a level between the two is not something this
-  array can resolve. When that happens *and* a chromosome-Y signal is present, the screen
-  withholds the negative rather than asserting one — it is explicitly *not* a positive finding
-  either; the screen simply cannot tell. These are the same samples the app's sex inference
+- **An unresolvable X dosage with a chromosome-Y signal returns manual review, not a
+  negative.** X-chromosome heterozygosity separates one X from two X
+  (`PMID:28035028` / `DOI:10.1093/bioinformatics/btw696`, accessed 2026-08-29), and a level
+  between the two is not something this array can resolve. When that happens *and* a
+  chromosome-Y signal is present above the noise floor, the screen withholds the negative
+  rather than asserting one — it is explicitly *not* a positive finding either; the screen
+  simply cannot tell. With no chromosome-Y signal the result stays a negative, because the XXY
+  pattern needs a Y whatever the X reads. These are the same samples the app's sex inference
   also declines to resolve.
