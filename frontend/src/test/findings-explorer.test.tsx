@@ -205,6 +205,46 @@ describe("FindingsExplorer", () => {
     expect(screen.getByText("Loading findings...")).toBeInTheDocument()
   })
 
+  it("renders the findings list without waiting for the slow summary (#2042)", async () => {
+    // The findings list resolves immediately; the summary never does. In
+    // production the gap is ~0.24s vs ~4s, so gating on both withheld the
+    // whole page for ~3.9s after its primary content was ready.
+    mockFetch.mockImplementation(async (url: string) => {
+      if (url.includes("/api/analysis/findings/summary")) {
+        return new Promise(() => {})
+      }
+      if (url.includes("/api/analysis/findings")) {
+        return { ok: true, json: async () => SAMPLE_FINDINGS }
+      }
+      return { ok: false, text: async () => "Not found" }
+    })
+
+    renderWithRoute(<FindingsExplorer />, ["/?sample_id=1"])
+
+    expect(await screen.findByText(/BRCA1 c\.5266dupC/)).toBeInTheDocument()
+    expect(screen.queryByText("Loading findings...")).not.toBeInTheDocument()
+
+    // The summary-less render path the component already implements: the
+    // header falls back to the loaded count and the module chips are absent.
+    expect(
+      screen.getByText(`${SAMPLE_FINDINGS.length} findings`),
+    ).toBeInTheDocument()
+    expect(screen.queryByText("Filter by module")).not.toBeInTheDocument()
+  })
+
+  it("still shows the summary-derived header once the summary arrives (#2042)", async () => {
+    // The guard against over-correcting: decoupling the gate must not drop the
+    // richer header and chips, only stop blocking on them.
+    setupFetchMock()
+    renderWithRoute(<FindingsExplorer />, ["/?sample_id=1"])
+
+    expect(
+      await screen.findByText(
+        `${SAMPLE_SUMMARY.total_findings} findings across ${SAMPLE_SUMMARY.modules.length} modules`,
+      ),
+    ).toBeInTheDocument()
+  })
+
   it("renders all findings sorted by evidence level", async () => {
     setupFetchMock()
     renderWithRoute(<FindingsExplorer />, ["/?sample_id=1"])

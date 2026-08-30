@@ -285,8 +285,12 @@ export default function FindingsExplorer() {
     )
   }
 
-  // Loading
-  if (findingsQuery.isLoading || summaryQuery.isLoading) {
+  // Loading — gate on the primary query only. The summary supplies the header
+  // count and module chips, every consumer of which is already null-guarded, and
+  // the error gate below is likewise summary-tolerant. Anchoring here too made a
+  // slow summary block the whole page, so a summary that merely lagged was
+  // handled strictly worse than one that failed outright (#2042).
+  if (findingsQuery.isLoading) {
     return (
       <div className="p-6">
         <h1 className="text-2xl font-bold mb-4">All Findings</h1>
