@@ -259,3 +259,110 @@ def test_fabricated_pgx_rows_stay_dropped() -> None:
         f"genes withdrawn by #1959 (no MONDO disease term) reappeared: {sorted(resurrected)} — "
         "if a real MONDO disease now exists, add it with a snapshot entry and remove from here"
     )
+
+
+# ── inheritance-column contract (#2043) ──────────────────────────────────────
+#
+# `inheritance` is not decoration: `_lookup_gene_phenotype`
+# (backend/annotation/engine.py) prefers the first association carrying HPO terms
+# *or* an inheritance pattern when choosing a gene's primary disease, and ships the
+# value to the frontend as `inheritance_pattern`. A blank on a Mendelian row both
+# demotes that row in primary selection and renders a monogenic disease with no
+# inheritance mode.
+#
+# Blank is legitimate for complex/polygenic susceptibility rows, which have no
+# Mendelian pattern to state. That was previously implicit, so nothing distinguished
+# "polygenic, deliberately blank" from "Mendelian, value missing" — and #2043's own
+# survey mis-classified IL10-related early-onset IBD as a susceptibility trait when
+# it is autosomal recessive (PMID:19890111, PMID:28267044).
+#
+# Each entry is the reason blank is correct for that gene. Adding a row without an
+# inheritance value now FAILS unless it is listed here deliberately.
+_POLYGENIC_BLANK_INHERITANCE: dict[str, str] = {
+    "APOE": "Alzheimer risk allele; complex susceptibility, not Mendelian",
+    "TCF7L2": "T2D susceptibility locus (polygenic)",
+    "SLC30A8": "T2D susceptibility locus (polygenic)",
+    "IGF2BP2": "T2D susceptibility locus (polygenic)",
+    "PPARG": "T2D susceptibility locus (polygenic)",
+    "HHEX": "T2D susceptibility locus (polygenic)",
+    "PTPN22": "autoimmune susceptibility allele (polygenic)",
+    "HLA-DRB1": "MS/autoimmune HLA susceptibility (polygenic)",
+    "TNF": "inflammatory susceptibility variation (polygenic)",
+    "IL1B": "inflammatory response variation (polygenic)",
+    "SLC6A4": "depression susceptibility (polygenic)",
+    "TPH2": "mood-disorder susceptibility (polygenic)",
+    "ADRA2A": "ADHD susceptibility (polygenic)",
+    "MCM6": "lactase persistence regulatory variant; a trait, not a disease",
+}
+
+
+def test_every_non_polygenic_row_declares_an_inheritance() -> None:
+    """A Mendelian row must state its inheritance; only listed polygenic rows may be blank."""
+    missing = [
+        f"{r['gene_symbol']} ({r['disease_name']})"
+        for r in _rows()
+        if not r["inheritance"].strip() and r["gene_symbol"] not in _POLYGENIC_BLANK_INHERITANCE
+    ]
+    assert not missing, (
+        "rows with a blank `inheritance` that are not listed as polygenic:\n"
+        + "\n".join(missing)
+        + "\n\nEither supply the inheritance pattern (verified against an authoritative "
+        "source) or add the gene to _POLYGENIC_BLANK_INHERITANCE with its reason."
+    )
+
+
+def test_polygenic_blank_entries_still_apply() -> None:
+    """Self-cleaning, like _TOPIC_ALLOWLIST: an exemption must still be needed.
+
+    If a listed gene disappears or later gains an inheritance value, the entry has to
+    be removed by hand rather than linger and keep excusing a blank that no longer
+    exists.
+    """
+    by_gene = {r["gene_symbol"]: r for r in _rows()}
+    stale = []
+    for gene in _POLYGENIC_BLANK_INHERITANCE:
+        row = by_gene.get(gene)
+        if row is None:
+            stale.append(f"{gene}: no row carries this gene anymore")
+        elif row["inheritance"].strip():
+            stale.append(
+                f"{gene}: listed as polygenic-blank but the row now declares "
+                f"{row['inheritance']!r}"
+            )
+    assert not stale, "stale _POLYGENIC_BLANK_INHERITANCE entries (remove by hand):\n" + "\n".join(
+        stale
+    )
+
+
+def test_il10_row_states_autosomal_recessive() -> None:
+    """IL10-related early-onset IBD is monogenic recessive, not a susceptibility trait.
+
+    #2043 surveyed the blank-inheritance rows as "all complex/polygenic susceptibility
+    traits" and enumerated 14 of the 15, omitting IL10. Its row names a specific
+    monogenic disease: IL10/IL10R deficiency causes very-early-onset IBD through
+    homozygous or compound-heterozygous loss-of-function variants
+    (PMID:19890111 Glocker 2009 NEJM; PMID:28267044 Huang 2017, disjoint cohort).
+    A guard keyed only on "blank == polygenic" would have frozen the wrong value here.
+    """
+    row = next((r for r in _rows() if r["gene_symbol"] == "IL10"), None)
+    assert row is not None, "IL10 row missing from gene_phenotype_seed.csv"
+    assert row["disease_id"] == "MONDO:0016542"
+    assert row["inheritance"] == "Autosomal recessive"
+    assert "IL10" not in _POLYGENIC_BLANK_INHERITANCE, (
+        "IL10 is Mendelian recessive; it must not be exempted as polygenic"
+    )
+
+
+def test_vkorc1_keeps_autosomal_dominant() -> None:
+    """VKORC1 coumarin resistance is dominant, and the row must not drift to recessive.
+
+    The same gene carries two phenotypes with opposite inheritance: heterozygous
+    missense variants cause warfarin/coumarin resistance, while homozygous loss of
+    function causes VKCFD2, which is recessive (PMID:14765194 Rost 2004 Nature;
+    PMID:26513304 Lewis 2016). This row names resistance, so dominant is correct --
+    #2043 asked for that confirmation explicitly.
+    """
+    row = next((r for r in _rows() if r["gene_symbol"] == "VKORC1"), None)
+    assert row is not None, "VKORC1 row missing from gene_phenotype_seed.csv"
+    assert row["disease_name"] == "Coumarin (warfarin) resistance"
+    assert row["inheritance"] == "Autosomal dominant"
