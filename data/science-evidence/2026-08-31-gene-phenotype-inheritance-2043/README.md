@@ -13,39 +13,42 @@ inheritance mode.
 > the IL10 row already carries two HPO terms, so it was never demoted. Only the emitted
 > `inheritance_pattern` changes. The overclaim is recorded here rather than quietly deleted.
 
-## C1 — the disease the IL10 row cites is autosomal recessive
+## C1 — WITHHELD: the IL10 row keeps no inheritance value
 
-The claim is made about **the entity the row cites**, `MONDO:0016542`, not about a gene list.
+**Outcome: no value is set.** The row stays blank and is listed in
+`_UNVERIFIED_BLANK_INHERITANCE` as *Mendelian but unverified* — explicitly **not** as polygenic,
+which was #2043's mis-classification and the finding that started this work.
 
-**Primary assertion — the ontology record itself.** MONDO's term for `MONDO:0016542` carries the
-synonyms *"autosomal recessive early-onset IBD"* and *"autosomal recessive early-onset inflammatory
-bowel disease"*. OLS4/MONDO is the authoritative source of record this repository already uses for
-these rows — it is what `tests/fixtures/mondo_label_snapshot.json` is built from — and the assertion
-is about the exact `disease_id` in the row.
+**Why withheld.** The row is gene-keyed. `_lookup_gene_phenotype` returns its value as the
+`inheritance_pattern` rendered beside an **IL10 variant**, so it reads as a per-gene claim, not as
+ontology metadata about a disease entity. MONDO's synonyms for `MONDO:0016542` do include
+*"autosomal recessive early-onset inflammatory bowel disease"* **(accessed 2026-08-31, mondo
+2026-08-04)** — but that is **one** source, and the contract requires two agreeing sources that do
+not share an upstream assertion before a user-facing claim of this kind is encoded.
 
-- `MONDO:0016542` — "IL10-related early-onset inflammatory bowel disease", EBI OLS4, MONDO 2026-08-04 **(accessed 2026-08-31)**
+**What the search found.** Three independent cohorts, all characterising only the `IL10RA`/`IL10RB`
+**receptor** forms:
 
-**Supporting cohorts**, showing recessive transmission (homozygous and compound-heterozygous loss of
-function) in this disease entity:
-
-| Source | Kind | Cohort |
+| Source | Cohort | Genes reported |
 | --- | --- | --- |
-| `PMID:19890111` / `DOI:10.1056/NEJMoa0907206` — Glocker EO et al., *N Engl J Med* 2009 **(accessed 2026-08-31)** | Primary | Two unrelated European consanguineous families + 6 further patients |
-| `PMID:28267044` / `DOI:10.1097/MIB.0000000000001058` — Huang Z et al., *Inflamm Bowel Dis* 2017 **(accessed 2026-08-31)** | Primary | 42-patient Chinese VEO-IBD multicentre survey |
+| `PMID:19890111` / `DOI:10.1056/NEJMoa0907206` — Glocker EO et al., *N Engl J Med* 2009 **(accessed 2026-08-31)** | European consanguineous families + 6 further patients | `IL10RA`, `IL10RB` |
+| `PMID:28267044` / `DOI:10.1097/MIB.0000000000001058` — Huang Z et al., *Inflamm Bowel Dis* 2017 **(accessed 2026-08-31)** | 42-patient Chinese multicentre survey | `IL10RA`, `IL10RB` |
+| `PMID:21519361` — Begue B et al., *Am J Gastroenterol* 2011 **(accessed 2026-08-31)** | French cohort, 75 children | `IL10RA` p.R262C, `IL10RB` p.E141X |
 
-Disjoint authors, 8 years apart, different continents and cohorts.
+Targeted searches for IL10 **ligand** cohorts returned receptor papers or mouse/mechanism work. The
+ligand literature is dominated by a single group, so two sources there would share a lineage rather
+than agree independently.
 
-### Stated limit — read this before reusing the claim
+**What would close it.** Two agreeing, independently-authored primary sources reporting IL10
+(ligand) loss-of-function variants and their transmission — or a maintainer decision that the
+entity-level MONDO assertion is sufficient for a gene-keyed row. Filed as a scientific-validity
+issue rather than left as a silent blank.
 
-Both retained cohorts characterise the **receptor** forms (`IL10RA`/`IL10RB`); neither reports
-`IL10` **ligand** mutations. A search for an independent pair of primaries specific to the ligand
-did not find one: that literature is dominated by a single group, so two sources there would share a
-lineage rather than agree independently.
-
-The claim is therefore made about the MONDO disease entity — which is what the row cites — and
-**not** as a per-gene assertion about IL10 the ligand. An earlier revision of this packet wrote
-*"loss-of-function variants in IL10, IL10RA or IL10RB"*; the `IL10` half of that was **unsupported
-by the retained sources** and has been withdrawn rather than papered over.
+**History, kept rather than deleted.** An earlier revision set the value on receptor-only evidence
+and wrote *"loss-of-function variants in `IL10`, `IL10RA` or `IL10RB`"*. A later revision restated it
+at the entity level. Review established that the entity framing does not change what the software
+renders beside an IL10 variant, so the value is now withheld outright. Withholding is the contract's
+prescribed answer to insufficient evidence, and the guard added here has a place to record it.
 
 ## C2 — VKORC1 coumarin resistance is autosomal dominant (confirmed, not changed)
 

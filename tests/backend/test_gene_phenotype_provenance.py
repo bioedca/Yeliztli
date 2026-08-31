@@ -300,6 +300,8 @@ _UNVERIFIED_BLANK_INHERITANCE: frozenset[tuple[str, str]] = frozenset(
         ("TPH2", "MONDO:0005371"),
         ("ADRA2A", "MONDO:0007743"),
         ("MCM6", "MONDO:0006065"),
+        # Mendelian, NOT polygenic -- see test_il10_inheritance_is_withheld_for_now.
+        ("IL10", "MONDO:0016542"),
     }
 )
 
@@ -379,22 +381,35 @@ def test_a_new_mendelian_row_for_a_listed_gene_is_not_excused() -> None:
     )
 
 
-def test_il10_row_states_autosomal_recessive() -> None:
-    """IL10-related early-onset IBD is recessive, not a susceptibility trait.
+def test_il10_inheritance_is_withheld_for_now() -> None:
+    """IL10 is Mendelian, and its inheritance is withheld for want of evidence.
 
     #2043 surveyed the blank rows as "all complex/polygenic susceptibility traits"
-    and enumerated 14 of the 15, omitting IL10. Its row names a monogenic disease,
-    and MONDO's own synonyms for MONDO:0016542 include "autosomal recessive
-    early-onset inflammatory bowel disease" (OLS4, mondo 2026-08-04, accessed
-    2026-08-31); recessive transmission is shown in cohorts at PMID:19890111 and
-    PMID:28267044.
+    and enumerated 14 of the 15, omitting IL10. That premise is wrong: the row
+    names a monogenic disease (MONDO:0016542), so listing it as *polygenic* would
+    be a false classification.
+
+    It is listed as UNVERIFIED instead. MONDO's own synonyms for the term include
+    "autosomal recessive early-onset inflammatory bowel disease", but this row is
+    gene-keyed: `_lookup_gene_phenotype` returns its value as the
+    `inheritance_pattern` shown beside an *IL10* variant, which makes it a
+    per-gene claim. Three independent cohorts -- PMID:19890111, PMID:28267044 and
+    PMID:21519361 -- characterise only the IL10RA/IL10RB receptor forms; no
+    ligand-specific pair of agreeing sources was found. Per the evidence contract,
+    the value is withheld rather than guessed.
+
+    This test pins both halves: IL10 must stay listed as unverified, and it must
+    never be reclassified as polygenic on the strength of its blank.
     """
     row = next((r for r in _rows() if r["gene_symbol"] == "IL10"), None)
     assert row is not None, "IL10 row missing from gene_phenotype_seed.csv"
     assert row["disease_id"] == "MONDO:0016542"
-    assert row["inheritance"] == "Autosomal recessive"
-    assert ("IL10", "MONDO:0016542") not in _UNVERIFIED_BLANK_INHERITANCE, (
-        "IL10 is Mendelian recessive; it must not be listed as unverified-blank"
+    assert ("IL10", "MONDO:0016542") in _UNVERIFIED_BLANK_INHERITANCE, (
+        "IL10 carries no verified inheritance; it must be listed as unverified"
+    )
+    assert not row["inheritance"].strip(), (
+        "an inheritance value was added for IL10 -- supply two agreeing "
+        "ligand-specific sources and drop the unverified entry, or leave it blank"
     )
 
 
@@ -410,3 +425,63 @@ def test_vkorc1_keeps_autosomal_dominant() -> None:
     assert row is not None, "VKORC1 row missing from gene_phenotype_seed.csv"
     assert row["disease_name"] == "Coumarin (warfarin) resistance"
     assert row["inheritance"] == "Autosomal dominant"
+
+
+def test_checked_in_fixture_emits_inheritance_through_the_production_lookup(tmp_path) -> None:
+    """The seed is not the consumer: assert the emitted value, not the CSV.
+
+    A CSV-only assertion stays green if the checked-in reference database or
+    `_lookup_gene_phenotype` drops the field, while users receive a blank
+    `inheritance_pattern` (#2043 review).
+
+    The committed fixture carries no ``mondo_hpo`` version stamp, and
+    ``_is_legacy_disease_scope_install`` withholds every ``mondo_hpo`` row without
+    positive proof of the current loader revision. So the test copies the fixture
+    and stamps a current-revision version -- exercising the serving path a real
+    install takes, rather than the withheld one.
+    """
+    import shutil
+
+    import sqlalchemy as sa
+
+    from backend.annotation.engine import _lookup_gene_phenotype
+    from backend.annotation.mondo_hpo import MONDO_HPO_INGESTION_REVISION
+    from backend.db.tables import database_versions
+
+    fixture = _ROOT / "tests" / "fixtures" / "mini_reference.db"
+    assert fixture.exists(), "checked-in mini_reference.db is missing"
+    working = tmp_path / "mini_reference.db"
+    shutil.copy(fixture, working)
+
+    seed = {r["gene_symbol"]: r["inheritance"].strip() for r in _rows()}
+    engine = sa.create_engine(f"sqlite:///{working}")
+    try:
+        with engine.begin() as conn:
+            conn.execute(
+                sa.delete(database_versions).where(database_versions.c.db_name == "mondo_hpo")
+            )
+            conn.execute(
+                sa.insert(database_versions).values(
+                    db_name="mondo_hpo",
+                    version=f"2026-01-01+{MONDO_HPO_INGESTION_REVISION}",
+                )
+            )
+        emitted = _lookup_gene_phenotype(
+            {
+                "rs9923231": {"gene_symbol": "VKORC1"},
+                "rsIL10": {"gene_symbol": "IL10"},
+            },
+            engine,
+        )
+    finally:
+        engine.dispose()
+
+    # A row WITH a verified value must reach the consumer intact.
+    assert "rs9923231" in emitted, "VKORC1 association did not resolve through the lookup"
+    assert emitted["rs9923231"]["inheritance_pattern"] == seed["VKORC1"] == "Autosomal dominant"
+
+    # A withheld row must emit nothing rather than a placeholder.
+    if "rsIL10" in emitted:
+        assert not emitted["rsIL10"]["inheritance_pattern"], (
+            "IL10 inheritance is withheld; the lookup must not emit a value"
+        )

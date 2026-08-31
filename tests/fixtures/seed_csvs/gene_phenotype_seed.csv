@@ -20,7 +20,7 @@ COL1A1,Osteogenesis imperfecta type I,MONDO:0008146,"[""HP:0001508"",""HP:000264
 PTPN22,Autoimmune disease susceptibility,MONDO:0007179,"[""HP:0002960"",""HP:0001369""]",mondo_hpo,
 HLA-DRB1,Multiple sclerosis susceptibility,MONDO:0007462,"[""HP:0002315"",""HP:0001251"",""HP:0000613""]",mondo_hpo,
 TNF,Inflammatory disease susceptibility,MONDO:0021166,"[""HP:0012649"",""HP:0011227""]",mondo_hpo,
-IL10,IL10-related early-onset inflammatory bowel disease,MONDO:0016542,"[""HP:0002960"",""HP:0012649""]",mondo_hpo,Autosomal recessive
+IL10,IL10-related early-onset inflammatory bowel disease,MONDO:0016542,"[""HP:0002960"",""HP:0012649""]",mondo_hpo,
 IL1B,Inflammatory response variation,MONDO:0021166,"[""HP:0012649""]",mondo_hpo,
 SLC6A4,Depression susceptibility,MONDO:0002050,"[""HP:0000716"",""HP:0000739""]",mondo_hpo,
 TPH2,Mood disorder susceptibility,MONDO:0005371,"[""HP:0000716"",""HP:0000739""]",mondo_hpo,
