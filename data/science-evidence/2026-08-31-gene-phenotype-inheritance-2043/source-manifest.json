@@ -2,16 +2,19 @@
   "issue": 2043,
   "accessed": "2026-08-31",
   "concern": "The inheritance column of gene_phenotype_seed.csv: one wrong blank, one value confirmed",
-  "why_this_is_load_bearing": "`inheritance` is not decoration. `_lookup_gene_phenotype` (backend/annotation/engine.py) prefers the first association carrying HPO terms OR an inheritance pattern when choosing a gene's primary disease, and ships the value to the frontend as `inheritance_pattern`. A blank on a Mendelian row both demotes that row in primary selection and renders a monogenic disease with no inheritance mode.",
+  "why_this_is_load_bearing": "`inheritance` reaches the user: `_lookup_gene_phenotype` (backend/annotation/engine.py) ships it to the frontend as `inheritance_pattern`, so a missing pattern renders a monogenic disease with no inheritance mode. NOTE: an earlier revision of this packet also claimed the blank demoted the row in primary selection. That was wrong -- selection keys on `annot.hpo_terms or annot.inheritance`, and the IL10 row already carries two HPO terms, so it was never demoted. Only the emitted `inheritance_pattern` changes.",
   "claims": {
     "C1": {
-      "statement": "IL10-related early-onset inflammatory bowel disease (IL10/IL10R deficiency) is inherited in an autosomal recessive manner \u2014 homozygous or compound-heterozygous loss-of-function variants in IL10, IL10RA or IL10RB.",
+      "statement": "The disease the IL10 row cites -- MONDO:0016542, 'IL10-related early-onset inflammatory bowel disease' -- is autosomal recessive.",
       "drives": "Setting the IL10 row's inheritance from blank to 'Autosomal recessive'.",
       "sources": [
+        "MONDO:0016542 (OLS4)",
         "PMID:19890111",
         "PMID:28267044"
       ],
-      "independence": "Disjoint author lists, 8 years apart, different continents and cohorts: Glocker 2009 is two unrelated European consanguineous families plus six additional early-onset colitis patients; Huang 2017 is a 42-patient Chinese VEO-IBD multicentre survey. Neither derives from the other's data."
+      "primary_assertion": "MONDO's own record for this term carries the exact synonyms 'autosomal recessive early-onset IBD' and 'autosomal recessive early-onset inflammatory bowel disease'. OLS4/MONDO is the authoritative source of record this repository already uses for these rows and snapshots at tests/fixtures/mondo_label_snapshot.json, and the assertion is about the exact disease_id the row cites.",
+      "supporting_cohorts": "PMID:19890111 (two unrelated European consanguineous families plus six further patients) and PMID:28267044 (42-patient Chinese multicentre survey) demonstrate recessive transmission -- homozygous and compound-heterozygous loss of function -- in this disease entity. Disjoint authors, different continents, different cohorts.",
+      "stated_limit": "Both retained cohorts characterise the RECEPTOR forms (IL10RA/IL10RB); neither reports IL10 ligand mutations. A search for an independent pair of primaries specific to the ligand did not find one -- the ligand-mutation literature is dominated by a single group (Klein lab), so two sources there would share a lineage. The claim is therefore made about the MONDO disease entity, which is what the row cites, and NOT as a per-gene assertion about IL10 the ligand. An earlier revision of this packet wrote 'loss-of-function variants in IL10, IL10RA or IL10RB'; the IL10 half of that was unsupported by the retained sources and has been withdrawn rather than papered over."
     },
     "C2": {
       "statement": "VKORC1 coumarin (warfarin) resistance is autosomal dominant \u2014 heterozygous missense variants suffice. It is distinct from VKCFD2, a recessive phenotype of the same gene caused by homozygous loss of function.",
@@ -25,6 +28,16 @@
     }
   },
   "citations": [
+    {
+      "id": "MONDO:0016542",
+      "supports": "C1",
+      "kind": "authoritative ontology record",
+      "title": "IL10-related early-onset inflammatory bowel disease",
+      "source": "EBI OLS4, MONDO 2026-08-04",
+      "accessed": "2026-08-31",
+      "assertion": "synonyms include 'autosomal recessive early-onset inflammatory bowel disease'",
+      "retraction_check": "Not applicable to an ontology term; obsolescence checked instead \u2014 term is not obsolete."
+    },
     {
       "id": "PMID:19890111",
       "doi": "10.1056/NEJMoa0907206",
@@ -72,7 +85,7 @@
     },
     {
       "id": "PMID:26513304",
-      "doi": "10.1097/FPC.0000000000000197",
+      "doi": "10.1097/FPC.0000000000000184",
       "supports": "C2",
       "kind": "primary (case report + mechanism)",
       "title": "Warfarin resistance associated with genetic polymorphism of VKORC1: linking clinical response to molecular mechanism.",
@@ -92,7 +105,7 @@
     "consensus": "Invoked 2026-08-31; 20 papers, retained as a DERIVED record. Surfaced C1's primary sources.",
     "scite": "Unavailable \u2014 monthly MCP call quota exhausted 2026-08-27, service-reported reset 2026-09-03, not yet passed.",
     "fallback": "PubMed used in Scite's place; every record re-resolved through eSummary for title, journal, authors and publication type, and checked for retractions through eLink.",
-    "tool_versions": "Neither the Consensus MCP surface nor NCBI E-utilities exposes a version on these calls; recorded as not exposed."
+    "tool_versions": "OLS4 exposes mondo version 2026-08-04, recorded above and retained as a payload. Neither the Consensus MCP surface nor NCBI E-utilities exposes a version on these calls; both recorded as not exposed rather than guessed."
   },
   "source_provenance": [
     {
@@ -112,6 +125,12 @@
       "observed_version": "Not exposed by the MCP surface; recorded as unavailable rather than guessed.",
       "license_reference": "https://consensus.app/home/terms-of-service/",
       "license_note": "Discovery tool only; no Consensus text redistributed \u2014 the record holds query, count and outcome."
+    },
+    {
+      "source": "EBI OLS4 (ebi.ac.uk/ols4/api, ontology=mondo)",
+      "license_reference": "https://www.ebi.ac.uk/about/terms-of-use",
+      "license_note": "EMBL-EBI services are free to use; MONDO is CC BY 4.0.",
+      "observed_version": "mondo 2026-08-04, read from the OLS4 ontology record retained here."
     }
   ],
   "payload_integrity": "The five NCBI payloads are unedited verbatim API responses. The Consensus payload is a DERIVED record, labelled as such in the file itself, because that tool has no HTTP response to capture. No payload required sanitization: all are public bibliographic records with no genotype, sample, personal or credentialed data.",
@@ -157,6 +176,20 @@
       "source": "Consensus MCP (DERIVED record)",
       "sha256": "e0a7d6a591a928ea73c15b395c18324cfaa666cb0c5db8147d75dc6b1cd5ad1b",
       "bytes": 645
+    },
+    {
+      "payload": "raw/ebi-ols4-mondo-0016542.json",
+      "request": "GET https://www.ebi.ac.uk/ols4/api/ontologies/mondo/terms?obo_id=MONDO:0016542",
+      "source": "EBI OLS4 term record",
+      "sha256": "4a69abeb2f37713427e19771ecfd1a79dfe7e14135e53d64764e76bf000d6d08",
+      "bytes": 7745
+    },
+    {
+      "payload": "raw/ebi-ols4-mondo-ontology-version.json",
+      "request": "GET https://www.ebi.ac.uk/ols4/api/ontologies/mondo",
+      "source": "EBI OLS4 ontology record (version)",
+      "sha256": "95a3108e3fc12601ddf01ad36ff9d123d1aa04090b2626baa90c6c72e637e693",
+      "bytes": 1900
     }
   ]
 }

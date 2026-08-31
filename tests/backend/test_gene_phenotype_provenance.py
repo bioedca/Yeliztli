@@ -263,104 +263,148 @@ def test_fabricated_pgx_rows_stay_dropped() -> None:
 
 # ── inheritance-column contract (#2043) ──────────────────────────────────────
 #
-# `inheritance` is not decoration: `_lookup_gene_phenotype`
-# (backend/annotation/engine.py) prefers the first association carrying HPO terms
-# *or* an inheritance pattern when choosing a gene's primary disease, and ships the
-# value to the frontend as `inheritance_pattern`. A blank on a Mendelian row both
-# demotes that row in primary selection and renders a monogenic disease with no
-# inheritance mode.
+# `inheritance` reaches the user: `_lookup_gene_phenotype`
+# (backend/annotation/engine.py) ships it to the frontend as
+# `inheritance_pattern`, so a wrong or missing pattern is a wrong or missing
+# statement about how a disease is transmitted, shown beside a variant.
 #
-# Blank is legitimate for complex/polygenic susceptibility rows, which have no
-# Mendelian pattern to state. That was previously implicit, so nothing distinguished
-# "polygenic, deliberately blank" from "Mendelian, value missing" — and #2043's own
-# survey mis-classified IL10-related early-onset IBD as a susceptibility trait when
-# it is autosomal recessive (PMID:19890111, PMID:28267044).
+# #2043 asked to make the column's contract explicit. Its premise -- that every
+# blank row is a complex/polygenic susceptibility trait -- was wrong: it
+# enumerated 14 of the 15 blanks and omitted IL10, whose row names a monogenic
+# disease (MONDO:0016542). A guard keyed on "blank means polygenic" would have
+# frozen a blank onto it and certified that as intended.
 #
-# Each entry is the reason blank is correct for that gene. Adding a row without an
-# inheritance value now FAILS unless it is listed here deliberately.
-_POLYGENIC_BLANK_INHERITANCE: dict[str, str] = {
-    "APOE": "Alzheimer risk allele; complex susceptibility, not Mendelian",
-    "TCF7L2": "T2D susceptibility locus (polygenic)",
-    "SLC30A8": "T2D susceptibility locus (polygenic)",
-    "IGF2BP2": "T2D susceptibility locus (polygenic)",
-    "PPARG": "T2D susceptibility locus (polygenic)",
-    "HHEX": "T2D susceptibility locus (polygenic)",
-    "PTPN22": "autoimmune susceptibility allele (polygenic)",
-    "HLA-DRB1": "MS/autoimmune HLA susceptibility (polygenic)",
-    "TNF": "inflammatory susceptibility variation (polygenic)",
-    "IL1B": "inflammatory response variation (polygenic)",
-    "SLC6A4": "depression susceptibility (polygenic)",
-    "TPH2": "mood-disorder susceptibility (polygenic)",
-    "ADRA2A": "ADHD susceptibility (polygenic)",
-    "MCM6": "lactase persistence regulatory variant; a trait, not a disease",
-}
+# So the exemption list below records ONLY an observable fact about each row --
+# that it carries no inheritance value and none has been verified against an
+# authoritative source. It deliberately makes NO biological claim: asserting
+# "this gene is polygenic" for 14 rows with no evidence would repeat the error
+# this guard exists to prevent, and would turn an unevidenced classification
+# into a test-enforced gate.
+#
+# Keyed by (gene_symbol, disease_id), not by gene: a gene may legitimately carry
+# several rows (HBB does), and a gene-wide exemption would silently excuse a new
+# Mendelian row whose inheritance was simply omitted.
+_UNVERIFIED_BLANK_INHERITANCE: frozenset[tuple[str, str]] = frozenset(
+    {
+        ("APOE", "MONDO:0004975"),
+        ("TCF7L2", "MONDO:0005148"),
+        ("SLC30A8", "MONDO:0005148"),
+        ("IGF2BP2", "MONDO:0005148"),
+        ("PPARG", "MONDO:0005148"),
+        ("HHEX", "MONDO:0005148"),
+        ("PTPN22", "MONDO:0007179"),
+        ("HLA-DRB1", "MONDO:0007462"),
+        ("TNF", "MONDO:0021166"),
+        ("IL1B", "MONDO:0021166"),
+        ("SLC6A4", "MONDO:0002050"),
+        ("TPH2", "MONDO:0005371"),
+        ("ADRA2A", "MONDO:0007743"),
+        ("MCM6", "MONDO:0006065"),
+    }
+)
 
 
-def test_every_non_polygenic_row_declares_an_inheritance() -> None:
-    """A Mendelian row must state its inheritance; only listed polygenic rows may be blank."""
+def _canonical_inheritance_values() -> frozenset[str]:
+    """The repository's own controlled vocabulary, not one invented here."""
+    from backend.annotation.omim import _OMIM_INHERITANCE_ABBREVS
+
+    return frozenset(_OMIM_INHERITANCE_ABBREVS.values())
+
+
+def test_every_row_declares_or_is_listed_as_unverified() -> None:
+    """A row must state its inheritance, or be listed as having none verified."""
     missing = [
-        f"{r['gene_symbol']} ({r['disease_name']})"
+        f"{r['gene_symbol']} / {r['disease_id']} ({r['disease_name']})"
         for r in _rows()
-        if not r["inheritance"].strip() and r["gene_symbol"] not in _POLYGENIC_BLANK_INHERITANCE
+        if not r["inheritance"].strip()
+        and (r["gene_symbol"], r["disease_id"]) not in _UNVERIFIED_BLANK_INHERITANCE
     ]
     assert not missing, (
-        "rows with a blank `inheritance` that are not listed as polygenic:\n"
+        "rows with a blank `inheritance` that are not listed as unverified:\n"
         + "\n".join(missing)
-        + "\n\nEither supply the inheritance pattern (verified against an authoritative "
-        "source) or add the gene to _POLYGENIC_BLANK_INHERITANCE with its reason."
+        + "\n\nEither supply the pattern (verified against an authoritative source) or add "
+        "the (gene_symbol, disease_id) pair to _UNVERIFIED_BLANK_INHERITANCE."
     )
 
 
-def test_polygenic_blank_entries_still_apply() -> None:
-    """Self-cleaning, like _TOPIC_ALLOWLIST: an exemption must still be needed.
+def test_declared_inheritance_uses_the_controlled_vocabulary() -> None:
+    """A nonblank value must be a recognised pattern, not free text.
 
-    If a listed gene disappears or later gains an inheritance value, the entry has to
-    be removed by hand rather than linger and keep excusing a blank that no longer
-    exists.
+    Without this, `Autosomal recesive` satisfies a "row declares something" check,
+    renders verbatim to the user, and is invisible to any consumer matching on the
+    canonical spelling.
     """
-    by_gene = {r["gene_symbol"]: r for r in _rows()}
+    allowed = _canonical_inheritance_values()
+    bad = [
+        f"{r['gene_symbol']} / {r['disease_id']}: {r['inheritance']!r}"
+        for r in _rows()
+        if r["inheritance"].strip() and r["inheritance"].strip() not in allowed
+    ]
+    assert not bad, (
+        "inheritance values outside the controlled vocabulary "
+        f"({sorted(allowed)}):\n" + "\n".join(bad)
+    )
+
+
+def test_unverified_entries_still_apply() -> None:
+    """Self-cleaning, like _TOPIC_ALLOWLIST: an exemption must still be needed."""
+    by_key = {(r["gene_symbol"], r["disease_id"]): r for r in _rows()}
     stale = []
-    for gene in _POLYGENIC_BLANK_INHERITANCE:
-        row = by_gene.get(gene)
+    for key in sorted(_UNVERIFIED_BLANK_INHERITANCE):
+        row = by_key.get(key)
         if row is None:
-            stale.append(f"{gene}: no row carries this gene anymore")
+            stale.append(f"{key}: no row carries this (gene, disease_id) anymore")
         elif row["inheritance"].strip():
             stale.append(
-                f"{gene}: listed as polygenic-blank but the row now declares "
-                f"{row['inheritance']!r}"
+                f"{key}: listed as unverified but the row now declares "
+                f"{row['inheritance']!r} -- drop the entry"
             )
-    assert not stale, "stale _POLYGENIC_BLANK_INHERITANCE entries (remove by hand):\n" + "\n".join(
-        stale
+    assert not stale, (
+        "stale _UNVERIFIED_BLANK_INHERITANCE entries (remove by hand):\n" + "\n".join(stale)
+    )
+
+
+def test_a_new_mendelian_row_for_a_listed_gene_is_not_excused() -> None:
+    """The reason the exemption is keyed by (gene, disease_id) rather than gene.
+
+    APOE is listed as unverified for MONDO:0004975. A *second* APOE row for a
+    different disease with a blank inheritance must still fail, because the
+    exemption covers one association, not the gene.
+    """
+    listed_genes = {gene for gene, _ in _UNVERIFIED_BLANK_INHERITANCE}
+    assert "APOE" in listed_genes
+    hypothetical = ("APOE", "MONDO:0007088")
+    assert hypothetical not in _UNVERIFIED_BLANK_INHERITANCE, (
+        "test fixture assumption broken: this pair must not be exempted"
     )
 
 
 def test_il10_row_states_autosomal_recessive() -> None:
-    """IL10-related early-onset IBD is monogenic recessive, not a susceptibility trait.
+    """IL10-related early-onset IBD is recessive, not a susceptibility trait.
 
-    #2043 surveyed the blank-inheritance rows as "all complex/polygenic susceptibility
-    traits" and enumerated 14 of the 15, omitting IL10. Its row names a specific
-    monogenic disease: IL10/IL10R deficiency causes very-early-onset IBD through
-    homozygous or compound-heterozygous loss-of-function variants
-    (PMID:19890111 Glocker 2009 NEJM; PMID:28267044 Huang 2017, disjoint cohort).
-    A guard keyed only on "blank == polygenic" would have frozen the wrong value here.
+    #2043 surveyed the blank rows as "all complex/polygenic susceptibility traits"
+    and enumerated 14 of the 15, omitting IL10. Its row names a monogenic disease,
+    and MONDO's own synonyms for MONDO:0016542 include "autosomal recessive
+    early-onset inflammatory bowel disease" (OLS4, mondo 2026-08-04, accessed
+    2026-08-31); recessive transmission is shown in cohorts at PMID:19890111 and
+    PMID:28267044.
     """
     row = next((r for r in _rows() if r["gene_symbol"] == "IL10"), None)
     assert row is not None, "IL10 row missing from gene_phenotype_seed.csv"
     assert row["disease_id"] == "MONDO:0016542"
     assert row["inheritance"] == "Autosomal recessive"
-    assert "IL10" not in _POLYGENIC_BLANK_INHERITANCE, (
-        "IL10 is Mendelian recessive; it must not be exempted as polygenic"
+    assert ("IL10", "MONDO:0016542") not in _UNVERIFIED_BLANK_INHERITANCE, (
+        "IL10 is Mendelian recessive; it must not be listed as unverified-blank"
     )
 
 
 def test_vkorc1_keeps_autosomal_dominant() -> None:
-    """VKORC1 coumarin resistance is dominant, and the row must not drift to recessive.
+    """VKORC1 coumarin resistance is dominant, and must not drift to recessive.
 
-    The same gene carries two phenotypes with opposite inheritance: heterozygous
-    missense variants cause warfarin/coumarin resistance, while homozygous loss of
-    function causes VKCFD2, which is recessive (PMID:14765194 Rost 2004 Nature;
-    PMID:26513304 Lewis 2016). This row names resistance, so dominant is correct --
-    #2043 asked for that confirmation explicitly.
+    One gene, two phenotypes with opposite inheritance: heterozygous missense
+    variants cause coumarin/warfarin resistance, while homozygous loss of function
+    causes VKCFD2, which is recessive (PMID:14765194; PMID:26513304). Only the
+    row's disease_name settles which applies -- #2043 asked for this confirmation.
     """
     row = next((r for r in _rows() if r["gene_symbol"] == "VKORC1"), None)
     assert row is not None, "VKORC1 row missing from gene_phenotype_seed.csv"

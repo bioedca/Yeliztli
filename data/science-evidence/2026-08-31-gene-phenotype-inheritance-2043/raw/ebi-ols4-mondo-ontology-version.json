@@ -1,0 +1,56 @@
+{
+  "languages" : [ "en", "ja" ],
+  "lang" : "en",
+  "ontologyId" : "mondo",
+  "loaded" : "2026-08-30T00:08:56.085167108",
+  "updated" : "2026-08-30T00:08:56.085167108",
+  "status" : "LOADED",
+  "message" : "",
+  "version" : "2026-08-04",
+  "fileHash" : null,
+  "loadAttempts" : 0,
+  "numberOfTerms" : 63449,
+  "numberOfProperties" : 493,
+  "numberOfIndividuals" : 18,
+  "config" : {
+    "id" : "mondo",
+    "versionIri" : "http://purl.obolibrary.org/obo/mondo/releases/2026-08-04/mondo-international.owl",
+    "namespace" : "mondo",
+    "preferredPrefix" : "MONDO",
+    "title" : "Mondo Disease Ontology",
+    "description" : "A semi-automatically constructed ontology that merges in multiple disease resources to yield a coherent merged ontology.",
+    "homepage" : "https://monarch-initiative.github.io/mondo",
+    "version" : "2026-08-04",
+    "mailingList" : "https://groups.google.com/group/mondo-users",
+    "tracker" : "https://github.com/monarch-initiative/mondo/issues",
+    "logo" : null,
+    "creators" : [ ],
+    "annotations" : null,
+    "fileLocation" : "https://purl.obolibrary.org/obo/mondo/mondo-international.owl",
+    "oboSlims" : false,
+    "labelProperty" : "http://www.w3.org/2000/01/rdf-schema#label",
+    "definitionProperties" : [ ],
+    "synonymProperties" : [ ],
+    "hierarchicalProperties" : [ ],
+    "baseUris" : [ ],
+    "hiddenProperties" : [ ],
+    "preferredRootTerms" : [ ],
+    "isSkos" : false,
+    "allowDownload" : false
+  },
+  "baseUris" : [ ],
+  "_links" : {
+    "self" : {
+      "href" : "http://www.ebi.ac.uk/ols4/api/ontologies/mondo?lang=en"
+    },
+    "terms" : {
+      "href" : "http://www.ebi.ac.uk/ols4/api/ontologies/mondo/terms"
+    },
+    "properties" : {
+      "href" : "http://www.ebi.ac.uk/ols4/api/ontologies/mondo/properties"
+    },
+    "individuals" : {
+      "href" : "http://www.ebi.ac.uk/ols4/api/ontologies/mondo/individuals"
+    }
+  }
+}
