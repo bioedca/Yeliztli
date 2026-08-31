@@ -1,0 +1,9 @@
+{
+  "tool": "Consensus MCP `search`",
+  "accessed": "2026-08-31",
+  "query": "IL10 IL10RA IL10RB deficiency very early onset inflammatory bowel disease autosomal recessive inheritance",
+  "result_count": 20,
+  "record_kind": "DERIVED — reduced to identity and outcome. Not a wire capture.",
+  "note": "Consensus answers through an MCP tool rather than an HTTP endpoint, so no verbatim response body exists to retain. Recorded to evidence the required first-rung discovery call.",
+  "outcome": "Surfaced the primary literature used for C1 (Glocker 2009 NEJM; Huang 2017 Chinese cohort) alongside reviews. Only the primary records are cited."
+}

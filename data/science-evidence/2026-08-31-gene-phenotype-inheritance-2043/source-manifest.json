@@ -1,0 +1,162 @@
+{
+  "issue": 2043,
+  "accessed": "2026-08-31",
+  "concern": "The inheritance column of gene_phenotype_seed.csv: one wrong blank, one value confirmed",
+  "why_this_is_load_bearing": "`inheritance` is not decoration. `_lookup_gene_phenotype` (backend/annotation/engine.py) prefers the first association carrying HPO terms OR an inheritance pattern when choosing a gene's primary disease, and ships the value to the frontend as `inheritance_pattern`. A blank on a Mendelian row both demotes that row in primary selection and renders a monogenic disease with no inheritance mode.",
+  "claims": {
+    "C1": {
+      "statement": "IL10-related early-onset inflammatory bowel disease (IL10/IL10R deficiency) is inherited in an autosomal recessive manner \u2014 homozygous or compound-heterozygous loss-of-function variants in IL10, IL10RA or IL10RB.",
+      "drives": "Setting the IL10 row's inheritance from blank to 'Autosomal recessive'.",
+      "sources": [
+        "PMID:19890111",
+        "PMID:28267044"
+      ],
+      "independence": "Disjoint author lists, 8 years apart, different continents and cohorts: Glocker 2009 is two unrelated European consanguineous families plus six additional early-onset colitis patients; Huang 2017 is a 42-patient Chinese VEO-IBD multicentre survey. Neither derives from the other's data."
+    },
+    "C2": {
+      "statement": "VKORC1 coumarin (warfarin) resistance is autosomal dominant \u2014 heterozygous missense variants suffice. It is distinct from VKCFD2, a recessive phenotype of the same gene caused by homozygous loss of function.",
+      "drives": "Confirming, not changing, the VKORC1 row's existing 'Autosomal dominant'. #2043 asked for this explicitly because the row was the last survivor of #1959's AD-vs-AR observation.",
+      "sources": [
+        "PMID:14765194",
+        "PMID:26513304"
+      ],
+      "independence": "Disjoint authors, 12 years apart. Rost 2004 is the original mapping of VKORC1 in warfarin-resistant kindreds and VKCFD2 families; Lewis 2016 is an independent clinical case with molecular-mechanism characterisation.",
+      "note": "The two-phenotype split is the reason this row needed confirming rather than pattern-matching off the gene symbol: the same gene is dominant for one phenotype and recessive for the other, so only the disease_name settles it."
+    }
+  },
+  "citations": [
+    {
+      "id": "PMID:19890111",
+      "doi": "10.1056/NEJMoa0907206",
+      "supports": "C1",
+      "kind": "primary",
+      "title": "Inflammatory bowel disease and mutations affecting the interleukin-10 receptor.",
+      "journal": "N Engl J Med 2009",
+      "first_authors": [
+        "Glocker EO",
+        "Kotlarz D",
+        "Boztug K"
+      ],
+      "accessed": "2026-08-31",
+      "retraction_check": "eLink linked relations inspected; no retraction/erratum/correction linkname."
+    },
+    {
+      "id": "PMID:28267044",
+      "doi": "10.1097/MIB.0000000000001058",
+      "supports": "C1",
+      "kind": "primary",
+      "title": "Mutations in Interleukin-10 Receptor and Clinical Phenotypes in Patients with Very Early Onset Inflammatory Bowel Disease: A Chinese VEO-IBD Collaboration Group Survey.",
+      "journal": "Inflamm Bowel Dis 2017",
+      "first_authors": [
+        "Huang Z",
+        "Peng K",
+        "Li X"
+      ],
+      "accessed": "2026-08-31",
+      "retraction_check": "eLink linked relations inspected; no retraction/erratum/correction linkname."
+    },
+    {
+      "id": "PMID:14765194",
+      "doi": "10.1038/nature02214",
+      "supports": "C2",
+      "kind": "primary",
+      "title": "Mutations in VKORC1 cause warfarin resistance and multiple coagulation factor deficiency type 2.",
+      "journal": "Nature 2004",
+      "first_authors": [
+        "Rost S",
+        "Fregin A",
+        "Ivaskevicius V"
+      ],
+      "accessed": "2026-08-31",
+      "retraction_check": "eLink linked relations inspected; no retraction/erratum/correction linkname."
+    },
+    {
+      "id": "PMID:26513304",
+      "doi": "10.1097/FPC.0000000000000197",
+      "supports": "C2",
+      "kind": "primary (case report + mechanism)",
+      "title": "Warfarin resistance associated with genetic polymorphism of VKORC1: linking clinical response to molecular mechanism.",
+      "journal": "Pharmacogenet Genomics 2016",
+      "first_authors": [
+        "Lewis BC",
+        "Nair PC",
+        "Heran SS"
+      ],
+      "accessed": "2026-08-31",
+      "retraction_check": "eLink linked relations inspected; no retraction/erratum/correction linkname."
+    }
+  ],
+  "retraction_method": "PubMed eLink linked relations, NOT publication type. An original record keeps its own pubtype while corrections, errata and retractions are carried as linked relations, so a pubtype scan is not a retraction check.",
+  "explicitly_not_claimed": "No inheritance value other than IL10's is changed. #2043's item 3 \u2014 spot-checking the other 13 Mendelian rows against Monarch/OLS4 and correcting via gene_inheritance_overrides.json \u2014 is NOT done here and is filed separately: it needs a per-gene authoritative check, which is its own evidence exercise rather than a rider on this one.",
+  "discovery_tool_ladder": {
+    "consensus": "Invoked 2026-08-31; 20 papers, retained as a DERIVED record. Surfaced C1's primary sources.",
+    "scite": "Unavailable \u2014 monthly MCP call quota exhausted 2026-08-27, service-reported reset 2026-09-03, not yet passed.",
+    "fallback": "PubMed used in Scite's place; every record re-resolved through eSummary for title, journal, authors and publication type, and checked for retractions through eLink.",
+    "tool_versions": "Neither the Consensus MCP surface nor NCBI E-utilities exposes a version on these calls; recorded as not exposed."
+  },
+  "source_provenance": [
+    {
+      "source": "NCBI PubMed eSummary",
+      "license_reference": "https://www.ncbi.nlm.nih.gov/home/about/policies/",
+      "license_note": "US-government-authored NCBI content is public domain; retained payloads are bibliographic metadata.",
+      "observed_version": "NCBI E-utilities exposes no build/version field on esummary or elink; recorded as not exposed rather than guessed."
+    },
+    {
+      "source": "NCBI PubMed eLink",
+      "license_reference": "https://www.ncbi.nlm.nih.gov/home/about/policies/",
+      "license_note": "US-government-authored NCBI content is public domain; retained payloads are bibliographic metadata.",
+      "observed_version": "NCBI E-utilities exposes no build/version field on esummary or elink; recorded as not exposed rather than guessed."
+    },
+    {
+      "source": "Consensus MCP",
+      "observed_version": "Not exposed by the MCP surface; recorded as unavailable rather than guessed.",
+      "license_reference": "https://consensus.app/home/terms-of-service/",
+      "license_note": "Discovery tool only; no Consensus text redistributed \u2014 the record holds query, count and outcome."
+    }
+  ],
+  "payload_integrity": "The five NCBI payloads are unedited verbatim API responses. The Consensus payload is a DERIVED record, labelled as such in the file itself, because that tool has no HTTP response to capture. No payload required sanitization: all are public bibliographic records with no genotype, sample, personal or credentialed data.",
+  "requests": [
+    {
+      "payload": "raw/ncbi-pubmed-esummary-four-sources.json",
+      "request": "GET .../esummary.fcgi?db=pubmed&id=19890111,28267044,14765194,26513304&retmode=json",
+      "source": "NCBI PubMed eSummary",
+      "sha256": "324bbb865c9b137d429d1ea5f76a5906a5832e87be52791eea301c72828d557f",
+      "bytes": 10425
+    },
+    {
+      "payload": "raw/ncbi-pubmed-elink-19890111.json",
+      "request": "GET .../elink.fcgi?dbfrom=pubmed&db=pubmed&id=19890111&retmode=json",
+      "source": "NCBI PubMed eLink (retraction/correction relations)",
+      "sha256": "c88700523496ff04e701f453bf8f73507cf3faa58b48c2b759caa181a7784aa9",
+      "bytes": 12306
+    },
+    {
+      "payload": "raw/ncbi-pubmed-elink-28267044.json",
+      "request": "GET .../elink.fcgi?dbfrom=pubmed&db=pubmed&id=28267044&retmode=json",
+      "source": "NCBI PubMed eLink (retraction/correction relations)",
+      "sha256": "1f58f5fd0b6fe1f1583077b62a5e4c95912fea4d086b6b274d91e297d8a0ec7f",
+      "bytes": 3102
+    },
+    {
+      "payload": "raw/ncbi-pubmed-elink-14765194.json",
+      "request": "GET .../elink.fcgi?dbfrom=pubmed&db=pubmed&id=14765194&retmode=json",
+      "source": "NCBI PubMed eLink (retraction/correction relations)",
+      "sha256": "0018ffd442ea6dfa87023b1a54dcbe21f6f755bca70699d5f281b46d8e1a5b34",
+      "bytes": 8593
+    },
+    {
+      "payload": "raw/ncbi-pubmed-elink-26513304.json",
+      "request": "GET .../elink.fcgi?dbfrom=pubmed&db=pubmed&id=26513304&retmode=json",
+      "source": "NCBI PubMed eLink (retraction/correction relations)",
+      "sha256": "3f1485edb17161abf435ef047777208ead45b1352cd433ea321878e9bbc2f4c2",
+      "bytes": 1232
+    },
+    {
+      "payload": "raw/consensus-search-il10-inheritance-derived.json",
+      "request": "Consensus MCP `search` (tool call, not HTTP)",
+      "source": "Consensus MCP (DERIVED record)",
+      "sha256": "e0a7d6a591a928ea73c15b395c18324cfaa666cb0c5db8147d75dc6b1cd5ad1b",
+      "bytes": 645
+    }
+  ]
+}
