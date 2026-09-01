@@ -1,0 +1,241 @@
+{
+  "_provenance": {
+    "source": "Ensembl GRCh37 REST (grch37.rest.ensembl.org/lookup/symbol/homo_sapiens/<gene>)",
+    "assembly": "GRCh37",
+    "accessed": "2026-09-01",
+    "gene_count": 57,
+    "fetch_failures": 0,
+    "generator": "scripts/build_vep_strand_snapshot.py",
+    "note": "Committed offline reference for the vep_seed strand guard (#2045). A gene's genomic strand is invariant, so this needs no version pinning beyond the assembly. Regenerate whenever vep_seed.csv gains a gene -- the guard FAILS on an uncovered gene rather than skipping it. GENE1 is a deliberately synthetic locus with no Ensembl record and is exempt in the guard, pinned by symbol."
+  },
+  "strands": {
+    "ABCB1": {
+      "strand": "-",
+      "ensembl_gene_id": "ENSG00000085563"
+    },
+    "ADRA2A": {
+      "strand": "+",
+      "ensembl_gene_id": "ENSG00000150594"
+    },
+    "ANKK1": {
+      "strand": "+",
+      "ensembl_gene_id": "ENSG00000170209"
+    },
+    "APOE": {
+      "strand": "+",
+      "ensembl_gene_id": "ENSG00000130203"
+    },
+    "BDNF": {
+      "strand": "-",
+      "ensembl_gene_id": "ENSG00000176697"
+    },
+    "BRCA1": {
+      "strand": "-",
+      "ensembl_gene_id": "ENSG00000012048"
+    },
+    "BRCA2": {
+      "strand": "+",
+      "ensembl_gene_id": "ENSG00000139618"
+    },
+    "CDKN2A": {
+      "strand": "-",
+      "ensembl_gene_id": "ENSG00000147889"
+    },
+    "CETP": {
+      "strand": "+",
+      "ensembl_gene_id": "ENSG00000087237"
+    },
+    "CFTR": {
+      "strand": "+",
+      "ensembl_gene_id": "ENSG00000001626"
+    },
+    "COL1A1": {
+      "strand": "-",
+      "ensembl_gene_id": "ENSG00000108821"
+    },
+    "COMT": {
+      "strand": "+",
+      "ensembl_gene_id": "ENSG00000093010"
+    },
+    "CYP2C19": {
+      "strand": "+",
+      "ensembl_gene_id": "ENSG00000165841"
+    },
+    "CYP2C9": {
+      "strand": "+",
+      "ensembl_gene_id": "ENSG00000138109"
+    },
+    "CYP2D6": {
+      "strand": "-",
+      "ensembl_gene_id": "ENSG00000100197"
+    },
+    "CYP2R1": {
+      "strand": "-",
+      "ensembl_gene_id": "ENSG00000186104"
+    },
+    "CYP3A5": {
+      "strand": "-",
+      "ensembl_gene_id": "ENSG00000106258"
+    },
+    "DPYD": {
+      "strand": "-",
+      "ensembl_gene_id": "ENSG00000188641"
+    },
+    "F2": {
+      "strand": "+",
+      "ensembl_gene_id": "ENSG00000180210"
+    },
+    "F5": {
+      "strand": "-",
+      "ensembl_gene_id": "ENSG00000198734"
+    },
+    "FADS1": {
+      "strand": "-",
+      "ensembl_gene_id": "ENSG00000149485"
+    },
+    "FADS2": {
+      "strand": "+",
+      "ensembl_gene_id": "ENSG00000134824"
+    },
+    "GBA": {
+      "strand": "-",
+      "ensembl_gene_id": "ENSG00000177628"
+    },
+    "GC": {
+      "strand": "-",
+      "ensembl_gene_id": "ENSG00000145321"
+    },
+    "HBB": {
+      "strand": "-",
+      "ensembl_gene_id": "ENSG00000244734"
+    },
+    "HERC2": {
+      "strand": "-",
+      "ensembl_gene_id": "ENSG00000128731"
+    },
+    "HHEX": {
+      "strand": "+",
+      "ensembl_gene_id": "ENSG00000152804"
+    },
+    "HLA-DRB1": {
+      "strand": "-",
+      "ensembl_gene_id": "ENSG00000196126"
+    },
+    "HNF1B": {
+      "strand": "-",
+      "ensembl_gene_id": "ENSG00000108753"
+    },
+    "HTR2A": {
+      "strand": "-",
+      "ensembl_gene_id": "ENSG00000102468"
+    },
+    "IFNL3": {
+      "strand": "-",
+      "ensembl_gene_id": "ENSG00000197110"
+    },
+    "IFNL4": {
+      "strand": "-",
+      "ensembl_gene_id": "ENSG00000272395"
+    },
+    "IGF2BP2": {
+      "strand": "-",
+      "ensembl_gene_id": "ENSG00000073792"
+    },
+    "IL10": {
+      "strand": "-",
+      "ensembl_gene_id": "ENSG00000136634"
+    },
+    "IL1B": {
+      "strand": "-",
+      "ensembl_gene_id": "ENSG00000125538"
+    },
+    "IL6": {
+      "strand": "+",
+      "ensembl_gene_id": "ENSG00000136244"
+    },
+    "KCNJ11": {
+      "strand": "-",
+      "ensembl_gene_id": "ENSG00000187486"
+    },
+    "MC1R": {
+      "strand": "+",
+      "ensembl_gene_id": "ENSG00000258839"
+    },
+    "MCM6": {
+      "strand": "-",
+      "ensembl_gene_id": "ENSG00000076003"
+    },
+    "MTHFR": {
+      "strand": "-",
+      "ensembl_gene_id": "ENSG00000177000"
+    },
+    "MTRR": {
+      "strand": "+",
+      "ensembl_gene_id": "ENSG00000124275"
+    },
+    "NBPF3": {
+      "strand": "+",
+      "ensembl_gene_id": "ENSG00000142794"
+    },
+    "OPRM1": {
+      "strand": "+",
+      "ensembl_gene_id": "ENSG00000112038"
+    },
+    "PAH": {
+      "strand": "-",
+      "ensembl_gene_id": "ENSG00000171759"
+    },
+    "PON1": {
+      "strand": "-",
+      "ensembl_gene_id": "ENSG00000005421"
+    },
+    "PPARG": {
+      "strand": "+",
+      "ensembl_gene_id": "ENSG00000132170"
+    },
+    "PTEN": {
+      "strand": "+",
+      "ensembl_gene_id": "ENSG00000171862"
+    },
+    "PTPN22": {
+      "strand": "-",
+      "ensembl_gene_id": "ENSG00000134242"
+    },
+    "SLC19A1": {
+      "strand": "-",
+      "ensembl_gene_id": "ENSG00000173638"
+    },
+    "SLC30A8": {
+      "strand": "+",
+      "ensembl_gene_id": "ENSG00000164756"
+    },
+    "SLC6A4": {
+      "strand": "-",
+      "ensembl_gene_id": "ENSG00000108576"
+    },
+    "SLCO1B1": {
+      "strand": "+",
+      "ensembl_gene_id": "ENSG00000134538"
+    },
+    "TCF7L2": {
+      "strand": "+",
+      "ensembl_gene_id": "ENSG00000148737"
+    },
+    "TNF": {
+      "strand": "+",
+      "ensembl_gene_id": "ENSG00000232810"
+    },
+    "TPH2": {
+      "strand": "+",
+      "ensembl_gene_id": "ENSG00000139287"
+    },
+    "TPMT": {
+      "strand": "-",
+      "ensembl_gene_id": "ENSG00000137364"
+    },
+    "VKORC1": {
+      "strand": "-",
+      "ensembl_gene_id": "ENSG00000167397"
+    }
+  }
+}
