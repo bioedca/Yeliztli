@@ -1,0 +1,408 @@
+{
+ "genes": {
+  "ABCB1": {
+   "ensembl_strand": "-",
+   "ensembl_id": "ENSG00000085563",
+   "fixture": [
+    "-"
+   ]
+  },
+  "ADRA2A": {
+   "ensembl_strand": "+",
+   "ensembl_id": "ENSG00000150594",
+   "fixture": [
+    "+"
+   ]
+  },
+  "ANKK1": {
+   "ensembl_strand": "+",
+   "ensembl_id": "ENSG00000170209",
+   "fixture": [
+    "+"
+   ]
+  },
+  "APOE": {
+   "ensembl_strand": "+",
+   "ensembl_id": "ENSG00000130203",
+   "fixture": [
+    "+"
+   ]
+  },
+  "BDNF": {
+   "ensembl_strand": "-",
+   "ensembl_id": "ENSG00000176697",
+   "fixture": [
+    "-"
+   ]
+  },
+  "BRCA1": {
+   "ensembl_strand": "-",
+   "ensembl_id": "ENSG00000012048",
+   "fixture": [
+    "-"
+   ]
+  },
+  "BRCA2": {
+   "ensembl_strand": "+",
+   "ensembl_id": "ENSG00000139618",
+   "fixture": [
+    "+"
+   ]
+  },
+  "CDKN2A": {
+   "ensembl_strand": "-",
+   "ensembl_id": "ENSG00000147889",
+   "fixture": [
+    "+"
+   ]
+  },
+  "CETP": {
+   "ensembl_strand": "+",
+   "ensembl_id": "ENSG00000087237",
+   "fixture": [
+    "+"
+   ]
+  },
+  "CFTR": {
+   "ensembl_strand": "+",
+   "ensembl_id": "ENSG00000001626",
+   "fixture": [
+    "+"
+   ]
+  },
+  "COL1A1": {
+   "ensembl_strand": "-",
+   "ensembl_id": "ENSG00000108821",
+   "fixture": [
+    "-"
+   ]
+  },
+  "COMT": {
+   "ensembl_strand": "+",
+   "ensembl_id": "ENSG00000093010",
+   "fixture": [
+    "+"
+   ]
+  },
+  "CYP2C19": {
+   "ensembl_strand": "+",
+   "ensembl_id": "ENSG00000165841",
+   "fixture": [
+    "+",
+    "-"
+   ]
+  },
+  "CYP2C9": {
+   "ensembl_strand": "+",
+   "ensembl_id": "ENSG00000138109",
+   "fixture": [
+    "-"
+   ]
+  },
+  "CYP2D6": {
+   "ensembl_strand": "-",
+   "ensembl_id": "ENSG00000100197",
+   "fixture": [
+    "-"
+   ]
+  },
+  "CYP2R1": {
+   "ensembl_strand": "-",
+   "ensembl_id": "ENSG00000186104",
+   "fixture": [
+    "+",
+    "-"
+   ]
+  },
+  "CYP3A5": {
+   "ensembl_strand": "-",
+   "ensembl_id": "ENSG00000106258",
+   "fixture": [
+    "+"
+   ]
+  },
+  "DPYD": {
+   "ensembl_strand": "-",
+   "ensembl_id": "ENSG00000188641",
+   "fixture": [
+    "-"
+   ]
+  },
+  "F2": {
+   "ensembl_strand": "+",
+   "ensembl_id": "ENSG00000180210",
+   "fixture": [
+    "+"
+   ]
+  },
+  "F5": {
+   "ensembl_strand": "-",
+   "ensembl_id": "ENSG00000198734",
+   "fixture": [
+    "-"
+   ]
+  },
+  "FADS1": {
+   "ensembl_strand": "-",
+   "ensembl_id": "ENSG00000149485",
+   "fixture": [
+    "-"
+   ]
+  },
+  "FADS2": {
+   "ensembl_strand": "+",
+   "ensembl_id": "ENSG00000134824",
+   "fixture": [
+    "+"
+   ]
+  },
+  "GBA": {
+   "ensembl_strand": "-",
+   "ensembl_id": "ENSG00000177628",
+   "fixture": [
+    "-"
+   ]
+  },
+  "GC": {
+   "ensembl_strand": "-",
+   "ensembl_id": "ENSG00000145321",
+   "fixture": [
+    "-"
+   ]
+  },
+  "HBB": {
+   "ensembl_strand": "-",
+   "ensembl_id": "ENSG00000244734",
+   "fixture": [
+    "-"
+   ]
+  },
+  "HERC2": {
+   "ensembl_strand": "-",
+   "ensembl_id": "ENSG00000128731",
+   "fixture": [
+    "+"
+   ]
+  },
+  "HHEX": {
+   "ensembl_strand": "+",
+   "ensembl_id": "ENSG00000152804",
+   "fixture": [
+    "+"
+   ]
+  },
+  "HLA-DRB1": {
+   "ensembl_strand": "-",
+   "ensembl_id": "ENSG00000196126",
+   "fixture": [
+    "+"
+   ]
+  },
+  "HNF1B": {
+   "ensembl_strand": "-",
+   "ensembl_id": "ENSG00000108753",
+   "fixture": [
+    "+"
+   ]
+  },
+  "HTR2A": {
+   "ensembl_strand": "-",
+   "ensembl_id": "ENSG00000102468",
+   "fixture": [
+    "-"
+   ]
+  },
+  "IFNL3": {
+   "ensembl_strand": "-",
+   "ensembl_id": "ENSG00000197110",
+   "fixture": [
+    "+"
+   ]
+  },
+  "IFNL4": {
+   "ensembl_strand": "-",
+   "ensembl_id": "ENSG00000272395",
+   "fixture": [
+    "+"
+   ]
+  },
+  "IGF2BP2": {
+   "ensembl_strand": "-",
+   "ensembl_id": "ENSG00000073792",
+   "fixture": [
+    "+"
+   ]
+  },
+  "IL10": {
+   "ensembl_strand": "-",
+   "ensembl_id": "ENSG00000136634",
+   "fixture": [
+    "+"
+   ]
+  },
+  "IL1B": {
+   "ensembl_strand": "-",
+   "ensembl_id": "ENSG00000125538",
+   "fixture": [
+    "-"
+   ]
+  },
+  "IL6": {
+   "ensembl_strand": "+",
+   "ensembl_id": "ENSG00000136244",
+   "fixture": [
+    "+"
+   ]
+  },
+  "KCNJ11": {
+   "ensembl_strand": "-",
+   "ensembl_id": "ENSG00000187486",
+   "fixture": [
+    "-"
+   ]
+  },
+  "MC1R": {
+   "ensembl_strand": "+",
+   "ensembl_id": "ENSG00000258839",
+   "fixture": [
+    "+"
+   ]
+  },
+  "MCM6": {
+   "ensembl_strand": "-",
+   "ensembl_id": "ENSG00000076003",
+   "fixture": [
+    "-"
+   ]
+  },
+  "MTHFR": {
+   "ensembl_strand": "-",
+   "ensembl_id": "ENSG00000177000",
+   "fixture": [
+    "+",
+    "-"
+   ]
+  },
+  "MTRR": {
+   "ensembl_strand": "+",
+   "ensembl_id": "ENSG00000124275",
+   "fixture": [
+    "+"
+   ]
+  },
+  "NBPF3": {
+   "ensembl_strand": "+",
+   "ensembl_id": "ENSG00000142794",
+   "fixture": [
+    "+"
+   ]
+  },
+  "OPRM1": {
+   "ensembl_strand": "+",
+   "ensembl_id": "ENSG00000112038",
+   "fixture": [
+    "+"
+   ]
+  },
+  "PAH": {
+   "ensembl_strand": "-",
+   "ensembl_id": "ENSG00000171759",
+   "fixture": [
+    "+"
+   ]
+  },
+  "PON1": {
+   "ensembl_strand": "-",
+   "ensembl_id": "ENSG00000005421",
+   "fixture": [
+    "+",
+    "-"
+   ]
+  },
+  "PPARG": {
+   "ensembl_strand": "+",
+   "ensembl_id": "ENSG00000132170",
+   "fixture": [
+    "+"
+   ]
+  },
+  "PTEN": {
+   "ensembl_strand": "+",
+   "ensembl_id": "ENSG00000171862",
+   "fixture": [
+    "+"
+   ]
+  },
+  "PTPN22": {
+   "ensembl_strand": "-",
+   "ensembl_id": "ENSG00000134242",
+   "fixture": [
+    "-"
+   ]
+  },
+  "SLC19A1": {
+   "ensembl_strand": "-",
+   "ensembl_id": "ENSG00000173638",
+   "fixture": [
+    "-"
+   ]
+  },
+  "SLC30A8": {
+   "ensembl_strand": "+",
+   "ensembl_id": "ENSG00000164756",
+   "fixture": [
+    "+"
+   ]
+  },
+  "SLC6A4": {
+   "ensembl_strand": "-",
+   "ensembl_id": "ENSG00000108576",
+   "fixture": [
+    "+"
+   ]
+  },
+  "SLCO1B1": {
+   "ensembl_strand": "+",
+   "ensembl_id": "ENSG00000134538",
+   "fixture": [
+    "+"
+   ]
+  },
+  "TCF7L2": {
+   "ensembl_strand": "+",
+   "ensembl_id": "ENSG00000148737",
+   "fixture": [
+    "+"
+   ]
+  },
+  "TNF": {
+   "ensembl_strand": "+",
+   "ensembl_id": "ENSG00000232810",
+   "fixture": [
+    "-"
+   ]
+  },
+  "TPH2": {
+   "ensembl_strand": "+",
+   "ensembl_id": "ENSG00000139287",
+   "fixture": [
+    "+"
+   ]
+  },
+  "TPMT": {
+   "ensembl_strand": "-",
+   "ensembl_id": "ENSG00000137364",
+   "fixture": [
+    "+"
+   ]
+  },
+  "VKORC1": {
+   "ensembl_strand": "-",
+   "ensembl_id": "ENSG00000167397",
+   "fixture": [
+    "+"
+   ]
+  }
+ },
+ "fetch_failures": []
+}

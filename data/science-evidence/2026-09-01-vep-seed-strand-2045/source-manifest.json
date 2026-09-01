@@ -1,0 +1,111 @@
+{
+  "issue": 2045,
+  "accessed": "2026-09-01",
+  "concern": "vep_seed.csv strand column and the CYP2C19*4 consequence/HGVS annotation",
+  "stakes": "FIXTURE PROVENANCE, not a shipped user-facing error. Production builds the VEP table from the real bundle; this CSV seeds mini_vep_bundle.db, a TEST ORACLE whose rows are copied into annotated_variants unchanged in tests. The defect is that the oracle disagreed with the reference assembly, so tests could not detect a real regression in the same fields.",
+  "claims": {
+    "C1": {
+      "statement": "19 of the 57 annotated genes carried the wrong genomic strand.",
+      "sources": [
+        "Ensembl GRCh37 lookup/symbol",
+        "NCBI Gene esummary genomicinfo"
+      ],
+      "independence": "Two annotation projects run by different organisations (EMBL-EBI/Ensembl and NCBI/RefSeq) over the same reference assembly, with separate gene-model pipelines. They are not fully independent -- both are anchored to the same assembly -- but neither imports the other's strand call, unlike the Ensembl-imports-dbSNP case. All 57 resolved through Ensembl with zero fetch failures; all 19 corrected genes re-checked through NCBI Gene with ZERO disagreements.",
+      "self_proving_subset": "4 of the 19 (CYP2C19, MTHFR, PON1, CYP2R1) carried BOTH strands on different rows of the same gene. That is impossible for a real gene and needs no external source at all."
+    },
+    "C2": {
+      "statement": "rs28399504 (CYP2C19*4, c.1A>G) is start_lost / p.Met1?, not missense_variant / p.Met1Val.",
+      "sources": [
+        "Ensembl GRCh37 VEP on ENST00000371321 (the transcript the row itself cites)"
+      ],
+      "evidence": "consequence_terms ['start_lost'], impact HIGH, strand 1; with hgvs=1: hgvsc ENST00000371321.3:c.1A>G, hgvsp ENSP00000360372.3:p.Met1?. The HGVS strings were read from the payload, not copied from the issue.",
+      "single_source_note": "One source, and deliberately so: this is not a contested biological claim but the output of the annotation tool the fixture is supposed to mirror. VEP's call on the cited transcript IS the oracle. A second opinion would be answering a different question."
+    }
+  },
+  "issue_counts_corrected": {
+    "wrong_strand_genes": {
+      "issue_claimed": 25,
+      "verified": 19,
+      "already_correct_in_fixture": [
+        "COL1A1",
+        "F5",
+        "FADS1",
+        "GC",
+        "KCNJ11"
+      ],
+      "not_present_in_this_file": [
+        "HEXA"
+      ]
+    },
+    "internally_contradictory": {
+      "issue_claimed": 2,
+      "verified": 4,
+      "extra": [
+        "PON1",
+        "CYP2R1"
+      ]
+    },
+    "file_shape": {
+      "issue_implied": "57 genes",
+      "actual": "679 rows, of which 100 carry a gene_symbol"
+    }
+  },
+  "explicitly_not_claimed": "The retained consequence audit covers every rsid in the file. Of the 100 annotated rows: 52 agree, 15 disagree on the fixture's own transcript, and 33 cite a transcript Ensembl VEP does not report for that variant. ONLY rs28399504 is corrected here. The other 14 mismatches are predominantly 5_prime_UTR_variant vs upstream_gene_variant, which turn on transcript selection rather than being outright errors, and the 33 unresolvable transcripts need per-row adjudication (transcript version, assembly, MANE choice). Adjudicating 47 rows off one REST call each would be exactly the kind of bulk edit this issue is about. Filed separately.",
+  "discovery_tool_ladder": {
+    "note": "Consensus/Scite are literature-discovery tools and are not the right instrument for a genome-annotation fact. The authoritative sources here are the assembly annotation projects themselves, queried directly.",
+    "scite": "Unavailable regardless -- monthly MCP quota exhausted 2026-08-27, reset 2026-09-03.",
+    "tool_versions": "Ensembl GRCh37 REST exposes no version header on these endpoints; the assembly (GRCh37) is the pin that matters and is in the URL. NCBI E-utilities exposes no build field. Both recorded as not exposed rather than guessed."
+  },
+  "source_provenance": [
+    {
+      "source": "Ensembl GRCh37 REST",
+      "license_reference": "https://www.ensembl.org/info/about/legal/disclaimer.html",
+      "license_note": "Ensembl data is released without restriction (Apache-2.0 for code, CC0 for data).",
+      "observed_version": "Not exposed on these endpoints; assembly GRCh37 pinned in the hostname."
+    },
+    {
+      "source": "NCBI Gene (E-utilities)",
+      "license_reference": "https://www.ncbi.nlm.nih.gov/home/about/policies/",
+      "license_note": "US-government-authored NCBI content is public domain.",
+      "observed_version": "Not exposed on esummary; recorded as not exposed rather than guessed."
+    }
+  ],
+  "payload_integrity": "Four payloads are unedited verbatim API responses. The consequence audit is a DERIVED record: 679 VEP responses reduced per rsid to the fixture consequence, the transcript-matched terms and most_severe_consequence -- retaining 679 full VEP payloads would be megabytes of unread JSON. It is labelled DERIVED in the manifest. No payload required sanitization: all are public reference-annotation records with no genotype, sample or personal data.",
+  "requests": [
+    {
+      "payload": "raw/ensembl-grch37-lookup-symbol-57-genes.json",
+      "request": "GET https://grch37.rest.ensembl.org/lookup/symbol/homo_sapiens/<gene> for each of 57 genes",
+      "source": "Ensembl GRCh37 REST (lookup/symbol)",
+      "sha256": "e87877e2b1cd9d6bb7dd211a70919b005d284c2b07a2421b1a4da8716b0473b2",
+      "bytes": 6279
+    },
+    {
+      "payload": "raw/ncbi-gene-esummary-19-corrected-genes.json",
+      "request": "GET .../esearch.fcgi?db=gene + esummary.fcgi?db=gene for each of the 19 corrected genes",
+      "source": "NCBI Gene (E-utilities)",
+      "sha256": "7eca65c5faf3ae64a2bbcc113ead8b98475ab997cdf34a296f1170e39be52063",
+      "bytes": 2020
+    },
+    {
+      "payload": "raw/ensembl-grch37-vep-rs28399504.json",
+      "request": "GET https://grch37.rest.ensembl.org/vep/human/id/rs28399504",
+      "source": "Ensembl GRCh37 REST (VEP)",
+      "sha256": "5c8f9f42d28400a8276ada6162d0511d8c02c931fae2068e8966eb14dc41e790",
+      "bytes": 4937
+    },
+    {
+      "payload": "raw/ensembl-grch37-vep-rs28399504-hgvs.json",
+      "request": "GET https://grch37.rest.ensembl.org/vep/human/id/rs28399504?hgvs=1",
+      "source": "Ensembl GRCh37 REST (VEP, HGVS)",
+      "sha256": "a339a0d402dfdbe9e77041e2c004b0c77319bec5a43084bfb9715c8a994c9316",
+      "bytes": 5237
+    },
+    {
+      "payload": "raw/ensembl-grch37-vep-consequence-audit-all-rows.json",
+      "request": "GET https://grch37.rest.ensembl.org/vep/human/id/<rsid> for every rsid in vep_seed.csv (679)",
+      "source": "Ensembl GRCh37 REST (VEP) -- DERIVED: reduced per rsid to fixture consequence, transcript-matched terms, most_severe",
+      "sha256": "1ebd6939db7acb2776a06e0aa84520ad444822a8eabc06f360a85541e64efe28",
+      "bytes": 89217
+    }
+  ]
+}
