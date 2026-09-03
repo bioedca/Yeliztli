@@ -19,6 +19,10 @@ import PageLoading from "@/components/ui/PageLoading"
 import PageError from "@/components/ui/PageError"
 import PageEmpty from "@/components/ui/PageEmpty"
 import type { Finding, FindingSummaryItem } from "@/types/findings"
+import {
+  MIN_STARS_PARAM,
+  parseMinStars,
+} from "@/lib/findings-confidence"
 
 // ── Evidence level labels ────────────────────────────────────────────
 
@@ -244,7 +248,11 @@ export default function FindingsExplorer() {
   const sampleId = parseSampleId(searchParams.get("sample_id"))
 
   const [selectedModule, setSelectedModule] = useState<string | null>(null)
-  const [minStars, setMinStars] = useState<number | null>(null)
+  // Seeded from the URL so a link can land on the set it names -- the dashboard
+  // "High-Confidence Findings" link previously pointed here unfiltered (#2047).
+  const [minStars, setMinStars] = useState<number | null>(() =>
+    parseMinStars(searchParams.get(MIN_STARS_PARAM)),
+  )
   const [limit, setLimit] = useState(FINDINGS_PAGE_SIZE)
 
   const findingsQuery = useFindings(sampleId, {

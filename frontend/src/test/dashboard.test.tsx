@@ -435,6 +435,94 @@ describe('FindingsPreview', () => {
     render(<FindingsPreview sampleId={null} />)
     expect(screen.getByRole('region', { name: /High-confidence findings/i })).toBeInTheDocument()
   })
+
+  // ── #2047: the count under this heading must describe THIS heading ────────
+  //
+  // The link printed `summary.total_findings` -- the unfiltered all-module
+  // count -- directly beneath "High-Confidence Findings". On a real sample that
+  // read as 311,472 high-confidence findings when there were 55, because
+  // 311,359 of them are one-star rare variants.
+
+  const summaryWith = (levels: Array<[number, number]>, total: number) => ({
+    total_findings: total,
+    modules: [],
+    evidence_level_counts: levels.map(([evidence_level, count]) => ({
+      evidence_level,
+      count,
+    })),
+    high_confidence_findings: [
+      {
+        id: 1,
+        module: 'gene_health',
+        finding_text: 'Example high-confidence finding',
+        evidence_level: 4,
+      },
+    ],
+  })
+
+  const renderPreview = (summary: unknown) => {
+    mockFetch.mockImplementation((url: string) => {
+      if (String(url).includes('/api/analysis/findings/summary')) {
+        return Promise.resolve({ ok: true, json: async () => summary })
+      }
+      return Promise.resolve({ ok: true, json: async () => [] })
+    })
+    return render(<FindingsPreview sampleId={2} />, { route: '/?sample_id=2' })
+  }
+
+  it('counts only >=3-star findings, not the unfiltered total (#2047)', async () => {
+    renderPreview(
+      summaryWith(
+        [
+          [1, 311359],
+          [2, 58],
+          [3, 27],
+          [4, 28],
+        ],
+        311472,
+      ),
+    )
+
+    const link = await screen.findByRole('link', { name: /Show all/ })
+    // 27 + 28 = 55, not 311,472.
+    expect(link).toHaveTextContent('Show all 55')
+    expect(link).not.toHaveTextContent('311472')
+    expect(link).not.toHaveTextContent('311,472')
+  })
+
+  it('links to the set the count describes (#2047)', async () => {
+    renderPreview(
+      summaryWith(
+        [
+          [1, 100],
+          [4, 7],
+        ],
+        107,
+      ),
+    )
+
+    const link = await screen.findByRole('link', { name: /Show all/ })
+    expect(link).toHaveTextContent('Show all 7')
+    // Without minStars the destination shows all 107 -- the label would name one
+    // set and the page would show another.
+    expect(link).toHaveAttribute('href', expect.stringContaining('minStars=3'))
+    expect(link).toHaveAttribute('href', expect.stringContaining('sample_id=2'))
+  })
+
+  it('omits the number when the API gives no per-level counts (#2047)', async () => {
+    renderPreview({
+      total_findings: 311472,
+      modules: [],
+      high_confidence_findings: [
+        { id: 1, module: 'gene_health', finding_text: 'x', evidence_level: 4 },
+      ],
+    })
+
+    const link = await screen.findByRole('link', { name: /Show all/ })
+    // Say nothing rather than fall back to the misleading total.
+    expect(link).toHaveTextContent('Show all findings')
+    expect(link).not.toHaveTextContent('311472')
+  })
 })
 
 // ─── QualityControl ─────────────────────────────────────────
