@@ -294,6 +294,62 @@ describe("CeliacCombinedCard DQ8 marker identity (#1372)", () => {
   })
 })
 
+// ── #2048: a combined-summary title must appear once, not twice ───────
+//
+// Each single-card summary section wrapped its card in a <section> whose <h2>
+// repeated the card's own <h3>, so the title rendered on two consecutive lines
+// and the heading outline carried the same text twice at different levels. The
+// card heading is now the section's only heading.
+
+describe("combined summary sections render their title once (#2048)", () => {
+  beforeEach(() => {
+    routerMock.search = "sample_id=1"
+    mockUsePathways.mockReset()
+  })
+
+  it("shows Celiac Disease Susceptibility as exactly one heading", () => {
+    pathwaysWith(CELIAC_INDETERMINATE)
+    render(<AllergyView />)
+
+    const headings = screen.getAllByRole("heading", {
+      name: "Celiac Disease Susceptibility",
+    })
+    expect(headings).toHaveLength(1)
+  })
+
+  it("shows Histamine Metabolism as exactly one heading", () => {
+    mockUsePathways.mockReturnValue({
+      data: {
+        items: [FOOD_PATHWAY],
+        total: 1,
+        celiac_combined: null,
+        histamine_combined: {
+          aoc1_genotype: "GG",
+          hnmt_genotype: "CC",
+          aoc1_category: "Standard",
+          hnmt_category: "Standard",
+          combined_text: "Typical histamine clearance.",
+          de_emphasize: false,
+          evidence_level: 3,
+          pmids: [],
+        },
+        cross_module: [],
+      },
+      isLoading: false,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useAllergyPathways>)
+
+    render(<AllergyView />)
+
+    const headings = screen.getAllByRole("heading", {
+      name: "Histamine Metabolism",
+    })
+    expect(headings).toHaveLength(1)
+  })
+})
+
 // ── HLAProxyBadge (via PathwayDetailPanel) tests ──────────────────────
 // Regression for #402: the badge previously read snp.hla_proxy.r_squared
 // (singular), which is undefined on the backend's hla_proxy block, so

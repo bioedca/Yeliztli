@@ -125,6 +125,34 @@ function renderMC1RAggregate(
   return render(view, { route: "/skin?sample_id=1" })
 }
 
+// ── #2048: the summary title must appear once, not twice ─────────────
+
+describe("MC1R summary renders its title once (#2048)", () => {
+  beforeEach(() => {
+    useSkinPathwaysMock.mockReset()
+  })
+
+  it("shows MC1R Allele Summary as exactly one heading", () => {
+    // The section's <h2> repeated the card's own <h3>, so the title printed on
+    // two consecutive lines and appeared twice in the heading outline.
+    renderMC1RAggregate({
+      r_allele_count: 1,
+      r_allele_rsids: [],
+      total_mc1r_called: 4,
+      risk_state: "1_R_allele" as MC1RRiskState,
+      risk_label: "Moderate UV Sensitivity",
+      risk_description: "Moderate UV Sensitivity description",
+      evidence_level: 2,
+      pmids: [],
+    })
+
+    const headings = screen.getAllByRole("heading", {
+      name: "MC1R Allele Summary",
+    })
+    expect(headings).toHaveLength(1)
+  })
+})
+
 // ── MC1R summary tests ────────────────────────────────────────────────
 
 describe("MC1R allele summary tier styling (#1759)", () => {
