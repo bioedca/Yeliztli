@@ -68,6 +68,7 @@ class ScreenFindingResponse(BaseModel):
     x_nonpar_typed: int | None = None
     x_nonpar_het: int | None = None
     y_total: int | None = None
+    y_typed: int | None = None
     y_rate: float | None = None
 
 
@@ -176,6 +177,7 @@ def list_findings(sample_id: int = Query(..., description="Sample ID")) -> Scree
         x_nonpar_typed=detail.get("x_nonpar_typed"),
         x_nonpar_het=detail.get("x_nonpar_het"),
         y_total=detail.get("y_total"),
+        y_typed=detail.get("y_typed"),
         y_rate=detail.get("y_rate"),
     )
 

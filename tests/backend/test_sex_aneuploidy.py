@@ -8,6 +8,8 @@ XYY are explicitly out of scope (no copy-number data).
 
 from __future__ import annotations
 
+import json
+
 import sqlalchemy as sa
 
 from backend.analysis.sex_aneuploidy import (
@@ -17,6 +19,7 @@ from backend.analysis.sex_aneuploidy import (
     NO_SIGNAL,
     POSSIBLE_XXY,
     Y_PRESENT_RATE,
+    is_legacy_false_clean_negative,
     screen_aneuploidy,
     store_aneuploidy_findings,
 )
@@ -222,6 +225,35 @@ class TestScreen:
         # It must not assert presence for evidence below the presence threshold.
         assert "chromosome-Y signal is also present" not in text
 
+    def test_escalation_at_the_noise_floor_is_reconstructible_from_the_counts(
+        self, sample_engine: sa.Engine
+    ) -> None:
+        """A Y rate that clears the floor by less than the display rounding.
+
+        ``y_discordant`` is decided on the unrounded rate, while the stored
+        ``y_rate`` is rounded to four decimals: 201 / 2009 = 0.10005 escalates
+        but is exposed as exactly ``0.1``, the floor itself. The patient text
+        then says the signal is *above* the floor while the only rate shown sits
+        on it. Retaining the typed-Y count beside the denominator lets an
+        auditor reconstruct the decision from what was stored (#2040 review).
+        """
+        _seed(sample_engine, _x_probes(20, 200) + _y_probes(201, 1808))
+
+        r = screen_aneuploidy(sample_engine)
+
+        assert r.outcome == MANUAL_REVIEW
+        assert r.y_total == 2009 and r.y_typed == 201
+        assert r.y_rate == 0.1, "the displayed rate rounds onto the floor"
+        assert r.y_typed / r.y_total > THRESHOLD_Y_PAR_NOISE, "the counts still show why"
+
+        store_aneuploidy_findings(r, sample_engine)
+        with sample_engine.connect() as conn:
+            row = conn.execute(sa.select(findings).where(findings.c.module == MODULE)).fetchone()
+        detail = json.loads(row.detail_json)
+        assert detail["y_typed"] == 201 and detail["y_total"] == 2009
+        assert detail["y_rate"] == 0.1
+        assert "above the background noise floor" in row.finding_text
+
     def test_manual_review_text_names_the_ambiguous_x_cause(
         self, sample_engine: sa.Engine
     ) -> None:
@@ -387,6 +419,67 @@ class TestStorage:
                 sa.select(sa.func.count()).select_from(findings).where(findings.c.module == MODULE)
             ).scalar()
         assert n == 1
+
+
+class TestLegacyFalseCleanNegativePredicate:
+    """The exact class the v26 sample-schema migration re-screens (#2040)."""
+
+    @staticmethod
+    def _legacy(**overrides: object) -> dict[str, object]:
+        # What the pre-#2040 screen stored for an ambiguous-X sample with a chrY
+        # signal above the noise floor: an affirmative negative.
+        detail: dict[str, object] = {
+            "outcome": NO_SIGNAL,
+            "x_nonpar_typed": 220,
+            "x_nonpar_het": 20,
+            "y_total": 60,
+            "y_rate": 0.2,
+            "x_evaluable": True,
+            "y_evaluable": True,
+        }
+        detail.update(overrides)
+        return detail
+
+    def test_matches_the_ambiguous_x_with_y_signal_negative(self) -> None:
+        assert is_legacy_false_clean_negative(self._legacy())
+
+    def test_floor_is_inclusive_because_stored_rates_are_rounded(self) -> None:
+        # 201 / 2009 escalates but was stored as exactly 0.1; a recompute from
+        # raw variants is harmless for a genuine negative, so include the floor.
+        assert is_legacy_false_clean_negative(self._legacy(y_rate=THRESHOLD_Y_PAR_NOISE))
+
+    def test_leaves_every_other_stored_result_alone(self) -> None:
+        untouched = [
+            self._legacy(y_rate=0.05),  # no Y signal: a legitimate negative
+            self._legacy(x_nonpar_het=60, x_nonpar_typed=120),  # diploid X: never the bug
+            self._legacy(x_nonpar_het=2, x_nonpar_typed=220),  # hemizygous X: never the bug
+            self._legacy(outcome=MANUAL_REVIEW),
+            self._legacy(outcome=POSSIBLE_XXY),
+            self._legacy(outcome=INDETERMINATE, x_evaluable=False),
+            self._legacy(y_evaluable=False),
+            self._legacy(x_nonpar_typed=0),
+            self._legacy(x_nonpar_typed="220"),
+            self._legacy(y_rate=None),
+            self._legacy(y_rate=True),
+            {},
+        ]
+        assert [is_legacy_false_clean_negative(d) for d in untouched] == [False] * len(untouched)
+
+    def test_predicate_agrees_with_the_live_screen(self, sample_engine: sa.Engine) -> None:
+        """Anti-drift: what the screen now escalates is exactly what the predicate finds."""
+        _seed(sample_engine, _x_probes(20, 200) + _y_probes(12, 48))
+        r = screen_aneuploidy(sample_engine)
+        assert r.outcome == MANUAL_REVIEW
+        legacy_detail = {
+            "outcome": NO_SIGNAL,  # what the old screen would have stored
+            "x_nonpar_typed": r.x_nonpar_typed,
+            "x_nonpar_het": r.x_nonpar_het,
+            "y_total": r.y_total,
+            "y_rate": r.y_rate,
+            "x_evaluable": r.x_evaluable,
+            "y_evaluable": r.y_evaluable,
+        }
+        assert is_legacy_false_clean_negative(legacy_detail)
 
 
 class TestClassifierAndScreenNeverContradict:

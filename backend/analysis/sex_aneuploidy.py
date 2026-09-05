@@ -26,6 +26,7 @@ Guardrails:
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 import sqlalchemy as sa
@@ -77,6 +78,12 @@ class AneuploidyResult:
     x_nonpar_typed: int
     x_nonpar_het: int
     y_total: int
+    # The non-no-call chrY count behind ``y_rate``. ``y_rate`` is rounded to
+    # four decimals for display, so a rate that clears the noise floor by less
+    # than that (201 / 2009 = 0.10005) is exposed as exactly ``0.1`` while the
+    # screen escalated on the unrounded value. The two counts let an auditor
+    # reconstruct the decision from what was stored (#2040 review).
+    y_typed: int
     y_rate: float
     x_evaluable: bool
     y_evaluable: bool
@@ -123,10 +130,50 @@ def screen_aneuploidy(sample_engine: sa.Engine) -> AneuploidyResult:
         x_nonpar_typed=s.x_nonpar_typed,
         x_nonpar_het=s.x_nonpar_het,
         y_total=s.y_total,
+        y_typed=s.y_typed,
         y_rate=round(s.y_rate, 4),
         x_evaluable=x_evaluable,
         y_evaluable=y_evaluable,
     )
+
+
+def is_legacy_false_clean_negative(detail: Mapping[str, object]) -> bool:
+    """Whether a persisted screen result is the pre-#2040 false clean negative.
+
+    Before the screen learned the classifier's ambiguous X band, a sample whose
+    X-het rate sat strictly between ``THRESHOLD_X_HET_HEMIZYGOUS`` and
+    ``THRESHOLD_X_HET_DIPLOID`` with a chrY rate above ``THRESHOLD_Y_PAR_NOISE``
+    was stored as ``no_aneuploidy_signal``. Nothing recomputes a stored screen
+    on its own -- the module has no page and only ``POST /run`` re-screens --
+    so the v26 sample-schema migration uses this predicate to find exactly that
+    class in persisted ``detail_json`` and re-screen it.
+
+    Exact by construction: any other outcome, an unevaluable axis, a missing or
+    non-numeric count, or a rate outside the band is ``False`` and left alone.
+    The stored ``y_rate`` is rounded to four decimals and legacy rows carry no
+    ``y_typed``, so a true rate that rounds *down* to the floor (0.10005 -> 0.1)
+    is indistinguishable from one sitting on it; the floor is therefore treated
+    as inclusive here. Re-screening from raw variants is harmless for a row
+    that turns out to be a genuine negative, so erring towards a recompute
+    costs nothing, while excluding the floor would leave a false negative in
+    place.
+    """
+    if detail.get("outcome") != NO_SIGNAL:
+        return False
+    if detail.get("x_evaluable") is not True or detail.get("y_evaluable") is not True:
+        return False
+    typed = detail.get("x_nonpar_typed")
+    het = detail.get("x_nonpar_het")
+    y_rate = detail.get("y_rate")
+    if isinstance(typed, bool) or isinstance(het, bool) or isinstance(y_rate, bool):
+        return False
+    if not isinstance(typed, int) or not isinstance(het, int) or typed <= 0 or het < 0:
+        return False
+    if not isinstance(y_rate, (int, float)):
+        return False
+    x_het_rate = het / typed
+    ambiguous_x = THRESHOLD_X_HET_HEMIZYGOUS < x_het_rate < THRESHOLD_X_HET_DIPLOID
+    return ambiguous_x and y_rate >= THRESHOLD_Y_PAR_NOISE
 
 
 def _is_ambiguous_x(result: AneuploidyResult) -> bool:
@@ -199,6 +246,7 @@ def store_aneuploidy_findings(result: AneuploidyResult, sample_engine: sa.Engine
                 "x_nonpar_typed": result.x_nonpar_typed,
                 "x_nonpar_het": result.x_nonpar_het,
                 "y_total": result.y_total,
+                "y_typed": result.y_typed,
                 "y_rate": result.y_rate,
                 "x_evaluable": result.x_evaluable,
                 "y_evaluable": result.y_evaluable,

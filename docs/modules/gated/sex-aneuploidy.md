@@ -33,3 +33,7 @@ karyotype confirmation**.
   chromosome-Y probes were typed to judge and no Y signal is found, the result stays a
   negative; when too few were typed to judge at all, the result is *indeterminate*. These are
   the same samples the app's sex inference also declines to resolve.
+- **A negative stored before that rule existed does not outlive it.** The next time such a
+  sample's database is opened, the app re-screens it from the sample's own genotype data and
+  replaces the stored result, so an earlier "no XXY signature detected" for one of these samples
+  is not shown again. Results for every other sample are left as they are.
