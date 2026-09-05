@@ -46,7 +46,13 @@ CURRENT_PMIDS = ["26062626", "28639421", "38804604", "40926580"]
 
 
 def _render(template: str, call: str) -> str:
+    """The text v24 wrote: the template's own rsID plus the caller's ``rsid call``."""
     return template.format(genotype=f"rs34637584 {call}")
+
+
+def _repaired(template: str, call: str) -> str:
+    """The same finding after v26 (#2051) drops the rsID the template repeated."""
+    return _render(template, call).replace("(rs34637584 rs34637584 ", "(rs34637584 ", 1)
 
 
 def _detail(call: str, **overrides: object) -> str:
@@ -132,10 +138,10 @@ def test_v24_repairs_both_exact_historical_findings(sample_engine: sa.Engine) ->
         )
         version = conn.execute(sa.text("PRAGMA user_version")).scalar_one()
 
-    assert version == SAMPLE_SCHEMA_VERSION == 25
+    assert version == SAMPLE_SCHEMA_VERSION == 26
     assert [row["finding_text"] for row in migrated] == [
-        _render(CURRENT_TEMPLATE, "GA"),
-        _render(CURRENT_TEMPLATE, "AA"),
+        _repaired(CURRENT_TEMPLATE, "GA"),
+        _repaired(CURRENT_TEMPLATE, "AA"),
     ]
     assert [json.loads(row["pmid_citations"]) for row in migrated] == [
         CURRENT_PMIDS,
@@ -193,12 +199,33 @@ def test_v24_leaves_current_custom_malformed_and_near_match_rows_untouched(
         before = list(conn.execute(sa.select(findings).order_by(findings.c.id)).mappings())
         conn.execute(sa.text("PRAGMA user_version = 23"))
 
-    assert ensure_sample_schema_current(sample_engine) is False
+    # v24 leaves every row's legacy wording alone. v26 (#2051) then removes the
+    # duplicated rsID wherever its producer fingerprint is present — module
+    # parkinsons, category risk_genotype, stored rsid rs34637584, and one
+    # "(rs34637584 rs34637584 GA)" group agreeing with the recorded call —
+    # regardless of gene, classification, model id, or extra structured calls.
+    dedoubled_ids = {1, 4, 6, 8, 9, 11}
+    assert ensure_sample_schema_current(sample_engine) is True
     with sample_engine.connect() as conn:
         after = list(conn.execute(sa.select(findings).order_by(findings.c.id)).mappings())
         version = conn.execute(sa.text("PRAGMA user_version")).scalar_one()
 
-    assert after == before
+    expected = [
+        {
+            **row,
+            "finding_text": row["finding_text"].replace(
+                "(rs34637584 rs34637584 ", "(rs34637584 ", 1
+            ),
+        }
+        if row["id"] in dedoubled_ids
+        else dict(row)
+        for row in before
+    ]
+    assert [dict(row) for row in after] == expected
+    assert all(
+        _render(legacy, "GA") not in row["finding_text"] or row["id"] not in dedoubled_ids
+        for row in after
+    )
     assert version == SAMPLE_SCHEMA_VERSION
 
 
@@ -239,9 +266,18 @@ def test_v24_repairs_exact_finding_diff_text_without_changing_counts(
 
     assert stored["counts"] == diff["counts"]
     assert stored["future_metadata"] == {"preserve": True}
-    assert stored["changed"] == [_diff_entry(CURRENT_TEMPLATE, "GA"), preserved]
-    assert stored["added"] == [_diff_entry(CURRENT_TEMPLATE, "AA")]
-    assert stored["removed"] == [_diff_entry(CURRENT_TEMPLATE, "TT"), malformed]
+    repaired_preserved = {**preserved, "finding_text": _repaired(CURRENT_TEMPLATE, "GA")}
+    assert stored["changed"] == [
+        _diff_entry(CURRENT_TEMPLATE, "GA", finding_text=_repaired(CURRENT_TEMPLATE, "GA")),
+        repaired_preserved,
+    ]
+    assert stored["added"] == [
+        _diff_entry(CURRENT_TEMPLATE, "AA", finding_text=_repaired(CURRENT_TEMPLATE, "AA"))
+    ]
+    assert stored["removed"] == [
+        _diff_entry(CURRENT_TEMPLATE, "TT", finding_text=_repaired(CURRENT_TEMPLATE, "TT")),
+        malformed,
+    ]
 
 
 def test_v24_repairs_legacy_finding_without_provenance_column() -> None:
@@ -277,7 +313,7 @@ def test_v24_repairs_legacy_finding_without_provenance_column() -> None:
     with engine.connect() as conn:
         text = conn.execute(sa.text("SELECT finding_text FROM findings WHERE id = 1")).scalar_one()
         version = conn.execute(sa.text("PRAGMA user_version")).scalar_one()
-    assert text == _render(CURRENT_TEMPLATE, "GA")
+    assert text == _repaired(CURRENT_TEMPLATE, "GA")
     assert version == SAMPLE_SCHEMA_VERSION
 
 
