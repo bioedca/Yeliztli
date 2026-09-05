@@ -48,7 +48,9 @@
         "Boztug K"
       ],
       "accessed": "2026-08-31",
-      "retraction_check": "PubMed EFetch typed CommentsCorrections relations (accessed 2026-09-05): no link of any RefType among the notice types (ErratumIn, RetractionIn, PartialRetractionIn, ExpressionOfConcernIn, CorrectedandRepublishedIn, RepublishedIn, UpdateIn, ReprintIn). The record carries three CommentIn links (comments, not corrections)."
+      "retraction_check": "PubMed EFetch typed CommentsCorrections relations (accessed 2026-09-05): no link of any RefType among the notice types (ErratumIn, RetractionIn, PartialRetractionIn, ExpressionOfConcernIn, CorrectedandRepublishedIn, RepublishedIn, UpdateIn, ReprintIn). The record carries three CommentIn links (comments, not corrections).",
+      "citation": "PMID:19890111 / DOI:10.1056/NEJMoa0907206 (accessed 2026-08-31)",
+      "scite_check": "Scite MCP metadata retrieved 2026-09-05 (raw/scite-metadata-cited-dois-derived.json): no editorial notice on file."
     },
     {
       "id": "PMID:28267044",
@@ -63,7 +65,9 @@
         "Li X"
       ],
       "accessed": "2026-08-31",
-      "retraction_check": "PubMed EFetch typed CommentsCorrections relations (accessed 2026-09-05): no link of any RefType among the notice types (ErratumIn, RetractionIn, PartialRetractionIn, ExpressionOfConcernIn, CorrectedandRepublishedIn, RepublishedIn, UpdateIn, ReprintIn). The record carries one CommentIn link (a comment, not a correction)."
+      "retraction_check": "PubMed EFetch typed CommentsCorrections relations (accessed 2026-09-05): no link of any RefType among the notice types (ErratumIn, RetractionIn, PartialRetractionIn, ExpressionOfConcernIn, CorrectedandRepublishedIn, RepublishedIn, UpdateIn, ReprintIn). The record carries one CommentIn link (a comment, not a correction).",
+      "citation": "PMID:28267044 / DOI:10.1097/MIB.0000000000001058 (accessed 2026-08-31)",
+      "scite_check": "Scite MCP metadata retrieved 2026-09-05 (raw/scite-metadata-cited-dois-derived.json): no editorial notice on file."
     },
     {
       "id": "PMID:14765194",
@@ -78,7 +82,9 @@
         "Ivaskevicius V"
       ],
       "accessed": "2026-08-31",
-      "retraction_check": "PubMed EFetch typed CommentsCorrections relations (accessed 2026-09-05): no link of any RefType among the notice types (ErratumIn, RetractionIn, PartialRetractionIn, ExpressionOfConcernIn, CorrectedandRepublishedIn, RepublishedIn, UpdateIn, ReprintIn). The record carries one CommentIn link (a comment, not a correction)."
+      "retraction_check": "PubMed EFetch typed CommentsCorrections relations (accessed 2026-09-05): no link of any RefType among the notice types (ErratumIn, RetractionIn, PartialRetractionIn, ExpressionOfConcernIn, CorrectedandRepublishedIn, RepublishedIn, UpdateIn, ReprintIn). The record carries one CommentIn link (a comment, not a correction).",
+      "citation": "PMID:14765194 / DOI:10.1038/nature02214 (accessed 2026-08-31)",
+      "scite_check": "Scite MCP metadata retrieved 2026-09-05 (raw/scite-metadata-cited-dois-derived.json): no editorial notice on file."
     },
     {
       "id": "PMID:26513304",
@@ -93,7 +99,9 @@
         "Heran SS"
       ],
       "accessed": "2026-08-31",
-      "retraction_check": "PubMed EFetch typed CommentsCorrections relations (accessed 2026-09-05): no link of any RefType among the notice types (ErratumIn, RetractionIn, PartialRetractionIn, ExpressionOfConcernIn, CorrectedandRepublishedIn, RepublishedIn, UpdateIn, ReprintIn). The record carries no CommentsCorrections links at all."
+      "retraction_check": "PubMed EFetch typed CommentsCorrections relations (accessed 2026-09-05): no link of any RefType among the notice types (ErratumIn, RetractionIn, PartialRetractionIn, ExpressionOfConcernIn, CorrectedandRepublishedIn, RepublishedIn, UpdateIn, ReprintIn). The record carries no CommentsCorrections links at all.",
+      "citation": "PMID:26513304 / DOI:10.1097/FPC.0000000000000184 (accessed 2026-08-31)",
+      "scite_check": "Scite MCP metadata retrieved 2026-09-05 (raw/scite-metadata-cited-dois-derived.json): no editorial notice on file."
     },
     {
       "id": "PMID:21519361",
@@ -110,14 +118,16 @@
       "accessed": "2026-09-05",
       "assertion": "75 children with IBD (13 infants with early-onset IBD) in a French cohort; the two IL10-unresponsive infants carried IL10RA p.R262C and IL10RB p.E141X respectively -- receptor genes, not the IL10 ligand. Read from the retained eSummary and the EFetch record; the cohort details are in the abstract, which was removed from the retained XML under the metadata-only rule and is quoted here from the live record.",
       "retraction_check": "PubMed EFetch typed CommentsCorrections relations (accessed 2026-09-05): no link of any RefType among the notice types (ErratumIn, RetractionIn, PartialRetractionIn, ExpressionOfConcernIn, CorrectedandRepublishedIn, RepublishedIn, UpdateIn, ReprintIn). The record carries no CommentsCorrections links at all.",
-      "correction": "An earlier revision cited this paper in the README without retaining any payload for it, while claiming every record had been re-resolved and checked. Its eSummary, eLink and EFetch records were added 2026-09-05."
+      "correction": "An earlier revision cited this paper in the README without retaining any payload for it, while claiming every record had been re-resolved and checked. Its eSummary, eLink and EFetch records were added 2026-09-05.",
+      "citation": "PMID:21519361 / DOI:10.1038/ajg.2011.112 (accessed 2026-09-05)",
+      "scite_check": "Scite MCP metadata retrieved 2026-09-05 (raw/scite-metadata-cited-dois-derived.json): no editorial notice on file."
     }
   ],
   "retraction_method": "PubMed EFetch XML, read for typed CommentsCorrections relations (RefType), NOT publication type and NOT eLink. An original record keeps its own pubtype while corrections, errata and retractions are carried as separate linked records, so a pubtype scan is not a retraction check. The eLink `pubmed_pubmed*` link sets retained here are generic related-article neighbourhoods and do not expose the typed relation either -- an earlier revision of this packet treated their silence as clearance, which it is not. The typed check was run 2026-09-05 for all five cited PMIDs; the sanitized XML is the authority and raw/ncbi-pubmed-comments-corrections-derived.json is its reduction.",
   "explicitly_not_claimed": "No inheritance value other than IL10's is changed. #2043's item 3 — spot-checking the other 13 Mendelian rows against Monarch/OLS4 and correcting via gene_inheritance_overrides.json — is NOT done here and is filed separately: it needs a per-gene authoritative check, which is its own evidence exercise rather than a rider on this one.",
   "discovery_tool_ladder": {
     "consensus": "Invoked 2026-08-31; 20 papers, retained as a DERIVED record. Surfaced C1's primary sources.",
-    "scite": "Unavailable — monthly MCP call quota exhausted 2026-08-27, service-reported reset 2026-09-03, not yet passed.",
+    "scite": "Invoked 2026-09-05, after the service-reported reset of 2026-09-03 (an earlier revision recorded the August quota failure as current). Two calls, both retained as DERIVED records: metadata for the five cited DOIs (no editorial notice on any) and a term search for an IL10 LIGAND loss-of-function cohort excluding the receptor genes (22 results; none of the ten returned is such a cohort, so C1 stays withheld). No Scite text is redistributed.",
     "fallback": "PubMed used in Scite's place; every record re-resolved through eSummary for title, journal, authors and publication type, and checked for corrections and retractions through EFetch typed CommentsCorrections relations (the eLink related-article link sets are retained but are not a notice check).",
     "tool_versions": "OLS4 exposes mondo version 2026-08-04, recorded above and retained as a payload. Neither the Consensus MCP surface nor NCBI E-utilities exposes a version on these calls; both recorded as not exposed rather than guessed."
   },
@@ -151,9 +161,15 @@
       "license_reference": "https://www.ebi.ac.uk/about/terms-of-use",
       "license_note": "EMBL-EBI services are free to use; MONDO is CC BY 4.0.",
       "observed_version": "mondo 2026-08-04, read from the OLS4 ontology record retained here."
+    },
+    {
+      "source": "Scite MCP",
+      "observed_version": "Not exposed by the MCP surface; recorded as not exposed rather than guessed.",
+      "license_reference": "https://scite.ai/terms",
+      "license_note": "Used as a discovery and notice-check tool only. No Scite text is redistributed: the retained records hold DOIs, titles, years, tallies and the presence or absence of an editorialNotices array."
     }
   ],
-  "payload_integrity": "Nine payloads are unedited verbatim API responses (two NCBI eSummary, five NCBI eLink, two EBI OLS4). One payload, the NCBI EFetch XML, is SANITIZED: <Abstract> elements were removed under the bibliographic-metadata-only retention rule and nothing else was touched; it is labelled as such in its filename and in the derived record beside it. Two payloads are DERIVED records, labelled as such in the file itself: the Consensus call, which has no HTTP response to capture, and the reduction of the EFetch XML to its CommentsCorrections and publication-type fields. No payload required further sanitization: all are public bibliographic or ontology records with no genotype, sample, personal or credentialed data.",
+  "payload_integrity": "Nine payloads are unedited verbatim API responses (two NCBI eSummary, five NCBI eLink, two EBI OLS4). One payload, the NCBI EFetch XML, is SANITIZED: <Abstract> elements were removed under the bibliographic-metadata-only retention rule and nothing else was touched; it is labelled as such in its filename and in the derived record beside it. Four payloads are DERIVED records, labelled as such in the file itself: the Consensus call and the two Scite calls, none of which has an HTTP response to capture, and the reduction of the EFetch XML to its CommentsCorrections and publication-type fields. No payload required further sanitization: all are public bibliographic or ontology records with no genotype, sample, personal or credentialed data.",
   "requests": [
     {
       "payload": "raw/ncbi-pubmed-esummary-four-sources.json",
@@ -241,6 +257,22 @@
       "source": "DERIVED: per PMID, every CommentsCorrections RefType and the publication types",
       "sha256": "a7b64bd19e2065d44e0b66b2e2829c771165daa5762b469df53ad1e64477efb4",
       "bytes": 2751,
+      "accessed": "2026-09-05"
+    },
+    {
+      "payload": "raw/scite-metadata-cited-dois-derived.json",
+      "request": "Scite MCP `search_literature(dois=[the five cited DOIs])` (tool call, not an HTTP endpoint)",
+      "source": "Scite MCP (DERIVED record, not a wire capture)",
+      "sha256": "b4b21c22f8c406257469ab7ae878e6ced926ca5ce4b2ce9b3145ee4d2bfd015e",
+      "bytes": 3237,
+      "accessed": "2026-09-05"
+    },
+    {
+      "payload": "raw/scite-search-il10-ligand-eoibd-derived.json",
+      "request": "Scite MCP `search_literature(term=IL10 AND \"loss-of-function\" AND \"early-onset inflammatory bowel disease\" AND (\"autosomal recessive\" OR homozygous) NOT IL10RA NOT IL10RB, limit=10)` (tool call, not an HTTP endpoint)",
+      "source": "Scite MCP (DERIVED record, not a wire capture)",
+      "sha256": "f376e3aae523064c737e27bff7b607bc461a84613f152a2d714e15b018cc046d",
+      "bytes": 2655,
       "accessed": "2026-09-05"
     }
   ]

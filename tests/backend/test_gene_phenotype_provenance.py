@@ -533,8 +533,11 @@ def test_checked_in_fixture_emits_inheritance_through_the_production_lookup(tmp_
     assert "rs9923231" in emitted, "VKORC1 association did not resolve through the lookup"
     assert emitted["rs9923231"]["inheritance_pattern"] == seed["VKORC1"] == "Autosomal dominant"
 
-    # A withheld row must emit nothing rather than a placeholder.
-    if "rsIL10" in emitted:
-        assert not emitted["rsIL10"]["inheritance_pattern"], (
-            "IL10 inheritance is withheld; the lookup must not emit a value"
-        )
+    # A withheld row must still be SERVED, and emit nothing rather than a
+    # placeholder. Requiring the key first means a fixture regeneration that
+    # drops IL10, or a lookup that stops returning the association, fails here
+    # instead of vacuously passing the blank check (#2043 review).
+    assert "rsIL10" in emitted, "IL10 association did not resolve through the lookup"
+    assert not emitted["rsIL10"]["inheritance_pattern"], (
+        "IL10 inheritance is withheld; the lookup must not emit a value"
+    )

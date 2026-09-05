@@ -89,8 +89,9 @@ all five cited PMIDs is retained (abstracts removed, nothing else touched) with 
 of its notice fields: **no record carries a link of any notice `RefType`** (`ErratumIn`,
 `RetractionIn`, `PartialRetractionIn`, `ExpressionOfConcernIn`, `CorrectedandRepublishedIn`,
 `RepublishedIn`, `UpdateIn`, `ReprintIn`). Three records carry `CommentIn` links — comments, not
-corrections. For the ontology term, obsolescence is the analogous check — `MONDO:0016542` is not
-obsolete.
+corrections. Scite's metadata for the same five DOIs **(accessed 2026-09-05)** reports no editorial
+notice either — a second notice source that does not share PubMed's index. For the ontology term,
+obsolescence is the analogous check — `MONDO:0016542` is not obsolete.
 
 > **Correction.** An earlier revision of this packet checked only the eLink `pubmed_pubmed*` link
 > sets and read their silence as clearance. Those are generic related-article neighbourhoods and do
@@ -102,19 +103,19 @@ obsolete.
 ## Discovery-tool ladder
 
 - **Consensus** — invoked 2026-08-31; 20 papers, retained as a **derived** record.
-- **Scite** — **unavailable**: monthly MCP quota exhausted 2026-08-27, service-reported reset 2026-09-03, not yet passed.
+- **Scite** — invoked **2026-09-05**, after the service-reported quota reset of 2026-09-03 (an earlier revision recorded the August failure as current). Two calls, retained as **derived** records: metadata for the five cited DOIs (no editorial notice on any) and a term search for an IL10 **ligand** loss-of-function cohort excluding the receptor genes — 22 results, none of the ten returned is such a cohort, so C1 stays withheld.
 - **Fallback** — PubMed for the literature, EBI OLS4 for the ontology record.
 
 Versions: OLS4 exposes **mondo 2026-08-04**, retained as a payload. Neither the Consensus MCP
-surface nor NCBI E-utilities exposes a version on these calls; both recorded as **not exposed**
-rather than guessed.
+surface, the Scite MCP surface nor NCBI E-utilities exposes a version on these calls; all recorded
+as **not exposed** rather than guessed.
 
 ## Retained evidence
 
 `raw/` holds **nine unedited verbatim API responses** (two NCBI eSummary, five NCBI eLink, two EBI
 OLS4), **one sanitized response** (the NCBI EFetch XML for all five PMIDs, abstracts removed and
-nothing else touched, labelled in its filename) and **two derived records**, each labelled as
-derived in the file itself: the Consensus call, and the reduction of the EFetch XML to its
-`CommentsCorrections` and publication-type fields. `source-manifest.json` records each exact
+nothing else touched, labelled in its filename) and **four derived records**, each labelled as
+derived in the file itself: the Consensus call, the two Scite calls, and the reduction of the
+EFetch XML to its `CommentsCorrections` and publication-type fields. `source-manifest.json` records each exact
 request, source, SHA-256, byte length, access date, per-source licence and the retraction-check
 method. No payload required further sanitization: all are public bibliographic or ontology records.

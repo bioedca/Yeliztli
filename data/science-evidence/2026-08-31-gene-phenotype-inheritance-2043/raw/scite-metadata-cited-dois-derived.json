@@ -1,0 +1,92 @@
+{
+  "_artifact_note": "DERIVED record of a Scite MCP `search_literature(dois=[...])` call made 2026-09-05, after the service-reported quota reset of 2026-09-03. Transcribed from the tool response; the MCP surface returns results into the conversation, not as a file. Fields kept: DOI, title, year, journal, Smart Citation tally, and whether the response carried an `editorialNotices` array (it did not for any record, which Scite uses to mean no retraction, correction, concern or erratum is on file).",
+  "_query": {
+    "tool": "Scite MCP search_literature",
+    "dois": [
+      "10.1056/NEJMoa0907206",
+      "10.1097/MIB.0000000000001058",
+      "10.1038/ajg.2011.112",
+      "10.1038/nature02214",
+      "10.1097/FPC.0000000000000184"
+    ],
+    "limit": 5
+  },
+  "_accessed": "2026-09-05",
+  "records": [
+    {
+      "doi": "10.1056/nejmoa0907206",
+      "pmid": "19890111",
+      "title": "Inflammatory Bowel Disease and Mutations Affecting the Interleukin-10 Receptor",
+      "year": 2009,
+      "journal": "new england journal of medicine",
+      "tally": {
+        "total": 1191,
+        "supporting": 33,
+        "contrasting": 3,
+        "mentioning": 1130,
+        "citingPublications": 1442
+      },
+      "editorialNotices": "field absent in response (none reported)"
+    },
+    {
+      "doi": "10.1097/mib.0000000000001058",
+      "pmid": "28267044",
+      "title": "Mutations in Interleukin-10 Receptor and Clinical Phenotypes in Patients with Very Early Onset Inflammatory Bowel Disease",
+      "year": 2017,
+      "journal": "inflammatory bowel diseases",
+      "tally": {
+        "total": 57,
+        "supporting": 1,
+        "contrasting": 1,
+        "mentioning": 53,
+        "citingPublications": 68
+      },
+      "editorialNotices": "field absent in response (none reported)"
+    },
+    {
+      "doi": "10.1038/ajg.2011.112",
+      "pmid": "21519361",
+      "title": "Defective IL10 Signaling Defining a Subgroup of Patients With Inflammatory Bowel Disease",
+      "year": 2011,
+      "journal": "the american journal of gastroenterology",
+      "tally": {
+        "total": 169,
+        "supporting": 6,
+        "contrasting": 2,
+        "mentioning": 157,
+        "citingPublications": 259
+      },
+      "editorialNotices": "field absent in response (none reported)"
+    },
+    {
+      "doi": "10.1038/nature02214",
+      "pmid": "14765194",
+      "title": "Mutations in VKORC1 cause warfarin resistance and multiple coagulation factor deficiency type 2",
+      "year": 2004,
+      "journal": "nature",
+      "tally": {
+        "total": 1014,
+        "supporting": 21,
+        "contrasting": 3,
+        "mentioning": 969,
+        "citingPublications": 1088
+      },
+      "editorialNotices": "field absent in response (none reported)"
+    },
+    {
+      "doi": "10.1097/fpc.0000000000000184",
+      "pmid": "26513304",
+      "title": "Warfarin resistance associated with genetic polymorphism of VKORC1",
+      "year": 2016,
+      "journal": "pharmacogenetics and genomics",
+      "tally": {
+        "total": 2,
+        "supporting": 0,
+        "contrasting": 0,
+        "mentioning": 2,
+        "citingPublications": 14
+      },
+      "editorialNotices": "field absent in response (none reported)"
+    }
+  ]
+}
