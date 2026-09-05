@@ -37,7 +37,9 @@
       ],
       "accessed": "2026-09-05",
       "assertion": "Names the resource whose GRCh37 gene models C1's strand values are read from. It does not itself assert any gene's strand; the strand values come from the retained lookup/symbol payload.",
-      "retraction_check": "PubMed EFetch typed CommentsCorrections relations (accessed 2026-09-05): the record carries no CommentsCorrections link of any RefType."
+      "retraction_check": "PubMed EFetch typed CommentsCorrections relations (accessed 2026-09-05): the record carries no CommentsCorrections link of any RefType.",
+      "citation": "PMID:39656687 / DOI:10.1093/nar/gkae1071 (accessed 2026-09-05)",
+      "scite_check": "Scite MCP metadata retrieved 2026-09-05 (raw/scite-metadata-tool-citations-derived.json): no editorial notice on file."
     },
     {
       "id": "PMID:27268795",
@@ -53,7 +55,9 @@
       ],
       "accessed": "2026-09-05",
       "assertion": "Names the tool whose start_lost / p.Met1? call on ENST00000371321 is C2's oracle. It does not itself assert anything about rs28399504; that call is in the retained VEP payloads.",
-      "retraction_check": "PubMed EFetch typed CommentsCorrections relations (accessed 2026-09-05): the record carries no CommentsCorrections link of any RefType."
+      "retraction_check": "PubMed EFetch typed CommentsCorrections relations (accessed 2026-09-05): the record carries no CommentsCorrections link of any RefType.",
+      "citation": "PMID:27268795 / DOI:10.1186/s13059-016-0974-4 (accessed 2026-09-05)",
+      "scite_check": "Scite MCP metadata retrieved 2026-09-05 (raw/scite-metadata-tool-citations-derived.json): no editorial notice on file."
     }
   ],
   "citation_note": "Added 2026-09-05 after review: the packet's sources are annotation databases queried directly, and an earlier revision carried no PMID/DOI at all, which the repository contract requires of every durable evidence artifact. The two papers name the resource and the tool; the claims themselves rest on the retained payloads, not on these papers. NCBI Gene (C1's second source) is identified here by its retained esummary payload and stable GeneIDs rather than by a paper.",
@@ -89,7 +93,7 @@
   "explicitly_not_claimed": "The retained consequence audit covers every rsid in the file. Of the 100 annotated rows: 52 agree, 15 disagree on the fixture's own transcript, and 33 cite a transcript Ensembl VEP does not report for that variant. ONLY rs28399504 is corrected here. The other 14 mismatches are predominantly 5_prime_UTR_variant vs upstream_gene_variant, which turn on transcript selection rather than being outright errors, and the 33 unresolvable transcripts need per-row adjudication (transcript version, assembly, MANE choice). Adjudicating 47 rows off one REST call each would be exactly the kind of bulk edit this issue is about. Filed separately.",
   "discovery_tool_ladder": {
     "note": "Consensus/Scite are literature-discovery tools and are not the right instrument for a genome-annotation fact. The authoritative sources here are the assembly annotation projects themselves, queried directly.",
-    "scite": "Unavailable regardless -- monthly MCP quota exhausted 2026-08-27, reset 2026-09-03.",
+    "scite": "Invoked 2026-09-05, after the service-reported reset of 2026-09-03 (an earlier revision recorded the August quota failure as current): metadata for the two cited DOIs, retained as a DERIVED record; no editorial notice on either. Scite remains the wrong instrument for the annotation facts themselves, which come from the annotation projects queried directly.",
     "tool_versions": "Ensembl GRCh37 REST exposes no version header on these endpoints; the assembly (GRCh37) is the pin that matters and is in the URL. NCBI E-utilities exposes no build field. Both recorded as not exposed rather than guessed."
   },
   "source_provenance": [
@@ -110,9 +114,15 @@
       "license_reference": "https://www.ncbi.nlm.nih.gov/home/about/policies/",
       "license_note": "US-government-authored NCBI content is public domain; retained payloads are bibliographic metadata, abstracts removed from the XML.",
       "observed_version": "Not exposed on esummary or efetch; recorded as not exposed rather than guessed."
+    },
+    {
+      "source": "Scite MCP",
+      "observed_version": "Not exposed by the MCP surface; recorded as not exposed rather than guessed.",
+      "license_reference": "https://scite.ai/terms",
+      "license_note": "Used as a notice-check tool only. No Scite text is redistributed: the retained record holds DOIs, titles, years, tallies and the presence or absence of an editorialNotices array."
     }
   ],
-  "payload_integrity": "Five payloads are unedited verbatim API responses (four Ensembl/NCBI Gene records and one NCBI PubMed eSummary). One payload, the NCBI PubMed EFetch XML for the two cited papers, is SANITIZED: <Abstract> elements were removed under the bibliographic-metadata-only retention rule and nothing else was touched; it is labelled as such in its filename. Two payloads are DERIVED records, labelled as such in the manifest and (for the PubMed one) in the file itself: the consequence audit reduces 679 VEP responses per rsid to the fixture consequence, the transcript-matched terms and most_severe_consequence -- retaining 679 full VEP payloads would be megabytes of unread JSON -- and the PubMed reduction lists each cited record's CommentsCorrections and publication types. No payload required further sanitization: all are public reference-annotation or bibliographic records with no genotype, sample or personal data.",
+  "payload_integrity": "Five payloads are unedited verbatim API responses (four Ensembl/NCBI Gene records and one NCBI PubMed eSummary). One payload, the NCBI PubMed EFetch XML for the two cited papers, is SANITIZED: <Abstract> elements were removed under the bibliographic-metadata-only retention rule and nothing else was touched; it is labelled as such in its filename. Three payloads are DERIVED records, labelled as such in the manifest and (for the PubMed one) in the file itself: the consequence audit reduces 679 VEP responses per rsid to the fixture consequence, the transcript-matched terms and most_severe_consequence -- retaining 679 full VEP payloads would be megabytes of unread JSON -- the PubMed reduction lists each cited record's CommentsCorrections and publication types, and the Scite record holds the two cited DOIs' metadata and notice status (no HTTP response to capture). No payload required further sanitization: all are public reference-annotation or bibliographic records with no genotype, sample or personal data.",
   "requests": [
     {
       "payload": "raw/ensembl-grch37-lookup-symbol-57-genes.json",
@@ -171,6 +181,14 @@
       "source": "DERIVED: per PMID, every CommentsCorrections RefType and the publication types",
       "sha256": "0528ee4b56cd106b9993592b707f171e2415a55cf6fad9504e7ce3b185e2c252",
       "bytes": 1050,
+      "accessed": "2026-09-05"
+    },
+    {
+      "payload": "raw/scite-metadata-tool-citations-derived.json",
+      "request": "Scite MCP `search_literature(dois=[10.1093/nar/gkae1071, 10.1186/s13059-016-0974-4])` (tool call, not an HTTP endpoint)",
+      "source": "Scite MCP (DERIVED record, not a wire capture)",
+      "sha256": "c725a6d1a593997184d6320aa71bfac932f19132008d3e1f7895af52430ab90c",
+      "bytes": 1569,
       "accessed": "2026-09-05"
     }
   ]
