@@ -1293,6 +1293,94 @@ def test_v3_codex_accepts_the_existing_canonical_immutable_clean_comment() -> No
     assert validate_context(context, files, now=NOW) == []
 
 
+def _codex_summary_comment(
+    created_at: str,
+    updated_at: str,
+) -> dict[str, object]:
+    """Codex's one-per-PR working summary, rewritten in place on every run."""
+    return _comment(
+        BOT_ACTOR_IDS[CODEX_GATE],
+        "<!-- codex-pull-request-review-summary -->\nWorking through the diff.\n",
+        created_at,
+        association="NONE",
+        updated_at=updated_at,
+        last_edited_at=updated_at,
+        comment_id=910_000_001,
+        typename="Bot",
+    )
+
+
+def _codex_clean_context() -> tuple[dict[str, object], list[ChangedFile]]:
+    files = [ChangedFile("README.md")]
+    context = _context(
+        "Load-bearing",
+        files,
+        automated_gates={CODEX_GATE},
+        schema_version=3,
+    )
+    _use_codex_clean_comment(context, include_trigger=False)
+    return context, files
+
+
+def test_v3_codex_summary_edited_after_the_verdict_does_not_outrank_it() -> None:
+    """A rewritten scratchpad must not outrank the verdict it summarised.
+
+    Codex keeps one summary comment per pull request and edits it in place a few
+    seconds after posting its immutable clean verdict. Keying the signal on the
+    last edit let that comment become the newest signal on every run, so the
+    gate could never be satisfied on any PR Codex actually worked through.
+    """
+    context, files = _codex_clean_context()
+    comments = context["data"]["repository"]["pullRequest"]["comments"]["nodes"]
+    comments.append(
+        _codex_summary_comment(
+            created_at=GATE_TIMES[CODEX_GATE].replace("T12:", "T11:"),
+            updated_at=GATE_TIMES[CODEX_GATE].replace(":00Z", ":04Z"),
+        )
+    )
+    assert validate_context(context, files, now=NOW) == []
+
+
+def test_v3_codex_summary_created_before_the_head_never_speaks_for_it() -> None:
+    """An artifact predating the reviewed head cannot stand in for its review.
+
+    Observed live: a summary created 26 minutes before the validated commit
+    existed still outranked the verdict, because its later edit re-dated it.
+    """
+    context, files = _codex_clean_context()
+    comments = context["data"]["repository"]["pullRequest"]["comments"]["nodes"]
+    comments.append(
+        _codex_summary_comment(
+            created_at=GATE_TIMES[CODEX_GATE].replace("T12:", "T09:"),
+            updated_at=GATE_TIMES[CODEX_GATE].replace(":00Z", ":59Z"),
+        )
+    )
+    assert validate_context(context, files, now=NOW) == []
+
+
+def test_v3_codex_comment_created_after_the_verdict_still_invalidates_it() -> None:
+    """The rule the fix must NOT weaken.
+
+    Only in-place edits stop leapfrogging. A Codex comment *created* after the
+    clean verdict is genuinely newer, so it must still supersede it -- otherwise
+    a stale clean verdict could be presented as current review evidence.
+    """
+    context, files = _codex_clean_context()
+    comments = context["data"]["repository"]["pullRequest"]["comments"]["nodes"]
+    comments.append(
+        _comment(
+            BOT_ACTOR_IDS[CODEX_GATE],
+            "## Review Finding\n\nSomething needs attention.\n",
+            GATE_TIMES[CODEX_GATE].replace(":00Z", ":30Z"),
+            association="NONE",
+            comment_id=910_000_002,
+            typename="Bot",
+        )
+    )
+    errors = validate_context(context, files, now=NOW)
+    assert any("Codex" in error for error in errors), errors
+
+
 def test_v3_active_human_change_request_blocks_but_approval_is_not_a_gate() -> None:
     files = [ChangedFile("README.md")]
     context = _context("Load-bearing", files, schema_version=3)
