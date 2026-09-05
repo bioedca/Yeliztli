@@ -5,6 +5,9 @@
     "accessed": "2026-09-01",
     "gene_count": 57,
     "fetch_failures": 0,
+    "synthetic_excluded": [
+      "GENE1"
+    ],
     "generator": "scripts/build_vep_strand_snapshot.py",
     "note": "Committed offline reference for the vep_seed strand guard (#2045). A gene's genomic strand is invariant, so this needs no version pinning beyond the assembly. Regenerate whenever vep_seed.csv gains a gene -- the guard FAILS on an uncovered gene rather than skipping it. GENE1 is a deliberately synthetic locus with no Ensembl record and is exempt in the guard, pinned by symbol."
   },

@@ -25,11 +25,20 @@ _SEED = _ROOT / "tests" / "fixtures" / "seed_csvs" / "vep_seed.csv"
 _OUT = _ROOT / "tests" / "fixtures" / "vep_gene_strand_snapshot.json"
 _URL = "https://grch37.rest.ensembl.org/lookup/symbol/homo_sapiens/{gene}?content-type=application/json"
 
+# The seed carries one deliberately synthetic locus (rs12345 / ENST00000999999 on
+# ``GENE1``), used by several suites as a neutral stand-in. It has no Ensembl
+# record, and this generator fails closed on any unresolved symbol, so submitting
+# it made the documented rebuild impossible (#2045 review). The guard in
+# ``tests/backend/test_vep_seed_strand_provenance.py`` imports this same constant
+# for its exemption, so the two cannot drift apart.
+SYNTHETIC_GENES = frozenset({"GENE1"})
+
 
 def _genes() -> list[str]:
     with _SEED.open(encoding="utf-8") as handle:
         return sorted(
             {row["gene_symbol"] for row in csv.DictReader(handle) if row.get("gene_symbol")}
+            - SYNTHETIC_GENES
         )
 
 
@@ -50,7 +59,11 @@ def main() -> int:
     strands: dict[str, dict[str, str]] = {}
     failures: list[str] = []
     genes = _genes()
-    print(f"Resolving {len(genes)} genes cited by vep_seed.csv", file=sys.stderr)
+    print(
+        f"Resolving {len(genes)} genes cited by vep_seed.csv "
+        f"(excluding synthetic {sorted(SYNTHETIC_GENES)})",
+        file=sys.stderr,
+    )
     for gene in genes:
         payload = _lookup(gene)
         if payload is None:
@@ -76,6 +89,7 @@ def main() -> int:
                     "accessed": time.strftime("%Y-%m-%d"),
                     "gene_count": len(strands),
                     "fetch_failures": 0,
+                    "synthetic_excluded": sorted(SYNTHETIC_GENES),
                     "generator": "scripts/build_vep_strand_snapshot.py",
                 },
                 "strands": dict(sorted(strands.items())),

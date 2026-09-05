@@ -31,6 +31,9 @@ import json
 import re
 from pathlib import Path
 
+from scripts.build_vep_strand_snapshot import SYNTHETIC_GENES
+from scripts.build_vep_strand_snapshot import _genes as _generator_genes
+
 _ROOT = Path(__file__).resolve().parents[2]
 _SEED = _ROOT / "tests" / "fixtures" / "seed_csvs" / "vep_seed.csv"
 _SNAPSHOT = _ROOT / "tests" / "fixtures" / "vep_gene_strand_snapshot.json"
@@ -39,8 +42,10 @@ _SNAPSHOT = _ROOT / "tests" / "fixtures" / "vep_gene_strand_snapshot.json"
 # used by several suites as a neutral stand-in. It has no Ensembl record, so it is
 # exempt from the snapshot check -- but the exemption is pinned to this exact
 # symbol, and `test_only_the_known_synthetic_gene_is_exempt` fails if another
-# unresolvable symbol appears, so a fabricated gene cannot hide behind it.
-_SYNTHETIC_GENES = frozenset({"GENE1"})
+# unresolvable symbol appears, so a fabricated gene cannot hide behind it. The set
+# is the generator's own, so the guard cannot exempt a symbol the generator still
+# submits to Ensembl (which fails the rebuild) or vice versa.
+_SYNTHETIC_GENES = SYNTHETIC_GENES
 
 # "c.1A>G" -- a substitution at the first coding base. Anchored so "c.10A>G" and
 # "c.1_2del" do not match: only a single-base substitution at position 1.
@@ -79,6 +84,34 @@ def test_only_the_known_synthetic_gene_is_exempt() -> None:
         f"unresolvable gene symbols in vep_seed.csv: {sorted(unresolvable)} -- expected only "
         f"{sorted(_SYNTHETIC_GENES)}. A real gene missing from the snapshot means the snapshot "
         "needs regenerating; an unknown symbol means the row is fabricated."
+    )
+
+
+def test_generator_skips_the_synthetic_gene_it_cannot_resolve() -> None:
+    """The documented rebuild must be runnable.
+
+    The generator fails closed on any symbol Ensembl cannot resolve, so feeding it
+    ``GENE1`` made ``scripts/build_vep_strand_snapshot.py`` exit 1 on the very seed
+    it documents rebuilding from (#2045 review). Its input must be exactly the
+    genes the committed snapshot covers: nothing synthetic, nothing missing.
+    """
+    submitted = set(_generator_genes())
+    assert submitted.isdisjoint(_SYNTHETIC_GENES), (
+        f"generator submits synthetic symbols to Ensembl: {sorted(submitted & _SYNTHETIC_GENES)}"
+    )
+    assert submitted == set(_snapshot()), (
+        "generator input and committed snapshot disagree -- "
+        f"only in generator: {sorted(submitted - set(_snapshot()))}; "
+        f"only in snapshot: {sorted(set(_snapshot()) - submitted)}"
+    )
+
+
+def test_snapshot_records_the_exclusion_the_guard_applies() -> None:
+    """A snapshot built under a different exclusion set must not pass silently."""
+    provenance = json.loads(_SNAPSHOT.read_text(encoding="utf-8"))["_provenance"]
+    assert set(provenance["synthetic_excluded"]) == _SYNTHETIC_GENES, (
+        f"snapshot was generated excluding {provenance['synthetic_excluded']}, but the "
+        f"guard exempts {sorted(_SYNTHETIC_GENES)} -- regenerate the snapshot"
     )
 
 

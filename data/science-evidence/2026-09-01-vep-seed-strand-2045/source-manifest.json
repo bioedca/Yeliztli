@@ -22,6 +22,42 @@
       "single_source_note": "One source, and deliberately so: this is not a contested biological claim but the output of the annotation tool the fixture is supposed to mirror. VEP's call on the cited transcript IS the oracle. A second opinion would be answering a different question."
     }
   },
+  "citations": [
+    {
+      "id": "PMID:39656687",
+      "doi": "10.1093/nar/gkae1071",
+      "supports": "C1",
+      "kind": "database resource paper (the annotation project whose gene models lookup/symbol serves)",
+      "title": "Ensembl 2025.",
+      "journal": "Nucleic Acids Res 2025;53(D1):D948-D957",
+      "first_authors": [
+        "Dyer SC",
+        "Austine-Orimoloye O",
+        "Azov AG"
+      ],
+      "accessed": "2026-09-05",
+      "assertion": "Names the resource whose GRCh37 gene models C1's strand values are read from. It does not itself assert any gene's strand; the strand values come from the retained lookup/symbol payload.",
+      "retraction_check": "PubMed EFetch typed CommentsCorrections relations (accessed 2026-09-05): the record carries no CommentsCorrections link of any RefType."
+    },
+    {
+      "id": "PMID:27268795",
+      "doi": "10.1186/s13059-016-0974-4",
+      "supports": "C2",
+      "kind": "tool paper (the annotation tool whose consequence call C2 mirrors)",
+      "title": "The Ensembl Variant Effect Predictor.",
+      "journal": "Genome Biol 2016;17:122",
+      "first_authors": [
+        "McLaren W",
+        "Gil L",
+        "Hunt SE"
+      ],
+      "accessed": "2026-09-05",
+      "assertion": "Names the tool whose start_lost / p.Met1? call on ENST00000371321 is C2's oracle. It does not itself assert anything about rs28399504; that call is in the retained VEP payloads.",
+      "retraction_check": "PubMed EFetch typed CommentsCorrections relations (accessed 2026-09-05): the record carries no CommentsCorrections link of any RefType."
+    }
+  ],
+  "citation_note": "Added 2026-09-05 after review: the packet's sources are annotation databases queried directly, and an earlier revision carried no PMID/DOI at all, which the repository contract requires of every durable evidence artifact. The two papers name the resource and the tool; the claims themselves rest on the retained payloads, not on these papers. NCBI Gene (C1's second source) is identified here by its retained esummary payload and stable GeneIDs rather than by a paper.",
+  "retraction_method": "PubMed EFetch XML read for typed CommentsCorrections relations (RefType), not publication type: an original record keeps its own pubtype while corrections, errata and retractions are carried as separate linked records. Run 2026-09-05 for both cited PMIDs; the sanitized XML is the authority and raw/ncbi-pubmed-comments-corrections-tool-citations-derived.json is its reduction.",
   "issue_counts_corrected": {
     "wrong_strand_genes": {
       "issue_claimed": 25,
@@ -68,9 +104,15 @@
       "license_reference": "https://www.ncbi.nlm.nih.gov/home/about/policies/",
       "license_note": "US-government-authored NCBI content is public domain.",
       "observed_version": "Not exposed on esummary; recorded as not exposed rather than guessed."
+    },
+    {
+      "source": "NCBI PubMed (E-utilities esummary, efetch)",
+      "license_reference": "https://www.ncbi.nlm.nih.gov/home/about/policies/",
+      "license_note": "US-government-authored NCBI content is public domain; retained payloads are bibliographic metadata, abstracts removed from the XML.",
+      "observed_version": "Not exposed on esummary or efetch; recorded as not exposed rather than guessed."
     }
   ],
-  "payload_integrity": "Four payloads are unedited verbatim API responses. The consequence audit is a DERIVED record: 679 VEP responses reduced per rsid to the fixture consequence, the transcript-matched terms and most_severe_consequence -- retaining 679 full VEP payloads would be megabytes of unread JSON. It is labelled DERIVED in the manifest. No payload required sanitization: all are public reference-annotation records with no genotype, sample or personal data.",
+  "payload_integrity": "Five payloads are unedited verbatim API responses (four Ensembl/NCBI Gene records and one NCBI PubMed eSummary). One payload, the NCBI PubMed EFetch XML for the two cited papers, is SANITIZED: <Abstract> elements were removed under the bibliographic-metadata-only retention rule and nothing else was touched; it is labelled as such in its filename. Two payloads are DERIVED records, labelled as such in the manifest and (for the PubMed one) in the file itself: the consequence audit reduces 679 VEP responses per rsid to the fixture consequence, the transcript-matched terms and most_severe_consequence -- retaining 679 full VEP payloads would be megabytes of unread JSON -- and the PubMed reduction lists each cited record's CommentsCorrections and publication types. No payload required further sanitization: all are public reference-annotation or bibliographic records with no genotype, sample or personal data.",
   "requests": [
     {
       "payload": "raw/ensembl-grch37-lookup-symbol-57-genes.json",
@@ -106,6 +148,30 @@
       "source": "Ensembl GRCh37 REST (VEP) -- DERIVED: reduced per rsid to fixture consequence, transcript-matched terms, most_severe",
       "sha256": "1ebd6939db7acb2776a06e0aa84520ad444822a8eabc06f360a85541e64efe28",
       "bytes": 89217
+    },
+    {
+      "payload": "raw/ncbi-pubmed-esummary-tool-citations.json",
+      "request": "GET .../esummary.fcgi?db=pubmed&id=27268795,39656687&retmode=json",
+      "source": "NCBI PubMed eSummary",
+      "sha256": "ee980f756f7f1e8a9d3e4736c8a0bd8a58ddb286b203bb6cbb0777c83a680c42",
+      "bytes": 8814,
+      "accessed": "2026-09-05"
+    },
+    {
+      "payload": "raw/ncbi-pubmed-efetch-tool-citations-sanitized.xml",
+      "request": "GET .../efetch.fcgi?db=pubmed&id=27268795,39656687&retmode=xml",
+      "source": "NCBI PubMed EFetch -- SANITIZED: <Abstract> elements removed, nothing else touched",
+      "sha256": "4b276e482631f372fd6e0015410e210ae96d896d725fce26b63245d05f95581b",
+      "bytes": 92329,
+      "accessed": "2026-09-05"
+    },
+    {
+      "payload": "raw/ncbi-pubmed-comments-corrections-tool-citations-derived.json",
+      "request": "Reduction of the sanitized EFetch XML above (no HTTP request)",
+      "source": "DERIVED: per PMID, every CommentsCorrections RefType and the publication types",
+      "sha256": "0528ee4b56cd106b9993592b707f171e2415a55cf6fad9504e7ce3b185e2c252",
+      "bytes": 1050,
+      "accessed": "2026-09-05"
     }
   ]
 }

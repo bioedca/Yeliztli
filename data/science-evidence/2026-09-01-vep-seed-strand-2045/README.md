@@ -68,6 +68,26 @@ transcripts need per-row adjudication (transcript version, assembly, MANE choice
 rows off a single REST call each would be exactly the sort of bulk edit that produced this issue.
 Filed separately.
 
+## Citations
+
+Both claims are read off annotation databases queried directly, so the durable identifiers this
+packet carries name the **resource** and the **tool** rather than a paper about any locus. Neither
+paper asserts a gene's strand or rs28399504's consequence; those rest on the retained payloads.
+
+| Source | Names | Supports |
+| --- | --- | --- |
+| `PMID:39656687` / `DOI:10.1093/nar/gkae1071` — Dyer SC et al., *Ensembl 2025*, Nucleic Acids Res 2025;53(D1):D948–D957 **(accessed 2026-09-05)** | the annotation project whose GRCh37 gene models `lookup/symbol` serves | C1 |
+| `PMID:27268795` / `DOI:10.1186/s13059-016-0974-4` — McLaren W et al., *The Ensembl Variant Effect Predictor*, Genome Biol 2016;17:122 **(accessed 2026-09-05)** | the tool whose `start_lost` / `p.Met1?` call is C2's oracle | C2 |
+
+NCBI Gene, C1's second source, is identified by its retained `esummary` payload and stable GeneIDs
+rather than by a paper. Retraction check for both PMIDs: PubMed EFetch typed `CommentsCorrections`
+relations — **neither record carries a link of any `RefType`**; publication types are retained in
+the derived record.
+
+> **Correction.** An earlier revision of this packet carried no `PMID:` / `DOI:` identifier at all,
+> which the repository contract requires of every durable evidence artifact. Added 2026-09-05 after
+> review, without changing either claim.
+
 ## Discovery-tool ladder
 
 Consensus and Scite are literature-discovery tools and are not the right instrument for a
@@ -81,8 +101,12 @@ exposed** rather than guessed.
 
 ## Retained evidence
 
-`raw/` holds **four unedited verbatim API responses** and **one derived record**: the consequence
-audit reduces 679 VEP responses per rsid to the fixture consequence, the transcript-matched terms
-and `most_severe_consequence`, because retaining 679 full payloads would be megabytes of unread
-JSON. It is labelled DERIVED in the manifest. `source-manifest.json` carries each request, source,
-SHA-256, byte length and licence. No payload required sanitization.
+`raw/` holds **five unedited verbatim API responses** (four Ensembl / NCBI Gene records and one
+PubMed eSummary), **one sanitized response** (the PubMed EFetch XML for the two cited papers,
+abstracts removed and nothing else touched, labelled in its filename) and **two derived records**:
+the consequence audit reduces 679 VEP responses per rsid to the fixture consequence, the
+transcript-matched terms and `most_severe_consequence`, because retaining 679 full payloads would be
+megabytes of unread JSON; the PubMed reduction lists each cited record's `CommentsCorrections` and
+publication types. Both are labelled DERIVED in the manifest. `source-manifest.json` carries each
+request, source, SHA-256, byte length, access date and licence. No payload required further
+sanitization.
