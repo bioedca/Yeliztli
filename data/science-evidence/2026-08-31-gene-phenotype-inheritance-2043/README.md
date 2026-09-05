@@ -33,7 +33,7 @@ not share an upstream assertion before a user-facing claim of this kind is encod
 | --- | --- | --- |
 | `PMID:19890111` / `DOI:10.1056/NEJMoa0907206` — Glocker EO et al., *N Engl J Med* 2009 **(accessed 2026-08-31)** | European consanguineous families + 6 further patients | `IL10RA`, `IL10RB` |
 | `PMID:28267044` / `DOI:10.1097/MIB.0000000000001058` — Huang Z et al., *Inflamm Bowel Dis* 2017 **(accessed 2026-08-31)** | 42-patient Chinese multicentre survey | `IL10RA`, `IL10RB` |
-| `PMID:21519361` — Begue B et al., *Am J Gastroenterol* 2011 **(accessed 2026-08-31)** | French cohort, 75 children | `IL10RA` p.R262C, `IL10RB` p.E141X |
+| `PMID:21519361` / `DOI:10.1038/ajg.2011.112` — Begue B et al., *Am J Gastroenterol* 2011 **(accessed 2026-08-31; payloads retained 2026-09-05)** | French cohort, 75 children | `IL10RA` p.R262C, `IL10RB` p.E141X |
 
 Targeted searches for IL10 **ligand** cohorts returned receptor papers or mouse/mechanism work. The
 ligand literature is dominated by a single group, so two sources there would share a lineage rather
@@ -82,11 +82,22 @@ inheritance was simply omitted.
 
 ## Retraction checking
 
-Checked through **PubMed eLink linked relations**, not publication type. An original record keeps
-its own `pubtype` while corrections, errata and retractions are carried as *linked relations*, so a
-`pubtype` scan is not a retraction check. All four `elink` responses are retained; none carries a
-retraction, erratum or correction linkname. For the ontology term, obsolescence is the analogous
-check — `MONDO:0016542` is not obsolete.
+Checked through **PubMed EFetch typed `CommentsCorrections` relations**, not publication type and
+not eLink. An original record keeps its own `pubtype` while corrections, errata and retractions are
+carried as *separate linked records*, so a `pubtype` scan is not a retraction check. The XML for
+all five cited PMIDs is retained (abstracts removed, nothing else touched) with a derived reduction
+of its notice fields: **no record carries a link of any notice `RefType`** (`ErratumIn`,
+`RetractionIn`, `PartialRetractionIn`, `ExpressionOfConcernIn`, `CorrectedandRepublishedIn`,
+`RepublishedIn`, `UpdateIn`, `ReprintIn`). Three records carry `CommentIn` links — comments, not
+corrections. For the ontology term, obsolescence is the analogous check — `MONDO:0016542` is not
+obsolete.
+
+> **Correction.** An earlier revision of this packet checked only the eLink `pubmed_pubmed*` link
+> sets and read their silence as clearance. Those are generic related-article neighbourhoods and do
+> not expose the typed relation, so that check could not have found a retraction. The eLink payloads
+> are retained for what they are; the typed check above replaces them as the authority. The same
+> revision cited the Begue paper without retaining any payload for it while claiming every record
+> had been re-resolved; its eSummary, eLink and EFetch records were added on 2026-09-05.
 
 ## Discovery-tool ladder
 
@@ -100,8 +111,10 @@ rather than guessed.
 
 ## Retained evidence
 
-`raw/` holds **seven unedited verbatim API responses** (one NCBI eSummary, four NCBI eLink, two EBI
-OLS4) and **one derived record** of the Consensus call, labelled as derived in the file itself.
-`source-manifest.json` records each exact request, source, SHA-256, byte length, per-source licence
-and the retraction-check method. No payload required sanitization: all are public bibliographic or
-ontology records.
+`raw/` holds **nine unedited verbatim API responses** (two NCBI eSummary, five NCBI eLink, two EBI
+OLS4), **one sanitized response** (the NCBI EFetch XML for all five PMIDs, abstracts removed and
+nothing else touched, labelled in its filename) and **two derived records**, each labelled as
+derived in the file itself: the Consensus call, and the reduction of the EFetch XML to its
+`CommentsCorrections` and publication-type fields. `source-manifest.json` records each exact
+request, source, SHA-256, byte length, access date, per-source licence and the retraction-check
+method. No payload required further sanitization: all are public bibliographic or ontology records.

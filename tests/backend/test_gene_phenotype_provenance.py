@@ -307,10 +307,31 @@ _UNVERIFIED_BLANK_INHERITANCE: frozenset[tuple[str, str]] = frozenset(
 
 
 def _canonical_inheritance_values() -> frozenset[str]:
-    """The repository's own controlled vocabulary, not one invented here."""
+    """The union of the repository's own controlled vocabularies, not one invented here.
+
+    Two production loaders write this column. The OMIM parser emits
+    ``_OMIM_INHERITANCE_ABBREVS`` values; the MONDO/HPO loader that actually seeds
+    ``gene_phenotype`` emits ``_INHERITANCE_MAP`` values, several of which the OMIM
+    table lacks (``Polygenic``, ``Somatic``, ``Semidominant``, ``Autosomal dominant
+    with reduced penetrance``). A seed refreshed from either loader must pass, so
+    the guard accepts exactly what production can write and nothing else.
+    """
+    from backend.annotation.mondo_hpo import _INHERITANCE_MAP
     from backend.annotation.omim import _OMIM_INHERITANCE_ABBREVS
 
-    return frozenset(_OMIM_INHERITANCE_ABBREVS.values())
+    return frozenset(_OMIM_INHERITANCE_ABBREVS.values()) | frozenset(_INHERITANCE_MAP.values())
+
+
+def _is_unexcused_blank(row: dict[str, str]) -> bool:
+    """A row with no inheritance value whose exact association is not listed as unverified.
+
+    Keyed on ``(gene_symbol, disease_id)`` deliberately -- see
+    ``test_a_new_mendelian_row_for_a_listed_gene_is_not_excused``.
+    """
+    return (
+        not row["inheritance"].strip()
+        and (row["gene_symbol"], row["disease_id"]) not in _UNVERIFIED_BLANK_INHERITANCE
+    )
 
 
 def test_every_row_declares_or_is_listed_as_unverified() -> None:
@@ -318,8 +339,7 @@ def test_every_row_declares_or_is_listed_as_unverified() -> None:
     missing = [
         f"{r['gene_symbol']} / {r['disease_id']} ({r['disease_name']})"
         for r in _rows()
-        if not r["inheritance"].strip()
-        and (r["gene_symbol"], r["disease_id"]) not in _UNVERIFIED_BLANK_INHERITANCE
+        if _is_unexcused_blank(r)
     ]
     assert not missing, (
         "rows with a blank `inheritance` that are not listed as unverified:\n"
@@ -371,14 +391,47 @@ def test_a_new_mendelian_row_for_a_listed_gene_is_not_excused() -> None:
 
     APOE is listed as unverified for MONDO:0004975. A *second* APOE row for a
     different disease with a blank inheritance must still fail, because the
-    exemption covers one association, not the gene.
+    exemption covers one association, not the gene. The check runs the same
+    predicate the row sweep uses, on synthetic rows, so a predicate that regressed
+    to keying on ``gene_symbol`` alone fails here rather than passing vacuously.
     """
-    listed_genes = {gene for gene, _ in _UNVERIFIED_BLANK_INHERITANCE}
-    assert "APOE" in listed_genes
-    hypothetical = ("APOE", "MONDO:0007088")
-    assert hypothetical not in _UNVERIFIED_BLANK_INHERITANCE, (
+    assert ("APOE", "MONDO:0004975") in _UNVERIFIED_BLANK_INHERITANCE
+    assert ("APOE", "MONDO:0007088") not in _UNVERIFIED_BLANK_INHERITANCE, (
         "test fixture assumption broken: this pair must not be exempted"
     )
+    listed_blank = {
+        "gene_symbol": "APOE",
+        "disease_id": "MONDO:0004975",
+        "disease_name": "Alzheimer disease",
+        "inheritance": "",
+    }
+    second_apoe_blank = {**listed_blank, "disease_id": "MONDO:0007088"}
+    second_apoe_declared = {**second_apoe_blank, "inheritance": "Autosomal dominant"}
+
+    assert not _is_unexcused_blank(listed_blank), "the listed association is excused"
+    assert _is_unexcused_blank(second_apoe_blank), (
+        "a blank second APOE row must not be excused by the gene-wide listing"
+    )
+    assert not _is_unexcused_blank(second_apoe_declared), "a declared row needs no excuse"
+
+
+def test_controlled_vocabulary_spans_both_production_loaders() -> None:
+    """Neither loader's vocabulary may be dropped from the guard.
+
+    The OMIM table and the MONDO/HPO map each carry values the other lacks, so a
+    guard built from one alone rejects rows the other loader legitimately writes.
+    """
+    from backend.annotation.mondo_hpo import _INHERITANCE_MAP
+    from backend.annotation.omim import _OMIM_INHERITANCE_ABBREVS
+
+    omim = frozenset(_OMIM_INHERITANCE_ABBREVS.values())
+    hpo = frozenset(_INHERITANCE_MAP.values())
+    allowed = _canonical_inheritance_values()
+
+    assert hpo - omim, "anti-vacuity: the HPO map contributes nothing the OMIM table lacks"
+    assert omim - hpo, "anti-vacuity: the OMIM table contributes nothing the HPO map lacks"
+    assert hpo <= allowed, f"HPO-only values rejected by the guard: {sorted(hpo - allowed)}"
+    assert omim <= allowed, f"OMIM-only values rejected by the guard: {sorted(omim - allowed)}"
 
 
 def test_il10_inheritance_is_withheld_for_now() -> None:
