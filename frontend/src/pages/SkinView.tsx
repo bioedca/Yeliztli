@@ -124,7 +124,7 @@ function MC1RSummaryCard({
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="flex items-center gap-2">
           <Dna className="h-5 w-5 text-primary shrink-0" aria-hidden="true" />
-          <h3 className="font-semibold text-foreground">MC1R Allele Summary</h3>
+          <h2 className="font-semibold text-foreground">MC1R Allele Summary</h2>
         </div>
         <EvidenceStars level={aggregate.evidence_level} />
       </div>
@@ -289,7 +289,6 @@ export default function SkinView() {
               {/* MC1R allele summary (highlighted above pathway cards) */}
               {pathwaysQuery.data.mc1r_aggregate && (
                 <section className="mb-6" aria-label="MC1R allele summary">
-                  <h2 className="text-lg font-semibold mb-3">MC1R Allele Summary</h2>
                   <MC1RSummaryCard
                     aggregate={pathwaysQuery.data.mc1r_aggregate}
                   />

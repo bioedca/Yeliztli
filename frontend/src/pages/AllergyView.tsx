@@ -84,7 +84,7 @@ function CeliacCombinedCard({
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="flex items-center gap-2">
           <Wheat className="h-5 w-5 text-primary shrink-0" aria-hidden="true" />
-          <h3 className="font-semibold text-foreground">Celiac Disease Susceptibility</h3>
+          <h2 className="font-semibold text-foreground">Celiac Disease Susceptibility</h2>
         </div>
         <EvidenceStars level={celiac.evidence_level} />
       </div>
@@ -171,7 +171,7 @@ function HistamineCombinedCard({
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="flex items-center gap-2">
           <AlertTriangle className="h-5 w-5 text-muted-foreground shrink-0" aria-hidden="true" />
-          <h3 className="font-semibold text-foreground">Histamine Metabolism</h3>
+          <h2 className="font-semibold text-foreground">Histamine Metabolism</h2>
         </div>
         <EvidenceStars level={histamine.evidence_level} />
       </div>
@@ -371,7 +371,6 @@ export default function AllergyView() {
               {/* Celiac DQ2/DQ8 combined assessment */}
               {pathwaysQuery.data.celiac_combined && (
                 <section className="mb-6" aria-label="Celiac disease susceptibility">
-                  <h2 className="text-lg font-semibold mb-3">Celiac Disease Susceptibility</h2>
                   <CeliacCombinedCard celiac={pathwaysQuery.data.celiac_combined} />
                 </section>
               )}
@@ -400,7 +399,6 @@ export default function AllergyView() {
               {/* Histamine combined assessment (de-emphasized per PRD) */}
               {pathwaysQuery.data.histamine_combined && (
                 <section className="mt-6" aria-label="Histamine metabolism assessment">
-                  <h2 className="text-lg font-semibold mb-3">Histamine Metabolism</h2>
                   <HistamineCombinedCard histamine={pathwaysQuery.data.histamine_combined} />
                 </section>
               )}

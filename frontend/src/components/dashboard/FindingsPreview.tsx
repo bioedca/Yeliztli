@@ -7,6 +7,10 @@
 import { Link, useSearchParams } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import {
+  HIGH_CONFIDENCE_MIN_STARS,
+  MIN_STARS_PARAM,
+} from '@/lib/findings-confidence'
+import {
   Star,
   Pill,
   Apple,
@@ -86,6 +90,31 @@ export default function FindingsPreview({ sampleId }: { sampleId: number | null 
 
   const highConfidence = summary?.high_confidence_findings ?? []
 
+  // The section is explicitly about >=3-star findings and the preview is capped
+  // at five, so neither `total_findings` nor `highConfidence.length` is the real
+  // figure. `total_findings` is the unfiltered all-module count -- printing it
+  // under this heading read as ~311k high-confidence findings when there were 55
+  // (#2047). Derive the true count from the per-level counts the summary already
+  // carries; if the API omits them, say nothing rather than guess.
+  const highConfidenceTotal =
+    summary?.evidence_level_counts?.reduce(
+      (sum, { evidence_level, count }) =>
+        evidence_level >= HIGH_CONFIDENCE_MIN_STARS ? sum + count : sum,
+      0,
+    ) ?? null
+
+  // Land on the same set the count describes. FindingsExplorer seeds its
+  // min-stars filter from this parameter, so the destination matches the label.
+  const highConfidenceHref = (() => {
+    const params = new URLSearchParams()
+    if (sampleParam) params.set('sample_id', sampleParam)
+    if (highConfidenceTotal !== null) {
+      params.set(MIN_STARS_PARAM, String(HIGH_CONFIDENCE_MIN_STARS))
+    }
+    const query = params.toString()
+    return `/findings${query ? `?${query}` : ''}`
+  })()
+
   // No findings: show placeholder
   if (highConfidence.length === 0) {
     return (
@@ -114,12 +143,14 @@ export default function FindingsPreview({ sampleId }: { sampleId: number | null 
         <h2 className="text-sm font-semibold text-foreground">
           High-Confidence Findings
         </h2>
-        {summary && summary.total_findings > highConfidence.length && (
+        {summary && (
           <Link
-            to={`/findings${sampleParam ? `?sample_id=${sampleParam}` : ''}`}
+            to={highConfidenceHref}
             className="text-xs text-primary hover:underline"
           >
-            Show all {summary.total_findings} →
+            {highConfidenceTotal === null
+              ? 'Show all findings →'
+              : `Show all ${highConfidenceTotal.toLocaleString()} →`}
           </Link>
         )}
       </div>
