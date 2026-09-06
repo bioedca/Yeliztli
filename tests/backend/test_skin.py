@@ -16,12 +16,14 @@ Covers:
 
 from __future__ import annotations
 
+import dataclasses
 import json
 from pathlib import Path
 
 import pytest
 import sqlalchemy as sa
 
+from backend.analysis.pathway_coverage import variant_label
 from backend.analysis.skin import (
     ELEVATED,
     INDETERMINATE,
@@ -50,6 +52,11 @@ from backend.db.tables import (
     raw_variants,
     reference_metadata,
     sample_metadata_obj,
+)
+from tests.backend._gene_label_fixtures import (
+    gene_prefixed_loci,
+    raw_variant_rows,
+    renders_gene_twice,
 )
 
 # ── Fixtures ──────────────────────────────────────────────────────────────
@@ -1372,6 +1379,62 @@ class TestStoreFindingsIntegration:
         # rs1805007 (MC1R R151C) now cites the verified MC1R melanoma meta-analysis
         # (Raimondi 2008) instead of the previously misattributed PMIDs (#359).
         assert "18366057" in pmids
+
+
+# ── Stored finding text prints the gene once (#2044) ───────────────────
+
+
+class TestStoredFindingTextGeneLabel:
+    """Production path for #2044: seed → score → store → read ``findings`` back.
+
+    ``test_finding_text_gene_doubling.py`` guards the formatter and the panels;
+    this drives ``store_skin_findings`` itself, so a call site that rebuilds the
+    label by concatenation, ``.format()`` or swapped arguments is caught on the
+    persisted ``finding_text``.
+    """
+
+    def test_gene_prefixed_loci_persist_without_doubling(
+        self,
+        panel: SkinPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """Every curated locus whose ``variant_name`` already leads with its gene.
+
+        No curated skin locus is gene-prefixed (MC1R R151C, FLG R501X, VDR
+        FokI … are all descriptor-only), so the doubled form is unreachable
+        from the real panel alone. A synthetic gene-prefixed locus built with
+        the module's own ``_make_test_snp`` factory is appended to the real
+        micronutrient pathway so the storage path is still driven end to end;
+        any real gene-prefixed locus added later is swept automatically.
+        """
+        synthetic = dataclasses.replace(_make_test_snp(), variant_name="TEST intron 1")
+        micronutrients = next(pw for pw in panel.pathways if pw.id == "skin_micronutrients")
+        micronutrients.snps.append(synthetic)
+        loci = gene_prefixed_loci(panel)
+        assert loci, "skin panel has no gene-prefixed locus; this guard would be vacuous"
+        assert any(locus.rsid == synthetic.rsid for locus in loci)
+        _seed_variants(sample_engine, raw_variant_rows(loci))
+
+        result = score_skin_pathways(panel, sample_engine, reference_engine)
+        store_skin_findings(result, sample_engine)
+
+        with sample_engine.connect() as conn:
+            rows = conn.execute(
+                sa.select(findings).where(findings.c.module == MODULE_NAME)
+            ).fetchall()
+        assert rows
+        stored = {r.rsid: r.finding_text for r in rows if r.category == "snp_finding"}
+        for locus in loci:
+            text = stored.get(locus.rsid)
+            assert text is not None, f"{locus.rsid} ({locus.gene}) stored no snp_finding row"
+            # The gene is already the first word of the variant name, so the
+            # persisted card must open with the variant name itself...
+            assert text.startswith(f"{locus.variant_name} ("), text
+            # ...which is exactly what the shared formatter renders.
+            assert text.startswith(f"{variant_label(locus.gene, locus.variant_name)} ("), text
+        doubled = [r.finding_text for r in rows if renders_gene_twice(r.finding_text)]
+        assert doubled == [], f"stored skin text prints a gene twice: {doubled}"
 
 
 # ── PathwayResult properties ────────────────────────────────────────────

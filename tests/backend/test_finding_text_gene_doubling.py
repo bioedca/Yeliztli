@@ -15,28 +15,32 @@ six that are not "GENE <descriptor>", turning ``HLA-B*57:01 proxy`` into
 ``HLA-B *57:01 proxy`` (standard HLA nomenclature has no space) and
 ``GC/DBP variant`` into ``GC /DBP variant``.
 
+Composite gene labels are the second shape of the same defect: the panels spell
+``"CAV1/CAV2"`` next to ``"CAV1-CAV2 intergenic"`` and ``"MCM6/LCT"`` next to
+``"LCT -13910C>T"``, so a formatter that recognises only the literal label still
+renders "CAV1/CAV2 CAV1-CAV2 intergenic" and "MCM6/LCT LCT -13910C>T".
+
 Two SELF-DISCOVERING guards, in the idiom of the panel-invariant family
 (``test_panel_risk_ref_invariant.py``, ``test_indel_polarity_provenance.py``):
 no hand-maintained allow-list, so a new panel locus or a new module call site is
-covered the moment it lands.
+covered the moment it lands. The production storage paths themselves are
+exercised per module in ``test_<module>.py`` (``TestStoredFindingTextGeneLabel``),
+sharing the oracle in ``_gene_label_fixtures.py``.
 """
 
 from __future__ import annotations
 
 import json
-import re
 from pathlib import Path
 
 import pytest
 
 import backend.analysis.gene_health as gene_health_mod
 from backend.analysis.pathway_coverage import variant_label
+from tests.backend._gene_label_fixtures import renders_gene_twice
 
 _ANALYSIS = Path(gene_health_mod.__file__).resolve().parent
 _PANELS = _ANALYSIS.parent / "data" / "panels"
-
-# A leading token repeated immediately after itself: "FTO FTO intron 1".
-_DOUBLED_LEAD = re.compile(r"^(\S+)\s+\1(\s|$)")
 
 # The hand-rolled template this guard exists to keep out of the codebase.
 _NAIVE_TEMPLATE = 'f"{snp.gene} {snp.variant_name}'
@@ -80,6 +84,17 @@ def test_panels_actually_exercise_this_guard() -> None:
     assert len(prefixed) >= 40, (
         f"expected the sweep to reach many gene-prefixed variant_names, found {len(prefixed)}"
     )
+    # The composite rule must also be reached: a "/"-joined gene label whose
+    # variant_name opens with one component or the "-"-joined spelling.
+    composite = [
+        (gene, variant)
+        for _, gene, variant in pairs
+        if "/" in gene
+        and any(variant.lower().startswith(part.lower()) for part in gene.split("/"))
+    ]
+    assert len(composite) >= 3, (
+        f"expected the sweep to reach composite gene labels, found {composite}"
+    )
 
 
 def test_no_panel_locus_renders_a_doubled_gene() -> None:
@@ -87,7 +102,7 @@ def test_no_panel_locus_renders_a_doubled_gene() -> None:
     doubled = [
         f"{panel}: gene={gene!r} variant_name={variant!r} -> {variant_label(gene, variant)!r}"
         for panel, gene, variant in _panel_gene_variant_pairs()
-        if _DOUBLED_LEAD.match(variant_label(gene, variant))
+        if renders_gene_twice(variant_label(gene, variant))
     ]
     assert not doubled, "panel loci whose rendered label doubles the gene:\n" + "\n".join(doubled)
 
@@ -120,6 +135,12 @@ def test_no_module_builds_finding_text_by_hand() -> None:
         ("HLA-B", "HLA-B*57:01 proxy", "HLA-B*57:01 proxy"),
         ("HLA-DRB1", "HLA-DRB1*15:01 proxy", "HLA-DRB1*15:01 proxy"),
         ("GC", "GC/DBP variant", "GC/DBP variant"),
+        # Deduped: a composite gene label is recognised by any equivalent
+        # spelling -- one component, or the components joined with "-".
+        ("CAV1/CAV2", "CAV1-CAV2 intergenic", "CAV1-CAV2 intergenic"),
+        ("MCM6/LCT", "LCT -13910C>T", "LCT -13910C>T"),
+        # Prepended: a descriptor-only name still gets the whole composite label.
+        ("NBPF3/ALPL", "B6 levels variant", "NBPF3/ALPL B6 levels variant"),
         # Prepended: descriptor-only names are the other half of the panels.
         ("MTHFR", "C677T", "MTHFR C677T"),
         ("PPARG", "Pro12Ala", "PPARG Pro12Ala"),
@@ -131,3 +152,24 @@ def test_no_module_builds_finding_text_by_hand() -> None:
 )
 def test_variant_label_shapes(gene: str, variant_name: str, expected: str) -> None:
     assert variant_label(gene, variant_name) == expected
+
+
+@pytest.mark.parametrize(
+    ("label", "doubled"),
+    [
+        ("FTO FTO intron 1", True),
+        ("MCM6/LCT LCT -13910C>T", True),
+        ("CAV1/CAV2 CAV1-CAV2 intergenic", True),
+        ("FTO intron 1", False),
+        ("LCT -13910C>T", False),
+        # A different gene sharing a prefix is not a repeat.
+        ("IL2 IL2RA intron 1", False),
+        # Only a "/"-composite lead token is split; "HLA-DQA1 HLA-DQ2.5 proxy"
+        # would be a different-gene prepend, not a doubled label.
+        ("HLA-DQA1 HLA-DQ2.5 proxy", False),
+        ("NBPF3/ALPL B6 levels variant", False),
+    ],
+)
+def test_renders_gene_twice_detector(label: str, doubled: bool) -> None:
+    """The sweep's detector must see both repeat shapes and nothing else."""
+    assert renders_gene_twice(label) is doubled
