@@ -185,6 +185,11 @@ def test_every_bundle_gene_strand_matches_the_ensembl_snapshot() -> None:
     the annotation engine serves the old strands (#2045 review). Sweep every
     annotated bundle row against the same snapshot, so each of the 19 corrected
     genes is covered by the production artifact and not only by its seed.
+
+    Coverage is asserted as *equality*, not containment: a bundle regenerated
+    from a truncated seed could drop up to seven genes -- corrected ones among
+    them -- and still clear an anti-vacuity floor of 50, so the bundle's
+    annotated gene set must equal the snapshot's and the CSV's (#2364 review).
     """
     import sqlite3
 
@@ -202,8 +207,16 @@ def test_every_bundle_gene_strand_matches_the_ensembl_snapshot() -> None:
     assert len(genes) >= 50, (
         f"anti-vacuity: expected ~57 annotated bundle genes, found {len(genes)}"
     )
-    uncovered = sorted(genes - set(snapshot))
-    assert not uncovered, f"bundle genes absent from the strand snapshot: {uncovered}"
+    assert genes == set(snapshot), (
+        "bundle and strand snapshot cover different genes -- "
+        f"only in bundle: {sorted(genes - set(snapshot))}; "
+        f"only in snapshot (missing from the bundle): {sorted(set(snapshot) - genes)}"
+    )
+    assert genes == set(_strands_by_gene()), (
+        "bundle and vep_seed.csv cover different genes (regenerate the bundle) -- "
+        f"only in bundle: {sorted(genes - set(_strands_by_gene()))}; "
+        f"only in CSV: {sorted(set(_strands_by_gene()) - genes)}"
+    )
     wrong = sorted(
         f"{gene}: bundle={strand!r} ensembl={snapshot[gene]['strand']!r}"
         for gene, strand in stored

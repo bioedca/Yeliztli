@@ -168,7 +168,7 @@
    "most_severe": "missense_variant"
   },
   "rs28399504": {
-   "fixture": "missense_variant",
+   "fixture": "start_lost",
    "tid": "ENST00000371321",
    "vep_terms": [
     "start_lost"

@@ -92,6 +92,16 @@ ADDITIONAL_VERIFIED_GRCH37_MAPPINGS: dict[str, GRCh37Mapping] = {
     "rs429358": ("19", 45_411_941, frozenset({"T", "C"})),
     # https://grch37.rest.ensembl.org/variation/human/rs7412
     "rs7412": ("19", 45_412_079, frozenset({"C", "T"})),
+    # CYP2C19*4 (#2045 / #2364). Matched by rsID in the CYP2C19 caller, so it
+    # never entered the panel snapshot either, and all three coordinate seeds
+    # carried the other-assembly position 10:94781859 while the vendor fixture
+    # and the pharmacogenomics tests carried 96522463. Ensembl GRCh37 Variation
+    # REST, accessed 2026-09-06; primary mapping, plus strand, allele string
+    # A/G/T. The same coordinate is in the retained GRCh37 VEP payloads of
+    # data/science-evidence/2026-09-01-vep-seed-strand-2045/ (accessed
+    # 2026-09-01). The seeds select A>G.
+    # https://grch37.rest.ensembl.org/variation/human/rs28399504
+    "rs28399504": ("10", 96_522_463, frozenset({"A", "G", "T"})),
 }
 
 # Only seeds governed by the real GRCh37 coordinate and plus-strand allele

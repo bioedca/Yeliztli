@@ -33,7 +33,7 @@ contradicted itself.
 
 ## C2 — rs28399504 (CYP2C19\*4) is a start loss, not a missense
 
-Ensembl GRCh37 VEP on `ENST00000371321` — **the transcript the row itself cites** — reports:
+Ensembl GRCh37 VEP on `ENST00000371321` — **the transcript the row itself cites** — **(accessed 2026-09-01)** reports:
 
 ```
 consequence_terms: ['start_lost']      impact: HIGH      strand: 1
@@ -90,7 +90,12 @@ them):
 - **53** agree with VEP on the fixture's own transcript (52 before this change corrected `rs28399504`)
 - **14** disagree — only `rs28399504` is corrected here (15 before the correction; `rs28399504` was among them)
 - **33** rows (32 rsIDs, `rs121913529` counted on both of its rows) cite a transcript Ensembl VEP does
-  not report for that variant
+  not report for that variant — **7 of them only because the reduction reads the first response
+  element**, which for multi-mapped variants is a patch contig with no entry for the transcript (the five
+  CYP2D6 rows `rs16947`, `rs1065852`, `rs3892097`, `rs5030655`, `rs5030862` and the two CYP2R1 rows
+  `rs10741657`, `rs12794714`); read from the primary-assembly element they resolve (6 agree, 1 disagrees),
+  which would give 59 / 15 / 26. The rule is kept so the artifact stays comparable with the 2026-09-01
+  reduction, and those seven rows sit inside the deferred adjudication.
 
 > **Correction.** An earlier revision said the audit "covers every rsid" and reduces "679 VEP
 > responses". It reduces 677; one request failed and is recorded, and one rsID appears on two rows.

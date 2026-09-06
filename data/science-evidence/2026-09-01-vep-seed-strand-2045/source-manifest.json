@@ -27,7 +27,7 @@
         "Ensembl GRCh37 VEP on rs28399504 (seq_region_name / start / assembly_name in both retained payloads)"
       ],
       "evidence": "Both retained VEP payloads report seq_region_name 10, start 96522463, end 96522463, assembly_name GRCh37. 94781859 falls inside the CYP2C19 span the retained NCBI esummary reports on NC_000010.11 (genomicinfo chrstart 94762680 - chrstop 94855546), i.e. a different assembly release, and mini_vep_bundle.db repeated it. The annotation engine derives ref/alt and zygosity only from a VEP row at the sample's own coordinate, so a GRCh37 sample would match the rsID and lose carriage.",
-      "added": "2026-09-05 after review of #2364. Corrected in vep_seed.csv and the regenerated mini_vep_bundle.db; the production-path test seeds the sample at 96522463. No other row's coordinate was audited by this packet; filed separately."
+      "added": "2026-09-05 after review of #2364. Corrected in vep_seed.csv and the regenerated mini_vep_bundle.db; the production-path test seeds the sample at 96522463. No other row's coordinate was audited by this packet; filed separately. On 2026-09-06 the sibling seeds clinvar_seed.csv and gnomad_seed.csv, which carried the same 10:94781859 for rs28399504, were aligned to 96522463 and mini_reference.db / mini_gnomad_af.db regenerated (one row each; the VEP and dbNSFP databases regenerate byte-identically), and rs28399504 joined the shared GRCh37 coordinate/allele oracle in tests/backend/test_regenerate_fixtures.py (Ensembl GRCh37 Variation REST, accessed 2026-09-06: 10:96522463, plus strand, A/G/T) so no coordinate seed or generated fixture can carry another position again."
     }
   },
   "citations": [
@@ -98,7 +98,7 @@
       "actual": "679 rows (678 unique rsIDs: rs121913529 appears twice, alt G>A and G>C, both PAH), of which 100 carry a gene_symbol (99 unique rsIDs)"
     }
   },
-  "explicitly_not_claimed": "The retained consequence audit was requested once per unique rsID (678). It holds 677 reduced responses and one recorded failure, rs5778923 (HTTP 400; an unannotated intron_variant row on chrX with no gene_symbol), which a 2026-09-05 retry reproduced with the body \"No variant found with ID 'rs5778923'\" (retained verbatim) -- so the audit does NOT cover that row and it is an exclusion, not a response. Of the 100 annotated rows (99 unique rsIDs; rs5778923 is not among them): 53 agree (52 before this change corrected rs28399504), 14 disagree on the fixture's own transcript (15 before the correction, rs28399504 among them), and 33 rows (32 rsIDs; rs121913529 on both of its rows) cite a transcript Ensembl VEP does not report for that variant. ONLY rs28399504 is corrected here. The remaining 14 mismatches are predominantly 5_prime_UTR_variant vs upstream_gene_variant, which turn on transcript selection rather than being outright errors, and the 33 unresolvable transcripts need per-row adjudication (transcript version, assembly, MANE choice). Adjudicating 47 rows off one REST call each would be exactly the kind of bulk edit this issue is about. Filed separately.",
+  "explicitly_not_claimed": "The retained consequence audit was requested once per unique rsID (678). It holds 677 reduced responses and one recorded failure, rs5778923 (HTTP 400; an unannotated intron_variant row on chrX with no gene_symbol), which a 2026-09-05 retry reproduced with the body \"No variant found with ID 'rs5778923'\" (retained verbatim) -- so the audit does NOT cover that row and it is an exclusion, not a response. Of the 100 annotated rows (99 unique rsIDs; rs5778923 is not among them): 53 agree (52 before this change corrected rs28399504), 14 disagree on the fixture's own transcript (15 before the correction, rs28399504 among them), and 33 rows (32 rsIDs; rs121913529 on both of its rows) cite a transcript Ensembl VEP does not report for that variant -- 7 of which (rs10741657, rs1065852, rs12794714, rs16947, rs3892097, rs5030655, rs5030862) are an artefact of the reduction reading only the first, patch-contig element of a multi-mapped response; see the audit row's reduction_rule. ONLY rs28399504 is corrected here. The remaining 14 mismatches are predominantly 5_prime_UTR_variant vs upstream_gene_variant, which turn on transcript selection rather than being outright errors, and the 33 unresolvable transcripts need per-row adjudication (transcript version, assembly, MANE choice). Adjudicating 47 rows off one REST call each would be exactly the kind of bulk edit this issue is about. Filed separately.",
   "discovery_tool_ladder": {
     "note": "Consensus/Scite are literature-discovery tools and are not the right instrument for a genome-annotation fact. The authoritative sources here are the assembly annotation projects themselves, queried directly.",
     "scite": "Invoked 2026-09-05, after the service-reported reset of 2026-09-03 (an earlier revision recorded the August quota failure as current): metadata for the two cited DOIs, retained as a DERIVED record; no editorial notice on either. Scite remains the wrong instrument for the annotation facts themselves, which come from the annotation projects queried directly.",
@@ -200,23 +200,34 @@
       "request": "GET https://grch37.rest.ensembl.org/vep/human/id/rs28399504",
       "source": "Ensembl GRCh37 REST (VEP)",
       "sha256": "5c8f9f42d28400a8276ada6162d0511d8c02c931fae2068e8966eb14dc41e790",
-      "bytes": 4937
+      "bytes": 4937,
+      "accessed": "2026-09-01"
     },
     {
       "payload": "raw/ensembl-grch37-vep-rs28399504-hgvs.json",
       "request": "GET https://grch37.rest.ensembl.org/vep/human/id/rs28399504?hgvs=1",
       "source": "Ensembl GRCh37 REST (VEP, HGVS)",
       "sha256": "a339a0d402dfdbe9e77041e2c004b0c77319bec5a43084bfb9715c8a994c9316",
-      "bytes": 5237
+      "bytes": 5237,
+      "accessed": "2026-09-01"
     },
     {
       "payload": "raw/ensembl-grch37-vep-consequence-audit-all-rows.json",
       "request": "GET https://grch37.rest.ensembl.org/vep/human/id/<rsid> once per unique rsid in vep_seed.csv: 678 requests (679 rows; rs121913529 appears twice), 677 responses reduced under `rows`, 1 failed request (rs5778923, HTTP 400) recorded under `failures` and excluded",
       "source": "Ensembl GRCh37 REST (VEP) -- DERIVED from raw/ensembl-grch37-vep-all-rows-verbatim.jsonl.gz: per rsid the fixture consequence, the union of consequence_terms over the transcript_consequences entries whose transcript_id equals the fixture's, and most_severe_consequence",
-      "sha256": "1ebd6939db7acb2776a06e0aa84520ad444822a8eabc06f360a85541e64efe28",
-      "bytes": 89217,
+      "sha256": "08378d44af00bebf292db7d78e5e3aa87d938a3d5e2a64e255b06ac933f31f14",
+      "bytes": 89211,
       "coverage": "677 of 678 unique rsIDs; rs5778923 is not covered. It is an unannotated row (no gene_symbol), so the annotated-row breakdown is unaffected.",
-      "rederivation": "Re-derived on 2026-09-06 from the retained verbatim responses: identical for all 677 rsIDs to the 2026-09-01 reduction (built from responses that were not retained), except rs28399504's fixture column, which now reads start_lost because the CSV was corrected. With the corrected CSV the annotated-row breakdown is 53 agree / 14 disagree / 33 unresolvable transcript (52 / 15 / 33 before the correction)."
+      "rederivation": "Re-derived on 2026-09-06 from the retained verbatim responses: identical for all 677 rsIDs to the 2026-09-01 reduction (built from responses that were not retained), except rs28399504's fixture column, which now reads start_lost because the CSV was corrected. THE ARTIFACT ITSELF WAS REGENERATED ON 2026-09-06 from raw/ensembl-grch37-vep-all-rows-verbatim.jsonl.gz and the corrected vep_seed.csv, with the same formatting (indent 1, seed row order, no trailing newline); the sha256 and byte count above are the regenerated file's, and it differs from the 2026-09-01 file in that one value only. With the corrected CSV the annotated-row breakdown is 53 agree / 14 disagree / 33 unresolvable transcript (52 / 15 / 33 before).",
+      "accessed": "2026-09-01",
+      "reduction_rule": "Reduction rule, made explicit on 2026-09-06 while rebuilding the artifact from the retained responses: `most_severe` and the transcript match are read from the FIRST element of the VEP response only. 32 rsIDs map to more than one sequence region (a patch or alternate contig as well as the primary chromosome) and return one element per mapping; for 7 annotated rows the first element is the patch contig (HSCHR22_2_CTG1 for the five CYP2D6 rows, HG873_PATCH for the two CYP2R1 rows), which carries no entry for the fixture's transcript, so they are counted as 'transcript not reported' although the primary-assembly element does report it: rs10741657, rs1065852, rs12794714, rs16947, rs3892097, rs5030655, rs5030862. Read from the primary-assembly element instead, 6 of them agree with the fixture and 1 (rs3892097: fixture splice_region_variant, VEP splice_acceptor_variant) disagrees, giving 59 / 15 / 26 instead of 53 / 14 / 33. The first-element rule is kept so the artifact stays comparable with the 2026-09-01 reduction; these 7 rows belong to the deferred per-row adjudication, which is exactly the transcript-selection question that deferral names.",
+      "fields_selected": {
+        "rows.<rsid>.fixture": "vep_seed.csv consequence for the rsid (first occurrence)",
+        "rows.<rsid>.tid": "vep_seed.csv transcript_id (empty string when the row cites none)",
+        "rows.<rsid>.vep_terms": "sorted union of consequence_terms over every transcript_consequences entry of the FIRST response element whose transcript_id equals tid (empty when none match, or when tid is empty)",
+        "rows.<rsid>.most_severe": "most_severe_consequence of the FIRST response element",
+        "failures": "[rsid, error] for each request that returned no response (rs5778923, HTTP 400)"
+      }
     },
     {
       "payload": "raw/ensembl-grch37-vep-rs5778923-error.json",
