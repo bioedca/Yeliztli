@@ -378,12 +378,19 @@ def test_generator_replay_records_the_given_date_and_source(tmp_path: Path) -> N
         ("strand", 0),
         ("strand", True),
         ("id", "NM_000769"),
+        ("id", "ENSG_NOT_A_GENE"),
+        ("id", "ENSG0000016584"),
     ],
 )
 def test_generator_refuses_an_invalid_response_instead_of_coercing_it(
     tmp_path: Path, capsys: pytest.CaptureFixture[str], field: str, value: object
 ) -> None:
-    """Wrong symbol, foreign assembly, strand outside {1, -1} or a non-ENSG id: refuse."""
+    """Wrong symbol, foreign assembly, strand outside {1, -1} or a malformed id: refuse.
+
+    The id check requires the complete Ensembl gene-identifier format (ENSG plus
+    eleven digits), so a bare prefix or a truncated id is refused, not just a
+    foreign accession.
+    """
     payloads = _fake_lookup_payloads()
     victim = sorted(payloads)[3]
     payloads[victim] = {**payloads[victim], field: value}
@@ -449,7 +456,13 @@ def test_committed_snapshot_is_the_reduction_of_its_named_evidence() -> None:
 
 @pytest.mark.parametrize(
     ("field", "value"),
-    [("strand", 0), ("assembly_name", "GRCh38"), ("display_name", "OTHER"), ("id", "LRG_1")],
+    [
+        ("strand", 0),
+        ("assembly_name", "GRCh38"),
+        ("display_name", "OTHER"),
+        ("id", "LRG_1"),
+        ("id", "ENSG_NOT_A_GENE"),
+    ],
 )
 def test_committed_reduction_guard_rejects_a_corrupted_evidence_copy(
     tmp_path: Path, field: str, value: object

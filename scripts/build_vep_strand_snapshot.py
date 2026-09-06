@@ -88,12 +88,18 @@ def _lookup(gene: str) -> dict | None:
     return None
 
 
+# A complete Ensembl human gene identifier: the ENSG prefix and exactly eleven
+# digits, with an optional version suffix. A bare prefix such as "ENSG_NOT_A_GENE"
+# is not an identifier and must not be retained or reduced.
+_ENSEMBL_GENE_ID = re.compile(r"ENSG\d{11}(?:\.\d+)?")
+
+
 def validate_response(gene: str, payload: object) -> dict:
     """Return ``payload`` if it is a GRCh37 lookup/symbol record for ``gene``.
 
     Raises ``ValueError`` naming the symbol and the offending field otherwise.
     Nothing is coerced: a strand outside {1, -1}, a foreign assembly, a record for
-    another symbol or a non-ENSG id is refused rather than reduced (#2364 review).
+    another symbol or a malformed gene id is refused rather than reduced (#2364 review).
     """
     if not isinstance(payload, dict):
         raise ValueError(f"{gene}: response is {type(payload).__name__}, not a JSON object")
@@ -107,8 +113,8 @@ def validate_response(gene: str, payload: object) -> dict:
     if isinstance(strand, bool) or strand not in (1, -1):
         raise ValueError(f"{gene}: strand is {strand!r}, not 1 or -1")
     gene_id = payload.get("id")
-    if not isinstance(gene_id, str) or not gene_id.startswith("ENSG"):
-        raise ValueError(f"{gene}: id is {gene_id!r}, not an ENSG identifier")
+    if not isinstance(gene_id, str) or not _ENSEMBL_GENE_ID.fullmatch(gene_id):
+        raise ValueError(f"{gene}: id is {gene_id!r}, not a complete Ensembl gene identifier")
     return payload
 
 
