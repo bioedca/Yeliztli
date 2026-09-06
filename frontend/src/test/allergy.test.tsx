@@ -1,7 +1,7 @@
 /** Tests for the Gene Allergy UI (P3-61). */
 
 import { describe, it, expect, vi, beforeEach } from "vitest"
-import { render, screen } from "./test-utils"
+import { render, screen, within } from "./test-utils"
 import userEvent from "@testing-library/user-event"
 import PathwayCard from "@/components/allergy/PathwayCard"
 import PathwayDetailPanel from "@/components/allergy/PathwayDetailPanel"
@@ -291,6 +291,94 @@ describe("CeliacCombinedCard DQ8 marker identity (#1372)", () => {
     expect(screen.getByText(/DQ8 proxy \(rs7454108\):/)).toBeInTheDocument()
     expect(screen.queryByText(/DQ8 proxy \(rs7775228\):/)).not.toBeInTheDocument()
     expect(screen.getByText("CT")).toBeInTheDocument()
+  })
+})
+
+// ── #2048: a combined-summary title must appear once, not twice ───────
+//
+// Each single-card summary section wrapped its card in a <section> whose <h2>
+// repeated the card's own <h3>, so the title rendered on two consecutive lines
+// and the heading outline carried the same text twice at different levels. The
+// card heading is now the section's only heading.
+
+describe("combined summary sections render their title once (#2048)", () => {
+  beforeEach(() => {
+    routerMock.search = "sample_id=1"
+    mockUsePathways.mockReset()
+  })
+
+  it("shows Celiac Disease Susceptibility as exactly one level-2 heading", () => {
+    pathwaysWith(CELIAC_INDETERMINATE)
+    render(<AllergyView />)
+
+    const section = screen.getByRole("region", {
+      name: "Celiac disease susceptibility",
+    })
+    expect(
+      within(section).getAllByRole("heading", {
+        name: "Celiac Disease Susceptibility",
+      }),
+    ).toHaveLength(1)
+    // The retained card heading is the section's <h2>; demoting it back to
+    // <h3> would recreate the heading-level skip this change removed.
+    expect(
+      within(section).getByRole("heading", {
+        level: 2,
+        name: "Celiac Disease Susceptibility",
+      }),
+    ).toBeInTheDocument()
+  })
+
+  it("shows Histamine Metabolism as exactly one level-2 heading", () => {
+    mockUsePathways.mockReturnValue({
+      data: {
+        // A representative response also lists the histamine_metabolism
+        // pathway, whose PathwayCard legitimately carries its own
+        // "Histamine Metabolism" heading in the results grid.
+        items: [FOOD_PATHWAY, HISTAMINE_PATHWAY],
+        total: 2,
+        celiac_combined: null,
+        histamine_combined: {
+          aoc1_genotype: "GG",
+          hnmt_genotype: "CC",
+          aoc1_category: "Standard",
+          hnmt_category: "Standard",
+          combined_text: "Typical histamine clearance.",
+          de_emphasize: false,
+          evidence_level: 3,
+          pmids: [],
+        },
+        cross_module: [],
+      },
+      isLoading: false,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useAllergyPathways>)
+
+    render(<AllergyView />)
+
+    // The pathway card's heading sits in the results grid, outside the
+    // assessment section, so the duplicate check must be scoped to that
+    // section rather than the whole document.
+    expect(
+      within(
+        screen.getByRole("region", { name: "Allergy pathway results" }),
+      ).getByRole("heading", { name: "Histamine Metabolism" }),
+    ).toBeInTheDocument()
+
+    const section = screen.getByRole("region", {
+      name: "Histamine metabolism assessment",
+    })
+    expect(
+      within(section).getAllByRole("heading", { name: "Histamine Metabolism" }),
+    ).toHaveLength(1)
+    expect(
+      within(section).getByRole("heading", {
+        level: 2,
+        name: "Histamine Metabolism",
+      }),
+    ).toBeInTheDocument()
   })
 })
 
