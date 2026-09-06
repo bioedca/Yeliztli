@@ -27,14 +27,16 @@ from __future__ import annotations
 
 import collections
 import csv
+import datetime as dt
 import hashlib
 import json
 import re
+import shutil
 from pathlib import Path
 
 import pytest
 
-from scripts.build_vep_strand_snapshot import SYNTHETIC_GENES
+from scripts.build_vep_strand_snapshot import SYNTHETIC_GENES, reduce_response, validate_response
 from scripts.build_vep_strand_snapshot import _genes as _generator_genes
 from scripts.build_vep_strand_snapshot import main as _generator_main
 
@@ -163,7 +165,9 @@ def test_generator_retains_the_verbatim_responses_it_reduces(tmp_path: Path) -> 
     out = tmp_path / "snapshot.json"
 
     rc = _generator_main(
-        ["--evidence-out", str(evidence), "--out", str(out)], fetch=lambda gene: payloads.get(gene)
+        ["--evidence-out", str(evidence), "--out", str(out)],
+        fetch=lambda gene: payloads.get(gene),
+        root=tmp_path,
     )
 
     assert rc == 0
@@ -172,7 +176,10 @@ def test_generator_retains_the_verbatim_responses_it_reduces(tmp_path: Path) -> 
     assert set(written) == {"_artifact_note", "responses"}, "wrapper must be the only addition"
     snapshot = json.loads(out.read_text(encoding="utf-8"))
     provenance = snapshot["_provenance"]
-    assert Path(provenance["evidence_path"]).resolve() == evidence.resolve()
+    assert provenance["evidence_path"] == "evidence/lookup.json", (
+        "path must be root-relative POSIX"
+    )
+    assert (tmp_path / provenance["evidence_path"]).resolve() == evidence.resolve()
     assert provenance["evidence_sha256"] == hashlib.sha256(evidence.read_bytes()).hexdigest()
     assert provenance["evidence_bytes"] == evidence.stat().st_size
     assert snapshot["strands"] == {
@@ -188,21 +195,221 @@ def test_generator_refuses_to_run_without_an_evidence_path(tmp_path: Path) -> No
     payloads = _fake_lookup_payloads()
     out = tmp_path / "snapshot.json"
     with pytest.raises(SystemExit) as refused:
-        _generator_main(["--out", str(out)], fetch=lambda gene: payloads.get(gene))
+        _generator_main(["--out", str(out)], fetch=lambda gene: payloads.get(gene), root=tmp_path)
     assert refused.value.code == 2, "argparse must reject the call as a usage error"
     assert not out.exists(), "a snapshot was written although no evidence path was given"
 
 
-def test_committed_snapshot_is_the_reduction_of_its_named_evidence() -> None:
-    """The checked-in oracle must name a retained payload and equal its reduction.
+def _run_refused(tmp_path: Path, argv: list[str]) -> int:
+    """Run the generator expecting a usage error; return its exit code, assert nothing written."""
+    payloads = _fake_lookup_payloads()
+    before = sorted(str(p) for p in tmp_path.rglob("*") if p.is_file())
+    with pytest.raises(SystemExit) as refused:
+        _generator_main(argv, fetch=lambda gene: payloads.get(gene), root=tmp_path)
+    after = sorted(str(p) for p in tmp_path.rglob("*") if p.is_file())
+    assert after == before, (
+        f"a usage error must write nothing; new files: {set(after) - set(before)}"
+    )
+    return refused.value.code
 
-    Provenance alone is a claim; this re-derives the strands from the named
-    evidence so the committed snapshot cannot drift from (or outlive) the
-    responses it says it was built from.
-    """
-    snapshot = json.loads(_SNAPSHOT.read_text(encoding="utf-8"))
+
+def _retained_file(tmp_path: Path, payloads: dict[str, dict] | None = None) -> Path:
+    retained = tmp_path / "retained.json"
+    retained.write_text(
+        json.dumps({"_artifact_note": "fake", "responses": payloads or _fake_lookup_payloads()}),
+        encoding="utf-8",
+    )
+    return retained
+
+
+def test_generator_refuses_paths_outside_the_repository(tmp_path: Path) -> None:
+    """An evidence path outside the checkout would serialise a host path into the oracle."""
+    inside_out = tmp_path / "snapshot.json"
+    outside = tmp_path.parent / f"{tmp_path.name}-elsewhere"
+    outside.mkdir()
+    code = _run_refused(
+        tmp_path, ["--evidence-out", str(outside / "evidence.json"), "--out", str(inside_out)]
+    )
+    assert code == 2
+    assert not (outside / "evidence.json").exists()
+    # --responses-from is serialised into the provenance too, so it obeys the same rule.
+    retained_outside = outside / "retained.json"
+    retained_outside.write_text(
+        json.dumps({"responses": _fake_lookup_payloads()}), encoding="utf-8"
+    )
+    code = _run_refused(
+        tmp_path,
+        [
+            "--evidence-out",
+            str(tmp_path / "evidence.json"),
+            "--out",
+            str(inside_out),
+            "--responses-from",
+            str(retained_outside),
+            "--accessed",
+            "2026-09-05",
+        ],
+    )
+    assert code == 2
+
+
+def test_generator_refuses_colliding_output_paths(tmp_path: Path) -> None:
+    """Snapshot over evidence would leave a provenance describing lost content."""
+    same = tmp_path / "same.json"
+    assert _run_refused(tmp_path, ["--evidence-out", str(same), "--out", str(same)]) == 2
+    assert not same.exists()
+    retained = _retained_file(tmp_path)
+    code = _run_refused(
+        tmp_path,
+        [
+            "--evidence-out",
+            str(retained),
+            "--out",
+            str(tmp_path / "snapshot.json"),
+            "--responses-from",
+            str(retained),
+            "--accessed",
+            "2026-09-05",
+        ],
+    )
+    assert code == 2
+    assert json.loads(retained.read_text(encoding="utf-8"))["_artifact_note"] == "fake", (
+        "the retained input was overwritten"
+    )
+
+
+def test_generator_accepts_accessed_only_when_replaying(tmp_path: Path) -> None:
+    """A live fetch dates itself; a caller-supplied date there is a usage error."""
+    code = _run_refused(
+        tmp_path,
+        [
+            "--evidence-out",
+            str(tmp_path / "evidence.json"),
+            "--out",
+            str(tmp_path / "snapshot.json"),
+            "--accessed",
+            "2026-09-05",
+        ],
+    )
+    assert code == 2
+
+
+@pytest.mark.parametrize(
+    "accessed",
+    [
+        "1900-02-31",  # not a calendar date
+        "2026-9-5",  # not YYYY-MM-DD
+        "20260905",  # ISO basic form, which date.fromisoformat alone would accept
+        (dt.datetime.now(dt.UTC).date() + dt.timedelta(days=1)).isoformat(),  # future
+    ],
+)
+def test_generator_refuses_impossible_or_future_access_dates(
+    tmp_path: Path, accessed: str
+) -> None:
+    retained = _retained_file(tmp_path)
+    code = _run_refused(
+        tmp_path,
+        [
+            "--evidence-out",
+            str(tmp_path / "evidence.json"),
+            "--out",
+            str(tmp_path / "snapshot.json"),
+            "--responses-from",
+            str(retained),
+            "--accessed",
+            accessed,
+        ],
+    )
+    assert code == 2
+
+
+def test_generator_dates_a_live_fetch_with_todays_utc_date(tmp_path: Path) -> None:
+    payloads = _fake_lookup_payloads()
+    evidence = tmp_path / "evidence.json"
+    out = tmp_path / "snapshot.json"
+    before = dt.datetime.now(dt.UTC).date().isoformat()
+    rc = _generator_main(
+        ["--evidence-out", str(evidence), "--out", str(out)],
+        fetch=lambda gene: payloads.get(gene),
+        root=tmp_path,
+    )
+    after = dt.datetime.now(dt.UTC).date().isoformat()
+    assert rc == 0
+    provenance = json.loads(out.read_text(encoding="utf-8"))["_provenance"]
+    assert provenance["accessed"] in {before, after}
+    assert "evidence_replayed_from" not in provenance
+    note = json.loads(evidence.read_text(encoding="utf-8"))["_artifact_note"]
+    assert f"fetched {provenance['accessed']}" in note
+
+
+def test_generator_replay_records_the_given_date_and_source(tmp_path: Path) -> None:
+    payloads = _fake_lookup_payloads()
+    retained = _retained_file(tmp_path, payloads)
+    evidence = tmp_path / "evidence.json"
+    out = tmp_path / "snapshot.json"
+    rc = _generator_main(
+        [
+            "--evidence-out",
+            str(evidence),
+            "--out",
+            str(out),
+            "--responses-from",
+            str(retained),
+            "--accessed",
+            "2026-09-05",
+        ],
+        root=tmp_path,
+    )
+    assert rc == 0
+    provenance = json.loads(out.read_text(encoding="utf-8"))["_provenance"]
+    assert provenance["accessed"] == "2026-09-05"
+    assert provenance["evidence_replayed_from"] == {
+        "path": "retained.json",
+        "sha256": hashlib.sha256(retained.read_bytes()).hexdigest(),
+    }
+    assert json.loads(evidence.read_text(encoding="utf-8"))["responses"] == payloads
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("display_name", "SOMETHING_ELSE"),
+        ("assembly_name", "GRCh38"),
+        ("strand", 0),
+        ("strand", True),
+        ("id", "NM_000769"),
+    ],
+)
+def test_generator_refuses_an_invalid_response_instead_of_coercing_it(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], field: str, value: object
+) -> None:
+    """Wrong symbol, foreign assembly, strand outside {1, -1} or a non-ENSG id: refuse."""
+    payloads = _fake_lookup_payloads()
+    victim = sorted(payloads)[3]
+    payloads[victim] = {**payloads[victim], field: value}
+    evidence = tmp_path / "evidence.json"
+    out = tmp_path / "snapshot.json"
+
+    rc = _generator_main(
+        ["--evidence-out", str(evidence), "--out", str(out)],
+        fetch=lambda gene: payloads.get(gene),
+        root=tmp_path,
+    )
+
+    assert rc == 1
+    assert not evidence.exists() and not out.exists(), "an invalid response must write nothing"
+    err = capsys.readouterr().err
+    assert victim in err and field in err, f"error must name the symbol and field: {err!r}"
+
+
+def _assert_snapshot_is_the_reduction_of_its_evidence(snapshot_path: Path, root: Path) -> None:
+    """Shared body of the committed-reduction guard, so a corrupted copy can be exercised."""
+    snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
     provenance = snapshot["_provenance"]
-    evidence = _ROOT / provenance["evidence_path"]
+    assert not Path(provenance["evidence_path"]).is_absolute(), (
+        "evidence_path must be root-relative"
+    )
+    evidence = root / provenance["evidence_path"]
     assert evidence.is_file(), f"snapshot names evidence that is not checked in: {evidence}"
     assert provenance["evidence_sha256"] == hashlib.sha256(evidence.read_bytes()).hexdigest(), (
         "snapshot provenance sha256 does not match the checked-in evidence file"
@@ -215,17 +422,63 @@ def test_committed_snapshot_is_the_reduction_of_its_named_evidence() -> None:
         f"{sorted(set(snapshot['strands']) - set(responses))}"
     )
     assert len(responses) >= 50, "anti-vacuity: expected ~57 retained responses"
+    invalid = []
+    for gene, payload in responses.items():
+        try:
+            validate_response(gene, payload)
+        except ValueError as exc:
+            invalid.append(str(exc))
+    assert not invalid, "retained evidence carries invalid responses:\n" + "\n".join(invalid)
     wrong = sorted(
-        f"{gene}: snapshot={entry} evidence strand={responses[gene]['strand']} "
-        f"id={responses[gene].get('id')}"
+        f"{gene}: snapshot={entry} evidence={reduce_response(responses[gene])}"
         for gene, entry in snapshot["strands"].items()
-        if entry
-        != {
-            "strand": "+" if responses[gene]["strand"] == 1 else "-",
-            "ensembl_gene_id": responses[gene].get("id"),
-        }
+        if entry != reduce_response(responses[gene])
     )
     assert not wrong, "snapshot is not the reduction of its evidence:\n" + "\n".join(wrong)
+
+
+def test_committed_snapshot_is_the_reduction_of_its_named_evidence() -> None:
+    """The checked-in oracle must name a retained payload and equal its reduction.
+
+    Provenance alone is a claim; this re-derives the strands from the named
+    evidence so the committed snapshot cannot drift from (or outlive) the
+    responses it says it was built from.
+    """
+    _assert_snapshot_is_the_reduction_of_its_evidence(_SNAPSHOT, _ROOT)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [("strand", 0), ("assembly_name", "GRCh38"), ("display_name", "OTHER"), ("id", "LRG_1")],
+)
+def test_committed_reduction_guard_rejects_a_corrupted_evidence_copy(
+    tmp_path: Path, field: str, value: object
+) -> None:
+    """Negative control: the guard must not bless evidence it would refuse to reduce.
+
+    Copy the committed snapshot and evidence into ``tmp_path``, corrupt one retained
+    response, re-stamp the sha256 so the hash check passes, and require the guard
+    to fail on the response itself -- a strand of 0 or a foreign assembly must not
+    be silently coerced into a strand sign.
+    """
+    snapshot = json.loads(_SNAPSHOT.read_text(encoding="utf-8"))
+    evidence_rel = snapshot["_provenance"]["evidence_path"]
+    evidence_copy = tmp_path / evidence_rel
+    evidence_copy.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(_ROOT / evidence_rel, evidence_copy)
+    retained = json.loads(evidence_copy.read_text(encoding="utf-8"))
+    victim = sorted(retained["responses"])[5]
+    retained["responses"][victim][field] = value
+    evidence_copy.write_text(json.dumps(retained, indent=1) + "\n", encoding="utf-8")
+    snapshot["_provenance"]["evidence_sha256"] = hashlib.sha256(
+        evidence_copy.read_bytes()
+    ).hexdigest()
+    snapshot["_provenance"]["evidence_bytes"] = evidence_copy.stat().st_size
+    snapshot_copy = tmp_path / "snapshot.json"
+    snapshot_copy.write_text(json.dumps(snapshot, indent=2) + "\n", encoding="utf-8")
+
+    with pytest.raises(AssertionError, match=rf"(?s)invalid responses.*{victim}.*{field}"):
+        _assert_snapshot_is_the_reduction_of_its_evidence(snapshot_copy, tmp_path)
 
 
 def test_snapshot_records_the_exclusion_the_guard_applies() -> None:

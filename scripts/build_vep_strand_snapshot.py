@@ -15,6 +15,11 @@ block records the repo-relative evidence path and its sha256, and
 ``tests/backend/test_vep_seed_strand_provenance.py`` checks that the committed
 snapshot is exactly the reduction of the committed evidence.
 
+Every path must lie inside the repository (so the committed oracle never names
+a host-specific location), the three paths must be distinct, and every response
+is validated -- symbol, assembly, strand, gene id -- before it is retained or
+reduced. Any usage or validation error exits non-zero and writes nothing.
+
 Run it when ``vep_seed.csv`` gains a gene; the guard fails on an uncovered gene
 rather than skipping it, so a new gene cannot slip through unchecked::
 
@@ -34,6 +39,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import datetime as dt
 import hashlib
 import json
 import re
@@ -48,6 +54,7 @@ _SEED = _ROOT / "tests" / "fixtures" / "seed_csvs" / "vep_seed.csv"
 _OUT = _ROOT / "tests" / "fixtures" / "vep_gene_strand_snapshot.json"
 _URL = "https://grch37.rest.ensembl.org/lookup/symbol/homo_sapiens/{gene}?content-type=application/json"
 _ISO_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_ASSEMBLY = "GRCh37"
 
 # The seed carries one deliberately synthetic locus (rs12345 / ENST00000999999 on
 # ``GENE1``), used by several suites as a neutral stand-in. It has no Ensembl
@@ -81,21 +88,55 @@ def _lookup(gene: str) -> dict | None:
     return None
 
 
-def _repo_relative(path: Path) -> str:
-    """Name a path relative to the repository root when it lies inside it."""
-    resolved = path.resolve()
-    try:
-        return resolved.relative_to(_ROOT).as_posix()
-    except ValueError:
-        return str(resolved)
+def validate_response(gene: str, payload: object) -> dict:
+    """Return ``payload`` if it is a GRCh37 lookup/symbol record for ``gene``.
+
+    Raises ``ValueError`` naming the symbol and the offending field otherwise.
+    Nothing is coerced: a strand outside {1, -1}, a foreign assembly, a record for
+    another symbol or a non-ENSG id is refused rather than reduced (#2364 review).
+    """
+    if not isinstance(payload, dict):
+        raise ValueError(f"{gene}: response is {type(payload).__name__}, not a JSON object")
+    if payload.get("display_name") != gene:
+        raise ValueError(f"{gene}: display_name is {payload.get('display_name')!r}, not {gene!r}")
+    if payload.get("assembly_name") != _ASSEMBLY:
+        raise ValueError(
+            f"{gene}: assembly_name is {payload.get('assembly_name')!r}, not {_ASSEMBLY!r}"
+        )
+    strand = payload.get("strand")
+    if isinstance(strand, bool) or strand not in (1, -1):
+        raise ValueError(f"{gene}: strand is {strand!r}, not 1 or -1")
+    gene_id = payload.get("id")
+    if not isinstance(gene_id, str) or not gene_id.startswith("ENSG"):
+        raise ValueError(f"{gene}: id is {gene_id!r}, not an ENSG identifier")
+    return payload
+
+
+def reduce_response(payload: dict) -> dict[str, str]:
+    """The snapshot entry for one validated response: strand sign and gene id."""
+    return {"strand": "+" if payload["strand"] == 1 else "-", "ensembl_gene_id": payload["id"]}
 
 
 def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def _replay_fetcher(retained: Path) -> Fetcher:
-    responses = json.loads(retained.read_text(encoding="utf-8"))["responses"]
+def _in_repo(parser: argparse.ArgumentParser, flag: str, path: Path, root: Path) -> str:
+    """Repo-relative POSIX form of ``path``; a usage error when it lies outside."""
+    try:
+        return path.resolve().relative_to(root.resolve()).as_posix()
+    except ValueError:
+        parser.error(f"{flag} must lie inside the repository root {root}; got {path}")
+    raise AssertionError("unreachable")  # pragma: no cover - parser.error exits
+
+
+def _replay_fetcher(parser: argparse.ArgumentParser, retained: Path) -> Fetcher:
+    try:
+        responses = json.loads(retained.read_text(encoding="utf-8"))["responses"]
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        parser.error(f"--responses-from {retained} is not a retained-responses file: {exc}")
+    if not isinstance(responses, dict):
+        parser.error(f"--responses-from {retained}: `responses` is not an object")
     return lambda gene: responses.get(gene)
 
 
@@ -113,7 +154,8 @@ def _parser() -> argparse.ArgumentParser:
         metavar="PATH",
         help=(
             "where to write the verbatim per-symbol responses (required: a snapshot "
-            "that names no source-native payload cannot be audited)"
+            "that names no source-native payload cannot be audited); must lie inside "
+            "the repository"
         ),
     )
     parser.add_argument(
@@ -121,7 +163,7 @@ def _parser() -> argparse.ArgumentParser:
         type=Path,
         default=_OUT,
         metavar="PATH",
-        help=f"snapshot to write (default: {_repo_relative(_OUT)})",
+        help="snapshot to write (default: tests/fixtures/vep_gene_strand_snapshot.json)",
     )
     parser.add_argument(
         "--responses-from",
@@ -130,7 +172,7 @@ def _parser() -> argparse.ArgumentParser:
         metavar="PATH",
         help=(
             "replay retained verbatim responses (same shape as --evidence-out writes) "
-            "instead of fetching live; requires --accessed"
+            "instead of fetching live; must lie inside the repository; requires --accessed"
         ),
     )
     parser.add_argument(
@@ -138,35 +180,67 @@ def _parser() -> argparse.ArgumentParser:
         default=None,
         metavar="YYYY-MM-DD",
         help=(
-            "date the responses were fetched; required with --responses-from, "
-            "defaults to today for a live fetch"
+            "date the replayed responses were fetched; valid only with --responses-from "
+            "(a live fetch records today's UTC date itself)"
         ),
     )
     return parser
 
 
-def main(argv: list[str] | None = None, *, fetch: Fetcher = _lookup) -> int:
+def _validated_accessed(parser: argparse.ArgumentParser, value: str, today: dt.date) -> str:
+    if not _ISO_DATE.match(value):
+        parser.error("--accessed must be YYYY-MM-DD")
+    try:
+        accessed = dt.date.fromisoformat(value)
+    except ValueError:
+        parser.error(f"--accessed {value} is not a calendar date")
+    if accessed > today:
+        parser.error(f"--accessed {value} is in the future (today is {today.isoformat()} UTC)")
+    return accessed.isoformat()
+
+
+def main(argv: list[str] | None = None, *, fetch: Fetcher = _lookup, root: Path = _ROOT) -> int:
     parser = _parser()
     args = parser.parse_args(argv)
-    if args.accessed is not None and not _ISO_DATE.match(args.accessed):
-        parser.error("--accessed must be YYYY-MM-DD")
+    today = dt.datetime.now(dt.UTC).date()
+
+    # Validate everything before touching the filesystem: a usage error writes nothing.
+    if args.accessed is not None and args.responses_from is None:
+        parser.error("--accessed is only valid with --responses-from; a live fetch dates itself")
+    if args.responses_from is not None and args.accessed is None:
+        parser.error(
+            "--responses-from requires --accessed (the date those responses were fetched)"
+        )
+    evidence_rel = _in_repo(parser, "--evidence-out", args.evidence_out, root)
+    replay_rel = (
+        _in_repo(parser, "--responses-from", args.responses_from, root)
+        if args.responses_from is not None
+        else None
+    )
+    resolved = {"--out": args.out.resolve(), "--evidence-out": args.evidence_out.resolve()}
     if args.responses_from is not None:
-        if args.accessed is None:
-            parser.error(
-                "--responses-from requires --accessed (the date those responses were fetched)"
-            )
-        fetch = _replay_fetcher(args.responses_from)
+        resolved["--responses-from"] = args.responses_from.resolve()
+    if len(set(resolved.values())) != len(resolved):
+        parser.error(
+            "output and input paths must be distinct, got "
+            + ", ".join(f"{flag}={path}" for flag, path in resolved.items())
+        )
+    if args.responses_from is not None:
+        accessed = _validated_accessed(parser, args.accessed, today)
+        fetch = _replay_fetcher(parser, args.responses_from)
+    else:
+        accessed = today.isoformat()
     live = fetch is _lookup
-    accessed = args.accessed or time.strftime("%Y-%m-%d")
 
     strands: dict[str, dict[str, str]] = {}
     responses: dict[str, dict] = {}
     failures: list[str] = []
+    invalid: list[str] = []
     genes = _genes()
     print(
         f"Resolving {len(genes)} genes cited by vep_seed.csv "
         f"(excluding synthetic {sorted(SYNTHETIC_GENES)})"
-        + (f" by replaying {args.responses_from}" if args.responses_from else ""),
+        + (f" by replaying {replay_rel}" if replay_rel else ""),
         file=sys.stderr,
     )
     for gene in genes:
@@ -174,17 +248,21 @@ def main(argv: list[str] | None = None, *, fetch: Fetcher = _lookup) -> int:
         if payload is None:
             failures.append(gene)
             continue
-        responses[gene] = payload
-        strands[gene] = {
-            "strand": "+" if payload["strand"] == 1 else "-",
-            "ensembl_gene_id": payload.get("id"),
-        }
+        try:
+            responses[gene] = validate_response(gene, payload)
+        except ValueError as exc:
+            invalid.append(str(exc))
+            continue
+        strands[gene] = reduce_response(responses[gene])
         if live:
             time.sleep(0.12)
 
-    if failures:
-        # Fail closed: a partial snapshot would silently drop genes from the guard.
-        print(f"ERROR: could not resolve {len(failures)} genes: {failures}", file=sys.stderr)
+    if failures or invalid:
+        # Fail closed: a partial or coerced snapshot would silently misstate the guard.
+        if failures:
+            print(f"ERROR: could not resolve {len(failures)} genes: {failures}", file=sys.stderr)
+        for message in invalid:
+            print(f"ERROR: invalid response for {message}", file=sys.stderr)
         return 1
 
     # Retain the source-native payloads first, then name them from the snapshot.
@@ -198,8 +276,8 @@ def main(argv: list[str] | None = None, *, fetch: Fetcher = _lookup) -> int:
     )
     if args.responses_from is not None:
         note += (
-            f" Replayed from {_repo_relative(args.responses_from)} "
-            f"(sha256 {_sha256(args.responses_from)}) rather than fetched live."
+            f" Replayed from {replay_rel} (sha256 {_sha256(args.responses_from)}) "
+            "rather than fetched live."
         )
     args.evidence_out.parent.mkdir(parents=True, exist_ok=True)
     args.evidence_out.write_text(
@@ -211,13 +289,13 @@ def main(argv: list[str] | None = None, *, fetch: Fetcher = _lookup) -> int:
         "source": (
             "Ensembl GRCh37 REST (grch37.rest.ensembl.org/lookup/symbol/homo_sapiens/<gene>)"
         ),
-        "assembly": "GRCh37",
+        "assembly": _ASSEMBLY,
         "accessed": accessed,
         "gene_count": len(strands),
         "fetch_failures": 0,
         "synthetic_excluded": sorted(SYNTHETIC_GENES),
         "generator": "scripts/build_vep_strand_snapshot.py",
-        "evidence_path": _repo_relative(args.evidence_out),
+        "evidence_path": evidence_rel,
         "evidence_sha256": _sha256(args.evidence_out),
         "evidence_bytes": args.evidence_out.stat().st_size,
         "note": (
@@ -232,7 +310,7 @@ def main(argv: list[str] | None = None, *, fetch: Fetcher = _lookup) -> int:
     }
     if args.responses_from is not None:
         provenance["evidence_replayed_from"] = {
-            "path": _repo_relative(args.responses_from),
+            "path": replay_rel,
             "sha256": _sha256(args.responses_from),
         }
 
@@ -243,8 +321,7 @@ def main(argv: list[str] | None = None, *, fetch: Fetcher = _lookup) -> int:
         encoding="utf-8",
     )
     print(
-        f"Wrote {args.out} ({len(strands)} genes) and {args.evidence_out} "
-        f"({len(responses)} responses)",
+        f"Wrote {args.out} ({len(strands)} genes) and {evidence_rel} ({len(responses)} responses)",
         file=sys.stderr,
     )
     return 0
