@@ -440,13 +440,15 @@ def test_every_seed_association_is_in_the_checked_in_fixture_unchanged() -> None
     compares every seed association with the checked-in ``mini_reference.db``:
     the same key set, and the same inheritance for each (a blank in the seed is
     NULL or empty in the fixture). A seed edit without a fixture regeneration
-    fails here instead of reaching fixture-backed consumers unnoticed.
+    fails here instead of reaching fixture-backed consumers unnoticed. Both sides
+    are compared RAW: `_lookup_gene_phenotype` emits the stored text unchanged, so
+    a fixture value with surrounding whitespace is a real drift, not noise.
     """
     import sqlite3
 
     fixture = _ROOT / "tests" / "fixtures" / "mini_reference.db"
     assert fixture.exists(), "checked-in mini_reference.db is missing"
-    seed = {key: rows[0]["inheritance"].strip() for key, rows in _rows_by_association().items()}
+    seed = {key: rows[0]["inheritance"] for key, rows in _rows_by_association().items()}
     con = sqlite3.connect(fixture)
     try:
         fixture_rows = con.execute(
@@ -460,7 +462,7 @@ def test_every_seed_association_is_in_the_checked_in_fixture_unchanged() -> None
     duplicated = sorted({key for key in fixture_keys if fixture_keys.count(key) > 1})
     assert not duplicated, f"associations stored more than once in the fixture: {duplicated}"
     stored = {
-        (gene, disease): (inheritance or "").strip() for gene, disease, inheritance in fixture_rows
+        (gene, disease): inheritance or "" for gene, disease, inheritance in fixture_rows
     }
     assert len(seed) >= 30, "anti-vacuity: the seed is expected to carry dozens of associations"
     assert set(stored) == set(seed), (
@@ -586,7 +588,7 @@ def test_checked_in_fixture_emits_inheritance_through_the_production_lookup(tmp_
 
     resistance_row = _association("VKORC1", "MONDO:0007390")
     assert resistance_row is not None, "VKORC1 / MONDO:0007390 row missing from the seed"
-    expected_vkorc1 = resistance_row["inheritance"].strip()
+    expected_vkorc1 = resistance_row["inheritance"]
     engine = sa.create_engine(f"sqlite:///{working}")
     try:
         with engine.begin() as conn:
