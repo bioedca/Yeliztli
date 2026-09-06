@@ -251,8 +251,8 @@
       "payload": "raw/consensus-search-il10-inheritance-derived.json",
       "request": "Consensus MCP `search` (tool call, not an HTTP endpoint), query recorded in the payload; run 2026-08-31 and re-run 2026-09-06 to retain the 20 result identities",
       "source": "Consensus MCP (DERIVED record)",
-      "sha256": "79eacbbdf3853147d7b114292afacdfd3d4ae37af3a8a9bbadc7831ef73718ac",
-      "bytes": 8621,
+      "sha256": "0f2e46716780880d462f7fc866682e1105a0004376da8781f70c2348ec078abe",
+      "bytes": 8713,
       "accessed": "2026-08-31/2026-09-06"
     },
     {
@@ -305,8 +305,8 @@
       "payload": "raw/scite-metadata-cited-dois-derived.json",
       "request": "Scite MCP `search_literature(dois=[...])`: the five cited DOIs on 2026-09-05, then PMID:22549091's DOI and the two candidate DOIs on 2026-09-06 (tool calls, not an HTTP endpoint)",
       "source": "Scite MCP (DERIVED record, not a wire capture)",
-      "sha256": "0f3e119665badf8806f97b4dda25603dbe1300500e43b62af2ac92b740be7169",
-      "bytes": 5496,
+      "sha256": "fb41cc24d727e331115178dc6d4ec6b2833e4cb874eb38969724807be8b7ebbe",
+      "bytes": 5844,
       "accessed": "2026-09-05/2026-09-06"
     },
     {

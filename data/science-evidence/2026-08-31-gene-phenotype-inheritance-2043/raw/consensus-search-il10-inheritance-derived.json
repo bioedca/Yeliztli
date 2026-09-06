@@ -1,6 +1,6 @@
 {
   "tool": "Consensus MCP `search`",
-  "accessed": "2026-08-31",
+  "accessed": "2026-08-31 (first run; count and outcome kept) and 2026-09-06 (re-run; the 20 result identities below)",
   "query": "IL10 IL10RA IL10RB deficiency very early onset inflammatory bowel disease autosomal recessive inheritance",
   "result_count": 20,
   "record_kind": "DERIVED -- transcribed from the Consensus MCP tool response; not a wire capture (the MCP surface returns results into the conversation, not as a file).",

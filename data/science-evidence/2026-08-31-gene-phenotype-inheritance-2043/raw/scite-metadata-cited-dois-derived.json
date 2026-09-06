@@ -1,5 +1,5 @@
 {
-  "_artifact_note": "DERIVED record of a Scite MCP `search_literature(dois=[...])` call made 2026-09-05, after the service-reported quota reset of 2026-09-03. Transcribed from the tool response; the MCP surface returns results into the conversation, not as a file. Fields kept: DOI, title, year, journal, Smart Citation tally, and whether the response carried an `editorialNotices` array (it did not for any record, which Scite uses to mean no retraction, correction, concern or erratum is on file).",
+  "_artifact_note": "DERIVED record of a Scite MCP `search_literature(dois=[...])` calls made 2026-09-05 and 2026-09-06 (see _query.calls), after the service-reported quota reset of 2026-09-03. Transcribed from the tool response; the MCP surface returns results into the conversation, not as a file. Fields kept: DOI, title, year, journal, Smart Citation tally, and whether the response carried an `editorialNotices` array (it did not for any record, which Scite uses to mean no retraction, correction, concern or erratum is on file).",
   "_query": {
     "tool": "Scite MCP search_literature",
     "dois": [
@@ -28,7 +28,7 @@
       }
     ]
   },
-  "_accessed": "2026-09-05",
+  "_accessed": "2026-09-05 (five cited DOIs) and 2026-09-06 (PMID:22549091's DOI and the two candidate DOIs); each record carries `retrieved` where it differs from 2026-09-05",
   "records": [
     {
       "doi": "10.1056/nejmoa0907206",
@@ -43,7 +43,8 @@
         "mentioning": 1130,
         "citingPublications": 1442
       },
-      "editorialNotices": "field absent in response (none reported)"
+      "editorialNotices": "field absent in response (none reported)",
+      "retrieved": "2026-09-05"
     },
     {
       "doi": "10.1097/mib.0000000000001058",
@@ -58,7 +59,8 @@
         "mentioning": 53,
         "citingPublications": 68
       },
-      "editorialNotices": "field absent in response (none reported)"
+      "editorialNotices": "field absent in response (none reported)",
+      "retrieved": "2026-09-05"
     },
     {
       "doi": "10.1038/ajg.2011.112",
@@ -73,7 +75,8 @@
         "mentioning": 157,
         "citingPublications": 259
       },
-      "editorialNotices": "field absent in response (none reported)"
+      "editorialNotices": "field absent in response (none reported)",
+      "retrieved": "2026-09-05"
     },
     {
       "doi": "10.1038/nature02214",
@@ -88,7 +91,8 @@
         "mentioning": 969,
         "citingPublications": 1088
       },
-      "editorialNotices": "field absent in response (none reported)"
+      "editorialNotices": "field absent in response (none reported)",
+      "retrieved": "2026-09-05"
     },
     {
       "doi": "10.1097/fpc.0000000000000184",
@@ -103,7 +107,8 @@
         "mentioning": 2,
         "citingPublications": 14
       },
-      "editorialNotices": "field absent in response (none reported)"
+      "editorialNotices": "field absent in response (none reported)",
+      "retrieved": "2026-09-05"
     },
     {
       "doi": "10.1053/j.gastro.2012.04.045",

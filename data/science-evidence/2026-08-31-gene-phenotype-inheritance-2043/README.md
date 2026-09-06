@@ -16,8 +16,9 @@ inheritance mode.
 ## C1 — WITHHELD: the IL10 row keeps no inheritance value
 
 **Outcome: no value is set.** The row stays blank and is listed in
-`_UNVERIFIED_BLANK_INHERITANCE` as *Mendelian but unverified* — explicitly **not** as polygenic,
-which was #2043's mis-classification and the finding that started this work.
+`_UNVERIFIED_BLANK_INHERITANCE` as **unverified** — and explicitly **not** as polygenic, which was
+#2043's mis-classification and the finding that started this work. No inheritance mode of any kind
+is asserted for the row until the two-source gate is met.
 
 **Why withheld.** The row is gene-keyed. `_lookup_gene_phenotype` returns its value as the
 `inheritance_pattern` rendered beside an **IL10 variant**, so it reads as a per-gene claim, not as
