@@ -96,7 +96,7 @@ settles that the resistance row is the one at issue.
 | Source | Kind |
 | --- | --- |
 | `PMID:14765194` / `DOI:10.1038/nature02214` — Rost S et al., *Nature* 2004 **(accessed 2026-08-31)** | Primary — original mapping in warfarin-resistant kindreds and VKCFD2 families |
-| `PMID:26513304` / `DOI:10.1097/FPC.0000000000000184` — Lewis BC et al., *Pharmacogenet Genomics* 2016 **(accessed 2026-08-31)** | Primary — independent clinical case with molecular-mechanism characterisation |
+| `PMID:26513304` / `DOI:10.1097/FPC.0000000000000184` — Lewis BC et al., *Pharmacogenet Genomics* 2016 **(accessed 2026-08-31)** | Primary — clinical case with molecular-mechanism characterisation (cohort independence from Rost 2004 not established; see below) |
 
 **Independence of the two C2 sources**, assessed across the contract's three dimensions from the
 retained eSummaries and the live abstracts **(accessed 2026-09-06)**. *Cohort:* Rost 2004 reports the

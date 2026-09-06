@@ -372,13 +372,17 @@ def test_declared_inheritance_uses_the_controlled_vocabulary() -> None:
 
     Without this, `Autosomal recesive` satisfies a "row declares something" check,
     renders verbatim to the user, and is invisible to any consumer matching on the
-    canonical spelling.
+    canonical spelling. Whitespace around a value is rejected for the same reason:
+    `"Autosomal dominant "` is stored and emitted as written.
     """
     allowed = _canonical_inheritance_values()
+    # Compare the RAW cell: regenerate_fixtures stores TEXT unchanged and
+    # _lookup_gene_phenotype emits it verbatim, so surrounding whitespace would
+    # reach users and exact-match consumers as a noncanonical string.
     bad = [
         f"{r['gene_symbol']} / {r['disease_id']}: {r['inheritance']!r}"
         for r in _rows()
-        if r["inheritance"].strip() and r["inheritance"].strip() not in allowed
+        if r["inheritance"] and r["inheritance"] not in allowed
     ]
     assert not bad, (
         "inheritance values outside the controlled vocabulary "
@@ -605,12 +609,17 @@ def test_checked_in_fixture_emits_inheritance_through_the_production_lookup(tmp_
     finally:
         engine.dispose()
 
-    # A row WITH a verified value must reach the consumer intact -- and it must be
-    # THIS association: a second VKORC1 disease sorting ahead of it would still
-    # emit an inheritance_pattern, so pin the disease before reading the value.
+    # A row with a declared value must reach the consumer exactly as the seed
+    # declares it -- and it must be THIS association: a second VKORC1 disease
+    # sorting ahead of it would still emit an inheritance_pattern, so pin the
+    # disease before reading the value. The value itself is NOT asserted: the
+    # packet records C2 as withheld, so a future evidence-backed correction that
+    # blanks or changes the seed must pass here once the fixture is regenerated.
     assert "rs9923231" in emitted, "VKORC1 association did not resolve through the lookup"
     assert emitted["rs9923231"]["disease_id"] == "MONDO:0007390"
-    assert emitted["rs9923231"]["inheritance_pattern"] == expected_vkorc1 == "Autosomal dominant"
+    assert (emitted["rs9923231"]["inheritance_pattern"] or "") == expected_vkorc1, (
+        "the lookup must transport the seed's declared inheritance unchanged"
+    )
 
     # A withheld row must still be SERVED, and emit nothing rather than a
     # placeholder. Requiring the key first means a fixture regeneration that
