@@ -461,9 +461,7 @@ def test_every_seed_association_is_in_the_checked_in_fixture_unchanged() -> None
     fixture_keys = [(gene, disease) for gene, disease, _ in fixture_rows]
     duplicated = sorted({key for key in fixture_keys if fixture_keys.count(key) > 1})
     assert not duplicated, f"associations stored more than once in the fixture: {duplicated}"
-    stored = {
-        (gene, disease): inheritance or "" for gene, disease, inheritance in fixture_rows
-    }
+    stored = {(gene, disease): inheritance or "" for gene, disease, inheritance in fixture_rows}
     assert len(seed) >= 30, "anti-vacuity: the seed is expected to carry dozens of associations"
     assert set(stored) == set(seed), (
         f"fixture and seed disagree on which associations exist -- only in seed: "
