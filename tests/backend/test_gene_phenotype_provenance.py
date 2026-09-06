@@ -300,7 +300,9 @@ _UNVERIFIED_BLANK_INHERITANCE: frozenset[tuple[str, str]] = frozenset(
         ("TPH2", "MONDO:0005371"),
         ("ADRA2A", "MONDO:0007743"),
         ("MCM6", "MONDO:0006065"),
-        # Mendelian, NOT polygenic -- see test_il10_inheritance_is_withheld_for_now.
+        # Inheritance unverified pending the two-independent-source gate; the
+        # exemption records that and nothing else -- see
+        # test_il10_inheritance_is_withheld_for_now.
         ("IL10", "MONDO:0016542"),
     }
 )
@@ -449,12 +451,14 @@ def test_controlled_vocabulary_spans_both_production_loaders() -> None:
 
 
 def test_il10_inheritance_is_withheld_for_now() -> None:
-    """IL10 is Mendelian, and its inheritance is withheld for want of evidence.
+    """IL10's inheritance is withheld for want of evidence, and not reclassified.
 
     #2043 surveyed the blank rows as "all complex/polygenic susceptibility traits"
-    and enumerated 14 of the 15, omitting IL10. That premise is wrong: the row
-    names a monogenic disease (MONDO:0016542), so listing it as *polygenic* would
-    be a false classification.
+    and enumerated 14 of the 15, omitting IL10. The row's MONDO term carries an
+    inheritance mode in its synonyms, so relabelling the row *polygenic* on the
+    strength of a blank would assert something the evidence does not support --
+    and so would any other mode: the exemption records only that the field is
+    unverified.
 
     It is listed as UNVERIFIED instead. MONDO's own synonyms for the term include
     "autosomal recessive early-onset inflammatory bowel disease", but this row is

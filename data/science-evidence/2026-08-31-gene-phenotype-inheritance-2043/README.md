@@ -22,8 +22,8 @@ which was #2043's mis-classification and the finding that started this work.
 **Why withheld.** The row is gene-keyed. `_lookup_gene_phenotype` returns its value as the
 `inheritance_pattern` rendered beside an **IL10 variant**, so it reads as a per-gene claim, not as
 ontology metadata about a disease entity. MONDO's synonyms for `MONDO:0016542` do include
-*"autosomal recessive early-onset inflammatory bowel disease"* **(accessed 2026-08-31, mondo
-2026-08-04)** — but that is **one** source, and the contract requires two agreeing sources that do
+*"autosomal recessive early-onset inflammatory bowel disease"* **(accessed 2026-08-31)**, ontology
+version mondo 2026-08-04 from the retained OLS4 record — but that is **one** source, and the contract requires two agreeing sources that do
 not share an upstream assertion before a user-facing claim of this kind is encoded.
 
 **What the search found.** Three independent cohorts, all characterising only the `IL10RA`/`IL10RB`
@@ -33,7 +33,7 @@ not share an upstream assertion before a user-facing claim of this kind is encod
 | --- | --- | --- |
 | `PMID:19890111` / `DOI:10.1056/NEJMoa0907206` — Glocker EO et al., *N Engl J Med* 2009 **(accessed 2026-08-31)** | European consanguineous families + 6 further patients | `IL10RA`, `IL10RB` |
 | `PMID:28267044` / `DOI:10.1097/MIB.0000000000001058` — Huang Z et al., *Inflamm Bowel Dis* 2017 **(accessed 2026-08-31)** | 42-patient Chinese multicentre survey | `IL10RA`, `IL10RB` |
-| `PMID:21519361` / `DOI:10.1038/ajg.2011.112` — Begue B et al., *Am J Gastroenterol* 2011 **(accessed 2026-08-31; payloads retained 2026-09-05)** | French cohort, 75 children | `IL10RA` p.R262C, `IL10RB` p.E141X |
+| `PMID:21519361` / `DOI:10.1038/ajg.2011.112` — Begue B et al., *Am J Gastroenterol* 2011 **(accessed 2026-08-31)**; payloads retained 2026-09-05 | French cohort, 75 children | `IL10RA` p.R262C, `IL10RB` p.E141X |
 
 Searches for an IL10 **ligand** cohort, each retained: Consensus (run 2026-08-31, re-run 2026-09-06
 with all 20 result identities kept — an earlier revision retained only the count, which review
@@ -51,9 +51,11 @@ patients, and they were assessed as a possible independent pair:
 `PMID:30212871` (Zheng C et al., 2019) compares IL10-mutant carriers across its own 61 patients plus 78
 reviewed cases without attributing any to its own cohort, and shares 5 authors with the cited
 `PMID:28267044`; it is not assessable as a ligand cohort from the retained record and is not counted.
-Author lists were read from the retained eSummaries; none of these three is cited in support of a
-claim, and none is notice-checked, because no claim rests on them (Kotlarz 2012 was notice-checked
-in the previous revision and stays so). That is the whole supported statement about the literature.
+Author lists were read from the retained eSummaries. None of these three is cited in support of a
+claim, but the cohort composition and author-overlap reading rest on them, so all three carry the
+same typed notice checks as the cited sources (PubMed EFetch `CommentsCorrections` and Scite
+metadata, 2026-09-06): **no notice of any kind on any of them**. That is the whole supported
+statement about the literature.
 
 > **Correction.** The revision before the previous one stated that none of the returned records
 > was an IL10 ligand cohort and called the ESearch hit a review. Its retained publication types are
@@ -143,10 +145,10 @@ as **not exposed** rather than guessed.
 ## Retained evidence
 
 `raw/` holds **thirteen unedited verbatim API responses** (four NCBI eSummary, two NCBI ESearch, five
-NCBI eLink, two EBI OLS4), **two sanitized responses** (the NCBI EFetch XML for the five cited PMIDs
-and for `PMID:22549091`, abstracts removed and nothing else touched, labelled in their filenames) and
-**five derived records**, each labelled as derived in the file itself: the Consensus call, the two
-Scite calls, and the two reductions of the EFetch XML files to their `CommentsCorrections` and
-publication-type fields. `source-manifest.json` records each exact
+NCBI eLink, two EBI OLS4), **three sanitized responses** (the NCBI EFetch XML for the five cited
+PMIDs, for `PMID:22549091` and for the two candidate PMIDs, abstracts removed and nothing else
+touched, labelled in their filenames) and **six derived records**, each labelled as derived in the
+file itself: the Consensus call, the two Scite calls, and the three reductions of the EFetch XML
+files to their `CommentsCorrections` and publication-type fields. `source-manifest.json` records each exact
 request, source, SHA-256, byte length, access date, per-source licence and the retraction-check
 method. No payload required further sanitization: all are public bibliographic or ontology records.

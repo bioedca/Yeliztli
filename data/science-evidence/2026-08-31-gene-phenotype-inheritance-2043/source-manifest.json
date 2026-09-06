@@ -13,21 +13,24 @@
       "what_would_close_it": "A second IL10 (ligand) loss-of-function cohort that shares no authors with PMID:22549091, or patient-level evidence that the IL10-mutant patients in PMID:24216686 are not those in PMID:22549091 -- or a maintainer decision that the MONDO entity-level assertion is sufficient for a gene-keyed row. Filed as a scientific-validity issue.",
       "history": "An earlier revision of this packet set the value on receptor-only evidence and claimed 'loss-of-function variants in IL10, IL10RA or IL10RB'. A later revision restated it at the entity level. Review established that the entity framing does not change what the software renders, so the value is now withheld outright.",
       "candidates_assessed": {
-        "note": "Records surfaced by the retained searches that report IL10 (ligand) mutation carriers, assessed for whether they could form the two-independent-source pair the contract requires. None is cited in support of a claim; author lists were read from the retained eSummaries. PMID:22549091 is notice-checked (PubMed EFetch typed relations and Scite, see its citations entry); PMID:24216686 and PMID:30212871 are not, because no claim rests on them.",
+        "note": "Records surfaced by the retained searches that report IL10 (ligand) mutation carriers, assessed for whether they could form the two-independent-source pair the contract requires. None is cited in support of a claim; author lists were read from the retained eSummaries. All three are notice-checked the same way as the cited sources (PubMed EFetch typed relations and Scite metadata), because the cohort composition and author-overlap reading rest on them.",
         "PMID:22549091": {
           "paper": "Kotlarz D et al., Gastroenterology 2012 (DOI:10.1053/j.gastro.2012.04.045) (accessed 2026-09-06)",
           "ligand_evidence": "3 of 66 early-onset IBD patients carried IL-10 mutations, homozygous loss of function (abstract of the live record)",
-          "independence": "35 authors; shares 14 with the cited receptor cohort PMID:19890111 (same group)."
+          "independence": "35 authors; shares 14 with the cited receptor cohort PMID:19890111 (same group).",
+          "retraction_check": "See the PMID:22549091 citations entry: EFetch typed relations (two CommentIn links, no notice RefType) and Scite (no editorial notice), both 2026-09-06."
         },
         "PMID:24216686": {
           "paper": "Pigneur B et al., Inflamm Bowel Dis 2013 (DOI:10.1097/01.MIB.0000435439.22484.d3) (accessed 2026-09-06)",
           "ligand_evidence": "GENIUS network survey of 10 patients with confirmed mutations in IL10, IL10RA or IL10RB; the abstract reports IL10-mutant patients but does not count them (abstract of the live record)",
-          "independence": "17 authors, a different research group from Kotlarz 2012, but the two papers share 2 contributing-clinician authors (Buderus S, Guariso G) and it shares 7 with the cited receptor cohort PMID:21519361 (Begue B, Canioni D, Cerf-Bensussan N, Goulet O, Pigneur B, Rieux-Laucat F, Ruemmele FM). A multi-centre survey with contributing clinicians in common with the other ligand cohort cannot be shown, from the retained abstract-level records, not to contain the same IL10 patients; the contract requires sources that do not share a cohort, so this pair is not accepted as two cohorts."
+          "independence": "17 authors, a different research group from Kotlarz 2012, but the two papers share 2 contributing-clinician authors (Buderus S, Guariso G) and it shares 7 with the cited receptor cohort PMID:21519361 (Begue B, Canioni D, Cerf-Bensussan N, Goulet O, Pigneur B, Rieux-Laucat F, Ruemmele FM). A multi-centre survey with contributing clinicians in common with the other ligand cohort cannot be shown, from the retained abstract-level records, not to contain the same IL10 patients; the contract requires sources that do not share a cohort, so this pair is not accepted as two cohorts.",
+          "retraction_check": "PubMed EFetch typed CommentsCorrections relations (accessed 2026-09-06, raw/ncbi-pubmed-efetch-consensus-candidates-sanitized.xml): no CommentsCorrections link of any RefType. Scite metadata (2026-09-06): no editorial notice on file."
         },
         "PMID:30212871": {
           "paper": "Zheng C et al., Inflamm Bowel Dis 2019 (DOI:10.1093/ibd/izy289) (accessed 2026-09-06)",
           "ligand_evidence": "Compares IL10RB, IL10RA and IL10 mutation carriers across 61 own patients plus 78 reviewed cases; the abstract does not attribute any IL10-mutant patient to its own cohort",
-          "independence": "shares 5 authors with the cited PMID:28267044 (same group); not assessable as a ligand cohort from the retained record and not counted."
+          "independence": "shares 5 authors with the cited PMID:28267044 (same group); not assessable as a ligand cohort from the retained record and not counted.",
+          "retraction_check": "PubMed EFetch typed CommentsCorrections relations (accessed 2026-09-06, raw/ncbi-pubmed-efetch-consensus-candidates-sanitized.xml): no CommentsCorrections link of any RefType. Scite metadata (2026-09-06): no editorial notice on file."
         }
       }
     },
@@ -51,7 +54,9 @@
       "source": "EBI OLS4, MONDO 2026-08-04",
       "accessed": "2026-08-31",
       "assertion": "synonyms include 'autosomal recessive early-onset inflammatory bowel disease'",
-      "retraction_check": "Not applicable to an ontology term; obsolescence checked instead — term is not obsolete."
+      "retraction_check": "Not applicable to an ontology term; obsolescence checked instead — term is not obsolete.",
+      "citation": "MONDO:0016542 (accessed 2026-08-31)",
+      "ontology_version": "mondo 2026-08-04 (from the retained OLS4 ontology record)"
     },
     {
       "id": "PMID:19890111",
@@ -205,7 +210,7 @@
       "license_note": "Used as a discovery and notice-check tool only. No Scite text is redistributed: the retained records hold DOIs, titles, years, tallies and the presence or absence of an editorialNotices array."
     }
   ],
-  "payload_integrity": "Thirteen payloads are unedited verbatim API responses (four NCBI eSummary, two NCBI ESearch, five NCBI eLink, two EBI OLS4). Two payloads, the NCBI EFetch XML for the five cited PMIDs and the NCBI EFetch XML for PMID:22549091, are SANITIZED: <Abstract> elements were removed under the bibliographic-metadata-only retention rule and nothing else was touched; each is labelled as such in its filename and in the derived record beside it. Five payloads are DERIVED records, labelled as such in the file itself: the Consensus call and the two Scite calls, none of which has an HTTP response to capture, and the two reductions of the EFetch XML files to their CommentsCorrections and publication-type fields. No payload required further sanitization: all are public bibliographic or ontology records with no genotype, sample, personal or credentialed data.",
+  "payload_integrity": "Thirteen payloads are unedited verbatim API responses (four NCBI eSummary, two NCBI ESearch, five NCBI eLink, two EBI OLS4). Three payloads, the NCBI EFetch XML files for the five cited PMIDs, for PMID:22549091 and for the two candidate PMIDs, are SANITIZED: <Abstract> elements were removed under the bibliographic-metadata-only retention rule and nothing else was touched; each is labelled as such in its filename and in the derived record beside it. Six payloads are DERIVED records, labelled as such in the file itself: the Consensus call and the two Scite calls, none of which has an HTTP response to capture, and the three reductions of the EFetch XML files to their CommentsCorrections and publication-type fields. No payload required further sanitization: all are public bibliographic or ontology records with no genotype, sample, personal or credentialed data.",
   "requests": [
     {
       "payload": "raw/ncbi-pubmed-esummary-four-sources.json",
@@ -298,10 +303,10 @@
     },
     {
       "payload": "raw/scite-metadata-cited-dois-derived.json",
-      "request": "Scite MCP `search_literature(dois=[the five cited DOIs])` on 2026-09-05 and `search_literature(dois=[10.1053/j.gastro.2012.04.045])` on 2026-09-06 (tool calls, not an HTTP endpoint)",
+      "request": "Scite MCP `search_literature(dois=[...])`: the five cited DOIs on 2026-09-05, then PMID:22549091's DOI and the two candidate DOIs on 2026-09-06 (tool calls, not an HTTP endpoint)",
       "source": "Scite MCP (DERIVED record, not a wire capture)",
-      "sha256": "feb39f54d0bf7b3cc30ed429379db5ba44d1a7e31ce13db8e6dadea15ca9767f",
-      "bytes": 4085,
+      "sha256": "0f3e119665badf8806f97b4dda25603dbe1300500e43b62af2ac92b740be7169",
+      "bytes": 5496,
       "accessed": "2026-09-05/2026-09-06"
     },
     {
@@ -358,6 +363,22 @@
       "source": "NCBI PubMed eSummary (author lists for the independence assessment; verbatim)",
       "sha256": "2c33aa8b57300443316bd3338fccb9ffb2be35680d0fede5e45ee40279b57f7a",
       "bytes": 5017,
+      "accessed": "2026-09-06"
+    },
+    {
+      "payload": "raw/ncbi-pubmed-efetch-consensus-candidates-sanitized.xml",
+      "request": "GET .../efetch.fcgi?db=pubmed&id=24216686,30212871&retmode=xml",
+      "source": "NCBI PubMed EFetch -- SANITIZED: <Abstract> elements removed, nothing else touched",
+      "sha256": "2a39a8873dfbcdeb64a8cc869fff21970dcf686d6a5d10b40b0c6b70c140f413",
+      "bytes": 18565,
+      "accessed": "2026-09-06"
+    },
+    {
+      "payload": "raw/ncbi-pubmed-comments-corrections-consensus-candidates-derived.json",
+      "request": "Reduction of the sanitized EFetch XML above (no HTTP request)",
+      "source": "DERIVED: every CommentsCorrections RefType and the publication types for PMID:24216686 and PMID:30212871",
+      "sha256": "1c8831e2a2cd17fba3b0e8f004430602cd0378357503d459125e177a24abab34",
+      "bytes": 1094,
       "accessed": "2026-09-06"
     }
   ]

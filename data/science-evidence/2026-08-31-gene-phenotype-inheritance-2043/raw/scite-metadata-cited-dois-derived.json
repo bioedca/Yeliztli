@@ -8,7 +8,9 @@
       "10.1038/ajg.2011.112",
       "10.1038/nature02214",
       "10.1097/FPC.0000000000000184",
-      "10.1053/j.gastro.2012.04.045"
+      "10.1053/j.gastro.2012.04.045",
+      "10.1097/01.MIB.0000435439.22484.d3",
+      "10.1093/ibd/izy289"
     ],
     "limit": 5,
     "calls": [
@@ -19,6 +21,10 @@
       {
         "date": "2026-09-06",
         "dois": 1
+      },
+      {
+        "date": "2026-09-06",
+        "dois": 2
       }
     ]
   },
@@ -115,6 +121,40 @@
       "editorialNotices": "field absent in response (none reported)",
       "retrieved": "2026-09-06",
       "role": "the one IL10 ligand cohort surfaced by the retained PubMed ESearch; NOT a supporting source for any claim"
+    },
+    {
+      "doi": "10.1097/01.mib.0000435439.22484.d3",
+      "pmid": "24216686",
+      "title": "Phenotypic Characterization of Very Early-onset IBD Due to Mutations in the IL10, IL10 Receptor Alpha or Beta Gene",
+      "year": 2013,
+      "journal": "inflammatory bowel diseases",
+      "tally": {
+        "total": 56,
+        "supporting": 1,
+        "contrasting": 1,
+        "mentioning": 53,
+        "citingPublications": 95
+      },
+      "editorialNotices": "field absent in response (none reported)",
+      "retrieved": "2026-09-06",
+      "role": "candidate ligand cohort assessed under claims.C1.candidates_assessed"
+    },
+    {
+      "doi": "10.1093/ibd/izy289",
+      "pmid": "30212871",
+      "title": "Phenotypic Characterization of Very Early-Onset Inflammatory Bowel Disease with Interleukin-10 Signaling Deficiency: Based on a Large Cohort Study",
+      "year": 2018,
+      "journal": "inflammatory bowel diseases",
+      "tally": {
+        "total": 68,
+        "supporting": 2,
+        "contrasting": 0,
+        "mentioning": 64,
+        "citingPublications": 51
+      },
+      "editorialNotices": "field absent in response (none reported)",
+      "retrieved": "2026-09-06",
+      "role": "candidate assessed under claims.C1.candidates_assessed"
     }
   ]
 }
