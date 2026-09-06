@@ -1,7 +1,7 @@
 {
   "issue": 2043,
   "accessed": "2026-08-31",
-  "concern": "The inheritance column of gene_phenotype_seed.csv: one blank withheld (not filled), one value confirmed; no seed value changes.",
+  "concern": "The inheritance column of gene_phenotype_seed.csv: one blank withheld (not filled), one pre-existing value left unchanged with the two-independent-source gate recorded as not established; no seed value changes.",
   "why_this_is_load_bearing": "`inheritance` reaches the user: `_lookup_gene_phenotype` ships it to the frontend as `inheritance_pattern`, beside the variant of the row's GENE. That is what makes an unevidenced value a per-gene claim rather than metadata, and it is why C1 is withheld. NOTE: an earlier revision also claimed a blank demoted the row in primary selection. That was wrong — selection keys on `annot.hpo_terms or annot.inheritance`, and the IL10 row already carries two HPO terms.",
   "claims": {
     "C1": {
@@ -36,7 +36,7 @@
     },
     "C2": {
       "statement": "VKORC1 coumarin (warfarin) resistance is autosomal dominant: heterozygous missense variants suffice. Nothing is asserted about VKORC1's other phenotypes (Rost 2004 also maps VKCFD2 families); an earlier revision stated VKCFD2's recessive mode and mechanism here on a single source and that half is withdrawn.",
-      "drives": "The VKORC1 row's existing 'Autosomal dominant' is UNCHANGED by this pull request, and the test that pins it guards against unintended drift of a pre-existing value; it is not a scientific confirmation. Two retained primary sources agree with the value, but cohort independence between them is not provable from the retained abstract-level records (see independence), so the two-independent-source gate is recorded as not established and the word 'confirmed' is withdrawn. #2043 asked for this row to be checked because it was the last survivor of #1959's AD-vs-AR observation.",
+      "drives": "The VKORC1 row's existing 'Autosomal dominant' is UNCHANGED by this pull request and is NOT locked by any test: two retained primary sources agree with the value, but cohort independence between them is not provable from the retained abstract-level records (see independence), so the two-independent-source gate is recorded as not established, the word 'confirmed' is withdrawn, and no assertion blocks a future correction that withholds the value. The row therefore stays in the set of declared-but-unverified inheritance values tracked by #2360. #2043 asked for this row to be checked because it was the last survivor of #1959's AD-vs-AR observation.",
       "sources": [
         "PMID:14765194",
         "PMID:26513304"

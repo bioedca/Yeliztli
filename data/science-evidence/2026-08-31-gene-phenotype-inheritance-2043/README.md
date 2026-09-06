@@ -111,8 +111,9 @@ relies on Rost only for the identification of *VKORC1* as the gene, which is not
 here. Disjoint authors and the twelve-year gap are supporting facts, not the test. Because cohort
 independence is not provable from the retained records, the two-independent-source gate is recorded
 as **not established** and the word "confirmed" is withdrawn: the value stays exactly as it is
-because it is pre-existing and unchanged by this pull request, and the test that pins it guards
-against unintended drift of that pre-existing value rather than certifying it.
+because it is pre-existing and unchanged by this pull request, and **no test locks it** — an
+unverified value must stay correctable, so a future change that withholds it is not blocked. The row
+remains in the declared-but-unverified set tracked by #2360.
 
 One gene, more than one phenotype in the literature, so only the row's `disease_name` settles which
 association this row is. It names resistance; `Autosomal dominant` is the pre-existing value and

@@ -23,6 +23,7 @@ Coverage model — deliberately loud, unlike the panel citation guard that silen
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 import re
 from pathlib import Path
@@ -32,6 +33,7 @@ import pytest
 _ROOT = Path(__file__).resolve().parents[2]
 _SEED = _ROOT / "tests" / "fixtures" / "seed_csvs" / "gene_phenotype_seed.csv"
 _SNAPSHOT_PATH = _ROOT / "tests" / "fixtures" / "mondo_label_snapshot.json"
+_PACKET = _ROOT / "data" / "science-evidence" / "2026-08-31-gene-phenotype-inheritance-2043"
 
 # Longest run of consecutive MONDO ids permitted across distinct genes. The #1959
 # fabricated block was 16 consecutive ids for 16 unrelated genes; real ontology lookups
@@ -552,24 +554,6 @@ def test_il10_inheritance_is_withheld_for_now() -> None:
     )
 
 
-def test_vkorc1_value_is_unchanged() -> None:
-    """The VKORC1 resistance row keeps its pre-existing value; this is a drift guard.
-
-    Two retained primary sources agree that heterozygous missense variants
-    suffice for coumarin/warfarin resistance (PMID:14765194; PMID:26513304), but
-    their cohort independence is not provable from the retained records, so the
-    packet records the two-source gate as NOT established and does not call the
-    value confirmed. The value is pre-existing and unchanged by this change; this
-    test pins it against unintended drift (#2043 asked for the row to be checked
-    because it was the last survivor of #1959's AD-vs-AR observation). Nothing is
-    asserted about VKORC1's other phenotypes.
-    """
-    row = _association("VKORC1", "MONDO:0007390")
-    assert row is not None, "VKORC1 / MONDO:0007390 row missing from gene_phenotype_seed.csv"
-    assert row["disease_name"] == "Coumarin (warfarin) resistance"
-    assert row["inheritance"] == "Autosomal dominant"
-
-
 def test_checked_in_fixture_emits_inheritance_through_the_production_lookup(tmp_path) -> None:
     """The seed is not the consumer: assert the emitted value, not the CSV.
 
@@ -639,3 +623,31 @@ def test_checked_in_fixture_emits_inheritance_through_the_production_lookup(tmp_
     assert not emitted["rsIL10"]["inheritance_pattern"], (
         "IL10 inheritance is withheld; the lookup must not emit a value"
     )
+
+
+def test_evidence_packet_payload_digests_match_the_manifest() -> None:
+    """Every retained payload's SHA-256 and byte length equal what the manifest records.
+
+    The packet's ``requests`` rows are the durable integrity record of the
+    retained responses. Without this check a payload could be edited or
+    regenerated while the manifest kept its old digest and the suite stayed
+    green, so the metadata the packet relies on would silently become false.
+    Parity between ``raw/`` and the manifest is required in both directions: an
+    unlisted file and a listed-but-missing file both fail.
+    """
+    manifest = json.loads((_PACKET / "source-manifest.json").read_text(encoding="utf-8"))
+    rows = manifest["requests"]
+    assert len(rows) >= 20, "manifest lists too few payload rows to be the real packet"
+    listed: list[str] = []
+    for row in rows:
+        payload = row["payload"]
+        assert payload.startswith("raw/"), payload
+        path = _PACKET / payload
+        assert path.is_file(), f"{payload} is listed in the manifest but missing from raw/"
+        data = path.read_bytes()
+        assert hashlib.sha256(data).hexdigest() == row["sha256"], f"sha256 drift: {payload}"
+        assert len(data) == row["bytes"], f"byte-length drift: {payload}"
+        listed.append(payload)
+    assert len(listed) == len(set(listed)), "a payload is listed twice"
+    on_disk = sorted(f"raw/{path.name}" for path in (_PACKET / "raw").iterdir())
+    assert on_disk == sorted(listed), "raw/ and the manifest are not in 1:1 correspondence"
