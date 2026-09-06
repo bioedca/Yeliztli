@@ -384,21 +384,82 @@ def test_declared_inheritance_uses_the_controlled_vocabulary() -> None:
     )
 
 
+def _rows_by_association() -> dict[tuple[str, str], list[dict[str, str]]]:
+    """Every row per ``(gene_symbol, disease_id)`` -- a list, never collapsed.
+
+    Collapsing into one row per key would let a duplicate association hide: a
+    blank copy behind a declared one passes the row sweep (excused), the
+    vocabulary check (declared) and the stale-exemption check (blank) at once,
+    while the loader inserts both and their lookup order is ambiguous.
+    """
+    grouped: dict[tuple[str, str], list[dict[str, str]]] = {}
+    for r in _rows():
+        grouped.setdefault((r["gene_symbol"], r["disease_id"]), []).append(r)
+    return grouped
+
+
+def test_seed_has_no_duplicate_associations() -> None:
+    """One row per (gene_symbol, disease_id): duplicates make the contract ambiguous."""
+    duplicates = {key: len(rows) for key, rows in _rows_by_association().items() if len(rows) > 1}
+    assert not duplicates, f"associations listed more than once in the seed: {duplicates}"
+
+
 def test_unverified_entries_still_apply() -> None:
-    """Self-cleaning, like _TOPIC_ALLOWLIST: an exemption must still be needed."""
-    by_key = {(r["gene_symbol"], r["disease_id"]): r for r in _rows()}
+    """Self-cleaning, like _TOPIC_ALLOWLIST: an exemption must still be needed.
+
+    Evaluates every row carrying the key rather than the last one seen, so a
+    declared copy cannot be shadowed by a blank duplicate.
+    """
+    grouped = _rows_by_association()
     stale = []
     for key in sorted(_UNVERIFIED_BLANK_INHERITANCE):
-        row = by_key.get(key)
-        if row is None:
+        rows = grouped.get(key, [])
+        if not rows:
             stale.append(f"{key}: no row carries this (gene, disease_id) anymore")
-        elif row["inheritance"].strip():
-            stale.append(
-                f"{key}: listed as unverified but the row now declares "
-                f"{row['inheritance']!r} -- drop the entry"
-            )
+        for row in rows:
+            if row["inheritance"].strip():
+                stale.append(
+                    f"{key}: listed as unverified but the row now declares "
+                    f"{row['inheritance']!r} -- drop the entry"
+                )
     assert not stale, (
         "stale _UNVERIFIED_BLANK_INHERITANCE entries (remove by hand):\n" + "\n".join(stale)
+    )
+
+
+def test_every_seed_association_is_in_the_checked_in_fixture_unchanged() -> None:
+    """The fixture is what ``_lookup_gene_phenotype`` serves; the CSV is not.
+
+    The production-path regression below exercises two associations. This one
+    compares every seed association with the checked-in ``mini_reference.db``:
+    the same key set, and the same inheritance for each (a blank in the seed is
+    NULL or empty in the fixture). A seed edit without a fixture regeneration
+    fails here instead of reaching fixture-backed consumers unnoticed.
+    """
+    import sqlite3
+
+    fixture = _ROOT / "tests" / "fixtures" / "mini_reference.db"
+    assert fixture.exists(), "checked-in mini_reference.db is missing"
+    seed = {key: rows[0]["inheritance"].strip() for key, rows in _rows_by_association().items()}
+    con = sqlite3.connect(fixture)
+    try:
+        stored = {
+            (gene, disease): (inheritance or "").strip()
+            for gene, disease, inheritance in con.execute(
+                "SELECT gene_symbol, disease_id, inheritance FROM gene_phenotype"
+            )
+        }
+    finally:
+        con.close()
+    assert len(seed) >= 30, "anti-vacuity: the seed is expected to carry dozens of associations"
+    assert set(stored) == set(seed), (
+        f"fixture and seed disagree on which associations exist -- only in seed: "
+        f"{sorted(set(seed) - set(stored))}; only in fixture: {sorted(set(stored) - set(seed))}"
+    )
+    drift = {key: (seed[key], stored[key]) for key in seed if seed[key] != stored[key]}
+    assert not drift, (
+        "inheritance differs between the seed and the checked-in fixture "
+        f"(seed, fixture): {drift} -- regenerate mini_reference.db"
     )
 
 
@@ -465,11 +526,12 @@ def test_il10_inheritance_is_withheld_for_now() -> None:
     gene-keyed: `_lookup_gene_phenotype` returns its value as the
     `inheritance_pattern` shown beside an *IL10* variant, which makes it a
     per-gene claim. Three independent cohorts -- PMID:19890111, PMID:28267044 and
-    PMID:21519361 -- characterise only the IL10RA/IL10RB receptor forms; the one
-    IL10 ligand cohort the retained searches surfaced (PMID:22549091) shares its
-    author group with PMID:19890111, so no independent pair of agreeing ligand
-    sources exists. Per the evidence contract, the value is withheld rather than
-    guessed.
+    PMID:21519361 -- characterise only the IL10RA/IL10RB receptor forms. The
+    retained searches surfaced two cohorts reporting IL10 ligand mutation carriers,
+    PMID:22549091 and PMID:24216686, but they share contributing-clinician authors
+    and the retained records cannot show they do not share patients, so the pair
+    is not accepted as two independent sources. Per the evidence contract, the
+    value is withheld rather than guessed (see the packet's candidates_assessed).
 
     This test pins both halves: IL10 must stay listed as unverified, and it must
     never be reclassified as polygenic on the strength of its blank.
