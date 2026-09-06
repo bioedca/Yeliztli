@@ -854,11 +854,18 @@ class TestRunAnnotation:
         ``+`` strand on the way to ``annotated_variants``. So: one carried (het)
         call at the locus, annotated from the ON-DISK bundle, and the fields
         asserted on the row actually written.
+
+        The call sits at the GRCh37 coordinate (10:96522463, the position the
+        retained Ensembl GRCh37 payload and ``sample_23andme_v5.txt`` both use).
+        The bundle must agree: ``_rows_match_coordinate`` only marks the VEP
+        allele unambiguous -- and so only derives ref/alt and zygosity -- when
+        the bundle row is at the sample's position, so a stale coordinate in the
+        seed would leave ``zygosity`` NULL here (#2364 review).
         """
         with sample_engine.begin() as conn:
             conn.execute(
                 raw_variants.insert(),
-                [{"rsid": "rs28399504", "chrom": "10", "pos": 94781859, "genotype": "AG"}],
+                [{"rsid": "rs28399504", "chrom": "10", "pos": 96522463, "genotype": "AG"}],
             )
         # ``mock_registry`` serves the CSV-backed in-memory bundle; point this one
         # registry at the on-disk fixture instead (MagicMock classes are per-instance).

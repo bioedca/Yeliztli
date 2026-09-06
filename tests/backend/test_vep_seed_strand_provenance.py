@@ -5,8 +5,8 @@
 shipped a ``strand`` column that was wrong for **19 of its 57 annotated genes**,
 and ``rs28399504`` (CYP2C19``*4``) annotated ``missense_variant`` / ``p.Met1Val``
 when Ensembl VEP calls it ``start_lost`` / ``p.Met1?`` -- downgrading a HIGH-impact
-no-function allele to MODERATE and asserting a residue at a codon that is no
-longer a start (#2045).
+consequence to MODERATE and asserting a residue at a codon that is no longer a
+start (#2045).
 
 Three guards, cheapest first:
 
@@ -187,8 +187,9 @@ def test_a_start_codon_substitution_is_not_called_missense() -> None:
 
     CYP2C19``*4`` (rs28399504, ``c.1A>G``) shipped as ``missense_variant`` /
     ``p.Met1Val``. Ensembl VEP calls it ``start_lost`` / ``p.Met1?`` -- HIGH impact,
-    and it cannot name a downstream product. Calling it a missense understates a
-    defining no-function allele for any severity ranking.
+    and it cannot name a downstream product. Calling it a missense understates the
+    consequence for any severity ranking. (Nothing here asserts the allele's
+    function; that is a pharmacogenomic claim the VEP payload does not make.)
     """
     offenders = []
     for row in _rows():
