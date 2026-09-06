@@ -156,7 +156,7 @@ def test_v20_migration_quarantines_legacy_or_unidentified_cancer_prs(
         ).scalar_one()
         version = conn.execute(sa.text("PRAGMA user_version")).scalar_one()
 
-    assert version == SAMPLE_SCHEMA_VERSION == 25
+    assert version == SAMPLE_SCHEMA_VERSION == 28
     assert [(row.module, row.category, row.finding_text) for row in rows] == [
         # Older valid active-model rows have a trait but no model fingerprint;
         # they remain surfaceable. Only breast or unidentified PRS rows are

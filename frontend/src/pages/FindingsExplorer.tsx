@@ -6,67 +6,68 @@
  * module page for detailed exploration.
  */
 
-import { useState, useMemo } from "react"
-import { useSearchParams, Link } from "react-router-dom"
-import { ClipboardList, Star, Filter } from "lucide-react"
-import { cn } from "@/lib/utils"
-import { parseSampleId } from "@/lib/format"
-import { pathwayLevelBadge } from "@/lib/pathwayLevel"
-import { getModuleMeta } from "@/lib/modules"
-import { useFindings, useFindingsSummary } from "@/api/findings"
-import EvidenceStars from "@/components/ui/EvidenceStars"
-import PageLoading from "@/components/ui/PageLoading"
-import PageError from "@/components/ui/PageError"
-import PageEmpty from "@/components/ui/PageEmpty"
-import type { Finding, FindingSummaryItem } from "@/types/findings"
+import { useState, useMemo, useEffect } from "react";
+import { useSearchParams, Link } from "react-router-dom";
+import { ClipboardList, Star, Filter } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { parseSampleId } from "@/lib/format";
+import { pathwayLevelBadge } from "@/lib/pathwayLevel";
+import { getModuleMeta } from "@/lib/modules";
+import { useFindings, useFindingsSummary } from "@/api/findings";
+import EvidenceStars from "@/components/ui/EvidenceStars";
+import PageLoading from "@/components/ui/PageLoading";
+import PageError from "@/components/ui/PageError";
+import PageEmpty from "@/components/ui/PageEmpty";
+import type { Finding, FindingSummaryItem } from "@/types/findings";
+import { MIN_STARS_PARAM, parseMinStars } from "@/lib/findings-confidence";
 
 // ── Evidence level labels ────────────────────────────────────────────
 
 function evidenceLabel(level: number | null): string {
   switch (level) {
     case 4:
-      return "Definitive"
+      return "Definitive";
     case 3:
-      return "Strong"
+      return "Strong";
     case 2:
-      return "Moderate"
+      return "Moderate";
     case 1:
-      return "Preliminary"
+      return "Preliminary";
     default:
-      return "Unknown"
+      return "Unknown";
   }
 }
 
 function indeterminateReasonLabel(reason: string): string {
   switch (reason) {
     case "off_chip":
-      return "not typed on this array"
+      return "not typed on this array";
     case "no_call":
-      return "no-call in this sample"
+      return "no-call in this sample";
     case "palindrome_strand_ambiguous":
-      return "strand-ambiguous palindromic homozygote"
+      return "strand-ambiguous palindromic homozygote";
     case "discordant_haplotype":
-      return "discordant haplotype markers"
+      return "discordant haplotype markers";
     case "unresolved":
-      return "alleles could not be resolved"
+      return "alleles could not be resolved";
     default:
-      return reason.replace(/_/g, " ")
+      return reason.replace(/_/g, " ");
   }
 }
 
 function indeterminateReasonItems(
   detail: Record<string, unknown> | null,
 ): Array<{ rsid: string; reason: string }> {
-  const raw = detail?.indeterminate_reasons
+  const raw = detail?.indeterminate_reasons;
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
-    return []
+    return [];
   }
   return Object.entries(raw)
     .filter(
       (entry): entry is [string, string] =>
         typeof entry[0] === "string" && typeof entry[1] === "string",
     )
-    .map(([rsid, reason]) => ({ rsid, reason }))
+    .map(([rsid, reason]) => ({ rsid, reason }));
 }
 
 // ── Components ───────────────────────────────────────────────────────
@@ -76,12 +77,12 @@ function ModuleSummaryChip({
   selected,
   onClick,
 }: {
-  item: FindingSummaryItem
-  selected: boolean
-  onClick: () => void
+  item: FindingSummaryItem;
+  selected: boolean;
+  onClick: () => void;
 }) {
-  const meta = getModuleMeta(item.module)
-  const Icon = meta.icon
+  const meta = getModuleMeta(item.module);
+  const Icon = meta.icon;
 
   return (
     <button
@@ -102,20 +103,20 @@ function ModuleSummaryChip({
         <EvidenceStars level={item.max_evidence_level} />
       )}
     </button>
-  )
+  );
 }
 
 function FindingRow({ finding }: { finding: Finding }) {
-  const meta = getModuleMeta(finding.module)
-  const Icon = meta.icon
-  const [searchParams] = useSearchParams()
-  const sampleParam = searchParams.get("sample_id")
+  const meta = getModuleMeta(finding.module);
+  const Icon = meta.icon;
+  const [searchParams] = useSearchParams();
+  const sampleParam = searchParams.get("sample_id");
   const moduleLink = meta.route
     ? sampleParam
       ? `${meta.route}?sample_id=${sampleParam}`
       : meta.route
-    : null
-  const reasonItems = indeterminateReasonItems(finding.detail)
+    : null;
+  const reasonItems = indeterminateReasonItems(finding.detail);
 
   return (
     <div className="flex items-start gap-3 rounded-lg border bg-card p-4 transition-colors hover:bg-accent/50">
@@ -215,8 +216,7 @@ function FindingRow({ finding }: { finding: Finding }) {
             className="mt-2 text-xs leading-relaxed text-amber-700 dark:text-amber-400"
             data-testid="finding-indeterminate-reasons"
           >
-            Indeterminate{" "}
-            {reasonItems.length === 1 ? "variant" : "variants"}:{" "}
+            Indeterminate {reasonItems.length === 1 ? "variant" : "variants"}:{" "}
             {reasonItems.map((item, index) => (
               <span key={item.rsid}>
                 <span className="font-mono">{item.rsid}</span>{" "}
@@ -228,7 +228,7 @@ function FindingRow({ finding }: { finding: Finding }) {
         )}
       </div>
     </div>
-  )
+  );
 }
 
 // ── Main page ────────────────────────────────────────────────────────
@@ -237,62 +237,84 @@ function FindingRow({ finding }: { finding: Finding }) {
 // thousands of (mostly evidence-level-1) findings, and fetching/rendering them
 // all froze and crashed the tab (#1303). They arrive highest-evidence-first, so
 // one page surfaces the most meaningful findings; "Load more" raises the bound.
-const FINDINGS_PAGE_SIZE = 200
+const FINDINGS_PAGE_SIZE = 200;
 
 export default function FindingsExplorer() {
-  const [searchParams] = useSearchParams()
-  const sampleId = parseSampleId(searchParams.get("sample_id"))
+  const [searchParams] = useSearchParams();
+  const sampleId = parseSampleId(searchParams.get("sample_id"));
+  const urlMinStars = parseMinStars(searchParams.get(MIN_STARS_PARAM));
 
-  const [selectedModule, setSelectedModule] = useState<string | null>(null)
-  const [minStars, setMinStars] = useState<number | null>(null)
-  const [limit, setLimit] = useState(FINDINGS_PAGE_SIZE)
+  const [selectedModule, setSelectedModule] = useState<string | null>(null);
+  // Seeded from the URL so a link can land on the set it names -- the dashboard
+  // "High-Confidence Findings" link previously pointed here unfiltered (#2047).
+  const [minStars, setMinStars] = useState<number | null>(urlMinStars);
+  const [limit, setLimit] = useState(FINDINGS_PAGE_SIZE);
+
+  // The URL stays authoritative after mount too. The sidebar's "All Findings"
+  // link and browser history move between `/findings?sample_id=N` and
+  // `...&minStars=3` on this same route, so React Router keeps this instance
+  // and the initializer above never re-runs; without this sync the filter kept
+  // showing 3+ after the parameter vanished (and stayed unfiltered when it
+  // appeared). Keyed on the parsed value, not the params object, so a manual
+  // filter choice survives unrelated re-renders and only an actual parameter
+  // change resets it.
+  useEffect(() => {
+    setMinStars(urlMinStars);
+  }, [urlMinStars]);
 
   const findingsQuery = useFindings(sampleId, {
     module: selectedModule ?? undefined,
     minStars: minStars ?? undefined,
     limit,
-  })
-  const summaryQuery = useFindingsSummary(sampleId)
+  });
+  const summaryQuery = useFindingsSummary(sampleId);
 
   // Group findings by evidence level for section headers
   const groupedFindings = useMemo(() => {
-    if (!findingsQuery.data) return []
-    const groups: { level: number; label: string; findings: Finding[] }[] = []
-    let currentLevel: number | null = null
+    if (!findingsQuery.data) return [];
+    const groups: { level: number; label: string; findings: Finding[] }[] = [];
+    let currentLevel: number | null = null;
 
     for (const f of findingsQuery.data) {
-      const level = f.evidence_level ?? 0
+      const level = f.evidence_level ?? 0;
       if (level !== currentLevel) {
-        currentLevel = level
+        currentLevel = level;
         groups.push({
           level,
           label: `${evidenceLabel(level)} Evidence`,
           findings: [],
-        })
+        });
       }
-      groups[groups.length - 1].findings.push(f)
+      groups[groups.length - 1].findings.push(f);
     }
-    return groups
-  }, [findingsQuery.data])
+    return groups;
+  }, [findingsQuery.data]);
 
   // No sample selected
   if (sampleId == null) {
     return (
       <div className="p-6">
         <h1 className="text-2xl font-bold mb-4">All Findings</h1>
-        <PageEmpty icon={ClipboardList} title="Select a sample to view analysis findings." />
+        <PageEmpty
+          icon={ClipboardList}
+          title="Select a sample to view analysis findings."
+        />
       </div>
-    )
+    );
   }
 
-  // Loading
-  if (findingsQuery.isLoading || summaryQuery.isLoading) {
+  // Loading — gate on the primary query only. The summary supplies the header
+  // count and module chips, every consumer of which is already null-guarded, and
+  // the error gate below is likewise summary-tolerant. Anchoring here too made a
+  // slow summary block the whole page, so a summary that merely lagged was
+  // handled strictly worse than one that failed outright (#2042).
+  if (findingsQuery.isLoading) {
     return (
       <div className="p-6">
         <h1 className="text-2xl font-bold mb-4">All Findings</h1>
         <PageLoading message="Loading findings..." />
       </div>
-    )
+    );
   }
 
   // Error
@@ -305,15 +327,15 @@ export default function FindingsExplorer() {
           onRetry={() => findingsQuery.refetch()}
         />
       </div>
-    )
+    );
   }
 
-  const findings = findingsQuery.data ?? []
-  const summary = summaryQuery.data
+  const findings = findingsQuery.data ?? [];
+  const summary = summaryQuery.data;
   const evidenceLevelCounts = selectedModule
     ? summary?.modules.find((item) => item.module === selectedModule)
         ?.evidence_level_counts
-    : summary?.evidence_level_counts
+    : summary?.evidence_level_counts;
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
@@ -324,7 +346,10 @@ export default function FindingsExplorer() {
           <p className="mt-1 text-sm text-muted-foreground">
             {summary
               ? `${summary.total_findings} findings across ${summary.modules.length} modules`
-              : `${findings.length} findings`}
+              : // Without the summary there is no total: the list is capped at
+                // FINDINGS_PAGE_SIZE, so say what is loaded rather than imply a
+                // sample with thousands of findings has exactly 200 (#2042 review).
+                `${findings.length} findings loaded`}
           </p>
         </div>
       </div>
@@ -403,8 +428,8 @@ export default function FindingsExplorer() {
             <button
               type="button"
               onClick={() => {
-                setSelectedModule(null)
-                setMinStars(null)
+                setSelectedModule(null);
+                setMinStars(null);
               }}
               className="mt-3 text-sm text-primary hover:underline"
             >
@@ -418,7 +443,7 @@ export default function FindingsExplorer() {
       {groupedFindings.map((group) => {
         const tierTotal = evidenceLevelCounts?.find(
           (item) => item.evidence_level === group.level,
-        )?.count
+        )?.count;
 
         return (
           <section key={group.level} aria-label={group.label}>
@@ -439,7 +464,7 @@ export default function FindingsExplorer() {
               ))}
             </div>
           </section>
-        )
+        );
       })}
 
       {/* Load more: a full page (length === limit) means more findings remain
@@ -466,5 +491,5 @@ export default function FindingsExplorer() {
         </div>
       )}
     </div>
-  )
+  );
 }

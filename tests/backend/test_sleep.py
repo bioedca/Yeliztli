@@ -23,6 +23,7 @@ from pathlib import Path
 import pytest
 import sqlalchemy as sa
 
+from backend.analysis.pathway_coverage import variant_label
 from backend.analysis.sleep import (
     ELEVATED,
     INDETERMINATE,
@@ -54,6 +55,11 @@ from backend.db.tables import (
     raw_variants,
     reference_metadata,
     sample_metadata_obj,
+)
+from tests.backend._gene_label_fixtures import (
+    gene_prefixed_loci,
+    raw_variant_rows,
+    renders_gene_twice,
 )
 
 # ── Fixtures ──────────────────────────────────────────────────────────────
@@ -1085,6 +1091,92 @@ class TestStoreFindingsIntegration:
         assert row is not None
         pmids = json.loads(row.pmid_citations)
         assert "16522833" in pmids
+
+
+# ── Stored finding text prints the gene once (#2044) ───────────────────
+
+
+class TestStoredFindingTextGeneLabel:
+    """Production path for #2044: seed → score → store → read ``findings`` back.
+
+    ``test_finding_text_gene_doubling.py`` guards the formatter and the panels;
+    this drives ``store_sleep_findings`` itself, so a call site that rebuilds the
+    label by concatenation, ``.format()`` or swapped arguments is caught on the
+    persisted ``finding_text``.
+    """
+
+    def test_gene_prefixed_loci_persist_without_doubling(
+        self,
+        panel: SleepPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """Every curated locus whose ``variant_name`` already leads with its gene.
+
+        Covers the plain text branch: the gene-prefixed sleep loci (MEIS1,
+        BTBD9) carry no metabolizer state. CYP1A2 rs762551 is the only
+        metabolizer-state locus and its name is descriptor-only, so that
+        branch is pinned separately below in its prepend shape.
+        """
+        loci = gene_prefixed_loci(panel)
+        assert loci, "sleep panel has no gene-prefixed locus; this guard would be vacuous"
+        _seed_variants(sample_engine, raw_variant_rows(loci))
+
+        result = score_sleep_pathways(panel, sample_engine, reference_engine)
+        store_sleep_findings(result, sample_engine)
+
+        with sample_engine.connect() as conn:
+            rows = conn.execute(
+                sa.select(findings).where(findings.c.module == MODULE_NAME)
+            ).fetchall()
+        assert rows
+        stored = {r.rsid: r.finding_text for r in rows if r.category == "snp_finding"}
+        for locus in loci:
+            text = stored.get(locus.rsid)
+            assert text is not None, f"{locus.rsid} ({locus.gene}) stored no snp_finding row"
+            # The gene is already the first word of the variant name, so the
+            # persisted card must open with the variant name itself...
+            assert text.startswith(f"{locus.variant_name} ("), text
+            # ...which is exactly what the shared formatter renders.
+            assert text.startswith(f"{variant_label(locus.gene, locus.variant_name)} ("), text
+        doubled = [r.finding_text for r in rows if renders_gene_twice(r.finding_text)]
+        assert doubled == [], f"stored sleep text prints a gene twice: {doubled}"
+
+    def test_metabolizer_branch_uses_the_shared_label(
+        self,
+        panel: SleepPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """CYP1A2 rs762551 CC takes the metabolizer-state text branch.
+
+        Its curated name is descriptor-only, so the label is the prepend shape
+        and the naive template would read the same; this pins the branch to the
+        shared formatter (and its argument order) on the persisted text.
+        """
+        _seed_variants(sample_engine, [("rs762551", "15", 75041917, "CC")])
+        result = score_sleep_pathways(panel, sample_engine, reference_engine)
+        cyp1a2 = next(
+            s for pr in result.pathway_results for s in pr.called_snps if s.rsid == "rs762551"
+        )
+        assert cyp1a2.metabolizer_state
+        assert cyp1a2.category != STANDARD
+
+        store_sleep_findings(result, sample_engine)
+        with sample_engine.connect() as conn:
+            text = conn.execute(
+                sa.select(findings.c.finding_text).where(
+                    findings.c.module == MODULE_NAME,
+                    findings.c.category == "snp_finding",
+                    findings.c.rsid == "rs762551",
+                )
+            ).scalar_one()
+        assert text == (
+            f"{variant_label(cyp1a2.gene, cyp1a2.variant_name)} (CC) — "
+            f"{cyp1a2.metabolizer_state}; {cyp1a2.effect_summary}"
+        )
+        assert text.startswith("CYP1A2 -163C>A")
+        assert not renders_gene_twice(text)
 
 
 # ── PathwayResult properties ────────────────────────────────────────────

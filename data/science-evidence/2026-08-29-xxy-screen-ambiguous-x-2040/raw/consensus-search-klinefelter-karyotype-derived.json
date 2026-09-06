@@ -1,0 +1,9 @@
+{
+  "tool": "Consensus MCP `search`",
+  "accessed": "2026-08-29",
+  "query": "Klinefelter syndrome 47,XXY karyotype two X chromosomes and a Y chromosome definition",
+  "result_count": 20,
+  "record_kind": "DERIVED — reduced to citation identity. Not a wire capture.",
+  "note": "Consensus answers through an MCP tool rather than an HTTP endpoint, so no verbatim response body exists to retain. Recorded to evidence that the required first-rung discovery call was made. The records it surfaced were reviews; the packet's C1 support is primary literature located separately through PubMed, so nothing here is load-bearing.",
+  "outcome": "Surfaced review articles only; not used as C1 support."
+}

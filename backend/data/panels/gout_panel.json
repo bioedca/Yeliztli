@@ -40,7 +40,7 @@
         "default": "Gout odds ratio ~3.24 for the homozygous Q141K genotype (TT vs GG), using Caucasian/European pooled genotype estimates"
       },
       "absolute_risk_context": "These are relative odds, not an absolute or lifetime risk. Gout is multifactorial and most people carrying this genotype never develop gout. This is a risk modifier, not a diagnosis.",
-      "finding_text": "ABCG2 Q141K homozygous (rs2231142 {genotype}) — both copies carry the urate-transporter risk allele, which reduces urate excretion. {odds_ratio}. {absolute_risk}",
+      "finding_text": "ABCG2 Q141K homozygous ({genotype}) — both copies carry the urate-transporter risk allele, which reduces urate excretion. {odds_ratio}. {absolute_risk}",
       "caveats": ["negative_not_clear", "confirm_clinically"],
       "pmids": ["33087043", "24777469"]
     },
@@ -57,7 +57,7 @@
         "default": "Gout odds ratio ~1.64 for one Q141K risk allele, using Caucasian/European pooled genotype estimates"
       },
       "absolute_risk_context": "These are relative odds, not an absolute or lifetime risk. Gout is multifactorial and most people carrying one risk allele never develop gout. This is a risk modifier, not a diagnosis.",
-      "finding_text": "ABCG2 Q141K heterozygous (rs2231142 {genotype}) — you carry one urate-transporter risk allele, which reduces urate excretion. {odds_ratio}. {absolute_risk}",
+      "finding_text": "ABCG2 Q141K heterozygous ({genotype}) — you carry one urate-transporter risk allele, which reduces urate excretion. {odds_ratio}. {absolute_risk}",
       "caveats": ["negative_not_clear", "confirm_clinically"],
       "pmids": ["33087043", "24777469"]
     },
@@ -68,7 +68,7 @@
       "risk_classification": "SLC2A9 urate-raising genotype",
       "zygosity": "hom_alt",
       "evidence_stars": 1,
-      "finding_text": "SLC2A9 urate-raising genotype (rs13129697 {genotype}) — both copies carry the common urate-raising allele at SLC2A9, the largest common serum-urate gene. The per-person effect is modest and the alternative allele is urate-lowering. This describes a slight genetic tendency toward higher serum urate, not gout on its own, and is not a diagnosis.",
+      "finding_text": "SLC2A9 urate-raising genotype ({genotype}) — both copies carry the common urate-raising allele at SLC2A9, the largest common serum-urate gene. The per-person effect is modest and the alternative allele is urate-lowering. This describes a slight genetic tendency toward higher serum urate, not gout on its own, and is not a diagnosis.",
       "caveats": ["negative_not_clear"],
       "pmids": ["31578528"]
     },
@@ -79,7 +79,7 @@
       "risk_classification": "SLC2A9 urate-raising allele (heterozygous)",
       "zygosity": "het",
       "evidence_stars": 1,
-      "finding_text": "SLC2A9 urate-raising allele, one copy (rs13129697 {genotype}) — you carry a single copy of the common urate-raising allele at SLC2A9, the largest common serum-urate gene. SLC2A9's effect on serum urate is per-allele (additive), so one copy contributes roughly half the shift of two; the per-person effect is small and the alternative allele is urate-lowering. This describes a slight genetic tendency toward higher serum urate, not gout on its own, and is not a diagnosis.",
+      "finding_text": "SLC2A9 urate-raising allele, one copy ({genotype}) — you carry a single copy of the common urate-raising allele at SLC2A9, the largest common serum-urate gene. SLC2A9's effect on serum urate is per-allele (additive), so one copy contributes roughly half the shift of two; the per-person effect is small and the alternative allele is urate-lowering. This describes a slight genetic tendency toward higher serum urate, not gout on its own, and is not a diagnosis.",
       "caveats": ["negative_not_clear"],
       "pmids": ["31578528"]
     }

@@ -876,7 +876,10 @@ def store_traits_findings(
             if snp.category == STANDARD:
                 continue
 
-            snp_text = f"{snp.gene} {snp.variant_name} ({snp.genotype}) — {snp.effect_summary}"
+            snp_text = (
+                f"{variant_label(snp.gene, snp.variant_name)} ({snp.genotype}) — "
+                f"{snp.effect_summary}"
+            )
 
             snp_detail: dict = {
                 "variant_name": snp.variant_name,

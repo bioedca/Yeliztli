@@ -47,7 +47,11 @@ from backend.analysis.genotype_lookup import (
     is_strand_ambiguous,
     lookup_by_genotype,
 )
-from backend.analysis.pathway_coverage import coverage_detail, coverage_interpretation
+from backend.analysis.pathway_coverage import (
+    coverage_detail,
+    coverage_interpretation,
+    variant_label,
+)
 from backend.analysis.zygosity import is_no_call
 from backend.annotation.engine import GWAS_BIT
 from backend.annotation.gwas import gwas_matched_rsids
@@ -786,7 +790,10 @@ def store_methylation_findings(
             if snp.category == STANDARD:
                 continue
 
-            snp_text = f"{snp.gene} {snp.variant_name} ({snp.genotype}) — {snp.effect_summary}"
+            snp_text = (
+                f"{variant_label(snp.gene, snp.variant_name)} ({snp.genotype}) — "
+                f"{snp.effect_summary}"
+            )
 
             snp_detail: dict = {
                 "variant_name": snp.variant_name,
