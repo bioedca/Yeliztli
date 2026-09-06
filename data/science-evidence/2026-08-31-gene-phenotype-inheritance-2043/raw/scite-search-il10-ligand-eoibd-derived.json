@@ -16,93 +16,110 @@
       }
     ]
   },
-  "_accessed": "2026-09-05",
+  "_accessed": "2026-09-05 (page offset 0, records 1-10) and 2026-09-06 (page offset 10, records 11-17)",
   "returned": 17,
   "records": [
     {
       "doi": "10.1101/mcs.a002428",
       "year": 2019,
-      "title": "Missense variants in NOX1 and p22phox in a case of very-early-onset inflammatory bowel disease are functionally active"
+      "title": "Missense variants in NOX1 and p22phox in a case of very-early-onset inflammatory bowel disease are functionally active",
+      "retrieved": "2026-09-05"
     },
     {
       "doi": "10.1038/mi.2017.74",
       "year": 2018,
-      "title": "NOX1 loss-of-function genetic variants in patients with inflammatory bowel disease"
+      "title": "NOX1 loss-of-function genetic variants in patients with inflammatory bowel disease",
+      "retrieved": "2026-09-05"
     },
     {
       "doi": "10.1101/2023.10.13.23297034",
       "year": 2023,
-      "title": "IFIH1 loss-of-function predisposes to inflammatory and SARS-CoV-2-related infectious disease"
+      "title": "IFIH1 loss-of-function predisposes to inflammatory and SARS-CoV-2-related infectious disease",
+      "retrieved": "2026-09-05"
     },
     {
       "doi": "10.1038/s41439-020-00128-4",
       "year": 2021,
-      "title": "Novel TNFAIP3 microdeletion in a girl with infantile-onset inflammatory bowel disease complicated by a severe course"
+      "title": "Novel TNFAIP3 microdeletion in a girl with infantile-onset inflammatory bowel disease complicated by a severe course",
+      "retrieved": "2026-09-05"
     },
     {
       "doi": "10.3390/children8020075",
       "year": 2021,
-      "title": "Primary Immunodeficiency Disease Mimicking Pediatric Bechet's Disease"
+      "title": "Primary Immunodeficiency Disease Mimicking Pediatric Bechet's Disease",
+      "retrieved": "2026-09-05"
     },
     {
       "doi": "10.1111/sji.13373",
       "year": 2024,
-      "title": "IFIH1 loss of function predisposes to inflammatory and SARS-CoV-2-related infectious disease"
+      "title": "IFIH1 loss of function predisposes to inflammatory and SARS-CoV-2-related infectious disease",
+      "retrieved": "2026-09-05"
     },
     {
       "doi": "10.21608/ejpa.2023.203131.1048",
       "year": 2023,
-      "title": "Insight into gastrointestinal manifestations of some pediatric autoinflammatory disorders"
+      "title": "Insight into gastrointestinal manifestations of some pediatric autoinflammatory disorders",
+      "retrieved": "2026-09-05"
     },
     {
       "doi": "10.1007/s10875-025-01931-w",
       "year": 2025,
-      "title": "A Novel Cause of CIDP: Homozygous Hotspot Mutation, c.793 C > T in CASP8 Gene"
+      "title": "A Novel Cause of CIDP: Homozygous Hotspot Mutation, c.793 C > T in CASP8 Gene",
+      "retrieved": "2026-09-05"
     },
     {
       "doi": "10.1007/s00439-022-02501-5",
       "year": 2022,
-      "title": "The genetics of monogenic intestinal epithelial disorders"
+      "title": "The genetics of monogenic intestinal epithelial disorders",
+      "retrieved": "2026-09-05"
     },
     {
       "doi": "10.1093/ibd/izaf099",
       "year": 2025,
-      "title": "Generation and Phenotypic Analysis of the IL-10RA R104W/R104W knock-in model"
+      "title": "Generation and Phenotypic Analysis of the IL-10RA R104W/R104W knock-in model",
+      "retrieved": "2026-09-05"
     },
     {
       "doi": "10.3390/biom10081112",
       "year": 2020,
-      "title": "The Possibilities of Immunotherapy for Children with Primary Immunodeficiencies Associated with Cancers"
+      "title": "The Possibilities of Immunotherapy for Children with Primary Immunodeficiencies Associated with Cancers",
+      "retrieved": "2026-09-06"
     },
     {
       "doi": "10.1111/sji.12973",
       "year": 2020,
-      "title": "Behçet disease (BD) and BD-like clinical phenotypes: NF-κB pathway in mucosal ulcerating diseases"
+      "title": "Behçet disease (BD) and BD-like clinical phenotypes: NF-κB pathway in mucosal ulcerating diseases",
+      "retrieved": "2026-09-06"
     },
     {
       "doi": "10.3389/fimmu.2023.1278759",
       "year": 2024,
-      "title": "Treg in inborn errors of immunity: gaps, knowns and future perspectives"
+      "title": "Treg in inborn errors of immunity: gaps, knowns and future perspectives",
+      "retrieved": "2026-09-06"
     },
     {
       "doi": "10.1093/ibd/izaf214",
       "year": 2025,
-      "title": "Genome-Wide Aggregated Trans-Effects Analysis Implicates Deficient Type III Interferon Signaling as a Key Cause of Inflammatory Bowel Disease"
+      "title": "Genome-Wide Aggregated Trans-Effects Analysis Implicates Deficient Type III Interferon Signaling as a Key Cause of Inflammatory Bowel Disease",
+      "retrieved": "2026-09-06"
     },
     {
       "doi": "10.1016/j.it.2023.12.006",
       "year": 2024,
-      "title": "Human genetic errors of immunity illuminate an adaptive arsenal model of rapid defenses"
+      "title": "Human genetic errors of immunity illuminate an adaptive arsenal model of rapid defenses",
+      "retrieved": "2026-09-06"
     },
     {
       "doi": "10.1186/s12969-017-0142-8",
       "year": 2017,
-      "title": "Proceedings of the 23rd Paediatric Rheumatology European Society Congress: part two"
+      "title": "Proceedings of the 23rd Paediatric Rheumatology European Society Congress: part two",
+      "retrieved": "2026-09-06"
     },
     {
       "doi": "10.1007/s15014-023-4829-7",
       "year": 2023,
-      "title": "38. Jahrestagung der GPGE"
+      "title": "38. Jahrestagung der GPGE",
+      "retrieved": "2026-09-06"
     }
   ],
   "reported_total": 22
