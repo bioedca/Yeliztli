@@ -482,10 +482,11 @@ def test_il10_inheritance_is_withheld_for_now() -> None:
 def test_vkorc1_keeps_autosomal_dominant() -> None:
     """VKORC1 coumarin resistance is dominant, and must not drift to recessive.
 
-    One gene, two phenotypes with opposite inheritance: heterozygous missense
-    variants cause coumarin/warfarin resistance, while homozygous loss of function
-    causes VKCFD2, which is recessive (PMID:14765194; PMID:26513304). Only the
-    row's disease_name settles which applies -- #2043 asked for this confirmation.
+    Heterozygous missense variants suffice for coumarin/warfarin resistance
+    (PMID:14765194; PMID:26513304). The gene carries other phenotypes in the
+    literature, so the row could not be pattern-matched off the gene symbol and
+    only its disease_name settles which association this is -- #2043 asked for
+    this confirmation. Nothing is asserted here about those other phenotypes.
     """
     row = _association("VKORC1", "MONDO:0007390")
     assert row is not None, "VKORC1 / MONDO:0007390 row missing from gene_phenotype_seed.csv"
@@ -519,7 +520,9 @@ def test_checked_in_fixture_emits_inheritance_through_the_production_lookup(tmp_
     working = tmp_path / "mini_reference.db"
     shutil.copy(fixture, working)
 
-    seed = {r["gene_symbol"]: r["inheritance"].strip() for r in _rows()}
+    resistance_row = _association("VKORC1", "MONDO:0007390")
+    assert resistance_row is not None, "VKORC1 / MONDO:0007390 row missing from the seed"
+    expected_vkorc1 = resistance_row["inheritance"].strip()
     engine = sa.create_engine(f"sqlite:///{working}")
     try:
         with engine.begin() as conn:
@@ -544,7 +547,7 @@ def test_checked_in_fixture_emits_inheritance_through_the_production_lookup(tmp_
 
     # A row WITH a verified value must reach the consumer intact.
     assert "rs9923231" in emitted, "VKORC1 association did not resolve through the lookup"
-    assert emitted["rs9923231"]["inheritance_pattern"] == seed["VKORC1"] == "Autosomal dominant"
+    assert emitted["rs9923231"]["inheritance_pattern"] == expected_vkorc1 == "Autosomal dominant"
 
     # A withheld row must still be SERVED, and emit nothing rather than a
     # placeholder. Requiring the key first means a fixture regeneration that

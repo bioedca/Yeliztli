@@ -1,6 +1,6 @@
 # The `inheritance` column of `gene_phenotype_seed.csv` (#2043)
 
-Two claims. One drives a data correction; the other confirms an existing value without changing it.
+Two claims, and neither changes the seed: C1 withholds a value for want of evidence, C2 confirms an existing value. This change is tests and evidence only.
 
 ## Why this column is load-bearing
 
@@ -35,9 +35,10 @@ not share an upstream assertion before a user-facing claim of this kind is encod
 | `PMID:28267044` / `DOI:10.1097/MIB.0000000000001058` — Huang Z et al., *Inflamm Bowel Dis* 2017 **(accessed 2026-08-31)** | 42-patient Chinese multicentre survey | `IL10RA`, `IL10RB` |
 | `PMID:21519361` / `DOI:10.1038/ajg.2011.112` — Begue B et al., *Am J Gastroenterol* 2011 **(accessed 2026-08-31; payloads retained 2026-09-05)** | French cohort, 75 children | `IL10RA` p.R262C, `IL10RB` p.E141X |
 
-Targeted searches for IL10 **ligand** cohorts returned receptor papers or mouse/mechanism work. The
-ligand literature is dominated by a single group, so two sources there would share a lineage rather
-than agree independently.
+Targeted searches for IL10 **ligand** cohorts — Consensus and PubMed on 2026-08-31, Scite on
+2026-09-05 (a ligand-only query excluding the receptor genes, 22 results, none a ligand cohort) —
+found no qualifying pair of independent primary sources. That is the supported statement; nothing
+is asserted here about who authored the ligand literature.
 
 **What would close it.** Two agreeing, independently-authored primary sources reporting IL10
 (ligand) loss-of-function variants and their transmission — or a maintainer decision that the
@@ -52,8 +53,14 @@ prescribed answer to insufficient evidence, and the guard added here has a place
 
 ## C2 — VKORC1 coumarin resistance is autosomal dominant (confirmed, not changed)
 
-Heterozygous *VKORC1* missense variants suffice for coumarin/warfarin resistance. This is distinct
-from **VKCFD2**, a recessive phenotype of the *same gene* from homozygous loss of function.
+Heterozygous *VKORC1* missense variants suffice for coumarin/warfarin resistance — the one claim
+both sources make. *VKORC1* carries more than one phenotype in the literature (Rost 2004 also maps
+VKCFD2 families), which is why the row could not be pattern-matched off the gene symbol; this packet
+asserts nothing about those other phenotypes' mode or mechanism, and only the row's `disease_name`
+settles that the resistance row is the one at issue.
+
+> **Correction.** An earlier revision stated VKCFD2's recessive mode and mechanism as part of C2 on
+> a single source. That half is withdrawn from the claim; it was never load-bearing for the row.
 
 | Source | Kind |
 | --- | --- |
