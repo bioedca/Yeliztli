@@ -82,7 +82,8 @@ paper asserts a gene's strand or rs28399504's consequence; those rest on the ret
 NCBI Gene, C1's second source, is identified by its retained `esummary` payload and stable GeneIDs
 rather than by a paper. Retraction check for both PMIDs: PubMed EFetch typed `CommentsCorrections`
 relations — **neither record carries a link of any `RefType`**; publication types are retained in
-the derived record.
+the derived record. Scite's metadata for both DOIs **(accessed 2026-09-05)** reports no editorial
+notice either — a second notice source that does not share PubMed's index.
 
 > **Correction.** An earlier revision of this packet carried no `PMID:` / `DOI:` identifier at all,
 > which the repository contract requires of every durable evidence artifact. Added 2026-09-05 after
@@ -92,21 +93,23 @@ the derived record.
 
 Consensus and Scite are literature-discovery tools and are not the right instrument for a
 genome-annotation fact — the authoritative sources are the annotation projects themselves, queried
-directly. (Scite was unavailable regardless: monthly MCP quota exhausted 2026-08-27, reset
-2026-09-03.)
+directly. Scite was unavailable on 2026-09-01 (monthly MCP quota exhausted 2026-08-27) and was
+invoked on **2026-09-05** after its reset, for the two cited papers' metadata and notice status:
+**no editorial notice on either**, retained as a derived record.
 
 Versions: Ensembl GRCh37 REST exposes no version header on these endpoints — the assembly is the pin
-that matters and is in the hostname. NCBI E-utilities exposes no build field. Both recorded as **not
-exposed** rather than guessed.
+that matters and is in the hostname. NCBI E-utilities exposes no build field. The Scite MCP surface
+exposes no index version. All recorded as **not exposed** rather than guessed.
 
 ## Retained evidence
 
 `raw/` holds **five unedited verbatim API responses** (four Ensembl / NCBI Gene records and one
 PubMed eSummary), **one sanitized response** (the PubMed EFetch XML for the two cited papers,
-abstracts removed and nothing else touched, labelled in its filename) and **two derived records**:
+abstracts removed and nothing else touched, labelled in its filename) and **three derived records**:
 the consequence audit reduces 679 VEP responses per rsid to the fixture consequence, the
 transcript-matched terms and `most_severe_consequence`, because retaining 679 full payloads would be
 megabytes of unread JSON; the PubMed reduction lists each cited record's `CommentsCorrections` and
-publication types. Both are labelled DERIVED in the manifest. `source-manifest.json` carries each
+publication types; the Scite record holds the two cited DOIs' metadata and notice status. All three
+are labelled DERIVED in the manifest. `source-manifest.json` carries each
 request, source, SHA-256, byte length, access date and licence. No payload required further
 sanitization.
