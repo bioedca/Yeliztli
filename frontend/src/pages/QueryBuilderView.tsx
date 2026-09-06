@@ -17,6 +17,7 @@ import PageEmpty from "@/components/ui/PageEmpty"
 import PageLoading from "@/components/ui/PageLoading"
 import PageError from "@/components/ui/PageError"
 import { useQueryFields, useRunQuery, useExportQuery } from "@/api/query-builder"
+import { normalizeFilterForApi } from "@/lib/query-filter"
 import { throwApiError } from "@/api/errors"
 import type { QueryResultPage, QueryExportFormat, RuleGroupModel, SavedQuery } from "@/types/query-builder"
 import QueryBuilderPanel from "@/components/query-builder/QueryBuilderPanel"
@@ -147,7 +148,7 @@ export default function QueryBuilderView() {
     setLoadMoreError(null)
     setIsFetchingMore(true)
 
-    const filter = query as unknown as RuleGroupModel
+    const filter = normalizeFilterForApi(query as unknown as RuleGroupModel)
     fetch("/api/query", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

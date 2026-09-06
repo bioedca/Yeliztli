@@ -1,6 +1,7 @@
 /** React Query hooks for the query builder API (P4-02) and SQL console (P4-04). */
 
 import { throwApiError } from "@/api/errors"
+import { normalizeFilterForApi } from "@/lib/query-filter"
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import type {
@@ -55,7 +56,7 @@ export function useRunQuery() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           sample_id: sampleId,
-          filter,
+          filter: normalizeFilterForApi(filter),
           include_all_positions: includeAllPositions,
           limit: QUERY_PAGE_SIZE,
         }),
@@ -92,7 +93,7 @@ export function useSaveQuery() {
       const res = await fetch("/api/saved-queries", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ ...body, filter: normalizeFilterForApi(body.filter) }),
       })
       if (!res.ok) {
         await throwApiError(res, "Failed to save query")
@@ -117,7 +118,9 @@ export function useUpdateSavedQuery() {
       const res = await fetch(`/api/saved-queries/${encodeURIComponent(name)}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify(
+          body.filter ? { ...body, filter: normalizeFilterForApi(body.filter) } : body,
+        ),
       })
       if (!res.ok) {
         await throwApiError(res, "Failed to update saved query")
@@ -254,7 +257,7 @@ export function useExportQuery() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           sample_id: sampleId,
-          filter,
+          filter: normalizeFilterForApi(filter),
           format,
           include_all_positions: includeAllPositions,
         }),
