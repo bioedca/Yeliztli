@@ -1,0 +1,165 @@
+{
+  "_artifact_note": "DERIVED record of a Scite MCP `search_literature(dois=[...])` calls made 2026-09-05 and 2026-09-06 (see _query.calls), after the service-reported quota reset of 2026-09-03. Transcribed from the tool response; the MCP surface returns results into the conversation, not as a file. Fields kept: DOI, title, year, journal, Smart Citation tally, and whether the response carried an `editorialNotices` array (it did not for any record, which Scite uses to mean no retraction, correction, concern or erratum is on file).",
+  "_query": {
+    "tool": "Scite MCP search_literature",
+    "dois": [
+      "10.1056/NEJMoa0907206",
+      "10.1097/MIB.0000000000001058",
+      "10.1038/ajg.2011.112",
+      "10.1038/nature02214",
+      "10.1097/FPC.0000000000000184",
+      "10.1053/j.gastro.2012.04.045",
+      "10.1097/01.MIB.0000435439.22484.d3",
+      "10.1093/ibd/izy289"
+    ],
+    "limit": 5,
+    "calls": [
+      {
+        "date": "2026-09-05",
+        "dois": 5
+      },
+      {
+        "date": "2026-09-06",
+        "dois": 1
+      },
+      {
+        "date": "2026-09-06",
+        "dois": 2
+      }
+    ]
+  },
+  "_accessed": "2026-09-05 (five cited DOIs) and 2026-09-06 (PMID:22549091's DOI and the two candidate DOIs); each record carries `retrieved` where it differs from 2026-09-05",
+  "records": [
+    {
+      "doi": "10.1056/nejmoa0907206",
+      "pmid": "19890111",
+      "title": "Inflammatory Bowel Disease and Mutations Affecting the Interleukin-10 Receptor",
+      "year": 2009,
+      "journal": "new england journal of medicine",
+      "tally": {
+        "total": 1191,
+        "supporting": 33,
+        "contrasting": 3,
+        "mentioning": 1130,
+        "citingPublications": 1442
+      },
+      "editorialNotices": "field absent in response (none reported)",
+      "retrieved": "2026-09-05"
+    },
+    {
+      "doi": "10.1097/mib.0000000000001058",
+      "pmid": "28267044",
+      "title": "Mutations in Interleukin-10 Receptor and Clinical Phenotypes in Patients with Very Early Onset Inflammatory Bowel Disease",
+      "year": 2017,
+      "journal": "inflammatory bowel diseases",
+      "tally": {
+        "total": 57,
+        "supporting": 1,
+        "contrasting": 1,
+        "mentioning": 53,
+        "citingPublications": 68
+      },
+      "editorialNotices": "field absent in response (none reported)",
+      "retrieved": "2026-09-05"
+    },
+    {
+      "doi": "10.1038/ajg.2011.112",
+      "pmid": "21519361",
+      "title": "Defective IL10 Signaling Defining a Subgroup of Patients With Inflammatory Bowel Disease",
+      "year": 2011,
+      "journal": "the american journal of gastroenterology",
+      "tally": {
+        "total": 169,
+        "supporting": 6,
+        "contrasting": 2,
+        "mentioning": 157,
+        "citingPublications": 259
+      },
+      "editorialNotices": "field absent in response (none reported)",
+      "retrieved": "2026-09-05"
+    },
+    {
+      "doi": "10.1038/nature02214",
+      "pmid": "14765194",
+      "title": "Mutations in VKORC1 cause warfarin resistance and multiple coagulation factor deficiency type 2",
+      "year": 2004,
+      "journal": "nature",
+      "tally": {
+        "total": 1014,
+        "supporting": 21,
+        "contrasting": 3,
+        "mentioning": 969,
+        "citingPublications": 1088
+      },
+      "editorialNotices": "field absent in response (none reported)",
+      "retrieved": "2026-09-05"
+    },
+    {
+      "doi": "10.1097/fpc.0000000000000184",
+      "pmid": "26513304",
+      "title": "Warfarin resistance associated with genetic polymorphism of VKORC1",
+      "year": 2016,
+      "journal": "pharmacogenetics and genomics",
+      "tally": {
+        "total": 2,
+        "supporting": 0,
+        "contrasting": 0,
+        "mentioning": 2,
+        "citingPublications": 14
+      },
+      "editorialNotices": "field absent in response (none reported)",
+      "retrieved": "2026-09-05"
+    },
+    {
+      "doi": "10.1053/j.gastro.2012.04.045",
+      "pmid": "22549091",
+      "title": "Loss of Interleukin-10 Signaling and Infantile Inflammatory Bowel Disease: Implications for Diagnosis and Therapy",
+      "year": 2012,
+      "journal": "gastroenterology",
+      "tally": {
+        "total": 384,
+        "supporting": 17,
+        "contrasting": 1,
+        "mentioning": 357,
+        "citingPublications": 472
+      },
+      "editorialNotices": "field absent in response (none reported)",
+      "retrieved": "2026-09-06",
+      "role": "the one IL10 ligand cohort surfaced by the retained PubMed ESearch; NOT a supporting source for any claim"
+    },
+    {
+      "doi": "10.1097/01.mib.0000435439.22484.d3",
+      "pmid": "24216686",
+      "title": "Phenotypic Characterization of Very Early-onset IBD Due to Mutations in the IL10, IL10 Receptor Alpha or Beta Gene",
+      "year": 2013,
+      "journal": "inflammatory bowel diseases",
+      "tally": {
+        "total": 56,
+        "supporting": 1,
+        "contrasting": 1,
+        "mentioning": 53,
+        "citingPublications": 95
+      },
+      "editorialNotices": "field absent in response (none reported)",
+      "retrieved": "2026-09-06",
+      "role": "candidate ligand cohort assessed under claims.C1.candidates_assessed"
+    },
+    {
+      "doi": "10.1093/ibd/izy289",
+      "pmid": "30212871",
+      "title": "Phenotypic Characterization of Very Early-Onset Inflammatory Bowel Disease with Interleukin-10 Signaling Deficiency: Based on a Large Cohort Study",
+      "year": 2018,
+      "journal": "inflammatory bowel diseases",
+      "tally": {
+        "total": 68,
+        "supporting": 2,
+        "contrasting": 0,
+        "mentioning": 64,
+        "citingPublications": 51
+      },
+      "editorialNotices": "field absent in response (none reported)",
+      "retrieved": "2026-09-06",
+      "role": "candidate assessed under claims.C1.candidates_assessed"
+    }
+  ]
+}
