@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { normalizeFilterForApi } from "@/lib/query-filter"
+import { normalizeFilterForApi, toEditorFilter } from "@/lib/query-filter"
 import type { RuleGroupModel } from "@/types/query-builder"
 
 function filterWith(rules: RuleGroupModel["rules"]): RuleGroupModel {
@@ -99,5 +99,40 @@ describe("normalizeFilterForApi", () => {
     normalizeFilterForApi(input)
     expect(rule.value).toBe("100,200")
     expect(input.rules[0]).toBe(rule)
+  })
+})
+
+describe("toEditorFilter", () => {
+  it("joins in / notIn arrays into the editor's escaped list string", () => {
+    const out = toEditorFilter(
+      filterWith([
+        { field: "clinvar_conditions", operator: "in", value: ["Alzheimer disease, late onset", "Parkinson disease"] },
+        { field: "chrom", operator: "notIn", value: ["X", "Y"] },
+      ]),
+    )
+    expect(out.rules).toEqual([
+      { field: "clinvar_conditions", operator: "in", value: "Alzheimer disease\\, late onset,Parkinson disease" },
+      { field: "chrom", operator: "notIn", value: "X,Y" },
+    ])
+  })
+
+  it("leaves between arrays, string values, and single-value operators untouched", () => {
+    const rules: RuleGroupModel["rules"] = [
+      { field: "gnomad_af_global", operator: "between", value: ["0.1", "0.5"] },
+      { field: "chrom", operator: "in", value: "17,7" },
+      { field: "gene_symbol", operator: "=", value: ["not", "a-list-op"] },
+    ]
+    expect(toEditorFilter(filterWith(rules)).rules).toEqual(rules)
+  })
+
+  it("round-trips a value containing a literal comma through the editor and back", () => {
+    const stored = filterWith([
+      {
+        combinator: "or",
+        not: false,
+        rules: [{ field: "clinvar_conditions", operator: "in", value: ["Alzheimer disease, late onset", "Parkinson disease"] }],
+      },
+    ])
+    expect(normalizeFilterForApi(toEditorFilter(stored))).toEqual(stored)
   })
 })

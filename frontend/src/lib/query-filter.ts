@@ -1,15 +1,20 @@
-/** Wire-shape normalisation for Query Builder filters (issues #2055 / #2059).
+/** Wire-shape mapping for Query Builder filters (issues #2055 / #2059).
  *
  * The backend translator requires an array value for the multi-value operators
  * (`between` needs exactly two elements; `in` / `notIn` need a list), while
- * react-querybuilder's default value editor historically stored those values as
- * a comma-joined string ("0.1,0.5"). The builder now runs with `listsAsArrays`,
- * so fresh rules already carry arrays; this pass bridges anything that still
- * carries the legacy string shape — saved queries, restored drafts, or a value
- * typed before the option existed — so every request sends the typed contract.
+ * react-querybuilder's default editors store a comma-joined string ("0.1,0.5").
+ * The builder runs with `listsAsArrays`, which makes the two-input `between`
+ * editor store an array; the single text editor used for `in` / `notIn` still
+ * stores one string. `normalizeFilterForApi` therefore splits any string it
+ * meets — fresh `in` / `notIn` input, saved queries, restored drafts — with the
+ * library's own escape-aware list syntax, so every request sends the typed
+ * contract. `toEditorFilter` is the inverse for a stored filter entering the
+ * builder: an `in` / `notIn` array is joined back with the same escaping, so a
+ * later edit round-trips without re-splitting a value that legitimately
+ * contains a comma.
  */
 
-import { toArray } from "react-querybuilder"
+import { joinWith, toArray } from "react-querybuilder"
 
 import type { RuleGroupModel, RuleModel } from "@/types/query-builder"
 
@@ -51,5 +56,29 @@ export function normalizeFilterForApi(filter: RuleGroupModel): RuleGroupModel {
     rules: filter.rules.map((node) =>
       isRuleGroup(node) ? normalizeFilterForApi(node) : normalizeRule(node),
     ),
+  }
+}
+
+function editorRule(rule: RuleModel): RuleModel {
+  if (rule.operator === "between" || !MULTI_VALUE_OPERATORS.has(rule.operator)) {
+    return rule
+  }
+  if (!Array.isArray(rule.value)) {
+    return rule
+  }
+  return { ...rule, value: joinWith(rule.value.map(String), ",") }
+}
+
+/** Return a copy of `filter` shaped for react-querybuilder's editors.
+ *
+ * `in` / `notIn` arrays become the editor's escaped list string (a literal
+ * comma inside a value is written as `\,`, which `normalizeFilterForApi`
+ * reads back); `between` arrays are left alone because the two-input editor
+ * takes an array under `listsAsArrays`. Everything else is untouched.
+ */
+export function toEditorFilter(filter: RuleGroupModel): RuleGroupModel {
+  return {
+    ...filter,
+    rules: filter.rules.map((node) => (isRuleGroup(node) ? toEditorFilter(node) : editorRule(node))),
   }
 }

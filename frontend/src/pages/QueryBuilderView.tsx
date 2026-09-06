@@ -9,7 +9,7 @@
 
 import { useCallback, useContext, useEffect, useRef, useState } from "react"
 import { useSearchParams } from "react-router-dom"
-import { type RuleGroupType } from "react-querybuilder"
+import { prepareRuleGroup, type RuleGroupType } from "react-querybuilder"
 import { Filter, Play, Loader2, AlertCircle, RotateCcw, Terminal } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { parseSampleId } from "@/lib/format"
@@ -17,7 +17,7 @@ import PageEmpty from "@/components/ui/PageEmpty"
 import PageLoading from "@/components/ui/PageLoading"
 import PageError from "@/components/ui/PageError"
 import { useQueryFields, useRunQuery, useExportQuery } from "@/api/query-builder"
-import { normalizeFilterForApi } from "@/lib/query-filter"
+import { normalizeFilterForApi, toEditorFilter } from "@/lib/query-filter"
 import { throwApiError } from "@/api/errors"
 import type { QueryResultPage, QueryExportFormat, RuleGroupModel, SavedQuery } from "@/types/query-builder"
 import QueryBuilderPanel from "@/components/query-builder/QueryBuilderPanel"
@@ -93,7 +93,10 @@ export default function QueryBuilderView() {
 
   const handleLoadSaved = useCallback((saved: SavedQuery) => {
     resultGenerationRef.current += 1
-    setQuery(saved.filter as unknown as RuleGroupType)
+    // Saved filters come back without rule ids (the API model drops them), and
+    // react-querybuilder re-keys an id-less tree on every change, remounting the
+    // input mid-edit. Prepare ids once so a loaded query edits like a fresh one.
+    setQuery(prepareRuleGroup(toEditorFilter(saved.filter) as unknown as RuleGroupType))
     setResultPages([])
     setHasExecuted(false)
     setIncludeAllPositions(false)
