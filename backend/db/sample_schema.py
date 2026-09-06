@@ -279,6 +279,21 @@ def _is_legacy_cyp2b6_efavirenz_diff_entry(entry: object) -> bool:
     )
 
 
+# The stable opening sentence of the pre-#2040 clean-negative screen text. Only a
+# finding-diff entry carrying it is scrubbed, and only for a sample whose stored
+# screen row was itself re-screened, so a legitimate negative's banner survives.
+_LEGACY_XXY_NEGATIVE_PREFIX = "No XXY (Klinefelter) genotype signature was detected."
+
+
+def _is_legacy_xxy_negative_diff_entry(entry: object) -> bool:
+    if not isinstance(entry, dict):
+        return False
+    if entry.get("module") != "sex_aneuploidy" or entry.get("category") != "aneuploidy_screen":
+        return False
+    text = entry.get("finding_text")
+    return isinstance(text, str) and text.startswith(_LEGACY_XXY_NEGATIVE_PREFIX)
+
+
 def _updated_parkinsons_finding_text(
     finding_text: object,
     genotype_call: object | None = None,
@@ -361,7 +376,9 @@ def _updated_parkinsons_diff_entry(entry: object) -> dict[str, object] | None:
 #      whose lifetime wording exceeded the cited age-80 evidence (issue #2091).
 # v25: Retain CYP2D6/tamoxifen audit records and rely on fail-closed runtime
 #      presentation gates pending the independent clinical-validation gate (#2019).
-SAMPLE_SCHEMA_VERSION = 25
+# v26: Re-screen persisted XXY "no signature" results whose stored counts sit in
+#      the ambiguous-X / chrY-signal band the screen could not resolve (#2040).
+SAMPLE_SCHEMA_VERSION = 26
 
 
 # AncestryDNA Plan §10.4(a): merged-sample raw_variants uses (chrom, pos) PK
@@ -1509,6 +1526,146 @@ def _add_missing_columns(engine: sa.Engine, from_version: int) -> bool:
             "cyp2d6_tamoxifen_audit_records_retained",
             from_version=from_version,
         )
+
+    if from_version < 26:
+        # Issue #2040: the XXY screen answered "no XXY signature detected" for a
+        # sample whose X dosage sits in the classifier's unresolvable middle band
+        # while its chrY rate is above the PAR-noise floor. The screen now
+        # withholds there, but a stored screen result is only ever recomputed by
+        # an explicit POST /run -- the module has no page of its own -- so a
+        # false clean negative persisted before the fix would otherwise be
+        # served indefinitely. Re-screen exactly that class from the sample's
+        # own raw variants and re-store the result; when the store cannot run
+        # (a partial legacy findings table, or no raw variants to read),
+        # quarantine the row instead, because a false negative must not
+        # outlive the fix. Every other stored screen result -- any other
+        # outcome, a legitimate negative with no chrY signal, a malformed
+        # payload -- is left untouched. The finding-change banner is scrubbed
+        # of the superseded negative only for a sample that was re-screened.
+        from backend.analysis import sex_aneuploidy as _xxy_screen
+
+        inspector = sa.inspect(engine)
+        table_names = set(inspector.get_table_names())
+        findings_cols = (
+            {c["name"] for c in inspector.get_columns("findings")}
+            if "findings" in table_names
+            else set()
+        )
+        state_cols = (
+            {c["name"] for c in inspector.get_columns("annotation_state")}
+            if "annotation_state" in table_names
+            else set()
+        )
+        store_cols = {
+            "module",
+            "category",
+            "evidence_level",
+            "finding_text",
+            "conditions",
+            "clinvar_significance",
+            "detail_json",
+        }
+        stale_ids: list[int] = []
+        if {"id", "module", "category", "detail_json"} <= findings_cols:
+            with engine.connect() as conn:
+                candidates = conn.execute(
+                    sa.select(findings.c.id, findings.c.detail_json)
+                    .where(
+                        findings.c.module == _xxy_screen.MODULE,
+                        findings.c.category == _xxy_screen.CATEGORY,
+                    )
+                    .order_by(findings.c.id)
+                ).fetchall()
+            for row in candidates:
+                try:
+                    detail = json.loads(row.detail_json) if row.detail_json else None
+                except (json.JSONDecodeError, TypeError):
+                    detail = None
+                if isinstance(detail, dict) and _xxy_screen.is_legacy_false_clean_negative(detail):
+                    stale_ids.append(row.id)
+
+        if stale_ids:
+            can_rescreen = "raw_variants" in table_names and store_cols <= findings_cols
+            can_scrub_diff = {"key", "value"} <= state_cols
+            # The screen reads raw variants only; run it before taking the
+            # writer lock so the lock is held for the writes alone.
+            result = _xxy_screen.screen_aneuploidy(engine) if can_rescreen else None
+            removed_diff_entries = 0
+            # Reserve the SQLite writer lock and commit the row replacement (or
+            # quarantine) together with the banner scrub. Committed separately,
+            # a crash in between would leave a `manual_review` row that the
+            # legacy predicate no longer matches, so the next open would stamp
+            # v26 without ever scrubbing the superseded negative from the
+            # finding-change banner (#2040 review).
+            with engine.connect() as conn:
+                conn.exec_driver_sql("BEGIN IMMEDIATE")
+                try:
+                    if result is not None:
+                        _xxy_screen.write_aneuploidy_finding(conn, result)
+                    else:
+                        conn.execute(sa.delete(findings).where(findings.c.id.in_(stale_ids)))
+                    if can_scrub_diff:
+                        state_row = conn.execute(
+                            sa.select(annotation_state.c.value).where(
+                                annotation_state.c.key == _FINDING_DIFF_STATE_KEY
+                            )
+                        ).fetchone()
+                        if state_row is not None:
+                            try:
+                                diff = json.loads(state_row.value)
+                            except (json.JSONDecodeError, TypeError):
+                                diff = None
+                            if isinstance(diff, dict):
+                                for bucket in ("changed", "added", "removed"):
+                                    entries = diff.get(bucket)
+                                    if not isinstance(entries, list):
+                                        continue
+                                    kept = [
+                                        entry
+                                        for entry in entries
+                                        if not _is_legacy_xxy_negative_diff_entry(entry)
+                                    ]
+                                    removed_diff_entries += len(entries) - len(kept)
+                                    if len(kept) != len(entries):
+                                        diff[bucket] = kept
+                                if removed_diff_entries:
+                                    diff["counts"] = {
+                                        bucket: (
+                                            len(diff.get(bucket, []))
+                                            if isinstance(diff.get(bucket), list)
+                                            else 0
+                                        )
+                                        for bucket in ("changed", "added", "removed")
+                                    }
+                                    conn.execute(
+                                        annotation_state.update()
+                                        .where(annotation_state.c.key == _FINDING_DIFF_STATE_KEY)
+                                        .values(value=json.dumps(diff))
+                                    )
+                    conn.commit()
+                except Exception:
+                    conn.rollback()
+                    raise
+            added = True
+            if result is not None:
+                logger.warning(
+                    "legacy_xxy_clean_negative_rescreened",
+                    count=len(stale_ids),
+                    outcome=result.outcome,
+                    from_version=from_version,
+                )
+            else:
+                logger.warning(
+                    "legacy_xxy_clean_negative_quarantined",
+                    count=len(stale_ids),
+                    from_version=from_version,
+                )
+            if removed_diff_entries:
+                logger.warning(
+                    "legacy_xxy_clean_negative_diff_entries_quarantined",
+                    count=removed_diff_entries,
+                    from_version=from_version,
+                )
 
     return added
 

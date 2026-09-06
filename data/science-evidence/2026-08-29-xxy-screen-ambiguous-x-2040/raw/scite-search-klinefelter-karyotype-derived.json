@@ -1,0 +1,63 @@
+{
+  "_artifact_note": "DERIVED record of a Scite MCP `search_literature` term search made 2026-09-05, after the service-reported quota reset of 2026-09-03. Transcribed from the tool response: the total hit count and the DOI, year and title of every returned record (limit 10). Abstracts, excerpts and Smart Citation snippets were not retained. Outcome: the top results are case reports, mosaicism reports and reviews; none is a primary source that displaces or contradicts the two primaries already cited for C1, and none was added to the packet.",
+  "_query": {
+    "tool": "Scite MCP search_literature",
+    "term": "\"Klinefelter syndrome\" AND \"47,XXY\" AND karyotype AND \"Y chromosome\"",
+    "limit": 10
+  },
+  "_accessed": "2026-09-05",
+  "total": 1261,
+  "returned": 10,
+  "records": [
+    {
+      "doi": "10.1111/j.1365-2605.2010.01132.x",
+      "year": 2011,
+      "title": "Thinking outside the square: considering gender in Klinefelter syndrome and 47, XXY"
+    },
+    {
+      "doi": "10.4161/epi.27806",
+      "year": 2014,
+      "title": "Epigenomic and transcriptomic signatures of a Klinefelter syndrome (47,XXY) karyotype in the brain"
+    },
+    {
+      "doi": "10.1007/s10815-013-0001-6",
+      "year": 2013,
+      "title": "Maternal origin of 47,XXY and confined placental mosaicism 47,XXY/48,XXY,+13 in an infant conceived through IVF"
+    },
+    {
+      "doi": "10.2298/gensr2001097d",
+      "year": 2020,
+      "title": "Cytogenetic findings in Serbian patients with Klinefelter syndrome"
+    },
+    {
+      "doi": "10.26497/cc200024",
+      "year": 2021,
+      "title": "A rare case of Hypergonadotrophic Hypogonadism by 47,XXY/46,XX mosaicism"
+    },
+    {
+      "doi": "10.1016/j.lrr.2015.04.001",
+      "year": 2015,
+      "title": "Acute myeloid leukemia in a patient with constitutional 47,XXY karyotype"
+    },
+    {
+      "doi": "10.1055/s-0040-1713002",
+      "year": 2020,
+      "title": "Klinefelter Syndrome Mosaicism 46,XX/47,XXY: A New Case and Literature Review"
+    },
+    {
+      "doi": "10.1111/j.1447-0578.2008.00216.x",
+      "year": 2008,
+      "title": "A case of mosaic Klinefelter syndrome associated with isodicentric Yp"
+    },
+    {
+      "doi": "10.1159/000487039",
+      "year": 2017,
+      "title": "Clinical, Hormonal, and Genetic Evaluation of Idiopathic Nonobstructive Azoospermia and Klinefelter Syndrome Patients"
+    },
+    {
+      "doi": "10.1007/978-1-4614-6430-3_141-2",
+      "year": 2016,
+      "title": "Klinefelter Syndrome"
+    }
+  ]
+}
