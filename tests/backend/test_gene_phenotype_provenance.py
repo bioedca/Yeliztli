@@ -552,14 +552,17 @@ def test_il10_inheritance_is_withheld_for_now() -> None:
     )
 
 
-def test_vkorc1_keeps_autosomal_dominant() -> None:
-    """VKORC1 coumarin resistance is dominant, and must not drift to recessive.
+def test_vkorc1_value_is_unchanged() -> None:
+    """The VKORC1 resistance row keeps its pre-existing value; this is a drift guard.
 
-    Heterozygous missense variants suffice for coumarin/warfarin resistance
-    (PMID:14765194; PMID:26513304). The gene carries other phenotypes in the
-    literature, so the row could not be pattern-matched off the gene symbol and
-    only its disease_name settles which association this is -- #2043 asked for
-    this confirmation. Nothing is asserted here about those other phenotypes.
+    Two retained primary sources agree that heterozygous missense variants
+    suffice for coumarin/warfarin resistance (PMID:14765194; PMID:26513304), but
+    their cohort independence is not provable from the retained records, so the
+    packet records the two-source gate as NOT established and does not call the
+    value confirmed. The value is pre-existing and unchanged by this change; this
+    test pins it against unintended drift (#2043 asked for the row to be checked
+    because it was the last survivor of #1959's AD-vs-AR observation). Nothing is
+    asserted about VKORC1's other phenotypes.
     """
     row = _association("VKORC1", "MONDO:0007390")
     assert row is not None, "VKORC1 / MONDO:0007390 row missing from gene_phenotype_seed.csv"

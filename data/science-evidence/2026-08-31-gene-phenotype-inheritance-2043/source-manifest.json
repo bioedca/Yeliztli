@@ -13,7 +13,7 @@
       "what_would_close_it": "A second IL10 (ligand) loss-of-function cohort whose independence from PMID:22549091 is documented across all three dimensions the contract names -- no shared patients (cohort), no shared dataset, and a genotype-phenotype observation that does not derive from the other paper's assertion (upstream) -- author disjointness alone being necessary but not sufficient; or patient-level evidence that the IL10-mutant patients in PMID:24216686 are not those in PMID:22549091 plus the same dataset/upstream assessment; or a maintainer decision that the MONDO entity-level assertion is sufficient for a gene-keyed row. Filed as a scientific-validity issue.",
       "history": "An earlier revision of this packet set the value on receptor-only evidence and claimed 'loss-of-function variants in IL10, IL10RA or IL10RB'. A later revision restated it at the entity level. Review established that the entity framing does not change what the software renders, so the value is now withheld outright.",
       "candidates_assessed": {
-        "note": "Records surfaced by the retained searches that report IL10 (ligand) mutation carriers, assessed for whether they could form the two-independent-source pair the contract requires. None is cited in support of a claim; author lists were read from the retained eSummaries. All three are notice-checked the same way as the cited sources (PubMed EFetch typed relations and Scite metadata), because the cohort composition and author-overlap reading rest on them.",
+        "note": "Records surfaced by the retained searches that report IL10 (ligand) mutation carriers, assessed for whether they could form the two-independent-source pair the contract requires. None is cited in support of a claim; author lists were read from the retained eSummaries. All three are notice-checked the same way as the cited sources (PubMed EFetch typed relations and Scite metadata), because the cohort composition and author-overlap reading rest on them: none carries a correction, retraction, expression of concern or other editorial notice; PMID:22549091 carries two CommentIn (comment) relations, retained in its reduction.",
         "PMID:22549091": {
           "paper": "Kotlarz D et al., Gastroenterology 2012 (DOI:10.1053/j.gastro.2012.04.045) (accessed 2026-09-06)",
           "ligand_evidence": "3 of 66 early-onset IBD patients carried IL-10 mutations, homozygous loss of function (abstract of the live record)",
@@ -36,7 +36,7 @@
     },
     "C2": {
       "statement": "VKORC1 coumarin (warfarin) resistance is autosomal dominant: heterozygous missense variants suffice. Nothing is asserted about VKORC1's other phenotypes (Rost 2004 also maps VKCFD2 families); an earlier revision stated VKCFD2's recessive mode and mechanism here on a single source and that half is withdrawn.",
-      "drives": "Confirming, not changing, the VKORC1 row's existing 'Autosomal dominant'. #2043 asked for this explicitly because the row was the last survivor of #1959's AD-vs-AR observation. If the lineage assessment above were judged insufficient, the value would stay as it is (it is pre-existing and unchanged by this pull request); what would be withdrawn is the word 'confirmed', not the value.",
+      "drives": "The VKORC1 row's existing 'Autosomal dominant' is UNCHANGED by this pull request, and the test that pins it guards against unintended drift of a pre-existing value; it is not a scientific confirmation. Two retained primary sources agree with the value, but cohort independence between them is not provable from the retained abstract-level records (see independence), so the two-independent-source gate is recorded as not established and the word 'confirmed' is withdrawn. #2043 asked for this row to be checked because it was the last survivor of #1959's AD-vs-AR observation.",
       "sources": [
         "PMID:14765194",
         "PMID:26513304"
@@ -195,7 +195,7 @@
       "source": "NCBI PubMed EFetch",
       "license_reference": "https://www.ncbi.nlm.nih.gov/home/about/policies/",
       "license_note": "US-government-authored NCBI content is public domain; the retained XML is bibliographic metadata with abstracts removed.",
-      "observed_version": "The XML carries no header version field; no database release or build is exposed on this endpoint. Recorded as not exposed rather than guessed."
+      "observed_version": "Response-schema version: every retained EFetch XML declares the DTD `PubMedArticle, 1st January 2025` (`pubmed_250101.dtd`), recorded as such. No PubMed database release or build is exposed on this endpoint; that is recorded as not exposed rather than guessed."
     },
     {
       "source": "Consensus MCP",

@@ -1,6 +1,6 @@
 # The `inheritance` column of `gene_phenotype_seed.csv` (#2043)
 
-Two claims, and neither changes the seed: C1 withholds a value for want of evidence, C2 confirms an existing value. This change is tests and evidence only.
+Two claims, and neither changes the seed: C1 withholds a value for want of evidence, C2 leaves an existing value unchanged (two agreeing sources, cohort independence not established). This change is tests and evidence only.
 
 ## Why this column is load-bearing
 
@@ -58,8 +58,9 @@ reviewed cases without attributing any to its own cohort, and shares 5 authors w
 Author lists were read from the retained eSummaries. None of these three is cited in support of a
 claim, but the cohort composition and author-overlap reading rest on them, so all three carry the
 same typed notice checks as the cited sources (PubMed EFetch `CommentsCorrections` and Scite
-metadata, 2026-09-06): **no notice of any kind on any of them**. That is the whole supported
-statement about the literature.
+metadata, 2026-09-06): **no correction, retraction, expression of concern or other editorial notice
+on any of them**; `PMID:22549091` carries two `CommentIn` (comment) relations, retained in its
+reduction. That is the whole supported statement about the literature.
 
 > **Correction.** The revision before the previous one stated that none of the returned records
 > was an IL10 ligand cohort and called the ESearch hit a review. Its retained publication types are
@@ -81,7 +82,7 @@ at the entity level. Review established that the entity framing does not change 
 renders beside an IL10 variant, so the value is now withheld outright. Withholding is the contract's
 prescribed answer to insufficient evidence, and the guard added here has a place to record it.
 
-## C2 — VKORC1 coumarin resistance is autosomal dominant (confirmed, not changed)
+## C2 — VKORC1 coumarin resistance stays `Autosomal dominant` (unchanged; not re-confirmed)
 
 Heterozygous *VKORC1* missense variants suffice for coumarin/warfarin resistance — the one claim
 both sources make. *VKORC1* carries more than one phenotype in the literature (Rost 2004 also maps
@@ -107,13 +108,17 @@ linkage and sequencing versus Lewis's own patient genotype, clinical response an
 *Upstream assertion:* the mapped claim is that a heterozygous missense variant suffices for coumarin
 resistance; Lewis's support for it is its own genotype–phenotype observation in that patient, and it
 relies on Rost only for the identification of *VKORC1* as the gene, which is not the claim mapped
-here. Disjoint authors and the twelve-year gap are supporting facts, not the test. Were this
-assessment judged insufficient, the value would stay exactly as it is — it is pre-existing and
-unchanged by this pull request — and only the word "confirmed" would be withdrawn.
+here. Disjoint authors and the twelve-year gap are supporting facts, not the test. Because cohort
+independence is not provable from the retained records, the two-independent-source gate is recorded
+as **not established** and the word "confirmed" is withdrawn: the value stays exactly as it is
+because it is pre-existing and unchanged by this pull request, and the test that pins it guards
+against unintended drift of that pre-existing value rather than certifying it.
 
 One gene, more than one phenotype in the literature, so only the row's `disease_name` settles which
-association this row is. It names resistance, so `Autosomal dominant` is right and stays — the
-confirmation #2043 asked for.
+association this row is. It names resistance; `Autosomal dominant` is the pre-existing value and
+stays. #2043 asked for this row to be checked; the check found two agreeing primary sources and
+could not establish their cohort independence, so the value is retained as unchanged rather than
+declared confirmed.
 
 > An earlier revision of this manifest recorded the Lewis DOI as `10.1097/FPC.0000000000000197`.
 > That was wrong: the retained eSummary says `...184`. The identifier is now copied from the payload
