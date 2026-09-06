@@ -306,6 +306,20 @@ _UNVERIFIED_BLANK_INHERITANCE: frozenset[tuple[str, str]] = frozenset(
 )
 
 
+def _association(gene_symbol: str, disease_id: str) -> dict[str, str] | None:
+    """Select one gene-disease row by both keys.
+
+    A gene may carry several rows (HBB does, and the unverified-blank exemption is
+    keyed by ``(gene_symbol, disease_id)`` for that reason), so "the first row for
+    this gene" does not identify an association; a valid second IL10 or VKORC1 row
+    inserted earlier in the CSV would silently redirect a gene-only lookup.
+    """
+    return next(
+        (r for r in _rows() if r["gene_symbol"] == gene_symbol and r["disease_id"] == disease_id),
+        None,
+    )
+
+
 def _canonical_inheritance_values() -> frozenset[str]:
     """The union of the repository's own controlled vocabularies, not one invented here.
 
@@ -454,9 +468,8 @@ def test_il10_inheritance_is_withheld_for_now() -> None:
     This test pins both halves: IL10 must stay listed as unverified, and it must
     never be reclassified as polygenic on the strength of its blank.
     """
-    row = next((r for r in _rows() if r["gene_symbol"] == "IL10"), None)
-    assert row is not None, "IL10 row missing from gene_phenotype_seed.csv"
-    assert row["disease_id"] == "MONDO:0016542"
+    row = _association("IL10", "MONDO:0016542")
+    assert row is not None, "IL10 / MONDO:0016542 row missing from gene_phenotype_seed.csv"
     assert ("IL10", "MONDO:0016542") in _UNVERIFIED_BLANK_INHERITANCE, (
         "IL10 carries no verified inheritance; it must be listed as unverified"
     )
@@ -474,8 +487,8 @@ def test_vkorc1_keeps_autosomal_dominant() -> None:
     causes VKCFD2, which is recessive (PMID:14765194; PMID:26513304). Only the
     row's disease_name settles which applies -- #2043 asked for this confirmation.
     """
-    row = next((r for r in _rows() if r["gene_symbol"] == "VKORC1"), None)
-    assert row is not None, "VKORC1 row missing from gene_phenotype_seed.csv"
+    row = _association("VKORC1", "MONDO:0007390")
+    assert row is not None, "VKORC1 / MONDO:0007390 row missing from gene_phenotype_seed.csv"
     assert row["disease_name"] == "Coumarin (warfarin) resistance"
     assert row["inheritance"] == "Autosomal dominant"
 
