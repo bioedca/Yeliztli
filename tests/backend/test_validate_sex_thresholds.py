@@ -338,7 +338,7 @@ def test_threshold_constants_match_production() -> None:
     """Every script DEFAULT_* must equal the production constant it duplicates."""
     assert DEFAULT_XY_CONFIRM == _prod._THRESHOLD_XY_CONFIRM
     assert DEFAULT_PAR_NOISE == _prod._THRESHOLD_PAR_NOISE
-    assert DEFAULT_X_HET_HEMIZYGOUS == _prod._THRESHOLD_X_HET_HEMIZYGOUS
+    assert DEFAULT_X_HET_HEMIZYGOUS == _prod.THRESHOLD_X_HET_HEMIZYGOUS
     assert DEFAULT_X_HET_DIPLOID == _prod.THRESHOLD_X_HET_DIPLOID
     assert DEFAULT_MIN_X_NONPAR_TYPED == _prod.MIN_X_NONPAR_TYPED
     assert DEFAULT_MIN_Y_PROBES == _prod.MIN_Y_PROBES
