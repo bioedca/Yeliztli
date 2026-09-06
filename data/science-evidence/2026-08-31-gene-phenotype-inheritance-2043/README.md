@@ -39,8 +39,9 @@ not share an upstream assertion before a user-facing claim of this kind is encod
 Searches for an IL10 **ligand** cohort, each retained: Consensus (run 2026-08-31, re-run 2026-09-06
 with all 20 result identities kept — an earlier revision retained only the count, which review
 caught); Scite on 2026-09-05/06 (a ligand-only query excluding the receptor genes, paged to
-exhaustion — 17 records returned of a reported 22, every DOI and title retained; none a ligand
-cohort); and a PubMed ESearch on 2026-09-06 (Title/Abstract term excluding `IL10RA`/`IL10RB`,
+exhaustion — 17 records returned of a reported 22, every DOI and title retained; read at title level
+only, none names a ligand cohort, and two congress-proceedings volumes cannot be classified from a
+title, so this search surfaced none *by title* rather than excluding one); and a PubMed ESearch on 2026-09-06 (Title/Abstract term excluding `IL10RA`/`IL10RB`,
 verbatim ESearch and eSummary retained; one record). Two of the surfaced records report IL10-mutant
 patients, and they were assessed as a possible independent pair:
 
@@ -135,7 +136,7 @@ obsolescence is the analogous check — `MONDO:0016542` is not obsolete.
 ## Discovery-tool ladder
 
 - **Consensus** — invoked 2026-08-31 (count and outcome only were kept, which review caught) and re-run with the same query on 2026-09-06; all 20 result identities are retained as a **derived** record and read above.
-- **Scite** — invoked **2026-09-05/06**, after the service-reported quota reset of 2026-09-03 (an earlier revision recorded the August failure as current). Retained as **derived** records: metadata for the five cited DOIs (no editorial notice on any) and a term search for an IL10 **ligand** loss-of-function cohort excluding the receptor genes, paged to exhaustion — 17 records returned of a reported 22, none a ligand cohort, so C1 stays withheld.
+- **Scite** — invoked **2026-09-05/06**, after the service-reported quota reset of 2026-09-03 (an earlier revision recorded the August failure as current). Retained as **derived** records: metadata for the cited and candidate DOIs (no editorial notice on any) and a term search for an IL10 **ligand** loss-of-function cohort excluding the receptor genes, paged to exhaustion — 17 records returned of a reported 22; read at title level only, none names a ligand cohort, so the search surfaced none by title. C1 stays withheld on the independent-pair ground.
 - **PubMed ESearch** — **2026-09-06**, the negative search itself retained verbatim (1 record, `PMID:22549091`, an IL10 ligand cohort from the same author group as the cited receptor cohort; recorded above as insufficient on its own).
 - **Fallback** — PubMed for the literature, EBI OLS4 for the ontology record.
 
