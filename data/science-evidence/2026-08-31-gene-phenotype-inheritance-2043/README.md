@@ -27,8 +27,10 @@ ontology metadata about a disease entity. MONDO's synonyms for `MONDO:0016542` d
 version mondo 2026-08-04 from the retained OLS4 record — but that is **one** source, and the contract requires two agreeing sources that do
 not share an upstream assertion before a user-facing claim of this kind is encoded.
 
-**What the search found.** Three independent cohorts, all characterising only the `IL10RA`/`IL10RB`
-**receptor** forms:
+**What the search found.** Three receptor cohorts, all characterising only the `IL10RA`/`IL10RB`
+**receptor** forms (described as three cohorts, not as independent ones: `PMID:19890111` and
+`PMID:21519361` share an author in the retained eSummaries, and no cohort-lineage assessment is made
+here because nothing rests on their independence):
 
 | Source | Cohort | Genes reported |
 | --- | --- | --- |

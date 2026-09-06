@@ -530,7 +530,7 @@ def test_il10_inheritance_is_withheld_for_now() -> None:
     "autosomal recessive early-onset inflammatory bowel disease", but this row is
     gene-keyed: `_lookup_gene_phenotype` returns its value as the
     `inheritance_pattern` shown beside an *IL10* variant, which makes it a
-    per-gene claim. Three independent cohorts -- PMID:19890111, PMID:28267044 and
+    per-gene claim. Three receptor cohorts -- PMID:19890111, PMID:28267044 and
     PMID:21519361 -- characterise only the IL10RA/IL10RB receptor forms. The
     retained searches surfaced two cohorts reporting IL10 ligand mutation carriers,
     PMID:22549091 and PMID:24216686, but they share contributing-clinician authors
