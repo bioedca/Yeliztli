@@ -56,7 +56,7 @@
       "risk_classification": "MT-ND4 m.11778G>A — primary LHON mutation detected",
       "zygosity": null,
       "evidence_stars": 3,
-      "finding_text": "A primary LHON mutation, MT-ND4 m.11778G>A (rs199476112 {genotype}), was detected. This is the most common LHON variant (~70% of cases) and is associated with poor spontaneous visual recovery. Importantly, most carriers never lose vision: penetrance is incomplete and sex-biased — roughly half of male carriers and about one in ten female carriers ever develop optic neuropathy, often triggered by environmental factors such as smoking or heavy alcohol use. A positive result is not a diagnosis and not a prediction that you will lose vision.",
+      "finding_text": "A primary LHON mutation, MT-ND4 m.11778G>A ({genotype}), was detected. This is the most common LHON variant (~70% of cases) and is associated with poor spontaneous visual recovery. Importantly, most carriers never lose vision: penetrance is incomplete and sex-biased — roughly half of male carriers and about one in ten female carriers ever develop optic neuropathy, often triggered by environmental factors such as smoking or heavy alcohol use. A positive result is not a diagnosis and not a prediction that you will lose vision.",
       "caveats": ["reduced_penetrance", "mt_maternal_inheritance", "mt_heteroplasmy", "negative_not_clear", "confirm_clinically"],
       "pmids": ["20301353"]
     },
@@ -67,7 +67,7 @@
       "risk_classification": "MT-ND1 m.3460G>A — primary LHON mutation detected",
       "zygosity": null,
       "evidence_stars": 3,
-      "finding_text": "A primary LHON mutation, MT-ND1 m.3460G>A (rs199476118 {genotype}), was detected. This accounts for roughly 15% of LHON cases and is associated with poor spontaneous visual recovery. Most carriers never lose vision: penetrance is incomplete and sex-biased — about half of male carriers and one in ten female carriers ever develop optic neuropathy, often triggered by smoking or heavy alcohol use. A positive result is not a diagnosis and not a prediction.",
+      "finding_text": "A primary LHON mutation, MT-ND1 m.3460G>A ({genotype}), was detected. This accounts for roughly 15% of LHON cases and is associated with poor spontaneous visual recovery. Most carriers never lose vision: penetrance is incomplete and sex-biased — about half of male carriers and one in ten female carriers ever develop optic neuropathy, often triggered by smoking or heavy alcohol use. A positive result is not a diagnosis and not a prediction.",
       "caveats": ["reduced_penetrance", "mt_maternal_inheritance", "mt_heteroplasmy", "negative_not_clear", "confirm_clinically"],
       "pmids": ["20301353"]
     },
@@ -78,7 +78,7 @@
       "risk_classification": "MT-ND6 m.14484T>C — primary LHON mutation detected",
       "zygosity": null,
       "evidence_stars": 3,
-      "finding_text": "A primary LHON mutation, MT-ND6 m.14484T>C (rs199476104 {genotype}), was detected. This accounts for roughly 15% of LHON cases and carries the best visual prognosis of the three primary mutations, with spontaneous recovery seen in some affected individuals. Most carriers never lose vision: penetrance is incomplete and sex-biased — about half of male carriers and one in ten female carriers ever develop optic neuropathy, often triggered by smoking or heavy alcohol use. A positive result is not a diagnosis and not a prediction.",
+      "finding_text": "A primary LHON mutation, MT-ND6 m.14484T>C ({genotype}), was detected. This accounts for roughly 15% of LHON cases and carries the best visual prognosis of the three primary mutations, with spontaneous recovery seen in some affected individuals. Most carriers never lose vision: penetrance is incomplete and sex-biased — about half of male carriers and one in ten female carriers ever develop optic neuropathy, often triggered by smoking or heavy alcohol use. A positive result is not a diagnosis and not a prediction.",
       "caveats": ["reduced_penetrance", "mt_maternal_inheritance", "mt_heteroplasmy", "negative_not_clear", "confirm_clinically"],
       "pmids": ["20301353"]
     }

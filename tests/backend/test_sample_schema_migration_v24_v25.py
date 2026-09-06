@@ -111,7 +111,7 @@ def test_v25_retains_legacy_and_custom_audit_records_and_diff_state(
 
     assert after_findings == before_findings
     assert after_diff == before_diff
-    assert version == SAMPLE_SCHEMA_VERSION == 26
+    assert version == SAMPLE_SCHEMA_VERSION == 27
     assert ensure_sample_schema_current(sample_engine) is False
 
 
@@ -145,4 +145,4 @@ def test_v25_never_executes_a_destructive_quarantine_delete(sample_engine: sa.En
         version = conn.execute(sa.text("PRAGMA user_version")).scalar_one()
 
     assert retained is not None
-    assert version == SAMPLE_SCHEMA_VERSION == 26
+    assert version == SAMPLE_SCHEMA_VERSION == 27
