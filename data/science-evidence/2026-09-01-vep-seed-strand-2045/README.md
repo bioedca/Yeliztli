@@ -136,6 +136,12 @@ Versions: Ensembl GRCh37 REST exposes no version header on these endpoints — t
 that matters and is in the hostname. NCBI E-utilities exposes no build field. The Scite MCP surface
 exposes no index version. All recorded as **not exposed** rather than guessed.
 
+> **Correction.** Until 2026-09-06 the consequence audit was the sole record of the VEP responses
+> behind the 52 / 15 / 33 breakdown, so that breakdown could not be verified independently. The 678
+> requests were re-issued and the responses retained verbatim; the re-derived reduction reproduces
+> the earlier one exactly apart from the corrected fixture column, and with the corrected CSV the
+> breakdown reads 53 / 14 / 33.
+
 ## Retained evidence
 
 `raw/` holds **seven unedited verbatim API responses**, **one sanitized response** and **five derived
@@ -147,8 +153,15 @@ three per-symbol captures made on 2026-09-05 — Ensembl `lookup/symbol` for all
 `responses` wrapper keyed by queried symbol are the only additions; and the 48-byte `HTTP 400` error
 body Ensembl GRCh37 VEP returned for `rs5778923` on 2026-09-05, stored exactly as received.
 
-Sanitized: the PubMed EFetch XML for the two cited papers, abstracts removed and nothing else touched,
-labelled in its filename.
+Sanitized: the PubMed EFetch XML for the two cited papers, abstracts removed and the two author email
+addresses its `<Affiliation>` text carried replaced by `[email redacted]`; nothing else touched, labelled
+in its filename. No other retained payload contains an email address (regex-checked).
+
+> **Correction.** Until 2026-09-06 that XML still carried two author email addresses in `<Affiliation>`
+> text while the packet described it as free of personal data. Redacted after review, leaving the rest
+> of each affiliation intact; the file's SHA-256 and byte count were recomputed. Author names and
+> institutional affiliations are public bibliographic metadata and stay; email addresses are not needed
+> for the citation and do not.
 
 Derived, each labelled DERIVED in the manifest with the verbatim payload it derives from and the fields
 it selects:
@@ -159,9 +172,13 @@ it selects:
   `uid`, `genomicinfo[0].chrstart` and `genomicinfo[0].chrstop`, and **computes** `orientation` from
   their order (`-` when start > stop). `CYP2C19`, `CYP2R1` and `HLA-DRB1` also return discontinued ids
   whose `currentid` points at the retained one and which carry no `genomicinfo`.
-- the consequence audit reduces 677 VEP responses (one per unique rsID; 678 requested, the failed
-  `rs5778923` recorded under `failures`) to the fixture consequence, the transcript-matched terms and
-  `most_severe_consequence`, because retaining 677 full payloads would be megabytes of unread JSON;
+- the consequence audit reduces the 677 retained VEP responses (one per unique rsID; 678 requested, the
+  failed `rs5778923` recorded under `failures`) to the fixture consequence, the transcript-matched
+  terms and `most_severe_consequence`. The responses themselves are retained verbatim as
+  gzip-compressed JSON Lines (`raw/ensembl-grch37-vep-all-rows-verbatim.jsonl.gz`, 678 lines, 316 KB
+  compressed / 2.3 MB uncompressed, both digests in the manifest), and the reduction was re-derived
+  from them on 2026-09-06: identical for all 677 rsIDs to the 2026-09-01 reduction except
+  `rs28399504`'s fixture column, which reflects the corrected CSV;
 - the PubMed reduction lists each cited record's `CommentsCorrections` and publication types;
 - the Scite record holds the two cited DOIs' metadata and notice status.
 
