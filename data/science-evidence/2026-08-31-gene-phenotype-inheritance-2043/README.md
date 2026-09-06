@@ -1,6 +1,6 @@
 # The `inheritance` column of `gene_phenotype_seed.csv` (#2043)
 
-Two claims, and neither changes the seed: C1 withholds a value for want of evidence, C2 leaves an existing value unchanged (two agreeing sources, cohort independence not established). This change is tests and evidence only.
+Two claims considered, both withheld, and neither changes the seed: C1 withholds a value for want of evidence; C2's two sources agree but their cohort independence is not established, so no inheritance mode is asserted and the pre-existing seed value is left unchanged and unlocked. This change is tests and evidence only.
 
 ## Why this column is load-bearing
 
@@ -82,10 +82,10 @@ at the entity level. Review established that the entity framing does not change 
 renders beside an IL10 variant, so the value is now withheld outright. Withholding is the contract's
 prescribed answer to insufficient evidence, and the guard added here has a place to record it.
 
-## C2 — VKORC1 coumarin resistance stays `Autosomal dominant` (unchanged; not re-confirmed)
+## C2 — VKORC1 coumarin resistance inheritance: considered, **withheld** (seed value unchanged, unasserted)
 
-Heterozygous *VKORC1* missense variants suffice for coumarin/warfarin resistance — the one claim
-both sources make. *VKORC1* carries more than one phenotype in the literature (Rost 2004 also maps
+**Statement considered:** heterozygous *VKORC1* missense variants suffice for coumarin/warfarin
+resistance — the one claim both sources make. **Verdict: withheld** (below). *VKORC1* carries more than one phenotype in the literature (Rost 2004 also maps
 VKCFD2 families), which is why the row could not be pattern-matched off the gene symbol; this packet
 asserts nothing about those other phenotypes' mode or mechanism, and only the row's `disease_name`
 settles that the resistance row is the one at issue.
@@ -110,16 +110,17 @@ resistance; Lewis's support for it is its own genotype–phenotype observation i
 relies on Rost only for the identification of *VKORC1* as the gene, which is not the claim mapped
 here. Disjoint authors and the twelve-year gap are supporting facts, not the test. Because cohort
 independence is not provable from the retained records, the two-independent-source gate is recorded
-as **not established** and the word "confirmed" is withdrawn: the value stays exactly as it is
-because it is pre-existing and unchanged by this pull request, and **no test locks it** — an
-unverified value must stay correctable, so a future change that withholds it is not blocked. The row
-remains in the declared-but-unverified set tracked by #2360.
+as **not established** and the claim is **withheld**, exactly as C1 is: this packet asserts no
+inheritance mode for the row. The seed's pre-existing value is left as it was — neither asserted,
+confirmed nor changed here — and **no test locks it**, so a future change that withholds it is not
+blocked. The row remains in the declared-but-unverified set tracked by #2360. What would close it: a
+record establishing that Lewis 2016's patient is not one of Rost 2004's kindred members, or a third
+primary source with a demonstrably distinct cohort.
 
 One gene, more than one phenotype in the literature, so only the row's `disease_name` settles which
-association this row is. It names resistance; `Autosomal dominant` is the pre-existing value and
-stays. #2043 asked for this row to be checked; the check found two agreeing primary sources and
-could not establish their cohort independence, so the value is retained as unchanged rather than
-declared confirmed.
+association this row is. It names resistance. #2043 asked for this row to be checked; the check
+found two agreeing primary sources and could not establish their cohort independence, so the claim
+is withheld and the pre-existing value is left unchanged rather than asserted.
 
 > An earlier revision of this manifest recorded the Lewis DOI as `10.1097/FPC.0000000000000197`.
 > That was wrong: the retained eSummary says `...184`. The identifier is now copied from the payload
