@@ -10,7 +10,7 @@
       "outcome": "No value is set. The row stays blank and is listed in _UNVERIFIED_BLANK_INHERITANCE as unverified (no inheritance mode asserted until the two-source gate is met) — explicitly NOT as polygenic, which was #2043's mis-classification.",
       "why_withheld": "The row is gene-keyed. `_lookup_gene_phenotype` returns its value as the `inheritance_pattern` rendered beside an *IL10* variant, so it reads as a per-gene claim, not as ontology metadata about a disease entity. MONDO's synonyms for the term do include 'autosomal recessive early-onset inflammatory bowel disease', but that is one source, and the contract requires two agreeing sources that do not share an upstream assertion for a user-facing claim of this kind.",
       "search_performed": "Three receptor cohorts were located and all characterise only the IL10RA/IL10RB RECEPTOR forms (not asserted to be independent of one another: PMID:19890111 and PMID:21519361 share an author, and nothing rests on their independence): PMID:19890111 (European consanguineous families), PMID:28267044 (42-patient Chinese survey) and PMID:21519361 (French cohort; IL10RA p.R262C, IL10RB p.E141X). Searches for an IL10 LIGAND loss-of-function cohort, each retained: Consensus (2026-08-31, 20 papers, derived record), Scite (2026-09-05/06, ligand-only term excluding the receptor genes, 17 records returned of a reported 22, derived record) and a PubMed ESearch (2026-09-06, Title/Abstract term excluding IL10RA/IL10RB, verbatim esearch + esummary retained). The Scite records were read at title level only (no abstracts retained): none of the 17 titles names an IL10 ligand cohort, and two congress-proceedings volumes cannot be classified from a title, so that search is recorded as surfacing no ligand cohort by title rather than as excluding one. The Consensus results (all 20 identities retained on 2026-09-06) contain Kotlarz 2012 and the GENIUS survey (Pigneur 2013); both are assessed under candidates_assessed. The PubMed ESearch returned exactly one record: PMID:22549091 (Kotlarz D et al., Gastroenterology 2012; 66 early-onset IBD patients, 3 with IL-10 mutations, homozygous loss of function). It is ONE source, and its author list shares 14 of 35 authors with PMID:19890111 (read from the retained eSummaries), so it cannot pair with that cohort as an independent second source. The one other cohort reporting IL10-mutant patients (Pigneur 2013) shares contributing-clinician authors with Kotlarz 2012, so the pair is not proven to be two cohorts. That is the whole supported statement about the literature.",
-      "what_would_close_it": "A second IL10 (ligand) loss-of-function cohort that shares no authors with PMID:22549091, or patient-level evidence that the IL10-mutant patients in PMID:24216686 are not those in PMID:22549091 -- or a maintainer decision that the MONDO entity-level assertion is sufficient for a gene-keyed row. Filed as a scientific-validity issue.",
+      "what_would_close_it": "A second IL10 (ligand) loss-of-function cohort whose independence from PMID:22549091 is documented across all three dimensions the contract names -- no shared patients (cohort), no shared dataset, and a genotype-phenotype observation that does not derive from the other paper's assertion (upstream) -- author disjointness alone being necessary but not sufficient; or patient-level evidence that the IL10-mutant patients in PMID:24216686 are not those in PMID:22549091 plus the same dataset/upstream assessment; or a maintainer decision that the MONDO entity-level assertion is sufficient for a gene-keyed row. Filed as a scientific-validity issue.",
       "history": "An earlier revision of this packet set the value on receptor-only evidence and claimed 'loss-of-function variants in IL10, IL10RA or IL10RB'. A later revision restated it at the entity level. Review established that the entity framing does not change what the software renders, so the value is now withheld outright.",
       "candidates_assessed": {
         "note": "Records surfaced by the retained searches that report IL10 (ligand) mutation carriers, assessed for whether they could form the two-independent-source pair the contract requires. None is cited in support of a claim; author lists were read from the retained eSummaries. All three are notice-checked the same way as the cited sources (PubMed EFetch typed relations and Scite metadata), because the cohort composition and author-overlap reading rest on them.",
@@ -36,12 +36,12 @@
     },
     "C2": {
       "statement": "VKORC1 coumarin (warfarin) resistance is autosomal dominant: heterozygous missense variants suffice. Nothing is asserted about VKORC1's other phenotypes (Rost 2004 also maps VKCFD2 families); an earlier revision stated VKCFD2's recessive mode and mechanism here on a single source and that half is withdrawn.",
-      "drives": "Confirming, not changing, the VKORC1 row's existing 'Autosomal dominant'. #2043 asked for this explicitly because the row was the last survivor of #1959's AD-vs-AR observation.",
+      "drives": "Confirming, not changing, the VKORC1 row's existing 'Autosomal dominant'. #2043 asked for this explicitly because the row was the last survivor of #1959's AD-vs-AR observation. If the lineage assessment above were judged insufficient, the value would stay as it is (it is pre-existing and unchanged by this pull request); what would be withdrawn is the word 'confirmed', not the value.",
       "sources": [
         "PMID:14765194",
         "PMID:26513304"
       ],
-      "independence": "Disjoint authors, 12 years apart. Rost 2004 is the original mapping of VKORC1 in warfarin-resistant kindreds and VKCFD2 families; Lewis 2016 is an independent clinical case with molecular-mechanism characterisation.",
+      "independence": "Assessed across the three dimensions the contract names, from the retained eSummaries and the live abstracts (accessed 2026-09-06). Cohort: Rost 2004 reports the original warfarin-resistant kindreds and VKCFD2 families; Lewis 2016 reports a single patient carrying Val66Met studied twelve years later at a different institution. The retained records do not state or imply that this patient belongs to Rost's kindreds; that they are different individuals is not provable from abstract-level records, and is recorded as such. Dataset: separate -- Rost's linkage and sequencing versus Lewis's own patient genotype, clinical response and a homology model. Upstream assertion: the mapped claim is that a heterozygous missense variant suffices for coumarin resistance; Lewis's support for it is its own genotype-phenotype observation in that patient, and it relies on Rost only for VKORC1's identification as the gene, which is not the claim mapped here. Disjoint authors and a twelve-year gap are recorded as supporting, not sufficient, facts.",
       "note": "The gene carries more than one phenotype in the literature, which is why the row needed confirming against its disease_name rather than pattern-matching off the gene symbol. This packet does not characterise the other phenotypes."
     }
   },
@@ -170,32 +170,32 @@
     "consensus": "Invoked 2026-08-31 (count and outcome only were kept, which review caught) and re-run with the same query on 2026-09-06 with all 20 result identities retained as a DERIVED record. It surfaced the two cited receptor cohorts, the Kotlarz 2012 ligand cohort and the GENIUS survey; the rest are reviews, receptor-only cohorts, case reports and treatment series.",
     "scite": "Invoked 2026-09-05 and 2026-09-06, after the service-reported reset of 2026-09-03 (an earlier revision recorded the August quota failure as current). Retained as DERIVED records: metadata for the five cited DOIs (no editorial notice on any) and a ligand-only term search excluding the receptor genes, paged to exhaustion (17 records returned of a reported 22; the second page returned 7 of 12 requested). None of the 17 titles names an IL10 ligand cohort (read at title level only; two congress-proceedings volumes cannot be classified from a title), so the search surfaced none by title. C1 stays withheld on the independent-pair ground. No Scite text is redistributed.",
     "fallback": "PubMed used in Scite's place on 2026-08-31 and alongside it on 2026-09-06: every cited record re-resolved through eSummary and checked through EFetch typed CommentsCorrections relations; the negative search for an IL10 ligand cohort is a retained ESearch whose single hit (PMID:22549091, an IL10 ligand cohort from the same author group as the cited receptor cohort) is retained, notice-checked and recorded as insufficient on its own.",
-    "tool_versions": "OLS4 exposes mondo version 2026-08-04, recorded above and retained as a payload. Neither the Consensus MCP surface nor NCBI E-utilities exposes a version on these calls; both recorded as not exposed rather than guessed."
+    "tool_versions": "OLS4 exposes mondo version 2026-08-04, recorded above and retained as a payload. NCBI E-utilities JSON responses expose response-schema version 0.3 in `header.version` (recorded) but no database release or build; the Consensus and Scite MCP surfaces expose no version; those are recorded as not exposed rather than guessed."
   },
   "source_provenance": [
     {
       "source": "NCBI PubMed ESearch",
       "license_reference": "https://www.ncbi.nlm.nih.gov/home/about/policies/",
       "license_note": "US-government-authored NCBI content is public domain; the retained payloads are search counts and PubMed id lists.",
-      "observed_version": "NCBI E-utilities exposes no build/version field on esearch; recorded as not exposed rather than guessed."
+      "observed_version": "Response-schema version 0.3 (`header.version` in every retained esearch, esummary and elink JSON payload). No database release or build is exposed on these endpoints; that is recorded as not exposed rather than guessed."
     },
     {
       "source": "NCBI PubMed eSummary",
       "license_reference": "https://www.ncbi.nlm.nih.gov/home/about/policies/",
       "license_note": "US-government-authored NCBI content is public domain; retained payloads are bibliographic metadata.",
-      "observed_version": "NCBI E-utilities exposes no build/version field on esummary or elink; recorded as not exposed rather than guessed."
+      "observed_version": "Response-schema version 0.3 (`header.version` in every retained esearch, esummary and elink JSON payload). No database release or build is exposed on these endpoints; that is recorded as not exposed rather than guessed."
     },
     {
       "source": "NCBI PubMed eLink",
       "license_reference": "https://www.ncbi.nlm.nih.gov/home/about/policies/",
       "license_note": "US-government-authored NCBI content is public domain; retained payloads are bibliographic metadata.",
-      "observed_version": "NCBI E-utilities exposes no build/version field on esummary or elink; recorded as not exposed rather than guessed."
+      "observed_version": "Response-schema version 0.3 (`header.version` in every retained esearch, esummary and elink JSON payload). No database release or build is exposed on these endpoints; that is recorded as not exposed rather than guessed."
     },
     {
       "source": "NCBI PubMed EFetch",
       "license_reference": "https://www.ncbi.nlm.nih.gov/home/about/policies/",
       "license_note": "US-government-authored NCBI content is public domain; the retained XML is bibliographic metadata with abstracts removed.",
-      "observed_version": "NCBI E-utilities exposes no build/version field on efetch; recorded as not exposed rather than guessed."
+      "observed_version": "The XML carries no header version field; no database release or build is exposed on this endpoint. Recorded as not exposed rather than guessed."
     },
     {
       "source": "Consensus MCP",

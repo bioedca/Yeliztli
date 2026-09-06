@@ -67,11 +67,13 @@ statement about the literature.
 > statement was corrected within the hour, before any claim rested on it; the Consensus re-run then
 > surfaced the second candidate assessed above.
 
-**What would close it.** A second IL10 (ligand) loss-of-function cohort that shares no authors with
-`PMID:22549091`, or patient-level evidence that the IL10-mutant patients in `PMID:24216686` are not
-those in `PMID:22549091` — or a maintainer decision that the entity-level MONDO assertion is
-sufficient for a gene-keyed row. Filed as a scientific-validity issue rather than left as a silent
-blank.
+**What would close it.** A second IL10 (ligand) loss-of-function cohort whose independence from
+`PMID:22549091` is documented across all three dimensions the contract names — no shared patients,
+no shared dataset, and a genotype–phenotype observation that does not derive from the other paper's
+assertion — author disjointness being necessary but not sufficient; or patient-level evidence that the
+IL10-mutant patients in `PMID:24216686` are not those in `PMID:22549091` plus the same dataset and
+upstream assessment; or a maintainer decision that the entity-level MONDO assertion is sufficient for
+a gene-keyed row. Filed as a scientific-validity issue rather than left as a silent blank.
 
 **History, kept rather than deleted.** An earlier revision set the value on receptor-only evidence
 and wrote *"loss-of-function variants in `IL10`, `IL10RA` or `IL10RB`"*. A later revision restated it
@@ -94,6 +96,20 @@ settles that the resistance row is the one at issue.
 | --- | --- |
 | `PMID:14765194` / `DOI:10.1038/nature02214` — Rost S et al., *Nature* 2004 **(accessed 2026-08-31)** | Primary — original mapping in warfarin-resistant kindreds and VKCFD2 families |
 | `PMID:26513304` / `DOI:10.1097/FPC.0000000000000184` — Lewis BC et al., *Pharmacogenet Genomics* 2016 **(accessed 2026-08-31)** | Primary — independent clinical case with molecular-mechanism characterisation |
+
+**Independence of the two C2 sources**, assessed across the contract's three dimensions from the
+retained eSummaries and the live abstracts **(accessed 2026-09-06)**. *Cohort:* Rost 2004 reports the
+original warfarin-resistant kindreds and VKCFD2 families; Lewis 2016 reports a single patient carrying
+Val66Met, studied twelve years later at a different institution. Nothing in the retained records
+states or implies that this patient belongs to Rost's kindreds; that they are different individuals
+is not provable from abstract-level records and is recorded as such. *Dataset:* separate — Rost's
+linkage and sequencing versus Lewis's own patient genotype, clinical response and homology model.
+*Upstream assertion:* the mapped claim is that a heterozygous missense variant suffices for coumarin
+resistance; Lewis's support for it is its own genotype–phenotype observation in that patient, and it
+relies on Rost only for the identification of *VKORC1* as the gene, which is not the claim mapped
+here. Disjoint authors and the twelve-year gap are supporting facts, not the test. Were this
+assessment judged insufficient, the value would stay exactly as it is — it is pre-existing and
+unchanged by this pull request — and only the word "confirmed" would be withdrawn.
 
 One gene, more than one phenotype in the literature, so only the row's `disease_name` settles which
 association this row is. It names resistance, so `Autosomal dominant` is right and stays — the
@@ -142,9 +158,11 @@ obsolescence is the analogous check — `MONDO:0016542` is not obsolete.
 - **PubMed ESearch** — **2026-09-06**, the negative search itself retained verbatim (1 record, `PMID:22549091`, an IL10 ligand cohort from the same author group as the cited receptor cohort; recorded above as insufficient on its own).
 - **Fallback** — PubMed for the literature, EBI OLS4 for the ontology record.
 
-Versions: OLS4 exposes **mondo 2026-08-04**, retained as a payload. Neither the Consensus MCP
-surface, the Scite MCP surface nor NCBI E-utilities exposes a version on these calls; all recorded
-as **not exposed** rather than guessed.
+Versions: OLS4 exposes **mondo 2026-08-04**, retained as a payload. Every retained NCBI E-utilities
+JSON response (ESearch, eSummary, eLink) exposes response-schema version **0.3** in `header.version`,
+recorded as such; no database release or build is exposed on any E-utilities endpoint, and the
+Consensus and Scite MCP surfaces expose no version at all — those are recorded as **not exposed**
+rather than guessed.
 
 ## Retained evidence
 
