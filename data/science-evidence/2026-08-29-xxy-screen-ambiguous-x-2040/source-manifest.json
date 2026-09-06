@@ -16,7 +16,9 @@
       "kind": "primary — the original cytogenetic description",
       "accessed": "2026-08-29",
       "supports": "C1",
-      "retraction_check": "PubMed EFetch typed CommentsCorrections relations (accessed 2026-09-05, raw/ncbi-pubmed-efetch-three-sources-sanitized.xml): the record carries no CommentsCorrections link of any RefType. The eLink related-article link sets retained beside it are NOT a notice check; an earlier revision read their silence as clearance."
+      "retraction_check": "PubMed EFetch typed CommentsCorrections relations (accessed 2026-09-05, raw/ncbi-pubmed-efetch-three-sources-sanitized.xml): the record carries no CommentsCorrections link of any RefType. The eLink related-article link sets retained beside it are NOT a notice check; an earlier revision read their silence as clearance.",
+      "citation": "PMID:13632697 / DOI:10.1038/183302a0 (accessed 2026-08-29)",
+      "scite_check": "Scite MCP metadata retrieved 2026-09-05 (raw/scite-metadata-cited-dois-derived.json): no editorial notice on file."
     },
     {
       "id": "PMID:1183067",
@@ -32,7 +34,9 @@
       "kind": "primary — consecutive-newborn karyotype survey",
       "accessed": "2026-08-29",
       "supports": "C1",
-      "retraction_check": "PubMed EFetch typed CommentsCorrections relations (accessed 2026-09-05, raw/ncbi-pubmed-efetch-three-sources-sanitized.xml): the record carries no CommentsCorrections link of any RefType. The eLink related-article link sets retained beside it are NOT a notice check; an earlier revision read their silence as clearance."
+      "retraction_check": "PubMed EFetch typed CommentsCorrections relations (accessed 2026-09-05, raw/ncbi-pubmed-efetch-three-sources-sanitized.xml): the record carries no CommentsCorrections link of any RefType. The eLink related-article link sets retained beside it are NOT a notice check; an earlier revision read their silence as clearance.",
+      "citation": "PMID:1183067 / DOI:10.1111/j.1399-0004.1975.tb01498.x (accessed 2026-08-29)",
+      "scite_check": "Scite MCP metadata retrieved 2026-09-05 (raw/scite-metadata-cited-dois-derived.json): no editorial notice on file."
     },
     {
       "id": "PMID:28035028",
@@ -47,13 +51,15 @@
       "kind": "primary — method paper",
       "accessed": "2026-08-29",
       "supports": "background only, see pre_existing_behaviour",
-      "retraction_check": "PubMed EFetch typed CommentsCorrections relations (accessed 2026-09-05, raw/ncbi-pubmed-efetch-three-sources-sanitized.xml): the record carries no CommentsCorrections link of any RefType. The eLink related-article link sets retained beside it are NOT a notice check; an earlier revision read their silence as clearance."
+      "retraction_check": "PubMed EFetch typed CommentsCorrections relations (accessed 2026-09-05, raw/ncbi-pubmed-efetch-three-sources-sanitized.xml): the record carries no CommentsCorrections link of any RefType. The eLink related-article link sets retained beside it are NOT a notice check; an earlier revision read their silence as clearance.",
+      "citation": "PMID:28035028 / DOI:10.1093/bioinformatics/btw696 (accessed 2026-08-29)",
+      "scite_check": "Scite MCP metadata retrieved 2026-09-05 (raw/scite-metadata-cited-dois-derived.json): no editorial notice on file."
     }
   ],
   "claims": {
     "C1": {
       "statement": "The 47,XXY (Klinefelter) karyotype is a supernumerary X on a Y-bearing karyotype — the pattern requires a Y chromosome.",
-      "load_bearing_for": "Why an evaluable chrY at or below the noise floor keeps the screen a clean negative however the X reads, i.e. why the escalation is `ambiguous_x and y_discordant` rather than unconditional.",
+      "load_bearing_for": "Why the new escalation is conditional on a chrY signal (`ambiguous_x and y_discordant`) rather than unconditional: with no chrY signal an unresolved X dosage has nothing to pair with, so this change leaves the screen's existing answer there untouched. C1 does NOT establish, and this packet does not claim, that an evaluable chrY rate at or below THRESHOLD_Y_PAR_NOISE means no Y is present on a consumer array -- see pre_existing_behaviour.",
       "sources": [
         "PMID:13632697",
         "PMID:1183067"
@@ -62,14 +68,20 @@
     }
   },
   "pre_existing_behaviour": {
-    "statement": "That a non-PAR X-heterozygosity RATE separates one X from two X, and that a rate between the calibrated bounds is unresolved, is pre-existing behaviour of backend/services/sex_inference.py. This change does not introduce, alter or re-derive it — it makes the existing lower bound importable so the screen can see the same three zones the classifier already used.",
-    "existing_in_repo_citation": "PMID:28035028 (cited in four places in the codebase before this change)",
-    "note": "Recorded here for traceability, NOT claimed as newly evidenced by this packet. It is deliberately not run through the two-source gate, because this change makes no new assertion about it. Re-deriving the thresholds would be its own issue."
+    "x_dosage_zones": {
+      "statement": "That a non-PAR X-heterozygosity RATE separates one X from two X, and that a rate between the calibrated bounds is unresolved, is pre-existing behaviour of backend/services/sex_inference.py. This change does not introduce, alter or re-derive it — it makes the existing lower bound importable so the screen can see the same three zones the classifier already used.",
+      "existing_in_repo_citation": "PMID:28035028 (cited in four places in the codebase before this change)",
+      "note": "Recorded here for traceability, NOT claimed as newly evidenced by this packet. It is deliberately not run through the two-source gate, because this change makes no new assertion about it. Re-deriving the thresholds would be its own issue."
+    },
+    "y_noise_floor": {
+      "statement": "Whether an evaluable chrY non-no-call rate at or below THRESHOLD_Y_PAR_NOISE (0.10) is 'no Y signal' on a consumer array is the sex classifier's calibrated PAR-noise floor, shared with the screen since #1130 and documented in docs/internal/sex_inference_threshold_validation.md. This change neither introduces, moves nor re-derives it, and this packet does not re-assert it: the ambiguous-X / no-Y-signal arm keeps exactly the answer the screen gave before. If that calibration is wrong, the negative it produces was wrong before this change and is exactly as wrong after it.",
+      "correction": "An earlier revision of this README used C1 (the karyotype definition) as if it justified the negative at that measurement boundary. A karyotype definition cannot establish an array threshold's sensitivity; the sentence was withdrawn on 2026-09-05 after review and the arm is recorded as unchanged pre-existing behaviour instead."
+    }
   },
   "explicitly_not_claimed": "The issue's own evidence gate discusses mosaic 46,XY/47,XXY and the relationship between X-het and aneuploid-cell fraction. None of that is asserted or evidenced here, because an unresolved X dosage is withheld rather than interpreted. Earlier revisions of the pull request carried an intermediate-chromosome-complement mechanism, a FISH confirmation recommendation, and a statement about what X heterozygosity measures; all three were removed rather than evidenced, and a test now enforces that none returns to the patient-facing text.",
   "discovery_tool_ladder": {
     "consensus": "Invoked 2026-08-29; 20 papers returned, retained as a DERIVED record. It surfaced review articles only, so nothing from it is load-bearing — C1's primary sources were located separately through PubMed.",
-    "scite": "Unavailable — monthly MCP call quota exhausted on 2026-08-27 with a service-reported reset of 2026-09-03, which has not passed. No Scite result used.",
+    "scite": "Invoked 2026-09-05, after the service-reported reset of 2026-09-03 (an earlier revision still recorded the August quota failure as current, which review caught). Two calls, both retained as DERIVED records: metadata for the three cited DOIs (no editorial notice on any) and a term search for the karyotype claim (1,261 results; the ten returned are case reports, mosaicism reports and reviews, none of which displaces the two primaries). No Scite text is redistributed.",
     "fallback": "PubMed specialist connector used in Scite's place. Every retained record was re-resolved through eSummary for title, journal, DOI and author list, and checked for corrections and retractions through EFetch typed CommentsCorrections relations (the eLink related-article link sets are retained but are not a notice check).",
     "tool_versions": "Consensus MCP exposes no server, index or corpus-version field; recorded as not exposed rather than guessed. NCBI E-utilities likewise exposes no build field on these endpoints."
   },
@@ -97,9 +109,15 @@
       "observed_version": "Not exposed by the MCP surface; recorded as unavailable rather than guessed.",
       "license_reference": "https://consensus.app/home/terms-of-service/",
       "license_note": "Used as a discovery tool only. No Consensus text is redistributed: the retained record holds the query, the result count and the outcome."
+    },
+    {
+      "source": "Scite MCP",
+      "observed_version": "Not exposed by the MCP surface; recorded as not exposed rather than guessed.",
+      "license_reference": "https://scite.ai/terms",
+      "license_note": "Used as a discovery and notice-check tool only. No Scite text is redistributed: the retained records hold DOIs, titles, years, tallies and the presence or absence of an editorialNotices array."
     }
   ],
-  "payload_integrity": "Five payloads are unedited verbatim NCBI responses (two eSummary, three eLink). One payload, the NCBI EFetch XML for the three cited PMIDs, is SANITIZED: <Abstract> elements were removed under the bibliographic-metadata-only retention rule and nothing else was touched; it is labelled as such in its filename. Two payloads are DERIVED records labelled as such in the file itself: the Consensus call, which has no HTTP response to capture, and the reduction of the EFetch XML to its CommentsCorrections and publication-type fields. No payload required further sanitization: all are public bibliographic records with no genotype, sample, personal or credentialed data.",
+  "payload_integrity": "Five payloads are unedited verbatim NCBI responses (two eSummary, three eLink). One payload, the NCBI EFetch XML for the three cited PMIDs, is SANITIZED: <Abstract> elements were removed under the bibliographic-metadata-only retention rule and nothing else was touched; it is labelled as such in its filename. Four payloads are DERIVED records labelled as such in the file itself: the Consensus call and the two Scite calls, none of which has an HTTP response to capture, and the reduction of the EFetch XML to its CommentsCorrections and publication-type fields. No payload required further sanitization: all are public bibliographic records with no genotype, sample, personal or credentialed data.",
   "requests": [
     {
       "payload": "raw/ncbi-pubmed-esummary-13632697-1183067.json",
@@ -157,6 +175,22 @@
       "source": "DERIVED: per PMID, every CommentsCorrections RefType and the publication types",
       "sha256": "97905f6792faad2bf9c617a0dc9ddbf1741bf8e231eca7f6f70909c1cfa2542e",
       "bytes": 1206,
+      "accessed": "2026-09-05"
+    },
+    {
+      "payload": "raw/scite-metadata-cited-dois-derived.json",
+      "request": "Scite MCP `search_literature(dois=[10.1038/183302a0, 10.1111/j.1399-0004.1975.tb01498.x, 10.1093/bioinformatics/btw696])` (tool call, not an HTTP endpoint)",
+      "source": "Scite MCP (DERIVED record, not a wire capture)",
+      "sha256": "9c9c42cff53e1860642a5378cb98371b7d8dc675a9da77b9cf67267d42d8a9fd",
+      "bytes": 2077,
+      "accessed": "2026-09-05"
+    },
+    {
+      "payload": "raw/scite-search-klinefelter-karyotype-derived.json",
+      "request": "Scite MCP `search_literature(term=\"Klinefelter syndrome\" AND \"47,XXY\" AND karyotype AND \"Y chromosome\", limit=10)` (tool call, not an HTTP endpoint)",
+      "source": "Scite MCP (DERIVED record, not a wire capture)",
+      "sha256": "02829f0825e5b8d83a5bb3f4faaef18db8468ee984ea1d415c57272249d51d25",
+      "bytes": 2505,
       "accessed": "2026-09-05"
     }
   ],

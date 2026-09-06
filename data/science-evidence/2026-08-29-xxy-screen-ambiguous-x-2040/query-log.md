@@ -6,7 +6,7 @@ call. No repository data, genotype, or sample identifier was transmitted.
 | # | Tool / endpoint | Purpose | Outcome |
 | --- | --- | --- | --- |
 | 1 | Consensus MCP `search` | Required first rung | 20 papers, all reviews; **not** used as C1 support |
-| 2 | Scite MCP `search_literature` | Required first rung | **Unavailable** — monthly quota exhausted 2026-08-27, reset 2026-09-03, not yet passed |
+| 2 | Scite MCP `search_literature` | Required first rung | **Unavailable on 2026-08-29** — monthly quota exhausted 2026-08-27; retried after the reset as requests 10–11 below |
 | 3 | PubMed MCP `search_articles` | Locate the **primary** XXY description | resolved Jacobs & Strong 1959 → PMID:13632697 |
 | 4 | PubMed MCP `search_articles` | Locate a second **primary** source: consecutive-newborn cytogenetic surveys | 2 hits; Hamerton 1975 (PMID:1183067) selected |
 | 5 | `GET .../esummary.fcgi?db=pubmed&id=13632697,1183067` | Confirm both by title, journal, authors and publication type | HTTP 200 — both `Journal Article`, disjoint author lists |
@@ -15,6 +15,9 @@ call. No repository data, genotype, or sample identifier was transmitted.
 | 8 | `GET .../esummary.fcgi?db=pubmed&id=28035028` + `elink` | Confirm the pre-existing in-repo citation | HTTP 200 — title matches, no retraction relations |
 
 | 9 | `GET .../efetch.fcgi?db=pubmed&id=13632697,1183067,28035028&retmode=xml` **(2026-09-05)** | Retraction check via **typed `CommentsCorrections` relations** | HTTP 200 — no `CommentsCorrections` link of any `RefType` on any record; XML retained with abstracts removed |
+
+| 10 | Scite MCP `search_literature(dois=[…])` **(2026-09-05)** | Post-reset Scite rung: metadata + editorial notices for the three cited DOIs | 3 records, no `editorialNotices` on any; retained as a derived record |
+| 11 | Scite MCP `search_literature(term=…)` **(2026-09-05)** | Post-reset Scite rung: discovery for the karyotype claim | 1,261 results; the 10 returned are case reports, mosaicism reports and reviews; nothing displaces the two primaries |
 
 An earlier revision of this packet checked retraction status through `pubtype`, then through
 `elink`. Neither is a retraction check: an original record retains its own publication type, and

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 
+import pytest
 import sqlalchemy as sa
 
 from backend.analysis.sex_aneuploidy import (
@@ -290,3 +291,53 @@ def test_v26_ignores_malformed_screen_payloads(sample_engine: sa.Engine) -> None
     assert ensure_sample_schema_current(sample_engine) is False
 
     assert _screen_rows(sample_engine) == before
+
+
+def test_v26_rolls_back_the_rescreen_when_the_banner_update_fails(
+    sample_engine: sa.Engine,
+) -> None:
+    """The replacement row and the banner scrub commit together or not at all.
+
+    Committed separately, a crash between them would leave a ``manual_review``
+    row the legacy predicate no longer matches, so the next open would stamp v26
+    without ever scrubbing the superseded negative from the banner.
+    """
+    with sample_engine.begin() as conn:
+        conn.execute(sa.insert(raw_variants), _x_probes(20, 200) + _y_probes(12, 48))
+        conn.execute(
+            findings.insert(),
+            _screen_row(
+                row_id=1, detail=_legacy_false_negative_detail(), text=LEGACY_NEGATIVE_TEXT
+            ),
+        )
+        conn.execute(
+            annotation_state.insert(),
+            {
+                "key": "last_finding_diff_json",
+                "value": _diff_state(
+                    [
+                        {
+                            "module": MODULE,
+                            "category": CATEGORY,
+                            "finding_text": LEGACY_NEGATIVE_TEXT,
+                        }
+                    ]
+                ),
+            },
+        )
+        conn.execute(
+            sa.text(
+                "CREATE TRIGGER reject_banner_scrub "
+                "BEFORE UPDATE OF value ON annotation_state "
+                "WHEN OLD.key = 'last_finding_diff_json' "
+                "BEGIN SELECT RAISE(ABORT, 'blocked banner scrub'); END"
+            )
+        )
+        conn.execute(sa.text("PRAGMA user_version = 25"))
+    before = _screen_rows(sample_engine)
+
+    with pytest.raises(sa.exc.IntegrityError, match="blocked banner scrub"):
+        ensure_sample_schema_current(sample_engine)
+
+    assert _screen_rows(sample_engine) == before, "the replacement row must roll back too"
+    assert _user_version(sample_engine) == 25

@@ -116,11 +116,12 @@ def screen_aneuploidy(sample_engine: sa.Engine) -> AneuploidyResult:
         elif two_x and y_discordant:
             outcome = MANUAL_REVIEW
         elif ambiguous_x and y_discordant:
-            # An unresolvable X dosage only matters while a Y could be there.
-            # The XXY signature is two X *and* a Y, so a chrY at or below the
-            # PAR-noise floor rules it out however the X reads — exactly the
-            # reasoning that keeps a confidently hemizygous sample a clean
-            # negative, applied to the other chromosome.
+            # An unresolvable X dosage only matters while a chrY signal could be
+            # there: the XXY signature is two X *and* a Y. With no chrY signal
+            # the screen keeps the answer it gave before this branch existed.
+            # Whether a rate at or below the PAR-noise floor is "no Y" is the
+            # classifier's calibrated threshold, shared since #1130; it is not
+            # moved or re-asserted here.
             outcome = MANUAL_REVIEW
         else:
             outcome = NO_SIGNAL
@@ -231,8 +232,15 @@ def _finding_text(result: AneuploidyResult) -> str:
     )
 
 
-def store_aneuploidy_findings(result: AneuploidyResult, sample_engine: sa.Engine) -> int:
-    """Persist a single screen-result finding (idempotent)."""
+def write_aneuploidy_finding(conn: sa.Connection, result: AneuploidyResult) -> int:
+    """Replace the stored screen result on an open connection (idempotent).
+
+    Split out from :func:`store_aneuploidy_findings` so a caller that must
+    commit the replacement together with other writes -- the v26 sample-schema
+    migration, which also scrubs the finding-change banner -- can do so in one
+    transaction rather than leaving a window where the new result is committed
+    and the old banner is not (#2040 review).
+    """
     row = {
         "module": MODULE,
         "category": CATEGORY,
@@ -253,10 +261,16 @@ def store_aneuploidy_findings(result: AneuploidyResult, sample_engine: sa.Engine
             }
         ),
     }
-    with sample_engine.begin() as conn:
-        conn.execute(
-            sa.delete(findings).where(findings.c.module == MODULE, findings.c.category == CATEGORY)
-        )
-        conn.execute(sa.insert(findings), [row])
-    logger.info("aneuploidy_screened", outcome=result.outcome)
+    conn.execute(
+        sa.delete(findings).where(findings.c.module == MODULE, findings.c.category == CATEGORY)
+    )
+    conn.execute(sa.insert(findings), [row])
     return 1
+
+
+def store_aneuploidy_findings(result: AneuploidyResult, sample_engine: sa.Engine) -> int:
+    """Persist a single screen-result finding (idempotent)."""
+    with sample_engine.begin() as conn:
+        written = write_aneuploidy_finding(conn, result)
+    logger.info("aneuploidy_screened", outcome=result.outcome)
+    return written

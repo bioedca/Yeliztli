@@ -1585,11 +1585,69 @@ def _add_missing_columns(engine: sa.Engine, from_version: int) -> bool:
                     stale_ids.append(row.id)
 
         if stale_ids:
-            if "raw_variants" in table_names and store_cols <= findings_cols:
-                result = _xxy_screen.screen_aneuploidy(engine)
-                # The store deletes every row of this module/category before
-                # inserting the fresh one, so the stale row goes with it.
-                _xxy_screen.store_aneuploidy_findings(result, engine)
+            can_rescreen = "raw_variants" in table_names and store_cols <= findings_cols
+            can_scrub_diff = {"key", "value"} <= state_cols
+            # The screen reads raw variants only; run it before taking the
+            # writer lock so the lock is held for the writes alone.
+            result = _xxy_screen.screen_aneuploidy(engine) if can_rescreen else None
+            removed_diff_entries = 0
+            # Reserve the SQLite writer lock and commit the row replacement (or
+            # quarantine) together with the banner scrub. Committed separately,
+            # a crash in between would leave a `manual_review` row that the
+            # legacy predicate no longer matches, so the next open would stamp
+            # v26 without ever scrubbing the superseded negative from the
+            # finding-change banner (#2040 review).
+            with engine.connect() as conn:
+                conn.exec_driver_sql("BEGIN IMMEDIATE")
+                try:
+                    if result is not None:
+                        _xxy_screen.write_aneuploidy_finding(conn, result)
+                    else:
+                        conn.execute(sa.delete(findings).where(findings.c.id.in_(stale_ids)))
+                    if can_scrub_diff:
+                        state_row = conn.execute(
+                            sa.select(annotation_state.c.value).where(
+                                annotation_state.c.key == _FINDING_DIFF_STATE_KEY
+                            )
+                        ).fetchone()
+                        if state_row is not None:
+                            try:
+                                diff = json.loads(state_row.value)
+                            except (json.JSONDecodeError, TypeError):
+                                diff = None
+                            if isinstance(diff, dict):
+                                for bucket in ("changed", "added", "removed"):
+                                    entries = diff.get(bucket)
+                                    if not isinstance(entries, list):
+                                        continue
+                                    kept = [
+                                        entry
+                                        for entry in entries
+                                        if not _is_legacy_xxy_negative_diff_entry(entry)
+                                    ]
+                                    removed_diff_entries += len(entries) - len(kept)
+                                    if len(kept) != len(entries):
+                                        diff[bucket] = kept
+                                if removed_diff_entries:
+                                    diff["counts"] = {
+                                        bucket: (
+                                            len(diff.get(bucket, []))
+                                            if isinstance(diff.get(bucket), list)
+                                            else 0
+                                        )
+                                        for bucket in ("changed", "added", "removed")
+                                    }
+                                    conn.execute(
+                                        annotation_state.update()
+                                        .where(annotation_state.c.key == _FINDING_DIFF_STATE_KEY)
+                                        .values(value=json.dumps(diff))
+                                    )
+                    conn.commit()
+                except Exception:
+                    conn.rollback()
+                    raise
+            added = True
+            if result is not None:
                 logger.warning(
                     "legacy_xxy_clean_negative_rescreened",
                     count=len(stale_ids),
@@ -1597,55 +1655,11 @@ def _add_missing_columns(engine: sa.Engine, from_version: int) -> bool:
                     from_version=from_version,
                 )
             else:
-                with engine.begin() as conn:
-                    conn.execute(sa.delete(findings).where(findings.c.id.in_(stale_ids)))
                 logger.warning(
                     "legacy_xxy_clean_negative_quarantined",
                     count=len(stale_ids),
                     from_version=from_version,
                 )
-            added = True
-
-            removed_diff_entries = 0
-            if {"key", "value"} <= state_cols:
-                with engine.begin() as conn:
-                    state_row = conn.execute(
-                        sa.select(annotation_state.c.value).where(
-                            annotation_state.c.key == _FINDING_DIFF_STATE_KEY
-                        )
-                    ).fetchone()
-                    if state_row is not None:
-                        try:
-                            diff = json.loads(state_row.value)
-                        except (json.JSONDecodeError, TypeError):
-                            diff = None
-                        if isinstance(diff, dict):
-                            for bucket in ("changed", "added", "removed"):
-                                entries = diff.get(bucket)
-                                if not isinstance(entries, list):
-                                    continue
-                                kept = [
-                                    entry
-                                    for entry in entries
-                                    if not _is_legacy_xxy_negative_diff_entry(entry)
-                                ]
-                                removed_diff_entries += len(entries) - len(kept)
-                                if len(kept) != len(entries):
-                                    diff[bucket] = kept
-                            if removed_diff_entries:
-                                diff["counts"] = {
-                                    bucket: (
-                                        len(diff.get(bucket, []))
-                                        if isinstance(diff.get(bucket), list)
-                                        else 0
-                                    )
-                                    for bucket in ("changed", "added", "removed")
-                                }
-                                conn.execute(
-                                    annotation_state.update()
-                                    .where(annotation_state.c.key == _FINDING_DIFF_STATE_KEY)
-                                    .values(value=json.dumps(diff))
-                                )
             if removed_diff_entries:
                 logger.warning(
                     "legacy_xxy_clean_negative_diff_entries_quarantined",
