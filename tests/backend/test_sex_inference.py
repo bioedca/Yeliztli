@@ -12,6 +12,7 @@ that must return ``unknown`` live in :class:`TestMinimumEvidenceGuard`.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -23,11 +24,11 @@ from backend.services.sex_inference import (
     _PAR1,
     _PAR2,
     _THRESHOLD_PAR_NOISE,
-    _THRESHOLD_X_HET_HEMIZYGOUS,
     _THRESHOLD_XY_CONFIRM,
     MIN_X_NONPAR_TYPED,
     MIN_Y_PROBES,
     THRESHOLD_X_HET_DIPLOID,
+    THRESHOLD_X_HET_HEMIZYGOUS,
     Classification,
     _classify,
     compute_sex_signals,
@@ -144,13 +145,13 @@ class TestValidatedConstants:
 
     def test_x_het_rate_thresholds(self) -> None:
         # issue #519 — X dosage is decided on the non-PAR chrX het *rate*.
-        assert _THRESHOLD_X_HET_HEMIZYGOUS == 0.05
+        assert THRESHOLD_X_HET_HEMIZYGOUS == 0.05
         assert THRESHOLD_X_HET_DIPLOID == 0.15
 
     def test_x_het_hemizygous_below_diploid(self) -> None:
         # Defensive: the ambiguous X-dosage band must be non-empty, and the
         # hemizygous (one-X) cutoff must sit below the diploid (two-X) cutoff.
-        assert _THRESHOLD_X_HET_HEMIZYGOUS < THRESHOLD_X_HET_DIPLOID
+        assert THRESHOLD_X_HET_HEMIZYGOUS < THRESHOLD_X_HET_DIPLOID
 
     def test_minimum_evidence_floors(self) -> None:
         # issue #363 — shared with the sex-aneuploidy screen; calibrated to real
@@ -365,7 +366,7 @@ class TestXHetRateThreshold:
         assert infer_biological_sex(sample_engine) == "XY"
 
     def test_x_het_rate_at_hemizygous_cutoff_is_candidate_xy(self) -> None:
-        """A het rate exactly at ``_THRESHOLD_X_HET_HEMIZYGOUS`` (0.05) is still
+        """A het rate exactly at ``THRESHOLD_X_HET_HEMIZYGOUS`` (0.05) is still
         male-consistent (``<=``), so a confirming chrY yields ``XY``."""
         assert (
             _classify(
@@ -846,8 +847,32 @@ def test_threshold_validation_doc_exists_and_matches_constants() -> None:
     assert "0.30" in text and str(_THRESHOLD_XY_CONFIRM) in text
     assert "0.10" in text and str(_THRESHOLD_PAR_NOISE) in text
     # issue #519 — X-het rate cutoffs must be documented too.
-    assert "0.05" in text and str(_THRESHOLD_X_HET_HEMIZYGOUS) in text
+    assert "0.05" in text and str(THRESHOLD_X_HET_HEMIZYGOUS) in text
     assert "0.15" in text and str(THRESHOLD_X_HET_DIPLOID) in text
+    # ...and by the name they actually have. Checking only the value let the doc
+    # keep referring to ``_THRESHOLD_X_HET_HEMIZYGOUS`` after #2040 made the
+    # constant public, so the record named a symbol that no longer exists while
+    # this test stayed green.
+    #
+    # The match must be delimited. A plain ``in`` check is satisfied by the
+    # private spelling, because ``THRESHOLD_X_HET_DIPLOID`` is a substring of
+    # ``_THRESHOLD_X_HET_DIPLOID`` — which is how three dangling references to a
+    # never-public ``_THRESHOLD_X_HET_DIPLOID`` survived the first pass at this
+    # test.
+    for symbol in (
+        "THRESHOLD_X_HET_HEMIZYGOUS",
+        "THRESHOLD_X_HET_DIPLOID",
+        "MIN_X_NONPAR_TYPED",
+        "MIN_Y_PROBES",
+    ):
+        assert re.search(rf"(?<![A-Za-z0-9_]){symbol}\b", text), (
+            f"validation record does not name {symbol} (an underscore-prefixed "
+            "spelling does not count)"
+        )
+    for private in ("_THRESHOLD_X_HET_HEMIZYGOUS", "_THRESHOLD_X_HET_DIPLOID"):
+        assert private not in text, (
+            f"validation record still names {private}, which does not exist"
+        )
     assert str(MIN_X_NONPAR_TYPED) in text  # 100
     assert str(MIN_Y_PROBES) in text  # 50
     assert "validate_sex_thresholds.py" in text  # reproduction command

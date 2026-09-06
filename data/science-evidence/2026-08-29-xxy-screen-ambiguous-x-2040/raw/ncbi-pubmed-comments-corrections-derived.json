@@ -1,0 +1,42 @@
+{
+  "_artifact_note": "DERIVED from the retained sanitized efetch XML in this directory: per cited PMID, every CommentsCorrections link with its RefType, plus the publication types. Abstracts were removed from the XML under the bibliographic-metadata-only retention rule; nothing else was touched. Complete with respect to records: every requested PMID is present.",
+  "_notice_reftypes_searched": [
+    "CorrectedandRepublishedIn",
+    "ErratumIn",
+    "ExpressionOfConcernIn",
+    "PartialRetractionIn",
+    "ReprintIn",
+    "RepublishedIn",
+    "RetractionIn",
+    "UpdateIn"
+  ],
+  "records": [
+    {
+      "pmid": "13632697",
+      "publication_types": [
+        "Journal Article"
+      ],
+      "comments_corrections_total": 0,
+      "comments_corrections": [],
+      "notice_links": []
+    },
+    {
+      "pmid": "1183067",
+      "publication_types": [
+        "Journal Article"
+      ],
+      "comments_corrections_total": 0,
+      "comments_corrections": [],
+      "notice_links": []
+    },
+    {
+      "pmid": "28035028",
+      "publication_types": [
+        "Journal Article"
+      ],
+      "comments_corrections_total": 0,
+      "comments_corrections": [],
+      "notice_links": []
+    }
+  ]
+}
