@@ -37,6 +37,7 @@ from scripts.build_vep_strand_snapshot import _genes as _generator_genes
 _ROOT = Path(__file__).resolve().parents[2]
 _SEED = _ROOT / "tests" / "fixtures" / "seed_csvs" / "vep_seed.csv"
 _SNAPSHOT = _ROOT / "tests" / "fixtures" / "vep_gene_strand_snapshot.json"
+_BUNDLE = _ROOT / "tests" / "fixtures" / "mini_vep_bundle.db"
 
 # The seed carries one deliberately synthetic locus (rs12345 / ENST00000999999),
 # used by several suites as a neutral stand-in. It has no Ensembl record, so it is
@@ -174,6 +175,44 @@ def test_every_gene_strand_matches_the_ensembl_snapshot() -> None:
         if strands != {snapshot[gene]["strand"]}
     ]
     assert not wrong, "gene strands disagreeing with Ensembl GRCh37:\n" + "\n".join(wrong)
+
+
+def test_every_bundle_gene_strand_matches_the_ensembl_snapshot() -> None:
+    """The on-disk bundle is what production reads; the CSV is only its seed.
+
+    The CSV sweep above cannot see a stale ``mini_vep_bundle.db``: if the bundle is
+    not regenerated after a seed correction, every strand guard stays green while
+    the annotation engine serves the old strands (#2045 review). Sweep every
+    annotated bundle row against the same snapshot, so each of the 19 corrected
+    genes is covered by the production artifact and not only by its seed.
+    """
+    import sqlite3
+
+    assert _BUNDLE.exists(), "checked-in mini_vep_bundle.db is missing"
+    con = sqlite3.connect(_BUNDLE)
+    try:
+        stored = con.execute(
+            "SELECT DISTINCT gene_symbol, strand FROM vep_annotations "
+            "WHERE gene_symbol IS NOT NULL AND gene_symbol != ''"
+        ).fetchall()
+    finally:
+        con.close()
+    snapshot = _snapshot()
+    genes = {gene for gene, _ in stored} - _SYNTHETIC_GENES
+    assert len(genes) >= 50, (
+        f"anti-vacuity: expected ~57 annotated bundle genes, found {len(genes)}"
+    )
+    uncovered = sorted(genes - set(snapshot))
+    assert not uncovered, f"bundle genes absent from the strand snapshot: {uncovered}"
+    wrong = sorted(
+        f"{gene}: bundle={strand!r} ensembl={snapshot[gene]['strand']!r}"
+        for gene, strand in stored
+        if gene not in _SYNTHETIC_GENES and strand != snapshot[gene]["strand"]
+    )
+    assert not wrong, (
+        "bundle strands disagreeing with Ensembl GRCh37 (regenerate the bundle):\n"
+        + "\n".join(wrong)
+    )
 
 
 def test_snapshot_entries_still_apply() -> None:

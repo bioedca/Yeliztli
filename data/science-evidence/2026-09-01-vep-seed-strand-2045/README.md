@@ -87,8 +87,8 @@ on chrX. A 2026-09-05 retry returned the same status with the body `No variant f
 exclusion, not a response. Of the 100 annotated rows (99 unique rsIDs; `rs5778923` is not among
 them):
 
-- **52** agree with VEP on the fixture's own transcript
-- **15** disagree — only `rs28399504` is corrected here
+- **53** agree with VEP on the fixture's own transcript (52 before this change corrected `rs28399504`)
+- **14** disagree — only `rs28399504` is corrected here (15 before the correction; `rs28399504` was among them)
 - **33** rows (32 rsIDs, `rs121913529` counted on both of its rows) cite a transcript Ensembl VEP does
   not report for that variant
 
@@ -144,14 +144,17 @@ exposes no index version. All recorded as **not exposed** rather than guessed.
 
 ## Retained evidence
 
-`raw/` holds **seven unedited verbatim API responses**, **one sanitized response** and **five derived
+`raw/` holds **eight unedited verbatim API responses**, **one sanitized response** and **five derived
 records**.
 
 Verbatim: the two Ensembl VEP records for rs28399504 and the PubMed eSummary for the two cited papers;
 three per-symbol captures made on 2026-09-05 — Ensembl `lookup/symbol` for all 57 genes, and NCBI Gene
 `esearch` and `esummary` for the 19 corrected genes — in which the `_artifact_note` and the
 `responses` wrapper keyed by queried symbol are the only additions; and the 48-byte `HTTP 400` error
-body Ensembl GRCh37 VEP returned for `rs5778923` on 2026-09-05, stored exactly as received.
+body Ensembl GRCh37 VEP returned for `rs5778923` on 2026-09-05, stored exactly as received; and
+`ensembl-grch37-vep-all-rows-verbatim.jsonl.gz`, the 678 VEP responses behind the consequence audit
+(677 `HTTP 200` bodies and the `rs5778923` error body) re-issued on 2026-09-06 and stored as
+gzip-compressed JSON Lines with the per-line `{rsid, status, response}` wrapper as the only addition.
 
 Sanitized: the PubMed EFetch XML for the two cited papers, abstracts removed and the two author email
 addresses its `<Affiliation>` text carried replaced by `[email redacted]`; nothing else touched, labelled
