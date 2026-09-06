@@ -2068,7 +2068,23 @@ def _bot_activity(
                 and codex_head_safe
             )
             if schema_version == 3:
-                signals.append((max(created, updated), clean_completion))
+                # Key the signal on creation, not on the last edit. Codex keeps
+                # one summary comment per pull request and rewrites it in place
+                # at the end of every run, seconds after posting its immutable
+                # verdict -- so an edit-keyed signal lets a working scratchpad
+                # outrank the verdict it was summarising, and the gate can never
+                # be satisfied on any PR Codex actually worked through.
+                #
+                # The intent this preserves is "Codex's most recent word must be
+                # the clean verdict": a newly *created* comment still supersedes
+                # an older one. Only in-place edits stop leapfrogging. Nothing is
+                # weakened on the accepting side, because `clean_completion`
+                # already requires `immutable` (created == updated and
+                # lastEditedAt is None), so a valid signal's max(created,
+                # updated) was always just `created`. Findings arrive as formal
+                # reviews, which are collected above and keep their own
+                # max(submittedAt, lastEditedAt) handling.
+                signals.append((created, clean_completion))
             elif clean_completion:
                 signals.append((created, True))
     if not signals:
