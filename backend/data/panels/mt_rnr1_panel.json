@@ -56,7 +56,7 @@
       "risk_classification": "MT-RNR1 m.1555A>G — high risk of aminoglycoside-induced hearing loss",
       "zygosity": null,
       "evidence_stars": 3,
-      "finding_text": "MT-RNR1 m.1555A>G detected (rs267606617 {genotype}). This is the best-established mitochondrial variant for aminoglycoside-induced hearing loss. The 2021 CPIC guideline recommends that carriers avoid aminoglycoside antibiotics (e.g. gentamicin, tobramycin, amikacin, streptomycin) unless the severity of an infection and the lack of a safe, effective alternative outweigh the high risk of permanent hearing loss. This is genetic decision-support to discuss with a clinician or pharmacist — not an instruction to start or stop any medication.",
+      "finding_text": "MT-RNR1 m.1555A>G detected ({genotype}). This is the best-established mitochondrial variant for aminoglycoside-induced hearing loss. The 2021 CPIC guideline recommends that carriers avoid aminoglycoside antibiotics (e.g. gentamicin, tobramycin, amikacin, streptomycin) unless the severity of an infection and the lack of a safe, effective alternative outweigh the high risk of permanent hearing loss. This is genetic decision-support to discuss with a clinician or pharmacist — not an instruction to start or stop any medication.",
       "caveats": ["mt_maternal_inheritance", "mt_heteroplasmy", "negative_not_clear", "confirm_clinically"],
       "pmids": ["34032273"]
     },
@@ -67,7 +67,7 @@
       "risk_classification": "MT-RNR1 m.1494C>T — high risk of aminoglycoside-induced hearing loss",
       "zygosity": null,
       "evidence_stars": 3,
-      "finding_text": "MT-RNR1 m.1494C>T detected (rs267606619 {genotype}). Like m.1555A>G, this variant makes the mitochondrial 12S rRNA resemble its bacterial target, and family studies link aminoglycoside exposure in carriers to sensorineural hearing loss. The 2021 CPIC guideline recommends that carriers avoid aminoglycoside antibiotics unless a severe infection and the lack of a safe, effective alternative outweigh the high risk of permanent hearing loss. This is genetic decision-support to discuss with a clinician or pharmacist — not an instruction to start or stop any medication.",
+      "finding_text": "MT-RNR1 m.1494C>T detected ({genotype}). Like m.1555A>G, this variant makes the mitochondrial 12S rRNA resemble its bacterial target, and family studies link aminoglycoside exposure in carriers to sensorineural hearing loss. The 2021 CPIC guideline recommends that carriers avoid aminoglycoside antibiotics unless a severe infection and the lack of a safe, effective alternative outweigh the high risk of permanent hearing loss. This is genetic decision-support to discuss with a clinician or pharmacist — not an instruction to start or stop any medication.",
       "caveats": ["mt_maternal_inheritance", "mt_heteroplasmy", "negative_not_clear", "confirm_clinically"],
       "pmids": ["34032273"]
     },
@@ -78,7 +78,7 @@
       "risk_classification": "MT-RNR1 m.1095T>C — possible (preliminary) aminoglycoside-ototoxicity association",
       "zygosity": null,
       "evidence_stars": 1,
-      "finding_text": "MT-RNR1 m.1095T>C detected (rs267606618 {genotype}). This variant may be associated with aminoglycoside-related sensorineural hearing loss, but the evidence is weaker than for m.1555A>G/m.1494C>T and further study is needed. CPIC still advises caution with aminoglycosides for carriers. Treat this as preliminary context to raise with a clinician or pharmacist, not a confirmed high-risk result.",
+      "finding_text": "MT-RNR1 m.1095T>C detected ({genotype}). This variant may be associated with aminoglycoside-related sensorineural hearing loss, but the evidence is weaker than for m.1555A>G/m.1494C>T and further study is needed. CPIC still advises caution with aminoglycosides for carriers. Treat this as preliminary context to raise with a clinician or pharmacist, not a confirmed high-risk result.",
       "caveats": ["mt_maternal_inheritance", "mt_heteroplasmy", "negative_not_clear", "confirm_clinically"],
       "pmids": ["34032273"]
     }
