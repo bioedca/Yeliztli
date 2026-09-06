@@ -72,6 +72,20 @@ APOE_BLOCK_GRCH37_REFERENCE_BASE = {
     "rs7412": "C",
 }
 
+# The plus-strand GRCh37 reference base at each guarded *seed* position. The
+# allele-set check in ``_assert_grch37_plus_strand_alleles`` validates membership
+# only, so a seed flipped to G>A (or G>T) at rs28399504 would still pass it
+# (#2364 review). The APOE pair reuses the block oracle above; rs28399504's REF is
+# the first allele of Ensembl GRCh37 Variation REST's ``allele_string`` A/G/T
+# (accessed 2026-09-06), which the retained GRCh37 VEP payloads of
+# data/science-evidence/2026-09-01-vep-seed-strand-2045/ repeat, and CYP2C19 is
+# a plus-strand gene, so its ``c.1A>G`` is genomic A>G.
+SEED_GRCH37_REFERENCE_BASE: dict[str, str] = {
+    "rs429358": APOE_BLOCK_GRCH37_REFERENCE_BASE["rs429358"],
+    "rs7412": APOE_BLOCK_GRCH37_REFERENCE_BASE["rs7412"],
+    "rs28399504": "A",
+}
+
 GRCh37Mapping = tuple[str, int, frozenset[str]]
 
 ADDITIONAL_VERIFIED_GRCH37_MAPPINGS: dict[str, GRCh37Mapping] = {
@@ -92,6 +106,16 @@ ADDITIONAL_VERIFIED_GRCH37_MAPPINGS: dict[str, GRCh37Mapping] = {
     "rs429358": ("19", 45_411_941, frozenset({"T", "C"})),
     # https://grch37.rest.ensembl.org/variation/human/rs7412
     "rs7412": ("19", 45_412_079, frozenset({"C", "T"})),
+    # CYP2C19*4 (#2045 / #2364). Matched by rsID in the CYP2C19 caller, so it
+    # never entered the panel snapshot either, and all three coordinate seeds
+    # carried the other-assembly position 10:94781859 while the vendor fixture
+    # and the pharmacogenomics tests carried 96522463. Ensembl GRCh37 Variation
+    # REST, accessed 2026-09-06; primary mapping, plus strand, allele string
+    # A/G/T. The same coordinate is in the retained GRCh37 VEP payloads of
+    # data/science-evidence/2026-09-01-vep-seed-strand-2045/ (accessed
+    # 2026-09-01). The seeds select A>G.
+    # https://grch37.rest.ensembl.org/variation/human/rs28399504
+    "rs28399504": ("10", 96_522_463, frozenset({"A", "G", "T"})),
 }
 
 # Only seeds governed by the real GRCh37 coordinate and plus-strand allele
@@ -181,18 +205,41 @@ def _guarded_seed_alleles(
         ]
 
 
+def _guarded_db_alleles(
+    db_path: Path, table_name: str, expected: dict[str, GRCh37Mapping]
+) -> list[tuple[str, str, str]]:
+    uri = f"file:{db_path.resolve()}?mode=ro&immutable=1"
+    with sqlite3.connect(uri, uri=True) as conn:
+        return [
+            (str(rsid), str(ref), str(alt))
+            for rsid, ref, alt in conn.execute(
+                f"SELECT rsid, ref, alt FROM {table_name}"  # noqa: S608 -- fixed table names
+            )
+            if rsid in expected
+        ]
+
+
 def _assert_grch37_plus_strand_alleles(
     rows: list[tuple[str, str, str]],
     expected: dict[str, GRCh37Mapping],
     source: str,
 ) -> None:
     assert rows, f"{source} has no rows overlapping the GRCh37 mapping oracle"
+    pinned = {rsid for rsid, _ref, _alt in rows} & set(SEED_GRCH37_REFERENCE_BASE)
+    assert pinned, f"{source} carries none of the REF-pinned rsIDs; the swap guard is vacuous"
     for occurrence, (rsid, ref, alt) in enumerate(rows, start=1):
         allowed = expected[rsid][2]
         assert {ref, alt} <= allowed, (
             f"{source} occurrence {occurrence} ({rsid}) uses {ref}>{alt}; "
             f"expected plus-strand alleles from {sorted(allowed)}"
         )
+        if rsid in SEED_GRCH37_REFERENCE_BASE:
+            # Membership alone cannot see a REF/ALT swap: pin REF to the assembly
+            # base so a row flipped to ALT>REF fails here instead of passing.
+            assert ref == SEED_GRCH37_REFERENCE_BASE[rsid], (
+                f"{source} occurrence {occurrence} ({rsid}) declares REF {ref}; "
+                f"the GRCh37 assembly base is {SEED_GRCH37_REFERENCE_BASE[rsid]}"
+            )
 
 
 def _mini_clinvar_vcf() -> tuple[str, list[tuple[str, str, int, str, str]]]:
@@ -322,8 +369,12 @@ class TestSeedCSVContent:
 
     @pytest.mark.parametrize("csv_name", ALLELE_SEED_CSVS)
     def test_guarded_seed_alleles_are_grch37_plus_strand(self, csv_name: str) -> None:
+        """Allele membership plus a pinned REF for the rsIDs the REF oracle names."""
         expected = _expected_grch37_mappings()
         rows = _guarded_seed_alleles(csv_name, expected)
+        assert set(SEED_GRCH37_REFERENCE_BASE) <= {rsid for rsid, _ref, _alt in rows}, (
+            f"{csv_name} is missing a REF-pinned oracle row"
+        )
         _assert_grch37_plus_strand_alleles(rows, expected, csv_name)
 
     def test_synthetic_gwas_rows_leave_scientific_fields_empty(self) -> None:
@@ -712,6 +763,28 @@ class TestRegenerateFixtures:
             _assert_grch37_coordinates(db_rows, expected, source)
             assert Counter(db_rows) == Counter(seed_rows), (
                 f"{source} does not preserve every guarded {csv_name} occurrence"
+            )
+
+    @pytest.mark.parametrize(("csv_name", "db_name", "table_name"), COORDINATE_SEED_DB_TARGETS)
+    def test_guarded_mini_db_alleles_match_seed(
+        self,
+        tmp_path: Path,
+        csv_name: str,
+        db_name: str,
+        table_name: str,
+    ) -> None:
+        """The generated databases carry the seeds' plus-strand alleles and pinned REF."""
+        expected = _expected_grch37_mappings()
+        seed_rows = _guarded_seed_alleles(csv_name, expected)
+        _assert_grch37_plus_strand_alleles(seed_rows, expected, csv_name)
+        _run_script(tmp_path)
+
+        for db_path in (tmp_path / db_name, FIXTURES_DIR / db_name):
+            source = f"{db_path}:{table_name}"
+            db_rows = _guarded_db_alleles(db_path, table_name, expected)
+            _assert_grch37_plus_strand_alleles(db_rows, expected, source)
+            assert Counter(db_rows) == Counter(seed_rows), (
+                f"{source} does not preserve every guarded {csv_name} allele row"
             )
 
     def test_checked_in_mini_dbs_match_fresh_regeneration(self, tmp_path: Path) -> None:

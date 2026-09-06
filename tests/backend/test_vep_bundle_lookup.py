@@ -878,3 +878,23 @@ class TestMiniVEPFixtureDB:
         result = lookup_vep_by_rsids(["rs429358"], vep_engine)
         assert "rs429358" in result
         assert result["rs429358"].gene_symbol == "APOE"
+
+    def test_cyp2c19_star4_from_fixture_db(self, vep_engine: sa.Engine) -> None:
+        """#2045: the regenerated bundle, not the CSV, must carry the start-loss call.
+
+        The seed-CSV provenance guard cannot see a stale ``mini_vep_bundle.db``, and
+        the bundle is what the lookup reads. A carried genotype is supplied the way
+        the engine supplies it, so allele filtering is on the path too.
+        """
+        result = lookup_vep_by_rsids(
+            ["rs28399504"], vep_engine, genotype_by_rsid={"rs28399504": "AG"}
+        )
+        assert "rs28399504" in result
+        annot = result["rs28399504"]
+        assert annot.gene_symbol == "CYP2C19"
+        assert annot.transcript_id == "ENST00000371321"
+        assert annot.hgvs_coding == "c.1A>G"
+        assert annot.consequence == "start_lost"
+        assert annot.hgvs_protein == "p.Met1?"
+        assert annot.strand == "+"
+        assert annot.mane_select is True

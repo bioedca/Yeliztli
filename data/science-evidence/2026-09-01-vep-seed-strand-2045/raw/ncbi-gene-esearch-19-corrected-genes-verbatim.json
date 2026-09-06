@@ -1,0 +1,694 @@
+{
+ "_artifact_note": "Verbatim NCBI E-utilities responses. The only additions are this note and the `responses` wrapper, keyed by the symbol that was queried. Each value is the JSON body returned by GET https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=gene&term=<gene>[sym] AND human[orgn]&retmode=json on 2026-09-05, parsed and re-serialised with indent=1 (whitespace only; key order and every value preserved). Requests were paced 0.4 s apart with up to four attempts each; all 19 succeeded. Its `idlist` fed the esummary request retained in raw/ncbi-gene-esummary-19-corrected-genes-verbatim.json. Three symbols (CYP2C19, CYP2R1, HLA-DRB1) return more than one id; the extra ids are discontinued records whose esummary `currentid` points at the live one. This is a 2026-09-05 re-fetch made after review: the 2026-09-01 wire responses that the reduction was read from were not retained. Every value the reduction carries was re-derived from this payload on 2026-09-05 and found equal.",
+ "responses": {
+  "CDKN2A": {
+   "header": {
+    "type": "esearch",
+    "version": "0.3"
+   },
+   "esearchresult": {
+    "count": "1",
+    "retmax": "1",
+    "retstart": "0",
+    "idlist": [
+     "1029"
+    ],
+    "translationset": [
+     {
+      "from": "human[orgn]",
+      "to": "\"Homo sapiens\"[Organism]"
+     }
+    ],
+    "translationstack": [
+     {
+      "term": "CDKN2A[sym]",
+      "field": "sym",
+      "count": "88",
+      "explode": "N"
+     },
+     {
+      "term": "\"Homo sapiens\"[Organism]",
+      "field": "Organism",
+      "count": "360519",
+      "explode": "Y"
+     },
+     "AND"
+    ],
+    "querytranslation": "CDKN2A[sym] AND \"Homo sapiens\"[Organism]"
+   }
+  },
+  "CYP2C19": {
+   "header": {
+    "type": "esearch",
+    "version": "0.3"
+   },
+   "esearchresult": {
+    "count": "2",
+    "retmax": "2",
+    "retstart": "0",
+    "idlist": [
+     "1557",
+     "1563"
+    ],
+    "translationset": [
+     {
+      "from": "human[orgn]",
+      "to": "\"Homo sapiens\"[Organism]"
+     }
+    ],
+    "translationstack": [
+     {
+      "term": "CYP2C19[sym]",
+      "field": "sym",
+      "count": "27",
+      "explode": "N"
+     },
+     {
+      "term": "\"Homo sapiens\"[Organism]",
+      "field": "Organism",
+      "count": "360519",
+      "explode": "Y"
+     },
+     "AND"
+    ],
+    "querytranslation": "CYP2C19[sym] AND \"Homo sapiens\"[Organism]"
+   }
+  },
+  "CYP2C9": {
+   "header": {
+    "type": "esearch",
+    "version": "0.3"
+   },
+   "esearchresult": {
+    "count": "1",
+    "retmax": "1",
+    "retstart": "0",
+    "idlist": [
+     "1559"
+    ],
+    "translationset": [
+     {
+      "from": "human[orgn]",
+      "to": "\"Homo sapiens\"[Organism]"
+     }
+    ],
+    "translationstack": [
+     {
+      "term": "CYP2C9[sym]",
+      "field": "sym",
+      "count": "17",
+      "explode": "N"
+     },
+     {
+      "term": "\"Homo sapiens\"[Organism]",
+      "field": "Organism",
+      "count": "360519",
+      "explode": "Y"
+     },
+     "AND"
+    ],
+    "querytranslation": "CYP2C9[sym] AND \"Homo sapiens\"[Organism]"
+   }
+  },
+  "CYP2R1": {
+   "header": {
+    "type": "esearch",
+    "version": "0.3"
+   },
+   "esearchresult": {
+    "count": "2",
+    "retmax": "2",
+    "retstart": "0",
+    "idlist": [
+     "120227",
+     "79445"
+    ],
+    "translationset": [
+     {
+      "from": "human[orgn]",
+      "to": "\"Homo sapiens\"[Organism]"
+     }
+    ],
+    "translationstack": [
+     {
+      "term": "CYP2R1[sym]",
+      "field": "sym",
+      "count": "448",
+      "explode": "N"
+     },
+     {
+      "term": "\"Homo sapiens\"[Organism]",
+      "field": "Organism",
+      "count": "360519",
+      "explode": "Y"
+     },
+     "AND"
+    ],
+    "querytranslation": "CYP2R1[sym] AND \"Homo sapiens\"[Organism]"
+   }
+  },
+  "CYP3A5": {
+   "header": {
+    "type": "esearch",
+    "version": "0.3"
+   },
+   "esearchresult": {
+    "count": "1",
+    "retmax": "1",
+    "retstart": "0",
+    "idlist": [
+     "1577"
+    ],
+    "translationset": [
+     {
+      "from": "human[orgn]",
+      "to": "\"Homo sapiens\"[Organism]"
+     }
+    ],
+    "translationstack": [
+     {
+      "term": "CYP3A5[sym]",
+      "field": "sym",
+      "count": "28",
+      "explode": "N"
+     },
+     {
+      "term": "\"Homo sapiens\"[Organism]",
+      "field": "Organism",
+      "count": "360519",
+      "explode": "Y"
+     },
+     "AND"
+    ],
+    "querytranslation": "CYP3A5[sym] AND \"Homo sapiens\"[Organism]"
+   }
+  },
+  "HERC2": {
+   "header": {
+    "type": "esearch",
+    "version": "0.3"
+   },
+   "esearchresult": {
+    "count": "1",
+    "retmax": "1",
+    "retstart": "0",
+    "idlist": [
+     "8924"
+    ],
+    "translationset": [
+     {
+      "from": "human[orgn]",
+      "to": "\"Homo sapiens\"[Organism]"
+     }
+    ],
+    "translationstack": [
+     {
+      "term": "HERC2[sym]",
+      "field": "sym",
+      "count": "1245",
+      "explode": "N"
+     },
+     {
+      "term": "\"Homo sapiens\"[Organism]",
+      "field": "Organism",
+      "count": "360519",
+      "explode": "Y"
+     },
+     "AND"
+    ],
+    "querytranslation": "HERC2[sym] AND \"Homo sapiens\"[Organism]"
+   }
+  },
+  "HLA-DRB1": {
+   "header": {
+    "type": "esearch",
+    "version": "0.3"
+   },
+   "esearchresult": {
+    "count": "4",
+    "retmax": "4",
+    "retstart": "0",
+    "idlist": [
+     "3123",
+     "105369230",
+     "100290966",
+     "730415"
+    ],
+    "translationset": [
+     {
+      "from": "human[orgn]",
+      "to": "\"Homo sapiens\"[Organism]"
+     }
+    ],
+    "translationstack": [
+     {
+      "term": "HLA-DRB1[sym]",
+      "field": "sym",
+      "count": "13",
+      "explode": "N"
+     },
+     {
+      "term": "\"Homo sapiens\"[Organism]",
+      "field": "Organism",
+      "count": "360519",
+      "explode": "Y"
+     },
+     "AND"
+    ],
+    "querytranslation": "HLA-DRB1[sym] AND \"Homo sapiens\"[Organism]"
+   }
+  },
+  "HNF1B": {
+   "header": {
+    "type": "esearch",
+    "version": "0.3"
+   },
+   "esearchresult": {
+    "count": "1",
+    "retmax": "1",
+    "retstart": "0",
+    "idlist": [
+     "6928"
+    ],
+    "translationset": [
+     {
+      "from": "human[orgn]",
+      "to": "\"Homo sapiens\"[Organism]"
+     }
+    ],
+    "translationstack": [
+     {
+      "term": "HNF1B[sym]",
+      "field": "sym",
+      "count": "624",
+      "explode": "N"
+     },
+     {
+      "term": "\"Homo sapiens\"[Organism]",
+      "field": "Organism",
+      "count": "360519",
+      "explode": "Y"
+     },
+     "AND"
+    ],
+    "querytranslation": "HNF1B[sym] AND \"Homo sapiens\"[Organism]"
+   }
+  },
+  "IFNL3": {
+   "header": {
+    "type": "esearch",
+    "version": "0.3"
+   },
+   "esearchresult": {
+    "count": "1",
+    "retmax": "1",
+    "retstart": "0",
+    "idlist": [
+     "282617"
+    ],
+    "translationset": [
+     {
+      "from": "human[orgn]",
+      "to": "\"Homo sapiens\"[Organism]"
+     }
+    ],
+    "translationstack": [
+     {
+      "term": "IFNL3[sym]",
+      "field": "sym",
+      "count": "89",
+      "explode": "N"
+     },
+     {
+      "term": "\"Homo sapiens\"[Organism]",
+      "field": "Organism",
+      "count": "360519",
+      "explode": "Y"
+     },
+     "AND"
+    ],
+    "querytranslation": "IFNL3[sym] AND \"Homo sapiens\"[Organism]"
+   }
+  },
+  "IFNL4": {
+   "header": {
+    "type": "esearch",
+    "version": "0.3"
+   },
+   "esearchresult": {
+    "count": "1",
+    "retmax": "1",
+    "retstart": "0",
+    "idlist": [
+     "101180976"
+    ],
+    "translationset": [
+     {
+      "from": "human[orgn]",
+      "to": "\"Homo sapiens\"[Organism]"
+     }
+    ],
+    "translationstack": [
+     {
+      "term": "IFNL4[sym]",
+      "field": "sym",
+      "count": "13",
+      "explode": "N"
+     },
+     {
+      "term": "\"Homo sapiens\"[Organism]",
+      "field": "Organism",
+      "count": "360519",
+      "explode": "Y"
+     },
+     "AND"
+    ],
+    "querytranslation": "IFNL4[sym] AND \"Homo sapiens\"[Organism]"
+   }
+  },
+  "IGF2BP2": {
+   "header": {
+    "type": "esearch",
+    "version": "0.3"
+   },
+   "esearchresult": {
+    "count": "1",
+    "retmax": "1",
+    "retstart": "0",
+    "idlist": [
+     "10644"
+    ],
+    "translationset": [
+     {
+      "from": "human[orgn]",
+      "to": "\"Homo sapiens\"[Organism]"
+     }
+    ],
+    "translationstack": [
+     {
+      "term": "IGF2BP2[sym]",
+      "field": "sym",
+      "count": "598",
+      "explode": "N"
+     },
+     {
+      "term": "\"Homo sapiens\"[Organism]",
+      "field": "Organism",
+      "count": "360519",
+      "explode": "Y"
+     },
+     "AND"
+    ],
+    "querytranslation": "IGF2BP2[sym] AND \"Homo sapiens\"[Organism]"
+   }
+  },
+  "IL10": {
+   "header": {
+    "type": "esearch",
+    "version": "0.3"
+   },
+   "esearchresult": {
+    "count": "1",
+    "retmax": "1",
+    "retstart": "0",
+    "idlist": [
+     "3586"
+    ],
+    "translationset": [
+     {
+      "from": "human[orgn]",
+      "to": "\"Homo sapiens\"[Organism]"
+     }
+    ],
+    "translationstack": [
+     {
+      "term": "IL10[sym]",
+      "field": "sym",
+      "count": "878",
+      "explode": "N"
+     },
+     {
+      "term": "\"Homo sapiens\"[Organism]",
+      "field": "Organism",
+      "count": "360519",
+      "explode": "Y"
+     },
+     "AND"
+    ],
+    "querytranslation": "IL10[sym] AND \"Homo sapiens\"[Organism]"
+   }
+  },
+  "MTHFR": {
+   "header": {
+    "type": "esearch",
+    "version": "0.3"
+   },
+   "esearchresult": {
+    "count": "1",
+    "retmax": "1",
+    "retstart": "0",
+    "idlist": [
+     "4524"
+    ],
+    "translationset": [
+     {
+      "from": "human[orgn]",
+      "to": "\"Homo sapiens\"[Organism]"
+     }
+    ],
+    "translationstack": [
+     {
+      "term": "MTHFR[sym]",
+      "field": "sym",
+      "count": "876",
+      "explode": "N"
+     },
+     {
+      "term": "\"Homo sapiens\"[Organism]",
+      "field": "Organism",
+      "count": "360519",
+      "explode": "Y"
+     },
+     "AND"
+    ],
+    "querytranslation": "MTHFR[sym] AND \"Homo sapiens\"[Organism]"
+   }
+  },
+  "PAH": {
+   "header": {
+    "type": "esearch",
+    "version": "0.3"
+   },
+   "esearchresult": {
+    "count": "1",
+    "retmax": "1",
+    "retstart": "0",
+    "idlist": [
+     "5053"
+    ],
+    "translationset": [
+     {
+      "from": "human[orgn]",
+      "to": "\"Homo sapiens\"[Organism]"
+     }
+    ],
+    "translationstack": [
+     {
+      "term": "PAH[sym]",
+      "field": "sym",
+      "count": "901",
+      "explode": "N"
+     },
+     {
+      "term": "\"Homo sapiens\"[Organism]",
+      "field": "Organism",
+      "count": "360519",
+      "explode": "Y"
+     },
+     "AND"
+    ],
+    "querytranslation": "PAH[sym] AND \"Homo sapiens\"[Organism]"
+   }
+  },
+  "PON1": {
+   "header": {
+    "type": "esearch",
+    "version": "0.3"
+   },
+   "esearchresult": {
+    "count": "1",
+    "retmax": "1",
+    "retstart": "0",
+    "idlist": [
+     "5444"
+    ],
+    "translationset": [
+     {
+      "from": "human[orgn]",
+      "to": "\"Homo sapiens\"[Organism]"
+     }
+    ],
+    "translationstack": [
+     {
+      "term": "PON1[sym]",
+      "field": "sym",
+      "count": "248",
+      "explode": "N"
+     },
+     {
+      "term": "\"Homo sapiens\"[Organism]",
+      "field": "Organism",
+      "count": "360519",
+      "explode": "Y"
+     },
+     "AND"
+    ],
+    "querytranslation": "PON1[sym] AND \"Homo sapiens\"[Organism]"
+   }
+  },
+  "SLC6A4": {
+   "header": {
+    "type": "esearch",
+    "version": "0.3"
+   },
+   "esearchresult": {
+    "count": "1",
+    "retmax": "1",
+    "retstart": "0",
+    "idlist": [
+     "6532"
+    ],
+    "translationset": [
+     {
+      "from": "human[orgn]",
+      "to": "\"Homo sapiens\"[Organism]"
+     }
+    ],
+    "translationstack": [
+     {
+      "term": "SLC6A4[sym]",
+      "field": "sym",
+      "count": "631",
+      "explode": "N"
+     },
+     {
+      "term": "\"Homo sapiens\"[Organism]",
+      "field": "Organism",
+      "count": "360519",
+      "explode": "Y"
+     },
+     "AND"
+    ],
+    "querytranslation": "SLC6A4[sym] AND \"Homo sapiens\"[Organism]"
+   }
+  },
+  "TNF": {
+   "header": {
+    "type": "esearch",
+    "version": "0.3"
+   },
+   "esearchresult": {
+    "count": "1",
+    "retmax": "1",
+    "retstart": "0",
+    "idlist": [
+     "7124"
+    ],
+    "translationset": [
+     {
+      "from": "human[orgn]",
+      "to": "\"Homo sapiens\"[Organism]"
+     }
+    ],
+    "translationstack": [
+     {
+      "term": "TNF[sym]",
+      "field": "sym",
+      "count": "344",
+      "explode": "N"
+     },
+     {
+      "term": "\"Homo sapiens\"[Organism]",
+      "field": "Organism",
+      "count": "360519",
+      "explode": "Y"
+     },
+     "AND"
+    ],
+    "querytranslation": "TNF[sym] AND \"Homo sapiens\"[Organism]"
+   }
+  },
+  "TPMT": {
+   "header": {
+    "type": "esearch",
+    "version": "0.3"
+   },
+   "esearchresult": {
+    "count": "1",
+    "retmax": "1",
+    "retstart": "0",
+    "idlist": [
+     "7172"
+    ],
+    "translationset": [
+     {
+      "from": "human[orgn]",
+      "to": "\"Homo sapiens\"[Organism]"
+     }
+    ],
+    "translationstack": [
+     {
+      "term": "TPMT[sym]",
+      "field": "sym",
+      "count": "634",
+      "explode": "N"
+     },
+     {
+      "term": "\"Homo sapiens\"[Organism]",
+      "field": "Organism",
+      "count": "360519",
+      "explode": "Y"
+     },
+     "AND"
+    ],
+    "querytranslation": "TPMT[sym] AND \"Homo sapiens\"[Organism]"
+   }
+  },
+  "VKORC1": {
+   "header": {
+    "type": "esearch",
+    "version": "0.3"
+   },
+   "esearchresult": {
+    "count": "1",
+    "retmax": "1",
+    "retstart": "0",
+    "idlist": [
+     "79001"
+    ],
+    "translationset": [
+     {
+      "from": "human[orgn]",
+      "to": "\"Homo sapiens\"[Organism]"
+     }
+    ],
+    "translationstack": [
+     {
+      "term": "VKORC1[sym]",
+      "field": "sym",
+      "count": "669",
+      "explode": "N"
+     },
+     {
+      "term": "\"Homo sapiens\"[Organism]",
+      "field": "Organism",
+      "count": "360519",
+      "explode": "Y"
+     },
+     "AND"
+    ],
+    "querytranslation": "VKORC1[sym] AND \"Homo sapiens\"[Organism]"
+   }
+  }
+ }
+}
