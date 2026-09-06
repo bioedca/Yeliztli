@@ -35,29 +35,37 @@ not share an upstream assertion before a user-facing claim of this kind is encod
 | `PMID:28267044` / `DOI:10.1097/MIB.0000000000001058` — Huang Z et al., *Inflamm Bowel Dis* 2017 **(accessed 2026-08-31)** | 42-patient Chinese multicentre survey | `IL10RA`, `IL10RB` |
 | `PMID:21519361` / `DOI:10.1038/ajg.2011.112` — Begue B et al., *Am J Gastroenterol* 2011 **(accessed 2026-08-31; payloads retained 2026-09-05)** | French cohort, 75 children | `IL10RA` p.R262C, `IL10RB` p.E141X |
 
-Searches for an IL10 **ligand** cohort, each retained: Consensus on 2026-08-31 (20 papers, derived
-record); Scite on 2026-09-05/06 (a ligand-only query excluding the receptor genes, paged to
+Searches for an IL10 **ligand** cohort, each retained: Consensus (run 2026-08-31, re-run 2026-09-06
+with all 20 result identities kept — an earlier revision retained only the count, which review
+caught); Scite on 2026-09-05/06 (a ligand-only query excluding the receptor genes, paged to
 exhaustion — 17 records returned of a reported 22, every DOI and title retained; none a ligand
 cohort); and a PubMed ESearch on 2026-09-06 (Title/Abstract term excluding `IL10RA`/`IL10RB`,
-verbatim ESearch and eSummary retained). The ESearch returned exactly **one** record, and it *is* an
-IL10 ligand cohort:
+verbatim ESearch and eSummary retained; one record). Two of the surfaced records report IL10-mutant
+patients, and they were assessed as a possible independent pair:
 
-| Source | Cohort | Why it does not close C1 |
+| Candidate | What it reports | Why it does not close C1 |
 | --- | --- | --- |
-| `PMID:22549091` / `DOI:10.1053/j.gastro.2012.04.045` — Kotlarz D et al., *Gastroenterology* 2012 **(accessed 2026-09-06)** | 66 early-onset IBD patients; 3 with `IL10` mutations, homozygous loss of function (abstract of the live record) | **One** source. Its 35-author list shares **14** authors with the cited receptor cohort `PMID:19890111` (28 authors) — read from the two retained eSummaries — so it cannot pair with that cohort as an independent second source, and no other IL10 ligand cohort was found. Notice-checked (EFetch typed relations, Scite): clean. |
+| `PMID:22549091` / `DOI:10.1053/j.gastro.2012.04.045` — Kotlarz D et al., *Gastroenterology* 2012 **(accessed 2026-09-06)** | 66 early-onset IBD patients; 3 with `IL10` mutations, homozygous loss of function (abstract of the live record) | Its 35-author list shares **14** authors with the cited receptor cohort `PMID:19890111` — the same group. One source. |
+| `PMID:24216686` / `DOI:10.1097/01.MIB.0000435439.22484.d3` — Pigneur B et al., *Inflamm Bowel Dis* 2013 **(accessed 2026-09-06)** | GENIUS network survey of 10 patients with confirmed `IL10`, `IL10RA` or `IL10RB` mutations; the abstract reports IL10-mutant patients without counting them | A different research group from Kotlarz 2012, but the two papers share **2** contributing-clinician authors (Buderus S, Guariso G), and it shares **7** authors with the cited `PMID:21519361`. A multi-centre survey with contributing clinicians in common with the other ligand cohort cannot be shown, from the retained abstract-level records, not to contain the same IL10 patients. The contract requires sources that **do not share a cohort**; this pair is not proven to be two. |
 
-That is the whole supported statement about the literature; nothing is asserted about who authored
-it beyond the retained author lists.
+`PMID:30212871` (Zheng C et al., 2019) compares IL10-mutant carriers across its own 61 patients plus 78
+reviewed cases without attributing any to its own cohort, and shares 5 authors with the cited
+`PMID:28267044`; it is not assessable as a ligand cohort from the retained record and is not counted.
+Author lists were read from the retained eSummaries; none of these three is cited in support of a
+claim, and none is notice-checked, because no claim rests on them (Kotlarz 2012 was notice-checked
+in the previous revision and stays so). That is the whole supported statement about the literature.
 
-> **Correction.** The revision immediately before this one stated that none of the returned records
+> **Correction.** The revision before the previous one stated that none of the returned records
 > was an IL10 ligand cohort and called the ESearch hit a review. Its retained publication types are
 > `Evaluation Study` / `Journal Article`, and its abstract reports three IL-10-mutant patients. The
-> statement was corrected the same hour, before any claim rested on it.
+> statement was corrected within the hour, before any claim rested on it; the Consensus re-run then
+> surfaced the second candidate assessed above.
 
-**What would close it.** Two agreeing, independently-authored primary sources reporting IL10
-(ligand) loss-of-function variants and their transmission — or a maintainer decision that the
-entity-level MONDO assertion is sufficient for a gene-keyed row. Filed as a scientific-validity
-issue rather than left as a silent blank.
+**What would close it.** A second IL10 (ligand) loss-of-function cohort that shares no authors with
+`PMID:22549091`, or patient-level evidence that the IL10-mutant patients in `PMID:24216686` are not
+those in `PMID:22549091` — or a maintainer decision that the entity-level MONDO assertion is
+sufficient for a gene-keyed row. Filed as a scientific-validity issue rather than left as a silent
+blank.
 
 **History, kept rather than deleted.** An earlier revision set the value on receptor-only evidence
 and wrote *"loss-of-function variants in `IL10`, `IL10RA` or `IL10RB`"*. A later revision restated it
@@ -123,7 +131,7 @@ obsolescence is the analogous check — `MONDO:0016542` is not obsolete.
 
 ## Discovery-tool ladder
 
-- **Consensus** — invoked 2026-08-31; 20 papers, retained as a **derived** record.
+- **Consensus** — invoked 2026-08-31 (count and outcome only were kept, which review caught) and re-run with the same query on 2026-09-06; all 20 result identities are retained as a **derived** record and read above.
 - **Scite** — invoked **2026-09-05/06**, after the service-reported quota reset of 2026-09-03 (an earlier revision recorded the August failure as current). Retained as **derived** records: metadata for the five cited DOIs (no editorial notice on any) and a term search for an IL10 **ligand** loss-of-function cohort excluding the receptor genes, paged to exhaustion — 17 records returned of a reported 22, none a ligand cohort, so C1 stays withheld.
 - **PubMed ESearch** — **2026-09-06**, the negative search itself retained verbatim (1 record, `PMID:22549091`, an IL10 ligand cohort from the same author group as the cited receptor cohort; recorded above as insufficient on its own).
 - **Fallback** — PubMed for the literature, EBI OLS4 for the ontology record.
@@ -134,7 +142,7 @@ as **not exposed** rather than guessed.
 
 ## Retained evidence
 
-`raw/` holds **eleven unedited verbatim API responses** (three NCBI eSummary, one NCBI ESearch, five
+`raw/` holds **thirteen unedited verbatim API responses** (four NCBI eSummary, two NCBI ESearch, five
 NCBI eLink, two EBI OLS4), **two sanitized responses** (the NCBI EFetch XML for the five cited PMIDs
 and for `PMID:22549091`, abstracts removed and nothing else touched, labelled in their filenames) and
 **five derived records**, each labelled as derived in the file itself: the Consensus call, the two

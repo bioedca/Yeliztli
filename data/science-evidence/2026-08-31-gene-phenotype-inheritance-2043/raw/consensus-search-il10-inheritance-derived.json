@@ -3,7 +3,198 @@
   "accessed": "2026-08-31",
   "query": "IL10 IL10RA IL10RB deficiency very early onset inflammatory bowel disease autosomal recessive inheritance",
   "result_count": 20,
-  "record_kind": "DERIVED — reduced to identity and outcome. Not a wire capture.",
-  "note": "Consensus answers through an MCP tool rather than an HTTP endpoint, so no verbatim response body exists to retain. Recorded to evidence the required first-rung discovery call.",
-  "outcome": "Surfaced the primary literature used for C1 (Glocker 2009 NEJM; Huang 2017 Chinese cohort) alongside reviews. Only the primary records are cited."
+  "record_kind": "DERIVED -- transcribed from the Consensus MCP tool response; not a wire capture (the MCP surface returns results into the conversation, not as a file).",
+  "outcome": "Of the 20 results: two are the cited receptor cohorts (Glocker 2009, Huang 2017); one is Kotlarz 2012, the IL10 ligand cohort also surfaced by the PubMed ESearch (3 IL10-mutant patients; shares its author group with Glocker 2009); one is the GENIUS survey (Pigneur 2013), a second cohort that includes IL10-mutant patients and was assessed for independence -- see the README; the rest are reviews, receptor-only cohorts, case reports and treatment series that contribute no IL10 ligand evidence.",
+  "calls": [
+    {
+      "accessed": "2026-08-31",
+      "retained": "count and outcome only (an earlier revision; identities were not kept, which review caught)"
+    },
+    {
+      "accessed": "2026-09-06",
+      "retained": "the same query re-run; all 20 returned result identities below"
+    }
+  ],
+  "results": [
+    {
+      "rank": 1,
+      "title": "The clinical, molecular, and therapeutic features of patients with IL10/IL10R deficiency: a systematic review.",
+      "first_author": "Sharifinejad N",
+      "year": 2022,
+      "venue": "Clinical and experimental immunology",
+      "doi": "10.1093/cei/uxac040",
+      "reading": "systematic review"
+    },
+    {
+      "rank": 2,
+      "title": "A Comprehensive Review of IL-10 and IL-10 Receptor Deficiencies: From Basic Science to Clinical Bedside",
+      "first_author": "Xiao J",
+      "year": 2026,
+      "venue": "Clinical Reviews in Allergy & Immunology",
+      "doi": "10.1007/s12016-026-09154-6",
+      "reading": "review"
+    },
+    {
+      "rank": 3,
+      "title": "Phenotypic Characterization of Very Early-Onset Inflammatory Bowel Disease with Interleukin-10 Signaling Deficiency: Based on a Large Cohort Study.",
+      "first_author": "Zheng C",
+      "year": 2018,
+      "venue": "Inflammatory bowel diseases",
+      "doi": "10.1093/ibd/izy289",
+      "reading": "primary cohort (61 patients) + literature review; IL10RA/IL10RB/IL10 compared"
+    },
+    {
+      "rank": 4,
+      "title": "Autosomal recessive 333 base pair interleukin 10 receptor alpha subunit deletion in very early-onset inflammatory bowel disease",
+      "first_author": "Lv J",
+      "year": 2021,
+      "venue": "World Journal of Gastroenterology",
+      "doi": "10.3748/wjg.v27.i44.7705",
+      "reading": "case series, IL10RA"
+    },
+    {
+      "rank": 5,
+      "title": "Case Report: Novel IL10RB variant causing very early onset-inflammatory bowel disease",
+      "first_author": "Usman Y",
+      "year": 2025,
+      "venue": "Frontiers in Immunology",
+      "doi": "10.3389/fimmu.2025.1655475",
+      "reading": "case report, IL10RB"
+    },
+    {
+      "rank": 6,
+      "title": "Pitfalls in the diagnosis of apparent homozygous mutations: two cases of IL10RA deficiency inflammatory bowel disease and a literature review",
+      "first_author": "Shi X",
+      "year": 2025,
+      "venue": "Orphanet Journal of Rare Diseases",
+      "doi": "10.1186/s13023-025-03779-0",
+      "reading": "case reports, IL10RA"
+    },
+    {
+      "rank": 7,
+      "title": "Elevated IgA and IL-10 levels in very-early-onset inflammatory bowel disease secondary to IL-10 receptor deficiency",
+      "first_author": "Sandy N",
+      "year": 2021,
+      "venue": "Revista Paulista de Pediatria",
+      "doi": "10.1590/1984-0462/2022/40/2020434",
+      "reading": "case reports, IL10RA"
+    },
+    {
+      "rank": 8,
+      "title": "Clinical Features of Interleukin 10 Receptor Gene Mutations in Children With Very Early-Onset Inflammatory Bowel Disease",
+      "first_author": "Beser OF",
+      "year": 2015,
+      "venue": "Journal of Pediatric Gastroenterology and Nutrition",
+      "doi": "10.1097/mpg.0000000000000621",
+      "reading": "primary cohort (17 patients); mutations found only in IL10RA/IL10RB"
+    },
+    {
+      "rank": 9,
+      "title": "Loss of interleukin-10 signaling and infantile inflammatory bowel disease: implications for diagnosis and therapy.",
+      "first_author": "Kotlarz D",
+      "year": 2012,
+      "venue": "Gastroenterology",
+      "doi": "10.1053/j.gastro.2012.04.045",
+      "reading": "primary cohort (66 patients; 3 with IL10 mutations) -- see PMID:22549091"
+    },
+    {
+      "rank": 10,
+      "title": "Very early-onset inflammatory bowel disease (IBD) in infancy is a different disease entity from adult-onset IBD; one form of interleukin-10 receptor mutations",
+      "first_author": "Shim J",
+      "year": 2014,
+      "venue": "Journal of Human Genetics",
+      "doi": "10.1038/jhg.2014.32",
+      "reading": "primary cohort (40 children); no IL10 mutations found"
+    },
+    {
+      "rank": 11,
+      "title": "Phenotypic Characterization of Very Early-onset IBD Due to Mutations in the IL10, IL10 Receptor Alpha or Beta Gene: A Survey of the GENIUS Working Group",
+      "first_author": "Pigneur B",
+      "year": 2013,
+      "venue": "Inflammatory Bowel Diseases",
+      "doi": "10.1097/01.mib.0000435439.22484.d3",
+      "reading": "primary survey (10 patients with IL10, IL10RA or IL10RB mutations) -- assessed for independence, see README"
+    },
+    {
+      "rank": 12,
+      "title": "Early Diagnosis and Hematopoietic Stem Cell Transplantation for IL10R Deficiency Leading to Very Early-Onset Inflammatory Bowel Disease Are Essential in Familial Cases",
+      "first_author": "Karaca N",
+      "year": 2016,
+      "venue": "Case Reports in Immunology",
+      "doi": "10.1155/2016/5459029",
+      "reading": "case report, IL10RB"
+    },
+    {
+      "rank": 13,
+      "title": "Immune Dysregulation Resulting From Impaired Interleukin-10 And The Interleukin-10 Receptor Signaling: A Systematic Review of 284 Monogenic Patients",
+      "first_author": "Sharifinejad N",
+      "year": 2021,
+      "venue": "preprint (Research Square)",
+      "doi": "10.21203/rs.3.rs-1160985/v1",
+      "reading": "preprint of [1]"
+    },
+    {
+      "rank": 14,
+      "title": "IL-10 and IL-10 Receptor Mutations in Very Early Onset Inflammatory Bowel Disease",
+      "first_author": "Zhu L",
+      "year": 2017,
+      "venue": "Gastroenterology Research",
+      "doi": "10.14740/gr740w",
+      "reading": "review"
+    },
+    {
+      "rank": 15,
+      "title": "Mutations in Interleukin-10 Receptor and Clinical Phenotypes in Patients with Very Early Onset Inflammatory Bowel Disease: A Chinese VEO-IBD Collaboration Group Survey",
+      "first_author": "Huang Z",
+      "year": 2017,
+      "venue": "Inflammatory Bowel Diseases",
+      "doi": "10.1097/mib.0000000000001058",
+      "reading": "primary cohort -- cited, PMID:28267044"
+    },
+    {
+      "rank": 16,
+      "title": "Inflammatory Bowel Disease and Mutations Affecting the Interleukin-10 Receptor",
+      "first_author": "Glocker E",
+      "year": 2009,
+      "venue": "The New England journal of medicine",
+      "doi": "10.1056/nejmoa0907206",
+      "reading": "primary -- cited, PMID:19890111"
+    },
+    {
+      "rank": 17,
+      "title": "Novel de novo mutations of the interleukin-10 receptor gene lead to infantile onset inflammatory bowel disease.",
+      "first_author": "Lee C",
+      "year": 2014,
+      "venue": "Journal of Crohn's & colitis",
+      "doi": "10.1016/j.crohns.2014.04.004",
+      "reading": "case report, IL10RA"
+    },
+    {
+      "rank": 18,
+      "title": "Treatment of IL-10RA deficiency of pediatric patients with very early onset inflammatory bowel disease by allogeneic haematopoietic stem cell transplantation",
+      "first_author": "Wang Y",
+      "year": 2025,
+      "venue": "Scientific Reports",
+      "doi": "10.1038/s41598-025-92979-6",
+      "reading": "treatment series, IL10RA"
+    },
+    {
+      "rank": 19,
+      "title": "Primary Immunodeficiencies Associated With Early-Onset Inflammatory Bowel Disease in Southeast and East Asia",
+      "first_author": "Sasahara Y",
+      "year": 2022,
+      "venue": "Frontiers in Immunology",
+      "doi": "10.3389/fimmu.2021.786538",
+      "reading": "review"
+    },
+    {
+      "rank": 20,
+      "title": "Targeted therapies and their outcomes in monogenic very early onset inflammatory bowel disease: a systematic review",
+      "first_author": "Abhari AP",
+      "year": 2026,
+      "venue": "BMC Gastroenterology",
+      "doi": "10.1186/s12876-025-04592-6",
+      "reading": "systematic review"
+    }
+  ]
 }
