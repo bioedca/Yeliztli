@@ -32,6 +32,25 @@ describe("normalizeFilterForApi", () => {
     expect((out.rules[0] as { value: unknown }).value).toEqual(["BRCA1", "BRCA2"])
   })
 
+  it.each(["in", "notIn"])("honours react-querybuilder's escaped comma in a %s value", (operator) => {
+    const out = normalizeFilterForApi(
+      filterWith([
+        { field: "clinvar_conditions", operator, value: "Alzheimer disease\\, late onset,Parkinson disease" },
+      ]),
+    )
+    expect((out.rules[0] as { value: unknown }).value).toEqual([
+      "Alzheimer disease, late onset",
+      "Parkinson disease",
+    ])
+  })
+
+  it("keeps a half-filled between pair intact so the backend can reject it", () => {
+    const out = normalizeFilterForApi(
+      filterWith([{ field: "cadd_phred", operator: "between", value: "20," }]),
+    )
+    expect((out.rules[0] as { value: unknown }).value).toEqual(["20", ""])
+  })
+
   it("keeps a malformed between pair intact so the backend can reject it", () => {
     const out = normalizeFilterForApi(
       filterWith([{ field: "cadd_phred", operator: "between", value: "20" }]),

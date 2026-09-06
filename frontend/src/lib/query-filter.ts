@@ -9,6 +9,8 @@
  * typed before the option existed — so every request sends the typed contract.
  */
 
+import { toArray } from "react-querybuilder"
+
 import type { RuleGroupModel, RuleModel } from "@/types/query-builder"
 
 /** Operators whose value the backend validates as an array. */
@@ -18,15 +20,17 @@ function isRuleGroup(node: RuleGroupModel | RuleModel): node is RuleGroupModel {
   return Array.isArray((node as RuleGroupModel).rules)
 }
 
-/** Split a comma-joined list into trimmed tokens.
+/** Split a comma-joined list with react-querybuilder's own list syntax.
  *
- * `between` keeps every token so a malformed pair still reaches the backend's
- * "requires a two-element array" validation instead of being silently padded or
- * truncated; `in` / `notIn` drop empty tokens (a trailing comma is not a value).
+ * `toArray` trims tokens and honours the library's escape for a literal comma
+ * (`Alzheimer\, late onset,Parkinson` → `["Alzheimer, late onset", "Parkinson"]`),
+ * so condition and disease names survive the round trip. `between` keeps empty
+ * tokens so a half-filled pair still reaches the backend's "requires a
+ * two-element array" validation instead of being silently truncated; `in` /
+ * `notIn` drop them (a trailing comma is not a value).
  */
-function splitListValue(operator: string, value: string): string[] {
-  const tokens = value.split(",").map((token) => token.trim())
-  return operator === "between" ? tokens : tokens.filter((token) => token !== "")
+function splitListValue(operator: string, value: string): unknown[] {
+  return toArray(value, { retainEmptyStrings: operator === "between" })
 }
 
 function normalizeRule(rule: RuleModel): RuleModel {
