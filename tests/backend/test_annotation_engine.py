@@ -91,6 +91,7 @@ from tests.backend.vep_bundle_test_utils import seed_embedded_vep_bundle_version
 
 FIXTURES_DIR = Path(__file__).resolve().parent.parent / "fixtures"
 VEP_SEED_CSV = FIXTURES_DIR / "seed_csvs" / "vep_seed.csv"
+MINI_VEP_DB = FIXTURES_DIR / "mini_vep_bundle.db"
 GNOMAD_SEED_CSV = FIXTURES_DIR / "seed_csvs" / "gnomad_seed.csv"
 DBNSFP_SEED_CSV = FIXTURES_DIR / "seed_csvs" / "dbnsfp_seed.csv"
 GENE_PHENOTYPE_SEED_CSV = FIXTURES_DIR / "seed_csvs" / "gene_phenotype_seed.csv"
@@ -230,6 +231,19 @@ def vep_engine_inmemory() -> sa.Engine:
                     },
                 )
     return engine
+
+
+@pytest.fixture
+def vep_engine_fixture_db() -> sa.Engine:
+    """The ON-DISK ``mini_vep_bundle.db`` -- the regenerated artifact, not the CSV.
+
+    ``vep_engine_inmemory`` re-reads ``vep_seed.csv`` on every run, so a bundle
+    regenerated from a stale seed, or never regenerated at all, is invisible to it.
+    """
+    assert MINI_VEP_DB.exists(), f"Missing fixture: {MINI_VEP_DB}"
+    engine = sa.create_engine(f"sqlite:///{MINI_VEP_DB}")
+    yield engine
+    engine.dispose()
 
 
 @pytest.fixture
@@ -824,6 +838,52 @@ class TestRunAnnotation:
         assert result.alphamissense_matched > 0
         assert result.batches_processed >= 1
         assert result.errors == []
+
+    def test_cyp2c19_star4_start_loss_reaches_annotated_variants(
+        self,
+        sample_engine: sa.Engine,
+        mock_registry: MagicMock,
+        vep_engine_fixture_db: sa.Engine,
+    ) -> None:
+        """#2045's correction must arrive through the production path, not just the CSV.
+
+        ``test_vep_seed_strand_provenance.py`` spot-locks rs28399504 (CYP2C19*4) by
+        reading ``vep_seed.csv``, which stays green if the regenerated
+        ``mini_vep_bundle.db`` is stale or ``run_annotation`` ->
+        ``lookup_vep_by_rsids`` drops ``start_lost`` / ``p.Met1?`` / the corrected
+        ``+`` strand on the way to ``annotated_variants``. So: one carried (het)
+        call at the locus, annotated from the ON-DISK bundle, and the fields
+        asserted on the row actually written.
+        """
+        with sample_engine.begin() as conn:
+            conn.execute(
+                raw_variants.insert(),
+                [{"rsid": "rs28399504", "chrom": "10", "pos": 94781859, "genotype": "AG"}],
+            )
+        # ``mock_registry`` serves the CSV-backed in-memory bundle; point this one
+        # registry at the on-disk fixture instead (MagicMock classes are per-instance).
+        type(mock_registry).vep_engine = property(lambda self: vep_engine_fixture_db)
+
+        result = run_annotation(sample_engine, mock_registry)
+
+        assert result.errors == []
+        assert result.vep_matched == 1
+        with sample_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(annotated_variants).where(annotated_variants.c.rsid == "rs28399504")
+            ).fetchone()
+        assert row is not None
+        assert row.gene_symbol == "CYP2C19"
+        assert row.transcript_id == "ENST00000371321"
+        assert row.hgvs_coding == "c.1A>G"
+        assert row.consequence == "start_lost"
+        assert row.hgvs_protein == "p.Met1?"
+        assert row.strand == "+"
+        assert row.mane_select in (True, 1)
+        # Carriage flowed too: the bundle's A/G identity classified the AG call.
+        assert (row.ref, row.alt) == ("A", "G")
+        assert row.zygosity == "het"
+        assert row.annotation_coverage & VEP_BIT == VEP_BIT
 
     def test_real_variant_fields_do_not_inherit_synthetic_dbnsfp_scores(
         self,

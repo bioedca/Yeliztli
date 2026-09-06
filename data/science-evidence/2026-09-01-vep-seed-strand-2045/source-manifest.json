@@ -122,21 +122,70 @@
       "license_note": "Used as a notice-check tool only. No Scite text is redistributed: the retained record holds DOIs, titles, years, tallies and the presence or absence of an editorialNotices array."
     }
   ],
-  "payload_integrity": "Five payloads are unedited verbatim API responses (four Ensembl/NCBI Gene records and one NCBI PubMed eSummary). One payload, the NCBI PubMed EFetch XML for the two cited papers, is SANITIZED: <Abstract> elements were removed under the bibliographic-metadata-only retention rule and nothing else was touched; it is labelled as such in its filename. Three payloads are DERIVED records, labelled as such in the manifest and (for the PubMed one) in the file itself: the consequence audit reduces 679 VEP responses per rsid to the fixture consequence, the transcript-matched terms and most_severe_consequence -- retaining 679 full VEP payloads would be megabytes of unread JSON -- the PubMed reduction lists each cited record's CommentsCorrections and publication types, and the Scite record holds the two cited DOIs' metadata and notice status (no HTTP response to capture). No payload required further sanitization: all are public reference-annotation or bibliographic records with no genotype, sample or personal data.",
+  "payload_integrity": "Six payloads are unedited verbatim API responses: two Ensembl VEP records and one NCBI PubMed eSummary captured on the dates their rows give, plus three captured 2026-09-05 (Ensembl lookup/symbol for the 57 genes; NCBI Gene esearch and esummary for the 19 corrected genes), each a per-symbol map of response objects whose `_artifact_note` and `responses` wrapper are the only additions. One payload, the NCBI PubMed EFetch XML for the two cited papers, is SANITIZED: <Abstract> elements were removed under the bibliographic-metadata-only retention rule and nothing else was touched; it is labelled as such in its filename. Five payloads are DERIVED records, labelled as such in the manifest: the lookup/symbol reduction selects each gene's strand and id from the verbatim response; the NCBI Gene reduction selects the live record's uid and genomicinfo coordinates and COMPUTES an orientation from their order; the consequence audit reduces 679 VEP responses per rsid to the fixture consequence, the transcript-matched terms and most_severe_consequence -- retaining 679 full VEP payloads would be megabytes of unread JSON; the PubMed reduction lists each cited record's CommentsCorrections and publication types; and the Scite record holds the two cited DOIs' metadata and notice status (no HTTP response to capture). Each derived row names the verbatim payload it derives from and the fields it selects. No payload required further sanitization: all are public reference-annotation or bibliographic records with no genotype, sample or personal data.",
   "requests": [
     {
       "payload": "raw/ensembl-grch37-lookup-symbol-57-genes.json",
-      "request": "GET https://grch37.rest.ensembl.org/lookup/symbol/homo_sapiens/<gene> for each of 57 genes",
-      "source": "Ensembl GRCh37 REST (lookup/symbol)",
+      "request": "Reduction of the verbatim lookup/symbol responses (GET https://grch37.rest.ensembl.org/lookup/symbol/homo_sapiens/<gene>?content-type=application/json, one per gene, 57 genes)",
+      "source": "Ensembl GRCh37 REST (lookup/symbol) -- DERIVED: per gene, `strand` (1 rendered `+`, -1 rendered `-`) and `id` selected from the response, joined to the strand values vep_seed.csv carried for that gene",
       "sha256": "e87877e2b1cd9d6bb7dd211a70919b005d284c2b07a2421b1a4da8716b0473b2",
-      "bytes": 6279
+      "bytes": 6279,
+      "derived_from": "raw/ensembl-grch37-lookup-symbol-57-genes-verbatim.json",
+      "fields_selected": {
+        "genes.<gene>.ensembl_strand": "response `strand` (1 -> '+', -1 -> '-')",
+        "genes.<gene>.ensembl_id": "response `id`",
+        "genes.<gene>.fixture": "the strand value(s) the pre-correction vep_seed.csv carried for the gene -- from the fixture, not from any API",
+        "fetch_failures": "the generator's own failure list (empty)"
+      },
+      "accessed": "2026-09-01",
+      "correction": "Labelled an unedited verbatim API response until 2026-09-05 (review of #2364). It is a reduction: the 2026-09-01 wire responses were not retained, so the verbatim payload alongside is a 2026-09-05 re-fetch. All 57 `strand` and `id` values re-derived from it equal this file."
     },
     {
       "payload": "raw/ncbi-gene-esummary-19-corrected-genes.json",
-      "request": "GET .../esearch.fcgi?db=gene + esummary.fcgi?db=gene for each of the 19 corrected genes",
-      "source": "NCBI Gene (E-utilities)",
+      "request": "Reduction of the verbatim esearch + esummary responses (GET .../esearch.fcgi?db=gene&term=<gene>[sym] AND human[orgn]&retmode=json, then .../esummary.fcgi?db=gene&id=<idlist>&retmode=json, one pair per gene, 19 genes)",
+      "source": "NCBI Gene (E-utilities) -- DERIVED: per gene, the live esummary record's `uid`, `genomicinfo[0].chrstart` and `genomicinfo[0].chrstop`, plus an `orientation` computed from their order; esummary exposes no strand field",
       "sha256": "7eca65c5faf3ae64a2bbcc113ead8b98475ab997cdf34a296f1170e39be52063",
-      "bytes": 2020
+      "bytes": 2020,
+      "derived_from": [
+        "raw/ncbi-gene-esearch-19-corrected-genes-verbatim.json",
+        "raw/ncbi-gene-esummary-19-corrected-genes-verbatim.json"
+      ],
+      "fields_selected": {
+        "<gene>.gene_id": "esummary record `uid` of the live record (`status` and `currentid` both empty). CYP2C19, CYP2R1 and HLA-DRB1 also return discontinued ids (`status` 1) whose `currentid` points at the retained uid and which carry no `genomicinfo`.",
+        "<gene>.chrstart": "live record `genomicinfo[0].chrstart`",
+        "<gene>.chrstop": "live record `genomicinfo[0].chrstop`",
+        "<gene>.orientation": "COMPUTED, not a response field: '-' when chrstart > chrstop, else '+'"
+      },
+      "coordinate_note": "`genomicinfo` coordinates sit on the `chraccver` the payload names (NC_0000NN.1x; `locationhist` attributes them to assembly GCF_000001405.40) and differ from the Ensembl GRCh37 coordinates for the same genes, so they were never compared to the fixture. Only orientation, which is assembly-invariant, was compared, and it agrees with Ensembl GRCh37 for all 19.",
+      "accessed": "2026-09-01",
+      "correction": "Labelled an unedited verbatim API response until 2026-09-05 (review of #2364). It is a reduction, and `orientation` is computed rather than read: the 2026-09-01 wire responses were not retained, so the verbatim payloads alongside are a 2026-09-05 re-fetch. All 19 uids, coordinate pairs and orientations re-derived from them equal this file."
+    },
+    {
+      "payload": "raw/ensembl-grch37-lookup-symbol-57-genes-verbatim.json",
+      "request": "GET https://grch37.rest.ensembl.org/lookup/symbol/homo_sapiens/<gene>?content-type=application/json for each of the 57 genes, paced 0.15 s apart, up to four attempts each",
+      "source": "Ensembl GRCh37 REST (lookup/symbol) -- VERBATIM: one response object per queried symbol; the `_artifact_note` and `responses` wrapper are the only additions",
+      "accessed": "2026-09-05",
+      "agreement": "strand and id equal raw/ensembl-grch37-lookup-symbol-57-genes.json and tests/fixtures/vep_gene_strand_snapshot.json for all 57 genes; display_name equals the queried symbol and assembly_name is GRCh37 for all 57",
+      "sha256": "fb53eab458010cb4365f967f9c3f1c3468bc868191fd2ee3536a122d8a98e90a",
+      "bytes": 31824
+    },
+    {
+      "payload": "raw/ncbi-gene-esearch-19-corrected-genes-verbatim.json",
+      "request": "GET https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=gene&term=<gene>[sym] AND human[orgn]&retmode=json for each of the 19 corrected genes, paced 0.4 s apart, up to four attempts each",
+      "source": "NCBI Gene (E-utilities esearch) -- VERBATIM: one response object per queried symbol; the `_artifact_note` and `responses` wrapper are the only additions",
+      "accessed": "2026-09-05",
+      "agreement": "every idlist contains the gene_id raw/ncbi-gene-esummary-19-corrected-genes.json records; 16 return exactly one id, CYP2C19 / CYP2R1 / HLA-DRB1 additionally return discontinued ids",
+      "sha256": "02ea860607df7b1fa28104391f708baa92a46684e3ce9b9aec70aac5f58d419e",
+      "bytes": 13853
+    },
+    {
+      "payload": "raw/ncbi-gene-esummary-19-corrected-genes-verbatim.json",
+      "request": "GET https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=gene&id=<every id in the gene's esearch idlist>&retmode=json for each of the 19 corrected genes, paced 0.4 s apart, up to four attempts each",
+      "source": "NCBI Gene (E-utilities esummary) -- VERBATIM: one response object per queried symbol; the `_artifact_note` and `responses` wrapper are the only additions",
+      "accessed": "2026-09-05",
+      "agreement": "the live record's uid, genomicinfo[0].chrstart and genomicinfo[0].chrstop equal raw/ncbi-gene-esummary-19-corrected-genes.json for all 19 genes, and the orientation computed from their order equals both that file and the Ensembl GRCh37 strand for all 19",
+      "sha256": "35637543efa2bd1015cf86afd5e2f3b878be69e94eb6d53b62e932ba16746894",
+      "bytes": 127400
     },
     {
       "payload": "raw/ensembl-grch37-vep-rs28399504.json",
@@ -191,5 +240,6 @@
       "bytes": 1569,
       "accessed": "2026-09-05"
     }
-  ]
+  ],
+  "payload_integrity_correction": "Added 2026-09-05 after review of #2364: an earlier revision counted raw/ensembl-grch37-lookup-symbol-57-genes.json and raw/ncbi-gene-esummary-19-corrected-genes.json among the unedited verbatim responses. Neither is a wire response: the first is a per-gene selection of `strand` and `id` joined to the fixture's own strand values, the second a per-gene selection of uid and genomicinfo coordinates with a computed orientation. Both are relabelled DERIVED. The 2026-09-01 responses they were read from had not been retained, so the verbatim payloads were re-fetched on 2026-09-05 and retained alongside; every reduced value re-derived from the re-fetch equals the 2026-09-01 reduction, so neither claim changes."
 }

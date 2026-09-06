@@ -13,6 +13,14 @@ so tests could not detect a real regression in the very fields they were meant t
 | --- | --- | --- |
 | Ensembl GRCh37 REST `lookup/symbol` **(accessed 2026-09-01)** | all 57 genes | 57 resolved, **zero fetch failures**; 19 disagreed with the fixture |
 | NCBI Gene `esummary` `genomicinfo` **(accessed 2026-09-01)** | the 19 corrected genes | **zero disagreements** with Ensembl |
+| Ensembl GRCh37 REST `lookup/symbol`, **verbatim re-fetch (accessed 2026-09-05)** | all 57 genes | every `strand` and `id` equals the 2026-09-01 reduction and the committed snapshot |
+| NCBI Gene `esearch` + `esummary`, **verbatim re-fetch (accessed 2026-09-05)** | the 19 corrected genes | every uid, coordinate pair and orientation equals the 2026-09-01 reduction; orientation agrees with Ensembl for all 19 |
+
+The two 2026-09-01 rows are **reductions** (see *Retained evidence*): the strand and gene id selected from
+each Ensembl response, and the live record's uid and `genomicinfo` coordinates from each NCBI response with
+an orientation *computed* from their order, because `esummary` exposes no strand field. The NCBI
+coordinates sit on the accession the payload names, not on GRCh37, and were never compared to the fixture;
+only orientation, which is assembly-invariant, was.
 
 **On independence:** these are two annotation projects run by different organisations (EMBL-EBI and
 NCBI/RefSeq) with separate gene-model pipelines. They are *not fully* independent — both are
@@ -103,13 +111,37 @@ exposes no index version. All recorded as **not exposed** rather than guessed.
 
 ## Retained evidence
 
-`raw/` holds **five unedited verbatim API responses** (four Ensembl / NCBI Gene records and one
-PubMed eSummary), **one sanitized response** (the PubMed EFetch XML for the two cited papers,
-abstracts removed and nothing else touched, labelled in its filename) and **three derived records**:
-the consequence audit reduces 679 VEP responses per rsid to the fixture consequence, the
-transcript-matched terms and `most_severe_consequence`, because retaining 679 full payloads would be
-megabytes of unread JSON; the PubMed reduction lists each cited record's `CommentsCorrections` and
-publication types; the Scite record holds the two cited DOIs' metadata and notice status. All three
-are labelled DERIVED in the manifest. `source-manifest.json` carries each
-request, source, SHA-256, byte length, access date and licence. No payload required further
-sanitization.
+`raw/` holds **six unedited verbatim API responses**, **one sanitized response** and **five derived
+records**.
+
+Verbatim: the two Ensembl VEP records for rs28399504 and the PubMed eSummary for the two cited papers,
+plus three per-symbol captures made on 2026-09-05 — Ensembl `lookup/symbol` for all 57 genes, and NCBI
+Gene `esearch` and `esummary` for the 19 corrected genes — in which the `_artifact_note` and the
+`responses` wrapper keyed by queried symbol are the only additions.
+
+Sanitized: the PubMed EFetch XML for the two cited papers, abstracts removed and nothing else touched,
+labelled in its filename.
+
+Derived, each labelled DERIVED in the manifest with the verbatim payload it derives from and the fields
+it selects:
+
+- `ensembl-grch37-lookup-symbol-57-genes.json` selects each gene's `strand` (1 → `+`, −1 → `-`) and
+  `id` from the `lookup/symbol` response and joins the strand values the pre-correction fixture carried.
+- `ncbi-gene-esummary-19-corrected-genes.json` selects, per gene, the **live** `esummary` record's
+  `uid`, `genomicinfo[0].chrstart` and `genomicinfo[0].chrstop`, and **computes** `orientation` from
+  their order (`-` when start > stop). `CYP2C19`, `CYP2R1` and `HLA-DRB1` also return discontinued ids
+  whose `currentid` points at the retained one and which carry no `genomicinfo`.
+- the consequence audit reduces 679 VEP responses per rsid to the fixture consequence, the
+  transcript-matched terms and `most_severe_consequence`, because retaining 679 full payloads would be
+  megabytes of unread JSON;
+- the PubMed reduction lists each cited record's `CommentsCorrections` and publication types;
+- the Scite record holds the two cited DOIs' metadata and notice status.
+
+`source-manifest.json` carries each request, source, SHA-256, byte length, access date and licence. No
+payload required further sanitization.
+
+> **Correction.** An earlier revision counted the two reductions above among the unedited verbatim
+> responses. Relabelled DERIVED on 2026-09-05 after review. The 2026-09-01 responses they were read
+> from had not been retained, so the verbatim payloads are a **re-fetch** made that day, not the
+> original capture; every reduced value re-derived from the re-fetch equals the 2026-09-01 reduction,
+> so neither claim changes.

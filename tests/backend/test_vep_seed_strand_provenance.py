@@ -44,7 +44,10 @@ _SNAPSHOT = _ROOT / "tests" / "fixtures" / "vep_gene_strand_snapshot.json"
 # symbol, and `test_only_the_known_synthetic_gene_is_exempt` fails if another
 # unresolvable symbol appears, so a fabricated gene cannot hide behind it. The set
 # is the generator's own, so the guard cannot exempt a symbol the generator still
-# submits to Ensembl (which fails the rebuild) or vice versa.
+# submits to Ensembl (which fails the rebuild) or vice versa -- and because that
+# shared set would let a widened exemption pass every guard at once,
+# `test_synthetic_exemption_is_exactly_the_one_reviewed_symbol` pins it to a
+# literal that lives here, not in the generator.
 _SYNTHETIC_GENES = SYNTHETIC_GENES
 
 # "c.1A>G" -- a substitution at the first coding base. Anchored so "c.10A>G" and
@@ -84,6 +87,24 @@ def test_only_the_known_synthetic_gene_is_exempt() -> None:
         f"unresolvable gene symbols in vep_seed.csv: {sorted(unresolvable)} -- expected only "
         f"{sorted(_SYNTHETIC_GENES)}. A real gene missing from the snapshot means the snapshot "
         "needs regenerating; an unknown symbol means the row is fabricated."
+    )
+
+
+def test_synthetic_exemption_is_exactly_the_one_reviewed_symbol() -> None:
+    """The exemption is pinned to a literal here, independently of the generator.
+
+    Every other guard in this module compares against the imported
+    ``SYNTHETIC_GENES`` -- the same set that drives the generator's exclusion and
+    the snapshot's ``synthetic_excluded`` provenance. Add a symbol to that set and
+    regenerate, and it is skipped everywhere while every guard still passes
+    (#2045 review). Widening the exemption must therefore be a deliberate,
+    reviewed edit to THIS literal as well, never a side effect of editing the
+    generator: the value is spelled out rather than derived from the import.
+    """
+    assert SYNTHETIC_GENES == frozenset({"GENE1"}), (
+        f"the synthetic-gene exemption is now {sorted(SYNTHETIC_GENES)}; if widening it is "
+        "intended, update this literal in the same reviewed change and say why the new "
+        "symbol has no Ensembl record"
     )
 
 
@@ -189,7 +210,13 @@ def test_a_start_codon_substitution_is_not_called_missense() -> None:
 
 
 def test_cyp2c19_star4_stays_a_start_loss() -> None:
-    """Spot-lock for #2045's headline row, so a silent revert fails loudly."""
+    """Spot-lock for #2045's headline row, so a silent revert fails loudly.
+
+    This reads the CSV, so it cannot see a stale ``mini_vep_bundle.db`` or a lookup
+    that drops a field. The production path is locked separately: the on-disk bundle
+    through ``lookup_vep_by_rsids`` in ``test_vep_bundle_lookup.py`` and through
+    ``run_annotation`` into ``annotated_variants`` in ``test_annotation_engine.py``.
+    """
     row = next((r for r in _rows() if r["rsid"] == "rs28399504"), None)
     assert row is not None, "rs28399504 (CYP2C19*4) missing from vep_seed.csv"
     assert row["gene_symbol"] == "CYP2C19"
