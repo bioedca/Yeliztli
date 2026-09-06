@@ -147,8 +147,8 @@ notice-checked and no biological claim is derived from it. Until this revision t
 only that Consensus was the wrong instrument, without having run it.
 
 Versions: Ensembl GRCh37 REST exposes no version header on these endpoints — the assembly is the pin
-that matters and is in the hostname. NCBI E-utilities exposes no build field. The Scite MCP surface
-exposes no index version. All recorded as **not exposed** rather than guessed.
+that matters and is in the hostname. NCBI E-utilities exposes no build field. The Scite and Consensus MCP surfaces
+expose no index version. All recorded as **not exposed** rather than guessed.
 
 > **Correction.** Until 2026-09-06 the consequence audit was the sole record of the VEP responses
 > behind the 52 / 15 / 33 breakdown, so that breakdown could not be verified independently. The 678
@@ -158,7 +158,7 @@ exposes no index version. All recorded as **not exposed** rather than guessed.
 
 ## Retained evidence
 
-`raw/` holds **eight unedited verbatim API responses**, **one sanitized response** and **five derived
+`raw/` holds **eight unedited verbatim API responses**, **one sanitized response** and **six derived
 records**.
 
 Verbatim: the two Ensembl VEP records for rs28399504 and the PubMed eSummary for the two cited papers;
