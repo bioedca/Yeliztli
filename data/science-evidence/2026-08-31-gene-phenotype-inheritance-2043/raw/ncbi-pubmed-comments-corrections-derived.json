@@ -1,0 +1,94 @@
+{
+  "_artifact_note": "DERIVED from the retained sanitized efetch XML in this directory: per cited PMID, every CommentsCorrections link with its RefType, plus the publication types. Abstracts were removed from the XML under the bibliographic-metadata-only retention rule; nothing else was touched. Complete with respect to records: every requested PMID is present.",
+  "_notice_reftypes_searched": [
+    "CorrectedandRepublishedIn",
+    "ErratumIn",
+    "ExpressionOfConcernIn",
+    "PartialRetractionIn",
+    "ReprintIn",
+    "RepublishedIn",
+    "RetractionIn",
+    "UpdateIn"
+  ],
+  "records": [
+    {
+      "pmid": "19890111",
+      "publication_types": [
+        "Case Reports",
+        "Journal Article",
+        "Research Support, N.I.H., Intramural",
+        "Research Support, Non-U.S. Gov't"
+      ],
+      "comments_corrections_total": 3,
+      "comments_corrections": [
+        {
+          "RefType": "CommentIn",
+          "RefSource": "N Engl J Med. 2009 Nov 19;361(21):2091-3. doi: 10.1056/NEJMe0909225.",
+          "PMID": "19890110"
+        },
+        {
+          "RefType": "CommentIn",
+          "RefSource": "Gastroenterology. 2010 May;138(5):2016-8. doi: 10.1053/j.gastro.2010.03.018.",
+          "PMID": "20303964"
+        },
+        {
+          "RefType": "CommentIn",
+          "RefSource": "Inflamm Bowel Dis. 2011 Jun;17(6):1438. doi: 10.1002/ibd.21495.",
+          "PMID": "20842643"
+        }
+      ],
+      "notice_links": []
+    },
+    {
+      "pmid": "28267044",
+      "publication_types": [
+        "Journal Article"
+      ],
+      "comments_corrections_total": 1,
+      "comments_corrections": [
+        {
+          "RefType": "CommentIn",
+          "RefSource": "Inflamm Bowel Dis. 2017 Apr;23(4):591-592. doi: 10.1097/MIB.0000000000001028.",
+          "PMID": "28267048"
+        }
+      ],
+      "notice_links": []
+    },
+    {
+      "pmid": "21519361",
+      "publication_types": [
+        "Journal Article",
+        "Research Support, Non-U.S. Gov't"
+      ],
+      "comments_corrections_total": 0,
+      "comments_corrections": [],
+      "notice_links": []
+    },
+    {
+      "pmid": "14765194",
+      "publication_types": [
+        "Journal Article",
+        "Research Support, Non-U.S. Gov't"
+      ],
+      "comments_corrections_total": 1,
+      "comments_corrections": [
+        {
+          "RefType": "CommentIn",
+          "RefSource": "Nature. 2004 Feb 5;427(6974):493-4. doi: 10.1038/427493a.",
+          "PMID": "14765176"
+        }
+      ],
+      "notice_links": []
+    },
+    {
+      "pmid": "26513304",
+      "publication_types": [
+        "Case Reports",
+        "Journal Article"
+      ],
+      "comments_corrections_total": 0,
+      "comments_corrections": [],
+      "notice_links": []
+    }
+  ]
+}

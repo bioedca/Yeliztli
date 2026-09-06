@@ -1,0 +1,394 @@
+{
+  "issue": 2043,
+  "accessed": "2026-08-31",
+  "concern": "The inheritance column of gene_phenotype_seed.csv: two claims considered and both withheld — one blank stays blank (C1), one pre-existing value is left unchanged and unasserted (C2); no seed value changes.",
+  "why_this_is_load_bearing": "`inheritance` reaches the user: `_lookup_gene_phenotype` ships it to the frontend as `inheritance_pattern`, beside the variant of the row's GENE. That is what makes an unevidenced value a per-gene claim rather than metadata, and it is why C1 is withheld. NOTE: an earlier revision also claimed a blank demoted the row in primary selection. That was wrong — selection keys on `annot.hpo_terms or annot.inheritance`, and the IL10 row already carries two HPO terms.",
+  "claims": {
+    "C1": {
+      "verdict": "WITHHELD — insufficient evidence for a per-gene claim.",
+      "statement_considered": "The IL10 row's inheritance is autosomal recessive (MONDO:0016542, 'IL10-related early-onset inflammatory bowel disease').",
+      "outcome": "No value is set. The row stays blank and is listed in _UNVERIFIED_BLANK_INHERITANCE as unverified (no inheritance mode asserted until the two-source gate is met) — explicitly NOT as polygenic, which was #2043's mis-classification.",
+      "why_withheld": "The row is gene-keyed. `_lookup_gene_phenotype` returns its value as the `inheritance_pattern` rendered beside an *IL10* variant, so it reads as a per-gene claim, not as ontology metadata about a disease entity. MONDO's synonyms for the term do include 'autosomal recessive early-onset inflammatory bowel disease', but that is one source, and the contract requires two agreeing sources that do not share an upstream assertion for a user-facing claim of this kind.",
+      "search_performed": "Three receptor cohorts were located and all characterise only the IL10RA/IL10RB RECEPTOR forms (not asserted to be independent of one another: PMID:19890111 and PMID:21519361 share an author, and nothing rests on their independence): PMID:19890111 (European consanguineous families), PMID:28267044 (42-patient Chinese survey) and PMID:21519361 (French cohort; IL10RA p.R262C, IL10RB p.E141X). Searches for an IL10 LIGAND loss-of-function cohort, each retained: Consensus (2026-08-31, 20 papers, derived record), Scite (2026-09-05/06, ligand-only term excluding the receptor genes, 17 records returned of a reported 22, derived record) and a PubMed ESearch (2026-09-06, Title/Abstract term excluding IL10RA/IL10RB, verbatim esearch + esummary retained). The Scite records were read at title level only (no abstracts retained): none of the 17 titles names an IL10 ligand cohort, and two congress-proceedings volumes cannot be classified from a title, so that search is recorded as surfacing no ligand cohort by title rather than as excluding one. The Consensus results (all 20 identities retained on 2026-09-06) contain Kotlarz 2012 and the GENIUS survey (Pigneur 2013); both are assessed under candidates_assessed. The PubMed ESearch returned exactly one record: PMID:22549091 (Kotlarz D et al., Gastroenterology 2012; 66 early-onset IBD patients, 3 with IL-10 mutations, homozygous loss of function). It is ONE source, and its author list shares 14 of 35 authors with PMID:19890111 (read from the retained eSummaries), so it cannot pair with that cohort as an independent second source. The one other cohort reporting IL10-mutant patients (Pigneur 2013) shares contributing-clinician authors with Kotlarz 2012, so the pair is not proven to be two cohorts. That is the whole supported statement about the literature.",
+      "what_would_close_it": "A second IL10 (ligand) loss-of-function cohort whose independence from PMID:22549091 is documented across all three dimensions the contract names -- no shared patients (cohort), no shared dataset, and a genotype-phenotype observation that does not derive from the other paper's assertion (upstream). Shared authors are a reason to examine lineage, not a blocker in themselves: a second paper may share an investigator and still be independent on all three dimensions; or patient-level evidence that the IL10-mutant patients in PMID:24216686 are not those in PMID:22549091 plus the same dataset/upstream assessment; or a maintainer decision that the MONDO entity-level assertion is sufficient for a gene-keyed row. Filed as a scientific-validity issue.",
+      "history": "An earlier revision of this packet set the value on receptor-only evidence and claimed 'loss-of-function variants in IL10, IL10RA or IL10RB'. A later revision restated it at the entity level. Review established that the entity framing does not change what the software renders, so the value is now withheld outright.",
+      "candidates_assessed": {
+        "note": "Records surfaced by the retained searches that report IL10 (ligand) mutation carriers, assessed for whether they could form the two-independent-source pair the contract requires. None is cited in support of a claim; author lists were read from the retained eSummaries. All three are notice-checked the same way as the cited sources (PubMed EFetch typed relations and Scite metadata), because the cohort composition and author-overlap reading rest on them: none carries a correction, retraction, expression of concern or other editorial notice; PMID:22549091 carries two CommentIn (comment) relations, retained in its reduction.",
+        "PMID:22549091": {
+          "paper": "Kotlarz D et al., Gastroenterology 2012 (DOI:10.1053/j.gastro.2012.04.045) (accessed 2026-09-06)",
+          "ligand_evidence": "3 of 66 early-onset IBD patients carried IL-10 mutations, homozygous loss of function (abstract of the live record)",
+          "independence": "35 authors; shares 14 with the cited receptor cohort PMID:19890111 (same group).",
+          "retraction_check": "See the PMID:22549091 citations entry: EFetch typed relations (two CommentIn links, no notice RefType) and Scite (no editorial notice), both 2026-09-06."
+        },
+        "PMID:24216686": {
+          "paper": "Pigneur B et al., Inflamm Bowel Dis 2013 (DOI:10.1097/01.MIB.0000435439.22484.d3) (accessed 2026-09-06)",
+          "ligand_evidence": "GENIUS network survey of 10 patients with confirmed mutations in IL10, IL10RA or IL10RB; the abstract reports IL10-mutant patients but does not count them (abstract of the live record)",
+          "independence": "17 authors, a different research group from Kotlarz 2012, but the two papers share 2 contributing-clinician authors (Buderus S, Guariso G) and it shares 7 with the cited receptor cohort PMID:21519361 (Begue B, Canioni D, Cerf-Bensussan N, Goulet O, Pigneur B, Rieux-Laucat F, Ruemmele FM). A multi-centre survey with contributing clinicians in common with the other ligand cohort cannot be shown, from the retained abstract-level records, not to contain the same IL10 patients; the contract requires sources that do not share a cohort, so this pair is not accepted as two cohorts.",
+          "retraction_check": "PubMed EFetch typed CommentsCorrections relations (accessed 2026-09-06, raw/ncbi-pubmed-efetch-consensus-candidates-sanitized.xml): no CommentsCorrections link of any RefType. Scite metadata (2026-09-06): no editorial notice on file."
+        },
+        "PMID:30212871": {
+          "paper": "Zheng C et al., Inflamm Bowel Dis 2019 (DOI:10.1093/ibd/izy289) (accessed 2026-09-06)",
+          "ligand_evidence": "Compares IL10RB, IL10RA and IL10 mutation carriers across 61 own patients plus 78 reviewed cases; the abstract does not attribute any IL10-mutant patient to its own cohort",
+          "independence": "shares 5 authors with the cited PMID:28267044 (same group); not assessable as a ligand cohort from the retained record and not counted.",
+          "retraction_check": "PubMed EFetch typed CommentsCorrections relations (accessed 2026-09-06, raw/ncbi-pubmed-efetch-consensus-candidates-sanitized.xml): no CommentsCorrections link of any RefType. Scite metadata (2026-09-06): no editorial notice on file."
+        }
+      }
+    },
+    "C2": {
+      "verdict": "WITHHELD — two agreeing primary sources, cohort independence not established; this packet asserts no inheritance mode for the row.",
+      "statement_considered": "VKORC1 coumarin (warfarin) resistance is autosomal dominant: heterozygous missense variants suffice. Nothing is considered about VKORC1's other phenotypes (Rost 2004 also maps VKCFD2 families); an earlier revision stated VKCFD2's recessive mode and mechanism here on a single source and that half was withdrawn.",
+      "outcome": "No claim is recorded. The seed's pre-existing 'Autosomal dominant' is left exactly as it was — this pull request neither asserts, confirms nor changes it, and no test locks it, so a future change that withholds the value is not blocked. The row stays in the declared-but-unverified set tracked by #2360. #2043 asked for this row to be checked because it was the last survivor of #1959's AD-vs-AR observation.",
+      "why_withheld": "Two retained primary sources agree with the statement considered, but cohort independence between them is not provable from the retained abstract-level records (see independence). The contract requires two agreeing sources that do not share a cohort, dataset or upstream assertion before a high-stakes user-facing value is asserted, so the statement is considered and withheld, as C1 is.",
+      "sources_consulted": [
+        "PMID:14765194",
+        "PMID:26513304"
+      ],
+      "independence": "Assessed across the three dimensions the contract names, from the retained eSummaries and the live abstracts (accessed 2026-09-06). Cohort: Rost 2004 reports the original warfarin-resistant kindreds and VKCFD2 families; Lewis 2016 reports a single patient carrying Val66Met studied twelve years later at a different institution. The retained records do not state or imply that this patient belongs to Rost's kindreds; that they are different individuals is not provable from abstract-level records, and is recorded as such. Dataset: separate -- Rost's linkage and sequencing versus Lewis's own patient genotype, clinical response and a homology model. Upstream assertion: the mapped claim is that a heterozygous missense variant suffices for coumarin resistance; Lewis's support for it is its own genotype-phenotype observation in that patient, and it relies on Rost only for VKORC1's identification as the gene, which is not the claim mapped here. Disjoint authors and a twelve-year gap are recorded as supporting, not sufficient, facts.",
+      "what_would_close_it": "A record establishing that Lewis 2016's patient is not one of Rost 2004's kindred members (for example the full text of either paper identifying the resistant variants or families), or a third primary source with a demonstrably distinct cohort. On either, the value can be asserted and a lock added.",
+      "note": "The gene carries more than one phenotype in the literature, which is why the row had to be identified by its disease_name rather than pattern-matching off the gene symbol. This packet does not characterise the other phenotypes."
+    }
+  },
+  "citations": [
+    {
+      "id": "MONDO:0016542",
+      "supports": "C1",
+      "kind": "authoritative ontology record",
+      "title": "IL10-related early-onset inflammatory bowel disease",
+      "source": "EBI OLS4, MONDO 2026-08-04",
+      "accessed": "2026-08-31",
+      "assertion": "synonyms include 'autosomal recessive early-onset inflammatory bowel disease'",
+      "retraction_check": "Not applicable to an ontology term; obsolescence checked instead — term is not obsolete.",
+      "citation": "MONDO:0016542 (accessed 2026-08-31)",
+      "ontology_version": "mondo 2026-08-04 (from the retained OLS4 ontology record)"
+    },
+    {
+      "id": "PMID:19890111",
+      "doi": "10.1056/NEJMoa0907206",
+      "supports": "C1 search context only -- a receptor (IL10RA/IL10RB) cohort that cannot support the considered per-gene IL10 statement; retained to show what the search found and why the value is withheld",
+      "kind": "primary",
+      "title": "Inflammatory bowel disease and mutations affecting the interleukin-10 receptor.",
+      "journal": "N Engl J Med 2009",
+      "first_authors": [
+        "Glocker EO",
+        "Kotlarz D",
+        "Boztug K"
+      ],
+      "accessed": "2026-08-31",
+      "retraction_check": "PubMed EFetch typed CommentsCorrections relations (accessed 2026-09-05): no link of any RefType among the notice types (ErratumIn, RetractionIn, PartialRetractionIn, ExpressionOfConcernIn, CorrectedandRepublishedIn, RepublishedIn, UpdateIn, ReprintIn). The record carries three CommentIn links (comments, not corrections).",
+      "citation": "PMID:19890111 / DOI:10.1056/NEJMoa0907206 (accessed 2026-08-31)",
+      "scite_check": "Scite MCP metadata retrieved 2026-09-05 (raw/scite-metadata-cited-dois-derived.json): no editorial notice on file."
+    },
+    {
+      "id": "PMID:28267044",
+      "doi": "10.1097/MIB.0000000000001058",
+      "supports": "C1 search context only -- a receptor (IL10RA/IL10RB) cohort that cannot support the considered per-gene IL10 statement; retained to show what the search found and why the value is withheld",
+      "kind": "primary",
+      "title": "Mutations in Interleukin-10 Receptor and Clinical Phenotypes in Patients with Very Early Onset Inflammatory Bowel Disease: A Chinese VEO-IBD Collaboration Group Survey.",
+      "journal": "Inflamm Bowel Dis 2017",
+      "first_authors": [
+        "Huang Z",
+        "Peng K",
+        "Li X"
+      ],
+      "accessed": "2026-08-31",
+      "retraction_check": "PubMed EFetch typed CommentsCorrections relations (accessed 2026-09-05): no link of any RefType among the notice types (ErratumIn, RetractionIn, PartialRetractionIn, ExpressionOfConcernIn, CorrectedandRepublishedIn, RepublishedIn, UpdateIn, ReprintIn). The record carries one CommentIn link (a comment, not a correction).",
+      "citation": "PMID:28267044 / DOI:10.1097/MIB.0000000000001058 (accessed 2026-08-31)",
+      "scite_check": "Scite MCP metadata retrieved 2026-09-05 (raw/scite-metadata-cited-dois-derived.json): no editorial notice on file."
+    },
+    {
+      "id": "PMID:14765194",
+      "doi": "10.1038/nature02214",
+      "supports": "C2 (consulted; claim withheld)",
+      "kind": "primary",
+      "title": "Mutations in VKORC1 cause warfarin resistance and multiple coagulation factor deficiency type 2.",
+      "journal": "Nature 2004",
+      "first_authors": [
+        "Rost S",
+        "Fregin A",
+        "Ivaskevicius V"
+      ],
+      "accessed": "2026-08-31",
+      "retraction_check": "PubMed EFetch typed CommentsCorrections relations (accessed 2026-09-05): no link of any RefType among the notice types (ErratumIn, RetractionIn, PartialRetractionIn, ExpressionOfConcernIn, CorrectedandRepublishedIn, RepublishedIn, UpdateIn, ReprintIn). The record carries one CommentIn link (a comment, not a correction).",
+      "citation": "PMID:14765194 / DOI:10.1038/nature02214 (accessed 2026-08-31)",
+      "scite_check": "Scite MCP metadata retrieved 2026-09-05 (raw/scite-metadata-cited-dois-derived.json): no editorial notice on file."
+    },
+    {
+      "id": "PMID:26513304",
+      "doi": "10.1097/FPC.0000000000000184",
+      "supports": "C2 (consulted; claim withheld)",
+      "kind": "primary (case report + mechanism)",
+      "title": "Warfarin resistance associated with genetic polymorphism of VKORC1: linking clinical response to molecular mechanism.",
+      "journal": "Pharmacogenet Genomics 2016",
+      "first_authors": [
+        "Lewis BC",
+        "Nair PC",
+        "Heran SS"
+      ],
+      "accessed": "2026-08-31",
+      "retraction_check": "PubMed EFetch typed CommentsCorrections relations (accessed 2026-09-05): no link of any RefType among the notice types (ErratumIn, RetractionIn, PartialRetractionIn, ExpressionOfConcernIn, CorrectedandRepublishedIn, RepublishedIn, UpdateIn, ReprintIn). The record carries no CommentsCorrections links at all.",
+      "citation": "PMID:26513304 / DOI:10.1097/FPC.0000000000000184 (accessed 2026-08-31)",
+      "scite_check": "Scite MCP metadata retrieved 2026-09-05 (raw/scite-metadata-cited-dois-derived.json): no editorial notice on file."
+    },
+    {
+      "id": "PMID:21519361",
+      "doi": "10.1038/ajg.2011.112",
+      "supports": "C1 search context only -- a receptor (IL10RA/IL10RB) cohort that cannot support the considered per-gene IL10 statement; retained to show what the search found and why the value is withheld",
+      "kind": "primary",
+      "title": "Defective IL10 signaling defining a subgroup of patients with inflammatory bowel disease.",
+      "journal": "Am J Gastroenterol 2011",
+      "first_authors": [
+        "Begue B",
+        "Verdier J",
+        "Rieux-Laucat F"
+      ],
+      "accessed": "2026-09-05",
+      "assertion": "75 children with IBD (13 infants with early-onset IBD) in a French cohort; the two IL10-unresponsive infants carried IL10RA p.R262C and IL10RB p.E141X respectively -- receptor genes, not the IL10 ligand. Read from the retained eSummary and the EFetch record; the cohort details are in the abstract, which was removed from the retained XML under the metadata-only rule and is quoted here from the live record.",
+      "retraction_check": "PubMed EFetch typed CommentsCorrections relations (accessed 2026-09-05): no link of any RefType among the notice types (ErratumIn, RetractionIn, PartialRetractionIn, ExpressionOfConcernIn, CorrectedandRepublishedIn, RepublishedIn, UpdateIn, ReprintIn). The record carries no CommentsCorrections links at all.",
+      "correction": "An earlier revision cited this paper in the README without retaining any payload for it, while claiming every record had been re-resolved and checked. Its eSummary, eLink and EFetch records were added 2026-09-05.",
+      "citation": "PMID:21519361 / DOI:10.1038/ajg.2011.112 (accessed 2026-09-05)",
+      "scite_check": "Scite MCP metadata retrieved 2026-09-05 (raw/scite-metadata-cited-dois-derived.json): no editorial notice on file."
+    },
+    {
+      "id": "PMID:22549091",
+      "doi": "10.1053/j.gastro.2012.04.045",
+      "citation": "PMID:22549091 / DOI:10.1053/j.gastro.2012.04.045 (accessed 2026-09-06)",
+      "supports": "none -- recorded as the search outcome for C1, not as support",
+      "kind": "primary (candidate-gene sequencing of 66 early-onset IBD patients); one of two cohorts reporting IL10 LIGAND mutation carriers that the retained searches surfaced -- the other is PMID:24216686, and the pair is withheld for unresolved patient overlap, see claims.C1.candidates_assessed",
+      "title": "Loss of interleukin-10 signaling and infantile inflammatory bowel disease: implications for diagnosis and therapy.",
+      "journal": "Gastroenterology 2012;143(2):347-55",
+      "first_authors": [
+        "Kotlarz D",
+        "Beier R",
+        "Murugan D"
+      ],
+      "accessed": "2026-09-06",
+      "assertion": "Abstract (live record; the retained XML has abstracts removed): homozygous loss-of-function mutations in IL10 and IL10R cause severe infantile IBD; of 66 patients, 3 had IL-10 mutations, 5 IL-10R1 and 8 IL-10R2.",
+      "why_not_sufficient": "One source. Its 35-author list shares 14 authors with the cited receptor cohort PMID:19890111 (28 authors): Baumann U, Boztug K, Buderus S, Diestelhorst J, Grimbacher B, Klein C, Koletzko S, Kotlarz D, Kreipe H, Murugan D, Pfeifer D, Sauer M, Sauerbrey A, Sykora KW. Read from the two retained eSummaries. So it cannot serve as the independent second source the contract requires alongside that cohort, The one other cohort reporting IL10-mutant patients that the retained searches surfaced (PMID:24216686, the GENIUS survey) shares contributing-clinician authors with this paper, so the two cannot be shown not to share patients -- see claims.C1.candidates_assessed. The pair is withheld for unresolved patient overlap, not for absence of a second candidate.",
+      "retraction_check": "PubMed EFetch typed CommentsCorrections relations (accessed 2026-09-06, raw/ncbi-pubmed-efetch-22549091-sanitized.xml): two CommentIn links, no link of any notice RefType. Scite metadata (2026-09-06): no editorial notice on file."
+    }
+  ],
+  "retraction_method": "PubMed EFetch XML, read for typed CommentsCorrections relations (RefType), NOT publication type and NOT eLink. An original record keeps its own pubtype while corrections, errata and retractions are carried as separate linked records, so a pubtype scan is not a retraction check. The eLink `pubmed_pubmed*` link sets retained here are generic related-article neighbourhoods and do not expose the typed relation either -- an earlier revision of this packet treated their silence as clearance, which it is not. The typed check was run 2026-09-05 for all five cited PMIDs; the sanitized XML is the authority and raw/ncbi-pubmed-comments-corrections-derived.json is its reduction.",
+  "explicitly_not_claimed": "No inheritance value in the seed is changed by this pull request: IL10 stays blank (withheld) and VKORC1 keeps 'Autosomal dominant'. #2043's item 3 — spot-checking the other 13 Mendelian rows against Monarch/OLS4 and correcting via gene_inheritance_overrides.json — is NOT done here and is filed separately: it needs a per-gene authoritative check, which is its own evidence exercise rather than a rider on this one. About the IL10 ligand literature, only the author-list overlaps recorded under claims.C1.candidates_assessed are asserted (read from retained eSummaries); no broader statement about who dominates that literature is made, and the supported search outcome is that no independent qualifying pair was established.",
+  "discovery_tool_ladder": {
+    "consensus": "Invoked 2026-08-31 (count and outcome only were kept, which review caught) and re-run with the same query on 2026-09-06 with all 20 result identities retained as a DERIVED record. It surfaced the two cited receptor cohorts, the Kotlarz 2012 ligand cohort and the GENIUS survey; the rest are reviews, receptor-only cohorts, case reports and treatment series.",
+    "scite": "Invoked 2026-09-05 and 2026-09-06, after the service-reported reset of 2026-09-03 (an earlier revision recorded the August quota failure as current). Retained as DERIVED records: metadata for the five cited DOIs (no editorial notice on any) and a ligand-only term search excluding the receptor genes, paged to exhaustion (17 records returned of a reported 22; the second page returned 7 of 12 requested). None of the 17 titles names an IL10 ligand cohort (read at title level only; two congress-proceedings volumes cannot be classified from a title), so the search surfaced none by title. C1 stays withheld on the independent-pair ground. No Scite text is redistributed.",
+    "fallback": "PubMed used in Scite's place on 2026-08-31 and alongside it on 2026-09-06: every cited record re-resolved through eSummary and checked through EFetch typed CommentsCorrections relations; the negative search for an IL10 ligand cohort is a retained ESearch whose single hit (PMID:22549091, an IL10 ligand cohort from the same author group as the cited receptor cohort) is retained, notice-checked and recorded as insufficient on its own.",
+    "tool_versions": "OLS4 exposes mondo version 2026-08-04, recorded above and retained as a payload. NCBI E-utilities JSON responses expose response-schema version 0.3 in `header.version` (recorded) but no database release or build; the Consensus and Scite MCP surfaces expose no version; those are recorded as not exposed rather than guessed."
+  },
+  "source_provenance": [
+    {
+      "source": "NCBI PubMed ESearch",
+      "license_reference": "https://www.ncbi.nlm.nih.gov/home/about/policies/",
+      "license_note": "US-government-authored NCBI content is public domain; the retained payloads are search counts and PubMed id lists.",
+      "observed_version": "Response-schema version 0.3 (`header.version` in every retained esearch, esummary and elink JSON payload). No database release or build is exposed on these endpoints; that is recorded as not exposed rather than guessed."
+    },
+    {
+      "source": "NCBI PubMed eSummary",
+      "license_reference": "https://www.ncbi.nlm.nih.gov/home/about/policies/",
+      "license_note": "US-government-authored NCBI content is public domain; retained payloads are bibliographic metadata.",
+      "observed_version": "Response-schema version 0.3 (`header.version` in every retained esearch, esummary and elink JSON payload). No database release or build is exposed on these endpoints; that is recorded as not exposed rather than guessed."
+    },
+    {
+      "source": "NCBI PubMed eLink",
+      "license_reference": "https://www.ncbi.nlm.nih.gov/home/about/policies/",
+      "license_note": "US-government-authored NCBI content is public domain; retained payloads are bibliographic metadata.",
+      "observed_version": "Response-schema version 0.3 (`header.version` in every retained esearch, esummary and elink JSON payload). No database release or build is exposed on these endpoints; that is recorded as not exposed rather than guessed."
+    },
+    {
+      "source": "NCBI PubMed EFetch",
+      "license_reference": "https://www.ncbi.nlm.nih.gov/home/about/policies/",
+      "license_note": "US-government-authored NCBI content is public domain; the retained XML is bibliographic metadata with abstracts removed.",
+      "observed_version": "Response-schema version: every retained EFetch XML declares the DTD `PubMedArticle, 1st January 2025` (`pubmed_250101.dtd`), recorded as such. No PubMed database release or build is exposed on this endpoint; that is recorded as not exposed rather than guessed."
+    },
+    {
+      "source": "Consensus MCP",
+      "observed_version": "Not exposed by the MCP surface; recorded as unavailable rather than guessed.",
+      "license_reference": "https://consensus.app/home/terms-of-service/",
+      "license_note": "Used as a discovery tool. The retained derived record holds the query, the result count and, for each of the 20 results, bibliographic identity only: title, first author, year, venue, DOI and this packet's one-line reading. No abstract, snippet or other Consensus-authored text is redistributed; bibliographic identifiers are facts about the cited works, not Consensus's expressive content."
+    },
+    {
+      "source": "EBI OLS4 (ebi.ac.uk/ols4/api, ontology=mondo)",
+      "license_reference": "https://www.ebi.ac.uk/about/terms-of-use",
+      "license_note": "EMBL-EBI services are free to use; MONDO is CC BY 4.0.",
+      "observed_version": "mondo 2026-08-04, read from the OLS4 ontology record retained here."
+    },
+    {
+      "source": "Scite MCP",
+      "observed_version": "Not exposed by the MCP surface; recorded as not exposed rather than guessed.",
+      "license_reference": "https://scite.ai/terms",
+      "license_note": "Used as a discovery and notice-check tool only. No Scite text is redistributed: the retained records hold DOIs, titles, years, tallies and the presence or absence of an editorialNotices array."
+    }
+  ],
+  "payload_integrity": "Thirteen payloads are unedited verbatim API responses (four NCBI eSummary, two NCBI ESearch, five NCBI eLink, two EBI OLS4). Three payloads, the NCBI EFetch XML files for the five cited PMIDs, for PMID:22549091 and for the two candidate PMIDs, are SANITIZED: <Abstract> elements were removed under the bibliographic-metadata-only retention rule and nothing else was touched; each is labelled as such in its filename and in the derived record beside it. Six payloads are DERIVED records, labelled as such in the file itself: the Consensus call and the two Scite calls, none of which has an HTTP response to capture, and the three reductions of the EFetch XML files to their CommentsCorrections and publication-type fields. No payload required further sanitization: all are public bibliographic or ontology records with no genotype, sample, personal or credentialed data.",
+  "requests": [
+    {
+      "payload": "raw/ncbi-pubmed-esummary-four-sources.json",
+      "request": "GET .../esummary.fcgi?db=pubmed&id=19890111,28267044,14765194,26513304&retmode=json",
+      "source": "NCBI PubMed eSummary",
+      "sha256": "324bbb865c9b137d429d1ea5f76a5906a5832e87be52791eea301c72828d557f",
+      "bytes": 10425
+    },
+    {
+      "payload": "raw/ncbi-pubmed-elink-19890111.json",
+      "request": "GET .../elink.fcgi?dbfrom=pubmed&db=pubmed&id=19890111&retmode=json",
+      "source": "NCBI PubMed eLink (related-article link sets; NOT a notice check -- see retraction_method)",
+      "sha256": "c88700523496ff04e701f453bf8f73507cf3faa58b48c2b759caa181a7784aa9",
+      "bytes": 12306
+    },
+    {
+      "payload": "raw/ncbi-pubmed-elink-28267044.json",
+      "request": "GET .../elink.fcgi?dbfrom=pubmed&db=pubmed&id=28267044&retmode=json",
+      "source": "NCBI PubMed eLink (related-article link sets; NOT a notice check -- see retraction_method)",
+      "sha256": "1f58f5fd0b6fe1f1583077b62a5e4c95912fea4d086b6b274d91e297d8a0ec7f",
+      "bytes": 3102
+    },
+    {
+      "payload": "raw/ncbi-pubmed-elink-14765194.json",
+      "request": "GET .../elink.fcgi?dbfrom=pubmed&db=pubmed&id=14765194&retmode=json",
+      "source": "NCBI PubMed eLink (related-article link sets; NOT a notice check -- see retraction_method)",
+      "sha256": "0018ffd442ea6dfa87023b1a54dcbe21f6f755bca70699d5f281b46d8e1a5b34",
+      "bytes": 8593
+    },
+    {
+      "payload": "raw/ncbi-pubmed-elink-26513304.json",
+      "request": "GET .../elink.fcgi?dbfrom=pubmed&db=pubmed&id=26513304&retmode=json",
+      "source": "NCBI PubMed eLink (related-article link sets; NOT a notice check -- see retraction_method)",
+      "sha256": "3f1485edb17161abf435ef047777208ead45b1352cd433ea321878e9bbc2f4c2",
+      "bytes": 1232
+    },
+    {
+      "payload": "raw/consensus-search-il10-inheritance-derived.json",
+      "request": "Consensus MCP `search` (tool call, not an HTTP endpoint), query recorded in the payload; run 2026-08-31 and re-run 2026-09-06 to retain the 20 result identities",
+      "source": "Consensus MCP (DERIVED record)",
+      "sha256": "0f2e46716780880d462f7fc866682e1105a0004376da8781f70c2348ec078abe",
+      "bytes": 8713,
+      "accessed": "2026-08-31/2026-09-06"
+    },
+    {
+      "payload": "raw/ebi-ols4-mondo-0016542.json",
+      "request": "GET https://www.ebi.ac.uk/ols4/api/ontologies/mondo/terms?obo_id=MONDO:0016542",
+      "source": "EBI OLS4 term record",
+      "sha256": "4a69abeb2f37713427e19771ecfd1a79dfe7e14135e53d64764e76bf000d6d08",
+      "bytes": 7745
+    },
+    {
+      "payload": "raw/ebi-ols4-mondo-ontology-version.json",
+      "request": "GET https://www.ebi.ac.uk/ols4/api/ontologies/mondo",
+      "source": "EBI OLS4 ontology record (version)",
+      "sha256": "95a3108e3fc12601ddf01ad36ff9d123d1aa04090b2626baa90c6c72e637e693",
+      "bytes": 1900
+    },
+    {
+      "payload": "raw/ncbi-pubmed-esummary-21519361.json",
+      "request": "GET .../esummary.fcgi?db=pubmed&id=21519361&retmode=json",
+      "source": "NCBI PubMed eSummary",
+      "sha256": "6b9498c922720e3515323757f94d55fa9736ae8813403ffaf3decd2e70092502",
+      "bytes": 2307,
+      "accessed": "2026-09-05"
+    },
+    {
+      "payload": "raw/ncbi-pubmed-elink-21519361.json",
+      "request": "GET .../elink.fcgi?dbfrom=pubmed&db=pubmed&id=21519361&retmode=json",
+      "source": "NCBI PubMed eLink (related-article link sets; retained for parity with the other four, NOT a notice check)",
+      "sha256": "da8a12dcf9e4910c3924c267c55a9fba0c0174f078c7fb94f47b0fe029a98447",
+      "bytes": 3881,
+      "accessed": "2026-09-05"
+    },
+    {
+      "payload": "raw/ncbi-pubmed-efetch-five-sources-sanitized.xml",
+      "request": "GET .../efetch.fcgi?db=pubmed&id=19890111,28267044,21519361,14765194,26513304&retmode=xml",
+      "source": "NCBI PubMed EFetch -- SANITIZED: <Abstract> elements removed, nothing else touched",
+      "sha256": "e2c13f8c8f1c6f10eb3d81fa6415c94a114b5fa2819133a7a466cf5464252db6",
+      "bytes": 54046,
+      "accessed": "2026-09-05"
+    },
+    {
+      "payload": "raw/ncbi-pubmed-comments-corrections-derived.json",
+      "request": "Reduction of the sanitized EFetch XML above (no HTTP request)",
+      "source": "DERIVED: per PMID, every CommentsCorrections RefType and the publication types",
+      "sha256": "a7b64bd19e2065d44e0b66b2e2829c771165daa5762b469df53ad1e64477efb4",
+      "bytes": 2751,
+      "accessed": "2026-09-05"
+    },
+    {
+      "payload": "raw/scite-metadata-cited-dois-derived.json",
+      "request": "Scite MCP `search_literature(dois=[...])`: the five cited DOIs on 2026-09-05, then PMID:22549091's DOI and the two candidate DOIs on 2026-09-06 (tool calls, not an HTTP endpoint)",
+      "source": "Scite MCP (DERIVED record, not a wire capture)",
+      "sha256": "fb41cc24d727e331115178dc6d4ec6b2833e4cb874eb38969724807be8b7ebbe",
+      "bytes": 5844,
+      "accessed": "2026-09-05/2026-09-06"
+    },
+    {
+      "payload": "raw/scite-search-il10-ligand-eoibd-derived.json",
+      "request": "Scite MCP `search_literature(term=IL10 AND \"loss-of-function\" AND \"early-onset inflammatory bowel disease\" AND (\"autosomal recessive\" OR homozygous) NOT IL10RA NOT IL10RB)`, pages offset=0 limit=10 and offset=10 limit=12 (tool calls, not an HTTP endpoint)",
+      "source": "Scite MCP (DERIVED record, not a wire capture)",
+      "sha256": "dd3cff826df22833cd95cb033d77a176b905716a790e4336f07c87939dfbe777",
+      "bytes": 5243,
+      "accessed": "2026-09-05/2026-09-06"
+    },
+    {
+      "payload": "raw/ncbi-pubmed-esearch-il10-ligand-eoibd.json",
+      "request": "GET .../esearch.fcgi?db=pubmed&retmax=100&retmode=json&term=IL10[Title/Abstract] AND (\"loss-of-function\"[Title/Abstract] OR \"loss of function\"[Title/Abstract]) AND \"inflammatory bowel disease\"[Title/Abstract] AND (recessive[Title/Abstract] OR homozygous[Title/Abstract]) NOT IL10RA[Title/Abstract] NOT IL10RB[Title/Abstract]",
+      "source": "NCBI PubMed ESearch (the negative literature search for an IL10 ligand cohort; verbatim, count and id list)",
+      "sha256": "e3e22d21d8e9f42f63510fe6a1396025bf3a2558461bca667de688394961d739",
+      "bytes": 462,
+      "accessed": "2026-09-06"
+    },
+    {
+      "payload": "raw/ncbi-pubmed-esummary-il10-ligand-eoibd-search.json",
+      "request": "GET .../esummary.fcgi?db=pubmed&id=22549091&retmode=json",
+      "source": "NCBI PubMed eSummary (the ESearch hit; verbatim)",
+      "sha256": "d34163b664ecc7d828ee40a83713a115f4dbd76c70239ac696054d0fb27a6ad5",
+      "bytes": 3991,
+      "accessed": "2026-09-06"
+    },
+    {
+      "payload": "raw/ncbi-pubmed-efetch-22549091-sanitized.xml",
+      "request": "GET .../efetch.fcgi?db=pubmed&id=22549091&retmode=xml",
+      "source": "NCBI PubMed EFetch -- SANITIZED: <Abstract> elements removed, nothing else touched",
+      "sha256": "0b404795501d083482c53c45e6cf18a336155387f683a1c22c64a75615b2e233",
+      "bytes": 10095,
+      "accessed": "2026-09-06"
+    },
+    {
+      "payload": "raw/ncbi-pubmed-comments-corrections-22549091-derived.json",
+      "request": "Reduction of the sanitized EFetch XML above (no HTTP request)",
+      "source": "DERIVED: every CommentsCorrections RefType and the publication types for PMID:22549091",
+      "sha256": "f058c19e02237517aea0f09ecbac7073a05df3fa7fea6063d237b0a662ace78b",
+      "bytes": 1286,
+      "accessed": "2026-09-06"
+    },
+    {
+      "payload": "raw/ncbi-pubmed-esearch-consensus-candidates-by-doi.json",
+      "request": "GET .../esearch.fcgi?db=pubmed&retmode=json&term=10.1097/01.mib.0000435439.22484.d3[DOI] OR 10.1093/ibd/izy289[DOI]",
+      "source": "NCBI PubMed ESearch (DOI -> PMID for the two Consensus candidates; verbatim)",
+      "sha256": "9c7ca5b05b7104b2c1177c0c1e56153671ab8bac608389fd262c67ea19c6d1d5",
+      "bytes": 271,
+      "accessed": "2026-09-06"
+    },
+    {
+      "payload": "raw/ncbi-pubmed-esummary-consensus-candidates.json",
+      "request": "GET .../esummary.fcgi?db=pubmed&id=30212871,24216686&retmode=json",
+      "source": "NCBI PubMed eSummary (author lists for the independence assessment; verbatim)",
+      "sha256": "2c33aa8b57300443316bd3338fccb9ffb2be35680d0fede5e45ee40279b57f7a",
+      "bytes": 5017,
+      "accessed": "2026-09-06"
+    },
+    {
+      "payload": "raw/ncbi-pubmed-efetch-consensus-candidates-sanitized.xml",
+      "request": "GET .../efetch.fcgi?db=pubmed&id=24216686,30212871&retmode=xml",
+      "source": "NCBI PubMed EFetch -- SANITIZED: <Abstract> elements removed, nothing else touched",
+      "sha256": "2a39a8873dfbcdeb64a8cc869fff21970dcf686d6a5d10b40b0c6b70c140f413",
+      "bytes": 18565,
+      "accessed": "2026-09-06"
+    },
+    {
+      "payload": "raw/ncbi-pubmed-comments-corrections-consensus-candidates-derived.json",
+      "request": "Reduction of the sanitized EFetch XML above (no HTTP request)",
+      "source": "DERIVED: every CommentsCorrections RefType and the publication types for PMID:24216686 and PMID:30212871",
+      "sha256": "1c8831e2a2cd17fba3b0e8f004430602cd0378357503d459125e177a24abab34",
+      "bytes": 1094,
+      "accessed": "2026-09-06"
+    }
+  ]
+}
