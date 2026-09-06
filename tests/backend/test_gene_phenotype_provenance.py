@@ -547,8 +547,11 @@ def test_checked_in_fixture_emits_inheritance_through_the_production_lookup(tmp_
     finally:
         engine.dispose()
 
-    # A row WITH a verified value must reach the consumer intact.
+    # A row WITH a verified value must reach the consumer intact -- and it must be
+    # THIS association: a second VKORC1 disease sorting ahead of it would still
+    # emit an inheritance_pattern, so pin the disease before reading the value.
     assert "rs9923231" in emitted, "VKORC1 association did not resolve through the lookup"
+    assert emitted["rs9923231"]["disease_id"] == "MONDO:0007390"
     assert emitted["rs9923231"]["inheritance_pattern"] == expected_vkorc1 == "Autosomal dominant"
 
     # A withheld row must still be SERVED, and emit nothing rather than a
@@ -556,6 +559,9 @@ def test_checked_in_fixture_emits_inheritance_through_the_production_lookup(tmp_
     # drops IL10, or a lookup that stops returning the association, fails here
     # instead of vacuously passing the blank check (#2043 review).
     assert "rsIL10" in emitted, "IL10 association did not resolve through the lookup"
+    assert emitted["rsIL10"]["disease_id"] == "MONDO:0016542", (
+        "the served IL10 association is not the early-onset IBD row this test covers"
+    )
     assert not emitted["rsIL10"]["inheritance_pattern"], (
         "IL10 inheritance is withheld; the lookup must not emit a value"
     )
