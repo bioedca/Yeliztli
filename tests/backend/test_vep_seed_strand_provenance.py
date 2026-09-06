@@ -27,12 +27,16 @@ from __future__ import annotations
 
 import collections
 import csv
+import hashlib
 import json
 import re
 from pathlib import Path
 
+import pytest
+
 from scripts.build_vep_strand_snapshot import SYNTHETIC_GENES
 from scripts.build_vep_strand_snapshot import _genes as _generator_genes
+from scripts.build_vep_strand_snapshot import main as _generator_main
 
 _ROOT = Path(__file__).resolve().parents[2]
 _SEED = _ROOT / "tests" / "fixtures" / "seed_csvs" / "vep_seed.csv"
@@ -126,6 +130,102 @@ def test_generator_skips_the_synthetic_gene_it_cannot_resolve() -> None:
         f"only in generator: {sorted(submitted - set(_snapshot()))}; "
         f"only in snapshot: {sorted(set(_snapshot()) - submitted)}"
     )
+
+
+def _fake_lookup_payloads() -> dict[str, dict]:
+    """One canned lookup/symbol-shaped response per gene the generator submits."""
+    return {
+        gene: {
+            "id": f"ENSG{index:011d}",
+            "strand": 1 if index % 2 else -1,
+            "display_name": gene,
+            "assembly_name": "GRCh37",
+            "object_type": "Gene",
+            "start": 1_000 + index,
+            "end": 2_000 + index,
+            "description": f"fake record {index} [Source:test]",
+        }
+        for index, gene in enumerate(_generator_genes())
+    }
+
+
+def test_generator_retains_the_verbatim_responses_it_reduces(tmp_path: Path) -> None:
+    """The snapshot must name the source-native payload it was reduced from.
+
+    The first revision of the generator reduced each Ensembl response to strand
+    and id and discarded it, so a regenerated oracle passed every guard while no
+    payload existed to re-derive it from (#2364 review). Drive the write path with
+    a fake fetcher: the evidence file must hold every response verbatim, keyed by
+    symbol, and the snapshot's provenance must name that file and its sha256.
+    """
+    payloads = _fake_lookup_payloads()
+    evidence = tmp_path / "evidence" / "lookup.json"
+    out = tmp_path / "snapshot.json"
+
+    rc = _generator_main(
+        ["--evidence-out", str(evidence), "--out", str(out)], fetch=lambda gene: payloads.get(gene)
+    )
+
+    assert rc == 0
+    written = json.loads(evidence.read_text(encoding="utf-8"))
+    assert written["responses"] == payloads, "retained responses are not the fetched ones"
+    assert set(written) == {"_artifact_note", "responses"}, "wrapper must be the only addition"
+    snapshot = json.loads(out.read_text(encoding="utf-8"))
+    provenance = snapshot["_provenance"]
+    assert Path(provenance["evidence_path"]).resolve() == evidence.resolve()
+    assert provenance["evidence_sha256"] == hashlib.sha256(evidence.read_bytes()).hexdigest()
+    assert provenance["evidence_bytes"] == evidence.stat().st_size
+    assert snapshot["strands"] == {
+        gene: {"strand": "+" if payload["strand"] == 1 else "-", "ensembl_gene_id": payload["id"]}
+        for gene, payload in payloads.items()
+    }, "snapshot is not the strand/id reduction of the retained responses"
+    assert set(snapshot["strands"]) == set(_generator_genes())
+    assert set(provenance["synthetic_excluded"]) == _SYNTHETIC_GENES
+
+
+def test_generator_refuses_to_run_without_an_evidence_path(tmp_path: Path) -> None:
+    """No evidence path, no snapshot: the reduction must never outlive its source."""
+    payloads = _fake_lookup_payloads()
+    out = tmp_path / "snapshot.json"
+    with pytest.raises(SystemExit) as refused:
+        _generator_main(["--out", str(out)], fetch=lambda gene: payloads.get(gene))
+    assert refused.value.code == 2, "argparse must reject the call as a usage error"
+    assert not out.exists(), "a snapshot was written although no evidence path was given"
+
+
+def test_committed_snapshot_is_the_reduction_of_its_named_evidence() -> None:
+    """The checked-in oracle must name a retained payload and equal its reduction.
+
+    Provenance alone is a claim; this re-derives the strands from the named
+    evidence so the committed snapshot cannot drift from (or outlive) the
+    responses it says it was built from.
+    """
+    snapshot = json.loads(_SNAPSHOT.read_text(encoding="utf-8"))
+    provenance = snapshot["_provenance"]
+    evidence = _ROOT / provenance["evidence_path"]
+    assert evidence.is_file(), f"snapshot names evidence that is not checked in: {evidence}"
+    assert provenance["evidence_sha256"] == hashlib.sha256(evidence.read_bytes()).hexdigest(), (
+        "snapshot provenance sha256 does not match the checked-in evidence file"
+    )
+    assert provenance["evidence_bytes"] == evidence.stat().st_size
+    responses = json.loads(evidence.read_text(encoding="utf-8"))["responses"]
+    assert set(responses) == set(snapshot["strands"]), (
+        f"evidence and snapshot cover different genes -- only in evidence: "
+        f"{sorted(set(responses) - set(snapshot['strands']))}; only in snapshot: "
+        f"{sorted(set(snapshot['strands']) - set(responses))}"
+    )
+    assert len(responses) >= 50, "anti-vacuity: expected ~57 retained responses"
+    wrong = sorted(
+        f"{gene}: snapshot={entry} evidence strand={responses[gene]['strand']} "
+        f"id={responses[gene].get('id')}"
+        for gene, entry in snapshot["strands"].items()
+        if entry
+        != {
+            "strand": "+" if responses[gene]["strand"] == 1 else "-",
+            "ensembl_gene_id": responses[gene].get("id"),
+        }
+    )
+    assert not wrong, "snapshot is not the reduction of its evidence:\n" + "\n".join(wrong)
 
 
 def test_snapshot_records_the_exclusion_the_guard_applies() -> None:
