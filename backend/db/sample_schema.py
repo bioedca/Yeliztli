@@ -336,6 +336,66 @@ def _updated_parkinsons_diff_entry(entry: object) -> dict[str, object] | None:
     return {**entry, "finding_text": updated_text}
 
 
+# Issue #2051: the shared risk-genotype caller expands ``{genotype}`` to
+# ``"<rsid> <call>"``, and nineteen templates across these six panels also wrote
+# the literal rsID in front of the placeholder, so every finding they generated
+# was persisted as ``(rs13129697 rs13129697 GT)``.
+_RSID_DOUBLING_MODULES = frozenset(
+    {"amd", "gout", "lhon", "mt_rnr1", "parkinsons", "thrombophilia"}
+)
+_DOUBLED_RSID_CALL = re.compile(r"\((rs\d+) \1 ([^\s;)]+)(?=[;)])")
+
+
+def _dedoubled_rsid_finding_text(
+    finding_text: object,
+    stored_rsids: object,
+    genotype_calls: dict[str, object] | None = None,
+) -> str | None:
+    """Drop the rsID a generated finding repeats in front of its own genotype call.
+
+    Only the exact producer fingerprint is repaired: one ``(rsX rsX <call>`` group
+    whose rsID is one the row is stored under and — when the row's structured
+    genotype evidence is supplied — whose ``<call>`` is the call recorded for that
+    rsID (``n/a`` for an untyped probe). Only the duplicated token is removed.
+    """
+    if not isinstance(finding_text, str) or not isinstance(stored_rsids, str):
+        return None
+    matches = list(_DOUBLED_RSID_CALL.finditer(finding_text))
+    if len(matches) != 1:
+        return None
+    match = matches[0]
+    rsid, call = match.group(1), match.group(2)
+    if rsid not in stored_rsids.split(","):
+        return None
+    if genotype_calls is not None:
+        if rsid not in genotype_calls:
+            return None
+        recorded = genotype_calls[rsid]
+        if recorded is None or recorded == "":
+            expected_call = "n/a"
+        elif isinstance(recorded, str):
+            expected_call = recorded
+        else:
+            return None
+        if call != expected_call:
+            return None
+    return f"{finding_text[: match.start()]}({rsid} {call}{finding_text[match.end() :]}"
+
+
+def _dedoubled_rsid_diff_entry(entry: object) -> dict[str, object] | None:
+    """Return a finding-diff entry with its doubled rsID removed, if applicable."""
+    if not (
+        isinstance(entry, dict)
+        and entry.get("module") in _RSID_DOUBLING_MODULES
+        and entry.get("category") == "risk_genotype"
+    ):
+        return None
+    updated_text = _dedoubled_rsid_finding_text(entry.get("finding_text"), entry.get("rsid"))
+    if updated_text is None:
+        return None
+    return {**entry, "finding_text": updated_text}
+
+
 # Current schema version. Bump for per-sample schema or content migrations.
 # v7: Add watched_variants table (P4-21g — VUS tracking)
 # v8: Add provenance columns to raw_variants + merge_provenance table
@@ -378,7 +438,10 @@ def _updated_parkinsons_diff_entry(entry: object) -> dict[str, object] | None:
 #      presentation gates pending the independent clinical-validation gate (#2019).
 # v26: Re-screen persisted XXY "no signature" results whose stored counts sit in
 #      the ambiguous-X / chrY-signal band the screen could not resolve (#2040).
-SAMPLE_SCHEMA_VERSION = 26
+# v27: Repair persisted risk-genotype findings and finding-diff entries whose text
+#      repeated the rsID in front of its own call — "(rs1061170 rs1061170 CC)" —
+#      from the nineteen templates corrected by issue #2051.
+SAMPLE_SCHEMA_VERSION = 27
 
 
 # AncestryDNA Plan §10.4(a): merged-sample raw_variants uses (chrom, pos) PK
@@ -1666,6 +1729,131 @@ def _add_missing_columns(engine: sa.Engine, from_version: int) -> bool:
                     count=removed_diff_entries,
                     from_version=from_version,
                 )
+
+    if from_version < 27:
+        # Issue #2051: nineteen templates across six disease panels wrote the
+        # literal rsID in front of ``{genotype}``, which the shared caller already
+        # expands to ``"<rsid> <call>"``, so the findings they generated were
+        # persisted as ``(rs1061170 rs1061170 CC)`` and shown that way on every
+        # surface that serves stored text. The panels are corrected; this repairs
+        # what existing sample DBs hold. Only the exact producer fingerprint is
+        # rewritten — one doubled rsID the row is stored under, followed by the
+        # call its structured genotype evidence recorded — and only the duplicate
+        # token is removed. The same wording is repaired in the persisted
+        # finding-change banner without changing its counts.
+        inspector = sa.inspect(engine)
+        table_names = set(inspector.get_table_names())
+        findings_cols = (
+            {c["name"] for c in inspector.get_columns("findings")}
+            if "findings" in table_names
+            else set()
+        )
+        state_cols = (
+            {c["name"] for c in inspector.get_columns("annotation_state")}
+            if "annotation_state" in table_names
+            else set()
+        )
+        required_finding_cols = {"id", "module", "category", "rsid", "finding_text", "detail_json"}
+        can_repair_findings = required_finding_cols <= findings_cols
+        can_repair_diff = {"key", "value"} <= state_cols
+        repaired_findings = 0
+        repaired_diff_entries = 0
+
+        if can_repair_findings or can_repair_diff:
+            affected_modules = sorted(_RSID_DOUBLING_MODULES)
+            # Reserve the SQLite writer lock before reading either persisted
+            # surface so every fingerprint check and update is one transaction.
+            with engine.connect() as conn:
+                conn.exec_driver_sql("BEGIN IMMEDIATE")
+                try:
+                    if can_repair_findings:
+                        candidates = conn.execute(
+                            sa.select(
+                                findings.c.id,
+                                findings.c.rsid,
+                                findings.c.finding_text,
+                                findings.c.detail_json,
+                            )
+                            .where(
+                                findings.c.module.in_(affected_modules),
+                                findings.c.category == "risk_genotype",
+                            )
+                            .order_by(findings.c.id)
+                        ).fetchall()
+                        for row in candidates:
+                            try:
+                                detail = json.loads(row.detail_json)
+                            except (json.JSONDecodeError, TypeError):
+                                continue
+                            if not isinstance(detail, dict):
+                                continue
+                            genotype_calls = detail.get("genotype_calls")
+                            if not isinstance(genotype_calls, dict):
+                                continue
+                            updated_text = _dedoubled_rsid_finding_text(
+                                row.finding_text, row.rsid, genotype_calls
+                            )
+                            if updated_text is None:
+                                continue
+                            result = conn.execute(
+                                findings.update()
+                                .where(
+                                    findings.c.id == row.id,
+                                    findings.c.module.in_(affected_modules),
+                                    findings.c.category == "risk_genotype",
+                                    findings.c.rsid == row.rsid,
+                                    findings.c.finding_text == row.finding_text,
+                                    findings.c.detail_json == row.detail_json,
+                                )
+                                .values(finding_text=updated_text)
+                            )
+                            repaired_findings += max(result.rowcount or 0, 0)
+
+                    if can_repair_diff:
+                        state_row = conn.execute(
+                            sa.select(annotation_state.c.value).where(
+                                annotation_state.c.key == _FINDING_DIFF_STATE_KEY
+                            )
+                        ).fetchone()
+                        if state_row is not None:
+                            try:
+                                diff = json.loads(state_row.value)
+                            except (json.JSONDecodeError, TypeError):
+                                diff = None
+
+                            if isinstance(diff, dict):
+                                for bucket in ("changed", "added", "removed"):
+                                    entries = diff.get(bucket)
+                                    if not isinstance(entries, list):
+                                        continue
+                                    for index, entry in enumerate(entries):
+                                        updated_entry = _dedoubled_rsid_diff_entry(entry)
+                                        if updated_entry is not None:
+                                            entries[index] = updated_entry
+                                            repaired_diff_entries += 1
+
+                                if repaired_diff_entries:
+                                    conn.execute(
+                                        annotation_state.update()
+                                        .where(
+                                            annotation_state.c.key == _FINDING_DIFF_STATE_KEY,
+                                            annotation_state.c.value == state_row.value,
+                                        )
+                                        .values(value=json.dumps(diff))
+                                    )
+                    conn.commit()
+                except BaseException:
+                    conn.rollback()
+                    raise
+
+        if repaired_findings or repaired_diff_entries:
+            added = True
+            logger.warning(
+                "legacy_risk_genotype_rsid_doubling_repaired",
+                findings_count=repaired_findings,
+                finding_diff_count=repaired_diff_entries,
+                from_version=from_version,
+            )
 
     return added
 

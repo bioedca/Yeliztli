@@ -153,7 +153,7 @@ def test_v23_repairs_exact_legacy_efavirenz_alerts_in_place(
         )
         version = conn.execute(sa.text("PRAGMA user_version")).scalar_one()
 
-    assert version == SAMPLE_SCHEMA_VERSION == 26
+    assert version == SAMPLE_SCHEMA_VERSION == 27
     assert [row["id"] for row in migrated] == [101, 102]
     for row, (_, phenotype, diplotype, suffix) in zip(
         migrated,
