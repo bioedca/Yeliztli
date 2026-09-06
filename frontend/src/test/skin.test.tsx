@@ -132,7 +132,7 @@ describe("MC1R summary renders its title once (#2048)", () => {
     useSkinPathwaysMock.mockReset()
   })
 
-  it("shows MC1R Allele Summary as exactly one heading", () => {
+  it("shows MC1R Allele Summary as exactly one level-2 heading", () => {
     // The section's <h2> repeated the card's own <h3>, so the title printed on
     // two consecutive lines and appeared twice in the heading outline.
     renderMC1RAggregate({
@@ -146,10 +146,18 @@ describe("MC1R summary renders its title once (#2048)", () => {
       pmids: [],
     })
 
-    const headings = screen.getAllByRole("heading", {
-      name: "MC1R Allele Summary",
-    })
-    expect(headings).toHaveLength(1)
+    const section = screen.getByRole("region", { name: "MC1R allele summary" })
+    expect(
+      within(section).getAllByRole("heading", { name: "MC1R Allele Summary" }),
+    ).toHaveLength(1)
+    // The retained card heading is the section's <h2>; demoting it back to
+    // <h3> would recreate the heading-level skip this change removed.
+    expect(
+      within(section).getByRole("heading", {
+        level: 2,
+        name: "MC1R Allele Summary",
+      }),
+    ).toBeInTheDocument()
   })
 })
 
