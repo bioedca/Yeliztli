@@ -26,6 +26,7 @@ Guardrails:
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 import sqlalchemy as sa
@@ -36,6 +37,7 @@ from backend.services.sex_inference import (
     MIN_X_NONPAR_TYPED,
     MIN_Y_PROBES,
     THRESHOLD_X_HET_DIPLOID,
+    THRESHOLD_X_HET_HEMIZYGOUS,
     THRESHOLD_Y_PAR_NOISE,
     compute_sex_signals,
 )
@@ -76,6 +78,12 @@ class AneuploidyResult:
     x_nonpar_typed: int
     x_nonpar_het: int
     y_total: int
+    # The non-no-call chrY count behind ``y_rate``. ``y_rate`` is rounded to
+    # four decimals for display, so a rate that clears the noise floor by less
+    # than that (201 / 2009 = 0.10005) is exposed as exactly ``0.1`` while the
+    # screen escalated on the unrounded value. The two counts let an auditor
+    # reconstruct the decision from what was stored (#2040 review).
+    y_typed: int
     y_rate: float
     x_evaluable: bool
     y_evaluable: bool
@@ -94,11 +102,26 @@ def screen_aneuploidy(sample_engine: sa.Engine) -> AneuploidyResult:
         # rate is well-defined.
         x_het_rate = s.x_nonpar_het / s.x_nonpar_typed
         two_x = x_het_rate >= THRESHOLD_X_HET_DIPLOID
+        # The classifier splits X dosage into three zones and refuses to resolve
+        # the middle one. The screen used to see only two, so a rate in the
+        # ambiguous band fell through to the clean negative — an affirmative
+        # "no XXY signature detected" for a sample whose X dosage this app's own
+        # sex inference returns ``manual_review`` for (#2040). Withholding there
+        # is not a positive call; the screen simply cannot tell.
+        ambiguous_x = THRESHOLD_X_HET_HEMIZYGOUS < x_het_rate < THRESHOLD_X_HET_DIPLOID
         y_present = s.y_rate > Y_PRESENT_RATE
         y_discordant = s.y_rate > THRESHOLD_Y_PAR_NOISE
         if two_x and y_present:
             outcome = POSSIBLE_XXY
         elif two_x and y_discordant:
+            outcome = MANUAL_REVIEW
+        elif ambiguous_x and y_discordant:
+            # An unresolvable X dosage only matters while a chrY signal could be
+            # there: the XXY signature is two X *and* a Y. With no chrY signal
+            # the screen keeps the answer it gave before this branch existed.
+            # Whether a rate at or below the PAR-noise floor is "no Y" is the
+            # classifier's calibrated threshold, shared since #1130; it is not
+            # moved or re-asserted here.
             outcome = MANUAL_REVIEW
         else:
             outcome = NO_SIGNAL
@@ -108,10 +131,58 @@ def screen_aneuploidy(sample_engine: sa.Engine) -> AneuploidyResult:
         x_nonpar_typed=s.x_nonpar_typed,
         x_nonpar_het=s.x_nonpar_het,
         y_total=s.y_total,
+        y_typed=s.y_typed,
         y_rate=round(s.y_rate, 4),
         x_evaluable=x_evaluable,
         y_evaluable=y_evaluable,
     )
+
+
+def is_legacy_false_clean_negative(detail: Mapping[str, object]) -> bool:
+    """Whether a persisted screen result is the pre-#2040 false clean negative.
+
+    Before the screen learned the classifier's ambiguous X band, a sample whose
+    X-het rate sat strictly between ``THRESHOLD_X_HET_HEMIZYGOUS`` and
+    ``THRESHOLD_X_HET_DIPLOID`` with a chrY rate above ``THRESHOLD_Y_PAR_NOISE``
+    was stored as ``no_aneuploidy_signal``. Nothing recomputes a stored screen
+    on its own -- the module has no page and only ``POST /run`` re-screens --
+    so the v26 sample-schema migration uses this predicate to find exactly that
+    class in persisted ``detail_json`` and re-screen it.
+
+    Exact by construction: any other outcome, an unevaluable axis, a missing or
+    non-numeric count, or a rate outside the band is ``False`` and left alone.
+    The stored ``y_rate`` is rounded to four decimals and legacy rows carry no
+    ``y_typed``, so a true rate that rounds *down* to the floor (0.10005 -> 0.1)
+    is indistinguishable from one sitting on it; the floor is therefore treated
+    as inclusive here. Re-screening from raw variants is harmless for a row
+    that turns out to be a genuine negative, so erring towards a recompute
+    costs nothing, while excluding the floor would leave a false negative in
+    place.
+    """
+    if detail.get("outcome") != NO_SIGNAL:
+        return False
+    if detail.get("x_evaluable") is not True or detail.get("y_evaluable") is not True:
+        return False
+    typed = detail.get("x_nonpar_typed")
+    het = detail.get("x_nonpar_het")
+    y_rate = detail.get("y_rate")
+    if isinstance(typed, bool) or isinstance(het, bool) or isinstance(y_rate, bool):
+        return False
+    if not isinstance(typed, int) or not isinstance(het, int) or typed <= 0 or het < 0:
+        return False
+    if not isinstance(y_rate, (int, float)):
+        return False
+    x_het_rate = het / typed
+    ambiguous_x = THRESHOLD_X_HET_HEMIZYGOUS < x_het_rate < THRESHOLD_X_HET_DIPLOID
+    return ambiguous_x and y_rate >= THRESHOLD_Y_PAR_NOISE
+
+
+def _is_ambiguous_x(result: AneuploidyResult) -> bool:
+    """Whether the X-het rate sits in the classifier's unresolvable middle band."""
+    if result.x_nonpar_typed <= 0:
+        return False
+    rate = result.x_nonpar_het / result.x_nonpar_typed
+    return THRESHOLD_X_HET_HEMIZYGOUS < rate < THRESHOLD_X_HET_DIPLOID
 
 
 def _finding_text(result: AneuploidyResult) -> str:
@@ -131,6 +202,20 @@ def _finding_text(result: AneuploidyResult) -> str:
             "screen result can be given, and this does not rule anything in or out."
         )
     if result.outcome == MANUAL_REVIEW:
+        if _is_ambiguous_x(result):
+            return (
+                "The sex-chromosome aneuploidy screen needs manual review: the "
+                "X-chromosome dosage of this sample falls between the levels "
+                "this screen can tell apart, so it could not be determined "
+                "from this array, and there is a chromosome-Y "
+                "signal above the background noise floor. That Y signal may be "
+                "too weak to meet this screen's presence threshold. This is NOT "
+                "a clean negative result, and it is "
+                "equally NOT a positive finding — the screen cannot resolve "
+                "this sample either way. The screen is not a diagnosis and "
+                "should be interpreted with clinical confirmation or orthogonal "
+                "chromosome-copy-number evidence if relevant."
+            )
         return (
             "The sex-chromosome aneuploidy screen needs manual review: the sample "
             "has a diploid-X signal together with a chrY signal above the calibrated "
@@ -147,8 +232,15 @@ def _finding_text(result: AneuploidyResult) -> str:
     )
 
 
-def store_aneuploidy_findings(result: AneuploidyResult, sample_engine: sa.Engine) -> int:
-    """Persist a single screen-result finding (idempotent)."""
+def write_aneuploidy_finding(conn: sa.Connection, result: AneuploidyResult) -> int:
+    """Replace the stored screen result on an open connection (idempotent).
+
+    Split out from :func:`store_aneuploidy_findings` so a caller that must
+    commit the replacement together with other writes -- the v26 sample-schema
+    migration, which also scrubs the finding-change banner -- can do so in one
+    transaction rather than leaving a window where the new result is committed
+    and the old banner is not (#2040 review).
+    """
     row = {
         "module": MODULE,
         "category": CATEGORY,
@@ -162,16 +254,23 @@ def store_aneuploidy_findings(result: AneuploidyResult, sample_engine: sa.Engine
                 "x_nonpar_typed": result.x_nonpar_typed,
                 "x_nonpar_het": result.x_nonpar_het,
                 "y_total": result.y_total,
+                "y_typed": result.y_typed,
                 "y_rate": result.y_rate,
                 "x_evaluable": result.x_evaluable,
                 "y_evaluable": result.y_evaluable,
             }
         ),
     }
-    with sample_engine.begin() as conn:
-        conn.execute(
-            sa.delete(findings).where(findings.c.module == MODULE, findings.c.category == CATEGORY)
-        )
-        conn.execute(sa.insert(findings), [row])
-    logger.info("aneuploidy_screened", outcome=result.outcome)
+    conn.execute(
+        sa.delete(findings).where(findings.c.module == MODULE, findings.c.category == CATEGORY)
+    )
+    conn.execute(sa.insert(findings), [row])
     return 1
+
+
+def store_aneuploidy_findings(result: AneuploidyResult, sample_engine: sa.Engine) -> int:
+    """Persist a single screen-result finding (idempotent)."""
+    with sample_engine.begin() as conn:
+        written = write_aneuploidy_finding(conn, result)
+    logger.info("aneuploidy_screened", outcome=result.outcome)
+    return written
