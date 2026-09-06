@@ -9,7 +9,7 @@
       "statement_considered": "The IL10 row's inheritance is autosomal recessive (MONDO:0016542, 'IL10-related early-onset inflammatory bowel disease').",
       "outcome": "No value is set. The row stays blank and is listed in _UNVERIFIED_BLANK_INHERITANCE as Mendelian-but-unverified — explicitly NOT as polygenic, which was #2043's mis-classification.",
       "why_withheld": "The row is gene-keyed. `_lookup_gene_phenotype` returns its value as the `inheritance_pattern` rendered beside an *IL10* variant, so it reads as a per-gene claim, not as ontology metadata about a disease entity. MONDO's synonyms for the term do include 'autosomal recessive early-onset inflammatory bowel disease', but that is one source, and the contract requires two agreeing sources that do not share an upstream assertion for a user-facing claim of this kind.",
-      "search_performed": "Three independent cohorts were located and all characterise only the IL10RA/IL10RB RECEPTOR forms: PMID:19890111 (European consanguineous families), PMID:28267044 (42-patient Chinese survey) and PMID:21519361 (French cohort; IL10RA p.R262C, IL10RB p.E141X). Targeted searches for IL10 LIGAND mutation cohorts returned receptor papers or mouse/mechanism work. The ligand literature is dominated by a single group, so two sources there would share a lineage rather than agree independently.",
+      "search_performed": "Three independent cohorts were located and all characterise only the IL10RA/IL10RB RECEPTOR forms: PMID:19890111 (European consanguineous families), PMID:28267044 (42-patient Chinese survey) and PMID:21519361 (French cohort; IL10RA p.R262C, IL10RB p.E141X). Searches for an IL10 LIGAND loss-of-function cohort, each retained: Consensus (2026-08-31, 20 papers, derived record), Scite (2026-09-05/06, ligand-only term excluding the receptor genes, 17 records returned of a reported 22, derived record) and a PubMed ESearch (2026-09-06, Title/Abstract term excluding IL10RA/IL10RB, 1 record: PMID:22549091, publication type Evaluation Study/Journal Article/Research Support, Non-U.S. Gov't/Video-Audio Media, verbatim esearch + esummary retained). None of the returned records is an IL10 ligand variant cohort. That is the whole supported statement; nothing is asserted about who authored the ligand literature or whether any two potential sources would share a lineage.",
       "what_would_close_it": "Two agreeing, independently-authored primary sources reporting IL10 (ligand) loss-of-function variants and their transmission; or a maintainer decision that the MONDO entity-level assertion is sufficient for a gene-keyed row. Filed as a scientific-validity issue.",
       "history": "An earlier revision of this packet set the value on receptor-only evidence and claimed 'loss-of-function variants in IL10, IL10RA or IL10RB'. A later revision restated it at the entity level. Review established that the entity framing does not change what the software renders, so the value is now withheld outright."
     },
@@ -127,8 +127,8 @@
   "explicitly_not_claimed": "No inheritance value in the seed is changed by this pull request: IL10 stays blank (withheld) and VKORC1 keeps 'Autosomal dominant'. #2043's item 3 — spot-checking the other 13 Mendelian rows against Monarch/OLS4 and correcting via gene_inheritance_overrides.json — is NOT done here and is filed separately: it needs a per-gene authoritative check, which is its own evidence exercise rather than a rider on this one. Nothing is asserted about the authorship or lineage of the IL10 ligand literature; the supported statement is only that the recorded searches found no qualifying pair.",
   "discovery_tool_ladder": {
     "consensus": "Invoked 2026-08-31; 20 papers, retained as a DERIVED record. Surfaced C1's primary sources.",
-    "scite": "Invoked 2026-09-05, after the service-reported reset of 2026-09-03 (an earlier revision recorded the August quota failure as current). Two calls, both retained as DERIVED records: metadata for the five cited DOIs (no editorial notice on any) and a term search for an IL10 LIGAND loss-of-function cohort excluding the receptor genes (22 results; none of the ten returned is such a cohort, so C1 stays withheld). No Scite text is redistributed.",
-    "fallback": "PubMed used in Scite's place; every record re-resolved through eSummary for title, journal, authors and publication type, and checked for corrections and retractions through EFetch typed CommentsCorrections relations (the eLink related-article link sets are retained but are not a notice check).",
+    "scite": "Invoked 2026-09-05 and 2026-09-06, after the service-reported reset of 2026-09-03 (an earlier revision recorded the August quota failure as current). Retained as DERIVED records: metadata for the five cited DOIs (no editorial notice on any) and a ligand-only term search excluding the receptor genes, paged to exhaustion (17 records returned of a reported 22; the second page returned 7 of 12 requested). None of the 17 is an IL10 ligand cohort, so C1 stays withheld. No Scite text is redistributed.",
+    "fallback": "PubMed used in Scite's place on 2026-08-31 and alongside it on 2026-09-06: every cited record re-resolved through eSummary and checked through EFetch typed CommentsCorrections relations; the negative search for an IL10 ligand cohort is a retained ESearch (1 record, a review by publication type) rather than an unrecorded query.",
     "tool_versions": "OLS4 exposes mondo version 2026-08-04, recorded above and retained as a payload. Neither the Consensus MCP surface nor NCBI E-utilities exposes a version on these calls; both recorded as not exposed rather than guessed."
   },
   "source_provenance": [
@@ -169,7 +169,7 @@
       "license_note": "Used as a discovery and notice-check tool only. No Scite text is redistributed: the retained records hold DOIs, titles, years, tallies and the presence or absence of an editorialNotices array."
     }
   ],
-  "payload_integrity": "Nine payloads are unedited verbatim API responses (two NCBI eSummary, five NCBI eLink, two EBI OLS4). One payload, the NCBI EFetch XML, is SANITIZED: <Abstract> elements were removed under the bibliographic-metadata-only retention rule and nothing else was touched; it is labelled as such in its filename and in the derived record beside it. Four payloads are DERIVED records, labelled as such in the file itself: the Consensus call and the two Scite calls, none of which has an HTTP response to capture, and the reduction of the EFetch XML to its CommentsCorrections and publication-type fields. No payload required further sanitization: all are public bibliographic or ontology records with no genotype, sample, personal or credentialed data.",
+  "payload_integrity": "Eleven payloads are unedited verbatim API responses (three NCBI eSummary, one NCBI ESearch, five NCBI eLink, two EBI OLS4). One payload, the NCBI EFetch XML, is SANITIZED: <Abstract> elements were removed under the bibliographic-metadata-only retention rule and nothing else was touched; it is labelled as such in its filename and in the derived record beside it. Four payloads are DERIVED records, labelled as such in the file itself: the Consensus call and the two Scite calls, none of which has an HTTP response to capture, and the reduction of the EFetch XML to its CommentsCorrections and publication-type fields. No payload required further sanitization: all are public bibliographic or ontology records with no genotype, sample, personal or credentialed data.",
   "requests": [
     {
       "payload": "raw/ncbi-pubmed-esummary-four-sources.json",
@@ -269,11 +269,27 @@
     },
     {
       "payload": "raw/scite-search-il10-ligand-eoibd-derived.json",
-      "request": "Scite MCP `search_literature(term=IL10 AND \"loss-of-function\" AND \"early-onset inflammatory bowel disease\" AND (\"autosomal recessive\" OR homozygous) NOT IL10RA NOT IL10RB, limit=10)` (tool call, not an HTTP endpoint)",
+      "request": "Scite MCP `search_literature(term=IL10 AND \"loss-of-function\" AND \"early-onset inflammatory bowel disease\" AND (\"autosomal recessive\" OR homozygous) NOT IL10RA NOT IL10RB)`, pages offset=0 limit=10 and offset=10 limit=12 (tool calls, not an HTTP endpoint)",
       "source": "Scite MCP (DERIVED record, not a wire capture)",
-      "sha256": "f376e3aae523064c737e27bff7b607bc461a84613f152a2d714e15b018cc046d",
-      "bytes": 2655,
-      "accessed": "2026-09-05"
+      "sha256": "29643fd05a89683e993df64223355ee41fd0759e8d545b6b9bdf3e819a67e5e1",
+      "bytes": 4328,
+      "accessed": "2026-09-05/2026-09-06"
+    },
+    {
+      "payload": "raw/ncbi-pubmed-esearch-il10-ligand-eoibd.json",
+      "request": "GET .../esearch.fcgi?db=pubmed&retmax=100&retmode=json&term=IL10[Title/Abstract] AND (\"loss-of-function\"[Title/Abstract] OR \"loss of function\"[Title/Abstract]) AND \"inflammatory bowel disease\"[Title/Abstract] AND (recessive[Title/Abstract] OR homozygous[Title/Abstract]) NOT IL10RA[Title/Abstract] NOT IL10RB[Title/Abstract]",
+      "source": "NCBI PubMed ESearch (the negative literature search for an IL10 ligand cohort; verbatim, count and id list)",
+      "sha256": "e3e22d21d8e9f42f63510fe6a1396025bf3a2558461bca667de688394961d739",
+      "bytes": 462,
+      "accessed": "2026-09-06"
+    },
+    {
+      "payload": "raw/ncbi-pubmed-esummary-il10-ligand-eoibd-search.json",
+      "request": "GET .../esummary.fcgi?db=pubmed&id=22549091&retmode=json",
+      "source": "NCBI PubMed eSummary (the ESearch hit; verbatim)",
+      "sha256": "d34163b664ecc7d828ee40a83713a115f4dbd76c70239ac696054d0fb27a6ad5",
+      "bytes": 3991,
+      "accessed": "2026-09-06"
     }
   ]
 }

@@ -35,10 +35,13 @@ not share an upstream assertion before a user-facing claim of this kind is encod
 | `PMID:28267044` / `DOI:10.1097/MIB.0000000000001058` — Huang Z et al., *Inflamm Bowel Dis* 2017 **(accessed 2026-08-31)** | 42-patient Chinese multicentre survey | `IL10RA`, `IL10RB` |
 | `PMID:21519361` / `DOI:10.1038/ajg.2011.112` — Begue B et al., *Am J Gastroenterol* 2011 **(accessed 2026-08-31; payloads retained 2026-09-05)** | French cohort, 75 children | `IL10RA` p.R262C, `IL10RB` p.E141X |
 
-Targeted searches for IL10 **ligand** cohorts — Consensus and PubMed on 2026-08-31, Scite on
-2026-09-05 (a ligand-only query excluding the receptor genes, 22 results, none a ligand cohort) —
-found no qualifying pair of independent primary sources. That is the supported statement; nothing
-is asserted here about who authored the ligand literature.
+Searches for an IL10 **ligand** cohort, each retained: Consensus on 2026-08-31 (20 papers, derived
+record); Scite on 2026-09-05/06 (a ligand-only query excluding the receptor genes, paged to
+exhaustion — 17 records returned of a reported 22, every DOI and title retained); and a PubMed
+ESearch on 2026-09-06 (Title/Abstract term excluding `IL10RA`/`IL10RB`, **1** record:
+`PMID:22549091`, publication type Evaluation Study/Journal Article/Research Support, Non-U.S. Gov't/Video-Audio Media, verbatim ESearch and eSummary retained).
+None of the returned records is an IL10 ligand variant cohort. That is the whole supported statement;
+nothing is asserted here about who authored the ligand literature.
 
 **What would close it.** Two agreeing, independently-authored primary sources reporting IL10
 (ligand) loss-of-function variants and their transmission — or a maintainer decision that the
@@ -67,8 +70,8 @@ settles that the resistance row is the one at issue.
 | `PMID:14765194` / `DOI:10.1038/nature02214` — Rost S et al., *Nature* 2004 **(accessed 2026-08-31)** | Primary — original mapping in warfarin-resistant kindreds and VKCFD2 families |
 | `PMID:26513304` / `DOI:10.1097/FPC.0000000000000184` — Lewis BC et al., *Pharmacogenet Genomics* 2016 **(accessed 2026-08-31)** | Primary — independent clinical case with molecular-mechanism characterisation |
 
-One gene, dominant for one phenotype and recessive for the other, so only the row's `disease_name`
-settles which applies. It names resistance, so `Autosomal dominant` is right and stays — the
+One gene, more than one phenotype in the literature, so only the row's `disease_name` settles which
+association this row is. It names resistance, so `Autosomal dominant` is right and stays — the
 confirmation #2043 asked for.
 
 > An earlier revision of this manifest recorded the Lewis DOI as `10.1097/FPC.0000000000000197`.
@@ -110,7 +113,8 @@ obsolescence is the analogous check — `MONDO:0016542` is not obsolete.
 ## Discovery-tool ladder
 
 - **Consensus** — invoked 2026-08-31; 20 papers, retained as a **derived** record.
-- **Scite** — invoked **2026-09-05**, after the service-reported quota reset of 2026-09-03 (an earlier revision recorded the August failure as current). Two calls, retained as **derived** records: metadata for the five cited DOIs (no editorial notice on any) and a term search for an IL10 **ligand** loss-of-function cohort excluding the receptor genes — 22 results, none of the ten returned is such a cohort, so C1 stays withheld.
+- **Scite** — invoked **2026-09-05/06**, after the service-reported quota reset of 2026-09-03 (an earlier revision recorded the August failure as current). Retained as **derived** records: metadata for the five cited DOIs (no editorial notice on any) and a term search for an IL10 **ligand** loss-of-function cohort excluding the receptor genes, paged to exhaustion — 17 records returned of a reported 22, none a ligand cohort, so C1 stays withheld.
+- **PubMed ESearch** — **2026-09-06**, the negative search itself retained verbatim (1 record, a review by publication type) rather than described.
 - **Fallback** — PubMed for the literature, EBI OLS4 for the ontology record.
 
 Versions: OLS4 exposes **mondo 2026-08-04**, retained as a payload. Neither the Consensus MCP
@@ -119,8 +123,8 @@ as **not exposed** rather than guessed.
 
 ## Retained evidence
 
-`raw/` holds **nine unedited verbatim API responses** (two NCBI eSummary, five NCBI eLink, two EBI
-OLS4), **one sanitized response** (the NCBI EFetch XML for all five PMIDs, abstracts removed and
+`raw/` holds **eleven unedited verbatim API responses** (three NCBI eSummary, one NCBI ESearch, five
+NCBI eLink, two EBI OLS4), **one sanitized response** (the NCBI EFetch XML for all five PMIDs, abstracts removed and
 nothing else touched, labelled in its filename) and **four derived records**, each labelled as
 derived in the file itself: the Consensus call, the two Scite calls, and the reduction of the
 EFetch XML to its `CommentsCorrections` and publication-type fields. `source-manifest.json` records each exact

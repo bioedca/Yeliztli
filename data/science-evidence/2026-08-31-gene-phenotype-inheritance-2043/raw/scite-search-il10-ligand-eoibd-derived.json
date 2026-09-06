@@ -1,13 +1,23 @@
 {
-  "_artifact_note": "DERIVED record of a Scite MCP `search_literature` term search made 2026-09-05, after the service-reported quota reset of 2026-09-03, for the one thing C1 lacked: an IL10 LIGAND cohort. Transcribed from the tool response: the total hit count and the DOI, year and title of every returned record (limit 10). Abstracts, excerpts and Smart Citation snippets were not retained. Outcome: none of the ten is an IL10 ligand loss-of-function cohort (NOX1, IFIH1, TNFAIP3, CASP8, an IL-10RA knock-in model, and reviews), so C1 stays WITHHELD.",
+  "_artifact_note": "DERIVED record of two Scite MCP `search_literature` term-search pages made 2026-09-05 (offset 0, limit 10) and 2026-09-06 (offset 10, limit 12), after the service-reported quota reset of 2026-09-03, for the one thing C1 lacked: an IL10 LIGAND cohort. Transcribed from the tool responses: the reported total, and the DOI, year and title of EVERY returned record. Scite reported 22 total hits and returned 17 records across the two pages; the second page returned 7 where 12 were requested, so 17 is the complete result set the API would yield. Abstracts, excerpts and Smart Citation snippets were not retained. Outcome, from the titles: none of the 17 is an IL10 ligand loss-of-function cohort (other genes, reviews, congress proceedings, an IL-10RA knock-in model), so C1 stays WITHHELD.",
   "_query": {
     "tool": "Scite MCP search_literature",
     "term": "IL10 AND \"loss-of-function\" AND \"early-onset inflammatory bowel disease\" AND (\"autosomal recessive\" OR homozygous) NOT IL10RA NOT IL10RB",
-    "limit": 10
+    "pages": [
+      {
+        "offset": 0,
+        "limit": 10,
+        "returned": 10
+      },
+      {
+        "offset": 10,
+        "limit": 12,
+        "returned": 7
+      }
+    ]
   },
   "_accessed": "2026-09-05",
-  "total": 22,
-  "returned": 10,
+  "returned": 17,
   "records": [
     {
       "doi": "10.1101/mcs.a002428",
@@ -58,6 +68,42 @@
       "doi": "10.1093/ibd/izaf099",
       "year": 2025,
       "title": "Generation and Phenotypic Analysis of the IL-10RA R104W/R104W knock-in model"
+    },
+    {
+      "doi": "10.3390/biom10081112",
+      "year": 2020,
+      "title": "The Possibilities of Immunotherapy for Children with Primary Immunodeficiencies Associated with Cancers"
+    },
+    {
+      "doi": "10.1111/sji.12973",
+      "year": 2020,
+      "title": "Behçet disease (BD) and BD-like clinical phenotypes: NF-κB pathway in mucosal ulcerating diseases"
+    },
+    {
+      "doi": "10.3389/fimmu.2023.1278759",
+      "year": 2024,
+      "title": "Treg in inborn errors of immunity: gaps, knowns and future perspectives"
+    },
+    {
+      "doi": "10.1093/ibd/izaf214",
+      "year": 2025,
+      "title": "Genome-Wide Aggregated Trans-Effects Analysis Implicates Deficient Type III Interferon Signaling as a Key Cause of Inflammatory Bowel Disease"
+    },
+    {
+      "doi": "10.1016/j.it.2023.12.006",
+      "year": 2024,
+      "title": "Human genetic errors of immunity illuminate an adaptive arsenal model of rapid defenses"
+    },
+    {
+      "doi": "10.1186/s12969-017-0142-8",
+      "year": 2017,
+      "title": "Proceedings of the 23rd Paediatric Rheumatology European Society Congress: part two"
+    },
+    {
+      "doi": "10.1007/s15014-023-4829-7",
+      "year": 2023,
+      "title": "38. Jahrestagung der GPGE"
     }
-  ]
+  ],
+  "reported_total": 22
 }
