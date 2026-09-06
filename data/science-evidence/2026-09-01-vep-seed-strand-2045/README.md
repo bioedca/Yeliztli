@@ -137,6 +137,15 @@ directly. Scite was unavailable on 2026-09-01 (monthly MCP quota exhausted 2026-
 invoked on **2026-09-05** after its reset, for the two cited papers' metadata and notice status:
 **no editorial notice on either**, retained as a derived record.
 
+Consensus was invoked **(accessed 2026-09-06)** (query: CYP2C19\*4 / rs28399504 start-codon
+variant; no filters): 20 ranked hits, retained title-level as a derived record. **No hit was promoted to a
+citation** — C2 is a claim about Ensembl's coordinate and consequence annotation, for which the
+annotation project itself is the source. The top hit, Ferguson et al. 1998
+(`DOI:10.1016/s0022-3565(24)37213-1`), is the primary description of CYP2C19\*4 as an
+initiation-codon A>G change and is recorded as context consistent with `start_lost`; it was not
+notice-checked and no biological claim is derived from it. Until this revision the packet recorded
+only that Consensus was the wrong instrument, without having run it.
+
 Versions: Ensembl GRCh37 REST exposes no version header on these endpoints — the assembly is the pin
 that matters and is in the hostname. NCBI E-utilities exposes no build field. The Scite MCP surface
 exposes no index version. All recorded as **not exposed** rather than guessed.
@@ -189,6 +198,8 @@ it selects:
   `rs28399504`'s fixture column, which reflects the corrected CSV;
 - the PubMed reduction lists each cited record's `CommentsCorrections` and publication types;
 - the Scite record holds the two cited DOIs' metadata and notice status.
+- the Consensus record transcribes the 20 title-level hits of the 2026-09-06 search; none was promoted
+  to a citation.
 
 `source-manifest.json` carries each request, source, SHA-256, byte length, access date and licence. No
 payload required further sanitization.
