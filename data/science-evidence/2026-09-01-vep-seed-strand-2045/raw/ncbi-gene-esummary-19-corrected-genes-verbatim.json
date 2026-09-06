@@ -1,0 +1,4170 @@
+{
+ "_artifact_note": "Verbatim NCBI E-utilities responses. The only additions are this note and the `responses` wrapper, keyed by the symbol that was queried. Each value is the JSON body returned by GET https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=gene&id=<every id in that gene's esearch idlist>&retmode=json on 2026-09-05, parsed and re-serialised with indent=1 (whitespace only; key order and every value preserved). Requests were paced 0.4 s apart with up to four attempts each; all 19 succeeded. Source of raw/ncbi-gene-esummary-19-corrected-genes.json, which selects the live record's `uid`, `genomicinfo[0].chrstart` and `genomicinfo[0].chrstop` and computes an orientation from their order (esummary exposes no strand field). This is a 2026-09-05 re-fetch made after review: the 2026-09-01 wire responses that the reduction was read from were not retained. Every value the reduction carries was re-derived from this payload on 2026-09-05 and found equal.",
+ "responses": {
+  "CDKN2A": {
+   "header": {
+    "type": "esummary",
+    "version": "0.3"
+   },
+   "result": {
+    "uids": [
+     "1029"
+    ],
+    "1029": {
+     "uid": "1029",
+     "name": "CDKN2A",
+     "description": "cyclin dependent kinase inhibitor 2A",
+     "status": "",
+     "currentid": "",
+     "chromosome": "9",
+     "geneticsource": "genomic",
+     "maplocation": "9p21.3",
+     "otheraliases": "ARF, CAI2, CDK4I, CDKN2, CMM2, INK4, INK4A, MLM, MTS-1, MTS1, P14, P14ARF, P16, P16INK4, P16INK4A, P19, P19ARF, TP16",
+     "otherdesignations": "cyclin-dependent kinase inhibitor 2A|CDK4 inhibitor p16-INK4|CDKN2A/ARF Intron 2 lncRNA|alternative reading frame|cell cycle negative regulator beta|cyclin-dependent kinase 4 inhibitor A|cyclin-dependent kinase inhibitor 2A (melanoma, p16, inhibits CDK4)|inhibitor of cdk4 A|multiple tumor suppressor 1|multiple tumour suppressor 1",
+     "nomenclaturesymbol": "CDKN2A",
+     "nomenclaturename": "cyclin dependent kinase inhibitor 2A",
+     "nomenclaturestatus": "Official",
+     "mim": [
+      "600160"
+     ],
+     "genomicinfo": [
+      {
+       "chrloc": "9",
+       "chraccver": "NC_000009.12",
+       "chrstart": 21995323,
+       "chrstop": 21967751,
+       "exoncount": 10
+      }
+     ],
+     "geneweight": 188182,
+     "summary": "This gene generates several transcript variants which differ in their first exons. At least three alternatively spliced variants encoding distinct proteins have been reported, two of which encode structurally related isoforms known to function as inhibitors of CDK4 kinase. The remaining transcript includes an alternate first exon located 20 Kb upstream of the remainder of the gene; this transcript contains an alternate open reading frame (ARF) that specifies a protein which is structurally unrelated to the products of the other variants. This ARF product functions as a stabilizer of the tumor suppressor protein p53 as it can interact with, and sequester, the E3 ubiquitin-protein ligase MDM2, a protein responsible for the degradation of p53. In spite of the structural and functional differences, the CDK inhibitor isoforms and the ARF product encoded by this gene, through the regulatory roles of CDK4 and p53 in cell cycle G1 progression, share a common functionality in cell cycle G1 control. This gene is frequently mutated or deleted in a wide variety of tumors, and is known to be an important tumor suppressor gene. [provided by RefSeq, Sep 2012]",
+     "chrsort": "09",
+     "chrstart": 21967751,
+     "organism": {
+      "scientificname": "Homo sapiens",
+      "commonname": "human",
+      "taxid": 9606
+     },
+     "locationhist": [
+      {
+       "annotationrelease": "RS_2025_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000009.12",
+       "chrstart": 21995323,
+       "chrstop": 21967751
+      },
+      {
+       "annotationrelease": "RS_2025_08",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060933.1",
+       "chrstart": 22009696,
+       "chrstop": 21982051
+      },
+      {
+       "annotationrelease": "RS_2024_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000009.12",
+       "chrstart": 21995323,
+       "chrstop": 21967751
+      },
+      {
+       "annotationrelease": "RS_2024_08",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060933.1",
+       "chrstart": 22009696,
+       "chrstop": 21982051
+      },
+      {
+       "annotationrelease": "RS_2023_10",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000009.12",
+       "chrstart": 21995323,
+       "chrstop": 21967751
+      },
+      {
+       "annotationrelease": "RS_2023_10",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060933.1",
+       "chrstart": 22009696,
+       "chrstop": 21982051
+      },
+      {
+       "annotationrelease": "RS_2023_03",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000009.12",
+       "chrstart": 21995323,
+       "chrstop": 21967751
+      },
+      {
+       "annotationrelease": "RS_2023_03",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060933.1",
+       "chrstart": 22009696,
+       "chrstop": 21982051
+      },
+      {
+       "annotationrelease": "110",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000009.12",
+       "chrstart": 21995323,
+       "chrstop": 21967751
+      },
+      {
+       "annotationrelease": "110",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060933.1",
+       "chrstart": 22009696,
+       "chrstop": 21982051
+      },
+      {
+       "annotationrelease": "109.20211119",
+       "assemblyaccver": "GCF_000001405.39",
+       "chraccver": "NC_000009.12",
+       "chrstart": 21995323,
+       "chrstop": 21967751
+      },
+      {
+       "annotationrelease": "RS_2024_09",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NC_000009.11",
+       "chrstart": 21995322,
+       "chrstop": 21967750
+      },
+      {
+       "annotationrelease": "105.20220307",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NC_000009.11",
+       "chrstart": 21995322,
+       "chrstop": 21967750
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NC_000009.11",
+       "chrstart": 21994489,
+       "chrstop": 21967750
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000002125.1",
+       "chraccver": "AC_000141.1",
+       "chrstart": 21957758,
+       "chrstop": 21930968
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000306695.2",
+       "chraccver": "NC_018920.2",
+       "chrstart": 21994318,
+       "chrstop": 21967645
+      }
+     ]
+    }
+   }
+  },
+  "CYP2C19": {
+   "header": {
+    "type": "esummary",
+    "version": "0.3"
+   },
+   "result": {
+    "uids": [
+     "1557",
+     "1563"
+    ],
+    "1557": {
+     "uid": "1557",
+     "name": "CYP2C19",
+     "description": "cytochrome P450 family 2 subfamily C member 19",
+     "status": "",
+     "currentid": "",
+     "chromosome": "10",
+     "geneticsource": "genomic",
+     "maplocation": "10q23.33",
+     "otheraliases": "CPCJ, CYP2C, CYPIIC17, CYPIIC19, P450C2C, P450IIC19",
+     "otherdesignations": "cytochrome P450 2C19|(R)-limonene 6-monooxygenase|(S)-limonene 6-monooxygenase|(S)-limonene 7-monooxygenase|S-mephenytoin 4-hydroxylase|cytochrome P-450 II C|cytochrome P450, family 2, subfamily C, polypeptide 19|cytochrome P450, subfamily IIC (mephenytoin 4-hydroxylase), polypeptide 19|cytochrome P450-11A|cytochrome P450-254C|fenbendazole monooxygenase (4'-hydroxylating)|flavoprotein-linked monooxygenase|mephenytoin 4'-hydroxylase|mephenytoin 4-hydroxylase|microsomal monooxygenase|xenobiotic monooxygenase",
+     "nomenclaturesymbol": "CYP2C19",
+     "nomenclaturename": "cytochrome P450 family 2 subfamily C member 19",
+     "nomenclaturestatus": "Official",
+     "mim": [
+      "124020"
+     ],
+     "genomicinfo": [
+      {
+       "chrloc": "10",
+       "chraccver": "NC_000010.11",
+       "chrstart": 94762680,
+       "chrstop": 94855546,
+       "exoncount": 9
+      }
+     ],
+     "geneweight": 180448,
+     "summary": "This gene encodes a member of the cytochrome P450 superfamily of enzymes. The cytochrome P450 proteins are monooxygenases which catalyze many reactions involved in drug metabolism and synthesis of cholesterol, steroids and other lipids. This protein localizes to the endoplasmic reticulum and is known to metabolize many xenobiotics, including the anticonvulsive drug mephenytoin, omeprazole, diazepam and some barbiturates. Polymorphism within this gene is associated with variable ability to metabolize mephenytoin, known as the poor metabolizer and extensive metabolizer phenotypes. The gene is located within a cluster of cytochrome P450 genes on chromosome 10q24. [provided by RefSeq, Jul 2008]",
+     "chrsort": "10",
+     "chrstart": 94762680,
+     "organism": {
+      "scientificname": "Homo sapiens",
+      "commonname": "human",
+      "taxid": 9606
+     },
+     "locationhist": [
+      {
+       "annotationrelease": "RS_2025_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000010.11",
+       "chrstart": 94762680,
+       "chrstop": 94855546
+      },
+      {
+       "annotationrelease": "RS_2025_08",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060934.1",
+       "chrstart": 95641806,
+       "chrstop": 95734674
+      },
+      {
+       "annotationrelease": "RS_2024_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000010.11",
+       "chrstart": 94762680,
+       "chrstop": 94855546
+      },
+      {
+       "annotationrelease": "RS_2024_08",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060934.1",
+       "chrstart": 95641806,
+       "chrstop": 95734674
+      },
+      {
+       "annotationrelease": "RS_2023_10",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000010.11",
+       "chrstart": 94762680,
+       "chrstop": 94855546
+      },
+      {
+       "annotationrelease": "RS_2023_10",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060934.1",
+       "chrstart": 95641806,
+       "chrstop": 95734674
+      },
+      {
+       "annotationrelease": "RS_2023_03",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000010.11",
+       "chrstart": 94762680,
+       "chrstop": 94855546
+      },
+      {
+       "annotationrelease": "RS_2023_03",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060934.1",
+       "chrstart": 95641806,
+       "chrstop": 95734674
+      },
+      {
+       "annotationrelease": "110",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000010.11",
+       "chrstart": 94762680,
+       "chrstop": 94855546
+      },
+      {
+       "annotationrelease": "110",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060934.1",
+       "chrstart": 95641806,
+       "chrstop": 95734674
+      },
+      {
+       "annotationrelease": "109.20211119",
+       "assemblyaccver": "GCF_000001405.39",
+       "chraccver": "NC_000010.11",
+       "chrstart": 94762680,
+       "chrstop": 94855546
+      },
+      {
+       "annotationrelease": "RS_2024_09",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NC_000010.10",
+       "chrstart": 96522437,
+       "chrstop": 96615303
+      },
+      {
+       "annotationrelease": "105.20220307",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NC_000010.10",
+       "chrstart": 96522437,
+       "chrstop": 96615303
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NC_000010.10",
+       "chrstart": 96522462,
+       "chrstop": 96612670
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000002125.1",
+       "chraccver": "AC_000142.1",
+       "chrstart": 90149121,
+       "chrstop": 90239339
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000306695.2",
+       "chraccver": "NC_018921.2",
+       "chrstart": 96804211,
+       "chrstop": 96894434
+      }
+     ]
+    },
+    "1563": {
+     "uid": "1563",
+     "name": "CYP2C19",
+     "description": "cytochrome P450, subfamily IIC (mephenytoin 4-hydroxylase), polypeptide 19",
+     "status": 1,
+     "currentid": 1557,
+     "chromosome": "",
+     "geneticsource": "genomic",
+     "maplocation": "",
+     "otheraliases": "P450IIC19",
+     "otherdesignations": "",
+     "nomenclaturesymbol": "",
+     "nomenclaturename": "",
+     "nomenclaturestatus": "",
+     "mim": [],
+     "genomicinfo": [],
+     "geneweight": "",
+     "summary": "",
+     "chrsort": "~~last",
+     "chrstart": 999999999,
+     "organism": {
+      "scientificname": "Homo sapiens",
+      "commonname": "human",
+      "taxid": 9606
+     },
+     "locationhist": []
+    }
+   }
+  },
+  "CYP2C9": {
+   "header": {
+    "type": "esummary",
+    "version": "0.3"
+   },
+   "result": {
+    "uids": [
+     "1559"
+    ],
+    "1559": {
+     "uid": "1559",
+     "name": "CYP2C9",
+     "description": "cytochrome P450 family 2 subfamily C member 9",
+     "status": "",
+     "currentid": "",
+     "chromosome": "10",
+     "geneticsource": "genomic",
+     "maplocation": "10q23.33",
+     "otheraliases": "CPC9, CYP2C, CYP2C10, CYPIIC9, P450-2C9, P450IIC9",
+     "otherdesignations": "cytochrome P450 2C9|cytochrome P-450 S-mephenytoin 4-hydroxylase|cytochrome P-450MP|cytochrome P450 PB-1|cytochrome P450, family 2, subfamily C, polypeptide 9|flavoprotein-linked monooxygenase|microsomal monooxygenase|xenobiotic monooxygenase",
+     "nomenclaturesymbol": "CYP2C9",
+     "nomenclaturename": "cytochrome P450 family 2 subfamily C member 9",
+     "nomenclaturestatus": "Official",
+     "mim": [
+      "601130"
+     ],
+     "genomicinfo": [
+      {
+       "chrloc": "10",
+       "chraccver": "NC_000010.11",
+       "chrstart": 94938657,
+       "chrstop": 94990090,
+       "exoncount": 9
+      }
+     ],
+     "geneweight": 120245,
+     "summary": "This gene encodes a member of the cytochrome P450 superfamily of enzymes. The cytochrome P450 proteins are monooxygenases which catalyze many reactions involved in drug metabolism and synthesis of cholesterol, steroids and other lipids. This protein localizes to the endoplasmic reticulum and its expression is induced by rifampin. The enzyme is known to metabolize many xenobiotics, including phenytoin, tolbutamide, ibuprofen and S-warfarin. Studies identifying individuals who are poor metabolizers of phenytoin and tolbutamide suggest that this gene is polymorphic. The gene is located within a cluster of cytochrome P450 genes on chromosome 10q24. [provided by RefSeq, Jul 2008]",
+     "chrsort": "10",
+     "chrstart": 94938657,
+     "organism": {
+      "scientificname": "Homo sapiens",
+      "commonname": "human",
+      "taxid": 9606
+     },
+     "locationhist": [
+      {
+       "annotationrelease": "RS_2025_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000010.11",
+       "chrstart": 94938657,
+       "chrstop": 94990090
+      },
+      {
+       "annotationrelease": "RS_2025_08",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060934.1",
+       "chrstart": 95817786,
+       "chrstop": 95869222
+      },
+      {
+       "annotationrelease": "RS_2024_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000010.11",
+       "chrstart": 94938657,
+       "chrstop": 94990090
+      },
+      {
+       "annotationrelease": "RS_2024_08",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060934.1",
+       "chrstart": 95817786,
+       "chrstop": 95869222
+      },
+      {
+       "annotationrelease": "RS_2023_10",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000010.11",
+       "chrstart": 94938657,
+       "chrstop": 94990090
+      },
+      {
+       "annotationrelease": "RS_2023_10",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060934.1",
+       "chrstart": 95817786,
+       "chrstop": 95869222
+      },
+      {
+       "annotationrelease": "RS_2023_03",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000010.11",
+       "chrstart": 94938657,
+       "chrstop": 94990090
+      },
+      {
+       "annotationrelease": "RS_2023_03",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060934.1",
+       "chrstart": 95817786,
+       "chrstop": 95869222
+      },
+      {
+       "annotationrelease": "110",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000010.11",
+       "chrstart": 94938657,
+       "chrstop": 94990090
+      },
+      {
+       "annotationrelease": "110",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060934.1",
+       "chrstart": 95817786,
+       "chrstop": 95869222
+      },
+      {
+       "annotationrelease": "109.20211119",
+       "assemblyaccver": "GCF_000001405.39",
+       "chraccver": "NC_000010.11",
+       "chrstart": 94938657,
+       "chrstop": 94990090
+      },
+      {
+       "annotationrelease": "RS_2024_09",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NC_000010.10",
+       "chrstart": 96698414,
+       "chrstop": 96749847
+      },
+      {
+       "annotationrelease": "105.20220307",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NC_000010.10",
+       "chrstart": 96698414,
+       "chrstop": 96749847
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NC_000010.10",
+       "chrstart": 96698349,
+       "chrstop": 96749485
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000002125.1",
+       "chraccver": "AC_000142.1",
+       "chrstart": 90325092,
+       "chrstop": 90375553
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000306695.2",
+       "chraccver": "NC_018921.2",
+       "chrstart": 96980208,
+       "chrstop": 97030926
+      }
+     ]
+    }
+   }
+  },
+  "CYP2R1": {
+   "header": {
+    "type": "esummary",
+    "version": "0.3"
+   },
+   "result": {
+    "uids": [
+     "120227",
+     "79445"
+    ],
+    "120227": {
+     "uid": "120227",
+     "name": "CYP2R1",
+     "description": "cytochrome P450 family 2 subfamily R member 1",
+     "status": "",
+     "currentid": "",
+     "chromosome": "11",
+     "geneticsource": "genomic",
+     "maplocation": "11p15.2",
+     "otheraliases": "",
+     "otherdesignations": "vitamin D 25-hydroxylase|cytochrome P450 2R1|cytochrome P450, family 2, R1|cytochrome P450, family 2, subfamily R, polypeptide 1",
+     "nomenclaturesymbol": "CYP2R1",
+     "nomenclaturename": "cytochrome P450 family 2 subfamily R member 1",
+     "nomenclaturestatus": "Official",
+     "mim": [
+      "608713"
+     ],
+     "genomicinfo": [
+      {
+       "chrloc": "11",
+       "chraccver": "NC_000011.10",
+       "chrstart": 14892442,
+       "chrstop": 14877439,
+       "exoncount": 9
+      }
+     ],
+     "geneweight": 9408,
+     "summary": "This gene encodes a member of the cytochrome P450 superfamily of enzymes. The cytochrome P450 proteins are monooxygenases which catalyze many reactions involved in drug metabolism and synthesis of cholesterol, steroids and other lipids. This enzyme is a microsomal vitamin D hydroxylase that converts vitamin D into the active ligand for the vitamin D receptor. A mutation in this gene has been associated with selective 25-hydroxyvitamin D deficiency. [provided by RefSeq, Jul 2008]",
+     "chrsort": "11",
+     "chrstart": 14877439,
+     "organism": {
+      "scientificname": "Homo sapiens",
+      "commonname": "human",
+      "taxid": 9606
+     },
+     "locationhist": [
+      {
+       "annotationrelease": "RS_2025_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000011.10",
+       "chrstart": 14892442,
+       "chrstop": 14877439
+      },
+      {
+       "annotationrelease": "RS_2025_08",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060935.1",
+       "chrstart": 14988810,
+       "chrstop": 14973805
+      },
+      {
+       "annotationrelease": "RS_2024_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000011.10",
+       "chrstart": 14892442,
+       "chrstop": 14877439
+      },
+      {
+       "annotationrelease": "RS_2024_08",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060935.1",
+       "chrstart": 14988810,
+       "chrstop": 14973805
+      },
+      {
+       "annotationrelease": "RS_2023_10",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000011.10",
+       "chrstart": 14892442,
+       "chrstop": 14877439
+      },
+      {
+       "annotationrelease": "RS_2023_10",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060935.1",
+       "chrstart": 14988810,
+       "chrstop": 14973805
+      },
+      {
+       "annotationrelease": "RS_2023_03",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000011.10",
+       "chrstart": 14892442,
+       "chrstop": 14877439
+      },
+      {
+       "annotationrelease": "RS_2023_03",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060935.1",
+       "chrstart": 14988810,
+       "chrstop": 14973805
+      },
+      {
+       "annotationrelease": "110",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000011.10",
+       "chrstart": 14892442,
+       "chrstop": 14877439
+      },
+      {
+       "annotationrelease": "110",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060935.1",
+       "chrstart": 14988810,
+       "chrstop": 14973805
+      },
+      {
+       "annotationrelease": "109.20211119",
+       "assemblyaccver": "GCF_000001405.39",
+       "chraccver": "NC_000011.10",
+       "chrstart": 14898914,
+       "chrstop": 14877439
+      },
+      {
+       "annotationrelease": "RS_2024_09",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NC_000011.9",
+       "chrstart": 14913988,
+       "chrstop": 14898985
+      },
+      {
+       "annotationrelease": "RS_2024_09",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NW_003871082.1",
+       "chrstart": 127418,
+       "chrstop": 142421
+      },
+      {
+       "annotationrelease": "105.20220307",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NC_000011.9",
+       "chrstart": 14913988,
+       "chrstop": 14898985
+      },
+      {
+       "annotationrelease": "105.20220307",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NW_003871082.1",
+       "chrstart": 127418,
+       "chrstop": 142421
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NC_000011.9",
+       "chrstart": 14913873,
+       "chrstop": 14899550
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NW_003871082.1",
+       "chrstart": 127533,
+       "chrstop": 141856
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000002125.1",
+       "chraccver": "AC_000143.1",
+       "chrstart": 14596193,
+       "chrstop": 14581995
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000306695.2",
+       "chraccver": "NC_018922.2",
+       "chrstart": 14912737,
+       "chrstop": 14898540
+      }
+     ]
+    },
+    "79445": {
+     "uid": "79445",
+     "name": "CYP2R1",
+     "description": "cytochrome P450, family 2, R1",
+     "status": 1,
+     "currentid": 120227,
+     "chromosome": "11",
+     "geneticsource": "genomic",
+     "maplocation": "11p15.2",
+     "otheraliases": "MGC4663",
+     "otherdesignations": "",
+     "nomenclaturesymbol": "",
+     "nomenclaturename": "",
+     "nomenclaturestatus": "",
+     "mim": [],
+     "genomicinfo": [],
+     "geneweight": "",
+     "summary": "",
+     "chrsort": "~~last",
+     "chrstart": 999999999,
+     "organism": {
+      "scientificname": "Homo sapiens",
+      "commonname": "human",
+      "taxid": 9606
+     },
+     "locationhist": []
+    }
+   }
+  },
+  "CYP3A5": {
+   "header": {
+    "type": "esummary",
+    "version": "0.3"
+   },
+   "result": {
+    "uids": [
+     "1577"
+    ],
+    "1577": {
+     "uid": "1577",
+     "name": "CYP3A5",
+     "description": "cytochrome P450 family 3 subfamily A member 5",
+     "status": "",
+     "currentid": "",
+     "chromosome": "7",
+     "geneticsource": "genomic",
+     "maplocation": "7q22.1",
+     "otheraliases": "CP35, CYPIIIA5, P450PCN3, PCN3",
+     "otherdesignations": "cytochrome P450 3A5|aryl hydrocarbon hydroxylase|cytochrome P450 HLp2|cytochrome P450, family 3, subfamily A, polypeptide 5|cytochrome P450, subfamily IIIA (niphedipine oxidase), polypeptide 5|cytochrome P450-PCN3|flavoprotein-linked monooxygenase|microsomal monooxygenase|xenobiotic monooxygenase",
+     "nomenclaturesymbol": "CYP3A5",
+     "nomenclaturename": "cytochrome P450 family 3 subfamily A member 5",
+     "nomenclaturestatus": "Official",
+     "mim": [
+      "605325"
+     ],
+     "genomicinfo": [
+      {
+       "chrloc": "7",
+       "chraccver": "NC_000007.14",
+       "chrstart": 99679995,
+       "chrstop": 99648193,
+       "exoncount": 14
+      }
+     ],
+     "geneweight": 70496,
+     "summary": "This gene encodes a member of the cytochrome P450 superfamily of enzymes. The cytochrome P450 proteins are monooxygenases which catalyze many reactions involved in drug metabolism and synthesis of cholesterol, steroids and other lipids. The encoded protein metabolizes drugs as well as the steroid hormones testosterone and progesterone. This gene is part of a cluster of cytochrome P450 genes on chromosome 7q21.1. Two pseudogenes of this gene have been identified within this cluster on chromosome 7. Expression of this gene is widely variable among populations, and a single nucleotide polymorphism that affects transcript splicing has been associated with susceptibility to hypertensions. Alternative splicing results in multiple transcript variants. [provided by RefSeq, Apr 2014]",
+     "chrsort": "07",
+     "chrstart": 99648193,
+     "organism": {
+      "scientificname": "Homo sapiens",
+      "commonname": "human",
+      "taxid": 9606
+     },
+     "locationhist": [
+      {
+       "annotationrelease": "RS_2025_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000007.14",
+       "chrstart": 99679995,
+       "chrstop": 99648193
+      },
+      {
+       "annotationrelease": "RS_2025_08",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060931.1",
+       "chrstart": 100919515,
+       "chrstop": 100887520
+      },
+      {
+       "annotationrelease": "RS_2024_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000007.14",
+       "chrstart": 99679995,
+       "chrstop": 99648193
+      },
+      {
+       "annotationrelease": "RS_2024_08",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060931.1",
+       "chrstart": 100919515,
+       "chrstop": 100887520
+      },
+      {
+       "annotationrelease": "RS_2023_10",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000007.14",
+       "chrstart": 99679995,
+       "chrstop": 99648193
+      },
+      {
+       "annotationrelease": "RS_2023_10",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060931.1",
+       "chrstart": 100919515,
+       "chrstop": 100887520
+      },
+      {
+       "annotationrelease": "RS_2023_03",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000007.14",
+       "chrstart": 99679995,
+       "chrstop": 99648193
+      },
+      {
+       "annotationrelease": "RS_2023_03",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060931.1",
+       "chrstart": 100919515,
+       "chrstop": 100887520
+      },
+      {
+       "annotationrelease": "110",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000007.14",
+       "chrstart": 99679995,
+       "chrstop": 99648193
+      },
+      {
+       "annotationrelease": "110",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060931.1",
+       "chrstart": 100919515,
+       "chrstop": 100887520
+      },
+      {
+       "annotationrelease": "109.20211119",
+       "assemblyaccver": "GCF_000001405.39",
+       "chraccver": "NC_000007.14",
+       "chrstart": 99679995,
+       "chrstop": 99648193
+      },
+      {
+       "annotationrelease": "RS_2024_09",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NC_000007.13",
+       "chrstart": 99277618,
+       "chrstop": 99245816
+      },
+      {
+       "annotationrelease": "105.20220307",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NC_000007.13",
+       "chrstart": 99277618,
+       "chrstop": 99245816
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NC_000007.13",
+       "chrstart": 99277635,
+       "chrstop": 99245812
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000002135.2",
+       "chraccver": "AC_000068.1",
+       "chrstart": 98637428,
+       "chrstop": 98605607
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000002125.1",
+       "chraccver": "AC_000139.1",
+       "chrstart": 93914146,
+       "chrstop": 93882178
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000306695.2",
+       "chraccver": "NC_018918.2",
+       "chrstart": 99207719,
+       "chrstop": 99175906
+      }
+     ]
+    }
+   }
+  },
+  "HERC2": {
+   "header": {
+    "type": "esummary",
+    "version": "0.3"
+   },
+   "result": {
+    "uids": [
+     "8924"
+    ],
+    "8924": {
+     "uid": "8924",
+     "name": "HERC2",
+     "description": "HECT and RLD domain containing E3 ubiquitin protein ligase 2",
+     "status": "",
+     "currentid": "",
+     "chromosome": "15",
+     "geneticsource": "genomic",
+     "maplocation": "15q13.1",
+     "otheraliases": "D15F37S1, MRT38, SHEP1, jdf2, p528",
+     "otherdesignations": "E3 ubiquitin-protein ligase HERC2|HECT-type E3 ubiquitin transferase HERC2|hect domain and RCC1-like domain-containing protein 2|hect domain and RLD 2|probable E3 ubiquitin-protein ligase HERC2",
+     "nomenclaturesymbol": "HERC2",
+     "nomenclaturename": "HECT and RLD domain containing E3 ubiquitin protein ligase 2",
+     "nomenclaturestatus": "Official",
+     "mim": [
+      "605837"
+     ],
+     "genomicinfo": [
+      {
+       "chrloc": "15",
+       "chraccver": "NC_000015.10",
+       "chrstart": 28322178,
+       "chrstop": 28111039,
+       "exoncount": 98
+      }
+     ],
+     "geneweight": 6214,
+     "summary": "This gene belongs to the HERC gene family that encodes a group of unusually large proteins, which contain multiple structural domains. All members have at least 1 copy of an N-terminal region showing homology to the cell cycle regulator RCC1 and a C-terminal HECT (homologous to E6-AP C terminus) domain found in a number of E3 ubiquitin protein ligases. Genetic variations in this gene are associated with skin/hair/eye pigmentation variability. Multiple pseudogenes of this gene are located on chromosomes 15 and 16. [provided by RefSeq, Mar 2012]",
+     "chrsort": "15",
+     "chrstart": 28111039,
+     "organism": {
+      "scientificname": "Homo sapiens",
+      "commonname": "human",
+      "taxid": 9606
+     },
+     "locationhist": [
+      {
+       "annotationrelease": "RS_2025_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000015.10",
+       "chrstart": 28322178,
+       "chrstop": 28111039
+      },
+      {
+       "annotationrelease": "RS_2025_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_187660.1",
+       "chrstart": 569402,
+       "chrstop": 244503
+      },
+      {
+       "annotationrelease": "RS_2025_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NW_011332701.1",
+       "chrstart": 455616,
+       "chrstop": 244503
+      },
+      {
+       "annotationrelease": "RS_2025_08",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060939.1",
+       "chrstart": 26064942,
+       "chrstop": 25853560
+      },
+      {
+       "annotationrelease": "RS_2024_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000015.10",
+       "chrstart": 28322178,
+       "chrstop": 28111039
+      },
+      {
+       "annotationrelease": "RS_2024_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_187660.1",
+       "chrstart": 569402,
+       "chrstop": 244503
+      },
+      {
+       "annotationrelease": "RS_2024_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NW_011332701.1",
+       "chrstart": 455616,
+       "chrstop": 244503
+      },
+      {
+       "annotationrelease": "RS_2024_08",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060939.1",
+       "chrstart": 26064942,
+       "chrstop": 25853560
+      },
+      {
+       "annotationrelease": "RS_2023_10",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000015.10",
+       "chrstart": 28322178,
+       "chrstop": 28111039
+      },
+      {
+       "annotationrelease": "RS_2023_10",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_187660.1",
+       "chrstart": 569402,
+       "chrstop": 244503
+      },
+      {
+       "annotationrelease": "RS_2023_10",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NW_011332701.1",
+       "chrstart": 455616,
+       "chrstop": 244503
+      },
+      {
+       "annotationrelease": "RS_2023_10",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060939.1",
+       "chrstart": 26064942,
+       "chrstop": 25853560
+      },
+      {
+       "annotationrelease": "RS_2023_03",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000015.10",
+       "chrstart": 28322178,
+       "chrstop": 28111039
+      },
+      {
+       "annotationrelease": "RS_2023_03",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_187660.1",
+       "chrstart": 569402,
+       "chrstop": 244503
+      },
+      {
+       "annotationrelease": "RS_2023_03",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NW_011332701.1",
+       "chrstart": 455616,
+       "chrstop": 244503
+      },
+      {
+       "annotationrelease": "RS_2023_03",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060939.1",
+       "chrstart": 26064942,
+       "chrstop": 25853560
+      },
+      {
+       "annotationrelease": "110",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000015.10",
+       "chrstart": 28322178,
+       "chrstop": 28111039
+      },
+      {
+       "annotationrelease": "110",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_187660.1",
+       "chrstart": 569402,
+       "chrstop": 244503
+      },
+      {
+       "annotationrelease": "110",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NW_011332701.1",
+       "chrstart": 455616,
+       "chrstop": 244503
+      },
+      {
+       "annotationrelease": "110",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060939.1",
+       "chrstart": 26064942,
+       "chrstop": 25853560
+      },
+      {
+       "annotationrelease": "109.20211119",
+       "assemblyaccver": "GCF_000001405.39",
+       "chraccver": "NC_000015.10",
+       "chrstart": 28322178,
+       "chrstop": 28111039
+      },
+      {
+       "annotationrelease": "109.20211119",
+       "assemblyaccver": "GCF_000001405.39",
+       "chraccver": "NT_187660.1",
+       "chrstart": 569402,
+       "chrstop": 244503
+      },
+      {
+       "annotationrelease": "109.20211119",
+       "assemblyaccver": "GCF_000001405.39",
+       "chraccver": "NW_011332701.1",
+       "chrstart": 455616,
+       "chrstop": 244503
+      },
+      {
+       "annotationrelease": "RS_2024_09",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NC_000015.9",
+       "chrstart": 28567324,
+       "chrstop": 28356185
+      },
+      {
+       "annotationrelease": "105.20220307",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NC_000015.9",
+       "chrstart": 28567324,
+       "chrstop": 28356185
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NC_000015.9",
+       "chrstart": 28567312,
+       "chrstop": 28356182
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000002125.1",
+       "chraccver": "AC_000147.1",
+       "chrstart": 6693548,
+       "chrstop": 6482548
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000306695.2",
+       "chraccver": "NC_018926.2",
+       "chrstart": 28516257,
+       "chrstop": 28305168
+      }
+     ]
+    }
+   }
+  },
+  "HLA-DRB1": {
+   "header": {
+    "type": "esummary",
+    "version": "0.3"
+   },
+   "result": {
+    "uids": [
+     "3123",
+     "105369230",
+     "100290966",
+     "730415"
+    ],
+    "3123": {
+     "uid": "3123",
+     "name": "HLA-DRB1",
+     "description": "major histocompatibility complex, class II, DR beta 1",
+     "status": "",
+     "currentid": "",
+     "chromosome": "6",
+     "geneticsource": "genomic",
+     "maplocation": "6p21.32",
+     "otheraliases": "DRB1, HLA-DR1B, HLA-DRB, SS1",
+     "otherdesignations": "major histocompatibility complex, class II, DR beta 1 precursor|HLA class II histocompatibility antigen, DR-1 beta chain|MHC class II HLA-DR beta 1 chain|human leucocyte antigen DRB1|lymphocyte antigen DRB1",
+     "nomenclaturesymbol": "HLA-DRB1",
+     "nomenclaturename": "major histocompatibility complex, class II, DR beta 1",
+     "nomenclaturestatus": "Official",
+     "mim": [
+      "142857"
+     ],
+     "genomicinfo": [
+      {
+       "chrloc": "6",
+       "chraccver": "NC_000006.12",
+       "chrstart": 32589847,
+       "chrstop": 32578774,
+       "exoncount": 6
+      }
+     ],
+     "geneweight": 118074,
+     "summary": "HLA-DRB1 belongs to the HLA class II beta chain paralogs. The class II molecule is a heterodimer consisting of an alpha (DRA) and a beta chain (DRB), both anchored in the membrane. It plays a central role in the immune system by presenting peptides derived from extracellular proteins. Class II molecules are expressed in antigen presenting cells. The beta chain is approximately 26-28 kDa. It is encoded by 6 exons. Exon one encodes the leader peptide; exons 2 and 3 encode the two extracellular domains; exon 4 encodes the transmembrane domain; and exon 5 encodes the cytoplasmic tail. Within the DR molecule the beta chain contains all the polymorphisms specifying the peptide binding specificities. Hundreds of DRB1 alleles have been described and some alleles have increased frequencies associated with certain diseases or conditions. For example, DRB1*1302 has been related to acute and chronic hepatitis B virus persistence. There are multiple pseudogenes of this gene. [provided by RefSeq, Jul 2020]",
+     "chrsort": "06",
+     "chrstart": 32578774,
+     "organism": {
+      "scientificname": "Homo sapiens",
+      "commonname": "human",
+      "taxid": 9606
+     },
+     "locationhist": [
+      {
+       "annotationrelease": "RS_2025_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000006.12",
+       "chrstart": 32589847,
+       "chrstop": 32578774
+      },
+      {
+       "annotationrelease": "RS_2025_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_113891.3",
+       "chrstart": 4011446,
+       "chrstop": 3998044
+      },
+      {
+       "annotationrelease": "RS_2025_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_167245.2",
+       "chrstart": 3830111,
+       "chrstop": 3814542
+      },
+      {
+       "annotationrelease": "RS_2025_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_167246.2",
+       "chrstart": 4004509,
+       "chrstop": 3988950
+      },
+      {
+       "annotationrelease": "RS_2025_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_167248.2",
+       "chrstart": 3792427,
+       "chrstop": 3779009
+      },
+      {
+       "annotationrelease": "RS_2025_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_167249.2",
+       "chrstart": 3993840,
+       "chrstop": 3979127
+      },
+      {
+       "annotationrelease": "RS_2025_08",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060930.1",
+       "chrstart": 32422413,
+       "chrstop": 32408986
+      },
+      {
+       "annotationrelease": "RS_2024_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000006.12",
+       "chrstart": 32589847,
+       "chrstop": 32578774
+      },
+      {
+       "annotationrelease": "RS_2024_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_113891.3",
+       "chrstart": 4011446,
+       "chrstop": 3998044
+      },
+      {
+       "annotationrelease": "RS_2024_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_167245.2",
+       "chrstart": 3830111,
+       "chrstop": 3814542
+      },
+      {
+       "annotationrelease": "RS_2024_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_167246.2",
+       "chrstart": 4004509,
+       "chrstop": 3988950
+      },
+      {
+       "annotationrelease": "RS_2024_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_167248.2",
+       "chrstart": 3792427,
+       "chrstop": 3779009
+      },
+      {
+       "annotationrelease": "RS_2024_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_167249.2",
+       "chrstart": 3993840,
+       "chrstop": 3979127
+      },
+      {
+       "annotationrelease": "RS_2024_08",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060930.1",
+       "chrstart": 32422413,
+       "chrstop": 32408986
+      },
+      {
+       "annotationrelease": "RS_2023_10",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000006.12",
+       "chrstart": 32589847,
+       "chrstop": 32578774
+      },
+      {
+       "annotationrelease": "RS_2023_10",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_113891.3",
+       "chrstart": 4011446,
+       "chrstop": 3998044
+      },
+      {
+       "annotationrelease": "RS_2023_10",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_167245.2",
+       "chrstart": 3830111,
+       "chrstop": 3814542
+      },
+      {
+       "annotationrelease": "RS_2023_10",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_167246.2",
+       "chrstart": 4004509,
+       "chrstop": 3988950
+      },
+      {
+       "annotationrelease": "RS_2023_10",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_167248.2",
+       "chrstart": 3792427,
+       "chrstop": 3779009
+      },
+      {
+       "annotationrelease": "RS_2023_10",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_167249.2",
+       "chrstart": 3993840,
+       "chrstop": 3979127
+      },
+      {
+       "annotationrelease": "RS_2023_10",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060930.1",
+       "chrstart": 32422413,
+       "chrstop": 32408986
+      },
+      {
+       "annotationrelease": "RS_2023_03",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000006.12",
+       "chrstart": 32589847,
+       "chrstop": 32578774
+      },
+      {
+       "annotationrelease": "RS_2023_03",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_113891.3",
+       "chrstart": 4011446,
+       "chrstop": 3998044
+      },
+      {
+       "annotationrelease": "RS_2023_03",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_167245.2",
+       "chrstart": 3830111,
+       "chrstop": 3814542
+      },
+      {
+       "annotationrelease": "RS_2023_03",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_167246.2",
+       "chrstart": 4004509,
+       "chrstop": 3988950
+      },
+      {
+       "annotationrelease": "RS_2023_03",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_167248.2",
+       "chrstart": 3792427,
+       "chrstop": 3779009
+      },
+      {
+       "annotationrelease": "RS_2023_03",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_167249.2",
+       "chrstart": 3993840,
+       "chrstop": 3979127
+      },
+      {
+       "annotationrelease": "RS_2023_03",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060930.1",
+       "chrstart": 32422401,
+       "chrstop": 32408980
+      },
+      {
+       "annotationrelease": "110",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000006.12",
+       "chrstart": 32589847,
+       "chrstop": 32578774
+      },
+      {
+       "annotationrelease": "110",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_113891.3",
+       "chrstart": 4011446,
+       "chrstop": 3998044
+      },
+      {
+       "annotationrelease": "110",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_167245.2",
+       "chrstart": 3830111,
+       "chrstop": 3814542
+      },
+      {
+       "annotationrelease": "110",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_167246.2",
+       "chrstart": 4004509,
+       "chrstop": 3988950
+      },
+      {
+       "annotationrelease": "110",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_167248.2",
+       "chrstart": 3792427,
+       "chrstop": 3779009
+      },
+      {
+       "annotationrelease": "110",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_167249.2",
+       "chrstart": 3993840,
+       "chrstop": 3979127
+      },
+      {
+       "annotationrelease": "110",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060930.1",
+       "chrstart": 32422408,
+       "chrstop": 32408986
+      },
+      {
+       "annotationrelease": "109.20211119",
+       "assemblyaccver": "GCF_000001405.39",
+       "chraccver": "NC_000006.12",
+       "chrstart": 32589847,
+       "chrstop": 32578774
+      },
+      {
+       "annotationrelease": "109.20211119",
+       "assemblyaccver": "GCF_000001405.39",
+       "chraccver": "NT_113891.3",
+       "chrstart": 4011446,
+       "chrstop": 3998044
+      },
+      {
+       "annotationrelease": "109.20211119",
+       "assemblyaccver": "GCF_000001405.39",
+       "chraccver": "NT_167245.2",
+       "chrstart": 3830111,
+       "chrstop": 3814542
+      },
+      {
+       "annotationrelease": "109.20211119",
+       "assemblyaccver": "GCF_000001405.39",
+       "chraccver": "NT_167246.2",
+       "chrstart": 4004509,
+       "chrstop": 3988950
+      },
+      {
+       "annotationrelease": "109.20211119",
+       "assemblyaccver": "GCF_000001405.39",
+       "chraccver": "NT_167248.2",
+       "chrstart": 3792420,
+       "chrstop": 3779003
+      },
+      {
+       "annotationrelease": "109.20211119",
+       "assemblyaccver": "GCF_000001405.39",
+       "chraccver": "NT_167249.2",
+       "chrstart": 3993840,
+       "chrstop": 3979127
+      },
+      {
+       "annotationrelease": "RS_2024_09",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NC_000006.11",
+       "chrstart": 32557624,
+       "chrstop": 32546551
+      },
+      {
+       "annotationrelease": "RS_2024_09",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NT_113891.2",
+       "chrstart": 4011552,
+       "chrstop": 3998150
+      },
+      {
+       "annotationrelease": "RS_2024_09",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NT_167245.1",
+       "chrstart": 3835696,
+       "chrstop": 3820127
+      },
+      {
+       "annotationrelease": "RS_2024_09",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NT_167246.1",
+       "chrstart": 4010129,
+       "chrstop": 3994570
+      },
+      {
+       "annotationrelease": "RS_2024_09",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NT_167248.1",
+       "chrstart": 3798011,
+       "chrstop": 3784599
+      },
+      {
+       "annotationrelease": "RS_2024_09",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NT_167249.1",
+       "chrstart": 3993138,
+       "chrstop": 3978425
+      },
+      {
+       "annotationrelease": "105.20220307",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NC_000006.11",
+       "chrstart": 32557624,
+       "chrstop": 32546551
+      },
+      {
+       "annotationrelease": "105.20220307",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NT_113891.2",
+       "chrstart": 4011552,
+       "chrstop": 3998150
+      },
+      {
+       "annotationrelease": "105.20220307",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NT_167245.1",
+       "chrstart": 3835696,
+       "chrstop": 3820127
+      },
+      {
+       "annotationrelease": "105.20220307",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NT_167246.1",
+       "chrstart": 4010129,
+       "chrstop": 3994570
+      },
+      {
+       "annotationrelease": "105.20220307",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NT_167248.1",
+       "chrstart": 3798011,
+       "chrstop": 3784599
+      },
+      {
+       "annotationrelease": "105.20220307",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NT_167249.1",
+       "chrstart": 3993138,
+       "chrstop": 3978425
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NC_000006.11",
+       "chrstart": 32557612,
+       "chrstop": 32546545
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NT_113891.2",
+       "chrstart": 4011552,
+       "chrstop": 3998150
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NT_167248.1",
+       "chrstart": 3798011,
+       "chrstop": 3784599
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NT_167249.1",
+       "chrstart": 3993163,
+       "chrstop": 3978425
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000306695.2",
+       "chraccver": "NC_018917.2",
+       "chrstart": 32560088,
+       "chrstop": 32549024
+      }
+     ]
+    },
+    "105369230": {
+     "uid": "105369230",
+     "name": "LOC105369230",
+     "description": "leucocyte antigen DRB1",
+     "status": 1,
+     "currentid": 3123,
+     "chromosome": "6",
+     "geneticsource": "genomic",
+     "maplocation": "",
+     "otheraliases": "HLA-DRB1",
+     "otherdesignations": "HLA-DR-beta 1",
+     "nomenclaturesymbol": "",
+     "nomenclaturename": "",
+     "nomenclaturestatus": "",
+     "mim": [],
+     "genomicinfo": [],
+     "geneweight": "",
+     "summary": "",
+     "chrsort": "~~last",
+     "chrstart": 999999999,
+     "organism": {
+      "scientificname": "Homo sapiens",
+      "commonname": "human",
+      "taxid": 9606
+     },
+     "locationhist": []
+    },
+    "100290966": {
+     "uid": "100290966",
+     "name": "HLA-DRB1",
+     "description": "major histocompatibility complex, class II, DR beta 1",
+     "status": 1,
+     "currentid": 3123,
+     "chromosome": "6",
+     "geneticsource": "genomic",
+     "maplocation": "",
+     "otheraliases": "",
+     "otherdesignations": "MHC class II antigen",
+     "nomenclaturesymbol": "",
+     "nomenclaturename": "",
+     "nomenclaturestatus": "",
+     "mim": [],
+     "genomicinfo": [],
+     "geneweight": "",
+     "summary": "",
+     "chrsort": "~~last",
+     "chrstart": 999999999,
+     "organism": {
+      "scientificname": "Homo sapiens",
+      "commonname": "human",
+      "taxid": 9606
+     },
+     "locationhist": []
+    },
+    "730415": {
+     "uid": "730415",
+     "name": "LOC730415",
+     "description": "hypothetical protein LOC730415",
+     "status": 1,
+     "currentid": 3123,
+     "chromosome": "6",
+     "geneticsource": "genomic",
+     "maplocation": "",
+     "otheraliases": "HLA-DRB1",
+     "otherdesignations": "MHC class II HLA-DRw10-beta",
+     "nomenclaturesymbol": "",
+     "nomenclaturename": "",
+     "nomenclaturestatus": "",
+     "mim": [],
+     "genomicinfo": [],
+     "geneweight": "",
+     "summary": "",
+     "chrsort": "~~last",
+     "chrstart": 999999999,
+     "organism": {
+      "scientificname": "Homo sapiens",
+      "commonname": "human",
+      "taxid": 9606
+     },
+     "locationhist": []
+    }
+   }
+  },
+  "HNF1B": {
+   "header": {
+    "type": "esummary",
+    "version": "0.3"
+   },
+   "result": {
+    "uids": [
+     "6928"
+    ],
+    "6928": {
+     "uid": "6928",
+     "name": "HNF1B",
+     "description": "HNF1 homeobox B",
+     "status": "",
+     "currentid": "",
+     "chromosome": "17",
+     "geneticsource": "genomic",
+     "maplocation": "17q12",
+     "otheraliases": "ADTKD3, FJHN, HNF-1-beta, HNF-1B, HNF1beta, HNF2, HPC11, LF-B3, LFB3, MODY5, RCAD, T2D, TCF-2, TCF2, VHNF1",
+     "otherdesignations": "hepatocyte nuclear factor 1-beta|HNF1 beta A|homeoprotein LFB3|transcription factor 2, hepatic",
+     "nomenclaturesymbol": "HNF1B",
+     "nomenclaturename": "HNF1 homeobox B",
+     "nomenclaturestatus": "Official",
+     "mim": [
+      "189907"
+     ],
+     "genomicinfo": [
+      {
+       "chrloc": "17",
+       "chraccver": "NC_000017.11",
+       "chrstart": 37745058,
+       "chrstop": 37686430,
+       "exoncount": 11
+      }
+     ],
+     "geneweight": 36913,
+     "summary": "This gene encodes a member of the homeodomain-containing superfamily of transcription factors. The protein binds to DNA as either a homodimer, or a heterodimer with the related protein hepatocyte nuclear factor 1-alpha. The gene has been shown to function in nephron development, and regulates development of the embryonic pancreas. Mutations in this gene result in renal cysts and diabetes syndrome and noninsulin-dependent diabetes mellitus, and expression of this gene is altered in some types of cancer. Multiple transcript variants encoding different isoforms have been found for this gene.[provided by RefSeq, Sep 2009]",
+     "chrsort": "17",
+     "chrstart": 37686430,
+     "organism": {
+      "scientificname": "Homo sapiens",
+      "commonname": "human",
+      "taxid": 9606
+     },
+     "locationhist": [
+      {
+       "annotationrelease": "RS_2025_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000017.11",
+       "chrstart": 37745058,
+       "chrstop": 37686430
+      },
+      {
+       "annotationrelease": "RS_2025_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_187614.1",
+       "chrstart": 1984114,
+       "chrstop": 1925498
+      },
+      {
+       "annotationrelease": "RS_2025_08",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060941.1",
+       "chrstart": 38732031,
+       "chrstop": 38673400
+      },
+      {
+       "annotationrelease": "RS_2024_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000017.11",
+       "chrstart": 37745058,
+       "chrstop": 37686430
+      },
+      {
+       "annotationrelease": "RS_2024_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_187614.1",
+       "chrstart": 1984114,
+       "chrstop": 1925498
+      },
+      {
+       "annotationrelease": "RS_2024_08",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060941.1",
+       "chrstart": 38732031,
+       "chrstop": 38673400
+      },
+      {
+       "annotationrelease": "RS_2023_10",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000017.11",
+       "chrstart": 37745058,
+       "chrstop": 37686430
+      },
+      {
+       "annotationrelease": "RS_2023_10",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_187614.1",
+       "chrstart": 1984114,
+       "chrstop": 1925498
+      },
+      {
+       "annotationrelease": "RS_2023_10",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060941.1",
+       "chrstart": 38732031,
+       "chrstop": 38673400
+      },
+      {
+       "annotationrelease": "RS_2023_03",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000017.11",
+       "chrstart": 37745058,
+       "chrstop": 37686430
+      },
+      {
+       "annotationrelease": "RS_2023_03",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_187614.1",
+       "chrstart": 1984114,
+       "chrstop": 1925498
+      },
+      {
+       "annotationrelease": "RS_2023_03",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060941.1",
+       "chrstart": 38732031,
+       "chrstop": 38673400
+      },
+      {
+       "annotationrelease": "110",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000017.11",
+       "chrstart": 37745058,
+       "chrstop": 37686430
+      },
+      {
+       "annotationrelease": "110",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_187614.1",
+       "chrstart": 1984114,
+       "chrstop": 1925498
+      },
+      {
+       "annotationrelease": "110",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060941.1",
+       "chrstart": 38732031,
+       "chrstop": 38673400
+      },
+      {
+       "annotationrelease": "109.20211119",
+       "assemblyaccver": "GCF_000001405.39",
+       "chraccver": "NC_000017.11",
+       "chrstart": 37745058,
+       "chrstop": 37686430
+      },
+      {
+       "annotationrelease": "109.20211119",
+       "assemblyaccver": "GCF_000001405.39",
+       "chraccver": "NT_187614.1",
+       "chrstart": 1984114,
+       "chrstop": 1925498
+      },
+      {
+       "annotationrelease": "RS_2024_09",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NC_000017.10",
+       "chrstart": 36105049,
+       "chrstop": 36046433
+      },
+      {
+       "annotationrelease": "105.20220307",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NC_000017.10",
+       "chrstart": 36105049,
+       "chrstop": 36046433
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NC_000017.10",
+       "chrstart": 36105095,
+       "chrstop": 36046433
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000002125.1",
+       "chraccver": "AC_000149.1",
+       "chrstart": 32042659,
+       "chrstop": 31984119
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000306695.2",
+       "chraccver": "NC_018928.2",
+       "chrstart": 36136667,
+       "chrstop": 36077993
+      }
+     ]
+    }
+   }
+  },
+  "IFNL3": {
+   "header": {
+    "type": "esummary",
+    "version": "0.3"
+   },
+   "result": {
+    "uids": [
+     "282617"
+    ],
+    "282617": {
+     "uid": "282617",
+     "name": "IFNL3",
+     "description": "interferon lambda 3",
+     "status": "",
+     "currentid": "",
+     "chromosome": "19",
+     "geneticsource": "genomic",
+     "maplocation": "19q13.2",
+     "otheraliases": "IFN-lambda-3, IFN-lambda-4, IL-28B, IL-28C, IL28B, IL28C",
+     "otherdesignations": "interferon lambda-3|cytokine Zcyto22|interferon, lambda 4|interleukin-28B|interleukin-28C",
+     "nomenclaturesymbol": "IFNL3",
+     "nomenclaturename": "interferon lambda 3",
+     "nomenclaturestatus": "Official",
+     "mim": [
+      "607402"
+     ],
+     "genomicinfo": [
+      {
+       "chrloc": "19",
+       "chraccver": "NC_000019.10",
+       "chrstart": 39245249,
+       "chrstop": 39243454,
+       "exoncount": 6
+      }
+     ],
+     "geneweight": 32349,
+     "summary": "This gene encodes a cytokine distantly related to type I interferons and the IL-10 family. This gene, interleukin 28A (IL28A), and interleukin 29 (IL29) are three closely related cytokine genes that form a cytokine gene cluster on a chromosomal region mapped to 19q13. Expression of the cytokines encoded by the three genes can be induced by viral infection. All three cytokines have been shown to interact with a heterodimeric class II cytokine receptor that consists of interleukin 10 receptor, beta (IL10RB) and interleukin 28 receptor, alpha (IL28RA). [provided by RefSeq, Jul 2008]",
+     "chrsort": "19",
+     "chrstart": 39243454,
+     "organism": {
+      "scientificname": "Homo sapiens",
+      "commonname": "human",
+      "taxid": 9606
+     },
+     "locationhist": [
+      {
+       "annotationrelease": "RS_2025_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000019.10",
+       "chrstart": 39245249,
+       "chrstop": 39243454
+      },
+      {
+       "annotationrelease": "RS_2025_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NW_025791808.1",
+       "chrstart": 25632,
+       "chrstop": 23837
+      },
+      {
+       "annotationrelease": "RS_2025_08",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060943.1",
+       "chrstart": 42049514,
+       "chrstop": 42047719
+      },
+      {
+       "annotationrelease": "RS_2024_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000019.10",
+       "chrstart": 39245249,
+       "chrstop": 39243454
+      },
+      {
+       "annotationrelease": "RS_2024_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NW_025791808.1",
+       "chrstart": 25632,
+       "chrstop": 23837
+      },
+      {
+       "annotationrelease": "RS_2024_08",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060943.1",
+       "chrstart": 42049514,
+       "chrstop": 42047719
+      },
+      {
+       "annotationrelease": "RS_2023_10",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000019.10",
+       "chrstart": 39245249,
+       "chrstop": 39243454
+      },
+      {
+       "annotationrelease": "RS_2023_10",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NW_025791808.1",
+       "chrstart": 25632,
+       "chrstop": 23837
+      },
+      {
+       "annotationrelease": "RS_2023_10",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060943.1",
+       "chrstart": 42049514,
+       "chrstop": 42047719
+      },
+      {
+       "annotationrelease": "RS_2023_03",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000019.10",
+       "chrstart": 39245249,
+       "chrstop": 39243454
+      },
+      {
+       "annotationrelease": "RS_2023_03",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NW_025791808.1",
+       "chrstart": 25632,
+       "chrstop": 23837
+      },
+      {
+       "annotationrelease": "RS_2023_03",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060943.1",
+       "chrstart": 42049514,
+       "chrstop": 42047719
+      },
+      {
+       "annotationrelease": "110",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000019.10",
+       "chrstart": 39245249,
+       "chrstop": 39243454
+      },
+      {
+       "annotationrelease": "110",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NW_025791808.1",
+       "chrstart": 25632,
+       "chrstop": 23837
+      },
+      {
+       "annotationrelease": "110",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060943.1",
+       "chrstart": 42049514,
+       "chrstop": 42047719
+      },
+      {
+       "annotationrelease": "109.20211119",
+       "assemblyaccver": "GCF_000001405.39",
+       "chraccver": "NC_000019.10",
+       "chrstart": 39245249,
+       "chrstop": 39243454
+      },
+      {
+       "annotationrelease": "RS_2024_09",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NC_000019.9",
+       "chrstart": 39735889,
+       "chrstop": 39734094
+      },
+      {
+       "annotationrelease": "105.20220307",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NC_000019.9",
+       "chrstart": 39735889,
+       "chrstop": 39734094
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NC_000019.9",
+       "chrstart": 39735915,
+       "chrstop": 39734271
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000002125.1",
+       "chraccver": "AC_000151.1",
+       "chrstart": 36182657,
+       "chrstop": 36181318
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000306695.2",
+       "chraccver": "NC_018930.2",
+       "chrstart": 39736419,
+       "chrstop": 39735080
+      }
+     ]
+    }
+   }
+  },
+  "IFNL4": {
+   "header": {
+    "type": "esummary",
+    "version": "0.3"
+   },
+   "result": {
+    "uids": [
+     "101180976"
+    ],
+    "101180976": {
+     "uid": "101180976",
+     "name": "IFNL4",
+     "description": "interferon lambda 4 (gene/pseudogene)",
+     "status": "",
+     "currentid": "",
+     "chromosome": "19",
+     "geneticsource": "genomic",
+     "maplocation": "19q13.2",
+     "otheraliases": "IFNAN",
+     "otherdesignations": "interferon lambda-4|IFN-lambda-4|interferon, lambda 4",
+     "nomenclaturesymbol": "IFNL4",
+     "nomenclaturename": "interferon lambda 4 (gene/pseudogene)",
+     "nomenclaturestatus": "Official",
+     "mim": [
+      "615090"
+     ],
+     "genomicinfo": [
+      {
+       "chrloc": "19",
+       "chraccver": "NC_000019.10",
+       "chrstart": 39248855,
+       "chrstop": 39246313,
+       "exoncount": 5
+      }
+     ],
+     "geneweight": 12263,
+     "summary": "This gene is a polymorphic pseudogene which, in some humans, encodes the interferon (IFN) lambda 4 protein. Humans are polymorphic for the dinucleotide TT/deltaG allele. Compared to the ancestral state in non-human primates, the TT allele produces a frameshift in the coding region of this gene which is predicted to induce nonsense-mediated mRNA decay. This allele, and an allele in the first intron of this gene, have experienced a rapid increase in frequency and show indications of positive selection. The ancestral states of these alleles are associated with an impaired ability to clear hepatitis C virus. This gene, like other type III interferons (IFNs), interacts with the IFN lambda receptor complex (IFNLR) whose signaling is generally restricted to epithelial cells. This gene resides in a cluster of four type III IFN genes and at least two pseudogenes on chromosome 19q13.2. In general, interferons are produced in response to viral infection and block viral replication and propagation to uninfected cells by activating the JAK-STAT pathway and up-regulating antiviral genes. Multiple alternatively spliced transcripts have been described for this gene but their biological validity and protein coding status is still being ascertained. [provided by RefSeq, May 2017]",
+     "chrsort": "19",
+     "chrstart": 39246313,
+     "organism": {
+      "scientificname": "Homo sapiens",
+      "commonname": "human",
+      "taxid": 9606
+     },
+     "locationhist": [
+      {
+       "annotationrelease": "RS_2025_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000019.10",
+       "chrstart": 39248855,
+       "chrstop": 39246313
+      },
+      {
+       "annotationrelease": "RS_2025_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NW_025791808.1",
+       "chrstart": 29237,
+       "chrstop": 26696
+      },
+      {
+       "annotationrelease": "RS_2025_08",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060943.1",
+       "chrstart": 42053124,
+       "chrstop": 42050582
+      },
+      {
+       "annotationrelease": "RS_2024_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000019.10",
+       "chrstart": 39248855,
+       "chrstop": 39246313
+      },
+      {
+       "annotationrelease": "RS_2024_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NW_025791808.1",
+       "chrstart": 29237,
+       "chrstop": 26696
+      },
+      {
+       "annotationrelease": "RS_2024_08",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060943.1",
+       "chrstart": 42053124,
+       "chrstop": 42050582
+      },
+      {
+       "annotationrelease": "RS_2023_10",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000019.10",
+       "chrstart": 39248855,
+       "chrstop": 39246313
+      },
+      {
+       "annotationrelease": "RS_2023_10",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NW_025791808.1",
+       "chrstart": 29237,
+       "chrstop": 26696
+      },
+      {
+       "annotationrelease": "RS_2023_10",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060943.1",
+       "chrstart": 42053124,
+       "chrstop": 42050582
+      },
+      {
+       "annotationrelease": "RS_2023_03",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000019.10",
+       "chrstart": 39248855,
+       "chrstop": 39246313
+      },
+      {
+       "annotationrelease": "RS_2023_03",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NW_025791808.1",
+       "chrstart": 29237,
+       "chrstop": 26696
+      },
+      {
+       "annotationrelease": "RS_2023_03",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060943.1",
+       "chrstart": 42053124,
+       "chrstop": 42050582
+      },
+      {
+       "annotationrelease": "110",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000019.10",
+       "chrstart": 39248855,
+       "chrstop": 39246313
+      },
+      {
+       "annotationrelease": "110",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NW_025791808.1",
+       "chrstart": 29237,
+       "chrstop": 26696
+      },
+      {
+       "annotationrelease": "110",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060943.1",
+       "chrstart": 42053124,
+       "chrstop": 42050582
+      },
+      {
+       "annotationrelease": "109.20211119",
+       "assemblyaccver": "GCF_000001405.39",
+       "chraccver": "NC_000019.10",
+       "chrstart": 39248855,
+       "chrstop": 39246313
+      },
+      {
+       "annotationrelease": "RS_2024_09",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NC_000019.9",
+       "chrstart": 39739495,
+       "chrstop": 39736953
+      },
+      {
+       "annotationrelease": "105.20220307",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NC_000019.9",
+       "chrstart": 39739495,
+       "chrstop": 39736953
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NC_000019.9",
+       "chrstart": 39739495,
+       "chrstop": 39736953
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000002125.1",
+       "chraccver": "AC_000151.1",
+       "chrstart": 36186539,
+       "chrstop": 36183998
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000306695.2",
+       "chraccver": "NC_018930.2",
+       "chrstart": 39740304,
+       "chrstop": 39737762
+      }
+     ]
+    }
+   }
+  },
+  "IGF2BP2": {
+   "header": {
+    "type": "esummary",
+    "version": "0.3"
+   },
+   "result": {
+    "uids": [
+     "10644"
+    ],
+    "10644": {
+     "uid": "10644",
+     "name": "IGF2BP2",
+     "description": "insulin like growth factor 2 mRNA binding protein 2",
+     "status": "",
+     "currentid": "",
+     "chromosome": "3",
+     "geneticsource": "genomic",
+     "maplocation": "3q27.2",
+     "otheraliases": "IMP-2, IMP2, VICKZ2",
+     "otherdesignations": "insulin-like growth factor 2 mRNA-binding protein 2|IGF-II mRNA-binding protein 2|IGF2 mRNA-binding protein 2|VICKZ family member 2",
+     "nomenclaturesymbol": "IGF2BP2",
+     "nomenclaturename": "insulin like growth factor 2 mRNA binding protein 2",
+     "nomenclaturestatus": "Official",
+     "mim": [
+      "608289"
+     ],
+     "genomicinfo": [
+      {
+       "chrloc": "3",
+       "chraccver": "NC_000003.12",
+       "chrstart": 185825041,
+       "chrstop": 185643129,
+       "exoncount": 24
+      }
+     ],
+     "geneweight": 23163,
+     "summary": "This gene encodes a protein that binds the 5' UTR of insulin-like growth factor 2 (IGF2) mRNA and regulates its translation. It plays an important role in metabolism and variation in this gene is associated with susceptibility to diabetes. Alternative splicing and promoter usage results in multiple transcript variants. Related pseudogenes are found on several chromosomes. [provided by RefSeq, Sep 2016]",
+     "chrsort": "03",
+     "chrstart": 185643129,
+     "organism": {
+      "scientificname": "Homo sapiens",
+      "commonname": "human",
+      "taxid": 9606
+     },
+     "locationhist": [
+      {
+       "annotationrelease": "RS_2025_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000003.12",
+       "chrstart": 185825041,
+       "chrstop": 185643129
+      },
+      {
+       "annotationrelease": "RS_2025_08",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060927.1",
+       "chrstart": 188640754,
+       "chrstop": 188458960
+      },
+      {
+       "annotationrelease": "RS_2024_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000003.12",
+       "chrstart": 185825041,
+       "chrstop": 185643129
+      },
+      {
+       "annotationrelease": "RS_2024_08",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060927.1",
+       "chrstart": 188640754,
+       "chrstop": 188458960
+      },
+      {
+       "annotationrelease": "RS_2023_10",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000003.12",
+       "chrstart": 185825041,
+       "chrstop": 185643129
+      },
+      {
+       "annotationrelease": "RS_2023_10",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060927.1",
+       "chrstart": 188640754,
+       "chrstop": 188458960
+      },
+      {
+       "annotationrelease": "RS_2023_03",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000003.12",
+       "chrstart": 185825041,
+       "chrstop": 185643129
+      },
+      {
+       "annotationrelease": "RS_2023_03",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060927.1",
+       "chrstart": 188640754,
+       "chrstop": 188458960
+      },
+      {
+       "annotationrelease": "110",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000003.12",
+       "chrstart": 185825041,
+       "chrstop": 185643129
+      },
+      {
+       "annotationrelease": "110",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060927.1",
+       "chrstart": 188640754,
+       "chrstop": 188458960
+      },
+      {
+       "annotationrelease": "109.20211119",
+       "assemblyaccver": "GCF_000001405.39",
+       "chraccver": "NC_000003.12",
+       "chrstart": 185825045,
+       "chrstop": 185643129
+      },
+      {
+       "annotationrelease": "RS_2024_09",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NC_000003.11",
+       "chrstart": 185542829,
+       "chrstop": 185360917
+      },
+      {
+       "annotationrelease": "105.20220307",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NC_000003.11",
+       "chrstart": 185542829,
+       "chrstop": 185360917
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NC_000003.11",
+       "chrstart": 185542826,
+       "chrstop": 185361526
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000002125.1",
+       "chraccver": "AC_000135.1",
+       "chrstart": 182953822,
+       "chrstop": 182771321
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000306695.2",
+       "chraccver": "NC_018914.2",
+       "chrstart": 185505779,
+       "chrstop": 185324445
+      }
+     ]
+    }
+   }
+  },
+  "IL10": {
+   "header": {
+    "type": "esummary",
+    "version": "0.3"
+   },
+   "result": {
+    "uids": [
+     "3586"
+    ],
+    "3586": {
+     "uid": "3586",
+     "name": "IL10",
+     "description": "interleukin 10",
+     "status": "",
+     "currentid": "",
+     "chromosome": "1",
+     "geneticsource": "genomic",
+     "maplocation": "1q32.1",
+     "otheraliases": "CSIF, GVHDS, IL-10, IL10A, TGIF",
+     "otherdesignations": "interleukin-10|T-cell growth inhibitory factor|cytokine synthesis inhibitory factor",
+     "nomenclaturesymbol": "IL10",
+     "nomenclaturename": "interleukin 10",
+     "nomenclaturestatus": "Official",
+     "mim": [
+      "124092"
+     ],
+     "genomicinfo": [
+      {
+       "chrloc": "1",
+       "chraccver": "NC_000001.11",
+       "chrstart": 206772493,
+       "chrstop": 206767601,
+       "exoncount": 7
+      }
+     ],
+     "geneweight": 285921,
+     "summary": "The protein encoded by this gene is a cytokine produced primarily by monocytes and to a lesser extent by lymphocytes. This cytokine has pleiotropic effects in immunoregulation and inflammation. It down-regulates the expression of Th1 cytokines, MHC class II Ags, and costimulatory molecules on macrophages. It also enhances B cell survival, proliferation, and antibody production. This cytokine can block NF-kappa B activity, and is involved in the regulation of the JAK-STAT signaling pathway. Knockout studies in mice suggested the function of this cytokine as an essential immunoregulator in the intestinal tract. Mutations in this gene are associated with an increased susceptibility to HIV-1 infection and rheumatoid arthritis. [provided by RefSeq, May 2020]",
+     "chrsort": "01",
+     "chrstart": 206767601,
+     "organism": {
+      "scientificname": "Homo sapiens",
+      "commonname": "human",
+      "taxid": 9606
+     },
+     "locationhist": [
+      {
+       "annotationrelease": "RS_2025_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000001.11",
+       "chrstart": 206772493,
+       "chrstop": 206767601
+      },
+      {
+       "annotationrelease": "RS_2025_08",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060925.1",
+       "chrstart": 206036694,
+       "chrstop": 206031802
+      },
+      {
+       "annotationrelease": "RS_2024_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000001.11",
+       "chrstart": 206772493,
+       "chrstop": 206767601
+      },
+      {
+       "annotationrelease": "RS_2024_08",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060925.1",
+       "chrstart": 206036694,
+       "chrstop": 206031802
+      },
+      {
+       "annotationrelease": "RS_2023_10",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000001.11",
+       "chrstart": 206772493,
+       "chrstop": 206767601
+      },
+      {
+       "annotationrelease": "RS_2023_10",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060925.1",
+       "chrstart": 206036694,
+       "chrstop": 206031802
+      },
+      {
+       "annotationrelease": "RS_2023_03",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000001.11",
+       "chrstart": 206772493,
+       "chrstop": 206767601
+      },
+      {
+       "annotationrelease": "RS_2023_03",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060925.1",
+       "chrstart": 206036694,
+       "chrstop": 206031802
+      },
+      {
+       "annotationrelease": "110",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000001.11",
+       "chrstart": 206772493,
+       "chrstop": 206767601
+      },
+      {
+       "annotationrelease": "110",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060925.1",
+       "chrstart": 206036694,
+       "chrstop": 206031802
+      },
+      {
+       "annotationrelease": "109.20211119",
+       "assemblyaccver": "GCF_000001405.39",
+       "chraccver": "NC_000001.11",
+       "chrstart": 206772493,
+       "chrstop": 206767601
+      },
+      {
+       "annotationrelease": "RS_2024_09",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NC_000001.10",
+       "chrstart": 206945838,
+       "chrstop": 206940946
+      },
+      {
+       "annotationrelease": "105.20220307",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NC_000001.10",
+       "chrstart": 206945838,
+       "chrstop": 206940946
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NC_000001.10",
+       "chrstart": 206945838,
+       "chrstop": 206940947
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000002125.1",
+       "chraccver": "AC_000133.1",
+       "chrstart": 177644164,
+       "chrstop": 177639273
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000306695.2",
+       "chraccver": "NC_018912.2",
+       "chrstart": 208218464,
+       "chrstop": 208213573
+      }
+     ]
+    }
+   }
+  },
+  "MTHFR": {
+   "header": {
+    "type": "esummary",
+    "version": "0.3"
+   },
+   "result": {
+    "uids": [
+     "4524"
+    ],
+    "4524": {
+     "uid": "4524",
+     "name": "MTHFR",
+     "description": "methylenetetrahydrofolate reductase",
+     "status": "",
+     "currentid": "",
+     "chromosome": "1",
+     "geneticsource": "genomic",
+     "maplocation": "1p36.22",
+     "otheraliases": "",
+     "otherdesignations": "methylenetetrahydrofolate reductase (NADPH)|5,10-methylenetetrahydrofolate reductase (NADPH)|methylenetetrahydrofolate reductase (NAD(P)H)",
+     "nomenclaturesymbol": "MTHFR",
+     "nomenclaturename": "methylenetetrahydrofolate reductase",
+     "nomenclaturestatus": "Official",
+     "mim": [
+      "607093"
+     ],
+     "genomicinfo": [
+      {
+       "chrloc": "1",
+       "chraccver": "NC_000001.11",
+       "chrstart": 11805963,
+       "chrstop": 11785722,
+       "exoncount": 13
+      }
+     ],
+     "geneweight": 236815,
+     "summary": "The protein encoded by this gene catalyzes the conversion of 5,10-methylenetetrahydrofolate to 5-methyltetrahydrofolate, a co-substrate for homocysteine remethylation to methionine. Genetic variation in this gene influences susceptibility to occlusive vascular disease, neural tube defects, colon cancer and acute leukemia, and mutations in this gene are associated with methylenetetrahydrofolate reductase deficiency.[provided by RefSeq, Oct 2009]",
+     "chrsort": "01",
+     "chrstart": 11785722,
+     "organism": {
+      "scientificname": "Homo sapiens",
+      "commonname": "human",
+      "taxid": 9606
+     },
+     "locationhist": [
+      {
+       "annotationrelease": "RS_2025_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000001.11",
+       "chrstart": 11805963,
+       "chrstop": 11785722
+      },
+      {
+       "annotationrelease": "RS_2025_08",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060925.1",
+       "chrstart": 11350047,
+       "chrstop": 11329801
+      },
+      {
+       "annotationrelease": "RS_2024_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000001.11",
+       "chrstart": 11805963,
+       "chrstop": 11785722
+      },
+      {
+       "annotationrelease": "RS_2024_08",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060925.1",
+       "chrstart": 11350047,
+       "chrstop": 11329801
+      },
+      {
+       "annotationrelease": "RS_2023_10",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000001.11",
+       "chrstart": 11805963,
+       "chrstop": 11785722
+      },
+      {
+       "annotationrelease": "RS_2023_10",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060925.1",
+       "chrstart": 11350047,
+       "chrstop": 11329801
+      },
+      {
+       "annotationrelease": "RS_2023_03",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000001.11",
+       "chrstart": 11805963,
+       "chrstop": 11785722
+      },
+      {
+       "annotationrelease": "RS_2023_03",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060925.1",
+       "chrstart": 11350047,
+       "chrstop": 11329801
+      },
+      {
+       "annotationrelease": "110",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000001.11",
+       "chrstart": 11805963,
+       "chrstop": 11785722
+      },
+      {
+       "annotationrelease": "110",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060925.1",
+       "chrstart": 11350047,
+       "chrstop": 11329801
+      },
+      {
+       "annotationrelease": "109.20211119",
+       "assemblyaccver": "GCF_000001405.39",
+       "chraccver": "NC_000001.11",
+       "chrstart": 11806102,
+       "chrstop": 11785722
+      },
+      {
+       "annotationrelease": "RS_2024_09",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NC_000001.10",
+       "chrstart": 11866020,
+       "chrstop": 11845779
+      },
+      {
+       "annotationrelease": "105.20220307",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NC_000001.10",
+       "chrstart": 11866020,
+       "chrstop": 11845779
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NC_000001.10",
+       "chrstart": 11866159,
+       "chrstop": 11845786
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000002125.1",
+       "chraccver": "AC_000133.1",
+       "chrstart": 11021216,
+       "chrstop": 11000871
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000306695.2",
+       "chraccver": "NC_018912.2",
+       "chrstart": 11854053,
+       "chrstop": 11833708
+      }
+     ]
+    }
+   }
+  },
+  "PAH": {
+   "header": {
+    "type": "esummary",
+    "version": "0.3"
+   },
+   "result": {
+    "uids": [
+     "5053"
+    ],
+    "5053": {
+     "uid": "5053",
+     "name": "PAH",
+     "description": "phenylalanine hydroxylase",
+     "status": "",
+     "currentid": "",
+     "chromosome": "12",
+     "geneticsource": "genomic",
+     "maplocation": "12q23.2",
+     "otheraliases": "PH, PKU, PKU1",
+     "otherdesignations": "phenylalanine-4-hydroxylase|L-phenylalanine hydroxylase|phe-4-monooxygenase|phenylalanine 4-monooxygenase",
+     "nomenclaturesymbol": "PAH",
+     "nomenclaturename": "phenylalanine hydroxylase",
+     "nomenclaturestatus": "Official",
+     "mim": [
+      "612349"
+     ],
+     "genomicinfo": [
+      {
+       "chrloc": "12",
+       "chraccver": "NC_000012.12",
+       "chrstart": 102958440,
+       "chrstop": 102836888,
+       "exoncount": 15
+      }
+     ],
+     "geneweight": 19228,
+     "summary": "This gene encodes a member of the biopterin-dependent aromatic amino acid hydroxylase protein family. The encoded phenylalanine hydroxylase enzyme hydroxylates phenylalanine to tyrosine and is the rate-limiting step in phenylalanine catabolism. Deficiency of this enzyme activity results in the autosomal recessive disorder phenylketonuria. [provided by RefSeq, Aug 2017]",
+     "chrsort": "12",
+     "chrstart": 102836888,
+     "organism": {
+      "scientificname": "Homo sapiens",
+      "commonname": "human",
+      "taxid": 9606
+     },
+     "locationhist": [
+      {
+       "annotationrelease": "RS_2025_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000012.12",
+       "chrstart": 102958440,
+       "chrstop": 102836888
+      },
+      {
+       "annotationrelease": "RS_2025_08",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060936.1",
+       "chrstart": 102919264,
+       "chrstop": 102797867
+      },
+      {
+       "annotationrelease": "RS_2024_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000012.12",
+       "chrstart": 102958440,
+       "chrstop": 102836888
+      },
+      {
+       "annotationrelease": "RS_2024_08",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060936.1",
+       "chrstart": 102919264,
+       "chrstop": 102797867
+      },
+      {
+       "annotationrelease": "RS_2023_10",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000012.12",
+       "chrstart": 102958440,
+       "chrstop": 102836888
+      },
+      {
+       "annotationrelease": "RS_2023_10",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060936.1",
+       "chrstart": 102919264,
+       "chrstop": 102797867
+      },
+      {
+       "annotationrelease": "RS_2023_03",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000012.12",
+       "chrstart": 102958440,
+       "chrstop": 102836888
+      },
+      {
+       "annotationrelease": "RS_2023_03",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060936.1",
+       "chrstart": 102919264,
+       "chrstop": 102797867
+      },
+      {
+       "annotationrelease": "110",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000012.12",
+       "chrstart": 102958440,
+       "chrstop": 102836888
+      },
+      {
+       "annotationrelease": "110",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060936.1",
+       "chrstart": 102919264,
+       "chrstop": 102797867
+      },
+      {
+       "annotationrelease": "109.20211119",
+       "assemblyaccver": "GCF_000001405.39",
+       "chraccver": "NC_000012.12",
+       "chrstart": 102958440,
+       "chrstop": 102836888
+      },
+      {
+       "annotationrelease": "RS_2024_09",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NC_000012.11",
+       "chrstart": 103352218,
+       "chrstop": 103230666
+      },
+      {
+       "annotationrelease": "105.20220307",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NC_000012.11",
+       "chrstart": 103352218,
+       "chrstop": 103230666
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NC_000012.11",
+       "chrstart": 103311380,
+       "chrstop": 103232103
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000002125.1",
+       "chraccver": "AC_000144.1",
+       "chrstart": 100370681,
+       "chrstop": 100291596
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000306695.2",
+       "chraccver": "NC_018923.2",
+       "chrstart": 103278174,
+       "chrstop": 103199003
+      }
+     ]
+    }
+   }
+  },
+  "PON1": {
+   "header": {
+    "type": "esummary",
+    "version": "0.3"
+   },
+   "result": {
+    "uids": [
+     "5444"
+    ],
+    "5444": {
+     "uid": "5444",
+     "name": "PON1",
+     "description": "paraoxonase 1",
+     "status": "",
+     "currentid": "",
+     "chromosome": "7",
+     "geneticsource": "genomic",
+     "maplocation": "7q21.3",
+     "otheraliases": "ESA, MVCD5, PON",
+     "otherdesignations": "serum paraoxonase/arylesterase 1|A-esterase 1|K-45|PON 1|aromatic esterase 1|arylesterase 1|arylesterase B-type|esterase A|paraoxonase B-type|serum aryldiakylphosphatase|serum aryldialkylphosphatase 1",
+     "nomenclaturesymbol": "PON1",
+     "nomenclaturename": "paraoxonase 1",
+     "nomenclaturestatus": "Official",
+     "mim": [
+      "168820"
+     ],
+     "genomicinfo": [
+      {
+       "chrloc": "7",
+       "chraccver": "NC_000007.14",
+       "chrstart": 95324531,
+       "chrstop": 95297675,
+       "exoncount": 9
+      }
+     ],
+     "geneweight": 123480,
+     "summary": "This gene encodes a member of the paraoxonase family of enzymes and exhibits lactonase and ester hydrolase activity. Following synthesis in the kidney and liver, the enzyme is secreted into the circulation, where it binds to high density lipoprotein (HDL) particles and hydrolyzes thiolactones and xenobiotics, including paraoxon, a metabolite of the insecticide parathion. Polymorphisms in this gene may be associated with coronary artery disease and diabetic retinopathy. The gene is found in a cluster of three related paraoxonase genes on chromosome 7. [provided by RefSeq, Aug 2017]",
+     "chrsort": "07",
+     "chrstart": 95297675,
+     "organism": {
+      "scientificname": "Homo sapiens",
+      "commonname": "human",
+      "taxid": 9606
+     },
+     "locationhist": [
+      {
+       "annotationrelease": "RS_2025_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000007.14",
+       "chrstart": 95324531,
+       "chrstop": 95297675
+      },
+      {
+       "annotationrelease": "RS_2025_08",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060931.1",
+       "chrstart": 96560686,
+       "chrstop": 96533831
+      },
+      {
+       "annotationrelease": "RS_2024_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000007.14",
+       "chrstart": 95324531,
+       "chrstop": 95297675
+      },
+      {
+       "annotationrelease": "RS_2024_08",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060931.1",
+       "chrstart": 96560686,
+       "chrstop": 96533831
+      },
+      {
+       "annotationrelease": "RS_2023_10",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000007.14",
+       "chrstart": 95324531,
+       "chrstop": 95297675
+      },
+      {
+       "annotationrelease": "RS_2023_10",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060931.1",
+       "chrstart": 96560686,
+       "chrstop": 96533831
+      },
+      {
+       "annotationrelease": "RS_2023_03",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000007.14",
+       "chrstart": 95324531,
+       "chrstop": 95297675
+      },
+      {
+       "annotationrelease": "RS_2023_03",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060931.1",
+       "chrstart": 96560686,
+       "chrstop": 96533831
+      },
+      {
+       "annotationrelease": "110",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000007.14",
+       "chrstart": 95324531,
+       "chrstop": 95297675
+      },
+      {
+       "annotationrelease": "110",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060931.1",
+       "chrstart": 96560686,
+       "chrstop": 96533831
+      },
+      {
+       "annotationrelease": "109.20211119",
+       "assemblyaccver": "GCF_000001405.39",
+       "chraccver": "NC_000007.14",
+       "chrstart": 95324531,
+       "chrstop": 95297675
+      },
+      {
+       "annotationrelease": "RS_2024_09",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NC_000007.13",
+       "chrstart": 94953843,
+       "chrstop": 94926987
+      },
+      {
+       "annotationrelease": "105.20220307",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NC_000007.13",
+       "chrstart": 94953843,
+       "chrstop": 94926987
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NC_000007.13",
+       "chrstart": 94953883,
+       "chrstop": 94927668
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000002135.2",
+       "chraccver": "AC_000068.1",
+       "chrstart": 94282883,
+       "chrstop": 94256664
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000002125.1",
+       "chraccver": "AC_000139.1",
+       "chrstart": 89560921,
+       "chrstop": 89534700
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000306695.2",
+       "chraccver": "NC_018918.2",
+       "chrstart": 94883915,
+       "chrstop": 94857683
+      }
+     ]
+    }
+   }
+  },
+  "SLC6A4": {
+   "header": {
+    "type": "esummary",
+    "version": "0.3"
+   },
+   "result": {
+    "uids": [
+     "6532"
+    ],
+    "6532": {
+     "uid": "6532",
+     "name": "SLC6A4",
+     "description": "solute carrier family 6 member 4",
+     "status": "",
+     "currentid": "",
+     "chromosome": "17",
+     "geneticsource": "genomic",
+     "maplocation": "17q11.2",
+     "otheraliases": "5-HTT, 5-HTTLPR, 5HTT, HTT, OCD1, SERT, SERT1, hSERT",
+     "otherdesignations": "sodium-dependent serotonin transporter|5-hydroxytryptamine (serotonin) transporter|5HT transporter|Na+/Cl- dependent serotonin transporter|serotonin transporter 1|solute carrier family 6 (neurotransmitter transporter), member 4|solute carrier family 6 (neurotransmitter transporter, serotonin), member 4",
+     "nomenclaturesymbol": "SLC6A4",
+     "nomenclaturename": "solute carrier family 6 member 4",
+     "nomenclaturestatus": "Official",
+     "mim": [
+      "182138"
+     ],
+     "genomicinfo": [
+      {
+       "chrloc": "17",
+       "chraccver": "NC_000017.11",
+       "chrstart": 30235696,
+       "chrstop": 30194318,
+       "exoncount": 15
+      }
+     ],
+     "geneweight": 177399,
+     "summary": "This gene encodes an integral membrane protein that transports the neurotransmitter serotonin from synaptic spaces into presynaptic neurons. The encoded protein terminates the action of serotonin and recycles it in a sodium-dependent manner. This protein is a target of psychomotor stimulants, such as amphetamines and cocaine, and is a member of the sodium:neurotransmitter symporter family. A repeat length polymorphism in the promoter of this gene has been shown to affect the rate of serotonin uptake. There have been conflicting results in the literature about the possible effect, if any, that this polymorphism may play in behavior and depression. [provided by RefSeq, May 2019]",
+     "chrsort": "17",
+     "chrstart": 30194318,
+     "organism": {
+      "scientificname": "Homo sapiens",
+      "commonname": "human",
+      "taxid": 9606
+     },
+     "locationhist": [
+      {
+       "annotationrelease": "RS_2025_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000017.11",
+       "chrstart": 30235696,
+       "chrstop": 30194318
+      },
+      {
+       "annotationrelease": "RS_2025_08",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060941.1",
+       "chrstart": 31180230,
+       "chrstop": 31138871
+      },
+      {
+       "annotationrelease": "RS_2024_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000017.11",
+       "chrstart": 30235696,
+       "chrstop": 30194318
+      },
+      {
+       "annotationrelease": "RS_2024_08",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060941.1",
+       "chrstart": 31180230,
+       "chrstop": 31138871
+      },
+      {
+       "annotationrelease": "RS_2023_10",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000017.11",
+       "chrstart": 30235696,
+       "chrstop": 30194318
+      },
+      {
+       "annotationrelease": "RS_2023_10",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060941.1",
+       "chrstart": 31180230,
+       "chrstop": 31138871
+      },
+      {
+       "annotationrelease": "RS_2023_03",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000017.11",
+       "chrstart": 30235696,
+       "chrstop": 30194318
+      },
+      {
+       "annotationrelease": "RS_2023_03",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060941.1",
+       "chrstart": 31180230,
+       "chrstop": 31138871
+      },
+      {
+       "annotationrelease": "110",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000017.11",
+       "chrstart": 30235696,
+       "chrstop": 30194318
+      },
+      {
+       "annotationrelease": "110",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060941.1",
+       "chrstart": 31180230,
+       "chrstop": 31138871
+      },
+      {
+       "annotationrelease": "109.20211119",
+       "assemblyaccver": "GCF_000001405.39",
+       "chraccver": "NC_000017.11",
+       "chrstart": 30235696,
+       "chrstop": 30194318
+      },
+      {
+       "annotationrelease": "RS_2024_09",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NC_000017.10",
+       "chrstart": 28562714,
+       "chrstop": 28521336
+      },
+      {
+       "annotationrelease": "105.20220307",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NC_000017.10",
+       "chrstart": 28562714,
+       "chrstop": 28521336
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NC_000017.10",
+       "chrstart": 28562985,
+       "chrstop": 28521336
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000002125.1",
+       "chraccver": "AC_000149.1",
+       "chrstart": 24773326,
+       "chrstop": 24731683
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000306695.2",
+       "chraccver": "NC_018928.2",
+       "chrstart": 28625470,
+       "chrstop": 28583809
+      }
+     ]
+    }
+   }
+  },
+  "TNF": {
+   "header": {
+    "type": "esummary",
+    "version": "0.3"
+   },
+   "result": {
+    "uids": [
+     "7124"
+    ],
+    "7124": {
+     "uid": "7124",
+     "name": "TNF",
+     "description": "tumor necrosis factor",
+     "status": "",
+     "currentid": "",
+     "chromosome": "6",
+     "geneticsource": "genomic",
+     "maplocation": "6p21.33",
+     "otheraliases": "DIF, IMD127, TNF-alpha, TNFA, TNFSF2, TNLG1F",
+     "otherdesignations": "tumor necrosis factor|APC1 protein|TNF, macrophage-derived|TNF, monocyte-derived|TNF-a|tumor necrosis factor ligand 1F|tumor necrosis factor ligand superfamily member 2|tumor necrosis factor-alpha|tumor necrotic factor alpha",
+     "nomenclaturesymbol": "TNF",
+     "nomenclaturename": "tumor necrosis factor",
+     "nomenclaturestatus": "Official",
+     "mim": [
+      "191160"
+     ],
+     "genomicinfo": [
+      {
+       "chrloc": "6",
+       "chraccver": "NC_000006.12",
+       "chrstart": 31575564,
+       "chrstop": 31578335,
+       "exoncount": 4
+      }
+     ],
+     "geneweight": 332121,
+     "summary": "This gene encodes a multifunctional proinflammatory cytokine that belongs to the tumor necrosis factor (TNF) superfamily. This cytokine is mainly secreted by macrophages. It can bind to, and thus functions through its receptors TNFRSF1A/TNFR1 and TNFRSF1B/TNFBR. This cytokine is involved in the regulation of a wide spectrum of biological processes including cell proliferation, differentiation, apoptosis, lipid metabolism, and coagulation. This cytokine has been implicated in a variety of diseases, including autoimmune diseases, insulin resistance, psoriasis, rheumatoid arthritis ankylosing spondylitis, tuberculosis, autosomal dominant polycystic kidney disease, and cancer. Mutations in this gene affect susceptibility to cerebral malaria, septic shock, and Alzheimer disease. Knockout studies in mice also suggested the neuroprotective function of this cytokine. [provided by RefSeq, Aug 2020]",
+     "chrsort": "06",
+     "chrstart": 31575564,
+     "organism": {
+      "scientificname": "Homo sapiens",
+      "commonname": "human",
+      "taxid": 9606
+     },
+     "locationhist": [
+      {
+       "annotationrelease": "RS_2025_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000006.12",
+       "chrstart": 31575564,
+       "chrstop": 31578335
+      },
+      {
+       "annotationrelease": "RS_2025_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_113891.3",
+       "chrstart": 3052851,
+       "chrstop": 3055622
+      },
+      {
+       "annotationrelease": "RS_2025_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_167244.2",
+       "chrstart": 2909107,
+       "chrstop": 2910914
+      },
+      {
+       "annotationrelease": "RS_2025_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_167245.2",
+       "chrstart": 2823297,
+       "chrstop": 2826068
+      },
+      {
+       "annotationrelease": "RS_2025_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_167246.2",
+       "chrstart": 2880605,
+       "chrstop": 2883376
+      },
+      {
+       "annotationrelease": "RS_2025_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_167247.2",
+       "chrstart": 2917462,
+       "chrstop": 2920233
+      },
+      {
+       "annotationrelease": "RS_2025_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_167248.2",
+       "chrstart": 2831383,
+       "chrstop": 2834156
+      },
+      {
+       "annotationrelease": "RS_2025_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_167249.2",
+       "chrstart": 2874844,
+       "chrstop": 2877615
+      },
+      {
+       "annotationrelease": "RS_2025_08",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060930.1",
+       "chrstart": 31428616,
+       "chrstop": 31431387
+      },
+      {
+       "annotationrelease": "RS_2024_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000006.12",
+       "chrstart": 31575564,
+       "chrstop": 31578335
+      },
+      {
+       "annotationrelease": "RS_2024_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_113891.3",
+       "chrstart": 3052851,
+       "chrstop": 3055622
+      },
+      {
+       "annotationrelease": "RS_2024_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_167244.2",
+       "chrstart": 2909107,
+       "chrstop": 2910914
+      },
+      {
+       "annotationrelease": "RS_2024_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_167245.2",
+       "chrstart": 2823297,
+       "chrstop": 2826068
+      },
+      {
+       "annotationrelease": "RS_2024_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_167246.2",
+       "chrstart": 2880605,
+       "chrstop": 2883376
+      },
+      {
+       "annotationrelease": "RS_2024_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_167247.2",
+       "chrstart": 2917462,
+       "chrstop": 2920233
+      },
+      {
+       "annotationrelease": "RS_2024_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_167248.2",
+       "chrstart": 2831383,
+       "chrstop": 2834156
+      },
+      {
+       "annotationrelease": "RS_2024_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_167249.2",
+       "chrstart": 2874844,
+       "chrstop": 2877615
+      },
+      {
+       "annotationrelease": "RS_2024_08",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060930.1",
+       "chrstart": 31428616,
+       "chrstop": 31431387
+      },
+      {
+       "annotationrelease": "RS_2023_10",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000006.12",
+       "chrstart": 31575564,
+       "chrstop": 31578335
+      },
+      {
+       "annotationrelease": "RS_2023_10",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_113891.3",
+       "chrstart": 3052851,
+       "chrstop": 3055622
+      },
+      {
+       "annotationrelease": "RS_2023_10",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_167244.2",
+       "chrstart": 2909107,
+       "chrstop": 2910914
+      },
+      {
+       "annotationrelease": "RS_2023_10",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_167245.2",
+       "chrstart": 2823297,
+       "chrstop": 2826068
+      },
+      {
+       "annotationrelease": "RS_2023_10",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_167246.2",
+       "chrstart": 2880605,
+       "chrstop": 2883376
+      },
+      {
+       "annotationrelease": "RS_2023_10",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_167247.2",
+       "chrstart": 2917462,
+       "chrstop": 2920233
+      },
+      {
+       "annotationrelease": "RS_2023_10",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_167248.2",
+       "chrstart": 2831383,
+       "chrstop": 2834156
+      },
+      {
+       "annotationrelease": "RS_2023_10",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_167249.2",
+       "chrstart": 2874844,
+       "chrstop": 2877615
+      },
+      {
+       "annotationrelease": "RS_2023_10",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060930.1",
+       "chrstart": 31428616,
+       "chrstop": 31431387
+      },
+      {
+       "annotationrelease": "RS_2023_03",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000006.12",
+       "chrstart": 31575564,
+       "chrstop": 31578335
+      },
+      {
+       "annotationrelease": "RS_2023_03",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_113891.3",
+       "chrstart": 3052851,
+       "chrstop": 3055622
+      },
+      {
+       "annotationrelease": "RS_2023_03",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_167244.2",
+       "chrstart": 2909107,
+       "chrstop": 2910914
+      },
+      {
+       "annotationrelease": "RS_2023_03",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_167245.2",
+       "chrstart": 2823297,
+       "chrstop": 2826068
+      },
+      {
+       "annotationrelease": "RS_2023_03",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_167246.2",
+       "chrstart": 2880605,
+       "chrstop": 2883376
+      },
+      {
+       "annotationrelease": "RS_2023_03",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_167247.2",
+       "chrstart": 2917462,
+       "chrstop": 2920233
+      },
+      {
+       "annotationrelease": "RS_2023_03",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_167248.2",
+       "chrstart": 2831383,
+       "chrstop": 2834156
+      },
+      {
+       "annotationrelease": "RS_2023_03",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_167249.2",
+       "chrstart": 2874844,
+       "chrstop": 2877615
+      },
+      {
+       "annotationrelease": "RS_2023_03",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060930.1",
+       "chrstart": 31428616,
+       "chrstop": 31431387
+      },
+      {
+       "annotationrelease": "110",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000006.12",
+       "chrstart": 31575564,
+       "chrstop": 31578335
+      },
+      {
+       "annotationrelease": "110",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_113891.3",
+       "chrstart": 3052851,
+       "chrstop": 3055622
+      },
+      {
+       "annotationrelease": "110",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_167244.2",
+       "chrstart": 2909107,
+       "chrstop": 2910914
+      },
+      {
+       "annotationrelease": "110",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_167245.2",
+       "chrstart": 2823297,
+       "chrstop": 2826068
+      },
+      {
+       "annotationrelease": "110",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_167246.2",
+       "chrstart": 2880605,
+       "chrstop": 2883376
+      },
+      {
+       "annotationrelease": "110",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_167247.2",
+       "chrstart": 2917462,
+       "chrstop": 2920233
+      },
+      {
+       "annotationrelease": "110",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_167248.2",
+       "chrstart": 2831383,
+       "chrstop": 2834156
+      },
+      {
+       "annotationrelease": "110",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NT_167249.2",
+       "chrstart": 2874844,
+       "chrstop": 2877615
+      },
+      {
+       "annotationrelease": "110",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060930.1",
+       "chrstart": 31428616,
+       "chrstop": 31431387
+      },
+      {
+       "annotationrelease": "109.20211119",
+       "assemblyaccver": "GCF_000001405.39",
+       "chraccver": "NC_000006.12",
+       "chrstart": 31575564,
+       "chrstop": 31578335
+      },
+      {
+       "annotationrelease": "109.20211119",
+       "assemblyaccver": "GCF_000001405.39",
+       "chraccver": "NT_113891.3",
+       "chrstart": 3052851,
+       "chrstop": 3055622
+      },
+      {
+       "annotationrelease": "109.20211119",
+       "assemblyaccver": "GCF_000001405.39",
+       "chraccver": "NT_167244.2",
+       "chrstart": 2909107,
+       "chrstop": 2910914
+      },
+      {
+       "annotationrelease": "109.20211119",
+       "assemblyaccver": "GCF_000001405.39",
+       "chraccver": "NT_167245.2",
+       "chrstart": 2823297,
+       "chrstop": 2826068
+      },
+      {
+       "annotationrelease": "109.20211119",
+       "assemblyaccver": "GCF_000001405.39",
+       "chraccver": "NT_167246.2",
+       "chrstart": 2880605,
+       "chrstop": 2883376
+      },
+      {
+       "annotationrelease": "109.20211119",
+       "assemblyaccver": "GCF_000001405.39",
+       "chraccver": "NT_167247.2",
+       "chrstart": 2917462,
+       "chrstop": 2920233
+      },
+      {
+       "annotationrelease": "109.20211119",
+       "assemblyaccver": "GCF_000001405.39",
+       "chraccver": "NT_167248.2",
+       "chrstart": 2831383,
+       "chrstop": 2834156
+      },
+      {
+       "annotationrelease": "109.20211119",
+       "assemblyaccver": "GCF_000001405.39",
+       "chraccver": "NT_167249.2",
+       "chrstart": 2874844,
+       "chrstop": 2877615
+      },
+      {
+       "annotationrelease": "RS_2024_09",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NC_000006.11",
+       "chrstart": 31543341,
+       "chrstop": 31546112
+      },
+      {
+       "annotationrelease": "RS_2024_09",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NT_113891.2",
+       "chrstart": 3052957,
+       "chrstop": 3055728
+      },
+      {
+       "annotationrelease": "RS_2024_09",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NT_167244.1",
+       "chrstart": 2859023,
+       "chrstop": 2860830
+      },
+      {
+       "annotationrelease": "RS_2024_09",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NT_167245.1",
+       "chrstart": 2828882,
+       "chrstop": 2831653
+      },
+      {
+       "annotationrelease": "RS_2024_09",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NT_167246.1",
+       "chrstart": 2886225,
+       "chrstop": 2888996
+      },
+      {
+       "annotationrelease": "RS_2024_09",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NT_167247.1",
+       "chrstart": 2923047,
+       "chrstop": 2925818
+      },
+      {
+       "annotationrelease": "RS_2024_09",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NT_167248.1",
+       "chrstart": 2836979,
+       "chrstop": 2839752
+      },
+      {
+       "annotationrelease": "RS_2024_09",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NT_167249.1",
+       "chrstart": 2874142,
+       "chrstop": 2876913
+      },
+      {
+       "annotationrelease": "105.20220307",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NC_000006.11",
+       "chrstart": 31543341,
+       "chrstop": 31546112
+      },
+      {
+       "annotationrelease": "105.20220307",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NT_113891.2",
+       "chrstart": 3052957,
+       "chrstop": 3055728
+      },
+      {
+       "annotationrelease": "105.20220307",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NT_167244.1",
+       "chrstart": 2859023,
+       "chrstop": 2860830
+      },
+      {
+       "annotationrelease": "105.20220307",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NT_167245.1",
+       "chrstart": 2828882,
+       "chrstop": 2831653
+      },
+      {
+       "annotationrelease": "105.20220307",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NT_167246.1",
+       "chrstart": 2886225,
+       "chrstop": 2888996
+      },
+      {
+       "annotationrelease": "105.20220307",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NT_167247.1",
+       "chrstart": 2923047,
+       "chrstop": 2925818
+      },
+      {
+       "annotationrelease": "105.20220307",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NT_167248.1",
+       "chrstart": 2836979,
+       "chrstop": 2839752
+      },
+      {
+       "annotationrelease": "105.20220307",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NT_167249.1",
+       "chrstart": 2874142,
+       "chrstop": 2876913
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NC_000006.11",
+       "chrstart": 31543343,
+       "chrstop": 31546112
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NT_113891.2",
+       "chrstart": 3052959,
+       "chrstop": 3055728
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NT_167244.1",
+       "chrstart": 2859023,
+       "chrstop": 2860830
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NT_167245.1",
+       "chrstart": 2828884,
+       "chrstop": 2831653
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NT_167246.1",
+       "chrstart": 2886227,
+       "chrstop": 2888996
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NT_167247.1",
+       "chrstart": 2923049,
+       "chrstop": 2925818
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NT_167248.1",
+       "chrstart": 2836981,
+       "chrstop": 2839752
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NT_167249.1",
+       "chrstart": 2874144,
+       "chrstop": 2876913
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000002125.1",
+       "chraccver": "AC_000138.1",
+       "chrstart": 31330077,
+       "chrstop": 31332846
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000306695.2",
+       "chraccver": "NC_018917.2",
+       "chrstart": 31545475,
+       "chrstop": 31548244
+      }
+     ]
+    }
+   }
+  },
+  "TPMT": {
+   "header": {
+    "type": "esummary",
+    "version": "0.3"
+   },
+   "result": {
+    "uids": [
+     "7172"
+    ],
+    "7172": {
+     "uid": "7172",
+     "name": "TPMT",
+     "description": "thiopurine S-methyltransferase",
+     "status": "",
+     "currentid": "",
+     "chromosome": "6",
+     "geneticsource": "genomic",
+     "maplocation": "6p22.3",
+     "otheraliases": "TPMTD",
+     "otherdesignations": "thiopurine S-methyltransferase|S-adenosyl-L-methionine:thiopurine S-methyltransferase",
+     "nomenclaturesymbol": "TPMT",
+     "nomenclaturename": "thiopurine S-methyltransferase",
+     "nomenclaturestatus": "Official",
+     "mim": [
+      "187680"
+     ],
+     "genomicinfo": [
+      {
+       "chrloc": "6",
+       "chraccver": "NC_000006.12",
+       "chrstart": 18155168,
+       "chrstop": 18128310,
+       "exoncount": 11
+      }
+     ],
+     "geneweight": 20255,
+     "summary": "This gene encodes the enzyme that metabolizes thiopurine drugs via S-adenosyl-L-methionine as the S-methyl donor and S-adenosyl-L-homocysteine as a byproduct. Thiopurine drugs such as 6-mercaptopurine are used as chemotherapeutic agents. Genetic polymorphisms that affect this enzymatic activity are correlated with variations in sensitivity and toxicity to such drugs within individuals, causing thiopurine S-methyltransferase deficiency. Related pseudogenes have been identified on chromosomes 3, 18 and X. [provided by RefSeq, Aug 2014]",
+     "chrsort": "06",
+     "chrstart": 18128310,
+     "organism": {
+      "scientificname": "Homo sapiens",
+      "commonname": "human",
+      "taxid": 9606
+     },
+     "locationhist": [
+      {
+       "annotationrelease": "RS_2025_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000006.12",
+       "chrstart": 18155168,
+       "chrstop": 18128310
+      },
+      {
+       "annotationrelease": "RS_2025_08",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060930.1",
+       "chrstart": 18027338,
+       "chrstop": 18000481
+      },
+      {
+       "annotationrelease": "RS_2024_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000006.12",
+       "chrstart": 18155168,
+       "chrstop": 18128310
+      },
+      {
+       "annotationrelease": "RS_2024_08",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060930.1",
+       "chrstart": 18027338,
+       "chrstop": 18000481
+      },
+      {
+       "annotationrelease": "RS_2023_10",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000006.12",
+       "chrstart": 18155168,
+       "chrstop": 18128310
+      },
+      {
+       "annotationrelease": "RS_2023_10",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060930.1",
+       "chrstart": 18027338,
+       "chrstop": 18000481
+      },
+      {
+       "annotationrelease": "RS_2023_03",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000006.12",
+       "chrstart": 18155168,
+       "chrstop": 18128310
+      },
+      {
+       "annotationrelease": "RS_2023_03",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060930.1",
+       "chrstart": 18027338,
+       "chrstop": 18000481
+      },
+      {
+       "annotationrelease": "110",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000006.12",
+       "chrstart": 18155168,
+       "chrstop": 18128310
+      },
+      {
+       "annotationrelease": "110",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060930.1",
+       "chrstart": 18027338,
+       "chrstop": 18000481
+      },
+      {
+       "annotationrelease": "109.20211119",
+       "assemblyaccver": "GCF_000001405.39",
+       "chraccver": "NC_000006.12",
+       "chrstart": 18155168,
+       "chrstop": 18128310
+      },
+      {
+       "annotationrelease": "RS_2024_09",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NC_000006.11",
+       "chrstart": 18155399,
+       "chrstop": 18128541
+      },
+      {
+       "annotationrelease": "105.20220307",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NC_000006.11",
+       "chrstart": 18155399,
+       "chrstop": 18128541
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NC_000006.11",
+       "chrstart": 18155373,
+       "chrstop": 18128541
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000002125.1",
+       "chraccver": "AC_000138.1",
+       "chrstart": 18099748,
+       "chrstop": 18072921
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000306695.2",
+       "chraccver": "NC_018917.2",
+       "chrstart": 18157980,
+       "chrstop": 18131148
+      }
+     ]
+    }
+   }
+  },
+  "VKORC1": {
+   "header": {
+    "type": "esummary",
+    "version": "0.3"
+   },
+   "result": {
+    "uids": [
+     "79001"
+    ],
+    "79001": {
+     "uid": "79001",
+     "name": "VKORC1",
+     "description": "vitamin K epoxide reductase complex subunit 1",
+     "status": "",
+     "currentid": "",
+     "chromosome": "16",
+     "geneticsource": "genomic",
+     "maplocation": "16p11.2",
+     "otheraliases": "EDTP308, MST134, MST576, VKCFD2, VKOR",
+     "otherdesignations": "vitamin K epoxide reductase complex subunit 1|phylloquinone epoxide reductase|vitamin K dependent clotting factors deficiency 2|vitamin K oxidoreductase|vitamin K1 2,3-epoxide reductase subunit 1|vitamin K1 epoxide reductase (warfarin-sensitive)",
+     "nomenclaturesymbol": "VKORC1",
+     "nomenclaturename": "vitamin K epoxide reductase complex subunit 1",
+     "nomenclaturestatus": "Official",
+     "mim": [
+      "608547"
+     ],
+     "genomicinfo": [
+      {
+       "chrloc": "16",
+       "chraccver": "NC_000016.10",
+       "chrstart": 31094796,
+       "chrstop": 31090853,
+       "exoncount": 4
+      }
+     ],
+     "geneweight": 42705,
+     "summary": "This gene encodes the catalytic subunit of the vitamin K epoxide reductase complex, which is responsible for the reduction of inactive vitamin K 2,3-epoxide to active vitamin K in the endoplasmic reticulum membrane. Vitamin K is a required co-factor for carboxylation of glutamic acid residues by vitamin K-dependent gamma-carboxylase in blood-clotting enzymes. Allelic variation in this gene is associated with vitamin k-dependent clotting factors combined deficiency of 2, and increased resistance or sensitivity to warfarin, an inhibitor of vitamin K epoxide reductase. Pseudogenes of this gene are located on chromosomes 1 and X. Alternative splicing results in multiple transcript variants. [provided by RefSeq, Aug 2015]",
+     "chrsort": "16",
+     "chrstart": 31090853,
+     "organism": {
+      "scientificname": "Homo sapiens",
+      "commonname": "human",
+      "taxid": 9606
+     },
+     "locationhist": [
+      {
+       "annotationrelease": "RS_2025_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000016.10",
+       "chrstart": 31094796,
+       "chrstop": 31090853
+      },
+      {
+       "annotationrelease": "RS_2025_08",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060940.1",
+       "chrstart": 31482233,
+       "chrstop": 31478281
+      },
+      {
+       "annotationrelease": "RS_2024_08",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000016.10",
+       "chrstart": 31094796,
+       "chrstop": 31090853
+      },
+      {
+       "annotationrelease": "RS_2024_08",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060940.1",
+       "chrstart": 31482233,
+       "chrstop": 31478281
+      },
+      {
+       "annotationrelease": "RS_2023_10",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000016.10",
+       "chrstart": 31094796,
+       "chrstop": 31090853
+      },
+      {
+       "annotationrelease": "RS_2023_10",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060940.1",
+       "chrstart": 31482233,
+       "chrstop": 31478281
+      },
+      {
+       "annotationrelease": "RS_2023_03",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000016.10",
+       "chrstart": 31094796,
+       "chrstop": 31090853
+      },
+      {
+       "annotationrelease": "RS_2023_03",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060940.1",
+       "chrstart": 31482233,
+       "chrstop": 31478281
+      },
+      {
+       "annotationrelease": "110",
+       "assemblyaccver": "GCF_000001405.40",
+       "chraccver": "NC_000016.10",
+       "chrstart": 31094796,
+       "chrstop": 31090853
+      },
+      {
+       "annotationrelease": "110",
+       "assemblyaccver": "GCF_009914755.1",
+       "chraccver": "NC_060940.1",
+       "chrstart": 31482233,
+       "chrstop": 31478281
+      },
+      {
+       "annotationrelease": "109.20211119",
+       "assemblyaccver": "GCF_000001405.39",
+       "chraccver": "NC_000016.10",
+       "chrstart": 31094796,
+       "chrstop": 31090853
+      },
+      {
+       "annotationrelease": "RS_2024_09",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NC_000016.9",
+       "chrstart": 31106117,
+       "chrstop": 31102174
+      },
+      {
+       "annotationrelease": "105.20220307",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NC_000016.9",
+       "chrstart": 31106117,
+       "chrstop": 31102174
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000001405.25",
+       "chraccver": "NC_000016.9",
+       "chrstart": 31106698,
+       "chrstop": 31102174
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000002125.1",
+       "chraccver": "AC_000148.1",
+       "chrstart": 28667977,
+       "chrstop": 28663873
+      },
+      {
+       "annotationrelease": "105",
+       "assemblyaccver": "GCF_000306695.2",
+       "chraccver": "NC_018927.2",
+       "chrstart": 32423595,
+       "chrstop": 32419475
+      }
+     ]
+    }
+   }
+  }
+ }
+}

@@ -1,0 +1,311 @@
+{
+  "issue": 2045,
+  "accessed": "2026-09-01",
+  "concern": "vep_seed.csv strand column and the CYP2C19*4 consequence/HGVS annotation",
+  "stakes": "FIXTURE PROVENANCE, not a shipped user-facing error. Production builds the VEP table from the real bundle; this CSV seeds mini_vep_bundle.db, a TEST ORACLE whose rows are copied into annotated_variants unchanged in tests. The defect is that the oracle disagreed with the reference assembly, so tests could not detect a real regression in the same fields. The 2026-09-05 review found the same row's coordinate also disagreed with GRCh37 (C3).",
+  "claims": {
+    "C1": {
+      "statement": "19 of the 57 annotated genes carried the wrong genomic strand.",
+      "sources": [
+        "Ensembl GRCh37 lookup/symbol",
+        "NCBI Gene esummary genomicinfo"
+      ],
+      "independence": "Two annotation projects run by different organisations (EMBL-EBI/Ensembl and NCBI/RefSeq) over the same reference assembly, with separate gene-model pipelines. They are not fully independent -- both are anchored to the same assembly -- but neither imports the other's strand call, unlike the Ensembl-imports-dbSNP case. All 57 resolved through Ensembl with zero fetch failures; all 19 corrected genes re-checked through NCBI Gene with ZERO disagreements.",
+      "self_proving_subset": "4 of the 19 (CYP2C19, MTHFR, PON1, CYP2R1) carried BOTH strands on different rows of the same gene. That is impossible for a real gene and needs no external source at all."
+    },
+    "C2": {
+      "statement": "rs28399504 (CYP2C19*4, c.1A>G) is start_lost / p.Met1?, not missense_variant / p.Met1Val.",
+      "sources": [
+        "Ensembl GRCh37 VEP on ENST00000371321 (the transcript the row itself cites)"
+      ],
+      "evidence": "consequence_terms ['start_lost'], impact HIGH, strand 1; with hgvs=1: hgvsc ENST00000371321.3:c.1A>G, hgvsp ENSP00000360372.3:p.Met1?. The HGVS strings were read from the payload, not copied from the issue. The same payload reports seq_region_name 10, start 96522463, assembly_name GRCh37.",
+      "single_source_note": "One source, and deliberately so: this is not a contested biological claim but the output of the annotation tool the fixture is supposed to mirror. VEP's call on the cited transcript IS the oracle. A second opinion would be answering a different question."
+    },
+    "C3": {
+      "statement": "rs28399504 sits at GRCh37 10:96522463; the fixture row carried 10:94781859.",
+      "sources": [
+        "Ensembl GRCh37 VEP on rs28399504 (seq_region_name / start / assembly_name in both retained payloads)"
+      ],
+      "evidence": "Both retained VEP payloads report seq_region_name 10, start 96522463, end 96522463, assembly_name GRCh37. 94781859 falls inside the CYP2C19 span the retained NCBI esummary reports on NC_000010.11 (genomicinfo chrstart 94762680 - chrstop 94855546), i.e. a different assembly release, and mini_vep_bundle.db repeated it. The annotation engine derives ref/alt and zygosity only from a VEP row at the sample's own coordinate, so a GRCh37 sample would match the rsID and lose carriage.",
+      "added": "2026-09-05 after review of #2364. Corrected in vep_seed.csv and the regenerated mini_vep_bundle.db; the production-path test seeds the sample at 96522463. No other row's coordinate was audited by this packet; filed separately. On 2026-09-06 the sibling seeds clinvar_seed.csv and gnomad_seed.csv, which carried the same 10:94781859 for rs28399504, were aligned to 96522463 and mini_reference.db / mini_gnomad_af.db regenerated (one row each; the VEP and dbNSFP databases regenerate byte-identically), and rs28399504 joined the shared GRCh37 coordinate/allele oracle in tests/backend/test_regenerate_fixtures.py (Ensembl GRCh37 Variation REST, accessed 2026-09-06: 10:96522463, plus strand, A/G/T) so no coordinate seed or generated fixture can carry another position again."
+    }
+  },
+  "citations": [
+    {
+      "id": "PMID:39656687",
+      "doi": "10.1093/nar/gkae1071",
+      "supports": "C1",
+      "kind": "database resource paper (the annotation project whose gene models lookup/symbol serves)",
+      "title": "Ensembl 2025.",
+      "journal": "Nucleic Acids Res 2025;53(D1):D948-D957",
+      "first_authors": [
+        "Dyer SC",
+        "Austine-Orimoloye O",
+        "Azov AG"
+      ],
+      "accessed": "2026-09-05",
+      "assertion": "Names the resource whose GRCh37 gene models C1's strand values are read from. It does not itself assert any gene's strand; the strand values come from the retained lookup/symbol payload.",
+      "retraction_check": "PubMed EFetch typed CommentsCorrections relations (accessed 2026-09-05): the record carries no CommentsCorrections link of any RefType.",
+      "citation": "PMID:39656687 / DOI:10.1093/nar/gkae1071 (accessed 2026-09-05)",
+      "scite_check": "Scite MCP metadata retrieved 2026-09-05 (raw/scite-metadata-tool-citations-derived.json): no editorial notice on file."
+    },
+    {
+      "id": "PMID:27268795",
+      "doi": "10.1186/s13059-016-0974-4",
+      "supports": "C2",
+      "kind": "tool paper (the annotation tool whose consequence call C2 mirrors)",
+      "title": "The Ensembl Variant Effect Predictor.",
+      "journal": "Genome Biol 2016;17:122",
+      "first_authors": [
+        "McLaren W",
+        "Gil L",
+        "Hunt SE"
+      ],
+      "accessed": "2026-09-05",
+      "assertion": "Names the tool whose start_lost / p.Met1? call on ENST00000371321 is C2's oracle. It does not itself assert anything about rs28399504; that call is in the retained VEP payloads.",
+      "retraction_check": "PubMed EFetch typed CommentsCorrections relations (accessed 2026-09-05): the record carries no CommentsCorrections link of any RefType.",
+      "citation": "PMID:27268795 / DOI:10.1186/s13059-016-0974-4 (accessed 2026-09-05)",
+      "scite_check": "Scite MCP metadata retrieved 2026-09-05 (raw/scite-metadata-tool-citations-derived.json): no editorial notice on file."
+    }
+  ],
+  "citation_note": "Added 2026-09-05 after review: the packet's sources are annotation databases queried directly, and an earlier revision carried no PMID/DOI at all, which the repository contract requires of every durable evidence artifact. The two papers name the resource and the tool; the claims themselves rest on the retained payloads, not on these papers. NCBI Gene (C1's second source) is identified here by its retained esummary payload and stable GeneIDs rather than by a paper.",
+  "retraction_method": "PubMed EFetch XML read for typed CommentsCorrections relations (RefType), not publication type: an original record keeps its own pubtype while corrections, errata and retractions are carried as separate linked records. Run 2026-09-05 for both cited PMIDs; the sanitized XML is the authority and raw/ncbi-pubmed-comments-corrections-tool-citations-derived.json is its reduction.",
+  "issue_counts_corrected": {
+    "wrong_strand_genes": {
+      "issue_claimed": 25,
+      "verified": 19,
+      "already_correct_in_fixture": [
+        "COL1A1",
+        "F5",
+        "FADS1",
+        "GC",
+        "KCNJ11"
+      ],
+      "not_present_in_this_file": [
+        "HEXA"
+      ]
+    },
+    "internally_contradictory": {
+      "issue_claimed": 2,
+      "verified": 4,
+      "extra": [
+        "PON1",
+        "CYP2R1"
+      ]
+    },
+    "file_shape": {
+      "issue_implied": "57 genes",
+      "actual": "679 rows (678 unique rsIDs: rs121913529 appears twice, alt G>A and G>C, both PAH), of which 100 carry a gene_symbol (99 unique rsIDs)"
+    }
+  },
+  "explicitly_not_claimed": "The retained consequence audit was requested once per unique rsID (678). It holds 677 reduced responses and one recorded failure, rs5778923 (HTTP 400; an unannotated intron_variant row on chrX with no gene_symbol), which a 2026-09-05 retry reproduced with the body \"No variant found with ID 'rs5778923'\" (retained verbatim) -- so the audit does NOT cover that row and it is an exclusion, not a response. Of the 100 annotated rows (99 unique rsIDs; rs5778923 is not among them): 53 agree (52 before this change corrected rs28399504), 14 disagree on the fixture's own transcript (15 before the correction, rs28399504 among them), and 33 rows (32 rsIDs; rs121913529 on both of its rows) cite a transcript Ensembl VEP does not report for that variant -- 7 of which (rs10741657, rs1065852, rs12794714, rs16947, rs3892097, rs5030655, rs5030862) are an artefact of the reduction reading only the first, patch-contig element of a multi-mapped response; see the audit row's reduction_rule. ONLY rs28399504 is corrected here. The remaining 14 mismatches are predominantly 5_prime_UTR_variant vs upstream_gene_variant, which turn on transcript selection rather than being outright errors, and the 33 unresolvable transcripts need per-row adjudication (transcript version, assembly, MANE choice). Adjudicating 47 rows off one REST call each would be exactly the kind of bulk edit this issue is about. Filed separately.",
+  "discovery_tool_ladder": {
+    "note": "Consensus/Scite are literature-discovery tools and are not the right instrument for a genome-annotation fact. The authoritative sources here are the assembly annotation projects themselves, queried directly.",
+    "scite": "Invoked 2026-09-05, after the service-reported reset of 2026-09-03 (an earlier revision recorded the August quota failure as current): metadata for the two cited DOIs, retained as a DERIVED record; no editorial notice on either. Scite remains the wrong instrument for the annotation facts themselves, which come from the annotation projects queried directly.",
+    "tool_versions": "Ensembl GRCh37 REST exposes no version header on these endpoints; the assembly (GRCh37) is the pin that matters and is in the URL. NCBI E-utilities exposes no build field. Both recorded as not exposed rather than guessed.",
+    "consensus": "Invoked 2026-09-06 (Consensus MCP search, query 'CYP2C19*4 rs28399504 start codon variant initiator methionine loss of function allele', no filters): 20 ranked hits, retained title-level as a DERIVED record (raw/consensus-search-cyp2c19-star4-derived.json). No hit was promoted to a citation: C2 is a claim about Ensembl's coordinate and consequence annotation, for which the annotation project itself is the source. The top hit (Ferguson 1998, DOI 10.1016/s0022-3565(24)37213-1) is the primary description of CYP2C19*4 as an initiation-codon A>G change and is recorded as context consistent with `start_lost`; it was not notice-checked and no biological claim is derived from it. Consensus was not invoked on 2026-09-01; an earlier revision recorded only that it was the wrong instrument, without running it."
+  },
+  "source_provenance": [
+    {
+      "source": "Ensembl GRCh37 REST",
+      "license_reference": "https://www.ensembl.org/info/about/legal/disclaimer.html",
+      "license_note": "Ensembl data is released without restriction (Apache-2.0 for code, CC0 for data).",
+      "observed_version": "Not exposed on these endpoints; assembly GRCh37 pinned in the hostname."
+    },
+    {
+      "source": "NCBI Gene (E-utilities)",
+      "license_reference": "https://www.ncbi.nlm.nih.gov/home/about/policies/",
+      "license_note": "US-government-authored NCBI content is public domain.",
+      "observed_version": "Not exposed on esummary; recorded as not exposed rather than guessed."
+    },
+    {
+      "source": "NCBI PubMed (E-utilities esummary, efetch)",
+      "license_reference": "https://www.ncbi.nlm.nih.gov/home/about/policies/",
+      "license_note": "US-government-authored NCBI content is public domain; retained payloads are bibliographic metadata, abstracts removed and author email addresses redacted from the XML.",
+      "observed_version": "Not exposed on esummary or efetch; recorded as not exposed rather than guessed."
+    },
+    {
+      "source": "Scite MCP",
+      "observed_version": "Not exposed by the MCP surface; recorded as not exposed rather than guessed.",
+      "license_reference": "https://scite.ai/terms",
+      "license_note": "Used as a notice-check tool only. No Scite text is redistributed: the retained record holds DOIs, titles, years, tallies and the presence or absence of an editorialNotices array."
+    },
+    {
+      "source": "Consensus MCP",
+      "observed_version": "Not exposed by the MCP surface (no index or model version field in the result); recorded as not exposed rather than guessed.",
+      "license_note": "Used as a discovery tool only, on 2026-09-06. No Consensus text is redistributed: the retained record transcribes bibliographic identifiers of the 20 hits (rank, title, first author, year, journal, DOI); abstracts, snippets and ranking scores are not retained. No hit was promoted to a citation.",
+      "license_reference": "https://consensus.app/home/terms-of-service/"
+    }
+  ],
+  "payload_integrity": "Eight payloads are unedited verbatim API responses: the 678 Ensembl GRCh37 VEP responses (677 HTTP 200, one HTTP 400) retained as gzip-compressed JSON Lines with the per-line {rsid, status, response} wrapper as the only addition; two Ensembl VEP records and one NCBI PubMed eSummary captured on the dates their rows give; three captured 2026-09-05 (Ensembl lookup/symbol for the 57 genes; NCBI Gene esearch and esummary for the 19 corrected genes), each a per-symbol map of response objects whose `_artifact_note` and `responses` wrapper are the only additions; and the 48-byte HTTP 400 error body Ensembl GRCh37 VEP returned for rs5778923 on 2026-09-05, stored exactly as received. One payload, the NCBI PubMed EFetch XML for the two cited papers, is SANITIZED: <Abstract> elements were removed under the bibliographic-metadata-only retention rule, and the two author email addresses that its <Affiliation> text carried were replaced by the token [email redacted] with the surrounding affiliation text intact; nothing else was touched, and it is labelled as such in its filename. No other retained payload contains an email address (regex-checked across raw/, the README and this manifest). Six payloads are DERIVED records, labelled as such in the manifest: the lookup/symbol reduction selects each gene's strand and id from the verbatim response; the NCBI Gene reduction selects the live record's uid and genomicinfo coordinates and COMPUTES an orientation from their order; the consequence audit reduces the 677 retained VEP responses (one per unique rsID; 678 requested, the failed rs5778923 recorded under `failures`) to the fixture consequence, the transcript-matched terms and most_severe_consequence, and was re-derived from the retained file on 2026-09-06; the PubMed reduction lists each cited record's CommentsCorrections and publication types; the Scite record holds the two cited DOIs' metadata and notice status (no HTTP response to capture); and the Consensus record transcribes the 20 title-level hits of the 2026-09-06 search, none promoted to a citation (no HTTP response to capture). Each derived row names the verbatim payload it derives from and the fields it selects. No payload required further sanitization: all are public reference-annotation or bibliographic records with no genotype, sample or personal data.",
+  "requests": [
+    {
+      "payload": "raw/ensembl-grch37-lookup-symbol-57-genes.json",
+      "request": "Reduction of the verbatim lookup/symbol responses (GET https://grch37.rest.ensembl.org/lookup/symbol/homo_sapiens/<gene>?content-type=application/json, one per gene, 57 genes)",
+      "source": "Ensembl GRCh37 REST (lookup/symbol) -- DERIVED: per gene, `strand` (1 rendered `+`, -1 rendered `-`) and `id` selected from the response, joined to the strand values vep_seed.csv carried for that gene",
+      "sha256": "e87877e2b1cd9d6bb7dd211a70919b005d284c2b07a2421b1a4da8716b0473b2",
+      "bytes": 6279,
+      "derived_from": "raw/ensembl-grch37-lookup-symbol-57-genes-verbatim.json",
+      "fields_selected": {
+        "genes.<gene>.ensembl_strand": "response `strand` (1 -> '+', -1 -> '-')",
+        "genes.<gene>.ensembl_id": "response `id`",
+        "genes.<gene>.fixture": "the strand value(s) the pre-correction vep_seed.csv carried for the gene -- from the fixture, not from any API",
+        "fetch_failures": "the generator's own failure list (empty)"
+      },
+      "accessed": "2026-09-01",
+      "correction": "Labelled an unedited verbatim API response until 2026-09-05 (review of #2364). It is a reduction: the 2026-09-01 wire responses were not retained, so the verbatim payload alongside is a 2026-09-05 re-fetch. All 57 `strand` and `id` values re-derived from it equal this file."
+    },
+    {
+      "payload": "raw/ncbi-gene-esummary-19-corrected-genes.json",
+      "request": "Reduction of the verbatim esearch + esummary responses (GET .../esearch.fcgi?db=gene&term=<gene>[sym] AND human[orgn]&retmode=json, then .../esummary.fcgi?db=gene&id=<idlist>&retmode=json, one pair per gene, 19 genes)",
+      "source": "NCBI Gene (E-utilities) -- DERIVED: per gene, the live esummary record's `uid`, `genomicinfo[0].chrstart` and `genomicinfo[0].chrstop`, plus an `orientation` computed from their order; esummary exposes no strand field",
+      "sha256": "7eca65c5faf3ae64a2bbcc113ead8b98475ab997cdf34a296f1170e39be52063",
+      "bytes": 2020,
+      "derived_from": [
+        "raw/ncbi-gene-esearch-19-corrected-genes-verbatim.json",
+        "raw/ncbi-gene-esummary-19-corrected-genes-verbatim.json"
+      ],
+      "fields_selected": {
+        "<gene>.gene_id": "esummary record `uid` of the live record (`status` and `currentid` both empty). CYP2C19, CYP2R1 and HLA-DRB1 also return discontinued ids (`status` 1) whose `currentid` points at the retained uid and which carry no `genomicinfo`.",
+        "<gene>.chrstart": "live record `genomicinfo[0].chrstart`",
+        "<gene>.chrstop": "live record `genomicinfo[0].chrstop`",
+        "<gene>.orientation": "COMPUTED, not a response field: '-' when chrstart > chrstop, else '+'"
+      },
+      "coordinate_note": "`genomicinfo` coordinates sit on the `chraccver` the payload names (NC_0000NN.1x; `locationhist` attributes them to assembly GCF_000001405.40) and differ from the Ensembl GRCh37 coordinates for the same genes, so they were never compared to the fixture. Only orientation, which is assembly-invariant, was compared, and it agrees with Ensembl GRCh37 for all 19.",
+      "accessed": "2026-09-01",
+      "correction": "Labelled an unedited verbatim API response until 2026-09-05 (review of #2364). It is a reduction, and `orientation` is computed rather than read: the 2026-09-01 wire responses were not retained, so the verbatim payloads alongside are a 2026-09-05 re-fetch. All 19 uids, coordinate pairs and orientations re-derived from them equal this file."
+    },
+    {
+      "payload": "raw/ensembl-grch37-lookup-symbol-57-genes-verbatim.json",
+      "request": "GET https://grch37.rest.ensembl.org/lookup/symbol/homo_sapiens/<gene>?content-type=application/json for each of the 57 genes, paced 0.15 s apart, up to four attempts each",
+      "source": "Ensembl GRCh37 REST (lookup/symbol) -- VERBATIM: one response object per queried symbol; the `_artifact_note` and `responses` wrapper are the only additions",
+      "accessed": "2026-09-05",
+      "agreement": "strand and id equal raw/ensembl-grch37-lookup-symbol-57-genes.json and tests/fixtures/vep_gene_strand_snapshot.json for all 57 genes; display_name equals the queried symbol and assembly_name is GRCh37 for all 57",
+      "sha256": "fb53eab458010cb4365f967f9c3f1c3468bc868191fd2ee3536a122d8a98e90a",
+      "bytes": 31824
+    },
+    {
+      "payload": "raw/ncbi-gene-esearch-19-corrected-genes-verbatim.json",
+      "request": "GET https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=gene&term=<gene>[sym] AND human[orgn]&retmode=json for each of the 19 corrected genes, paced 0.4 s apart, up to four attempts each",
+      "source": "NCBI Gene (E-utilities esearch) -- VERBATIM: one response object per queried symbol; the `_artifact_note` and `responses` wrapper are the only additions",
+      "accessed": "2026-09-05",
+      "agreement": "every idlist contains the gene_id raw/ncbi-gene-esummary-19-corrected-genes.json records; 16 return exactly one id, CYP2C19 / CYP2R1 / HLA-DRB1 additionally return discontinued ids",
+      "sha256": "02ea860607df7b1fa28104391f708baa92a46684e3ce9b9aec70aac5f58d419e",
+      "bytes": 13853
+    },
+    {
+      "payload": "raw/ncbi-gene-esummary-19-corrected-genes-verbatim.json",
+      "request": "GET https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=gene&id=<every id in the gene's esearch idlist>&retmode=json for each of the 19 corrected genes, paced 0.4 s apart, up to four attempts each",
+      "source": "NCBI Gene (E-utilities esummary) -- VERBATIM: one response object per queried symbol; the `_artifact_note` and `responses` wrapper are the only additions",
+      "accessed": "2026-09-05",
+      "agreement": "the live record's uid, genomicinfo[0].chrstart and genomicinfo[0].chrstop equal raw/ncbi-gene-esummary-19-corrected-genes.json for all 19 genes, and the orientation computed from their order equals both that file and the Ensembl GRCh37 strand for all 19",
+      "sha256": "35637543efa2bd1015cf86afd5e2f3b878be69e94eb6d53b62e932ba16746894",
+      "bytes": 127400
+    },
+    {
+      "payload": "raw/ensembl-grch37-vep-rs28399504.json",
+      "request": "GET https://grch37.rest.ensembl.org/vep/human/id/rs28399504",
+      "source": "Ensembl GRCh37 REST (VEP)",
+      "sha256": "5c8f9f42d28400a8276ada6162d0511d8c02c931fae2068e8966eb14dc41e790",
+      "bytes": 4937,
+      "accessed": "2026-09-01"
+    },
+    {
+      "payload": "raw/ensembl-grch37-vep-rs28399504-hgvs.json",
+      "request": "GET https://grch37.rest.ensembl.org/vep/human/id/rs28399504?hgvs=1",
+      "source": "Ensembl GRCh37 REST (VEP, HGVS)",
+      "sha256": "a339a0d402dfdbe9e77041e2c004b0c77319bec5a43084bfb9715c8a994c9316",
+      "bytes": 5237,
+      "accessed": "2026-09-01"
+    },
+    {
+      "payload": "raw/ensembl-grch37-vep-consequence-audit-all-rows.json",
+      "request": "GET https://grch37.rest.ensembl.org/vep/human/id/<rsid> once per unique rsid in vep_seed.csv: 678 requests (679 rows; rs121913529 appears twice), 677 responses reduced under `rows`, 1 failed request (rs5778923, HTTP 400) recorded under `failures` and excluded",
+      "source": "Ensembl GRCh37 REST (VEP) -- DERIVED from raw/ensembl-grch37-vep-all-rows-verbatim.jsonl.gz: per rsid the fixture consequence, the union of consequence_terms over the transcript_consequences entries whose transcript_id equals the fixture's, and most_severe_consequence",
+      "sha256": "08378d44af00bebf292db7d78e5e3aa87d938a3d5e2a64e255b06ac933f31f14",
+      "bytes": 89211,
+      "coverage": "677 of 678 unique rsIDs; rs5778923 is not covered. It is an unannotated row (no gene_symbol), so the annotated-row breakdown is unaffected.",
+      "rederivation": "Re-derived on 2026-09-06 from the retained verbatim responses: identical for all 677 rsIDs to the 2026-09-01 reduction (built from responses that were not retained), except rs28399504's fixture column, which now reads start_lost because the CSV was corrected. THE ARTIFACT ITSELF WAS REGENERATED ON 2026-09-06 from raw/ensembl-grch37-vep-all-rows-verbatim.jsonl.gz and the corrected vep_seed.csv, with the same formatting (indent 1, seed row order, no trailing newline); the sha256 and byte count above are the regenerated file's, and it differs from the 2026-09-01 file in that one value only. With the corrected CSV the annotated-row breakdown is 53 agree / 14 disagree / 33 unresolvable transcript (52 / 15 / 33 before).",
+      "accessed": "2026-09-01",
+      "reduction_rule": "Reduction rule, made explicit on 2026-09-06 while rebuilding the artifact from the retained responses: `most_severe` and the transcript match are read from the FIRST element of the VEP response only. 32 rsIDs map to more than one sequence region (a patch or alternate contig as well as the primary chromosome) and return one element per mapping; for 7 annotated rows the first element is the patch contig (HSCHR22_2_CTG1 for the five CYP2D6 rows, HG873_PATCH for the two CYP2R1 rows), which carries no entry for the fixture's transcript, so they are counted as 'transcript not reported' although the primary-assembly element does report it: rs10741657, rs1065852, rs12794714, rs16947, rs3892097, rs5030655, rs5030862. Read from the primary-assembly element instead, 6 of them agree with the fixture and 1 (rs3892097: fixture splice_region_variant, VEP splice_acceptor_variant) disagrees, giving 59 / 15 / 26 instead of 53 / 14 / 33. The first-element rule is kept so the artifact stays comparable with the 2026-09-01 reduction; these 7 rows belong to the deferred per-row adjudication, which is exactly the transcript-selection question that deferral names.",
+      "fields_selected": {
+        "rows.<rsid>.fixture": "vep_seed.csv consequence for the rsid (first occurrence)",
+        "rows.<rsid>.tid": "vep_seed.csv transcript_id (empty string when the row cites none)",
+        "rows.<rsid>.vep_terms": "sorted union of consequence_terms over every transcript_consequences entry of the FIRST response element whose transcript_id equals tid (empty when none match, or when tid is empty)",
+        "rows.<rsid>.most_severe": "most_severe_consequence of the FIRST response element",
+        "failures": "[rsid, error] for each request that returned no response (rs5778923, HTTP 400)"
+      }
+    },
+    {
+      "payload": "raw/ensembl-grch37-vep-rs5778923-error.json",
+      "request": "GET https://grch37.rest.ensembl.org/vep/human/id/rs5778923?content-type=application/json (2026-09-05 retry of the audit's one failed request)",
+      "source": "Ensembl GRCh37 REST (VEP) -- VERBATIM HTTP 400 error body, stored exactly as received; the same status the 2026-09-01 audit recorded. GET .../variation/homo_sapiens/rs5778923 returned HTTP 400 \"rs5778923 not found for homo_sapiens\" the same day (not retained).",
+      "http_status": 400,
+      "accessed": "2026-09-05",
+      "sha256": "fcadb7e0c6ee83ba6b63b6dd0e6a47185c740e28b5ac32211b68eae463f6949b",
+      "bytes": 48
+    },
+    {
+      "payload": "raw/ncbi-pubmed-esummary-tool-citations.json",
+      "request": "GET .../esummary.fcgi?db=pubmed&id=27268795,39656687&retmode=json",
+      "source": "NCBI PubMed eSummary",
+      "sha256": "ee980f756f7f1e8a9d3e4736c8a0bd8a58ddb286b203bb6cbb0777c83a680c42",
+      "bytes": 8814,
+      "accessed": "2026-09-05"
+    },
+    {
+      "payload": "raw/ncbi-pubmed-efetch-tool-citations-sanitized.xml",
+      "request": "GET .../efetch.fcgi?db=pubmed&id=27268795,39656687&retmode=xml",
+      "source": "NCBI PubMed EFetch -- SANITIZED: <Abstract> elements removed and every author email address inside <Affiliation> text replaced by the token [email redacted] (two addresses, both in the VEP tool paper's record); nothing else touched",
+      "sha256": "19c4df180da6b63bdcd65636e9e39c85b70cc527e85a1705d47869ed1cd26bf3",
+      "bytes": 92333,
+      "accessed": "2026-09-05",
+      "sanitization": {
+        "abstracts_removed": "2026-09-05, under the bibliographic-metadata-only retention rule",
+        "emails_redacted": "2026-09-06, after review of #2364: two author email addresses in <Affiliation> text replaced by [email redacted]; the surrounding affiliation text is intact and the XML re-parses (2 PubmedArticle, 0 Abstract)",
+        "verification": "regex [A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,} over every file in raw/, README.md and this manifest returns no match; no '@' character remains in the XML"
+      }
+    },
+    {
+      "payload": "raw/ncbi-pubmed-comments-corrections-tool-citations-derived.json",
+      "request": "Reduction of the sanitized EFetch XML above (no HTTP request)",
+      "source": "DERIVED: per PMID, every CommentsCorrections RefType and the publication types",
+      "sha256": "0528ee4b56cd106b9993592b707f171e2415a55cf6fad9504e7ce3b185e2c252",
+      "bytes": 1050,
+      "accessed": "2026-09-05"
+    },
+    {
+      "payload": "raw/scite-metadata-tool-citations-derived.json",
+      "request": "Scite MCP `search_literature(dois=[10.1093/nar/gkae1071, 10.1186/s13059-016-0974-4])` (tool call, not an HTTP endpoint)",
+      "source": "Scite MCP (DERIVED record, not a wire capture)",
+      "sha256": "c725a6d1a593997184d6320aa71bfac932f19132008d3e1f7895af52430ab90c",
+      "bytes": 1569,
+      "accessed": "2026-09-05"
+    },
+    {
+      "payload": "raw/ensembl-grch37-vep-all-rows-verbatim.jsonl.gz",
+      "request": "GET https://grch37.rest.ensembl.org/vep/human/id/<rsid>?content-type=application/json once per unique rsid in vep_seed.csv (678 requests)",
+      "source": "Ensembl GRCh37 REST (VEP) -- VERBATIM, gzip-compressed JSON Lines: one line per rsid {\"rsid\", \"status\", \"response\"} where response is the exact parsed JSON body for HTTP 200 (677 records) and the exact error body for the one HTTP 400 (rs5778923); lines sorted by rsid; the wrapper object is the only addition",
+      "sha256": "3b9ad51e5dd855b53d705862ea79f65c3acc88e9457bb7515b3ce1fa2f40d729",
+      "bytes": 316330,
+      "uncompressed_sha256": "2598bc75a2162ac57aab269793640ab5cbe94066da60b433c5f80fe7bb3daec0",
+      "uncompressed_bytes": 2329863,
+      "records": 678,
+      "accessed": "2026-09-06"
+    },
+    {
+      "payload": "raw/consensus-search-cyp2c19-star4-derived.json",
+      "request": "Consensus MCP search (claude.ai connector): query 'CYP2C19*4 rs28399504 start codon variant initiator methionine loss of function allele', no filters",
+      "source": "Consensus -- DERIVED: the 20 ranked hits transcribed title-level (rank, title, first author, year, journal, DOI) from the connector's result list; abstracts not retained; no HTTP response to capture. Disposition recorded in the file: no hit promoted to a citation.",
+      "sha256": "a14dc4db2c1949fa58059e7a1e4b26254708a85edd680121fcfa6b706ba6205e",
+      "bytes": 6277,
+      "records": 20,
+      "accessed": "2026-09-06"
+    }
+  ],
+  "payload_integrity_correction": "Added 2026-09-05 after review of #2364: an earlier revision counted raw/ensembl-grch37-lookup-symbol-57-genes.json and raw/ncbi-gene-esummary-19-corrected-genes.json among the unedited verbatim responses. Neither is a wire response: the first is a per-gene selection of `strand` and `id` joined to the fixture's own strand values, the second a per-gene selection of uid and genomicinfo coordinates with a computed orientation. Both are relabelled DERIVED. The 2026-09-01 responses they were read from had not been retained, so the verbatim payloads were re-fetched on 2026-09-05 and retained alongside; every reduced value re-derived from the re-fetch equals the 2026-09-01 reduction, so neither claim changes.",
+  "function_claim_correction": "Added 2026-09-05 after review of #2364: an earlier README revision said the start loss is 'why *4 is a no-function allele'. Neither retained payload nor either cited paper makes that allele-function claim; it was withdrawn. The packet asserts only what the VEP payload reports for rs28399504 on ENST00000371321: start_lost, HIGH impact, p.Met1?.",
+  "audit_coverage_correction": "Added 2026-09-05 after review of #2364: an earlier revision said the audit covers every rsid and reduces 679 VEP responses. The CSV has 679 rows but 678 unique rsIDs, the audit reduces 677 responses, and its `failures` list records the one failed request (rs5778923, HTTP 400). Counts corrected here, in the README and in the audit's request row; the 52 / 15 / 33 breakdown was computed over rows and is unchanged.",
+  "pii_correction": "Added 2026-09-06 after review of #2364: the sanitized EFetch XML still carried two author email addresses inside <Affiliation> text, although the packet described it as free of personal data. Each address token was replaced by [email redacted], leaving the rest of the affiliation intact; the file's sha256 and byte count were recomputed. Author names and institutional affiliations are public bibliographic metadata and are retained; email addresses are not needed for the citation and are not.",
+  "audit_source_retention": "Added 2026-09-06 after review of #2364: the consequence audit had been the sole record of the 2026-09-01 VEP responses, so the 52 / 15 / 33 breakdown and the deferral of the other mismatches could not be verified independently. All 678 requests were re-issued on 2026-09-06 and the responses retained verbatim (gzip-compressed JSON Lines); the reduction re-derived from them reproduces the 2026-09-01 reduction exactly apart from the corrected fixture column."
+}

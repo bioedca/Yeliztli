@@ -1,0 +1,4214 @@
+{
+ "rows": {
+  "rs429358": {
+   "fixture": "missense_variant",
+   "tid": "ENST00000252486",
+   "vep_terms": [
+    "missense_variant"
+   ],
+   "most_severe": "missense_variant"
+  },
+  "rs7412": {
+   "fixture": "missense_variant",
+   "tid": "ENST00000252486",
+   "vep_terms": [
+    "missense_variant"
+   ],
+   "most_severe": "missense_variant"
+  },
+  "rs1801133": {
+   "fixture": "missense_variant",
+   "tid": "ENST00000376592",
+   "vep_terms": [
+    "missense_variant"
+   ],
+   "most_severe": "missense_variant"
+  },
+  "rs4680": {
+   "fixture": "missense_variant",
+   "tid": "ENST00000361682",
+   "vep_terms": [
+    "missense_variant"
+   ],
+   "most_severe": "missense_variant"
+  },
+  "rs80357906": {
+   "fixture": "frameshift_variant",
+   "tid": "ENST00000357654",
+   "vep_terms": [
+    "frameshift_variant"
+   ],
+   "most_severe": "frameshift_variant"
+  },
+  "rs113993960": {
+   "fixture": "inframe_deletion",
+   "tid": "ENST00000003084",
+   "vep_terms": [
+    "inframe_deletion",
+    "inframe_insertion"
+   ],
+   "most_severe": "inframe_insertion"
+  },
+  "rs12345": {
+   "fixture": "synonymous_variant",
+   "tid": "ENST00000999999",
+   "vep_terms": [],
+   "most_severe": "non_coding_transcript_exon_variant"
+  },
+  "rs12913832": {
+   "fixture": "intron_variant",
+   "tid": "ENST00000261842",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs7903146": {
+   "fixture": "intron_variant",
+   "tid": "ENST00000355995",
+   "vep_terms": [
+    "intron_variant"
+   ],
+   "most_severe": "intron_variant"
+  },
+  "rs1805007": {
+   "fixture": "missense_variant",
+   "tid": "ENST00000555147",
+   "vep_terms": [
+    "missense_variant"
+   ],
+   "most_severe": "missense_variant"
+  },
+  "rs16947": {
+   "fixture": "missense_variant",
+   "tid": "ENST00000360608",
+   "vep_terms": [],
+   "most_severe": "missense_variant"
+  },
+  "rs3892097": {
+   "fixture": "splice_region_variant",
+   "tid": "ENST00000360608",
+   "vep_terms": [],
+   "most_severe": "splice_acceptor_variant"
+  },
+  "rs1065852": {
+   "fixture": "missense_variant",
+   "tid": "ENST00000360608",
+   "vep_terms": [],
+   "most_severe": "missense_variant"
+  },
+  "rs334": {
+   "fixture": "missense_variant",
+   "tid": "ENST00000335295",
+   "vep_terms": [
+    "missense_variant"
+   ],
+   "most_severe": "missense_variant"
+  },
+  "rs28897696": {
+   "fixture": "missense_variant",
+   "tid": "ENST00000357654",
+   "vep_terms": [
+    "missense_variant"
+   ],
+   "most_severe": "missense_variant"
+  },
+  "rs63750066": {
+   "fixture": "stop_gained",
+   "tid": "ENST00000380152",
+   "vep_terms": [],
+   "most_severe": "missense_variant"
+  },
+  "rs80359550": {
+   "fixture": "frameshift_variant",
+   "tid": "ENST00000380152",
+   "vep_terms": [
+    "frameshift_variant"
+   ],
+   "most_severe": "frameshift_variant"
+  },
+  "rs121908757": {
+   "fixture": "missense_variant",
+   "tid": "ENST00000003084",
+   "vep_terms": [
+    "missense_variant"
+   ],
+   "most_severe": "missense_variant"
+  },
+  "rs121909224": {
+   "fixture": "stop_gained",
+   "tid": "ENST00000371953",
+   "vep_terms": [
+    "missense_variant",
+    "stop_gained",
+    "synonymous_variant"
+   ],
+   "most_severe": "stop_gained"
+  },
+  "rs76151636": {
+   "fixture": "missense_variant",
+   "tid": "ENST00000368373",
+   "vep_terms": [],
+   "most_severe": "missense_variant"
+  },
+  "rs104894396": {
+   "fixture": "missense_variant",
+   "tid": "ENST00000368373",
+   "vep_terms": [],
+   "most_severe": "stop_gained"
+  },
+  "rs121912443": {
+   "fixture": "missense_variant",
+   "tid": "ENST00000307000",
+   "vep_terms": [],
+   "most_severe": "missense_variant"
+  },
+  "rs5030862": {
+   "fixture": "missense_variant",
+   "tid": "ENST00000360608",
+   "vep_terms": [],
+   "most_severe": "missense_variant"
+  },
+  "rs28399504": {
+   "fixture": "start_lost",
+   "tid": "ENST00000371321",
+   "vep_terms": [
+    "start_lost"
+   ],
+   "most_severe": "start_lost"
+  },
+  "rs4244285": {
+   "fixture": "splice_region_variant",
+   "tid": "ENST00000371321",
+   "vep_terms": [
+    "synonymous_variant"
+   ],
+   "most_severe": "synonymous_variant"
+  },
+  "rs12248560": {
+   "fixture": "5_prime_UTR_variant",
+   "tid": "ENST00000371321",
+   "vep_terms": [
+    "upstream_gene_variant"
+   ],
+   "most_severe": "intron_variant"
+  },
+  "rs1799853": {
+   "fixture": "missense_variant",
+   "tid": "ENST00000260682",
+   "vep_terms": [
+    "missense_variant"
+   ],
+   "most_severe": "missense_variant"
+  },
+  "rs1057910": {
+   "fixture": "missense_variant",
+   "tid": "ENST00000260682",
+   "vep_terms": [
+    "missense_variant"
+   ],
+   "most_severe": "missense_variant"
+  },
+  "rs9923231": {
+   "fixture": "5_prime_UTR_variant",
+   "tid": "ENST00000394975",
+   "vep_terms": [
+    "upstream_gene_variant"
+   ],
+   "most_severe": "upstream_gene_variant"
+  },
+  "rs776746": {
+   "fixture": "intron_variant",
+   "tid": "ENST00000222982",
+   "vep_terms": [
+    "intron_variant"
+   ],
+   "most_severe": "splice_acceptor_variant"
+  },
+  "rs3918290": {
+   "fixture": "splice_region_variant",
+   "tid": "ENST00000370192",
+   "vep_terms": [
+    "splice_donor_variant"
+   ],
+   "most_severe": "splice_donor_variant"
+  },
+  "rs1800460": {
+   "fixture": "missense_variant",
+   "tid": "ENST00000309983",
+   "vep_terms": [
+    "missense_variant"
+   ],
+   "most_severe": "missense_variant"
+  },
+  "rs1142345": {
+   "fixture": "missense_variant",
+   "tid": "ENST00000309983",
+   "vep_terms": [
+    "missense_variant"
+   ],
+   "most_severe": "missense_variant"
+  },
+  "rs4149056": {
+   "fixture": "missense_variant",
+   "tid": "ENST00000256958",
+   "vep_terms": [
+    "missense_variant"
+   ],
+   "most_severe": "missense_variant"
+  },
+  "rs2306283": {
+   "fixture": "missense_variant",
+   "tid": "ENST00000256958",
+   "vep_terms": [
+    "missense_variant"
+   ],
+   "most_severe": "missense_variant"
+  },
+  "rs1051266": {
+   "fixture": "missense_variant",
+   "tid": "ENST00000311124",
+   "vep_terms": [
+    "missense_variant"
+   ],
+   "most_severe": "missense_variant"
+  },
+  "rs2032582": {
+   "fixture": "missense_variant",
+   "tid": "ENST00000265724",
+   "vep_terms": [
+    "missense_variant"
+   ],
+   "most_severe": "missense_variant"
+  },
+  "rs1045642": {
+   "fixture": "synonymous_variant",
+   "tid": "ENST00000265724",
+   "vep_terms": [
+    "missense_variant",
+    "synonymous_variant"
+   ],
+   "most_severe": "missense_variant"
+  },
+  "rs1801131": {
+   "fixture": "missense_variant",
+   "tid": "ENST00000376592",
+   "vep_terms": [
+    "missense_variant"
+   ],
+   "most_severe": "missense_variant"
+  },
+  "rs1801394": {
+   "fixture": "missense_variant",
+   "tid": "ENST00000341013",
+   "vep_terms": [
+    "missense_variant"
+   ],
+   "most_severe": "missense_variant"
+  },
+  "rs1805008": {
+   "fixture": "missense_variant",
+   "tid": "ENST00000555147",
+   "vep_terms": [
+    "missense_variant"
+   ],
+   "most_severe": "missense_variant"
+  },
+  "rs1805009": {
+   "fixture": "missense_variant",
+   "tid": "ENST00000555147",
+   "vep_terms": [
+    "missense_variant"
+   ],
+   "most_severe": "missense_variant"
+  },
+  "rs2228479": {
+   "fixture": "missense_variant",
+   "tid": "ENST00000555147",
+   "vep_terms": [
+    "missense_variant"
+   ],
+   "most_severe": "missense_variant"
+  },
+  "rs1800462": {
+   "fixture": "missense_variant",
+   "tid": "ENST00000309983",
+   "vep_terms": [
+    "missense_variant"
+   ],
+   "most_severe": "missense_variant"
+  },
+  "rs5030655": {
+   "fixture": "frameshift_variant",
+   "tid": "ENST00000360608",
+   "vep_terms": [],
+   "most_severe": "frameshift_variant"
+  },
+  "rs72552267": {
+   "fixture": "missense_variant",
+   "tid": "ENST00000360608",
+   "vep_terms": [],
+   "most_severe": "missense_variant"
+  },
+  "rs121913529": {
+   "fixture": "missense_variant",
+   "tid": "ENST00000307000",
+   "vep_terms": [],
+   "most_severe": "missense_variant"
+  },
+  "rs1800497": {
+   "fixture": "missense_variant",
+   "tid": "ENST00000303941",
+   "vep_terms": [
+    "missense_variant"
+   ],
+   "most_severe": "missense_variant"
+  },
+  "rs6311": {
+   "fixture": "5_prime_UTR_variant",
+   "tid": "ENST00000378689",
+   "vep_terms": [],
+   "most_severe": "upstream_gene_variant"
+  },
+  "rs6313": {
+   "fixture": "synonymous_variant",
+   "tid": "ENST00000378689",
+   "vep_terms": [],
+   "most_severe": "synonymous_variant"
+  },
+  "rs25531": {
+   "fixture": "5_prime_UTR_variant",
+   "tid": "ENST00000394821",
+   "vep_terms": [
+    "upstream_gene_variant"
+   ],
+   "most_severe": "upstream_gene_variant"
+  },
+  "rs4986893": {
+   "fixture": "stop_gained",
+   "tid": "ENST00000371321",
+   "vep_terms": [
+    "stop_gained"
+   ],
+   "most_severe": "stop_gained"
+  },
+  "rs12979860": {
+   "fixture": "intron_variant",
+   "tid": "ENST00000399264",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs8099917": {
+   "fixture": "intron_variant",
+   "tid": "ENST00000399232",
+   "vep_terms": [],
+   "most_severe": "upstream_gene_variant"
+  },
+  "rs1800795": {
+   "fixture": "5_prime_UTR_variant",
+   "tid": "ENST00000258743",
+   "vep_terms": [
+    "upstream_gene_variant"
+   ],
+   "most_severe": "intron_variant"
+  },
+  "rs1800896": {
+   "fixture": "5_prime_UTR_variant",
+   "tid": "ENST00000423557",
+   "vep_terms": [
+    "upstream_gene_variant"
+   ],
+   "most_severe": "upstream_gene_variant"
+  },
+  "rs1800629": {
+   "fixture": "5_prime_UTR_variant",
+   "tid": "ENST00000449264",
+   "vep_terms": [
+    "upstream_gene_variant"
+   ],
+   "most_severe": "upstream_gene_variant"
+  },
+  "rs1143634": {
+   "fixture": "synonymous_variant",
+   "tid": "ENST00000263341",
+   "vep_terms": [
+    "synonymous_variant"
+   ],
+   "most_severe": "synonymous_variant"
+  },
+  "rs4149015": {
+   "fixture": "intron_variant",
+   "tid": "ENST00000256958",
+   "vep_terms": [
+    "upstream_gene_variant"
+   ],
+   "most_severe": "upstream_gene_variant"
+  },
+  "rs7294": {
+   "fixture": "3_prime_UTR_variant",
+   "tid": "ENST00000376592",
+   "vep_terms": [],
+   "most_severe": "3_prime_UTR_variant"
+  },
+  "rs121434569": {
+   "fixture": "stop_gained",
+   "tid": "ENST00000357654",
+   "vep_terms": [],
+   "most_severe": "missense_variant"
+  },
+  "rs80358981": {
+   "fixture": "missense_variant",
+   "tid": "ENST00000357654",
+   "vep_terms": [],
+   "most_severe": "stop_gained"
+  },
+  "rs1799950": {
+   "fixture": "missense_variant",
+   "tid": "ENST00000357654",
+   "vep_terms": [
+    "missense_variant"
+   ],
+   "most_severe": "missense_variant"
+  },
+  "rs28897727": {
+   "fixture": "splice_region_variant",
+   "tid": "ENST00000003084",
+   "vep_terms": [],
+   "most_severe": "missense_variant"
+  },
+  "rs75039782": {
+   "fixture": "intron_variant",
+   "tid": "ENST00000003084",
+   "vep_terms": [
+    "intron_variant"
+   ],
+   "most_severe": "intron_variant"
+  },
+  "rs78655421": {
+   "fixture": "missense_variant",
+   "tid": "ENST00000003084",
+   "vep_terms": [
+    "missense_variant"
+   ],
+   "most_severe": "missense_variant"
+  },
+  "rs213950": {
+   "fixture": "synonymous_variant",
+   "tid": "ENST00000003084",
+   "vep_terms": [
+    "missense_variant"
+   ],
+   "most_severe": "missense_variant"
+  },
+  "rs6025": {
+   "fixture": "missense_variant",
+   "tid": "ENST00000367797",
+   "vep_terms": [
+    "missense_variant"
+   ],
+   "most_severe": "missense_variant"
+  },
+  "rs1799963": {
+   "fixture": "3_prime_UTR_variant",
+   "tid": "ENST00000234071",
+   "vep_terms": [],
+   "most_severe": "3_prime_UTR_variant"
+  },
+  "rs1800872": {
+   "fixture": "5_prime_UTR_variant",
+   "tid": "ENST00000423557",
+   "vep_terms": [
+    "upstream_gene_variant"
+   ],
+   "most_severe": "upstream_gene_variant"
+  },
+  "rs2476601": {
+   "fixture": "missense_variant",
+   "tid": "ENST00000359609",
+   "vep_terms": [],
+   "most_severe": "missense_variant"
+  },
+  "rs3135388": {
+   "fixture": "intron_variant",
+   "tid": "ENST00000360004",
+   "vep_terms": [],
+   "most_severe": "downstream_gene_variant"
+  },
+  "rs1800544": {
+   "fixture": "5_prime_UTR_variant",
+   "tid": "ENST00000280155",
+   "vep_terms": [
+    "upstream_gene_variant"
+   ],
+   "most_severe": "upstream_gene_variant"
+  },
+  "rs4570625": {
+   "fixture": "5_prime_UTR_variant",
+   "tid": "ENST00000333850",
+   "vep_terms": [
+    "upstream_gene_variant"
+   ],
+   "most_severe": "upstream_gene_variant"
+  },
+  "rs6265": {
+   "fixture": "missense_variant",
+   "tid": "ENST00000438929",
+   "vep_terms": [
+    "missense_variant"
+   ],
+   "most_severe": "missense_variant"
+  },
+  "rs1799971": {
+   "fixture": "missense_variant",
+   "tid": "ENST00000330432",
+   "vep_terms": [
+    "missense_variant"
+   ],
+   "most_severe": "missense_variant"
+  },
+  "rs4988235": {
+   "fixture": "intron_variant",
+   "tid": "ENST00000264156",
+   "vep_terms": [
+    "intron_variant"
+   ],
+   "most_severe": "intron_variant"
+  },
+  "rs182549": {
+   "fixture": "intron_variant",
+   "tid": "ENST00000264156",
+   "vep_terms": [
+    "intron_variant"
+   ],
+   "most_severe": "intron_variant"
+  },
+  "rs1800012": {
+   "fixture": "intron_variant",
+   "tid": "ENST00000225964",
+   "vep_terms": [
+    "intron_variant"
+   ],
+   "most_severe": "intron_variant"
+  },
+  "rs5882": {
+   "fixture": "missense_variant",
+   "tid": "ENST00000200676",
+   "vep_terms": [
+    "missense_variant"
+   ],
+   "most_severe": "missense_variant"
+  },
+  "rs708272": {
+   "fixture": "intron_variant",
+   "tid": "ENST00000200676",
+   "vep_terms": [
+    "intron_variant"
+   ],
+   "most_severe": "intron_variant"
+  },
+  "rs662": {
+   "fixture": "missense_variant",
+   "tid": "ENST00000222381",
+   "vep_terms": [
+    "missense_variant"
+   ],
+   "most_severe": "missense_variant"
+  },
+  "rs854560": {
+   "fixture": "missense_variant",
+   "tid": "ENST00000222381",
+   "vep_terms": [
+    "coding_sequence_variant",
+    "missense_variant",
+    "synonymous_variant"
+   ],
+   "most_severe": "missense_variant"
+  },
+  "rs1801282": {
+   "fixture": "missense_variant",
+   "tid": "ENST00000309576",
+   "vep_terms": [
+    "intron_variant"
+   ],
+   "most_severe": "missense_variant"
+  },
+  "rs1111875": {
+   "fixture": "intron_variant",
+   "tid": "ENST00000281419",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs13266634": {
+   "fixture": "missense_variant",
+   "tid": "ENST00000327110",
+   "vep_terms": [],
+   "most_severe": "missense_variant"
+  },
+  "rs5219": {
+   "fixture": "missense_variant",
+   "tid": "ENST00000339994",
+   "vep_terms": [
+    "missense_variant",
+    "stop_gained"
+   ],
+   "most_severe": "stop_gained"
+  },
+  "rs757210": {
+   "fixture": "intron_variant",
+   "tid": "ENST00000234420",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs4402960": {
+   "fixture": "intron_variant",
+   "tid": "ENST00000345146",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs10811661": {
+   "fixture": "regulatory_region_variant",
+   "tid": "ENST00000498124",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs12255372": {
+   "fixture": "intron_variant",
+   "tid": "ENST00000355995",
+   "vep_terms": [
+    "intron_variant"
+   ],
+   "most_severe": "intron_variant"
+  },
+  "rs174547": {
+   "fixture": "intron_variant",
+   "tid": "ENST00000350997",
+   "vep_terms": [
+    "intron_variant"
+   ],
+   "most_severe": "intron_variant"
+  },
+  "rs1535": {
+   "fixture": "intron_variant",
+   "tid": "ENST00000278840",
+   "vep_terms": [
+    "intron_variant"
+   ],
+   "most_severe": "intron_variant"
+  },
+  "rs4654748": {
+   "fixture": "intron_variant",
+   "tid": "ENST00000318249",
+   "vep_terms": [
+    "intron_variant"
+   ],
+   "most_severe": "intron_variant"
+  },
+  "rs2282679": {
+   "fixture": "intron_variant",
+   "tid": "ENST00000273951",
+   "vep_terms": [
+    "intron_variant"
+   ],
+   "most_severe": "intron_variant"
+  },
+  "rs7041": {
+   "fixture": "missense_variant",
+   "tid": "ENST00000273951",
+   "vep_terms": [
+    "missense_variant",
+    "synonymous_variant"
+   ],
+   "most_severe": "missense_variant"
+  },
+  "rs12794714": {
+   "fixture": "synonymous_variant",
+   "tid": "ENST00000334636",
+   "vep_terms": [],
+   "most_severe": "synonymous_variant"
+  },
+  "rs10741657": {
+   "fixture": "upstream_gene_variant",
+   "tid": "ENST00000334636",
+   "vep_terms": [],
+   "most_severe": "upstream_gene_variant"
+  },
+  "rs2060793": {
+   "fixture": "5_prime_UTR_variant",
+   "tid": "ENST00000395215",
+   "vep_terms": [],
+   "most_severe": "upstream_gene_variant"
+  },
+  "rs4477212": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs3094315": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs3131972": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs12124819": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs11240777": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "downstream_gene_variant"
+  },
+  "rs6681049": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "downstream_gene_variant"
+  },
+  "rs4970383": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "upstream_gene_variant"
+  },
+  "rs4475691": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs1799966": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "missense_variant"
+  },
+  "rs8176318": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "3_prime_UTR_variant"
+  },
+  "rs2032597": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs6655587": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs9999001": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs9999003": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs9999004": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs9999005": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs9999006": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs9999007": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs9999050": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs9999008": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "upstream_gene_variant"
+  },
+  "rs9999009": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs9999010": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs9999011": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs9999012": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs114525117": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "upstream_gene_variant"
+  },
+  "rs5026665": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs284307": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs477590": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs3179690": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "3_prime_UTR_variant"
+  },
+  "rs17257107": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "synonymous_variant"
+  },
+  "rs10914780": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs386833659": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "splice_acceptor_variant"
+  },
+  "rs785520": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs213498": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs74086291": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs4456071": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs12404339": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs10874250": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs658980": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs1415564": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "downstream_gene_variant"
+  },
+  "rs1241182": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs6656346": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs1885800": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs6683485": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs2758679": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "3_prime_UTR_variant"
+  },
+  "rs10919536": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs10800335": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs12743133": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs41475048": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs121434262": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "stop_gained"
+  },
+  "rs296522": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs913722": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs10863868": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs4085154": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs12140696": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "downstream_gene_variant"
+  },
+  "rs4846979": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs4551650": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs3011572": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs148818431": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "synonymous_variant"
+  },
+  "rs4632379": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs1453794": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs2270302": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "5_prime_UTR_variant"
+  },
+  "rs12465207": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs7601387": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs4381747": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs1401239": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs749651": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "downstream_gene_variant"
+  },
+  "rs17035807": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs587779236": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "missense_variant"
+  },
+  "rs350720": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs76265645": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs1864571": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs4853006": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs55828573": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs1394431": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs1868255": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs13423275": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs6748545": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs1669462": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs16855061": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs4664737": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs264591": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs13004083": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs77674357": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs397517749": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "frameshift_variant"
+  },
+  "rs13024531": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs587779723": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "missense_variant"
+  },
+  "rs12465498": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs11887929": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs587782504": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "frameshift_variant"
+  },
+  "rs890086": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs7558081": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs6740918": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs111481402": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "synonymous_variant"
+  },
+  "rs9755941": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "upstream_gene_variant"
+  },
+  "rs1967251": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs779723": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs2675165": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "3_prime_UTR_variant"
+  },
+  "rs397514382": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "missense_variant"
+  },
+  "rs259435": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs12637187": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs6550169": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs786202638": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "missense_variant"
+  },
+  "rs11129950": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs76699816": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs80356493": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "missense_variant"
+  },
+  "rs865010": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs12485939": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs4571176": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs2315966": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs12639369": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "upstream_gene_variant"
+  },
+  "rs1356915": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs12487740": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs4491840": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs60778967": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs35782477": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs55894265": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "missense_variant"
+  },
+  "rs1820935": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "regulatory_region_variant"
+  },
+  "rs13072987": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs2593420": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs9867956": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs1457576": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs10513821": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs1553560": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs13125929": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs13123841": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs2285781": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "synonymous_variant"
+  },
+  "rs77153933": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "upstream_gene_variant"
+  },
+  "rs73250451": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs6838713": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs1447373": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs6854035": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs985774": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs1399953": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "non_coding_transcript_exon_variant"
+  },
+  "rs11944965": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs7683903": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs1378378": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs3113494": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs7694491": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "upstream_gene_variant"
+  },
+  "rs12647112": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs4146697": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs6813598": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs10518474": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs1824483": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs2218313": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs6846361": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs74517184": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs4339166": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs1394860": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs2063393": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs6822105": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs830842": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs10076494": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs4866585": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs16879258": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs11133745": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs1606351": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs13169827": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs388669": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs17465965": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs4501299": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs2013979": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs6872249": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs1404988": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs17227806": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs1698135": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs7719818": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs341272": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs786203760": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "frameshift_variant"
+  },
+  "rs7710852": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs7700758": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs12522693": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs6421910": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs17415614": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs281860276": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "inframe_deletion"
+  },
+  "rs4532407": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs17060201": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs62385600": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs77850724": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs7718874": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs73719521": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "upstream_gene_variant"
+  },
+  "rs723796": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs181378432": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "missense_variant"
+  },
+  "rs2516234": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs9383372": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs566071": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs3129795": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "regulatory_region_variant"
+  },
+  "rs573120764": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "upstream_gene_variant"
+  },
+  "rs1362123": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs3131378": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "5_prime_UTR_variant"
+  },
+  "rs2856993": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs1076655": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs104894001": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "stop_gained"
+  },
+  "rs4714902": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs6917666": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "downstream_gene_variant"
+  },
+  "rs2078901": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs1830597": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs2023238": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs72917612": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs10457800": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs6912784": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs113013762": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs11154212": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs6901900": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs679670": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "regulatory_region_variant"
+  },
+  "rs491794": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs9322306": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs4512236": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs9364590": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs7751553": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs4247524": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs13224720": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs10231165": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs7780448": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs6957876": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs3813380": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs17607303": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs1557975": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs10280461": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs80299432": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs4947936": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "downstream_gene_variant"
+  },
+  "rs17710392": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs6979609": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs1509914": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs56371618": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs17776650": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "downstream_gene_variant"
+  },
+  "rs17154114": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs4730333": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs672601317": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "stop_gained"
+  },
+  "rs2283075": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs6951454": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs10262234": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs11769410": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs2257090": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "splice_polypyrimidine_tract_variant"
+  },
+  "rs3111876": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "downstream_gene_variant"
+  },
+  "rs11780869": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs10216980": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs2924729": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs7824480": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs17770189": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs10100384": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs6982478": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs2457434": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs10101779": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "downstream_gene_variant"
+  },
+  "rs12682471": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "non_coding_transcript_exon_variant"
+  },
+  "rs10958708": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs16921098": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs11785638": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs200115553": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs16938948": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs10106717": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs11775918": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs2279120": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs9656787": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs11996253": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs2891944": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "upstream_gene_variant"
+  },
+  "rs980349": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs166405": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs7007927": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "upstream_gene_variant"
+  },
+  "rs4460346": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs10814410": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs10812738": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs12345872": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs2382087": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs4741377": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs7042159": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs7868316": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs10968293": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs111033710": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "splice_donor_variant"
+  },
+  "rs953588": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs487502": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "upstream_gene_variant"
+  },
+  "rs17299918": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs10868488": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs7039002": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs1967890": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs435986": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs10283686": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs10982289": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "regulatory_region_variant"
+  },
+  "rs10760075": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs10733680": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs6597676": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs3118536": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs869025612": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "missense_variant"
+  },
+  "rs7914924": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "regulatory_region_variant"
+  },
+  "rs3886013": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs2255748": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs1870416": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs16917736": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "non_coding_transcript_exon_variant"
+  },
+  "rs10741068": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs17294794": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs1332770": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs2292585": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs10509006": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs1530440": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs4746796": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs370983472": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "splice_region_variant"
+  },
+  "rs10509397": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs1419271": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs303528": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs879253733": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "missense_variant"
+  },
+  "rs7893985": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs12781860": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs72641339": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs1857269": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs3013211": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs868590": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs7071825": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs201435049": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "missense_variant"
+  },
+  "rs4545536": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs11041009": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "upstream_gene_variant"
+  },
+  "rs17436486": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs7128359": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs7924410": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs882257": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs113628606": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs6484978": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs12802362": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "5_prime_UTR_variant"
+  },
+  "rs142189490": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "missense_variant"
+  },
+  "rs11231409": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "missense_variant"
+  },
+  "rs17612126": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "missense_variant"
+  },
+  "rs117712666": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs642770": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs10898483": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs10501795": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs10789753": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "upstream_gene_variant"
+  },
+  "rs4754086": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs587778078": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "missense_variant"
+  },
+  "rs4938066": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs72544145": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "missense_variant"
+  },
+  "rs1894081": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs1894225": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs11222663": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs2368831": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs2159404": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs2091781": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs7312564": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs766066": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs587776831": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "splice_donor_variant"
+  },
+  "rs16930139": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs12828682": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "upstream_gene_variant"
+  },
+  "rs7966732": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs121912891": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "missense_variant"
+  },
+  "rs17718358": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "downstream_gene_variant"
+  },
+  "rs28934607": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "missense_variant"
+  },
+  "rs78450446": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs1492361": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs1691551": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs4583021": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs1394585": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs12424969": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs937472": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs2270381": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "upstream_gene_variant"
+  },
+  "rs3759378": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "upstream_gene_variant"
+  },
+  "rs78622436": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs61954364": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs76257237": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "upstream_gene_variant"
+  },
+  "rs6416186": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs9551512": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs8001112": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "downstream_gene_variant"
+  },
+  "rs979244": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs9315027": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs80358559": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "missense_variant"
+  },
+  "rs863224468": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "stop_gained"
+  },
+  "rs9541520": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs9549035": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs3794331": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs9535511": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs9537975": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs17501421": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs9542986": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs9544526": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs1753780": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs9516258": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs4772102": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "upstream_gene_variant"
+  },
+  "rs9586006": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs9520136": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "upstream_gene_variant"
+  },
+  "rs3737325": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs72661529": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "downstream_gene_variant"
+  },
+  "rs11568422": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs10143703": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "5_prime_UTR_variant"
+  },
+  "rs1440985": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs2209623": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs1953200": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs1959775": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs1255277": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs1051858": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "missense_variant"
+  },
+  "rs12881241": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs8014890": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs786205624": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "splice_donor_5th_base_variant"
+  },
+  "rs41432549": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs3000050": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs7142571": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs3765492": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs7151969": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs7144384": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs12899110": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs17560758": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs6493741": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs1498583": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs11853517": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs6493165": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs16961733": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs12910709": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs8039095": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs397516371": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "missense_variant"
+  },
+  "rs3784351": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs16958010": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs11635848": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs7172789": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs369544574": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "missense_variant"
+  },
+  "rs8035845": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs10520766": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs12441022": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs216590": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs12443553": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs1865810": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs8044765": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs4328439": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "upstream_gene_variant"
+  },
+  "rs7191379": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "regulatory_region_variant"
+  },
+  "rs2608174": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs1557809": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs386833743": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "stop_gained"
+  },
+  "rs4785434": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs1908219": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs3859044": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs12931813": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs45467396": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs1017239": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs9929802": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs11863536": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs8044348": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs62048414": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs3849233": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs2396789": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs2855668": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs7350930": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs3826464": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs7219536": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs1122073": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs34705075": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "non_coding_transcript_exon_variant"
+  },
+  "rs16557": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs146891": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs4796760": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "non_coding_transcript_exon_variant"
+  },
+  "rs80357172": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "missense_variant"
+  },
+  "rs231506": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs10514973": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "upstream_gene_variant"
+  },
+  "rs2934928": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs143026267": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "missense_variant"
+  },
+  "rs35018407": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs12949267": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs1493550": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs8069024": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs60580031": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs12455984": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs12455764": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "non_coding_transcript_exon_variant"
+  },
+  "rs1790517": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "downstream_gene_variant"
+  },
+  "rs658513": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs1787868": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs895630": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs794728091": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "frameshift_variant"
+  },
+  "rs1786803": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs11665106": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs2584764": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs72627225": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs28634172": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs12457893": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs2941394": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs8090073": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs8098963": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs56025600": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs11667371": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "upstream_gene_variant"
+  },
+  "rs344577": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "upstream_gene_variant"
+  },
+  "rs139476990": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "missense_variant"
+  },
+  "rs771953225": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "splice_donor_variant"
+  },
+  "rs73518976": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs1948438": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "downstream_gene_variant"
+  },
+  "rs1035478": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs8108848": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs2279343": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "missense_variant"
+  },
+  "rs9304656": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs245110": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs10406904": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs770143722": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "splice_donor_variant"
+  },
+  "rs6076506": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "upstream_gene_variant"
+  },
+  "rs6049496": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs6139746": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "downstream_gene_variant"
+  },
+  "rs6133613": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs2103899": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs16997056": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs1321348": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs6049736": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs221311": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs6102592": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs2239534": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs4810884": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "regulatory_region_variant"
+  },
+  "rs34277206": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs2011703": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs6100204": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs944260": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs753116280": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "missense_variant"
+  },
+  "rs2776061": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs7510466": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs12482371": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs12626669": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs9808685": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs147474255": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "missense_variant"
+  },
+  "rs2299754": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs150802": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs734336": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "upstream_gene_variant"
+  },
+  "rs35416799": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs9332377": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs4820571": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "upstream_gene_variant"
+  },
+  "rs2213770": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs374938148": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "splice_region_variant"
+  },
+  "rs7364201": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs2071738": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs5995518": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs145472480": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "synonymous_variant"
+  },
+  "rs56396134": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs9627540": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs131031": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs1419931": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs6640082": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs17321858": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs2071848": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "missense_variant"
+  },
+  "rs5951587": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs5926434": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs1993560": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs4402033": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs12009148": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs5905864": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs2382849": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "downstream_gene_variant"
+  },
+  "rs1277992": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs5938060": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs2213665": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs4969678": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs2071753": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "5_prime_UTR_variant"
+  },
+  "rs104886257": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "missense_variant"
+  },
+  "rs5988003": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "downstream_gene_variant"
+  },
+  "rs4142568": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs5976493": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs4240133": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs1884198": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs1029098": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs73246815": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs7060208": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs11575897": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "missense_variant"
+  },
+  "rs9785983": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs3096835": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs778350157": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "non_coding_transcript_exon_variant"
+  },
+  "rs35178723": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs9786325": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs748333617": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs13305939": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs2109850": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs13304414": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs9785990": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs9785905": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs13304625": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs774129279": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs2873689": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs3212287": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs374438258": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs748078361": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intergenic_variant"
+  },
+  "rs28736870": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "intron_variant"
+  },
+  "rs397514462": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "missense_variant"
+  },
+  "rs7205": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "synonymous_variant"
+  },
+  "rs17842875": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "3_prime_UTR_variant"
+  },
+  "rs78907894": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "upstream_gene_variant"
+  },
+  "rs199474657": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "non_coding_transcript_exon_variant"
+  },
+  "rs199476119": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "missense_variant"
+  },
+  "rs199474672": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "non_coding_transcript_exon_variant"
+  },
+  "rs111033173": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "non_coding_transcript_exon_variant"
+  },
+  "rs369202065": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "synonymous_variant"
+  },
+  "rs3899188": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "synonymous_variant"
+  },
+  "rs2853497": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "synonymous_variant"
+  },
+  "rs28359175": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "synonymous_variant"
+  },
+  "rs193302985": {
+   "fixture": "intron_variant",
+   "tid": "",
+   "vep_terms": [],
+   "most_severe": "synonymous_variant"
+  }
+ },
+ "failures": [
+  [
+   "rs5778923",
+   "<HTTPError 400: 'Bad Request'>"
+  ]
+ ]
+}

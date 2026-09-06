@@ -1,0 +1,31 @@
+{
+  "tool": "Consensus MCP search (claude.ai connector)",
+  "accessed": "2026-09-06",
+  "query": "CYP2C19*4 rs28399504 start codon variant initiator methionine loss of function allele",
+  "filters": "none",
+  "reported_hits": 20,
+  "record_type": "DERIVED — title-level identities only, transcribed from the connector's ranked result list; abstracts are not retained. Consensus is a discovery tool and is not cited as a source.",
+  "disposition": "No hit was promoted to a citation. C2 is a claim about Ensembl's GRCh37 coordinate and consequence annotation for rs28399504, for which the authoritative database (Ensembl VEP REST, retained verbatim) is the source and the two cited PMIDs describe that resource. Hit 1 (Ferguson 1998) is the primary description of CYP2C19*4 as an initiation-codon A>G change and is recorded here as context consistent with the `start_lost` consequence; it was not notice-checked and no biological claim is derived from it.",
+  "hits": [
+    {"rank": 1, "title": "A new genetic defect in human CYP2C19: mutation of the initiation codon is responsible for poor metabolism of S-mephenytoin.", "first_author": "Ferguson RJ", "year": 1998, "journal": "The Journal of Pharmacology and Experimental Therapeutics", "doi": "10.1016/s0022-3565(24)37213-1"},
+    {"rank": 2, "title": "Frequencies of clinically important CYP2C19 and CYP2D6 alleles are graded across Europe", "first_author": "Petrović J", "year": 2019, "journal": "European Journal of Human Genetics", "doi": "10.1038/s41431-019-0480-8"},
+    {"rank": 3, "title": "CYP2C19 loss-of-function alleles predicts clinical outcomes in East Asian patients with acute myocardial infarction undergoing percutaneous coronary intervention and stenting receiving clopidogrel", "first_author": "Chen YW", "year": 2022, "journal": "Frontiers in Cardiovascular Medicine", "doi": "10.3389/fcvm.2022.994184"},
+    {"rank": 4, "title": "PharmVar GeneFocus: CYP2C19", "first_author": "Botton M", "year": 2020, "journal": "Clinical Pharmacology and Therapeutics", "doi": "10.1002/cpt.1973"},
+    {"rank": 5, "title": "CYP2C19 Genotype Prevalence and Association With Recurrent Myocardial Infarction in British–South Asians Treated With Clopidogrel", "first_author": "Magavern E", "year": 2023, "journal": "JACC: Advances", "doi": "10.1016/j.jacadv.2023.100573"},
+    {"rank": 6, "title": "CYP2C19*4 Allele", "first_author": null, "year": 2020, "journal": "Definitions (Qeios)", "doi": "10.32388/99e3au"},
+    {"rank": 7, "title": "Identification of CYP2C19*4B: pharmacogenetic implications for drug metabolism including clopidogrel responsiveness", "first_author": "Scott S", "year": 2011, "journal": "The Pharmacogenomics Journal", "doi": "10.1038/tpj.2011.5"},
+    {"rank": 8, "title": "From genes to drugs: CYP2C19 and pharmacogenetics in clinical practice", "first_author": "Shubbar Q", "year": 2024, "journal": "Frontiers in Pharmacology", "doi": "10.3389/fphar.2024.1326776"},
+    {"rank": 9, "title": "CYP2C19 genetic variants and coronary atherosclerosis: insights beyond antiplatelet therapy", "first_author": "Chiusolo S", "year": 2025, "journal": "European Heart Journal", "doi": "10.1093/eurheartj/ehaf784.1880"},
+    {"rank": 10, "title": "CYP2C19 variability and clinical outcomes of clopidogrel, proton pump inhibitors, and voriconazole in Southeast Asia: a systematic review and meta-analysis", "first_author": "Hardi H", "year": 2025, "journal": "Frontiers in Pharmacology", "doi": "10.3389/fphar.2025.1572886"},
+    {"rank": 11, "title": "Global distribution of functionally important CYP2C9 alleles and their inferred metabolic consequences", "first_author": "Zhou Y", "year": 2023, "journal": "Human Genomics", "doi": "10.1186/s40246-023-00461-z"},
+    {"rank": 12, "title": "CYP2C19 Loss-of-Function Variants Associated With Long-Term Ischemic Stroke Events During Clopidogrel Treatment in the Chinese Population", "first_author": "Wu P", "year": 2023, "journal": "Clinical Pharmacology & Therapeutics", "doi": "10.1002/cpt.3028"},
+    {"rank": 13, "title": "Functional Characterization of 29 Cytochrome P450 4F2 Variants Identified in a Population of 8380 Japanese Subjects and Assessment of Arachidonic Acid ω-Hydroxylation", "first_author": "Sato Y", "year": 2023, "journal": "Drug Metabolism and Disposition", "doi": "10.1124/dmd.123.001389"},
+    {"rank": 14, "title": "CYP2C19 Loss-of-Function Is an Independent Risk Factor of Coronary Artery Disease in Patients With Hypertension", "first_author": "Wei G", "year": 2025, "journal": "Journal of Clinical Laboratory Analysis", "doi": "10.1002/jcla.70088"},
+    {"rank": 15, "title": "Pharmacogenetics of CYP2C19: functional and clinical implications of a new variant CYP2C19*17.", "first_author": "Li-Wan-Po A", "year": 2010, "journal": "British Journal of Clinical Pharmacology", "doi": "10.1111/j.1365-2125.2009.03578.x"},
+    {"rank": 16, "title": "Meta-analysis of cytochrome P450 2C19 polymorphism and risk of adverse clinical outcomes among coronary artery disease patients of different ethnic groups treated with clopidogrel.", "first_author": "Jang JS", "year": 2012, "journal": "The American Journal of Cardiology", "doi": "10.1016/j.amjcard.2012.04.020"},
+    {"rank": 17, "title": "Clinical Pharmacogenetics Implementation Consortium Guidelines for Cytochrome P450-2C19 (CYP2C19) Genotype and Clopidogrel Therapy", "first_author": "Scott S", "year": 2011, "journal": "Clinical Pharmacology and Therapeutics", "doi": "10.1038/clpt.2011.132"},
+    {"rank": 18, "title": "PharmVar GeneFocus: CYP4F2", "first_author": "Zubiaur P", "year": 2024, "journal": "Clinical Pharmacology and Therapeutics", "doi": "10.1002/cpt.3405"},
+    {"rank": 19, "title": "Genetic variants of CYP2C19 and CYP2C18 and their clinical implications in the Saudi population", "first_author": "Alkattan A", "year": 2026, "journal": "Journal of Taibah University Medical Sciences", "doi": "10.1016/j.jtumed.2026.03.003"},
+    {"rank": 20, "title": "Meta-analyses of the association between cytochrome CYP2C19 loss- and gain-of-function polymorphisms and cardiovascular outcomes in patients with coronary artery disease treated with clopidogrel", "first_author": "Zabalza M", "year": 2011, "journal": "Heart", "doi": "10.1136/hrt.2011.227652"}
+  ]
+}

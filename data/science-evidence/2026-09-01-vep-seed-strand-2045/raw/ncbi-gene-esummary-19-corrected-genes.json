@@ -1,0 +1,116 @@
+{
+ "CDKN2A": {
+  "gene_id": "1029",
+  "chrstart": 21995323,
+  "chrstop": 21967751,
+  "orientation": "-"
+ },
+ "CYP2C19": {
+  "gene_id": "1557",
+  "chrstart": 94762680,
+  "chrstop": 94855546,
+  "orientation": "+"
+ },
+ "CYP2C9": {
+  "gene_id": "1559",
+  "chrstart": 94938657,
+  "chrstop": 94990090,
+  "orientation": "+"
+ },
+ "CYP2R1": {
+  "gene_id": "120227",
+  "chrstart": 14892442,
+  "chrstop": 14877439,
+  "orientation": "-"
+ },
+ "CYP3A5": {
+  "gene_id": "1577",
+  "chrstart": 99679995,
+  "chrstop": 99648193,
+  "orientation": "-"
+ },
+ "HERC2": {
+  "gene_id": "8924",
+  "chrstart": 28322178,
+  "chrstop": 28111039,
+  "orientation": "-"
+ },
+ "HLA-DRB1": {
+  "gene_id": "3123",
+  "chrstart": 32589847,
+  "chrstop": 32578774,
+  "orientation": "-"
+ },
+ "HNF1B": {
+  "gene_id": "6928",
+  "chrstart": 37745058,
+  "chrstop": 37686430,
+  "orientation": "-"
+ },
+ "IFNL3": {
+  "gene_id": "282617",
+  "chrstart": 39245249,
+  "chrstop": 39243454,
+  "orientation": "-"
+ },
+ "IFNL4": {
+  "gene_id": "101180976",
+  "chrstart": 39248855,
+  "chrstop": 39246313,
+  "orientation": "-"
+ },
+ "IGF2BP2": {
+  "gene_id": "10644",
+  "chrstart": 185825041,
+  "chrstop": 185643129,
+  "orientation": "-"
+ },
+ "IL10": {
+  "gene_id": "3586",
+  "chrstart": 206772493,
+  "chrstop": 206767601,
+  "orientation": "-"
+ },
+ "MTHFR": {
+  "gene_id": "4524",
+  "chrstart": 11805963,
+  "chrstop": 11785722,
+  "orientation": "-"
+ },
+ "PAH": {
+  "gene_id": "5053",
+  "chrstart": 102958440,
+  "chrstop": 102836888,
+  "orientation": "-"
+ },
+ "PON1": {
+  "gene_id": "5444",
+  "chrstart": 95324531,
+  "chrstop": 95297675,
+  "orientation": "-"
+ },
+ "SLC6A4": {
+  "gene_id": "6532",
+  "chrstart": 30235696,
+  "chrstop": 30194318,
+  "orientation": "-"
+ },
+ "TNF": {
+  "gene_id": "7124",
+  "chrstart": 31575564,
+  "chrstop": 31578335,
+  "orientation": "+"
+ },
+ "TPMT": {
+  "gene_id": "7172",
+  "chrstart": 18155168,
+  "chrstop": 18128310,
+  "orientation": "-"
+ },
+ "VKORC1": {
+  "gene_id": "79001",
+  "chrstart": 31094796,
+  "chrstop": 31090853,
+  "orientation": "-"
+ }
+}
