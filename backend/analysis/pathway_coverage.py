@@ -9,6 +9,33 @@ STANDARD_LEVEL = "Standard"
 NO_CALL_STATUS = "no_call"
 
 
+def _label_aliases(gene: str) -> list[str]:
+    """Every spelling of ``gene`` that a curated ``variant_name`` may open with.
+
+    A plain symbol is its own only alias. A composite label such as
+    ``"CAV1/CAV2"`` or ``"MCM6/LCT"`` is also recognised by any single
+    component ("LCT -13910C>T") and by the components joined with ``-`` or
+    ``/`` ("CAV1-CAV2 intergenic"), because curators write the same locus both
+    ways (#2044).
+    """
+    parts = [part for part in gene.split("/") if part]
+    if len(parts) < 2:
+        return [gene]
+    return list(dict.fromkeys([gene, *parts, "-".join(parts), "/".join(parts)]))
+
+
+def _leads_with(variant_name: str, token: str) -> bool:
+    """``variant_name`` opens with ``token`` at a word boundary.
+
+    Case-insensitive, and the character after the token must be missing or
+    non-alphanumeric, so a gene that merely shares a prefix ("GC" vs
+    "GCH1 …", "IL2" vs "IL2RA …") does not count as a match.
+    """
+    return variant_name.lower().startswith(token.lower()) and (
+        len(variant_name) == len(token) or not variant_name[len(token)].isalnum()
+    )
+
+
 def variant_label(gene: str | None, variant_name: str | None) -> str:
     """Render "<gene> <variant_name>" without doubling the gene symbol.
 
@@ -16,7 +43,11 @@ def variant_label(gene: str | None, variant_name: str | None) -> str:
     ``variant_name`` ("FTO intron 1", "HLA-B*57:01 proxy"), so the naive
     ``f"{gene} {variant_name}"`` produced cards reading "FTO FTO intron 1"
     (#2021). The match is anchored on a word boundary so a gene that merely
-    shares a prefix with the variant name is still prepended.
+    shares a prefix with the variant name is still prepended. A composite gene
+    label ("CAV1/CAV2", "MCM6/LCT") is matched by any of its equivalent
+    spellings — one component, or the components joined with ``-`` or ``/`` —
+    so "CAV1-CAV2 intergenic" and "LCT -13910C>T" are not prefixed either
+    (#2044).
     """
     gene = (gene or "").strip()
     variant_name = (variant_name or "").strip()
@@ -24,9 +55,7 @@ def variant_label(gene: str | None, variant_name: str | None) -> str:
         return variant_name
     if not variant_name:
         return gene
-    if variant_name.lower().startswith(gene.lower()) and (
-        len(variant_name) == len(gene) or not variant_name[len(gene)].isalnum()
-    ):
+    if any(_leads_with(variant_name, alias) for alias in _label_aliases(gene)):
         return variant_name
     return f"{gene} {variant_name}"
 

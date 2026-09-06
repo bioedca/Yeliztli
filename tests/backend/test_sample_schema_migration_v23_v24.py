@@ -138,7 +138,7 @@ def test_v24_repairs_both_exact_historical_findings(sample_engine: sa.Engine) ->
         )
         version = conn.execute(sa.text("PRAGMA user_version")).scalar_one()
 
-    assert version == SAMPLE_SCHEMA_VERSION == 27
+    assert version == SAMPLE_SCHEMA_VERSION == 28
     assert [row["finding_text"] for row in migrated] == [
         _repaired(CURRENT_TEMPLATE, "GA"),
         _repaired(CURRENT_TEMPLATE, "AA"),

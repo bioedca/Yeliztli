@@ -189,7 +189,7 @@ def test_v27_repairs_the_doubled_rsid_in_every_affected_module(
         after = _rows(conn)
         version = conn.execute(sa.text("PRAGMA user_version")).scalar_one()
 
-    assert version == SAMPLE_SCHEMA_VERSION == 27
+    assert version == SAMPLE_SCHEMA_VERSION == 28
     assert [row["finding_text"] for row in after] == [row[5] for row in DOUBLED_ROWS]
     assert [{**row, "finding_text": None} for row in after] == [
         {**row, "finding_text": None} for row in before

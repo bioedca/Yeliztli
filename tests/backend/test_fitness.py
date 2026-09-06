@@ -43,6 +43,7 @@ from backend.analysis.fitness import (
     store_fitness_findings,
     update_annotation_coverage_gwas,
 )
+from backend.analysis.pathway_coverage import variant_label
 from backend.annotation.engine import GWAS_BIT
 from backend.db.tables import (
     annotated_variants,
@@ -51,6 +52,11 @@ from backend.db.tables import (
     raw_variants,
     reference_metadata,
     sample_metadata_obj,
+)
+from tests.backend._gene_label_fixtures import (
+    gene_prefixed_loci,
+    raw_variant_rows,
+    renders_gene_twice,
 )
 
 # ── Fixtures ──────────────────────────────────────────────────────────────
@@ -1315,6 +1321,89 @@ class TestStoreFindingsIntegration:
         assert "rs1815739" in detail["missing_snps"]
         assert "rs8192678" in detail["missing_snps"]
         assert detail["no_call_snps"] == ["rs1815739"]
+
+
+# ── Stored finding text prints the gene once (#2044) ───────────────────
+
+
+class TestStoredFindingTextGeneLabel:
+    """Production path for #2044: seed → score → store → read ``findings`` back.
+
+    ``test_finding_text_gene_doubling.py`` guards the formatter and the panels;
+    this drives ``store_fitness_findings`` itself, so a call site that rebuilds the
+    label by concatenation, ``.format()`` or swapped arguments is caught on the
+    persisted ``finding_text``.
+    """
+
+    def test_gene_prefixed_loci_persist_without_doubling(
+        self,
+        panel: FitnessPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """Every curated locus whose ``variant_name`` already leads with its gene.
+
+        Covers the plain text branch: none of the gene-prefixed fitness loci
+        (COL5A1, COL1A1, FTO) carries ``three_state_calling``. ACTN3 R577X is
+        the only three-state locus and its name is descriptor-only, so that
+        branch is pinned separately below in its prepend shape.
+        """
+        loci = gene_prefixed_loci(panel)
+        assert loci, "fitness panel has no gene-prefixed locus; this guard would be vacuous"
+        _seed_variants(sample_engine, raw_variant_rows(loci))
+
+        result = score_fitness_pathways(panel, sample_engine, reference_engine)
+        store_fitness_findings(result, sample_engine)
+
+        with sample_engine.connect() as conn:
+            rows = conn.execute(
+                sa.select(findings).where(findings.c.module == MODULE_NAME)
+            ).fetchall()
+        assert rows
+        stored = {r.rsid: r.finding_text for r in rows if r.category == "snp_finding"}
+        for locus in loci:
+            text = stored.get(locus.rsid)
+            assert text is not None, f"{locus.rsid} ({locus.gene}) stored no snp_finding row"
+            # The gene is already the first word of the variant name, so the
+            # persisted card must open with the variant name itself...
+            assert text.startswith(f"{locus.variant_name} ("), text
+            # ...which is exactly what the shared formatter renders.
+            assert text.startswith(f"{variant_label(locus.gene, locus.variant_name)} ("), text
+        doubled = [r.finding_text for r in rows if renders_gene_twice(r.finding_text)]
+        assert doubled == [], f"stored fitness text prints a gene twice: {doubled}"
+
+    def test_three_state_branch_uses_the_shared_label(
+        self,
+        panel: FitnessPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """ACTN3 R577X (CT → RX) takes the three-state text branch.
+
+        Its curated name is descriptor-only, so the label is the prepend shape
+        and the naive template would read the same; this pins the branch to the
+        shared formatter (and its argument order) on the persisted text.
+        """
+        _seed_variants(sample_engine, [("rs1815739", "11", 66328095, "CT")])
+        result = score_fitness_pathways(panel, sample_engine, reference_engine)
+        actn3 = next(
+            s for pr in result.pathway_results for s in pr.called_snps if s.rsid == "rs1815739"
+        )
+        assert actn3.three_state_label == "RX"
+        assert actn3.category != STANDARD
+
+        store_fitness_findings(result, sample_engine)
+        with sample_engine.connect() as conn:
+            text = conn.execute(
+                sa.select(findings.c.finding_text).where(
+                    findings.c.module == MODULE_NAME,
+                    findings.c.category == "snp_finding",
+                    findings.c.rsid == "rs1815739",
+                )
+            ).scalar_one()
+        assert text == f"ACTN3 R577X (CT) — RX genotype; {actn3.effect_summary}"
+        assert text.startswith(f"{variant_label(actn3.gene, actn3.variant_name)} (")
+        assert not renders_gene_twice(text)
 
 
 # ── PathwayResult properties ────────────────────────────────────────────

@@ -75,6 +75,17 @@ def test_standard_indeterminate_wording_precedes_no_called_fallback() -> None:
         # Word boundary: a gene that merely shares a prefix is still prepended,
         # so "GC" must not be swallowed by an unrelated "GCH1 …" name.
         ("GC", "GCH1 promoter variant", "GC GCH1 promoter variant"),
+        ("IL2", "IL2RA intron 1", "IL2 IL2RA intron 1"),
+        # Composite gene labels (#2044): the curated variant_name may open with
+        # one component, or with the components joined by "-" instead of "/".
+        ("CAV1/CAV2", "CAV1-CAV2 intergenic", "CAV1-CAV2 intergenic"),
+        ("IL2/IL21", "IL2-IL21 intergenic", "IL2-IL21 intergenic"),
+        ("MCM6/LCT", "LCT -13910C>T", "LCT -13910C>T"),
+        ("MCM6/LCT", "MCM6/LCT lactase region", "MCM6/LCT lactase region"),
+        # ...a descriptor-only name still gets the whole composite label...
+        ("NBPF3/ALPL", "B6 levels variant", "NBPF3/ALPL B6 levels variant"),
+        # ...and a component that merely shares a prefix is still prepended.
+        ("IL2/IL21", "IL2RA intron 1", "IL2/IL21 IL2RA intron 1"),
         # Degenerate inputs.
         ("FTO", "", "FTO"),
         ("", "FokI (M1T)", "FokI (M1T)"),

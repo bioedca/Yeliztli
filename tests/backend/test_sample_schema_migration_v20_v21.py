@@ -129,7 +129,7 @@ def test_v21_quarantines_only_cyp2c9_phenytoin_alert_and_diff_identity(
         )
         version = conn.execute(sa.text("PRAGMA user_version")).scalar_one()
 
-    assert version == SAMPLE_SCHEMA_VERSION == 27
+    assert version == SAMPLE_SCHEMA_VERSION == 28
     assert remaining == [
         ("pharmacogenomics", "prescribing_alert", "CYP2C9", "warfarin"),
         ("pharmacogenomics", "prescribing_alert", "CYP2D6", "phenytoin"),

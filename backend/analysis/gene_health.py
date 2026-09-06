@@ -865,7 +865,7 @@ def store_gene_health_findings(
                             "gene_symbol": snp.gene,
                             "rsid": snp.rsid,
                             "finding_text": (
-                                f"{snp.gene} {snp.variant_name} ({snp.genotype}) — "
+                                f"{variant_label(snp.gene, snp.variant_name)} ({snp.genotype}) — "
                                 f"{snp.effect_summary}"
                             ),
                             "pathway": pr.pathway_name,
@@ -876,7 +876,10 @@ def store_gene_health_findings(
                     )
                 continue
 
-            snp_text = f"{snp.gene} {snp.variant_name} ({snp.genotype}) — {snp.effect_summary}"
+            snp_text = (
+                f"{variant_label(snp.gene, snp.variant_name)} ({snp.genotype}) — "
+                f"{snp.effect_summary}"
+            )
             if snp.coverage_note:
                 snp_text = f"{snp_text} Note: {snp.coverage_note}"
 
