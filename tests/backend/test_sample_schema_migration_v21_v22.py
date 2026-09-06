@@ -156,7 +156,7 @@ def test_v22_repairs_all_exact_legacy_alerts_in_place(sample_engine: sa.Engine) 
         migrated = list(rows)
         version = conn.execute(sa.text("PRAGMA user_version")).scalar_one()
 
-    assert version == SAMPLE_SCHEMA_VERSION == 27
+    assert version == SAMPLE_SCHEMA_VERSION == 28
     assert [row["id"] for row in migrated] == [101, 102, 103, 104]
     for row in migrated:
         drug = row["drug"]

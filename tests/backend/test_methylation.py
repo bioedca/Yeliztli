@@ -45,6 +45,7 @@ from backend.analysis.methylation import (
     store_methylation_findings,
     update_annotation_coverage_gwas,
 )
+from backend.analysis.pathway_coverage import variant_label
 from backend.annotation.engine import GWAS_BIT
 from backend.db.tables import (
     annotated_variants,
@@ -53,6 +54,11 @@ from backend.db.tables import (
     raw_variants,
     reference_metadata,
     sample_metadata_obj,
+)
+from tests.backend._gene_label_fixtures import (
+    gene_prefixed_loci,
+    raw_variant_rows,
+    renders_gene_twice,
 )
 
 # ── Fixtures ──────────────────────────────────────────────────────────────
@@ -1334,6 +1340,55 @@ class TestStoreFindingsIntegration:
         assert detail["additive_promoted"] is False
         assert detail["moderate_snp_count"] == 0
         assert detail["multiple_moderate_findings"] is False
+
+
+# ── Stored finding text prints the gene once (#2044) ───────────────────
+
+
+class TestStoredFindingTextGeneLabel:
+    """Production path for #2044: seed → score → store → read ``findings`` back.
+
+    ``test_finding_text_gene_doubling.py`` guards the formatter and the panels;
+    this drives ``store_methylation_findings`` itself, so a call site that rebuilds the
+    label by concatenation, ``.format()`` or swapped arguments is caught on the
+    persisted ``finding_text``.
+    """
+
+    def test_gene_prefixed_loci_persist_without_doubling(
+        self,
+        panel: MethylationPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """Every curated locus whose ``variant_name`` already leads with its gene.
+
+        Methylation has a single per-SNP text branch; the gene-prefixed loci
+        span every pathway (DHFR, MAT1A, AHCY, DNMT1, MTHFS, GCH1, PEMT, BHMT,
+        SLC44A1, PCYT1A). The MTHFR compound-het finding is a separate row.
+        """
+        loci = gene_prefixed_loci(panel)
+        assert loci, "methylation panel has no gene-prefixed locus; this guard would be vacuous"
+        _seed_variants(sample_engine, raw_variant_rows(loci))
+
+        result = score_methylation_pathways(panel, sample_engine, reference_engine)
+        store_methylation_findings(result, sample_engine)
+
+        with sample_engine.connect() as conn:
+            rows = conn.execute(
+                sa.select(findings).where(findings.c.module == MODULE_NAME)
+            ).fetchall()
+        assert rows
+        stored = {r.rsid: r.finding_text for r in rows if r.category == "snp_finding"}
+        for locus in loci:
+            text = stored.get(locus.rsid)
+            assert text is not None, f"{locus.rsid} ({locus.gene}) stored no snp_finding row"
+            # The gene is already the first word of the variant name, so the
+            # persisted card must open with the variant name itself...
+            assert text.startswith(f"{locus.variant_name} ("), text
+            # ...which is exactly what the shared formatter renders.
+            assert text.startswith(f"{variant_label(locus.gene, locus.variant_name)} ("), text
+        doubled = [r.finding_text for r in rows if renders_gene_twice(r.finding_text)]
+        assert doubled == [], f"stored methylation text prints a gene twice: {doubled}"
 
 
 class TestSLC19A1ComplementaryStrandRendering:

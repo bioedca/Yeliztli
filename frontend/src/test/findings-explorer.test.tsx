@@ -9,7 +9,13 @@ import {
   within,
 } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { MemoryRouter } from "react-router-dom";
+import {
+  MemoryRouter,
+  Link,
+  Route,
+  Routes,
+  useNavigate,
+} from "react-router-dom";
 import FindingsExplorer from "@/pages/FindingsExplorer";
 import type { Finding, FindingsSummaryResponse } from "@/types/findings";
 import type { ReactElement, ReactNode } from "react";
@@ -662,6 +668,144 @@ describe("FindingsExplorer", () => {
     const note = await screen.findByTestId("finding-indeterminate-reasons");
     expect(note).toHaveTextContent("rs17580");
     expect(note).toHaveTextContent("strand-ambiguous palindromic homozygote");
+  });
+
+  // ── URL-seeded minimum-evidence filter (#2047) ──────────────────────
+
+  /** Three tiers, served by a mock that honours `min_stars`, so the tiers on
+   * screen reveal which filter actually reached the request. */
+  const TIERED_FINDINGS: Finding[] = [
+    {
+      ...SAMPLE_FINDINGS[0],
+      id: 41,
+      evidence_level: 4,
+      finding_text: "Definitive finding",
+    },
+    {
+      ...SAMPLE_FINDINGS[0],
+      id: 42,
+      evidence_level: 3,
+      finding_text: "Strong finding",
+    },
+    {
+      ...SAMPLE_FINDINGS[0],
+      id: 43,
+      evidence_level: 2,
+      finding_text: "Moderate finding",
+    },
+  ];
+
+  function setupMinStarsAwareFetchMock() {
+    mockFetch.mockImplementation(async (url: string) => {
+      if (url.includes("/api/analysis/findings/summary")) {
+        return { ok: true, json: async () => SAMPLE_SUMMARY };
+      }
+      const minStars = Number(
+        new URL(url, "http://localhost").searchParams.get("min_stars") ?? 0,
+      );
+      return {
+        ok: true,
+        json: async () =>
+          TIERED_FINDINGS.filter(
+            (finding) => (finding.evidence_level ?? 0) >= minStars,
+          ),
+      };
+    });
+  }
+
+  /** `min_stars` carried by each findings request issued at or after `start`. */
+  function minStarsRequestedSince(start: number): (string | null)[] {
+    return mockFetch.mock.calls
+      .slice(start)
+      .map((call) => new URL(String(call[0]), "http://localhost"))
+      .filter((url) => url.pathname === "/api/analysis/findings")
+      .map((url) => url.searchParams.get("min_stars"));
+  }
+
+  /** The real same-route entry points: the sidebar's "All Findings" link
+   * (`withActiveSample("/findings", id)`, no minStars), the dashboard's
+   * high-confidence link (`?minStars=3`), and the browser's back button. Each
+   * targets the route this page is already mounted on, so React Router keeps
+   * the instance alive and its state initializers never run again. */
+  function SameRouteNavigation() {
+    const navigate = useNavigate();
+    return (
+      <>
+        <Link to="/findings?sample_id=1">All Findings</Link>
+        <Link to="/findings?sample_id=1&minStars=3">
+          High-confidence findings
+        </Link>
+        <button type="button" onClick={() => navigate(-1)}>
+          Back
+        </button>
+      </>
+    );
+  }
+
+  function renderOnFindingsRoute(initialEntry: string) {
+    return renderWithRoute(
+      <Routes>
+        <Route
+          path="/findings"
+          element={
+            <>
+              <SameRouteNavigation />
+              <FindingsExplorer />
+            </>
+          }
+        />
+      </Routes>,
+      [initialEntry],
+    );
+  }
+
+  it("drops the seeded minimum-evidence filter when same-route navigation removes minStars (#2047)", async () => {
+    setupMinStarsAwareFetchMock();
+    renderOnFindingsRoute("/findings?sample_id=1&minStars=3");
+
+    // Seeded from the URL: only the 3+ tiers are requested and shown.
+    expect(await screen.findByText("Strong finding")).toBeInTheDocument();
+    expect(screen.queryByText("Moderate finding")).not.toBeInTheDocument();
+    expect(minStarsRequestedSince(0)).toContain("3");
+    expect(minStarsRequestedSince(0)).not.toContain(null);
+
+    const requestsBefore = mockFetch.mock.calls.length;
+    fireEvent.click(screen.getByRole("link", { name: "All Findings" }));
+
+    // The parameter is gone, so every tier must come back on screen ...
+    expect(await screen.findByText("Moderate finding")).toBeInTheDocument();
+    expect(screen.getByText("Strong finding")).toBeInTheDocument();
+    // ... because the request the page issued stopped carrying the filter.
+    expect(minStarsRequestedSince(requestsBefore)).toContain(null);
+    expect(minStarsRequestedSince(requestsBefore)).not.toContain("3");
+  });
+
+  it("applies minStars when it appears on the mounted route and drops it again on history back (#2047)", async () => {
+    setupMinStarsAwareFetchMock();
+    renderOnFindingsRoute("/findings?sample_id=1");
+
+    expect(await screen.findByText("Moderate finding")).toBeInTheDocument();
+    expect(minStarsRequestedSince(0)).not.toContain("3");
+
+    let requestsBefore = mockFetch.mock.calls.length;
+    fireEvent.click(
+      screen.getByRole("link", { name: "High-confidence findings" }),
+    );
+
+    // Wait for the filtered page, not the loading frame in between.
+    await waitFor(() => {
+      expect(screen.getByText("Strong finding")).toBeInTheDocument();
+      expect(screen.queryByText("Moderate finding")).not.toBeInTheDocument();
+    });
+    expect(minStarsRequestedSince(requestsBefore)).toContain("3");
+    expect(minStarsRequestedSince(requestsBefore)).not.toContain(null);
+
+    // Browser history back returns to the unfiltered URL on the same instance.
+    requestsBefore = mockFetch.mock.calls.length;
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+
+    expect(await screen.findByText("Moderate finding")).toBeInTheDocument();
+    expect(minStarsRequestedSince(requestsBefore)).not.toContain("3");
   });
 
   // ── Module links / labels (issue #544) ──────────────────────────────
