@@ -6,7 +6,7 @@
  * module page for detailed exploration.
  */
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import { ClipboardList, Star, Filter } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -19,6 +19,7 @@ import PageLoading from "@/components/ui/PageLoading";
 import PageError from "@/components/ui/PageError";
 import PageEmpty from "@/components/ui/PageEmpty";
 import type { Finding, FindingSummaryItem } from "@/types/findings";
+import { MIN_STARS_PARAM, parseMinStars } from "@/lib/findings-confidence";
 
 // ── Evidence level labels ────────────────────────────────────────────
 
@@ -241,10 +242,25 @@ const FINDINGS_PAGE_SIZE = 200;
 export default function FindingsExplorer() {
   const [searchParams] = useSearchParams();
   const sampleId = parseSampleId(searchParams.get("sample_id"));
+  const urlMinStars = parseMinStars(searchParams.get(MIN_STARS_PARAM));
 
   const [selectedModule, setSelectedModule] = useState<string | null>(null);
-  const [minStars, setMinStars] = useState<number | null>(null);
+  // Seeded from the URL so a link can land on the set it names -- the dashboard
+  // "High-Confidence Findings" link previously pointed here unfiltered (#2047).
+  const [minStars, setMinStars] = useState<number | null>(urlMinStars);
   const [limit, setLimit] = useState(FINDINGS_PAGE_SIZE);
+
+  // The URL stays authoritative after mount too. The sidebar's "All Findings"
+  // link and browser history move between `/findings?sample_id=N` and
+  // `...&minStars=3` on this same route, so React Router keeps this instance
+  // and the initializer above never re-runs; without this sync the filter kept
+  // showing 3+ after the parameter vanished (and stayed unfiltered when it
+  // appeared). Keyed on the parsed value, not the params object, so a manual
+  // filter choice survives unrelated re-renders and only an actual parameter
+  // change resets it.
+  useEffect(() => {
+    setMinStars(urlMinStars);
+  }, [urlMinStars]);
 
   const findingsQuery = useFindings(sampleId, {
     module: selectedModule ?? undefined,
