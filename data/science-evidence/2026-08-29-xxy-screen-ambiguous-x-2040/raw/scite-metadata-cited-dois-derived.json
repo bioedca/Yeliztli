@@ -1,0 +1,60 @@
+{
+  "_artifact_note": "DERIVED record of a Scite MCP `search_literature(dois=[...])` call made 2026-09-05, after the service-reported quota reset of 2026-09-03. Transcribed from the tool response; the MCP surface returns results into the conversation, not as a file. Fields kept: DOI, title, year, journal, Smart Citation tally, and whether the response carried an `editorialNotices` array (it did not for any record, which Scite uses to mean no retraction, correction, concern or erratum is on file).",
+  "_query": {
+    "tool": "Scite MCP search_literature",
+    "dois": [
+      "10.1038/183302a0",
+      "10.1111/j.1399-0004.1975.tb01498.x",
+      "10.1093/bioinformatics/btw696"
+    ],
+    "limit": 3
+  },
+  "_accessed": "2026-09-05",
+  "records": [
+    {
+      "doi": "10.1038/183302a0",
+      "pmid": "13632697",
+      "title": "A Case of Human Intersexuality Having a Possible XXY Sex-Determining Mechanism",
+      "year": 1959,
+      "journal": "nature",
+      "tally": {
+        "total": 351,
+        "supporting": 3,
+        "contrasting": 0,
+        "mentioning": 322,
+        "citingPublications": 1047
+      },
+      "editorialNotices": "field absent in response (none reported)"
+    },
+    {
+      "doi": "10.1111/j.1399-0004.1975.tb01498.x",
+      "pmid": "1183067",
+      "title": "A cytogenetic survey of 14,069 newborn infants",
+      "year": 1975,
+      "journal": "clinical genetics",
+      "tally": {
+        "total": 68,
+        "supporting": 2,
+        "contrasting": 2,
+        "mentioning": 62,
+        "citingPublications": 544
+      },
+      "editorialNotices": "field absent in response (none reported)"
+    },
+    {
+      "doi": "10.1093/bioinformatics/btw696",
+      "pmid": "28035028",
+      "title": "seXY: a tool for sex inference from genotype arrays",
+      "year": 2016,
+      "journal": "bioinformatics",
+      "tally": {
+        "total": 7,
+        "supporting": 0,
+        "contrasting": 0,
+        "mentioning": 7,
+        "citingPublications": 7
+      },
+      "editorialNotices": "field absent in response (none reported)"
+    }
+  ]
+}

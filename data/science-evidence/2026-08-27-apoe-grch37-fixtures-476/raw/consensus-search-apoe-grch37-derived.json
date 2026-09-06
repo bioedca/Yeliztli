@@ -1,0 +1,32 @@
+{
+  "tool": "Consensus MCP `search`",
+  "accessed": "2026-08-27",
+  "query": "APOE epsilon allele defining SNPs rs429358 rs7412 chromosome 19 genomic coordinates GRCh37",
+  "result_count": 20,
+  "coordinate_bearing_results": 0,
+  "note": "Derived, sanitized record of the required discovery-tool invocation. The Consensus response is returned through an MCP tool rather than an HTTP endpoint, so no verbatim wire payload exists to retain; this is the returned result set reduced to citation identity plus the two records used. No paper in the result set asserts a genomic build coordinate, which is the expected outcome: the APOE literature identifies these variants by codon or coding position.",
+  "records_used": [
+    {
+      "rank": 7,
+      "doi": "10.1371/journal.pone.0153593",
+      "pmid": "27078154",
+      "title": "Development of a Melting Curve-Based Allele-Specific PCR of Apolipoprotein E (APOE) Genotyping Method for Genomic DNA, Guthrie Blood Spot, and Whole Blood",
+      "used_for": "rs429358 = codon 112, rs7412 = codon 158"
+    },
+    {
+      "rank": 15,
+      "doi": "10.1002/jcla.23925",
+      "pmid": "34313350",
+      "title": "APOE gene ɛ4 allele (388C-526C) effects on serum lipids and risk of coronary artery disease in southern Chinese Hakka population",
+      "used_for": "names the same two variants by coding position, 388C-526C"
+    }
+  ],
+  "records_not_used": [
+    "10.1038/ejhg.2013.308", "10.1002/dad2.12008", "10.18632/aging.203984",
+    "10.1007/s11357-022-00617-0", "10.51248/.v43i01.2408", "10.1002/dad2.12129",
+    "10.3390/genes13081366", "10.1186/s13024-016-0069-4", "10.1186/s13104-026-07887-3",
+    "10.3390/genes14030687", "10.1016/j.redox.2021.101938", "10.3390/cimb45040184",
+    "10.3390/genes12010004", "10.1101/2025.07.01.662592", "10.4088/jcp.v68n0419",
+    "10.3390/cimb44040118", "10.1016/j.neurobiolaging.2017.12.027", "10.3233/jad-2010-100864"
+  ]
+}

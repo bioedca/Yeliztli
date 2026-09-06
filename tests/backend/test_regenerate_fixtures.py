@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import csv
 import json
+import re
 import sqlite3
 import subprocess
 import sys
@@ -20,6 +21,56 @@ FIXTURES_DIR = Path(__file__).resolve().parent.parent / "fixtures"
 SEED_DIR = FIXTURES_DIR / "seed_csvs"
 SCRIPT = Path(__file__).resolve().parent.parent.parent / "scripts" / "regenerate_fixtures.py"
 PANEL_RSID_COORDINATES = FIXTURES_DIR / "panel_rsid_coordinates.json"
+MINI_CLINVAR_VCF = FIXTURES_DIR / "mini_clinvar.vcf"
+NOT_23ANDME_VCF = FIXTURES_DIR / "sample_not_23andme.vcf"
+
+# Vendor raw-data fixtures, keyed by the parser that reads them. The declared
+# build is never hard-coded here: it comes back from the production parser, so
+# the guard follows what the ingestion path actually believes about each file.
+VENDOR_23ANDME_FIXTURES = (
+    "sample_23andme_v3.txt",
+    "sample_23andme_v4.txt",
+    "sample_23andme_v5.txt",
+)
+VENDOR_ANCESTRYDNA_FIXTURES = (
+    "sample_ancestrydna_v2.txt",
+    "sample_ancestrydna_crlf.txt",
+    "sample_ancestrydna_non_utf8_byte.txt",
+)
+# The build-36 23andMe v3 export is a deliberate source-build exception: it
+# exists to exercise build detection and hg18 -> GRCh37 conversion, so it must
+# keep its build-36 coordinates. See tests/fixtures/seed_csvs/README.md.
+BUILD36_APOE_COORDINATES = {
+    "rs429358": ("19", 50_103_781),
+    "rs7412": ("19", 50_103_919),
+}
+
+# The three APOE-region SNPs that share the ε-defining block in the vendor
+# fixtures. They are not seed rsIDs, so they cannot join
+# ADDITIONAL_VERIFIED_GRCH37_MAPPINGS — that dict is asserted to appear in every
+# coordinate-bearing seed CSV. They are guarded here instead, because #476
+# corrected them: the block was copied from a GRCh38 source, and two of the
+# three had additionally been paired with the wrong position (rs440446 carried
+# rs405509's GRCh38 coordinate). Ensembl GRCh37 Variation REST, accessed
+# 2026-08-27; each REF confirmed against the UCSC hg19 reference base.
+APOE_REGION_GRCH37_MAPPINGS: dict[str, GRCh37Mapping] = {
+    "rs405509": ("19", 45_408_836, frozenset({"T", "G"})),
+    "rs440446": ("19", 45_409_167, frozenset({"C", "G", "T"})),
+    "rs769449": ("19", 45_410_002, frozenset({"G", "A"})),
+}
+
+# The plus-strand GRCh37 reference base at each APOE-block position, read from
+# the UCSC hg19 assembly on 2026-08-27. The allele-set check above validates
+# membership only, so it cannot see a REF/ALT swap — and two rows in
+# sample_not_23andme.vcf carried exactly that (rs405509 as G>T, rs769449 as
+# A>G). A VCF REF is the assembly base, so it can be pinned exactly.
+APOE_BLOCK_GRCH37_REFERENCE_BASE = {
+    "rs405509": "T",
+    "rs440446": "C",
+    "rs769449": "G",
+    "rs429358": "T",
+    "rs7412": "C",
+}
 
 GRCh37Mapping = tuple[str, int, frozenset[str]]
 
@@ -27,7 +78,20 @@ ADDITIONAL_VERIFIED_GRCH37_MAPPINGS: dict[str, GRCh37Mapping] = {
     # Ensembl GRCh37 Variation REST, accessed 2026-07-19. The primary mapping
     # is 7:94937446 with allele string T/A/C/G; this fixture selects T>C.
     # https://grch37.rest.ensembl.org/variation/human/rs662
-    "rs662": ("7", 94_937_446, frozenset({"T", "C"}))
+    "rs662": ("7", 94_937_446, frozenset({"T", "C"})),
+    # The two APOE ε-defining SNPs (#476). They are matched by rsID in
+    # backend/analysis/apoe.py and therefore never entered the panel snapshot,
+    # which is exactly why the seeds carried the GRCh38 pair 19:44908684 /
+    # 19:44908822 under a README contract declaring GRCh37. Pinning them here
+    # puts both inside the seed/oracle guard so the build cannot drift again.
+    # Ensembl GRCh37 Variation REST, accessed 2026-08-27; primary mapping,
+    # plus strand. Cross-checked against NCBI dbSNP eSummary
+    # ``chrpos_prev_assm`` (19:45411941 / 19:45412079), which reports the same
+    # GRCh38 pair the seeds had been carrying.
+    # https://grch37.rest.ensembl.org/variation/human/rs429358
+    "rs429358": ("19", 45_411_941, frozenset({"T", "C"})),
+    # https://grch37.rest.ensembl.org/variation/human/rs7412
+    "rs7412": ("19", 45_412_079, frozenset({"C", "T"})),
 }
 
 # Only seeds governed by the real GRCh37 coordinate and plus-strand allele
@@ -129,6 +193,25 @@ def _assert_grch37_plus_strand_alleles(
             f"{source} occurrence {occurrence} ({rsid}) uses {ref}>{alt}; "
             f"expected plus-strand alleles from {sorted(allowed)}"
         )
+
+
+def _mini_clinvar_vcf() -> tuple[str, list[tuple[str, str, int, str, str]]]:
+    """Return the declared reference build and every ``RS=``-carrying record."""
+    reference = ""
+    records: list[tuple[str, str, int, str, str]] = []
+    for line in MINI_CLINVAR_VCF.read_text(encoding="utf-8").splitlines():
+        if line.startswith("##reference="):
+            reference = line.split("=", 1)[1]
+            continue
+        if line.startswith("#") or not line.strip():
+            continue
+        chrom, pos, _id, ref, alt = line.split("\t")[:5]
+        info = line.split("\t")[7]
+        match = re.search(r"(?:^|;)RS=(\d+)(?:;|$)", info)
+        if match is None:
+            continue
+        records.append((f"rs{match.group(1)}", chrom, int(pos), ref, alt))
+    return reference, records
 
 
 def _semantic_sqlite_dump(db_path: Path) -> tuple[str, ...]:
@@ -262,6 +345,184 @@ class TestSeedCSVContent:
         assert rows, "gwas_seed.csv has no synthetic membership rows"
         assert all(row["trait"] == "Synthetic GWAS membership fixture" for row in rows)
         assert all(not row[field] for row in rows for field in scientific_fields)
+
+
+# ── Vendor raw-data fixtures ─────────────────────────────────────────
+
+
+def _vendor_apoe_rows(
+    variants: object, expected: dict[str, GRCh37Mapping]
+) -> list[tuple[str, str, int]]:
+    return [
+        (v.rsid, v.chrom, int(v.pos))
+        for v in variants  # type: ignore[attr-defined]
+        if v.rsid in expected
+    ]
+
+
+class TestVendorFixtureBuildCoordinates:
+    """A vendor fixture must place APOE at the build its parser reports (#476).
+
+    The seeds and ``mini_clinvar.vcf`` are reference data; these are ingestion
+    *inputs*, and they carried the same GRCh38 APOE pair under headers that say
+    build 37. That is not only mislabeled — once the reference fixtures moved to
+    GRCh37, a build-38 input would no longer position-match them, which is
+    exactly the join an i-prefixed array probe depends on.
+
+    The declared build is read back from the production parser rather than
+    asserted from a filename, so the guard tracks what ingestion believes.
+    """
+
+    @pytest.mark.parametrize("fixture_name", VENDOR_23ANDME_FIXTURES)
+    def test_23andme_fixture_apoe_matches_its_declared_build(self, fixture_name: str) -> None:
+        from backend.ingestion.parser_23andme import parse_23andme
+
+        expected = _expected_grch37_mappings()
+        result = parse_23andme(FIXTURES_DIR / fixture_name)
+        if result.build != "GRCh36":
+            expected |= APOE_REGION_GRCH37_MAPPINGS
+        rows = _vendor_apoe_rows(result.variants, expected)
+        assert {"rs429358", "rs7412"} <= {rsid for rsid, _c, _p in rows}, (
+            f"{fixture_name} no longer carries both APOE ε-defining SNPs"
+        )
+
+        if result.build == "GRCh36":
+            # Only APOE has a verified build-36 mapping recorded here, so the
+            # build-36 branch checks exactly the pair this guard exists for.
+            for rsid, chrom, pos in rows:
+                if rsid not in BUILD36_APOE_COORDINATES:
+                    continue
+                assert (chrom, pos) == BUILD36_APOE_COORDINATES[rsid], (
+                    f"{fixture_name} declares {result.build} but {rsid} is at "
+                    f"{chrom}:{pos}; expected {BUILD36_APOE_COORDINATES[rsid]}"
+                )
+            return
+
+        assert result.build == "GRCh37", (
+            f"{fixture_name} reports an unhandled build {result.build!r}"
+        )
+        _assert_grch37_coordinates(rows, expected, fixture_name)
+
+    @pytest.mark.parametrize("fixture_name", VENDOR_ANCESTRYDNA_FIXTURES)
+    def test_ancestrydna_fixture_apoe_matches_its_declared_build(self, fixture_name: str) -> None:
+        from backend.ingestion.parser_ancestrydna import parse_ancestrydna
+
+        expected = _expected_grch37_mappings()
+        result = parse_ancestrydna(FIXTURES_DIR / fixture_name)
+        assert result.build == "GRCh37", (
+            f"{fixture_name} reports an unhandled build {result.build!r}"
+        )
+        rows = _vendor_apoe_rows(result.variants, expected)
+        assert {"rs429358", "rs7412"} <= {rsid for rsid, _c, _p in rows}, (
+            f"{fixture_name} no longer carries both APOE ε-defining SNPs"
+        )
+        _assert_grch37_coordinates(rows, expected, fixture_name)
+
+    def test_grch37_declaring_vcf_fixture_is_grch37(self) -> None:
+        """``sample_not_23andme.vcf`` declares ``##reference=GRCh37``."""
+        expected = _expected_grch37_mappings()
+        expected |= APOE_REGION_GRCH37_MAPPINGS
+        reference = ""
+        rows: list[tuple[str, str, int]] = []
+        refalt: dict[str, tuple[str, str]] = {}
+        for line in NOT_23ANDME_VCF.read_text(encoding="utf-8").splitlines():
+            if line.startswith("##reference="):
+                reference = line.split("=", 1)[1]
+                continue
+            if line.startswith("#") or not line.strip():
+                continue
+            chrom, pos, rsid, ref, alt = line.split("\t")[:5]
+            if rsid in expected:
+                rows.append((rsid, chrom, int(pos)))
+                refalt[rsid] = (ref, alt)
+
+        assert reference == "GRCh37", f"fixture declares reference {reference!r}"
+        assert {"rs429358", "rs7412"} <= {rsid for rsid, _c, _p in rows}
+        _assert_grch37_coordinates(rows, expected, NOT_23ANDME_VCF.name)
+        for rsid, (ref, alt) in refalt.items():
+            assert {ref, alt} <= expected[rsid][2], (
+                f"{NOT_23ANDME_VCF.name} {rsid} uses {ref}>{alt}; expected "
+                f"plus-strand alleles from {sorted(expected[rsid][2])}"
+            )
+            if rsid in APOE_BLOCK_GRCH37_REFERENCE_BASE:
+                # Membership alone cannot see a REF/ALT swap, so pin REF to the
+                # assembly base for the block this issue rewrote.
+                assert ref == APOE_BLOCK_GRCH37_REFERENCE_BASE[rsid], (
+                    f"{NOT_23ANDME_VCF.name} {rsid} declares REF {ref}; the "
+                    f"GRCh37 assembly base is "
+                    f"{APOE_BLOCK_GRCH37_REFERENCE_BASE[rsid]}"
+                )
+
+    def test_build36_fixture_lifts_onto_the_grch37_oracle(self) -> None:
+        """The build-36 exception is deliberate, and it agrees with the oracle.
+
+        This is the negative control for the guard above. Without it, the suite
+        could not tell a correct build-36 fixture from one somebody
+        "normalized" to GRCh37 by mistake — and it independently confirms that
+        the GRCh37 values adopted for every other fixture are the ones the
+        production hg18 → GRCh37 chain produces.
+        """
+        from backend.ingestion.liftover import lift_build36_to_grch37
+
+        expected = _expected_grch37_mappings()
+        for rsid, (chrom, pos) in BUILD36_APOE_COORDINATES.items():
+            lifted = lift_build36_to_grch37(chrom, pos, "AA")
+            assert lifted is not None, f"{rsid} build-36 coordinate failed to lift"
+            assert lifted[:2] == expected[rsid][:2], (
+                f"{rsid} build-36 {chrom}:{pos} lifts to {lifted[:2]}; "
+                f"the GRCh37 oracle says {expected[rsid][:2]}"
+            )
+
+
+# ── Hand-maintained ClinVar VCF fixture ──────────────────────────────
+
+
+class TestMiniClinVarVCFCoordinates:
+    """``mini_clinvar.vcf`` must honour the build it declares (#476).
+
+    The seed/oracle guard above only reaches the coordinate-bearing *seed
+    CSVs*. ``mini_clinvar.vcf`` is hand-maintained and is the input for the
+    ClinVar stream-load and position-lookup tests, so nothing checked its
+    build: it carried the GRCh38 APOE pair 19:44908684 / 19:44908822 under its
+    own ``##reference=GRCh37`` header for exactly as long as the seeds did.
+    Pointing the same oracle at it closes that gap, and the scope grows on its
+    own as the oracle grows.
+    """
+
+    def test_declares_grch37(self) -> None:
+        reference, _records = _mini_clinvar_vcf()
+        assert reference == "GRCh37", (
+            f"mini_clinvar.vcf declares reference {reference!r}; the coordinate "
+            "guard below is written against GRCh37"
+        )
+
+    def test_guarded_coordinates_are_grch37(self) -> None:
+        expected = _expected_grch37_mappings()
+        _reference, records = _mini_clinvar_vcf()
+        guarded = [record for record in records if record[0] in expected]
+        observed = {rsid for rsid, *_rest in guarded}
+        assert {"rs429358", "rs7412"} <= observed, (
+            "mini_clinvar.vcf no longer carries both APOE ε-defining SNPs; "
+            "they are the rows this guard exists for"
+        )
+        for rsid, chrom, pos, ref, alt in guarded:
+            exp_chrom, exp_start, _alleles = expected[rsid]
+            assert chrom == exp_chrom, (
+                f"mini_clinvar.vcf {rsid} is on chromosome {chrom}; expected {exp_chrom}"
+            )
+            if len(ref) == len(alt):
+                expected_pos = exp_start
+            else:
+                # A length-changing VCF record carries a left anchor base, so it
+                # starts exactly one base before the Ensembl mapping interval.
+                # This is asserted exactly rather than accepting either
+                # coordinate: allowing both would let an off-by-one through with
+                # a REF that no longer describes the intended variant.
+                # See tests/fixtures/seed_csvs/README.md.
+                expected_pos = exp_start - 1
+            assert pos == expected_pos, (
+                f"mini_clinvar.vcf {rsid} is at {chrom}:{pos}; expected {exp_chrom}:{expected_pos}"
+            )
 
 
 # ── Regeneration script ──────────────────────────────────────────────
@@ -487,7 +748,7 @@ class TestRegenerateFixtures:
             ).fetchone()
         assert row is not None, "rs429358 not found in clinvar_variants"
         assert row[0] == "19"
-        assert row[1] == 44908684
+        assert row[1] == 45411941
         assert row[2] == "Conflicting classifications of pathogenicity|other|risk factor"
         assert row[3] == "APOE"
         assert row[4:] == ("VCV000017864", 17_864)

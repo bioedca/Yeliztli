@@ -430,6 +430,69 @@ class TestPipelineDispatch:
         mock_run_task.assert_called_once_with("job-dbnsfp", "dbnsfp")
         assert result.errors == []
 
+    def test_mondo_hpo_dispatch_queues_the_checked_source_binding(
+        self, reference_engine, tmp_path: Path
+    ):
+        """Queue all checked source validators, never the raw operator URL."""
+        registry = _make_registry(reference_engine, tmp_path)
+        pinned_url = "https://updates.example.test/mondo/pinned-gene-disease.tsv.gz"
+        source_binding = "a" * 64
+        update_info = VersionInfo(
+            db_name="mondo_hpo",
+            latest_version="20260415",
+            download_url=pinned_url,
+            download_size_bytes=1_000_000,
+            _source_binding=source_binding,
+        )
+
+        with (
+            patch(
+                "backend.db.update_manager.check_all_updates",
+                return_value=UpdateCheckResult(available=[update_info]),
+            ),
+            patch(
+                "backend.tasks.huey_tasks.create_database_update_job",
+                return_value="job-mondo-hpo",
+            ) as mock_create_job,
+            patch("backend.tasks.huey_tasks.run_database_update_task") as mock_run_task,
+        ):
+            result = run_scheduled_update_check(registry)
+
+        mock_create_job.assert_called_once_with("mondo_hpo")
+        mock_run_task.assert_called_once_with(
+            "job-mondo-hpo",
+            "mondo_hpo",
+            source_binding,
+        )
+        assert pinned_url not in repr(mock_run_task.call_args)
+        assert result.errors == []
+
+    def test_mondo_hpo_dispatch_refuses_an_unbound_offer(self, reference_engine, tmp_path: Path):
+        """A synthetic or legacy result cannot bypass the source snapshot gate."""
+        registry = _make_registry(reference_engine, tmp_path)
+        update_info = VersionInfo(
+            db_name="mondo_hpo",
+            latest_version="20260415",
+            download_url="https://updates.example.test/mondo/latest.tsv.gz",
+            download_size_bytes=1_000_000,
+        )
+
+        with (
+            patch(
+                "backend.db.update_manager.check_all_updates",
+                return_value=UpdateCheckResult(available=[update_info]),
+            ),
+            patch("backend.tasks.huey_tasks.create_database_update_job") as create_job,
+            patch("backend.tasks.huey_tasks.run_database_update_task") as run_task,
+        ):
+            result = run_scheduled_update_check(registry)
+
+        create_job.assert_not_called()
+        run_task.assert_not_called()
+        assert result.errors == [
+            "mondo_hpo update failed: MONDO/HPO update offer has no source-validator binding"
+        ]
+
     def test_pipeline_dispatch_uses_table_toggle(self, reference_engine, tmp_path: Path):
         """Pipeline-DB dispatch reads ``auto_update_settings``, not the dict."""
         registry = _make_registry(reference_engine, tmp_path)

@@ -91,7 +91,7 @@ class TestParseGnomadVcfRecords:
     def test_valid_line_with_rsid(self):
         """Parse a standard gnomAD VCF line with rsid and AF fields."""
         line = (
-            "19\t44908684\trs429358\tT\tC\t.\tPASS\t"
+            "19\t45411941\trs429358\tT\tC\t.\tPASS\t"
             "AF=0.1387;AF_afr=0.2650;AF_amr=0.1100;AF_eas=0.0890;"
             "AF_nfe=0.1510;AF_fin=0.1630;AF_asj=0.0269;AF_sas=0.0880;"
             "AN=120000;AN_afr=18000;AN_amr=16000;AN_eas=14000;AN_nfe=60000;"
@@ -104,7 +104,7 @@ class TestParseGnomadVcfRecords:
         record = records[0]
         assert record.rsid == "rs429358"
         assert record.chrom == "19"
-        assert record.pos == 44908684
+        assert record.pos == 45411941
         assert record.ref == "T"
         assert record.alt == "C"
         assert record.af_global == pytest.approx(0.1387)
@@ -466,7 +466,7 @@ class TestLoadGnomadFromCsv:
 
         assert row is not None
         assert row.chrom == "19"
-        assert row.pos == 44908822
+        assert row.pos == 45412079
         assert row.af_global == pytest.approx(0.0781)
         assert row.af_afr == pytest.approx(0.1130)
         # Real gnomAD v4.1 ASJ AF, distinct from af_global (#1964).
@@ -498,8 +498,8 @@ class TestLoadGnomadFromVcf:
         vcf_content = textwrap.dedent("""\
             ##fileformat=VCFv4.2
             #CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO
-            19\t44908684\trs429358\tT\tC\t.\tPASS\tAF=0.1387;AF_afr=0.2650;AF_amr=0.1100;AF_eas=0.0890;AF_nfe=0.1510;AF_fin=0.1630;AF_sas=0.0880;nhomalt=2543
-            19\t44908822\trs7412\tC\tT\t.\tPASS\tAF=0.0781;AF_afr=0.1130;AF_amr=0.0560;AF_eas=0.0980;AF_nfe=0.0730;AF_fin=0.0410;AF_sas=0.0650;nhomalt=874
+            19\t45411941\trs429358\tT\tC\t.\tPASS\tAF=0.1387;AF_afr=0.2650;AF_amr=0.1100;AF_eas=0.0890;AF_nfe=0.1510;AF_fin=0.1630;AF_sas=0.0880;nhomalt=2543
+            19\t45412079\trs7412\tC\tT\t.\tPASS\tAF=0.0781;AF_afr=0.1130;AF_amr=0.0560;AF_eas=0.0980;AF_nfe=0.0730;AF_fin=0.0410;AF_sas=0.0650;nhomalt=874
         """)
         vcf_path = tmp_path / "gnomad.vcf.gz"
         with gzip.open(vcf_path, "wt") as f:
@@ -667,10 +667,10 @@ class TestLookupGnomadByPositions:
 
     def test_returns_match(self, gnomad_engine_with_data: sa.Engine):
         """Position-based lookup returns matching variant."""
-        positions = [("19", 44908822, "C", "T")]  # rs7412
+        positions = [("19", 45412079, "C", "T")]  # rs7412
         results = lookup_gnomad_by_positions(positions, gnomad_engine_with_data)
 
-        key = ("19", 44908822, "C", "T")
+        key = ("19", 45412079, "C", "T")
         assert key in results
         assert results[key].af_global == pytest.approx(0.0781)
 

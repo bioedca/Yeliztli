@@ -919,6 +919,110 @@ def is_patient_presentable_response_payload(value: object) -> bool:
     return not contains_unpresentable_prescribing_identifier(value)
 
 
+@dataclass
+class _HeldPairFold:
+    """Constant-size evidence accumulated for one held pair across records."""
+
+    free_gene: bool = False
+    free_drug: bool = False
+    free_sequence: bool = False
+    record_gene: bool = False
+    record_drug: bool = False
+    record_both: bool = False
+    record_sequence: bool = False
+
+    def has_held_pair(self) -> bool:
+        """Whether the folded evidence reproduces this pair."""
+        return (
+            (self.free_gene and self.free_drug)
+            or self.free_sequence
+            or (self.free_gene and self.record_drug)
+            or (self.free_drug and self.record_gene)
+            or self.record_both
+            or self.record_sequence
+        )
+
+
+class ResponsePayloadHeldPairScanner:
+    """Fold a response list one record at a time, in constant space.
+
+    :func:`is_patient_presentable_response_payload` needs the *whole* assembled
+    list, because a held pair may be split across records — so a producer that
+    wants bounded memory cannot simply call it per record. This folds the same
+    verdict incrementally.
+
+    It is an exact algebraic rewrite of :func:`_evidence_has_held_pair` over a
+    list, not an approximation. Writing ``F`` for the free-text fragments and
+    ``R_i`` for record *i*, that function computes::
+
+        pair(F) or any_i pair(F | R_i)
+
+    and ``_strings_mention_held_pair`` is ``(any gene and any drug) or any
+    sequence`` over its input, which distributes over set union. Expanding::
+
+        (Fg and Fd) or Fseq
+          or (Fg and any_i Rid) or (Fd and any_i Rig)
+          or any_i (Rig and Rid) or any_i Riseq
+
+    Every term is a boolean, so the state is one :class:`_HeldPairFold` per
+    held pair regardless of how many records are fed — and no record text is
+    retained.
+
+    The record boundary survives that rewrite, which is the whole point of the
+    structured gate: ``[{gene: CYP2D6, drug: codeine}, {gene: CYP2C19, drug:
+    tamoxifen}]`` stays presentable, because ``record_both`` is false for each
+    record independently and no free text carries either identifier. A fold
+    that merely OR-ed every string together would withhold it.
+
+    ``tests/backend/test_pharmacogenomics.py`` pins this against
+    :func:`is_patient_presentable_response_payload` differentially, so the two
+    cannot drift.
+    """
+
+    def __init__(self) -> None:
+        self._pairs = {pair: _HeldPairFold() for pair in WITHHELD_PRESCRIBING_ALERT_PAIRS}
+        self._fail_closed = False
+
+    def feed(self, item: object) -> None:
+        """Fold one list element, exactly as a list member would be collected."""
+        if self._fail_closed:
+            return
+        try:
+            # _depth=1 mirrors what _collect_prescribing_evidence uses for an
+            # element of a list, so a record nested one level deeper here is
+            # classified identically to the same record inside a real list.
+            evidence = _collect_prescribing_evidence(item, _depth=1)
+        except RecursionError:
+            self._fail_closed = True
+            return
+        if evidence is None:
+            self._fail_closed = True
+            return
+
+        for (gene, drug), fold in self._pairs.items():
+            for text in evidence.free_text:
+                fold.free_gene = fold.free_gene or _text_mentions_identifier(text, gene)
+                fold.free_drug = fold.free_drug or _text_mentions_identifier(text, drug)
+                fold.free_sequence = fold.free_sequence or _text_mentions_identifier_sequence(
+                    text, gene, drug
+                )
+            for record_text in evidence.complete_records:
+                in_gene = any(_text_mentions_identifier(text, gene) for text in record_text)
+                in_drug = any(_text_mentions_identifier(text, drug) for text in record_text)
+                fold.record_gene = fold.record_gene or in_gene
+                fold.record_drug = fold.record_drug or in_drug
+                fold.record_both = fold.record_both or (in_gene and in_drug)
+                fold.record_sequence = fold.record_sequence or any(
+                    _text_mentions_identifier_sequence(text, gene, drug) for text in record_text
+                )
+
+    def is_presentable(self) -> bool:
+        """The verdict for everything fed so far."""
+        if self._fail_closed:
+            return False
+        return not any(fold.has_held_pair() for fold in self._pairs.values())
+
+
 def _reject_duplicate_json_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
     """Build an unambiguous JSON object or reject a duplicate key."""
     result: dict[str, object] = {}

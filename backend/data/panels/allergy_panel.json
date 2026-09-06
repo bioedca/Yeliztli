@@ -38,7 +38,8 @@
           "recommendation_text": "IL13 R130Q is a well-replicated GWAS hit for atopic conditions. Carriers may have elevated IgE levels and increased susceptibility to asthma and eczema. Allergen avoidance, environmental controls, and regular follow-up with an allergist are recommended for symptomatic individuals.",
           "cross_module": {
             "module": "skin",
-            "note": "IL13 R130Q contributes to atopic dermatitis risk. See Skin module for barrier-related findings."
+            "target_rsids": ["rs61816761"],
+            "note": "IL13 R130Q contributes to atopic dermatitis risk. See the Skin module's barrier findings, which cover the FLG loss-of-function variant rather than IL13 itself."
           }
         },
         {

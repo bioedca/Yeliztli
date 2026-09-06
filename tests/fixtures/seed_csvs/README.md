@@ -43,11 +43,38 @@ independently verified mappings belong in
 guarded at `7:94937446` rather than disappearing from coverage merely because it
 is absent from the panel snapshot.
 
+Absence from the panel snapshot is not a small gap. The two APOE ε-defining
+SNPs, rs429358 and rs7412, are matched by rsID in `backend/analysis/apoe.py` and
+so never entered `panel_rsid_coordinates.json`; with no oracle scope over them
+all three seeds carried the GRCh38 pair `19:44908684` / `19:44908822` under this
+GRCh37 contract, and the regeneration test asserted one of those values outright
+(#476). Both are now pinned in the non-panel oracle at `19:45411941` and
+`19:45412079`. Prefer adding a verified mapping over leaving an rsID unguarded.
+
+`../mini_clinvar.vcf` is hand-maintained rather than generated, so the
+seed/oracle guard above did not reach it and it drifted with the seeds. It is
+now checked against the same oracle: it must declare `##reference=GRCh37`, and
+every `RS=` record whose rsID the oracle knows must sit at the recorded GRCh37
+position — allowing the one-base left anchor that a VCF indel carries.
+
+The same applies to the **vendor raw-data fixtures**, which are ingestion inputs
+rather than reference data and so were never in the oracle's scope either. They
+are now guarded through the production parsers: each fixture's declared build is
+read back from `parse_23andme` / `parse_ancestrydna` (or from `##reference=` for
+`sample_not_23andme.vcf`), and its APOE rows must match that build. The build-36
+`sample_23andme_v3.txt` is asserted to *keep* its build-36 coordinates and to
+lift onto the GRCh37 oracle through `lift_build36_to_grch37`, so the exception
+stays deliberate rather than becoming a hole.
+
 Records consulted: the committed `panel_rsid_coordinates.json` oracle records
 per-record Ensembl GRCh37 Variation REST URLs (accessed 2026-07-16), and
 `../clinvar_seed_snapshot.json` records NLM Clinical Tables ClinVar identities
 (accessed 2026-07-16). The mappings changed for issue #1949 were rechecked
-against Ensembl GRCh37 on 2026-07-19. Ambiguous records are also cross-checked
+against Ensembl GRCh37 on 2026-07-19. The two APOE mappings normalized for
+issue #476 were verified on 2026-08-27 against Ensembl GRCh37 Variation REST and
+independently against NCBI dbSNP eSummary `chrpos_prev_assm`, with the raw
+responses and claim mapping under
+`data/science-evidence/2026-08-27-apoe-grch37-fixtures-476/`. Ambiguous records are also cross-checked
 against NCBI RefSNP or ClinVar as described below; save those access dates and
 raw responses with the evidence notes.
 

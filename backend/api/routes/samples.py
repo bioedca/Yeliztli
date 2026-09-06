@@ -39,6 +39,10 @@ from backend.services.sample_delete import (
     delete_sample_with_cascade,
     list_merged_children,
 )
+from backend.services.sample_operation_lock import (
+    SampleOperationConflictError,
+    SampleOperationUnavailableError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -167,11 +171,28 @@ async def update_sample(sample_id: int, body: SampleUpdate) -> SampleResponse:
     now = datetime.now(UTC)
     update_values["updated_at"] = now
 
+    parsed_date: date | None = None
+
     with registry.reference_engine.begin() as conn:
         # Check sample exists
         row = conn.execute(sa.select(samples).where(samples.c.id == sample_id)).fetchone()
         if row is None:
             raise HTTPException(status_code=404, detail=f"Sample {sample_id} not found.")
+
+        # Validate before the update, but after the existence check so a missing
+        # sample still reports 404 rather than 422. The rename lands here in the
+        # registry (reference.db) while the date lands in the per-sample DB, so no
+        # shared transaction spans them -- a 422 raised after this block commits
+        # would leave the rename silently applied behind an error the user
+        # believes rejected the whole request. Raising here rolls back instead.
+        if body.date_collected is not None:
+            try:
+                parsed_date = date.fromisoformat(body.date_collected)
+            except ValueError as exc:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"Invalid date format: {body.date_collected}. Expected YYYY-MM-DD.",
+                ) from exc
 
         # Update the sample registry
         conn.execute(samples.update().where(samples.c.id == sample_id).values(**update_values))
@@ -186,13 +207,7 @@ async def update_sample(sample_id: int, body: SampleUpdate) -> SampleResponse:
         if body.notes is not None:
             meta_updates["notes"] = body.notes
         if body.date_collected is not None:
-            try:
-                meta_updates["date_collected"] = date.fromisoformat(body.date_collected)
-            except ValueError as exc:
-                raise HTTPException(
-                    status_code=422,
-                    detail=f"Invalid date format: {body.date_collected}. Expected YYYY-MM-DD.",
-                ) from exc
+            meta_updates["date_collected"] = parsed_date
         if body.source is not None:
             meta_updates["source"] = body.source
         if body.extra is not None:
@@ -222,11 +237,13 @@ class MergedChildResponse(BaseModel):
 
 @router.get("/{sample_id}/merged-children")
 async def list_sample_merged_children(sample_id: int) -> list[MergedChildResponse]:
-    """List merged samples that reference this sample as a source.
+    """List merged descendants removed if this sample is deleted.
 
     Frontend uses this to surface the cascade impact on the per-row delete
-    confirmation (AncestryDNA Plan §10.8; Step 66 / MRG-02a). Returns ``[]``
-    when the sample has never been merged.
+    confirmation (AncestryDNA Plan §10.8; Step 66 / MRG-02a). Historical nested
+    merges are included transitively so the confirmation covers every row the
+    delete service will remove. Returns ``[]`` when the sample has never been
+    merged.
     """
     registry = get_registry()
     with registry.reference_engine.connect() as conn:
@@ -473,14 +490,27 @@ async def get_concordance_report(
 
 @router.delete("/{sample_id}", status_code=204)
 async def delete_sample(sample_id: int) -> None:
-    """Delete a sample and cascade to any merged children referencing it.
+    """Delete a sample and cascade to all merged descendants referencing it.
 
     AncestryDNA Plan §10.8 / Step 66: a single-confirmation cascade removes
-    every ``file_format='merged_v1'`` sample whose ``merge_provenance``
-    lists this row in ``source_sample_ids`` before tearing down the source.
+    every ``file_format='merged_v1'`` sample that directly or transitively
+    depends on this row before tearing down the source.
+
+    Error surface:
+
+    * 404 — the sample does not exist.
+    * 409 — a merge is currently holding this sample as a source (#2329).
+      Matches how ``sample_export_guard`` answers "this sample is busy".
     """
     registry = get_registry()
-    result = delete_sample_with_cascade(registry, sample_id)
+    try:
+        result = delete_sample_with_cascade(registry, sample_id)
+    except SampleOperationConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except SampleOperationUnavailableError as exc:
+        # The reservation could not be taken, so nothing was removed. 503 keeps
+        # that a retryable refusal instead of an internal error.
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     if result is None:
         raise HTTPException(status_code=404, detail=f"Sample {sample_id} not found.")
 

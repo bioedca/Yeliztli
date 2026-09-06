@@ -23,6 +23,7 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { parseSampleId } from "@/lib/format"
+import { getModuleMeta } from "@/lib/modules"
 import { useAllergyPathways } from "@/api/allergy"
 import type {
   CeliacCombinedItem,
@@ -36,6 +37,8 @@ import PageLoading from "@/components/ui/PageLoading"
 import PageError from "@/components/ui/PageError"
 import PageEmpty from "@/components/ui/PageEmpty"
 import CrossModuleCard from "@/components/CrossModuleCard"
+
+const ALLERGY_LABEL = getModuleMeta("allergy").label
 
 /** Celiac DQ2/DQ8 combined assessment card. */
 function CeliacCombinedCard({
@@ -294,7 +297,7 @@ export default function AllergyView() {
   if (sampleId == null) {
     return (
       <div className="p-6">
-        <h1 className="text-2xl font-bold mb-4">Gene Allergy & Immune Sensitivities</h1>
+        <h1 className="text-2xl font-bold mb-4">{ALLERGY_LABEL}</h1>
         <PageEmpty icon={Flower2} title="Select a sample to view allergy & immune sensitivity results." />
       </div>
     )
@@ -321,7 +324,7 @@ export default function AllergyView() {
           <Flower2 className="h-5 w-5" aria-hidden="true" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold">Gene Allergy & Immune Sensitivities</h1>
+          <h1 className="text-2xl font-bold">{ALLERGY_LABEL}</h1>
           <p className="text-sm text-muted-foreground">
             Atopic conditions, drug hypersensitivity reactions, food sensitivities, and histamine metabolism
           </p>

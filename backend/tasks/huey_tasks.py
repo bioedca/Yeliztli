@@ -158,10 +158,24 @@ def recover_orphaned_jobs(engine) -> int:
     and must be recovered by this sweep as well.
     """
     from backend.db.tables import jobs
-    from backend.services.sample_operation_lock import SAMPLE_EXPORT_JOB_TYPE
+    from backend.services.sample_operation_lock import (
+        SAMPLE_DELETE_JOB_TYPE,
+        SAMPLE_EXPORT_JOB_TYPE,
+        SAMPLE_MERGE_JOB_TYPE,
+    )
 
     recoverable_job_types = {
         SAMPLE_EXPORT_JOB_TYPE,
+        # A merge lease is synchronous and API-owned exactly like an export
+        # lease, so an API restart proves it abandoned. Without this a process
+        # killed mid-merge strands `running` lease rows forever: every later
+        # merge on either source reports "already being merged" and every
+        # delete answers 409, permanently (#2329).
+        SAMPLE_MERGE_JOB_TYPE,
+        # And the deletion reservation for the same reason, symmetrically: a
+        # crash mid-delete would otherwise strand `running` rows that make every
+        # later merge on that sample report "being deleted" forever.
+        SAMPLE_DELETE_JOB_TYPE,
         "database_download",
         "download",
     }
@@ -1165,7 +1179,11 @@ def run_update_check_task(job_id: str) -> None:
 
 
 @huey.task()
-def run_database_update_task(job_id: str, db_name: str) -> None:
+def run_database_update_task(
+    job_id: str,
+    db_name: str,
+    source_binding: str | None = None,
+) -> None:
     """Huey background task: run a specific database update.
 
     Thin wrapper that takes the cross-process build claim — so a setup-wizard
@@ -1173,6 +1191,13 @@ def run_database_update_task(job_id: str, db_name: str) -> None:
     (the in-process ``build_lock`` cannot span processes) — then delegates to
     :func:`_execute_database_update`. If another process already holds the claim
     the update is skipped with a clear, retryable job error rather than racing.
+
+    ``source_binding`` binds the task to the URL, validators, and sizes of all
+    three sources approved by a MONDO/HPO update check without persisting a
+    possibly credential-bearing operator URL in ``huey.db``.  The worker
+    refreshes the manifest and enforces the approved strong validators during
+    each actual download. Direct invocations without check context resolve the
+    current pin without a binding.
     """
     from backend.db.build_guard import build_claim
     from backend.db.connection import get_registry
@@ -1196,10 +1221,17 @@ def run_database_update_task(job_id: str, db_name: str) -> None:
             )
             return
         with huey_download_job_ownership():
-            _execute_database_update(job_id, db_name)
+            if source_binding is None:
+                _execute_database_update(job_id, db_name)
+            else:
+                _execute_database_update(job_id, db_name, source_binding)
 
 
-def _execute_database_update(job_id: str, db_name: str) -> None:
+def _execute_database_update(
+    job_id: str,
+    db_name: str,
+    source_binding: str | None = None,
+) -> None:
     """Run a specific database update (the cross-process claim is already held).
 
     Uses the same build function that the setup wizard uses
@@ -1353,13 +1385,75 @@ def _execute_database_update(job_id: str, db_name: str) -> None:
         engine = registry.reference_engine
         settings = registry.settings
 
+        mondo_url: str | None = None
+        mondo_source_expectations = None
+        mondo_source_binding_key: bytes | None = None
+        mondo_secondary_urls: tuple[str, str] | None = None
+        if db_name == "mondo_hpo":
+            from backend.db.manifest import fetch_manifest, get_pipeline_pin
+
+            if source_binding is None:
+                pin = get_pipeline_pin("mondo_hpo")
+            else:
+                # The API and Huey consumer have independent in-memory manifest
+                # caches.  Refresh before validating the API's exact snapshot.
+                pin = fetch_manifest(force_refresh=True).pipeline_pins.get("mondo_hpo")
+            if pin is None or not pin.url:
+                raise RuntimeError(
+                    "MONDO/HPO update requires an available pipeline-pinned source URL"
+                )
+            if source_binding is not None:
+                from backend.annotation.mondo_hpo import (
+                    HPO_GENES_TO_PHENOTYPE_URL,
+                    MONDO_SSSOM_URL,
+                )
+                from backend.db.update_manager import (
+                    _load_mondo_hpo_source_binding_key,
+                    decode_mondo_hpo_source_binding,
+                )
+
+                mondo_source_binding_key = _load_mondo_hpo_source_binding_key(settings)
+                mondo_source_expectations = decode_mondo_hpo_source_binding(
+                    source_binding,
+                    pin.url,
+                    source_binding_key=mondo_source_binding_key,
+                )
+                mondo_secondary_urls = (
+                    HPO_GENES_TO_PHENOTYPE_URL,
+                    MONDO_SSSOM_URL,
+                )
+            mondo_url = pin.url
+
         # Build functions for reference-target DBs take the reference engine;
         # standalone DBs write to their own file and take a fresh engine.
         # Serialize per-DB so an auto-update can't race a setup-wizard build of
         # the same file (the "database is locked" failure mode).
         with build_lock(db_name):
             if db_info and db_info.target_db == "reference":
-                build_fn(engine, settings.downloads_dir)
+                if db_name == "mondo_hpo":
+                    if mondo_source_expectations is None:
+                        build_fn(engine, settings.downloads_dir, mondo_url=mondo_url)
+                    else:
+                        from backend.annotation.http_download import (
+                            bind_strong_etag_downloads,
+                        )
+
+                        assert mondo_secondary_urls is not None
+                        hpo_url, mondo_sssom_url = mondo_secondary_urls
+                        assert mondo_source_binding_key is not None
+                        with bind_strong_etag_downloads(
+                            mondo_source_expectations,
+                            source_binding_key=mondo_source_binding_key,
+                        ):
+                            build_fn(
+                                engine,
+                                settings.downloads_dir,
+                                mondo_url=mondo_url,
+                                hpo_url=hpo_url,
+                                mondo_sssom_url=mondo_sssom_url,
+                            )
+                else:
+                    build_fn(engine, settings.downloads_dir)
             else:
                 from backend.db.sqlite_engine import make_sqlite_engine
 
@@ -1447,6 +1541,7 @@ def run_backup_export_task(job_id: str, include_reference_dbs: bool = False) -> 
         REFERENCE_DB_FILES,
         REGISTRY_MANIFEST_FILE,
         build_sample_registry_manifest,
+        collect_backup_sample_files,
     )
 
     archive_path: Path | None = None
@@ -1480,13 +1575,20 @@ def run_backup_export_task(job_id: str, include_reference_dbs: bool = False) -> 
         # Central registry metadata. This is small and required for restored
         # sample files to appear in the app; build it from the live connection
         # so WAL-mode writes are included.
-        files_to_add.append((build_sample_registry_manifest(data_dir), REGISTRY_MANIFEST_FILE))
+        # Collect once and hand the same selection to both the manifest and the
+        # archive. Two independent passes could disagree if a merge published
+        # between them (#2329).
+        backup_sample_files = collect_backup_sample_files(data_dir)
+        files_to_add.append(
+            (
+                build_sample_registry_manifest(data_dir, backup_sample_files),
+                REGISTRY_MANIFEST_FILE,
+            )
+        )
 
         # Sample DB files
-        samples_dir = data_dir / "samples"
-        if samples_dir.exists():
-            for sample_db in sorted(samples_dir.glob("sample_*.db")):
-                files_to_add.append((sample_db, f"samples/{sample_db.name}"))
+        for sample_db in backup_sample_files:
+            files_to_add.append((sample_db, f"samples/{sample_db.name}"))
 
         # Optional standalone reference files
         if include_reference_dbs:

@@ -286,10 +286,17 @@ def test_console_exception_logging_does_not_warn_and_persists_traceback(
         configure_logging(engine_getter=lambda: engine)
         logger = structlog.get_logger("tests.logging_exceptions")
 
+        private_marker = "traceback-private-" + "0123456789abcdef"
+
+        def fail_with_private_local(value: str) -> None:
+            source_binding_key = value
+            assert source_binding_key
+            raise RuntimeError("boom")
+
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             try:
-                raise RuntimeError("boom")
+                fail_with_private_local(private_marker)
             except RuntimeError:
                 logger.exception(
                     "exception_event",
@@ -302,6 +309,7 @@ def test_console_exception_logging_does_not_warn_and_persists_traceback(
         assert "exception_event" in stdout
         assert "AG" not in stdout
         assert "H1" not in stdout
+        assert private_marker not in stdout
         assert _REDACTED_LOG_VALUE in stdout
         assert not [
             warning

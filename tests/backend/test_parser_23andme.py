@@ -92,13 +92,13 @@ class TestParseV5:
         rs429358 = rsid_map.get("rs429358")
         assert rs429358 is not None
         assert rs429358.chrom == "19"
-        assert rs429358.pos == 44908684
+        assert rs429358.pos == 45411941
         assert rs429358.genotype == "TT"
 
         rs7412 = rsid_map.get("rs7412")
         assert rs7412 is not None
         assert rs7412.chrom == "19"
-        assert rs7412.pos == 44908822
+        assert rs7412.pos == 45412079
         assert rs7412.genotype == "CC"
 
     def test_heterozygous_calls_stored_in_canonical_sorted_order(self) -> None:
@@ -427,7 +427,7 @@ class TestIntegration:
             ).fetchone()
             assert row is not None
             assert row.chrom == "19"
-            assert row.pos == 44908684
+            assert row.pos == 45411941
             assert row.genotype == "TT"
 
     def test_roundtrip_v3(self, sample_engine: sa.Engine) -> None:

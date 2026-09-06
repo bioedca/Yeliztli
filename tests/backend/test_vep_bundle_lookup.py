@@ -114,8 +114,8 @@ def sample_engine() -> sa.Engine:
 
 
 SEED_RAW_VARIANTS = [
-    {"rsid": "rs429358", "chrom": "19", "pos": 44908684, "genotype": "TC"},
-    {"rsid": "rs7412", "chrom": "19", "pos": 44908822, "genotype": "CC"},
+    {"rsid": "rs429358", "chrom": "19", "pos": 45411941, "genotype": "TC"},
+    {"rsid": "rs7412", "chrom": "19", "pos": 45412079, "genotype": "CC"},
     {"rsid": "rs1801133", "chrom": "1", "pos": 11856378, "genotype": "AG"},
     {"rsid": "rs4680", "chrom": "22", "pos": 19951271, "genotype": "AG"},
     {
@@ -403,7 +403,7 @@ class TestLookupByPositions:
     """Tests for (chrom, pos) fallback VEP lookup."""
 
     def test_single_position_match(self, vep_engine_inmemory: sa.Engine) -> None:
-        positions = [("19", 44908684, "i_custom_rsid")]
+        positions = [("19", 45411941, "i_custom_rsid")]
         result = lookup_vep_by_positions(positions, vep_engine_inmemory)
         assert len(result) == 1
         assert "i_custom_rsid" in result
@@ -413,7 +413,7 @@ class TestLookupByPositions:
 
     def test_multiple_positions(self, vep_engine_inmemory: sa.Engine) -> None:
         positions = [
-            ("19", 44908684, "custom1"),
+            ("19", 45411941, "custom1"),
             ("1", 11856378, "custom2"),
         ]
         result = lookup_vep_by_positions(positions, vep_engine_inmemory)
@@ -430,7 +430,7 @@ class TestLookupByPositions:
 
     def test_preserves_sample_rsid_as_key(self, vep_engine_inmemory: sa.Engine) -> None:
         """The result is keyed by the sample's rsid, not the bundle's."""
-        positions = [("19", 44908684, "i12345")]
+        positions = [("19", 45411941, "i12345")]
         result = lookup_vep_by_positions(positions, vep_engine_inmemory)
         assert "i12345" in result
         annot = result["i12345"]
@@ -441,7 +441,7 @@ class TestLookupByPositions:
         # Mix unique positions with known ones to exercise batching
         positions = [(f"chr{n}", n, f"i{n}") for n in range(500)]
         # Add a known position to verify at least one match
-        positions.append(("19", 44908684, "i_known"))
+        positions.append(("19", 45411941, "i_known"))
         result = lookup_vep_by_positions(positions, vep_engine_inmemory)
         # Should complete without SQLite bind error
         assert "i_known" in result
@@ -700,7 +700,7 @@ class TestAnnotateSampleVep:
                 annotated_variants.insert().values(
                     rsid="rs429358",
                     chrom="19",
-                    pos=44908684,
+                    pos=45411941,
                     genotype="TC",
                     annotation_coverage=clinvar_bitmask,
                 )
@@ -761,7 +761,7 @@ class TestAnnotateSampleVep:
                 raw_variants.insert().values(
                     rsid="i12345_custom",
                     chrom="19",
-                    pos=44908684,  # Same position as rs429358 (APOE)
+                    pos=45411941,  # Same position as rs429358 (APOE)
                     genotype="TC",
                 )
             )

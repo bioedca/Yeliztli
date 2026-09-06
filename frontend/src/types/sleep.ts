@@ -34,7 +34,7 @@ export interface PathwaySummary {
   pmids: string[]
 }
 
-/** Cross-module reference finding (CYP1A2 → Pharmacogenomics). */
+/** A reference from Sleep to another module, declared per SNP in the panel. */
 export interface CrossModuleItem {
   rsid: string
   gene: string

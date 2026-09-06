@@ -15,8 +15,9 @@ function, oxidative aging, and skin-related micronutrients.
 ## What you'll see
 
 A **level** per pathway (*Elevated* / *Moderate* / *Standard*) and per-SNP findings. *MC1R* is
-aggregated across its variants into a UV-sensitivity read (low / moderate / high), and
-cross-links to the [cancer](../health-risk/cancer.md) module's melanoma context.
+aggregated across its variants into a UV-sensitivity read (low / moderate / high), and points at
+the [cancer](../health-risk/cancer.md) module's melanoma context — which assesses inherited risk
+through *CDKN2A* and *BAP1*, not *MC1R*.
 
 ## Good to know
 

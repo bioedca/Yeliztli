@@ -33,9 +33,12 @@ cost anything when a transfer would otherwise have failed outright.
 
 from __future__ import annotations
 
+import contextvars
 import hashlib
+import hmac
 import random
 import time
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -45,7 +48,7 @@ import httpx
 import structlog
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Mapping
+    from collections.abc import Callable, Iterator, Mapping
 
 logger = structlog.get_logger(__name__)
 
@@ -108,6 +111,204 @@ class DownloadError(Exception):
 
 class IncompleteDownloadError(DownloadError):
     """Raised when the received body is shorter than the advertised total."""
+
+
+class DownloadBindingError(DownloadError):
+    """A scoped download did not match its approved strong-ETag snapshot."""
+
+
+@dataclass(frozen=True)
+class StrongEtagDownloadExpectation:
+    """Expected identity and completeness metadata for one scoped response."""
+
+    etag: str
+    resolved_source_hmac: str
+    content_length: int
+    # Optional release metadata to bind independently of byte identity.  A
+    # strong ETag remains the only byte-identity validator; this field prevents
+    # a builder from persisting version metadata different from the offer.
+    last_modified: str | None = None
+
+
+@dataclass
+class _StrongEtagDownloadScope:
+    expectations: dict[str, StrongEtagDownloadExpectation]
+    source_binding_key: bytes = field(repr=False)
+    completed: set[str] = field(default_factory=set)
+
+    def expectation_for(self, url: str) -> StrongEtagDownloadExpectation:
+        try:
+            return self.expectations[url]
+        except KeyError:
+            # Never echo a possibly signed URL from a scoped build.
+            raise DownloadBindingError("scoped download requested an unexpected source") from None
+
+    def mark_complete(self, url: str) -> None:
+        self.completed.add(url)
+
+    def assert_complete(self) -> None:
+        if self.completed != set(self.expectations):
+            raise DownloadBindingError(
+                "scoped download did not successfully consume every expected source"
+            )
+
+
+_STRONG_ETAG_DOWNLOAD_SCOPE: contextvars.ContextVar[_StrongEtagDownloadScope | None] = (
+    contextvars.ContextVar("strong_etag_download_scope", default=None)
+)
+
+
+def is_strong_etag(value: str) -> bool:
+    """Return whether *value* is one sendable, syntactically strong entity tag."""
+    if not isinstance(value, str) or len(value) < 2 or value.startswith("W/"):
+        return False
+    if value[0] != '"' or value[-1] != '"':
+        return False
+    # RFC 9110 also permits obs-text bytes, but httpx string-valued request
+    # headers are ASCII encoded.  Reject that optional extension during the
+    # sanitized snapshot step instead of failing later while constructing
+    # ``If-Match``.
+    return all(char == "!" or "#" <= char <= "~" for char in value[1:-1])
+
+
+def normalized_download_source(url: str) -> str:
+    """Return the exact redirect resource path without credentials or parameters."""
+    try:
+        parsed = urlsplit(url)
+        if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+            raise ValueError
+        hostname = parsed.hostname
+        host = f"[{hostname}]" if ":" in hostname else hostname
+        port = f":{parsed.port}" if parsed.port is not None else ""
+    except (TypeError, ValueError):
+        raise DownloadBindingError("scoped download has an invalid source identity") from None
+    return urlunsplit((parsed.scheme, f"{host}{port}", parsed.path or "/", "", ""))
+
+
+def download_source_identity(url: str, source_binding_key: bytes) -> str:
+    """Return a keyed binding for a response's exact normalized resource.
+
+    The path is required to distinguish resources on hosts that reuse an ETag,
+    but a plain digest of a credential-bearing path is an offline guessing
+    oracle.  The key is kept outside durable task state and is never retained by
+    the returned value.
+    """
+    if not isinstance(source_binding_key, bytes) or len(source_binding_key) != 32:
+        raise DownloadBindingError("scoped download source-binding key is unavailable")
+    normalized = normalized_download_source(url)
+    return hmac.new(
+        source_binding_key,
+        b"yeliztli-download-source-v2\0" + normalized.encode(),
+        hashlib.sha256,
+    ).hexdigest()
+
+
+@contextmanager
+def bind_strong_etag_downloads(
+    expectations: Mapping[str, StrongEtagDownloadExpectation],
+    *,
+    source_binding_key: bytes,
+) -> Iterator[_StrongEtagDownloadScope]:
+    """Bind all downloads in this context to exact strong ETags and sources.
+
+    The scope is inert for callers that do not opt in.  Within it, every
+    :func:`stream_download` URL must be declared, every 200/206 must report the
+    expected strong ETag, final redirect origin, and complete-object size,
+    and every declared URL must complete successfully before normal exit.
+    """
+    if not expectations:
+        raise DownloadBindingError("scoped download has no expected sources")
+    if not isinstance(source_binding_key, bytes) or len(source_binding_key) != 32:
+        raise DownloadBindingError("scoped download source-binding key is unavailable")
+    checked: dict[str, StrongEtagDownloadExpectation] = {}
+    for requested_url, expectation in expectations.items():
+        if not is_strong_etag(expectation.etag):
+            raise DownloadBindingError("scoped download requires a strong quoted ETag")
+        if (
+            not isinstance(expectation.content_length, int)
+            or isinstance(expectation.content_length, bool)
+            or expectation.content_length <= 0
+        ):
+            raise DownloadBindingError("scoped download requires a positive content length")
+        if expectation.last_modified is not None and (
+            not isinstance(expectation.last_modified, str)
+            or not expectation.last_modified
+            or not expectation.last_modified.isascii()
+            or any(not 0x20 <= ord(char) <= 0x7E for char in expectation.last_modified)
+        ):
+            raise DownloadBindingError("scoped download release metadata is malformed")
+        source_digest = expectation.resolved_source_hmac
+        if (
+            not isinstance(source_digest, str)
+            or len(source_digest) != 64
+            or any(char not in "0123456789abcdef" for char in source_digest)
+        ):
+            raise DownloadBindingError("scoped download source identity is malformed")
+        if requested_url in checked:
+            raise DownloadBindingError("scoped download declares a duplicate source")
+        checked[requested_url] = expectation
+
+    scope = _StrongEtagDownloadScope(checked, source_binding_key)
+    token = _STRONG_ETAG_DOWNLOAD_SCOPE.set(scope)
+    try:
+        yield scope
+        scope.assert_complete()
+    finally:
+        _STRONG_ETAG_DOWNLOAD_SCOPE.reset(token)
+
+
+def _bound_response_total(response: httpx.Response, status: int) -> int | None:
+    if status == 200:
+        value = response.headers.get("Content-Length", "")
+        if isinstance(value, str) and value.isascii() and value.isdecimal():
+            return int(value)
+        return None
+    if status == 206:
+        return _content_range_total(response)
+    return None
+
+
+def _verify_bound_response(
+    response: httpx.Response,
+    expectation: StrongEtagDownloadExpectation,
+    requested_offset: int,
+    source_binding_key: bytes,
+) -> None:
+    """Reject a content response before any bytes are written if it drifted."""
+    status = response.status_code
+    if status == 412:
+        raise DownloadBindingError("scoped download source changed after approval")
+    if status not in {200, 206}:
+        return
+    response_etag = response.headers.get("ETag", "")
+    if not is_strong_etag(response_etag) or response_etag != expectation.etag:
+        raise DownloadBindingError("scoped download response ETag does not match approval")
+    response_source = download_source_identity(str(response.url), source_binding_key)
+    if not hmac.compare_digest(response_source, expectation.resolved_source_hmac):
+        raise DownloadBindingError("scoped download resolved to an unexpected source")
+    if _bound_response_total(response, status) != expectation.content_length:
+        raise DownloadBindingError("scoped download response size does not match approval")
+    if expectation.last_modified is not None:
+        response_last_modified = response.headers.get("Last-Modified", "")
+        if (
+            not isinstance(response_last_modified, str)
+            or response_last_modified.strip() != expectation.last_modified
+        ):
+            raise DownloadBindingError("scoped download release metadata does not match approval")
+    if status == 206:
+        content_range = _content_range_parts(response)
+        content_length = response.headers.get("Content-Length", "")
+        if (
+            content_range is None
+            or requested_offset <= 0
+            or not isinstance(content_length, str)
+            or not content_length.isascii()
+            or not content_length.isdecimal()
+        ):
+            raise DownloadBindingError("scoped download range does not match request")
+        start, end, total = content_range
+        if start != requested_offset or end != total - 1 or int(content_length) != end - start + 1:
+            raise DownloadBindingError("scoped download range does not match request")
 
 
 class _RetryableStatusError(Exception):
@@ -192,6 +393,33 @@ def _content_range_total(response: httpx.Response) -> int | None:
             except ValueError:
                 return None
     return None
+
+
+def _content_range_parts(response: httpx.Response) -> tuple[int, int, int] | None:
+    """Parse a satisfiable byte range as ``(start, end, total)``.
+
+    This deliberately accepts only the canonical numeric form needed for an
+    open-ended resume response.  Unsatisfied ranges (``bytes */N``), unknown
+    totals, malformed bounds, and non-byte units return ``None``.
+    """
+    value = response.headers.get("Content-Range", "")
+    if not isinstance(value, str):
+        return None
+    try:
+        unit, remainder = value.strip().split(None, 1)
+        bounds, total_text = remainder.split("/", 1)
+        start_text, end_text = bounds.split("-", 1)
+    except ValueError:
+        return None
+    numeric = (start_text, end_text, total_text)
+    if unit.lower() != "bytes" or any(
+        not part.isascii() or not part.isdecimal() for part in numeric
+    ):
+        return None
+    start, end, total = (int(part) for part in numeric)
+    if start < 0 or end < start or total <= end:
+        return None
+    return start, end, total
 
 
 def _validator(response: httpx.Response) -> str | None:
@@ -404,6 +632,10 @@ def stream_download(
             a redacted request and response.
     """
     safe_url = _safe_log_url(url)
+    strong_etag_scope = _STRONG_ETAG_DOWNLOAD_SCOPE.get()
+    bound_expectation = (
+        strong_etag_scope.expectation_for(url) if strong_etag_scope is not None else None
+    )
     tmp_path.parent.mkdir(parents=True, exist_ok=True)
     if not resumable:
         # Start fresh — never resume onto a leftover partial we can't vouch for.
@@ -457,6 +689,12 @@ def stream_download(
             req_headers: dict[str, str] = {"Accept-Encoding": "identity"}
             if extra_headers:
                 req_headers.update(extra_headers)
+            if bound_expectation is not None:
+                if any(name.lower() == "if-match" for name in req_headers):
+                    raise DownloadBindingError(
+                        "scoped download cannot override the approved If-Match header"
+                    )
+                req_headers["If-Match"] = bound_expectation.etag
             if offset > 0:
                 req_headers["Range"] = f"bytes={offset}-"
                 if validator:
@@ -468,6 +706,21 @@ def stream_download(
                     client.stream("GET", url, headers=req_headers) as response,
                 ):
                     status = response.status_code
+                    if bound_expectation is not None:
+                        assert strong_etag_scope is not None
+                        _verify_bound_response(
+                            response,
+                            bound_expectation,
+                            offset,
+                            strong_etag_scope.source_binding_key,
+                        )
+                        if status == 416:
+                            # A pre-existing partial is not proof that this build
+                            # consumed the approved response bytes.  Scoped builds
+                            # require an actual, validator-bound 200/206 transfer.
+                            raise DownloadBindingError(
+                                "scoped download did not receive approved content"
+                            )
 
                     # ── Decide append vs. fresh, and learn total/validator ──
                     if offset > 0 and status == 416:
@@ -575,6 +828,16 @@ def stream_download(
                     raise IncompleteDownloadError(
                         f"received {final_size:,} of {expected_total:,} bytes from {safe_url}"
                     )
+                if (
+                    bound_expectation is not None
+                    and final_size != bound_expectation.content_length
+                ):
+                    raise DownloadBindingError(
+                        "scoped download payload size does not match approval"
+                    )
+
+                if strong_etag_scope is not None:
+                    strong_etag_scope.mark_complete(url)
 
                 return DownloadOutcome(
                     path=tmp_path,

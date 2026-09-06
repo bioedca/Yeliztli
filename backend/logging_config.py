@@ -245,7 +245,14 @@ def configure_logging(engine_getter: callable | None = None) -> None:
     if engine_getter is not None:
         processors.append(_db_processor_factory(engine_getter))
 
-    processors.append(structlog.dev.ConsoleRenderer())
+    # RichTracebackFormatter defaults to ``show_locals=True``.  Exception-frame
+    # locals can contain credentials, keyed binding material, or private sample
+    # state that was never added to the structured event and therefore cannot
+    # be removed by the field redactor above.  The dependency-free formatter
+    # keeps the stack and exception while never rendering arbitrary locals.
+    processors.append(
+        structlog.dev.ConsoleRenderer(exception_formatter=structlog.dev.plain_traceback)
+    )
 
     structlog.configure(
         processors=processors,

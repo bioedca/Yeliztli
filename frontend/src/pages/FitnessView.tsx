@@ -17,11 +17,14 @@ import PageError from "@/components/ui/PageError"
 import PageEmpty from "@/components/ui/PageEmpty"
 import { cn } from "@/lib/utils"
 import { parseSampleId } from "@/lib/format"
+import { getModuleMeta } from "@/lib/modules"
 import { useFitnessPathways } from "@/api/fitness"
 import type { CrossContextItem } from "@/types/fitness"
 import PathwayCard from "@/components/fitness/PathwayCard"
 import PathwayDetailPanel from "@/components/fitness/PathwayDetailPanel"
 import EvidenceStars from "@/components/ui/EvidenceStars"
+
+const FITNESS_LABEL = getModuleMeta("fitness").label
 
 export default function FitnessView() {
   const [searchParams] = useSearchParams()
@@ -38,7 +41,7 @@ export default function FitnessView() {
   if (sampleId == null) {
     return (
       <div className="p-6">
-        <h1 className="text-2xl font-bold mb-4">Gene Fitness</h1>
+        <h1 className="text-2xl font-bold mb-4">{FITNESS_LABEL}</h1>
         <PageEmpty icon={Dumbbell} title="Select a sample to view fitness results." />
       </div>
     )
@@ -57,7 +60,7 @@ export default function FitnessView() {
           <Dumbbell className="h-5 w-5" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold">Gene Fitness</h1>
+          <h1 className="text-2xl font-bold">{FITNESS_LABEL}</h1>
           <p className="text-sm text-muted-foreground">
             Categorical pathway scoring for athletic and fitness traits based on your genotype
           </p>

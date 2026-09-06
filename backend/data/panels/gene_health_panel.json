@@ -220,6 +220,7 @@
           "coverage_note": "rs747302 is the DRD4 -616 C/G promoter SNP used here only as low-confidence proxy context for the exon III VNTR. Direct VNTR genotyping is not available on typical microarray platforms, and the SNP-to-VNTR mapping is not reliable enough for a confident VNTR call.",
           "cross_module": {
             "module": "traits",
+            "target_rsids": ["rs747302"],
             "note": "DRD4 rs747302 is a low-confidence contextual proxy for the exon III VNTR. Cross-linked from Traits module where it also appears under novelty seeking."
           }
         },
@@ -282,6 +283,7 @@
           "recommendation_text": "MTHFR C677T TT genotype is associated with elevated homocysteine and increased risk of migraine with aura. Folate supplementation (as methylfolate) may help reduce homocysteine levels. See the Methylation module for comprehensive MTHFR functional assessment and folate pathway analysis.",
           "cross_module": {
             "module": "methylation",
+            "target_rsids": ["rs1801133"],
             "note": "MTHFR C677T is the primary variant in the Methylation module. See Methylation for folate cycle analysis and supplementation guidance."
           }
         },
@@ -891,6 +893,7 @@
           "recommendation_text": "The IL2-IL21 locus is a shared autoimmune susceptibility region for celiac disease, type 1 diabetes, and rheumatoid arthritis. IL-21 promotes B-cell differentiation and antibody production. See the Allergy module for HLA-DQ2/DQ8-based celiac disease assessment, which provides the primary genetic risk stratification.",
           "cross_module": {
             "module": "allergy",
+            "target_rsids": ["rs2187668", "rs7454108"],
             "note": "Celiac disease risk is primarily determined by HLA-DQ2/DQ8. See Allergy module for DQ2/DQ8 proxy results and combined celiac disease assessment."
           }
         },

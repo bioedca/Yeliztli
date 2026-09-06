@@ -1079,6 +1079,17 @@ class TestModuleDisclaimers:
         for mod in MODULE_DISCLAIMERS:
             assert mod in MODULE_DISPLAY_NAMES, f"Missing display name for {mod}"
 
+    def test_pathway_report_names_match_canonical_interface_labels(self) -> None:
+        expected = {
+            "fitness": "Fitness",
+            "sleep": "Sleep",
+            "skin": "Skin",
+            "allergy": "Allergy",
+        }
+        for module, label in expected.items():
+            assert MODULE_DISPLAY_NAMES[module] == label
+            assert MODULE_DISCLAIMERS[module]["title"] == f"About {label} Results"
+
 
 # ── Integration tests: API endpoints ──────────────────────────────
 

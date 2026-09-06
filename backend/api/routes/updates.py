@@ -7,6 +7,7 @@ and checking for app updates via GitHub Releases API.
 
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime
 from typing import Any, Literal
 
@@ -22,7 +23,9 @@ from backend.db.connection import get_registry
 from backend.db.database_registry import DATABASES, get_build_fn, get_database_status
 from backend.db.update_manager import (
     AUTO_UPDATE_DEFAULTS,
+    MondoHpoSourceBindingError,
     check_all_updates,
+    check_mondo_hpo_update,
     dismiss_prompt,
     format_version_display,
     get_active_prompts,
@@ -315,7 +318,11 @@ async def check_for_updates() -> UpdateCheckResponse:
         return UpdateCheckResponse(
             available=[], up_to_date=[], errors=[], checked_at=datetime.now(UTC).isoformat()
         )
-    result = check_all_updates(registry.reference_engine, settings=registry.settings)
+    result = await asyncio.to_thread(
+        check_all_updates,
+        registry.reference_engine,
+        settings=registry.settings,
+    )
 
     return UpdateCheckResponse(
         available=[
@@ -370,6 +377,33 @@ async def trigger_update(req: TriggerUpdateRequest) -> TriggerUpdateResponse:
     registry = get_registry()
     settings = registry.settings
     estimated_size = db_info.expected_size_bytes if db_info else 0
+    mondo_hpo_offer = None
+    if req.db_name == "mondo_hpo":
+        # Recheck at dispatch time so the URL, version, size, and validators
+        # approved for this manual job come from one stable three-source
+        # snapshot.  Only its opaque binding enters the durable Huey queue.
+        try:
+            mondo_hpo_offer = await asyncio.to_thread(
+                check_mondo_hpo_update,
+                registry.reference_engine,
+                settings=settings,
+            )
+        except MondoHpoSourceBindingError:
+            raise HTTPException(
+                status_code=409,
+                detail="MONDO/HPO sources could not be bound to this update; retry.",
+            ) from None
+        if mondo_hpo_offer is None:
+            raise HTTPException(
+                status_code=409,
+                detail="No MONDO/HPO update is currently available.",
+            )
+        if mondo_hpo_offer._source_binding is None:
+            raise HTTPException(
+                status_code=409,
+                detail="MONDO/HPO source validators are unavailable; retry.",
+            )
+        estimated_size = mondo_hpo_offer.download_size_bytes
     if is_download and settings.update_download_window is not None:
         from backend.db.update_manager import _fetch_encode_ccres_remote_info
 
@@ -392,7 +426,14 @@ async def trigger_update(req: TriggerUpdateRequest) -> TriggerUpdateResponse:
         )
 
     job_id = create_database_update_job(req.db_name)
-    run_database_update_task(job_id, req.db_name)
+    if mondo_hpo_offer is None:
+        run_database_update_task(job_id, req.db_name)
+    else:
+        run_database_update_task(
+            job_id,
+            req.db_name,
+            mondo_hpo_offer._source_binding,
+        )
 
     return TriggerUpdateResponse(
         job_id=job_id,

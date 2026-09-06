@@ -102,6 +102,7 @@ from backend.db.reference_schema import (
     ensure_reference_schema_current,
 )
 from backend.logging_config import configure_logging
+from backend.services.sample_merge import recover_unpublished_merge_artifacts
 from backend.tasks.huey_tasks import recover_orphaned_jobs
 from backend.version import app_version
 
@@ -244,6 +245,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         # Mark any download checkpoints stuck mid-transfer as failed so the partial
         # surfaces as honestly resumable instead of a phantom "downloading" forever.
         recover_orphaned_downloads(registry.reference_engine)
+        # Remove merged databases whose publication never committed (#2329).
+        # Keyed on the publication uuid in the file name, never on a sample id,
+        # so a later sample that reused a vacated rowid can never be collected.
+        recover_unpublished_merge_artifacts(registry)
         logger.info("DBRegistry initialised (reference.db engine ready)")
         yield
     except BaseException:
