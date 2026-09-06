@@ -61,7 +61,7 @@
     {
       "id": "PMID:19890111",
       "doi": "10.1056/NEJMoa0907206",
-      "supports": "C1",
+      "supports": "C1 search context only -- a receptor (IL10RA/IL10RB) cohort that cannot support the considered per-gene IL10 statement; retained to show what the search found and why the value is withheld",
       "kind": "primary",
       "title": "Inflammatory bowel disease and mutations affecting the interleukin-10 receptor.",
       "journal": "N Engl J Med 2009",
@@ -78,7 +78,7 @@
     {
       "id": "PMID:28267044",
       "doi": "10.1097/MIB.0000000000001058",
-      "supports": "C1",
+      "supports": "C1 search context only -- a receptor (IL10RA/IL10RB) cohort that cannot support the considered per-gene IL10 statement; retained to show what the search found and why the value is withheld",
       "kind": "primary",
       "title": "Mutations in Interleukin-10 Receptor and Clinical Phenotypes in Patients with Very Early Onset Inflammatory Bowel Disease: A Chinese VEO-IBD Collaboration Group Survey.",
       "journal": "Inflamm Bowel Dis 2017",
@@ -129,7 +129,7 @@
     {
       "id": "PMID:21519361",
       "doi": "10.1038/ajg.2011.112",
-      "supports": "C1",
+      "supports": "C1 search context only -- a receptor (IL10RA/IL10RB) cohort that cannot support the considered per-gene IL10 statement; retained to show what the search found and why the value is withheld",
       "kind": "primary",
       "title": "Defective IL10 signaling defining a subgroup of patients with inflammatory bowel disease.",
       "journal": "Am J Gastroenterol 2011",
