@@ -1,0 +1,38 @@
+{
+  "_artifact_note": "DERIVED from the retained sanitized efetch XML in this directory: per cited PMID, every CommentsCorrections link with its RefType, plus the publication types. Abstracts were removed from the XML under the bibliographic-metadata-only retention rule; nothing else was touched. Complete with respect to records: every requested PMID is present.",
+  "_notice_reftypes_searched": [
+    "CorrectedandRepublishedIn",
+    "ErratumIn",
+    "ExpressionOfConcernIn",
+    "PartialRetractionIn",
+    "ReprintIn",
+    "RepublishedIn",
+    "RetractionIn",
+    "UpdateIn"
+  ],
+  "records": [
+    {
+      "pmid": "22549091",
+      "publication_types": [
+        "Evaluation Study",
+        "Journal Article",
+        "Research Support, Non-U.S. Gov't",
+        "Video-Audio Media"
+      ],
+      "comments_corrections_total": 2,
+      "comments_corrections": [
+        {
+          "RefType": "CommentIn",
+          "RefSource": "Gastroenterology. 2012 Aug;143(2):285-8. doi: 10.1053/j.gastro.2012.06.025.",
+          "PMID": "22727850"
+        },
+        {
+          "RefType": "CommentIn",
+          "RefSource": "Korean J Gastroenterol. 2013 Nov;62(5):313-4. doi: 10.4166/kjg.2013.62.5.313.",
+          "PMID": "24404649"
+        }
+      ],
+      "notice_links": []
+    }
+  ]
+}

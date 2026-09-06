@@ -7,9 +7,20 @@
       "10.1097/MIB.0000000000001058",
       "10.1038/ajg.2011.112",
       "10.1038/nature02214",
-      "10.1097/FPC.0000000000000184"
+      "10.1097/FPC.0000000000000184",
+      "10.1053/j.gastro.2012.04.045"
     ],
-    "limit": 5
+    "limit": 5,
+    "calls": [
+      {
+        "date": "2026-09-05",
+        "dois": 5
+      },
+      {
+        "date": "2026-09-06",
+        "dois": 1
+      }
+    ]
   },
   "_accessed": "2026-09-05",
   "records": [
@@ -87,6 +98,23 @@
         "citingPublications": 14
       },
       "editorialNotices": "field absent in response (none reported)"
+    },
+    {
+      "doi": "10.1053/j.gastro.2012.04.045",
+      "pmid": "22549091",
+      "title": "Loss of Interleukin-10 Signaling and Infantile Inflammatory Bowel Disease: Implications for Diagnosis and Therapy",
+      "year": 2012,
+      "journal": "gastroenterology",
+      "tally": {
+        "total": 384,
+        "supporting": 17,
+        "contrasting": 1,
+        "mentioning": 357,
+        "citingPublications": 472
+      },
+      "editorialNotices": "field absent in response (none reported)",
+      "retrieved": "2026-09-06",
+      "role": "the one IL10 ligand cohort surfaced by the retained PubMed ESearch; NOT a supporting source for any claim"
     }
   ]
 }

@@ -37,11 +37,22 @@ not share an upstream assertion before a user-facing claim of this kind is encod
 
 Searches for an IL10 **ligand** cohort, each retained: Consensus on 2026-08-31 (20 papers, derived
 record); Scite on 2026-09-05/06 (a ligand-only query excluding the receptor genes, paged to
-exhaustion — 17 records returned of a reported 22, every DOI and title retained); and a PubMed
-ESearch on 2026-09-06 (Title/Abstract term excluding `IL10RA`/`IL10RB`, **1** record:
-`PMID:22549091`, publication type Evaluation Study/Journal Article/Research Support, Non-U.S. Gov't/Video-Audio Media, verbatim ESearch and eSummary retained).
-None of the returned records is an IL10 ligand variant cohort. That is the whole supported statement;
-nothing is asserted here about who authored the ligand literature.
+exhaustion — 17 records returned of a reported 22, every DOI and title retained; none a ligand
+cohort); and a PubMed ESearch on 2026-09-06 (Title/Abstract term excluding `IL10RA`/`IL10RB`,
+verbatim ESearch and eSummary retained). The ESearch returned exactly **one** record, and it *is* an
+IL10 ligand cohort:
+
+| Source | Cohort | Why it does not close C1 |
+| --- | --- | --- |
+| `PMID:22549091` / `DOI:10.1053/j.gastro.2012.04.045` — Kotlarz D et al., *Gastroenterology* 2012 **(accessed 2026-09-06)** | 66 early-onset IBD patients; 3 with `IL10` mutations, homozygous loss of function (abstract of the live record) | **One** source. Its 35-author list shares **14** authors with the cited receptor cohort `PMID:19890111` (28 authors) — read from the two retained eSummaries — so it cannot pair with that cohort as an independent second source, and no other IL10 ligand cohort was found. Notice-checked (EFetch typed relations, Scite): clean. |
+
+That is the whole supported statement about the literature; nothing is asserted about who authored
+it beyond the retained author lists.
+
+> **Correction.** The revision immediately before this one stated that none of the returned records
+> was an IL10 ligand cohort and called the ESearch hit a review. Its retained publication types are
+> `Evaluation Study` / `Journal Article`, and its abstract reports three IL-10-mutant patients. The
+> statement was corrected the same hour, before any claim rested on it.
 
 **What would close it.** Two agreeing, independently-authored primary sources reporting IL10
 (ligand) loss-of-function variants and their transmission — or a maintainer decision that the
@@ -114,7 +125,7 @@ obsolescence is the analogous check — `MONDO:0016542` is not obsolete.
 
 - **Consensus** — invoked 2026-08-31; 20 papers, retained as a **derived** record.
 - **Scite** — invoked **2026-09-05/06**, after the service-reported quota reset of 2026-09-03 (an earlier revision recorded the August failure as current). Retained as **derived** records: metadata for the five cited DOIs (no editorial notice on any) and a term search for an IL10 **ligand** loss-of-function cohort excluding the receptor genes, paged to exhaustion — 17 records returned of a reported 22, none a ligand cohort, so C1 stays withheld.
-- **PubMed ESearch** — **2026-09-06**, the negative search itself retained verbatim (1 record, a review by publication type) rather than described.
+- **PubMed ESearch** — **2026-09-06**, the negative search itself retained verbatim (1 record, `PMID:22549091`, an IL10 ligand cohort from the same author group as the cited receptor cohort; recorded above as insufficient on its own).
 - **Fallback** — PubMed for the literature, EBI OLS4 for the ontology record.
 
 Versions: OLS4 exposes **mondo 2026-08-04**, retained as a payload. Neither the Consensus MCP
@@ -124,9 +135,10 @@ as **not exposed** rather than guessed.
 ## Retained evidence
 
 `raw/` holds **eleven unedited verbatim API responses** (three NCBI eSummary, one NCBI ESearch, five
-NCBI eLink, two EBI OLS4), **one sanitized response** (the NCBI EFetch XML for all five PMIDs, abstracts removed and
-nothing else touched, labelled in its filename) and **four derived records**, each labelled as
-derived in the file itself: the Consensus call, the two Scite calls, and the reduction of the
-EFetch XML to its `CommentsCorrections` and publication-type fields. `source-manifest.json` records each exact
+NCBI eLink, two EBI OLS4), **two sanitized responses** (the NCBI EFetch XML for the five cited PMIDs
+and for `PMID:22549091`, abstracts removed and nothing else touched, labelled in their filenames) and
+**five derived records**, each labelled as derived in the file itself: the Consensus call, the two
+Scite calls, and the two reductions of the EFetch XML files to their `CommentsCorrections` and
+publication-type fields. `source-manifest.json` records each exact
 request, source, SHA-256, byte length, access date, per-source licence and the retraction-check
 method. No payload required further sanitization: all are public bibliographic or ontology records.

@@ -461,9 +461,11 @@ def test_il10_inheritance_is_withheld_for_now() -> None:
     gene-keyed: `_lookup_gene_phenotype` returns its value as the
     `inheritance_pattern` shown beside an *IL10* variant, which makes it a
     per-gene claim. Three independent cohorts -- PMID:19890111, PMID:28267044 and
-    PMID:21519361 -- characterise only the IL10RA/IL10RB receptor forms; no
-    ligand-specific pair of agreeing sources was found. Per the evidence contract,
-    the value is withheld rather than guessed.
+    PMID:21519361 -- characterise only the IL10RA/IL10RB receptor forms; the one
+    IL10 ligand cohort the retained searches surfaced (PMID:22549091) shares its
+    author group with PMID:19890111, so no independent pair of agreeing ligand
+    sources exists. Per the evidence contract, the value is withheld rather than
+    guessed.
 
     This test pins both halves: IL10 must stay listed as unverified, and it must
     never be reclassified as polygenic on the strength of its blank.
